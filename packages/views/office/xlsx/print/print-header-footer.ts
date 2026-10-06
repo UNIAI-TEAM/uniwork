@@ -13,6 +13,8 @@
 // Pages: `@page` is the odd (and every) page, `@page:left` the even pages
 // when `differentOddEven` is set (page 1 is a right page), `@page:first` the
 // first page when `differentFirst` is set (declared last, so it wins).
+// The header/footer distance is clamped so one line still fits inside the
+// page margin (a distance at or past the margin would push the text out).
 // `&G` (picture) prints nothing. Every literal reaches CSS as an escaped
 // string, and every font value passes print-styles' whitelists, so header
 // text can neither end the declaration nor the <style> element.
@@ -173,11 +175,27 @@ function fontDeclarations(font: HeaderFont, scale: number): string {
 
 const SECTIONS = ["left", "center", "right"] as const;
 
-function boxes(edge: "top" | "bottom", sections: Sections | null, style: string, scale: number): string {
+/** Excel's header/footer font size when the string names none. */
+const DEFAULT_SIZE = 11;
+
+/** The edge's distance from the paper, clamped so a line of the section's
+ *  largest font (1.2 line height) still ends inside the margin. */
+function distance(edge: "top" | "bottom", sections: Sections | null, geometry: XlsxHeaderGeometry): number {
+  const largest = Math.max(DEFAULT_SIZE, ...SECTIONS.map((key) => sections?.[key].font.size ?? DEFAULT_SIZE));
+  const line = (largest * geometry.scale * 1.2) / 72;
+  const wanted = edge === "top" ? geometry.header : geometry.footer;
+  const margin = edge === "top" ? geometry.marginTop : geometry.marginBottom;
+  return Math.max(0, Math.min(wanted, margin - line));
+}
+
+function boxes(edge: "top" | "bottom", sections: Sections | null, common: string, geometry: XlsxHeaderGeometry): string {
+  const style = edge === "top"
+    ? `${common};vertical-align:top;padding-top:${round(distance(edge, sections, geometry))}in`
+    : `${common};vertical-align:bottom;padding-bottom:${round(distance(edge, sections, geometry))}in`;
   return SECTIONS
     .map((key) => {
       const section = sections?.[key];
-      return `@${edge}-${key}{content:${section ? content(section.parts) : "none"};${style}${section ? fontDeclarations(section.font, scale) : ""}}`;
+      return `@${edge}-${key}{content:${section ? content(section.parts) : "none"};${style}${section ? fontDeclarations(section.font, geometry.scale) : ""}}`;
     })
     .join("");
 }
@@ -186,13 +204,13 @@ interface XlsxHeaderGeometry {
   /** Header / footer distance from the paper edge, in inches. */
   readonly header: number;
   readonly footer: number;
+  /** The page's top / bottom margins, in inches (the margin boxes' height). */
+  readonly marginTop: number;
+  readonly marginBottom: number;
   /** The print scale (fonts scale with the sheet, Excel's default). */
   readonly scale: number;
   readonly fontFamily: string;
 }
-
-/** Excel's header/footer font size when the string names none. */
-const DEFAULT_SIZE = 11;
 
 /** The @page margin-box rules for the sheet's header and footer (empty when
  *  the file has none). */
@@ -204,10 +222,8 @@ export function headerFooterRules(
   if (!headerFooter) return [];
   const parse = (text: string | undefined): Sections | null => (text ? parseHeaderFooter(text, context) : null);
   const common = `font-family:${geometry.fontFamily};font-size:${round(DEFAULT_SIZE * geometry.scale)}pt;color:#000000;white-space:pre`;
-  const top = `${common};vertical-align:top;padding-top:${round(geometry.header)}in`;
-  const bottom = `${common};vertical-align:bottom;padding-bottom:${round(geometry.footer)}in`;
   const rule = (selector: string, header: string | undefined, footer: string | undefined): string =>
-    `@page${selector}{${boxes("top", parse(header), top, geometry.scale)}${boxes("bottom", parse(footer), bottom, geometry.scale)}}`;
+    `@page${selector}{${boxes("top", parse(header), common, geometry)}${boxes("bottom", parse(footer), common, geometry)}}`;
   const rules: string[] = [];
   if (headerFooter.oddHeader || headerFooter.oddFooter) rules.push(rule("", headerFooter.oddHeader, headerFooter.oddFooter));
   if (headerFooter.differentOddEven) rules.push(rule(":left", headerFooter.evenHeader, headerFooter.evenFooter));

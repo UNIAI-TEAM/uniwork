@@ -157,6 +157,8 @@ function stylesheet(sheet: XlsxPrintSheet, scale: number, usedStyles: ReadonlySe
     ...headerFooterRules(setup.headerFooter, sheet.headerContext ?? { sheetName: "", fileName: sheet.title, date: "", time: "" }, {
       header: margins.header ?? 0.3,
       footer: margins.footer ?? 0.3,
+      marginTop: margins.top,
+      marginBottom: margins.bottom,
       scale,
       fontFamily: family,
     }),

@@ -158,6 +158,19 @@ describe("header and footer", () => {
     expect(html).toContain("content:\"\\22 };\\3c /style\\3e \\3c script\\3e x\\3c /script\\3e \\5c \"");
   });
 
+  it("keeps a header/footer distance at or past the margin inside the margin box (R10)", () => {
+    const { html } = build(sheet({
+      file: {
+        margins: { left: 0.7, right: 0.7, top: 0.75, bottom: 0.25, header: 0.9, footer: 0.2 },
+        headerFooter: { oddHeader: "&CTop", oddFooter: "&C&20Big" },
+      },
+    }));
+    // 0.75in margin - one 11pt line (13.2pt = 0.18in) = 0.57in.
+    expect(html).toContain("padding-top:0.57in");
+    // A 20pt line (0.33in) does not fit a 0.25in margin: no padding at all.
+    expect(html).toContain("padding-bottom:0in");
+  });
+
   it("adds nothing when the file has no header or footer", () => {
     expect(build(sheet()).html).not.toContain("@top-");
   });
@@ -187,6 +200,36 @@ describe("overflow and ####", () => {
   it("clips text with no empty neighbour and leaves short text alone", () => {
     const { doc } = build(sheet({ cells: { "0:0": text("Too long to fit here"), "0:1": text("b"), "1:0": text("ok") } }));
     expect(doc.querySelectorAll(".ox")).toHaveLength(0);
+  });
+
+  it("spills toward the left on a right-to-left sheet (R2)", () => {
+    const { doc } = build({ ...sheet({ cells: { "2:0": text("stop"), "2:1": text("A very long left text"), "2:3": text("x") } }), rightToLeft: true });
+    const cell = Array.from(doc.querySelectorAll("tbody tr"))[2]!.querySelectorAll("td")[1]!;
+    // The logical next column (C) is physically on the left under dir="rtl".
+    expect(cell.querySelector(".ox")?.getAttribute("style")).toBe("left:-48pt;right:0pt;justify-content:flex-start;align-items:flex-end");
+  });
+
+  it("spills a repeated title column only into its sheet neighbour, not the page's first body column (R3)", () => {
+    const { doc } = build(sheet({
+      cells: { "0:0": text("A long title column text") },
+      used: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 29 },
+      names: [{ name: "_xlnm.Print_Titles", formula: "Data!$A:$A", sheetIndex: 0 }],
+    }));
+    const pages = Array.from(doc.querySelectorAll("section.page"));
+    expect(pages.length).toBeGreaterThan(1);
+    const first = (page: Element) => page.querySelector("tbody td")!;
+    // Page 1: A spills into B. Later pages: A sits beside a far column.
+    expect(first(pages[0]!).querySelector(".ox")).not.toBeNull();
+    for (const page of pages.slice(1)) {
+      expect(first(page).textContent).toBe("A long title column text");
+      expect(first(page).querySelector(".ox")).toBeNull();
+    }
+  });
+
+  it("spills across a hidden column to the next shown one", () => {
+    const base = sheet({ cells: { "0:0": text("A very long left text") } });
+    const { doc } = build({ ...base, columns: new Map([[1, { hidden: true }]]) });
+    expect(doc.querySelector("tbody td .ox")?.getAttribute("style")).toContain("right:-96pt");
   });
 
   it("shows #### for a formatted number too wide and rounds a General decimal first", () => {

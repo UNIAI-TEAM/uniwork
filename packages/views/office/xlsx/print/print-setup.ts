@@ -41,14 +41,25 @@ export interface XlsxResolvedPrintSetup {
   readonly colBreaks: readonly number[];
 }
 
-/** OOXML ST_PaperSize codes we know, in inches (portrait). Unknown -> A4. */
+const mm = (width: number, height: number): readonly [number, number] => [width / 25.4, height / 25.4];
+
+/** ECMA-376 ST_PaperSize codes 1-68 plus the Windows DMPAPER codes Excel
+ *  also writes for A6 (70) and JIS B6 (88), in inches, short side first
+ *  (orientation turns them). "Transverse" codes are the same sheet fed the
+ *  other way. Unknown -> A4. */
 const PAPER_INCHES: Readonly<Record<number, readonly [number, number]>> = {
-  1: [8.5, 11],
-  3: [11, 17],
-  5: [8.5, 14],
-  8: [297 / 25.4, 420 / 25.4],
-  9: [210 / 25.4, 297 / 25.4],
-  11: [148 / 25.4, 210 / 25.4],
+  1: [8.5, 11], 2: [8.5, 11], 3: [11, 17], 4: [11, 17], 5: [8.5, 14], 6: [5.5, 8.5], 7: [7.25, 10.5],
+  8: mm(297, 420), 9: mm(210, 297), 10: mm(210, 297), 11: mm(148, 210), 12: mm(257, 364), 13: mm(182, 257),
+  14: [8.5, 13], 15: mm(215, 275), 16: [10, 14], 17: [11, 17], 18: [8.5, 11],
+  19: [3.875, 8.875], 20: [4.125, 9.5], 21: [4.5, 10.375], 22: [4.75, 11], 23: [5, 11.5],
+  24: [17, 22], 25: [22, 34], 26: [34, 44],
+  27: mm(110, 220), 28: mm(162, 229), 29: mm(324, 458), 30: mm(229, 324), 31: mm(114, 162), 32: mm(114, 229),
+  33: mm(250, 353), 34: mm(176, 250), 35: mm(125, 176), 36: mm(110, 230), 37: [3.875, 7.5], 38: [3.625, 6.5],
+  39: [11, 14.875], 40: [8.5, 12], 41: [8.5, 13], 42: mm(250, 353), 43: mm(100, 148), 44: [9, 11], 45: [10, 11],
+  46: [11, 15], 47: mm(220, 220), 50: [9.275, 12], 51: [9.275, 15], 52: [11.69, 18], 53: mm(236, 322),
+  54: [8.275, 11], 55: mm(210, 297), 56: [9.275, 12], 57: mm(227, 356), 58: mm(305, 487), 59: [8.5, 12.69],
+  60: mm(210, 330), 61: mm(148, 210), 62: mm(182, 257), 63: mm(322, 445), 64: mm(174, 235), 65: mm(201, 276),
+  66: mm(420, 594), 67: mm(297, 420), 68: mm(322, 445), 70: mm(105, 148), 88: mm(128, 182),
 };
 const A4 = 9;
 

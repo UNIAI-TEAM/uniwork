@@ -62,6 +62,34 @@ describe("collectXlsxPrintSheet", () => {
     expect(result.sheet.cells.get("4:2")?.text).toBe("beyond");
   });
 
+  it("prints a date-formatted serial as a date without a grid (R9)", async () => {
+    const port = host({ styles: [PLAIN, { ...PLAIN, numberFormat: "dd/mm/yyyy" }] });
+    const dates: XlsxWorkbookSnapshot = { revision: 1, sheets: [{ id: "sheet-1", name: "Data", cells: { B2: { value: 45936.5 } } }] };
+    const result = await collectXlsxPrintSheet({ host: port, sheetName: "Data", snapshot: dates, title: "Book" });
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.sheet.cells.get("1:1")?.text).toBe("2025-10-06 12:00");
+    const old = host({ styles: [PLAIN, { ...PLAIN, numberFormat: "yyyy-mm-dd" }], date1904: true });
+    const day: XlsxWorkbookSnapshot = { revision: 1, sheets: [{ id: "sheet-1", name: "Data", cells: { B2: { value: 0 } } }] };
+    const oldResult = await collectXlsxPrintSheet({ host: old, sheetName: "Data", snapshot: day, title: "Book" });
+    if (!oldResult.ok) throw new Error(oldResult.reason);
+    expect(oldResult.sheet.cells.get("1:1")?.text).toBe("1904-01-01");
+  });
+
+  it("reads a large range in row chunks and yields between them (R5)", async () => {
+    const port = host({ definedNames: [{ name: "_xlnm.Print_Area", formula: "Data!$A$1:$J$4500", sheetIndex: 0 }] });
+    const grid = { readRangeValues: vi.fn(() => null), readPrintRange: vi.fn(() => null) };
+    const result = await collectXlsxPrintSheet({ host: port, sheetName: "Data", snapshot: null, grid, title: "Book" });
+    expect(result.ok).toBe(true);
+    // 10 columns -> 2,000 rows (20,000 cells) per chunk.
+    const ranges = vi.mocked(port.readRange).mock.calls.map(([call]) => call.range);
+    expect(ranges).toEqual([
+      { startRow: 0, endRow: 1999, startColumn: 0, endColumn: 9 },
+      { startRow: 2000, endRow: 3999, startColumn: 0, endColumn: 9 },
+      { startRow: 4000, endRow: 4499, startColumn: 0, endColumn: 9 },
+    ]);
+    expect(grid.readPrintRange.mock.calls.map((call) => (call as unknown[])[1])).toEqual(ranges);
+  });
+
   it("honours the sheet-scoped print area and reads title rows outside it", async () => {
     const port = host({ definedNames: [
       { name: "_xlnm.Print_Area", formula: "Data!$B$10:$B$12", sheetIndex: 0 },
@@ -70,7 +98,9 @@ describe("collectXlsxPrintSheet", () => {
     const result = await collectXlsxPrintSheet({ host: port, sheetName: "Data", snapshot: null, title: "Book" });
     if (!result.ok) throw new Error(result.reason);
     expect(result.sheet.areas).toEqual([{ startRow: 9, endRow: 11, startColumn: 1, endColumn: 1 }]);
-    expect(port.readRange).toHaveBeenCalledWith({ sessionId: "s-1", sheetId: "sheet-1", range: { startRow: 0, endRow: 11, startColumn: 1, endColumn: 1 } });
+    // The area and the title row are separate reads (R4).
+    expect(port.readRange).toHaveBeenCalledWith({ sessionId: "s-1", sheetId: "sheet-1", range: { startRow: 9, endRow: 11, startColumn: 1, endColumn: 1 } });
+    expect(port.readRange).toHaveBeenCalledWith({ sessionId: "s-1", sheetId: "sheet-1", range: { startRow: 0, endRow: 0, startColumn: 1, endColumn: 1 } });
     expect(result.sheet.setup.titleRows).toEqual({ start: 0, end: 0 });
   });
 
@@ -135,9 +165,16 @@ describe("collectXlsxPrintSheet", () => {
       { startRow: 4, endRow: 5, startColumn: 2, endColumn: 3 },
       { startRow: 8, endRow: 8, startColumn: 5, endColumn: 5 },
     ]);
+    // Each area, then its title rows, title columns and their corner (R4).
     expect(vi.mocked(port.readRange).mock.calls.map(([call]) => call.range)).toEqual([
-      { startRow: 0, endRow: 5, startColumn: 0, endColumn: 3 },
-      { startRow: 0, endRow: 8, startColumn: 0, endColumn: 5 },
+      { startRow: 4, endRow: 5, startColumn: 2, endColumn: 3 },
+      { startRow: 0, endRow: 0, startColumn: 2, endColumn: 3 },
+      { startRow: 4, endRow: 5, startColumn: 0, endColumn: 0 },
+      { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 },
+      { startRow: 8, endRow: 8, startColumn: 5, endColumn: 5 },
+      { startRow: 0, endRow: 0, startColumn: 5, endColumn: 5 },
+      { startRow: 8, endRow: 8, startColumn: 0, endColumn: 0 },
+      { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 },
     ]);
     expect(result.sheet.setup.titleColumns).toEqual({ start: 0, end: 0 });
     expect(result.sheet.headerContext).toEqual({ sheetName: "Data", fileName: "Book.xlsx", date: "06/10/2026", time: "19:30" });
@@ -148,6 +185,17 @@ describe("collectXlsxPrintSheet", () => {
     const huge = host({ definedNames: [{ name: "_xlnm.Print_Area", formula: "Data!$A$1:$Z$100000", sheetIndex: 0 }] });
     expect(await collectXlsxPrintSheet({ host: huge, sheetName: "Data", snapshot: null, title: "Book" })).toEqual({ ok: false, reason: "print_too_large" });
     expect(huge.readRange).not.toHaveBeenCalled();
+    // A small area far below its title row is not a union of the two (R4).
+    const far = host({ definedNames: [
+      { name: "_xlnm.Print_Area", formula: "Data!$A$300000:$J$300010", sheetIndex: 0 },
+      { name: "_xlnm.Print_Titles", formula: "Data!$1:$1", sheetIndex: 0 },
+    ] });
+    const farResult = await collectXlsxPrintSheet({ host: far, sheetName: "Data", snapshot: null, title: "Book" });
+    expect(farResult.ok).toBe(true);
+    expect(vi.mocked(far.readRange).mock.calls.map(([call]) => call.range)).toEqual([
+      { startRow: 299_999, endRow: 300_009, startColumn: 0, endColumn: 9 },
+      { startRow: 0, endRow: 0, startColumn: 0, endColumn: 9 },
+    ]);
   });
 });
 
@@ -177,5 +225,16 @@ describe("print setup references", () => {
     expect(setup.margins).toEqual({ left: 0.25, right: 0.25, top: 0.75, bottom: 0.75 });
     // An unknown paper code prints on A4.
     expect(setup.paper.width).toBeCloseTo(8.27, 2);
+  });
+
+  it("knows the ISO, JIS, US and envelope paper codes Excel writes (R6)", () => {
+    const paper = (paperSize: number, orientation?: "landscape") => resolvePrintSetup({ file: { paperSize, orientation }, sheetIndex: 0, used }).paper;
+    const inches = (value: { width: number; height: number }) => [Math.round(value.width * 100) / 100, Math.round(value.height * 100) / 100];
+    expect(inches(paper(12))).toEqual([10.12, 14.33]); // JIS B4 257 x 364 mm
+    expect(inches(paper(13))).toEqual([7.17, 10.12]); // JIS B5
+    expect(inches(paper(70))).toEqual([4.13, 5.83]); // A6
+    expect(inches(paper(7))).toEqual([7.25, 10.5]); // Executive
+    expect(inches(paper(20))).toEqual([4.13, 9.5]); // #10 envelope
+    expect(inches(paper(66, "landscape"))).toEqual([23.39, 16.54]); // A2, turned
   });
 });

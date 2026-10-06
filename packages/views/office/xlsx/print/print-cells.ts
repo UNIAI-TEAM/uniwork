@@ -8,7 +8,10 @@
 // Text widths are estimated from the font size (no layout engine here), so
 // the decision to overflow or show `####` is close to Excel's, not exact.
 // D3: a data bar or icon (print-marks) is placed first in its cell and the
-// text rides above it; "show bar/icon only" prints no text.
+// text rides above it; "show bar/icon only" prints no text. Text spills only
+// into the sheet's own neighbours (hidden columns between them aside), never
+// from a repeated title column into the page's first body column; on a
+// right-to-left sheet the next column is the one on the left.
 import type { XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
 import type { XlsxPrintCell, XlsxPrintSheet } from "./print-copy";
 import { ICON_TEXT_OFFSET, markHtml } from "./print-marks";
@@ -97,6 +100,16 @@ export function renderRows(sheet: XlsxPrintSheet, input: XlsxPrintRowsInput): st
   const { spans, covered } = spansFor(sheet, rows, columns);
   const widthOf = (column: number): number => widths.get(column) ?? sheet.defaultColumnWidth;
   const heightOf = (row: number): number => sheet.rows.get(row)?.height ?? sheet.defaultRowHeight;
+  const hiddenColumn = (column: number): boolean => {
+    const entry = sheet.columns.get(column);
+    return entry?.hidden === true || (entry?.width ?? sheet.defaultColumnWidth) <= 0;
+  };
+  // The printed column at `to` is the sheet neighbour of `from` in direction `step`.
+  const neighbours = (from: number, to: number, step: 1 | -1): boolean => {
+    if ((to - from) * step <= 0) return false;
+    for (let column = Math.min(from, to) + 1; column < Math.max(from, to); column += 1) if (!hiddenColumn(column)) return false;
+    return true;
+  };
   const baseSize = sheet.defaultFont?.size ?? DEFAULT_FONT_SIZE;
   let html = "";
   for (const row of rows) {
@@ -112,7 +125,7 @@ export function renderRows(sheet: XlsxPrintSheet, input: XlsxPrintRowsInput): st
     };
     const extent = (position: number, step: 1 | -1): number => {
       let total = 0;
-      for (let next = position + step; free(next); next += step) total += widthOf(columns[next]!);
+      for (let next = position + step; free(next) && neighbours(columns[next - step]!, columns[next]!, step); next += step) total += widthOf(columns[next]!);
       return total;
     };
     columns.forEach((column, position) => {
@@ -141,7 +154,9 @@ export function renderRows(sheet: XlsxPrintSheet, input: XlsxPrintRowsInput): st
       if (plain && cell?.kind === "text" && flow in JUSTIFY && textWidth(text, size, style?.bold === true) > inner) {
         const right = flow === "right" ? 0 : extent(position, 1);
         const left = flow === "left" ? 0 : extent(position, -1);
-        const [l, r] = flow === "center" ? [Math.min(left, right), Math.min(left, right)] : [left, right];
+        const [before, after] = flow === "center" ? [Math.min(left, right), Math.min(left, right)] : [left, right];
+        // Physical sides: under dir="rtl" the next column sits on the left.
+        const [l, r] = sheet.rightToLeft ? [after, before] : [before, after];
         if (l + r > 0) {
           classes.push("ov");
           const vertical = ALIGN[style?.verticalAlignment ?? ""] ?? "flex-end";

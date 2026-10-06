@@ -8,7 +8,11 @@
 //     render model the grid was loaded from).
 //   * Page setup: this session's dialog edits > the file's layout > defaults.
 //   * Each area of a multi-area print area is read with the title rows and
-//     columns beside it; the areas print in order.
+//     columns it repeats, as separate blocks (title rows x the area's columns,
+//     the area's rows x title columns, and their corner), so a print area far
+//     from its titles reads only the cells that print. The areas print in order.
+//   * Reads go in row chunks of about CHUNK_CELLS cells and the run yields to
+//     the browser between chunks, so a large sheet does not freeze the page.
 import type { XlsxCellScalar, XlsxPageSetupFields, XlsxRenderStyle, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import { formatNumberForFit } from "../xlsx-column-autofit";
@@ -56,16 +60,59 @@ function kindOf(value: XlsxCellScalar | undefined): XlsxPrintCell["kind"] {
 
 const isDateFormat = (format: string): boolean => /[ymdhs]/i.test(format.replace(/"[^"]*"|\[[^\]]*\]|\./g, "")) && !/general/i.test(format);
 
+const pad = (value: number): string => String(value).padStart(2, "0");
+
+/** An Excel serial as ISO "yyyy-mm-dd" (plus "hh:mm" when it has a time).
+ *  The no-grid fallback only: the grid's own display text is exact. */
+function serialDate(serial: number, date1904: boolean): string {
+  // 1900 system: day 1 = 1900-01-01 and Excel's phantom 1900-02-29 (day 60).
+  const days = date1904 ? serial + 1462 : serial < 60 ? serial + 1 : serial;
+  const date = new Date(Date.UTC(1899, 11, 30) + Math.round(days * 86_400_000 / 60_000) * 60_000);
+  if (Number.isNaN(date.getTime())) return String(serial);
+  const day = `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+  return serial % 1 === 0 ? day : `${day} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+}
+
 /** Display text without a grid: the value through its number format. */
-function fallbackText(value: XlsxCellScalar | undefined, style: XlsxRenderStyle | undefined): string {
+function fallbackText(value: XlsxCellScalar | undefined, style: XlsxRenderStyle | undefined, date1904: boolean): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
   if (typeof value === "number") {
     const format = style?.numberFormat;
-    return format && isDateFormat(format) ? String(value) : formatNumberForFit(value, format);
+    return format && isDateFormat(format) ? serialDate(value, date1904) : formatNumberForFit(value, format);
   }
   return value;
 }
+
+type TitleSpan = { readonly start: number; readonly end: number };
+
+/** About this many cells per read; the run yields to the browser between. */
+const CHUNK_CELLS = 20_000;
+const yieldToBrowser = (): Promise<void> => new Promise((resolve) => { setTimeout(resolve, 0); });
+const cellCount = (range: XlsxPrintRange): number => (range.endRow - range.startRow + 1) * (range.endColumn - range.startColumn + 1);
+
+/** The blocks one area prints from: the area, then the title rows and
+ *  columns it repeats (and their corner) where they lie outside it. */
+function blocksFor(area: XlsxPrintRange, titleRows: TitleSpan | null, titleColumns: TitleSpan | null): XlsxPrintRange[] {
+  const rowsOutside = titleRows !== null && (titleRows.start < area.startRow || titleRows.end > area.endRow);
+  const columnsOutside = titleColumns !== null && (titleColumns.start < area.startColumn || titleColumns.end > area.endColumn);
+  const blocks = [area];
+  if (rowsOutside) blocks.push({ startRow: titleRows.start, endRow: titleRows.end, startColumn: area.startColumn, endColumn: area.endColumn });
+  if (columnsOutside) blocks.push({ startRow: area.startRow, endRow: area.endRow, startColumn: titleColumns.start, endColumn: titleColumns.end });
+  if (rowsOutside && columnsOutside) blocks.push({ startRow: titleRows.start, endRow: titleRows.end, startColumn: titleColumns.start, endColumn: titleColumns.end });
+  return blocks;
+}
+
+/** A block cut into row chunks of about CHUNK_CELLS cells. */
+function chunksOf(range: XlsxPrintRange): XlsxPrintRange[] {
+  const rowsPerChunk = Math.max(1, Math.floor(CHUNK_CELLS / (range.endColumn - range.startColumn + 1)));
+  const chunks: XlsxPrintRange[] = [];
+  for (let start = range.startRow; start <= range.endRow; start += rowsPerChunk) {
+    chunks.push({ ...range, startRow: start, endRow: Math.min(range.endRow, start + rowsPerChunk - 1) });
+  }
+  return chunks;
+}
+
 
 /** The used range: the file's dimension, grown by any live cell beyond it. */
 function usedRange(rowCount: number, columnCount: number, cells: Readonly<Record<string, { readonly value: XlsxCellScalar }>> | undefined): XlsxPrintRange {
@@ -95,17 +142,8 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
   const used = usedRange(fileSheet.rowCount, fileSheet.columnCount, liveSheet?.cells);
   const setup = resolvePrintSetup({ file: fileSheet.pageSetup, session: input.session, definedNames: file.definedNames, sheetIndex: index, used });
   const areas = setup.printAreas ?? [used];
-  // Read each area plus the title rows/columns beside it (the corner too).
-  const titleRows = setup.titleRows;
-  const titleColumns = setup.titleColumns;
-  const reads: XlsxPrintRange[] = areas.map((area) => ({
-    startRow: Math.min(area.startRow, titleRows?.start ?? area.startRow),
-    endRow: Math.max(area.endRow, titleRows?.end ?? area.endRow),
-    startColumn: Math.min(area.startColumn, titleColumns?.start ?? area.startColumn),
-    endColumn: Math.max(area.endColumn, titleColumns?.end ?? area.endColumn),
-  }));
-  const readCells = reads.reduce((total, read) => total + (read.endRow - read.startRow + 1) * (read.endColumn - read.startColumn + 1), 0);
-  if (readCells > MAX_PRINT_CELLS) return { ok: false, reason: "print_too_large" };
+  const reads = areas.flatMap((area) => blocksFor(area, setup.titleRows, setup.titleColumns));
+  if (reads.reduce((total, read) => total + cellCount(read), 0) > MAX_PRINT_CELLS) return { ok: false, reason: "print_too_large" };
 
   const gridSheetId = input.sheetId ?? fileSheet.id;
   const live = new XlsxLiveLayout(file.styles);
@@ -113,7 +151,9 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
   const rows = new Map<number, { height?: number; hidden?: boolean }>();
   const merges = new Map<string, XlsxPrintRange>();
   let liveRead = true;
-  for (const read of reads) {
+  const chunks = reads.flatMap(chunksOf);
+  for (const [position, read] of chunks.entries()) {
+    if (position > 0) await yieldToBrowser();
     const model = await host.readRange({ sessionId: file.sessionId, sheetId: fileSheet.id, range: read });
     const display = grid?.readRangeValues?.(gridSheetId, read)?.display ?? null;
     liveRead = live.add(read, grid?.readPrintRange?.(gridSheetId, read)) && liveRead;
@@ -128,7 +168,7 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
         const styleIndex = painted === undefined ? modelCell?.styleIndex : (painted ?? undefined);
         const style = styleIndex === undefined ? undefined : live.styles[styleIndex];
         const shown = display?.[row - read.startRow]?.[column - read.startColumn];
-        const text = typeof shown === "string" ? shown : fallbackText(value, style);
+        const text = typeof shown === "string" ? shown : fallbackText(value, style, file.date1904 === true);
         if (text === "" && styleIndex === undefined) continue;
         cells.set(at, { text, kind: kindOf(value), ...(styleIndex === undefined ? {} : { styleIndex }) });
       }
