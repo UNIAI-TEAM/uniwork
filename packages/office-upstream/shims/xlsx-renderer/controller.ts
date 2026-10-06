@@ -68,6 +68,8 @@ import {
   type XlsxRendererFilterEdit,
 } from "./edits";
 import { getLang, t } from "./locale";
+import { createOutlineLevelBar } from "./outline-bar";
+import { outlineMaxLevels, runOutlineLevel } from "./outline-levels";
 import { sharedFormulaResolverFor } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import { installAutofitLinePitch } from "../../upstream/apps/sheets/src/renderer/autofit-line-pitch";
 import { installAutofitWrapBudget } from "../../upstream/apps/sheets/src/renderer/autofit-wrap-budget";
@@ -591,6 +593,56 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     type: CommandType.COMMAND,
     handler: (_accessor, params) => runColumnDefaultWidth(params),
   }));
+  // Outline level buttons (Excel's 1..n): one click hides/shows every group
+  // by level and writes the summary flags, as one undo step (outline-levels.ts).
+  const runOutlineLevelCommand = (params: unknown): boolean => {
+    const p = params as { subUnitId?: string; axis?: string; level?: number } | undefined;
+    if (journalSuppression.active || !p || typeof p.level !== "number") return false;
+    if (p.axis !== "rows" && p.axis !== "cols") return false;
+    const axis = p.axis;
+    const level = p.level;
+    const workbook = runtime.univerAPI.getActiveWorkbook();
+    const sheetId = p.subUnitId ?? workbook?.getActiveSheet()?.getSheetId();
+    const sheet = sheetId ? workbook?.getSheetBySheetId(sheetId)?.getSheet() : undefined;
+    if (!workbook || !sheetId || !sheet) return false;
+    return inOneUndoStep(workbook.getId(), () => runOutlineLevel({
+      state: lazyWorkbookRef.current,
+      unitId: workbook.getId(),
+      isHidden: (line) => axis === "rows" ? !sheet.getRowRawVisible(line) : !sheet.getColVisible(line),
+      execute: (id, commandParams) => runtime.univerAPI.syncExecuteCommand(id, commandParams) === true,
+      emit: emitStructuralEdits,
+      pushUndo: (item) => runtime.univer.__getInjector().get(IUndoRedoService).pushUndoRedo(item),
+    }, sheetId, axis, level));
+  };
+  disposables.push(commandService.registerCommand({
+    id: "uniwork.command.set-outline-level",
+    type: CommandType.COMMAND,
+    handler: (_accessor, params) => runOutlineLevelCommand(params),
+  }));
+  const outlineBar = options.readOnly ? null : createOutlineLevelBar({
+    container, grid: univerHost, label: t,
+    onLevel: (axis, level) => {
+      const workbook = runtime.univerAPI.getActiveWorkbook();
+      const subUnitId = workbook?.getActiveSheet()?.getSheetId();
+      if (workbook && subUnitId) void runtime.univerAPI.executeCommand("uniwork.command.set-outline-level", { unitId: workbook.getId(), subUnitId, axis, level });
+    },
+  });
+  let outlineBarQueued = false;
+  // Any command can change the levels (group, undo, insert/remove lines), a
+  // sheet switch changes the sheet; one microtask reads them once per burst.
+  const scheduleOutlineBar = (): void => {
+    if (!outlineBar || outlineBarQueued) return;
+    outlineBarQueued = true;
+    queueMicrotask(() => {
+      outlineBarQueued = false;
+      if (disposed) return;
+      const sheetId = runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
+      outlineBar.update(outlineMaxLevels(lazyWorkbookRef.current, sheetId));
+    });
+  };
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, scheduleOutlineBar));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.ActiveSheetChanged, scheduleOutlineBar));
+  if (outlineBar) disposables.push(outlineBar);
   // Hyperlinks (B6): the pinned Univer 0.25.1 has no spreadsheet hyperlink
   // command, so UniWork registers one. It mirrors the vendored applyAiHyperlink
   // (journal + link styling) and emits the per-cell edit so the host persists
@@ -864,6 +916,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         notifySelection();
       }
       loadingWorkbook = false;
+      scheduleOutlineBar();
     },
     refreshViewport,
     async revealCell(sheetId, row, column) {
@@ -966,6 +1019,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     setLocale(lang) {
       applyHostNumfmtLocale(runtime, lang);
       runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.refreshCanvas?.();
+      scheduleOutlineBar();
     },
     undo() {
       if (!options.readOnly) void runtime.univerAPI.undo();
