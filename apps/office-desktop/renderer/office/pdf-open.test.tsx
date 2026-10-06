@@ -16,7 +16,7 @@ function mount() {
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:engine-call") {
       const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 2 } };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 2 } };
       return { ok: true, operation: "edit", dataBase64: pdfBytes };
     }
     return {};
@@ -46,7 +46,7 @@ it("finds text on the desktop host through the engine text layer and paints the 
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:engine-call") {
       const request = payload as { operation: string; args: { geometry?: boolean } };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
       if (request.operation === "text") {
         const text = "Bao cao tong hop";
         const charBoxes = request.args.geometry ? text.split("").map((_c, index) => ({ x: index * 5, y: 20, width: 5, height: 8 })) : [];
@@ -75,7 +75,7 @@ it("lets the Forms panel leave its loading state on the desktop host (R18-2)", a
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:engine-call") {
       const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
       return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 100, height: 100 };
     }
     return {};
@@ -101,7 +101,7 @@ it("steps the desktop byte history from the quick-access buttons and Ctrl+Z / Ct
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:engine-call") {
       const request = payload as { operation: string; args: { dataBase64: string } };
-      if (request.operation === "open") { probes.push(request.args.dataBase64); return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] }; }
+      if (request.operation === "open") { probes.push(request.args.dataBase64); return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] }; }
       if (request.operation === "edit") return { ok: true, operation: "edit", dataBase64: editedBytes };
       return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 100, height: 100 };
     }

@@ -23,7 +23,8 @@ function config(): DesktopEditorLoaderConfig {
 it.each(["docx", "pdf", "md", "html"] as const)("hands the %s view the desktop print port", async (format) => {
   const loader = desktopEditorLoader(format, config());
   expect(loader).toBeDefined();
-  const { default: Editor } = await loader!(format);
-  render(<Editor host={{} as never} editorHandle={{} as never} />);
+  const loaded = await loader!(format);
+  const Editor = "default" in loaded ? loaded.default : loaded;
+  render(<Editor format={format} host={{} as never} editorHandle={{} as never} />);
   expect(probe.props[format]?.printPort).toBe(printPort);
 });

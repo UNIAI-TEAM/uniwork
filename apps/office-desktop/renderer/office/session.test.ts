@@ -229,7 +229,7 @@ it("forwards the pdf engine-operation facet so the note panel gets a provider (F
 it("forwards the pdf find facet so desktop search reaches the engine text layer (F-13)", async () => {
   const call = vi.fn(async (_channel: string, payload: unknown) => {
     const request = payload as { operation: string; args: { geometry?: boolean } };
-    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+    if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
     const charBoxes = request.args.geometry ? [{ x: 0, y: 10, width: 8, height: 8 }, { x: 8, y: 10, width: 8, height: 8 }] : [];
     return { ok: true, operation: "text", pageCount: 1, pages: [{ page: 1, width: 100, height: 100, text: "Bao cao", charBoxes }] };
   });
@@ -243,7 +243,7 @@ it("forwards the pdf find facet so desktop search reaches the engine text layer 
   expect(call.mock.calls.some(([channel, payload]) => channel === "desktop:engine-call" && (payload as { operation: string }).operation === "text")).toBe(true);
 });
 it("forwards the pdf form and saved-note readers so the panels leave their loading state (R18-2)", async () => {
-  const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] }));
+  const call = vi.fn(async () => ({ ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] }));
   const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
   expect(session.editor.readFormFields).toBeUndefined();
   await session.openEditor();
@@ -259,7 +259,7 @@ it("forwards the pdf byte-change notify so undo/redo refresh the shared editor (
   const call = vi.fn(async (_channel: string, payload: unknown) => {
     const request = payload as { operation: string };
     if (request.operation === "edit") { edited = true; return { ok: true, operation: "edit", dataBase64: "JVBERi0y" }; }
-    return { ok: true, operation: "open", probe: { pageCount: edited ? 2 : 1 }, pageSizes: [] };
+    return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: edited ? 2 : 1 }, pageSizes: [] };
   });
   const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
   expect(session.editor.subscribe).toBeUndefined();
@@ -279,7 +279,7 @@ it("forwards the pdf byte-change notify so undo/redo refresh the shared editor (
 it("forwards the pdf renderer and real page sizes so the shared canvas draws pages (U1/U2)", async () => {
   const call = vi.fn(async (_channel: string, payload: unknown) => {
     const request = payload as { operation: string };
-    if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+    if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
     return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 595, height: 842 };
   });
   const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });

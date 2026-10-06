@@ -50,7 +50,7 @@ it("shows the Windows preview hint while a print is in flight, then clears it", 
   render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
   expect(screen.queryByTestId("print-preview-hint")).toBeNull();
   let pending!: Promise<unknown>;
-  act(() => { pending = hook.port.print({ html: "<p>x</p>", title: "Doc.docx" }); });
+  act(() => { pending = Promise.resolve(hook.port.print({ html: "<p>x</p>", title: "Doc.docx" })); });
   const hint = await screen.findByTestId("print-preview-hint");
   expect(hint).toHaveTextContent(i18n.t("officeDesktop.library.printPreviewHint"));
   expect(hint).toHaveAttribute("role", "status");
@@ -71,7 +71,7 @@ it("keeps the hint while the first dialog is open after a second Print is answer
   let hook!: Hook;
   render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
   let first!: Promise<unknown>;
-  act(() => { first = hook.port.print(printArgs); });
+  act(() => { first = Promise.resolve(hook.port.print(printArgs)); });
   await screen.findByTestId("print-preview-hint");
   await act(async () => { expect(await hook.port.print(printArgs)).toEqual({ outcome: "failed", reason: "print_busy" }); });
   expect(screen.getByTestId("print-preview-hint")).toBeInTheDocument();
