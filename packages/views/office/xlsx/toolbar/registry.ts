@@ -9,6 +9,7 @@ import { XlsxProtectGroup } from "./protect-group";
 import { XlsxSortGroup } from "./sort-group";
 import { XlsxTableGroup } from "./table-group";
 import { XlsxLinksGroup } from "./links-group";
+import { XlsxIllustrationsGroup } from "../visuals/illustrations-group";
 import { XlsxFilterGroup } from "./filter-group";
 import { XlsxCalculationGroup } from "./groups/calculation-group";
 import { XlsxChartsGroup } from "./groups/charts-group";
@@ -19,6 +20,8 @@ import { XlsxViewDisplayGroup } from "./view-display";
 import { XlsxViewGoToGroup } from "./view-goto";
 import { XlsxViewShortcutsGroup } from "./view-shortcuts";
 import { XlsxViewZoomGroup } from "./view-zoom";
+import { xlsxConditionalFormatRibbonItems } from "../conditional-format/conditional-format-group";
+import { XlsxDataValidationGroup } from "../data-validation/data-validation-group";
 import type { XlsxToolbarGroupDefinition } from "./types";
 
 /** The extension seam for Wave A tasks (A1-A9): add ONE group to ONE tab by
@@ -73,5 +76,11 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   { id: "protect", tab: "review", order: 10, labelKey: "office.xlsx.protect.groups.review", Component: XlsxProtectGroup },
   { id: "table", tab: "insert", order: 30, labelKey: "office.xlsx.table.groups.insert", Component: XlsxTableGroup },
   { id: "links", tab: "insert", order: 40, labelKey: "office.xlsx.links.groups.insert", Component: XlsxLinksGroup },
+  // Insert -> Illustrations (UNI-940 X02): Pictures + Shapes, before Charts.
+  { id: "illustrations", tab: "insert", order: 8, labelKey: "office.xlsx.visuals.groups.illustrations", Component: XlsxIllustrationsGroup },
+  // X01: Home -> Styles (Conditional Formatting, between Number and Cells as
+  // in Excel) and Data -> Data Tools (Data Validation).
+  { id: "conditional-format", tab: "home", order: 75, labelKey: "office.xlsx.conditionalFormat.groups.home", ribbonItems: xlsxConditionalFormatRibbonItems },
+  { id: "data-validation", tab: "data", order: 40, labelKey: "office.xlsx.dataValidation.groups.data", Component: XlsxDataValidationGroup },
 ];
 

@@ -37,7 +37,7 @@ describe("xlsx toolbar registry", () => {
 
   it("registers the Excel Home groups in order, all as typed ribbon items", () => {
     const home = XLSX_TOOLBAR_GROUPS.filter((group) => group.tab === "home").sort((left, right) => left.order - right.order);
-    expect(home.map((group) => group.id)).toEqual(["clipboard", "font", "alignment", "number", "cells", "editing"]);
+    expect(home.map((group) => group.id)).toEqual(["clipboard", "font", "alignment", "number", "conditional-format", "cells", "editing"]);
     for (const group of home) expect(typeof group.ribbonItems, group.id).toBe("function");
   });
 
@@ -50,6 +50,19 @@ describe("xlsx toolbar registry", () => {
       for (const locale of [en, vi]) {
         expect(typeof lookup(locale, group.labelKey), `${expected.id} ${group.labelKey}`).toBe("string");
       }
+    }
+  });
+
+  it("registers X01 Conditional Formatting on Home and Data Validation on Data, labelled in both locales", () => {
+    const placed = (id: string) => XLSX_TOOLBAR_GROUPS.find((group) => group.id === id);
+    expect(placed("conditional-format")?.tab).toBe("home");
+    expect(placed("data-validation")?.tab).toBe("data");
+    for (const id of ["conditional-format", "data-validation"]) {
+      for (const locale of [en, vi]) expect(typeof lookup(locale, placed(id)!.labelKey), id).toBe("string");
+    }
+    for (const namespace of ["office.xlsx.conditionalFormat", "office.xlsx.dataValidation"]) {
+      expect(stringPaths(lookup(vi, namespace)).length).toBeGreaterThan(0);
+      expect(stringPaths(lookup(vi, namespace))).toEqual(stringPaths(lookup(en, namespace)));
     }
   });
 

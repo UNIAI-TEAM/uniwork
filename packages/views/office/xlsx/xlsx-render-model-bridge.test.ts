@@ -182,6 +182,17 @@ describe("render model bridge", () => {
     expect(rule.ranges[0]!.startRow).toBe(20);
   });
 
+  it("returns the sheet's complete data validations so the loader installs the file's own rules (X01)", () => {
+    const rule = { ranges: [{ startRow: 40, endRow: 60, startColumn: 2, endColumn: 2 }], ruleType: "list",
+      formulas: ['"Yes,No"'], allowBlank: true, suppressDropdown: false, showInputMessage: false, showErrorMessage: true,
+      error: "Pick one" };
+    const model = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!, dataValidations: [rule] }] };
+    const result = readRangeFromModel(model, "Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 });
+    expect(result.dataValidations).toEqual([rule]);
+    expect(result.dataValidations[0]!.ranges[0]).not.toBe(rule.ranges[0]);
+    expect(readRangeFromModel(MODEL, "Data", { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 }).dataValidations).toEqual([]);
+  });
+
   it("builds a host whose readRange speaks the vendored loader contract", async () => {
     const host = createXlsxModelHost(MODEL, { sessionId: "s-1", name: "book.xlsx", sha256: "b".repeat(64) });
     const result = await host.readRange({ sessionId: "s-1", sheetId: "sheet-2", range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 } });

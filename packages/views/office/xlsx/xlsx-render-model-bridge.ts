@@ -112,7 +112,7 @@ export interface RendererRangeResult {
   conditionalRules: NonNullable<XlsxRenderSheet["conditionalRules"]>[number][];
   autoFilter: null;
   autoFilterColumns: never[];
-  dataValidations: never[];
+  dataValidations: NonNullable<XlsxRenderSheet["dataValidations"]>[number][];
   sheetProtection: null;
   protectedRanges: never[];
   pageSetup: null;
@@ -290,7 +290,11 @@ export function readRangeFromModel(model: XlsxRenderModel, sheetIdOrName: string
     })),
     autoFilter: null,
     autoFilterColumns: [],
-    dataValidations: [],
+    // X01: sheet-wide like CF - the pinned loader installs them once (it
+    // marks the sheet even without rules, which unlocks DV/CF editing).
+    dataValidations: (sheet.dataValidations ?? []).map((rule) => ({ ...rule,
+      ranges: rule.ranges.map((area) => ({ ...area })), formulas: [...rule.formulas],
+    })),
     sheetProtection: null,
     protectedRanges: [],
     pageSetup: null,
