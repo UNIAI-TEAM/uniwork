@@ -85,7 +85,9 @@ export interface RendererWorkbookSheet {
   comments: never[];
   pivotRanges: never[];
   /** X01: per family, whether the file ships no rules, classic rules, or
-   *  Excel extended (x14) rules the declarative save cannot rewrite. The
+   *  Excel extended (x14) rules the declarative save cannot rewrite. Only
+   *  data validation reads x14: an Excel data bar (a linked x14 CF block) is
+   *  kept by gateway patch 0011, so CF reads classic there (UNI-953). The
    *  loader ignores it; the renderer's rule-set policy and the DV/CF ribbon
    *  groups read it. */
   ruleSets?: { conditionalFormats: XlsxRuleSetFileState; dataValidations: XlsxRuleSetFileState };
@@ -232,7 +234,7 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet, styles: readonly XlsxRe
     comments: [],
     pivotRanges: [],
     ruleSets: {
-      conditionalFormats: ruleSetFileState(sheet.x14ConditionalFormats, sheet.conditionalRules, sheet.ruleCounts?.conditionalFormats),
+      conditionalFormats: ruleSetFileState(false, sheet.conditionalRules, sheet.ruleCounts?.conditionalFormats),
       dataValidations: ruleSetFileState(sheet.x14DataValidations, sheet.dataValidations, sheet.ruleCounts?.dataValidations),
     },
     ...(sheet.ruleCounts ? { ruleCounts: { ...sheet.ruleCounts } } : {}),

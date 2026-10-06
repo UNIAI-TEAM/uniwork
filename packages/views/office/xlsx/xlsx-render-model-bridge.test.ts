@@ -211,15 +211,17 @@ describe("render model bridge", () => {
     expect(saved).not.toHaveProperty("errorStyle");
   });
 
-  it("stamps each sheet with what its file ships per rule family, x14 first (X01 review M1/M2)", () => {
+  it("stamps each sheet with what its file ships per rule family, x14 DV first (X01 review M1/M2)", () => {
     const rule = { ranges: [{ startRow: 1, endRow: 4, startColumn: 1, endColumn: 1 }], ruleType: "list",
       formulas: ['"A,B"'], allowBlank: true, suppressDropdown: false, showInputMessage: false, showErrorMessage: false };
+    // An Excel data bar (a linked x14 CF block) counts as one classic rule:
+    // gateway patch 0011 keeps it under a CF snapshot (UNI-953 option A).
     const model = { ...MODEL, sheets: [
-      { ...MODEL.sheets[0]!, dataValidations: [rule], x14ConditionalFormats: true as const },
+      { ...MODEL.sheets[0]!, dataValidations: [rule], ruleCounts: { conditionalFormats: 1, dataValidations: 1 } },
       { ...MODEL.sheets[1]!, x14DataValidations: true as const },
     ] };
     const file = toRendererWorkbookFile(model, { sessionId: "s", name: "n.xlsx", sha256: "x" });
-    expect(file.sheets[0]!.ruleSets).toEqual({ conditionalFormats: "x14", dataValidations: "classic" });
+    expect(file.sheets[0]!.ruleSets).toEqual({ conditionalFormats: "classic", dataValidations: "classic" });
     expect(file.sheets[1]!.ruleSets).toEqual({ conditionalFormats: "none", dataValidations: "x14" });
     expect(toRendererWorkbookFile(MODEL, { sessionId: "s", name: "n.xlsx", sha256: "x" }).sheets[1]!.ruleSets)
       .toEqual({ conditionalFormats: "none", dataValidations: "none" });
