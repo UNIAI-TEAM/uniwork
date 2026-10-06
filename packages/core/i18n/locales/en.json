@@ -9381,7 +9381,6 @@
           "picture": "Picture",
           "roleDescription": "drawing object",
           "keyboardHelp": "Arrow keys move it, Shift + arrow keys resize it, Delete removes it, Esc returns to the sheet.",
-          "locked": "Saved to the file. Saved drawings cannot be edited yet.",
           "delete": "Delete {{name}}",
           "fileReadOnly": "This drawing is anchored in a way the editor cannot move yet. It is shown as it is in the file.",
           "unavailable": "Drawings cannot be edited right now: the document is read-only or a save is in progress.",
