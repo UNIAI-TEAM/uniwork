@@ -9293,6 +9293,46 @@
         "none": "No cell selected",
         "range": "{{sheet}}!{{address}}"
       },
+      "visuals": {
+        "groups": { "illustrations": "Illustrations" },
+        "chartTypes": {
+          "column": "Column",
+          "bar": "Bar",
+          "line": "Line",
+          "area": "Area",
+          "pie": "Pie",
+          "doughnut": "Doughnut"
+        },
+        "shapeTypes": {
+          "rect": "Rectangle",
+          "roundRect": "Rounded rectangle",
+          "ellipse": "Oval",
+          "triangle": "Triangle",
+          "rightArrow": "Right arrow",
+          "leftArrow": "Left arrow",
+          "line": "Line"
+        },
+        "chart": { "needsRange": "Select a range of at least two cells to insert a chart." },
+        "picture": { "insert": "Pictures", "label": "Choose a picture from this device" },
+        "shape": { "insert": "Shapes" },
+        "item": {
+          "chart": "{{type}} chart {{title}}",
+          "shape": "Shape: {{type}}",
+          "picture": "Picture",
+          "roleDescription": "drawing object",
+          "keyboardHelp": "Arrow keys move it, Shift + arrow keys resize it, Delete removes it, Esc returns to the sheet.",
+          "locked": "Saved to the file. Saved drawings cannot be edited yet.",
+          "delete": "Delete {{name}}"
+        },
+        "errors": {
+          "noChartData": "The selected range has no numbers to chart.",
+          "picture": {
+            "type": "Only PNG, JPEG or GIF pictures can be inserted.",
+            "size": "Pictures can be at most 512 KB.",
+            "unreadable": "This picture could not be read."
+          }
+        }
+      },
       "capabilityPending": "This feature is not available yet.",
       "clipboardUnavailable": "Clipboard access is unavailable in this browser.",
       "state": {
@@ -10185,6 +10225,9 @@
         "imageUrlRefused": "This image URL cannot be inserted",
         "imageUrlInsert": "Insert",
         "hr": "Divider"
+      },
+      "visual": {
+        "refused": "That change can't be applied to this element."
       },
       "float": {
         "label": "Quick edit",

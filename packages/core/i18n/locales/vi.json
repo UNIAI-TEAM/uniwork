@@ -9287,6 +9287,46 @@
         "none": "Chưa chọn ô",
         "range": "{{sheet}}!{{address}}"
       },
+      "visuals": {
+        "groups": { "illustrations": "Minh họa" },
+        "chartTypes": {
+          "column": "Cột",
+          "bar": "Thanh",
+          "line": "Đường",
+          "area": "Vùng",
+          "pie": "Tròn",
+          "doughnut": "Vành khuyên"
+        },
+        "shapeTypes": {
+          "rect": "Hình chữ nhật",
+          "roundRect": "Hình chữ nhật bo góc",
+          "ellipse": "Hình elip",
+          "triangle": "Tam giác",
+          "rightArrow": "Mũi tên phải",
+          "leftArrow": "Mũi tên trái",
+          "line": "Đường thẳng"
+        },
+        "chart": { "needsRange": "Chọn vùng có ít nhất hai ô để chèn biểu đồ." },
+        "picture": { "insert": "Hình ảnh", "label": "Chọn hình ảnh từ máy" },
+        "shape": { "insert": "Hình dạng" },
+        "item": {
+          "chart": "Biểu đồ {{type}} {{title}}",
+          "shape": "Hình: {{type}}",
+          "picture": "Hình ảnh",
+          "roleDescription": "đối tượng vẽ",
+          "keyboardHelp": "Phím mũi tên để di chuyển, Shift + mũi tên để đổi kích thước, Delete để xóa, Esc để quay lại trang tính.",
+          "locked": "Đã lưu vào tệp. Chưa sửa được hình đã lưu.",
+          "delete": "Xóa {{name}}"
+        },
+        "errors": {
+          "noChartData": "Vùng đã chọn không có số liệu để vẽ biểu đồ.",
+          "picture": {
+            "type": "Chỉ chèn được ảnh PNG, JPEG hoặc GIF.",
+            "size": "Ảnh tối đa 512 KB.",
+            "unreadable": "Không đọc được ảnh này."
+          }
+        }
+      },
       "capabilityPending": "Tính năng này chưa được hỗ trợ.",
       "clipboardUnavailable": "Trình duyệt này chưa cho phép truy cập bảng nhớ tạm.",
       "state": {
@@ -10179,6 +10219,9 @@
         "imageUrlRefused": "Không thể chèn URL ảnh này",
         "imageUrlInsert": "Chèn",
         "hr": "Đường kẻ ngang"
+      },
+      "visual": {
+        "refused": "Không thể áp dụng thay đổi này cho phần tử này."
       },
       "float": {
         "label": "Sửa nhanh",
