@@ -7,7 +7,7 @@ import { MarkdownEditor } from "./editor";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome, MarkdownSaveCoordinator } from "./types";
-import type { MarkdownPrintPort } from "./wysiwyg/print";
+import type { MarkdownPrintOutcome, MarkdownPrintPort } from "./wysiwyg/print";
 import type { IsolatedPreviewPort, PreviewMountOptions, TextCapability } from "../source-editor-types";
 
 initI18n();
@@ -483,6 +483,26 @@ describe("MarkdownEditor mounts the Markdown features (production surface)", () 
     } finally {
       window.print = original;
     }
+  });
+
+  it("shows the print outcome itself: busy -> neutral status, failure -> generic, cancelled silent, cleared on the next print", async () => {
+    const outcomes: MarkdownPrintOutcome[] = [
+      { outcome: "failed", reason: "print_busy" },
+      { outcome: "failed", reason: "print_blocked" },
+      { outcome: "cancelled" },
+    ];
+    const printPort: MarkdownPrintPort = { print: () => outcomes.shift()! };
+    renderEditor({ pageMenu: true, printPort, text: "# Bao cao\n" });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    const menu = await screen.findByRole("menu");
+    const print = () => fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
+    print();
+    expect(await screen.findByText("A print dialog is already open. Finish or close it first.")).toBeInTheDocument();
+    print();
+    expect(await screen.findByText("Could not print the document. Try again.")).toBeInTheDocument();
+    expect(screen.queryByText("A print dialog is already open. Finish or close it first.")).toBeNull();
+    print();
+    await waitFor(() => expect(screen.queryByText("Could not print the document. Try again.")).toBeNull());
   });
 
   it("keeps the browser print path when no port is injected (default unchanged)", async () => {

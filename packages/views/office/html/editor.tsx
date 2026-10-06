@@ -29,6 +29,7 @@ import type { TextEditorHandle, TextViewState } from "../source-editor-types";
 import { OfficeFrame } from "../frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { MarkdownPrintMenuItems } from "../markdown/wysiwyg/print-menu";
+import { PrintNotice, usePrintNotice } from "../markdown/wysiwyg/print-notice";
 import { createBrowserPrintPort } from "../print";
 import { HtmlFind, type HtmlFindHandle } from "./find";
 import { HtmlRibbon } from "./ribbon";
@@ -283,6 +284,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   // source itself - `sanitizePrintCopy` (scripts: false) then builds the
   // script-free preview copy handed to the port.
   const renderPrintHtml = readEngineText;
+  const printNotice = usePrintNotice();
   // After the mode settles, return focus to the landmark when the pane that
   // held it is gone, so one press moves one mode from every mode (C11).
   useEffect(() => {
@@ -466,7 +468,8 @@ export function HtmlEditor<TSnapshot = unknown>({
         >
           {/* UNI-928: print rides the page overflow menu (C4), like Markdown;
               with no injected port the shared browser port prints. */}
-          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
+          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />} />
+          <PrintNotice notice={printNotice.notice} />
           <HtmlVisualShell
             documentKey={documentKey}
             text={text}

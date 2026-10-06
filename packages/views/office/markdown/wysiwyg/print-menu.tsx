@@ -25,7 +25,7 @@ import { printMarkdownDocument, type MarkdownPrintOutcome, type MarkdownPrintPor
 
 /** i18next keys this module reads. All exist in `en.json` / `vi.json`. */
 export const MARKDOWN_PRINT_KEYS = {
-  print: "office.markdown.print.title",
+  print: "office.common.print",
   exportPdf: "office.markdown.print.exportPdf",
   exportDocx: "office.markdown.print.exportDocx",
   exportNotAvailable: "office.markdown.print.exportNotAvailable",
@@ -50,7 +50,9 @@ export interface MarkdownPrintMenuItemsProps {
    * `manifest`/`assetUrl` are set, or the rewritten URLs self-block. Defaults
    * to {@link PRINT_COPY_CSP}. */
   csp?: string;
-  /** Reports the port's outcome so the caller can toast on failure. */
+  /** A print run starts: the caller clears the previous outcome notice. */
+  onStart?(): void;
+  /** Reports the port's outcome so the caller can show it (the menu closes on click). */
   onOutcome?(outcome: MarkdownPrintOutcome): void;
 }
 
@@ -72,6 +74,7 @@ export function MarkdownPrintMenuItems({
   manifest,
   assetUrl,
   csp,
+  onStart,
   onOutcome,
 }: MarkdownPrintMenuItemsProps) {
   const { t } = useTranslation();
@@ -81,13 +84,14 @@ export function MarkdownPrintMenuItems({
   const print = useCallback(async () => {
     if (!port || printing) return;
     setPrinting(true);
+    onStart?.();
     try {
       const outcome = await printMarkdownDocument({ port, renderHtml, title, manifest, assetUrl, csp });
       onOutcome?.(outcome);
     } finally {
       setPrinting(false);
     }
-  }, [assetUrl, csp, manifest, onOutcome, port, printing, renderHtml, title]);
+  }, [assetUrl, csp, manifest, onOutcome, onStart, port, printing, renderHtml, title]);
 
   return (
     <>

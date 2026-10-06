@@ -10,7 +10,7 @@ import { MarkdownEditor } from "../markdown/editor";
 import type { HtmlEditorHandle, HtmlOpenOutcome } from "./types";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome } from "../markdown/types";
 import type { IsolatedPreviewPort, PreviewMountOptions } from "../source-editor-types";
-import type { MarkdownPrintPort } from "../markdown/wysiwyg/print";
+import type { MarkdownPrintOutcome, MarkdownPrintPort } from "../markdown/wysiwyg/print";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -965,6 +965,24 @@ describe("HtmlEditor print entry (UNI-928 parity)", () => {
     } finally {
       window.print = original;
     }
+  });
+
+  it("shows the print outcome itself: busy/timeout -> neutral status, failure -> generic, cancelled silent", async () => {
+    const outcomes: MarkdownPrintOutcome[] = [
+      { outcome: "failed", reason: "print_timeout" },
+      { outcome: "failed", reason: "print_blocked" },
+      { outcome: "cancelled" },
+    ];
+    renderWithMenu({ print: () => outcomes.shift()! });
+    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+    const menu = await screen.findByRole("menu");
+    const print = () => fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
+    print();
+    expect(await screen.findByText("A print dialog is already open. Finish or close it first.")).toBeInTheDocument();
+    print();
+    expect(await screen.findByText("Could not print the document. Try again.")).toBeInTheDocument();
+    print();
+    await waitFor(() => expect(screen.queryByText("Could not print the document. Try again.")).toBeNull());
   });
 
   it("sanitizes a hostile HTML source before it reaches the injected port", async () => {
