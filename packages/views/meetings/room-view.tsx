@@ -1,5 +1,5 @@
 "use client";
-import { LiveKitRoom } from "@livekit/components-react";
+import { LiveKitRoom, useRoomContext } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, CalendarX2, UserX } from "lucide-react";
@@ -38,6 +38,7 @@ import { useInertOutside } from "./use-inert-outside";
 import { isRetryableJoinError } from "./room-connection";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 import { useWithdrawJoinRequestOnLeave } from "./use-withdraw-join-request";
+import { SCREEN_SHARE_PUBLISH_DEFAULTS, useSharpScreenShares } from "./share-adaptive-stream";
 
 function MeetingRoomShell({
   children,
@@ -57,6 +58,12 @@ function MeetingRoomShell({
       {children}
     </div>
   );
+}
+
+/** Screen shares in this room ask for device pixels (see share-adaptive-stream). */
+function MeetingSharpShares() {
+  useSharpScreenShares(useRoomContext());
+  return null;
 }
 
 export function MeetingRoomView({
@@ -401,6 +408,9 @@ export function MeetingRoomView({
         options={{
           adaptiveStream: true,
           dynacast: true,
+          // A share goes out as ~1080p plus a 720p backup; MeetingSharpShares
+          // makes Retina viewers ask for the 1080p one.
+          publishDefaults: SCREEN_SHARE_PUBLISH_DEFAULTS,
         }}
         onError={(error) => {
           // A microphone or camera that will not start is not a lost room:
@@ -436,6 +446,7 @@ export function MeetingRoomView({
           rejoinAfterDrop();
         }}
       >
+        <MeetingSharpShares />
         <MeetingProactiveTokenRefresh
           expiresAt={decision.expires_at}
           onRefresh={refreshLiveKitCredential}
