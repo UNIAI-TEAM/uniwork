@@ -141,3 +141,24 @@ test('a cell-style preset is a style-only write: values stay, the fill and colou
     assert.equal(JSON.stringify(edit.style).includes('C6EFCE'), true, JSON.stringify(edit.style));
   });
 });
+
+test('Text to Columns: typed pieces land right of the source, an empty {} hole keeps its cell', async () => {
+  await withSheet({
+    0: { 0: { v: 'a,12' }, 2: { v: 'keep' } },
+    1: { 0: { v: 'b,3,c' } },
+  }, async ({ api, worksheet, edits, refused }) => {
+    const ran = await api.executeCommand('sheet.command.set-range-values', {
+      unitId: 'file-sha', subUnitId: 's1',
+      range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 2 },
+      value: { 0: { 0: text('a'), 1: num(12), 2: {} }, 1: { 0: text('b'), 1: num(3), 2: text('c') } },
+    });
+    assert.equal(ran, true, JSON.stringify(refused));
+    assert.deepEqual([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]].map(([row, column]) => valueAt(worksheet, row, column)),
+      ['a', 12, 'keep', 'b', 3, 'c']);
+    const hole = edits.find((edit) => edit.row === 0 && edit.column === 2);
+    assert.ok(hole === undefined || hole.value === 'keep', JSON.stringify(hole));
+    assert.equal(edits.find((edit) => edit.row === 0 && edit.column === 1).value, 12);
+    await api.undo();
+    assert.deepEqual([valueAt(worksheet, 0, 0), valueAt(worksheet, 0, 1), valueAt(worksheet, 1, 2)], ['a,12', null, null]);
+  });
+});

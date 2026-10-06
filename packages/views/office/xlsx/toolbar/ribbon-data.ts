@@ -103,8 +103,8 @@ export const XLSX_GROUP_WIDTHS: Readonly<Record<string, number>> = {
   "structure-outline": 232,
   filter: 180,
   sort: 216,
-  // Remove Duplicates (large) + the Data Validation group.
-  "data-validation": 248,
+  // Text to Columns + Remove Duplicates (large) + the Data Validation group.
+  "data-validation": 344,
   "page-setup": 72,
   protect: 104,
   table: 72,
