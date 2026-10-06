@@ -32,6 +32,9 @@ const WORKER_CODES: ReadonlySet<string> = new Set([
   // (e.g. the XLSX Rust sidecar absent for a formula-bearing save) — a
   // deployment/incompatibility failure, not an input fault.
   "engine_incompatible",
+  // A handler may report that its own result exceeded a byte bound (the xlsx
+  // open model, UNI-956); the contract maps it to 413 / byte_bound.
+  "upload_bounds",
 ]);
 
 export interface Job {
