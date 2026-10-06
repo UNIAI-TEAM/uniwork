@@ -203,9 +203,10 @@ export interface XlsxGatewayFunctions {
    *  workbook/styles/theme/worksheet parts together, and one source per part
    *  would re-inflate the package once per part. */
   readEntriesText(bytes: Uint8Array, paths: readonly string[]): Promise<Readonly<Record<string, string | null>>>;
-  /** Base64 of binary entries (pictures the render model draws), each null
-   *  when absent or larger than maxBytes decoded (patch 0013). */
-  readEntriesBase64?(bytes: Uint8Array, paths: readonly string[], maxBytes: number): Promise<Readonly<Record<string, string | null>>>;
+  /** Base64 of binary entries (pictures the render model draws), read in
+   *  order: each null when absent, larger than maxBytes decoded, or past what
+   *  is left of maxTotalBytes; sizes are checked before inflating (patch 0013). */
+  readEntriesBase64?(bytes: Uint8Array, paths: readonly string[], maxBytes: number, maxTotalBytes: number): Promise<Readonly<Record<string, string | null>>>;
   /** Apply the cell edits plus refreshed formula cached values in ONE
    *  assemble pass (applyCellEditsToXlsx). The optional trailing
    *  XlsxGatewayArguments carries the other 11 gateway slots; absent (or

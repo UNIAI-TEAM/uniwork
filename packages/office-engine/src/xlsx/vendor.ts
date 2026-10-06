@@ -9,7 +9,8 @@
 //   dist/xlsx-gateway.mjs -> readBasicWorkbook / inventoryXlsx /
 //     createBufferEntrySource / applyCellEditsToXlsx /
 //     assertOnlyTouchedEntriesChanged, UNIWORK_XLSX_VISUAL_ADDITIONS (0010 marker),
-//     readEntriesBase64 + UNIWORK_XLSX_VISUAL_EDITS (0013 marker)
+//     readEntriesBase64 + UNIWORK_XLSX_VISUAL_EDITS and
+//     UNIWORK_XLSX_VISUAL_READ_BUDGET (0013 markers)
 import { EngineBoundaryError } from "@uniwork/office-contracts";
 import type {
   XlsxCellEdit,
@@ -49,7 +50,7 @@ export interface UpstreamXlsxGatewayModule {
     formulaValues?: readonly XlsxSheetFormulaValues[],
     visualEdits?: readonly unknown[],
   ): Promise<XlsxMutation>;
-  readEntriesBase64(buffer: Uint8Array, paths: readonly string[], maxBytes: number): Promise<Record<string, string | null>>;
+  readEntriesBase64(buffer: Uint8Array, paths: readonly string[], maxBytes: number, maxTotalBytes: number): Promise<Record<string, string | null>>;
   assertOnlyTouchedEntriesChanged(mutation: XlsxMutation): void;
   /** Patch 0010 capability marker: the bundle binds visualAdditions before
    *  formulaValues. A bundle without it predates the slot. */
@@ -57,6 +58,9 @@ export interface UpstreamXlsxGatewayModule {
   /** Patch 0013 capability marker: visualEdits rides after formulaValues and
    *  readEntriesBase64 exists. A bundle without it would drop file-visual edits. */
   readonly UNIWORK_XLSX_VISUAL_EDITS: true;
+  /** Patch 0013 (review-visuals V1): readEntriesBase64 takes the workbook
+   *  budget and checks entry sizes before inflating. */
+  readonly UNIWORK_XLSX_VISUAL_READ_BUDGET: true;
 }
 
 /** The upstream signatures type their inputs as Buffer; jszip underneath
@@ -117,6 +121,13 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
       detail: "xlsx gateway artifact predates patch 0013 (no UNIWORK_XLSX_VISUAL_EDITS marker); rebuild it with node scripts/office/build-upstream.mjs",
     });
   }
+  // Patch 0013 V1: an older 0013 bundle ignores the workbook budget and
+  // inflates every picture before its size check.
+  if (mod.UNIWORK_XLSX_VISUAL_READ_BUDGET !== true) {
+    throw new EngineBoundaryError("engine_incompatible", {
+      detail: "xlsx gateway artifact predates the patch 0013 read budget (no UNIWORK_XLSX_VISUAL_READ_BUDGET marker); rebuild it with node scripts/office/build-upstream.mjs",
+    });
+  }
   const gateway = mod as UpstreamXlsxGatewayModule;
   return {
     async readWorkbook(bytes: Uint8Array): Promise<XlsxImported> {
@@ -142,8 +153,8 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
       }
       return out;
     },
-    async readEntriesBase64(bytes: Uint8Array, paths: readonly string[], maxBytes: number): Promise<Readonly<Record<string, string | null>>> {
-      return gateway.readEntriesBase64(toEngineBytes(bytes), paths, maxBytes);
+    async readEntriesBase64(bytes: Uint8Array, paths: readonly string[], maxBytes: number, maxTotalBytes: number): Promise<Readonly<Record<string, string | null>>> {
+      return gateway.readEntriesBase64(toEngineBytes(bytes), paths, maxBytes, maxTotalBytes);
     },
     async applyCellEdits(
       source: Uint8Array,

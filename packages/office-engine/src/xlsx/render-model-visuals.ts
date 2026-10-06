@@ -8,14 +8,18 @@
 // text. Every reader here is tolerant: a missing or malformed part yields no
 // visual (or an "other" entry that keeps the index count), never a throw.
 import { attribute, decodeXml, elements, sectionInner } from "./render-model-xml.ts";
-import type { XlsxVisualAnchor, XlsxVisualChart, XlsxVisualChartSeries, XlsxVisualChartType, XlsxVisualImageType } from "./ops-visuals.ts";
+import { groupXlsxFileVisualEdits } from "./ops-visuals.ts";
+import type { XlsxVisualAnchor, XlsxVisualChart, XlsxVisualChartSeries, XlsxVisualChartType, XlsxVisualEntry, XlsxVisualImageType, XlsxWorkbookVisualEdit } from "./ops-visuals.ts";
+import { XlsxOpError } from "./ops-shared.ts";
 
 /** Picture bytes one visual may carry in the render model (decoded). A larger
  *  picture is still listed (and can be moved or deleted) but drawn as a frame. */
 export const XLSX_FILE_VISUAL_MAX_IMAGE_BYTES = 512 * 1024;
 /** Picture bytes the whole render model may carry (decoded). */
 export const XLSX_FILE_VISUAL_MAX_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024;
-/** Anchors read per drawing; later ones are not listed (never edited). */
+/** Anchors read per drawing; later ones are counted but not listed (never
+ *  edited): one trailing slot carries the last index, so the overlay numbers
+ *  a visual a save appends after ALL of the drawing's anchors. */
 const MAX_ANCHORS = 1_000;
 const MAX_SERIES = 24;
 const MAX_POINTS = 1_000;
@@ -47,10 +51,15 @@ export interface XlsxRenderVisual {
   readonly shape?: { readonly shapeType: string; readonly fillColor?: string | undefined; readonly text?: string | undefined } | undefined;
   /** Present when the picture fits the caps; absent pictures draw as a frame. */
   readonly image?: { readonly mediaType: XlsxVisualImageType; readonly base64: string } | undefined;
+  /** The sheet's drawing could not be read: its anchor count is unknown, so
+   *  the only entry is this marker (index -1, never drawn or edited). */
+  readonly unread?: true | undefined;
 }
 
 export type XlsxEntriesReader = (paths: readonly string[]) => Promise<Readonly<Record<string, string | null>>>;
-export type XlsxBase64Reader = (paths: readonly string[], maxBytes: number) => Promise<Readonly<Record<string, string | null>>>;
+/** Reads in order, each entry under maxBytes and all under maxTotalBytes,
+ *  sizes checked before inflating; an entry over either reads as null. */
+export type XlsxBase64Reader = (paths: readonly string[], maxBytes: number, maxTotalBytes: number) => Promise<Readonly<Record<string, string | null>>>;
 
 const isOn = (value: string | undefined): boolean => value === "1" || value === "true";
 
@@ -280,21 +289,57 @@ export function parseDrawingXml(drawingXml: string): ParsedAnchor[] {
   const out: ParsedAnchor[] = [];
   let index = 0;
   for (const match of drawingXml.matchAll(ANCHOR_PATTERN)) {
-    if (index >= MAX_ANCHORS) break;
+    if (index >= MAX_ANCHORS) {
+      index += 1;
+      continue;
+    }
     const alternate = alternateDepth(drawingXml, match.index ?? 0);
     const parsed = parseAnchor(match[0], match[2] ?? "", index, alternate.inside);
     index += 1;
     // A Fallback copy duplicates its Choice on screen; keep its index slot only.
     out.push(alternate.fallback ? { visual: { index: parsed.visual.index, kind: "other", editable: false } } : parsed);
   }
+  if (index > MAX_ANCHORS) out.push({ visual: { index: index - 1, kind: "other", editable: false } });
   return out;
+}
+
+/**
+ * The gateway's visualEdits for the journal's moves and deletes of visuals
+ * already in the file. `sheetFileName` maps a journal sheet name to its name
+ * in the input package. Every edit must address an anchor the reader marks
+ * editable (a twoCellAnchor outside mc:AlternateContent, within the listing
+ * cap), the same rule the editor applies: the gateway would otherwise rewrite
+ * only the `from` of a oneCellAnchor, or one copy of an AlternateContent pair
+ * and leave the other stale (review-visuals V4).
+ */
+export async function resolveFileVisualEdits(
+  visuals: readonly XlsxVisualEntry[],
+  sheetFileName: (sheetName: string) => string,
+  readText: XlsxEntriesReader,
+): Promise<XlsxWorkbookVisualEdit[]> {
+  if (!visuals.some((visual) => visual.kind === "file_visual")) return [];
+  const drawings = await readDrawingPathsBySheet(readText);
+  const edits = groupXlsxFileVisualEdits(visuals, (name) => drawings.get(sheetFileName(name)) ?? null);
+  const paths = [...new Set(edits.map((edit) => edit.drawingPath))];
+  const texts = paths.length > 0 ? await readText(paths) : {};
+  const editable = new Map(paths.map((path) => [path, new Set(parseDrawingXml(texts[path] ?? "").filter((anchor) => anchor.visual.editable).map((anchor) => anchor.visual.index))]));
+  for (const edit of edits) {
+    if (editable.get(edit.drawingPath)?.has(edit.drawingIndex)) continue;
+    throw new XlsxOpError(
+      edit.remove ? "remove_visual" : "set_visual",
+      "attributes.file",
+      `visual ${edit.drawingIndex} in ${edit.drawingPath} cannot be moved, resized or deleted here (a one-cell or absolute anchor, a group, an Excel alternate-content copy, or no such visual)`,
+    );
+  }
+  return edits;
 }
 
 /**
  * Read every listed worksheet's file-native visuals. `sheets[i].path` is the
  * worksheet part (absent = no part, no visuals). Pictures are read through
  * `readBase64` when given, each under the per-picture cap and all under the
- * workbook cap; without it pictures are listed without bytes.
+ * workbook cap - the reader enforces both before it inflates anything (V1);
+ * without it pictures are listed without bytes.
  */
 export async function readSheetVisuals(
   sheets: readonly { readonly path?: string | undefined }[],
@@ -304,8 +349,10 @@ export async function readSheetVisuals(
   try {
     return await readVisuals(sheets, readText, readBase64);
   } catch {
-    // A failing entry read leaves the workbook openable, without visuals.
-    return sheets.map(() => []);
+    // A failing entry read leaves the workbook openable, without visuals; each
+    // sheet is marked unread so a visual a save adds there is not numbered
+    // against an anchor count nobody knows (review-visuals V2).
+    return sheets.map((): XlsxRenderVisual[] => [{ index: -1, kind: "other", editable: false, unread: true }]);
   }
 }
 
@@ -341,7 +388,7 @@ async function readVisuals(
     }
   }
   const chartTexts = chartPaths.size > 0 ? await readText([...chartPaths]) : {};
-  const images = readBase64 && imagePaths.size > 0 ? await readBase64([...imagePaths], XLSX_FILE_VISUAL_MAX_IMAGE_BYTES) : {};
+  const images = readBase64 && imagePaths.size > 0 ? await readBase64([...imagePaths], XLSX_FILE_VISUAL_MAX_IMAGE_BYTES, XLSX_FILE_VISUAL_MAX_TOTAL_IMAGE_BYTES) : {};
   let imageBudget = XLSX_FILE_VISUAL_MAX_TOTAL_IMAGE_BYTES;
 
   return drawingPaths.map((drawingPath) => {

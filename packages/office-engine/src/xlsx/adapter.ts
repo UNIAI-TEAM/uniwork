@@ -41,8 +41,7 @@ import {
 import { ruleSetSaveFailure } from "./adapter-rule-sets.ts";
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps } from "./ops.ts";
-import { groupXlsxFileVisualEdits } from "./ops-visuals.ts";
-import { readDrawingPathsBySheet } from "./render-model-visuals.ts";
+import { resolveFileVisualEdits } from "./render-model-visuals.ts";
 import { withRuleSetSource } from "./ops-cf-dv.ts";
 import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
 import { readSharedFollowers, type XlsxSharedFollowers } from "./shared-formulas.ts";
@@ -377,11 +376,8 @@ export class XlsxAdapter {
     // File-visual edits (UNI-953, patch 0013): moves and deletes of anchors
     // already in the input package, located by the drawing part of the
     // sheet's file name; the gateway runs them before any visual addition.
-    const visualEdits = session.model.visuals.some((visual) => visual.kind === "file_visual")
-      ? groupXlsxFileVisualEdits(session.model.visuals, ((drawings) => (name: string) => drawings.get(gatewayName(name)) ?? null)(
-          await readDrawingPathsBySheet((paths) => this.deps.engine.readEntriesText(session.inputBytes, paths)),
-        ))
-      : [];
+    // An edit of an anchor the editor shows as fixed is refused (V4).
+    const visualEdits = await resolveFileVisualEdits(session.model.visuals, gatewayName, (paths) => this.deps.engine.readEntriesText(session.inputBytes, paths));
     // Hyperlink edits carry final per-cell coordinates, so the gateway applies
     // them after structural replay; a hyperlink change never moves cells, so
     // the recalc pass is unaffected. Each op is a per-cell last-write link

@@ -32,11 +32,12 @@ function fakeGateway() {
     },
     assertOnlyTouchedEntriesChanged: () => undefined,
     UNIWORK_XLSX_VISUAL_ADDITIONS: true as const,
-    readEntriesBase64: async (_buffer: Uint8Array, paths: readonly string[], maxBytes: number) => {
-      calls.push(["readEntriesBase64", paths, maxBytes]);
+    readEntriesBase64: async (_buffer: Uint8Array, paths: readonly string[], maxBytes: number, maxTotalBytes: number) => {
+      calls.push(["readEntriesBase64", paths, maxBytes, maxTotalBytes]);
       return Object.fromEntries(paths.map((path) => [path, "AAAA"]));
     },
     UNIWORK_XLSX_VISUAL_EDITS: true as const,
+    UNIWORK_XLSX_VISUAL_READ_BUDGET: true as const,
   };
   return { mod, calls };
 }
@@ -79,11 +80,22 @@ describe("bindXlsxGateway capability marker (patch 0013)", () => {
     expect(() => bindXlsxGateway(noReader)).toThrow(EngineBoundaryError);
   });
 
-  it("reads picture bytes through readEntriesBase64 with the caller's cap", async () => {
+  it("refuses a 0013 bundle whose reader predates the workbook budget (review-visuals V1)", () => {
+    const { UNIWORK_XLSX_VISUAL_READ_BUDGET: _budget, ...old } = fakeGateway().mod;
+    let refused: unknown;
+    try {
+      bindXlsxGateway(old);
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toMatchObject({ code: "engine_incompatible", fields: { detail: expect.stringMatching(/read budget.*build-upstream.mjs/) } });
+  });
+
+  it("reads picture bytes through readEntriesBase64 with the caller's cap and workbook budget", async () => {
     const { mod, calls } = fakeGateway();
-    const read = await bindXlsxGateway(mod).readEntriesBase64?.(source, ["xl/media/image1.png"], 1024);
+    const read = await bindXlsxGateway(mod).readEntriesBase64?.(source, ["xl/media/image1.png"], 1024, 4096);
     expect(read).toEqual({ "xl/media/image1.png": "AAAA" });
-    expect(calls[0]).toEqual(["readEntriesBase64", ["xl/media/image1.png"], 1024]);
+    expect(calls[0]).toEqual(["readEntriesBase64", ["xl/media/image1.png"], 1024, 4096]);
   });
 });
 

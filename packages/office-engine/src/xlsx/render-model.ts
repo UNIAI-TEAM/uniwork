@@ -453,7 +453,7 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
   const sheetVisuals = await readSheetVisuals(
     ordered,
     (paths) => engine.readEntriesText(bytes, paths),
-    engine.readEntriesBase64 ? (paths, maxBytes) => engine.readEntriesBase64!(bytes, paths, maxBytes) : undefined,
+    engine.readEntriesBase64 ? (paths, maxBytes, maxTotalBytes) => engine.readEntriesBase64!(bytes, paths, maxBytes, maxTotalBytes) : undefined,
   );
 
   const sheets = ordered.map((sheet, index) => {

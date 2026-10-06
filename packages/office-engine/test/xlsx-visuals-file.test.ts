@@ -155,7 +155,7 @@ describe("file visual reader", () => {
   });
 
   it("reads nothing for a sheet without a drawing, tolerates missing parts and a failing reader", async () => {
-    expect(await readSheetVisuals([{ path: "xl/worksheets/sheet1.xml" }], async () => { throw new Error("boom"); })).toEqual([[]]);
+    expect(await readSheetVisuals([{ path: "xl/worksheets/sheet1.xml" }], async () => { throw new Error("boom"); })).toEqual([[{ index: -1, kind: "other", editable: false, unread: true }]]);
     const texts: Record<string, string | null> = {
       "xl/worksheets/_rels/sheet1.xml.rels": '<Relationships><Relationship Id="rId1" Type="http://x/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>',
       "xl/drawings/drawing1.xml": null,

@@ -391,6 +391,7 @@ export async function run({ out, skipInstall, withNative, keep }) {
     const lost = [
       ['0010', /\bUNIWORK_XLSX_VISUAL_ADDITIONS\b/, 'UNIWORK_XLSX_VISUAL_ADDITIONS'],
       ['0013', /\bUNIWORK_XLSX_VISUAL_EDITS\b/, 'UNIWORK_XLSX_VISUAL_EDITS'],
+      ['0013', /\bUNIWORK_XLSX_VISUAL_READ_BUDGET\b/, 'UNIWORK_XLSX_VISUAL_READ_BUDGET'],
     ].filter(([, pattern]) => !pattern.test(bundle));
     if (lost.length > 0) {
       Object.assign(xlsxGateway, { status: 'fail', detail: lost.map(([patch, , marker]) => `patch ${patch} marker ${marker} missing from the bundle`).join('; ') });
