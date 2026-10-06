@@ -151,11 +151,16 @@ function itemsFor(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGroupPr
   return [item];
 }
 
+/** Groups made only of dropdown menus: their collapsed panel needs no repeated
+ *  group caption under the menu buttons. */
+const XLSX_MENU_ONLY_GROUPS: ReadonlySet<string> = new Set(["cells"]);
+
 function toRibbonGroup(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGroupProps): RibbonGroup {
   return {
     id: group.id,
     labelKey: group.labelKey,
     priority: xlsxGroupPriority(group.order),
+    ...(XLSX_MENU_ONLY_GROUPS.has(group.id) ? { panelCaption: false } : {}),
     ...(XLSX_GROUP_ICONS[group.id] === undefined ? {} : { icon: XLSX_GROUP_ICONS[group.id] }),
     items: itemsFor(group, context),
   };

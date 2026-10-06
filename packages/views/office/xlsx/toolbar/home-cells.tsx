@@ -5,7 +5,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
-import type { RibbonItem } from "../../ribbon";
+import { useRibbonPanelClose, type RibbonItem } from "../../ribbon";
 import { fireCommand } from "../fire-command";
 import { selectionSpan, XlsxStructureInsertGroup } from "./structure-insert";
 import { XlsxStructureSizeGroup } from "./structure-size";
@@ -46,7 +46,13 @@ function CellsMenu({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const label = t(labelKey);
-  const closePopover = useCallback(() => setOpen(false), []);
+  const closePanel = useRibbonPanelClose();
+  // A one-shot command closes this menu and, in a collapsed Cells group, the
+  // ribbon panel hosting it.
+  const closePopover = useCallback(() => {
+    setOpen(false);
+    closePanel();
+  }, [closePanel]);
   const finalFocus = useCloseOnOutsidePointerDown(open, closePopover);
   return (
     <Popover open={open} onOpenChange={(next) => setOpen(blocked ? false : next)}>
@@ -88,7 +94,7 @@ function CellsMenu({
             onClick={() => {
               if (blocked) return;
               entry.onSelect();
-              setOpen(false);
+              closePopover();
             }}
           >
             {entry.label}

@@ -42,6 +42,23 @@ describe("group anatomy", () => {
   });
 });
 
+describe("large button captions", () => {
+  it("clamps the caption to two lines with room under it and a 28px icon, so it never touches the group label", () => {
+    const group = renderGroup({
+      id: "styles",
+      labelKey: "Styles group",
+      priority: 1,
+      items: [{ kind: "button", id: "cf", labelKey: "Conditional Formatting", icon: Bold, size: "large", onExecute: vi.fn() }],
+    });
+    const button = within(group).getByRole("button", { name: /Conditional Formatting/ });
+    expect(button.className).toContain("py-0.5");
+    expect(button.className).toContain("size-7");
+    const label = within(button).getByText("Conditional Formatting");
+    expect(label.className).toContain("line-clamp-2");
+    expect(label.className).toContain("pb-px");
+  });
+});
+
 describe("gallery", () => {
   it("renders one bordered box with the visible cards and a more button", () => {
     const group = renderGroup({ id: "styles", labelKey: "Styles group", priority: 1, items: [gallery(5)] });

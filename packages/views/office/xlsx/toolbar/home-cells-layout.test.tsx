@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { RibbonGroupButton } from "../../ribbon/ribbon-group";
 import { xlsxCellsRibbonItems } from "./home-cells";
 import type { XlsxToolbarGroupProps } from "./types";
 
@@ -54,5 +55,31 @@ describe("Home > Cells layout (visual r4 R4B-6)", () => {
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 5 });
     // A command closes the menu.
     expect(screen.queryByTestId("xlsx-cells-insert-menu")).toBeNull();
+  });
+
+  describe("collapsed Cells group panel", () => {
+    const renderPanel = (execute: () => boolean) => {
+      const items = xlsxCellsRibbonItems({ ...props, selection: { sheet: "Data", address: "A1" }, commands: { execute } });
+      render(<RibbonGroupButton variant="large" group={{ id: "cells", labelKey: "Ô", priority: 1, panelCaption: false, items: [...items] }} />);
+      fireEvent.click(screen.getByRole("button", { name: /Ô/ }));
+    };
+
+    it("closes the whole panel after a one-shot insert and does not repeat the group caption", () => {
+      renderPanel(() => true);
+      const panel = screen.getByRole("group", { name: "Ô" });
+      // The panel is named by its aria-label; no stray caption row under the buttons.
+      expect(within(panel).queryByText("Ô")).toBeNull();
+      fireEvent.click(screen.getByTestId("xlsx-cells-insert-trigger"));
+      fireEvent.click(screen.getByTestId("xlsx-cells-insert-rows-above"));
+      expect(screen.queryByTestId("xlsx-cells-insert-menu")).toBeNull();
+      expect(screen.queryByRole("group", { name: "Ô" })).toBeNull();
+    });
+
+    it("closes the panel after a Delete entry too", () => {
+      renderPanel(() => true);
+      fireEvent.click(screen.getByTestId("xlsx-cells-delete-trigger"));
+      fireEvent.click(screen.getByTestId("xlsx-cells-delete-rows"));
+      expect(screen.queryByRole("group", { name: "Ô" })).toBeNull();
+    });
   });
 });

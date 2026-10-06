@@ -39,6 +39,12 @@ describe("Home tab ribbon layout (Excel order)", () => {
     expect(homeGroups().map((group) => group.id)).toEqual(["clipboard", "font", "alignment", "number", "conditional-format", "cells", "editing"]);
   });
 
+  it("drops the repeated caption from the Cells panel only", () => {
+    const groups = homeGroups();
+    expect(groups.find((group) => group.id === "cells")?.panelCaption).toBe(false);
+    expect(groups.find((group) => group.id === "editing")?.panelCaption).toBeUndefined();
+  });
+
   it("leaves no pre-ribbon folded group on Home", () => {
     const ids = homeGroups().map((group) => group.id);
     for (const gone of ["sheets", "borders", "structure-size", "structure-merge", "clear", "painter"]) {
