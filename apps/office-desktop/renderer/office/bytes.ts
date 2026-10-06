@@ -44,8 +44,16 @@ export function copyBytes(bytes: Uint8Array): Uint8Array {
   return withMemoryGuard(() => bytes.slice());
 }
 
-/** True for the typed memory error above, or for a raw allocation failure that
- * reached a caller outside the guard. */
+/** True for the typed memory error above, for a raw allocation failure that
+ * reached a caller outside the guard, or for an engine-host crash relayed by
+ * Electron invoke: invoke carries only the message ("Error invoking remote
+ * method ...: EngineHostExitError: insufficient_memory"), never the code. */
 export function isMemoryFailure(error: unknown): boolean {
-  return (error as { code?: unknown } | null)?.code === FILE_INSUFFICIENT_MEMORY || isAllocationFailure(error);
+  if ((error as { code?: unknown } | null)?.code === FILE_INSUFFICIENT_MEMORY || isAllocationFailure(error)) return true;
+  return error instanceof Error && /(^|[^a-z])insufficient_memory$/.test(error.message);
+}
+
+/** The typed memory error for any memory failure, otherwise the error itself. */
+export function typedMemoryFailure(error: unknown): unknown {
+  return isMemoryFailure(error) ? memoryError() : error;
 }

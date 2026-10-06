@@ -144,6 +144,12 @@ describe("desktop PDF surface", () => {
     await expect(surface.open()).rejects.toThrow("pdf_open_failed");
   });
 
+  it("turns an engine-host crash relayed by invoke into the typed memory error", async () => {
+    const call = vi.fn(async () => { throw new Error("Error invoking remote method 'desktop:engine-call': EngineHostExitError: insufficient_memory"); });
+    const surface = createDesktopPdfSurface(settings(call));
+    await expect(surface.open()).rejects.toMatchObject({ code: "file_insufficient_memory" });
+  });
+
   it("omits the password on the first open and carries it on the retry", async () => {
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const args = (payload as { args: { password?: string } }).args;

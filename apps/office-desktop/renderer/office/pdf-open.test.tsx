@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
+import i18n from "i18next";
 import { OpenByteDocument } from "./open-document";
 import { createByteDocumentSession } from "./session";
 import type { RendererBridge } from "../app";
@@ -178,4 +179,18 @@ it("keeps an Undo pressed while a rotate awaits the engine, and undoes that rota
   expect(session.editor.canUndo?.()).toBe(false);
   expect(session.editor.canRedo?.()).toBe(true);
   expect(session.coordinator.getState().dirtyGeneration).toBe(session.editor.getDirtyGeneration());
+});
+
+it("shows the typed memory copy when the engine host dies while opening a PDF (UNI-956)", async () => {
+  const call = vi.fn(async (channel: string) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:engine-call") throw new Error("Error invoking remote method 'desktop:engine-call': EngineHostExitError: insufficient_memory");
+    return {};
+  });
+  const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", data: Uint8Array.from(Buffer.from(pdfBytes, "base64")), checksum });
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
+  const failure = await screen.findByTestId("office-open-error", {}, { timeout: 10000 });
+  expect(failure).toHaveTextContent(i18n.t("office.save.reason.file_insufficient_memory"));
+  expect(failure).not.toHaveTextContent("insufficient_memory");
 });

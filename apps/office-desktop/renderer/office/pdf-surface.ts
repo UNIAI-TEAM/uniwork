@@ -3,7 +3,7 @@ import { bridgePdfOperations, quadsForRange, toNoteThreads, type PdfCanvasPage, 
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopIpcRequest } from "../../shared/ipc";
 import type { DesktopSurfaceSettings } from "./surface";
-import { incomingBytes } from "./bytes";
+import { incomingBytes, typedMemoryFailure } from "./bytes";
 
 /** One page's size in PDF points, in page order; zero when pdfium could not
  * read it. */
@@ -160,7 +160,10 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
   };
   const callEngine = async (operation: "open" | "edit" | "render" | "text", args: Record<string, unknown>): Promise<EngineResponse> => {
     const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args };
-    return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse;
+    // A crashed engine host (heap OOM) reaches here as a bare invoke rejection;
+    // it leaves as the typed file_insufficient_memory error.
+    try { return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse; }
+    catch (error) { throw typedMemoryFailure(error); }
   };
 
   /** Rendered pages, keyed by page@scale@generation. An edit bumps the

@@ -17,10 +17,15 @@ export function createRemotePdfCall(client: EngineHostClient): (call: DesktopEng
   return async (call) => await client.call("pdf-call", call) as DesktopEngineCallResult;
 }
 
-/** Old-space ceiling for the child: "unbounded" means bounded by the machine,
- *  so give it most of the physical memory (never below V8's small default). */
+const V8_COMPRESSED_HEAP_CAP_MB = 4096;
+
+/** Old-space ceiling for the child. Electron builds V8 with pointer
+ *  compression, whose 4 GiB cage caps the JS heap whatever the flag asks (a
+ *  larger value is clamped to ~4.1 GiB). So the flag only matters below that:
+ *  three quarters of a small machine's memory, never under 2 GiB. File bytes
+ *  live off-heap (ArrayBuffers, wasm memory) and are bounded by the machine. */
 export function engineHostHeapMegabytes(totalBytes: number = totalmem()): number {
-  return Math.max(2048, Math.floor((totalBytes * 0.75) / (1024 * 1024)));
+  return Math.min(V8_COMPRESSED_HEAP_CAP_MB, Math.max(2048, Math.floor((totalBytes * 0.75) / (1024 * 1024))));
 }
 
 /** Bind the engine host: `fork` is Electron's utilityProcess.fork. Nothing is
