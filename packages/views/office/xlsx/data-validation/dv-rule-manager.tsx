@@ -160,7 +160,7 @@ export function XlsxDvRuleManager({ unitId, subUnitId, commands, selection, x14 
           unitId={unitId}
           subUnitId={subUnitId}
           range={editing.ranges[0] as XlsxDvRange}
-          edit={{ ruleId: editing.id, ranges: editing.ranges, form: editingForm }}
+          edit={{ ruleId: editing.id, ranges: editing.ranges, form: editingForm, rule: editing.rule }}
           onClose={() => {
             setEditing(null);
             refresh();

@@ -247,8 +247,8 @@ export interface XlsxRendererHandle {
   executeCommand(id: string, params?: unknown): Promise<boolean>;
   /** UNI-953: several commands as ONE undo entry (a rich paste); resolves to
    *  how many steps ran (steps.length: all, 0: nothing written), stopping at
-   *  the first refusal. */
-  executeCommandsAsOneStep(steps: readonly { id: string; params?: unknown }[]): Promise<number>;
+   *  the first refusal; `rollback` takes a partial run back (all or nothing). */
+  executeCommandsAsOneStep(steps: readonly { id: string; params?: unknown }[], options?: { rollback?: boolean }): Promise<number>;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxRendererFormatState | null;
   /** The live sheet list in tab order (rename/insert/remove/reorder as they

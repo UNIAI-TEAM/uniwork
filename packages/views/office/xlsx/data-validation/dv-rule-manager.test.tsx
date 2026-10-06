@@ -65,32 +65,22 @@ describe("XlsxDvRuleManager", () => {
     expect(within(rowOf("dv-c")).getByText(lookup("office.xlsx.dataValidation.manager.rules.other").replace("{{type}}", "custom"))).toBeInTheDocument();
   });
 
-  it("edits through the prefilled dialog: setting, options, ranges in order", async () => {
+  it("edits through the prefilled dialog: only the changed setting, keeping the live flags", async () => {
     const { execute } = setup();
     fireEvent.click(within(rowOf("dv-a")).getByTestId("xlsx-dv-rule-edit"));
     const source = await screen.findByTestId("xlsx-dv-source");
     expect(source).toHaveValue("a,b");
     fireEvent.change(source, { target: { value: "a,b,c" } });
     fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
-    await waitFor(() => expect(execute).toHaveBeenCalledTimes(3));
-    expect(execute.mock.calls.map((call) => call[0])).toEqual([
-      "sheets.command.update-data-validation-setting",
-      "sheets.command.update-data-validation-options",
-      "sheet.command.updateDataValidationRuleRange",
-    ]);
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+    expect(execute.mock.calls[0]![0]).toBe("sheets.command.update-data-validation-setting");
+    // dv-a stores no allowBlank: the edit keeps it unset instead of turning it on.
     expect(execute.mock.calls[0]![1]).toEqual({
       unitId: "file-abc",
       subUnitId: "sheet-1",
       ruleId: "dv-a",
-      setting: { type: "list", operator: undefined, formula1: "a,b,c", formula2: undefined, allowBlank: true },
+      setting: { type: "list", operator: undefined, formula1: "a,b,c", formula2: undefined, allowBlank: undefined },
     });
-    expect(execute.mock.calls[1]![1]).toEqual({
-      unitId: "file-abc",
-      subUnitId: "sheet-1",
-      ruleId: "dv-a",
-      options: { errorStyle: 2, error: "oops", errorTitle: "", showErrorMessage: true },
-    });
-    expect(execute.mock.calls[2]![1]).toEqual({ unitId: "file-abc", subUnitId: "sheet-1", ruleId: "dv-a", ranges: [SELECTION] });
     await waitFor(() => expect(screen.queryByTestId("xlsx-dv-apply")).not.toBeInTheDocument());
   });
 

@@ -72,8 +72,9 @@ export interface XlsxGridHandle extends XlsxVisualsGrid {
   executeCommand(id: string, params?: unknown): boolean | Promise<boolean>;
   /** UNI-953: several commands as ONE undo entry (a rich paste); resolves to
    *  how many steps ran (steps.length: all, 0: nothing written). Optional so
-   *  test doubles that only exercise the cell ports stay valid. */
-  executeCommandsAsOneStep?(steps: readonly { id: string; params?: unknown }[]): Promise<number>;
+   *  test doubles that only exercise the cell ports stay valid. `rollback`
+   *  takes a partial run back (all or nothing). */
+  executeCommandsAsOneStep?(steps: readonly { id: string; params?: unknown }[], options?: { rollback?: boolean }): Promise<number>;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxGridFormatState | null;
   /** The live sheet list in tab order; optional so test doubles that only
@@ -188,7 +189,7 @@ export function XlsxGridSurface({
       selectSheet: (sheetId) => handleRef.current?.selectSheet(sheetId),
       setNumberFormat: (pattern) => handleRef.current?.setNumberFormat(pattern),
       executeCommand: (id, params) => handleRef.current?.executeCommand(id, params) ?? false,
-      executeCommandsAsOneStep: (steps) => handleRef.current?.executeCommandsAsOneStep?.(steps) ?? Promise.resolve(0),
+      executeCommandsAsOneStep: (steps, options) => handleRef.current?.executeCommandsAsOneStep?.(steps, options) ?? Promise.resolve(0),
       getActiveFormatState: () => handleRef.current?.getActiveFormatState() ?? null,
       getSheets: () => handleRef.current?.getSheets?.() ?? [],
       restoreRuleSet: (sheetId, family, rules) => handleRef.current?.restoreRuleSet?.(sheetId, family, rules) ?? false,

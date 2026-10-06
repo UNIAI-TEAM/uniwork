@@ -87,7 +87,7 @@ import {
   normalizeLinkTarget,
 } from "../../upstream/apps/sheets/src/renderer/univer-sync";
 import { parseAddress } from "../../upstream/packages/xlsx-gateway/src/domain/cell-address";
-import { executeAsOneUndoStep, type XlsxRendererCommandStep } from "./undo-step";
+import { executeAsOneUndoStep, type XlsxRendererBatchOptions, type XlsxRendererCommandStep } from "./undo-step";
 import {
   installJournalSuppressionUndoFilter,
   installLoadAutoHeightGate,
@@ -186,8 +186,9 @@ export interface XlsxRendererHandle {
    *  Returns whether the command actually ran. */
   executeCommand(id: string, params?: unknown): Promise<boolean>;
   /** UNI-953: several commands as ONE undo entry (a rich paste). Resolves to
-   *  how many steps ran: steps.length is all of them, 0 is nothing written. */
-  executeCommandsAsOneStep(steps: readonly XlsxRendererCommandStep[]): Promise<number>;
+   *  how many steps ran: steps.length is all of them, 0 is nothing written.
+   *  `rollback` takes a partial run back (all or nothing). */
+  executeCommandsAsOneStep(steps: readonly XlsxRendererCommandStep[], options?: XlsxRendererBatchOptions): Promise<number>;
   /** The active range's composed style, or null without an active range.
    *  Read-only mounts still report state; only writes are refused. */
   getActiveFormatState(): XlsxRendererFormatState | null;
@@ -835,10 +836,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       const commandParams = { unitId: workbook.getId(), subUnitId: sheet.getSheetId(), ...base, ...resolved };
       return (await runtime.univerAPI.executeCommand(id, commandParams)) === true;
     },
-    executeCommandsAsOneStep(steps) {
+    executeCommandsAsOneStep(steps, batchOptions) {
       const unitId = runtime.univerAPI.getActiveWorkbook()?.getId();
       if (options.readOnly || !unitId) return Promise.resolve(0);
-      return executeAsOneUndoStep(runtime.univer.__getInjector(), unitId, steps, (step) => this.executeCommand(step.id, step.params));
+      return executeAsOneUndoStep(runtime.univer.__getInjector(), unitId, steps, (step) => this.executeCommand(step.id, step.params), batchOptions);
     },
     getActiveFormatState() {
       const range = runtime.univerAPI.getActiveWorkbook()?.getActiveRange();

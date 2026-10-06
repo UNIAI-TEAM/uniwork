@@ -34,7 +34,7 @@ import {
   type XlsxDvType,
 } from "./dv-commands";
 import { rangesLabel } from "./rule-areas";
-import { runRuleCommand } from "./run-rule-command";
+import { runRuleCommand, runRuleCommandsAtomically } from "./run-rule-command";
 
 export interface XlsxDataValidationDialogProps {
   commands: XlsxToolbarCommands;
@@ -45,8 +45,9 @@ export interface XlsxDataValidationDialogProps {
    *  the dialog explains it and Apply stays inert. */
   blocked?: boolean;
   /** Edit mode (rule manager): the dialog opens with the rule's form and Apply
-   *  updates rule `ruleId` in place (setting, options, then areas). */
-  edit?: { ruleId: string; ranges: readonly XlsxDvRange[]; form: XlsxDvForm };
+   *  updates live rule `rule` (id `ruleId`) in place, all or nothing, with
+   *  only the setting / options that changed. */
+  edit?: { ruleId: string; ranges: readonly XlsxDvRange[]; form: XlsxDvForm; rule: Readonly<Record<string, unknown>> };
   onClose: () => void;
 }
 
@@ -119,11 +120,7 @@ export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, b
     setPending(true);
     let accepted: boolean;
     if (edit) {
-      accepted = true;
-      for (const step of updateDvCommands(unitId, subUnitId, edit.ruleId, built.rule, edit.ranges)) {
-        accepted = await runRuleCommand(commands, step.id, step.params);
-        if (!accepted) break;
-      }
+      accepted = await runRuleCommandsAtomically(commands, updateDvCommands(unitId, subUnitId, edit.ruleId, built.rule, edit.rule));
     } else {
       accepted = await runRuleCommand(commands, XLSX_DV_ADD_COMMAND, addDvParams(unitId, subUnitId, built.rule));
     }

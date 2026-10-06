@@ -11,7 +11,6 @@ export const XLSX_DV_ADD_COMMAND = "sheet.command.addDataValidation";
 export const XLSX_DV_CLEAR_COMMAND = "sheets.command.clear-range-data-validation";
 export const XLSX_DV_SETTING_COMMAND = "sheets.command.update-data-validation-setting";
 export const XLSX_DV_OPTIONS_COMMAND = "sheets.command.update-data-validation-options";
-export const XLSX_DV_RANGE_COMMAND = "sheet.command.updateDataValidationRuleRange";
 export const XLSX_DV_REMOVE_COMMAND = "sheet.command.remove-data-validation-rule";
 
 export const XLSX_DV_ERROR_STYLES = ["stop", "warning", "information"] as const;
@@ -186,35 +185,50 @@ function parseValue(
   return { text: String(num), num };
 }
 
-/** Params of the three commands that edit rule `ruleId` in place; they run
- *  in this order and the first refusal stops the edit. */
-export function updateDvCommands(unitId: string, subUnitId: string, ruleId: string, rule: XlsxDvRule, ranges: readonly XlsxDvRange[]) {
-  return [
-    {
+/** Univer's stored values, normalised for comparison: an absent error style
+ *  is stop, an absent operator of a value rule is between, absent text is "". */
+const storedStyle = (value: unknown): unknown => (value === undefined || value === null ? ERROR_STYLE_CODE.stop : value);
+const storedText = (value: unknown): unknown => (value === undefined || value === null ? "" : value);
+const storedOperator = (type: unknown, value: unknown): unknown =>
+  type !== "list" && (value === undefined || value === "") ? "between" : storedText(value);
+
+/** The commands that edit live rule `ruleId` in place: only the setting and
+ *  the options that differ from `live` (one Ctrl+Z per edit, no empty undo
+ *  steps), run as one all-or-nothing step by the dialog. The dialog edits
+ *  neither the areas nor the "ignore blank" / "show alert" flags, so the live
+ *  values of those flags are carried over, never reset (review dvcf F3, F4). */
+export function updateDvCommands(
+  unitId: string,
+  subUnitId: string,
+  ruleId: string,
+  rule: XlsxDvRule,
+  live: Readonly<Record<string, unknown>>,
+): { id: string; params: unknown }[] {
+  const steps: { id: string; params: unknown }[] = [];
+  const settingChanged = rule.type !== live.type ||
+    storedOperator(rule.type, rule.operator) !== storedOperator(live.type, live.operator) ||
+    rule.formula1 !== storedText(live.formula1) || storedText(rule.formula2) !== storedText(live.formula2);
+  if (settingChanged) {
+    steps.push({
       id: XLSX_DV_SETTING_COMMAND,
       params: {
         unitId,
         subUnitId,
         ruleId,
-        setting: { type: rule.type, operator: rule.operator, formula1: rule.formula1, formula2: rule.formula2, allowBlank: rule.allowBlank },
+        setting: { type: rule.type, operator: rule.operator, formula1: rule.formula1, formula2: rule.formula2, allowBlank: live.allowBlank },
       },
-    },
-    {
+    });
+  }
+  const options = { errorStyle: rule.errorStyle, error: rule.error ?? "", errorTitle: rule.errorTitle ?? "" };
+  const optionsChanged = options.errorStyle !== storedStyle(live.errorStyle) ||
+    options.error !== storedText(live.error) || options.errorTitle !== storedText(live.errorTitle);
+  if (optionsChanged) {
+    steps.push({
       id: XLSX_DV_OPTIONS_COMMAND,
-      params: {
-        unitId,
-        subUnitId,
-        ruleId,
-        options: {
-          errorStyle: rule.errorStyle,
-          error: rule.error ?? "",
-          errorTitle: rule.errorTitle ?? "",
-          showErrorMessage: rule.showErrorMessage,
-        },
-      },
-    },
-    { id: XLSX_DV_RANGE_COMMAND, params: { unitId, subUnitId, ruleId, ranges: ranges.map((range) => ({ ...range })) } },
-  ];
+      params: { unitId, subUnitId, ruleId, options: { ...options, showErrorMessage: live.showErrorMessage } },
+    });
+  }
+  return steps;
 }
 
 export function removeDvParams(unitId: string, subUnitId: string, ruleId: string) {

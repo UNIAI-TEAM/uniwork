@@ -155,22 +155,40 @@ describe("error styles", () => {
 });
 
 describe("edit commands", () => {
-  it("orders setting, options and range updates with exact params", () => {
+  it("sends the changed setting and options with exact params, keeping the live flags (F4)", () => {
     const built = build({ type: "whole", operator: "between", value1: "1", value2: "5", errorStyle: "warning", error: "no" });
     if (!built.ok) throw new Error("expected ok");
-    const steps = updateDvCommands("u", "s", "r1", built.rule, [range]);
+    const live = { type: "list", formula1: "a,b", allowBlank: false, showErrorMessage: false, errorStyle: 1 };
+    const steps = updateDvCommands("u", "s", "r1", built.rule, live);
     expect(steps).toEqual([
       {
         id: "sheets.command.update-data-validation-setting",
-        params: { unitId: "u", subUnitId: "s", ruleId: "r1", setting: { type: "whole", operator: "between", formula1: "1", formula2: "5", allowBlank: true } },
+        params: { unitId: "u", subUnitId: "s", ruleId: "r1", setting: { type: "whole", operator: "between", formula1: "1", formula2: "5", allowBlank: false } },
       },
       {
         id: "sheets.command.update-data-validation-options",
-        params: { unitId: "u", subUnitId: "s", ruleId: "r1", options: { errorStyle: 2, error: "no", errorTitle: "", showErrorMessage: true } },
+        params: { unitId: "u", subUnitId: "s", ruleId: "r1", options: { errorStyle: 2, error: "no", errorTitle: "", showErrorMessage: false } },
       },
-      { id: "sheet.command.updateDataValidationRuleRange", params: { unitId: "u", subUnitId: "s", ruleId: "r1", ranges: [range] } },
     ]);
     expect(removeDvParams("u", "s", "r1")).toEqual({ unitId: "u", subUnitId: "s", ruleId: "r1" });
+  });
+});
+
+describe("edit commands skip what did not change (F3)", () => {
+  const whole = { type: "whole" as const, operator: "between" as const, value1: "1", value2: "5", errorTitle: "", error: "", errorStyle: "stop" as const };
+  it("sends nothing for an unchanged rule, Univer defaults included", () => {
+    const built = build(whole);
+    if (!built.ok) throw new Error("expected ok");
+    // No operator stored = between; no error style = stop; no text = "".
+    expect(updateDvCommands("u", "s", "r1", built.rule, { type: "whole", formula1: "1", formula2: "5" })).toEqual([]);
+  });
+  it("sends only the step that changed", () => {
+    const style = build({ ...whole, errorStyle: "information" });
+    const value = build({ ...whole, value2: "9" });
+    if (!style.ok || !value.ok) throw new Error("expected ok");
+    const live = { type: "whole", operator: "between", formula1: "1", formula2: "5", errorStyle: 1, allowBlank: true };
+    expect(updateDvCommands("u", "s", "r1", style.rule, live).map((step) => step.id)).toEqual(["sheets.command.update-data-validation-options"]);
+    expect(updateDvCommands("u", "s", "r1", value.rule, live).map((step) => step.id)).toEqual(["sheets.command.update-data-validation-setting"]);
   });
 });
 

@@ -27,8 +27,10 @@ export interface XlsxToolbarCommands {
   readRuleSets?(sheetId: string, family: XlsxRuleFamily): readonly XlsxLiveRule[] | null;
   /** Runs the steps as ONE undo entry on the mounted grid (the Data tools
    *  rewrite a range in one step); resolves false when any step is refused.
-   *  Absent on doubles that only run single commands. */
-  executeAsOneStep?(steps: readonly XlsxToolbarCommandStep[]): Promise<boolean>;
+   *  `atomic`: a refusal also takes back the steps that ran (a DV rule edit
+   *  must not stay half-applied). Absent on doubles that only run single
+   *  commands. */
+  executeAsOneStep?(steps: readonly XlsxToolbarCommandStep[], options?: { atomic?: boolean }): Promise<boolean>;
 }
 
 /** One command of a batched, single-undo-step run. */
