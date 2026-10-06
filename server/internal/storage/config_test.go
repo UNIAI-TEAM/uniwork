@@ -314,7 +314,7 @@ func TestLoadConfigErrorsNeverEchoSecrets(t *testing.T) {
 func TestLoadConfigS3Group(t *testing.T) {
 	t.Run("explicit pair", func(t *testing.T) {
 		env := validS3Env()
-		env["S3_KEY_PREFIX"] = "/production"
+		env["S3_KEY_PREFIX"] = "production"
 		env["AWS_ENDPOINT_URL"] = "https://s3.example.com"
 
 		cfg, err := LoadConfig(allBackends(t), envLookup(env))
@@ -324,8 +324,8 @@ func TestLoadConfigS3Group(t *testing.T) {
 		if cfg.S3 == nil || cfg.S3.Bucket != "uniwork-media" || cfg.S3.Region != "us-east-1" {
 			t.Fatalf("S3 config mismatch: %+v", cfg.S3)
 		}
-		if cfg.S3.KeyPrefix != "production/" {
-			t.Fatalf("KeyPrefix = %q, want production/", cfg.S3.KeyPrefix)
+		if cfg.KeyRoot != "production/" {
+			t.Fatalf("KeyRoot = %q, want production/", cfg.KeyRoot)
 		}
 		if cfg.S3.AccessKeyID != "aws-access-key" || cfg.S3.SecretAccessKey != "aws-secret-key" {
 			t.Fatal("static pair must be carried through")
