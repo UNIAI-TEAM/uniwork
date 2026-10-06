@@ -230,7 +230,8 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       // still recover them).
       committed = withoutPendingOps(cloneSnapshot(candidate.snapshot));
       pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision);
-      snapshot = snapshot === null ? null : withPendingStream(snapshot, pending.map((entry) => entry.operation));
+      const kept = pending.map((entry) => entry.operation);
+      snapshot = snapshot === null ? null : kept.length ? withPendingOps(snapshot, kept) : withoutPendingOps(snapshot);
       baseRevision = revision;
       lastCommit = { intentId, revision };
       candidates.clear();
