@@ -5,7 +5,7 @@
 // the inserted box's aspect ratio without waiting on an <img> decode.
 import { XLSX_VISUAL_IMAGE_TYPES, XLSX_VISUAL_MAX_IMAGE_BYTES, type XlsxVisualImageType } from "@uniwork/office-engine/xlsx";
 
-export type XlsxPictureRead =
+type XlsxPictureRead =
   | { readonly ok: true; readonly mediaType: XlsxVisualImageType; readonly base64: string; readonly width: number; readonly height: number }
   | { readonly ok: false; readonly reason: "type" | "size" | "unreadable" };
 

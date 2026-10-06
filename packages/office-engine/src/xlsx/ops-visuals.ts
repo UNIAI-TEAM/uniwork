@@ -23,17 +23,17 @@
 // (xl/drawings/drawingN.xml, plus xl/charts/chartN.xml or xl/media/imageN.*).
 import { XlsxOpError, isDict, int, str, parseStructuralTarget, parseStructuralAttributes, MAX_ROWS, MAX_COLS, type Dict, type XlsxEditOp, type XlsxSheetResolver } from "./ops-shared.ts";
 
-export const VISUAL_SET_OP_KIND = "set_visual";
-export const VISUAL_REMOVE_OP_KIND = "remove_visual";
+const VISUAL_SET_OP_KIND = "set_visual";
+const VISUAL_REMOVE_OP_KIND = "remove_visual";
 /** The parsed anchor-only form of set_visual (no wire name of its own). */
 const VISUAL_MOVE_OP_KIND = "move_visual";
 
 /** Chart kinds the editor inserts; all are written by the vendored buildChartXml. */
-export const XLSX_VISUAL_CHART_TYPES = ["column", "bar", "line", "pie", "area", "doughnut"] as const;
+const XLSX_VISUAL_CHART_TYPES = ["column", "bar", "line", "pie", "area", "doughnut"] as const;
 export type XlsxVisualChartType = (typeof XLSX_VISUAL_CHART_TYPES)[number];
 
 /** DrawingML preset geometries the shape picker offers (`a:prstGeom prst`). */
-export const XLSX_VISUAL_SHAPE_TYPES = ["rect", "roundRect", "ellipse", "triangle", "rightArrow", "leftArrow", "line"] as const;
+const XLSX_VISUAL_SHAPE_TYPES = ["rect", "roundRect", "ellipse", "triangle", "rightArrow", "leftArrow", "line"] as const;
 export type XlsxVisualShapeType = (typeof XLSX_VISUAL_SHAPE_TYPES)[number];
 
 export const XLSX_VISUAL_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif"] as const;

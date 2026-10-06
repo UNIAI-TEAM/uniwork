@@ -69,7 +69,7 @@ export interface XlsxVisualsOptions {
   onError: (message: string) => void;
 }
 
-export interface XlsxVisualsWiring {
+interface XlsxVisualsWiring {
   commands: XlsxVisualsCommands;
   /** Rendered inside the grid surface, above the canvas. */
   overlay: ReactNode;

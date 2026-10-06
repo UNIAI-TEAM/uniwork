@@ -11,7 +11,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { XLSX_LARGE_BUTTON_CLASS, XlsxLargeLabel } from "../toolbar/group-layout";
 
-export interface XlsxVisualMenuEntry {
+interface XlsxVisualMenuEntry {
   readonly id: string;
   readonly label: string;
   readonly icon: LucideIcon;

@@ -62,10 +62,8 @@ export { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, DEFINED_NAMES_OP_KIND
 export type { XlsxDefinedNamesOp, XlsxDefinedNamesState, XlsxDefinedNameEntry } from "./ops-names.ts";
 export { isXlsxNotesOp, groupXlsxNoteStates, NOTES_OP_KIND } from "./ops-notes.ts";
 export {
-  XLSX_VISUAL_CHART_TYPES,
   XLSX_VISUAL_IMAGE_TYPES,
   XLSX_VISUAL_MAX_IMAGE_BYTES,
-  XLSX_VISUAL_SHAPE_TYPES,
   groupXlsxVisualAdditions,
   isXlsxVisualOp,
 } from "./ops-visuals.ts";
