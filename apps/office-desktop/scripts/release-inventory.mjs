@@ -25,12 +25,14 @@ async function digestFile(file) {
   return sha256(await readFile(file));
 }
 
-async function listFiles(directory) {
+async function listFiles(directory, skipDirectory = () => false) {
   const result = [];
   async function visit(current) {
     for (const entry of await readdir(current, { withFileTypes: true })) {
       const file = join(current, entry.name);
-      if (entry.isDirectory()) await visit(file);
+      if (entry.isDirectory()) {
+        if (!skipDirectory(entry.name)) await visit(file);
+      }
       else result.push(file);
     }
   }
@@ -162,12 +164,17 @@ async function collectFontRows() {
   return rows.sort((a, b) => a.fixture.localeCompare(b.fixture));
 }
 
-async function scanEe() {
+/** Directories the ee/ scan never enters: VCS data, installed dependencies, build
+ * outputs and the git-ignored tool caches (a Go build cache names directories
+ * `ee` and is never source). Pruned while walking, so a cache of hundreds of
+ * megabytes is not listed either. Tracked and untracked sources are scanned. */
+const EE_SCAN_SKIPPED_DIRECTORIES = new Set([".git", "node_modules", "dist", ".next", ".turbo", ".go-cache", ".go-tmp", ".uniwork-dev", ".uniwork-dev-run", "coverage", "test-results", "playwright-report"]);
+
+export async function scanEe(root = repositoryRoot) {
   const matches = [];
-  for (const file of await listFiles(repositoryRoot)) {
-    if (file.includes(`${sep}.git${sep}`) || file.includes(`${sep}node_modules${sep}`) || file.includes(`${sep}dist${sep}`)) continue;
-    const parts = file.split(/[\\/]/);
-    if (parts.includes("ee")) matches.push(relative(repositoryRoot, file).replaceAll("\\", "/"));
+  for (const file of await listFiles(root, (name) => EE_SCAN_SKIPPED_DIRECTORIES.has(name))) {
+    const parts = relative(root, file).split(/[\\/]/);
+    if (parts.includes("ee")) matches.push(parts.join("/"));
   }
   return matches;
 }
