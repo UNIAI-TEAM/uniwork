@@ -113,8 +113,14 @@ describe("XlsxFormatPainterButton", () => {
 
     fireEvent.click(button);
     await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(execute).toHaveBeenLastCalledWith(...CANCEL);
+    // The arm lands from a resolved promise, outside act: aria-pressed can
+    // commit before the passive effect adds the Escape listener. Retry the key
+    // until it is heard; once disarmed the listener is gone, so a retry after
+    // the cancel is a no-op and the call count below still pins one cancel.
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(execute).toHaveBeenLastCalledWith(...CANCEL);
+    });
     await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "false"));
 
     fireEvent.keyDown(window, { key: "Escape" });
