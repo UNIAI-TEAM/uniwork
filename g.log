@@ -1,0 +1,3 @@
+$ set -a && . ./.env && set +a && pnpm audit --audit-level high
+7 vulnerabilities found
+Severity: 3 low | 2 moderate | 2 high (2 ignored)
