@@ -449,6 +449,93 @@ test('Show / Hide Detail hides or shows the outline group through the allowliste
   } finally { readonly.close(); }
 });
 
+test('Hide / Show Detail journals the summary line collapsed flag as its own undoable outline op', async () => {
+  const edits = [];
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch) });
+  try {
+    await mounted.handle.loadWorkbook(file);
+    const detail = (params) => mounted.handle.executeCommand('uniwork.command.set-outline-detail', params);
+    const collapseItems = () => (mounted.h.undoItems ?? []).filter((item) => item.undoMutations[0].id === 'uniwork.command.set-outline-collapsed');
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 2, end: 4, action: 'group' }), true);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 1, end: 2, action: 'group' }), true);
+    edits.length = 0;
+    // Hide Detail marks the line after the group collapsed (Excel draws "+"), keeping its level.
+    assert.equal(await detail({ axis: 'rows', start: 3, end: 3, hide: true }), true);
+    assert.deepEqual(edits.map((edit) => edit.structural), [{ kind: 'set-rows-outline', start: 5, end: 5, level: 0, collapsed: true }]);
+    // Undo and redo replay the collapse command with the opposite and the new flag, pushing nothing new.
+    const [entry] = collapseItems();
+    assert.deepEqual(entry.undoMutations[0].params, { subUnitId: 's1', axis: 'rows', start: 5, end: 5, collapsed: false, history: false });
+    assert.deepEqual(entry.redoMutations[0].params, { ...entry.undoMutations[0].params, collapsed: true });
+    // Hiding an already collapsed group changes no flag: nothing journalled, no second entry.
+    assert.equal(await detail({ axis: 'rows', start: 2, end: 2, hide: true }), true);
+    assert.equal(edits.length, 1);
+    assert.equal(collapseItems().length, 1);
+    // Show Detail from the summary line clears it (an explicit false, not an omitted flag).
+    assert.equal(await detail({ axis: 'rows', start: 5, end: 5, hide: false }), true);
+    assert.deepEqual(edits.at(-1).structural, { kind: 'set-rows-outline', start: 5, end: 5, level: 0, collapsed: false });
+    // Columns do the same on the column after the group.
+    assert.equal(await detail({ axis: 'cols', start: 1, end: 1, hide: true }), true);
+    assert.deepEqual(edits.at(-1).structural, { kind: 'set-cols-outline', start: 3, end: 3, level: 0, collapsed: true });
+    // The redo replay is the allowlisted command: it journals, and records no entry of its own;
+    // the flag the row already holds changes nothing.
+    const items = collapseItems().length;
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-outline-collapsed', entry.undoMutations[0].params), true);
+    assert.equal(edits.length, 3);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-outline-collapsed', { ...entry.redoMutations[0].params }), true);
+    assert.deepEqual(edits.at(-1).structural, { kind: 'set-rows-outline', start: 5, end: 5, level: 0, collapsed: true });
+    assert.equal(collapseItems().length, items);
+    // Malformed params never run.
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-outline-collapsed', { axis: 'rows', start: 5, end: 5 }), false);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-outline-collapsed', { axis: 'diag', start: 5, end: 5, collapsed: true }), false);
+  } finally { mounted.close(); }
+});
+
+test('Show Detail clears a collapsed flag the file carries, and a group ending at the grid edge has no summary line', async () => {
+  const edits = [];
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch) });
+  try {
+    const seeded = { ...file, sheets: [
+      { ...file.sheets[0], rowOutline: [{ row: 2, outlineLevel: 1 }, { row: 3, outlineLevel: 1 }, { row: 4, outlineLevel: 1 }, { row: 5, collapsed: true }] },
+      file.sheets[1],
+    ] };
+    await mounted.handle.loadWorkbook(seeded);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-outline-detail', { axis: 'rows', start: 3, end: 3, hide: false }), true);
+    assert.deepEqual(edits.map((edit) => edit.structural), [{ kind: 'set-rows-outline', start: 5, end: 5, level: 0, collapsed: false }]);
+    // A group at the last addressable column has no line after it to carry the flag.
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 16_383, end: 16_383, action: 'group' }), true);
+    edits.length = 0;
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-outline-detail', { axis: 'cols', start: 16_383, end: 16_383, hide: true }), true);
+    assert.deepEqual(edits, []);
+  } finally { mounted.close(); }
+});
+
+test('a rule-manager command must name a rule the live sheet model holds (the BeforeCommandExecute gate)', async () => {
+  const mounted = mountController({});
+  try {
+    // A family the file ships no rules for is ready at once (rule-set-capture.ts).
+    const none = { conditionalFormats: 'none', dataValidations: 'none' };
+    await mounted.handle.loadWorkbook({ ...file, sheets: file.sheets.map((meta) => ({ ...meta, ruleSets: none })) });
+    const sheet = mounted.h.runtime.univerAPI.getActiveWorkbook().getSheetBySheetId('s1');
+    const area = { startRow: 0, endRow: 1, startColumn: 0, endColumn: 0 };
+    sheet.getConditionalFormattingRules = () => [{ cfId: 'cf-1', ranges: [area], stopIfTrue: false, rule: { type: 'highlightCell' } }];
+    sheet.getDataValidations = () => [{ rule: { uid: 'dv-1', ranges: [area], type: 'whole' } }];
+    const ran = () => mounted.events.filter((event) => /rule/i.test(event.id)).length;
+    // A held id passes the gate and runs.
+    assert.equal(await mounted.handle.executeCommand('sheet.command.delete-conditional-rule', { cfId: 'cf-1' }), true);
+    assert.equal(await mounted.handle.executeCommand('sheet.command.remove-data-validation-rule', { ruleId: 'dv-1' }), true);
+    assert.equal(ran(), 2);
+    // An id the model lost is cancelled: the pinned remove handler would "succeed" on it
+    // and push an undo that inserts an empty rule.
+    assert.equal(await mounted.handle.executeCommand('sheet.command.delete-conditional-rule', { cfId: 'cf-gone' }), false);
+    assert.equal(await mounted.handle.executeCommand('sheet.command.remove-data-validation-rule', { ruleId: 'dv-gone' }), false);
+    // An id of the other family is not a rule of this one.
+    assert.equal(await mounted.handle.executeCommand('sheet.command.delete-conditional-rule', { cfId: 'dv-1' }), false);
+    // The sheet that holds nothing (no live rule model) refuses a held rule's id.
+    assert.equal(await mounted.handle.executeCommand('sheet.command.delete-conditional-rule', { subUnitId: 's2', cfId: 'cf-1' }), false);
+    assert.equal(ran(), 2);
+  } finally { mounted.close(); }
+});
+
 test('column default-width command journals a null size and file outline levels seed the axis', async () => {
   const edits = [];
   let dirty = 0;

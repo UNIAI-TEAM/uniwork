@@ -36,6 +36,8 @@ import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type X
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
+  applyOutlineCollapse,
+  outlineCollapseHistoryItem,
   outlineDetailSpan,
   outlineHistoryItem,
   outlineLevels,
@@ -521,10 +523,45 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     // read as a refused step.
     return ran || validOutlineSpan(lazyWorkbookRef.current, sheetId, p.start, p.end);
   };
+  // The collapsed flag of a group's summary line (Excel draws "+" / "-" from
+  // it): journalled as an outline op carrying `collapsed`, with its own undo
+  // entry. Undo/redo replays carry history: false and push nothing.
+  const runOutlineCollapsed = (params: unknown): boolean => {
+    const p = params as { subUnitId?: string; axis?: string; start?: number; collapsed?: boolean; history?: boolean } | undefined;
+    if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.collapsed !== "boolean") return false;
+    if (p.axis !== "rows" && p.axis !== "cols") return false;
+    const sheetId = p.subUnitId ?? runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
+    if (!sheetId) return false;
+    const ran = emitStructuralEdits(applyOutlineCollapse(lazyWorkbookRef.current, sheetId, p.axis, p.start, p.collapsed));
+    const unitId = runtime.univerAPI.getActiveWorkbook()?.getId();
+    if (ran && p.history !== false && unitId) {
+      runtime.univer.__getInjector().get(IUndoRedoService)
+        .pushUndoRedo(outlineCollapseHistoryItem(unitId, sheetId, p.axis, p.start, p.collapsed));
+    }
+    return ran || validOutlineSpan(lazyWorkbookRef.current, sheetId, p.start, p.start);
+  };
+  // Runs `step` so every undo push it makes folds into one entry: the hide and
+  // the collapsed flag are one Ctrl+Z. Inside a batch already open (or on a
+  // service without batching) the pushes simply join that one.
+  const inOneUndoStep = <T,>(unitId: string, step: () => T): T => {
+    let batch: { dispose(): void } | null = null;
+    try {
+      batch = runtime.univer.__getInjector().get(IUndoRedoService).__tempBatchingUndoRedo(unitId);
+    } catch {
+      batch = null;
+    }
+    try {
+      return step();
+    } finally {
+      batch?.dispose();
+    }
+  };
   // Show / Hide Detail (Excel): hide or show the outline group the selection's
   // first line belongs to (or the group a summary line closes) through the
-  // allowlisted hidden/visible command, so the step journals and undoes like
-  // any hide. No group: nothing runs, nothing is marked dirty.
+  // allowlisted hidden/visible command, then write the collapsed flag on the
+  // summary line below it (the file Excel opens shows "+" / "-" from it), so
+  // the step journals and undoes like any hide. No group: nothing runs and
+  // nothing is marked dirty.
   const runOutlineDetail = (params: unknown): boolean => {
     const p = params as { subUnitId?: string; axis?: string; start?: number; hide?: boolean } | undefined;
     if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.hide !== "boolean") return false;
@@ -541,7 +578,12 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     const id = rows
       ? p.hide ? "sheet.command.set-rows-hidden" : "sheet.command.set-specific-rows-visible"
       : p.hide ? "sheet.command.set-col-hidden" : "sheet.command.set-col-visible-on-cols";
-    return runtime.univerAPI.syncExecuteCommand(id, { unitId: workbook.getId(), subUnitId: sheetId, ranges: [range] }) === true;
+    return inOneUndoStep(workbook.getId(), () => {
+      if (runtime.univerAPI.syncExecuteCommand(id, { unitId: workbook.getId(), subUnitId: sheetId, ranges: [range] }) !== true) return false;
+      // The summary line is the one after the group (Excel's default, summary
+      // below detail); a group ending at the grid edge has none.
+      return runOutlineCollapsed({ subUnitId: sheetId, axis: p.axis, start: span.end + 1, collapsed: p.hide });
+    });
   };
   const runColumnDefaultWidth = (params: unknown): boolean => {
     const p = params as { subUnitId?: string; start?: number; end?: number } | undefined;
@@ -564,6 +606,11 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     id: "uniwork.command.set-outline-detail",
     type: CommandType.COMMAND,
     handler: (_accessor, params) => runOutlineDetail(params),
+  }));
+  disposables.push(commandService.registerCommand({
+    id: "uniwork.command.set-outline-collapsed",
+    type: CommandType.COMMAND,
+    handler: (_accessor, params) => runOutlineCollapsed(params),
   }));
   disposables.push(commandService.registerCommand({
     id: "uniwork.command.set-cols-default-width",

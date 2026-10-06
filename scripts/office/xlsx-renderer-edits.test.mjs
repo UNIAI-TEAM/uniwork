@@ -415,6 +415,17 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(detail({ axis: 'rows', start: 2, end: 2, hide: true, subUnitId: 'ghost' }), false);
   assert.equal(detail(undefined), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-outline-detail', params: { axis: 'rows', start: 2, end: 2, hide: true } }, model, true), false);
+  // The summary line's collapsed flag (Hide Detail and its undo): axis enum, boolean flag, one in-grid line, a known sheet.
+  const collapsed = (params, readOnly = false) => canExecuteCommand({ id: 'uniwork.command.set-outline-collapsed', params }, model, readOnly);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5, collapsed: true }), true);
+  assert.equal(collapsed({ axis: 'cols', start: 3, end: 3, collapsed: false, subUnitId: 's1', history: false }), true);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5 }), false);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5, collapsed: 1 }), false);
+  assert.equal(collapsed({ axis: 'sheet', start: 5, end: 5, collapsed: true }), false);
+  assert.equal(collapsed({ axis: 'cols', start: 16384, end: 16384, collapsed: true }), false);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5, collapsed: true, subUnitId: 'ghost' }), false);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5, collapsed: true }, true), false);
+  assert.equal(collapsed(undefined), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2 } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2, subUnitId: 's1' } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 2, end: 1 } }, model, false), false);

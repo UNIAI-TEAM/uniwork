@@ -899,6 +899,53 @@ export function outlineDetailSpan(
   return { start, end };
 }
 
+/** Writes Excel's collapsed flag on a group's summary line, so a reopened file
+ *  shows "+" (Hide Detail) or "-" (Show Detail) beside it. Journalled as an
+ *  outline op at the line's own level with an explicit collapsed, so the
+ *  level survives and the flag is cleared, not just left alone. A line already
+ *  in that state, or past the grid, journals nothing. */
+export function applyOutlineCollapse(
+  state: LazyWorkbookState | null,
+  sheetId: string,
+  axis: "rows" | "cols",
+  line: number,
+  collapsed: boolean,
+): XlsxRendererStructuralEdit[] {
+  if (!state || !validOutlineSpan(state, sheetId, line, line)) return [];
+  if (line >= (axis === "rows" ? 1_048_576 : 16_384)) return [];
+  const outline = state.outline.get(sheetId) ?? { rows: new Map(), cols: new Map() };
+  state.outline.set(sheetId, outline);
+  const entries = axis === "rows" ? outline.rows : outline.cols;
+  const level = entries.get(line)?.level ?? 0;
+  if ((entries.get(line)?.collapsed ?? false) === collapsed) return [];
+  entries.set(line, { level, collapsed });
+  const structural: Extract<StructuralJournalOp, { level: number }> =
+    { kind: axis === "rows" ? "set-rows-outline" : "set-cols-outline", start: line, end: line, level, collapsed };
+  recordStructuralOp(state.editJournal, sheetId, structural, state.file.sheets.find((sheet) => sheet.id === sheetId)?.name);
+  return [{ sheetId, structural }];
+}
+
+/** The Univer undo/redo entry of a collapsed-flag change: undo and redo replay
+ *  the allowlisted collapse command with the opposite and the new value. */
+export function outlineCollapseHistoryItem(
+  unitId: string,
+  sheetId: string,
+  axis: "rows" | "cols",
+  line: number,
+  collapsed: boolean,
+): { unitID: string; undoMutations: XlsxOutlineCollapseStep[]; redoMutations: XlsxOutlineCollapseStep[] } {
+  const step = (value: boolean): XlsxOutlineCollapseStep => ({
+    id: "uniwork.command.set-outline-collapsed",
+    params: { subUnitId: sheetId, axis, start: line, end: line, collapsed: value, history: false },
+  });
+  return { unitID: unitId, undoMutations: [step(!collapsed)], redoMutations: [step(collapsed)] };
+}
+
+export interface XlsxOutlineCollapseStep {
+  id: "uniwork.command.set-outline-collapsed";
+  params: { subUnitId: string; axis: "rows" | "cols"; start: number; end: number; collapsed: boolean; history: false };
+}
+
 /** Outline levels follow their lines through a row/column insert or removal
  *  (the journal shifts its cells the same way). Inserted lines get an explicit
  *  level 0, as the saved file will (the gateway writes no level for a new

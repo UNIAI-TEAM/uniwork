@@ -122,6 +122,9 @@ const STRUCTURAL_COMMANDS = new Set([
   // Show / Hide Detail: runs the allowlisted hidden/visible command on the
   // outline group the controller finds, which passes this policy again.
   "uniwork.command.set-outline-detail",
+  // The summary line's collapsed flag, written by Show / Hide Detail and
+  // replayed by its undo/redo entry.
+  "uniwork.command.set-outline-collapsed",
   "uniwork.command.set-cols-default-width",
 ]);
 
@@ -214,7 +217,7 @@ function structuralCommandAllowed(
 ): boolean {
   const params = event.params as {
     value?: unknown; range?: unknown; ranges?: unknown; start?: unknown; end?: unknown; action?: unknown; subUnitId?: unknown;
-    axis?: unknown; hide?: unknown;
+    axis?: unknown; hide?: unknown; collapsed?: unknown;
   } | undefined;
   if (event.id === "uniwork.command.set-rows-outline" || event.id === "uniwork.command.set-cols-outline") {
     return (params?.action === "group" || params?.action === "ungroup" || params?.action === "clear") &&
@@ -222,6 +225,10 @@ function structuralCommandAllowed(
   }
   if (event.id === "uniwork.command.set-outline-detail") {
     return (params?.axis === "rows" || params?.axis === "cols") && typeof params.hide === "boolean" &&
+      structuralAxisCommandOK(params, params.axis === "rows" ? "row" : "column", state);
+  }
+  if (event.id === "uniwork.command.set-outline-collapsed") {
+    return (params?.axis === "rows" || params?.axis === "cols") && typeof params.collapsed === "boolean" &&
       structuralAxisCommandOK(params, params.axis === "rows" ? "row" : "column", state);
   }
   if (event.id === "uniwork.command.set-cols-default-width") {
