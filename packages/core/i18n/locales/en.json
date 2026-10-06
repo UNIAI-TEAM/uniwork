@@ -9656,6 +9656,50 @@
           "heading2": "Heading 2"
         }
       },
+      "dataTools": {
+        "textToColumns": "Text to Columns",
+        "removeDuplicates": "Remove Duplicates",
+        "subtotal": "Subtotal",
+        "common": {
+          "ok": "OK",
+          "cancel": "Cancel",
+          "close": "Close",
+          "failed": "This could not be done here. Select the range again and retry.",
+          "limitExceeded": "The selection is too large. One save edits at most {{limit}} cells; select a smaller range.",
+          "hasHeader": "My data has headers",
+          "column": "Column {{column}}"
+        },
+        "removeDuplicatesDialog": {
+          "title": "Remove Duplicates",
+          "description": "Select one or more columns that contain duplicates.",
+          "columns": "Columns",
+          "selectAll": "Select All",
+          "unselectAll": "Unselect All",
+          "noColumns": "Select at least one column.",
+          "needRows": "Select a range with at least two rows.",
+          "formulas": "The selection contains formulas. Remove Duplicates works on ranges of values only.",
+          "formatNote": "Cell formatting stays in place; only the values move up.",
+          "result_one": "{{removed}} duplicate values found and removed; {{kept}} unique values remain.",
+          "result_other": "{{removed}} duplicate values found and removed; {{kept}} unique values remain.",
+          "resultNone": "No duplicate values found."
+        },
+        "textToColumnsDialog": {
+          "title": "Convert Text to Columns",
+          "description": "Split the text of each selected cell into columns at the delimiters you choose.",
+          "delimiters": "Delimiters",
+          "tab": "Tab",
+          "semicolon": "Semicolon",
+          "comma": "Comma",
+          "space": "Space",
+          "other": "Other",
+          "otherInput": "Other delimiter",
+          "consecutive": "Treat consecutive delimiters as one",
+          "preview": "Data preview",
+          "overwrite": "Cells to the right already hold data and will be replaced.",
+          "singleColumn": "Select a single column to split.",
+          "noDelimiter": "Choose at least one delimiter."
+        }
+      },
       "conditionalFormat": {
         "dropped": {
           "title": "Some rules could not be saved and were left out.",
