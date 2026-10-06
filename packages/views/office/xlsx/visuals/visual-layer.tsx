@@ -125,6 +125,31 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
     return () => doc.removeEventListener("pointerdown", onPointerDown, true);
   }, [onSelect, selectedId]);
 
+  // Delete / Backspace removes the selected visual wherever focus is: a press
+  // on an item does not focus it (the drag starts first), so the key would
+  // otherwise reach the grid and clear cells. Typing in an input, a cell editor
+  // or a dialog is left alone; a handled key never reaches the grid.
+  const selectedVisual = items.find((item) => item.visual.id === selectedId)?.visual ?? null;
+  const removable = selectedVisual !== null && !readOnly && !selectedVisual.fixed;
+  useEffect(() => {
+    if (!selectedVisual || !removable) return undefined;
+    const doc = layerRef.current?.ownerDocument;
+    if (!doc) return undefined;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if ((event.key !== "Delete" && event.key !== "Backspace") || event.isComposing || event.defaultPrevented) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target instanceof Element ? event.target : null;
+      // An item (or its delete button) answers its own keys.
+      if (target && layerRef.current?.contains(target)) return;
+      if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable=\"false\"]), [role=\"dialog\"], [role=\"textbox\"]")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      onRemove(selectedVisual);
+    };
+    doc.addEventListener("keydown", onKeyDown, true);
+    return () => doc.removeEventListener("keydown", onKeyDown, true);
+  }, [onRemove, removable, selectedVisual]);
+
   const labelOf = (visual: XlsxEditorVisual): string => {
     const kind = visualKind(visual);
     if (kind === "chart" && !visual.chart) return t("office.xlsx.visuals.item.fileChart", { title: visual.title ?? "" });

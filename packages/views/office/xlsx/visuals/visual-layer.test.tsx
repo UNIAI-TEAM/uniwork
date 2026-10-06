@@ -113,6 +113,56 @@ describe("XlsxVisualLayer", () => {
     expect(props.onMove).not.toHaveBeenCalled();
   });
 
+  describe("Delete on a selected visual", () => {
+    const selectedItem = { visual: visual("picture"), box: BOX };
+
+    it("removes it when the key lands on the document, like the trash button", () => {
+      const { props } = setup([selectedItem], { selectedId: "v-picture" });
+      // A press on the item does not focus it, so the key goes to the body.
+      const event = new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true });
+      document.body.dispatchEvent(event);
+      expect(props.onRemove).toHaveBeenCalledTimes(1);
+      expect(props.onRemove).toHaveBeenCalledWith(selectedItem.visual);
+      expect(event.defaultPrevented).toBe(true);
+      fireEvent.keyDown(document.body, { key: "Backspace" });
+      expect(props.onRemove).toHaveBeenCalledTimes(2);
+    });
+
+    it("never reaches a grid listener below the document", () => {
+      setup([selectedItem], { selectedId: "v-picture" });
+      const grid = document.createElement("div");
+      document.body.append(grid);
+      const seen = vi.fn();
+      grid.addEventListener("keydown", seen);
+      fireEvent.keyDown(grid, { key: "Delete" });
+      expect(seen).not.toHaveBeenCalled();
+      grid.remove();
+    });
+
+    it("is ignored while typing, with a modifier, without a selection, read-only or on a file-locked visual", () => {
+      const { props: { selectedId: _selected, ...handlers }, rerender } = setup([selectedItem], { selectedId: "v-picture" });
+      const props = handlers;
+      const input = document.createElement("input");
+      const editor = document.createElement("div");
+      editor.setAttribute("contenteditable", "true");
+      document.body.append(input, editor);
+      fireEvent.keyDown(input, { key: "Delete" });
+      fireEvent.keyDown(editor, { key: "Backspace" });
+      fireEvent.keyDown(document.body, { key: "Delete", ctrlKey: true });
+      fireEvent.keyDown(document.body, { key: "a" });
+      expect(props.onRemove).not.toHaveBeenCalled();
+      input.remove();
+      editor.remove();
+      rerender(<XlsxVisualLayer items={[selectedItem]} selectedId={null} readOnly={false} {...props} />);
+      fireEvent.keyDown(document.body, { key: "Delete" });
+      rerender(<XlsxVisualLayer items={[selectedItem]} selectedId="v-picture" readOnly {...props} />);
+      fireEvent.keyDown(document.body, { key: "Delete" });
+      rerender(<XlsxVisualLayer items={[{ ...selectedItem, visual: { ...selectedItem.visual, fixed: true } }]} selectedId="v-picture" readOnly={false} {...props} />);
+      fireEvent.keyDown(document.body, { key: "Delete" });
+      expect(props.onRemove).not.toHaveBeenCalled();
+    });
+  });
+
   it("moves an item by the pointer drag distance", () => {
     const item = { visual: visual("shape"), box: BOX };
     const { props } = setup([item]);
