@@ -7,7 +7,10 @@
 // order, at one shared scale; title columns repeat beside title rows; the
 // header/footer sits in the page margin boxes (print-header-footer); pictures
 // (when the collector supplies them) are placed absolutely by their anchor.
-// D3: data bars and icons (print-marks) print inside their cells.
+// D3: data bars and icons (print-marks) print inside their cells; charts,
+// pictures and shapes (print-visuals) print over the page body they overlap.
+// Each page's table and visuals sit in one .sheet box, which is what the
+// centring options move, so visuals stay on their cells (R8).
 import type { XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
 import { PRINT_COPY_CSP } from "../../markdown/wysiwyg/print";
 import { columnLabel } from "../xlsx-editor-model";
@@ -17,25 +20,13 @@ import { markRules, type XlsxPrintMark } from "./print-marks";
 import { effectiveScale, layoutPrintPages, printableArea, type XlsxPrintGeometry, type XlsxPrintPage } from "./print-layout";
 import type { XlsxPrintRange, XlsxResolvedPrintSetup } from "./print-setup";
 import { cssFontFamily, escapeHtml, round, rotationDeclarations, styleDeclarations } from "./print-styles";
+import { renderPagePictures, VISUAL_RULES, XlsxPrintOffsets, type XlsxPrintPicture } from "./print-visuals";
 
 /** One printed cell: its text as displayed and how General aligns it. */
 export interface XlsxPrintCell {
   readonly text: string;
   readonly kind: "text" | "number" | "boolean" | "error";
   readonly styleIndex?: number | undefined;
-}
-
-/** A picture placed over the grid: its top-left cell (0-based), the offset
- *  inside that cell and its size, in points at 100%. `src` must be a base64
- *  `data:image/...` URL; anything else is not printed. */
-export interface XlsxPrintPicture {
-  readonly row: number;
-  readonly column: number;
-  readonly offsetX: number;
-  readonly offsetY: number;
-  readonly width: number;
-  readonly height: number;
-  readonly src: string;
 }
 
 /** Everything one print run reads, collected from the live workbook. Lengths
@@ -71,7 +62,6 @@ const MAX_COPY_BYTES = 16 * 1024 * 1024;
 export const MAX_PRINT_CELLS = 400_000;
 const GRIDLINE = "0.5pt solid #c0c0c0";
 const DEFAULT_FONT_SIZE = 11;
-const PICTURE_SRC = /^data:image\/(?:png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/]+={0,2}$/;
 
 function geometryOf(sheet: XlsxPrintSheet, range: XlsxPrintRange): XlsxPrintGeometry {
   const { setup } = sheet;
@@ -104,24 +94,14 @@ function geometryOf(sheet: XlsxPrintSheet, range: XlsxPrintRange): XlsxPrintGeom
   };
 }
 
-/** Absolutely placed pictures whose anchor cell is printed on this page. */
-function renderPictures(sheet: XlsxPrintSheet, rows: readonly number[], columns: readonly number[], widthOf: (column: number) => number, scale: number, geometry: XlsxPrintGeometry): string {
-  let html = "";
-  for (const picture of sheet.pictures ?? []) {
-    const row = rows.indexOf(picture.row);
-    const column = columns.indexOf(picture.column);
-    if (row === -1 || column === -1 || !PICTURE_SRC.test(picture.src)) continue;
-    let x = geometry.headingWidth + picture.offsetX;
-    for (const before of columns.slice(0, column)) x += widthOf(before);
-    let y = geometry.headingHeight + picture.offsetY;
-    for (const before of rows.slice(0, row)) y += sheet.rows.get(before)?.height ?? sheet.defaultRowHeight;
-    html += `<img class="pic" alt="" src="${escapeHtml(picture.src)}" style="left:${round(x * scale)}pt;top:${round(y * scale)}pt;` +
-      `width:${round(picture.width * scale)}pt;height:${round(picture.height * scale)}pt">`;
-  }
-  return html;
+/** Sheet offsets (pt at 100%, hidden = 0) of every row and column, shared by
+ *  the pages of one copy so visuals land on the same cells as the table. */
+interface XlsxSheetOffsets {
+  readonly columns: XlsxPrintOffsets;
+  readonly rows: XlsxPrintOffsets;
 }
 
-function renderPage(sheet: XlsxPrintSheet, page: XlsxPrintPage, scale: number, geometry: XlsxPrintGeometry, usedStyles: Set<number>): string {
+function renderPage(sheet: XlsxPrintSheet, page: XlsxPrintPage, scale: number, geometry: XlsxPrintGeometry, usedStyles: Set<number>, offsets: XlsxSheetOffsets): string {
   const widths = new Map([...geometry.columns, ...geometry.titleColumns].map((column) => [column.index, column.width]));
   const widthOf = (column: number): number => widths.get(column) ?? sheet.defaultColumnWidth;
   const columns = [...page.titleColumns, ...page.columns];
@@ -141,10 +121,22 @@ function renderPage(sheet: XlsxPrintSheet, page: XlsxPrintPage, scale: number, g
   const rowsInput = { columns, widths, scale, usedStyles };
   if (page.titleRows.length > 0) head += renderRows(sheet, { ...rowsInput, rows: page.titleRows });
   const body = renderRows(sheet, { ...rowsInput, rows: page.rows });
-  const pictures = renderPictures(sheet, [...page.titleRows, ...page.rows], columns, widthOf, scale, geometry);
+  const heightOf = (row: number): number => sheet.rows.get(row)?.height ?? sheet.defaultRowHeight;
+  const sum = (items: readonly number[], size: (item: number) => number): number => items.reduce((total, item) => total + size(item), 0);
+  const first = { column: page.columns[0], row: page.rows[0] };
+  const last = { column: page.columns[page.columns.length - 1], row: page.rows[page.rows.length - 1] };
+  const pictures = first.column === undefined || first.row === undefined || last.column === undefined || last.row === undefined ? "" : renderPagePictures(sheet.pictures ?? [], {
+    x: offsets.columns.at(first.column),
+    y: offsets.rows.at(first.row),
+    width: offsets.columns.at(last.column + 1) - offsets.columns.at(first.column),
+    height: offsets.rows.at(last.row + 1) - offsets.rows.at(first.row),
+    left: geometry.headingWidth + sum(page.titleColumns, widthOf),
+    top: geometry.headingHeight + sum(page.titleRows, heightOf),
+  }, scale, sheet.rightToLeft === true);
   const direction = sheet.rightToLeft ? ` dir="rtl"` : "";
-  return `<section class="page"><table${direction} style="width:${round(tableWidth * scale)}pt"><colgroup>${colgroup}</colgroup>` +
-    `${head === "" ? "" : `<thead>${head}</thead>`}<tbody>${body}</tbody></table>${pictures}</section>`;
+  const width = `width:${round(tableWidth * scale)}pt`;
+  return `<section class="page"><div class="sheet" style="${width}"><table${direction} style="${width}"><colgroup>${colgroup}</colgroup>` +
+    `${head === "" ? "" : `<thead>${head}</thead>`}<tbody>${body}</tbody></table>${pictures}</div></section>`;
 }
 
 function stylesheet(sheet: XlsxPrintSheet, scale: number, usedStyles: ReadonlySet<number>): string {
@@ -166,7 +158,7 @@ function stylesheet(sheet: XlsxPrintSheet, scale: number, usedStyles: ReadonlySe
     "*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
     ".page{position:relative;break-after:page}",
     ".page:last-child{break-after:auto}",
-    ".pic{position:absolute}",
+    ...VISUAL_RULES,
     `table{border-collapse:collapse;table-layout:fixed;font-family:${family};font-size:${fontSize}pt;color:#000000}`,
     `td{padding:0 ${round(CELL_PADDING * scale)}pt;overflow:hidden;white-space:nowrap;vertical-align:bottom;line-height:1.15}`,
     "td.ov{position:relative;overflow:visible}",
@@ -175,7 +167,7 @@ function stylesheet(sheet: XlsxPrintSheet, scale: number, usedStyles: ReadonlySe
     "td.c{text-align:center}",
     `th{font-weight:400;font-size:${fontSize}pt;text-align:center;background:#f2f2f2;border:0.5pt solid #9e9e9e;overflow:hidden;white-space:nowrap}`,
   ];
-  if (setup.horizontalCentered) rules.push("table{margin:0 auto}");
+  if (setup.horizontalCentered) rules.push(".sheet{margin:0 auto}");
   if (setup.verticalCentered) {
     rules.push(`.page{display:flex;flex-direction:column;justify-content:center;height:${round(printableArea(setup).height - 2)}pt}`);
   }
@@ -201,12 +193,23 @@ export function buildXlsxPrintCopy(sheet: XlsxPrintSheet): XlsxPrintCopyResult {
   // area needs (a fixed scale is the same for every area).
   const scale = geometries.length === 0 ? 1 : Math.min(...geometries.map((geometry) => effectiveScale(sheet.setup, geometry)));
   const usedStyles = new Set<number>();
+  // Sheet offsets with the same sizes the pages print (hidden = 0).
+  const offsets: XlsxSheetOffsets = {
+    columns: new XlsxPrintOffsets((column) => {
+      const entry = sheet.columns.get(column);
+      return entry?.hidden ? 0 : Math.max(0, entry?.width ?? sheet.defaultColumnWidth);
+    }),
+    rows: new XlsxPrintOffsets((row) => {
+      const entry = sheet.rows.get(row);
+      return entry?.hidden ? 0 : Math.max(0, entry?.height ?? sheet.defaultRowHeight);
+    }),
+  };
   let pageCount = 0;
   let pages = "";
   for (const geometry of geometries) {
     const layout = layoutPrintPages(sheet.setup, geometry, scale);
     pageCount += layout.pages.length;
-    pages += layout.pages.map((page) => renderPage(sheet, page, scale, geometry, usedStyles)).join("");
+    pages += layout.pages.map((page) => renderPage(sheet, page, scale, geometry, usedStyles, offsets)).join("");
   }
   const html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
     `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(PRINT_COPY_CSP)}">` +

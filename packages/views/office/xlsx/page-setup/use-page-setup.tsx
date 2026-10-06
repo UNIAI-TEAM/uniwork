@@ -15,6 +15,7 @@ import type { OfficePrintPort } from "../../print";
 import { HeaderActionsFill } from "../../../layout/header-actions-slot";
 import { useXlsxPrint } from "../print/use-xlsx-print";
 import type { XlsxPrintGrid } from "../print/collect-live";
+import type { XlsxPrintableVisuals } from "../print/print-visuals";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import type { XlsxSelection } from "../types";
 import { csvSheetFromSnapshot, serializeSheetToCsv } from "../export/csv";
@@ -39,6 +40,8 @@ export interface XlsxPageSetupOptions {
   /** Printed document title. */
   title?: string | undefined;
   getGrid?: (() => XlsxPrintGrid | null) | undefined;
+  /** UNI-952: the visuals layer's getPrintableVisuals (charts, pictures, shapes). */
+  getVisuals?: (() => XlsxPrintableVisuals | null | undefined) | undefined;
   resolveSheetId?: ((sheetName: string) => string | undefined) | undefined;
 }
 
@@ -58,7 +61,7 @@ export interface XlsxPageSetupWiring {
 }
 
 export function useXlsxPageSetup(options: XlsxPageSetupOptions): XlsxPageSetupWiring {
-  const { host, selection, activeSheet, readOnly, canEdit, edit, getSnapshot, onApplied, onError, printPort, title, getGrid, resolveSheetId } = options;
+  const { host, selection, activeSheet, readOnly, canEdit, edit, getSnapshot, onApplied, onError, printPort, title, getGrid, getVisuals, resolveSheetId } = options;
   const [pageSetupOpen, setPageSetupOpen] = useState(false);
   const sheetName = selection?.sheet ?? activeSheet;
   // Dialog edits applied this session, folded field-wise per sheet (last
@@ -99,6 +102,7 @@ export function useXlsxPageSetup(options: XlsxPageSetupOptions): XlsxPageSetupWi
     resolveSheetId,
     getSnapshot,
     getGrid,
+    getVisuals,
     getSession: (sheetKey) => sessionSetups.current.get(sheetKey),
     title: title ?? host?.file.name ?? "",
   });

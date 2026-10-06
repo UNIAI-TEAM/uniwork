@@ -21,6 +21,7 @@ import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import { collectXlsxPrintSheet } from "./collect";
 import type { XlsxPrintGrid } from "./collect-live";
 import { buildXlsxPrintCopy } from "./print-copy";
+import type { XlsxPrintableVisuals } from "./print-visuals";
 
 const XLSX_PRINT_KEYS = {
   menuItem: "office.common.print",
@@ -44,6 +45,7 @@ interface XlsxPrintRunInput {
   readonly session?: XlsxPageSetupFields | undefined;
   readonly title: string;
   readonly locale?: string | undefined;
+  readonly visuals?: XlsxPrintableVisuals | null | undefined;
 }
 
 /** Collect, build and print one sheet. A throwing step becomes a typed failure. */
@@ -68,6 +70,8 @@ export interface XlsxPrintOptions {
   readonly resolveSheetId?: ((sheetName: string) => string | undefined) | undefined;
   readonly getSnapshot?: (() => XlsxWorkbookSnapshot | null) | undefined;
   readonly getGrid?: (() => XlsxPrintGrid | null) | undefined;
+  /** The visuals layer's getPrintableVisuals, read when a run starts. */
+  readonly getVisuals?: (() => XlsxPrintableVisuals | null | undefined) | undefined;
   /** The unsaved Page Setup edits applied to a sheet this session, by the
    *  sheet's grid id (its live name when the grid has no id for it). */
   readonly getSession?: ((sheetKey: string) => XlsxPageSetupFields | undefined) | undefined;
@@ -110,6 +114,7 @@ export function useXlsxPrint(options: XlsxPrintOptions): XlsxPrintWiring {
         sheetId,
         snapshot: current.getSnapshot?.() ?? null,
         grid: current.getGrid?.() ?? null,
+        visuals: current.getVisuals?.() ?? null,
         session: current.getSession?.(sheetId ?? sheetName),
         title: current.title,
         locale: i18n.language,

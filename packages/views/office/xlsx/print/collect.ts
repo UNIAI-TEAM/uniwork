@@ -7,6 +7,8 @@
 //     conditional-format colours included), else from the renderer host (the
 //     render model the grid was loaded from).
 //   * Page setup: this session's dialog edits > the file's layout > defaults.
+//   * Charts, pictures and shapes come from the visuals layer, measured in
+//     the sizes this copy prints with (print-visuals).
 //   * Each area of a multi-area print area is read with the title rows and
 //     columns it repeats, as separate blocks (title rows x the area's columns,
 //     the area's rows x title columns, and their corner), so a print area far
@@ -21,6 +23,7 @@ import { toA1Address } from "../xlsx-render-model-bridge";
 import { XlsxLiveLayout, type XlsxPrintGrid } from "./collect-live";
 import { MAX_PRINT_CELLS, type XlsxPrintCell, type XlsxPrintSheet } from "./print-copy";
 import { resolvePrintSetup, type XlsxPrintRange } from "./print-setup";
+import { collectPrintPictures, type XlsxPrintableVisuals } from "./print-visuals";
 
 interface XlsxPrintCollectInput {
   readonly host: XlsxGridHostPort;
@@ -35,6 +38,8 @@ interface XlsxPrintCollectInput {
   /** When the copy is printed and the locale its &D / &T codes use. */
   readonly now?: Date | undefined;
   readonly locale?: string | undefined;
+  /** The visuals layer's getPrintableVisuals (absent = no visuals print). */
+  readonly visuals?: XlsxPrintableVisuals | null | undefined;
 }
 
 type XlsxPrintCollectResult =
@@ -195,6 +200,16 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
   for (const [column, size] of live.columns) columns.set(column, size);
   const defaultChars = fileSheet.defaultColumnWidth ?? Math.trunc((((fileSheet.baseColumnWidth ?? 8) * MDW + 5) / MDW) * 256) / 256;
   const now = input.now ?? new Date();
+  const defaultColumnWidth = columnPoints(defaultChars);
+  const defaultRowHeight = fileSheet.defaultRowHeight ?? 15;
+  const pictures = input.visuals
+    ? collectPrintPictures({
+      source: input.visuals,
+      sheetIds: [...new Set([gridSheetId, fileSheet.id])],
+      columnWidth: (column) => (columns.get(column)?.hidden ? 0 : (columns.get(column)?.width ?? defaultColumnWidth)),
+      rowHeight: (row) => (rows.get(row)?.hidden ? 0 : (rows.get(row)?.height ?? defaultRowHeight)),
+    })
+    : [];
 
   return {
     ok: true,
@@ -206,12 +221,13 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
       styles: live.styles,
       columns,
       rows,
-      defaultColumnWidth: columnPoints(defaultChars),
-      defaultRowHeight: fileSheet.defaultRowHeight ?? 15,
+      defaultColumnWidth,
+      defaultRowHeight,
       merges: liveRead ? live.merges : [...merges.values()],
       defaultFont: { family: file.normalFontName, size: file.styles[0]?.fontSize },
       rightToLeft: fileSheet.rightToLeft,
       ...(live.marks.size > 0 ? { marks: live.marks } : {}),
+      ...(pictures.length > 0 ? { pictures } : {}),
       headerContext: {
         sheetName: input.sheetName,
         fileName: file.name,

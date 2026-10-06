@@ -1,8 +1,8 @@
 // UNI-952 D2: the XLSX print gaps - multi-area print areas, repeated title
-// columns, header/footer, overflow and ####, rotation, pictures.
+// columns, header/footer, overflow and ####, rotation (pictures: print-visuals.test).
 import { describe, expect, it } from "vitest";
 import type { XlsxRenderPageSetup, XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
-import { buildXlsxPrintCopy, type XlsxPrintCell, type XlsxPrintPicture, type XlsxPrintSheet } from "./print-copy";
+import { buildXlsxPrintCopy, type XlsxPrintCell, type XlsxPrintSheet } from "./print-copy";
 import { parseHeaderFooter } from "./print-header-footer";
 import { resolvePrintSetup, type XlsxPrintDefinedName, type XlsxPrintRange } from "./print-setup";
 
@@ -15,7 +15,6 @@ interface Options {
   file?: XlsxRenderPageSetup;
   names?: XlsxPrintDefinedName[];
   styles?: XlsxRenderStyle[];
-  pictures?: XlsxPrintPicture[];
 }
 
 function sheet(options: Options = {}): XlsxPrintSheet {
@@ -33,7 +32,6 @@ function sheet(options: Options = {}): XlsxPrintSheet {
     defaultRowHeight: 15,
     merges: [],
     headerContext: CONTEXT,
-    pictures: options.pictures,
   };
 }
 
@@ -253,23 +251,5 @@ describe("text rotation", () => {
     expect(html).toContain("td.s1>.rt{display:inline-block;white-space:nowrap;transform:rotate(-45deg)}");
     expect(html).toContain("td.s2>.rt{display:inline-block;white-space:nowrap;transform:rotate(45deg)}");
     expect(html).toContain("td.s3>.rt{display:inline-block;writing-mode:vertical-rl;text-orientation:upright}");
-  });
-});
-
-describe("pictures", () => {
-  const png = "data:image/png;base64,iVBORw0KGgo=";
-
-  it("places a data: picture absolutely by its anchor cell on the page that prints it", () => {
-    const { doc } = build(sheet({
-      pictures: [
-        { row: 1, column: 2, offsetX: 4, offsetY: 2, width: 100, height: 50, src: png },
-        { row: 0, column: 0, offsetX: 0, offsetY: 0, width: 10, height: 10, src: "https://example.com/x.png" },
-        { row: 99, column: 0, offsetX: 0, offsetY: 0, width: 10, height: 10, src: png },
-      ],
-    }));
-    const images = Array.from(doc.querySelectorAll("section.page img.pic"));
-    expect(images).toHaveLength(1);
-    expect(images[0]!.getAttribute("src")).toBe(png);
-    expect(images[0]!.getAttribute("style")).toBe("left:100pt;top:17pt;width:100pt;height:50pt");
   });
 });

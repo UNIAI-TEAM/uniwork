@@ -136,6 +136,21 @@ describe("collectXlsxPrintSheet", () => {
     expect(sheet.marks).toBeUndefined();
   });
 
+  it("measures the sheet's visuals in the sizes it prints with", async () => {
+    const png = "data:image/png;base64,iVBORw0KGgo=";
+    const visuals = vi.fn((_sheetId?: string, metricsFor?: (sheetId: string) => { columnWidth(column: number): number; rowHeight(row: number): number } | null) => {
+      const metrics = metricsFor?.("sheet-1");
+      // Column B is 20 chars (140px); row 3 is hidden in the model.
+      expect([metrics?.columnWidth(1), metrics?.rowHeight(2)]).toEqual([140, 0]);
+      return [{ sheetId: "sheet-1", zIndex: 0, anchor: { fromRow: 0, fromColumn: 0, fromRowOffset: 0, fromColumnOffset: 0, toRow: 1, toColumn: 1, toRowOffset: 0, toColumnOffset: 0 },
+        box: { x: 4, y: 8, width: 100, height: 40 }, image: { type: "dataUrl" as const, dataUrl: png }, title: "Logo" }];
+    });
+    const result = await collectXlsxPrintSheet({ host: host(), sheetName: "Data", sheetId: "sheet-1", snapshot: null, title: "Book", visuals });
+    if (!result.ok) throw new Error(result.reason);
+    expect(visuals).toHaveBeenCalledWith("sheet-1", expect.any(Function));
+    expect(result.sheet.pictures).toEqual([{ x: 3, y: 6, width: 75, height: 30, zIndex: 0, src: png, title: "Logo" }]);
+  });
+
   it("carries the data bars and icons the grid paints, keyed by cell", async () => {
     const bar = { color: "#638EC6", value: 40, startPoint: 0, isGradient: true };
     const grid = {
