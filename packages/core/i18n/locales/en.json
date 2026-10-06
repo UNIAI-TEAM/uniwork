@@ -9520,6 +9520,7 @@
         },
         "open": "Data Validation…",
         "clear": "Clear validation",
+        "manage": "Manage validation rules",
         "dialog": {
           "title": "Data Validation",
           "close": "Close data validation",
@@ -9532,10 +9533,48 @@
           "minimum": "Minimum",
           "maximum": "Maximum",
           "errorSection": "Error message",
+          "errorStyle": "Style",
           "errorTitle": "Title (optional)",
           "errorMessage": "Message (optional)",
           "apply": "Apply",
           "cancel": "Cancel"
+        },
+        "errorStyles": {
+          "stop": "Stop",
+          "warning": "Warning",
+          "information": "Information"
+        },
+        "errorStyleHints": {
+          "stop": "Rejects the value.",
+          "warning": "Asks whether to keep the value.",
+          "information": "Shows a notice and keeps the value."
+        },
+        "manager": {
+          "title": "Manage validation rules",
+          "description": "Data validation rules on this sheet.",
+          "scope": "Show rules for",
+          "scopeSelection": "This selection",
+          "scopeSheet": "This sheet",
+          "list": "Data validation rules",
+          "empty": {
+            "selection": "No validation rules apply to the selected cells.",
+            "sheet": "This sheet has no data validation rules."
+          },
+          "appliesTo": "Applies to {{areas}}",
+          "errorStyle": "Error style: {{style}}",
+          "edit": "Edit validation rule: {{rule}}",
+          "editTitle": "Edit rule",
+          "editUnsupported": "This kind of rule can't be edited here. Delete it and add a new one, or edit it in Excel.",
+          "delete": "Delete validation rule: {{rule}}",
+          "deleteTitle": "Delete rule",
+          "done": "Done",
+          "unavailable": "Rules can't be listed here yet.",
+          "rules": {
+            "list": "List: {{items}}",
+            "value": "{{type}} {{operator}} {{value}}",
+            "range": "{{type}} {{operator}} {{min}} and {{max}}",
+            "other": "Other rule ({{type}})"
+          }
         },
         "types": {
           "list": "List",
@@ -9611,22 +9650,26 @@
           "between": "Between…",
           "containsText": "Text that Contains…",
           "duplicateValues": "Duplicate Values…",
+          "uniqueValues": "Unique Values…",
           "clearSelection": "Clear Rules from Selected Cells",
-          "clearSheet": "Clear Rules from Entire Sheet"
+          "clearSheet": "Clear Rules from Entire Sheet",
+          "manage": "Manage Rules…"
         },
         "titles": {
           "greaterThan": "Greater Than",
           "lessThan": "Less Than",
           "between": "Between",
           "containsText": "Text that Contains",
-          "duplicateValues": "Duplicate Values"
+          "duplicateValues": "Duplicate Values",
+          "uniqueValues": "Unique Values"
         },
         "descriptions": {
           "greaterThan": "Format cells that are GREATER THAN:",
           "lessThan": "Format cells that are LESS THAN:",
           "between": "Format cells that are BETWEEN:",
           "containsText": "Format cells that contain the text:",
-          "duplicateValues": "Format cells that contain:"
+          "duplicateValues": "Format cells that contain:",
+          "uniqueValues": "Format cells that contain:"
         },
         "dialog": {
           "close": "Close",
@@ -9638,10 +9681,62 @@
           "and": "and",
           "text": "Text",
           "duplicate": "Duplicate values",
+          "unique": "Unique values",
           "with": "with",
           "sample": "AaBbCc"
         },
+        "manager": {
+          "title": "Manage Rules",
+          "description": "Conditional formatting rules, in priority order: the first rule applies first.",
+          "scope": "Show rules for",
+          "scopeSelection": "This selection",
+          "scopeSheet": "This sheet",
+          "list": "Conditional formatting rules",
+          "empty": {
+            "selection": "No rules apply to the selected cells.",
+            "sheet": "This sheet has no conditional formatting rules."
+          },
+          "appliesTo": "Applies to {{areas}}",
+          "edit": "Edit rule: {{rule}}",
+          "editTitle": "Edit rule",
+          "editUnsupported": "This kind of rule can't be edited here. Delete it and add a new one, or edit it in Excel.",
+          "moveUp": "Move rule up: {{rule}}",
+          "moveUpTitle": "Move up",
+          "moveDown": "Move rule down: {{rule}}",
+          "moveDownTitle": "Move down",
+          "delete": "Delete rule: {{rule}}",
+          "deleteTitle": "Delete rule",
+          "done": "Done",
+          "unavailable": "Rules can't be listed here yet.",
+          "rules": {
+            "number": {
+              "greaterThan": "Cell value is greater than {{value}}",
+              "greaterThanOrEqual": "Cell value is greater than or equal to {{value}}",
+              "lessThan": "Cell value is less than {{value}}",
+              "lessThanOrEqual": "Cell value is less than or equal to {{value}}",
+              "equal": "Cell value is equal to {{value}}",
+              "notEqual": "Cell value is not equal to {{value}}",
+              "between": "Cell value is between {{min}} and {{max}}",
+              "notBetween": "Cell value is not between {{min}} and {{max}}"
+            },
+            "text": {
+              "containsText": "Text contains “{{value}}”",
+              "notContainsText": "Text does not contain “{{value}}”",
+              "beginsWith": "Text begins with “{{value}}”",
+              "endsWith": "Text ends with “{{value}}”",
+              "equal": "Text is exactly “{{value}}”"
+            },
+            "duplicateValues": "Duplicate values",
+            "uniqueValues": "Unique values",
+            "formula": "Formula rule",
+            "dataBar": "Data bars",
+            "colorScale": "Color scale",
+            "iconSet": "Icon set",
+            "other": "Other rule ({{type}})"
+          }
+        },
         "styles": {
+          "current": "Current format",
           "lightRedDarkRed": "Light red fill with dark red text",
           "yellowDarkYellow": "Yellow fill with dark yellow text",
           "greenDarkGreen": "Green fill with dark green text",
@@ -10045,6 +10140,12 @@
         }
       },
       "editor": {
+        "dvInfoCancel": "Cancel",
+        "dvInfoOk": "OK",
+        "dvInfoTitle": "Information",
+        "dvWarningNo": "No",
+        "dvWarningTitle": "Keep this value?",
+        "dvWarningYes": "Yes",
         "appClosureActive": "{{count}} formulas recalculate live (closure mode); the rest of the workbook streams on demand.",
         "appColorFiltersUnsaveable": "Color filters cannot be saved as XLSX yet — clear them before saving.",
         "appColumnLabel": "Column {{col}}",

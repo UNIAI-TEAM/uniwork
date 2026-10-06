@@ -9514,6 +9514,7 @@
         },
         "open": "Xác thực dữ liệu…",
         "clear": "Xóa xác thực",
+        "manage": "Quản lý quy tắc xác thực",
         "dialog": {
           "title": "Xác thực dữ liệu",
           "close": "Đóng xác thực dữ liệu",
@@ -9526,10 +9527,48 @@
           "minimum": "Nhỏ nhất",
           "maximum": "Lớn nhất",
           "errorSection": "Thông báo lỗi",
+          "errorStyle": "Kiểu",
           "errorTitle": "Tiêu đề (không bắt buộc)",
           "errorMessage": "Nội dung (không bắt buộc)",
           "apply": "Áp dụng",
           "cancel": "Hủy"
+        },
+        "errorStyles": {
+          "stop": "Dừng",
+          "warning": "Cảnh báo",
+          "information": "Thông tin"
+        },
+        "errorStyleHints": {
+          "stop": "Từ chối giá trị không hợp lệ.",
+          "warning": "Hỏi bạn có muốn giữ giá trị không hợp lệ hay không.",
+          "information": "Hiện thông báo và vẫn giữ giá trị."
+        },
+        "manager": {
+          "title": "Quản lý quy tắc xác thực",
+          "description": "Các quy tắc xác thực dữ liệu trên trang tính này.",
+          "scope": "Hiển thị quy tắc cho",
+          "scopeSelection": "Vùng đang chọn",
+          "scopeSheet": "Trang tính này",
+          "list": "Quy tắc xác thực dữ liệu",
+          "empty": {
+            "selection": "Chưa có quy tắc xác thực nào áp dụng cho các ô đã chọn.",
+            "sheet": "Trang tính này chưa có quy tắc xác thực dữ liệu."
+          },
+          "appliesTo": "Áp dụng cho {{areas}}",
+          "errorStyle": "Kiểu cảnh báo lỗi: {{style}}",
+          "edit": "Sửa quy tắc xác thực: {{rule}}",
+          "editTitle": "Sửa quy tắc",
+          "editUnsupported": "Loại quy tắc này chưa sửa được tại đây. Hãy xóa rồi thêm quy tắc mới, hoặc sửa trong Excel.",
+          "delete": "Xóa quy tắc xác thực: {{rule}}",
+          "deleteTitle": "Xóa quy tắc",
+          "done": "Xong",
+          "unavailable": "Chưa liệt kê được các quy tắc tại đây.",
+          "rules": {
+            "list": "Danh sách: {{items}}",
+            "value": "{{type}} {{operator}} {{value}}",
+            "range": "{{type}} {{operator}} {{min}} và {{max}}",
+            "other": "Quy tắc khác ({{type}})"
+          }
         },
         "types": {
           "list": "Danh sách",
@@ -9605,22 +9644,26 @@
           "between": "Nằm giữa…",
           "containsText": "Văn bản chứa…",
           "duplicateValues": "Giá trị trùng lặp…",
+          "uniqueValues": "Giá trị duy nhất…",
           "clearSelection": "Xóa quy tắc khỏi ô đã chọn",
-          "clearSheet": "Xóa quy tắc khỏi toàn bộ trang tính"
+          "clearSheet": "Xóa quy tắc khỏi toàn bộ trang tính",
+          "manage": "Quản lý quy tắc…"
         },
         "titles": {
           "greaterThan": "Lớn hơn",
           "lessThan": "Nhỏ hơn",
           "between": "Nằm giữa",
           "containsText": "Văn bản chứa",
-          "duplicateValues": "Giá trị trùng lặp"
+          "duplicateValues": "Giá trị trùng lặp",
+          "uniqueValues": "Giá trị duy nhất"
         },
         "descriptions": {
           "greaterThan": "Định dạng các ô LỚN HƠN:",
           "lessThan": "Định dạng các ô NHỎ HƠN:",
           "between": "Định dạng các ô NẰM GIỮA:",
           "containsText": "Định dạng các ô chứa văn bản:",
-          "duplicateValues": "Định dạng các ô chứa:"
+          "duplicateValues": "Định dạng các ô chứa:",
+          "uniqueValues": "Định dạng các ô chứa:"
         },
         "dialog": {
           "close": "Đóng",
@@ -9632,10 +9675,62 @@
           "and": "và",
           "text": "Văn bản",
           "duplicate": "Giá trị trùng lặp",
+          "unique": "Giá trị duy nhất",
           "with": "với",
           "sample": "AaBbCc"
         },
+        "manager": {
+          "title": "Quản lý quy tắc",
+          "description": "Các quy tắc định dạng có điều kiện theo thứ tự ưu tiên: quy tắc đầu tiên được áp dụng trước.",
+          "scope": "Hiển thị quy tắc cho",
+          "scopeSelection": "Vùng đang chọn",
+          "scopeSheet": "Trang tính này",
+          "list": "Quy tắc định dạng có điều kiện",
+          "empty": {
+            "selection": "Chưa có quy tắc nào áp dụng cho các ô đã chọn.",
+            "sheet": "Trang tính này chưa có quy tắc định dạng có điều kiện."
+          },
+          "appliesTo": "Áp dụng cho {{areas}}",
+          "edit": "Sửa quy tắc: {{rule}}",
+          "editTitle": "Sửa quy tắc",
+          "editUnsupported": "Loại quy tắc này chưa sửa được tại đây. Hãy xóa rồi thêm quy tắc mới, hoặc sửa trong Excel.",
+          "moveUp": "Chuyển quy tắc lên: {{rule}}",
+          "moveUpTitle": "Chuyển lên",
+          "moveDown": "Chuyển quy tắc xuống: {{rule}}",
+          "moveDownTitle": "Chuyển xuống",
+          "delete": "Xóa quy tắc: {{rule}}",
+          "deleteTitle": "Xóa quy tắc",
+          "done": "Xong",
+          "unavailable": "Chưa liệt kê được các quy tắc tại đây.",
+          "rules": {
+            "number": {
+              "greaterThan": "Giá trị ô lớn hơn {{value}}",
+              "greaterThanOrEqual": "Giá trị ô lớn hơn hoặc bằng {{value}}",
+              "lessThan": "Giá trị ô nhỏ hơn {{value}}",
+              "lessThanOrEqual": "Giá trị ô nhỏ hơn hoặc bằng {{value}}",
+              "equal": "Giá trị ô bằng {{value}}",
+              "notEqual": "Giá trị ô khác {{value}}",
+              "between": "Giá trị ô nằm giữa {{min}} và {{max}}",
+              "notBetween": "Giá trị ô không nằm giữa {{min}} và {{max}}"
+            },
+            "text": {
+              "containsText": "Văn bản chứa “{{value}}”",
+              "notContainsText": "Văn bản không chứa “{{value}}”",
+              "beginsWith": "Văn bản bắt đầu bằng “{{value}}”",
+              "endsWith": "Văn bản kết thúc bằng “{{value}}”",
+              "equal": "Văn bản đúng bằng “{{value}}”"
+            },
+            "duplicateValues": "Giá trị trùng lặp",
+            "uniqueValues": "Giá trị duy nhất",
+            "formula": "Quy tắc dùng công thức",
+            "dataBar": "Thanh dữ liệu",
+            "colorScale": "Thang màu",
+            "iconSet": "Bộ biểu tượng",
+            "other": "Quy tắc khác ({{type}})"
+          }
+        },
         "styles": {
+          "current": "Định dạng hiện tại",
           "lightRedDarkRed": "Tô nền đỏ nhạt, chữ đỏ đậm",
           "yellowDarkYellow": "Tô nền vàng, chữ vàng đậm",
           "greenDarkGreen": "Tô nền xanh lá, chữ xanh lá đậm",
@@ -10039,6 +10134,12 @@
         }
       },
       "editor": {
+        "dvInfoCancel": "Hủy",
+        "dvInfoOk": "OK",
+        "dvInfoTitle": "Thông tin",
+        "dvWarningNo": "Không",
+        "dvWarningTitle": "Giữ giá trị này?",
+        "dvWarningYes": "Có",
         "appClosureActive": "{{count}} công thức được tính lại trực tiếp (chế độ closure); phần còn lại của sổ tính tải theo nhu cầu.",
         "appColorFiltersUnsaveable": "Chưa thể lưu bộ lọc màu dưới dạng XLSX — hãy xoá chúng trước khi lưu.",
         "appColumnLabel": "Cột {{col}}",
