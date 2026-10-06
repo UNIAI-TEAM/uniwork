@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { degrees, PDFDocument, StandardFonts } from "pdf-lib";
 import { afterEach, describe, expect, it } from "vitest";
-import { DesktopEngineCallError, handleDesktopEngineCall, retainedPdfStatsForTests, setRetainedPdfBudgetForTests } from "../src/desktop/pdf-host";
+import { DesktopEngineCallError, handleDesktopEngineCall, releaseRetainedPdfs, retainedPdfStatsForTests, setRetainedPdfBudgetForTests } from "../src/desktop/pdf-host";
 import { assertRotationAware } from "../src/desktop/pdf-render";
 
 const FIXTURES = fileURLToPath(new URL("../../../docs/office/g0/fixtures/files/pdf/", import.meta.url));
@@ -204,9 +204,8 @@ describe("desktop PDF engine host: retained documents", () => {
   afterEach(async () => {
     restoreBudget?.();
     restoreBudget = null;
-    // Close whatever a test left so the next one starts from an empty store.
-    for (let index = 0; index < 40; index += 1) await handleDesktopEngineCall({ operation: "close", handle: `doc-${index}`, sessionGeneration: SESSION, args: {} });
-    await handleDesktopEngineCall({ operation: "close", handle: "doc", sessionGeneration: SESSION, args: {} });
+    // Free whatever a test left so the next one starts from an empty store.
+    releaseRetainedPdfs();
   });
 
   const openRetained = async (handle: string, name = "pdf-text-editable.pdf", extra: Record<string, unknown> = {}, sessionGeneration = SESSION): Promise<string> => {
