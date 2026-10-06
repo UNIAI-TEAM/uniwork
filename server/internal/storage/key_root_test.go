@@ -169,3 +169,37 @@ func TestIsFileServiceKeyIgnoresTrailingDotsAndSpaces(t *testing.T) {
 }
 
 func ptr(s string) *string { return &s }
+
+// ParseKeyRoot is the reading every env-built helper shares with LoadConfig:
+// the same stored form, and a refusal for every value LoadConfig refuses.
+func TestParseKeyRootMatchesLoadConfig(t *testing.T) {
+	for raw, want := range map[string]string{"": "", "  ": "", "develop": "develop/", " envs/develop/ ": "envs/develop/"} {
+		got, err := ParseKeyRoot(raw)
+		if err != nil || got != want {
+			t.Errorf("ParseKeyRoot(%q) = %q, %v; want %q", raw, got, err, want)
+		}
+	}
+	for _, raw := range []string{"/develop", "../", "develop.", "v1/", "https://x/develop", `develop\x`} {
+		root, err := ParseKeyRoot(raw)
+		if !errors.Is(err, ErrConfigInvalid) || root != "" || !strings.Contains(err.Error(), "S3_KEY_PREFIX") {
+			t.Errorf("ParseKeyRoot(%q) = %q, %v; want storage_config_invalid naming S3_KEY_PREFIX", raw, root, err)
+		}
+	}
+}
+
+// NewLocalStorageFromEnv refuses an unsafe root as LoadConfig does instead of
+// dropping it to "" (which would mint and guard keys outside the configured
+// root).
+func TestNewLocalStorageFromEnvRefusesAnUnsafeKeyRoot(t *testing.T) {
+	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
+	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
+	t.Setenv("S3_KEY_PREFIX", "/develop")
+	if store := NewLocalStorageFromEnv(); store != nil {
+		t.Fatalf("NewLocalStorageFromEnv(S3_KEY_PREFIX=/develop) = %+v, want nil", store)
+	}
+	t.Setenv("S3_KEY_PREFIX", "develop")
+	store := NewLocalStorageFromEnv()
+	if store == nil || store.keyRoot != "develop/" {
+		t.Fatalf("NewLocalStorageFromEnv(S3_KEY_PREFIX=develop) = %+v, want keyRoot develop/", store)
+	}
+}

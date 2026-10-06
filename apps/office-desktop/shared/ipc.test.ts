@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { createIpcDispatcher, validateIpcRequest } from "./ipc";
 import { DESKTOP_DOCUMENT_FORMATS } from "./document-formats";
-import { desktopLibraryResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema } from "./ipc";
+import { desktopLibraryResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema, desktopPublicConfigResponseSchema, sanitizeDesktopPublicFlags } from "./ipc";
 
 const sender = { senderId: 1, expectedSenderId: 1, frameId: 0, expectedFrameId: 0, origin: "uniwork-office-app://app", expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const tabs = { sessionGeneration: sender.sessionGeneration, documentIds: ["a", "b"], activeDocumentId: "b" };
@@ -115,4 +115,18 @@ it("accepts an optional organization id on the public-config request and nothing
   expect(() => validateIpcRequest("desktop:public-config", { ...request, organizationId: "org-1" }, sender)).not.toThrow();
   expect(() => validateIpcRequest("desktop:public-config", { ...request, organizationId: "" }, sender)).toThrow();
   expect(() => validateIpcRequest("desktop:public-config", { ...request, extra: 1 }, sender)).toThrow();
+});
+
+it("keeps the Office flags when a public flag catalogue runs past the cap (R4-7)", () => {
+  // 200 other flags listed first: an insertion-order cut at 128 would drop every office_* key.
+  const raw: Record<string, unknown> = Object.fromEntries(Array.from({ length: 200 }, (_, index) => [`flag_${index}`, true]));
+  Object.assign(raw, { office_docx: false, office_engine: true, "Bad-Key": true, office_pdf: "yes" });
+  const flags = sanitizeDesktopPublicFlags(raw);
+  expect(Object.keys(flags)).toHaveLength(128);
+  expect(flags.office_engine).toBe(true);
+  expect(flags.office_docx).toBe(false);
+  expect(Object.keys(flags).slice(0, 2)).toEqual(["office_engine", "office_docx"]);
+  expect(flags).not.toHaveProperty("Bad-Key");
+  expect(flags).not.toHaveProperty("office_pdf");
+  expect(desktopPublicConfigResponseSchema.safeParse({ flags }).success).toBe(true);
 });

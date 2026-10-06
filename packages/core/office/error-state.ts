@@ -91,6 +91,12 @@ const ERROR_RULES: Record<string, ErrorRule> = {
   file_write_failed: { state: "error", action: "retry", retryable: true },
   file_replace_failed: { state: "error", action: "retry", retryable: true },
   file_save_in_progress: { state: "error", action: "retry", retryable: true },
+  // The draft checkpoint before a local Save failed; nothing was written, so a retry is safe.
+  file_checkpoint_failed: { state: "error", action: "retry", retryable: true },
+  // A local Save that outgrew the limit. `file_too_large` (cloud rule above) is
+  // blocked and shows no reason; this one stays `error` so the sentence shows, and
+  // keeps the draft: the same bytes cannot succeed, so no automatic retry.
+  file_save_too_large: { state: "error", action: "keep_draft", retryable: false },
   file_changed_on_disk: { state: "error", action: "keep_draft", retryable: false },
   file_not_found: { state: "error", action: "keep_draft", retryable: false },
   file_session_revoked: { state: "error", action: "keep_draft", retryable: false },

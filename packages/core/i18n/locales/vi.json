@@ -7221,8 +7221,14 @@
       "upload_file": "Tải tệp",
       "off_title": "Tài liệu chưa bật",
       "off_description": "Tính năng tài liệu chưa được bật cho workspace này.",
+      "checking_title": "Đang kiểm tra tính năng tài liệu…",
+      "unknown_title": "Chưa kiểm tra được tính năng tài liệu",
+      "unknown_description": "Chưa tải được cấu hình nên chưa biết tài liệu có được bật cho workspace này không. Thử lại.",
+      "unknown_retry": "Thử lại",
       "create_failed": "Không tạo được trang",
-      "upload_failed": "Không tải được tệp lên"
+      "upload_failed": "Không tải được tệp lên",
+      "tab_title": "{{title}} · UniWork",
+      "office_tab_title": "{{title}} · UniWork Office"
     },
     "library": {
       "count_label": "tài liệu",
@@ -7443,6 +7449,11 @@
       "no_web_editor_description": "UniWork Office mở định dạng này ở bản sau. Hiện tại bạn tải về để xem hoặc tải lên phiên bản mới.",
       "office_off_title": "Chỉnh sửa {{format}} đang tắt",
       "office_off_description": "Tổ chức này đang tắt chỉnh sửa tệp {{format}}. Bạn vẫn tải tệp về hoặc tải lên phiên bản mới được.",
+      "office_checking": "Đang kiểm tra tổ chức này có bật chỉnh sửa {{format}} không…",
+      "office_unknown_title": "Chưa kiểm tra được chế độ chỉnh sửa {{format}}",
+      "office_unknown_description": "Chưa tải được cấu hình trình soạn thảo của tổ chức, nên tạm thời tệp hiển thị ở đây. Thử lại, hoặc tải tệp về.",
+      "office_unknown_retry": "Thử lại",
+      "readonly_hint": "Bạn chỉ có quyền xem tệp này: tải về được, nhưng không tải lên phiên bản mới được.",
       "upload_failed": "Không tải được tệp lên",
       "commit_failed": "Không lưu được phiên bản mới",
       "missing_file": "Tài liệu này chưa có tệp."
@@ -9091,10 +9102,13 @@
         "file_locked": "Tệp đang được chương trình khác sử dụng. Đóng tệp ở đó rồi thử lại.",
         "file_changed_on_disk": "Tệp đã thay đổi trên máy sau khi bạn mở. Thay đổi của bạn vẫn được giữ: hãy lưu thành tên khác hoặc mở lại tệp.",
         "file_handle_invalid": "Tệp này không còn mở trong UniWork Office. Hãy mở lại.",
-        "file_session_revoked": "Phiên làm việc đã thay đổi khi đang xử lý tệp. Thử lại.",
+        "file_session_revoked": "Phiên làm việc đã thay đổi khi đang xử lý tệp. Kiểm tra xem tệp đã được lưu chưa rồi thử lại.",
         "file_write_failed": "Không ghi được tệp. Kiểm tra dung lượng trống và quyền truy cập rồi thử lại. Thay đổi của bạn vẫn được giữ.",
         "file_replace_failed": "Không thay được tệp bằng bản mới. Đóng tệp trong các chương trình khác rồi thử lại. Thay đổi của bạn vẫn được giữ.",
-        "file_too_large": "Tệp quá lớn để UniWork Office xử lý.",
+        "file_too_large": "Tệp quá lớn để UniWork Office mở.",
+        "file_save_too_large": "Tài liệu đã lớn hơn mức UniWork Office lưu được. Thay đổi của bạn vẫn được giữ: bớt nội dung rồi lưu lại.",
+        "file_read_failed": "Không đọc được tệp. Kiểm tra quyền mở tệp rồi thử lại.",
+        "file_checkpoint_failed": "Chưa bảo vệ được thay đổi trên máy nên tệp chưa được lưu. Thử lại.",
         "file_save_in_progress": "Một lần lưu khác vẫn đang chạy. Chờ xong rồi thử lại.",
         "file_engine_unavailable": "Bản UniWork Office này chưa xử lý được loại tệp này trên máy.",
         "file_failed": "Không xử lý được tệp. Thử lại."
@@ -11597,7 +11611,7 @@
         "retryOpen": "Thử mở lại"
       },
       "commands": {
-        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)", "highlight": "Tô sáng", "note": "Ghi chú", "stamp": "Đóng dấu", "forms": "Điền biểu mẫu", "zoomOut": "Thu nhỏ", "zoomIn": "Phóng to", "fitWidth": "Vừa rộng", "fitPage": "Vừa trang"
+        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)", "highlight": "Tô sáng", "note": "Ghi chú", "stamp": "Đóng dấu", "forms": "Điền biểu mẫu", "zoomOut": "Thu nhỏ", "zoomIn": "Phóng to", "fitWidth": "Vừa chiều rộng", "fitPage": "Vừa trang"
       },
       "selection": { "none": "Chưa chọn trang", "page": "Trang {{page}}", "background": "Nền trang {{page}}" },
       "capabilityPending": "Tính năng PDF này chưa có trong bản dựng engine hiện tại.",
@@ -11876,6 +11890,7 @@
       "documentCount_other": "{{count}} tài liệu",
       "limit": "Đã mở đủ 8 tab tài liệu. Đóng một tab để mở tài liệu khác.",
       "checkpointFailed": "Không thể bảo vệ thay đổi trên máy. Giữ tab này mở để tránh mất thay đổi.",
+      "checkpointFailedNamed": "Không thể bảo vệ thay đổi của {{titles}} trên máy. Giữ tab mở để tránh mất thay đổi.",
       "sessionError": "Không thể đồng bộ các tab tài liệu. Thử lại trước khi tiếp tục.",
       "dismissAlert": "Đóng thông báo"
     },
@@ -11942,6 +11957,12 @@
       "draftRecovered": "Đã khôi phục bản nháp đã chọn.",
       "featureOffTitle": "Chỉnh sửa {{format}} đang tắt",
       "featureOffDescription": "Tổ chức của bạn đang tắt chỉnh sửa tệp {{format}}, nên tệp này chỉ xem được.",
+      "flagsUnknownTitle": "Chưa sửa được tệp {{format}}",
+      "flagsUnknownDescription": "Tệp này tạm thời chỉ xem được trong lúc kiểm tra cấu hình trình soạn thảo của tổ chức. Tệp sẽ sửa được khi kiểm tra xong.",
+      "viewOnlyTitle": "Tệp {{format}} chỉ xem được với bạn",
+      "viewOnlyDescription": "Quyền truy cập của bạn vào tệp này đã thay đổi nên tệp chỉ xem được. Hãy nhờ chủ sở hữu cấp quyền chỉnh sửa, rồi mở lại tệp.",
+      "goneTitle": "Tệp {{format}} này không còn nữa",
+      "goneDescription": "Tệp đã bị xóa hoặc di chuyển nên không thể sửa ở đây. Hãy đóng thẻ này và mở lại tệp từ thư viện.",
       "format": {
         "label": "Định dạng",
         "all": "Tất cả định dạng",
@@ -11967,7 +11988,7 @@
       "untitledMarkdown": "Tài liệu mới.md",
       "untitledHtml": "Tài liệu mới.html",
       "empty": "Chưa có tệp trên máy",
-      "emptyDescription": "Mở một tệp DOCX, PDF, Markdown hoặc HTML trên máy hoặc tạo tài liệu mới. Bạn có thể đăng nhập sau để dùng thư viện UniWork.",
+      "emptyDescription": "Mở một tệp {{formats}} trên máy hoặc tạo tài liệu mới. Bạn có thể đăng nhập sau để dùng thư viện UniWork.",
       "error": "Không tải được danh sách tệp gần đây.",
       "retry": "Thử lại",
       "missing": "Không tìm thấy tệp",
@@ -11975,7 +11996,7 @@
       "removeNamed": "Xoá {{name}} khỏi danh sách",
       "openNamed": "Mở {{name}}",
       "updated": "Mở lần cuối {{time}}",
-      "unsupported": "Chỉ hỗ trợ tệp DOCX, XLSX, PPTX, PDF, Markdown và HTML trên máy.",
+      "unsupported": "Chỉ hỗ trợ tệp {{formats}} trên máy.",
       "saveAs": "Lưu thành…",
       "leaveSave": "Lưu trên máy",
       "home": "Về trang chủ trên máy"

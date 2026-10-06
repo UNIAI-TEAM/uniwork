@@ -57,12 +57,43 @@ beforeEach(() => {
 });
 
 describe("DocumentsPageView", () => {
-  it("stays behind its flag", () => {
+  const otherCalls = () => requestMock.mock.calls.filter(([path]) => !String(path).startsWith("/api/v1/config"));
+
+  it("stays behind its flag once the config answered that it is off", async () => {
+    requestMock.mockResolvedValue({ flags: { documents: false }, rum_sample_rate: 0 });
     const onOpen = vi.fn();
     renderView(onOpen, false);
-    expect(screen.getByText(t("documents.page.off_title"))).toBeInTheDocument();
-    expect(requestMock).not.toHaveBeenCalled();
+    expect(await screen.findByText(t("documents.page.off_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.page.unknown_title"))).toBeNull();
+    expect(otherCalls()).toHaveLength(0);
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("says it could not check, not that documents are off, when the config call fails", async () => {
+    let configCalls = 0;
+    requestMock.mockImplementation((path: string) => {
+      if (!path.startsWith("/api/v1/config")) return Promise.resolve({});
+      configCalls += 1;
+      return configCalls === 1
+        ? Promise.reject(new ApiError("boom", "internal", 500))
+        : Promise.resolve({ flags: { documents: false }, rum_sample_rate: 0 });
+    });
+    renderView(vi.fn(), false);
+
+    expect(await screen.findByText(t("documents.page.unknown_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.page.off_title"))).toBeNull();
+    expect(otherCalls()).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.page.unknown_retry") }));
+    // A settled answer is the only thing that may claim the feature is off.
+    expect(await screen.findByText(t("documents.page.off_title"))).toBeInTheDocument();
+  });
+
+  it("shows a neutral checking state while the config has not answered", () => {
+    requestMock.mockImplementation(() => new Promise(() => {}));
+    renderView(vi.fn(), false);
+    expect(screen.getByText(t("documents.page.checking_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.page.off_title"))).toBeNull();
   });
 
   it("translates its library copy instead of falling back to keys", () => {
@@ -124,7 +155,7 @@ describe("DocumentsPageView", () => {
   it("offers a retry when the list cannot be read", async () => {
     let listCalls = 0;
     requestMock.mockImplementation((path: string) => {
-      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(TREE_URL) || path.startsWith("/api/v1/config")) return Promise.resolve({ documents: [] });
       listCalls += 1;
       return listCalls === 1
         ? Promise.reject(new ApiError("boom", "internal", 500))

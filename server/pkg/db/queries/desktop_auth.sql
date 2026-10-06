@@ -54,15 +54,42 @@ UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
 WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL;
 
 -- name: RevokeAllDeviceSessions :exec
-UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
-WHERE user_id = $1 AND revoked_at IS NULL;
+-- First half of a user-wide revoke (revokeAllUserSessions; the refresh tokens
+-- follow). Every desktop path locks in one order: device_sessions rows (in id
+-- order when it takes several), then the family key, then refresh_tokens.
+UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
+FROM (
+  SELECT l.id FROM device_sessions l
+  WHERE l.user_id = sqlc.arg(user_id) AND l.revoked_at IS NULL
+  ORDER BY l.id
+  FOR UPDATE
+) live
+WHERE d.id = live.id;
 
 -- name: RevokeDeviceSessionFamily :execrows
--- Closes every live device session of the family. The family's refresh
--- tokens are a separate statement (RevokeSessionForUser) run after it in the
--- same transaction, so each reports its own row count.
-UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
-WHERE user_id = $1 AND session_family_id = $2 AND revoked_at IS NULL;
+-- Closes every live device session of the family, locking them in id order
+-- (see RevokeAllDeviceSessions). The caller already holds its own row, so with
+-- a live sibling of lower id its order is not strictly by id; production never
+-- makes a sibling (Exchange starts one family per device). The family's
+-- refresh tokens are a separate statement (RevokeSessionForUser) run after it
+-- in the same transaction, so each reports its own row count.
+UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
+FROM (
+  SELECT l.id FROM device_sessions l
+  WHERE l.user_id = sqlc.arg(user_id) AND l.session_family_id = sqlc.arg(session_family_id) AND l.revoked_at IS NULL
+  ORDER BY l.id
+  FOR UPDATE
+) live
+WHERE d.id = live.id;
+
+-- One family's "last live device session closes its token" decision is made
+-- one transaction at a time: a device-scope logout takes this key after the
+-- device row lock and before revoking, so two sibling logouts cannot each
+-- count the other as live and both leave the family token behind.
+-- Transaction-scoped; the family-wide revoke (RevokeDeviceSessionFamily)
+-- does not take it, so it never waits on a sibling row while holding it.
+-- name: LockDeviceSessionFamily :exec
+SELECT pg_advisory_xact_lock(hashtextextended('device_sessions.family:' || sqlc.arg(session_family_id)::text, 0));
 
 -- name: CountLiveDeviceSessionsInFamily :one
 SELECT count(*) FROM device_sessions

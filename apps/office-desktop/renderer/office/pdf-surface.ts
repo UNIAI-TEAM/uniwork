@@ -329,18 +329,25 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
 
   /** Make `next` the document: re-probe the page geometry, bump the generation,
    * drop every cached page and text read, and tell both listener sets. Edits,
-   * undo and redo all swap through here. */
-  const swapBytes = async (next: Uint8Array): Promise<void> => {
+   * undo and redo all swap through here. `commit` moves the history stacks
+   * before the listeners run, so a listener reading canUndo/canRedo sees the
+   * stacks of the new bytes. A surface disposed during the await keeps its
+   * reset state: nothing is committed and false comes back. */
+  const swapBytes = async (next: Uint8Array, commit: () => void): Promise<boolean> => {
+    if (disposed) return false;
     bytes = next;
     clearEncoded();
     await refreshGeometry();
+    if (disposed) return false;
     generation += 1;
+    commit();
     // The new bytes paint differently: drop every cached page and let the
     // canvas re-request it through the new generation key.
     clearCache();
     clearTextCache();
     for (const listener of listeners) listener(generation);
     for (const listener of [...changeListeners]) listener();
+    return true;
   };
 
   /** Apply one batch of engine envelopes, swap the bytes, bump the generation and
@@ -351,9 +358,11 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     const before = bytes;
     const result = await callEngine("edit", { dataBase64: bytesBase64(), edits: [...edits] });
     if (!result.ok || !result.dataBase64) throw new Error("pdf_edit_failed");
-    await swapBytes(Uint8Array.from(decodeBase64(result.dataBase64)));
-    pushBounded(undoStack, before, undoByteBudget);
-    redoStack = [];
+    const applied = await swapBytes(Uint8Array.from(decodeBase64(result.dataBase64)), () => {
+      pushBounded(undoStack, before, undoByteBudget);
+      redoStack = [];
+    });
+    if (!applied) throw new Error("pdf_surface_disposed");
     return { skipped: skippedFromWarnings(result.warnings) };
   });
 
@@ -367,9 +376,10 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
       const target = source[source.length - 1];
       if (!target || disposed) return;
       const current = bytes;
-      await swapBytes(target);
-      source.pop();
-      pushBounded(to(), current, undoByteBudget);
+      await swapBytes(target, () => {
+        source.pop();
+        pushBounded(to(), current, undoByteBudget);
+      });
     }).catch(() => undefined);
   };
 
@@ -476,7 +486,9 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     subscribe: (listener: () => void) => { changeListeners.add(listener); return () => { changeListeners.delete(listener); }; },
     undo: () => step(() => undoStack, () => redoStack),
     redo: () => step(() => redoStack, () => undoStack),
-    dispose: () => { disposed = true; engineSession.close(); listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = [];clearCache(); clearTextCache(); bytes = Uint8Array.from([]); clearEncoded(); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
+    canUndo: () => !settings.readOnly && undoStack.length > 0,
+    canRedo: () => !settings.readOnly && redoStack.length > 0,
+    dispose: () => { disposed = true; engineSession.close(); listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = []; clearCache(); clearTextCache(); bytes = Uint8Array.from([]); clearEncoded(); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
   };
   return surface;
 }

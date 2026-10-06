@@ -1,6 +1,9 @@
 package storage
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Object-key prefixes inside the configured bucket (S3/MinIO) or LOCAL_UPLOAD_DIR.
 // They are path segments, not a second bucket.
@@ -32,6 +35,23 @@ func normalizeKeyRoot(raw string) string {
 		return root
 	}
 	return root + "/"
+}
+
+// keyRootProblem is the refusal Validate and ParseKeyRoot report for an
+// unsafe S3_KEY_PREFIX.
+const keyRootProblem = envS3KeyPrefix + " must be a relative folder of letters, digits, ., _ and - segments (e.g. develop/ or production/), without .., empty segments, backslashes or a URL"
+
+// ParseKeyRoot is the one reading of a raw S3_KEY_PREFIX value outside
+// LoadConfig: it normalizes it exactly as LoadConfig does and refuses, with
+// ErrConfigInvalid, every value LoadConfig would refuse. Callers that read the
+// variable themselves (env-built helpers, the backfill resolver) use it so no
+// second normalization can drift from the server's.
+func ParseKeyRoot(raw string) (string, error) {
+	root := normalizeKeyRoot(raw)
+	if !ValidKeyRoot(root) {
+		return "", fmt.Errorf("%w: %s", ErrConfigInvalid, keyRootProblem)
+	}
+	return root, nil
 }
 
 // ValidKeyRoot reports whether root is "" or the stored form of a path-safe

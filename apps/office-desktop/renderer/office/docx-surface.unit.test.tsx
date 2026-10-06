@@ -45,9 +45,18 @@ it("captures N while the next edit remains N+1 with live undo/redo", async () =>
     expect(snapshot.generation).toBe(1);
     expect(editor.getDirtyGeneration()).toBe(2);
     expect((await parseDocx(snapshot.value)).blocks[0]).toMatchObject({ type: "heading", level: 2 });
+    expect(editor.canUndo?.()).toBe(true);
+    expect(editor.canRedo?.()).toBe(false);
     editor.undo?.();
     // Adjacent toolbar transactions share the normal TipTap undo group.
     expect(editor.commands?.getState().headingLevel).toBe(1);
+    // Back at the opened document: the history reports it has nothing to undo
+    // and an extra undo leaves the generation alone (UNI-954).
+    expect(editor.canUndo?.()).toBe(false);
+    expect(editor.canRedo?.()).toBe(true);
+    const generation = editor.getDirtyGeneration();
+    editor.undo?.();
+    expect(editor.getDirtyGeneration()).toBe(generation);
     editor.redo?.();
     expect(editor.commands?.getState().headingLevel).toBe(3);
   } finally { await editor.dispose(); }

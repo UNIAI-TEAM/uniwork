@@ -20,6 +20,13 @@ const documentFormats = JSON.parse(readFileSync(join(appDirectory, "shared", "do
 const repositoryRoot = resolve(appDirectory, "../..");
 const distDirectory = join(appDirectory, "dist");
 const outputDirectory = resolve(process.env.OFFICE_DESKTOP_OUTPUT ?? join(repositoryRoot, ".uniwork-dev", "office-desktop", "artifacts"));
+/** Brand icons rendered by scripts/brand/build-assets.mjs from the UniWork
+ * app tile. Absolute so the build does not depend on the caller's cwd. */
+export const BRAND_ICONS = Object.freeze({
+  windows: join(appDirectory, "build", "icon.ico"),
+  macos: join(appDirectory, "build", "icon.png"),
+  linux: join(appDirectory, "build", "icons"),
+});
 const cacheRoot = resolve(process.env.OFFICE_DESKTOP_CACHE ?? join(repositoryRoot, ".uniwork-dev", "office-desktop", "cache"));
 
 /** The Linux MIME types the desktop app registers, one per file-extension
@@ -133,7 +140,11 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
     // Windows keeps the original association (no mimeType key); Linux adds the
     // standard docx MIME so the desktop entry and mime package carry it.
     fileAssociations: platform === "linux" ? undefined : fileAssociations,
-    win: platform === "win32" ? { target: [{ target: "zip", arch: [arch] }, { target: "nsis", arch: [arch] }], signAndEditExecutable: false } : undefined,
+    // signExecutable:false keeps the build unsigned but still edits the exe's
+    // resources: the icon and the version strings (FileDescription and
+    // ProductName = the channel product). signAndEditExecutable:false skipped
+    // both and shipped Electron's atom icon and "Electron" description.
+    win: platform === "win32" ? { target: [{ target: "zip", arch: [arch] }, { target: "nsis", arch: [arch] }], signExecutable: false, icon: BRAND_ICONS.windows } : undefined,
     nsis: platform === "win32" ? {
       artifactName: `${artifactBase}-setup.exe`,
       oneClick: true,
@@ -142,6 +153,9 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
       createStartMenuShortcut: true,
       createDesktopShortcut: false,
       shortcutName: channelIdentity.product,
+      uninstallDisplayName: channelIdentity.product,
+      installerIcon: BRAND_ICONS.windows,
+      uninstallerIcon: BRAND_ICONS.windows,
       deleteAppDataOnUninstall: false,
       runAfterFinish: false,
       include: nsisInclude,
@@ -152,6 +166,8 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
       hardenedRuntime: false,
       gatekeeperAssess: false,
       minimumSystemVersion: MACOS_MINIMUM_SYSTEM_VERSION,
+      // electron-builder turns the 1024 png into the bundle's .icns.
+      icon: BRAND_ICONS.macos,
       // One architecture per artifact: the OS refuses the wrong-chip dmg and
       // the binary itself is not universal.
       extendInfo: { LSArchitecturePriority: [arch] },
@@ -159,6 +175,7 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
     linux: platform === "linux" ? {
       target: [{ target: "deb", arch: [arch] }, { target: "AppImage", arch: [arch] }],
       category: "Office",
+      icon: BRAND_ICONS.linux,
       synopsis: "UniWork Office",
       protocols,
       fileAssociations,

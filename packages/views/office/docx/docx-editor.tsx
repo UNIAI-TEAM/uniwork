@@ -13,6 +13,7 @@ import { OfficeFrame } from "../frame/office-frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { createBrowserPrintPort } from "../print";
 import { useOfficePrintShortcut } from "../print/shortcut";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import { DocxErrorState } from "./docx-error-state";
 import { DocxToolbar } from "./docx-toolbar";
 import { DocxFindPanel } from "./find/docx-find-panel";
@@ -204,14 +205,14 @@ export function DocxEditor<TSnapshot = unknown>({
     coordinator.markDirty?.(editor.getDirtyGeneration());
   }, [coordinator, editor]);
 
+  // An empty history is not a change: only a step that moved the generation
+  // marks the document dirty (UNI-954).
   const undo = useCallback(() => {
-    editor.undo?.();
-    markDirtyFromHandle();
+    if (stepHistory(editor, "undo")) markDirtyFromHandle();
   }, [editor, markDirtyFromHandle]);
 
   const redo = useCallback(() => {
-    editor.redo?.();
-    markDirtyFromHandle();
+    if (stepHistory(editor, "redo")) markDirtyFromHandle();
   }, [editor, markDirtyFromHandle]);
 
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
@@ -221,8 +222,9 @@ export function DocxEditor<TSnapshot = unknown>({
     }
   }, [save]);
 
-  const canUndo = useMemo(() => typeof editor.undo === "function", [editor.undo]);
-  const canRedo = useMemo(() => typeof editor.redo === "function", [editor.redo]);
+  // Read on every render: each edit re-marks the coordinator, whose publish re-renders.
+  const canUndo = canStepHistory(editor, "undo");
+  const canRedo = canStepHistory(editor, "redo");
   const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
   const saving = coordinatorState.state === "saving";
 

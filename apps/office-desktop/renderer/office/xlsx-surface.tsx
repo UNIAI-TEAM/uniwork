@@ -10,6 +10,7 @@ import { RecoveryNotice, type DesktopRecoveryState } from "../recovery-status";
 import { LockedAiEntry } from "../ai-entry";
 import { FeatureOffNotice } from "./feature-off-notice";
 import { useFeatureOffFormatName } from "./feature-off-shell";
+import type { ReadOnlyReason } from "../tabs/use-document-tabs";
 import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
 import type { DesktopXlsxSession } from "./xlsx-session";
@@ -29,7 +30,7 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
   signedIn?: boolean;
   onSignIn?: () => void;
   /** The tab is view-only because the format's Office flag is off, not because of the reader's permission. */
-  readOnlyReason?: "feature_off";
+  readOnlyReason?: ReadOnlyReason;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
@@ -39,7 +40,7 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
   const [recovered, setRecovered] = useState(false);
   const [host, setHost] = useState<XlsxModelHost | null>(session.rendererHostRef.current);
   const prepareRef = useRef<(() => Promise<void>) | null>(null);
-  const featureOff = readOnlyReason === "feature_off" && !session.canSave;
+  const featureOff = readOnlyReason !== undefined && !session.canSave;
   const formatName = useFeatureOffFormatName("xlsx");
   const print = useDesktopPrint(bridge);
   const saveState = useSyncExternalStore(session.coordinator.subscribe, () => session.coordinator.getState().state);
@@ -89,7 +90,7 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
       editor={<>
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}
-        {featureOff ? <FeatureOffNotice formatName={formatName} className="mx-4 my-2" /> : null}
+        {featureOff ? <FeatureOffNotice formatName={formatName} reason={readOnlyReason} className="mx-4 my-2" /> : null}
         {print.hint}
         <XlsxEditor
           documentKey={session.documentKey}

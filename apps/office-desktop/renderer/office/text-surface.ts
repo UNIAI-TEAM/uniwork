@@ -131,6 +131,8 @@ export function createDesktopTextSurface(format: "md" | "html", settings: Deskto
       text = next;
       changed();
     },
+    canUndo: () => !disposed && !settings.readOnly && past.length > 0,
+    canRedo: () => !disposed && !settings.readOnly && future.length > 0,
     /** A read-only file has no editor frame (the shared slot hides it), so show
      * the decoded text itself rather than a bare capability notice. */
     renderSurface(): ReactNode {
