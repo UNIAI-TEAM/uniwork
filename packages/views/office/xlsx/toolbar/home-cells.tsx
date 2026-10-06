@@ -13,7 +13,10 @@ import type { XlsxToolbarGroupProps } from "./types";
 
 // min-w-22 is the spacing-scale spelling of the 88px floor the Cells menus
 // opened with (22 * 0.25rem = 5.5rem), so the rendered width is unchanged.
-const MENU_BUTTON_CLASS = "h-6 w-auto min-w-22 justify-start gap-1 px-1.5 text-caption font-normal whitespace-nowrap";
+// h-5, not h-6: the three stacked rows plus the group caption must fit the
+// 96px ribbon body with room to spare (visual R4B-6: the caption sat flush
+// under the Format row at h-6).
+const MENU_BUTTON_CLASS = "h-5 w-auto min-w-22 justify-start gap-1 px-1.5 text-caption font-normal whitespace-nowrap";
 
 interface CellsMenuEntry {
   readonly id: string;
