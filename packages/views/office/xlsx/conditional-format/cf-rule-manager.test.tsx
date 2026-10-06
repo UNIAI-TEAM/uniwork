@@ -72,6 +72,18 @@ describe("XlsxCfRuleManager", () => {
     expect(within(rowOf("cf-bar")).queryByTestId("xlsx-cf-rule-chip")).not.toBeInTheDocument();
   });
 
+  it("never puts a file colour that is not a colour into the CSS (review r3 F5)", () => {
+    setup(true, [
+      { id: "cf-url", ranges: [SELECTION], rule: { type: "dataBar", config: { positiveColor: "url(https://example.invalid/x.png)", isGradient: false } } },
+      { id: "cf-short", ranges: [SELECTION], rule: { type: "dataBar", config: { positiveColor: "#0a5", isGradient: false } } },
+    ]);
+    const bad = within(rowOf("cf-url")).getByTestId("xlsx-cf-rule-databar").getAttribute("style") ?? "";
+    expect(bad).not.toContain("url(");
+    expect(bad).toMatch(/#638EC6|rgb\(99, 142, 198\)/i);
+    const short = within(rowOf("cf-short")).getByTestId("xlsx-cf-rule-databar").getAttribute("style") ?? "";
+    expect(short).toMatch(/#0a5|rgb\(0, 170, 85\)/i);
+  });
+
   it("shows the empty state", () => {
     setup(true, []);
     expect(screen.getByTestId("xlsx-cf-manager-empty")).toHaveTextContent(rules("empty.selection"));

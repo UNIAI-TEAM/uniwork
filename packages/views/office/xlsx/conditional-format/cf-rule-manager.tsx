@@ -44,11 +44,17 @@ function chipStyle(rule: XlsxLiveRule): { backgroundColor?: string; color?: stri
   return { backgroundColor: bg, color: cl };
 }
 
+/** Excel's default data bar colour: file data shown as it will print, not a theme token. */
+const DATA_BAR_DEFAULT = "#638EC6";
+/** Only a hex colour from the file reaches the CSS: a crafted value such as
+ *  url(...) would make the browser fetch it (review r3 F5). */
+const HEX_COLOUR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
 /** The data bar's fill as a CSS gradient, from the rule's own colour (stored in the file, not a theme token). */
 function dataBarGradient(rule: XlsxLiveRule): string | null {
   if (rule.rule.type !== "dataBar") return null;
   const config = (rule.rule as { config?: { positiveColor?: unknown; isGradient?: unknown } }).config;
-  const colour = typeof config?.positiveColor === "string" && config.positiveColor ? config.positiveColor : "#638EC6";
+  const colour = typeof config?.positiveColor === "string" && HEX_COLOUR.test(config.positiveColor) ? config.positiveColor : DATA_BAR_DEFAULT;
   return config?.isGradient === false ? colour : `linear-gradient(to right, ${colour}, transparent)`;
 }
 
