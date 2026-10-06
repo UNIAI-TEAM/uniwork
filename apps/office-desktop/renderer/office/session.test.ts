@@ -336,3 +336,37 @@ it("releases a blocked Save at once and retries it as a fresh intent (T09)", asy
   expect(saves).toHaveLength(2);
   expect(saves[1]?.idempotencyKey).not.toBe(saves[0]?.idempotencyKey);
 });
+
+it("writes a checkpoint under the saved base once the bound runs out while the post-Save context refresh never answers (N2)", async () => {
+  const text = (value: string) => new TextEncoder().encode(value);
+  const live = { bytes: text("A") };
+  let openAsked = false;
+  const rows = new Map<string, string>();
+  const call = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:draft-discard") return { discarded: true };
+    if (channel === "desktop:draft-checkpoint") { rows.set(payload.draftId as string, payload.dataBase64 as string); return { stored: true, generation: payload.generation }; }
+    // main's read-only context refresh never answers.
+    if (channel === "desktop:office-open") { openAsked = true; return new Promise(() => undefined); }
+    if (channel === "desktop:office-save") return { documentId: "doc", intentId: payload.intentId, idempotencyKey: payload.idempotencyKey, revision: "3", versionId: "v3", checksum: payload.checksum };
+    throw new Error(`unexpected ${channel}`);
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, opened, {
+    saveSettleMaxWaitMs: 20,
+    createEditor: async () => ({
+      ...(await createByteTestEditor({ documentId: "doc", readBytes: async () => text("A"), generation: 0 })),
+      captureSnapshot: async () => {
+        const value = live.bytes.slice();
+        return { value, generation: 0, fingerprint: "f", checksumSha256: "sha256:f", sizeBytes: value.length };
+      },
+    }),
+  });
+  await session.openEditor();
+  session.coordinator.markDirty(1);
+  void session.coordinator.save("button");
+  await vi.waitFor(() => expect(openAsked).toBe(true));
+  live.bytes = text("B");
+  session.coordinator.markDirty(2);
+  await session.coordinator.checkpoint();
+  expect(rows.get("doc:v3:3")).toBe(btoa("B"));
+});

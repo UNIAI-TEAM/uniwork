@@ -37,7 +37,7 @@ export function createPptxDocumentSession(
   inputIdentity: OfficeIdentity,
   openedBytes: OpenedBytes,
   createSurface: (onDirty: (generation: number) => void) => DesktopPptxAdapter,
-  options: { onLocalRebind?: (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: OpenedBytes }) => void } = {},
+  options: { onLocalRebind?: (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: OpenedBytes }) => void; saveSettleMaxWaitMs?: number } = {},
 ) {
   const identity = { ...inputIdentity };
   let localHandle = openedBytes.localHandle;
@@ -47,7 +47,7 @@ export function createPptxDocumentSession(
   let generationFloor = 0;
   let saveInProgress = false;
   // Saves run inside the gate; checkpoints capture only when no Save overlapped.
-  const gate = createSaveSettleGate();
+  const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   let confirmedCloudBase: { revision: string; checksum: string } | undefined;
   const durableRows = new Map<string, number>();
   const checkpointRows = new Map<string, { dirtyGeneration: number; durableGeneration: number }>();
@@ -183,11 +183,10 @@ export function createPptxDocumentSession(
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;
       }
       // The write is confirmed: those bytes are the base the next draft row is
-      // keyed by, so the journal drops what they hold (W14). From the mark until
-      // the Save settles checkpoints wait, so none lands between this rebase and
-      // the new identity.
-      gate.markRebase();
-      await surface.setBaseRevision(revision, intent.intentId);
+      // keyed by, so the journal drops what they hold (W14). The gate brackets
+      // this step: a checkpoint capture that overlaps either edge is retaken, so
+      // none writes a pre-rebase journal once the identity moves.
+      await gate.rebase(() => surface.setBaseRevision(revision, intent.intentId));
       return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: intent.identity.documentId, versionId, revision, checksumSha256: checksum, sizeBytes: output.sizeBytes, engineName: "pptx", engineVersion: "09485f884dc845cf3bf27fb7edfe489f9d457aad", contractVersion: "office-editor-host/1", protocolVersion: "1" };
     },
     // Settled without a commit (terminal refusal, conflict): the retained output
@@ -328,6 +327,7 @@ export function createPptxDocumentSession(
       outputs.clear();
       void coordinator.cancel();
       void surface.dispose();
+      gate.dispose();
     },
     get snapshotChecksum(): string { return openedBytes.checksum; },
     get localHandle(): string | undefined { return localHandle; },

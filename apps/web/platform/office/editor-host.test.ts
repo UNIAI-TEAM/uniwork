@@ -296,6 +296,36 @@ describe("web draft checkpoints behind a Save that never settles (T09 F1/F2)", (
     await host.dispose();
   });
 
+  // N1: a reconcile that finds no commit rebased nothing; the retry that
+  // follows is network work and must not hold checkpoints past the bound.
+  it.each(["docx", "xlsx", "pptx"] as const)("%s: writes after the bound when an ambiguous commit reconciles to nothing and the retry hangs", async (format) => {
+    const { host, transport, rows, edit } = journalHost(format, 20);
+    transport.commit = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("idempotency_in_flight"), { code: "idempotency_in_flight" }))
+      .mockImplementation(() => new Promise(() => undefined));
+    edit("e1");
+    void host.coordinator.save();
+    await vi.waitFor(() => expect(transport.commit).toHaveBeenCalledTimes(2));
+    expect(transport.reconcileCalls).toBe(1);
+    edit("e2");
+    await expect(host.checkpoint()).resolves.toBe(true);
+    expect(rows.at(-1)).toEqual({ base: "1", generation: 2, value: { base: "1", edits: ["e1", "e2"] } });
+    await host.dispose();
+  });
+
+  it("writes after the bound while an ambiguous commit's reconcile never answers", async () => {
+    const { host, transport, rows, edit } = journalHost("pptx", 20);
+    transport.commit = vi.fn().mockRejectedValueOnce(Object.assign(new Error("engine_timeout"), { code: "engine_timeout" }));
+    transport.reconcile = vi.fn(() => new Promise<never>(() => undefined));
+    edit("e1");
+    void host.coordinator.save();
+    await vi.waitFor(() => expect(transport.reconcile).toHaveBeenCalledOnce());
+    edit("e2");
+    await expect(host.checkpoint()).resolves.toBe(true);
+    expect(rows.at(-1)).toEqual({ base: "1", generation: 2, value: { base: "1", edits: ["e1", "e2"] } });
+    await host.dispose();
+  });
+
   it("writes nothing for a checkpoint parked behind a held Save once the session is disposed", async () => {
     const { host, transport, rows, edit, finishCommit } = journalHost("pptx");
     edit("e1");

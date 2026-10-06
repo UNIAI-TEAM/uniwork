@@ -75,6 +75,8 @@ export type LocalFileRebind = Readonly<{
 export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: OfficeIdentity, openedBytes: OpenedBytes, options: {
   createEditor?: (options: DesktopSurfaceSettings) => Promise<DesktopEditorSurface>;
   onLocalRebind?: (next: LocalFileRebind) => void;
+  /** How long a checkpoint waits for a Save in flight (default 10 s). */
+  saveSettleMaxWaitMs?: number;
 } = {}) {
   const identity = { ...inputIdentity };
   const opened = { ...openedBytes };
@@ -92,7 +94,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
   let contextError: unknown;
   let contextRefresh: Promise<void> | undefined;
   // Saves run inside the gate; checkpoints capture only when no Save overlapped.
-  const gate = createSaveSettleGate();
+  const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   let confirmedCloudBase: { revision: string; checksum: string } | undefined;
   let saveInProgress = false;
   let rebindingGeneration: number | null = null;
@@ -470,7 +472,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
         return "recovered";
       } catch (error) { return (error as { code?: string }).code === "draft_recovery_locked" ? "locked" : "failed"; }
     },
-    dispose: () => { unsubscribeCoordinator?.(); listeners.clear(); outputs.clear(); void coordinator.cancel(); void editor.dispose(); },
+    dispose: () => { gate.dispose(); unsubscribeCoordinator?.(); listeners.clear(); outputs.clear(); void coordinator.cancel(); void editor.dispose(); },
     get snapshotChecksum(): string { return opened.checksum; },
     get localHandle(): string | undefined { return localHandle; },
     get localName(): string | undefined { return localName; },

@@ -151,58 +151,126 @@ describe("save settle gate: bounded wait (a Save that never settles)", () => {
     await expect(checkpoint).resolves.toEqual({ snapshot: { base: 1, edits: 2 }, base: 1 });
   });
 
-  it("re-captures a timed-out capture that straddles the Save's rebase", async () => {
+  it("re-captures a timed-out capture that straddles the Save's rebase, even while the Save still hangs", async () => {
     vi.useFakeTimers();
     const gate = createSaveSettleGate({ maxWaitMs: 10 });
     const doc = journal();
     doc.edit(); doc.edit();
     const network = deferred();
-    const finish = deferred();
-    const saving = gate.run(async () => {
+    // The write is confirmed and the editor rebases; what follows (a context
+    // refresh, a retry) never answers.
+    void gate.run(async () => {
       await network.promise;
-      // The write is confirmed: the editor and the identity move from here.
       gate.markRebase();
       doc.rebase();
-      await finish.promise;
+      await new Promise<void>(() => undefined);
     });
     doc.edit();
     const digest = deferred();
     let captures = 0;
+    let written: { snapshot: { base: number; edits: number }; base: number } | undefined;
     const checkpoint = gate.capture(async () => {
       captures += 1;
       const read = doc.read();
       if (captures === 1) await digest.promise;
       return read;
-    }, (snapshot) => ({ snapshot, base: doc.base }));
+    }, (snapshot) => { written = { snapshot, base: doc.base }; return written; });
     await vi.advanceTimersByTimeAsync(10);
     expect(captures).toBe(1);
     // The rebase lands while the first (pre-rebase) capture is still digesting.
     network.resolve();
     await vi.advanceTimersByTimeAsync(0);
+    doc.edit();
     digest.resolve();
     await vi.advanceTimersByTimeAsync(0);
-    // Mid-rebase the capture waits for the Save to settle; it never writes the
-    // pre-rebase journal under the moved base.
-    expect(captures).toBe(1);
-    doc.edit();
-    finish.resolve();
-    await saving;
+    // The pre-rebase journal is never written under the moved base; the retake is.
     await expect(checkpoint).resolves.toEqual({ snapshot: { base: 2, edits: 1 }, base: 2 });
+    expect(captures).toBe(2);
+    expect(written).toEqual({ snapshot: { base: 2, edits: 1 }, base: 2 });
+  });
+
+  it("bounds the wait after a mark: a Save that hangs past its rebase holds a capture only for the bound", async () => {
+    vi.useFakeTimers();
+    const gate = createSaveSettleGate({ maxWaitMs: 10 });
+    void gate.run(async () => { gate.markRebase(); await new Promise<void>(() => undefined); });
+    let written = false;
+    const checkpoint = gate.capture(async () => 1, () => { written = true; });
+    await vi.advanceTimersByTimeAsync(9);
+    expect(written).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await checkpoint;
+    expect(written).toBe(true);
+  });
+
+  it("re-captures across either edge of an async rebase step", async () => {
+    vi.useFakeTimers();
+    const gate = createSaveSettleGate({ maxWaitMs: 10 });
+    const doc = journal();
+    doc.edit();
+    const step = deferred();
+    void gate.run(async () => {
+      await gate.rebase(async () => { await step.promise; doc.rebase(); });
+      await new Promise<void>(() => undefined);
+    });
+    const digest = deferred();
+    let captures = 0;
+    const checkpoint = gate.capture(async () => {
+      captures += 1;
+      if (captures === 1) await digest.promise;
+      return doc.read();
+    }, (snapshot) => ({ snapshot, base: doc.base }));
+    // The bound runs out mid-step; this capture straddles the step's end.
+    await vi.advanceTimersByTimeAsync(10);
+    expect(captures).toBe(1);
+    step.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    digest.resolve();
+    await expect(checkpoint).resolves.toEqual({ snapshot: { base: 2, edits: 0 }, base: 2 });
     expect(captures).toBe(2);
   });
 
-  it("does not wait out the bound while a rebase is under way", async () => {
+  it("leaves no parked waiter behind once each capture's bound runs out", async () => {
     vi.useFakeTimers();
     const gate = createSaveSettleGate({ maxWaitMs: 10 });
-    const finish = deferred();
-    const saving = gate.run(async () => { gate.markRebase(); await finish.promise; });
-    let written = false;
-    const checkpoint = gate.capture(async () => 1, () => { written = true; });
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(written).toBe(false);
-    finish.resolve();
+    void gate.run(() => new Promise<void>(() => undefined));
+    const checkpoints = [1, 2, 3].map((value) => gate.capture(async () => value, (snapshot) => snapshot));
+    expect(gate.parkedCaptures()).toBe(3);
+    await vi.advanceTimersByTimeAsync(10);
+    await expect(Promise.all(checkpoints)).resolves.toEqual([1, 2, 3]);
+    expect(gate.parkedCaptures()).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("clears a parked capture's timer as soon as the Save settles", async () => {
+    vi.useFakeTimers();
+    const gate = createSaveSettleGate({ maxWaitMs: 10_000 });
+    const commit = deferred();
+    const saving = gate.run(() => commit.promise);
+    const digest = deferred();
+    const checkpoint = gate.capture(async () => { await digest.promise; return "after"; }, (snapshot) => snapshot);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(1);
+    commit.resolve();
     await saving;
-    await checkpoint;
-    expect(written).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+    // The capture is still digesting, but its bound no longer runs.
+    expect(vi.getTimerCount()).toBe(0);
+    digest.resolve();
+    await expect(checkpoint).resolves.toBe("after");
+  });
+
+  it("releases parked captures and their timers at dispose", async () => {
+    vi.useFakeTimers();
+    const gate = createSaveSettleGate({ maxWaitMs: 10_000 });
+    void gate.run(() => new Promise<void>(() => undefined));
+    let disposed = false;
+    const checkpoint = gate.capture(async () => 1, () => { if (disposed) throw new Error("editor_disposed"); return 1; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(gate.parkedCaptures()).toBe(1);
+    disposed = true;
+    gate.dispose();
+    await expect(checkpoint).rejects.toThrow("editor_disposed");
+    expect(gate.parkedCaptures()).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

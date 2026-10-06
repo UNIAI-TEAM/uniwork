@@ -16,43 +16,48 @@
  * `write` then runs synchronously in the same turn, so whatever base it reads
  * is the base the snapshot was taken under.
  *
- * A Save whose request never answers must not hold drafts back forever (a
- * crash would lose every edit made after it started). So a parked capture
- * waits at most `maxWaitMs`, then captures while the Save is still in flight
- * and writes under the base still bound: the Save has not rebased anything
- * yet. The Save calls `markRebase` once its write is confirmed, before it
- * moves the editor or the identity; from then until it settles, captures wait
- * (that part is local work), and a capture that straddled the mark is taken
- * again. The Save's own draft rebase then moves the row written under the old
- * base.
+ * No wait is unbounded. A Save whose request never answers must not hold
+ * drafts back forever (a crash would lose every edit made after it started),
+ * so a parked capture waits at most `maxWaitMs` in all, then captures while
+ * the Save is still in flight and writes under the identity bound at that
+ * moment. To keep such a capture from writing a pre-rebase journal under a
+ * moved base, a Save brackets its rebase: `markRebase` right before a
+ * synchronous rebase step, `rebase` around an asynchronous one. A capture
+ * that overlaps either is taken again; the rebase itself holds nobody back.
  */
 export interface SaveSettleGate {
   /** Runs one Save; checkpoints wait until every Save in flight settled. */
   run<T>(save: () => Promise<T>): Promise<T>;
-  /** Called by a Save in `run` once its write is confirmed, before it rebases
-   *  the editor or advances the draft identity. */
+  /** Called by a Save right before a synchronous step that rebases the editor
+   *  or advances the draft identity, in the same turn. */
   markRebase(): void;
+  /** Runs an asynchronous rebase step; a capture overlapping it is retaken. */
+  rebase<T>(step: () => Promise<T>): Promise<T>;
   /** Captures a snapshot no Save overlapped and hands it to `write` in the
    *  same turn. `write` must bind the identity it writes under synchronously. */
   capture<S, R>(capture: () => Promise<S>, write: (snapshot: S) => R): Promise<Awaited<R>>;
+  /** Captures currently parked behind a Save (diagnostics). */
+  parkedCaptures(): number;
+  /** Wakes every parked capture at once and stops new ones from parking;
+   *  the session's own disposed guard then refuses their writes. */
+  dispose(): void;
 }
 
 const DEFAULT_MAX_WAIT_MS = 10_000;
 
 export function createSaveSettleGate(options: {
-  /** How long a parked capture waits for a Save in flight before it writes
-   *  under the pre-rebase base. */
+  /** How long a capture waits, in all, for Saves in flight before it writes
+   *  under the identity still bound. */
   maxWaitMs?: number;
 } = {}): SaveSettleGate {
   const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
   let inFlight = 0;
   let epoch = 0;
-  // `rebasing` holds from a Save's mark until every Save in flight settled.
-  let rebasing = false;
   let rebaseEpoch = 0;
-  let waiters: Array<() => void> = [];
-
-  const settled = (): Promise<void> | null => (inFlight === 0 ? null : new Promise<void>((resolve) => { waiters.push(resolve); }));
+  let disposed = false;
+  // Each parked capture's wake-up; it removes itself, whoever calls it.
+  const parked = new Set<() => void>();
+  const wakeAll = () => { for (const wake of [...parked]) wake(); };
 
   return {
     async run(save) {
@@ -63,46 +68,52 @@ export function createSaveSettleGate(options: {
       } finally {
         inFlight -= 1;
         epoch += 1;
-        if (inFlight === 0) {
-          if (rebasing) {
-            rebasing = false;
-            rebaseEpoch += 1;
-          }
-          const released = waiters;
-          waiters = [];
-          for (const resolve of released) resolve();
-        }
+        if (inFlight === 0) wakeAll();
       }
     },
     markRebase() {
       rebaseEpoch += 1;
-      if (inFlight > 0) rebasing = true;
+    },
+    async rebase(step) {
+      rebaseEpoch += 1;
+      try {
+        return await step();
+      } finally {
+        rebaseEpoch += 1;
+      }
+    },
+    parkedCaptures: () => parked.size,
+    dispose() {
+      disposed = true;
+      wakeAll();
     },
     async capture<S, R>(capture: () => Promise<S>, write: (snapshot: S) => R): Promise<Awaited<R>> {
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let expiry: Promise<void> | undefined;
+      // One bound per capture, counted from the first time it parks; a timer
+      // only runs while the capture is parked.
+      let deadline: number | undefined;
       let expired = false;
-      try {
-        for (;;) {
-          const waiting = settled();
-          if (waiting && (rebasing || !expired)) {
-            if (!rebasing) {
-              // One bound per capture, from the first time it parks.
-              expiry ??= new Promise<void>((resolve) => { timer = setTimeout(() => { expired = true; resolve(); }, maxWaitMs); });
-              await Promise.race([waiting, expiry]);
-            } else {
-              await waiting;
-            }
-            continue;
-          }
-          const started = epoch;
-          const startedRebase = rebaseEpoch;
-          const snapshot = await capture();
-          const noRebase = !rebasing && rebaseEpoch === startedRebase;
-          if (noRebase && (expired || (inFlight === 0 && epoch === started))) return await write(snapshot);
+      for (;;) {
+        if (inFlight > 0 && !expired && !disposed) {
+          deadline ??= Date.now() + maxWaitMs;
+          const remaining = deadline - Date.now();
+          if (remaining <= 0) { expired = true; continue; }
+          await new Promise<void>((resolve) => {
+            // `wake` runs only after this executor returns, so `timer` is set.
+            const wake = () => {
+              parked.delete(wake);
+              clearTimeout(timer);
+              resolve();
+            };
+            const timer = setTimeout(() => { expired = true; wake(); }, remaining);
+            parked.add(wake);
+          });
+          continue;
         }
-      } finally {
-        if (timer !== undefined) clearTimeout(timer);
+        const started = epoch;
+        const startedRebase = rebaseEpoch;
+        const snapshot = await capture();
+        if (rebaseEpoch !== startedRebase) continue;
+        if (expired || disposed || (inFlight === 0 && epoch === started)) return await write(snapshot);
       }
     },
   };

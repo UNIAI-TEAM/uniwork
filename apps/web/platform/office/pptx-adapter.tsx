@@ -446,7 +446,8 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
     (modelRef && !disposed ? options.runtime.masterElements?.(modelRef, partPath) ?? [] : []);
 
   // The runtime rebases the journal inside commit, before the receipt returns:
-  // mark it on the session's gate first, so no checkpoint capture straddles it.
+  // bracket it on the session's gate, so a checkpoint capture that overlaps
+  // either edge of that (asynchronous) step is retaken.
   const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   const transport = createPptxSaveTransport({
     documentId: options.identity.documentId,
@@ -456,8 +457,9 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
       return options.runtime.serialize(modelRef, { snapshot, intentId });
     },
     setBaseRevision: async (revision, intentId) => {
-      gate.markRebase();
-      if (modelRef) await options.runtime.setBaseRevision?.(modelRef, revision, intentId);
+      await gate.rebase(async () => {
+        if (modelRef) await options.runtime.setBaseRevision?.(modelRef, revision, intentId);
+      });
     },
     releaseSave: async (intentId) => {
       if (modelRef) await options.runtime.releaseSave?.(modelRef, intentId);

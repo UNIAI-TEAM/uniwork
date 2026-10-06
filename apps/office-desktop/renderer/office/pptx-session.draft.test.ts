@@ -76,7 +76,7 @@ function fakeMain() {
   return { drafts, gate, bridge };
 }
 
-function openSession(bridge: LibraryBridge, bytes: Uint8Array, base: Pick<OfficeIdentity, "baseRevision" | "baseVersionId">) {
+function openSession(bridge: LibraryBridge, bytes: Uint8Array, base: Pick<OfficeIdentity, "baseRevision" | "baseVersionId">, options: { saveSettleMaxWaitMs?: number } = {}) {
   const captures: { count: number; hold: Promise<void> | null; held: boolean } = { count: 0, hold: null, held: false };
   let adapter!: DesktopPptxAdapter;
   const session = createPptxDocumentSession(bridge, { ...identity, ...base }, { format: "pptx", dataBase64: toBase64(bytes), checksum: CHECKSUM }, (onDirty) => {
@@ -91,7 +91,7 @@ function openSession(bridge: LibraryBridge, bytes: Uint8Array, base: Pick<Office
       return value;
     };
     return adapter;
-  });
+  }, options);
   return { session, captures };
 }
 
@@ -166,6 +166,32 @@ describe("desktop pptx session - capture that resolves after the Save (T09 settl
     releaseCapture();
     await checkpointing;
 
+    const tail = session.editor.snapshot();
+    expect(tail?.edits).toHaveLength(1);
+    const stored = main.drafts.get("doc:v3:3");
+    expect(stored).toBeDefined();
+    expect(JSON.parse(Buffer.from(stored!.dataBase64, "base64").toString("utf8"))).toEqual(tail);
+  });
+});
+
+describe("desktop pptx session - a cloud context refresh that never answers (N2)", () => {
+  it("writes a checkpoint under the saved base once the bound runs out", async () => {
+    const main = fakeMain();
+    let openAsked = false;
+    const bridge = {
+      call: ((channel: string, payload: Record<string, unknown>) => {
+        if (channel !== "desktop:office-open") return main.bridge.call(channel as never, payload as never);
+        openAsked = true;
+        return new Promise(() => undefined);
+      }) as LibraryBridge["call"],
+    } as LibraryBridge;
+    const { session } = openSession(bridge, makeFakePptxBytes(), { baseRevision: "2", baseVersionId: "v2" }, { saveSettleMaxWaitMs: 20 });
+    await session.openEditor();
+    await session.editor.edit([box(1)]);
+    void session.coordinator.save("button");
+    await vi.waitFor(() => expect(openAsked).toBe(true));
+    await session.editor.edit([box(2)]);
+    await session.coordinator.checkpoint();
     const tail = session.editor.snapshot();
     expect(tail?.edits).toHaveLength(1);
     const stored = main.drafts.get("doc:v3:3");

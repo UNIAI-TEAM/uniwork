@@ -344,7 +344,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     get canSave(): boolean { return options.canSave; },
     get isDisposed(): boolean { return disposed; },
     get localHandle(): string { return options.localHandle; },
-    dispose() { void editor.dispose(); },
+    dispose() { gate.dispose(); void editor.dispose(); },
   };
 }
 

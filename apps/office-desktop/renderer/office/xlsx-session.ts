@@ -335,7 +335,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
     },
     get canSave(): boolean { return options.canSave; },
     get isDisposed(): boolean { return disposed; },
-    dispose() { void editor.dispose(); },
+    dispose() { gate.dispose(); void editor.dispose(); },
   };
 }
 
