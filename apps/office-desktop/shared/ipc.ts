@@ -15,6 +15,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-logout",
   "desktop:diagnostics",
   "desktop:window-theme",
+  "desktop:appearance",
   "desktop:tabs-update",
   "desktop:file-pick-open",
   "desktop:file-create",
@@ -48,7 +49,7 @@ export const DESKTOP_IPC_CHANNELS = [
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
  * payloads are parsed in main before send and again in preload. */
-export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested", "desktop:leave-expired", "desktop:login-requested"] as const;
+export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested", "desktop:leave-expired", "desktop:login-requested", "desktop:theme-changed"] as const;
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
 const operationSchema = z.enum(["capability", "open", "edit", "render", "text", "serialize", "cancel"]);
@@ -98,7 +99,9 @@ export const desktopFileMetadataSchema = z.object({
  * message or a path). An unknown code is still valid; the renderer falls back to
  * its generic copy for it. */
 const fileFailureCodeSchema = z.string().regex(/^[a-z0-9_]{1,64}$/);
-export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), data: bytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional(), code: fileFailureCodeSchema.optional() }).strict();
+export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), data: bytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional(), code: fileFailureCodeSchema.optional() }).strict()
+  // A code names a refusal: main never sends one with a successful open.
+  .refine((value) => value.code === undefined || !value.opened, "a code belongs to a refused answer");
 const recentFileIdSchema = z.string().regex(/^recent_[A-Za-z0-9]{16,64}$/, "invalid recent file id");
 export const recentFileSchema = z.object({
   id: recentFileIdSchema,
@@ -183,11 +186,15 @@ export const desktopPublicConfigResponseSchema = z.object({
   flags: z.record(z.string().regex(PUBLIC_FLAG_KEY), z.boolean()).refine((flags) => Object.keys(flags).length <= PUBLIC_FLAG_LIMIT, "too many flags"),
 }).strict();
 /** Keeps only well-formed boolean flags, at most the schema's cap, so a
- * larger catalogue degrades to a truncated answer instead of a rejected one. */
+ * larger catalogue degrades to a truncated answer instead of a rejected one.
+ * The Office keys (office_engine first) are kept before any other, so a
+ * catalogue past the cap never drops the flags the desktop gates on. */
 export function sanitizeDesktopPublicFlags(raw: unknown): Record<string, boolean> {
   const flags: Record<string, boolean> = {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return flags;
-  for (const [key, value] of Object.entries(raw)) {
+  const rank = (key: string) => (key === "office_engine" ? 0 : key.startsWith("office_") ? 1 : 2);
+  const entries = Object.entries(raw).sort(([a], [b]) => rank(a) - rank(b));
+  for (const [key, value] of entries) {
     if (Object.keys(flags).length >= PUBLIC_FLAG_LIMIT) break;
     if (typeof value === "boolean" && PUBLIC_FLAG_KEY.test(key)) flags[key] = value;
   }
@@ -272,7 +279,7 @@ export const desktopFileXlsxResponseSchema = z.object({
   outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
   /** Set on a `failed` answer that main can name (a refused file, not an engine fault). */
   code: fileFailureCodeSchema.optional(),
-}).strict();
+}).strict().refine((value) => value.code === undefined || value.state === "failed", "a code belongs to a failed answer");
 export type DesktopFileXlsxResponse = z.infer<typeof desktopFileXlsxResponseSchema>;
 export const desktopLeaveResolvedResponseSchema = z.object({ resolved: z.boolean() }).strict();
 export type LeaveChoice = "save" | "keep" | "discard" | "stay";
@@ -304,6 +311,13 @@ export const desktopPrintResponseSchema = z.discriminatedUnion("outcome", [
 ]);
 export type DesktopPrintResponse = z.infer<typeof desktopPrintResponseSchema>;
 export const desktopTabsUpdateResponseSchema = z.object({ updated: z.boolean() }).strict();
+/** BCP 47 tags as the OS reports them ("vi-VN", "en-US"); the renderer picks
+ * the first one the shared i18n dictionaries support. */
+const languageTagSchema = z.string().regex(/^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8}){0,4}$/);
+export const desktopAppearanceResponseSchema = z.object({ dark: z.boolean(), languages: z.array(languageTagSchema).max(16) }).strict();
+export type DesktopAppearance = z.infer<typeof desktopAppearanceResponseSchema>;
+export const themeChangedEventSchema = z.object({ dark: z.boolean() }).strict();
+export type ThemeChangedEvent = z.infer<typeof themeChangedEventSchema>;
 const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-pick-open": desktopFileResponseSchema,
   "desktop:file-create": desktopFileResponseSchema,
@@ -321,6 +335,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:recent-remove": recentRemoveResponseSchema,
   "desktop:diagnostics": desktopDiagnosticsResponseSchema,
   "desktop:window-theme": z.object({ applied: z.boolean() }).strict(),
+  "desktop:appearance": desktopAppearanceResponseSchema,
   "desktop:tabs-update": desktopTabsUpdateResponseSchema,
   "desktop:library-list": desktopLibraryResponseSchema,
   "desktop:library-context": desktopLibraryContextResponseSchema,
@@ -367,6 +382,7 @@ const requestSchemas = {
   "desktop:auth-logout": z.object({ sessionGeneration: sessionGenerationSchema, scope: z.enum(["device", "family"]).default("device") }).strict(),
   "desktop:diagnostics": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:window-theme": z.object({ sessionGeneration: sessionGenerationSchema, dark: z.boolean() }).strict(),
+  "desktop:appearance": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:tabs-update": z.object({ sessionGeneration: sessionGenerationSchema, documentIds: z.array(opaqueHandleSchema).max(8), activeDocumentId: opaqueHandleSchema.nullable() }).strict().refine((value) => new Set(value.documentIds).size === value.documentIds.length && (value.activeDocumentId === null || value.documentIds.includes(value.activeDocumentId)), "invalid tab membership"),
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-create": z.object({ sessionGeneration: sessionGenerationSchema, format: documentFormatSchema.default(DEFAULT_DESKTOP_DOCUMENT_FORMAT) }).strict(),

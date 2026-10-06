@@ -14,11 +14,9 @@ WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now();
 UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1;
 
 -- name: RevokeAllRefreshTokensForUser :exec
-WITH revoked AS (
-  UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
-)
-UPDATE device_sessions SET revoked_at = COALESCE(device_sessions.revoked_at, now())
-WHERE device_sessions.user_id = $1 AND device_sessions.revoked_at IS NULL;
+-- Second half of a user-wide revoke: call revokeAllUserSessions (service),
+-- which closes the device sessions first so the locks come in one order.
+UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL;
 
 -- name: RevokeSessionForUser :execrows
 UPDATE refresh_tokens SET revoked_at = now()

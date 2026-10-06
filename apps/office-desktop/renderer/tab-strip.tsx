@@ -43,6 +43,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
   const scrollRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
+  const [activation, setActivation] = useState(0);
   const homeKind = mode === "local" ? "local" : "library";
   const homeTabId = `desktop-tab-${homeKind}`;
   const homePanelId = `desktop-panel-${homeKind}`;
@@ -77,12 +78,43 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
   }, [signedOut]);
 
   useEffect(() => {
-    const reveal = () => barRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    // Scroll the whole active tab (select button, state dot and close button)
+    // into the strip. Only the strip's own scrollLeft moves: scrollIntoView on
+    // the inner button left the close button clipped and could scroll ancestors.
+    const reveal = () => {
+      const strip = scrollRef.current;
+      const active = strip?.querySelector<HTMLElement>('.desktop-document-tab[data-active="true"]');
+      if (!strip || !active) return;
+      const bounds = strip.getBoundingClientRect();
+      const tab = active.getBoundingClientRect();
+      let delta = Math.max(0, tab.right - bounds.right);
+      // The tab's left edge wins when the tab is wider than the strip.
+      if (tab.left - delta < bounds.left) delta = tab.left - bounds.left;
+      if (delta !== 0) strip.scrollLeft += delta;
+    };
     reveal();
     const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(reveal);
     if (scrollRef.current) observer?.observe(scrollRef.current);
     return () => observer?.disconnect();
   }, [activeTabId, tabs.length, signedOut]);
+
+  // A document tab the user activated (click, Enter, Space) hands focus to the
+  // document it shows: the editor root (its own key handler takes Ctrl+F and the
+  // other shortcuts), else the panel itself, so keyboard users keep a visible
+  // focus and context (review-fe-r1 R5). The tab button would otherwise keep it
+  // and swallow the editor's shortcuts. Arrow-key roving and programmatic
+  // restores never bump the counter, so they keep or never take focus.
+  useEffect(() => {
+    if (activation === 0) return;
+    const held = document.activeElement;
+    if (!(held instanceof HTMLElement && barRef.current?.contains(held) && held.getAttribute("role") === "tab")) return;
+    const panel = document.getElementById(held.getAttribute("aria-controls") ?? "");
+    const shown = panel && !panel.closest("[hidden],[inert]") ? panel : null;
+    const root = shown?.querySelector<HTMLElement>('[role="application"][tabindex="0"]');
+    const target = root && !root.closest("[hidden],[inert]") ? root : shown?.hasAttribute("tabindex") ? shown : null;
+    if (target) target.focus({ preventScroll: true });
+    else held.blur();
+  }, [activation]);
 
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, id: string | null) => {
     const ids = [null, ...tabs.map((tab) => tab.id)];
@@ -108,7 +140,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
         <div ref={scrollRef} className="desktop-tab-scroll" data-desktop-tab-scroll>
           {tabs.map((tab) => (
             <div key={tab.id} className="desktop-document-tab" data-active={tab.id === activeTabId}>
-              <button type="button" role="tab" id={`desktop-tab-${tab.id}`} aria-controls={`desktop-panel-${tab.id}`} aria-selected={tab.id === activeTabId} aria-describedby={state(tab) ? `desktop-tab-state-${tab.id}` : undefined} tabIndex={tab.id === activeTabId ? 0 : -1} title={tab.title} className="desktop-tab-select min-w-0 flex-1 text-caption" onClick={() => onSelect(tab.id)} onKeyDown={(event) => onTabKey(event, tab.id)}>
+              <button type="button" role="tab" id={`desktop-tab-${tab.id}`} aria-controls={`desktop-panel-${tab.id}`} aria-selected={tab.id === activeTabId} aria-describedby={state(tab) ? `desktop-tab-state-${tab.id}` : undefined} tabIndex={tab.id === activeTabId ? 0 : -1} title={tab.title} className="desktop-tab-select min-w-0 flex-1 text-caption" onClick={() => { onSelect(tab.id); setActivation((count) => count + 1); }} onKeyDown={(event) => onTabKey(event, tab.id)}>
                 <DocumentTypeIcon format={tab.format} className="size-4 shrink-0" /><span className="truncate">{tab.title}</span>
               </button>
               {state(tab) ? <span id={`desktop-tab-state-${tab.id}`} role="img" aria-label={state(tab)} className={`desktop-tab-state ${tab.saving ? "desktop-tab-saving" : ""}`} /> : null}

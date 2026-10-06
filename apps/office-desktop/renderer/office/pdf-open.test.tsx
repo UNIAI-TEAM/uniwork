@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { OpenByteDocument } from "./open-document";
 import { createByteDocumentSession } from "./session";
@@ -113,12 +113,19 @@ it("steps the desktop byte history from the quick-access buttons and Ctrl+Z / Ct
   const editor = await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
   const undo = await screen.findByTestId("pdf-chrome-undo");
   const redo = await screen.findByTestId("pdf-chrome-redo");
-  expect(undo).not.toHaveAttribute("aria-disabled");
-  expect(redo).not.toHaveAttribute("aria-disabled");
+  // Fresh document: nothing to step, so both stay aria-disabled and a Ctrl+Z
+  // does not flag the document unsaved (UNI-954).
+  expect(undo).toHaveAttribute("aria-disabled", "true");
+  expect(redo).toHaveAttribute("aria-disabled", "true");
+  fireEvent.keyDown(editor, { key: "z", ctrlKey: true });
+  fireEvent.click(undo);
+  expect(session.coordinator.getState().state).not.toBe("dirty");
 
-  await session.editor.submitEngineOperations!([{ op: "rotatePage", pageIndex: 0, degrees: 90 }]);
+  await act(async () => { await session.editor.submitEngineOperations!([{ op: "rotatePage", pageIndex: 0, degrees: 90 }]); });
   const lastProbe = () => probes[probes.length - 1];
   expect(lastProbe()).toBe(editedBytes);
+  await waitFor(() => expect(undo).not.toHaveAttribute("aria-disabled"));
+  expect(redo).toHaveAttribute("aria-disabled", "true");
 
   fireEvent.keyDown(editor, { key: "z", ctrlKey: true });
   await waitFor(() => expect(lastProbe()).toBe(pdfBytes));
@@ -133,5 +140,42 @@ it("steps the desktop byte history from the quick-access buttons and Ctrl+Z / Ct
   fireEvent.click(redo);
   await waitFor(() => expect(lastProbe()).toBe(editedBytes));
   // Each step marked the coordinator dirty with the swapped bytes generation.
+  expect(session.coordinator.getState().dirtyGeneration).toBe(session.editor.getDirtyGeneration());
+});
+
+it("keeps an Undo pressed while a rotate awaits the engine, and undoes that rotate (review-fe-r1 R6)", async () => {
+  const editedBytes = Buffer.from("%PDF-1.7\n%rotated\n").toString("base64");
+  const probes: string[] = [];
+  let releaseEdit: (() => void) | null = null;
+  const call = vi.fn(async (channel: string, payload: unknown) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:engine-call") {
+      const request = payload as { operation: string; args: { data: Uint8Array } };
+      if (request.operation === "open") { probes.push(Buffer.from(request.args.data).toString("base64")); return { ok: true, operation: "open", probe: { pageCount: 2 }, pageSizes: [{ width: 100, height: 100 }, { width: 100, height: 100 }] }; }
+      if (request.operation === "edit") { await new Promise<void>((resolve) => { releaseEdit = resolve; }); return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(editedBytes, "base64")) }; }
+      return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 100, height: 100 };
+    }
+    return {};
+  });
+  const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", data: Uint8Array.from(Buffer.from(pdfBytes, "base64")), checksum });
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
+  await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
+  const undo = await screen.findByTestId("pdf-chrome-undo");
+  expect(undo).toHaveAttribute("aria-disabled", "true");
+
+  fireEvent.click(await screen.findByRole("button", { name: /^(Page 2|Trang 2)$/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^(Rotate page|Xoay trang)$/ }));
+  await waitFor(() => expect(releaseEdit).not.toBeNull());
+  // The engine has not answered: Undo is offered and the press is kept.
+  await waitFor(() => expect(undo).not.toHaveAttribute("aria-disabled"));
+  fireEvent.click(undo);
+  await act(async () => { releaseEdit!(); });
+
+  // The rotate landed, then the queued Undo swapped the opened bytes back.
+  await waitFor(() => expect(probes.at(-1)).toBe(pdfBytes));
+  expect(probes).toContain(editedBytes);
+  expect(session.editor.canUndo?.()).toBe(false);
+  expect(session.editor.canRedo?.()).toBe(true);
   expect(session.coordinator.getState().dirtyGeneration).toBe(session.editor.getDirtyGeneration());
 });

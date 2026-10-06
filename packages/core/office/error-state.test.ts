@@ -98,6 +98,8 @@ describe("office error dispatch", () => {
     ["file_write_failed", "retry", true],
     ["file_replace_failed", "retry", true],
     ["file_save_in_progress", "retry", true],
+    ["file_checkpoint_failed", "retry", true],
+    ["file_insufficient_memory", "keep_draft", false],
     ["file_changed_on_disk", "keep_draft", false],
     ["file_not_found", "keep_draft", false],
     ["file_session_revoked", "keep_draft", false],
@@ -106,6 +108,7 @@ describe("office error dispatch", () => {
     ["file_handle_invalid", "stop", false],
     ["file_engine_unavailable", "stop", false],
     ["file_failed", "stop", false],
+    ["file_read_failed", "stop", false],
   ] as const)("keeps %s on the error state with %s so the banner shows its reason", (code, action, retryable) => {
     expect(dispatchOfficeError({ code })).toMatchObject({ state: "error", action, retryable, ambiguous: false });
   });

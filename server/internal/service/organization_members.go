@@ -249,7 +249,7 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	// person still belongs somewhere else would sign them out of a tenant that
 	// never asked for it.
 	if othersLeft == 0 {
-		if err := q.RevokeAllRefreshTokensForUser(ctx, targetID); err != nil {
+		if err := revokeAllUserSessions(ctx, q, targetID); err != nil {
 			return db.OrganizationMember{}, err
 		}
 	}

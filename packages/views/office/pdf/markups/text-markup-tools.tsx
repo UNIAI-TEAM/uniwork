@@ -40,7 +40,7 @@ export function PdfTextMarkupTools({ selection, disabled = false, onMarkup }: Pd
         const label = t(`office.pdf.markups.${type}`);
         // Icon plus visible name: an icon-only row in a side panel says nothing
         // about which button is which until it is hovered.
-        return <Button key={type} type="button" variant="outline" size="sm" className="whitespace-nowrap" disabled={blocked} title={label} onClick={() => apply(type)}><Icon aria-hidden />{label}</Button>;
+        return <Button key={type} type="button" variant="outline" size="sm" className="whitespace-nowrap" disabled={blocked} onClick={() => apply(type)}><Icon aria-hidden />{label}</Button>;
       })}
     </div>
   );

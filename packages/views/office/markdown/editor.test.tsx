@@ -327,6 +327,37 @@ describe("MarkdownEditor source mode", () => {
     expect(handle.redo).toHaveBeenCalledTimes(1);
     expect(source.value).toBe(before);
   });
+
+  it("marks dirty and checkpoints only when an undo/redo step moved the text (UNI-954)", async () => {
+    const { handle, saveCoordinator } = renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    // No history yet: the source-mode controls render aria-disabled.
+    handle.canUndo = () => false;
+    handle.canRedo = () => false;
+    switchToSource();
+    await screen.findByTestId("md-source");
+    const toolbar = within(screen.getByTestId("md-subbar"));
+    expect(toolbar.getByRole("button", { name: "Undo" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(toolbar.getByRole("button", { name: "Undo" }));
+    expect(handle.undo).not.toHaveBeenCalled();
+    // A step that leaves the generation alone (an empty stack) is not a change.
+    handle.canUndo = () => true;
+    handle.canRedo = () => true;
+    saveCoordinator.markDirty.mockClear();
+    saveCoordinator.checkpoint.mockClear();
+    fireEvent.keyDown(screen.getByTestId("md-source"), { key: "z", ctrlKey: true });
+    fireEvent.keyDown(screen.getByTestId("md-source"), { key: "y", ctrlKey: true });
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    expect(handle.redo).toHaveBeenCalledTimes(1);
+    expect(saveCoordinator.markDirty).not.toHaveBeenCalled();
+    expect(saveCoordinator.checkpoint).not.toHaveBeenCalled();
+    let generation = 2;
+    handle.getDirtyGeneration = () => generation;
+    vi.mocked(handle.undo!).mockImplementation(() => { generation += 1; });
+    fireEvent.keyDown(screen.getByTestId("md-source"), { key: "z", ctrlKey: true });
+    expect(saveCoordinator.markDirty).toHaveBeenCalledWith(3);
+    expect(saveCoordinator.checkpoint).toHaveBeenCalledTimes(1);
+  });
 });
 
 /** The live TipTap instance the production surface mounted (M1's `onEditorReady`

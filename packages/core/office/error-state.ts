@@ -91,6 +91,8 @@ const ERROR_RULES: Record<string, ErrorRule> = {
   file_write_failed: { state: "error", action: "retry", retryable: true },
   file_replace_failed: { state: "error", action: "retry", retryable: true },
   file_save_in_progress: { state: "error", action: "retry", retryable: true },
+  // The draft checkpoint before a local Save failed; nothing was written, so a retry is safe.
+  file_checkpoint_failed: { state: "error", action: "retry", retryable: true },
   file_changed_on_disk: { state: "error", action: "keep_draft", retryable: false },
   file_not_found: { state: "error", action: "keep_draft", retryable: false },
   file_session_revoked: { state: "error", action: "keep_draft", retryable: false },

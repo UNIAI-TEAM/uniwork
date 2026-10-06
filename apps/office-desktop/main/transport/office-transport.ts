@@ -46,9 +46,23 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
           continue;
         } catch { throw new Error("login_required"); }
       }
-      throw new Error(response.status === 401 ? "login_required" : response.status === 403 ? "forbidden" : "office_request_failed");
+      if (response.status === 401) throw new Error("login_required");
+      throw new Error(await refusalCode(response));
     }
     throw new Error("office_request_failed");
+  }
+  /** A 404 / 403 is permanent only when it is the UniWork API's own answer: the JSON error envelope
+   * `{ error: { code } }` that the server's service-error mapping writes (`not_found` / `forbidden`).
+   * A bare gateway or proxy answer (no body, or a foreign one) stays transient, so a rollout hiccup never
+   * ends a flag-gated reopen. */
+  async function refusalCode(response: Response): Promise<"forbidden" | "office_document_gone" | "office_request_failed"> {
+    if (response.status !== 403 && response.status !== 404) return "office_request_failed";
+    const body: unknown = await response.json().catch(() => undefined);
+    const error = body && typeof body === "object" ? (body as { error?: unknown }).error : undefined;
+    const code = error && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
+    if (response.status === 404 && code === "not_found") return "office_document_gone";
+    if (response.status === 403 && code === "forbidden") return "forbidden";
+    return "office_request_failed";
   }
   async function json(path: string, init?: RequestInit): Promise<unknown> { return (await authRequest(path, init)).json(); }
   /** The download response carries the authoritative format: its Content-Type

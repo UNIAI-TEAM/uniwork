@@ -12,6 +12,7 @@ export type LocalFileErrorCode =
   | "external_modification"
   | "invalid_handle"
   | "session_revoked"
+  | "read_failed"
   | "write_failed"
   | "replace_failed"
   /** The machine cannot hold the file in memory (never a size policy: a local
@@ -143,13 +144,14 @@ export class FileHandleRegistry {
     return new Uint8Array(await this.readBytes(record.path));
   }
 
-  /** Read a whole file. An allocation failure is a typed insufficient_memory,
-   * anything else keeps the "file is gone" answer. */
+  /** Read a whole file. An allocation failure is a typed insufficient_memory;
+   * anything else names what the user can act on (readFailure). */
   private async readBytes(path: string): Promise<Uint8Array> {
     try { return await this.fs.readFile(path); }
     catch (error) {
       if (error instanceof LocalFileError) throw error;
-      throw new LocalFileError(isAllocationFailure(error) ? "insufficient_memory" : "not_found");
+      if (isAllocationFailure(error)) throw new LocalFileError("insufficient_memory");
+      throw readFailure(error);
     }
   }
 
@@ -313,6 +315,15 @@ async function readWholeFile(path: string): Promise<Uint8Array> {
   }
 }
 const READ_CHUNK_BYTES = 256 * 1024 * 1024;
+/** A failed read names what the user can act on: a vanished file is not_found,
+ * a sharing violation is locked, anything else (permissions, I/O) is read_failed
+ * instead of the misleading "moved or deleted". */
+function readFailure(error: unknown): LocalFileError {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (code === "ENOENT" || code === "ENOTDIR") return new LocalFileError("not_found");
+  if (code === "EBUSY" || code === "ETXTBSY") return new LocalFileError("locked");
+  return new LocalFileError("read_failed");
+}
 
 function statModifiedNs(stat: Stats): string {
   const value = (stat as Stats & { mtimeNs?: bigint }).mtimeNs;

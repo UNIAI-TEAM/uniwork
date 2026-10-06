@@ -3,7 +3,7 @@
 // packaged runtime.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { fileOpenRequestedSchema, leaveExpiredEventSchema, loginRequestedEventSchema, type LeaveExpiredEvent } from "../shared/ipc";
+import { fileOpenRequestedSchema, leaveExpiredEventSchema, loginRequestedEventSchema, themeChangedEventSchema, type LeaveExpiredEvent, type ThemeChangedEvent } from "../shared/ipc";
 import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, launchRequestedEventSchema, leaveRequestedEventSchema, officeSaveRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata, type LaunchRequestedEvent, type LeaveRequestedEvent, type LoginRequestedEvent, type OfficeSaveRequestedEvent } from "../shared/ipc";
 
 export type IpcRendererAdapter = {
@@ -24,6 +24,8 @@ export type DesktopRendererBridge = {
   openDroppedFile(file: File): Promise<unknown>;
   onFileOpenRequested(listener: (event: { handle: string }) => void): () => void;
   onLoginRequested(listener: (event: LoginRequestedEvent) => void): () => void;
+  /** The OS switched between light and dark (main nativeTheme "updated"). */
+  onThemeChanged(listener: (event: ThemeChangedEvent) => void): () => void;
 };
 
 export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRendererBridge {
@@ -53,6 +55,18 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
     if (!parsed.success) return;
     if (pendingLeave?.requestId === parsed.data.requestId) pendingLeave = undefined;
     leaveExpiredListener?.(parsed.data);
+  });
+  // The OS can flip light/dark while the renderer is still reading the
+  // appearance snapshot and loading its locale, before DesktopFrame subscribes.
+  // Keep the newest theme and replay it to each new subscriber: it is the
+  // current state, so a late subscriber never keeps a stale `.dark`.
+  let latestTheme: ThemeChangedEvent | undefined;
+  const themeListeners = new Set<(event: ThemeChangedEvent) => void>();
+  ipcRenderer.on?.("desktop:theme-changed", (...args: unknown[]) => {
+    const parsed = themeChangedEventSchema.safeParse(args.at(-1));
+    if (!parsed.success) return;
+    latestTheme = parsed.data;
+    for (const listener of [...themeListeners]) listener(parsed.data);
   });
   ipcRenderer.on?.("desktop:file-open-requested", (...args: unknown[]) => {
     const parsed = fileOpenRequestedSchema.safeParse(args.at(-1));
@@ -111,6 +125,12 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
       loginListener = listener;
       if (pendingLogin) { const event = pendingLogin; pendingLogin = undefined; listener(event); }
       return () => { if (loginListener === listener) loginListener = undefined; };
+    },
+    onThemeChanged(listener) {
+      if (!ipcRenderer.on || !(DESKTOP_EVENTS as readonly string[]).includes("desktop:theme-changed")) return () => undefined;
+      themeListeners.add(listener);
+      if (latestTheme) listener(latestTheme);
+      return () => { themeListeners.delete(listener); };
     },
     onOfficeSaveRequested(listener) {
       if (!ipcRenderer.on) return () => undefined;

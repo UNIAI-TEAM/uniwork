@@ -182,6 +182,25 @@ describe("web Markdown/HTML format adapter", () => {
     await created.session.dispose();
   });
 
+  it("reports canUndo/canRedo and leaves the generation alone on an empty stack (UNI-954)", async () => {
+    const { adapter: created } = adapter("md");
+    await created.open.open();
+    expect(created.editor.canUndo?.()).toBe(false);
+    expect(created.editor.canRedo?.()).toBe(false);
+    created.editor.undo?.();
+    created.editor.redo?.();
+    expect(created.editor.getDirtyGeneration()).toBe(0);
+    created.editor.source?.setText("changed");
+    expect(created.editor.canUndo?.()).toBe(true);
+    created.editor.undo?.();
+    expect(created.editor.canUndo?.()).toBe(false);
+    expect(created.editor.canRedo?.()).toBe(true);
+    const generation = created.editor.getDirtyGeneration();
+    created.editor.undo?.();
+    expect(created.editor.getDirtyGeneration()).toBe(generation);
+    await created.session.dispose();
+  });
+
   it("replaying a retained intent serializes its own snapshot without rewinding the live editor", async () => {
     const source = "first line\n";
     const { adapter: created, files } = adapter("md", new TextEncoder().encode(source));

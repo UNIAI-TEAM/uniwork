@@ -11,9 +11,13 @@ const FILE_FAILURE_CODES: Readonly<Record<string, string>> = {
   external_modification: "file_changed_on_disk",
   invalid_handle: "file_handle_invalid",
   session_revoked: "file_session_revoked",
+  read_failed: "file_read_failed",
   write_failed: "file_write_failed",
   replace_failed: "file_replace_failed",
   insufficient_memory: "file_insufficient_memory",
+  // Save-side only: the draft checkpoint that precedes a local Save failed.
+  // There is no size code: a local working file has no size cap (UNI-956).
+  checkpoint_failed: "file_checkpoint_failed",
   saving: "file_save_in_progress",
   engine_unavailable: "file_engine_unavailable",
 };

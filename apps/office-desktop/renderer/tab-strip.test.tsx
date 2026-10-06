@@ -82,19 +82,45 @@ it("selects an overflow document and offers workspace/sign-out in the account me
   expect(actions.onSignOut).toHaveBeenCalledOnce();
 });
 
-it("maps the mouse wheel to horizontal overflow and reveals the selected tab", () => {
-  const scrollIntoView = vi.fn();
-  const previous = HTMLElement.prototype.scrollIntoView;
-  HTMLElement.prototype.scrollIntoView = scrollIntoView;
+it("maps the mouse wheel to horizontal overflow", () => {
+  const { container } = render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...callbacks()} />);
+  const scroller = container.querySelector("[data-desktop-tab-scroll]")!;
+  Object.defineProperties(scroller, { scrollWidth: { value: 800 }, clientWidth: { value: 200 } });
+  fireEvent.wheel(scroller, { deltaY: 100 });
+  expect(scroller.scrollLeft).toBe(100);
+});
+
+it("scrolls the whole active tab into the strip on activation and when the strip resizes", () => {
+  const resizeCallbacks: (() => void)[] = [];
+  vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resizeCallbacks.push(callback); } observe() {} disconnect() {} });
   try {
-    const { container, rerender } = render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...callbacks()} />);
-    const scroller = container.querySelector("[data-desktop-tab-scroll]")!;
-    Object.defineProperties(scroller, { scrollWidth: { value: 800 }, clientWidth: { value: 200 } });
-    fireEvent.wheel(scroller, { deltaY: 100 });
-    expect(scroller.scrollLeft).toBe(100);
+    // 3 tabs of 220 px in a 300 px strip that starts at x = 100.
+    const box = (left: number, width: number) => () => ({ left, right: left + width, width, top: 0, bottom: 32, height: 32, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const place = (container: HTMLElement, scrollLeft: number) => {
+      const scroller = container.querySelector<HTMLElement>("[data-desktop-tab-scroll]")!;
+      scroller.getBoundingClientRect = box(100, 300);
+      container.querySelectorAll<HTMLElement>(".desktop-document-tab").forEach((tab, index) => { tab.getBoundingClientRect = box(100 + index * 220 - scrollLeft, 220); });
+      return scroller;
+    };
+    const { container, rerender } = render(<DesktopTabStrip tabs={tabs} activeTabId={null} {...callbacks()} />);
+    const scroller = place(container, 0);
+    expect(scroller.scrollLeft).toBe(0);
+    // Tab c spans 540-760 in a strip ending at 400: it scrolls right by exactly the overflow.
     rerender(<DesktopTabStrip tabs={tabs} activeTabId="c" {...callbacks()} />);
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
-  } finally { HTMLElement.prototype.scrollIntoView = previous; }
+    expect(scroller.scrollLeft).toBe(360);
+    // Tab a now sits 360 px left of the strip's edge: activating it scrolls back.
+    place(container, 360);
+    rerender(<DesktopTabStrip tabs={tabs} activeTabId="a" {...callbacks()} />);
+    expect(scroller.scrollLeft).toBe(0);
+    place(container, 0);
+    rerender(<DesktopTabStrip tabs={tabs} activeTabId="b" {...callbacks()} />);
+    expect(scroller.scrollLeft).toBe(140);
+    // A narrower strip (window resize) clips tab b on the right: the resize observer pulls it back in.
+    place(container, 140);
+    scroller.getBoundingClientRect = box(100, 200);
+    resizeCallbacks.at(-1)!();
+    expect(scroller.scrollLeft).toBe(220);
+  } finally { vi.unstubAllGlobals(); }
 });
 
 it("keeps signed-out chrome free of account/document actions and shortcuts", () => {
@@ -152,4 +178,79 @@ it.each([["createDocx", "docx"], ["createMarkdown", "md"], ["createHtml", "html"
   expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual([i18n.t("officeDesktop.tabs.createDocx"), i18n.t("officeDesktop.tabs.createMarkdown"), i18n.t("officeDesktop.tabs.createHtml"), i18n.t("officeDesktop.tabs.openLocal")]);
   fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(i18n.t(`officeDesktop.tabs.${key}`)) }));
   expect(actions.onCreate).toHaveBeenCalledExactlyOnceWith(format);
+});
+
+it("drops focus to the page when the activated tab has no panel to receive it", () => {
+  const actions = callbacks();
+  render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...actions} />);
+  const budget = screen.getByRole("tab", { name: /Budget.xlsx/ });
+  budget.focus();
+  fireEvent.click(budget);
+  expect(actions.onSelect).toHaveBeenLastCalledWith("b");
+  expect(document.body).toHaveFocus();
+});
+
+it("keeps focus on the strip for the library tab and for arrow-key roving", () => {
+  const actions = callbacks();
+  render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...actions} />);
+  const library = screen.getByRole("tab", { name: "Thư viện" });
+  library.focus();
+  fireEvent.click(library);
+  expect(library).toHaveFocus();
+  fireEvent.keyDown(library, { key: "ArrowRight" });
+  expect(screen.getByRole("tab", { name: /Report.docx/ })).toHaveFocus();
+});
+
+/** Panels as the workspace mounts them: hidden + inert unless active, focusable as a fallback. */
+function panels(activeId: string, withRoot: Record<string, boolean>) {
+  const host = document.createElement("div");
+  for (const tab of tabs) {
+    const panel = document.createElement("div");
+    panel.id = `desktop-panel-${tab.id}`;
+    panel.setAttribute("role", "tabpanel");
+    panel.tabIndex = -1;
+    if (tab.id !== activeId) { panel.hidden = true; panel.setAttribute("inert", ""); }
+    if (withRoot[tab.id]) {
+      const root = document.createElement("div");
+      root.setAttribute("role", "application");
+      root.tabIndex = 0;
+      root.dataset.root = tab.id;
+      panel.append(root);
+    }
+    host.append(panel);
+  }
+  document.body.append(host);
+  return { host, show: (id: string) => { for (const panel of host.children) { const own = panel.id === `desktop-panel-${id}`; (panel as HTMLElement).hidden = !own; if (own) panel.removeAttribute("inert"); else panel.setAttribute("inert", ""); } } };
+}
+
+it("moves focus into the activated document's editor root, where the editor's own Ctrl+F handler runs (R5)", () => {
+  const actions = callbacks();
+  const view = panels("a", { a: true, b: true });
+  actions.onSelect.mockImplementation((id: string) => view.show(id));
+  render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...actions} />);
+  const budget = screen.getByRole("tab", { name: /Budget.xlsx/ });
+  budget.focus();
+  fireEvent.click(budget);
+  const root = view.host.querySelector<HTMLElement>("[data-root='b']")!;
+  expect(root).toHaveFocus();
+  // The root's own key handler sees the shortcut, exactly as a PDF editor root does.
+  const onKey = vi.fn((event: KeyboardEvent) => event.preventDefault());
+  root.addEventListener("keydown", onKey);
+  expect(fireEvent.keyDown(document.activeElement!, { key: "f", ctrlKey: true })).toBe(false);
+  expect(onKey).toHaveBeenCalledTimes(1);
+  view.host.remove();
+});
+
+it("falls back to the activated panel itself when its document has no editor root yet, never a hidden one (R5)", () => {
+  const actions = callbacks();
+  const view = panels("a", { a: true, b: false });
+  actions.onSelect.mockImplementation((id: string) => view.show(id));
+  render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...actions} />);
+  const budget = screen.getByRole("tab", { name: /Budget.xlsx/ });
+  budget.focus();
+  fireEvent.keyDown(budget, { key: "Enter" });
+  fireEvent.click(budget);
+  expect(document.getElementById("desktop-panel-b")).toHaveFocus();
+  expect(view.host.querySelector("[data-root='a']")).not.toHaveFocus();
+  view.host.remove();
 });

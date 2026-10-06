@@ -30,3 +30,20 @@ it("starts dark when the system already prefers dark", () => {
   render(<DesktopFrame bridge={bridge}><p>x</p></DesktopFrame>);
   expect(document.documentElement.classList.contains("dark")).toBe(true);
 });
+
+it("follows main's nativeTheme event instead of the media query when the bridge carries it", async () => {
+  installMedia(true);
+  let emit: ((event: { dark: boolean }) => void) | undefined;
+  const unsubscribe = vi.fn();
+  const themed = { call: vi.fn(async () => ({})), onSessionChanged: () => () => undefined, onThemeChanged: (listener: (event: { dark: boolean }) => void) => { emit = listener; return unsubscribe; } };
+  const view = render(<DesktopFrame bridge={themed}><p>x</p></DesktopFrame>);
+  // The media query no longer decides: index applied main's snapshot before mount.
+  expect(document.documentElement.classList.contains("dark")).toBe(false);
+  emit?.({ dark: true });
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
+  await vi.waitFor(() => expect(themed.call).toHaveBeenCalledWith("desktop:window-theme", expect.objectContaining({ dark: true })));
+  emit?.({ dark: false });
+  expect(document.documentElement.classList.contains("dark")).toBe(false);
+  view.unmount();
+  expect(unsubscribe).toHaveBeenCalledOnce();
+});

@@ -76,6 +76,23 @@ describe("desktop local file handles", () => {
     const result = await registry.saveAs(metadata.handle, new TextEncoder().encode("new"), { pick: async () => destination });
     expect(result?.name).toBe("new.txt"); expect(await fs.readFile(destination, "utf8")).toBe("new");
   });
+  it.each([
+    ["ENOENT", "not_found"],
+    ["EBUSY", "locked"],
+    ["EACCES", "read_failed"],
+    ["EIO", "read_failed"],
+  ] as const)("names a failed read (%s) as %s instead of calling every read fault not_found", async (errno, expected) => {
+    const root = await tempRoot(); const path = join(root, "draft.txt"); await fs.writeFile(path, "old");
+    const native = { lstat: (p: string) => fs.lstat(p), stat: (p: string) => fs.stat(p), realpath: (p: string) => fs.realpath(p), readFile: async (p: string) => new Uint8Array(await fs.readFile(p)), open: (p: string, f: string | number) => fs.open(p, f), rename: (from: string, to: string) => fs.rename(from, to), unlink: (p: string) => fs.unlink(p) } satisfies FileSystemPort;
+    let failReads = false;
+    const faulty = { ...native, readFile: async (p: string) => { if (failReads) throw Object.assign(new Error("C:\\secret read fault"), { code: errno }); return native.readFile(p); } } satisfies FileSystemPort;
+    const registry = new FileHandleRegistry({ sessionId: "s", fs: faulty });
+    const metadata = await registry.openPath(path);
+    failReads = true;
+    await expect(registry.read(metadata.handle)).rejects.toMatchObject({ code: expected });
+    const fresh = new FileHandleRegistry({ sessionId: "s", fs: faulty });
+    await expect(fresh.openPath(path)).rejects.toMatchObject({ code: expected });
+  });
 });
 
 // A local working file is never size-capped: the desktop host must open, save

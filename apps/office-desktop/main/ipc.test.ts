@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createOfficeIpcHandlers, createIpcDispatcher, DESKTOP_IPC_CHANNELS, desktopAuthConfigResponseSchema, desktopDiagnosticsResponseSchema, desktopDraftResponseSchema, desktopFileMetadataSchema, desktopFileResponseSchema, desktopLibraryResponseSchema, desktopSessionMetadataSchema, IPC_MAX_BYTES, IpcValidationError, validateIpcRequest } from "./ipc";
+import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createOfficeIpcHandlers, createIpcDispatcher, DESKTOP_IPC_CHANNELS, desktopAuthConfigResponseSchema, desktopDiagnosticsResponseSchema, desktopDraftResponseSchema, desktopFileMetadataSchema, desktopFileResponseSchema, desktopFileXlsxResponseSchema, desktopLibraryResponseSchema, desktopSessionMetadataSchema, IPC_MAX_BYTES, IpcValidationError, validateIpcRequest } from "./ipc";
 import { NativeLoginManager } from "./auth/manager";
 import { LocalFileError, type FileHandleRegistry } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -10,7 +10,7 @@ const valid = { sessionGeneration: "session_1234", operation: "capability", hand
 
 describe("desktop IPC allowlist", () => {
   it("enumerates only opaque operations", () => {
-    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:tabs-update", "desktop:file-pick-open", "desktop:file-create", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:file-xlsx", "desktop:draft-checkpoint", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:local-state", "desktop:local-mode", "desktop:recent-list", "desktop:recent-open", "desktop:recent-remove", "desktop:library-list", "desktop:library-context", "desktop:public-config", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-context", "desktop:office-save", "desktop:office-job", "desktop:leave-resolved", "desktop:print-document"]);
+    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:window-theme", "desktop:appearance", "desktop:tabs-update", "desktop:file-pick-open", "desktop:file-create", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:file-xlsx", "desktop:draft-checkpoint", "desktop:draft-list", "desktop:draft-recover", "desktop:draft-discard", "desktop:local-state", "desktop:local-mode", "desktop:recent-list", "desktop:recent-open", "desktop:recent-remove", "desktop:library-list", "desktop:library-context", "desktop:public-config", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-context", "desktop:office-save", "desktop:office-job", "desktop:leave-resolved", "desktop:print-document"]);
     expect(DESKTOP_IPC_CHANNELS.some((channel) => /fs|exec|http/i.test(channel))).toBe(false);
   });
   it("accepts a valid engine request", () => expect(validateIpcRequest("desktop:engine-call", valid, context)).toEqual(valid));
@@ -107,6 +107,7 @@ describe("desktop IPC allowlist", () => {
     ["session_revoked", "file_session_revoked"],
     ["write_failed", "file_write_failed"],
     ["replace_failed", "file_replace_failed"],
+    ["read_failed", "file_read_failed"],
     ["insufficient_memory", "file_insufficient_memory"],
   ] as const)("answers a %s refusal on every file command with code %s", async (internal, wire) => {
     const fail = async () => { throw new LocalFileError(internal, "C:\\secret\\path.docx"); };
@@ -139,6 +140,30 @@ describe("desktop IPC allowlist", () => {
     const faulty = createFileIpcHandlers({ registry, xlsx: { open: async () => { throw new Error("xlsx_recalc_unavailable"); } } as never });
     await expect(faulty["desktop:file-xlsx"](request)).rejects.toThrow("xlsx_recalc_unavailable");
     expect(desktopFileResponseSchema.safeParse({ opened: false, code: "C:\\secret" }).success).toBe(false);
+    // A code names a refusal: a successful answer never carries one.
+    expect(desktopFileResponseSchema.safeParse({ opened: true, code: "file_locked" }).success).toBe(false);
+    expect(desktopFileXlsxResponseSchema.safeParse({ state: "completed", code: "file_locked" }).success).toBe(false);
+    expect(desktopFileXlsxResponseSchema.safeParse({ state: "failed", code: "file_locked" }).success).toBe(true);
+  });
+  it("reads an unexpected open-side fault as file_read_failed and a save-side one as file_write_failed", async () => {
+    const handle = "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL";
+    const session = { sessionGeneration: "session_1234" };
+    const boom = async () => { throw new Error("EACCES: C:\\secret\\file.docx"); };
+    const registry = { openPath: boom, openPathFromHandle: boom, read: boom, save: boom } as unknown as FileHandleRegistry;
+    const handlers = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\a.docx" });
+    await expect(handlers["desktop:file-pick-open"](session)).resolves.toEqual({ opened: false, code: "file_read_failed" });
+    await expect(handlers["desktop:file-open"]({ ...session, handle })).resolves.toEqual({ opened: false, code: "file_read_failed" });
+    await expect(handlers["desktop:file-save"]({ ...session, handle, data: Uint8Array.from(Buffer.from("b2s=", "base64")) })).resolves.toEqual({ opened: false, code: "file_write_failed" });
+  });
+  it("names a failed draft checkpoint before a local Save and writes nothing", async () => {
+    const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "x.docx", byteLength: 1, modifiedAtMs: 7, checksum: `sha256:${"a".repeat(64)}` };
+    const save = vi.fn(async () => metadata);
+    const registry = { openPathFromHandle: async () => metadata, save } as unknown as FileHandleRegistry;
+    const checkpoint = async () => { throw new Error("/secret/draft key unavailable"); };
+    const answer = await createFileIpcHandlers({ registry, checkpoint })["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, data: Uint8Array.from(Buffer.from("b2s=", "base64")) });
+    expect(answer).toEqual({ opened: false, code: "file_checkpoint_failed" });
+    expect(save).not.toHaveBeenCalled();
+    expect(JSON.stringify(answer)).not.toContain("secret");
   });
   it("shares one non-queueing guard across local Save calls and releases it on failure", async () => {
     const guard = createOfficeSaveGuard();

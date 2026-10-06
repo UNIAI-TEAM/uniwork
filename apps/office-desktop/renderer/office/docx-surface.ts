@@ -39,6 +39,8 @@ export function createDesktopDocxSurface(options: {
     commands: tiptap.commands,
     undo: () => tiptap.undo?.(),
     redo: () => tiptap.redo?.(),
+    canUndo: () => tiptap.canUndo?.() ?? true,
+    canRedo: () => tiptap.canRedo?.() ?? true,
     renderSurface: () => tiptap.renderSurface?.(),
     async captureSnapshot() {
       if (disposed) throw new Error("docx_editor_disposed");

@@ -13,6 +13,9 @@ describe("desktop file failure codes", () => {
       expect(vi.office.save.reason, code).toHaveProperty(code);
     }
   });
+  it("covers the open-side read, the memory and the checkpoint codes", () => {
+    expect(desktopFileFailureCodes()).toEqual(expect.arrayContaining(["file_read_failed", "file_checkpoint_failed", "file_insufficient_memory"]));
+  });
   it("answers an unmapped refusal with file_failed and rethrows anything else", async () => {
     const codeOf = (error: unknown) => (error as { code?: string }).code;
     const answer = (code: string) => ({ opened: false as const, code });

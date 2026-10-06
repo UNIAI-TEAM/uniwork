@@ -40,14 +40,21 @@ type localMeta struct {
 }
 
 // NewLocalStorageFromEnv creates a LocalStorage from environment variables.
-// Returns nil if upload directory cannot be created.
+// Returns nil if upload directory cannot be created or S3_KEY_PREFIX is unsafe.
 //
 // Environment variables:
 //   - LOCAL_UPLOAD_DIR (default: "./data/uploads")
 //   - LOCAL_UPLOAD_BASE_URL (optional, e.g., "http://localhost:8080")
-//   - S3_KEY_PREFIX (the environment root; storage.LoadConfig refuses an
-//     unsafe one at startup, so an invalid value is ignored here)
+//   - S3_KEY_PREFIX (the environment root). An unsafe value is refused the
+//     way storage.LoadConfig refuses it at startup, never dropped to "":
+//     a silent fallback would mint and guard keys outside the root the
+//     operator configured.
 func NewLocalStorageFromEnv() *LocalStorage {
+	keyRoot, err := ParseKeyRoot(os.Getenv(envS3KeyPrefix))
+	if err != nil {
+		slog.Error("refusing local storage", "error", err)
+		return nil
+	}
 	uploadDir := os.Getenv("LOCAL_UPLOAD_DIR")
 	if uploadDir == "" {
 		uploadDir = "./data/uploads"
@@ -61,10 +68,6 @@ func NewLocalStorageFromEnv() *LocalStorage {
 	baseURL := strings.TrimSuffix(os.Getenv("LOCAL_UPLOAD_BASE_URL"), "/")
 
 	slog.Info("local storage initialized", "dir", uploadDir, "baseURL", baseURL)
-	keyRoot := normalizeKeyRoot(os.Getenv(envS3KeyPrefix))
-	if !ValidKeyRoot(keyRoot) {
-		keyRoot = ""
-	}
 	return &LocalStorage{
 		uploadDir: uploadDir,
 		baseURL:   baseURL,

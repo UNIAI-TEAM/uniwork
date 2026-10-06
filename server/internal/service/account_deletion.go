@@ -100,7 +100,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err := qtx.ScrubMemberProfilesForUser(ctx, userID); err != nil {
 		return err
 	}
-	if err := qtx.RevokeAllRefreshTokensForUser(ctx, userID); err != nil {
+	if err := revokeAllUserSessions(ctx, qtx, userID); err != nil {
 		return err
 	}
 	if err := qtx.RevokeAllPushSubscriptionsForUser(ctx, userID); err != nil {

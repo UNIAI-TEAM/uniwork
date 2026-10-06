@@ -84,11 +84,11 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       requireSession();
       return desktopLibraryContextResponseSchema.parse(await options.transport.context());
     },
-    "desktop:public-config": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
+    "desktop:public-config": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:public-config">) => {
       requireSession();
       // A malformed transport answer degrades to no flags (the renderer reads that
       // as engine off and opens cloud documents read-only), never a thrown open.
-      const parsed = desktopPublicConfigResponseSchema.safeParse(await options.transport.publicConfig((request as { organizationId?: string }).organizationId));
+      const parsed = desktopPublicConfigResponseSchema.safeParse(await options.transport.publicConfig(request.organizationId));
       return parsed.success ? parsed.data : { flags: {} };
     },
     "desktop:library-recent": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string }>) => {
@@ -231,8 +231,8 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       // handle, document context or recent row exists.
       if (!desktopDocumentFormatForName(path)) return { opened: false, unsupported: true };
       assertSession(session);
-      const metadata = await safeFile(() => options.registry.openPath(path));
-      const bytes = await safeFile(() => options.registry.read(metadata.handle));
+      const metadata = await safeRead(() => options.registry.openPath(path));
+      const bytes = await safeRead(() => options.registry.read(metadata.handle));
       assertSession(session);
       options.onOpened?.(metadata);
       return { opened: true, metadata, data: bytes };
@@ -253,22 +253,22 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const session = options.session?.();
       let metadata: import("./files/registry").OpenFileMetadata;
       try {
-        metadata = await safeFile(() => options.registry.openPath(entry.path));
+        metadata = await safeRead(() => options.registry.openPath(entry.path));
       } catch (error) {
         // A file removed after the list rendered stays a typed, non-throwing
         // answer so the renderer can show the missing copy.
         if ((error as { code?: string }).code === "not_found") return { opened: false, missing: true };
         throw error;
       }
-      const bytes = await safeFile(() => options.registry.read(metadata.handle));
+      const bytes = await safeRead(() => options.registry.read(metadata.handle));
       assertSession(session);
       options.onOpened?.(metadata);
       return { opened: true, metadata, data: bytes };
     },
     "desktop:file-open": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string }>) => {
       const session = options.session?.();
-      const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
-      const bytes = await safeFile(() => options.registry.read(request.handle));
+      const metadata = await safeRead(() => options.registry.openPathFromHandle(request.handle));
+      const bytes = await safeRead(() => options.registry.read(request.handle));
       assertSession(session);
       options.onOpened?.(metadata);
       return { opened: true, metadata, data: bytes };
@@ -281,7 +281,9 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
         const bytes = request.data;
         if (options.checkpoint) {
           const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
-          await options.checkpoint(metadata, bytes);
+          // A draft-store fault is named (file_checkpoint_failed), not left to
+          // surface as an unknown error; nothing was written to the file yet.
+          try { await options.checkpoint(metadata, bytes); } catch { throw new FileIpcError("checkpoint_failed"); }
         }
         assertSession(session);
         requireOpened(request.handle);
@@ -325,7 +327,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       requireOpened(request.handle);
       const session = options.session?.();
       if (!options.xlsx) throw new FileIpcError("engine_unavailable");
-      const bytes = await safeFile(() => options.registry.read(request.handle));
+      const bytes = await safeRead(() => options.registry.read(request.handle));
       // The local xlsx job answers the shared DesktopFileXlsxResponse contract
       // (the same schema the renderer parses), so main and renderer cannot drift.
       if (request.operation === "open") {
@@ -343,11 +345,12 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
   // be lost. Faults that are not file refusals (the xlsx engine) still throw.
   const refused = (code: string) => ({ opened: false as const, code });
   const refuse = <Q, R>(handler: (request: Q) => Promise<R>) => answerRefusal(handler, fileRefusalCode, refused);
+  const refuseOpen = <Q, R>(handler: (request: Q) => Promise<R>) => answerRefusal(handler, openRefusalCode, refused);
   return {
-    "desktop:file-pick-open": refuse(commands["desktop:file-pick-open"]),
+    "desktop:file-pick-open": refuseOpen(commands["desktop:file-pick-open"]),
     "desktop:file-create": refuse(commands["desktop:file-create"]),
-    "desktop:recent-open": refuse(commands["desktop:recent-open"]),
-    "desktop:file-open": refuse(commands["desktop:file-open"]),
+    "desktop:recent-open": refuseOpen(commands["desktop:recent-open"]),
+    "desktop:file-open": refuseOpen(commands["desktop:file-open"]),
     "desktop:file-save": refuse(commands["desktop:file-save"]),
     "desktop:file-save-as": refuse(commands["desktop:file-save-as"]),
     "desktop:file-xlsx": answerRefusal(commands["desktop:file-xlsx"], fileRefusalCode, (code): DesktopFileXlsxResponse => ({ state: "failed", code })),
@@ -355,6 +358,13 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
 }
 
 const fileRefusalCode = (error: unknown): string | undefined => (error instanceof FileIpcError ? error.code : undefined);
+
+/** Every open path (pick, recent, handle open and the window's drop) answers
+ * one way: a refusal keeps its code, and any other fault (local mode
+ * unavailable, a refused document context, a recents store fault, a picker
+ * that threw) reads as read_failed. It never throws on one path and maps on
+ * another, so one condition always shows one message. */
+export const openRefusalCode = (error: unknown): string => fileRefusalCode(error) ?? (error instanceof LocalFileError ? error.code : "read_failed");
 
 async function runGuardedSave<T>(guard: OfficeSaveGuard | undefined, operation: () => Promise<T>): Promise<T> {
   const release = guard?.tryAcquire();
@@ -523,13 +533,16 @@ class DraftIpcError extends Error {
   constructor(code: string) { super("draft operation refused"); this.name = "DraftIpcError"; this.code = code; }
 }
 
-async function safeFile<T>(operation: () => Promise<T>): Promise<T> {
+/** `fallback` names an unexpected fault: a read-side call says read_failed, so an
+ * unreadable file is never reported as a write problem (or as "not found"). */
+async function safeFile<T>(operation: () => Promise<T>, fallback: "read_failed" | "write_failed" = "write_failed"): Promise<T> {
   try { return await operation(); }
   catch (error) {
     if (error instanceof LocalFileError) throw new FileIpcError(error.code);
-    throw new FileIpcError(isAllocationFailure(error) ? "insufficient_memory" : "write_failed");
+    throw new FileIpcError(isAllocationFailure(error) ? "insufficient_memory" : fallback);
   }
 }
+const safeRead = <T>(operation: () => Promise<T>): Promise<T> => safeFile(operation, "read_failed");
 
 /** Run a local engine job; an allocation failure inside it is the typed
  * insufficient_memory, every other error keeps propagating unchanged. */

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
@@ -111,6 +112,9 @@ func TestDesktopRefreshUnknownTokenDoesNotRevokeFamily(t *testing.T) {
 			t.Fatalf("%s: unknown token revoked the device: %v", tc.name, err)
 		}
 	}
+	if n := desktopRevokedAuditRows(t, svc, sess.DeviceSessionID); n != 0 {
+		t.Fatalf("unknown tokens wrote %d revoke audit rows, want 0", n)
+	}
 	// The other account's session is untouched as well.
 	if _, err := svc.Refresh(ctx, other.DeviceSessionID, other.RefreshToken, "default"); err != nil {
 		t.Fatalf("other account refresh: %v", err)
@@ -126,6 +130,14 @@ func TestDesktopRefreshUnknownTokenDoesNotRevokeFamily(t *testing.T) {
 	}
 	if err := svc.CheckDeviceSession(ctx, owner, sess.DeviceSessionID); !errors.Is(err, ErrDesktopDeviceRevoked) {
 		t.Fatalf("reuse did not revoke the family: %v", err)
+	}
+	var reason string
+	if err := svc.pool.QueryRow(ctx, `SELECT coalesce(string_agg(metadata::jsonb->>'reason', ','), '') FROM audit_events WHERE action = $1 AND resource_id = $2`,
+		audit.ActionAuthDesktopSessionRevoked, sess.DeviceSessionID).Scan(&reason); err != nil {
+		t.Fatal(err)
+	}
+	if reason != "refresh_reuse" {
+		t.Fatalf("reuse audit reasons = %q, want one refresh_reuse row", reason)
 	}
 	if _, err := svc.Refresh(ctx, sess.DeviceSessionID, rotated.RefreshToken, "default"); !errors.Is(err, ErrDesktopDeviceRevoked) {
 		t.Fatalf("successor token after reuse = %v, want ErrDesktopDeviceRevoked", err)

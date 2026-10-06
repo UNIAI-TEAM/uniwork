@@ -44,6 +44,11 @@ buildMetafiles.push((await esbuild.build({ ...common, format: "cjs", outExtensio
 const katexFontLoaders = { ".woff2": "dataurl", ".woff": "empty", ".ttf": "empty" };
 buildMetafiles.push((await esbuild.build({ ...common, loader: katexFontLoaders, format: "esm", outExtension: { ".js": ".mjs" }, platform: "browser", jsx: "automatic", entryPoints: { "renderer/index": join(app, "renderer/index.tsx") }, outdir: dist })).metafile);
 await copyFile(join(app, "renderer/index.html"), join(dist, "renderer/index.html"));
+// Window and dock icon (main/branding.ts brandIconPath): the .ico for Windows,
+// the 512 png for Linux and the macOS dev dock.
+await mkdir(join(dist, "icons"), { recursive: true });
+await copyFile(join(app, "build", "icon.ico"), join(dist, "icons", "icon.ico"));
+await copyFile(join(app, "build", "icons", "512x512.png"), join(dist, "icons", "icon.png"));
 await mkdir(join(dist, "renderer"), { recursive: true });
 await compileRendererStyles(join(app, "renderer/styles.css"), join(dist, "renderer/styles.css"));
 if (deploymentProfile) await writeDeploymentProfile(join(dist, "deployment-profile.json"), deploymentProfile);
