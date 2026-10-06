@@ -69,8 +69,11 @@ the API today, so this is a safeguard for presigned URLs read or written from th
 
 `.github/workflows/office-desktop-installers.yml` is checked with actionlint only. Its first real run needs:
 
-- a manual dispatch (inputs `channel` dev|beta, `require_xlsx_sidecar` true by default) or an
-  `office-desktop-v<package version>-<dev|beta>.<build>` tag, run on a branch that carries the file;
+- a build-only probe first: push the branch `ci/office-desktop-installers-probe` (channel dev, build number = run
+  number) or dispatch with `publish` left false. Both build the two legs and keep the artifacts (3 days for the probe
+  push) and never create a tag, release or asset;
+- the publishing run: a manual dispatch with `publish=true` (inputs `channel` dev|beta, `require_xlsx_sidecar` true by
+  default) or an `office-desktop-v<package version>-<dev|beta>.<build>` tag push, run on a branch that carries the file;
 - both build legs finishing in under 60 minutes each (Rust sidecar build included; Windows uses `C:\cargo-t` as the
   cargo target dir to stay under MAX_PATH);
 - `contents: write` for the default token on the publish job (repository setting: workflow permissions);
