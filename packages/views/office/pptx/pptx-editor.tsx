@@ -41,6 +41,7 @@ import { PptxStatusBar, PptxStatusHelpButton } from "./status-bar";
 import { PptxToolbar } from "./toolbar";
 import { usePptxEditorRender } from "./use-pptx-editor-render";
 import { usePptxFindShortcut } from "./use-pptx-find-shortcut";
+import { pptxTextCounts } from "./status-counts";
 import { usePptxGestureHistory } from "./use-pptx-gesture-history";
 import { usePptxInPlaceText } from "./use-pptx-in-place-text";
 import { usePptxPanels } from "./use-pptx-panels";
@@ -110,6 +111,9 @@ interface EditableHandle extends EditorHandle {
   slideNotes?(slideIndex: number): string | null;
   slideLayouts?(): readonly { name: string; path: string }[];
 }
+
+/** Deck word/character counts; `_revision` only keys the memo. */
+const deckTextCounts = (model: Parameters<typeof flattenDeckRuns>[0], _revision: unknown) => (model ? pptxTextCounts(flattenDeckRuns(model)) : null);
 
 function isEditableHandle(handle: EditorHandle | null): handle is EditableHandle {
   return typeof (handle as EditableHandle | null)?.edit === "function";
@@ -356,6 +360,8 @@ export function PptxEditor({
     void deckRevision; // the model is mutated in place: only the revision says the runs moved
     return findOpen ? flattenDeckRuns(deckModel) : [];
   }, [deckModel, deckRevision, findOpen]);
+  // T12: footer word/character counts; the revision re-runs it (the model mutates in place).
+  const deckCounts = useMemo(() => deckTextCounts(deckModel, deckRevision), [deckModel, deckRevision]);
   const findReplace = useMemo(() => {
     if (onApplyEdit) return (edit: PptxFindReplaceEdit) => onApplyEdit(edit);
     if (handleEdit) return (edit: PptxFindReplaceEdit) => handleEdit([edit]);
@@ -563,7 +569,7 @@ export function PptxEditor({
         aside={masters.aside ?? (panels.placement === "aside" ? panels.node : undefined)}
         statusBar={
           /* C10: the status bar owns slide x/y, counts, language, selection and zoom (no deck-language source yet, so the unknown mark). */
-          <PptxStatusBar slideCurrent={slides.length ? selectedIndex + 1 : null} slideTotal={slides.length || null} language={null} selectionCount={selectedIds.length} gesturePending={gesturePending} zoom={zoom} onZoomChange={setZoom} help={<PptxStatusHelpButton onOpen={() => setShortcutsOpen(true)} />} />
+          <PptxStatusBar slideCurrent={slides.length ? selectedIndex + 1 : null} slideTotal={slides.length || null} language={null} selectionCount={selectedIds.length} gesturePending={gesturePending} zoom={zoom} onZoomChange={setZoom} help={<PptxStatusHelpButton onOpen={() => setShortcutsOpen(true)} />} counts={deckCounts} notesOpen={panels.activeKind === "notes"} onToggleNotes={() => panels.openPanel("notes")} view={panels.activeKind === "sorter" ? "sorter" : "normal"} onViewChange={(next) => { if ((next === "sorter") !== (panels.activeKind === "sorter")) panels.openPanel("sorter"); }} onSlideShow={() => startShow(false)} />
         }
       >
         <div className="flex h-full min-h-48 min-w-0 flex-col">
