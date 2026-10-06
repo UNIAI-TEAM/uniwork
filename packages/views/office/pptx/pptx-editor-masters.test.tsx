@@ -76,7 +76,7 @@ describe("PptxEditor slide master view (T01)", () => {
     const { handle: editorHandle } = handle();
     render(<PptxEditor host={host()} editorHandle={editorHandle} loadRendererModule={async () => module()} slides={[{ id: "s1" }]} deck={deck} />);
     await waitFor(() => expect(screen.getByText("Title")).toBeInTheDocument());
-    const insertItems = ["panel-sorter", "panel-insert", "panel-headerfooter", "panel-links", "panel-media"];
+    const insertItems = ["new-slide", "panel-insert", "panel-headerfooter", "panel-links", "panel-media"];
     const item = (id: string) => document.querySelector(`[data-ribbon-item="${id}"]`) as HTMLElement;
 
     fireEvent.click(screen.getByRole("tab", { name: "Insert" }));

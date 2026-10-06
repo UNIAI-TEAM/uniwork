@@ -96,6 +96,8 @@ export interface PptxPanelsInput {
   loadLayouts?: () => Promise<readonly { name: string; path: string }[]>;
   /** Slide Show tab items, built by the editor that owns the show state. */
   showItems?: readonly RibbonItem[];
+  /** Slides group items (New slide), built by the editor that owns the slide index. */
+  slideItems?: readonly RibbonItem[];
   /** Element ids an applied edit minted, so the editor can select the new insert. */
   onCreated?: (ids: readonly string[], requestedAt: PptxCreatedBaseline) => void;
   /** The editor root, to move focus into a panel a command re-opens. */
@@ -103,7 +105,7 @@ export interface PptxPanelsInput {
 }
 
 export function usePptxPanels(input: PptxPanelsInput) {
-  const { activeTab, contextual, panelKind, panel, panelData, applyEdit: hostApply, bulkEdit, onError, slideIndex, slides, boxes, selectedIds, rendition, reorder, remove, onSelectSlide, loadLayouts, showItems, onCreated, rootRef } = input;
+  const { activeTab, contextual, panelKind, panel, panelData, applyEdit: hostApply, bulkEdit, onError, slideIndex, slides, boxes, selectedIds, rendition, reorder, remove, onSelectSlide, loadLayouts, showItems, slideItems, onCreated, rootRef } = input;
   // Same fallback as buildPptxPanel: an unregistered panel union travels the
   // generic handle edit port (WIRE-KINDS owns the engine registration).
   const onCreatedRef = useRef(onCreated);
@@ -207,8 +209,9 @@ export function usePptxPanels(input: PptxPanelsInput) {
       paragraph: pptxParagraphGroupItems(text),
       arrange: pptxArrangeGroupItems({ target, ...(reorder ? { reorder } : {}), ...(remove ? { remove } : {}) }),
       ...(showItems ? { show: showItems } : {}),
+      ...(slideItems ? { slides: slideItems } : {}),
     };
-  }, [applyEdits, onError, openPanel, panelDisabled, remove, reorder, showItems, target, textState]);
+  }, [applyEdits, onError, openPanel, panelDisabled, remove, reorder, showItems, slideItems, target, textState]);
 
   const placement = !panel && activeKind ? pptxPanelPlacement(activeKind) : "aside";
   const node = panel ?? buildPptxPanel({

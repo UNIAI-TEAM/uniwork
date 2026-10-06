@@ -22,18 +22,20 @@ function build() {
   const onCommand = vi.fn();
   const onOpenPanel = vi.fn();
   const apply = vi.fn();
+  const addSlide = vi.fn();
   const text = { target, state: {}, apply, onMoreOptions: vi.fn() };
   const tabs = pptxRibbonTabs(available, {
     onCommand,
     onOpenPanel,
     contextual: ALL_CONTEXT,
     groupItems: {
+      slides: [{ kind: "button", id: "new-slide", labelKey: "office.pptx.panels.new_slide", size: "large", onExecute: addSlide }],
       font: pptxFontGroupItems(text),
       paragraph: pptxParagraphGroupItems(text),
       arrange: pptxArrangeGroupItems({ target, reorder: vi.fn(), remove: vi.fn() }),
     },
   });
-  return { tabs, onCommand, onOpenPanel, apply };
+  return { tabs, onCommand, onOpenPanel, apply, addSlide };
 }
 
 const itemsOf = (tab: RibbonTab): RibbonItem[] => tab.groups.flatMap((group) => group.items);
@@ -47,7 +49,7 @@ const item = (tabs: readonly RibbonTab[], tabId: string, id: string): RibbonItem
 describe("gatePptxRibbonForMasterView", () => {
   it("baseline: the Insert-tab items the visual stage flagged are live when the view is closed", () => {
     const { tabs } = build();
-    for (const id of ["panel-sorter", "panel-insert", "panel-headerfooter", "panel-links", "panel-media", "tables", "charts"]) {
+    for (const id of ["new-slide", "panel-insert", "panel-headerfooter", "panel-links", "panel-media", "tables", "charts"]) {
       expect(item(tabs, "insert", id).disabled, id).toBeFalsy();
     }
   });
@@ -76,14 +78,15 @@ describe("gatePptxRibbonForMasterView", () => {
   });
 
   it("locks Trang moi / Hinh dang / Dau-chan trang / Lien ket / Phuong tien with the master reason", () => {
-    const { tabs, onCommand, onOpenPanel } = build();
+    const { tabs, onCommand, onOpenPanel, addSlide } = build();
     const gated = gatePptxRibbonForMasterView(tabs);
-    for (const id of ["panel-sorter", "panel-insert", "panel-headerfooter", "panel-links", "panel-media"]) {
+    for (const id of ["new-slide", "panel-insert", "panel-headerfooter", "panel-links", "panel-media"]) {
       const locked = item(gated, "insert", id);
       expect(locked.disabled, id).toBe(true);
       expect(locked.tooltipKey, id).toBe(PPTX_MASTER_VIEW_REASON);
-      if (locked.kind === "toggle") locked.onExecute();
+      if (locked.kind === "toggle" || locked.kind === "button") locked.onExecute();
     }
+    expect(addSlide).not.toHaveBeenCalled();
     for (const id of ["tables", "charts"]) expect(item(gated, "insert", id).disabled, id).toBe(true);
     expect(onOpenPanel).not.toHaveBeenCalled();
     expect(onCommand).not.toHaveBeenCalled();

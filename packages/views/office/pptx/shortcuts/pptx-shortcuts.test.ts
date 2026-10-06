@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isPptxTypedKey,
   PPTX_SHORTCUTS,
   matchPptxShortcut,
   pptxShortcutForAction,
@@ -90,5 +91,35 @@ describe("pptxShortcutKeys", () => {
     expect(pptxShortcutKeys(undo, "windows")).toEqual(["Ctrl", "Z"]);
     expect(pptxShortcutKeys(undo, "macos")).toEqual(["Cmd", "Z"]);
     expect(pptxShortcutKeys(undo, "linux")).toEqual(["Ctrl", "Z"]);
+  });
+});
+
+describe("isPptxTypedKey (UNI-958)", () => {
+  it("takes a plain character and an AltGr character (Windows reports AltGr as Ctrl+Alt)", () => {
+    expect(isPptxTypedKey({ key: "x" })).toBe(true);
+    expect(isPptxTypedKey({ key: "?", shiftKey: true } as { key: string })).toBe(true);
+    expect(isPptxTypedKey({ key: "€", ctrlKey: true, altKey: true })).toBe(true);
+  });
+
+  it("never takes a chord, a named key or a key inside an IME composition", () => {
+    expect(isPptxTypedKey({ key: "a", ctrlKey: true })).toBe(false);
+    expect(isPptxTypedKey({ key: "a", metaKey: true })).toBe(false);
+    expect(isPptxTypedKey({ key: "a", altKey: true })).toBe(false);
+    expect(isPptxTypedKey({ key: "Shift" })).toBe(false);
+    expect(isPptxTypedKey({ key: "Process" })).toBe(false);
+    expect(isPptxTypedKey({ key: "a", isComposing: true })).toBe(false);
+  });
+});
+
+describe("help rows for the keys outside the canvas map (UNI-958)", () => {
+  it("lists Delete on a slide thumbnail and type-to-edit, which the canvas matcher never answers", () => {
+    const help = pptxShortcutsForHelp();
+    const deleteSlide = help.find((binding) => binding.action === "delete-slide");
+    const typeToEdit = help.find((binding) => binding.action === "type-to-edit");
+    expect(deleteSlide?.labelKey).toBe("office.pptx.shortcuts.delete_slide");
+    expect(deleteSlide && pptxShortcutKeys(deleteSlide)).toEqual(["Delete"]);
+    expect(typeToEdit?.labelKey).toBe("office.pptx.shortcuts.type_to_edit");
+    expect(PPTX_SHORTCUTS.some((binding) => binding.action === "delete-slide" || binding.action === "type-to-edit")).toBe(false);
+    expect(matchPptxShortcut({ key: "Delete" })?.action).toBe("delete-selection");
   });
 });

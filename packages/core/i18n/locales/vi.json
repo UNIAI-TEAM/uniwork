@@ -10785,6 +10785,8 @@
         "edit_text": "Sửa văn bản đang chọn",
         "select_all": "Chọn mọi phần tử",
         "delete_selection": "Xóa phần đang chọn",
+        "delete_slide": "Xoá trang chiếu (trong danh sách trang)",
+        "type_to_edit": "Gõ để thay văn bản đang chọn",
         "next_slide": "Trang sau",
         "previous_slide": "Trang trước",
         "dismiss": "Bỏ chọn",
