@@ -18,7 +18,7 @@ Chart `deploy/app/uniwork/` đã có `templates/deployment-office-engine.yaml`, 
 - [ ] Tạo Secret `uniwork-office-engine` chứa `OFFICE_ENGINE_SERVICE_TOKEN` và `OFFICE_ENGINE_GRANT_KEY` (>= 32 ký tự, khác nhau). Chart chỉ tham chiếu tên Secret (`officeEngine.secrets`, `be.secrets.officeEngine*`), không chứa giá trị.
 - [ ] Đặt `officeEngine.outputOrigins` = origin kho file; liệt kê CIDR kho file trong `networkPolicy.officeEngineFileStore`; rồi bật `officeEngine.enabled: true`.
 - [x] NetworkPolicy: chỉ `uniwork-be` gọi engine; engine chỉ ra DNS và các CIDR kho file (`networkpolicy.yaml`).
-- [x] Phía BE: `OFFICE_ENGINE_URL`, `OFFICE_ENGINE_REQUEST_TIMEOUT_MS`, `OFFICE_JOB_*` đã có trong `deploy/app/env/uniwork-be.env`; hai khóa được BE đọc từ cùng Secret qua `be.secrets.officeEngine*`. `OFFICE_ENGINE_URL` đã điền sẵn: chỉ bật khi `officeEngine.enabled: true`, nếu không thì để trống.
+- [x] Phía BE: `OFFICE_ENGINE_URL`, `OFFICE_ENGINE_REQUEST_TIMEOUT_MS`, `OFFICE_JOB_*` đã có trong `deploy/app/env/uniwork-be.env`; hai khóa được BE đọc từ cùng Secret qua `be.secrets.officeEngine*`. `OFFICE_ENGINE_URL` để trống trong file env; chart tự đặt nó trên container BE khi `officeEngine.enabled: true` (một công tắc duy nhất).
 - [x] `DESKTOP_AUTH_*` đã có trong `uniwork-be.env` (xem mục 3.2).
 - [ ] Sau deploy chạy mục 4.
 

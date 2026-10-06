@@ -127,13 +127,20 @@ spec:
                   key: {{ .key }}
                   optional: true
             {{- end }}
+            {{- if .Values.officeEngine.enabled }}
+            # Container env wins over the envFrom ConfigMap, whose OFFICE_ENGINE_URL is empty.
+            - name: OFFICE_ENGINE_URL
+              value: {{ printf "http://uniwork-office-engine:%v" .Values.officeEngine.port | quote }}
+            {{- end }}
             {{- with .Values.be.secrets.officeEngineServiceToken }}
             - name: OFFICE_ENGINE_SERVICE_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .name }}
                   key: {{ .key }}
+                  {{- if not $.Values.officeEngine.enabled }}
                   optional: true
+                  {{- end }}
             {{- end }}
             {{- with .Values.be.secrets.officeEngineGrantKey }}
             - name: OFFICE_ENGINE_GRANT_KEY
@@ -141,7 +148,9 @@ spec:
                 secretKeyRef:
                   name: {{ .name }}
                   key: {{ .key }}
+                  {{- if not $.Values.officeEngine.enabled }}
                   optional: true
+                  {{- end }}
             {{- end }}
           resources:
             {{- toYaml .Values.be.resources | nindent 12 }}
