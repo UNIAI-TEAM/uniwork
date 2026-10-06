@@ -471,6 +471,10 @@ func revokeDesktopFamily(ctx context.Context, q *db.Queries, userID, familyID st
 // AuthService would still mint a browser session from the leftover token.
 // The caller holds LockDeviceSessionFamily. It returns the tokens closed.
 func closeOrphanFamilyTokens(ctx context.Context, q *db.Queries, userID, familyID string) (int64, error) {
+	// READ COMMITTED: this count takes a fresh snapshot after the family lock,
+	// so it sees a sibling logout that committed while we waited. Under
+	// REPEATABLE READ the snapshot would predate the lock and both would leave
+	// the token live.
 	live, err := q.CountLiveDeviceSessionsInFamily(ctx, db.CountLiveDeviceSessionsInFamilyParams{UserID: userID, SessionFamilyID: familyID})
 	if err != nil || live > 0 {
 		return 0, err
@@ -605,6 +609,19 @@ func (s *DesktopAuthService) CheckDeviceSession(ctx context.Context, userID, ses
 	return s.q.TouchDeviceSession(ctx, sessionID)
 }
 
+// revokeAllUserSessions closes every device session and refresh token of the
+// user in the caller's transaction: the device rows first (in id order), then
+// refresh_tokens. That is the order Logout, Refresh and the family revoke take
+// them in, so a user-wide revoke racing a logout cannot deadlock (40P01).
+// RevokeAll, account deletion, password reset and member deactivation all go
+// through here.
+func revokeAllUserSessions(ctx context.Context, q *db.Queries, userID string) error {
+	if err := q.RevokeAllDeviceSessions(ctx, userID); err != nil {
+		return err
+	}
+	return q.RevokeAllRefreshTokensForUser(ctx, userID)
+}
+
 func (s *DesktopAuthService) RevokeAll(ctx context.Context, userID string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -612,7 +629,7 @@ func (s *DesktopAuthService) RevokeAll(ctx context.Context, userID string) error
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	if err := q.RevokeAllRefreshTokensForUser(ctx, userID); err != nil {
+	if err := revokeAllUserSessions(ctx, q, userID); err != nil {
 		return err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "user", ResourceID: userID, Metadata: map[string]any{"scope": "all"}}); err != nil {

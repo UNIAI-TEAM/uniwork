@@ -455,10 +455,19 @@ func (q *Queries) RefreshTokenIssuedToFamily(ctx context.Context, arg RefreshTok
 }
 
 const revokeAllDeviceSessions = `-- name: RevokeAllDeviceSessions :exec
-UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
-WHERE user_id = $1 AND revoked_at IS NULL
+UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
+FROM (
+  SELECT l.id FROM device_sessions l
+  WHERE l.user_id = $1 AND l.revoked_at IS NULL
+  ORDER BY l.id
+  FOR UPDATE
+) live
+WHERE d.id = live.id
 `
 
+// First half of a user-wide revoke (revokeAllUserSessions; the refresh tokens
+// follow). Every desktop path locks in one order: device_sessions rows (in id
+// order when it takes several), then the family key, then refresh_tokens.
 func (q *Queries) RevokeAllDeviceSessions(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, revokeAllDeviceSessions, userID)
 	return err
@@ -496,8 +505,14 @@ func (q *Queries) RevokeDeviceSessionByID(ctx context.Context, id string) (int64
 }
 
 const revokeDeviceSessionFamily = `-- name: RevokeDeviceSessionFamily :execrows
-UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
-WHERE user_id = $1 AND session_family_id = $2 AND revoked_at IS NULL
+UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
+FROM (
+  SELECT l.id FROM device_sessions l
+  WHERE l.user_id = $1 AND l.session_family_id = $2 AND l.revoked_at IS NULL
+  ORDER BY l.id
+  FOR UPDATE
+) live
+WHERE d.id = live.id
 `
 
 type RevokeDeviceSessionFamilyParams struct {
@@ -505,9 +520,12 @@ type RevokeDeviceSessionFamilyParams struct {
 	SessionFamilyID string `json:"session_family_id"`
 }
 
-// Closes every live device session of the family. The family's refresh
-// tokens are a separate statement (RevokeSessionForUser) run after it in the
-// same transaction, so each reports its own row count.
+// Closes every live device session of the family, locking them in id order
+// (see RevokeAllDeviceSessions). The caller already holds its own row, so with
+// a live sibling of lower id its order is not strictly by id; production never
+// makes a sibling (Exchange starts one family per device). The family's
+// refresh tokens are a separate statement (RevokeSessionForUser) run after it
+// in the same transaction, so each reports its own row count.
 func (q *Queries) RevokeDeviceSessionFamily(ctx context.Context, arg RevokeDeviceSessionFamilyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeDeviceSessionFamily, arg.UserID, arg.SessionFamilyID)
 	if err != nil {
