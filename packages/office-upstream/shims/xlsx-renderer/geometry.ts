@@ -10,8 +10,9 @@
 import type { IRange } from "@univerjs/core";
 import { IRenderManagerService, SHEET_VIEWPORT_KEY } from "@univerjs/engine-render";
 import { iconMap } from "@univerjs/preset-sheets-conditional-formatting";
-import { toNeutralStyle } from "../../upstream/apps/sheets/src/renderer/edit-journal";
+import type { toNeutralStyle } from "../../upstream/apps/sheets/src/renderer/edit-journal";
 import type { UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
+import { printStyleOf } from "./print-style";
 
 /** A cell's box in container pixels (zoom and scroll applied) plus the zoom
  *  the overlay converts unzoomed sheet pixels with. */
@@ -209,7 +210,7 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
           // among them), so the composed style is what the canvas paints.
           const cell = sheet.getCell(row, column);
           const composed = sheet.getComposedCellStyleByCellData(row, column, cell);
-          line.push(toNeutralStyle(composed as Record<string, unknown>) ?? null);
+          line.push(printStyleOf(composed as Record<string, unknown>));
           const mark = markOf(row, column, cell as unknown as CfCellData | null | undefined);
           if (mark) marks.push(mark);
         }
