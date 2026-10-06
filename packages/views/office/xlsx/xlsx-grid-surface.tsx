@@ -87,8 +87,16 @@ export interface XlsxGridHandle extends XlsxVisualsGrid {
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
+  /** UNI-953 item 9: undo/redo entries on the stack, and their changes. */
+  getHistory?(): XlsxGridHistoryState | null;
+  subscribeHistory?(listener: (state: XlsxGridHistoryState) => void): () => void;
   getDirtyGeneration(): number;
   dispose(): void;
+}
+
+export interface XlsxGridHistoryState {
+  undos: number;
+  redos: number;
 }
 
 export interface XlsxRendererModule {
@@ -188,6 +196,8 @@ export function XlsxGridSurface({
       setDarkMode: (nextDark) => handleRef.current?.setDarkMode(nextDark),
       undo: () => handleRef.current?.undo(),
       redo: () => handleRef.current?.redo(),
+      getHistory: () => handleRef.current?.getHistory?.() ?? null,
+      subscribeHistory: (listener) => handleRef.current?.subscribeHistory?.(listener) ?? (() => undefined),
       getDirtyGeneration: () => handleRef.current?.getDirtyGeneration() ?? 0,
       getCellBox: (sheetId, row, column) => handleRef.current?.getCellBox?.(sheetId, row, column) ?? null,
       cellAtPoint: (sheetId, x, y) => handleRef.current?.cellAtPoint?.(sheetId, x, y) ?? null,

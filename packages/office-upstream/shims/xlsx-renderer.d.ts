@@ -271,6 +271,9 @@ export interface XlsxRendererHandle {
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
+  /** UNI-953: undo/redo entries on the workbook's stack (Undo/Redo empty state). */
+  getHistory(): { undos: number; redos: number } | null;
+  subscribeHistory(listener: (state: { undos: number; redos: number }) => void): () => void;
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): XlsxRendererJournal;

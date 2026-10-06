@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import type { XlsxCellState, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxGridHandle, XlsxGridHostPort } from "./xlsx-grid-surface";
 import { addressParts, cellEditOperation, cellText } from "./xlsx-editor-model";
+import { useXlsxHistoryState } from "./use-xlsx-history-state";
 import type { XlsxEditorHandle, XlsxRecalcController, XlsxSaveCoordinator, XlsxSelection, XlsxViewState } from "./types";
 
 export interface XlsxEditorEditsOptions<TSnapshot = XlsxWorkbookSnapshot> {
@@ -41,6 +42,9 @@ export interface XlsxEditorEditsWiring {
   commitCell: () => Promise<void>;
   undo: () => void;
   redo: () => void;
+  /** UNI-953 item 9: false on an empty grid stack (the ribbon aria-disables). */
+  canUndo: boolean;
+  canRedo: boolean;
   prepareSave: () => Promise<void>;
   save: (entryPoint?: "button" | "shortcut") => void;
   recalculate: () => Promise<void>;
@@ -96,23 +100,28 @@ export function useXlsxEditorEdits<TSnapshot = XlsxWorkbookSnapshot>(
     refreshSnapshot();
   }, [activeCell, canEdit, editor, formulaDraft, flushGridEdits, gridReady, gridRef, markDirty, refreshSnapshot, rendererHost, selection]);
 
+  const history = useXlsxHistoryState(gridRef, gridReady);
+  const canUndo = gridReady ? history === null || history.undos > 0 : typeof editor.undo === "function";
+  const canRedo = gridReady ? history === null || history.redos > 0 : typeof editor.redo === "function";
+
   const undo = useCallback(() => {
-    if (readOnly) return;
+    // An empty stack is a no-op that never marks the document dirty.
+    if (readOnly || !canUndo) return;
     // The vendored grid owns the live undo stack once it is mounted; the
     // adapter handle is the fallback for hosts without a render model.
     if (gridReady) { gridRef.current?.undo(); return; }
     editor.undo?.();
     markDirty();
     refreshSnapshot();
-  }, [editor, gridReady, gridRef, markDirty, readOnly, refreshSnapshot]);
+  }, [canUndo, editor, gridReady, gridRef, markDirty, readOnly, refreshSnapshot]);
 
   const redo = useCallback(() => {
-    if (readOnly) return;
+    if (readOnly || !canRedo) return;
     if (gridReady) { gridRef.current?.redo(); return; }
     editor.redo?.();
     markDirty();
     refreshSnapshot();
-  }, [editor, gridReady, gridRef, markDirty, readOnly, refreshSnapshot]);
+  }, [canRedo, editor, gridReady, gridRef, markDirty, readOnly, refreshSnapshot]);
 
   const prepareSave = useCallback(async () => {
     try {
@@ -175,5 +184,5 @@ export function useXlsxEditorEdits<TSnapshot = XlsxWorkbookSnapshot>(
     setRecalcError(t("office.xlsx.recalc.cancelled"));
   }, [recalcAbortRef, recalcController, setRecalcError, setRecalcFresh, setRecalcProgress, t]);
 
-  return { markDirty, commitCell, undo, redo, prepareSave, save, recalculate, cancelRecalculate };
+  return { markDirty, commitCell, undo, redo, canUndo, canRedo, prepareSave, save, recalculate, cancelRecalculate };
 }

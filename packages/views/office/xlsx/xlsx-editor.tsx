@@ -246,7 +246,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // FIX-EDITOR-SPLIT (UNI-926): cell commit, undo/redo, save preparation and
   // recalculation live in ./use-xlsx-editor-edits, which also owns markDirty.
-  const { markDirty, commitCell, undo, redo, prepareSave, save, recalculate, cancelRecalculate } = useXlsxEditorEdits({
+  const { markDirty, commitCell, undo, redo, canUndo, canRedo, prepareSave, save, recalculate, cancelRecalculate } = useXlsxEditorEdits({
     editor,
     coordinator,
     rendererHost,
@@ -388,7 +388,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     documentKey,
     canFind: rendererHost !== undefined,
     canEdit,
-    canRedo: gridReady || typeof editor.redo === "function",
+    canRedo,
     sheets: sheetTabInfos,
     activeSheet: resolvedActiveSheet,
     defaultSheetName: t("office.xlsx.sheets.defaultName"),
@@ -425,8 +425,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 readOnly={readOnly || rendererLoading}
                 permissions={clipboardPermissions}
                 selection={selection}
-                canUndo={gridReady || typeof editor.undo === "function"}
-                canRedo={gridReady || typeof editor.redo === "function"}
+                canUndo={canUndo}
+                canRedo={canRedo}
                 canRecalculate={recalcController !== undefined}
                 canFormat={gridReady && selection !== null}
                 commands={gridCommands}

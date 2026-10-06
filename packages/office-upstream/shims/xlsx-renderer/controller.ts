@@ -27,6 +27,7 @@ import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { ingestRuleSetMutation, readLiveRuleSet, restoreRuleSetFamily, type XlsxRendererLiveRule, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
 import { ruleSetRestoreAllowed } from "./rule-set-policy";
+import { watchRendererHistory, type XlsxRendererHistoryState } from "./history";
 import { installDvRejectDialogTitle, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
 import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
@@ -202,6 +203,9 @@ export interface XlsxRendererHandle {
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
+  /** UNI-953: undo/redo entries on the workbook's stack (Undo/Redo empty state). */
+  getHistory(): XlsxRendererHistoryState | null;
+  subscribeHistory(listener: (state: XlsxRendererHistoryState) => void): () => void;
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): EditJournal;
@@ -457,6 +461,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   // Viewport streaming: scroll and sheet switches refetch the visible window.
   const disposables: Array<{ dispose(): void }> = [];
+  const history = watchRendererHistory(runtime.univer.__getInjector());
+  disposables.push(history);
 
   // UniWork outline commands (B1): the pinned Univer has no outline model and
   // journals no levels, so these two commands record the level change
@@ -865,6 +871,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     redo() {
       if (!options.readOnly) void runtime.univerAPI.redo();
     },
+    getHistory: () => history.get(),
+    subscribeHistory: (listener) => history.subscribe(listener),
     getDirtyGeneration: () => dirtyGeneration,
     getFontMappings: () => fontMappings.map((mapping) => ({ ...mapping })),
     getJournal: () => {

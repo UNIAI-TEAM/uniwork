@@ -163,6 +163,38 @@ describe("XlsxEditor live grid commands", () => {
     expect(grid.handle.redo).toHaveBeenCalled();
   });
 
+  // UNI-953 item 9: Undo/Redo follow the grid's stack, updated on every command.
+  it("aria-disables Undo/Redo on an empty grid stack and blocks them without marking dirty", async () => {
+    let listener: ((state: { undos: number; redos: number }) => void) | null = null;
+    const history = Object.assign(grid.handle, {
+      getHistory: () => ({ undos: 0, redos: 0 }),
+      subscribeHistory: (next: (state: { undos: number; redos: number }) => void) => { listener = next; return () => { listener = null; }; },
+    });
+    grid.handle.undo.mockClear();
+    grid.handle.redo.mockClear();
+    try {
+      const { coordinator } = setup();
+      await screen.findByTestId("live-grid");
+      const undo = screen.getByRole("button", { name: "Hoàn tác" });
+      const redo = screen.getByRole("button", { name: "Làm lại" });
+      await waitFor(() => expect(undo).toHaveAttribute("aria-disabled", "true"));
+      expect(redo).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(undo);
+      fireEvent.click(redo);
+      expect(grid.handle.undo).not.toHaveBeenCalled();
+      expect(grid.handle.redo).not.toHaveBeenCalled();
+      expect(coordinator.markDirty).not.toHaveBeenCalled();
+      act(() => listener?.({ undos: 1, redos: 0 }));
+      expect(undo).not.toHaveAttribute("aria-disabled");
+      expect(redo).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(undo);
+      expect(grid.handle.undo).toHaveBeenCalledOnce();
+    } finally {
+      delete (history as Partial<typeof history>).getHistory;
+      delete (history as Partial<typeof history>).subscribeHistory;
+    }
+  });
+
   it("runs Home formatting commands on the live grid and mirrors the active format state", async () => {
     const formatState = {
       fontFamily: "Calibri", fontSize: 14, bold: true, italic: false, underline: false, strike: false,
