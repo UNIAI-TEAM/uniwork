@@ -150,9 +150,17 @@ interface RuleSetTrack {
   unsaveable: Map<string, Set<XlsxRendererRuleSetKind>>;
   /** Per duplicated sheet: each family's state at the moment of the copy. */
   inherited: Map<string, Record<XlsxRendererRuleSetKind, RuleSetFamilyState>>;
+  /** Per file sheet and family: the rules the loader installed, in the live
+   *  model's order (the restore baseline, r3 MA-3). */
+  baseline: Map<string, Partial<Record<XlsxRendererRuleSetKind, Record<string, unknown>[]>>>;
+  /** Per sheet: families the host refused after a save dropped them (r3 MA-3). */
+  hostRefused: Map<string, Set<XlsxRendererRuleSetKind>>;
 }
 
 const tracks = new WeakMap<LazyWorkbookState, RuleSetTrack>();
+/** Set while a restore (r3 MA-3) dispatches its mutations: the capture ignores them. */
+const restoreSuppression = { active: false };
+let restoredSequence = 0;
 const RULE_SET_KINDS: readonly XlsxRendererRuleSetKind[] = ["conditionalFormats", "dataValidations"];
 /** The mutation the loader dispatches per file rule it installs. */
 const INSTALL_MUTATIONS: Readonly<Record<string, XlsxRendererRuleSetKind>> = {
@@ -163,7 +171,7 @@ const INSTALL_MUTATIONS: Readonly<Record<string, XlsxRendererRuleSetKind>> = {
 function trackOf(state: LazyWorkbookState): RuleSetTrack {
   let track = tracks.get(state);
   if (!track) {
-    track = { watched: new Set(), installed: new Map(), unsaveable: new Map(), inherited: new Map() };
+    track = { watched: new Set(), installed: new Map(), unsaveable: new Map(), inherited: new Map(), baseline: new Map(), hostRefused: new Map() };
     tracks.set(state, track);
   }
   return track;
@@ -180,6 +188,7 @@ function installedRuleSaveable(kind: XlsxRendererRuleSetKind, rule: unknown): bo
  *  copy with its source's family states (the copy's insert mutation follows
  *  the sheet journal, which already names the source). */
 function observeRuleSetEvent(state: LazyWorkbookState, event: RendererCommand, suppressed: boolean): void {
+  if (restoreSuppression.active) return;
   const track = trackOf(state);
   for (const sheet of state.file.sheets) if (!state.appliedDvSheets.has(sheet.id)) track.watched.add(sheet.id);
   const params = event.params as { unitId?: unknown; subUnitId?: unknown; rule?: unknown; sheet?: { id?: unknown } } | undefined;
@@ -187,6 +196,16 @@ function observeRuleSetEvent(state: LazyWorkbookState, event: RendererCommand, s
   const kind = INSTALL_MUTATIONS[event.id];
   if (suppressed && kind !== undefined && typeof params.subUnitId === "string") {
     const sheetId = params.subUnitId;
+    if (params.rule && typeof params.rule === "object") {
+      const rules = track.baseline.get(sheetId) ?? {};
+      const list = rules[kind] ?? [];
+      // The CF model unshifts each add; the DV model appends.
+      const copy = plain(params.rule as Record<string, unknown>);
+      if (kind === "conditionalFormats") list.unshift(copy);
+      else list.push(copy);
+      rules[kind] = list;
+      track.baseline.set(sheetId, rules);
+    }
     if (installedRuleSaveable(kind, params.rule)) {
       const counts = track.installed.get(sheetId) ?? {};
       counts[kind] = (counts[kind] ?? 0) + 1;
@@ -225,6 +244,7 @@ function observeRuleSetEvent(state: LazyWorkbookState, event: RendererCommand, s
  *  other session-added sheet is ready. */
 function ruleSetFamilyState(state: LazyWorkbookState, sheetId: string, kind: XlsxRendererRuleSetKind): RuleSetFamilyState {
   const track = tracks.get(state);
+  if (track?.hostRefused.get(sheetId)?.has(kind)) return "refused";
   if (!state.file.sheets.some((sheet) => sheet.id === sheetId)) return track?.inherited.get(sheetId)?.[kind] ?? "ready";
   const fileState = ruleSetFileState(state, sheetId, kind);
   if (fileState === "x14") return "refused";
@@ -241,4 +261,84 @@ function ruleSetFamilyState(state: LazyWorkbookState, sheetId: string, kind: Xls
  *  installs later accepts the retry. */
 export function ruleSetSheetReady(state: LazyWorkbookState, sheetId: string, kind: XlsxRendererRuleSetKind): boolean {
   return ruleSetFamilyState(state, sheetId, kind) === "ready";
+}
+
+// ── restore after a dropped save (review r3 MA-3) ──────────────────────────
+//
+// When a save drops a family's snapshot of a sheet (the gateway refused it),
+// the live model still paints the refused rules and every rule the user added
+// before them. The host hands back the rules the file holds for that family
+// (the last snapshot a save of this session wrote, or null: the file's rules
+// as the loader installed them). The family is refused for the rest of the
+// session, so no later mutation snapshots it, and the live model is replaced
+// with those rules under suppression: nothing is journalled or counted.
+
+
+/** What a restore needs from the renderer: the sheet's facade and a sync
+ *  mutation dispatcher (journal suppression is the caller's). */
+export interface RuleSetRestorePort {
+  worksheet: UniverWorksheet;
+  execute(id: string, params: Record<string, unknown>): void;
+}
+
+function restoredRules(
+  track: RuleSetTrack,
+  sheetId: string,
+  kind: XlsxRendererRuleSetKind,
+  rules: readonly XlsxRendererRuleSetRule[] | null,
+): Record<string, unknown>[] {
+  if (rules === null) return (track.baseline.get(sheetId)?.[kind] ?? []).map(plain);
+  return rules.map((entry) => {
+    restoredSequence += 1;
+    const ranges = entry.ranges.map(area);
+    return kind === "conditionalFormats"
+      ? { cfId: `restored-cf-${restoredSequence}`, ranges, stopIfTrue: entry.stopIfTrue === true, rule: plain(entry.rule) }
+      : { ...plain(entry.rule), uid: `restored-dv-${restoredSequence}`, ranges };
+  });
+}
+
+/** Refuse the family on the sheet for the session and replace its live rules
+ *  with `rules` (null: the file's installed rules). The caller has already
+ *  checked the policy (ruleSetRestoreAllowed). */
+export function restoreRuleSetFamily(
+  state: LazyWorkbookState,
+  sheetId: string,
+  kind: XlsxRendererRuleSetKind,
+  rules: readonly XlsxRendererRuleSetRule[] | null,
+  port: RuleSetRestorePort,
+): void {
+  const track = trackOf(state);
+  const refused = track.hostRefused.get(sheetId) ?? new Set<XlsxRendererRuleSetKind>();
+  refused.add(kind);
+  track.hostRefused.set(sheetId, refused);
+  const unitId = `file-${state.file.sha256}`;
+  const target = restoredRules(track, sheetId, kind, rules);
+  const facade = port.worksheet as unknown as {
+    getConditionalFormattingRules?: () => { cfId?: unknown }[];
+    getDataValidations?: () => { rule?: { uid?: unknown } }[];
+  };
+  const run = (id: string, params: Record<string, unknown>) => {
+    try {
+      port.execute(id, { unitId, subUnitId: sheetId, ...params });
+    } catch {
+      // One odd rule must not leave the rest of the sheet unrestored.
+    }
+  };
+  restoreSuppression.active = true;
+  try {
+    if (kind === "conditionalFormats") {
+      for (const live of facade.getConditionalFormattingRules?.() ?? []) {
+        if (typeof live.cfId === "string") run("sheet.mutation.delete-conditional-rule", { cfId: live.cfId });
+      }
+      // The model unshifts each add: add the last rule first to keep order.
+      for (const rule of [...target].reverse()) run("sheet.mutation.add-conditional-rule", { rule });
+    } else {
+      for (const live of facade.getDataValidations?.() ?? []) {
+        if (typeof live.rule?.uid === "string") run("data-validation.mutation.removeRule", { ruleId: live.rule.uid });
+      }
+      for (const rule of target) run("data-validation.mutation.addRule", { rule });
+    }
+  } finally {
+    restoreSuppression.active = false;
+  }
 }

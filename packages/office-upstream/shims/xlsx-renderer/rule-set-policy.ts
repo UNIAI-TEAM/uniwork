@@ -100,3 +100,19 @@ export function ruleSetMutationAllowed(event: RendererCommand, state: LazyWorkbo
   return !!params && typeof params === "object" && params.unitId === `file-${state.file.sha256}` &&
     typeof params.subUnitId === "string" && liveSessionSheets(state).some((sheet) => sheet.id === params.subUnitId);
 }
+
+/** A host restore after a dropped save (r3 MA-3) passes the same gate as the
+ *  rule mutations it dispatches: a live sheet of this workbook, a known
+ *  family, and, when the host names the rules, bounded in-grid areas and a
+ *  rule object for each (null restores the file's installed rules). */
+export function ruleSetRestoreAllowed(state: LazyWorkbookState, sheetId: unknown, kind: unknown, rules: unknown): boolean {
+  if (kind !== "conditionalFormats" && kind !== "dataValidations") return false;
+  if (typeof sheetId !== "string" || !liveSessionSheets(state).some((sheet) => sheet.id === sheetId)) return false;
+  if (rules === null) return true;
+  return Array.isArray(rules) && rules.length <= MAX_RULE_AREAS && rules.every((entry: unknown) => {
+    if (!entry || typeof entry !== "object") return false;
+    const shape = entry as { ranges?: unknown; rule?: unknown; stopIfTrue?: unknown };
+    return areasOK(shape.ranges) && !!shape.rule && typeof shape.rule === "object" &&
+      (shape.stopIfTrue === undefined || typeof shape.stopIfTrue === "boolean");
+  });
+}

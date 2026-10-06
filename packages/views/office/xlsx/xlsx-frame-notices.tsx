@@ -2,6 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import { RuleSetDropNotice } from "./conditional-format/rule-set-drop-notice";
+import { useRuleSetDropRestore, type RuleSetRestoreGrid } from "./conditional-format/use-rule-set-drop-restore";
 import type { XlsxEditorHandle } from "./types";
 
 export interface XlsxFrameNoticesProps {
@@ -12,11 +13,14 @@ export interface XlsxFrameNoticesProps {
   /** The save coordinator error code; xlsx_rule_sets_dropped shows the drop notice. */
   saveErrorCode?: string | null;
   editor?: Pick<XlsxEditorHandle, "droppedRuleSets">;
+  /** The live grid: a drop restores what the grid paints (r3 MA-3). */
+  grid?: RuleSetRestoreGrid;
 }
 
 /** The frame subbar notices: recalculation progress and the two inline errors. */
-export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor }: XlsxFrameNoticesProps) {
+export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor, grid }: XlsxFrameNoticesProps) {
   const { t } = useTranslation();
+  useRuleSetDropRestore(saveErrorCode, editor, grid);
   return (
     <>
       {recalcProgress !== null ? (

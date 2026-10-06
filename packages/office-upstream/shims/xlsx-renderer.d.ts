@@ -250,6 +250,13 @@ export interface XlsxRendererHandle {
   /** The live sheet list in tab order (rename/insert/remove/reorder as they
    *  happen). */
   getSheets(): readonly XlsxRendererSheetInfo[];
+  /** r3 MA-3: refuse a dropped CF/DV family of a sheet for the session and
+   *  show the rules the file holds (null: as opened). */
+  restoreRuleSet(
+    sheetId: string,
+    kind: "conditionalFormats" | "dataValidations",
+    rules: readonly { ranges: readonly { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; stopIfTrue?: boolean; rule: Record<string, unknown> }[] | null,
+  ): boolean;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;

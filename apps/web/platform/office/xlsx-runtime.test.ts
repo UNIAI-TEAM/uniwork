@@ -430,9 +430,9 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     const engine = await opened();
     await engine.edit("model", [cfOp, valueEdit(7)]);
     const snapshot = stable(engine);
-    api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf","Data"]]`));
+    api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[0]]]`));
     await expect(engine.serialize("model", { intentId: "save-1", snapshot })).rejects.toMatchObject({ code: "xlsx_rule_sets_dropped", errorClass: "engine" });
-    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data" }]);
+    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null }]);
     await engine.serialize("model", { intentId: "save-1", snapshot });
     expect(editRequests().map((body) => body.edits)).toEqual([[cfOp, valueEdit(7)], [valueEdit(7)]]);
     expect(engine.droppedRuleSets?.()).toEqual([]);
@@ -452,7 +452,7 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     const { engine, coordinator, documents } = await setup();
     await engine.edit("model", [cfOp]);
     coordinator.markDirty(stable(engine).generation);
-    api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf","Data"]]`));
+    api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[1]]]`));
     expect(await coordinator.save("shortcut")).toEqual({ accepted: false, reason: "error" });
     expect(editRequests()).toHaveLength(1);
     expect(coordinator.getState()).toMatchObject({ state: "error", error: { code: "xlsx_rule_sets_dropped", action: "retry", retryable: false } });
@@ -460,5 +460,42 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     expect(await coordinator.save("shortcut")).toMatchObject({ accepted: true });
     expect(editRequests().map((body) => body.edits)).toEqual([[valueEdit(7), cfOp], [valueEdit(7)]]);
     expect(documents.commit).toHaveBeenCalledOnce();
+  });
+
+  it("names the live sheet when a rename follows the dropped rule edit, and the next save commits the rest", async () => {
+    const { engine, coordinator, documents } = await setup();
+    const rename = { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Doanh thu" } };
+    const cell = { op: "set_cell", target: { sheet: "Doanh thu", cell: "A2" }, attributes: { value: 1 } };
+    await engine.edit("model", [cfOp, rename, cell]);
+    coordinator.markDirty(stable(engine).generation);
+    api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[1]]]`));
+    expect(await coordinator.save("shortcut")).toEqual({ accepted: false, reason: "error" });
+    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Doanh thu", savedRules: null }]);
+    expect(await coordinator.save("shortcut")).toMatchObject({ accepted: true });
+    expect(editRequests()[1].edits).toEqual([valueEdit(7), rename, cell]);
+    expect(documents.commit).toHaveBeenCalledOnce();
+  });
+
+  it("drops nothing for a stale position", async () => {
+    const engine = await opened();
+    await engine.edit("model", [cfOp, valueEdit(7)]);
+    const snapshot = stable(engine);
+    api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[7]]]`));
+    await expect(engine.serialize("model", { intentId: "save-1", snapshot })).rejects.toMatchObject({ code: "xlsx_rule_sets_dropped" });
+    expect(engine.droppedRuleSets?.()).toEqual([]);
+    await engine.serialize("model", { intentId: "save-1", snapshot });
+    expect(editRequests().at(-1)?.edits).toEqual([cfOp, valueEdit(7)]);
+  });
+
+  it("reports the rules a committed save wrote as savedRules of a later dropped op", async () => {
+    const { engine, coordinator } = await setup();
+    await engine.edit("model", [cfRuleOp]);
+    coordinator.markDirty(stable(engine).generation);
+    expect(await coordinator.save("shortcut")).toMatchObject({ accepted: true });
+    await engine.edit("model", [cfOp]);
+    coordinator.markDirty(stable(engine).generation);
+    api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[0]]]`));
+    expect(await coordinator.save("shortcut")).toEqual({ accepted: false, reason: "error" });
+    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: cfRuleOp.attributes.rules }]);
   });
 });

@@ -30,12 +30,20 @@ function deferred() {
  *  a test can type while it is in flight. */
 function makeBridge(opened = workbook()) {
   let hold: Promise<void> | null = null;
+  let refuseEdit: string | null = null;
   let modified = 1_000;
   const call = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
     if (channel === "desktop:office-job" || channel === "desktop:file-xlsx") {
       // The local channel answers without the cloud job envelope fields.
       const job = channel === "desktop:office-job" ? { jobId: "job", documentId: "doc-j" } : {};
       if (payload.operation === "open") return { ...job, state: "completed", outputBase64: encode({ snapshot: opened, render_model: renderModel }) };
+      if (refuseEdit !== null) {
+        const reason = refuseEdit;
+        refuseEdit = null;
+        // The cloud transport hands the refusal back as errorReason; the local channel throws the engine error.
+        if (channel === "desktop:file-xlsx") throw new Error(`Error invoking remote method 'desktop:file-xlsx': XlsxTypedError: ${reason}`);
+        return { ...job, state: "failed", errorReason: reason };
+      }
       return { ...job, state: "completed", outputBase64: Buffer.from([1, 2, 3]).toString("base64"), outputChecksum: `sha256:${"a".repeat(64)}` };
     }
     if (channel === "desktop:office-save" || channel === "desktop:file-save") {
@@ -50,7 +58,7 @@ function makeBridge(opened = workbook()) {
     if (channel === "desktop:draft-checkpoint") return { stored: true, generation: payload.generation };
     throw new Error("unexpected channel " + channel);
   });
-  return { call, holdSaves: (gate: Promise<void> | null) => { hold = gate; } };
+  return { call, refuseNextEdit: (reason: string) => { refuseEdit = reason; }, holdSaves: (gate: Promise<void> | null) => { hold = gate; } };
 }
 
 const editJobs = (bridge: ReturnType<typeof makeBridge>) =>
@@ -109,5 +117,21 @@ describe.each(Object.entries(hosts))("desktop %s xlsx session journal", (_name, 
     restored.coordinator.markDirty(restored.editor.getDirtyGeneration());
     expect(await restored.coordinator.save("button")).toMatchObject({ accepted: true });
     expect(editJobs(reopened)[0]).toEqual([cell("B2", 8), insert, cell("C3", 9)]);
+  });
+
+  it("drops the refused rule-set op from the save and the draft stream, then commits the rest on the next Save", async () => {
+    const bridge = makeBridge();
+    const session = create(bridge);
+    const cfOp = { op: "set_conditional_formats", target: { sheet: "Data" }, attributes: { rules: [] } };
+    await session.open.open();
+    await session.editor.edit?.([cfOp, cell("A1", 5)]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    bridge.refuseNextEdit('xlsx_rule_sets_dropped:[["cf",[0]]]');
+    expect(await session.coordinator.save("button")).toEqual({ accepted: false, reason: "error" });
+    expect(session.coordinator.getState()).toMatchObject({ state: "error", error: { code: "xlsx_rule_sets_dropped", retryable: false } });
+    expect(session.editor.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null }]);
+    expect(((await session.editor.captureSnapshot()).value as { pendingOps?: unknown[] }).pendingOps).toEqual([cell("A1", 5)]);
+    expect(await session.coordinator.save("button")).toMatchObject({ accepted: true });
+    expect(editJobs(bridge)).toEqual([[cfOp, cell("A1", 5)], [cell("A1", 5)]]);
   });
 });

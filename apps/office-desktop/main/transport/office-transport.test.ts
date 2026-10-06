@@ -174,6 +174,21 @@ describe("desktop office HTTP transport", () => {
     expect(polls).toBe(2);
   }, 20_000);
 
+  it.each([
+    ["xlsx_rule_sets_dropped:[[\"cf\",[1]]]", "xlsx_rule_sets_dropped:[[\"cf\",[1]]]"],
+    ["cannot open Budget Q3 confidential.xlsx", undefined],
+  ])("passes a failed job's reason to the renderer only for the rule-set refusal (%s)", async (reason, expected) => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/documents/doc-x/office/jobs") && init?.method === "POST") return new Response(JSON.stringify({ job_id: "job-1", state: "accepted" }), { status: 202 });
+      if (url.endsWith("/office/jobs/job-1")) return new Response(JSON.stringify({ job_id: "job-1", state: "failed", error: { code: "unsupported_operation", reason } }), { status: 200 });
+      throw new Error("unexpected " + url);
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    const result = await transport.officeJob({ workspaceId: "ws-1", documentId: "doc-x", format: "xlsx", operation: "edit", baseRevision: "2", edits: [] });
+    expect(result.state).toBe("failed");
+    expect(result.errorReason).toBe(expected);
+  }, 20_000);
+
   it("registers a document context without downloading bytes for a metadata-only open", async () => {
     const summaryRow = { id: "doc-x", organization_id: "org-1", workspace_id: "ws-1", kind: "file", title: "budget.xlsx", visibility: "workspace", revision: "2", current_version: 1, position: 0, my_level: "edit", created_by: "user-1", created_by_kind: "human", updated_by: "user-1", updated_by_kind: "human", created_at: "2026-09-30T00:00:00Z", updated_at: "2026-09-30T00:00:00Z" };
     const fetchImpl = vi.fn(async (input: string) => {

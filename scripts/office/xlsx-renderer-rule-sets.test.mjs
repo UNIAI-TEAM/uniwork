@@ -34,7 +34,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand } = module.exports;
+const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed } = module.exports;
 
 const area = (startRow, endRow, startColumn, endColumn) => ({ startRow, endRow, startColumn, endColumn });
 function state({ applied = ['s1'], ruleSets, ruleCounts } = {}) {
@@ -274,4 +274,68 @@ test('a duplicate of a not-yet-installed classic sheet stays refused; a ready so
   assert.equal(ingestRuleSetMutation(ready, mutation('sheet.mutation.add-conditional-rule', { unitId: 'file-sha', subUnitId: 'copy' }), () => worksheet()).length, 1);
   copySheet(ready, 'fresh');
   assert.equal(addDv(ready, 'fresh'), true);
+});
+
+// Review r3 MA-3: after a save dropped a family of a sheet, the host restores
+// the rules the file holds and the family stays refused for the session.
+const restorePort = (cf, dv) => {
+  const calls = [];
+  return { calls, port: { worksheet: worksheet(cf, dv), execute: (id, params) => calls.push([id, params]) } };
+};
+
+test('a restore with the saved rules replaces the live CF model and refuses the family', () => {
+  const book = state();
+  const live = [cfRule, { ...cfRule, cfId: 'cf-bad' }];
+  const { calls, port } = restorePort(live, [dvRule]);
+  const saved = [
+    { ranges: [area(0, 0, 0, 0)], stopIfTrue: true, rule: { type: 'highlightCell', tag: 'first' } },
+    { ranges: [area(1, 1, 0, 0)], stopIfTrue: false, rule: { type: 'highlightCell', tag: 'second' } },
+  ];
+  restoreRuleSetFamily(book, 's1', 'conditionalFormats', saved, port);
+  assert.deepEqual(calls.slice(0, 2).map(([id, params]) => [id, params.cfId]), [
+    ['sheet.mutation.delete-conditional-rule', 'cf-1'], ['sheet.mutation.delete-conditional-rule', 'cf-bad'],
+  ]);
+  // The model unshifts each add: the last saved rule goes in first.
+  const added = calls.slice(2);
+  assert.deepEqual(added.map(([id, params]) => [id, params.subUnitId, params.rule.rule.tag, params.rule.stopIfTrue]), [
+    ['sheet.mutation.add-conditional-rule', 's1', 'second', false], ['sheet.mutation.add-conditional-rule', 's1', 'first', true],
+  ]);
+  assert.ok(added.every(([, params]) => params.unitId === 'file-sha' && typeof params.rule.cfId === 'string'));
+  assert.equal(ruleSetSheetReady(book, 's1', 'conditionalFormats'), false);
+  assert.equal(ruleSetSheetReady(book, 's1', 'dataValidations'), true, 'the other family is untouched');
+  assert.equal(addCf(book), false, 'a further edit is refused, with the dialog reason');
+  assert.deepEqual(ingestRuleSetMutation(book, mutation('sheet.mutation.add-conditional-rule'), () => worksheet()), [], 'and never snapshotted');
+});
+
+test('a restore without saved rules reinstalls the file rules the loader installed, without counting them again', () => {
+  const book = state({ applied: [], ruleSets: classic, ruleCounts: { conditionalFormats: 2, dataValidations: 1 } });
+  install(book, 'sheet.mutation.add-conditional-rule', cfRule);
+  install(book, 'sheet.mutation.add-conditional-rule', { ...cfRule, cfId: 'cf-2' });
+  install(book, 'data-validation.mutation.addRule', dvRule);
+  book.appliedDvSheets.add('s1');
+  const dv = restorePort([], [dvRule, { ...dvRule, uid: 'dv-session' }]);
+  restoreRuleSetFamily(book, 's1', 'dataValidations', null, dv.port);
+  assert.deepEqual(dv.calls.map(([id, params]) => [id, params.ruleId ?? params.rule?.uid]), [
+    ['data-validation.mutation.removeRule', 'dv-1'], ['data-validation.mutation.removeRule', 'dv-session'], ['data-validation.mutation.addRule', 'dv-1'],
+  ]);
+  const cf = restorePort([{ ...cfRule, cfId: 'cf-session' }], []);
+  restoreRuleSetFamily(book, 's1', 'conditionalFormats', null, cf.port);
+  // Model order was [cf-2, cf-1] (each install unshifts); re-adding cf-1 then cf-2 rebuilds it.
+  assert.deepEqual(cf.calls.map(([id, params]) => [id, params.cfId ?? params.rule?.cfId]), [
+    ['sheet.mutation.delete-conditional-rule', 'cf-session'], ['sheet.mutation.add-conditional-rule', 'cf-1'], ['sheet.mutation.add-conditional-rule', 'cf-2'],
+  ]);
+  assert.equal(addDv(book), false);
+  assert.equal(addCf(book), false);
+});
+
+test('a restore passes the rule-set policy gate: a live sheet of this workbook, a known family, bounded rules', () => {
+  const book = state();
+  const rules = [{ ranges: [area(0, 0, 0, 0)], rule: { type: 'whole' } }];
+  assert.equal(ruleSetRestoreAllowed(book, 's1', 'dataValidations', rules), true);
+  assert.equal(ruleSetRestoreAllowed(book, 's1', 'conditionalFormats', null), true);
+  assert.equal(ruleSetRestoreAllowed(book, 'nope', 'conditionalFormats', null), false);
+  assert.equal(ruleSetRestoreAllowed(book, 's1', 'filters', null), false);
+  assert.equal(ruleSetRestoreAllowed(book, 's1', 'conditionalFormats', [{ ranges: [area(3, 1, 0, 0)], rule: {} }]), false);
+  assert.equal(ruleSetRestoreAllowed(book, 's1', 'conditionalFormats', [{ ranges: [area(0, 0, 0, 0)] }]), false);
+  assert.equal(ruleSetRestoreAllowed(book, 's1', 'conditionalFormats', 'x'), false);
 });

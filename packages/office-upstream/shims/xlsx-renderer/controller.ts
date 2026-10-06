@@ -35,7 +35,8 @@ import { SheetInterceptorService } from "@univerjs/sheets";
 import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
-import { ingestRuleSetMutation } from "./rule-set-capture";
+import { ingestRuleSetMutation, restoreRuleSetFamily, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
+import { ruleSetRestoreAllowed } from "./rule-set-policy";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
 import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
 import {
@@ -194,6 +195,10 @@ export interface XlsxRendererHandle {
   /** The live sheet list in tab order (rename/insert/remove/reorder as they
    *  happen); read-only mounts still report it. */
   getSheets(): readonly XlsxRendererSheetInfo[];
+  /** After a save dropped a CF/DV family of a sheet (r3 MA-3): refuse it for
+   *  the session and show the rules the file holds (null: as opened).
+   *  Refused on a read-only mount or by the rule-set policy. */
+  restoreRuleSet(sheetId: string, kind: XlsxRendererRuleSetKind, rules: readonly XlsxRendererRuleSetRule[] | null): boolean;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -811,6 +816,22 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         name: sheet.getSheetName(),
         hidden: sheet.isSheetHidden() === true,
       }));
+    },
+    restoreRuleSet(sheetId, kind, rules) {
+      const state = lazyWorkbookRef.current;
+      if (options.readOnly || !state || !ruleSetRestoreAllowed(state, sheetId, kind, rules)) return false;
+      const worksheet = runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId);
+      if (!worksheet) return false;
+      journalSuppression.active = true;
+      try {
+        restoreRuleSetFamily(state, sheetId, kind, rules, {
+          worksheet,
+          execute: (id, params) => { runtime.univerAPI.syncExecuteCommand(id, params); },
+        });
+      } finally {
+        journalSuppression.active = false;
+      }
+      return true;
     },
     setDarkMode: (dark) => themeService.setDarkMode(dark),
     undo() {
