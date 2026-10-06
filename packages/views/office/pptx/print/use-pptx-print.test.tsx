@@ -71,10 +71,14 @@ describe("usePptxPrint", () => {
       onFailed,
       rasterize: null,
     }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     act(() => result.current.run());
     expect(result.current.pending).toBe(true);
     await waitFor(() => expect(onFailed).toHaveBeenCalledTimes(1));
     expect(onFailed.mock.calls[0]![0]).toEqual(expect.objectContaining({ message: "The presentation could not be printed." }));
+    // The cause is not shown to the user, but it is not swallowed either.
+    expect(warn).toHaveBeenCalledWith("[pptx-print]", expect.objectContaining({ message: "text_commit_conflict" }));
+    warn.mockRestore();
     expect(print).not.toHaveBeenCalled();
     await waitFor(() => expect(result.current.pending).toBe(false));
   });

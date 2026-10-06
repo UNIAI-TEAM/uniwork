@@ -84,7 +84,11 @@ export function usePptxPrint(options: UsePptxPrintOptions): PptxPrintController 
     // A failed text commit is reported like any other failed run: the user asked to print.
     const commit = flush();
     void (commit ? commit.then(print) : print())
-      .catch(() => onFailed(new Error(t("office.pptx.print.failed"))))
+      .catch((error: unknown) => {
+        // The user sees the generic message; the cause goes to the console for support.
+        console.warn("[pptx-print]", error);
+        onFailed(new Error(t("office.pptx.print.failed")));
+      })
       .finally(() => { running.current = false; setPending(false); });
   }, [flush, onFailed, port, rasterizer, renderer, t, title]);
 
