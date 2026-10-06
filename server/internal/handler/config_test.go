@@ -125,3 +125,30 @@ func TestConfigPublishesOfficeInstallers(t *testing.T) {
 		})
 	}
 }
+
+// The per-channel maps the installer workflow emits come back from
+// GET /api/v1/config as office_installers, links and unsigned labels intact.
+func TestConfigPublishesCIJobInstallerURLs(t *testing.T) {
+	base := "https://github.com/unicomhub/uniwork/releases/download/office-desktop-v0.1.0-dev.7/"
+	h := New(Deps{Cfg: config.Config{
+		OfficeInstallerDevURLs: `{"win32-x64":"` + base + `uniwork-office-test_0.1.0-dev.7_unsigned_win32_x64-setup.exe","linux-x64-deb":"` + base + `uniwork-office-test_0.1.0-dev.7_unsigned_linux_x64.deb"}`,
+	}, Log: slog.Default()})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/config", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var out struct {
+		Installers map[string][]config.OfficeInstaller `json:"office_installers"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	dev := out.Installers["dev"]
+	if len(dev) != 2 || dev[0].Platform != "win32-x64" || dev[1].Platform != "linux-x64-deb" || !dev[0].Unsigned || !dev[1].Unsigned || dev[1].Version != "0.1.0-dev.7" || !strings.HasPrefix(dev[0].URL, base) {
+		t.Fatalf("dev installers = %+v", dev)
+	}
+	if len(out.Installers["beta"]) != 0 || len(out.Installers["stable"]) != 0 {
+		t.Fatalf("beta/stable must stay empty: %+v", out.Installers)
+	}
+}
