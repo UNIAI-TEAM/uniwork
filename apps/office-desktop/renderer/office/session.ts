@@ -353,6 +353,9 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
         rawCoordinator.setIdentity({ ...target, baseVersionId: String(result.document.version), baseRevision: result.document.revision });
       }
       contextError = undefined;
+      // Any later rebind that succeeds (a checkpoint's or a Save's) retires the
+      // coded refusal, so it never overlays a Save that went through.
+      if (rebindRefusal) { rebindRefusal = null; publish(); }
     })().finally(() => { contextRefresh = undefined; });
     return contextRefresh;
   };
@@ -369,11 +372,12 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       try {
       return await gate.run(async () => {
       if (contextError) {
-        try { await bindDraftContext(); rebindRefusal = null; }
+        try { await bindDraftContext(); }
         catch (error) { rebindRefusal = dispatchOfficeError(error); publish(); return { accepted: false as const, reason: "error" as const }; }
       }
       const result = await rawCoordinator.save(entryPoint);
       if (result.accepted) {
+        if (rebindRefusal) { rebindRefusal = null; publish(); }
         await surface?.rebaseSaveSource?.(result.receipt);
         await consumeRecoveredRow(rawCoordinator.getState().lastSavedGeneration);
         const output = outputs.get(result.intentId);

@@ -100,3 +100,31 @@ it("routes a refused context rebind after a confirmed local Save into the error 
   process.off("unhandledRejection", unhandled);
   expect(unhandled).not.toHaveBeenCalled();
 }, 30_000);
+
+it("retires the coded refusal when a checkpoint's rebind succeeds first, so a later Save shows no stale error", async () => {
+  let confirmed = false;
+  let rebindRefused = true;
+  const { session, saves } = await openSession((channel) => {
+    if (channel === "desktop:file-open") return confirmed && rebindRefused ? { opened: false, code: "file_locked" } : saved;
+    if (channel === "desktop:file-save") { confirmed = true; return saved; }
+    if (channel === "desktop:draft-checkpoint") return { stored: true, generation: 3 };
+    return { drafts: [] };
+  });
+  render(<OfficeShell title="Local.docx" editor={<div />} saveCoordinator={session.coordinator} editorReady saveDestination="local" />);
+  act(() => session.coordinator.markDirty(1));
+  await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
+  act(() => session.coordinator.markDirty(2));
+  await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: false, reason: "error" });
+  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("office.save.reason.file_locked"));
+  // The lock clears and a checkpoint (not a Save) is the first to rebind the context.
+  rebindRefused = false;
+  await act(async () => { await session.coordinator.checkpoint(); });
+  expect(session.coordinator.getState().error).toBeNull();
+  expect(session.coordinator.getState().state).not.toBe("error");
+  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  // The next Save skips the rebind block; it must still settle without the old error.
+  await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
+  expect(session.coordinator.getState()).toMatchObject({ state: "ready", error: null });
+  expect(saves()).toBe(2);
+  expect(screen.queryByRole("alert")).toBeNull();
+}, 30_000);
