@@ -342,6 +342,8 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     redo() {
       tiptapEditor?.commands.redo();
     },
+    canUndo: () => tiptapEditor?.can().undo() ?? false,
+    canRedo: () => tiptapEditor?.can().redo() ?? false,
     async dispose() {
       if (disposed) return;
       disposed = true;

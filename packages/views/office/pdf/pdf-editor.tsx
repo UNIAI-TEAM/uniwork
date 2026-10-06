@@ -11,6 +11,7 @@ import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
 import { PdfRibbonBar, PdfStatusBar } from "./chrome";
 import { PdfEditorSurface, type PdfSurfacePanelId } from "./pdf-editor-surface";
 import { pdfEditErrorKey } from "./pdf-edit-error";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import { PDF_MAX_ZOOM, PDF_MIN_ZOOM, clampPdfZoom, fitPdfZoom } from "./fit-zoom";
 import { PDF_COMMANDS, PDF_BROWSER_UNSUPPORTED_REASON_KEY, PDF_COMMAND_CAPABILITIES, pdfCommandDisabledReason, type PdfCommandId } from "./pdf-command-map";
 import type { PdfToolbarCommand, PdfToolbarTab } from "./toolbar";
@@ -312,11 +313,11 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   }, [coordinator, editor, refreshSnapshot]);
 
   // A host that reports byte changes itself (async undo/redo) refreshes the view
-  // and re-marks dirty with the generation the swap produced. undo/redo mark
-  // synchronously, before the adapter's queued byte swap bumps the generation, so
-  // without this the coordinator still holds the pre-step generation and refuses
-  // Save with `invalid_snapshot`. markDirty is Math.max-monotonic, so re-marking
-  // on every notify is safe for the edit path too.
+  // and marks dirty with the generation the swap produced. This notify is the
+  // only dirty signal of an async undo/redo (an empty stack never fires it), and
+  // it carries the post-swap generation, so Save does not refuse with
+  // `invalid_snapshot`. markDirty is Math.max-monotonic, so re-marking on every
+  // notify is safe for the edit path too.
   useEffect(() => editor.subscribe?.(() => {
     coordinator.markDirty?.(editor.getDirtyGeneration());
     refreshSnapshot();
@@ -365,11 +366,12 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     void coordinator.save(entryPoint);
   }, [coordinator, readOnly, viewState]);
 
-  // Ctrl+Z/Y and the ribbon's undo/redo only mark dirty when the handle can
-  // actually step: without the facet the call is a no-op and re-marking would
-  // let a later Save commit identical bytes.
-  const undo = useCallback(() => { if (readOnly || !editor.undo) return; editor.undo(); markDirty(); }, [editor, markDirty, readOnly]);
-  const redo = useCallback(() => { if (readOnly || !editor.redo) return; editor.redo(); markDirty(); }, [editor, markDirty, readOnly]);
+  // Ctrl+Z/Y and the ribbon's undo/redo mark dirty only from a real change: an
+  // empty stack (or a missing facet) is a no-op and must not flag the document
+  // unsaved. The hosts swap bytes asynchronously and report the change through
+  // `subscribe` above; `stepHistory` covers a handle that steps synchronously.
+  const undo = useCallback(() => { if (!readOnly && stepHistory(editor, "undo")) markDirty(); }, [editor, markDirty, readOnly]);
+  const redo = useCallback(() => { if (!readOnly && stepHistory(editor, "redo")) markDirty(); }, [editor, markDirty, readOnly]);
   const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
   const zoomOut = useCallback(() => setZoom((value) => clampPdfZoom(value - ZOOM_STEP)), []);
   const zoomIn = useCallback(() => setZoom((value) => clampPdfZoom(value + ZOOM_STEP)), []);
@@ -426,6 +428,9 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const canRunBrowserUnsupported = canEditText && !browserLane;
   const browserUnsupportedHint = browserLane && viewState === "ready" && (activeTab === "edit" || activeTab === "pages");
   const promptMode = failure ? passwordMode(failure) : null;
+  // Read on every render: each byte change bumps `revision`, which re-renders.
+  const undoReady = canStepHistory(editor, "undo");
+  const redoReady = canStepHistory(editor, "redo");
 
   // One row per command the ribbon can render; the chrome decides which rows a
   // tab shows and falls back to the catalogue label for each id.
@@ -448,10 +453,10 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     };
     return COMMAND_ORDER.map((id) => {
       const browserReasonKey = pdfCommandDisabledReason(id, browserLane);
-      // A handle with no undo/redo facet cannot step history, so
-      // disable the control instead of letting it no-op and mark the document dirty.
-      const facetMissing = (id === PDF_COMMANDS.undo && !editor.undo) || (id === PDF_COMMANDS.redo && !editor.redo);
-      const disabled = facetMissing
+      // Undo/Redo with nothing to step (no facet, or an empty stack) stay
+      // aria-disabled instead of running a no-op.
+      const historyBlocked = (id === PDF_COMMANDS.undo && !undoReady) || (id === PDF_COMMANDS.redo && !redoReady);
+      const disabled = historyBlocked
         || (browserReasonKey !== undefined
           ? !canRunBrowserUnsupported
           : availableByCapability[CAPABILITY_FOR_COMMAND[id]] !== true);
@@ -462,7 +467,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
         onExecute: () => { if (!disabled) executeCommand(id); },
       };
     });
-  }, [browserLane, canAnnotate, canEditText, canPageOps, canReplaceImage, canRunBrowserUnsupported, editor.redo, editor.undo, executeCommand, readOnly, t, viewState]);
+  }, [browserLane, canAnnotate, canEditText, canPageOps, canReplaceImage, canRunBrowserUnsupported, executeCommand, readOnly, redoReady, t, undoReady, viewState]);
 
   // F1: once ready, the shared Office frame (ribbon, sub-bars, rail, canvas,
   // status bar) is the only chrome; the page header owns the title and Save.

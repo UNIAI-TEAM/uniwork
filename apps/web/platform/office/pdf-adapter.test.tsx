@@ -170,6 +170,51 @@ describe("web PDF format adapter", () => {
     await adapter.session.dispose();
   });
 
+  it("reports canUndo/canRedo from the stacks, already moved when subscribers run (UNI-954)", async () => {
+    const { adapter, editor } = setup();
+    await adapter.open.open();
+    expect(editor.canUndo?.()).toBe(false);
+    expect(editor.canRedo?.()).toBe(false);
+    const seen: Array<[boolean | undefined, boolean | undefined]> = [];
+    editor.subscribe?.(() => seen.push([editor.canUndo?.(), editor.canRedo?.()]));
+    await editor.submitEngineOperations?.([{ op: "a" }]);
+    const stepped = () => new Promise<void>((resolve) => { const off = editor.subscribe!(() => { off(); resolve(); }); });
+    let next = stepped();
+    editor.undo?.();
+    await next;
+    next = stepped();
+    editor.redo?.();
+    await next;
+    expect(seen).toEqual([[true, false], [false, true], [true, false]]);
+    // A redo on the now-empty redo stack is a no-op: no notify, no generation bump.
+    const generation = editor.getDirtyGeneration();
+    editor.redo?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(seen).toHaveLength(3);
+    expect(editor.getDirtyGeneration()).toBe(generation);
+    await adapter.session.dispose();
+  });
+
+  it("a step overtaken by dispose commits nothing (r5 F4 parity)", async () => {
+    const { adapter, editor, sessions } = setup();
+    await adapter.open.open();
+    await editor.submitEngineOperations?.([{ op: "a" }]);
+    let release: (() => void) | null = null;
+    sessions[0]!.replaceBytes.mockImplementationOnce(() => new Promise<void>((resolve) => { release = resolve; }));
+    const listener = vi.fn();
+    editor.subscribe?.(listener);
+    editor.undo?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(release).not.toBeNull();
+    void editor.dispose();
+    release!();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(listener).not.toHaveBeenCalled();
+    expect(editor.getDirtyGeneration()).toBe(0);
+    expect(editor.canUndo?.()).toBe(false);
+    await adapter.session.dispose();
+  });
+
   it("reads form fields from the current bytes and searches page text case-insensitively", async () => {
     const { adapter, editor, readFormFields } = setup();
     await adapter.open.open();

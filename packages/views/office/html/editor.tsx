@@ -26,6 +26,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import { OfficeFrame } from "../frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { MarkdownPrintMenuItems } from "../markdown/wysiwyg/print-menu";
@@ -249,8 +250,8 @@ export function HtmlEditor<TSnapshot = unknown>({
     if (viewState === "ready" && !readOnly && !blockedAsset && !saving) void coordinator.save(entryPoint);
   }, [blockedAsset, coordinator, readOnly, saving, viewState]);
   const history = useCallback((kind: "undo" | "redo") => {
-    if (kind === "undo") editorRef.current.undo?.();
-    else editorRef.current.redo?.();
+    // An empty stack is not a change: no dirty mark, no checkpoint (UNI-954).
+    if (!stepHistory(editorRef.current, kind)) return;
     setText(sourceText(editorRef.current, ""));
     markDirty();
     checkpoint();
@@ -404,7 +405,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             */
             <HtmlRibbon
               commands={ribbonCommands}
-              state={{ readOnly }}
+              state={{ readOnly, canUndo: canStepHistory(editor, "undo"), canRedo: canStepHistory(editor, "redo") }}
               onFind={openFind}
               viewMode={ribbonViewMode}
               onViewModeChange={onRibbonViewModeChange}

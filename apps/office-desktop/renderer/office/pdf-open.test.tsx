@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { OpenByteDocument } from "./open-document";
 import { createByteDocumentSession } from "./session";
@@ -113,12 +113,19 @@ it("steps the desktop byte history from the quick-access buttons and Ctrl+Z / Ct
   const editor = await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
   const undo = await screen.findByTestId("pdf-chrome-undo");
   const redo = await screen.findByTestId("pdf-chrome-redo");
-  expect(undo).not.toHaveAttribute("aria-disabled");
-  expect(redo).not.toHaveAttribute("aria-disabled");
+  // Fresh document: nothing to step, so both stay aria-disabled and a Ctrl+Z
+  // does not flag the document unsaved (UNI-954).
+  expect(undo).toHaveAttribute("aria-disabled", "true");
+  expect(redo).toHaveAttribute("aria-disabled", "true");
+  fireEvent.keyDown(editor, { key: "z", ctrlKey: true });
+  fireEvent.click(undo);
+  expect(session.coordinator.getState().state).not.toBe("dirty");
 
-  await session.editor.submitEngineOperations!([{ op: "rotatePage", pageIndex: 0, degrees: 90 }]);
+  await act(async () => { await session.editor.submitEngineOperations!([{ op: "rotatePage", pageIndex: 0, degrees: 90 }]); });
   const lastProbe = () => probes[probes.length - 1];
   expect(lastProbe()).toBe(editedBytes);
+  await waitFor(() => expect(undo).not.toHaveAttribute("aria-disabled"));
+  expect(redo).toHaveAttribute("aria-disabled", "true");
 
   fireEvent.keyDown(editor, { key: "z", ctrlKey: true });
   await waitFor(() => expect(lastProbe()).toBe(pdfBytes));

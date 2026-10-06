@@ -201,6 +201,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     get openOutcome() { const lane = surface; return lane?.openOutcome?.bind(lane); },
     renderSurface: () => surface?.renderSurface?.() ?? null,
     undo: () => surface?.undo?.(), redo: () => surface?.redo?.(),
+    get canUndo() { const lane = surface; return lane?.canUndo?.bind(lane); },
+    get canRedo() { const lane = surface; return lane?.canRedo?.bind(lane); },
     dispose: () => { disposed = true; unsubscribeDirty?.(); bytes = new Uint8Array(); checkpoint = null; pendingIntent = null; return surface?.dispose(); },
   };
   const createSurface = async (source: Uint8Array, initialGeneration: number): Promise<DesktopEditorSurface> => {

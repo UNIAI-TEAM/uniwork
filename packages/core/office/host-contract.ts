@@ -43,6 +43,11 @@ export interface EditorHandle<TSnapshot = unknown> {
   captureSnapshot(): Promise<StableSnapshot<TSnapshot>>;
   undo?(): void;
   redo?(): void;
+  /** Whether undo/redo has a step to take right now. A view keeps its
+   *  Undo/Redo control aria-disabled while this is false; a handle without
+   *  it is treated as always able to step. */
+  canUndo?(): boolean;
+  canRedo?(): boolean;
   /** A Save committed these bytes: the editor rebases whatever its next
    *  serialization derives from them (DOCX core properties). */
   rebaseSaveSource?(receipt: OfficeSaveReceipt): void | Promise<void>;

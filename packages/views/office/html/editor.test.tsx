@@ -207,6 +207,26 @@ describe("HtmlEditor", () => {
     expect(ribbon!.querySelector("[data-ribbon-trailing]")).not.toBeNull();
     expect(ribbon!.querySelector('[data-ribbon-tab="home"]')).not.toBeNull();
   });
+
+  it("marks dirty and checkpoints only when an undo/redo step moved the source (UNI-954)", async () => {
+    const { editor, coordinator, container } = await renderReady();
+    const section = container.querySelector('[data-testid="html-editor"]') as HTMLElement;
+    coordinator.markDirty.mockClear();
+    coordinator.checkpoint.mockClear();
+    // The handle's generation stays put: both stacks are empty.
+    fireEvent.keyDown(section, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(section, { key: "y", ctrlKey: true });
+    expect(editor.undo).toHaveBeenCalledTimes(1);
+    expect(editor.redo).toHaveBeenCalledTimes(1);
+    expect(coordinator.markDirty).not.toHaveBeenCalled();
+    expect(coordinator.checkpoint).not.toHaveBeenCalled();
+    let generation = 1;
+    editor.getDirtyGeneration = () => generation;
+    vi.mocked(editor.undo!).mockImplementation(() => { generation += 1; });
+    fireEvent.keyDown(section, { key: "z", ctrlKey: true });
+    expect(coordinator.markDirty).toHaveBeenCalledWith(2);
+    expect(coordinator.checkpoint).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("HtmlEditor view modes", () => {

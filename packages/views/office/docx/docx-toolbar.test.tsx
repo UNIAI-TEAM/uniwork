@@ -249,8 +249,24 @@ describe("DocxToolbarShell", () => {
     fireEvent.click(bold);
     expect(toggleBold).not.toHaveBeenCalled();
 
-    expect(screen.getByRole("button", { name: "Ho\u00e0n t\u00e1c" })).toBeDisabled();
+    // Undo/Redo follow the a11y contract: aria-disabled keeps them focusable.
+    expect(screen.getByRole("button", { name: "Ho\u00e0n t\u00e1c" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("docx-save")).toBeDisabled();
+  });
+
+  it("keeps Undo/Redo focusable but inert while the history is empty (UNI-954)", () => {
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
+    render(<DocxToolbarShell {...context({ canUndo: false, canRedo: false, onUndo, onRedo })} />);
+    const undo = screen.getByRole("button", { name: t("office.docx.actions.undo") });
+    const redo = screen.getByRole("button", { name: t("office.docx.actions.redo") });
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    expect(redo).toHaveAttribute("aria-disabled", "true");
+    expect(undo).not.toBeDisabled();
+    fireEvent.click(undo);
+    fireEvent.click(redo);
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(onRedo).not.toHaveBeenCalled();
   });
 
   it("routes Save through onSave and reports the save state in the live region", () => {

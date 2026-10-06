@@ -25,6 +25,9 @@ export function DocxToolbarShell(context: DocxToolbarProps) {
   const { t } = useTranslation();
   const { coordinator, readOnly = false, saving, dirty, canUndo, canRedo, onUndo, onRedo, onSave } = context;
   const blocked = readOnly || saving;
+  // Undo/Redo stay focusable on an empty history: aria-disabled, blocked in JS.
+  const undoBlocked = blocked || !canUndo;
+  const redoBlocked = blocked || !canRedo;
 
   return (
     <div data-testid="docx-toolbar">
@@ -39,8 +42,8 @@ export function DocxToolbarShell(context: DocxToolbarProps) {
               variant="toolbar"
               size="icon-sm"
               aria-label={t("office.docx.actions.undo")}
-              disabled={blocked || !canUndo}
-              onClick={onUndo}
+              aria-disabled={undoBlocked || undefined}
+              onClick={() => { if (!undoBlocked) onUndo(); }}
             >
               <Undo2 aria-hidden />
             </Button>
@@ -49,8 +52,8 @@ export function DocxToolbarShell(context: DocxToolbarProps) {
               variant="toolbar"
               size="icon-sm"
               aria-label={t("office.docx.actions.redo")}
-              disabled={blocked || !canRedo}
-              onClick={onRedo}
+              aria-disabled={redoBlocked || undefined}
+              onClick={() => { if (!redoBlocked) onRedo(); }}
             >
               <Redo2 aria-hidden />
             </Button>

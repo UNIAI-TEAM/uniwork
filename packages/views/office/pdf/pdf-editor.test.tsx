@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { OfficeHost } from "@uniwork/core/office";
 import { setLocale } from "@uniwork/core/i18n";
@@ -417,8 +417,8 @@ describe("PdfEditor", () => {
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
 
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
-    // The adapter's queued swap lands after the synchronous markDirty(0), so the
-    // notify is what must carry the post-step generation to the coordinator.
+    // The adapter's queued swap lands later; the notify is the only dirty signal
+    // and must carry the post-step generation to the coordinator.
     runSwap();
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
 
@@ -535,6 +535,47 @@ describe("PdfEditor", () => {
     expect(screen.getByTestId("pdf-chrome-redo")).toHaveAttribute("aria-disabled", "true");
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "y", ctrlKey: true });
+    expect(markDirty).not.toHaveBeenCalled();
+  });
+
+  it("keeps Undo/Redo aria-disabled on an empty stack and marks dirty only from the change notify (UNI-954)", async () => {
+    const markDirty = vi.fn();
+    const listeners = new Set<() => void>();
+    let depth = 0;
+    let generation = 0;
+    const handle = editor({
+      getDirtyGeneration: () => generation,
+      canUndo: () => depth > 0,
+      canRedo: () => false,
+      subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    });
+    renderEditor(opened(), { editor: handle, coordinator: coordinator({ markDirty }) });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const undo = screen.getByTestId("pdf-chrome-undo");
+    const root = screen.getByTestId("pdf-editor");
+
+    // Fresh document: both controls stay focusable but inert, and neither the
+    // buttons nor the shortcuts step or flag the document unsaved.
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    expect(undo).not.toBeDisabled();
+    expect(screen.getByTestId("pdf-chrome-redo")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(undo);
+    fireEvent.click(screen.getByTestId("pdf-chrome-redo"));
+    fireEvent.keyDown(root, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(root, { key: "z", ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(root, { key: "y", ctrlKey: true });
+    expect(handle.undo).not.toHaveBeenCalled();
+    expect(handle.redo).not.toHaveBeenCalled();
+    expect(markDirty).not.toHaveBeenCalled();
+
+    // A real edit notifies: dirty comes from it and Undo becomes available.
+    act(() => { depth = 1; generation = 1; for (const listener of [...listeners]) listener(); });
+    expect(markDirty).toHaveBeenLastCalledWith(1);
+    expect(screen.getByTestId("pdf-chrome-undo")).not.toHaveAttribute("aria-disabled");
+    markDirty.mockClear();
+    fireEvent.keyDown(root, { key: "z", ctrlKey: true });
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    // The host swaps asynchronously; nothing is marked until its notify lands.
     expect(markDirty).not.toHaveBeenCalled();
   });
 

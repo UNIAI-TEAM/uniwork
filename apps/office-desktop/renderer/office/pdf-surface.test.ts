@@ -482,6 +482,81 @@ describe("desktop PDF surface", () => {
       expect(changes).not.toHaveBeenCalled();
     });
 
+    it("reports canUndo/canRedo from the stacks, already moved when the listeners run (UNI-954)", async () => {
+      const { surface } = historySurface();
+      await surface.open();
+      expect(surface.canUndo()).toBe(false);
+      expect(surface.canRedo()).toBe(false);
+      const seen: Array<[boolean, boolean]> = [];
+      surface.subscribe(() => seen.push([surface.canUndo(), surface.canRedo()]));
+      await surface.submitEngineOperations([{ op: "a" }]);
+      surface.undo();
+      await settle();
+      surface.redo();
+      await settle();
+      expect(seen).toEqual([[true, false], [false, true], [true, false]]);
+    });
+
+    it("reports no history for a read-only document (UNI-954)", async () => {
+      const { surface } = historySurface(undefined, { readOnly: true });
+      await surface.open();
+      expect(surface.canUndo()).toBe(false);
+      expect(surface.canRedo()).toBe(false);
+    });
+
+    it("an undo pressed while an edit is in flight undoes that edit (queue order, r5 F3)", async () => {
+      let releaseEdit: (() => void) | null = null;
+      const call = vi.fn(async (_channel: string, payload: unknown) => {
+        const request = payload as { operation: string };
+        if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+        await new Promise<void>((resolve) => { releaseEdit = resolve; });
+        return { ok: true, operation: "edit", dataBase64: Buffer.from(versions[1]!).toString("base64") };
+      });
+      const surface = createDesktopPdfSurface(settings(call, { readBytes: async () => versions[0]! }));
+      await surface.open();
+      const edit = surface.submitEngineOperations([{ op: "a" }]);
+      await settle();
+      // The engine has not answered yet; the undo queues behind the edit.
+      surface.undo();
+      expect(releaseEdit).not.toBeNull();
+      releaseEdit!();
+      await edit;
+      await settle();
+      await settle();
+      expect(await lastByte(surface)).toBe(0x31);
+      expect(surface.canUndo()).toBe(false);
+      expect(surface.canRedo()).toBe(true);
+    });
+
+    it("a step overtaken by dispose commits nothing (r5 F4)", async () => {
+      let releaseProbe: (() => void) | null = null;
+      let probes = 0;
+      const call = vi.fn(async (_channel: string, payload: unknown) => {
+        const request = payload as { operation: string };
+        if (request.operation === "open") {
+          probes += 1;
+          // Probe 1 is the open, 2 the edit re-probe, 3 the undo step re-probe.
+          if (probes === 3) await new Promise<void>((resolve) => { releaseProbe = resolve; });
+          return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+        }
+        return { ok: true, operation: "edit", dataBase64: Buffer.from(versions[1]!).toString("base64") };
+      });
+      const surface = createDesktopPdfSurface(settings(call, { readBytes: async () => versions[0]! }));
+      await surface.open();
+      await surface.submitEngineOperations([{ op: "a" }]);
+      const generation = surface.getDirtyGeneration();
+      surface.undo();
+      await settle();
+      expect(releaseProbe).not.toBeNull();
+      await surface.dispose();
+      releaseProbe!();
+      await settle();
+      await settle();
+      expect(surface.getDirtyGeneration()).toBe(generation);
+      expect(surface.canUndo()).toBe(false);
+      expect(surface.canRedo()).toBe(false);
+    });
+
     it("resets the history on a re-open and on dispose", async () => {
       const { surface } = historySurface();
       await surface.open();
