@@ -18,11 +18,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { REPO_ROOT, resolveLabRoot, resolveFixtureRoot, resolveUpstreamSource } from './paths.mjs';
+import { REPO_ROOT, SOURCE_MANIFEST_PATH, resolveLabRoot, resolveFixtureRoot, resolveUpstreamSource } from './paths.mjs';
 
 const DEFAULT_MANIFEST = path.join(REPO_ROOT, 'docs/office/g0/fixtures/manifest.json');
 const DEFAULT_CAPABILITIES = path.join(REPO_ROOT, 'docs/office/g0/capabilities.json');
-const DEFAULT_SOURCE_MANIFEST = path.join(REPO_ROOT, 'docs/office/g0/source-manifest.json');
+const DEFAULT_SOURCE_MANIFEST = SOURCE_MANIFEST_PATH;
 const FIXTURE_ROOT = resolveFixtureRoot();
 const LAB_ROOT = resolveLabRoot();
 

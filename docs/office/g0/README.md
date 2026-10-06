@@ -25,9 +25,11 @@ khả năng gì**, và **bộ mẫu nào chứng minh từng khả năng**. Khô
 
 ## 1. Thành phần bàn giao
 
+> Lưu ý (UNI-949): `source-manifest.json` đã chuyển sang `packages/office-upstream/source-manifest.json` vì đây là đầu vào của bước build (Docker context loại `docs/`).
+
 | Path | Nội dung | Ai dùng |
 | --- | --- | --- |
-| [source-manifest.json](source-manifest.json) | Commit/tree đã pin, lockfile checksum, allowlist sao chép, closure app/package, license/NOTICE, runtime, lệnh tái lập | DOC-003/004/005 |
+| [source-manifest.json](../../../packages/office-upstream/source-manifest.json) | Commit/tree đã pin, lockfile checksum, allowlist sao chép, closure app/package, license/NOTICE, runtime, lệnh tái lập | DOC-003/004/005 |
 | [capabilities.json](capabilities.json) | 95 dòng `định dạng × thao tác`, tách `upstream có` / `phải port` / `web đã chứng minh` / `desktop đã chứng minh` | DOC-003/004 |
 | [capability-matrix.md](capability-matrix.md) | Bảng người đọc, sinh từ `capabilities.json` và `fixtures/manifest.json`; test canh lệch | review, DOC-006 |
 | [fixtures/manifest.json](fixtures/manifest.json) | 66 fixture: id, nguồn/license, checksum, capability, kết quả chuẩn và oracle | DOC-003 |

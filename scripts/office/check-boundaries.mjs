@@ -11,7 +11,7 @@
 //      exports, ...) the import scan cannot see.
 //   2. No /ee anywhere in the office tree: upstream /ee is separately licensed
 //      enterprise material and must never enter the source package
-//      (docs/office/g0/source-manifest.json).
+//      (packages/office-upstream/source-manifest.json).
 //   3. Licence attribution: when packages/office-upstream exists it must carry
 //      a non-empty LICENSE and NOTICE.
 //

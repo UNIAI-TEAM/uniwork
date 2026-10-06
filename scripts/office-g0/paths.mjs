@@ -14,6 +14,15 @@ import path from 'node:path';
 export const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..');
 
 /**
+ * The upstream source manifest (pin, allowlist, closure). It is a build input of
+ * packages/office-upstream and of the engine image, so it lives beside
+ * provenance.json and not under docs/ (UNI-949; docs/ is excluded from the
+ * Docker contexts).
+ */
+export const SOURCE_MANIFEST_RELATIVE = Object.freeze(['packages', 'office-upstream', 'source-manifest.json']);
+export const SOURCE_MANIFEST_PATH = path.join(REPO_ROOT, ...SOURCE_MANIFEST_RELATIVE);
+
+/**
  * The workspace root that holds `genoffice` and `.uniwork-dev`. Falls back to
  * the main-checkout layout when neither candidate shows the expected entries,
  * so a missing lab surfaces as an explicit path error instead of a silent miss.

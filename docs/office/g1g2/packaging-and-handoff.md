@@ -18,7 +18,7 @@ Sources read: `docs/office/g0/engine-contract.md` sections 9-11, `docs/office/g0
 Fonts and licences: a font substitution must surface as the fidelity warning `fonts_substituted` with the concrete
 substitution (`engine-contract.md` 4.3 example), never as a silent reflow, and an embedded-font export carries the
 `options.embed_fonts` flag on the convert/export request (4.5). The pinned source's licence and attribution rows
-(`Apache-2.0`, copyright holder, LICENSE/NOTICE and the fork commit) live in `docs/office/g0/source-manifest.json`, and
+(`Apache-2.0`, copyright holder, LICENSE/NOTICE and the fork commit) live in `packages/office-upstream/source-manifest.json`, and
 every release regenerates and packages third-party notices (owner G7 UNI-661). Any bundled font must be attributable
 and redistributable - that check belongs to the release gate, not to this contract.
 

@@ -55,7 +55,6 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --filter .
 COPY scripts/office scripts/office
 COPY scripts/office-g0 scripts/office-g0
 COPY packages/office-upstream packages/office-upstream
-COPY docs/office/g0/source-manifest.json docs/office/g0/source-manifest.json
 RUN node scripts/office/build-upstream.mjs --with-native --out /xlsx-build --json > /xlsx-build-log.json && \
     test -f /xlsx-build/dist/xlsx-gateway.mjs && \
     test -x /xlsx-build/upstream/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar

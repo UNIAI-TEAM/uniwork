@@ -64,7 +64,7 @@ export const FIXTURES_SUBDIR = 'fixtures';
  */
 export const OUTSIDE_MARKER_NAME = 'package.json';
 export const EVIDENCE_SUBDIR = 'evidence';
-export const SOURCE_MANIFEST_RELATIVE = Object.freeze(['docs', 'office', 'g0', 'source-manifest.json']);
+export const SOURCE_MANIFEST_RELATIVE = Object.freeze(['packages', 'office-upstream', 'source-manifest.json']);
 export const HOST_ENTRY_RELATIVE = Object.freeze(['e2e', 'office-g0', 'engine-host.mts']);
 export const FIXTURE_SCRIPT_RELATIVE = Object.freeze(['e2e', 'office-g0', 'make-fixtures.mts']);
 export const PREBUNDLE_SCRIPT_RELATIVE = Object.freeze(['scripts', 'office-g0', 'prebundle-engine.mjs']);
@@ -1305,7 +1305,7 @@ function usageText() {
     '  --host-entry <file>           default e2e/office-g0/engine-host.mts',
     '  --tsx <file>                  default <source>/node_modules/tsx/dist/cli.mjs',
     '  --node <file>                 pinned node executable; default the running one',
-    '  --manifest <file>             default docs/office/g0/source-manifest.json',
+    '  --manifest <file>             default packages/office-upstream/source-manifest.json',
     '  --expected-pin <sha>          refuse unless the manifest pin matches',
     '  --upstream-checkout <dir>     verify this git checkout is AT the pinned commit/tree',
     '  --readiness-timeout-ms <n>    default ' + DEFAULT_TIMEOUTS.readinessMs,

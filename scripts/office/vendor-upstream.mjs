@@ -6,7 +6,7 @@
 // bytes come from the git object store at the pinned commit, never from the
 // working tree, so ignored, generated or dirty files cannot enter the copy.
 // The selection below is a subset of the accepted manifest allowlist
-// (docs/office/g0/source-manifest.json); every selected file must survive the
+// (packages/office-upstream/source-manifest.json); every selected file must survive the
 // same planCopy() checks the trial source passes (include, exclude,
 // excludedSets, neverCopy), so /ee, caches and generated trees are refused
 // rather than filtered after the fact.
@@ -26,12 +26,11 @@ import {
   isWithinEntry,
   sha256Bytes,
 } from '../office-g0/prepare-source.mjs';
-import { REPO_ROOT } from '../office-g0/paths.mjs';
+import { REPO_ROOT, SOURCE_MANIFEST_PATH } from '../office-g0/paths.mjs';
 
 export const PACKAGE_DIR = path.join(REPO_ROOT, 'packages', 'office-upstream');
 export const UPSTREAM_DIR = path.join(PACKAGE_DIR, 'upstream');
 export const PROVENANCE_PATH = path.join(PACKAGE_DIR, 'provenance.json');
-export const SOURCE_MANIFEST_PATH = path.join(REPO_ROOT, 'docs', 'office', 'g0', 'source-manifest.json');
 export const RECORD_KIND = 'uniwork-office-upstream-provenance';
 // Apache-2.0 attribution duplicated at the package root: check-boundaries.mjs
 // requires packages/office-upstream/{LICENSE,NOTICE} beside the vendored tree.

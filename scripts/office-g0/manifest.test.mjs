@@ -31,7 +31,7 @@ const UPSTREAM_SOURCE = resolveUpstreamSource();
 
 const manifest = readJson(path.join(REPO_ROOT, 'docs/office/g0/fixtures/manifest.json'));
 const capabilities = readJson(path.join(REPO_ROOT, 'docs/office/g0/capabilities.json'));
-const sourceManifest = readJson(path.join(REPO_ROOT, 'docs/office/g0/source-manifest.json'));
+const sourceManifest = readJson(path.join(REPO_ROOT, 'packages/office-upstream/source-manifest.json'));
 const evidenceRegister = readJson(path.join(REPO_ROOT, 'docs/office/g0/evidence-register.json'));
 
 const baseInput = (overrides) => Object.assign({
