@@ -13,6 +13,20 @@
 #    Every file is named `..._unsigned_...`; stable is refused by package.mjs.
 #
 # Secrets are referenced by name only (the workflow token); nothing is stored here.
+#
+# First real run (B8, nobody has run this yet - actionlint only). Start it from the
+# Actions tab or `gh workflow run office-desktop-installers.yml` on the branch that
+# carries this file (workflow_dispatch needs the file on the default branch, or run it
+# with `--ref <branch>` once it is pushed):
+#   channel               dev (default) or beta; stable is refused while signing is off.
+#   require_xlsx_sidecar  true (default) builds the Rust sidecar and fails without it;
+#                         false ships gateway-only (formula-bearing saves fail closed).
+# It needs: a Rust-capable runner (windows-latest and ubuntu-latest have rustup), up to
+# 60 minutes per build leg (timeout-minutes), `contents: write` on the publish job so the default token can create
+# the pre-release, and a repository whose release assets are publicly fetchable (else
+# mirror them: docs/ops/OFFICE_ENV_CHECKLIST.md). Things to look at first if it fails:
+# the Windows cargo step (MAX_PATH, CARGO_TARGET_DIR below), the installer count check,
+# and the two staged-assets checks. The run summary prints OFFICE_INSTALLER_<CHANNEL>_URLS.
 name: Office desktop installers
 
 on:
@@ -102,10 +116,14 @@ jobs:
             platform: win32-x64
             unpacked: win-unpacked
             installers: 2 # NSIS setup + portable ZIP
+            # MSVC link.exe fails past MAX_PATH (260) on the crate's build-script
+            # paths; keep the target dir as short as it gets from the first run.
+            cargo_target: 'C:\cargo-t'
           - os: ubuntu-latest
             platform: linux-x64
             unpacked: linux-unpacked
             installers: 2 # .deb + AppImage
+            cargo_target: /tmp/uniwork-cargo-target
     defaults:
       run:
         shell: bash
@@ -120,9 +138,10 @@ jobs:
       # The explicit build-upstream step below already builds the native sidecar
       # (and writes the attestation), so build/package must not run cargo again.
       OFFICE_DESKTOP_SKIP_NATIVE_BUILD: "1"
-      # Short, per-job cargo target dir: MSVC MAX_PATH on Windows. Never a drive
-      # root; an explicit value wins over the contract's default.
-      CARGO_TARGET_DIR: ${{ runner.temp }}/uniwork-cargo-target
+      # Short, per-job cargo target dir (matrix.cargo_target): MSVC MAX_PATH on
+      # Windows. Never a drive root; an explicit value wins over the contract's
+      # default (xlsx-assets.mjs nativeTargetDirectory).
+      CARGO_TARGET_DIR: ${{ matrix.cargo_target }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -238,6 +257,9 @@ jobs:
             echo "### $name"
             echo
             echo "Set this on the server (docs/office/g3g4/desktop-packaging.md). The stable variable stays empty."
+            echo
+            echo "GitHub release download URLs answer 302; the server's bundle download refuses redirects, so for"
+            echo "that route mirror the files to a host that answers 200 directly (docs/ops/OFFICE_ENV_CHECKLIST.md)."
             echo
             echo '```'
             echo "$name=$urls"
