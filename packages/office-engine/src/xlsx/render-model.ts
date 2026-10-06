@@ -17,6 +17,8 @@ import { attribute, decodeXml, elements, parseDefinedNamesXml, sectionInner, typ
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
 import { parseDataValidations, type XlsxRenderDataValidation } from "./render-model-validations.ts";
+import { parseWorksheetPageSetup, type XlsxRenderPageSetup } from "./render-model-page-setup.ts";
+export type { XlsxRenderPageMargins, XlsxRenderPageSetup } from "./render-model-page-setup.ts";
 export { parseThemeXml } from "./render-model-styles.ts";
 
 import type { XlsxCellScalar, XlsxGatewayFunctions } from "./engine.ts";
@@ -105,6 +107,8 @@ export interface XlsxRenderSheet {
   /** Tables the file ships (xl/tables/tableN.xml). Additive: an absent value
    *  reads as no tables. Read-only; the write path is the table ops. */
   readonly tables?: readonly XlsxRenderTable[] | undefined;
+  /** UNI-952: the file's own page layout (print). Absent when it sets none. */
+  readonly pageSetup?: XlsxRenderPageSetup | undefined;
 }
 
 /** Border edge; mirrors the genoffice cell-style contract. */
@@ -231,6 +235,7 @@ function parseWorksheetXml(
       }
     : null;
 
+  const pageSetup = parseWorksheetPageSetup(xml);
   const merges: XlsxRenderMerge[] = [];
   for (const merge of elements(sectionInner(xml, "mergeCells"), "mergeCell")) {
     const ref = attribute(merge.tag, "ref");
@@ -357,6 +362,7 @@ function parseWorksheetXml(
     ...(hasLinkedX14ConditionalFormat(xml) ? { x14ConditionalFormats: true as const } : {}),
     ...(/<x14:dataValidation\b/.test(xml) ? { x14DataValidations: true as const } : {}),
     ...rawRuleCounts(xml),
+    ...(pageSetup === undefined ? {} : { pageSetup }),
   };
 }
 

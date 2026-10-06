@@ -3,7 +3,7 @@
 // consumes (WorkbookFile + WorkbookRangeResult). The vendored code is not
 // edited: this module is the boundary that lets it run unchanged in UniWork.
 import { seedFittedColumnWidths } from "./xlsx-column-autofit";
-import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle, XlsxRenderTable } from "@uniwork/office-engine/xlsx";
+import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderPageSetup, XlsxRenderSheet, XlsxRenderStyle, XlsxRenderTable } from "@uniwork/office-engine/xlsx";
 
 /** One file-native table in the genoffice `WorkbookFile` sheet shape (the
  *  subset the vendored loader and the ribbon read). `styleName` is left out on
@@ -92,6 +92,8 @@ export interface RendererWorkbookSheet {
   /** The file's raw classic rule element counts per family (review r2 M-B):
    *  the policy refuses a family whose installed rules fall short of it. */
   ruleCounts?: { conditionalFormats: number; dataValidations: number };
+  /** UNI-952: the file's page layout, read by print only (the loader ignores it). */
+  pageSetup?: XlsxRenderPageSetup;
 }
 
 type XlsxRuleSetFileState = "none" | "classic" | "x14";
@@ -236,6 +238,7 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet, styles: readonly XlsxRe
       dataValidations: ruleSetFileState(sheet.x14DataValidations, sheet.dataValidations, sheet.ruleCounts?.dataValidations),
     },
     ...(sheet.ruleCounts ? { ruleCounts: { ...sheet.ruleCounts } } : {}),
+    ...(sheet.pageSetup ? { pageSetup: sheet.pageSetup } : {}),
   };
 }
 
