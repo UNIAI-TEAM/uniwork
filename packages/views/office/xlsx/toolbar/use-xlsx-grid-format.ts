@@ -42,7 +42,11 @@ export function useXlsxGridFormat(gridRef: RefObject<XlsxGridHandle | null>): {
     executeAsOneStep: (steps) => {
       const grid = gridRef.current;
       if (!grid?.executeCommandsAsOneStep) return Promise.resolve(false);
-      const result = grid.executeCommandsAsOneStep(steps).catch(() => false);
+      // The grid reports either a boolean or (paste-x06) how many steps
+      // completed; only a fully completed batch counts as run.
+      const result = Promise.resolve(grid.executeCommandsAsOneStep(steps) as Promise<unknown>)
+        .then((outcome) => (typeof outcome === "number" ? outcome === steps.length : outcome === true))
+        .catch(() => false);
       void result.then((executed) => {
         if (executed) refreshFormatState();
       });

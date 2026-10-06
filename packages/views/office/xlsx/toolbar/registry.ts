@@ -20,7 +20,7 @@ import { XlsxViewGoToGroup } from "./view-goto";
 import { XlsxViewShortcutsGroup } from "./view-shortcuts";
 import { XlsxViewZoomGroup } from "./view-zoom";
 import { xlsxStylesRibbonItems } from "./styles-group";
-import { XlsxDataValidationGroup } from "../data-validation/data-validation-group";
+import { XlsxDataToolsGroup } from "./data-tools/data-tools-group";
 import type { XlsxToolbarGroupDefinition } from "./types";
 
 /** The extension seam for Wave A tasks (A1-A9): add ONE group to ONE tab by
@@ -83,6 +83,6 @@ export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
   // X1 adds Format as Table + Cell Styles beside Conditional Formatting) and
   // Data -> Data Tools (Data Validation).
   { id: "conditional-format", tab: "home", order: 75, labelKey: "office.xlsx.conditionalFormat.groups.home", ribbonItems: xlsxStylesRibbonItems },
-  { id: "data-validation", tab: "data", order: 40, labelKey: "office.xlsx.dataValidation.groups.data", Component: XlsxDataValidationGroup },
+  { id: "data-validation", tab: "data", order: 40, labelKey: "office.xlsx.dataValidation.groups.data", Component: XlsxDataToolsGroup },
 ];
 
