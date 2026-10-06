@@ -7,4 +7,3 @@ export * from "./draft-recovery";
 export * from "./draft-key-port";
 export * from "./desktop-platform";
 export * from "./format-flags";
-export * from "./use-office-enabled";

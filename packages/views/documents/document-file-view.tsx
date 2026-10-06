@@ -5,7 +5,7 @@ import { Download, FileText, History, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
-import { useOfficeEnabled } from "@uniwork/core/office";
+import { useOfficeEnabled } from "@uniwork/core/documents/office-enabled";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";

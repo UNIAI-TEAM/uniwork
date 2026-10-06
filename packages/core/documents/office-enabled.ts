@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getPublicConfig } from "../api/endpoints/config";
 import { useFlag } from "../feature-flags";
-import { OFFICE_ENGINE_FLAG, officeFlagsAllow, officeFormatFlagKey } from "./format-flags";
+import { OFFICE_ENGINE_FLAG, officeFlagsAllow, officeFormatFlagKey } from "../office/format-flags";
 
 export const officeConfigKeys = {
   all: ["office-public-config"] as const,
