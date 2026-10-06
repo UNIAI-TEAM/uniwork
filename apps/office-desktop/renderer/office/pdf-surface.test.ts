@@ -485,10 +485,10 @@ describe("desktop PDF surface", () => {
     it("reports canUndo/canRedo from the stacks, already moved when the listeners run (UNI-954)", async () => {
       const { surface } = historySurface();
       await surface.open();
-      expect(surface.canUndo()).toBe(false);
-      expect(surface.canRedo()).toBe(false);
-      const seen: Array<[boolean, boolean]> = [];
-      surface.subscribe(() => seen.push([surface.canUndo(), surface.canRedo()]));
+      expect(surface.canUndo?.()).toBe(false);
+      expect(surface.canRedo?.()).toBe(false);
+      const seen: Array<[boolean | undefined, boolean | undefined]> = [];
+      surface.subscribe(() => seen.push([surface.canUndo?.(), surface.canRedo?.()]));
       await surface.submitEngineOperations([{ op: "a" }]);
       surface.undo();
       await settle();
@@ -500,8 +500,8 @@ describe("desktop PDF surface", () => {
     it("reports no history for a read-only document (UNI-954)", async () => {
       const { surface } = historySurface(undefined, { readOnly: true });
       await surface.open();
-      expect(surface.canUndo()).toBe(false);
-      expect(surface.canRedo()).toBe(false);
+      expect(surface.canUndo?.()).toBe(false);
+      expect(surface.canRedo?.()).toBe(false);
     });
 
     it("an undo pressed while an edit is in flight undoes that edit (queue order, r5 F3)", async () => {
@@ -524,8 +524,8 @@ describe("desktop PDF surface", () => {
       await settle();
       await settle();
       expect(await lastByte(surface)).toBe(0x31);
-      expect(surface.canUndo()).toBe(false);
-      expect(surface.canRedo()).toBe(true);
+      expect(surface.canUndo?.()).toBe(false);
+      expect(surface.canRedo?.()).toBe(true);
     });
 
     it("a step overtaken by dispose commits nothing (r5 F4)", async () => {
@@ -553,8 +553,8 @@ describe("desktop PDF surface", () => {
       await settle();
       await settle();
       expect(surface.getDirtyGeneration()).toBe(generation);
-      expect(surface.canUndo()).toBe(false);
-      expect(surface.canRedo()).toBe(false);
+      expect(surface.canUndo?.()).toBe(false);
+      expect(surface.canRedo?.()).toBe(false);
     });
 
     it("rejects an edit whose engine answer lands after dispose with pdf_surface_disposed, committing nothing (review-fe-r1 R17)", async () => {
@@ -578,7 +578,7 @@ describe("desktop PDF surface", () => {
       await expect(edit).rejects.toThrow("pdf_surface_disposed");
       expect(changes).not.toHaveBeenCalled();
       expect(surface.getDirtyGeneration()).toBe(generation);
-      expect(surface.canUndo()).toBe(false);
+      expect(surface.canUndo?.()).toBe(false);
     });
 
     it("resets the history on a re-open and on dispose", async () => {

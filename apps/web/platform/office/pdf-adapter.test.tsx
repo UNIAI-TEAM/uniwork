@@ -2,7 +2,7 @@
 
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 import { PdfEditor } from "@uniwork/views/office/pdf";
 import { applyPdfOpsInBrowser } from "@uniwork/office-engine/browser";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
@@ -62,6 +62,7 @@ function keyProvider(): DraftKeyProvider {
 interface FakeSession extends PdfRenderSession {
   bytesSeen: Uint8Array[];
   disposed: boolean;
+  replaceBytes: Mock<PdfRenderSession["replaceBytes"]>;
 }
 function fakeSession(bytes: Uint8Array, pageTexts: string[]): FakeSession {
   let texts = pageTexts;
