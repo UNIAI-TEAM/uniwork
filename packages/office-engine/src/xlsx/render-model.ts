@@ -18,6 +18,7 @@ import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./r
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
 import { parseDataValidations, type XlsxRenderDataValidation } from "./render-model-validations.ts";
 import { parseWorksheetPageSetup, type XlsxRenderPageSetup } from "./render-model-page-setup.ts";
+import { readWorkbookHeaderFooterPictures } from "./render-model-hf-pictures.ts";
 export type { XlsxRenderHeaderFooter, XlsxRenderPageMargins, XlsxRenderPageSetup } from "./render-model-page-setup.ts";
 export { parseThemeXml } from "./render-model-styles.ts";
 
@@ -461,13 +462,18 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
     (paths) => engine.readEntriesText(bytes, paths),
     parseRefRange,
   );
+  // UNI-952: header/footer pictures (&G) for print, when the gateway reads binary parts.
+  const hfPictures = await readWorkbookHeaderFooterPictures(ordered, sheetXmls, (paths) => engine.readEntriesText(bytes, paths), engine, bytes);
 
   const sheets = ordered.map((sheet, index) => {
     const xml = sheet.path ? sheetXmls[sheet.path] : null;
     const parsed: XlsxRenderSheet = xml
       ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels, palette)
       : { id: sheet.id, name: sheet.name, rowCount: 1, columnCount: 1, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [], cells: {} };
-    return { ...parsed, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [] };
+    const pictures = hfPictures[index];
+    const headerFooter = parsed.pageSetup?.headerFooter;
+    const pageSetup = pictures && headerFooter ? { pageSetup: { ...parsed.pageSetup, headerFooter: { ...headerFooter, pictures } } } : {};
+    return { ...parsed, ...pageSetup, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [] };
   });
 
   const view = elements(sectionInner(workbookXml, "workbookView"), "workbookView")[0];
