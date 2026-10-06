@@ -9683,6 +9683,26 @@
           "result_other": "{{removed}} duplicate values found and removed; {{kept}} unique values remain.",
           "resultNone": "No duplicate values found."
         },
+        "subtotalDialog": {
+          "title": "Subtotal",
+          "description": "Insert a subtotal row under each group of rows that share a value, and outline the groups.",
+          "atEachChange": "At each change in",
+          "useFunction": "Use function",
+          "addTo": "Add subtotal to",
+          "functions": {
+            "sum": "Sum",
+            "count": "Count",
+            "average": "Average",
+            "max": "Max",
+            "min": "Min",
+            "product": "Product"
+          },
+          "groupLabel": "{{value}} {{function}}",
+          "grandLabel": "Grand {{function}}",
+          "needRows": "Select a list with a header row and at least one data row.",
+          "noColumns": "Select at least one column to subtotal.",
+          "note": "Rows are inserted across the whole sheet, as in Excel."
+        },
         "textToColumnsDialog": {
           "title": "Convert Text to Columns",
           "description": "Split the text of each selected cell into columns at the delimiters you choose.",

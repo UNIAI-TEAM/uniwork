@@ -9677,6 +9677,26 @@
           "result_other": "Đã tìm thấy và xóa {{removed}} giá trị trùng lặp; còn lại {{kept}} giá trị duy nhất.",
           "resultNone": "Không tìm thấy giá trị trùng lặp."
         },
+        "subtotalDialog": {
+          "title": "Tổng phụ",
+          "description": "Chèn một hàng tổng phụ dưới mỗi nhóm hàng có cùng giá trị và nhóm các hàng theo cấp.",
+          "atEachChange": "Tại mỗi thay đổi trong",
+          "useFunction": "Dùng hàm",
+          "addTo": "Thêm tổng phụ vào",
+          "functions": {
+            "sum": "Tổng",
+            "count": "Đếm",
+            "average": "Trung bình",
+            "max": "Lớn nhất",
+            "min": "Nhỏ nhất",
+            "product": "Tích"
+          },
+          "groupLabel": "{{function}} {{value}}",
+          "grandLabel": "{{function}} chung",
+          "needRows": "Chọn danh sách có dòng tiêu đề và ít nhất một dòng dữ liệu.",
+          "noColumns": "Chọn ít nhất một cột để tính tổng phụ.",
+          "note": "Các hàng được chèn trên toàn bộ trang tính, giống Excel."
+        },
         "textToColumnsDialog": {
           "title": "Chuyển văn bản thành cột",
           "description": "Tách nội dung của mỗi ô đã chọn thành các cột tại những dấu phân cách bạn chọn.",
