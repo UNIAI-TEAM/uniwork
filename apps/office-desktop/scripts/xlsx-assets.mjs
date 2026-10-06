@@ -12,8 +12,10 @@
 // fails closed on formula-bearing saves without it).
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { homedir } from "node:os";
+import { delimiter, dirname, join, parse, resolve } from "node:path";
 import process from "node:process";
 
 /** The staged directory name; matches the main-process resolution and the
@@ -62,7 +64,7 @@ export function resolveXlsxAssetSources({ repositoryRoot, platform = process.pla
   const gateway = firstExisting(gatewayCandidates);
   const sidecar = firstExisting(explicit
     ? [join(buildDirectory, xlsxSidecarFile(platform))]
-    : [join(buildDirectory, "upstream", "apps", "sheets", "native", "xlsx-engine", "target", "release", xlsxSidecarFile(platform)), cargoTargetSidecar]);
+    : [join(buildDirectory, "native", xlsxSidecarFile(platform)), join(buildDirectory, "upstream", "apps", "sheets", "native", "xlsx-engine", "target", "release", xlsxSidecarFile(platform)), cargoTargetSidecar]);
   const buildRecord = firstExisting([join(buildDirectory, XLSX_BUILD_RECORD_FILE)]);
   return { explicit: Boolean(explicit), buildDirectory, gatewayCandidates, gateway, sidecar, buildRecord };
 }
@@ -157,4 +159,117 @@ export async function stageXlsxAssets({ repositoryRoot, distDirectory, platform 
   };
   await writeFile(join(directory, "staged-assets.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   return { directory, ...manifest };
+}
+
+/** Set to 1 (the installer CI job does) to fail a build that would ship no recalc sidecar. */
+export const REQUIRE_SIDECAR_ENV = "OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR";
+
+function sidecarRequired(environment) {
+  return environment?.[REQUIRE_SIDECAR_ENV]?.trim() === "1";
+}
+
+function pathKey(environment) {
+  return Object.keys(environment).find((key) => key.toUpperCase() === "PATH") ?? "PATH";
+}
+
+/**
+ * The cargo executable a build can use: the first one on PATH, else the
+ * rustup default home (CARGO_HOME or ~/.cargo)/bin, which a per-user rustup
+ * install leaves off PATH (--no-modify-path). Null when there is none.
+ */
+export function locateCargo({ environment = process.env, platform = process.platform, exists = existsSync } = {}) {
+  const executable = platform === "win32" ? "cargo.exe" : "cargo";
+  const directories = (environment[pathKey(environment)] ?? "").split(delimiter).filter(Boolean);
+  const home = environment.USERPROFILE || environment.HOME || homedir();
+  directories.push(join(environment.CARGO_HOME?.trim() || join(home, ".cargo"), "bin"));
+  return directories.map((directory) => join(directory, executable)).find((candidate) => exists(candidate)) ?? null;
+}
+
+/**
+ * CARGO_TARGET_DIR for the native build. An explicit one wins. On Windows the
+ * crate's build-script path under a worktree passes MAX_PATH and MSVC's
+ * link.exe fails (LNK1104), so the default is a short dir at the root of the
+ * checkout's drive. Elsewhere cargo's own <crate>/target is fine (null).
+ */
+export function nativeTargetDirectory({ repositoryRoot, platform = process.platform, environment = process.env } = {}) {
+  const configured = environment.CARGO_TARGET_DIR?.trim();
+  if (configured) return resolve(configured);
+  return platform === "win32" ? join(parse(resolve(repositoryRoot)).root, ".uw-cargo") : null;
+}
+
+/**
+ * Build whatever xlsx asset is missing, when the host can. With the gateway
+ * and the sidecar both present, an explicit OFFICE_DESKTOP_XLSX_ASSETS dir, a
+ * foreign target platform or no cargo, nothing runs and today's behaviour
+ * stands. Otherwise scripts/office/build-upstream.mjs --with-native runs into
+ * the default scratch tree (reusing its npm install), which copies the
+ * sidecar to <out>/native so staging finds it without CARGO_TARGET_DIR.
+ */
+export function ensureXlsxAssets({
+  repositoryRoot,
+  platform = process.platform,
+  hostPlatform = process.platform,
+  environment = process.env,
+  locate = locateCargo,
+  spawn = spawnSync,
+  log = (line) => process.stderr.write(`${line}\n`),
+} = {}) {
+  const before = resolveXlsxAssetSources({ repositoryRoot, platform, environment });
+  if (before.explicit) return { attempted: false, reason: "explicit", sources: before };
+  if (before.gateway && before.sidecar) return { attempted: false, reason: "present", sources: before };
+  if (platform !== hostPlatform) return { attempted: false, reason: "cross-platform", sources: before };
+  const cargo = locate({ environment, platform });
+  if (!cargo) return { attempted: false, reason: "no-cargo", sources: before };
+  const args = [join(repositoryRoot, "scripts", "office", "build-upstream.mjs"), "--with-native", "--out", before.buildDirectory];
+  if (existsSync(join(before.buildDirectory, "upstream", "node_modules"))) args.push("--skip-install");
+  const key = pathKey(environment);
+  const childEnvironment = { ...environment, [key]: [dirname(cargo), environment[key] ?? ""].join(delimiter) };
+  const targetDirectory = nativeTargetDirectory({ repositoryRoot, platform, environment });
+  if (targetDirectory) childEnvironment.CARGO_TARGET_DIR = targetDirectory;
+  log(`office-desktop: building the xlsx gateway + recalc sidecar with ${cargo}${targetDirectory ? ` (CARGO_TARGET_DIR=${targetDirectory})` : ""}`);
+  const result = spawn(process.execPath, args, { cwd: repositoryRoot, env: childEnvironment, stdio: "inherit", windowsHide: true });
+  const sources = resolveXlsxAssetSources({ repositoryRoot, platform, environment });
+  const ok = result.status === 0;
+  return { attempted: true, ok, reason: ok ? "built" : `build-upstream failed (${result.error?.message ?? `exit ${result.status}`})`, sources };
+}
+
+const sidecarMissingReasons = {
+  explicit: "OFFICE_DESKTOP_XLSX_ASSETS names a directory without it",
+  "cross-platform": "it can only be built on a host of the target platform",
+  "no-cargo": "cargo was found neither on PATH nor in CARGO_HOME/~/.cargo/bin",
+  "not-attempted": "the desktop build step did not produce it",
+};
+
+/** The actionable failure when OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1 and the build would ship no sidecar. */
+export function missingRequiredSidecarError({ platform = process.platform, attempt }) {
+  const why = sidecarMissingReasons[attempt?.reason] ?? attempt?.reason ?? "it was not found";
+  return new Error(
+    `${REQUIRE_SIDECAR_ENV}=1 but no ${xlsxSidecarFile(platform)} xlsx recalc sidecar is available for ${platform}: ${why}. ` +
+      "Without it every save of a local .xlsx with formulas is refused (xlsx_recalc_unavailable). " +
+      "Install the Rust toolchain (rustup, toolchain 1.88.0) and rerun - the build then runs node scripts/office/build-upstream.mjs --with-native itself " +
+      "(Windows: with a short CARGO_TARGET_DIR) - or point OFFICE_DESKTOP_XLSX_ASSETS at a directory holding xlsx-gateway.mjs and the sidecar.",
+  );
+}
+
+/**
+ * Build what is missing (unless `build` is false), apply the
+ * OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR gate, then stage. `requireGateway`
+ * false (the dev build) skips staging without a gateway instead of failing;
+ * the sidecar gate still fails first when it is set.
+ */
+export async function prepareXlsxAssets({
+  repositoryRoot,
+  distDirectory,
+  platform = process.platform,
+  environment = process.env,
+  build = true,
+  requireGateway = true,
+  ensure = ensureXlsxAssets,
+} = {}) {
+  const attempt = build
+    ? ensure({ repositoryRoot, platform, environment })
+    : { attempted: false, reason: "not-attempted", sources: resolveXlsxAssetSources({ repositoryRoot, platform, environment }) };
+  if (sidecarRequired(environment) && !attempt.sources.sidecar) throw missingRequiredSidecarError({ platform, attempt });
+  if (!attempt.sources.gateway && !requireGateway && !sidecarRequired(environment)) return { attempt, staged: null };
+  return { attempt, staged: await stageXlsxAssets({ repositoryRoot, distDirectory, platform, environment }) };
 }

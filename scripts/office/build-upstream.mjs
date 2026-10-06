@@ -40,6 +40,14 @@ import {
 export const PATCHES_DIR = path.join(PACKAGE_DIR, 'patches');
 export const DEFAULT_OUT = path.join(REPO_ROOT, '.go-tmp', 'office-upstream-build');
 export const BUILD_RECORD_KIND = 'uniwork-office-upstream-build-record';
+// The native step copies the release sidecar here (<out>/native/xlsx-sidecar[.exe]).
+const NATIVE_OUT_DIR = 'native';
+
+/** The dir cargo writes to for a crate: CARGO_TARGET_DIR when set, else <crate>/target. */
+function cargoTargetDir(crateDir, env = process.env) {
+  const configured = env.CARGO_TARGET_DIR?.trim();
+  return configured ? path.resolve(configured) : path.join(crateDir, 'target');
+}
 
 // Heavy/native/browser-host deps stay external to the engine bundles: they are
 // resolved by the adapter lanes (G2-03..06) from the real install, and bundling
@@ -361,6 +369,10 @@ export async function run({ out, skipInstall, withNative, keep }) {
   // checksums the lane is required to ship: Cargo.toml + Cargo.lock pin the
   // crate graph, main.rs is the NDJSON protocol endpoint, and the release
   // binary is the artifact the runtime stage ships.
+  // A binary left in <out>/native by an earlier run must never sit next to a
+  // record that did not build it.
+  const nativeOut = path.join(scratch, NATIVE_OUT_DIR);
+  fs.rmSync(nativeOut, { recursive: true, force: true });
   const cargo = spawnSync('cargo', ['--version'], { encoding: 'utf8' });
   if (withNative && cargo.status === 0) {
     const engineDir = path.join(scratchUpstream, 'apps', 'sheets', 'native', 'xlsx-engine');
@@ -369,7 +381,14 @@ export async function run({ out, skipInstall, withNative, keep }) {
     if (rs.status !== 0) {
       record.verdict = 'fail';
     } else {
-      const binaryPath = path.join(engineDir, 'target', 'release', process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar');
+      // Cargo honours CARGO_TARGET_DIR (a short dir on Windows, where MSVC's
+      // link.exe hits MAX_PATH under a deep worktree); copy the binary to a
+      // fixed place in the scratch tree so staging finds it without that env.
+      const sidecarName = process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar';
+      const builtPath = path.join(cargoTargetDir(engineDir), 'release', sidecarName);
+      const binaryPath = path.join(nativeOut, sidecarName);
+      fs.mkdirSync(nativeOut, { recursive: true });
+      fs.copyFileSync(builtPath, binaryPath);
       const protocolSrc = path.join(engineDir, 'src', 'main.rs');
       const versionMatch = fs.existsSync(protocolSrc) ? /PROTOCOL_VERSION(?::\s*u8)?\s*=\s*(\d+)/.exec(fs.readFileSync(protocolSrc, 'utf8')) : null;
       record.native = {
