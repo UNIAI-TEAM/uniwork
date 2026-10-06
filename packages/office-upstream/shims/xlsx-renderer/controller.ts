@@ -471,7 +471,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     // statistics for it): the selection spans exactly one live merge.
     const merged = sheet && range && selectsOneMergedCell(sheet.getSheet?.()?.getMergeData?.(), range);
     const selection = sheet && range
-      ? { sheetId: sheet.getSheetId(), range: { ...range, ...(merged ? { merged: true } : {}) } }
+      ? { sheetId: sheet.getSheetId(), range: { ...range, ...(merged ? { merged: true as const } : {}) } }
       : null;
     const key = selection ? JSON.stringify([selection.sheetId, selection.range.startRow, selection.range.endRow,
       selection.range.startColumn, selection.range.endColumn, selection.range.rangeType, merged === true]) : "null";
