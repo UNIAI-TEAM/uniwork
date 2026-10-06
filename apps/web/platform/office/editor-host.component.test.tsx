@@ -395,7 +395,7 @@ describe("OfficeEditorHost page header", () => {
 });
 
 describe("OfficeEditorHost quiet Save for text formats", () => {
-  it("quiets the Save on a clean md/html document and keeps it primary for docx", async () => {
+  it("quiets the Save on a clean md/html document and keeps it primary for a dirty docx", async () => {
     const text = makeSession("ready");
     const textView = renderHost(text.session, { capability: { ...capability, format: "md" } });
     await settle();
@@ -405,7 +405,8 @@ describe("OfficeEditorHost quiet Save for text formats", () => {
     expect(quiet.className).not.toContain("bg-primary");
     textView.root.unmount();
 
-    const docx = makeSession("ready");
+    // Since the 927 union a clean docx is quiet too; primary needs something to save.
+    const docx = makeSession("dirty");
     const docxView = renderHost(docx.session, { capability: { ...capability, format: "docx" } });
     await settle();
     const primary = docxView.container.querySelector('button[aria-label="Save to UniWork"]')!;
