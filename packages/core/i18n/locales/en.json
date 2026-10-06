@@ -11018,6 +11018,8 @@
         "edit_text": "Edit the selected text",
         "select_all": "Select every element",
         "delete_selection": "Delete the selection",
+        "delete_slide": "Delete the slide (in the slide list)",
+        "type_to_edit": "Type to replace the selected text",
         "next_slide": "Next slide",
         "previous_slide": "Previous slide",
         "dismiss": "Clear the selection",
