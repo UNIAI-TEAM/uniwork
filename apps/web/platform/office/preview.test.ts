@@ -460,14 +460,15 @@ describe("mountHtmlPreview", () => {
     expect(session.iframe.srcdoc).not.toContain("a b.png");
   });
 
-  it("drops the source of a blocked image so the frame makes no request the CSP must refuse", async () => {
+  it("renders a blocked image as its alt text so the frame makes no request the CSP must refuse", async () => {
     const { session } = await mount(`<img src="pic.png" alt="Fixture"><img src="https://evil.example/a.png" srcset="pic.png 2x" alt="Remote"><img src="data:image/png;base64,iVBORw0KGgo=" alt="Inline">`);
-    const images = Array.from(new DOMParser().parseFromString(session.iframe.srcdoc, "text/html").querySelectorAll("img"));
-    expect(images.map((image) => image.getAttribute("alt"))).toEqual(["Fixture", "Remote", "Inline"]);
-    expect(images[0]!.hasAttribute("src")).toBe(false);
-    expect(images[1]!.hasAttribute("src")).toBe(false);
-    expect(images[1]!.hasAttribute("srcset")).toBe(false);
-    expect(images[2]!.getAttribute("src")).toMatch(/^data:image\/png/);
+    const doc = new DOMParser().parseFromString(session.iframe.srcdoc, "text/html");
+    const images = Array.from(doc.querySelectorAll("img"));
+    expect(images.map((image) => image.getAttribute("alt"))).toEqual(["Inline"]);
+    expect(images[0]!.getAttribute("src")).toMatch(/^data:image\/png/);
+    const blocked = Array.from(doc.querySelectorAll("span[data-blocked-image]"));
+    expect(blocked.map((span) => span.textContent)).toEqual(["Fixture", "Remote"]);
+    expect(blocked.every((span) => !span.hasAttribute("src") && !span.hasAttribute("srcset"))).toBe(true);
     expect(session.iframe.srcdoc).not.toContain("about:blank#blocked");
     expect(session.iframe.srcdoc).not.toContain("evil.example");
   });

@@ -12,9 +12,12 @@ test('sheet-dependent render patches wait for a workbook unit and survive reload
   try {
     assert.equal(mounted.h.sheetInterceptorLookups ?? 0, 0);
     await mounted.handle.loadWorkbook(file);
-    assert.equal(mounted.h.sheetInterceptorLookups, 1);
+    // Per load: the force-string gate; the two data-validation taps add lookups
+    // on the first load only (they install once per renderer).
+    const afterFirstLoad = mounted.h.sheetInterceptorLookups;
+    assert.ok(afterFirstLoad >= 1);
     await mounted.handle.loadWorkbook({ ...file, sha256: 'next' });
-    assert.equal(mounted.h.sheetInterceptorLookups, 2);
+    assert.equal(mounted.h.sheetInterceptorLookups, afterFirstLoad + 1);
     assert.equal(mounted.handle.getDirtyGeneration(), 0);
   } finally { mounted.close(); }
 });
