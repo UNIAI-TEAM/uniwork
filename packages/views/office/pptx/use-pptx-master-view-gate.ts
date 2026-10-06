@@ -9,19 +9,25 @@
  */
 import { useEffect, useMemo, useRef } from "react";
 import type { PptxCommand, PptxCommandId } from "./command-map";
+import { PPTX_MASTER_VIEW_REASON } from "./pptx-ribbon-master-gate";
 
-/** Ribbon commands that edit (or open a panel that edits) the deck slide. */
-const SLIDE_EDIT_COMMANDS: readonly PptxCommandId[] = ["edit-text", "edit-shape-image", "speaker-notes", "animations", "charts", "tables"];
+/**
+ * Commands that stay usable in master view: Close master, the file/view/show
+ * commands and history. Everything else is locked, so a command added later
+ * (or a tab-row one such as Find, which can replace deck text) waits for Close
+ * master unless it is listed here on purpose.
+ */
+const MASTER_VIEW_LIVE_COMMANDS: readonly PptxCommandId[] = [
+  "slideMaster", "undo", "redo", "save", "open", "export-pdf", "print", "render-fidelity", "fullscreen", "presenter",
+];
 
-const MASTER_VIEW_REASON = "office.pptx.reasons.master_view";
-
-/** Pure: the commands with the slide-edit ones disabled. A hidden command stays hidden. */
+/** Pure: the commands outside the allowlist disabled. A hidden command stays hidden. */
 function gatePptxCommandsForMasterView(commands: readonly PptxCommand[], masterViewOpen: boolean): readonly PptxCommand[] {
   if (!masterViewOpen) return commands;
   return commands.map((command) =>
-    SLIDE_EDIT_COMMANDS.includes(command.id) && command.capability.hidden !== true
-      ? { ...command, capability: { status: "unavailable" as const, reason: MASTER_VIEW_REASON } }
-      : command,
+    MASTER_VIEW_LIVE_COMMANDS.includes(command.id) || command.capability.hidden === true
+      ? command
+      : { ...command, capability: { status: "unavailable" as const, reason: PPTX_MASTER_VIEW_REASON } },
   );
 }
 

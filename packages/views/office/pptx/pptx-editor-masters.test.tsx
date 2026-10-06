@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
@@ -72,6 +72,63 @@ describe("PptxEditor slide master view (T01)", () => {
     expect(document.querySelector("[data-pptx-master-preview-label]")).toBeNull();
     // Close master brings the deck slide back on the same canvas.
     expect(screen.getByText("Title")).toBeInTheDocument();
+  });
+
+  it("locks the Insert tab (new slide, shapes, header/footer, link, media) while the master view is open (master_fix3 #1)", async () => {
+    const { handle: editorHandle } = handle();
+    render(<PptxEditor host={host()} editorHandle={editorHandle} loadRendererModule={async () => module()} slides={[{ id: "s1" }]} deck={deck} />);
+    await waitFor(() => expect(screen.getByText("Title")).toBeInTheDocument());
+    const insertItems = ["panel-sorter", "panel-insert", "panel-headerfooter", "panel-links", "panel-media"];
+    const item = (id: string) => document.querySelector(`[data-ribbon-item="${id}"]`) as HTMLElement;
+
+    fireEvent.click(screen.getByRole("tab", { name: "Insert" }));
+    for (const id of insertItems) expect(item(id), id).not.toHaveAttribute("aria-disabled");
+
+    fireEvent.click(screen.getByRole("tab", { name: "View" }));
+    fireEvent.click(toggle());
+    await waitFor(() => expect(document.querySelector("[data-pptx-master-preview]")).not.toBeNull());
+    fireEvent.click(screen.getByRole("tab", { name: "Insert" }));
+    for (const id of insertItems) expect(item(id), id).toHaveAttribute("aria-disabled", "true");
+    // Pressing a locked item does nothing: no panel opens for the hidden slide, the master pane stays.
+    const pressedBefore = item("panel-links").getAttribute("aria-pressed");
+    fireEvent.click(item("panel-links"));
+    expect(item("panel-links").getAttribute("aria-pressed")).toBe(pressedBefore);
+    expect(mastersPanel()).not.toBeNull();
+
+    // Close master gives the Insert tab back.
+    fireEvent.click(screen.getByRole("button", { name: "Close master view" }));
+    for (const id of insertItems) expect(item(id), id).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("shows an applied text style in the preview: size and italic, re-read after the edit (master_fix3 #2)", async () => {
+    let style: { sizePt?: number; italic?: boolean } | undefined;
+    const edit = vi.fn(async (edits: readonly { op: string; sizePt?: number; italic?: boolean }[]) => {
+      const [applied] = edits;
+      if (applied?.op === "master_set_text_style") style = { ...(applied.sizePt !== undefined ? { sizePt: applied.sizePt } : {}), ...(applied.italic !== undefined ? { italic: applied.italic } : {}) };
+      return { revision: 2 };
+    });
+    const editorHandle = {
+      format: "pptx", open: vi.fn(), getDirtyGeneration: () => 0, captureSnapshot: vi.fn(), undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), edit,
+      masterParts: () => [{ partPath: MASTER, kind: "master" as const, name: "Office Theme" }],
+      masterElements: () => [{ id: "e_2", type: "shape", label: "title", placeholder: "title", box: { x: 48, y: 24, w: 384, h: 96 }, fill: null, ...(style ? { style } : {}) }],
+    } as unknown as EditorHandle;
+    render(<PptxEditor host={host()} editorHandle={editorHandle} loadRendererModule={async () => module()} slides={[{ id: "s1" }]} deck={deck} />);
+    await waitFor(() => expect(screen.getByText("Title")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "View" }));
+    fireEvent.click(toggle());
+    const previewText = () => document.querySelector('[data-master-element-id="e_2"] text') as SVGTextElement;
+    await waitFor(() => expect(previewText()).not.toBeNull());
+    expect(previewText().getAttribute("font-style")).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("option").find((option) => option.getAttribute("data-key") === "e_2") as HTMLElement);
+    const form = document.querySelector("[data-pptx-masters-text-style]") as HTMLElement;
+    fireEvent.change(within(form).getByLabelText("Size (pt)"), { target: { value: "40" } });
+    fireEvent.click(within(form).getByRole("checkbox", { name: "Italic" }));
+    fireEvent.click(document.querySelector("[data-pptx-masters-text-style-apply]") as HTMLButtonElement);
+    await waitFor(() => expect(edit).toHaveBeenCalledWith([expect.objectContaining({ op: "master_set_text_style", sizePt: 40, italic: true })]));
+    // The preview text is drawn from what the engine now holds: 40 pt at the page scale, italic.
+    await waitFor(() => expect(previewText().getAttribute("font-style")).toBe("italic"));
+    expect(Number(previewText().getAttribute("font-size"))).toBeGreaterThanOrEqual(40);
   });
 
   it("disables deck-slide edits while the master view hides the slide (F1)", async () => {

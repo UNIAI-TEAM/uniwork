@@ -559,7 +559,7 @@ export function PptxEditor({
             onOpenPanel={panels.openPanel}
             panelDisabled={panels.panelDisabled}
             groupItems={panels.groupItems}
-            pressedCommands={masters.pressed}
+            pressedCommands={masters.pressed} masterView={masters.open}
             {...(contextual ? { contextual } : {})}
             {...(editorHandle ? { canUndo: typeof editorHandle.undo === "function", canRedo: typeof editorHandle.redo === "function" } : { canUndo: false, canRedo: false })}
           />
