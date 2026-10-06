@@ -78,6 +78,23 @@ describe("readMasterElements", () => {
     expect(readMasterElements(deck, 960, FAKE_MASTER_PART, withAnchors).map((e) => e.id)).toEqual(["e_7", "e_9", "m_logo"]);
   });
 
+  it("reports the placeholder idx from the parsed shape XML so a style edit can address one of two same-type slots", async () => {
+    const deck = await opened();
+    const ph = (nvPr: string) => ({ anchor: { originalXml: '<p:sp><p:nvSpPr><p:cNvPr id="3" name="C"/><p:cNvSpPr/><p:nvPr>' + nvPr + "</p:nvPr></p:nvSpPr></p:sp>" } });
+    const withIdx = (archive: unknown, part: string) => {
+      const parsed = parse(archive, part)!;
+      return {
+        ...parsed,
+        elements: parsed.elements.map((element, index) =>
+          index === 0 ? { ...element, ...ph('<p:ph type="body" idx="2"/>') } : index === 1 ? { ...element, ...ph('<p:ph type="title"/>') } : element),
+      };
+    };
+    const [first, second, third] = readMasterElements(deck, 960, FAKE_MASTER_PART, withIdx);
+    expect(first?.idx).toBe(2);
+    expect(second).not.toHaveProperty("idx");
+    expect(third).not.toHaveProperty("idx");
+  });
+
   it("scales the box with the fit width", async () => {
     const deck = await opened();
     const half = readMasterElements(deck, 480, FAKE_MASTER_PART, parse);

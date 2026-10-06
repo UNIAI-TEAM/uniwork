@@ -3,6 +3,7 @@
 // model -> serialize -> reopen round trip on the fake engine (the real-engine
 // round trip lives in apps/web pptx-runtime-masters.real.test.ts).
 import { describe, expect, it } from "vitest";
+import { listMasterPartInfos } from "../src/pptx/edits/master-edits";
 import { createPptxAdapter, PptxEngineError, type PptxEdit } from "../src/pptx";
 import { addPlaceholderXml, removePlaceholderXml, renamePartXml, setTextStyleXml } from "../src/pptx/edits/master-part-xml";
 import {
@@ -66,6 +67,73 @@ describe("master part XML transforms", () => {
     const xml = setTextStyleXml(XML_LAYOUT, false, { type: "ctrTitle" }, { sizePt: 54 });
     expect(xml).toContain('<a:lstStyle><a:lvl1pPr><a:defRPr sz="5400"/></a:lvl1pPr></a:lstStyle>');
     expect(refusal(() => setTextStyleXml(XML_LAYOUT, false, { type: "body" }, { sizePt: 10 }))).toBe("master_no_placeholder");
+  });
+});
+
+const TWO_BODIES =
+  '<p:sldLayout xmlns:a="a" xmlns:p="p"><p:cSld name="Two Content"><p:spTree>' +
+  '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Content 1"/><p:cNvSpPr/><p:nvPr><p:ph idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>' +
+  '<p:sp><p:nvSpPr><p:cNvPr id="3" name="Content 2"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="2"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>' +
+  "</p:spTree></p:cSld></p:sldLayout>";
+
+describe("review fixes (M1, M2, m3, m5)", () => {
+  it("M1: styles and removes the placeholder named by idx, leaving the other body placeholder alone", () => {
+    const styled = setTextStyleXml(TWO_BODIES, false, { type: "body", idx: 2 }, { sizePt: 20 });
+    const [first, second] = styled.split("</p:sp>");
+    expect(first).not.toContain("sz=");
+    expect(second).toContain('<a:lstStyle><a:lvl1pPr><a:defRPr sz="2000"/></a:lvl1pPr></a:lstStyle>');
+    const removed = removePlaceholderXml(TWO_BODIES, { type: "body", idx: 2 });
+    expect(removed).toContain('idx="1"');
+    expect(removed).not.toContain('idx="2"');
+  });
+
+  it("M2: a name with & < > \" ' survives rename -> listMasterPartInfos, and renaming to the listed name is a no-op", async () => {
+    const { adapter, ref } = await opened();
+    const layoutName = () => adapter.masterParts(ref).find((part) => part.partPath === FAKE_LAYOUT_PART)?.name;
+    const name = "Q&A <Intro> \"deck\" 's";
+    adapter.edit(ref, { op: "master_rename", part: FAKE_LAYOUT_PART, name });
+    expect(layoutName()).toBe(name);
+    adapter.edit(ref, { op: "master_rename", part: FAKE_LAYOUT_PART, name: layoutName()! });
+    expect(layoutName()).toBe(name);
+  });
+
+  it("M2: listMasterPartInfos decodes the five XML entities of a deck's own layout name", () => {
+    const xml = '<p:sldLayout><p:cSld name="A &amp;amp; B &lt;x&gt; &quot;q&quot; &apos;s"/></p:sldLayout>';
+    const opened = {
+      deck: { slides: [] },
+      archive: { readText: (path: string) => (path.includes("slideLayout") ? xml : null), entries: new Map<string, unknown>([["ppt/slideMasters/slideMaster1.xml", "<p:sldMaster/>"]]) },
+    };
+    // A master with no layouts keeps its file-name fallback; the layout list needs rels.
+    expect(listMasterPartInfos(opened as never).map((part) => part.name)).toEqual(["slideMaster1"]);
+    const withRels = {
+      ...opened,
+      archive: {
+        readText: (path: string) =>
+          path.endsWith("slideMaster1.xml.rels") ? '<Relationships><Relationship Type="x/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>' : path.includes("slideLayout") ? xml : null,
+        entries: opened.archive.entries,
+      },
+    };
+    expect(listMasterPartInfos(withRels as never).map((part) => part.name)).toEqual(["slideMaster1", 'A &amp; B <x> "q" \'s']);
+  });
+
+  it("m3: a colour goes to the direct-child fill, not the <a:ln> or <a:uFill> fill", () => {
+    const master = XML_MASTER.replace(
+      '<a:defRPr sz="4400"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill>',
+      '<a:defRPr sz="4400"><a:ln w="9525"><a:solidFill><a:srgbClr val="00FF00"/></a:solidFill></a:ln><a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:uFill><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></a:uFill>',
+    );
+    const xml = setTextStyleXml(master, true, { type: "title" }, { color: "#112233" });
+    expect(xml).toContain('<a:ln w="9525"><a:solidFill><a:srgbClr val="00FF00"/></a:solidFill></a:ln><a:solidFill><a:srgbClr val="112233"/></a:solidFill><a:uFill><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></a:uFill>');
+    // No direct fill yet: the new one is inserted before the underline fill and after the outline.
+    const noFill = master.replace('<a:solidFill><a:schemeClr val="tx1"/></a:solidFill>', "");
+    const inserted = setTextStyleXml(noFill, true, { type: "title" }, { color: "#112233" });
+    expect(inserted).toContain('</a:ln><a:solidFill><a:srgbClr val="112233"/></a:solidFill><a:uFill>');
+  });
+
+  it("m5: the next free idx stays below 4294967295 and ignores that sentinel", () => {
+    const sentinel = TWO_BODIES.replace('idx="2"', 'idx="4294967295"');
+    expect(addPlaceholderXml(sentinel, "body", box, "Content Placeholder").placeholder).toEqual({ type: "body", idx: 2 });
+    const high = TWO_BODIES.replace('idx="2"', 'idx="4294967294"');
+    expect(addPlaceholderXml(high, "body", box, "Content Placeholder").placeholder).toEqual({ type: "body", idx: 2 });
   });
 });
 

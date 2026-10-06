@@ -18,11 +18,13 @@ import { normalizeMasterColor, parseFontSize, type MasterPanelEdit, type MasterT
 interface MastersTextStyleProps {
   part: string;
   placeholder: string;
+  /** The slot index of the selected placeholder; absent on a title. */
+  idx?: number;
   disabled: boolean;
   onEdit: (edit: MasterPanelEdit) => void;
 }
 
-export function MastersTextStyle({ part, placeholder, disabled, onEdit }: MastersTextStyleProps) {
+export function MastersTextStyle({ part, placeholder, idx, disabled, onEdit }: MastersTextStyleProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const id = useId();
   const [size, setSize] = useState("");
@@ -50,7 +52,7 @@ export function MastersTextStyle({ part, placeholder, disabled, onEdit }: Master
       aria-label={t("masters.text_style_label")}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!disabled && !invalid && !empty) onEdit({ op: "master_set_text_style", part, placeholder, ...draft });
+        if (!disabled && !invalid && !empty) onEdit({ op: "master_set_text_style", part, placeholder, ...(idx !== undefined ? { idx } : {}), ...draft });
       }}
     >
       <span className="text-caption font-medium text-foreground">{t("masters.text_style_label")}</span>

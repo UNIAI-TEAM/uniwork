@@ -30,6 +30,8 @@ export interface MasterElementView {
   label: string;
   box: MasterBox;
   placeholder?: string;
+  /** `<p:ph idx>` when the placeholder has one: tells two same-type slots apart. */
+  idx?: number;
   fill?: string | null;
   /** Current text of a text/placeholder element; seeds the inspector text field. */
   text?: string;
@@ -45,7 +47,7 @@ export type MasterPanelEdit =
   // T01: part-level edits, addressed by part path and placeholder slot.
   | { op: "master_rename"; part: string; name: string }
   | { op: "master_add_placeholder"; part: string; placeholder: MasterPlaceholderChoice; box: MasterBox }
-  | ({ op: "master_set_text_style"; part: string; placeholder: string } & MasterTextStyleDraft);
+  | ({ op: "master_set_text_style"; part: string; placeholder: string; idx?: number } & MasterTextStyleDraft);
 
 /** Placeholder types the panel offers to add (a subset of ST_PlaceholderType). */
 export const MASTER_PLACEHOLDER_CHOICES = ["title", "body", "pic", "chart", "tbl", "dt", "ftr", "sldNum"] as const;

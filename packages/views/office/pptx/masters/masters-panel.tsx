@@ -207,7 +207,7 @@ export function MastersPanel({
       ) : null}
 
       {activePart !== null && selected?.placeholder ? (
-        <MastersTextStyle key={activePart + "|" + selected.id} part={activePart} placeholder={selected.placeholder} disabled={blocked} onEdit={emit} />
+        <MastersTextStyle key={activePart + "|" + selected.id} part={activePart} placeholder={selected.placeholder} idx={selected.idx} disabled={blocked} onEdit={emit} />
       ) : null}
     </section>
   );

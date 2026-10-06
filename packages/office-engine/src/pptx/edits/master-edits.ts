@@ -144,10 +144,18 @@ const layoutTargets = (readText: (path: string) => string | null | undefined, ma
   return out.sort((a, b) => partNumber(a) - partNumber(b));
 };
 
-/** cSldName (master-edit.ts:33-36): `<p:cSld name="...">`, else the file name. */
+const XML_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+
+/** The five predefined XML entities, decoded in one pass (`&amp;amp;` -> `&amp;`). */
+const decodeXmlEntities = (value: string): string =>
+  value.replace(/&(amp|lt|gt|quot|apos);/g, (all, name: string) => XML_ENTITIES[name] ?? all);
+
+/** cSldName (master-edit.ts:33-36): `<p:cSld name="...">`, else the file name.
+ *  The attribute is XML text and the write side (renamePartXml) escapes it, so
+ *  this decodes it; otherwise a rename shows and re-saves the escaped form. */
 const cSldName = (xml: string | null | undefined, fallback: string): string => {
   const match = xml ? /<p:cSld\s[^>]*name="([^"]*)"/.exec(xml) : null;
-  return match?.[1] || fallback;
+  return match?.[1] ? decodeXmlEntities(match[1]) : fallback;
 };
 
 const entryNames = (archive: NonNullable<OpenedPptxLike["archive"]>): string[] => {
@@ -378,6 +386,8 @@ export interface MasterElementData {
   /** Px at the model's fit width: the inverse of makePxToEmu. */
   box: { x: number; y: number; w: number; h: number };
   placeholder?: string;
+  /** `<p:ph idx>` of a placeholder that has one: names which of two same-type slots this is. */
+  idx?: number;
   /** "#RRGGBB" when the element has a solid fill, else null. */
   fill?: string | null;
   /** Plain text of a text/shape element (paragraphs joined by newline). */
@@ -426,6 +436,13 @@ const durableMasterId = (element: PptxElementLike): string => {
   return typeof nvId === "number" || typeof nvId === "string" ? "e_" + String(nvId) : element.id;
 };
 
+/** `<p:ph idx>` from the element's shape XML; absent on a title or a non-placeholder. */
+const placeholderIdx = (element: PptxElementLike): number | undefined => {
+  const xml = (element as { anchor?: { originalXml?: unknown } }).anchor?.originalXml;
+  const idx = typeof xml === "string" ? /<p:ph\b[^>]*?\sidx\s*=\s*["'](\d+)["']/.exec(xml)?.[1] : undefined;
+  return idx === undefined ? undefined : Number(idx);
+};
+
 /** The elements of one master/layout part for the Masters panel. Pure: the
  * part is parsed by `parse` (the bound vendored parseMasterPart) from the
  * held archive. Refusals: bad_master_part (unknown part, or one that parses to
@@ -463,6 +480,8 @@ export function readMasterElements(
       fill: solidFillHex(element),
     };
     if (typeof element.placeholder === "string" && element.placeholder) data.placeholder = element.placeholder;
+    const idx = placeholderIdx(element);
+    if (idx !== undefined) data.idx = idx;
     if (text !== undefined) data.text = text;
     return data;
   });

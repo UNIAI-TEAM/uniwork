@@ -267,6 +267,18 @@ describe("MastersPanel", () => {
     expect(onEdit).toHaveBeenLastCalledWith({ op: "master_set_text_style", part: PART, placeholder: "title", sizePt: 36, color: "#1F4E79", font: "Inter" });
   });
 
+  it("sends the placeholder idx with the text style so the second of two body placeholders is the one styled (M1)", () => {
+    const twoBodies: MasterElementView[] = [
+      { id: "b1", type: "shape", label: "Content 1", placeholder: "body", idx: 1, box: { x: 0, y: 0, w: 100, h: 100 }, fill: null },
+      { id: "b2", type: "shape", label: "Content 2", placeholder: "body", idx: 2, box: { x: 100, y: 0, w: 100, h: 100 }, fill: null },
+    ];
+    const { onEdit } = setup({ elements: twoBodies, selectedElementId: "b2" });
+    const form = document.querySelector("[data-pptx-masters-text-style]") as HTMLElement;
+    fireEvent.change(within(form).getByLabelText("Size (pt)"), { target: { value: "20" } });
+    fireEvent.click(document.querySelector("[data-pptx-masters-text-style-apply]") as HTMLButtonElement);
+    expect(onEdit).toHaveBeenLastCalledWith({ op: "master_set_text_style", part: PART, placeholder: "body", idx: 2, sizePt: 20 });
+  });
+
   it("offers no text style for an element that is not a placeholder (T01)", () => {
     setup({ selectedElementId: "p1" });
     expect(document.querySelector("[data-pptx-masters-text-style]")).toBeNull();

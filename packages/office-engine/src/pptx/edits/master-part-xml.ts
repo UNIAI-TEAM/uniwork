@@ -85,6 +85,20 @@ function listPlaceholders(xml: string): MasterPlaceholderRef[] {
   return [...xml.matchAll(SHAPE_RE)].map((match) => placeholderOf(match[0])).filter((ref): ref is MasterPlaceholderRef => ref !== null);
 }
 
+/** `idx` is an xsd:unsignedInt; 4294967295 is PowerPoint's orphan marker, never handed out. */
+const ORPHAN_IDX = 4294967295;
+
+/** The slot after the highest index in use (the orphan marker ignored); once
+ *  that would reach the marker, the lowest index not taken. */
+function nextPlaceholderIdx(existing: readonly MasterPlaceholderRef[]): number {
+  const taken = new Set(existing.map((ref) => ref.idx ?? 0).filter((idx) => idx < ORPHAN_IDX));
+  const next = Math.max(0, ...taken) + 1;
+  if (next < ORPHAN_IDX) return next;
+  let free = 1;
+  while (taken.has(free)) free += 1;
+  return free;
+}
+
 /** Append a placeholder shape to the part's shape tree. Returns the new XML and the slot it took. */
 export function addPlaceholderXml(xml: string, type: string, box: MasterPlaceholderGeometry, label: string): { xml: string; placeholder: MasterPlaceholderRef } {
   const existing = listPlaceholders(xml);
@@ -96,7 +110,7 @@ export function addPlaceholderXml(xml: string, type: string, box: MasterPlacehol
   const ids = [...xml.matchAll(/<p:cNvPr\b[^>]*?\sid="(\d+)"/g)].map((match) => Number(match[1]));
   const id = Math.max(1, ...ids) + 1;
   // A title has no idx; every other slot takes the next free index.
-  const idx = type === "title" || type === "ctrTitle" ? undefined : Math.max(0, ...existing.map((ref) => ref.idx ?? 0)) + 1;
+  const idx = type === "title" || type === "ctrTitle" ? undefined : nextPlaceholderIdx(existing);
   const ph = '<p:ph type="' + escapeXmlAttr(type) + '"' + (idx !== undefined ? ' idx="' + String(idx) + '"' : "") + "/>";
   const shape =
     '<p:sp><p:nvSpPr><p:cNvPr id="' + String(id) + '" name="' + escapeXmlAttr(label + " " + String(id)) + '"/>' +
@@ -117,8 +131,10 @@ export function removePlaceholderXml(xml: string, wanted: MasterPlaceholderRef):
 }
 
 /** Find `<tag ...>...</tag>` or `<tag .../>` inside `scope`; the open tag and full element. */
-function findElement(scope: string, tag: string): { start: number; end: number; open: string; inner: string | null } | null {
-  const open = new RegExp("<" + tag + "\\b(?:[^>\"']|\"[^\"]*\"|'[^']*')*>").exec(scope);
+function findElement(scope: string, tag: string, from = 0): { start: number; end: number; open: string; inner: string | null } | null {
+  const pattern = new RegExp("<" + tag + "\\b(?:[^>\"']|\"[^\"]*\"|'[^']*')*>", "g");
+  pattern.lastIndex = from;
+  const open = pattern.exec(scope);
   if (!open) return null;
   if (open[0].endsWith("/>")) return { start: open.index, end: open.index + open[0].length, open: open[0], inner: null };
   const closeTag = "</" + tag + ">";
@@ -142,6 +158,27 @@ const insertBefore = (inner: string, child: string, before: readonly string[]): 
 
 const FILLS = ["a:noFill", "a:solidFill", "a:gradFill", "a:blipFill", "a:pattFill", "a:grpFill"];
 
+/** Children of `<a:defRPr>` that carry a fill of their own (text outline, underline line/fill). */
+const FILL_OWNERS = ["a:ln", "a:uLn", "a:uFill"];
+
+/** The text fill that is a direct child of the run properties: the first fill
+ *  element outside every `<a:ln>` / `<a:uLn>` / `<a:uFill>` range. */
+function findDirectFill(body: string): { start: number; end: number } | null {
+  const skip: Array<[number, number]> = [];
+  for (const tag of FILL_OWNERS) {
+    for (let owner = findElement(body, tag); owner; owner = findElement(body, tag, owner.end)) skip.push([owner.start, owner.end]);
+  }
+  let best: { start: number; end: number } | null = null;
+  for (const name of FILLS) {
+    for (let hit = findElement(body, name); hit; hit = findElement(body, name, hit.end)) {
+      if (skip.some(([start, end]) => hit.start >= start && hit.start < end)) continue;
+      if (!best || hit.start < best.start) best = hit;
+      break;
+    }
+  }
+  return best;
+}
+
 /** Apply the patch to one `<a:defRPr>`, keeping its other attributes and children. */
 function patchDefRPr(open: string, inner: string, patch: MasterTextStylePatch): string {
   let tag = open;
@@ -151,7 +188,7 @@ function patchDefRPr(open: string, inner: string, patch: MasterTextStylePatch): 
   let body = inner;
   if (patch.color !== undefined) {
     const fill = '<a:solidFill><a:srgbClr val="' + patch.color.replace(/^#/, "").toUpperCase() + '"/></a:solidFill>';
-    const current = FILLS.map((name) => findElement(body, name)).find((hit) => hit !== null);
+    const current = findDirectFill(body);
     body = current ? body.slice(0, current.start) + fill + body.slice(current.end) : insertBefore(body, fill, ["a:effectLst", "a:effectDag", "a:highlight", "a:uLnTx", "a:uLn", "a:uFillTx", "a:uFill", "a:latin", "a:ea", "a:cs", "a:sym", "a:hlinkClick", "a:hlinkMouseOver", "a:rtl", "a:extLst"]);
   }
   if (patch.font !== undefined) {
