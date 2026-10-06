@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, expect, it, vi } from "vitest";
 import * as viewsMarkdown from "@uniwork/views/office/markdown";
-import { buildDesktopPrintCopy, createDesktopPrintPort, printTextDocument } from "./text-print";
+import { buildDesktopPrintCopy, createDesktopPrintPort, isPrintBusy, printTextDocument } from "./text-print";
 
 // The desktop no longer mirrors the sanitizer: it must go through the shared
 // view building blocks. Spy on the barrel (keeping the real implementation) so
@@ -103,7 +103,18 @@ it.each([
 });
 
 it("returns a typed failure when the channel is refused", async () => {
-  expect(await printTextDocument(stubBridge(async () => { throw new Error("IPC payload exceeds the byte limit"); }), "html", hostileHtml, "Doc.html")).toEqual({ outcome: "failed", reason: "IPC payload exceeds the byte limit" });
+  expect(await printTextDocument(stubBridge(async () => { throw new Error("IPC payload exceeds the byte limit"); }), "html", hostileHtml, "Doc.html")).toEqual({ outcome: "failed", reason: "print_call_failed" });
+});
+
+it.each(["print_busy", "print_call_failed", "print_no_preview_available"])("forwards only [a-z0-9_] reason codes (%s)", async (reason) => {
+  const result = await printTextDocument(stubBridge(async () => ({ outcome: "failed", reason })), "html", "<p>x</p>", "t");
+  expect(result.outcome === "failed" && result.reason).toMatch(/^[a-z0-9_]+$/);
+});
+
+it("recognises only print_busy as the already-open case", () => {
+  expect(isPrintBusy({ outcome: "failed", reason: "print_busy" })).toBe(true);
+  expect(isPrintBusy({ outcome: "failed", reason: "print_unavailable" })).toBe(false);
+  expect(isPrintBusy({ outcome: "cancelled" })).toBe(false);
 });
 
 it("fails typed, not silently, without a bridge", async () => {

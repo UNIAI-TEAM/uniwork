@@ -69,7 +69,13 @@ export interface PrintDocumentOptions {
 }
 
 /** Map Electron's print callback onto the shared port outcomes. Electron
- * reports a dismissed dialog as `cancelled` (macOS: "Print job canceled"). */
+ * reports a dismissed dialog as `cancelled` (macOS: "Print job canceled").
+ * Windows answers "No preview available" when Chromium cannot build a preview
+ * (no printer, or a copy it cannot lay out); that is a real failure the user
+ * can act on (install a printer), so it stays `failed` with the code
+ * `print_no_preview_available` and the renderer shows the generic action error -
+ * there is no safe automatic retry, and the case needs a Windows print
+ * environment to reproduce. */
 export function printOutcome(success: boolean, failureReason: string | undefined): DesktopPrintResponse {
   if (success) return { outcome: "printed" };
   if (/cancel/i.test(failureReason ?? "")) return { outcome: "cancelled" };

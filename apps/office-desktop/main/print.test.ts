@@ -97,6 +97,7 @@ describe("main print window", () => {
     [false, "failed", { outcome: "failed", reason: "print_failed" }],
     [false, "Invalid deviceName provided", { outcome: "failed", reason: "print_invalid_devicename_provided" }],
     [false, "", { outcome: "failed", reason: "print_failed" }],
+    [false, "No preview available", { outcome: "failed", reason: "print_no_preview_available" }],
   ] as const)("maps print(success=%s, %j) to %j and closes the window", async (success, reason, expected) => {
     const { handler, window, cleanup } = harness((callback) => callback(success, reason));
     expect(await handler(request)).toEqual(expected);

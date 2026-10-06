@@ -25,6 +25,13 @@ const SESSION_GENERATION = "desktop-dev-session";
 /** The one bridge call the print port needs. */
 export type DesktopPrintBridge = Readonly<{ call(channel: "desktop:print-document", payload: DesktopIpcRequest<"desktop:print-document">): Promise<unknown> }>;
 
+/** Main answers this reason while a print dialog is still open (one print at
+ * a time); the screen shows its own "already open" copy instead of the generic
+ * action error. */
+export function isPrintBusy(outcome: MarkdownPrintOutcome): boolean {
+  return outcome.outcome === "failed" && outcome.reason === "print_busy";
+}
+
 /** Main reports the shared outcomes: `printed`, `cancelled` (the OS dialog
  * was dismissed) or a typed `failed`. */
 type DesktopPrintOutcome = MarkdownPrintOutcome;
@@ -63,8 +70,9 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): 
       try {
         const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: title.slice(0, 255), html }));
         return parsed.success ? parsed.data : { outcome: "failed", reason: "print_response_invalid" };
-      } catch (error) {
-        return { outcome: "failed", reason: error instanceof Error ? error.message : String(error) };
+      } catch {
+        // A refused call (size cap, sender check, closed bridge): a code, never the raw Electron message.
+        return { outcome: "failed", reason: "print_call_failed" };
       }
     },
   };

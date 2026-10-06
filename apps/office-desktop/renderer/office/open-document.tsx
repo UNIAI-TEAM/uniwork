@@ -19,7 +19,7 @@ import type { FormatEdit, PptxEdit, PptxParagraphLike } from "@uniwork/office-en
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopEditorLoader } from "./editor-registry";
-import { printTextDocument } from "./text-print";
+import { isPrintBusy, printTextDocument } from "./text-print";
 
 /** The header overflow control. Inline rather than a lucide import: the
  * desktop package does not depend on the icon set directly. */
@@ -74,6 +74,7 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
   const { prompt, notice, recovered } = useDraftRecovery(session, () => setSurfaceVersion((value) => value + 1));
   const [openAttempt, setOpenAttempt] = useState(0);
   const [actionFailed, setActionFailed] = useState(false);
+  const [printBusy, setPrintBusy] = useState(false);
   const [localFile, setLocalFile] = useState<{ handleId: string; displayName: string } | null>(null);
   const format = session.editor.format;
   const [loaded, setLoaded] = useState<{ session: ByteDocumentSession; failure?: DocxOpenFailure | PdfOpenFailure } | null>(null);
@@ -104,11 +105,12 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
   }, [bridge, capability, documentKey, session, effectiveTitle, surfaceVersion]);
   useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (active && ready && session.canSave && event.documentId === documentKey) void session.coordinator.save("menu"); }), [active, bridge, documentKey, ready, session]);
   const printText = async () => {
-    setActionFailed(false);
+    setActionFailed(false); setPrintBusy(false);
     const text = session.editor.getText?.();
     if ((format !== "md" && format !== "html") || text === undefined) { setActionFailed(true); return; }
     const result = await printTextDocument(bridge, format, text, effectiveTitle);
-    if (result.outcome === "failed") setActionFailed(true);
+    if (isPrintBusy(result)) setPrintBusy(true);
+    else if (result.outcome === "failed") setActionFailed(true);
   };
   const saveAs = async () => {
     setActionFailed(false);
@@ -137,6 +139,7 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}
         {actionFailed ? <p role="alert" className="mb-3 text-caption text-destructive">{t("actionError")}</p> : null}
+        {printBusy ? <p role="alert" className="mb-3 text-caption text-destructive">{t("printBusy")}</p> : null}
         {/* The shell header is the only frame: neutralize the shared EditorSlot card so the editor fills the page like DOCX/XLSX (web has no card either). */}
         <EditorSlot className="rounded-none border-0 bg-transparent p-0" format={format} host={host} editorHandle={session.editor} capability={current?.failure ? { ...capability, status: "available" } : capability} openState={current?.failure ? "error" : ready ? "ready" : "loading"} openError={current?.failure?.message} onRetry={() => { setLoaded(null); setOpenAttempt((value) => value + 1); }} loadEditor={loadEditor} />
         {session.editor.renderSurface && ready && !session.canSave ? <section className="flex min-h-0 flex-1 flex-col" aria-label={effectiveTitle} data-testid="readonly-surface">{session.editor.renderSurface?.()}</section> : null}
