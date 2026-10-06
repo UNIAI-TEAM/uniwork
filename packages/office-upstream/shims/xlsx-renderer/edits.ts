@@ -467,6 +467,7 @@ export function ingestStructuralMutation(
       rowColumn.axis === "row" ? range.endRow - range.startRow + 1 : range.endColumn - range.startColumn + 1;
     if (!Number.isInteger(index) || index < 0 || !Number.isInteger(count) || count <= 0) return [];
     record({ kind: rowColumn.kind, index, count });
+    shiftOutlineLines(state, sheetId, rowColumn.kind, index, count);
     return edits;
   }
   // File units: row heights are points (px * 0.75), column widths character
@@ -827,6 +828,90 @@ export function applyOutlineAction(
   }
   closeRun(end);
   return touched ? edits : [];
+}
+
+/** Outline levels follow their lines through a row/column insert or removal
+ *  (the journal shifts its cells the same way). Inserted lines get an explicit
+ *  level 0, as the saved file will (the gateway writes no level for a new
+ *  row/col), so a later file seed never lends them a shifted neighbour's. */
+function shiftOutlineLines(
+  state: LazyWorkbookState,
+  sheetId: string,
+  kind: "insert-rows" | "remove-rows" | "insert-cols" | "remove-cols",
+  index: number,
+  count: number,
+): void {
+  const outline = state.outline.get(sheetId);
+  if (!outline) return;
+  const entries = kind.endsWith("rows") ? outline.rows : outline.cols;
+  const insert = kind.startsWith("insert");
+  const shifted = new Map<number, { level: number; collapsed: boolean }>();
+  for (const [line, entry] of entries) {
+    if (line < index) shifted.set(line, entry);
+    else if (insert) shifted.set(line + count, entry);
+    else if (line >= index + count) shifted.set(line - count, entry);
+  }
+  if (insert) {
+    for (let line = index; line < index + count; line += 1) shifted.set(line, { level: 0, collapsed: false });
+  }
+  entries.clear();
+  for (const [line, entry] of shifted) entries.set(line, entry);
+}
+
+/** The outline level of every line of the span (0 when none), read before an
+ *  outline action so its undo can restore them. */
+export function outlineLevels(
+  state: LazyWorkbookState | null,
+  sheetId: string,
+  axis: "rows" | "cols",
+  start: number,
+  end: number,
+): number[] {
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) return [];
+  const outline = state?.outline.get(sheetId);
+  const entries = axis === "rows" ? outline?.rows : outline?.cols;
+  return Array.from({ length: end - start + 1 }, (_, offset) => entries?.get(start + offset)?.level ?? 0);
+}
+
+/** One step of an outline undo/redo entry: the same uniwork outline command,
+ *  marked `history: false` so replaying it pushes no new undo entry. */
+export interface XlsxOutlineHistoryStep {
+  id: string;
+  params: { subUnitId: string; start: number; end: number; action: XlsxOutlineAction; history: false };
+}
+
+/** The Univer undo/redo entry for an outline action that ran over `start..end`
+ *  with `before` the levels it found. Undo replays allowed outline commands
+ *  (clear the span, then one group per level over the lines that were at least
+ *  that deep), so the restoration is journalled like any outline edit and
+ *  passes the command policy; redo replays the action itself. Pushed for the
+ *  workbook unit, it joins an open executeAsOneStep batch. */
+export function outlineHistoryItem(
+  unitId: string,
+  sheetId: string,
+  axis: "rows" | "cols",
+  start: number,
+  end: number,
+  action: XlsxOutlineAction,
+  before: readonly number[],
+): { unitID: string; undoMutations: XlsxOutlineHistoryStep[]; redoMutations: XlsxOutlineHistoryStep[] } {
+  const id = axis === "rows" ? "uniwork.command.set-rows-outline" : "uniwork.command.set-cols-outline";
+  const step = (from: number, to: number, stepAction: XlsxOutlineAction): XlsxOutlineHistoryStep =>
+    ({ id, params: { subUnitId: sheetId, start: from, end: to, action: stepAction, history: false } });
+  const undoMutations = [step(start, end, "clear")];
+  const deepest = Math.max(0, ...before);
+  for (let level = 1; level <= deepest; level += 1) {
+    let runStart = -1;
+    before.forEach((lineLevel, offset) => {
+      if (lineLevel >= level && runStart < 0) runStart = offset;
+      if (lineLevel < level && runStart >= 0) {
+        undoMutations.push(step(start + runStart, start + offset - 1, "group"));
+        runStart = -1;
+      }
+    });
+    if (runStart >= 0) undoMutations.push(step(start + runStart, start + before.length - 1, "group"));
+  }
+  return { unitID: unitId, undoMutations, redoMutations: [step(start, end, action)] };
 }
 
 // ── filter capture (B4: auto filter / advanced filter) ─────────────────────

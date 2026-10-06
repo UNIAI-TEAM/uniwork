@@ -36,7 +36,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
-  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, seedColumnOutline, liveSessionSheets,
+  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, outlineLevels, outlineHistoryItem, seedColumnOutline, liveSessionSheets,
   sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
   sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate, observeValidationVerdicts } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
@@ -668,6 +668,117 @@ test('outline actions shift runs of levels, clamp at the bounds and clear', () =
   assert.deepEqual(applyOutlineAction(model, 's1', 'rows', 3, 2, 'group'), []);
   assert.deepEqual(applyOutlineAction(model, 'ghost', 'rows', 0, 1, 'group'), []);
   assert.deepEqual(applyOutlineAction(null, 's1', 'rows', 0, 1, 'group'), []);
+});
+
+test('outline levels follow their rows and columns through inserts and removals', () => {
+  const model = state();
+  const structural = (id, range) => ({ id, type: 2, params: { unitId: 'file-sha', subUnitId: 's1', range } });
+  const rows = () => outlineLevels(model, 's1', 'rows', 0, 8);
+  applyOutlineAction(model, 's1', 'rows', 2, 4, 'group');
+  applyOutlineAction(model, 's1', 'rows', 3, 3, 'group');
+  applyOutlineAction(model, 's1', 'rows', 6, 6, 'group');
+  assert.deepEqual(rows(), [0, 0, 1, 2, 1, 0, 1, 0, 0]);
+  // Two rows inserted at 3: the grouped rows below move down, the new rows sit at 0.
+  ingestStructuralMutation(model, structural('sheet.mutation.insert-row', { startRow: 3, endRow: 4, startColumn: 0, endColumn: 9 }));
+  assert.deepEqual(rows(), [0, 0, 1, 0, 0, 2, 1, 0, 1]);
+  // Removing rows 2-3 drops their levels and pulls the rest up.
+  ingestStructuralMutation(model, structural('sheet.mutation.remove-rows', { startRow: 2, endRow: 3, startColumn: 0, endColumn: 9 }));
+  assert.deepEqual(rows(), [0, 0, 0, 2, 1, 0, 1, 0, 0]);
+  // Columns shift on their own axis only.
+  applyOutlineAction(model, 's1', 'cols', 1, 1, 'group');
+  ingestStructuralMutation(model, structural('sheet.mutation.insert-col', { startRow: 0, endRow: 19, startColumn: 0, endColumn: 0 }));
+  assert.deepEqual(outlineLevels(model, 's1', 'cols', 0, 3), [0, 0, 1, 0]);
+  ingestStructuralMutation(model, structural('sheet.mutation.remove-col', { startRow: 0, endRow: 19, startColumn: 2, endColumn: 2 }));
+  assert.deepEqual(outlineLevels(model, 's1', 'cols', 0, 3), [0, 0, 0, 0]);
+  assert.deepEqual(rows(), [0, 0, 0, 2, 1, 0, 1, 0, 0]);
+  // A seeded file level never lands on an inserted column.
+  model.file.sheets[0].columnWidths = [{ startColumn: 5, endColumn: 5, hidden: false, outlineLevel: 3 }];
+  ingestStructuralMutation(model, structural('sheet.mutation.insert-col', { startRow: 0, endRow: 19, startColumn: 5, endColumn: 5 }));
+  seedColumnOutline(model);
+  assert.equal(outlineLevels(model, 's1', 'cols', 5, 5)[0], 0);
+  assert.deepEqual(outlineLevels(model, 's1', 'rows', 3, 2), []);
+});
+
+test('an outline history entry restores the previous levels with allowed outline commands', () => {
+  const step = (start, end, action) => ({
+    id: 'uniwork.command.set-rows-outline', params: { subUnitId: 's1', start, end, action, history: false },
+  });
+  assert.deepEqual(outlineHistoryItem('file-sha', 's1', 'rows', 1, 5, 'group', [0, 1, 2, 1, 0]), {
+    unitID: 'file-sha',
+    undoMutations: [step(1, 5, 'clear'), step(2, 4, 'group'), step(3, 3, 'group')],
+    redoMutations: [step(1, 5, 'group')],
+  });
+  const cols = outlineHistoryItem('file-sha', 's1', 'cols', 0, 1, 'ungroup', [1, 1]);
+  assert.equal(cols.undoMutations[0].id, 'uniwork.command.set-cols-outline');
+  assert.deepEqual(cols.undoMutations.map((entry) => [entry.params.start, entry.params.end, entry.params.action]), [[0, 1, 'clear'], [0, 1, 'group']]);
+  // Every replayed step passes the command policy.
+  const model = state();
+  for (const entry of [...cols.undoMutations, ...cols.redoMutations]) {
+    assert.equal(canExecuteCommand({ id: entry.id, type: 0, params: entry.params }, model, false), true);
+  }
+});
+
+test('real Univer undo/redo of an outline action restores the levels and journals the restoration', async () => {
+  const require = createRequire(path.join(REPO_ROOT, 'packages/office-upstream/package.json'));
+  const { Univer, LogLevel, ICommandService, IUndoRedoService, IUniverInstanceService } = require('@univerjs/core');
+  const { UniverSheetsPlugin } = require('@univerjs/sheets');
+  const { FUniver } = require('@univerjs/core/facade');
+  require('@univerjs/sheets/facade');
+  const univer = new Univer({ logLevel: LogLevel.ERROR, locale: 'enUS', locales: { enUS: {} } });
+  univer.registerPlugin(UniverSheetsPlugin);
+  const api = FUniver.newAPI(univer);
+  const model = state();
+  const emitted = [];
+  const refused = [];
+  const workbook = api.createWorkbook({ id: 'file-sha', sheetOrder: ['s1'], sheets: { s1: { id: 's1', name: 'Data', rowCount: 20, columnCount: 10 } } });
+  const injector = univer.__getInjector();
+  injector.get(IUniverInstanceService).focusUnit(workbook.getId());
+  const undoRedo = injector.get(IUndoRedoService);
+  // The controller's runOutline (controller.ts), over the same edits.ts helpers.
+  const registration = injector.get(ICommandService).registerCommand({
+    id: 'uniwork.command.set-rows-outline', type: 0,
+    handler: (_accessor, p) => {
+      const before = outlineLevels(model, p.subUnitId, 'rows', p.start, p.end);
+      const edits = applyOutlineAction(model, p.subUnitId, 'rows', p.start, p.end, p.action);
+      emitted.push(...edits);
+      if (edits.length > 0 && p.history !== false) {
+        undoRedo.pushUndoRedo(outlineHistoryItem('file-sha', p.subUnitId, 'rows', p.start, p.end, p.action, before));
+      }
+      return edits.length > 0;
+    },
+  });
+  const gate = api.addEvent(api.Event.BeforeCommandExecute, (event) => {
+    if (!canExecuteCommand(event, model, false)) {
+      refused.push(event.id);
+      event.cancel = true;
+    }
+  });
+  const levels = () => outlineLevels(model, 's1', 'rows', 0, 4);
+  try {
+    assert.equal(await api.executeCommand('uniwork.command.set-rows-outline', { subUnitId: 's1', start: 1, end: 3, action: 'group' }), true);
+    assert.equal(await api.executeCommand('uniwork.command.set-rows-outline', { subUnitId: 's1', start: 2, end: 2, action: 'group' }), true);
+    assert.deepEqual(levels(), [0, 1, 2, 1, 0]);
+    emitted.length = 0;
+    await api.undo();
+    assert.deepEqual(levels(), [0, 1, 1, 1, 0], JSON.stringify(refused));
+    // The restoration is journalled: the span cleared, then regrouped to level 1.
+    assert.deepEqual(emitted.map((edit) => edit.structural), [
+      { kind: 'set-rows-outline', start: 2, end: 2, level: 0 },
+      { kind: 'set-rows-outline', start: 2, end: 2, level: 1 },
+    ]);
+    assert.deepEqual(model.editJournal.structuralOps.get('s1').at(-1), { kind: 'set-rows-outline', start: 2, end: 2, level: 1 });
+    await api.undo();
+    assert.deepEqual(levels(), [0, 0, 0, 0, 0]);
+    await api.redo();
+    assert.deepEqual(levels(), [0, 1, 1, 1, 0]);
+    await api.redo();
+    assert.deepEqual(levels(), [0, 1, 2, 1, 0]);
+    assert.deepEqual(refused, []);
+  } finally {
+    gate.dispose();
+    registration.dispose();
+    univer.dispose();
+  }
 });
 
 test('default column width journals one null set-col-size op for the span', () => {

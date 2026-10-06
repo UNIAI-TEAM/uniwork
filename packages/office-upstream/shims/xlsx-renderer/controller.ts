@@ -7,6 +7,7 @@ import {
   BooleanNumber,
   CommandType,
   ICommandService,
+  IUndoRedoService,
   ThemeService,
   WrapStrategy,
 } from "@univerjs/core";
@@ -35,6 +36,8 @@ import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type X
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
+  outlineHistoryItem,
+  outlineLevels,
   createValidatedWriteGate,
   observeValidationVerdicts,
   ingestCellMutation,
@@ -470,8 +473,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   // UniWork outline commands (B1): the pinned Univer has no outline model and
   // journals no levels, so these two commands record the level change
   // straight into the renderer's structural journal (one op per contiguous
-  // run) and emit it on the same edit channel as cell edits. They carry no
-  // undo entry — there is no Univer state to undo (genoffice parity). The
+  // run) and emit it on the same edit channel as cell edits. Each action
+  // pushes its own undo entry (edits.ts outlineHistoryItem): undo replays
+  // outline commands that restore the previous levels and journal them, and
+  // inside an executeAsOneStep batch the entry joins the batch. The
   // column default-width reset rides the same route: the pinned build's
   // `set-col-is-auto-width` command emits no mutation, so the reset journals
   // a null set-col-size op itself.
@@ -486,12 +491,22 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     return true;
   };
   const runOutline = (axis: "rows" | "cols", params: unknown): boolean => {
-    const p = params as { subUnitId?: string; start?: number; end?: number; action?: "group" | "ungroup" | "clear" } | undefined;
+    const p = params as {
+      subUnitId?: string; start?: number; end?: number; action?: "group" | "ungroup" | "clear"; history?: boolean;
+    } | undefined;
     if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.end !== "number") return false;
     if (p.action !== "group" && p.action !== "ungroup" && p.action !== "clear") return false;
     const sheetId = p.subUnitId ?? runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
     if (!sheetId) return false;
-    return emitStructuralEdits(applyOutlineAction(lazyWorkbookRef.current, sheetId, axis, p.start, p.end, p.action));
+    const before = outlineLevels(lazyWorkbookRef.current, sheetId, axis, p.start, p.end);
+    const ran = emitStructuralEdits(applyOutlineAction(lazyWorkbookRef.current, sheetId, axis, p.start, p.end, p.action));
+    const unitId = runtime.univerAPI.getActiveWorkbook()?.getId();
+    // Undo/redo replays carry history: false and push nothing.
+    if (ran && p.history !== false && unitId) {
+      runtime.univer.__getInjector().get(IUndoRedoService)
+        .pushUndoRedo(outlineHistoryItem(unitId, sheetId, axis, p.start, p.end, p.action, before));
+    }
+    return ran;
   };
   const runColumnDefaultWidth = (params: unknown): boolean => {
     const p = params as { subUnitId?: string; start?: number; end?: number } | undefined;
