@@ -179,6 +179,45 @@ export function activeHitTarget(
   return hits[hitIndex] ?? null;
 }
 
+/** Where the scan resumes after Replace (one): the first run/offset past the
+ * text just written. */
+export interface PptxFindResumePosition {
+  run: number;
+  offset: number;
+}
+
+/**
+ * The position just past the text Replace (one) writes for the active hit, in
+ * the run indices of the edited deck. The new text may itself match the query
+ * (replace `a` with `aa`), so resuming at the same hit index would re-pick what
+ * was just written; resuming past it moves to the next remaining hit. A run the
+ * edit empties is dropped from the flattened deck (the engine skips empty
+ * runs), so the following run takes its index and the scan resumes at its start.
+ */
+export function resumePositionAfterReplace(
+  hits: readonly PptxFindOccurrence[],
+  hitIndex: number,
+  targets: readonly PptxFindTextTarget[],
+  replacement: string,
+): PptxFindResumePosition | null {
+  const hit = hits[hitIndex];
+  const target = hit ? targets[hit.run] : undefined;
+  if (!hit || !target) return null;
+  const rest = target.text.slice(0, hit.offset) + target.text.slice(hit.offset + hit.length);
+  if (rest === "" && replacement === "") return { run: hit.run, offset: 0 };
+  return { run: hit.run, offset: hit.offset + replacement.length };
+}
+
+/** The first hit at or after `position`, wrapping to the first hit when none
+ * remains after it; PPTX_FIND_UNSET_HIT when there are no hits. */
+export function resumeHitIndex(hits: readonly PptxFindOccurrence[], position: PptxFindResumePosition): number {
+  if (hits.length === 0) return PPTX_FIND_UNSET_HIT;
+  const next = hits.findIndex(
+    (hit) => hit.run > position.run || (hit.run === position.run && hit.offset >= position.offset),
+  );
+  return next === -1 ? 0 : next;
+}
+
 /** Deck-wide replace-all edit, or null when there is nothing to find. One edit,
  * so every occurrence goes in one undoable step. */
 export function replaceAllEdit(
