@@ -70,10 +70,6 @@ function actionKey(status: OfficeSaveStatusKind): string | null {
   }
 }
 
-// Refusals a retry can never fix: no retry button, and the body says what
-// to do instead (office.save.fix.<code>).
-const RETRY_CANNOT_FIX = new Set(["xlsx_recalc_unavailable"]);
-
 /** Renders one shared status vocabulary for web and desktop. */
 export function SaveStatus({
   status,
@@ -84,13 +80,16 @@ export function SaveStatus({
   className,
   compact = false,
 }: SaveStatusProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.save" });
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.save" });
   const { t: tRoot } = useTranslation();
   const normalized = normalizeStatus(status, coordinatorState, destination);
   const errorCorrelation = coordinatorState?.error?.correlationId ?? null;
   const resolvedCorrelation = correlationId ?? errorCorrelation;
+  // A refusal the coordinator marks non-retryable and that has written advice
+  // (office.save.fix.<code>) gets no retry button; the body says what to do
+  // instead. A non-retryable code without that copy keeps the generic banner.
   const errorCode = normalized === "error" ? coordinatorState?.error?.code : undefined;
-  const unfixable = errorCode && RETRY_CANNOT_FIX.has(errorCode) ? errorCode : null;
+  const unfixable = errorCode && coordinatorState?.error?.retryable === false && i18n.exists(`office.save.fix.${errorCode}`) ? errorCode : null;
   const action = unfixable ? null : actionKey(normalized);
   // F4 (UNI-926): a refused save used to show only the generic headline. The
   // coordinator keeps the job failure code/class in its error slot; surface it

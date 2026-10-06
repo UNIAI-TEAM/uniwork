@@ -116,6 +116,21 @@ describe("SaveStatus", () => {
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
+  it("keys the no-retry banner off retryable=false plus a written fix, not a code list (UNI-953 N3)", () => {
+    const error = { state: "error" as const, errorClass: "engine" as const, correlationId: null, ambiguous: false, message: "" };
+    // Non-retryable but no office.save.fix.<code> copy: the generic banner keeps its action.
+    const { rerender } = render(
+      <SaveStatus coordinatorState={{ state: "error", error: { ...error, code: "some_future_refusal", retryable: false, action: "stop" } }} onAction={vi.fn()} />,
+    );
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    // A code with fix copy that the coordinator says is retryable is not suppressed.
+    rerender(
+      <SaveStatus coordinatorState={{ state: "error", error: { ...error, code: "xlsx_recalc_unavailable", retryable: true, action: "retry" } }} onAction={vi.fn()} />,
+    );
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Install the latest UniWork Office");
+  });
+
   it("keeps the generic headline when a save failure carries no code (F4)", () => {
     render(<SaveStatus status="error" />);
     expect(screen.getByRole("alert")).toHaveTextContent("Save could not be confirmed");
