@@ -5,20 +5,31 @@
 // page summary plus per-page sizes, `edit` applies one batch and returns the
 // verified output bytes, `render` rasterises one page to a PNG, and `text` reads
 // a page range's text layer (plus per-character display-space boxes on request) so the renderer can run
-// find. Paths and file handles stay on the host side.
+// find, and `close` frees a retained document. An `open` asked to `retain` keeps
+// the bytes (and the password that opened them) in this process and answers an
+// opaque `pdfHandle`, so `render` and `text` name the document instead of
+// shipping it over IPC for every page. Paths and file handles stay on the host side.
 import { applyPdfEditBytes, PdfPasswordError, probePdf, type PdfEditOutcome, type PdfPasswordStatus, type PdfProbe } from "../pdf/index";
+import { randomBytes } from "node:crypto";
 import { readPdfPageSizes, readPdfTextRange, renderPdfPagePng, type DesktopPdfTextPage } from "./pdf-render.ts";
 
-/** Operations the IPC schema lets a caller name. `open`, `edit`, `render` and
- * `text` are bound; the rest answer `engine_operation_unsupported` before any
+/** Operations the IPC schema lets a caller name. `open`, `edit`, `render`,
+ * `text` and `close` are bound; the rest answer `engine_operation_unsupported` before any
  * payload is read. */
-export type DesktopEngineOperation = "open" | "edit" | "render" | "text" | "capability" | "serialize" | "cancel";
+export type DesktopEngineOperation = "open" | "edit" | "render" | "text" | "close" | "capability" | "serialize" | "cancel";
 
 export interface DesktopEngineCall {
   readonly operation: DesktopEngineOperation;
   /** Opaque host handle; never a filesystem path. */
   readonly handle: string;
+  /** The renderer session the call came from. A retained document belongs to
+   * this session plus `handle`, so no other document or session can use it. */
+  readonly sessionGeneration?: string;
   readonly args: {
+    /** `open`: keep the document in this process and answer a `pdfHandle`. */
+    readonly retain?: unknown;
+    /** `render` / `text` / `close`: the retained document, in place of `dataBase64`. */
+    readonly pdfHandle?: unknown;
     readonly dataBase64?: unknown;
     readonly edits?: unknown;
     readonly password?: unknown;
@@ -41,6 +52,13 @@ export interface DesktopEngineOpenResult {
   readonly operation: "open";
   readonly probe: PdfProbe;
   readonly pageSizes: readonly DesktopPdfPageSize[];
+  /** Present when the open asked to `retain` the document. */
+  readonly pdfHandle?: string;
+}
+
+export interface DesktopEngineCloseResult {
+  readonly ok: true;
+  readonly operation: "close";
 }
 
 export interface DesktopEngineEditResult {
@@ -68,6 +86,14 @@ export interface DesktopEnginePasswordRefusal {
   readonly error: { readonly kind: "password"; readonly status: PdfPasswordStatus };
 }
 
+/** The retained document a `pdfHandle` names is gone (closed, replaced by a
+ * newer open of the same document, evicted, or never this caller's). Typed
+ * data, so the renderer can re-open once instead of reading a flattened error. */
+export interface DesktopEngineHandleRefusal {
+  readonly ok: false;
+  readonly error: { readonly kind: "handle"; readonly status: "unknown" };
+}
+
 /** A bounded page range of the text layer (`pageLimit` pages from `pageIndex`);
  * `charBoxes` is empty unless the call asked for `geometry`. The renderer walks
  * the document lazily, one range per call. */
@@ -78,7 +104,7 @@ export interface DesktopEngineTextResult {
   readonly pages: readonly DesktopPdfTextPage[];
 }
 
-export type DesktopEngineCallResult = DesktopEngineOpenResult | DesktopEngineEditResult | DesktopEngineRenderResult | DesktopEngineTextResult | DesktopEnginePasswordRefusal;
+export type DesktopEngineCallResult = DesktopEngineOpenResult | DesktopEngineEditResult | DesktopEngineRenderResult | DesktopEngineTextResult | DesktopEngineCloseResult | DesktopEnginePasswordRefusal | DesktopEngineHandleRefusal;
 
 /** Typed refusal for a malformed call: the IPC dispatcher turns a thrown
  * error into the channel's failure surface, so a missing payload never
@@ -100,6 +126,98 @@ function decode(input: unknown): Uint8Array {
   return Uint8Array.from(Buffer.from(input, "base64"));
 }
 
+/** One retained document. The password lives only here, in main-process
+ * memory: it is never logged or answered, and leaves with the entry. */
+interface RetainedPdf {
+  readonly owner: string;
+  bytes: Uint8Array;
+  password: string | undefined;
+}
+
+interface RetainedPdfBudget {
+  readonly maxDocuments: number;
+  readonly maxBytes: number;
+}
+
+/** Open documents across every window: a handful of tabs, and a total that a
+ * desktop main process can hold beside the pdfium heap. */
+const DEFAULT_RETAINED_BUDGET: RetainedPdfBudget = { maxDocuments: 8, maxBytes: 512 * 1024 * 1024 };
+let retainedBudget = DEFAULT_RETAINED_BUDGET;
+/** Retained documents by handle; Map order is the LRU order (oldest first). */
+const retained = new Map<string, RetainedPdf>();
+/** The one live handle per owner (session + document). */
+const liveHandleByOwner = new Map<string, string>();
+let retainedBytes = 0;
+
+class StaleHandleError extends Error {}
+
+function ownerOf(call: DesktopEngineCall): string {
+  return `${call.sessionGeneration ?? ""}\u0000${call.handle}`;
+}
+
+function release(pdfHandle: string): void {
+  const entry = retained.get(pdfHandle);
+  if (!entry) return;
+  retained.delete(pdfHandle);
+  if (liveHandleByOwner.get(entry.owner) === pdfHandle) liveHandleByOwner.delete(entry.owner);
+  retainedBytes -= entry.bytes.byteLength;
+  entry.bytes = new Uint8Array(0);
+  entry.password = undefined;
+}
+
+/** Drop the least recently used documents past the budget, always keeping the
+ * newest one: a document bigger than the byte budget still prints. */
+function enforceBudget(): void {
+  while (retained.size > 1 && (retained.size > retainedBudget.maxDocuments || retainedBytes > retainedBudget.maxBytes)) {
+    const oldest = retained.keys().next().value;
+    if (oldest === undefined) return;
+    release(oldest);
+  }
+}
+
+/** Keep `bytes` for this caller, replacing the caller's previous document (a
+ * document change makes the old bytes useless), and answer the new handle. */
+function retain(call: DesktopEngineCall, bytes: Uint8Array, password: string | undefined): string {
+  const owner = ownerOf(call);
+  const previous = liveHandleByOwner.get(owner);
+  if (previous) release(previous);
+  const pdfHandle = `pdf_${randomBytes(16).toString("hex")}`;
+  retained.set(pdfHandle, { owner, bytes, password });
+  liveHandleByOwner.set(owner, pdfHandle);
+  retainedBytes += bytes.byteLength;
+  enforceBudget();
+  return pdfHandle;
+}
+
+/** The bytes and password a call reads: the retained document its `pdfHandle`
+ * names (touched as most recently used), else the inline `dataBase64`. A handle
+ * that is not a live one of this caller is stale, never another caller's. */
+function documentOf(call: DesktopEngineCall): { bytes: Uint8Array; password: string | undefined } {
+  const pdfHandle = call.args.pdfHandle;
+  if (pdfHandle === undefined) {
+    return { bytes: decode(call.args.dataBase64), password: typeof call.args.password === "string" ? call.args.password : undefined };
+  }
+  if (typeof pdfHandle !== "string") throw new DesktopEngineCallError("engine_input_missing");
+  const entry = retained.get(pdfHandle);
+  if (!entry || entry.owner !== ownerOf(call)) throw new StaleHandleError();
+  retained.delete(pdfHandle);
+  retained.set(pdfHandle, entry);
+  return { bytes: entry.bytes, password: entry.password };
+}
+
+/** Test seam: what the store holds, with no bytes or password in the answer. */
+export function retainedPdfStatsForTests(): { documents: number; bytes: number; withPassword: number } {
+  let withPassword = 0;
+  for (const entry of retained.values()) if (entry.password !== undefined) withPassword += 1;
+  return { documents: retained.size, bytes: retainedBytes, withPassword };
+}
+
+/** Test seam: swap the budget; the returned function restores the default. */
+export function setRetainedPdfBudgetForTests(budget: RetainedPdfBudget): () => void {
+  retainedBudget = budget;
+  return () => { retainedBudget = DEFAULT_RETAINED_BUDGET; };
+}
+
 async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResult> {
   if (call.operation === "open") {
     const bytes = decode(call.args.dataBase64);
@@ -108,7 +226,15 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
     // must answer the typed wall before any size read touches pdfium.
     const probe = await probePdf(bytes, password);
     const pageSizes = await readPdfPageSizes(bytes, password);
-    return { ok: true, operation: "open", probe, pageSizes };
+    if (call.args.retain !== true) return { ok: true, operation: "open", probe, pageSizes };
+    return { ok: true, operation: "open", probe, pageSizes, pdfHandle: retain(call, bytes, password) };
+  }
+  if (call.operation === "close") {
+    const pdfHandle = call.args.pdfHandle ?? liveHandleByOwner.get(ownerOf(call));
+    if (pdfHandle !== undefined && typeof pdfHandle !== "string") throw new DesktopEngineCallError("engine_input_missing");
+    // Only the owner closes; closing an unknown or already-freed handle is a no-op.
+    if (pdfHandle && retained.get(pdfHandle)?.owner === ownerOf(call)) release(pdfHandle);
+    return { ok: true, operation: "close" };
   }
   if (call.operation === "edit") {
     const bytes = decode(call.args.dataBase64);
@@ -117,8 +243,7 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
     return { ok: true, operation: "edit", dataBase64: Buffer.from(result.bytes).toString("base64"), warnings: result.warnings, report: result.report };
   }
   if (call.operation === "text") {
-    const bytes = decode(call.args.dataBase64);
-    const password = typeof call.args.password === "string" ? call.args.password : undefined;
+    const { bytes, password } = documentOf(call);
     const pageIndex = call.args.pageIndex;
     if (typeof pageIndex !== "number" || !Number.isInteger(pageIndex) || pageIndex < 0) throw new DesktopEngineCallError("engine_input_missing");
     const pageLimit = call.args.pageLimit ?? 1;
@@ -128,12 +253,11 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
     return { ok: true, operation: "text", pageCount: result.pageCount, pages: result.pages };
   }
   if (call.operation === "render") {
-    const bytes = decode(call.args.dataBase64);
+    const { bytes, password } = documentOf(call);
     const pageIndex = call.args.pageIndex;
     const scale = call.args.scale;
     if (typeof pageIndex !== "number" || !Number.isInteger(pageIndex) || pageIndex < 0) throw new DesktopEngineCallError("engine_input_missing");
     if (typeof scale !== "number" || !Number.isFinite(scale) || scale <= 0) throw new DesktopEngineCallError("engine_input_missing");
-    const password = typeof call.args.password === "string" ? call.args.password : undefined;
     const rendered = await renderPdfPagePng(bytes, pageIndex, scale, password);
     // Out of range or an unallocatable bitmap is a refusal, not a blank page.
     if (!rendered) throw new DesktopEngineCallError("engine_render_unavailable");
@@ -144,13 +268,15 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
 
 /** Answer one validated `desktop:engine-call`. The operation is dispatched
  * first so an unbound one is refused by name rather than as a missing payload.
- * A password wall is returned as typed data so it survives the IPC hop; every
+ * A password wall and a stale `pdfHandle` are returned as typed data so they
+ * survive the IPC hop; every
  * other failure throws, and a partial edit never returns bytes. */
 export async function handleDesktopEngineCall(call: DesktopEngineCall): Promise<DesktopEngineCallResult> {
   try {
     return await dispatch(call);
   } catch (error) {
     if (error instanceof PdfPasswordError) return { ok: false, error: { kind: "password", status: error.status } };
+    if (error instanceof StaleHandleError) return { ok: false, error: { kind: "handle", status: "unknown" } };
     throw error;
   }
 }

@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { degrees, PDFDocument, StandardFonts } from "pdf-lib";
-import { describe, expect, it } from "vitest";
-import { DesktopEngineCallError, handleDesktopEngineCall } from "../src/desktop/pdf-host";
+import { afterEach, describe, expect, it } from "vitest";
+import { DesktopEngineCallError, handleDesktopEngineCall, retainedPdfStatsForTests, setRetainedPdfBudgetForTests } from "../src/desktop/pdf-host";
 import { assertRotationAware } from "../src/desktop/pdf-render";
 
 const FIXTURES = fileURLToPath(new URL("../../../docs/office/g0/fixtures/files/pdf/", import.meta.url));
@@ -195,5 +195,111 @@ describe("desktop PDF engine host", () => {
 
   it("answers a password wall on the text channel as typed data", async () => {
     await expect(handleDesktopEngineCall({ operation: "text", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), pageIndex: 0 } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
+  });
+});
+
+describe("desktop PDF engine host: retained documents", () => {
+  const SESSION = "session_1234";
+  let restoreBudget: (() => void) | null = null;
+  afterEach(async () => {
+    restoreBudget?.();
+    restoreBudget = null;
+    // Close whatever a test left so the next one starts from an empty store.
+    for (let index = 0; index < 40; index += 1) await handleDesktopEngineCall({ operation: "close", handle: `doc-${index}`, sessionGeneration: SESSION, args: {} });
+    await handleDesktopEngineCall({ operation: "close", handle: "doc", sessionGeneration: SESSION, args: {} });
+  });
+
+  const openRetained = async (handle: string, name = "pdf-text-editable.pdf", extra: Record<string, unknown> = {}, sessionGeneration = SESSION): Promise<string> => {
+    const result = await handleDesktopEngineCall({ operation: "open", handle, sessionGeneration, args: { dataBase64: b64(name), retain: true, ...extra } });
+    if (!result.ok || result.operation !== "open" || !result.pdfHandle) throw new Error("open did not retain");
+    return result.pdfHandle;
+  };
+
+  it("does not retain an open that did not ask for it", async () => {
+    const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { dataBase64: b64("pdf-text-editable.pdf") } });
+    expect(result).not.toHaveProperty("pdfHandle");
+    expect(retainedPdfStatsForTests().documents).toBe(0);
+  });
+
+  it("renders and reads text by handle with no document bytes in the request", async () => {
+    const pdfHandle = await openRetained("doc");
+    const rendered = await handleDesktopEngineCall({ operation: "render", handle: "doc", sessionGeneration: SESSION, args: { pdfHandle, pageIndex: 0, scale: 1 } });
+    expect(rendered).toMatchObject({ ok: true, operation: "render" });
+    const text = await handleDesktopEngineCall({ operation: "text", handle: "doc", sessionGeneration: SESSION, args: { pdfHandle, pageIndex: 0 } });
+    expect(text).toMatchObject({ ok: true, operation: "text" });
+  });
+
+  it("renders an encrypted document by handle with the password its open retained", async () => {
+    const pdfHandle = await openRetained("doc", "pdf-password-4spaces.pdf", { password: "    " });
+    expect(retainedPdfStatsForTests()).toMatchObject({ documents: 1, withPassword: 1 });
+    const rendered = await handleDesktopEngineCall({ operation: "render", handle: "doc", sessionGeneration: SESSION, args: { pdfHandle, pageIndex: 0, scale: 1 } });
+    expect(rendered).toMatchObject({ ok: true, operation: "render" });
+  });
+
+  it("never retains a document whose open hit the password wall", async () => {
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { dataBase64: b64("pdf-password-4spaces.pdf"), retain: true } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
+    expect(retainedPdfStatsForTests().documents).toBe(0);
+  });
+
+  it("answers an unknown handle as typed data", async () => {
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", sessionGeneration: SESSION, args: { pdfHandle: "pdf_unknown", pageIndex: 0, scale: 1 } })).resolves.toEqual({ ok: false, error: { kind: "handle", status: "unknown" } });
+    await expect(handleDesktopEngineCall({ operation: "text", handle: "doc", sessionGeneration: SESSION, args: { pdfHandle: "pdf_unknown", pageIndex: 0 } })).resolves.toEqual({ ok: false, error: { kind: "handle", status: "unknown" } });
+  });
+
+  it("refuses a handle presented by another document or another session", async () => {
+    const pdfHandle = await openRetained("doc");
+    const stale = { ok: false, error: { kind: "handle", status: "unknown" } };
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc-other", sessionGeneration: SESSION, args: { pdfHandle, pageIndex: 0, scale: 1 } })).resolves.toEqual(stale);
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", sessionGeneration: "session_9999", args: { pdfHandle, pageIndex: 0, scale: 1 } })).resolves.toEqual(stale);
+    // Another owner cannot close it either.
+    await handleDesktopEngineCall({ operation: "close", handle: "doc-other", sessionGeneration: SESSION, args: { pdfHandle } });
+    expect(retainedPdfStatsForTests().documents).toBe(1);
+  });
+
+  it("frees the document and its password on close, and a later render answers stale", async () => {
+    const pdfHandle = await openRetained("doc", "pdf-password-4spaces.pdf", { password: "    " });
+    await expect(handleDesktopEngineCall({ operation: "close", handle: "doc", sessionGeneration: SESSION, args: { pdfHandle } })).resolves.toEqual({ ok: true, operation: "close" });
+    expect(retainedPdfStatsForTests()).toEqual({ documents: 0, bytes: 0, withPassword: 0 });
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", sessionGeneration: SESSION, args: { pdfHandle, pageIndex: 0, scale: 1 } })).resolves.toEqual({ ok: false, error: { kind: "handle", status: "unknown" } });
+  });
+
+  it("keeps one live document per owner: a new retained open replaces the previous one", async () => {
+    const first = await openRetained("doc");
+    const second = await openRetained("doc");
+    expect(second).not.toBe(first);
+    expect(retainedPdfStatsForTests().documents).toBe(1);
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", sessionGeneration: SESSION, args: { pdfHandle: first, pageIndex: 0, scale: 1 } })).resolves.toEqual({ ok: false, error: { kind: "handle", status: "unknown" } });
+  });
+
+  it("evicts the least recently used document past the count budget, password included", async () => {
+    restoreBudget = setRetainedPdfBudgetForTests({ maxDocuments: 2, maxBytes: Number.MAX_SAFE_INTEGER });
+    const first = await openRetained("doc-0", "pdf-password-4spaces.pdf", { password: "    " });
+    const second = await openRetained("doc-1");
+    // Touch the first so the second becomes the least recently used.
+    await handleDesktopEngineCall({ operation: "render", handle: "doc-0", sessionGeneration: SESSION, args: { pdfHandle: first, pageIndex: 0, scale: 0.1 } });
+    await openRetained("doc-2");
+    expect(retainedPdfStatsForTests()).toMatchObject({ documents: 2, withPassword: 1 });
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc-1", sessionGeneration: SESSION, args: { pdfHandle: second, pageIndex: 0, scale: 0.1 } })).resolves.toEqual({ ok: false, error: { kind: "handle", status: "unknown" } });
+    await openRetained("doc-3");
+    // The encrypted document is now the oldest: it goes, and its password with it.
+    expect(retainedPdfStatsForTests()).toMatchObject({ documents: 2, withPassword: 0 });
+  });
+
+  it("evicts past the byte budget but always keeps the newest document", async () => {
+    const size = Buffer.from(b64("pdf-text-editable.pdf"), "base64").byteLength;
+    restoreBudget = setRetainedPdfBudgetForTests({ maxDocuments: 10, maxBytes: size + 1 });
+    const first = await openRetained("doc-0");
+    await openRetained("doc-1");
+    expect(retainedPdfStatsForTests()).toEqual({ documents: 1, bytes: size, withPassword: 0 });
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc-0", sessionGeneration: SESSION, args: { pdfHandle: first, pageIndex: 0, scale: 0.1 } })).resolves.toEqual({ ok: false, error: { kind: "handle", status: "unknown" } });
+    restoreBudget();
+    restoreBudget = setRetainedPdfBudgetForTests({ maxDocuments: 10, maxBytes: 1 });
+    const kept = await openRetained("doc-2");
+    expect(retainedPdfStatsForTests().documents).toBe(1);
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc-2", sessionGeneration: SESSION, args: { pdfHandle: kept, pageIndex: 0, scale: 0.1 } })).resolves.toMatchObject({ ok: true });
+  });
+
+  it("refuses a malformed handle instead of falling back to missing bytes", async () => {
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", sessionGeneration: SESSION, args: { pdfHandle: 42, pageIndex: 0, scale: 1 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
   });
 });
