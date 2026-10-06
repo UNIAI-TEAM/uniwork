@@ -45,6 +45,7 @@ const PATCHED_SYMBOLS = [
   { patch: '0008', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'tableAdditions: readonly SheetTableAddition[] = [],' },
   { patch: '0010', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'visualAdditions: readonly SheetVisualAddition[] = [],' },
   { patch: '0010', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export const UNIWORK_XLSX_VISUAL_ADDITIONS = true' },
+  { patch: '0011', file: 'apps/sheets/src/renderer/formula-stream-hold.ts', symbol: 'export function noteFormulaStreamChunk(runtime: UniverRuntime): void' },
 ];
 
 const FORBIDDEN_EXTERNAL = /^(?!react(?:\/|$)|react-dom(?:\/|$)|i18next$).+$/;
