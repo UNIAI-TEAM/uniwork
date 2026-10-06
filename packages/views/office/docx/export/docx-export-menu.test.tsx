@@ -6,7 +6,7 @@ import type { OfficePrintOutcome, OfficePrintPort } from "../../print";
 import { chooseItem } from "../../../test/menu-interactions";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxExportGroup, docxExportRibbonItems } from "./docx-export-menu";
-import { DocxPrintMenuItem } from "./docx-print-entry";
+import { DocxPrintMenuItem, DocxPrintNotice, runDocxPrint } from "./docx-print-entry";
 
 const COPY = "<!DOCTYPE html><html><body><section>copy</section></body></html>";
 
@@ -45,7 +45,12 @@ function context(options: { commands?: DocxCommandRuntime; ready?: boolean; port
 
 function renderGroup(options: Parameters<typeof context>[0] = {}) {
   const props = context(options);
-  render(<DocxExportGroup {...props} />);
+  render(
+    <>
+      <DocxExportGroup {...props} />
+      <DocxPrintNotice />
+    </>,
+  );
   return { commands: props.commands };
 }
 
@@ -141,6 +146,34 @@ describe("DocxExportGroup", () => {
     await waitFor(() => expect(printPort.print).toHaveBeenCalledTimes(1));
     await act(async () => {});
     expect(screen.queryByTestId("docx-print-notice")).toBeNull();
+  });
+});
+
+describe("runDocxPrint", () => {
+  it("ignores a second request on a port that still has a job open", async () => {
+    let settle: (outcome: OfficePrintOutcome) => void = () => undefined;
+    const slow = { print: vi.fn<OfficePrintPort["print"]>(() => new Promise<OfficePrintOutcome>((resolve) => { settle = resolve; })) };
+    const base = context({ port: slow });
+    const first = runDocxPrint(base);
+    await waitFor(() => expect(slow.print).toHaveBeenCalledTimes(1));
+    await runDocxPrint(base);
+    expect(slow.print).toHaveBeenCalledTimes(1);
+    settle({ outcome: "printed" });
+    await first;
+    // The job settled, so the port is free again.
+    const again = runDocxPrint(base);
+    await waitFor(() => expect(slow.print).toHaveBeenCalledTimes(2));
+    settle({ outcome: "printed" });
+    await again;
+  });
+
+  it("does not let one port's open job block another port", async () => {
+    const stuck = { print: vi.fn<OfficePrintPort["print"]>(() => new Promise<OfficePrintOutcome>(() => undefined)) };
+    const other = port();
+    void runDocxPrint(context({ port: stuck }));
+    await waitFor(() => expect(stuck.print).toHaveBeenCalledTimes(1));
+    await runDocxPrint(context({ port: other }));
+    expect(other.print).toHaveBeenCalledTimes(1);
   });
 });
 

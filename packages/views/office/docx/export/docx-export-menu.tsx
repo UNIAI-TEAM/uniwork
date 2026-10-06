@@ -17,7 +17,7 @@ import type { RibbonItem } from "../../ribbon";
 import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "../toolbar/groups/ribbon-open-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxExportPdfDialog } from "./docx-export-pdf-dialog";
-import { DocxPrintNotice, runDocxPrint } from "./docx-print-entry";
+import { runDocxPrint } from "./docx-print-entry";
 
 /** Shared open state of the PDF guidance dialog. */
 const pdfDialog = createRibbonOpenStore();
@@ -144,7 +144,6 @@ export function DocxExportGroup(context: DocxToolbarGroupContext) {
           }
         />
       ) : null}
-      <DocxPrintNotice />
     </>
   );
 }

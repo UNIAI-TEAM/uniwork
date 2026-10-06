@@ -84,6 +84,17 @@ describe("DocxEditor print entry", () => {
     expect(request?.html).toContain("@page docx-s0");
   });
 
+  it("shows the print outcome from the header menu item, once", async () => {
+    const print = vi.fn<OfficePrintPort["print"]>(async () => ({ outcome: "failed", reason: "print_busy" }));
+    renderEditor({ print });
+    await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("page-menu"));
+    const menu = await screen.findByRole("menu");
+    fireEvent.click(within(menu).getByTestId("docx-header-print"));
+    const notice = await screen.findByTestId("docx-print-notice");
+    expect(notice).toHaveAttribute("data-print-notice", "busy");
+  });
+
   it("prints the document copy on Ctrl+P instead of the app window", async () => {
     const print = vi.fn<OfficePrintPort["print"]>(async () => ({ outcome: "printed" }));
     const windowPrint = vi.spyOn(window, "print").mockImplementation(() => undefined);

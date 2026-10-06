@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "./commands";
 import { DocxContextMenuSurface } from "./context-menu/docx-context-menu-surface";
-import { DocxPrintMenuItem, runDocxPrint } from "./export/docx-print-entry";
+import { DocxPrintMenuItem, DocxPrintNotice, runDocxPrint } from "./export/docx-print-entry";
 import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
 import { OfficeFrame } from "../frame/office-frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
@@ -268,6 +268,8 @@ export function DocxEditor<TSnapshot = unknown>({
         </span>
       </header> : null}
       {viewState === "ready" ? <HeaderActionsFill menuItems={headerPrintItem} /> : null}
+      {/* The outcome of every print entry (ribbon, PDF dialog, header menu, Ctrl+P) shows here, whatever the ribbon renders. */}
+      {viewState === "ready" ? <DocxPrintNotice /> : null}
       {viewState === "ready" ? (
         <OfficeFrame
           className="bg-office-canvas"
