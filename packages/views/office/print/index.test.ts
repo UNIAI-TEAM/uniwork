@@ -8,9 +8,10 @@ afterEach(() => {
 });
 
 describe("isPrintBusy", () => {
-  it("is true only for the print_busy failure", () => {
+  it("is true only while a print dialog may still be open", () => {
     expect(isPrintBusy({ outcome: "failed", reason: "print_busy" })).toBe(true);
-    expect(isPrintBusy({ outcome: "failed", reason: "print_timeout" })).toBe(false);
+    expect(isPrintBusy({ outcome: "failed", reason: "print_timeout" })).toBe(true);
+    expect(isPrintBusy({ outcome: "failed", reason: "print_unavailable" })).toBe(false);
     expect(isPrintBusy({ outcome: "printed" })).toBe(false);
     expect(isPrintBusy({ outcome: "cancelled" })).toBe(false);
   });

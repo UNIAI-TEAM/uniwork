@@ -18,11 +18,15 @@ export type OfficePrintOutcome = MarkdownPrintOutcome;
 /** The host print path a view is given. */
 export type OfficePrintPort = MarkdownPrintPort;
 
-/** A host answers this reason while a print dialog is still open (one print
- * at a time); a view shows its neutral "already open" status for it instead of
- * the generic action error. */
+/** Reasons that mean "a print dialog may still be open": `print_busy` (one
+ * print at a time) and `print_timeout` (the desktop host got no answer from
+ * the dialog in time, and keeps the job open rather than closing it). */
+const BUSY_REASONS: ReadonlySet<string> = new Set(["print_busy", "print_timeout"]);
+
+/** A view shows its neutral "already open" status for these outcomes instead
+ * of the generic action error: neither is a failure the user caused. */
 export function isPrintBusy(outcome: OfficePrintOutcome): boolean {
-  return outcome.outcome === "failed" && outcome.reason === "print_busy";
+  return outcome.outcome === "failed" && BUSY_REASONS.has(outcome.reason);
 }
 
 /**
