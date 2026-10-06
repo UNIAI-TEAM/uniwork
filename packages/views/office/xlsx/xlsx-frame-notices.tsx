@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { subscribeCommandRefusals } from "./fire-command";
 import { RuleSetDropNotice } from "./conditional-format/rule-set-drop-notice";
 import { useRuleSetDropRestore, type RuleSetRestoreGrid } from "./conditional-format/use-rule-set-drop-restore";
 import type { XlsxEditorHandle } from "./types";
@@ -20,6 +22,8 @@ export interface XlsxFrameNoticesProps {
 /** The frame subbar notices: recalculation progress and the two inline errors. */
 export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor, grid }: XlsxFrameNoticesProps) {
   const { t } = useTranslation();
+  const [commandRefused, setCommandRefused] = useState(false);
+  useEffect(() => subscribeCommandRefusals(() => setCommandRefused(true)), []);
   useRuleSetDropRestore(saveErrorCode, editor, grid);
   return (
     <>
@@ -32,6 +36,12 @@ export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCa
       ) : null}
       {recalcError ? <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-recalc-error">{recalcError}</p> : null}
       {editFailed ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}
+      {commandRefused ? (
+        <p className="flex items-center gap-2 border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-command-refused">
+          <span>{t("office.xlsx.errors.commandRefused")}</span>
+          <button type="button" className="underline" onClick={() => setCommandRefused(false)}>{t("office.xlsx.errors.dismiss")}</button>
+        </p>
+      ) : null}
       <RuleSetDropNotice errorCode={saveErrorCode} editor={editor} />
     </>
   );
