@@ -51,6 +51,7 @@ import { MarkdownFrontmatterPanel } from "./wysiwyg/frontmatter";
 import { MarkdownPrintMenuItems } from "./wysiwyg/print-menu";
 import type { MarkdownPrintPort } from "./wysiwyg/print";
 import type { MarkdownEditorProps, MarkdownOpenOutcome } from "./types";
+import { useOfficeDocumentActive } from "../common/document-active";
 
 /** The two canvases the surface switches between. Visual is the demo default. */
 type MarkdownViewMode = "visual" | "source";
@@ -412,19 +413,19 @@ export function MarkdownEditor<TSnapshot = unknown>({
   const renderPrintHtml = useCallback(() => buildMarkdownPreviewCopy({ source: sourceText(editorRef.current, latestTextRef.current), document_path: "document.md" }), []);
   // m3: the section owns Ctrl+S only while focus is inside it; after the find
   // panel closes with Escape, focus falls to `document.body` and the press is
-  // lost. This window listener covers that gap - a press inside the landmark is
+  // lost (UNI-957: and only while this document is active). This window listener covers that gap - a press inside the landmark is
   // skipped by the containment check AND by the section's `defaultPrevented`.
+  const documentActive = useOfficeDocumentActive();
   useEffect(() => {
     const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing) return;
-      if (event.key.toLowerCase() !== "s" || event.defaultPrevented) return;
+      if (!documentActive || !(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing || event.key.toLowerCase() !== "s" || event.defaultPrevented) return;
       const target = event.target;
       if (target instanceof Node && sectionRef.current?.contains(target)) return;
       save("shortcut");
     };
     window.addEventListener("keydown", onWindowKeyDown);
     return () => window.removeEventListener("keydown", onWindowKeyDown);
-  }, [save]);
+  }, [documentActive, save]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
@@ -550,7 +551,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
                       the live TipTap instance and render nothing until their
                       trigger fires - a typed `/`, or a selection in a table. */}
                   <MarkdownSlash editor={instance} />
-                  <MarkdownTableMenu editor={instance} />
+                  <MarkdownTableMenu editor={documentActive ? instance : null} />
                   <MarkdownWysiwygEditor
                     documentKey={documentKey}
                     editor={editor}
