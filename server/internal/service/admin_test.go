@@ -4,10 +4,87 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/config"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// desktopDevice signs a fresh user in through the PKCE flow on the fixture's
+// pool (testutil.DB holds one advisory lock per test, so a second pool would
+// deadlock) and returns the desktop service, the user id and the session.
+func (f *auditFixture) desktopDevice(t *testing.T, email string) (*DesktopAuthService, string, DesktopSession) {
+	t.Helper()
+	minter := authpkg.TokenMinter{Secret: []byte("desktop-test"), TTL: time.Minute}
+	cfg := config.Config{FrontendOrigin: "http://localhost:13380", DesktopAuthClientID: "uniwork-office", DesktopAuthRedirectURIs: []string{"uniwork-office://auth/callback"}, DesktopAuthDeploymentIDs: []string{"default"}, DesktopAuthCodeTTL: 120 * time.Second, DesktopAuthAttemptTTL: 10 * time.Minute, RefreshTokenTTL: time.Hour}
+	svc := NewDesktopAuthService(f.pool, f.q, minter, cfg)
+	userID, sess := desktopTestSession(t, svc, f.auth, email)
+	return svc, userID, sess
+}
+
+// The operator revoke closes the device's whole session family: the next
+// refresh is device_revoked, and admin_actions and audit_events carry the
+// reason under one trace id. Bad input writes nothing.
+func TestAdminRevokeDesktopDevice(t *testing.T) {
+	f := newAuditFixture(t)
+	ctx := context.Background()
+	desktop, userID, sess := f.desktopDevice(t, "revoke-device@example.com")
+	_, otherID, otherSess := f.desktopDevice(t, "other-device@example.com")
+
+	if _, err := f.admin.RevokeDesktopDevice(ctx, CLIActor, userID, sess.DeviceSessionID, "short"); !errors.Is(err, ErrReasonTooShort) {
+		t.Fatalf("short reason: %v", err)
+	}
+	for name, c := range map[string][2]string{
+		"unknown device":         {userID, "01NOSUCHDEVICE0000000000000"},
+		"unknown user":           {"01NOSUCHUSER000000000000000", sess.DeviceSessionID},
+		"device of another user": {otherID, sess.DeviceSessionID},
+		"empty ids":              {"", ""},
+	} {
+		if _, err := f.admin.RevokeDesktopDevice(ctx, CLIActor, c[0], c[1], "lost laptop reported by owner"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("%s: %v, want ErrNotFound", name, err)
+		}
+	}
+	if rows, err := f.q.ListAdminActionsByTarget(ctx, db.ListAdminActionsByTargetParams{TargetType: "device_session", TargetID: sess.DeviceSessionID, Limit: 10}); err != nil || len(rows) != 0 {
+		t.Fatalf("a refused revoke wrote admin_actions: %v %+v", err, rows)
+	}
+	if err := desktop.CheckDeviceSession(ctx, userID, sess.DeviceSessionID); err != nil {
+		t.Fatalf("refused revoke touched the device: %v", err)
+	}
+
+	res, err := f.admin.RevokeDesktopDevice(ctx, CLIActor, userID, sess.DeviceSessionID, "lost laptop reported by owner")
+	if err != nil || res.AlreadyRevoked || res.Revoked != 1 || res.SessionFamilyID != sess.SessionID {
+		t.Fatalf("revoke: %v %+v", err, res)
+	}
+	if _, err := desktop.Refresh(ctx, sess.DeviceSessionID, sess.RefreshToken, "default"); !errors.Is(err, ErrDesktopDeviceRevoked) {
+		t.Fatalf("refresh after operator revoke: %v", err)
+	}
+	if err := desktop.CheckDeviceSession(ctx, userID, sess.DeviceSessionID); !errors.Is(err, ErrDesktopDeviceRevoked) {
+		t.Fatalf("access check after operator revoke: %v", err)
+	}
+	if _, err := desktop.Refresh(ctx, otherSess.DeviceSessionID, otherSess.RefreshToken, "default"); err != nil {
+		t.Fatalf("the other user's device was revoked too: %v", err)
+	}
+
+	actions, err := f.q.ListAdminActionsByTarget(ctx, db.ListAdminActionsByTargetParams{TargetType: "device_session", TargetID: sess.DeviceSessionID, Limit: 10})
+	if err != nil || len(actions) != 1 || actions[0].Action != audit.ActionDesktopDeviceRevoked || actions[0].ActorID != CLIActor || actions[0].Reason != "lost laptop reported by owner" {
+		t.Fatalf("admin_actions: %v %+v", err, actions)
+	}
+	rows, err := f.q.AdminListAuditEventsByCorrelation(ctx, actions[0].TraceID.String)
+	if err != nil || len(rows) != 1 || rows[0].Action != audit.ActionDesktopDeviceRevoked || rows[0].ResourceID != sess.DeviceSessionID || rows[0].ActorKind != "system" || rows[0].ActorID != CLIActor {
+		t.Fatalf("audit row under the action's trace id: %v %+v", err, rows)
+	}
+
+	// Idempotent: a second revoke says so and writes nothing.
+	again, err := f.admin.RevokeDesktopDevice(ctx, CLIActor, userID, sess.DeviceSessionID, "lost laptop reported by owner")
+	if err != nil || !again.AlreadyRevoked {
+		t.Fatalf("repeat revoke: %v %+v", err, again)
+	}
+	if rows, _ := f.q.ListAdminActionsByTarget(ctx, db.ListAdminActionsByTargetParams{TargetType: "device_session", TargetID: sess.DeviceSessionID, Limit: 10}); len(rows) != 1 {
+		t.Fatalf("repeat revoke wrote %d admin_actions rows", len(rows))
+	}
+}
 
 // Suspending closes the tenant to its own members on both membership gates,
 // and the admin_actions row, the audit row and the owner event commit together.
