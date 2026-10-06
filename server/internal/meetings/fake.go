@@ -2,6 +2,7 @@ package meetings
 
 import (
 	"context"
+	"sync"
 	"time"
 )
 
@@ -28,6 +29,16 @@ type FakeProvider struct {
 	// LastRecording captures the last StartRecordingRequest so tests can
 	// assert the provider was given the FileService write target.
 	LastRecording StartRecordingRequest
+	// Permissions holds what UpdateParticipant last wrote per room and
+	// identity, the way LiveKit keeps it; GetParticipantPermissions reads it.
+	// GetPermissionsDelay holds the answer back after the read, so two
+	// moderators acting at once both read before either writes.
+	Permissions         map[string]MediaPermissions
+	GetPermissionsCalls int
+	GetPermissionsErr   error
+	GetPermissionsDelay time.Duration
+	// permMu guards the participant fields above for concurrent moderators.
+	permMu sync.Mutex
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -73,9 +84,37 @@ func (f *FakeProvider) RemoveParticipant(_ context.Context, req RemoveProviderPa
 }
 
 func (f *FakeProvider) UpdateParticipant(_ context.Context, req UpdateProviderParticipantRequest) error {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
 	f.UpdateCalls++
 	f.LastUpdate = req
+	if f.Permissions == nil {
+		f.Permissions = map[string]MediaPermissions{}
+	}
+	f.Permissions[req.RoomName+"/"+req.Identity] = req.Permissions
 	return nil
+}
+
+// GetParticipantPermissions answers a participant never updated with no locks,
+// like a LiveKit participant still on the grants of their join token. The
+// delay gives up when ctx does, like an RPC past its deadline.
+func (f *FakeProvider) GetParticipantPermissions(ctx context.Context, req GetProviderParticipantRequest) (MediaPermissions, error) {
+	f.permMu.Lock()
+	f.GetPermissionsCalls++
+	if f.GetPermissionsErr != nil {
+		f.permMu.Unlock()
+		return MediaPermissions{}, f.GetPermissionsErr
+	}
+	perms, delay := f.Permissions[req.RoomName+"/"+req.Identity], f.GetPermissionsDelay
+	f.permMu.Unlock()
+	if delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return MediaPermissions{}, ctx.Err()
+		}
+	}
+	return perms, nil
 }
 
 func (f *FakeProvider) EndSession(_ context.Context, req EndProviderSessionRequest) error {

@@ -5,6 +5,7 @@ import { CaptionsOff, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import { useMeetingCapabilities, useParticipants, useRecordings } from "@uniwork/core/meetings";
+import { useMeetingViewSessionScope } from "@uniwork/core/meetings/view-session";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import {
@@ -38,6 +39,7 @@ import {
   ChatMessageAnnouncer,
   ParticipantPresenceAnnouncer,
   ReactionAnnouncer,
+  ScreenShareAnnouncer,
   useMeetingChatUnread,
 } from "./meeting-room-announcers";
 import { MeetingRoomAvatarsProvider } from "./meeting-room-avatars";
@@ -45,6 +47,7 @@ import { MeetingScheduleBanner } from "./meeting-schedule-banner";
 import { MeetingVotePrompt } from "./meeting-vote-prompt";
 import { guestIdentities, muteRequesterIdentities } from "./meeting-signals";
 import { MeetingModerationProvider } from "./meeting-moderation";
+import { MeetingSinglePresenter } from "./meeting-single-presenter";
 import { MeetingStageTiles } from "./meeting-stage-tiles";
 import { MeetingSignalsProvider } from "./use-meeting-signals";
 
@@ -76,6 +79,8 @@ export function MeetingConference(props: {
     [apiParticipants, props.meeting?.host_user_id],
   );
   const guests = useMemo(() => guestIdentities(apiParticipants ?? []), [apiParticipants]);
+  // Hide and pin are for this visit: leaving the room forgets them.
+  useMeetingViewSessionScope(props.meetingId ?? props.meeting?.id);
   return (
     <MeetingSignalsProvider canHost={canHost.allowed} hostIdentities={hostIdentities}>
       <MeetingModerationProvider meetingId={props.meetingId ?? props.meeting?.id} canHost={canHost.allowed && !props.guestMode}>
@@ -332,6 +337,7 @@ function ConferenceStage({
 
       <MeetingCameraBackgroundSync />
       <MeetingScreenShareWatcher />
+      <MeetingSinglePresenter />
 
       {compact ? (
         <Sheet open={sidebarSheetOpen} onOpenChange={setSidebarSheetOpen}>
@@ -348,6 +354,7 @@ function ConferenceStage({
       <RoomAudioRenderer />
       <ReactionAnnouncer />
       <ParticipantPresenceAnnouncer />
+      <ScreenShareAnnouncer />
       <ChatMessageAnnouncer latest={chatUnread.latest} visible={chatVisible} />
     </div>
   );

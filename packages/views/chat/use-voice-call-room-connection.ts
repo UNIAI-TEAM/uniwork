@@ -13,6 +13,10 @@ import {
   type RemoteTrackPublication,
   type RemoteParticipant,
 } from "livekit-client";
+import {
+  SCREEN_SHARE_PUBLISH_DEFAULTS,
+  watchScreenShareSharpness,
+} from "../meetings/share-adaptive-stream";
 import { deviceFailureFromError } from "./voice-call-media";
 import type { VoiceCallDeviceError, VoiceCallDisconnectInfo } from "./voice-call-overlay-types";
 import type { VoiceCallConnectionState } from "./voice-call-room-context";
@@ -81,8 +85,15 @@ export function useVoiceCallRoomConnection(
     let failed = false;
     let everConnected = false;
     let connectTimeoutId: ReturnType<typeof setTimeout> | null = null;
-    const room = new Room({ adaptiveStream: true, dynacast: true });
+    const room = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      // A share goes out as ~1080p plus a 720p backup; the watcher below
+      // makes Retina viewers ask for the 1080p one.
+      publishDefaults: SCREEN_SHARE_PUBLISH_DEFAULTS,
+    });
     refs.roomRef.current = room;
+    const stopSharpShares = watchScreenShareSharpness(room);
     // One hidden <audio> per remote audio track, forgotten when the track goes.
     const audioElsBySid = new Map<string, HTMLMediaElement[]>();
     const videoElByIdentity = refs.videoElByIdentityRef.current;
@@ -363,6 +374,7 @@ export function useVoiceCallRoomConnection(
       for (const [event, handler] of handlers) {
         room.off(event, handler as never);
       }
+      stopSharpShares();
       for (const els of audioElsBySid.values()) {
         for (const el of els) el.remove();
       }

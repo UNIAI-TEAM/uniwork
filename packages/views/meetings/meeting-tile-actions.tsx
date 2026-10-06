@@ -1,7 +1,7 @@
 "use client";
 import { useRef, type ComponentProps } from "react";
 import type { Participant } from "livekit-client";
-import { Eye, EyeOff, MicOff, MoreVertical, Pin, PinOff } from "lucide-react";
+import { Eye, EyeOff, Maximize, MicOff, Minimize, MoreVertical, Pin, PinOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -39,6 +39,7 @@ export function MeetingTileActions({
   micMuted,
   screenShare,
   visible,
+  fullscreen,
   onMenuOpenChange,
   onPin,
 }: {
@@ -54,6 +55,8 @@ export function MeetingTileActions({
    */
   screenShare: boolean;
   visible: boolean;
+  /** Offered on a share the viewer can watch full screen (see useTileFullscreen). */
+  fullscreen?: { active: boolean; onToggle: () => void };
   onMenuOpenChange: (open: boolean) => void;
   onPin: () => void;
 }) {
@@ -63,23 +66,46 @@ export function MeetingTileActions({
   const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
   const hostMuteSlot = canHost && !participant.isLocal;
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  // A share offers only the host's actions on its presenter.
-  if (screenShare && !hostMuteSlot) return null;
+  // A share offers full screen, and the host's actions on its presenter.
+  if (screenShare && !hostMuteSlot && !fullscreen) return null;
 
   // The controls sit in a corner on their own chip, so the face stays visible
   // and the dark wash is only behind the buttons. A thumbnail is too narrow
   // for three touch targets: it keeps the menu, which holds every action.
-  return (
-    <div
-      data-tile-controls
-      className={cn(
-        "absolute z-30 flex items-center gap-0.5 rounded-full bg-meeting-bar-bg p-0.5 ring-1 ring-meeting-bar-border transition-opacity duration-fast motion-reduce:transition-none",
-        compact ? "right-1 bottom-1" : "right-2 bottom-2 sm:right-3 sm:bottom-3",
-        visible
-          ? "pointer-events-auto opacity-100"
-          : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
-      )}
+  const chipClassName = cn(
+    "absolute z-30 flex items-center gap-0.5 rounded-full bg-meeting-bar-bg p-0.5 ring-1 ring-meeting-bar-border transition-opacity duration-fast motion-reduce:transition-none",
+    compact ? "right-1 bottom-1" : "right-2 bottom-2 sm:right-3 sm:bottom-3",
+    visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+    // Focus alone holds the chip up, except in full screen: the toggle keeps
+    // focus after entering, and the tile's idle hide decides there.
+    !visible && !fullscreen?.active && "group-focus-within:pointer-events-auto group-focus-within:opacity-100",
+  );
+  // In the bottom corner, not the top: a shared window keeps its own close
+  // and menu buttons top right.
+  const fullscreenButton = fullscreen ? (
+    <TileActionButton
+      aria-label={fullscreen.active ? t("meetings.fullscreenExit") : t("meetings.fullscreenEnter")}
+      onClick={fullscreen.onToggle}
     >
+      {fullscreen.active ? <Minimize aria-hidden className="size-4" /> : <Maximize aria-hidden className="size-4" />}
+    </TileActionButton>
+  ) : null;
+
+  // Full screen shows only the tile: a menu would open outside it, unseen,
+  // so the way out is the one control kept there. A viewer's menu on a share
+  // would be empty: pin and "don't watch" act on the person, the rest is the
+  // host's.
+  if (fullscreen?.active || (screenShare && !hostMuteSlot)) {
+    return (
+      <div data-tile-controls className={chipClassName}>
+        {fullscreenButton}
+      </div>
+    );
+  }
+
+  return (
+    <div data-tile-controls className={chipClassName}>
+      {fullscreenButton}
       {!compact && !screenShare ? (
         <TileActionButton
           aria-label={pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}

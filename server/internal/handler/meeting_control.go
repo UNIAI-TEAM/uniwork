@@ -109,7 +109,7 @@ func (h *handlers) setParticipantPublish(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := h.Meetings.SetParticipantPublish(r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "meetingID"), chi.URLParam(r, "participantID"), in.Enabled); err != nil {
+		chi.URLParam(r, "meetingID"), chi.URLParam(r, "participantID"), in.Source, in.Enabled); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}

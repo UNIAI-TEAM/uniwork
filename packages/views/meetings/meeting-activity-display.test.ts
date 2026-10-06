@@ -64,6 +64,19 @@ describe("meeting activity display", () => {
     expect(activityStateChange(item({ event_type: "MOTION_CLOSED", from_state: "OPEN", to_state: "PASSED" }))).toBeNull();
   });
 
+  it("names the host's mic and share locks and files them under moderation", () => {
+    const locks = {
+      PARTICIPANT_PUBLISH_REVOKED: "meetings.activity_mic_locked",
+      PARTICIPANT_PUBLISH_GRANTED: "meetings.activity_mic_unlocked",
+      PARTICIPANT_SCREEN_SHARE_REVOKED: "meetings.activity_share_locked",
+      PARTICIPANT_SCREEN_SHARE_GRANTED: "meetings.activity_share_unlocked",
+    };
+    for (const [event, key] of Object.entries(locks)) {
+      expect(activityLabel(event)).toBe(key);
+      expect(activityKind(event)).toBe("moderation");
+    }
+  });
+
   it("names the vote item, and its outcome once it is closed", () => {
     expect(activityMotionDetail(item({ event_type: "MOTION_OPENED", payload: { title: "Kế hoạch quý IV" } }))).toEqual({
       key: "meetings.governance.activityMotionDetail",

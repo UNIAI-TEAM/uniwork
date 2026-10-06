@@ -520,6 +520,12 @@ FOR UPDATE;
 -- otherwise both insert.
 SELECT pg_advisory_xact_lock(hashtextextended('meeting_attendance_sessions:' || sqlc.arg(participant_id)::text, 0));
 
+-- name: LockParticipantMediaLocks :exec
+-- Serializes moderators changing one participant's media locks: each reads
+-- the provider's current locks and writes the whole set back, so two at once
+-- would otherwise lift the lock the other one set.
+SELECT pg_advisory_xact_lock(hashtextextended('meeting_participant_media:' || sqlc.arg(participant_id)::text, 0));
+
 -- name: ShareLockMeetingStatus :one
 -- tenant: by-id
 -- The meeting's status, share-locked so End (which updates the row, then

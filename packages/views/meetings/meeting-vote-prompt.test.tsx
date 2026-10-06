@@ -5,6 +5,11 @@ import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingVotePrompt } from "./meeting-vote-prompt";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+const leaveShareFullscreen = vi.hoisted(() => vi.fn());
+vi.mock("./screen-share", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./screen-share")>()),
+  leaveShareFullscreen,
+}));
 
 const TITLE = "Thông qua kế hoạch quý IV";
 const BALLOT = "/api/v1/meetings/m1/motions/mo1/ballot";
@@ -59,6 +64,21 @@ describe("MeetingVotePrompt", () => {
     const status = screen.getByRole("status");
     expect(status).toBeEmptyDOMElement();
     expect(screen.queryByTestId("meeting-vote-prompt")).not.toBeInTheDocument();
+  });
+
+  it("takes a share out of full screen, where the card would open unseen", async () => {
+    leaveShareFullscreen.mockClear();
+    renderPrompt();
+    await screen.findByTestId("meeting-vote-prompt");
+    expect(leaveShareFullscreen).toHaveBeenCalledOnce();
+  });
+
+  it("leaves full screen alone while no vote is due", async () => {
+    leaveShareFullscreen.mockClear();
+    motions = [];
+    renderPrompt();
+    await waitFor(() => expect(requestMock).toHaveBeenCalled());
+    expect(leaveShareFullscreen).not.toHaveBeenCalled();
   });
 
   it("announces the item that needs a vote", async () => {

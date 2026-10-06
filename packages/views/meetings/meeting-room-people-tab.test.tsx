@@ -109,7 +109,7 @@ describe("MeetingRoomPeopleTab", () => {
   describe("the host's row", () => {
     // The host as another person sees them in the room: an admin moderating.
     const hostInRoom = {
-      identity: "uw_participant_p-host", name: "Chủ trì", isLocal: false, permissions: null, on: vi.fn(), off: vi.fn(),
+      identity: "uw_participant_p-host", name: "Chủ trì", isLocal: false, permissions: null, getTrackPublication: () => undefined, on: vi.fn(), off: vi.fn(),
     };
     const finalizedRoll = {
       finalized_at: "2026-09-30T03:00:00Z",
@@ -167,7 +167,7 @@ describe("MeetingRoomPeopleTab", () => {
 
   describe("a large room", () => {
     const person = (name: string, identity = `id-${name}`) => ({
-      identity, name, isLocal: false, permissions: null, on: vi.fn(), off: vi.fn(),
+      identity, name, isLocal: false, permissions: null, getTrackPublication: () => undefined, on: vi.fn(), off: vi.fn(),
     });
 
     it("follows the roster on joins, leaves and renames only", async () => {
