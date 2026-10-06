@@ -442,6 +442,54 @@ describe("PdfEditor", () => {
     expect(dirty()).toBe(1);
   });
 
+  describe("an Undo pressed while an edit is in flight (review-fe-r2 N2/N3)", () => {
+    const pressApply = async () => {
+      await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+      fireEvent.change(screen.getByLabelText("Chữ thay thế"), { target: { value: "Nội dung mới" } });
+      fireEvent.click(screen.getByRole("button", { name: "Áp dụng chữ" }));
+    };
+
+    it("skips the queued step when that edit fails, so the previous successful edit stays", async () => {
+      let fail!: (error: Error) => void;
+      const handle = editor({ edit: vi.fn(() => new Promise<void>((_resolve, reject) => { fail = reject; })) });
+      renderEditor(opened(), { editor: handle });
+      await pressApply();
+      fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
+      await act(async () => { fail(new Error("engine fault")); await Promise.resolve(); });
+      await screen.findByRole("alert");
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(handle.undo).not.toHaveBeenCalled();
+    });
+
+    it("still undoes an edit that succeeded behind it", async () => {
+      let done!: () => void;
+      const handle = editor({ edit: vi.fn(() => new Promise<void>((resolve) => { done = resolve; })) });
+      renderEditor(opened(), { editor: handle });
+      await pressApply();
+      fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
+      expect(handle.undo).not.toHaveBeenCalled();
+      await act(async () => { done(); await Promise.resolve(); });
+      await waitFor(() => expect(handle.undo).toHaveBeenCalledTimes(1));
+    });
+
+    it("does not step the document opened in between when the key changes before the edit settles", async () => {
+      let done!: () => void;
+      const first = editor({ edit: vi.fn(() => new Promise<void>((resolve) => { done = resolve; })) });
+      const second = editor();
+      const saveCoordinator = coordinator();
+      const open = { open: vi.fn(async () => opened()) };
+      const view = (key: string, handle: PdfEditorHandle) => <PdfEditor documentKey={key} editor={handle} open={open} coordinator={saveCoordinator} capability={capability} />;
+      const { rerender } = render(view("doc-v1", first));
+      await pressApply();
+      fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
+      rerender(view("doc-v2", second));
+      await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+      await act(async () => { done(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(second.undo).not.toHaveBeenCalled();
+      expect(first.undo).not.toHaveBeenCalled();
+    });
+  });
+
   it("cancels and disposes an in-flight session", async () => {
     let resolveOpen: ((outcome: PdfOpenOutcome) => void) | undefined;
     const open = vi.fn(() => new Promise<PdfOpenOutcome>((resolve) => { resolveOpen = resolve; }));

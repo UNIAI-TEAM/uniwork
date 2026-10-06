@@ -137,6 +137,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const { railOpen, railRef, railToggleRef, toggleRail, closeRail } = usePdfRail({ rootRef, canvasRef });
   const initialFitDoneRef = useRef<string | null>(null);
   const disposedRef = useRef(false);
+  /** Bumped each time the document effect starts, so a queued action can tell the document it was pressed on is gone. */
+  const generationRef = useRef(0);
   const passwordControllerRef = useRef<AbortController | null>(null);
   const editorRef = useRef(editor);
   const openRef = useRef(open);
@@ -184,6 +186,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     const translate = translateRef.current;
     const controller = new AbortController();
     disposedRef.current = false;
+    generationRef.current += 1;
     setViewState("opening");
     setFailure(null);
     setPasswordPending(false);
@@ -376,11 +379,17 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   // `subscribe` above; `stepHistory` covers a handle that steps synchronously.
   // review-fe-r1 R6: an Undo pressed while an edit awaits the engine undoes that
   // edit (r5 F3): it waits behind the edit queue, then steps the stack the edit filled.
+  // review-fe-r2 N2/N3: when that edit fails there is nothing of it to undo, so the
+  // step is skipped (the previous successful edit is not the user's target); and it
+  // steps the editor and document the press was made on, never one opened since.
   const undo = useCallback(() => {
     if (readOnly) return;
     const pending = queueRef.current;
     if (!pending) { if (stepHistory(editor, "undo")) markDirty(); return; }
-    void pending.catch(() => undefined).then(() => { if (!disposedRef.current && stepHistory(editorRef.current, "undo")) markDirty(); });
+    const generation = generationRef.current;
+    void pending.then(() => true, () => false).then((settled) => {
+      if (settled && !disposedRef.current && generationRef.current === generation && stepHistory(editor, "undo")) markDirty();
+    });
   }, [editor, markDirty, readOnly]);
   const redo = useCallback(() => { if (!readOnly && stepHistory(editor, "redo")) markDirty(); }, [editor, markDirty, readOnly]);
   const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
