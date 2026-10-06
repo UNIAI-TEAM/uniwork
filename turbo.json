@@ -34,7 +34,10 @@
     // @uniwork/views#test byte-identical in hash, so a cached pass would be
     // replayed over changed code. `^typecheck` would also work but drags real
     // `tsc --noEmit` runs into the test job; `^test` would serialise the suites.
-    "test": { "dependsOn": ["^cache-inputs"] },
+    // REQUIRE_XLSX_GATEWAY (value hashed) is set by the frontend-test CI job so the
+    // real-gateway XLSX tests fail instead of skipping; strict env mode would
+    // otherwise hide it from vitest.
+    "test": { "dependsOn": ["^cache-inputs"], "env": ["REQUIRE_XLSX_GATEWAY"] },
     "dev": { "cache": false, "persistent": true }
   }
 }

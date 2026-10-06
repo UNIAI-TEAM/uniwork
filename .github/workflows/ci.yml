@@ -175,6 +175,15 @@ jobs:
           key: turbo-test-${{ runner.os }}-${{ steps.runtime.outputs.node }}-${{ github.sha }}
           restore-keys: |
             turbo-test-${{ runner.os }}-${{ steps.runtime.outputs.node }}-
+      # The real-gateway XLSX engine tests (packages/office-engine/test/xlsx-*.test.ts)
+      # import .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs. Without it they
+      # skip with a warning, so CI builds the patched bundle from the vendored
+      # upstream (public npm registry, lockfile-pinned; no Rust needed: the
+      # native sidecar is not part of these tests) and the test step below sets
+      # REQUIRE_XLSX_GATEWAY=1 so a missing bundle fails instead of skipping.
+      - name: Build the patched xlsx gateway
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: node scripts/office/build-upstream.mjs
       - name: Unit tests
         if: ${{ needs.changes.outputs.frontend == 'true' }}
         # `test` reaches dependency sources through the hash-only
@@ -188,6 +197,8 @@ jobs:
         # neither. Running it here fails every spec on a missing browser
         # binary and says nothing about the change. Which workspaces the test
         # gate covers is defined once, in the root package.json.
+        env:
+          REQUIRE_XLSX_GATEWAY: "1"
         run: pnpm test
 
   # Stable status-check name for branch rules; fails when either half fails.
