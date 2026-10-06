@@ -35,7 +35,9 @@ export function useXlsxGridEdits<TSnapshot>(
     // formula rewrites). Batches that arrive before the queue reaches them
     // join one ordered edit, so the editor publishes one snapshot and the
     // document is marked dirty once, instead of one React update per batch
-    // (which hit React's nested-update limit, visual-final MAJOR 1).
+    // (which hit React's nested-update limit, visual-final MAJOR 1). A batch
+    // the engine refuses refuses the whole joined edit, earlier valid batches
+    // included; the queue stops and the banner shows, as it did per batch.
     if (waiting.current) { waiting.current.push(...captured); return; }
     const batch = captured;
     waiting.current = batch;

@@ -210,9 +210,10 @@ test('Subtotal: inserts, one sparse write and the outline run as ONE undo step t
       unitId: 'file-sha', subUnitId: 's1',
       range: { startRow: 3, endRow: 6, startColumn: 0, endColumn: 1 },
       value: {
-        3: { 0: text('Sum An'), 1: formula('=SUBTOTAL(9,B2:B3)') },
-        5: { 0: text('Sum Binh'), 1: formula('=SUBTOTAL(9,B5:B5)') },
-        6: { 0: text('Grand Sum'), 1: formula('=SUBTOTAL(9,B2:B6)') },
+        // planSubtotal writes each label with an explicit no-wrap (tb: 1, OVERFLOW).
+        3: { 0: { ...text('Sum An'), s: { tb: 1 } }, 1: formula('=SUBTOTAL(9,B2:B3)') },
+        5: { 0: { ...text('Sum Binh'), s: { tb: 1 } }, 1: formula('=SUBTOTAL(9,B5:B5)') },
+        6: { 0: { ...text('Grand Sum'), s: { tb: 1 } }, 1: formula('=SUBTOTAL(9,B2:B6)') },
       },
     } }, outline(1, 5), outline(1, 2), outline(4, 4)];
     try {
@@ -231,6 +232,9 @@ test('Subtotal: inserts, one sparse write and the outline run as ONE undo step t
       assert.equal(byCell.get('3:1')?.formula, '=SUBTOTAL(9,B2:B3)', JSON.stringify(edits));
       assert.equal(byCell.get('6:1')?.formula, '=SUBTOTAL(9,B2:B6)');
       assert.equal(byCell.get('5:0')?.value, 'Sum Binh');
+      // Review r3 F4: the no-wrap reaches the journal as wrapText=false, so the
+      // saved file keeps the labels unwrapped (no row inherits wrap from above).
+      for (const cell of ['3:0', '5:0', '6:0']) assert.equal(byCell.get(cell)?.style?.wrapText, false, JSON.stringify(byCell.get(cell)));
       // Detail rows at level 2, subtotal rows at 1, header and grand total at 0.
       assert.deepEqual(outlineLevels(model, 's1', 'rows', 0, 6), [0, 2, 2, 1, 2, 1, 0]);
       assert.ok(model.editJournal.structuralOps.get('s1').some((op) => op.kind === 'set-rows-outline' && op.level === 2));
