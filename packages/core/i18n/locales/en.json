@@ -9496,7 +9496,9 @@
           "dateRequired": "Enter a valid date.",
           "rangeOrder": "The maximum must not be less than the minimum.",
           "titleTooLong": "The title can hold at most 32 characters.",
-          "messageTooLong": "The message can hold at most 255 characters."
+          "messageTooLong": "The message can hold at most 255 characters.",
+          "x14Sheet": "This sheet has Excel extended data validation that can't be edited here yet. Edit its validation in Excel.",
+          "refused": "The rule wasn't applied. This sheet's existing rules may still be loading: open the sheet and try again. If rows or columns were inserted before the sheet was first shown, save and reopen the file first."
         }
       },
       "sort": {
@@ -9573,7 +9575,9 @@
           "invalidNumber": "Enter a valid number.",
           "invalidRange": "The minimum must not be greater than the maximum.",
           "emptyText": "Enter the text to look for.",
-          "textTooLong": "The text can be at most 255 characters."
+          "textTooLong": "The text can be at most 255 characters.",
+          "x14Sheet": "This sheet has Excel extended conditional formatting (such as data bars) that can't be edited here yet. Edit its rules in Excel.",
+          "refused": "The rule wasn't applied. This sheet's existing rules may still be loading: open the sheet and try again. If rows or columns were inserted before the sheet was first shown, save and reopen the file first."
         }
       },
       "table": {

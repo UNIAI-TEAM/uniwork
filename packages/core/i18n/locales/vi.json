@@ -9472,7 +9472,7 @@
         },
         "operators": {
           "between": "giữa",
-          "notBetween": "không giữa",
+          "notBetween": "không nằm giữa",
           "equal": "bằng",
           "notEqual": "khác",
           "greaterThan": "lớn hơn",
@@ -9490,7 +9490,9 @@
           "dateRequired": "Nhập một ngày hợp lệ.",
           "rangeOrder": "Giá trị lớn nhất không được nhỏ hơn giá trị nhỏ nhất.",
           "titleTooLong": "Tiêu đề chứa tối đa 32 ký tự.",
-          "messageTooLong": "Nội dung chứa tối đa 255 ký tự."
+          "messageTooLong": "Nội dung chứa tối đa 255 ký tự.",
+          "x14Sheet": "Trang tính này có xác thực dữ liệu mở rộng của Excel mà chưa thể chỉnh sửa tại đây. Hãy chỉnh xác thực dữ liệu của trang tính trong Excel.",
+          "refused": "Chưa áp dụng được quy tắc. Các quy tắc hiện có của trang tính có thể vẫn đang tải: hãy mở trang tính rồi thử lại. Nếu đã chèn dòng hoặc cột trước khi trang tính được hiển thị lần đầu, hãy lưu và mở lại tệp trước."
         }
       },
       "sort": {
@@ -9567,7 +9569,9 @@
           "invalidNumber": "Nhập một số hợp lệ.",
           "invalidRange": "Giá trị nhỏ nhất không được lớn hơn giá trị lớn nhất.",
           "emptyText": "Nhập văn bản cần tìm.",
-          "textTooLong": "Văn bản tối đa 255 ký tự."
+          "textTooLong": "Văn bản tối đa 255 ký tự.",
+          "x14Sheet": "Trang tính này có định dạng có điều kiện mở rộng của Excel (như thanh dữ liệu) mà chưa thể chỉnh sửa tại đây. Hãy chỉnh các quy tắc của trang tính trong Excel.",
+          "refused": "Chưa áp dụng được quy tắc. Các quy tắc hiện có của trang tính có thể vẫn đang tải: hãy mở trang tính rồi thử lại. Nếu đã chèn dòng hoặc cột trước khi trang tính được hiển thị lần đầu, hãy lưu và mở lại tệp trước."
         }
       },
       "table": {
