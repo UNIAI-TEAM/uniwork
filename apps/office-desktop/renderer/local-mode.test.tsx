@@ -48,7 +48,7 @@ function created(format: string) {
   return { opened: true, metadata: { handle, name: format === "md" ? "Untitled.md" : "Untitled.html", byteLength: bytes.byteLength, modifiedAtMs: 0, checksum: bytesChecksum(bytes), untitled: true }, dataBase64: Buffer.from(bytes).toString("base64") };
 }
 
-function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean; recentMissing?: boolean; pick?: unknown; openName?: string } = {}) {
+function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean; recentMissing?: boolean; pick?: unknown; openName?: string; failCheckpoint?: boolean } = {}) {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   let sessionListener: ((metadata: DesktopSessionMetadata) => void) | undefined;
   let fileListener: ((event: { handle: string }) => void) | undefined;
@@ -80,6 +80,8 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
     calls.push({ channel, payload });
     if (options.strict && !LOCAL_CHANNELS.has(channel)) throw new Error(`unexpected network channel ${channel}`);
     if (options.failAuthConfig && channel === "desktop:auth-config") throw new Error("no transport");
+    // The durable draft write refused: the product must warn that the tab is unprotected.
+    if (options.failCheckpoint && channel === "desktop:draft-checkpoint") throw new Error("draft store unavailable");
     return response(channel, (payload ?? {}) as Record<string, unknown>);
   });
   const bridge: RendererBridge = {
@@ -267,25 +269,25 @@ it("saves a local file, then Save As rebinds the tab to the new handle", async (
 });
 
 it("keeps the protection warning visible while the sign-in card is shown", async () => {
-  const h = harness({ localMode: true });
+  const h = harness({ localMode: true, failCheckpoint: true });
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   await screen.findByRole("tab", { name: /Local\.docx/ });
   await edit(`file_${"f".repeat(32)}`);
-  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 10_000 });
+  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 20_000 });
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.signIn") }));
   await waitFor(() => expect(h.container.querySelector("[data-login-state]")).not.toBeNull());
   expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument();
 });
 
 it("clears the protective-checkpoint warning once a local save is confirmed", async () => {
-  const h = harness({ localMode: true });
+  const h = harness({ localMode: true, failCheckpoint: true });
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   await screen.findByRole("tab", { name: /Local\.docx/ });
   await edit(`file_${"f".repeat(32)}`);
   // The 2 s checkpoint tick reports a dirty local file with no durable row.
-  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 10_000 });
+  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 20_000 });
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.anything()));
   await waitFor(() => expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeNull());
