@@ -439,7 +439,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     };
     return COMMAND_ORDER.map((id) => {
       const browserReasonKey = pdfCommandDisabledReason(id, browserLane);
-      // A handle with no undo/redo facet (e.g. desktop) cannot step history, so
+      // A handle with no undo/redo facet cannot step history, so
       // disable the control instead of letting it no-op and mark the document dirty.
       const facetMissing = (id === PDF_COMMANDS.undo && !editor.undo) || (id === PDF_COMMANDS.redo && !editor.redo);
       const disabled = facetMissing

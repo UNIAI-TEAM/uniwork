@@ -50,6 +50,9 @@ type LaneEditorFacets = {
    * them the forms panel never leaves its loading state (R18-2). */
   readFormFields?(): Promise<readonly PdfFormField[]>;
   readSavedNotes?(): Promise<readonly PdfNoteThread[]>;
+  /** Byte-change notify (edit, undo, redo): the PDF editor refreshes its canvas
+   * and re-marks dirty after an async undo/redo swap (G-1). */
+  subscribe?(listener: () => void): () => void;
   /** Markdown / HTML text facets: the shared text views read and write the
    * one source port; the session only forwards the live lane's facets. */
   source?: DesktopTextFacets["source"];
@@ -183,6 +186,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     get searchText() { const lane = surface; return lane?.searchText?.bind(lane); },
     get readFormFields() { const lane = surface; return lane?.readFormFields?.bind(lane); },
     get readSavedNotes() { const lane = surface; return lane?.readSavedNotes?.bind(lane); },
+    get subscribe() { const lane = surface; return lane?.subscribe?.bind(lane); },
     get source() { return surface?.source; },
     get getText() { const lane = surface; return lane?.getText?.bind(lane); },
     get setText() { const lane = surface; return lane?.setText?.bind(lane); },
