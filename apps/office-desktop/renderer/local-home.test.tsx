@@ -50,3 +50,12 @@ it("lists name, shortened directory and time, dims a missing file and opens the 
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.removeNamed", { name: "Gone.docx" }) }));
   expect(callbacks.onRemoveRecent).toHaveBeenCalledWith(missing.id);
 });
+
+it("keeps recent rows compact while the open and remove controls keep a coarse-pointer target", () => {
+  render(<LocalHomeView files={[row()]} {...actions()} />);
+  const item = screen.getByText("Plan.docx").closest("li")!;
+  expect(item).toHaveClass("px-2", "py-1");
+  expect(item).not.toHaveClass("p-3");
+  expect(screen.getByRole("button", { name: i18n.t("officeDesktop.local.openNamed", { name: "Plan.docx" }) })).toHaveClass("pointer-coarse:min-h-11");
+  expect(screen.getByRole("button", { name: i18n.t("officeDesktop.local.removeNamed", { name: "Plan.docx" }) })).toHaveClass("pointer-coarse:min-h-11");
+});

@@ -1,11 +1,12 @@
-﻿import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
+﻿import i18n from "i18next";
+import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
 import { createSaveSettleGate } from "@uniwork/core/office";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, parseRuleSetDrops, planRuleSetDrops, ruleSetDropMessage, ruleSetsDroppedError, stableJson, withoutOperationsAt, withoutPendingOps, withPendingOps, type XlsxDroppedRuleSet, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopFileXlsxResponseSchema, type DesktopDraftMetadata, type DesktopFileXlsxRequest } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
-import { throwIfLocalFileFailed } from "./local-file-failure";
+import { localFileFailureCode, throwIfLocalFileFailed } from "./local-file-failure";
 
 const SESSION_GENERATION = "desktop-dev-session";
 const ENGINE_BUILD = "xlsx-desktop-local-1";
@@ -326,6 +327,10 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
         // gateway: not a retryable glitch, so the screen says the engine is
         // missing from the build instead of "cannot open, retry".
         if (/engine_incompatible/.test(message)) return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_unavailable", engine_error: "engine_incompatible", message };
+        // A refused local file (locked, missing, too large...) reads as the same
+        // sentence the other formats show, not the raw file_* code.
+        const fileCode = localFileFailureCode(error);
+        if (fileCode) return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_error", engine_error: fileCode, message: i18n.t(`office.save.reason.${fileCode}`, { defaultValue: i18n.t("office.save.reason.file_failed") }) };
         return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_error", message };
       }
     },

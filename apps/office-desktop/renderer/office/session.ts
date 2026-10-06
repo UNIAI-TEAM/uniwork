@@ -1,5 +1,5 @@
 import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
-import { createSaveSettleGate } from "@uniwork/core/office";
+import { createSaveSettleGate, dispatchOfficeError, type OfficeErrorDispatch } from "@uniwork/core/office";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot, SaveAttemptResult } from "@uniwork/core/office";
 import type { DesktopEditorSurface, DesktopSurfaceSettings } from "./surface";
 import { desktopSurfaceFactory } from "./surface-registry";
@@ -97,6 +97,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
   let pickerCancelled = false;
   let contextError: unknown;
   let contextRefresh: Promise<void> | undefined;
+  // A refused context rebind before a Save: the coordinator never ran, so its own state cannot carry the coded error.
+  let rebindRefusal: OfficeErrorDispatch | null = null;
   // Saves run inside the gate; checkpoints capture only when no Save overlapped.
   const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   let confirmedCloudBase: { revision: string; checksum: string } | undefined;
@@ -319,7 +321,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     release: async ({ intent }) => { outputs.delete(intent.intentId); },
     reconcile: async () => null,
   };
-  const publish = () => { for (const listener of listeners) listener(rawCoordinator.getState()); };
+  const stateView = () => rebindRefusal ? { ...rawCoordinator.getState(), state: rebindRefusal.state, error: rebindRefusal } : rawCoordinator.getState();
+  const publish = () => { for (const listener of listeners) listener(stateView()); };
   const bindCoordinator = (target: OfficeIdentity) => {
     unsubscribeCoordinator?.();
     rawCoordinator = createOfficeSaveCoordinator({ identity: target, editor, draft, transport });
@@ -354,7 +357,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     return contextRefresh;
   };
   const coordinator = {
-    getState: () => rawCoordinator.getState(),
+    getState: stateView,
     subscribe(listener: Parameters<typeof rawCoordinator.subscribe>[0]) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     markDirty(value: number) { if (surface && value > generation) surfaceOffset += value - generation; generation = Math.max(generation, value); rawCoordinator.markDirty(generation); },
     setCapability: (entry: Parameters<typeof rawCoordinator.setCapability>[0]) => rawCoordinator.setCapability(entry),
@@ -365,7 +368,10 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       saveInProgress = true;
       try {
       return await gate.run(async () => {
-      if (contextError) await bindDraftContext();
+      if (contextError) {
+        try { await bindDraftContext(); rebindRefusal = null; }
+        catch (error) { rebindRefusal = dispatchOfficeError(error); publish(); return { accepted: false as const, reason: "error" as const }; }
+      }
       const result = await rawCoordinator.save(entryPoint);
       if (result.accepted) {
         await surface?.rebaseSaveSource?.(result.receipt);

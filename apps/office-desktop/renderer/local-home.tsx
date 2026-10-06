@@ -51,14 +51,14 @@ export function LocalHomeView({ files, error = false, busy = false, onOpen, onCr
             {actions}
           </div>
         ) : (
-          <ul aria-label={t("title")} className="flex flex-col gap-2">
+          <ul aria-label={t("title")} className="flex flex-col gap-1">
             {rows.map((file) => (
-              <li key={file.id} data-recent-file={file.id} data-missing={file.missing} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3">
-                <button type="button" className={`flex min-w-0 flex-1 items-center gap-3 rounded-control p-2 text-left enabled:hover:bg-muted ${file.missing ? "opacity-60" : ""}`} aria-label={t("openNamed", { name: file.name })} disabled={file.missing || busy} onClick={() => onOpenRecent(file.id)}>
-                  <DocumentTypeIcon format={desktopDocumentFormatForName(file.name) ?? "file"} className="size-8 shrink-0 text-primary" />
+              <li key={file.id} data-recent-file={file.id} data-missing={file.missing} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-2 py-1">
+                <button type="button" className={`flex min-w-0 flex-1 items-center gap-3 rounded-control px-2 py-1 text-left pointer-coarse:min-h-11 enabled:hover:bg-muted ${file.missing ? "opacity-60" : ""}`} aria-label={t("openNamed", { name: file.name })} disabled={file.missing || busy} onClick={() => onOpenRecent(file.id)}>
+                  <DocumentTypeIcon format={desktopDocumentFormatForName(file.name) ?? "file"} className="size-6 shrink-0 text-primary" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-body text-foreground">{file.name}</span>
-                    <span className="mt-1 block truncate text-caption text-muted-foreground">{file.directory ? `${file.directory} · ` : ""}{t("updated", { time: time(file.updatedAt) })}</span>
+                    <span className="block truncate text-caption text-muted-foreground">{file.directory ? `${file.directory} · ` : ""}{t("updated", { time: time(file.updatedAt) })}</span>
                   </span>
                 </button>
                 {file.missing ? <span className="shrink-0 text-caption text-muted-foreground">{t("missing")}</span> : null}

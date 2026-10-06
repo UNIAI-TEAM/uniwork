@@ -43,6 +43,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
   const scrollRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
+  const [activation, setActivation] = useState(0);
   const homeKind = mode === "local" ? "local" : "library";
   const homeTabId = `desktop-tab-${homeKind}`;
   const homePanelId = `desktop-panel-${homeKind}`;
@@ -84,6 +85,16 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
     return () => observer?.disconnect();
   }, [activeTabId, tabs.length, signedOut]);
 
+  // A document tab the user activated (click, Enter, Space) hands focus back to
+  // the page: the tab button would otherwise keep it and swallow the editor's
+  // body-level shortcuts such as PDF Ctrl+F. Arrow-key roving and programmatic
+  // restores never bump the counter, so they keep or never take focus.
+  useEffect(() => {
+    if (activation === 0) return;
+    const held = document.activeElement;
+    if (held instanceof HTMLElement && barRef.current?.contains(held) && held.getAttribute("role") === "tab") held.blur();
+  }, [activation]);
+
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, id: string | null) => {
     const ids = [null, ...tabs.map((tab) => tab.id)];
     const index = ids.indexOf(id);
@@ -108,7 +119,7 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
         <div ref={scrollRef} className="desktop-tab-scroll" data-desktop-tab-scroll>
           {tabs.map((tab) => (
             <div key={tab.id} className="desktop-document-tab" data-active={tab.id === activeTabId}>
-              <button type="button" role="tab" id={`desktop-tab-${tab.id}`} aria-controls={`desktop-panel-${tab.id}`} aria-selected={tab.id === activeTabId} aria-describedby={state(tab) ? `desktop-tab-state-${tab.id}` : undefined} tabIndex={tab.id === activeTabId ? 0 : -1} title={tab.title} className="desktop-tab-select min-w-0 flex-1 text-caption" onClick={() => onSelect(tab.id)} onKeyDown={(event) => onTabKey(event, tab.id)}>
+              <button type="button" role="tab" id={`desktop-tab-${tab.id}`} aria-controls={`desktop-panel-${tab.id}`} aria-selected={tab.id === activeTabId} aria-describedby={state(tab) ? `desktop-tab-state-${tab.id}` : undefined} tabIndex={tab.id === activeTabId ? 0 : -1} title={tab.title} className="desktop-tab-select min-w-0 flex-1 text-caption" onClick={() => { onSelect(tab.id); setActivation((count) => count + 1); }} onKeyDown={(event) => onTabKey(event, tab.id)}>
                 <DocumentTypeIcon format={tab.format} className="size-4 shrink-0" /><span className="truncate">{tab.title}</span>
               </button>
               {state(tab) ? <span id={`desktop-tab-state-${tab.id}`} role="img" aria-label={state(tab)} className={`desktop-tab-state ${tab.saving ? "desktop-tab-saving" : ""}`} /> : null}

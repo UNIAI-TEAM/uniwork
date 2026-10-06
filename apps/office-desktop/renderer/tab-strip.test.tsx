@@ -153,3 +153,24 @@ it.each([["createDocx", "docx"], ["createMarkdown", "md"], ["createHtml", "html"
   fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(i18n.t(`officeDesktop.tabs.${key}`)) }));
   expect(actions.onCreate).toHaveBeenCalledExactlyOnceWith(format);
 });
+
+it("hands focus back to the page once a document tab is activated, so body shortcuts like PDF Ctrl+F work", () => {
+  const actions = callbacks();
+  render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...actions} />);
+  const budget = screen.getByRole("tab", { name: /Budget.xlsx/ });
+  budget.focus();
+  fireEvent.click(budget);
+  expect(actions.onSelect).toHaveBeenLastCalledWith("b");
+  expect(document.body).toHaveFocus();
+});
+
+it("keeps focus on the strip for the library tab and for arrow-key roving", () => {
+  const actions = callbacks();
+  render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...actions} />);
+  const library = screen.getByRole("tab", { name: "Thư viện" });
+  library.focus();
+  fireEvent.click(library);
+  expect(library).toHaveFocus();
+  fireEvent.keyDown(library, { key: "ArrowRight" });
+  expect(screen.getByRole("tab", { name: /Report.docx/ })).toHaveFocus();
+});

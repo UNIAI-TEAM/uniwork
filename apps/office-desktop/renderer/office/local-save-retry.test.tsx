@@ -73,16 +73,30 @@ it("keeps the draft and the pending intent when a Save outgrows the limit", asyn
   expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("office.save.reason.file_save_too_large"));
 });
 
-it("throws the code of a refused context rebind after a confirmed local Save, without losing the receipt", async () => {
+it("routes a refused context rebind after a confirmed local Save into the error state, without losing the receipt or rejecting", async () => {
   let confirmed = false;
+  let rebindRefused = true;
   const { session } = await openSession((channel) => {
-    if (channel === "desktop:file-open") return confirmed ? { opened: false, code: "file_locked" } : saved;
+    if (channel === "desktop:file-open") return confirmed && rebindRefused ? { opened: false, code: "file_locked" } : saved;
     if (channel === "desktop:file-save") { confirmed = true; return saved; }
     return { drafts: [] };
   });
-  session.coordinator.markDirty(1);
+  const unhandled = vi.fn();
+  process.on("unhandledRejection", unhandled);
+  render(<OfficeShell title="Local.docx" editor={<div />} saveCoordinator={session.coordinator} editorReady saveDestination="local" />);
+  act(() => session.coordinator.markDirty(1));
   // The write is confirmed even though the read-only context refresh was refused.
   await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
-  session.coordinator.markDirty(2);
-  await expect(session.coordinator.save("button")).rejects.toMatchObject({ code: "file_locked" });
+  act(() => session.coordinator.markDirty(2));
+  // The next Save does not reject: the coded refusal lands in the coordinator state the shell shows.
+  await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: false, reason: "error" });
+  expect(session.coordinator.getState()).toMatchObject({ state: "error", error: { code: "file_locked", action: "retry", retryable: true } });
+  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("office.save.reason.file_locked"));
+  // Save (the shell's retry control) goes through once the context rebind succeeds.
+  rebindRefused = false;
+  await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
+  expect(session.coordinator.getState().error).toBeNull();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  process.off("unhandledRejection", unhandled);
+  expect(unhandled).not.toHaveBeenCalled();
 }, 30_000);
