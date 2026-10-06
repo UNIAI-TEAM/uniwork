@@ -4,19 +4,18 @@
 // button that used to ride over the canvas is gone (docx-image-layer.tsx keeps
 // only the contextual inspector); the insert command lives here, in the ribbon.
 //
-// The group needs the live TipTap editor to build the image editing port, and
-// the toolbar context carries the host handle only. The lane already publishes
-// the live editor through the schema extension's store (find/find-extension.ts)
-// for exactly this cross-subtree case, so this group reads that store.
+// The group needs the live TipTap editor to build the image editing port; it
+// reads it from its own document's scope (context.docScope, UNI-957), so a
+// second DOCX mounted in a hidden desktop tab never receives the picture.
 import { useMemo } from "react";
 import { createDocxImageEditing } from "./docx-image-commands";
 import { DocxImageInsert } from "./docx-image-insert";
-import { useDocxLiveEditor } from "../editor-store";
+import { useDocxScopeValue } from "../editor-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 
 /** Insert > Image: pick a file, preview it, then insert it at the caret. */
-export function InsertImageGroup({ readOnly = false, saving = false }: DocxToolbarGroupContext) {
-  const editor = useDocxLiveEditor();
+export function InsertImageGroup({ readOnly = false, saving = false, docScope }: DocxToolbarGroupContext) {
+  const editor = useDocxScopeValue(docScope.editor);
   const editing = useMemo(() => (editor ? createDocxImageEditing(() => editor) : null), [editor]);
   if (!editing) return null;
   return <DocxImageInsert editing={editing} readOnly={readOnly || saving} />;

@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import type { RibbonGroup, RibbonItem, RibbonMenuEntry, RibbonTab } from "../../ribbon";
 import { isDocxInTable } from "../context-menu/table-actions";
-import { docxScopeOf } from "../editor-store";
 import { createDocxImageEditing } from "../image/docx-image-commands";
 import {
   DOCX_IMAGE_POSITION_PRESETS,
@@ -86,7 +85,7 @@ function positionLabelKey(h: DocxImagePositionH, v: DocxImagePositionV): string 
 
 /** Run one image-port edit against the live editor; a no-op without one. */
 function withImageEditing(context: DocxToolbarGroupContext, run: (editing: ReturnType<typeof createDocxImageEditing>) => void): void {
-  const editor = docxScopeOf(context).editor.get();
+  const editor = context.docScope.editor.get();
   if (!editor) return;
   run(createDocxImageEditing(() => editor));
 }
@@ -367,7 +366,7 @@ function shapeFormatTab(context: DocxToolbarGroupContext, when: boolean): Ribbon
  * editor every tab is `when: false`.
  */
 export function buildDocxContextualTabs(context: DocxToolbarGroupContext): readonly RibbonTab[] {
-  const editor = docxScopeOf(context).editor.get();
+  const editor = context.docScope.editor.get();
   const inTable = context.format?.inTable === true || isSelectionInTable(editor);
   const kind = selectedNodeKind(editor);
   return [

@@ -12,7 +12,6 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import type { RibbonItem } from "../../../ribbon";
 import { DocxReviewPanel } from "../../review/docx-review-panel";
-import { docxScopeOf, useDocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
 import { scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
 
@@ -22,7 +21,7 @@ const reviewPaneFor = scopedRibbonOpenStore();
 /** The typed ribbon items for the Review > track changes group. */
 export function reviewTrackChangesRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   const { format, commands } = context;
-  const reviewPane = reviewPaneFor(docxScopeOf(context));
+  const reviewPane = reviewPaneFor(context.docScope);
   const disabled = !commands;
   const hasChanges = (format?.reviewChanges.length ?? 0) > 0;
   return [
@@ -58,8 +57,7 @@ export function reviewTrackChangesRibbonItems(context: DocxToolbarGroupContext):
 
 /** Review > track changes: the typed items live on the registry entry; this
  * component owns the pane and is mounted by `RibbonDialogHosts`. */
-export function ReviewTrackChangesGroup({ format, commands, readOnly, saving }: DocxToolbarGroupContext) {
-  const scope = useDocxDocumentScope();
+export function ReviewTrackChangesGroup({ format, commands, readOnly, saving, docScope: scope }: DocxToolbarGroupContext) {
   const reviewPane = reviewPaneFor(scope);
   const { t } = useTranslation();
   const [open] = useRibbonOpen(reviewPane);

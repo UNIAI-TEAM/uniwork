@@ -8,6 +8,7 @@ import type { DocxCommandRuntime } from "../commands";
 import type { DocxShapeInfo } from "./docx-shape-model";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxShapesGroup, docxShapesRibbonItems } from "./docx-shapes-group";
+import { createDocxDocumentScope } from "../editor-store";
 
 vi.mock("@uniwork/ui/components/ui/popover", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
@@ -68,6 +69,7 @@ function renderGroup(
 ) {
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as unknown as DocxToolbarGroupContext["editor"],
     coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
     format: { docxShape: options.shape ?? null } as unknown as DocxToolbarGroupContext["format"],
@@ -219,6 +221,7 @@ describe("DocxShapesGroup format panel", () => {
 describe("docxShapesRibbonItems", () => {
   function typedContext(commands: DocxCommandRuntime): DocxToolbarGroupContext {
     return {
+      docScope: createDocxDocumentScope(),
       editor: {} as unknown as DocxToolbarGroupContext["editor"],
       coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
       format: {} as unknown as DocxToolbarGroupContext["format"],

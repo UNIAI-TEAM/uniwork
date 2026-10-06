@@ -10,6 +10,7 @@ import { docxExtensions } from "../docx-schema";
 import { InsertTableGroup, insertTableRibbonItems } from "../toolbar/groups/insert-table";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import type { DocxEditorHandle, DocxSelection } from "../types";
+import { createDocxDocumentScope } from "../editor-store";
 
 initI18n();
 
@@ -168,6 +169,7 @@ function Harness({ editor, readOnly = false }: { editor: Editor; readOnly?: bool
   }, [editor, runtime]);
 
   const context: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: handle,
     coordinator: coordinator(),
     format,
@@ -338,6 +340,7 @@ describe("InsertTableGroup", () => {
 describe("insertTableRibbonItems", () => {
   function typedContext(runtime: DocxCommandRuntime): DocxToolbarGroupContext {
     return {
+      docScope: createDocxDocumentScope(),
       editor: {} as unknown as DocxToolbarGroupContext["editor"],
       coordinator: coordinator(),
       format: runtime.getState(),

@@ -261,7 +261,7 @@ export function DocxEditor<TSnapshot = unknown>({
           className="bg-office-canvas"
           ribbon={<DocxToolbar {...sharedContext} />}
           subbar={<DocxFindPanel {...sharedContext} />}
-          statusBar={<DocxStatusBar selection={selection} help={<DocxShortcutsHelp {...sharedContext} />} />}
+          statusBar={<DocxStatusBar selection={selection} docScope={scope} help={<DocxShortcutsHelp {...sharedContext} />} />}
         >
           <div className="flex h-full min-h-0 min-w-0 flex-col" data-testid="docx-canvas">
             {/* A6-wire: attaches the zoom controller to the surface below and

@@ -10,7 +10,6 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { RibbonItem } from "../../../ribbon";
 import { DocxPageDecorDialog } from "../../page-decor/docx-page-decor-dialog";
-import { docxScopeOf, useDocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
 import { scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
 
@@ -20,7 +19,7 @@ const pageDecorDialogFor = scopedRibbonOpenStore();
 /** The typed ribbon items for the Layout > page decoration group. */
 export function layoutPageDecorRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   const { format, commands, readOnly } = context;
-  const pageDecorDialog = pageDecorDialogFor(docxScopeOf(context));
+  const pageDecorDialog = pageDecorDialogFor(context.docScope);
   const disabled = readOnly || !commands || !format?.docxPageDecor;
   const open = () => pageDecorDialog.open();
   return [
@@ -48,8 +47,7 @@ export function layoutPageDecorRibbonItems(context: DocxToolbarGroupContext): re
 
 /** Layout > page decoration: the typed items live on the registry entry; this
  * component owns the dialog and is mounted by `RibbonDialogHosts`. */
-export function LayoutPageDecorGroup({ format, commands, readOnly }: DocxToolbarGroupContext) {
-  const scope = useDocxDocumentScope();
+export function LayoutPageDecorGroup({ format, commands, readOnly, docScope: scope }: DocxToolbarGroupContext) {
   const pageDecorDialog = pageDecorDialogFor(scope);
   const { t } = useTranslation();
   const [open] = useRibbonOpen(pageDecorDialog);

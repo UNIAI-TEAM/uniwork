@@ -33,7 +33,7 @@ export interface DocxToolbarGroupContext {
   onSave?: () => void;
   /** UNI-957: this document's scope (live editor, Find, zoom, ribbon dialogs)
    *  for plain-data builders that cannot call hooks. DocxEditor always sets it. */
-  docScope?: DocxDocumentScope;
+  docScope: DocxDocumentScope;
 }
 
 export interface DocxToolbarGroup {

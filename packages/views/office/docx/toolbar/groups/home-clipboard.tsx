@@ -7,7 +7,7 @@ import { useFormatPainter } from "../../character/format-painter";
 import type { RibbonItem } from "../../../ribbon";
 import { copySelection, cutSelection, insertPastePayload, readClipboardPayload, readClipboardText } from "../../context-menu/clipboard-actions";
 import { insertPlainText } from "../../context-menu/paste-options";
-import { docxScopeOf, useDocxDocumentScope, type DocxDocumentScope } from "../../editor-store";
+import { type DocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
 
 /**
@@ -87,7 +87,7 @@ function FormatPainterItem({
 /** The typed Clipboard items the ribbon renders for this group (R7). */
 export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   const disabled = context.readOnly || context.saving;
-  const scope = docxScopeOf(context);
+  const scope = context.docScope;
   return [
     {
       kind: "split",
@@ -147,9 +147,8 @@ export function homeClipboardRibbonItems(context: DocxToolbarGroupContext): read
 
 /** Custom-item fallback for a host that has not migrated to typed items: the
  * same three commands as real buttons. */
-export function HomeClipboardGroup({ readOnly, saving }: DocxToolbarGroupContext) {
+export function HomeClipboardGroup({ readOnly, saving, docScope: scope }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
-  const scope = useDocxDocumentScope();
   const disabled = readOnly || saving;
   return (
     <div className="flex flex-nowrap items-center gap-1">

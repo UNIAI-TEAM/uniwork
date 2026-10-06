@@ -77,28 +77,29 @@ export function createDocxDocumentScope(): DocxDocumentScope {
   };
 }
 
-// Reached only by chrome rendered without a DocxEditor above it (isolated
-// component tests); every mounted document provides its own scope.
-let detachedScope: DocxDocumentScope | null = null;
-
-function detached(): DocxDocumentScope {
-  detachedScope ??= createDocxDocumentScope();
-  return detachedScope;
-}
-
 const DocxDocumentScopeContext = createContext<DocxDocumentScope | null>(null);
 
 export function DocxDocumentScopeProvider({ scope, children }: { scope: DocxDocumentScope; children: ReactNode }) {
   return createElement(DocxDocumentScopeContext.Provider, { value: scope }, children);
 }
 
+/** The surrounding document's scope. There is no page-wide fallback (review
+ *  r1 m3): DOCX chrome mounted outside a DocxEditor is a wiring bug, and a
+ *  shared default would quietly bring the old singleton back. */
 export function useDocxDocumentScope(): DocxDocumentScope {
-  return useContext(DocxDocumentScopeContext) ?? detached();
+  return requireDocxScope(useContext(DocxDocumentScopeContext));
 }
 
-/** The scope a plain-data builder (typed ribbon items) reaches through its context. */
-export function docxScopeOf(context: { docScope?: DocxDocumentScope }): DocxDocumentScope {
-  return context.docScope ?? detached();
+/** For chrome that may also be handed its scope or controller explicitly. */
+export function useOptionalDocxDocumentScope(): DocxDocumentScope | null {
+  return useContext(DocxDocumentScopeContext);
+}
+
+export function requireDocxScope<T>(value: T | null | undefined): T {
+  if (value === null || value === undefined) {
+    throw new Error("docx_document_scope_missing: render DOCX chrome inside a DocxEditor (DocxDocumentScopeProvider)");
+  }
+  return value;
 }
 
 export function useDocxScopeValue<T>(cell: DocxScopeCell<T>): T {

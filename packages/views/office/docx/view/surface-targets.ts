@@ -13,7 +13,7 @@
 // model speaks; nothing here mutates the surface.
 
 import { useEffect, useState } from "react";
-import { useDocxDocumentScope } from "../editor-store";
+import type { DocxDocumentScope } from "../editor-store";
 import type { RendererSection } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { DocxZoomPageSize } from "./zoom-controller";
 
@@ -100,19 +100,17 @@ function sameDocxViewSurface(a: DocxViewSurface | null, b: DocxViewSurface | nul
  *
  * Scope (UNI-957): the canvas inside this document's own root (the DocxEditor
  * that provides the document scope), so a second DOCX kept mounted in a hidden
- * desktop tab is never resolved. Chrome rendered without a DocxEditor (isolated
- * tests) falls back to the first canvas in the page.
+ * desktop tab is never resolved. No root, no surface: there is no page-wide
+ * lookup.
  */
-export function useDocxViewSurface(): DocxViewSurface | null {
+export function useDocxViewSurface(documentScope: DocxDocumentScope): DocxViewSurface | null {
   const [surface, setSurface] = useState<DocxViewSurface | null>(null);
-  const documentScope = useDocxDocumentScope();
 
   useEffect(() => {
     if (typeof document === "undefined" || typeof MutationObserver === "undefined") return undefined;
     const root = documentScope.root.current;
-    const scope: ParentNode = root
-      ? (root.querySelector(DOCX_CANVAS_SELECTOR) ?? root)
-      : (document.querySelector(DOCX_CANVAS_SELECTOR) ?? document.body);
+    if (!root) return undefined;
+    const scope: ParentNode = root.querySelector(DOCX_CANVAS_SELECTOR) ?? root;
     let observedZoom: HTMLElement | null = null;
     let observedScroll: HTMLElement | null = null;
     let styleObserver: MutationObserver | null = null;

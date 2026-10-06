@@ -10,7 +10,6 @@ import { Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { RibbonItem } from "../../ribbon";
-import { docxScopeOf, useDocxDocumentScope } from "../editor-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxProtectPanel } from "./docx-protect-panel";
 import { scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "../toolbar/groups/ribbon-open-store";
@@ -21,7 +20,7 @@ const protectPanelFor = scopedRibbonOpenStore();
 /** The typed ribbon items for the Review > protect group. */
 export function reviewProtectRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   const { format, commands } = context;
-  const protectPanel = protectPanelFor(docxScopeOf(context));
+  const protectPanel = protectPanelFor(context.docScope);
   const available = !!format?.docxProtection && commands !== undefined;
   return [
     {
@@ -41,8 +40,7 @@ export function reviewProtectRibbonItems(context: DocxToolbarGroupContext): read
 
 /** Review > Protect: the typed items live on the registry entry; this component
  * owns the panel and is mounted by `RibbonDialogHosts`. */
-export function ReviewProtectGroup({ format, commands, readOnly, saving }: DocxToolbarGroupContext) {
-  const scope = useDocxDocumentScope();
+export function ReviewProtectGroup({ format, commands, readOnly, saving, docScope: scope }: DocxToolbarGroupContext) {
   const protectPanel = protectPanelFor(scope);
   const { t } = useTranslation();
   const [open] = useRibbonOpen(protectPanel);

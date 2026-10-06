@@ -5,6 +5,7 @@ import type { RibbonItem } from "../../../ribbon";
 import type { DocxCommandRuntime } from "../../commands";
 import type { DocxToolbarGroupContext } from "../types";
 import { homeParagraphRibbonItems } from "./home-paragraph";
+import { createDocxDocumentScope } from "../../editor-store";
 
 function runtime() {
   return {
@@ -18,6 +19,7 @@ function runtime() {
 
 function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarGroupContext {
   return {
+    docScope: createDocxDocumentScope(),
     editor: {} as unknown as DocxToolbarGroupContext["editor"],
     coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
     format: { align: "center" } as unknown as DocxToolbarGroupContext["format"],

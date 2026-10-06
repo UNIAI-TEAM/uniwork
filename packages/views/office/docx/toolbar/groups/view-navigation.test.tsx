@@ -4,8 +4,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocxToolbarGroupContext } from "../types";
 import { ViewNavigationGroup, viewNavigationRibbonItems } from "./view-navigation";
+import { useState } from "react";
+import { createDocxDocumentScope, type DocxDocumentScope } from "../../editor-store";
 
-function context(): DocxToolbarGroupContext {
+function context(docScope: DocxDocumentScope): DocxToolbarGroupContext {
   const coordinatorState = {
     state: "dirty" as const,
     identity: {
@@ -24,6 +26,7 @@ function context(): DocxToolbarGroupContext {
     error: null,
   };
   return {
+    docScope,
     editor: {
       format: "docx",
       open: vi.fn(async () => undefined),
@@ -49,8 +52,10 @@ function context(): DocxToolbarGroupContext {
 }
 
 function Fixture() {
+  // One document: the scope a DocxEditor provides, its root bound like the editor's.
+  const [scope] = useState(createDocxDocumentScope);
   return (
-    <div data-testid="docx-editor">
+    <div data-testid="docx-editor" ref={(node) => { scope.root.current = node; }}>
       <div data-testid="docx-canvas">
         <div data-testid="docx-document-surface">
           <div className="doc-zoom">
@@ -63,7 +68,7 @@ function Fixture() {
           </div>
         </div>
       </div>
-      <ViewNavigationGroup {...context()} />
+      <ViewNavigationGroup {...context(scope)} />
     </div>
   );
 }
@@ -75,10 +80,11 @@ afterEach(() => {
 /** The ribbon's live nav toggle (the typed custom item) plus the pane group,
  * mounted together the way the toolbar mounts them (F6). */
 function RibbonFixture() {
-  const item = viewNavigationRibbonItems(context()).find((entry) => entry.id === "view-navigation");
+  const [scope] = useState(createDocxDocumentScope);
+  const item = viewNavigationRibbonItems(context(scope)).find((entry) => entry.id === "view-navigation");
   if (!item || item.kind !== "custom") throw new Error("expected a custom nav item");
   return (
-    <div data-testid="docx-editor">
+    <div data-testid="docx-editor" ref={(node) => { scope.root.current = node; }}>
       <div data-testid="docx-canvas">
         <div data-testid="docx-document-surface">
           <div className="doc-zoom">
@@ -91,7 +97,7 @@ function RibbonFixture() {
         </div>
       </div>
       {item.render({ size: "large", inPanel: false })}
-      <ViewNavigationGroup {...context()} />
+      <ViewNavigationGroup {...context(scope)} />
     </div>
   );
 }

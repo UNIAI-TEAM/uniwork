@@ -7,6 +7,7 @@ import { DOCX_GROUP_PRIORITY_DEFAULT, buildDocxRibbonTabs, docxGroupPriority } f
 import { DOCX_TOOLBAR_TABS } from "./toolbar/tabs/tabs";
 import { DocxToolbarShell } from "./toolbar/toolbar";
 import type { DocxToolbarGroupContext } from "./toolbar/types";
+import { createDocxDocumentScope } from "./editor-store";
 
 function coordinator(): DocxToolbarGroupContext["coordinator"] {
   const state = {
@@ -36,6 +37,7 @@ function coordinator(): DocxToolbarGroupContext["coordinator"] {
 function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarGroupContext {
   const runtime = createDocxCommandRuntime(() => null);
   return {
+    docScope: createDocxDocumentScope(),
     editor: {
       format: "docx",
       open: vi.fn(async () => undefined),

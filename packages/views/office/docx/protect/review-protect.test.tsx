@@ -9,6 +9,7 @@ import { createDocxCommandRuntime } from "../commands";
 import { docxExtensions } from "../docx-schema";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { ReviewProtectGroup } from "./review-protect";
+import { createDocxDocumentScope } from "../editor-store";
 
 const editors: Editor[] = [];
 
@@ -33,6 +34,7 @@ function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarG
     error: null,
   };
   return {
+    docScope: createDocxDocumentScope(),
     editor: {
       format: "docx",
       open: vi.fn(async () => undefined),

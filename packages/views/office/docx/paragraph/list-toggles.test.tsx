@@ -5,6 +5,7 @@ import { createDocxCommandRuntime, type DocxCommandRuntime } from "../commands";
 import { docxExtensions } from "../docx-schema";
 import { HomeFontGroup } from "../toolbar/groups/home-font";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
+import { createDocxDocumentScope } from "../editor-store";
 
 /**
  * C7/C8 dedupe: the pre-wave "Formatting" group carried a Heading select and
@@ -54,6 +55,7 @@ function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarG
     error: null,
   };
   return {
+    docScope: createDocxDocumentScope(),
     editor: {
       format: "docx",
       open: vi.fn(async () => undefined),

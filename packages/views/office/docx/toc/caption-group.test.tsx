@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DocxCommandRuntime } from "../commands";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { CaptionGroup } from "./caption-group";
+import { createDocxDocumentScope } from "../editor-store";
 
 function runtime(overrides: Partial<Record<string, unknown>> = {}): DocxCommandRuntime {
   return {
@@ -18,6 +19,7 @@ function runtime(overrides: Partial<Record<string, unknown>> = {}): DocxCommandR
 function renderGroup(options: { commands?: DocxCommandRuntime; readOnly?: boolean } = {}) {
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as DocxToolbarGroupContext["editor"],
     coordinator: {} as DocxToolbarGroupContext["coordinator"],
     format: null,

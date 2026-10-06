@@ -4,6 +4,7 @@ import type { DocxCommandRuntime } from "../commands";
 import { chooseItem } from "../../../test/menu-interactions";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxExportGroup } from "./docx-export-menu";
+import { createDocxDocumentScope } from "../editor-store";
 
 function runtime(): DocxCommandRuntime {
   return {
@@ -17,6 +18,7 @@ function runtime(): DocxCommandRuntime {
 function renderGroup(options: { commands?: DocxCommandRuntime; ready?: boolean } = {}) {
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as DocxToolbarGroupContext["editor"],
     coordinator: {} as DocxToolbarGroupContext["coordinator"],
     format: { docxExportReady: options.ready ?? true } as unknown as DocxToolbarGroupContext["format"],

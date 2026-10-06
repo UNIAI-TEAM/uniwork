@@ -3,14 +3,13 @@
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { useDocxDocumentScope, useDocxScopeValue } from "../../editor-store";
+import { useDocxScopeValue } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
 
 /** Find & replace entry: toggles the panel the shell mounts beside the document
  * (find/docx-find-panel.tsx). The open flag lives in this document's scope. */
-export function HomeFindGroup(_props: DocxToolbarGroupContext) {
+export function HomeFindGroup({ docScope: scope }: DocxToolbarGroupContext) {
   const { t } = useTranslation();
-  const scope = useDocxDocumentScope();
   const open = useDocxScopeValue(scope.find);
 
   return (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { useDocxDocumentScope, useDocxLiveEditor } from "./editor-store";
+import { useDocxScopeValue } from "./editor-store";
 import { docxEditorCounts, readDocxPagePosition, type DocxPagePosition } from "./status";
 import { DocxStatusBar as DocxStatusBarView } from "./status/status-bar";
 import type { DocxToolbarGroupContext } from "./toolbar/types";
@@ -40,10 +40,10 @@ export function readDocumentLang(root: HTMLElement | null, surface: HTMLElement 
  * Nothing here reaches into the save path; a host with no mounted document
  * surface leaves every readout on its unknown mark.
  */
-export function DocxStatusBar({ selection, help }: Pick<DocxToolbarGroupContext, "selection"> & { help?: ReactNode }) {
-  const scope = useDocxDocumentScope();
-  const live = useDocxLiveEditor();
-  const surface = useDocxViewSurface();
+export function DocxStatusBar({ selection, help, docScope }: Pick<DocxToolbarGroupContext, "selection" | "docScope"> & { help?: ReactNode }) {
+  const scope = docScope;
+  const live = useDocxScopeValue(scope.editor);
+  const surface = useDocxViewSurface(scope);
   const controller = scope.zoom;
   const zoom = useDocxEffectiveZoomPercent(controller);
   const [page, setPage] = useState<DocxPagePosition | null>(null);

@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import type { RibbonItem } from "../../../ribbon";
 import { groupCommentThreads } from "../../comments/docx-comment-model";
 import { DocxCommentsPanel } from "../../comments/docx-comments-panel";
-import { docxScopeOf, useDocxDocumentScope, type DocxDocumentScope } from "../../editor-store";
+import { type DocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
 import { scopedRibbonController, scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonBound, useRibbonOpen } from "./ribbon-open-store";
 
@@ -39,7 +39,7 @@ function openComposer(scope: DocxDocumentScope): void {
 /** The typed ribbon items for the Review > comments group. */
 export function reviewCommentsRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   const { format, commands, readOnly } = context;
-  const commentsPane = commentsPaneFor(docxScopeOf(context));
+  const commentsPane = commentsPaneFor(context.docScope);
   const editable = !readOnly && !!commands;
   const canComment = editable && (commands?.canAddDocxComment() ?? false);
   return [
@@ -58,7 +58,7 @@ export function reviewCommentsRibbonItems(context: DocxToolbarGroupContext): rea
           labelKey: "office.docx.comments.add",
           icon: MessageSquarePlus,
           disabled: !canComment,
-          onSelect: () => openComposer(docxScopeOf(context)),
+          onSelect: () => openComposer(context.docScope),
         },
         {
           id: "review-comments-open",
@@ -75,8 +75,7 @@ export function reviewCommentsRibbonItems(context: DocxToolbarGroupContext): rea
 
 /** Review > comments: the typed items live on the registry entry; this
  * component owns the pane and is mounted by `RibbonDialogHosts`. */
-export function ReviewCommentsGroup({ format, commands, readOnly }: DocxToolbarGroupContext) {
-  const scope = useDocxDocumentScope();
+export function ReviewCommentsGroup({ format, commands, readOnly, docScope: scope }: DocxToolbarGroupContext) {
   const commentsPane = commentsPaneFor(scope);
   const commentsComposing = commentsComposingFor(scope);
   const commentsActiveId = commentsActiveIdFor(scope);
