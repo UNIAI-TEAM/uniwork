@@ -313,6 +313,18 @@ export interface XlsxRendererPrintRange {
   readonly rows: readonly { readonly height: number; readonly hidden: boolean }[];
   readonly columns: readonly { readonly width: number; readonly hidden: boolean }[];
   readonly merges: readonly { readonly startRow: number; readonly endRow: number; readonly startColumn: number; readonly endColumn: number }[];
+  /** UNI-952 D3: data bars and icons the canvas paints (CF view model). */
+  readonly marks: readonly XlsxRendererCellMark[];
+}
+
+/** What a data bar or icon-set rule paints over one cell: the painter's
+ *  percentages and its own icon data: URL. */
+export interface XlsxRendererCellMark {
+  readonly row: number;
+  readonly column: number;
+  readonly dataBar?: { readonly color: string; readonly value: number; readonly startPoint: number; readonly isGradient: boolean };
+  readonly icon?: string;
+  readonly hideValue?: boolean;
 }
 
 /** A cell's box in container pixels (zoom and scroll applied) plus the zoom. */

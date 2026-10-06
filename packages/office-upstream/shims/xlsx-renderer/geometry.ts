@@ -9,6 +9,7 @@
 // viewport only).
 import type { IRange } from "@univerjs/core";
 import { IRenderManagerService, SHEET_VIEWPORT_KEY } from "@univerjs/engine-render";
+import { iconMap } from "@univerjs/preset-sheets-conditional-formatting";
 import { toNeutralStyle } from "../../upstream/apps/sheets/src/renderer/edit-journal";
 import type { UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
 
@@ -48,6 +49,46 @@ export interface XlsxRendererPrintRange {
   readonly rows: readonly { readonly height: number; readonly hidden: boolean }[];
   readonly columns: readonly { readonly width: number; readonly hidden: boolean }[];
   readonly merges: readonly IRange[];
+  readonly marks: readonly XlsxRendererCellMark[];
+}
+
+/** UNI-952 D3: what a data bar or icon-set rule paints over one cell - the
+ *  conditional-formatting view model's evaluated result the canvas extensions
+ *  draw from (nothing is re-evaluated). `value` and `startPoint` are the
+ *  painter's percentages; `icon` is the painter's own data: URL. */
+export interface XlsxRendererCellMark {
+  readonly row: number;
+  readonly column: number;
+  readonly dataBar?: { readonly color: string; readonly value: number; readonly startPoint: number; readonly isGradient: boolean };
+  readonly icon?: string;
+  /** The rule hides the cell's value ("show bar/icon only"). */
+  readonly hideValue?: boolean;
+}
+
+interface CfCellData {
+  readonly dataBar?: { color?: unknown; value?: unknown; startPoint?: unknown; isGradient?: unknown };
+  readonly iconSet?: { iconType?: unknown; iconId?: unknown };
+  readonly fontRenderExtension?: { isSkip?: unknown };
+}
+
+/** The data bar / icon a CF rule paints on a cell, or null. */
+function markOf(row: number, column: number, cell: CfCellData | null | undefined): XlsxRendererCellMark | null {
+  if (!cell) return null;
+  const bar = cell.dataBar;
+  const dataBar = bar && typeof bar.color === "string" && typeof bar.value === "number" && typeof bar.startPoint === "number"
+    ? { color: bar.color, value: bar.value, startPoint: bar.startPoint, isGradient: bar.isGradient === true }
+    : undefined;
+  const set = cell.iconSet;
+  const icons = set && typeof set.iconType === "string" ? (iconMap as Record<string, readonly string[] | undefined>)[set.iconType] : undefined;
+  const icon = icons?.[Number(set?.iconId)];
+  if (!dataBar && typeof icon !== "string") return null;
+  return {
+    row,
+    column,
+    ...(dataBar ? { dataBar } : {}),
+    ...(typeof icon === "string" ? { icon } : {}),
+    ...(cell.fontRenderExtension?.isSkip === true ? { hideValue: true } : {}),
+  };
 }
 
 export interface XlsxRendererGeometry {
@@ -159,14 +200,18 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
       const sheet = active.worksheet.getSheet();
       const styles: (XlsxRendererCellStyle | null)[][] = [];
       const rows: { height: number; hidden: boolean }[] = [];
+      const marks: XlsxRendererCellMark[] = [];
       for (let row = range.startRow; row <= range.endRow; row += 1) {
         rows.push({ height: sheet.getRowHeight(row), hidden: !sheet.getRowVisible(row) || sheet.getRowFiltered(row) });
         const line: (XlsxRendererCellStyle | null)[] = [];
         for (let column = range.startColumn; column <= range.endColumn; column += 1) {
           // getCell runs the view-model interceptors (conditional formatting
           // among them), so the composed style is what the canvas paints.
-          const composed = sheet.getComposedCellStyleByCellData(row, column, sheet.getCell(row, column));
+          const cell = sheet.getCell(row, column);
+          const composed = sheet.getComposedCellStyleByCellData(row, column, cell);
           line.push(toNeutralStyle(composed as Record<string, unknown>) ?? null);
+          const mark = markOf(row, column, cell as unknown as CfCellData | null | undefined);
+          if (mark) marks.push(mark);
         }
         styles.push(line);
       }
@@ -176,7 +221,7 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
       }
       const merges = sheet.getMergeData().filter((merge) =>
         merge.startRow <= range.endRow && merge.endRow >= range.startRow && merge.startColumn <= range.endColumn && merge.endColumn >= range.startColumn);
-      return { styles, rows, columns, merges: merges.map((merge) => ({ ...merge })) };
+      return { styles, rows, columns, merges: merges.map((merge) => ({ ...merge })), marks };
     } catch {
       return null;
     }
