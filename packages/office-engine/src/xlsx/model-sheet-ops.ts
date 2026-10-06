@@ -6,7 +6,7 @@ import { XlsxEngineError } from "./engine.ts";
 import { toA1, type XlsxFilterOp, type XlsxHyperlinkOp, type XlsxNotesOp, type XlsxSheetOp, type XlsxStructuralOp } from "./ops.ts";
 import { type XlsxPageSetupOp } from "./page-setup.ts";
 import { type XlsxTableAddOp } from "./tables.ts";
-import { type XlsxVisualSetOp } from "./ops-visuals.ts";
+import { renameXlsxVisualSheet, type XlsxVisualEntry } from "./ops-visuals.ts";
 import { type XlsxSheetProtectionOp } from "./ops-protection.ts";
 import { renamedRuleSet, type XlsxRuleSetEntry } from "./ops-cf-dv.ts";
 import { type ModelSheetState, type PendingCell, type RemovedSheetState, type XlsxSheetEditPlan } from "./model-state.ts";
@@ -21,7 +21,7 @@ export interface XlsxSheetOpHost {
   filters: Map<string, XlsxFilterOp>;
   pageSetups: Map<string, XlsxPageSetupOp>;
   tables: XlsxTableAddOp[];
-  visuals: XlsxVisualSetOp[];
+  visuals: XlsxVisualEntry[];
   sheetProtections: Map<string, XlsxSheetProtectionOp>;
   hyperlinks: Map<string, Map<string, XlsxHyperlinkOp>>;
   notes: Map<string, XlsxNotesOp>;
@@ -199,7 +199,7 @@ export class XlsxSheetOps {
       this.host.pageSetups.set(next, { ...pageSetup, sheetName: next });
     }
     this.host.tables = this.host.tables.map((table) => (table.sheetName === previous ? { ...table, sheetName: next } : table));
-    this.host.visuals = this.host.visuals.map((visual) => (visual.sheetName === previous ? { ...visual, sheetName: next } : visual));
+    this.host.visuals = renameXlsxVisualSheet(this.host.visuals, previous, next);
     const protection = this.host.sheetProtections.get(previous);
     if (protection !== undefined) {
       this.host.sheetProtections.delete(previous);

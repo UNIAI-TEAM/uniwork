@@ -7,15 +7,19 @@
 //   { op: "set_visual", target: { sheet }, attributes: { id, anchor, chart | shape | image } }
 //   { op: "set_visual", target: { sheet }, attributes: { id, anchor } }   (move)
 //   { op: "remove_visual", target: { sheet }, attributes: { id } }
+//   { op: "set_visual", target: { sheet }, attributes: { file, anchor } }  (move a file visual)
+//   { op: "remove_visual", target: { sheet }, attributes: { file } }       (delete a file visual)
 // `id` is the editor's handle for one session visual. The insert carries the
 // body once; a move or resize is the anchor-only form, which keeps the pending
 // visual's body and only replaces its anchor, so nudging a large picture never
 // re-sends its bytes. An anchor-only set_visual with no pending visual of that
 // id is refused (a media-less insert). A set_visual with a body and a pending
-// id replaces it in place; remove_visual cancels it. Like remove_table,
-// both reach only visuals created EARLIER IN THE SAME SESSION: the gateway's
-// edit path for visuals already in the file (visualEdits) is not bound, so a
-// visual a save already wrote is never addressed by id again.
+// id replaces it in place; remove_visual cancels it.
+// `file` (UNI-953) addresses a visual ALREADY IN THE FILE: the anchor's index
+// in the sheet's drawing part, in document order (the gateway's visualEdits
+// drawingIndex, bound by patch 0013; render-model-visuals.ts reads the same
+// order). A visual an earlier save wrote is addressed this way too. The last
+// move per (sheet, file) wins; a remove is final (a later edit is refused).
 //
 // The anchor is a two-cell anchor in final (post-structural) coordinates:
 // 0-based row/column plus EMU offsets inside the cell, exactly the gateway's
@@ -27,6 +31,11 @@ const VISUAL_SET_OP_KIND = "set_visual";
 const VISUAL_REMOVE_OP_KIND = "remove_visual";
 /** The parsed anchor-only form of set_visual (no wire name of its own). */
 const VISUAL_MOVE_OP_KIND = "move_visual";
+/** The parsed `file` forms (a visual already in the file). */
+const FILE_MOVE_OP_KIND = "move_file_visual";
+const FILE_REMOVE_OP_KIND = "remove_file_visual";
+/** The gateway's drawingIndex bound (edit-schemas.ts). */
+const MAX_FILE_INDEX = 10_000;
 
 /** Chart kinds the editor inserts; all are written by the vendored buildChartXml. */
 const XLSX_VISUAL_CHART_TYPES = ["column", "bar", "line", "pie", "area", "doughnut"] as const;
@@ -127,10 +136,47 @@ export interface XlsxSheetVisualAddition {
   readonly image?: XlsxVisualImage | undefined;
 }
 
-type XlsxVisualOp = XlsxVisualSetOp | XlsxVisualMoveOp | XlsxVisualRemoveOp;
+/** A move of a visual already in the file (`file` = drawing index). */
+export interface XlsxFileVisualMoveOp {
+  readonly kind: "move_file_visual";
+  readonly sheetName: string;
+  readonly file: number;
+  readonly anchor: XlsxVisualAnchor;
+}
+
+/** A delete of a visual already in the file. */
+export interface XlsxFileVisualRemoveOp {
+  readonly kind: "remove_file_visual";
+  readonly sheetName: string;
+  readonly file: number;
+}
+
+/** The pending edit of one file visual: its last anchor, or its removal. */
+export interface XlsxFileVisualEntry {
+  readonly kind: "file_visual";
+  readonly sheetName: string;
+  readonly file: number;
+  readonly anchor?: XlsxVisualAnchor | undefined;
+  readonly remove?: true | undefined;
+}
+
+/** One entry of the model's visual journal: a session visual or a file edit. */
+export type XlsxVisualEntry = XlsxVisualSetOp | XlsxFileVisualEntry;
+
+/** The gateway's WorkbookVisualEdit (patch 0013 visualEdits). */
+export interface XlsxWorkbookVisualEdit {
+  readonly drawingPath: string;
+  readonly drawingIndex: number;
+  readonly remove?: true | undefined;
+  readonly anchor?: XlsxVisualAnchor | undefined;
+}
+
+type XlsxVisualOp = XlsxVisualSetOp | XlsxVisualMoveOp | XlsxVisualRemoveOp | XlsxFileVisualMoveOp | XlsxFileVisualRemoveOp;
 
 export function isXlsxVisualOp(op: XlsxEditOp): op is XlsxVisualOp {
-  return op.kind === VISUAL_SET_OP_KIND || op.kind === VISUAL_MOVE_OP_KIND || op.kind === VISUAL_REMOVE_OP_KIND;
+  return (
+    op.kind === VISUAL_SET_OP_KIND || op.kind === VISUAL_MOVE_OP_KIND || op.kind === VISUAL_REMOVE_OP_KIND || op.kind === FILE_MOVE_OP_KIND || op.kind === FILE_REMOVE_OP_KIND
+  );
 }
 
 function onlyKeys(raw: Dict, allowed: readonly string[], op: string, field: string): void {
@@ -155,6 +201,12 @@ function parseId(raw: unknown, op: string): string {
   const id = str(raw, op, "attributes.id");
   if (!VISUAL_ID.test(id)) throw new XlsxOpError(op, "attributes.id", "1-64 letters, digits, _ or - required");
   return id;
+}
+
+function parseFileIndex(raw: unknown, op: string): number {
+  const index = int(raw, op, "attributes.file");
+  if (index < 0 || index > MAX_FILE_INDEX) throw new XlsxOpError(op, "attributes.file", `0-${MAX_FILE_INDEX} required`);
+  return index;
 }
 
 function parseAnchor(raw: unknown, op: string): XlsxVisualAnchor {
@@ -243,7 +295,13 @@ function parseImage(raw: Dict, op: string): XlsxVisualImage {
 export function parseSetVisual(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
   const sheetName = parseStructuralTarget(item, op, sheets);
   const a = parseStructuralAttributes(item, op);
-  onlyKeys(a, ["id", "anchor", "chart", "shape", "image"], op, "attributes");
+  onlyKeys(a, ["id", "file", "anchor", "chart", "shape", "image"], op, "attributes");
+  if (a.file !== undefined) {
+    if (a.id !== undefined || a.chart !== undefined || a.shape !== undefined || a.image !== undefined) {
+      throw new XlsxOpError(op, "attributes", "a file visual takes only file and anchor");
+    }
+    return [{ kind: FILE_MOVE_OP_KIND, sheetName, file: parseFileIndex(a.file, op), anchor: parseAnchor(a.anchor, op) }];
+  }
   const id = parseId(a.id, op);
   const anchor = parseAnchor(a.anchor, op);
   const bodies = (["chart", "shape", "image"] as const).filter((key) => a[key] !== undefined);
@@ -260,7 +318,11 @@ export function parseSetVisual(item: Dict, op: string, sheets: XlsxSheetResolver
 export function parseRemoveVisual(item: Dict, op: string, sheets: XlsxSheetResolver): XlsxEditOp[] {
   const sheetName = parseStructuralTarget(item, op, sheets);
   const a = parseStructuralAttributes(item, op);
-  onlyKeys(a, ["id"], op, "attributes");
+  onlyKeys(a, ["id", "file"], op, "attributes");
+  if (a.file !== undefined) {
+    if (a.id !== undefined) throw new XlsxOpError(op, "attributes", "either id or file, not both");
+    return [{ kind: FILE_REMOVE_OP_KIND, sheetName, file: parseFileIndex(a.file, op) }];
+  }
   return [{ kind: VISUAL_REMOVE_OP_KIND, sheetName, id: parseId(a.id, op) }];
 }
 
@@ -268,8 +330,9 @@ export function parseRemoveVisual(item: Dict, op: string, sheets: XlsxSheetResol
  *  replaces the entry with the same sheet + id in place or appends it, a move
  *  replaces only its anchor, a remove drops it. Returns the next list; the
  *  input is never mutated. */
-export function foldXlsxVisualOp(visuals: readonly XlsxVisualSetOp[], op: XlsxVisualOp): XlsxVisualSetOp[] {
-  const index = visuals.findIndex((visual) => visual.sheetName === op.sheetName && visual.id === op.id);
+export function foldXlsxVisualOp(visuals: readonly XlsxVisualEntry[], op: XlsxVisualOp): XlsxVisualEntry[] {
+  if (op.kind === FILE_MOVE_OP_KIND || op.kind === FILE_REMOVE_OP_KIND) return foldFileVisualOp(visuals, op);
+  const index = visuals.findIndex((visual) => visual.kind === VISUAL_SET_OP_KIND && visual.sheetName === op.sheetName && visual.id === op.id);
   if (op.kind === VISUAL_REMOVE_OP_KIND) return index < 0 ? [...visuals] : visuals.filter((_, at) => at !== index);
   if (op.kind === VISUAL_MOVE_OP_KIND) {
     if (index < 0) throw new XlsxOpError(VISUAL_SET_OP_KIND, "attributes", "an anchor-only set_visual needs the visual's insert earlier in this session");
@@ -279,9 +342,63 @@ export function foldXlsxVisualOp(visuals: readonly XlsxVisualSetOp[], op: XlsxVi
   return visuals.map((visual, at) => (at === index ? op : visual));
 }
 
+function foldFileVisualOp(visuals: readonly XlsxVisualEntry[], op: XlsxFileVisualMoveOp | XlsxFileVisualRemoveOp): XlsxVisualEntry[] {
+  const index = visuals.findIndex((visual) => visual.kind === "file_visual" && visual.sheetName === op.sheetName && visual.file === op.file);
+  const previous = index < 0 ? undefined : (visuals[index] as XlsxFileVisualEntry);
+  if (previous?.remove) {
+    throw new XlsxOpError(op.kind === FILE_MOVE_OP_KIND ? VISUAL_SET_OP_KIND : VISUAL_REMOVE_OP_KIND, "attributes.file", "this file visual was deleted earlier in this session");
+  }
+  const next: XlsxFileVisualEntry = op.kind === FILE_MOVE_OP_KIND
+    ? { kind: "file_visual", sheetName: op.sheetName, file: op.file, anchor: op.anchor }
+    : { kind: "file_visual", sheetName: op.sheetName, file: op.file, remove: true };
+  if (index < 0) return [...visuals, next];
+  return visuals.map((visual, at) => (at === index ? next : visual));
+}
+
+/** The gateway's `visualEdits` list for the file visuals this session moved
+ *  or deleted. `drawingPathOf` resolves a CURRENT sheet name to its drawing
+ *  part in the base package; a sheet without one cannot hold a file visual. */
+export function groupXlsxFileVisualEdits(visuals: readonly XlsxVisualEntry[], drawingPathOf: (sheetName: string) => string | null): XlsxWorkbookVisualEdit[] {
+  return visuals.flatMap((visual): XlsxWorkbookVisualEdit[] => {
+    if (visual.kind !== "file_visual") return [];
+    const drawingPath = drawingPathOf(visual.sheetName);
+    if (drawingPath === null) throw new XlsxOpError(VISUAL_SET_OP_KIND, "attributes.file", `sheet "${visual.sheetName}" has no drawing in the file`);
+    if (visual.remove || visual.anchor === undefined) return [{ drawingPath, drawingIndex: visual.file, remove: true }];
+    return [{ drawingPath, drawingIndex: visual.file, anchor: { ...visual.anchor } }];
+  });
+}
+
+/** A sheet reference prefix, always quoted (valid in Excel for any name). */
+const quotedSheet = (name: string): string => "'" + name.replace(/'/g, "''") + "'!";
+
+function renamedRef(ref: string | undefined, previous: string, next: string): string | undefined {
+  if (ref === undefined) return undefined;
+  const escaped = previous.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return ref
+    .split(quotedSheet(previous))
+    .join(quotedSheet(next))
+    .replace(new RegExp("(^|[^A-Za-z0-9_.'!])" + escaped + "!", "g"), (_match, lead: string) => lead + quotedSheet(next));
+}
+
+/** A sheet rename for the visual journal: entries on `previous` move to
+ *  `next`, and every session chart's series refs that name `previous` follow
+ *  it, so a saved chart never points at a sheet that no longer exists. */
+export function renameXlsxVisualSheet(visuals: readonly XlsxVisualEntry[], previous: string, next: string): XlsxVisualEntry[] {
+  return visuals.map((visual) => {
+    const moved = visual.sheetName === previous ? { ...visual, sheetName: next } : visual;
+    if (moved.kind !== VISUAL_SET_OP_KIND || moved.chart === undefined) return moved;
+    const series = moved.chart.series.map((entry) => {
+      const valuesRef = renamedRef(entry.valuesRef, previous, next);
+      const categoriesRef = renamedRef(entry.categoriesRef, previous, next);
+      return { ...entry, ...(valuesRef === undefined ? {} : { valuesRef }), ...(categoriesRef === undefined ? {} : { categoriesRef }) };
+    });
+    return { ...moved, chart: { ...moved.chart, series } };
+  });
+}
+
 /** The gateway's `visualAdditions` list, in first-insert order. */
-export function groupXlsxVisualAdditions(visuals: readonly XlsxVisualSetOp[]): XlsxSheetVisualAddition[] {
-  return visuals.map((visual) => ({
+export function groupXlsxVisualAdditions(visuals: readonly XlsxVisualEntry[]): XlsxSheetVisualAddition[] {
+  return visuals.filter((visual): visual is XlsxVisualSetOp => visual.kind === VISUAL_SET_OP_KIND).map((visual) => ({
     sheetName: visual.sheetName,
     anchor: { ...visual.anchor },
     ...(visual.chart === undefined ? {} : { chart: structuredClone(visual.chart) }),

@@ -13,6 +13,8 @@
 // renderer controller; it never touches the Rust sidecar.
 import { readSheetTables, type XlsxRenderTable } from "./render-model-tables.ts";
 export type { XlsxRenderTable };
+import { readSheetVisuals, type XlsxRenderVisual } from "./render-model-visuals.ts";
+export type { XlsxRenderVisual };
 import { attribute, decodeXml, elements, parseDefinedNamesXml, sectionInner, type XlsxParsedDefinedName } from "./render-model-xml.ts";
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
@@ -105,6 +107,9 @@ export interface XlsxRenderSheet {
   /** Tables the file ships (xl/tables/tableN.xml). Additive: an absent value
    *  reads as no tables. Read-only; the write path is the table ops. */
   readonly tables?: readonly XlsxRenderTable[] | undefined;
+  /** Charts, pictures and shapes the file ships (UNI-953), one per drawing
+   *  anchor in document order. Additive: an absent value reads as none. */
+  readonly visuals?: readonly XlsxRenderVisual[] | undefined;
 }
 
 /** Border edge; mirrors the genoffice cell-style contract. */
@@ -456,12 +461,19 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
     parseRefRange,
   );
 
+  const sheetVisuals = await readSheetVisuals(
+    ordered,
+    (paths) => engine.readEntriesText(bytes, paths),
+    engine.readEntriesBase64 ? (paths, maxBytes) => engine.readEntriesBase64!(bytes, paths, maxBytes) : undefined,
+  );
+
   const sheets = ordered.map((sheet, index) => {
     const xml = sheet.path ? sheetXmls[sheet.path] : null;
     const parsed: XlsxRenderSheet = xml
       ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels, palette)
       : { id: sheet.id, name: sheet.name, rowCount: 1, columnCount: 1, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [], cells: {} };
-    return { ...parsed, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [] };
+    const visuals = sheetVisuals[index] ?? [];
+    return { ...parsed, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [], ...(visuals.length > 0 ? { visuals } : {}) };
   });
 
   const view = elements(sectionInner(workbookXml, "workbookView"), "workbookView")[0];
