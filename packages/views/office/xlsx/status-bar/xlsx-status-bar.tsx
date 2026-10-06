@@ -21,9 +21,11 @@ interface XlsxStatusBarProps {
   inline?: boolean;
 }
 
-function summaryContent(state: Extract<XlsxSummaryState, { kind: "ready" }>, locale: string, t: (key: string, options?: Record<string, unknown>) => string): ReactNode {
+function summaryContent(state: Extract<XlsxSummaryState, { kind: "ready" }>, singleCell: boolean, locale: string, t: (key: string, options?: Record<string, unknown>) => string): ReactNode {
   const number = (value: number) => value.toLocaleString(locale);
   const { summary } = state;
+  // Excel shows no statistics for one selected cell, whatever it holds.
+  if (singleCell) return <span className="sr-only" data-testid="xlsx-status-bar-single-value" />;
   if (summary.kind === "numeric") {
     return (
       <>
@@ -67,7 +69,7 @@ export function XlsxStatusBar({ documentKey, selection, host, dirtyGeneration, s
       content = <span data-testid="xlsx-status-bar-calculating">{t("office.xlsx.statusBar.calculating")}</span>;
       break;
     case "ready":
-      content = summaryContent(state, i18n.language, t);
+      content = summaryContent(state, !selection?.endAddress || selection.endAddress === selection.address, i18n.language, t);
       break;
   }
 
