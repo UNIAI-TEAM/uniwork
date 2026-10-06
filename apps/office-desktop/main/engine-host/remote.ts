@@ -1,7 +1,8 @@
 import { totalmem } from "node:os";
 import type { DesktopEngineCall, DesktopEngineCallResult } from "@uniwork/office-engine/desktop";
 import type { LocalXlsxEngine, LocalXlsxEditResult, LocalXlsxOpenResult } from "../xlsx-engine";
-import type { EngineHostClient } from "./supervisor";
+import type { EngineHostChild } from "./protocol";
+import { createEngineHostClient, type EngineHostClient } from "./supervisor";
 
 /** The local xlsx engine as seen from main: every job runs in the child. */
 export function createRemoteXlsxEngine(client: EngineHostClient): LocalXlsxEngine {
@@ -20,4 +21,11 @@ export function createRemotePdfCall(client: EngineHostClient): (call: DesktopEng
  *  so give it most of the physical memory (never below V8's small default). */
 export function engineHostHeapMegabytes(totalBytes: number = totalmem()): number {
   return Math.max(2048, Math.floor((totalBytes * 0.75) / (1024 * 1024)));
+}
+
+/** Bind the engine host: `fork` is Electron's utilityProcess.fork. Nothing is
+ *  spawned until the first request. */
+export function createLocalEngineHost(options: { readonly fork: (script: string, args: string[], options: { serviceName: string; execArgv: string[] }) => EngineHostChild; readonly script: string; readonly assetsDir: string | undefined }): { readonly xlsx: LocalXlsxEngine; readonly pdfCall: ReturnType<typeof createRemotePdfCall>; dispose(): void } {
+  const client = createEngineHostClient(() => options.fork(options.script, [options.assetsDir ?? ""], { serviceName: "uniwork-engine-host", execArgv: [`--max-old-space-size=${engineHostHeapMegabytes()}`] }));
+  return { xlsx: createRemoteXlsxEngine(client), pdfCall: createRemotePdfCall(client), dispose: () => client.dispose() };
 }

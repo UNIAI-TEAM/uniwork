@@ -11,8 +11,7 @@ import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponse
 import { desktopDialogFilters, desktopDocumentFormatForName } from "./shared/document-formats";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
-import { createEngineHostClient } from "./main/engine-host/supervisor";
-import { createRemotePdfCall, createRemoteXlsxEngine, engineHostHeapMegabytes } from "./main/engine-host/remote";
+import { createLocalEngineHost } from "./main/engine-host/remote";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./main/platform-gate";
 import { registerAppImageScheme } from "./main/linux-desktop-integration";
@@ -473,12 +472,10 @@ async function startElectronHost(): Promise<void> {
   // The unbounded local engines (xlsx, pdfium) run in a utilityProcess with a
   // machine-sized heap: a heap OOM there kills only the child, and every request
   // in flight answers insufficient_memory (see main/engine-host).
-  const xlsxAssetsDir = resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS });
-  const engineHostClient = createEngineHostClient(() => utilityProcess.fork(join(DIST_MAIN_DIRECTORY, "engine-host.mjs"), [xlsxAssetsDir ?? ""], { serviceName: "uniwork-engine-host", execArgv: [`--max-old-space-size=${engineHostHeapMegabytes()}`] }));
-  app.once("will-quit", () => engineHostClient.dispose());
-  const remotePdfCall = createRemotePdfCall(engineHostClient);
+  const engineHost = createLocalEngineHost({ fork: (script, args, options) => utilityProcess.fork(script, args, options), script: join(DIST_MAIN_DIRECTORY, "engine-host.mjs"), assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) });
+  app.once("will-quit", () => engineHost.dispose());
   const host = createDesktopHost({
-    handlers: { "desktop:engine-call": (request) => remotePdfCall({ operation: request.operation, handle: request.handle, args: { data: request.args.data, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } }), "desktop:window-theme": (request) => {
+    handlers: { "desktop:engine-call": (request) => engineHost.pdfCall({ operation: request.operation, handle: request.handle, args: { data: request.args.data, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } }), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
     }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }), ...printHandlers },
@@ -502,7 +499,7 @@ async function startElectronHost(): Promise<void> {
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
-    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createRemoteXlsxEngine(engineHostClient), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
+    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: engineHost.xlsx, ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [...desktopDialogFilters(), { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
