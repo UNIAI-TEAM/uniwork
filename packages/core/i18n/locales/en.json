@@ -10222,7 +10222,9 @@
         "notAvailable": "Printing is not supported here yet.",
         "exportPdf": "Export PDF",
         "exportDocx": "Export DOCX",
-        "exportNotAvailable": "This export format is not supported yet."
+        "exportNotAvailable": "This export format is not supported yet.",
+        "busy": "A print dialog is already open. Finish or close it first.",
+        "failed": "Could not print the document. Try again."
       },
       "view": {
         "label": "View mode",

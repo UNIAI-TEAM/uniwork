@@ -10216,7 +10216,9 @@
         "notAvailable": "Chưa hỗ trợ in tại đây.",
         "exportPdf": "Xuất PDF",
         "exportDocx": "Xuất DOCX",
-        "exportNotAvailable": "Chưa hỗ trợ xuất định dạng này."
+        "exportNotAvailable": "Chưa hỗ trợ xuất định dạng này.",
+        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
+        "failed": "Không in được tài liệu. Thử lại."
       },
       "view": {
         "label": "Chế độ xem",
