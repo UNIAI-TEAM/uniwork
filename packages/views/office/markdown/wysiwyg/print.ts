@@ -30,7 +30,7 @@
  * HTML document. Nothing here parses Markdown or touches the saved bytes.
  */
 import { emptyAssetManifest, type AssetManifest } from "@uniwork/office-engine/assets";
-import { buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
+import { buildHtmlPreviewCopy, dropBlockedResourceUrls } from "@uniwork/office-engine/html";
 
 /** Content-Security-Policy for the print copy. Script-free by construction;
  * a caller that lets images resolve through an asset proxy must pass a CSP
@@ -122,6 +122,25 @@ function isDangerousSrcset(value: string): boolean {
   return value.split(",").some((entry) => isDangerousUrl(entry));
 }
 
+/** Page geometry for a copy that brings none of its own (Markdown, plain HTML):
+ * A4 with a real margin, so page 1 is content with a border of white and not
+ * edge-to-edge text. It goes first in the head, so the document's own styles
+ * still win. A copy that already carries an `@page` rule (DOCX sections, a
+ * styled HTML file) is left alone. */
+const DEFAULT_PAGE_CSS =
+  "@page{size:A4;margin:18mm}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
+  "img,svg,video{max-width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere}" +
+  "h1,h2,h3,h4,h5,h6{break-after:avoid}pre,blockquote,table,img,figure{break-inside:avoid}";
+
+function addDefaultPageGeometry(doc: Document): void {
+  const hasPageRule = Array.from(doc.querySelectorAll("style")).some((style) => /@page\b/i.test(style.textContent ?? ""));
+  if (hasPageRule) return;
+  const style = doc.createElement("style");
+  style.setAttribute("data-print-page", "");
+  style.textContent = DEFAULT_PAGE_CSS;
+  doc.head.prepend(style);
+}
+
 /** The empty document a host with no DOM gets: nothing can be proven safe. */
 const EMPTY_DOCUMENT = "<!DOCTYPE html><html><head></head><body></body></html>";
 
@@ -130,7 +149,9 @@ function stripActiveContent(html: string): string {
   // Print runs in a DOM host; without one no copy can be verified, so the
   // print payload is empty rather than the unverified input.
   if (typeof DOMParser === "undefined") return EMPTY_DOCUMENT;
-  const doc = new DOMParser().parseFromString(html, "text/html");
+  // A blocked reference paints a broken-image icon before its alt text: the
+  // engine's drop pass turns it into the alt text alone.
+  const doc = new DOMParser().parseFromString(dropBlockedResourceUrls(html), "text/html");
   // Exactly the copy's own CSP meta survives. Every other `http-equiv` meta is
   // dropped, including a second CSP meta the document supplied: a weaker
   // document policy must not be able to loosen the copy. The copy writes its
@@ -162,6 +183,7 @@ function stripActiveContent(html: string): string {
       if (URL_ATTRIBUTES.has(name) && isDangerousUrl(attribute.value)) element.removeAttribute(attribute.name);
     }
   }
+  addDefaultPageGeometry(doc);
   return doc.documentElement.outerHTML;
 }
 

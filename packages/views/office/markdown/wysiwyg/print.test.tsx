@@ -324,3 +324,29 @@ describe("MarkdownPrintMenuItems", () => {
     expect(calls[0]!.html).toContain("img-src data: https://proxy.example");
   });
 });
+
+describe("sanitizePrintCopy: page geometry and blocked images", () => {
+  it("gives a copy without its own @page rule page margins, ahead of the document's styles", () => {
+    const copy = sanitizePrintCopy(`<style>p{color:red}</style><h1>Title</h1><p>Body</p>`);
+    const doc = new DOMParser().parseFromString(copy, "text/html");
+    const styles = Array.from(doc.head.querySelectorAll("style"));
+    expect(styles[0]!.textContent).toMatch(/@page\s*\{[^}]*margin:\s*\d+mm/);
+    expect(styles.map((s) => s.textContent).join("")).toContain("p{color:red}");
+    // page 1 is the content: the first thing in the body is the document's own first block.
+    expect(doc.body.firstElementChild!.localName).toBe("h1");
+  });
+
+  it("keeps a document's own @page rule and adds none", () => {
+    const copy = sanitizePrintCopy(`<style>@page{size:A5;margin:5mm}</style><p>x</p>`);
+    expect(copy.match(/@page/g)).toHaveLength(1);
+    expect(copy).toContain("size:A5");
+  });
+
+  it("prints a blocked image as its alt text, with no broken-image element", () => {
+    const copy = sanitizePrintCopy(`<p><img src="https://tracker.example/p.gif" alt="Sơ đồ"></p><p><img src="assets/missing.png" alt="Ảnh"></p>`);
+    const doc = new DOMParser().parseFromString(copy, "text/html");
+    expect(doc.querySelectorAll("img")).toHaveLength(0);
+    expect(Array.from(doc.querySelectorAll("[data-blocked-image]")).map((e) => e.textContent)).toEqual(["Sơ đồ", "Ảnh"]);
+    expect(copy).not.toContain("about:blank#blocked");
+  });
+});
