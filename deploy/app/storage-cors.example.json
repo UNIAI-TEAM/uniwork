@@ -1,0 +1,15 @@
+{
+  "CORSRules": [
+    {
+      "ID": "uniwork-browser-file-access",
+      "AllowedOrigins": [
+        "https://app.example.com",
+        "https://preview.example.com"
+      ],
+      "AllowedMethods": ["PUT", "GET", "HEAD"],
+      "AllowedHeaders": ["Content-Type", "Content-MD5", "Range"],
+      "ExposeHeaders": ["ETag"],
+      "MaxAgeSeconds": 3600
+    }
+  ]
+}

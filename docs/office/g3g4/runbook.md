@@ -112,7 +112,7 @@ Sidecar XLSX: không có biến riêng cần đặt.
 
 - Trình duyệt phải gọi được địa chỉ kho (`MINIO_PUBLIC_ENDPOINT` nếu khác địa chỉ nội bộ).
 - `OFFICE_ENGINE_OUTPUT_ORIGINS` = origin kho file mà engine nhìn thấy.
-- Cấu hình CORS của bucket: Chưa có — repo không có file hay bước CORS cho bucket. Xem `docs/superpowers/specs/2026-09-22-shared-file-service-design.md` (mục lỗi browser không tới được MinIO).
+- CORS của bucket: xem [bucket-cors.md](bucket-cors.md) (quy tắc, `deploy/app/storage-cors.example.json`, cách áp trên S3 và MinIO). MinIO của compose không có CORS theo bucket: đặt `MINIO_API_CORS_ALLOW_ORIGIN` cho container MinIO. Lỗi browser không tới được MinIO: `docs/superpowers/specs/2026-09-22-shared-file-service-design.md`.
 - Mục đích file `document_file` do FileService quản lý. Nếu job báo `file_purpose_disabled` thì mục đích này chưa mở ở bản đang chạy.
 
 ### 3.5 Origin xem trước
@@ -236,6 +236,7 @@ Nói gì với người dùng:
 
 - [RUNBOOK_OFFICE_ENGINE.md](../../ops/RUNBOOK_OFFICE_ENGINE.md): engine, giới hạn, XLSX sidecar
 - [preview-origin.md](preview-origin.md): origin xem trước MD/HTML
+- [bucket-cors.md](bucket-cors.md): CORS của kho file (S3/MinIO)
 - [desktop-packaging.md](desktop-packaging.md): đóng gói, cập nhật, rollback nháp
 - [desktop-install-macos-ubuntu.md](desktop-install-macos-ubuntu.md): cài macOS, Ubuntu
 - [desktop-auth-contract.md](desktop-auth-contract.md): đăng nhập, thiết bị, thu hồi
