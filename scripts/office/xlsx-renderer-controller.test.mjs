@@ -258,6 +258,11 @@ test('public formula/format/tab/theme commands preserve journals and ignore view
     mounted.handle.undo(); mounted.handle.redo();
     assert.equal(mounted.h.undoCalls, 1);
     assert.equal(mounted.h.redoCalls, 1);
+    // Review r3 F2: the host routes Ctrl+Z and Delete to the grid only while a cell edit is open.
+    mounted.h.editing = true;
+    assert.equal(mounted.handle.isCellEditing(), true);
+    mounted.h.editing = false;
+    assert.equal(mounted.handle.isCellEditing(), false);
   } finally { mounted.close(); }
 });
 

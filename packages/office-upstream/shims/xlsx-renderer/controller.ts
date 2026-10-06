@@ -220,6 +220,9 @@ export interface XlsxRendererHandle {
   /** UNI-953: undo/redo entries on the workbook's stack (Undo/Redo empty state). */
   getHistory(): XlsxRendererHistoryState | null;
   subscribeHistory(listener: (state: XlsxRendererHistoryState) => void): () => void;
+  /** Review r3 F2: a cell edit is open (its keys belong to the editor, not
+   *  to the host's visual Undo/Delete). False before a workbook loads. */
+  isCellEditing(): boolean;
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): EditJournal;
@@ -459,7 +462,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   // Viewport streaming: scroll and sheet switches refetch the visible window.
   const disposables: Array<{ dispose(): void }> = [];
-  const history = watchRendererHistory(runtime.univer.__getInjector());
+  const history = watchRendererHistory(runtime.univer.__getInjector(), () => runtime.univerAPI.getActiveWorkbook()?.getId() ?? null);
   disposables.push(history);
 
   // UniWork outline commands (B1): the pinned Univer has no outline model and
@@ -864,6 +867,9 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       fontMappings = await loadWorkbookFonts(file, container.ownerDocument);
       if (disposed) return;
       releaseDesktopApi?.();
+      // A wrapper, not options.host itself: each controller notes the linked
+      // CF rules of the ranges IT reads into its own workbook state (UNI-957
+      // per-document state); release compares this same object.
       releaseDesktopApi = registerDesktopApiSession(file.sessionId, {
         readRange: (input) => options.host.readRange(input).then((result) => {
           // Linked x14 CF rules (review dvcf B2), noted before the loader installs them.
@@ -1029,6 +1035,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     },
     getHistory: () => history.get(),
     subscribeHistory: (listener) => history.subscribe(listener),
+    isCellEditing: () => runtime.univerAPI.getActiveWorkbook()?.isCellEditing() === true,
     getDirtyGeneration: () => dirtyGeneration,
     getFontMappings: () => fontMappings.map((mapping) => ({ ...mapping })),
     getJournal: () => {
