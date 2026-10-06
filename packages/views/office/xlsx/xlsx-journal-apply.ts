@@ -8,6 +8,7 @@
   isXlsxSheetProtectionOp,
   isXlsxStructuralOp,
   isXlsxTableOp,
+  isXlsxVisualOp,
   parseXlsxOps,
   type XlsxCellState,
   type XlsxEditOp,
@@ -125,6 +126,9 @@ function applyOp(sheets: XlsxWorksheet[], op: XlsxEditOp): void {
   // sheetProtections / definedNamesState passes unapplied.
   if (isXlsxSheetProtectionOp(op)) return;
   if (isXlsxDefinedNamesOp(op)) return;
+  // Charts, pictures and shapes (X02) are drawing parts, not cells: they ride
+  // the envelope to the server's visualAdditions pass unapplied.
+  if (isXlsxVisualOp(op)) return;
   const cells = sheets.find((sheet) => sheet.name === op.target.sheetName)!.cells as Record<string, XlsxJournalDraftCell>;
   const previous = cells[op.target.address];
   const content: XlsxCellState = op.kind === "clear_cell" ? { value: null } : op.writeValue ? op.cell : previous ?? { value: null };
