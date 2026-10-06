@@ -93,6 +93,16 @@ describe("HtmlEditor", () => {
     expect(screen.queryByTestId("html-source")).toBeNull();
   });
 
+  it("shows the source caret position in the footer and clears it when the source pane is hidden (T12)", async () => {
+    const { container } = await renderReady();
+    await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
+    // Line 3 of SOURCE starts at offset 34 (15 + 1 + 17 + 1 chars before it).
+    cmView(container).dispatch({ selection: { anchor: 36 } });
+    await waitFor(() => expect(screen.getByTestId("html-status-position")).toHaveTextContent("Ln 3, Col 3"));
+    pressCycle(container); // split -> preview: no source pane
+    await waitFor(() => expect(screen.queryByTestId("html-status-position")).toBeNull());
+  });
+
   it("renders the Markdown WYSIWYG surface (M-WIRE) and not CodeMirror", async () => {
     let text = "# Keep";
     const editor: MarkdownEditorHandle = {

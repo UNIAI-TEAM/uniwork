@@ -116,3 +116,15 @@ describe("HtmlStatusBar", () => {
     expect(container.querySelector("[data-office-status-bar]")!.className).not.toContain("border-t-0");
   });
 });
+
+describe("HtmlStatusBar caret position (T12)", () => {
+  it("shows Ln/Col from the caret head beside the selection readout", () => {
+    renderBar({ text: "ab\ncde", selection: { from: 5, to: 5, head: 5 } });
+    expect(screen.getByTestId("html-status-position")).toHaveTextContent("Ln 2, Col 3");
+  });
+
+  it("renders no position slot without a caret", () => {
+    renderBar({ selection: null });
+    expect(screen.queryByTestId("html-status-position")).toBeNull();
+  });
+});

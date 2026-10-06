@@ -5,7 +5,7 @@ import { CircleHelp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
-import { OfficeStatusBar, OfficeStatusZoom } from "../frame";
+import { OfficeStatusBar, OfficeStatusZoom, textCaret } from "../frame";
 import {
   clampZoom,
   HTML_ZOOM_DEFAULT,
@@ -39,7 +39,8 @@ export function HtmlStatusBar({
   joinedBand = false,
 }: {
   text: string;
-  selection?: { from: number; to: number } | null;
+  /** Source selection; `head` (the caret) adds the "Ln, Col" readout. */
+  selection?: { from: number; to: number; head?: number } | null;
   zoom: number;
   onZoomChange: (percent: number) => void;
   zoomDisabled: boolean;
@@ -49,6 +50,7 @@ export function HtmlStatusBar({
   const [helpOpen, setHelpOpen] = useState(false);
   const { length, lines, selection: activeSelection } = htmlStatusFigures(text, selection);
   const clamped = clampZoom(zoom);
+  const caret = selection && typeof selection.head === "number" ? textCaret(text, selection.head) : null;
   return (
     <>
       <OfficeStatusBar
@@ -65,6 +67,7 @@ export function HtmlStatusBar({
         }
         end={
           <span className="flex items-center gap-2" data-testid="html-status-right">
+            {caret ? <span className="tabular-nums" data-testid="html-status-position">{t("office.status.position", { line: caret.line, column: caret.column })}</span> : null}
             <span data-testid="html-status-selection">
               {activeSelection
                 ? t("office.html.status.selection", { from: activeSelection.from, to: activeSelection.to })
