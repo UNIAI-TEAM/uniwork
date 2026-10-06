@@ -56,6 +56,18 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
     if (pendingLeave?.requestId === parsed.data.requestId) pendingLeave = undefined;
     leaveExpiredListener?.(parsed.data);
   });
+  // The OS can flip light/dark while the renderer is still reading the
+  // appearance snapshot and loading its locale, before DesktopFrame subscribes.
+  // Keep the newest theme and replay it to each new subscriber: it is the
+  // current state, so a late subscriber never keeps a stale `.dark`.
+  let latestTheme: ThemeChangedEvent | undefined;
+  const themeListeners = new Set<(event: ThemeChangedEvent) => void>();
+  ipcRenderer.on?.("desktop:theme-changed", (...args: unknown[]) => {
+    const parsed = themeChangedEventSchema.safeParse(args.at(-1));
+    if (!parsed.success) return;
+    latestTheme = parsed.data;
+    for (const listener of [...themeListeners]) listener(parsed.data);
+  });
   ipcRenderer.on?.("desktop:file-open-requested", (...args: unknown[]) => {
     const parsed = fileOpenRequestedSchema.safeParse(args.at(-1));
     if (!parsed.success) return;
@@ -115,15 +127,10 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
       return () => { if (loginListener === listener) loginListener = undefined; };
     },
     onThemeChanged(listener) {
-      if (!ipcRenderer.on) return () => undefined;
-      const handler = (...args: unknown[]) => {
-        const parsed = themeChangedEventSchema.safeParse(args.at(-1));
-        if (parsed.success) listener(parsed.data);
-      };
-      const eventChannel = "desktop:theme-changed";
-      if (!(DESKTOP_EVENTS as readonly string[]).includes(eventChannel)) return () => undefined;
-      ipcRenderer.on(eventChannel, handler);
-      return () => ipcRenderer.removeListener?.(eventChannel, handler);
+      if (!ipcRenderer.on || !(DESKTOP_EVENTS as readonly string[]).includes("desktop:theme-changed")) return () => undefined;
+      themeListeners.add(listener);
+      if (latestTheme) listener(latestTheme);
+      return () => { themeListeners.delete(listener); };
     },
     onOfficeSaveRequested(listener) {
       if (!ipcRenderer.on) return () => undefined;

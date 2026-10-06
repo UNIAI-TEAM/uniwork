@@ -99,8 +99,7 @@ it("delivers every buffered native file and launch in channel order after subscr
 
 it("forwards only a well-formed theme change and unsubscribes", () => {
   const listeners = new Map<string, (...args: unknown[]) => void>();
-  const removeListener = vi.fn();
-  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (channel, next) => { listeners.set(channel, next); }, removeListener });
+  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (channel, next) => { listeners.set(channel, next); } });
   const received: unknown[] = [];
   const unsubscribe = bridge.onThemeChanged((event) => received.push(event));
   const listener = listeners.get("desktop:theme-changed");
@@ -109,7 +108,27 @@ it("forwards only a well-formed theme change and unsubscribes", () => {
   listener?.({}, { dark: false, path: "/secret" });
   expect(received).toEqual([{ dark: true }]);
   unsubscribe();
-  expect(removeListener).toHaveBeenCalledWith("desktop:theme-changed", listener);
+  listener?.({}, { dark: false });
+  expect(received).toEqual([{ dark: true }]);
+});
+
+it("replays the newest theme a startup flip sent before anyone subscribed", () => {
+  const listeners = new Map<string, (...args: unknown[]) => void>();
+  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (channel, next) => { listeners.set(channel, next); } });
+  const listener = listeners.get("desktop:theme-changed");
+  listener?.({}, { dark: true });
+  listener?.({}, { dark: false });
+  listener?.({}, { dark: true });
+  const first: unknown[] = [];
+  const second: unknown[] = [];
+  bridge.onThemeChanged((event) => first.push(event));
+  // A remount (StrictMode, a second frame) still starts from the current theme.
+  bridge.onThemeChanged((event) => second.push(event));
+  expect(first).toEqual([{ dark: true }]);
+  expect(second).toEqual([{ dark: true }]);
+  listener?.({}, { dark: false });
+  expect(first).toEqual([{ dark: true }, { dark: false }]);
+  expect(second).toEqual([{ dark: true }, { dark: false }]);
 });
 
 it("allowlists the appearance read", async () => {
