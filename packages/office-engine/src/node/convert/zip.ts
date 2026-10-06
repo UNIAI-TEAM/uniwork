@@ -1,5 +1,5 @@
 import { inflateRawSync } from "node:zlib";
-import { readCentralDirectory, ZipError, type ZipBoundMode, type ZipFailure } from "../../shared/zip-central.ts";
+import { readCentralDirectory, ZipError, type ZipBoundMode } from "../../shared/zip-central.ts";
 
 // Minimal, dependency-free ZIP reader/writer for the Q7 converters
 // (G2-07b / UNI-690). The reader parses the central directory (never walks
@@ -17,7 +17,7 @@ const EOCD_SIG = 0x06054b50;
 const CENTRAL_SIG = 0x02014b50;
 const LOCAL_SIG = 0x04034b50;
 
-export { ZipError, type ZipBoundMode, type ZipFailure };
+export { ZipError, type ZipBoundMode };
 
 /** Read every entry of a zip into memory. Throws ZipError on anything that is
     not a readable, bounded zip package. */
