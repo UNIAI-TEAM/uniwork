@@ -8,7 +8,9 @@ import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { OfficeFrame } from "../frame/office-frame";
+import type { OfficePrintPort } from "../print";
 import type { OfficeSaveCoordinatorLike } from "../office-shell";
 import { collectRenderNodeBoxes } from "./canvas/build-slide-svg";
 import { PptxCanvasSurface } from "./canvas/pptx-canvas-surface";
@@ -26,7 +28,7 @@ import type { MasterElementView, MasterPartView } from "./masters";
 import { usePptxEditorMasters, usePptxMasterCanvas } from "./pptx-masters-state";
 import type { PptxTabId } from "./pptx-ribbon";
 import { PptxFindReplacePanel, flattenDeckRuns, usePptxFindSelect, type PptxFindReplaceEdit } from "./find";
-import { collectPptxPrintSlides, createPptxPrintPort, type PptxPrintPort } from "./print";
+import { usePptxPrint } from "./print";
 import { PptxPresenter } from "./presenter";
 import { pptxShowGroupItems } from "./ribbon-show-items";
 import { PptxSlideShow } from "./show/pptx-slide-show";
@@ -93,10 +95,11 @@ export interface PptxEditorProps {
   panelKind?: PptxPanelKind;
   /** Wire-round seam: the deck data the notes/comments/headerfooter/media panels read. */
   panelData?: PptxPanelData;
-  /** The print/PDF port (C1), bound explicitly by the host: a port, `"browser"`
-   *  for the browser print frame (Chromium's print dialog, Save as PDF), or
-   *  absent/`null` - then Print and Export PDF are hidden, not shown dead. */
-  printPort?: PptxPrintPort | "browser" | null;
+  /** The shared Office print port (UNI-952), bound by the host: the web browser port or the
+   *  desktop host port. Absent/`null` hides Print and Export PDF instead of showing them dead. */
+  printPort?: OfficePrintPort | null;
+  /** Document title for the print job (the default PDF file name). */
+  printTitle?: string;
   /** Wire-round seam: ONE generic edit channel every panel port routes to.
    *  Accepts the FormatEdit union too (an engine gap: it is not yet a PptxEdit
    *  kind). Falls back to the editor handle edit port when the host supplies none. */
@@ -152,6 +155,7 @@ export function PptxEditor({
   panelKind,
   panelData,
   printPort: printPortProp,
+  printTitle,
   onApplyEdit,
   className,
 }: PptxEditorProps) {
@@ -189,12 +193,6 @@ export function PptxEditor({
   const railSlides = useMemo<readonly PptxSlideView[]>(
     () => slides.map((slide) => ({ ...slide, thumbnailUrl: thumbnails.get(slide.id) ?? slide.thumbnailUrl })),
     [slides, thumbnails],
-  );
-  // X4fix F2: printing runs only on the path the host bound; a deck-less editor
-  // has nothing to print, so the commands drop out.
-  const printPort = useMemo(
-    () => (!deckBound || !printPortProp ? null : printPortProp === "browser" ? createPptxPrintPort() : printPortProp),
-    [deckBound, printPortProp],
   );
   const editableHandle = isEditableHandle(editorHandle) ? editorHandle : null;
   const handleEdit = useMemo(
@@ -375,6 +373,11 @@ export function PptxEditor({
   // the host seam, or the in-place editor over a selected text element.
   const selectionHasText = selectedIds.length > 0 && textTargets.some((candidate) => candidate.sourceId === selectedIds[0]);
   const canEditText = Boolean(onTextEdit) || (Boolean(onCommitText) && selectionHasText);
+  // UNI-952: one print run behind the ribbon and the header menu; a deck-less editor, or one
+  // whose renderer has not loaded, has nothing to print, so every entry drops out.
+  const { port: printPort, run: runPrint, notice: printNotice, menuItems: printMenuItems } = usePptxPrint({
+    port: deckBound ? printPortProp : null, renderer: deckRenderer, slides, palette, ...(printTitle !== undefined ? { title: printTitle } : {}), flush: flushTextEdit, onFailed: reportCommandError,
+  });
   const effectiveCapabilities = useMemo(() => pptxEditorCapabilities(capabilities, {
     open: Boolean(onOpen),
     textEdit: Boolean(onTextEdit),
@@ -383,9 +386,8 @@ export function PptxEditor({
     textSelected: selectionHasText,
     transform: Boolean(transformRequest),
     edit: Boolean(onApplyEdit ?? handleEdit),
-    // Not before the renderer is loaded: a click then would have nothing to print.
-    printPort: deckRenderer ? printPort : null,
-  }), [capabilities, deckRenderer, handleEdit, onApplyEdit, onCommitText, onOpen, onTextEdit, printPort, selectionHasText, transformRequest]);
+    printPort,
+  }), [capabilities, handleEdit, onApplyEdit, onCommitText, onOpen, onTextEdit, printPort, selectionHasText, transformRequest]);
   // B6: View > Slide master (open toggle, part/element reads, edits on the one channel).
   const masters = usePptxEditorMasters({ ...(masterParts ? { masterParts } : {}), ...(masterElements ? { masterElements } : {}), editorHandle, ...(onApplyEdit ? { onApplyEdit } : {}), ...(handleEdit ? { handleEdit } : {}), refreshKey: deck?.revision, onError: reportCommandError });
   const baseCommands = useMemo(() => createPptxCommandMap({ host, capabilities: effectiveCapabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [effectiveCapabilities, host, includeSave, saveCoordinator]);
@@ -462,17 +464,8 @@ export function PptxEditor({
       case "slideMaster": toggleMasters(); break;
       case "export-pdf":
       case "print":
-        // C1: one committed print run through the bound port; nothing is faked
-        // when the port is absent (the capability above hides it). X4fix F1: a
-        // run the port reports as failed surfaces like any refused command.
-        if (printPort && deckRenderer) {
-          const print = async () => {
-            const result = await printPort.print({ slides: collectPptxPrintSlides(deckRenderer, { palette }) });
-            if (result.outcome === "failed") throw new Error(result.reason);
-          };
-          const commit = flushTextEdit();
-          runCommand(commit ? commit.then(print) : print());
-        }
+        // C1/UNI-952: the same run as the header menu item; hidden without a port.
+        runPrint();
         break;
       // The tab-row Present control starts the audience show from the current
       // slide; the presenter console is the Slide Show tab's Presenter View.
@@ -488,7 +481,7 @@ export function PptxEditor({
       }
       default: break;
     }
-  }, [deckRenderer, flushTextEdit, fullscreen, onFullscreenChange, onOpen, openCommandPanel, palette, printPort, reportCommandError, requestHistory, runCommand, runTextCommand, runTransform, save, startShow, toggleMasters, transformRequest]);
+  }, [fullscreen, onFullscreenChange, onOpen, openCommandPanel, reportCommandError, runPrint, requestHistory, runCommand, runTextCommand, runTransform, save, startShow, toggleMasters, transformRequest]);
 
   // A7: one dispatch table owns the canvas keys. The chords live in the pure shortcut
   // map (which the help dialog also lists), so a key that runs is a key that is
@@ -536,6 +529,7 @@ export function PptxEditor({
   }, [reorderSelection, runTextCommand, selection]);
 
   const alerts = [
+    printNotice,
     commandError ? <Alert key="cmd" className="rounded-none border-x-0 border-t-0" variant="destructive" role="alert"><AlertTitle>{t("command_error_title")}</AlertTitle><AlertDescription>{t("command_error_hint", { message: commandError })}</AlertDescription></Alert> : null,
     rendererState.status === "error" ? <Alert key="render" className="rounded-none border-x-0 border-t-0" variant="destructive" role="alert" data-testid="pptx-render-error"><AlertTitle>{t("render_failed")}</AlertTitle><AlertDescription>{t("render_failed_hint", { message: rendererState.message })}</AlertDescription></Alert> : null,
     svgBuild.error ? <Alert key="svg" className="rounded-none border-x-0 border-t-0" variant="destructive" role="alert" data-testid="pptx-svg-error"><AlertTitle>{t("render_failed")}</AlertTitle><AlertDescription>{t("render_failed_hint", { message: svgBuild.error })}</AlertDescription></Alert> : null,
@@ -547,6 +541,7 @@ export function PptxEditor({
 
   return (
     <section ref={editorRootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)} data-pptx-editor data-gesture-pending={gesturePending}>
+      {printMenuItems ? <HeaderActionsFill menuItems={printMenuItems} /> : null}
       <OfficeFrame
         ribbon={
           <PptxToolbar

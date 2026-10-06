@@ -44,14 +44,15 @@ describe("pptxEditorCapabilities - commands the host can never run are hidden (R
   });
 
   it("makes open, text, transform and both print commands available once bound", () => {
-    const printPort = { available: true, mode: "browser" as const, print: async () => ({ outcome: "printed" as const, mode: "browser" as const }) };
+    const printPort = { print: async () => ({ outcome: "printed" as const }) };
     const caps = pptxEditorCapabilities(undefined, { open: true, textEdit: true, transform: true, edit: true, printPort });
     for (const id of ["open", "edit-text", "edit-shape-image", "export-pdf", "print"] as const) expect(caps[id], id).toEqual({ status: "available" });
   });
 
-  it("hides print when the port has no surface to print from", () => {
-    const printPort = { available: false, mode: "browser" as const, print: async () => ({ outcome: "failed" as const, reason: "x" }) };
-    expect(pptxEditorCapabilities(undefined, { ...none, printPort }).print).toEqual(expect.objectContaining({ hidden: true }));
+  it("hides both print commands with their reason when no port is bound", () => {
+    const caps = pptxEditorCapabilities(undefined, none);
+    expect(caps.print).toEqual({ status: "unavailable", reason: "office.pptx.reasons.print_unbound", hidden: true });
+    expect(caps["export-pdf"]).toEqual({ status: "unavailable", reason: "office.pptx.reasons.export_pdf_unbound", hidden: true });
   });
 
   it("gives print its own reason key, not the PDF export one (X4fix F10)", () => {

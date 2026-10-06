@@ -1,2 +1,2 @@
-export { collectPptxPrintSlides } from "./pptx-print";
-export { createPptxPrintPort, pptxPrintCapability, type PptxPrintPort } from "./pptx-export-pdf";
+export { pptxPrintCapability } from "./pptx-print-run";
+export { usePptxPrint } from "./use-pptx-print";

@@ -9,7 +9,8 @@
  * command always opens/closes the pane, which shows its own read-only state.
  */
 import type { PptxCommandCapability, PptxCommandId } from "./command-map";
-import { pptxPrintCapability, type PptxPrintPort } from "./print";
+import type { OfficePrintPort } from "../print";
+import { pptxPrintCapability } from "./print";
 
 type CapabilityInput = PptxCommandCapability | "available" | "readonly" | "unavailable" | "unknown";
 
@@ -24,7 +25,7 @@ export interface PptxEditorChannels {
   transform: boolean;
   /** A generic edit channel (host onApplyEdit or the handle's edit port). */
   edit: boolean;
-  printPort: PptxPrintPort | null;
+  printPort: OfficePrintPort | null;
 }
 
 /** Commands whose ribbon item opens a panel bound to the generic edit channel. */
@@ -34,11 +35,6 @@ const AVAILABLE: PptxCommandCapability = { status: "available" };
 
 function withReasonKey(capability: PptxCommandCapability, reasonKey: string): PptxCommandCapability {
   return capability.status === "available" ? capability : { ...capability, reason: reasonKey };
-}
-
-function printCapability(port: PptxPrintPort | null, reasonKey: string): PptxCommandCapability {
-  const capability = withReasonKey(pptxPrintCapability(port), reasonKey);
-  return capability.status === "available" ? capability : { ...capability, hidden: true };
 }
 
 /** Text runs through the host seam, or through the in-place editor once a text
@@ -73,7 +69,7 @@ export function pptxEditorCapabilities(
       : { status: "unavailable", reason: "office.pptx.reasons.transform_unbound", hidden: true },
     // C1: the print/PDF commands report what the bound port can actually do; with
     // no surface to print from they are hidden (R2-6), not shown dead.
-    "export-pdf": capabilities?.["export-pdf"] ?? printCapability(channels.printPort, "office.pptx.reasons.export_pdf_unbound"),
-    print: capabilities?.print ?? printCapability(channels.printPort, "office.pptx.reasons.print_unbound"),
+    "export-pdf": capabilities?.["export-pdf"] ?? pptxPrintCapability(channels.printPort, "office.pptx.reasons.export_pdf_unbound"),
+    print: capabilities?.print ?? pptxPrintCapability(channels.printPort, "office.pptx.reasons.print_unbound"),
   };
 }
