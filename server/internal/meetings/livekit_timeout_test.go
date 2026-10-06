@@ -59,6 +59,10 @@ func TestEveryProviderCallIsBounded(t *testing.T) {
 		"UpdateParticipant": func(ctx context.Context) error {
 			return a.UpdateParticipant(ctx, UpdateProviderParticipantRequest{RoomName: "r", Identity: "i"})
 		},
+		"GetParticipantPermissions": func(ctx context.Context) error {
+			_, err := a.GetParticipantPermissions(ctx, GetProviderParticipantRequest{RoomName: "r", Identity: "i"})
+			return err
+		},
 		"EndSession": func(ctx context.Context) error {
 			return a.EndSession(ctx, EndProviderSessionRequest{RoomName: "r"})
 		},

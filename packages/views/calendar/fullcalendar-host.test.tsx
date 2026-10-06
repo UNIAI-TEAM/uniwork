@@ -146,7 +146,7 @@ describe("FullCalendarHost", () => {
     expect(onDatesSet).toHaveBeenCalledWith({ from: "2026-09-14", to: "2026-09-18" });
   });
 
-  it("does not show a time-zone axis label or now indicator in month view", () => {
+  it("shows two month events before using the overflow row", () => {
     render(
       <FullCalendarHost
         events={[sample]}
@@ -160,7 +160,7 @@ describe("FullCalendarHost", () => {
     );
     expect(captured.locale?.code).toBe("en-gb");
     expect(captured.nowIndicator).toBe(false);
-    expect(captured.dayMaxEventRows).toBe(1);
+    expect(captured.dayMaxEventRows).toBe(3);
     expect(captured.expandRows).toBe(true);
     expect(screen.queryByText("GMT+7")).not.toBeInTheDocument();
   });

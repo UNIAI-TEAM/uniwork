@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -183,19 +184,48 @@ func (a *LiveKitAdapter) UpdateParticipant(ctx context.Context, req UpdateProvid
 	return err
 }
 
+func (a *LiveKitAdapter) GetParticipantPermissions(ctx context.Context, req GetProviderParticipantRequest) (MediaPermissions, error) {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	info, err := a.client().GetParticipant(ctx, &livekit.RoomParticipantIdentity{Room: req.RoomName, Identity: req.Identity})
+	if err != nil {
+		return MediaPermissions{}, err
+	}
+	return mediaPermissions(info.GetPermission()), nil
+}
+
 // participantPermission is the full set LiveKit stores: a field left false
 // here is a grant taken away, not one left alone.
 func participantPermission(p MediaPermissions) *livekit.ParticipantPermission {
 	perm := &livekit.ParticipantPermission{
 		CanSubscribe: p.CanSubscribe, CanPublish: p.CanPublish, CanPublishData: p.CanPublishData,
 	}
-	// An empty source list means every source; a locked mic lists the rest.
-	if p.MicrophoneLocked {
-		perm.CanPublishSources = []livekit.TrackSource{
-			livekit.TrackSource_CAMERA, livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO,
+	// An empty source list means every source; a lock lists what is left.
+	// Shared-tab audio needs both the voice and the share open, so either lock
+	// takes it.
+	if p.MicrophoneLocked || p.ScreenShareLocked {
+		sources := []livekit.TrackSource{livekit.TrackSource_CAMERA}
+		if !p.MicrophoneLocked {
+			sources = append(sources, livekit.TrackSource_MICROPHONE)
 		}
+		if !p.ScreenShareLocked {
+			sources = append(sources, livekit.TrackSource_SCREEN_SHARE)
+		}
+		perm.CanPublishSources = sources
 	}
 	return perm
+}
+
+// mediaPermissions reads back the locks participantPermission wrote: a
+// restricted source list without the mic is a locked mic, one without the
+// screen share a locked share. A join token sets no list, so no locks.
+func mediaPermissions(p *livekit.ParticipantPermission) MediaPermissions {
+	m := MediaPermissions{CanSubscribe: p.GetCanSubscribe(), CanPublish: p.GetCanPublish(), CanPublishData: p.GetCanPublishData()}
+	if sources := p.GetCanPublishSources(); len(sources) > 0 {
+		m.MicrophoneLocked = !slices.Contains(sources, livekit.TrackSource_MICROPHONE)
+		m.ScreenShareLocked = !slices.Contains(sources, livekit.TrackSource_SCREEN_SHARE)
+	}
+	return m
 }
 
 func (a *LiveKitAdapter) EndSession(ctx context.Context, req EndProviderSessionRequest) error {
@@ -282,9 +312,21 @@ func (a *LiveKitAdapter) StartRecording(ctx context.Context, req StartRecordingR
 	}
 	ctx, cancel := a.egressCtx(ctx)
 	defer cancel()
-	info, err := a.egress().StartRoomCompositeEgress(ctx, &livekit.RoomCompositeEgressRequest{
+	info, err := a.egress().StartRoomCompositeEgress(ctx, a.roomCompositeRequest(req, filepath))
+	if err != nil {
+		return RecordingRef{}, fmt.Errorf("livekit start recording: %w", err)
+	}
+	return RecordingRef{RecordingID: info.EgressId}, nil
+}
+
+// roomCompositeRequest records the room at 1920x1080, 30 fps, 4.5 Mbps H.264.
+// Without Options egress picks its 1280x720 default, and a shared screen in
+// the speaker layout (5/6 of the width) comes out too small to read (UNI-943).
+func (a *LiveKitAdapter) roomCompositeRequest(req StartRecordingRequest, filepath string) *livekit.RoomCompositeEgressRequest {
+	return &livekit.RoomCompositeEgressRequest{
 		RoomName: req.RoomName,
 		Layout:   recordingLayout(req.Layout),
+		Options:  &livekit.RoomCompositeEgressRequest_Preset{Preset: livekit.EncodingOptionsPreset_H264_1080P_30},
 		FileOutputs: []*livekit.EncodedFileOutput{{
 			FileType: livekit.EncodedFileType_MP4,
 			Filepath: filepath,
@@ -293,11 +335,7 @@ func (a *LiveKitAdapter) StartRecording(ctx context.Context, req StartRecordingR
 				Endpoint: a.Recording.Endpoint, Bucket: a.Recording.Bucket, ForcePathStyle: a.Recording.Endpoint != "",
 			}},
 		}},
-	})
-	if err != nil {
-		return RecordingRef{}, fmt.Errorf("livekit start recording: %w", err)
 	}
-	return RecordingRef{RecordingID: info.EgressId}, nil
 }
 
 func (a *LiveKitAdapter) StopRecording(ctx context.Context, req StopRecordingRequest) error {

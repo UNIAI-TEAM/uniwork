@@ -3,6 +3,7 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { RoomEvent, Track } from "livekit-client";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { wrapWithNav } from "../test/api-mock";
 import { MeetingConference } from "./meeting-conference";
 
@@ -100,6 +101,7 @@ vi.mock("./meeting-room-announcers", () => ({
   ChatMessageAnnouncer: () => null,
   ParticipantPresenceAnnouncer: () => null,
   ReactionAnnouncer: () => null,
+  ScreenShareAnnouncer: () => null,
   useMeetingChatUnread: () => ({ unread: 0, latest: undefined }),
 }));
 vi.mock("./meeting-captions", () => ({
@@ -109,6 +111,7 @@ vi.mock("./meeting-captions", () => ({
 }));
 vi.mock("./meeting-camera-background-sync", () => ({ MeetingCameraBackgroundSync: () => null }));
 vi.mock("./meeting-screen-share-notices", () => ({ MeetingScreenShareWatcher: () => null }));
+vi.mock("./meeting-single-presenter", () => ({ MeetingSinglePresenter: () => null }));
 vi.mock("./meeting-connection-notice", () => ({ MeetingConnectionNotice: () => null }));
 vi.mock("./meeting-schedule-banner", () => ({ MeetingScheduleBanner: () => null }));
 vi.mock("./meeting-vote-prompt", () => ({ MeetingVotePrompt: () => null }));
@@ -168,5 +171,13 @@ describe("MeetingConference render scoping", () => {
     // p8 stops as p7 starts: p8 is held in place, so p7 takes the next quiet slot.
     act(() => lk.speaking.set(["p7"]));
     expect(tileOrder()).toEqual(["p0", "p1", "p2", "p3", "p7", "p8", "p6", "p4", "p5"]);
+  });
+
+  it("forgets who was hidden once the room is left, so the next visit starts clean", () => {
+    const { unmount } = render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    act(() => useMeetingViewSessionStore.getState().toggleHidden("p1"));
+    expect(tileOrder()).not.toContain("p1");
+    unmount();
+    expect(useMeetingViewSessionStore.getState().hiddenIdentities).toEqual([]);
   });
 });

@@ -11,6 +11,7 @@ import {
   ListChecks,
   Pencil,
   Play,
+  ShieldBan,
   Square,
   UserMinus,
   UserPlus,
@@ -64,6 +65,7 @@ const KIND_MARK: Record<ActivityKind, { icon: LucideIcon; tone: IconTileTone }> 
   ai: { icon: Sparkles, tone: "brand" },
   recording: { icon: CircleDot, tone: "muted" },
   governance: { icon: Vote, tone: "brand" },
+  moderation: { icon: ShieldBan, tone: "muted" },
   other: { icon: ListChecks, tone: "muted" },
 };
 

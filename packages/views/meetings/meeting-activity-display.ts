@@ -48,6 +48,7 @@ export type ActivityKind =
   | "ai"
   | "recording"
   | "governance"
+  | "moderation"
   | "other";
 
 const KIND: Record<string, ActivityKind> = {
@@ -74,6 +75,10 @@ const KIND: Record<string, ActivityKind> = {
   ATTENDANCE_FINALIZED: "governance",
   MOTION_OPENED: "governance",
   MOTION_CLOSED: "governance",
+  PARTICIPANT_PUBLISH_REVOKED: "moderation",
+  PARTICIPANT_PUBLISH_GRANTED: "moderation",
+  PARTICIPANT_SCREEN_SHARE_REVOKED: "moderation",
+  PARTICIPANT_SCREEN_SHARE_GRANTED: "moderation",
 };
 
 /** Which mark the event gets on the timeline rail. */
@@ -89,6 +94,10 @@ const EXTRA_LABELS: Record<string, string> = {
   RECORDING_STOPPED: "meetings.activity_recording_stopped",
   MOTION_OPENED: "meetings.activity_motion_opened",
   MOTION_CLOSED: "meetings.activity_motion_closed",
+  PARTICIPANT_PUBLISH_REVOKED: "meetings.activity_mic_locked",
+  PARTICIPANT_PUBLISH_GRANTED: "meetings.activity_mic_unlocked",
+  PARTICIPANT_SCREEN_SHARE_REVOKED: "meetings.activity_share_locked",
+  PARTICIPANT_SCREEN_SHARE_GRANTED: "meetings.activity_share_unlocked",
 };
 
 /** i18n key of the sentence that follows the actor's name. */

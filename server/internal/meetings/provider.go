@@ -14,6 +14,7 @@ type ConferenceProvider interface {
 	IssueJoinCredential(ctx context.Context, req IssueJoinCredentialRequest) (JoinCredential, error)
 	RemoveParticipant(ctx context.Context, req RemoveProviderParticipantRequest) error
 	UpdateParticipant(ctx context.Context, req UpdateProviderParticipantRequest) error
+	GetParticipantPermissions(ctx context.Context, req GetProviderParticipantRequest) (MediaPermissions, error)
 	EndSession(ctx context.Context, req EndProviderSessionRequest) error
 	StartRecording(ctx context.Context, req StartRecordingRequest) (RecordingRef, error)
 	StopRecording(ctx context.Context, req StopRecordingRequest) error
@@ -68,6 +69,14 @@ type UpdateProviderParticipantRequest struct {
 	RoomName    string
 	Identity    string
 	Permissions MediaPermissions
+}
+
+// GetProviderParticipantRequest names a participant whose current
+// permissions are read back. Locks live only on the provider, so changing one
+// source reads the other's lock here first.
+type GetProviderParticipantRequest struct {
+	RoomName string
+	Identity string
 }
 
 type EndProviderSessionRequest struct {

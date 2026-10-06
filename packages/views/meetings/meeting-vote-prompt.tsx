@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingMotionBallot } from "./meeting-motion-ballot";
+import { leaveShareFullscreen } from "./screen-share";
 import { useMeetingVotePrompt } from "./use-meeting-vote-prompt";
 
 /**
@@ -48,6 +49,13 @@ export function MeetingVotePrompt({ meetingId, onOpenTab }: { meetingId: string;
   useEffect(() => {
     if (!shown) focusInside.current = false;
   }, [shown]);
+
+  // A share watched full screen is the only thing in view: the card would
+  // open behind it, and the vote close unseen.
+  const dueId = motion && !recorded ? motion.id : null;
+  useEffect(() => {
+    if (dueId) leaveShareFullscreen();
+  }, [dueId]);
 
   // The submit button unmounts with the ballot; a keyboard user who sent it
   // lands on the confirmation instead of the page body.

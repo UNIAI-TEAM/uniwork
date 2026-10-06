@@ -34,6 +34,9 @@ vi.mock("@livekit/components-react", () => ({
   useRoomContext: () => ({
     engine: { token: "tok" },
     regionUrlProvider: { updateToken: vi.fn() },
+    remoteParticipants: new Map(),
+    on: vi.fn(),
+    off: vi.fn(),
   }),
 }));
 vi.mock("./meeting-conference", () => ({

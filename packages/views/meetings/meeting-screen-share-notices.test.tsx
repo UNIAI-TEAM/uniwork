@@ -15,6 +15,7 @@ const fake = vi.hoisted(() => {
     handlers,
     room: {
       state: "connected",
+      localParticipant: { permissions: undefined },
       on(event: string, fn: (...args: unknown[]) => void) {
         if (!handlers.has(event)) handlers.set(event, new Set());
         handlers.get(event)!.add(fn);
@@ -70,7 +71,7 @@ describe("MeetingScreenShareWatcher", () => {
     expect(toast.info).not.toHaveBeenCalled();
     emit(RoomEvent.LocalTrackUnpublished, share);
     settle();
-    expect(toast.info).toHaveBeenCalledWith("Đã dừng chia sẻ màn hình.");
+    expect(toast.info).toHaveBeenCalledWith("Đã dừng chia sẻ màn hình.", expect.anything());
   });
 
   it("stays quiet for a stop the viewer asked for", () => {
@@ -150,5 +151,10 @@ describe("MeetingPresentingCard with a hidden preview", () => {
     expect(screen.getByText(/Bản xem trước chỉ ẩn trên máy bạn/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hiện bản xem trước" }));
     expect(onShowPreview).toHaveBeenCalledOnce();
+  });
+  it("warns a window's presenter that the preview can mirror the meeting for everyone", () => {
+    render(wrap(<MeetingPresentingCard windowShare onShowPreview={() => {}} />));
+    expect(screen.getByText(/Nếu cửa sổ bạn chia sẻ chứa cuộc họp này/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hiện bản xem trước" })).toBeInTheDocument();
   });
 });

@@ -111,9 +111,11 @@ type AppendAgentTranscriptSDI struct {
 	SpokenAt            time.Time `json:"spoken_at" description:"Thời điểm nói (RFC3339); trống = now"`
 }
 
-// SetParticipantPublishSDI toggles server-enforced CanPublish on LiveKit.
+// SetParticipantPublishSDI locks or unlocks one media source of a participant
+// on LiveKit; the server enforces it on the publish permission.
 type SetParticipantPublishSDI struct {
-	Enabled bool `json:"enabled" description:"true = cho phép mic/camera; false = revoke publish" example:"false"`
+	Enabled bool   `json:"enabled" description:"true = mở khóa nguồn; false = khóa nguồn (dừng track đang phát và chặn phát lại)" example:"false"`
+	Source  string `json:"source,omitempty" enum:"microphone,screen_share" description:"Nguồn cần khóa/mở: microphone (mic, kèm âm thanh tab chia sẻ) | screen_share (chia sẻ màn hình và âm thanh của nó); bỏ trống = microphone. Khóa nguồn này giữ nguyên khóa của nguồn kia; không khóa được nguồn của chủ tọa (cannot_mute_host / cannot_lock_host_share)" example:"screen_share"`
 }
 
 // CreateSummarySDI is POST /api/v1/meetings/{meetingID}/summary.

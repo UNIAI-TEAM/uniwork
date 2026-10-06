@@ -5,6 +5,7 @@ import {
   conferenceStagePage,
   copilotPanelShown,
   filterVisibleTracks,
+  newestSharesFirst,
   orderTracks,
   paginate,
   primaryGridClass,
@@ -20,6 +21,7 @@ import {
   stageFillSize,
   stripPlacement,
   tileControlButtons,
+  shareTrackSid,
   trackHasVideo,
   trackTileKey,
 } from "./conference-layout";
@@ -33,6 +35,14 @@ function track(
     participant: { identity },
     source,
     publication: withVideo ? { track: {}, isMuted: false } : { track: undefined, isMuted: true },
+  } as unknown as TrackReferenceOrPlaceholder;
+}
+
+function share(identity: string, trackSid: string): TrackReferenceOrPlaceholder {
+  return {
+    participant: { identity },
+    source: Track.Source.ScreenShare,
+    publication: { track: {}, isMuted: false, trackSid },
   } as unknown as TrackReferenceOrPlaceholder;
 }
 
@@ -197,6 +207,21 @@ describe("conference layout", () => {
     expect(trackHasVideo(track("b", Track.Source.Camera, false))).toBe(false);
   });
 
+  it("hides a hidden person's camera but keeps their screen share, which is the room's content", () => {
+    const tracks = [track("a"), share("a", "TR_a"), track("b")];
+    expect(
+      filterVisibleTracks(tracks, ["a"], false).map((t) => `${t.participant.identity}:${t.source}`),
+    ).toEqual(["a:screen_share", "b:camera"]);
+    const stage = resolveConferenceStage(tracks, {
+      layout: "auto",
+      maxTiles: 6,
+      page: 0,
+      hiddenIdentities: ["a"],
+    });
+    expect(stage.primary[0]?.source).toBe(Track.Source.ScreenShare);
+    expect(stage.thumbnails.map(trackTileKey)).toEqual(["b:camera"]);
+  });
+
   it("promotes screen share to the primary stage with cameras in the side strip", () => {
     const tracks = [
       track("a"),
@@ -217,21 +242,49 @@ describe("conference layout", () => {
     expect(stage.thumbnails.map((t) => t.participant.identity)).toEqual(["b", "a", "c"]);
   });
 
-  it("pages extra screen shares in the strip after the first share", () => {
-    const tracks = [
-      track("share-a", Track.Source.ScreenShare),
-      track("share-b", Track.Source.ScreenShare),
-      track("cam-a"),
-      track("cam-b"),
-    ];
+  it("puts the newest screen share on the stage and the older one first in the strip", () => {
+    const tracks = [share("share-a", "TR_a"), share("share-b", "TR_b"), track("cam-a"), track("cam-b")];
     const stage = resolveConferenceStage(tracks, {
       layout: "auto",
       maxTiles: 6,
       page: 0,
+      shareOrder: ["TR_b", "TR_a"],
     });
     expect(stage.primary).toHaveLength(1);
-    expect(stage.primary[0]?.participant.identity).toBe("share-a");
-    expect(stage.thumbnails.map((t) => t.participant.identity)).toEqual(["share-b", "cam-a", "cam-b"]);
+    expect(stage.primary[0]?.participant.identity).toBe("share-b");
+    expect(stage.thumbnails.map((t) => t.participant.identity)).toEqual(["share-a", "cam-a", "cam-b"]);
+  });
+
+  it("keeps the room's order for shares the share order does not name", () => {
+    const tracks = [share("share-a", "TR_a"), share("share-b", "TR_b"), share("share-c", "TR_c"), track("cam")];
+    const named = resolveConferenceStage(tracks, { layout: "auto", maxTiles: 6, page: 0, shareOrder: ["TR_c"] });
+    expect([...named.primary, ...named.thumbnails].map((t) => t.participant.identity)).toEqual([
+      "share-c",
+      "share-a",
+      "share-b",
+      "cam",
+    ]);
+    const unordered = resolveConferenceStage(tracks, { layout: "auto", maxTiles: 6, page: 0 });
+    expect(unordered.primary[0]?.participant.identity).toBe("share-a");
+  });
+
+  it("orders shares newest first, settling a tie the same way on every client", () => {
+    expect(
+      newestSharesFirst([
+        { sid: "TR_old", identity: "zed", seenAt: 100 },
+        { sid: "TR_new", identity: "amy", seenAt: 900 },
+      ]),
+    ).toEqual(["TR_new", "TR_old"]);
+    // Both already on when this client joined: the greater identity is the
+    // one that keeps presenting (see presenterVerdict), so it leads.
+    expect(
+      newestSharesFirst([
+        { sid: "TR_a", identity: "amy", seenAt: 500 },
+        { sid: "TR_z", identity: "zed", seenAt: 500 },
+      ]),
+    ).toEqual(["TR_z", "TR_a"]);
+    expect(shareTrackSid(share("a", "TR_1"))).toBe("TR_1");
+    expect(shareTrackSid(track("a", Track.Source.ScreenShare))).toBe("a:screen_share");
   });
 
   it("resolves spotlight and tiled layouts", () => {

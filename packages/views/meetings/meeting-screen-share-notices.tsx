@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { SHARE_NOTICE_TOAST, shareLockedNow } from "./meeting-moderation";
 import { markScreenShareStopByUser, takeScreenShareStopByUser } from "./screen-share";
 
 /**
@@ -25,12 +26,17 @@ export function MeetingScreenShareWatcher() {
     const onUnpublished = (publication: TrackPublication) => {
       if (publication.source !== Track.Source.ScreenShare) return;
       if (takeScreenShareStopByUser(room)) return;
+      // The host's share lock says so itself (useOwnShareLock).
+      if (shareLockedNow(room.localParticipant)) return;
       // Leaving (or being ended by the host) unpublishes every track while the
       // room still reads Connected, and only then turns Disconnected — so the
       // cause is read once that synchronous teardown has run.
       clearTimeout(pending);
       pending = setTimeout(() => {
-        if (room.state === ConnectionState.Connected) toast.info(t("meetings.shareStopped"));
+        // The lock may land after the stop: checked again, and sharing the
+        // lock notice's id, so a later lock notice replaces this one.
+        if (shareLockedNow(room.localParticipant)) return;
+        if (room.state === ConnectionState.Connected) toast.info(t("meetings.shareStopped"), { id: SHARE_NOTICE_TOAST });
         else lostWithConnection = true;
       }, 0);
     };
@@ -76,14 +82,17 @@ function useStopPresenting() {
  * show the screen inside itself (and decode the stream just sent); the room
  * sees the real share, the presenter sees what is going on and how to end it.
  * A shared tab or window is drawn instead, under MeetingPresentingBar, unless
- * the presenter put that preview away (`onShowPreview` brings it back).
+ * the presenter put that preview away (`onShowPreview` brings it back). A
+ * window starts here, warned that it may hold the meeting (see ownSharePreview).
  */
 export function MeetingPresentingCard({
   compact = false,
   onShowPreview,
+  windowShare = false,
 }: {
   compact?: boolean;
   onShowPreview?: () => void;
+  windowShare?: boolean;
 }) {
   const { t } = useTranslation();
   const stop = useStopPresenting();
@@ -108,7 +117,11 @@ export function MeetingPresentingCard({
       <div className="max-w-sm space-y-1">
         <p className="text-title-sm font-semibold text-meeting-bar-foreground">{t("meetings.presentingTitle")}</p>
         <p className="text-pretty text-body text-meeting-bar-muted-foreground">
-          {onShowPreview ? t("meetings.presentingPreviewHiddenHint") : t("meetings.presentingHint")}
+          {windowShare
+            ? t("meetings.presentingWindowHint")
+            : onShowPreview
+              ? t("meetings.presentingPreviewHiddenHint")
+              : t("meetings.presentingHint")}
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">

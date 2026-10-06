@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
-import { DisconnectReason, MediaDeviceFailure } from "livekit-client";
+import { DisconnectReason, MediaDeviceFailure, RoomEvent, ScreenSharePresets } from "livekit-client";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
@@ -13,6 +13,7 @@ type RoomProps = {
   onMediaDeviceFailure?: (failure?: MediaDeviceFailure, kind?: MediaDeviceKind) => void;
   onDisconnected?: (reason?: DisconnectReason) => void;
   token?: string;
+  options?: unknown;
 };
 
 const meetingScope = vi.hoisted(() => ({ held: [] as string[] }));
@@ -32,6 +33,7 @@ const room = vi.hoisted(() => ({
   micOn: false,
   mounts: 0,
   onRefresh: null as null | (() => Promise<{ token: string } | null>),
+  lkRoom: { remoteParticipants: new Map(), on: vi.fn(), off: vi.fn() },
 }));
 
 vi.mock("@livekit/components-styles", () => ({}));
@@ -43,6 +45,7 @@ vi.mock("@livekit/components-react", () => ({
     }, []);
     return <div data-testid="livekit-room">{props.children}</div>;
   },
+  useRoomContext: () => room.lkRoom,
   useLocalParticipant: () => ({
     localParticipant: { setMicrophoneEnabled: vi.fn(), setCameraEnabled: vi.fn() },
     isMicrophoneEnabled: room.micOn,
@@ -71,6 +74,8 @@ beforeEach(() => {
   room.micOn = false;
   room.mounts = 0;
   room.onRefresh = null;
+  room.lkRoom.on.mockClear();
+  room.lkRoom.off.mockClear();
   requestMock.mockReset();
   requestMock.mockResolvedValue({});
 });
@@ -339,5 +344,21 @@ describe("MeetingRoomView meeting scope", () => {
   it("leaves a guest on the lobby socket", () => {
     renderRoom();
     expect(new Set(meetingScope.held)).toEqual(new Set([""]));
+  });
+});
+
+describe("MeetingRoomView screen share quality", () => {
+  it("publishes a share as its captured size plus a 720p backup, keeping adaptive stream", () => {
+    renderRoom();
+    expect(room.props?.options).toEqual({
+      adaptiveStream: true,
+      dynacast: true,
+      publishDefaults: { screenShareSimulcastLayers: [ScreenSharePresets.h720fps15] },
+    });
+  });
+
+  it("makes screen shares in the room ask for device pixels", () => {
+    renderRoom();
+    expect(room.lkRoom.on).toHaveBeenCalledWith(RoomEvent.TrackSubscribed, expect.any(Function));
   });
 });
