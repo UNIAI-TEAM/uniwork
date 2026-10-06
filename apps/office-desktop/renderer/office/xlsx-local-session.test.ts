@@ -149,6 +149,14 @@ function holdGateCapture(session: ReturnType<typeof heldSaveSession>["session"])
   return { held: () => held, reads: () => reads, release: () => release() };
 }
 
+/** Resolves once the gate has parked on its bound (its timer is the only
+ *  fake one). Polls on setImmediate, which stays real: vi.waitFor would move
+ *  the fake clock by its interval on every check and eat into the bound.
+ *  Date is faked too, so the deadline is counted on the same fake clock. */
+async function gateParked() {
+  while (vi.getTimerCount() !== 1) await new Promise((resolve) => setImmediate(resolve));
+}
+
 const oldDraftId = `${HANDLE}:${identity.baseVersionId}:100`;
 const savedDraftId = `${HANDLE}:sha256:${"a".repeat(64)}:250`;
 
@@ -217,7 +225,7 @@ describe("desktop local xlsx session: draft checkpoints around a Save (T09)", ()
   });
 
   it("keeps the draft under the pre-save base when the Save never answers", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     const { session, editA1, rowsFor, saveEntered } = heldSaveSession("never");
     await session.open.open();
     await editA1(7);
@@ -225,6 +233,11 @@ describe("desktop local xlsx session: draft checkpoints around a Save (T09)", ()
     await vi.waitFor(() => expect(saveEntered()).toBe(true));
     await editA1(8);
     const keeping = session.keepDraft();
+    // Advance the fake clock only once the gate has parked on its bound. The
+    // coordinator's own read digests through WebCrypto first, which settles on
+    // a real thread, not on the fake clock: advancing before the park armed
+    // the timer moved time past nothing, and the bound then never ran out.
+    await gateParked();
     await vi.advanceTimersByTimeAsync(9_999);
     expect(rowsFor(oldDraftId)).toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
@@ -233,7 +246,7 @@ describe("desktop local xlsx session: draft checkpoints around a Save (T09)", ()
   });
 
   it("re-captures a timed-out capture that straddles the confirmed write", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     const { session, editA1, rowsFor, saveEntered, releaseSave } = heldSaveSession();
     await session.open.open();
     await editA1(7);
@@ -243,6 +256,9 @@ describe("desktop local xlsx session: draft checkpoints around a Save (T09)", ()
     const gateCapture = holdGateCapture(session);
     const checkpointing = session.coordinator.checkpoint();
     await vi.waitFor(() => expect(gateCapture.reads()).toBe(1));
+    // Read 1 is still digesting on a real thread; wait until the gate parked
+    // and armed its bound before moving the fake clock past it.
+    await gateParked();
     // The bound runs out while the Save is still held: the gate captures edit 8.
     await vi.advanceTimersByTimeAsync(10_000);
     await vi.waitFor(() => expect(gateCapture.held()).toBe(true));

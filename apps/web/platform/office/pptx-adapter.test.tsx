@@ -543,7 +543,14 @@ describe("web PPTX format adapter", () => {
 });
 
 describe("web PPTX adapter: the commit's journal rebase is a marked rebase window (T09 r2)", () => {
-  it("retakes a timed-out capture that reads the journal after setBaseRevision rebased it, before commit returns", async () => {
+  // r3 contract: a capture that outlived the bound writes while the Save hangs,
+  // under the identity bound at that moment. A capture straddling either edge
+  // of the rebase step is retaken, so a pre-rebase journal never lands under
+  // the moved base. A retake that runs wholly inside the step reads the
+  // post-rebase tail and writes it under the pre-save base: a conflict-only
+  // row, disclosed in r3. Every step below waits on a promise or a recorded
+  // row, never on which of a digest and a timer resolves first.
+  it("retakes a timed-out capture that straddles the start of setBaseRevision; the retake inside the step writes the tail under the pre-save base", async () => {
     const engine = runtime();
     // A base-relative journal: setBaseRevision drops the prefix the Save holds.
     let journal: PptxEdit[] = [];
@@ -553,11 +560,15 @@ describe("web PPTX adapter: the commit's journal rebase is a marked rebase windo
     vi.mocked(engine.serialize).mockImplementation(async () => { saved = journal.length; return { bytes: new Uint8Array([80, 75, 3, 4]), checksum: "sha256-output", warnings: [] }; });
     let releaseRead!: () => void;
     const readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
+    let endStep!: () => void;
+    const stepHeld = new Promise<void>((resolve) => { endStep = resolve; });
+    let stepEntered = false;
     engine.setBaseRevision = vi.fn(async () => {
+      stepEntered = true;
       journal = journal.slice(saved);
-      // A capture parked on the read resumes now and settles before commit returns.
+      // The first capture, holding the pre-rebase journal, resolves inside the step.
       releaseRead();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await stepHeld;
     });
     const files = documents();
     let finishCommit!: () => void;
@@ -565,9 +576,15 @@ describe("web PPTX adapter: the commit's journal rebase is a marked rebase windo
     const commit = files.commit;
     files.commit = vi.fn(async (...args: Parameters<typeof commit>) => { await commitHeld; return commit(...args); });
     const store = draftStore();
+    const editsOf = (ciphertext: Uint8Array) => (JSON.parse(new TextDecoder().decode(ciphertext)) as { value: { edits: unknown[] } }).value.edits.length;
     const rows: Array<{ base: string; edits: number }> = [];
+    const rebased: Array<{ base: string; edits: number }> = [];
     vi.mocked(store.checkpointEncrypted).mockImplementation(async (request) => {
-      rows.push({ base: request.snapshot.identity.base.revision, edits: (JSON.parse(new TextDecoder().decode(request.snapshot.ciphertext)) as { value: { edits: unknown[] } }).value.edits.length });
+      rows.push({ base: request.snapshot.identity.base.revision, edits: editsOf(request.snapshot.ciphertext) });
+      return { status: "stored", metadata: {} } as never;
+    });
+    vi.mocked(store.rebaseEncrypted).mockImplementation(async (request) => {
+      rebased.push({ base: request.snapshot.identity.base.revision, edits: editsOf(request.snapshot.ciphertext) });
       return { status: "stored", metadata: {} } as never;
     });
     const keys = keyProvider();
@@ -579,19 +596,32 @@ describe("web PPTX adapter: the commit's journal rebase is a marked rebase windo
     const saving = adapter.session.coordinator.save("button");
     await vi.waitFor(() => expect(files.commit).toHaveBeenCalledOnce());
     await adapter.editor.edit([{ op: "set_slide_hidden", slideIndex: 0, hidden: true }]);
-    // The checkpoint's capture starts once the bound runs out, then reads only
-    // after the commit's rebase.
+    // The checkpoint's capture starts once the bound runs out and reads the
+    // pre-rebase journal (both edits), then is held until the step has begun.
     const capture = adapter.session.editor.captureSnapshot.bind(adapter.session.editor);
     let reads = 0;
-    adapter.session.editor.captureSnapshot = async () => { reads += 1; if (reads === 1) await readGate; return capture(); };
+    adapter.session.editor.captureSnapshot = async () => { reads += 1; const value = await capture(); if (reads === 1) await readGate; return value; };
     const checkpointing = adapter.session.checkpoint();
     await vi.waitFor(() => expect(reads).toBe(1));
+    expect(rows).toEqual([]);
     finishCommit();
-    await expect(saving).resolves.toMatchObject({ accepted: true });
+    // The step is held open: the first capture straddled its start and is
+    // retaken; the retake reads the tail and writes inside the step, under
+    // the identity still bound (the pre-save base).
+    await vi.waitFor(() => expect(rows).toHaveLength(1));
     await checkpointing;
-    // The post-rebase journal (one edit) never lands under the pre-save base.
-    expect(rows.filter((row) => row.base === "1")).toEqual([]);
+    expect(stepEntered).toBe(true);
+    expect(reads).toBe(2);
+    expect(rows).toEqual([{ base: "1", edits: 1 }]);
+    endStep();
+    await expect(saving).resolves.toMatchObject({ accepted: true });
+    // The Save's own draft rebase carries the unsaved tail to the saved base,
+    // and a later checkpoint writes there too. No pre-rebase journal (two
+    // edits) ever lands under the moved base.
+    expect(rebased).toEqual([{ base: "2", edits: 1 }]);
+    await adapter.session.checkpoint();
     expect(rows.at(-1)).toEqual({ base: "2", edits: 1 });
+    expect([...rows, ...rebased].filter((row) => row.base === "2" && row.edits !== 1)).toEqual([]);
     await adapter.session.dispose();
   });
 });
