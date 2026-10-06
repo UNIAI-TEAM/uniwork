@@ -84,8 +84,13 @@ describe("gates", () => {
     const f = await openFixture(SOURCE);
     const { hook, options } = setup(f);
     expect(hook.result.current.visualEdit).toBe(true);
-    expect(hook.result.current.previewText).toMatch(/<p data-sid="\d+"/);
-    expect(hook.result.current.previewText.replace(/ data-sid="\d+"/g, "")).toBe(f.text);
+    const { previewText, visualEditNonce } = hook.result.current;
+    expect(visualEditNonce).toMatch(/^[0-9a-f]{32}$/);
+    expect(previewText).toMatch(new RegExp(`<p data-sid-${visualEditNonce}="\\d+"`));
+    expect(previewText.replace(/ data-sid-[0-9a-f]{32}="\d+"/g, "")).toBe(f.text);
+    // The nonce is stable across renders of the same session.
+    hook.rerender({ ...options });
+    expect(hook.result.current.visualEditNonce).toBe(visualEditNonce);
     hook.rerender({ ...options, presenting: true });
     expect(hook.result.current.visualEdit).toBe(false);
   });
@@ -165,13 +170,20 @@ describe("edits land as ops in the engine", () => {
   });
 });
 
-describe("a refused edit says so", () => {
-  const notice = () => screen.queryByRole("status");
+const notice = () => screen.queryByRole("status");
+/** The overlay holds an empty live region and no panel: nothing visible, nothing to announce. */
+const expectIdle = (hook: ReturnType<typeof setup>["hook"]) => {
+  const view = render(<>{hook.result.current.overlay}</>);
+  expect(notice()).toBeEmptyDOMElement();
+  expect(screen.queryByTestId("html-style-panel")).toBeNull();
+  view.unmount();
+};
 
+describe("a refused edit says so", () => {
   it("shows a visible notice, then clears it on the next edit that lands", async () => {
     const f = await openFixture(SOURCE);
     const { hook } = setup(f);
-    expect(hook.result.current.overlay).toBeNull();
+    expectIdle(hook);
     select(hook, 99999);
     act(() => hook.result.current.floatCommands!.onDelete!());
     const shown = render(<>{hook.result.current.overlay}</>);
@@ -180,7 +192,20 @@ describe("a refused edit says so", () => {
 
     select(hook, elementByPath(f.map, P)!.sid);
     act(() => hook.result.current.floatCommands!.onBold!());
-    expect(hook.result.current.overlay).toBeNull();
+    expectIdle(hook);
+  });
+
+  it("the live region is mounted empty and the same element receives the text later", async () => {
+    const f = await openFixture(SOURCE);
+    const { hook } = setup(f);
+    const view = render(<>{hook.result.current.overlay}</>);
+    const region = notice()!;
+    expect(region).toBeEmptyDOMElement();
+    select(hook, 99999);
+    act(() => hook.result.current.floatCommands!.onDelete!());
+    view.rerender(<>{hook.result.current.overlay}</>);
+    expect(notice()).toBe(region);
+    expect(region).toHaveTextContent("That change can't be applied to this element.");
   });
 
   it("a stale patch set through the inline-edit port is also announced", async () => {
@@ -206,9 +231,11 @@ describe("a refused edit says so", () => {
     const { hook } = setup(f);
     select(hook, 99999);
     act(() => hook.result.current.floatCommands!.onDelete!());
-    expect(hook.result.current.overlay).not.toBeNull();
+    const shown = render(<>{hook.result.current.overlay}</>);
+    expect(notice()).toHaveTextContent("That change can't be applied");
+    shown.unmount();
     select(hook, elementByPath(f.map, P)!.sid);
-    expect(hook.result.current.overlay).toBeNull();
+    expectIdle(hook);
   });
 });
 
@@ -217,7 +244,7 @@ describe("style panel", () => {
     const f = await openFixture(SOURCE);
     const { hook } = setup(f);
     select(hook, elementByPath(f.map, IMG)!.sid);
-    expect(hook.result.current.overlay).toBeNull();
+    expectIdle(hook);
     act(() => hook.result.current.floatCommands!.onOpenStylePanel!());
     render(<>{hook.result.current.overlay}</>);
     const panel = screen.getByTestId("html-style-panel");
@@ -230,8 +257,10 @@ describe("style panel", () => {
     const { hook } = setup(f);
     select(hook, elementByPath(f.map, P)!.sid);
     act(() => hook.result.current.floatCommands!.onOpenStylePanel!());
-    expect(hook.result.current.overlay).not.toBeNull();
+    const open = render(<>{hook.result.current.overlay}</>);
+    expect(screen.getByTestId("html-style-panel")).toBeInTheDocument();
+    open.unmount();
     act(() => hook.result.current.onPreviewSelection?.(null));
-    expect(hook.result.current.overlay).toBeNull();
+    expectIdle(hook);
   });
 });

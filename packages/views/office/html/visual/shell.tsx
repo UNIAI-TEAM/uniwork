@@ -101,6 +101,12 @@ export interface HtmlVisualShellProps {
    * refuses it falls back to the plain mount.
    */
   visualEdit?: boolean;
+  /**
+   * The session nonce the preview is stamped with (the hook creates it, so the
+   * sid attribute name and the port's script nonce are one value). Absent, the
+   * shell makes its own per mount and nothing is stamped under it.
+   */
+  visualEditNonce?: string | null;
   /** Zoom ladder value in percent; scales the preview pane and the overlay math. */
   zoom: number;
   /**
@@ -136,6 +142,7 @@ function PreviewPane({
   text,
   manifest,
   visualEdit,
+  visualEditNonce,
   onSession,
   onEvent,
 }: {
@@ -143,6 +150,7 @@ function PreviewPane({
   title: string;
   text: string;
   visualEdit: boolean;
+  visualEditNonce?: string | null;
   manifest: AssetManifestLike;
   onSession?: (session: PreviewSession | null) => void;
   onEvent?: (event: { type: string }) => void;
@@ -181,7 +189,7 @@ function PreviewPane({
         };
         let session: PreviewSession;
         try {
-          session = await preview.mount(visualEdit ? { ...options, visualEdit: { nonce: createVisualEditNonce() } } : options);
+          session = await preview.mount(visualEdit ? { ...options, visualEdit: { nonce: visualEditNonce ?? createVisualEditNonce() } } : options);
         } catch (error) {
           // A port that does not grant the inspector capability (or a platform
           // with no nonce source) still gets the plain, script-free preview.
@@ -213,7 +221,7 @@ function PreviewPane({
       sessionRef.current = null;
       onSessionRef.current?.(null);
     };
-  }, [preview, title, visualEdit]);
+  }, [preview, title, visualEdit, visualEditNonce]);
 
   useEffect(() => {
     const session = sessionRef.current;
@@ -262,6 +270,7 @@ export function HtmlVisualShell({
   onPreviewSelection,
   title,
   previewText,
+  visualEditNonce,
   visualEdit = false,
   zoom,
   floatCommands,
@@ -352,6 +361,7 @@ export function HtmlVisualShell({
           text={previewText ?? text}
           manifest={safeManifest}
           visualEdit={visualEdit}
+          visualEditNonce={visualEditNonce}
           onSession={onPreviewSession}
           onEvent={handlePreviewEvent}
         />

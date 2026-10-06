@@ -24,6 +24,7 @@ import { useFlag } from "@uniwork/core/feature-flags";
 import type { UpstreamParseMap, UpstreamPatchSet } from "@uniwork/office-engine/html";
 import type { PreviewSession } from "../../source-editor-types";
 import { colourEdit, deleteEdit, duplicateEdit, fontSizeEdit, isDocumentStructure, textColourValue, toggleMarkEdit, type HtmlFloatToolbarCommands } from "./float-toolbar";
+import { createVisualEditNonce } from "./nonce";
 import type { HtmlInlineEditPort, InlineEditInspector } from "./inline-edit";
 import { elementBySid, HtmlOpError, type HtmlOpContext } from "./ops";
 import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection } from "./selection/model";
@@ -59,10 +60,10 @@ export interface UseHtmlVisualEditOptions {
 
 type VisualShellProps = Pick<
   HtmlVisualShellProps,
-  "previewText" | "visualEdit" | "inlineEdit" | "floatCommands" | "overlay" | "onPreviewSession" | "onPreviewSelection"
+  "previewText" | "visualEdit" | "visualEditNonce" | "inlineEdit" | "floatCommands" | "overlay" | "onPreviewSession" | "onPreviewSelection"
 >;
 
-const INERT: Pick<VisualShellProps, "visualEdit" | "inlineEdit" | "floatCommands" | "overlay" | "onPreviewSession" | "onPreviewSelection"> = {
+const INERT: Pick<VisualShellProps, "visualEdit" | "visualEditNonce" | "inlineEdit" | "floatCommands" | "overlay" | "onPreviewSession" | "onPreviewSelection"> = {
   visualEdit: false,
 };
 
@@ -71,7 +72,18 @@ const NOTICE_MS = 6000;
 
 export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, onApplied }: UseHtmlVisualEditOptions): VisualShellProps {
   const flag = useFlag(OFFICE_HTML_VISUAL_EDIT_FLAG, false);
-  const active = flag && host !== undefined && !readOnly;
+  const wanted = flag && host !== undefined && !readOnly;
+  // The session nonce names the sid attribute (see stamp-sids.ts) and is the
+  // preview port's script nonce. A platform with no randomness stays inert.
+  const nonce = useMemo(() => {
+    if (!wanted) return null;
+    try {
+      return createVisualEditNonce();
+    } catch {
+      return null;
+    }
+  }, [wanted]);
+  const active = wanted && nonce !== null;
   const hostRef = useRef(host);
   hostRef.current = host;
   const readTextRef = useRef(readText);
@@ -96,14 +108,14 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
   const markRefused = useCallback(() => setRefused(true), []);
 
   const previewText = useMemo(() => {
-    if (!active || !host) return text;
+    if (!active || !host || nonce === null) return text;
     try {
-      return stampSids(text, host.parseMap(text));
+      return stampSids(text, host.parseMap(text), nonce);
     } catch {
       // No parse map for this source: the preview simply stays unstamped.
       return text;
     }
-  }, [active, host, text]);
+  }, [active, host, nonce, text]);
 
   const context = useCallback((): HtmlOpContext | null => {
     const current = hostRef.current;
@@ -219,22 +231,26 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
         onRevert={() => run([styleRevertEdit(sid)])}
       />
     );
-  const overlay =
-    panel === null && !refused ? null : (
-      <div className="absolute end-3 top-3 z-20 flex flex-col items-end gap-2">
-        {refused ? (
-          <p role="status" className="rounded-md border bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md">
-            {t("refused")}
-          </p>
-        ) : null}
-        {panel}
-      </div>
-    );
+  // The status region is mounted (empty) from the start and only receives its
+  // text when an edit is refused: several screen readers announce changes inside
+  // an existing live region, not one inserted already holding its text.
+  const overlay = (
+    <div className="absolute end-3 top-3 z-20 flex flex-col items-end gap-2">
+      <p
+        role="status"
+        className={refused ? "rounded-md border bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md" : "sr-only"}
+      >
+        {refused ? t("refused") : null}
+      </p>
+      {panel}
+    </div>
+  );
 
   if (!active) return { previewText: text, ...INERT };
   return {
     previewText,
     visualEdit: !presenting,
+    visualEditNonce: nonce,
     inlineEdit,
     floatCommands,
     overlay,

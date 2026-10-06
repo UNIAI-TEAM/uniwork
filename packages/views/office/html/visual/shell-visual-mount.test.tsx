@@ -43,6 +43,15 @@ describe("visual-edit mount", () => {
     expect(options.visualEdit?.nonce).toMatch(/^[0-9a-f]{32}$/);
   });
 
+  it("mounts with the nonce the caller stamped the copy with", async () => {
+    const mount = vi.fn(async () => session());
+    const nonce = "ab".repeat(16);
+    render(shell({ mount }, { visualEdit: true, visualEditNonce: nonce }));
+    await waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    const options = mount.mock.calls[0]![0] as { visualEdit?: { nonce: string } };
+    expect(options.visualEdit?.nonce).toBe(nonce);
+  });
+
   it("falls back to a plain mount when the port refuses the capability", async () => {
     const mount = vi.fn(async (options: { visualEdit?: unknown }) => {
       if (options.visualEdit) throw new Error("preview unavailable: visual-edit is HTML-only and opt-in");

@@ -102,7 +102,8 @@ describe("HtmlEditor visual edit", () => {
     const { preview, coordinator } = await renderEditor(f);
     const options = preview.mount.mock.calls[0]![0] as PreviewMountOptions & { visualEdit?: { nonce: string } };
     expect(options.visualEdit?.nonce).toMatch(/^[0-9a-f]{32}$/);
-    expect(options.text).toMatch(/<p data-sid="\d+">One<\/p>/);
+    // The stamp's attribute name carries the same nonce the mount was given.
+    expect(options.text).toMatch(new RegExp(`<p data-sid-${options.visualEdit!.nonce}="\\d+">One</p>`));
 
     select(preview.emit, elementByPath(f.map, P1)!.sid);
     const duplicate = await waitFor(() => {
