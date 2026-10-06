@@ -89,13 +89,18 @@ export interface RendererWorkbookSheet {
    *  loader ignores it; the renderer's rule-set policy and the DV/CF ribbon
    *  groups read it. */
   ruleSets?: { conditionalFormats: XlsxRuleSetFileState; dataValidations: XlsxRuleSetFileState };
+  /** The file's raw classic rule element counts per family (review r2 M-B):
+   *  the policy refuses a family whose installed rules fall short of it. */
+  ruleCounts?: { conditionalFormats: number; dataValidations: number };
 }
 
 type XlsxRuleSetFileState = "none" | "classic" | "x14";
 
-function ruleSetFileState(x14: boolean | undefined, rules: readonly unknown[] | undefined): XlsxRuleSetFileState {
+/** A rule the parser skipped (no priority, an unreadable sqref) still counts:
+ *  the raw element count makes the family classic (review r2 m-4). */
+function ruleSetFileState(x14: boolean | undefined, rules: readonly unknown[] | undefined, raw: number | undefined): XlsxRuleSetFileState {
   if (x14) return "x14";
-  return rules && rules.length > 0 ? "classic" : "none";
+  return (rules && rules.length > 0) || (raw ?? 0) > 0 ? "classic" : "none";
 }
 
 type RendererWorkbookStyle = XlsxRenderStyle;
@@ -227,9 +232,10 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet, styles: readonly XlsxRe
     comments: [],
     pivotRanges: [],
     ruleSets: {
-      conditionalFormats: ruleSetFileState(sheet.x14ConditionalFormats, sheet.conditionalRules),
-      dataValidations: ruleSetFileState(sheet.x14DataValidations, sheet.dataValidations),
+      conditionalFormats: ruleSetFileState(sheet.x14ConditionalFormats, sheet.conditionalRules, sheet.ruleCounts?.conditionalFormats),
+      dataValidations: ruleSetFileState(sheet.x14DataValidations, sheet.dataValidations, sheet.ruleCounts?.dataValidations),
     },
+    ...(sheet.ruleCounts ? { ruleCounts: { ...sheet.ruleCounts } } : {}),
   };
 }
 

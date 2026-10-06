@@ -1,8 +1,8 @@
 import { CF_MUTATIONS, DV_MUTATIONS } from "../../upstream/apps/sheets/src/renderer/app-constants";
-import { cfRuleUnsaveableReason } from "../../upstream/packages/xlsx-gateway/src/gateway/xlsx-cf";
 import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import { liveSessionSheets, type RendererCommand } from "./edits";
 import { RULE_SET_COMMANDS, ruleSetSheetReady, type XlsxRendererRuleSetKind } from "./rule-set-capture";
+import { cfRuleSaveable, dvRuleSaveable } from "./rule-set-saveable";
 
 // ── conditional formatting + data validation (X01) ─────────────────────────
 //
@@ -18,20 +18,6 @@ import { RULE_SET_COMMANDS, ruleSetSheetReady, type XlsxRendererRuleSetKind } fr
 // style xlsx-dv.ts maps.
 
 const MAX_RULE_AREAS = 1_000;
-/** The rule families the gateway serializer writes (xlsx-cf.ts / xlsx-dv.ts);
- *  `listMultiple` is Univer-only and fails the save, so it is refused here. */
-const CF_RULE_TYPES = new Set(["highlightCell", "colorScale", "dataBar", "iconSet"]);
-const DV_RULE_TYPES = new Set(["any", "whole", "decimal", "list", "date", "time", "textLength", "custom", "checkbox"]);
-/** xlsx-dv.ts DV_OPERATORS and DV_ERROR_STYLE_NAMES (no dry-run export there). */
-const DV_OPERATORS = new Set(["between", "notBetween", "equal", "notEqual", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"]);
-const DV_ERROR_STYLES = new Set([0, 1, 2]);
-
-function dvRuleOK(rule: { type?: unknown; operator?: unknown; errorStyle?: unknown }): boolean {
-  if (typeof rule.type !== "string" || !DV_RULE_TYPES.has(rule.type)) return false;
-  const { operator, errorStyle } = rule;
-  if (operator !== undefined && operator !== "" && (typeof operator !== "string" || !DV_OPERATORS.has(operator))) return false;
-  return errorStyle === undefined || errorStyle === null || DV_ERROR_STYLES.has(Number(errorStyle));
-}
 
 function areaOK(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -73,11 +59,9 @@ function newRuleOK(rule: unknown, family: "cf" | "dv"): boolean {
   if (!rule || typeof rule !== "object") return false;
   const shape = rule as { ranges?: unknown; rule?: unknown; type?: unknown; stopIfTrue?: unknown };
   if (!areasOK(shape.ranges)) return false;
-  if (family === "dv") return dvRuleOK(shape);
+  if (family === "dv") return dvRuleSaveable(shape);
   if (shape.stopIfTrue !== undefined && typeof shape.stopIfTrue !== "boolean") return false;
-  const inner = shape.rule as { type?: unknown } | undefined;
-  return !!inner && typeof inner === "object" && typeof inner.type === "string" && CF_RULE_TYPES.has(inner.type) &&
-    cfRuleUnsaveableReason(inner as Record<string, unknown>) === null;
+  return cfRuleSaveable(shape.rule);
 }
 
 export function isRuleSetCommand(id: string): boolean {

@@ -11,7 +11,7 @@ const upstream = path.join(REPO_ROOT, 'packages/office-upstream/upstream');
 const bundled = await build({
   stdin: {
     contents: `export * from './rule-set-capture'; export * from './rule-set-policy'; export { canExecuteCommand } from './command-policy';
-      export { createEditJournal } from '../../upstream/apps/sheets/src/renderer/edit-journal';`,
+      export { createEditJournal, recordSheetDuplicate, recordSheetInsert } from '../../upstream/apps/sheets/src/renderer/edit-journal';`,
     resolveDir: renderer, loader: 'ts',
   },
   bundle: true, write: false, format: 'cjs', platform: 'node', logLevel: 'silent',
@@ -34,12 +34,12 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand } = module.exports;
+const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand } = module.exports;
 
 const area = (startRow, endRow, startColumn, endColumn) => ({ startRow, endRow, startColumn, endColumn });
-function state({ applied = ['s1'], ruleSets } = {}) {
+function state({ applied = ['s1'], ruleSets, ruleCounts } = {}) {
   return {
-    file: { sessionId: 'book', sha256: 'sha', sheets: [{ id: 's1', name: 'Data', hidden: false, rowCount: 20, columnCount: 10, pivotRanges: [], ...(ruleSets ? { ruleSets } : {}) }] },
+    file: { sessionId: 'book', sha256: 'sha', sheets: [{ id: 's1', name: 'Data', hidden: false, rowCount: 20, columnCount: 10, pivotRanges: [], ...(ruleSets ? { ruleSets } : {}), ...(ruleCounts ? { ruleCounts } : {}) }] },
     editJournal: createEditJournal(),
     loadedRanges: new Map([['s1', area(0, 9, 0, 4)]]),
     flags: { preloadComplete: false },
@@ -96,9 +96,12 @@ test('snapshotSheetRules tolerates a facade without the getters', () => {
 });
 
 test('rule-set edits wait for the file rules of a file sheet; a session sheet is always ready', () => {
-  assert.equal(ruleSetSheetReady(state(), 's1'), true);
-  assert.equal(ruleSetSheetReady(state({ applied: [] }), 's1'), false);
-  assert.equal(ruleSetSheetReady(state({ applied: [] }), 'session-sheet'), true);
+  // Review r2 n-1: pass the family, as the policy does.
+  for (const kind of ['conditionalFormats', 'dataValidations']) {
+    assert.equal(ruleSetSheetReady(state(), 's1', kind), true);
+    assert.equal(ruleSetSheetReady(state({ applied: [] }), 's1', kind), false);
+    assert.equal(ruleSetSheetReady(state({ applied: [] }), 'session-sheet', kind), true);
+  }
 });
 
 const command = (id, params) => ({ id, type: 0, params });
@@ -184,4 +187,91 @@ test('the policy refuses CF rules the gateway serializer throws on and DV operat
   assert.equal(dv({ type: 'whole', operator: 'approximately', formula1: '1' }), false);
   assert.equal(dv({ errorStyle: 7 }), false);
   assert.equal(dv({ type: 'whole', operator: 'notBetween', formula1: '1', formula2: '9', errorStyle: 2 }), true);
+});
+
+// Review r2 M-B: the loader's installs are counted and dry-run (suppressed add
+// mutations); a family whose live rules fall short of the file's raw count, or
+// hold a rule the save cannot re-serialize, is refused and never snapshotted.
+const classic = { conditionalFormats: 'classic', dataValidations: 'classic' };
+const install = (book, id, rule) => ingestRuleSetMutation(book, mutation(id, { ...scope, rule }), () => worksheet(), true);
+const timePeriod = { ...cfRule, cfId: 'cf-2', rule: { type: 'highlightCell', subType: 'timePeriod', operator: 'yesterday', style: {} } };
+const addCf = (target, subUnitId = 's1') => canExecuteCommand(command('sheet.command.add-conditional-rule', { unitId: 'file-sha', subUnitId, rule: cfRule }), target, false);
+const addDv = (target, subUnitId = 's1') => canExecuteCommand(command('sheet.command.addDataValidation', { unitId: 'file-sha', subUnitId, rule: dvRule }), target, false);
+
+test('a family whose installed file rules fall short of the file count is refused and never snapshotted', () => {
+  // The fixture shape of xlsx-classic-unsupported-cf.xlsx: 3 cfRule elements,
+  // only one of which the loader can install, and 1 validation.
+  const book = state({ applied: [], ruleSets: classic, ruleCounts: { conditionalFormats: 3, dataValidations: 1 } });
+  install(book, 'sheet.mutation.add-conditional-rule', cfRule);
+  install(book, 'data-validation.mutation.addRule', dvRule);
+  book.appliedDvSheets.add('s1');
+  assert.equal(addCf(book), false, 'the snapshot would silently delete the two rules the grid never showed');
+  assert.equal(canExecuteCommand(command('sheet.command.clear-worksheet-conditional-rule', scope), book, false), false);
+  assert.equal(addDv(book), true, 'the validation family installed in full');
+  // A row insert moves the installed rule through the ref-range handler: no snapshot.
+  assert.deepEqual(ingestRuleSetMutation(book, mutation('sheet.mutation.set-conditional-rule'), () => worksheet()), []);
+  assert.equal(book.editJournal.cfDirty.size, 0);
+  assert.equal(ingestRuleSetMutation(book, mutation('data-validation.mutation.removeRule'), () => worksheet()).length, 1);
+});
+
+test('an installed file rule the save cannot re-serialize refuses its family', () => {
+  // No ruleCounts (an older host): only the dry-run decides.
+  const book = state({ applied: [], ruleSets: classic });
+  install(book, 'sheet.mutation.add-conditional-rule', cfRule);
+  install(book, 'sheet.mutation.add-conditional-rule', timePeriod);
+  install(book, 'data-validation.mutation.addRule', { ...dvRule, operator: 'approximately' });
+  book.appliedDvSheets.add('s1');
+  assert.equal(addCf(book), false);
+  assert.equal(addDv(book), false);
+  assert.equal(ruleSetSheetReady(book, 's1', 'conditionalFormats'), false);
+});
+
+test('a family whose file rules all installed and dry-run clean stays editable and snapshotted', () => {
+  const book = state({ applied: [], ruleSets: classic, ruleCounts: { conditionalFormats: 2, dataValidations: 1 } });
+  install(book, 'sheet.mutation.add-conditional-rule', cfRule);
+  install(book, 'sheet.mutation.add-conditional-rule', { ...cfRule, cfId: 'cf-2' });
+  install(book, 'data-validation.mutation.addRule', dvRule);
+  assert.equal(addCf(book), false, 'pending until the loader marks the sheet');
+  book.appliedDvSheets.add('s1');
+  assert.equal(addCf(book), true);
+  assert.equal(addDv(book), true);
+  assert.equal(ingestRuleSetMutation(book, mutation('sheet.mutation.add-conditional-rule'), () => worksheet()).length, 1);
+  // Installs never journal themselves.
+  assert.equal(book.editJournal.dvDirty.size, 0);
+});
+
+// Review r2 M-C: a copy holds what the live model held for its source at the
+// copy, and the gateway duplicates the source's XML; it inherits the state.
+const copySheet = (book, id, source) => {
+  if (source) recordSheetDuplicate(book.editJournal, id, `${id} name`, source);
+  else recordSheetInsert(book.editJournal, id, `${id} name`);
+  return ingestRuleSetMutation(book, { id: 'sheet.mutation.insert-sheet', type: 2, params: { unitId: 'file-sha', index: 1, sheet: { id, name: `${id} name` } } }, () => worksheet());
+};
+
+test('a duplicate of an x14 sheet inherits the refusal; its copied rules are never snapshotted', () => {
+  const book = state({ ruleSets: x14('x14', 'none') });
+  assert.deepEqual(copySheet(book, 'copy', 's1'), []);
+  // The CF plugin re-adds the source rules on the copy (not suppressed).
+  assert.deepEqual(ingestRuleSetMutation(book, mutation('sheet.mutation.add-conditional-rule', { unitId: 'file-sha', subUnitId: 'copy' }), () => worksheet()), []);
+  assert.equal(book.editJournal.cfDirty.size, 0);
+  assert.equal(addCf(book, 'copy'), false);
+  assert.equal(addDv(book, 'copy'), true, 'the source ships no validations');
+  // A copy of the copy inherits through the chain.
+  copySheet(book, 'copy-2', 'copy');
+  assert.equal(addCf(book, 'copy-2'), false);
+});
+
+test('a duplicate of a not-yet-installed classic sheet stays refused; a ready source or a plain new sheet is editable', () => {
+  const pending = state({ applied: [], ruleSets: classic });
+  copySheet(pending, 'copy', 's1');
+  pending.appliedDvSheets.add('s1');
+  assert.equal(addCf(pending), true, 'the source itself becomes ready');
+  assert.equal(addCf(pending, 'copy'), false, 'the copy never received the source rules');
+
+  const ready = state({ ruleSets: classic });
+  copySheet(ready, 'copy', 's1');
+  assert.equal(addCf(ready, 'copy'), true);
+  assert.equal(ingestRuleSetMutation(ready, mutation('sheet.mutation.add-conditional-rule', { unitId: 'file-sha', subUnitId: 'copy' }), () => worksheet()).length, 1);
+  copySheet(ready, 'fresh');
+  assert.equal(addDv(ready, 'fresh'), true);
 });

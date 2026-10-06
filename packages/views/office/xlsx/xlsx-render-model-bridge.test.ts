@@ -207,6 +207,17 @@ describe("render model bridge", () => {
       .toEqual({ conditionalFormats: "none", dataValidations: "none" });
   });
 
+  it("counts a family the parser skipped every rule of as classic and stamps the raw counts (review r2 M-B, m-4)", () => {
+    const model = { ...MODEL, sheets: [
+      { ...MODEL.sheets[0]!, ruleCounts: { conditionalFormats: 2, dataValidations: 0 } },
+      MODEL.sheets[1]!,
+    ] };
+    const file = toRendererWorkbookFile(model, { sessionId: "s", name: "n.xlsx", sha256: "x" });
+    expect(file.sheets[0]!.ruleSets).toEqual({ conditionalFormats: "classic", dataValidations: "none" });
+    expect(file.sheets[0]!.ruleCounts).toEqual({ conditionalFormats: 2, dataValidations: 0 });
+    expect(file.sheets[1]!.ruleCounts).toBeUndefined();
+  });
+
   it("builds a host whose readRange speaks the vendored loader contract", async () => {
     const host = createXlsxModelHost(MODEL, { sessionId: "s-1", name: "book.xlsx", sha256: "b".repeat(64) });
     const result = await host.readRange({ sessionId: "s-1", sheetId: "sheet-2", range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 } });
