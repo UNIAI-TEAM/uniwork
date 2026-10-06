@@ -9311,6 +9311,7 @@
             "copy": "Sao chép"
           },
           "cellsItems": {
+            "insertRowsCols": "Chèn hàng/cột",
             "insert": "Chèn",
             "delete": "Xóa",
             "format": "Định dạng"
@@ -9467,6 +9468,10 @@
         "groupCols": "Nhóm cột",
         "ungroupCols": "Bỏ nhóm cột",
         "clearOutline": "Xóa phân cấp nhóm",
+        "group": "Nhóm",
+        "ungroup": "Bỏ nhóm",
+        "showDetail": "Hiện chi tiết",
+        "hideDetail": "Ẩn chi tiết",
         "mergeCells": "Gộp ô",
         "mergeAcross": "Gộp theo hàng",
         "unmergeCells": "Bỏ gộp ô",
@@ -9479,6 +9484,9 @@
         "toggle": "Bật/tắt lọc",
         "clear": "Xóa điều kiện lọc",
         "advanced": "Lọc nâng cao…",
+        "clearShort": "Xóa bộ lọc",
+        "reapply": "Áp dụng lại",
+        "advancedShort": "Nâng cao…",
         "dialog": {
           "title": "Lọc nâng cao",
           "close": "Đóng lọc nâng cao",
@@ -9607,6 +9615,8 @@
         },
         "ascending": "Sắp xếp tăng dần",
         "descending": "Sắp xếp giảm dần",
+        "ascendingShort": "Sắp xếp A → Z",
+        "descendingShort": "Sắp xếp Z → A",
         "custom": "Sắp xếp tùy chỉnh…",
         "limitExceeded": "Vùng chọn quá lớn để sắp xếp. Mỗi lần lưu chỉ sắp xếp tối đa {{limit}} ô; hãy chọn vùng nhỏ hơn.",
         "applyFailed": "Không sắp xếp được tại đây. Hãy chọn đúng vùng rồi thử lại.",
@@ -9621,6 +9631,23 @@
           "note": "Sắp xếp một cấp. Sắp xếp nhiều cấp chưa được hỗ trợ.",
           "apply": "Áp dụng",
           "cancel": "Hủy"
+        }
+      },
+      "styles": {
+        "formatAsTable": "Định dạng như bảng",
+        "cellStyles": "Kiểu ô",
+        "cellStylesNote": "Kiểu được lưu như định dạng ô thông thường.",
+        "limitExceeded": "Vùng chọn quá lớn để áp dụng kiểu. Hãy chọn tối đa {{limit}} ô.",
+        "presets": {
+          "normal": "Bình thường",
+          "good": "Tốt",
+          "bad": "Xấu",
+          "neutral": "Trung tính",
+          "input": "Nhập liệu",
+          "calculation": "Tính toán",
+          "title": "Tiêu đề",
+          "heading1": "Đầu đề 1",
+          "heading2": "Đầu đề 2"
         }
       },
       "conditionalFormat": {
@@ -9772,6 +9799,7 @@
         },
         "insert": "Chèn liên kết",
         "note": "Chèn ghi chú",
+        "noteShort": "Ghi chú",
         "dialog": {
           "linkTitle": "Chèn liên kết",
           "noteTitle": "Chèn ghi chú",

@@ -9317,6 +9317,7 @@
             "copy": "Copy"
           },
           "cellsItems": {
+            "insertRowsCols": "Insert rows/columns",
             "insert": "Insert",
             "delete": "Delete",
             "format": "Format"
@@ -9473,6 +9474,10 @@
         "groupCols": "Group columns",
         "ungroupCols": "Ungroup columns",
         "clearOutline": "Clear outline",
+        "group": "Group",
+        "ungroup": "Ungroup",
+        "showDetail": "Show Detail",
+        "hideDetail": "Hide Detail",
         "mergeCells": "Merge cells",
         "mergeAcross": "Merge across",
         "unmergeCells": "Unmerge cells",
@@ -9485,6 +9490,9 @@
         "toggle": "Toggle filter",
         "clear": "Clear filter",
         "advanced": "Advanced filter…",
+        "clearShort": "Clear",
+        "reapply": "Reapply",
+        "advancedShort": "Advanced…",
         "dialog": {
           "title": "Advanced filter",
           "close": "Close advanced filter",
@@ -9613,6 +9621,8 @@
         },
         "ascending": "Sort ascending",
         "descending": "Sort descending",
+        "ascendingShort": "Sort A to Z",
+        "descendingShort": "Sort Z to A",
         "custom": "Custom sort…",
         "limitExceeded": "This range is too large to sort. Each save sorts at most {{limit}} cells; select a smaller range.",
         "applyFailed": "The sort could not be applied here. Select the range and try again.",
@@ -9627,6 +9637,23 @@
           "note": "Single-level sort. Multi-level sort is not available yet.",
           "apply": "Apply",
           "cancel": "Cancel"
+        }
+      },
+      "styles": {
+        "formatAsTable": "Format as Table",
+        "cellStyles": "Cell Styles",
+        "cellStylesNote": "Styles are saved as ordinary cell formatting.",
+        "limitExceeded": "The selection is too large to style. Select at most {{limit}} cells.",
+        "presets": {
+          "normal": "Normal",
+          "good": "Good",
+          "bad": "Bad",
+          "neutral": "Neutral",
+          "input": "Input",
+          "calculation": "Calculation",
+          "title": "Title",
+          "heading1": "Heading 1",
+          "heading2": "Heading 2"
         }
       },
       "conditionalFormat": {
@@ -9778,6 +9805,7 @@
         },
         "insert": "Insert link",
         "note": "Insert note",
+        "noteShort": "Note",
         "dialog": {
           "linkTitle": "Insert link",
           "noteTitle": "Insert note",
