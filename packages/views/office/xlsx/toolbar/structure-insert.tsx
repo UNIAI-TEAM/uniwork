@@ -70,8 +70,9 @@ export function normalizeRowColCount(value: string): number | null {
 }
 
 /** Insert tab: insert/delete rows and columns for the selection's span. The
- *  count input drives the "before" inserts; the "after" commands insert the
- *  selection's own height/width (Univer's semantics). */
+ *  count input drives every insert: the "after" buttons ride Univer's
+ *  multi-after commands, since insert-row-after / insert-col-after ignore
+ *  params and insert the selection's own span. */
 export function XlsxStructureInsertGroup({ readOnly = false, selection, commands }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const span = selectionSpan(selection);
@@ -133,7 +134,7 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         aria-label={t("office.xlsx.structure.insertRowsBelow")}
         title={t("office.xlsx.structure.insertRowsBelow")}
         aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.insert-row-after")}
+        onClick={() => run("sheet.command.insert-multi-rows-after", { value: rowCount })}
       >
         <ArrowDownToLine aria-hidden />
       </Button>
@@ -181,7 +182,7 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
         aria-label={t("office.xlsx.structure.insertColsRight")}
         title={t("office.xlsx.structure.insertColsRight")}
         aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.insert-col-after")}
+        onClick={() => run("sheet.command.insert-multi-cols-right", { value: colCount })}
       >
         <ArrowDownToLine aria-hidden className="-rotate-90" />
       </Button>

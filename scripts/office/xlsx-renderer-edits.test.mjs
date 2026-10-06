@@ -207,6 +207,16 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(canExecuteCommand({ id: 'sheet.command.insert-row-after' }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'sheet.command.insert-col-before', params: { value: 3 } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'sheet.command.insert-col-after' }, model, false), true);
+  // Multi-after: the count is required and bounded (the command reads it unguarded).
+  for (const id of ['sheet.command.insert-multi-rows-after', 'sheet.command.insert-multi-cols-right']) {
+    assert.equal(canExecuteCommand({ id, params: { value: 3 } }, model, false), true, `${id} count`);
+    assert.equal(canExecuteCommand({ id, params: { value: 10_000 } }, model, false), true, `${id} ceiling`);
+    assert.equal(canExecuteCommand({ id }, model, false), false, `${id} no count`);
+    assert.equal(canExecuteCommand({ id, params: { value: 0 } }, model, false), false, `${id} zero`);
+    assert.equal(canExecuteCommand({ id, params: { value: 10_001 } }, model, false), false, `${id} over ceiling`);
+    assert.equal(canExecuteCommand({ id, params: { value: 1.5 } }, model, false), false, `${id} fraction`);
+    assert.equal(canExecuteCommand({ id, params: { value: 2 } }, model, true), false, `${id} readOnly`);
+  }
   assert.equal(canExecuteCommand({ id: 'sheet.command.remove-row', params: { range: range(1, 2) } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'sheet.command.remove-row', params: { range: range(2, 1) } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'sheet.command.remove-col' }, model, false), true);

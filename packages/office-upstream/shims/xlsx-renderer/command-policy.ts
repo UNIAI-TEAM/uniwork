@@ -87,6 +87,11 @@ const STRUCTURAL_COMMANDS = new Set([
   "sheet.command.insert-row-after",
   "sheet.command.insert-col-before",
   "sheet.command.insert-col-after",
+  // The after/right commands above ignore params and insert the selection's
+  // own span; the multi variants honour `value` like the before commands, so
+  // a whole-axis selection can still insert a bounded count below/right.
+  "sheet.command.insert-multi-rows-after",
+  "sheet.command.insert-multi-cols-right",
   "sheet.command.remove-row",
   "sheet.command.remove-col",
   "sheet.command.set-row-height",
@@ -208,6 +213,12 @@ function structuralCommandAllowed(
   if (event.id === "sheet.command.insert-row-before" || event.id === "sheet.command.insert-col-before") {
     const value = params?.value;
     return value === undefined || (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 10_000);
+  }
+  if (event.id === "sheet.command.insert-multi-rows-after" || event.id === "sheet.command.insert-multi-cols-right") {
+    // The multi commands read `value` unguarded (`params.value || 0`), so the
+    // count is required here, unlike the selection-driven before commands.
+    const value = params?.value;
+    return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 10_000;
   }
   if (event.id === "sheet.command.set-row-height" || event.id === "sheet.command.set-worksheet-col-width") {
     return typeof params?.value === "number" && Number.isFinite(params.value) && params.value > 0 && params.value <= 4096;
