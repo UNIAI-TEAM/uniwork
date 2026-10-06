@@ -8,6 +8,7 @@ import type {
 } from "@uniwork/core/office";
 import type { XlsxGridHostPort } from "./xlsx-grid-surface";
 import type { XlsxRangeType } from "./selection-mapping";
+import type { XlsxDroppedRuleSet } from "./conditional-format/rule-set-drops";
 import type {
   XlsxCellState,
   XlsxRecalcCell,
@@ -61,6 +62,9 @@ export type XlsxEditorHandle<TSnapshot = XlsxWorkbookSnapshot> = EditorHandle<TS
     /** Notify the view when a host-side recovery replaces the live snapshot. */
     subscribeSnapshot?(listener: (snapshot: XlsxWorkbookSnapshot) => void): () => void;
     cancel?: (reason?: string) => Promise<void> | void;
+    /** X01 r2: the CF/DV rule sets the last save dropped (named by the engine
+     *  refusal xlsx_rule_sets_dropped); empty after a successful save. */
+    droppedRuleSets?(): readonly XlsxDroppedRuleSet[];
   };
 
 export interface XlsxOpenSuccess {

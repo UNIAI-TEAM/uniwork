@@ -66,6 +66,10 @@ const ERROR_RULES: Record<string, ErrorRule> = {
   contract_mismatch: { state: "incompatible", action: "read_only", retryable: false },
   protocol_mismatch: { state: "incompatible", action: "read_only", retryable: false },
   unsupported_operation: { state: "incompatible", action: "read_only", retryable: false },
+  // The xlsx save dropped refused CF/DV rule sets (X01 review r2): non-terminal
+  // so the coordinator keeps the pending intent and the NEXT explicit Save
+  // re-runs it without them; not retryable, so nothing re-runs automatically.
+  xlsx_rule_sets_dropped: { state: "error", action: "retry", retryable: false },
   storage_unavailable: { state: "error", action: "retry", retryable: true },
   engine_timeout: { state: "error", action: "reconcile", retryable: true, ambiguous: true },
   engine_overloaded: { state: "error", action: "retry", retryable: true },

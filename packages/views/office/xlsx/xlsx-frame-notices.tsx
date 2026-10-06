@@ -1,16 +1,21 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
+import { RuleSetDropNotice } from "./conditional-format/rule-set-drop-notice";
+import type { XlsxEditorHandle } from "./types";
 
 export interface XlsxFrameNoticesProps {
   recalcProgress: number | null;
   recalcError: string | null;
   editFailed: boolean;
   onCancelRecalculate: () => void;
+  /** The save coordinator error code; xlsx_rule_sets_dropped shows the drop notice. */
+  saveErrorCode?: string | null;
+  editor?: Pick<XlsxEditorHandle, "droppedRuleSets">;
 }
 
 /** The frame subbar notices: recalculation progress and the two inline errors. */
-export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate }: XlsxFrameNoticesProps) {
+export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor }: XlsxFrameNoticesProps) {
   const { t } = useTranslation();
   return (
     <>
@@ -23,6 +28,7 @@ export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCa
       ) : null}
       {recalcError ? <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-recalc-error">{recalcError}</p> : null}
       {editFailed ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}
+      <RuleSetDropNotice errorCode={saveErrorCode} editor={editor} />
     </>
   );
 }

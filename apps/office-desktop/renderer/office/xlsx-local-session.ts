@@ -1,7 +1,7 @@
 ﻿import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
-import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, stableJson, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
+import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, parseRuleSetDrops, ruleSetsDroppedError, stableJson, withoutDroppedRuleSets, type XlsxDroppedRuleSet, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopFileXlsxResponseSchema, type DesktopDraftMetadata, type DesktopFileXlsxRequest } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
@@ -84,6 +84,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
   let pending: { revision: number; operation: Record<string, unknown> }[] = [];
   let baseRevision = options.baseRevision;
   let baseVersionId = options.baseVersionId;
+  let dropped: XlsxDroppedRuleSet[] = [];
   let lastCommit: { intentId: string; revision: string } | null = null;
   const candidates = new Map<string, { baseRevision: string; snapshot: XlsxWorkbookSnapshot; operations: Record<string, unknown>[]; output?: { bytes: Uint8Array; checksum: string } }>();
   const rendererHostRef: DesktopRenderModelRef = { current: null, listeners: new Set() };
@@ -131,6 +132,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       try { await opening; } finally { opening = null; }
     },
     getDirtyGeneration: () => generation,
+    droppedRuleSets: () => dropped.map((entry) => ({ ...entry })),
     async captureSnapshot() {
       if (!snapshot) throw new Error("xlsx_snapshot_unavailable");
       const value = structuredClone(snapshot);
@@ -175,7 +177,22 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       if (candidate.baseRevision !== baseRevision) throw new Error("xlsx_save_base_changed");
       const captured = candidate;
       if (!captured.output) {
-        const response = await callJob({ operation: "edit", baseRevision: captured.baseRevision, edits: captured.operations });
+        let response: Awaited<ReturnType<typeof callJob>>;
+        try {
+          response = await callJob({ operation: "edit", baseRevision: captured.baseRevision, edits: captured.operations });
+        } catch (error) {
+          // X01 review r2: main refused journalled CF/DV rule sets. Drop exactly
+          // the named ops from the candidate and the pending list so the next
+          // explicit Save of this intent re-runs without them; every other edit
+          // stays pending. A malformed payload names nothing: drop nothing.
+          const drops = parseRuleSetDrops(error instanceof Error ? error.message : undefined);
+          if (!drops) throw error;
+          dropped = drops;
+          captured.operations = withoutDroppedRuleSets(captured.operations, drops);
+          pending = withoutDroppedRuleSets(pending, drops, (entry) => entry.operation);
+          throw ruleSetsDroppedError();
+        }
+        dropped = [];
         const bytes = decode(response.outputBase64!);
         captured.output = { bytes, checksum: response.outputChecksum ?? `sha256:${await fingerprint(captured.snapshot)}` };
       }

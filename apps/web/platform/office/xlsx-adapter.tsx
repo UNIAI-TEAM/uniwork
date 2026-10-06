@@ -15,7 +15,7 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import { createOfficeEditorSession, type OfficeEditorSession, type BrowserOfficeDraftOptions } from "./editor-host-core";
-import { createXlsxModelHost, type XlsxModelHost } from "@uniwork/views/office/xlsx";
+import { createXlsxModelHost, type XlsxDroppedRuleSet, type XlsxModelHost } from "@uniwork/views/office/xlsx";
 import { XlsxEditorView, type XlsxRenderModelRef } from "./xlsx-editor-view";
 import type {
   XlsxEditorHandle,
@@ -52,6 +52,8 @@ export interface XlsxSessionRuntime {
   cancelRecalculate?(documentModelRef: string): Promise<void> | void;
   /** Advance the server base after the coordinator commits a version. */
   setBaseRevision?(revision: string, intentId: string): void;
+  /** The CF/DV rule sets the last failed save dropped; empty once a save succeeds. */
+  droppedRuleSets?(): readonly XlsxDroppedRuleSet[];
   release(documentModelRef: string): Promise<void> | void;
 }
 
@@ -394,6 +396,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       try { await opening; } finally { opening = null; }
     },
     getDirtyGeneration: () => generation,
+    droppedRuleSets: () => options.runtime.droppedRuleSets?.() ?? [],
     async captureSnapshot() {
       if (!currentSnapshot) throw new Error("xlsx_snapshot_unavailable");
       const value = cloneSnapshot(currentSnapshot);
