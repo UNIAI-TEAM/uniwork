@@ -20,8 +20,8 @@ import { printDocxDocument } from "./docx-print";
 
 /** i18next keys this module reads. */
 const DOCX_PRINT_KEYS = {
-  // Format-neutral print label; switches to office.common.print once it lands.
-  menuItem: "office.markdown.print.title",
+  // The shared, format-neutral Print label every view contributes to the header menu.
+  menuItem: "office.common.print",
   busy: "office.docx.export.printBusy",
   failed: "office.docx.export.printFailed",
 } as const;
