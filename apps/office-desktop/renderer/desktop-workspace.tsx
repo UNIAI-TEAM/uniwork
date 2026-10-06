@@ -152,11 +152,12 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     return { bytes: read.bytes, baseRevision: read.document.revision, baseVersionId: String(read.document.version) };
   };
   const markFlagGated = useFlagGatedTabs(tabs, officeFlags, reopenForUpgrade);
-  /** The notice follows the newest answer: a tab that opened before the flags loaded says "off" once they say off. */
+  /** The notice follows the newest answer: a tab that opened before the flags loaded says "off" once they say off.
+   * An "on" answer whose upgrade is still pending (or its fresh read failed and is retried) claims neither
+   * "off" nor a failed check: it takes the neutral not-yet notice (review-fe-r1 R4). */
   const liveReadOnlyReason = (tab: TabDocument): ReadOnlyReason | undefined => {
     if (!tab.readOnlyReason) return undefined;
-    const flag = officeFlags.status(tab.format, tab.identity.organizationId);
-    return flag === "off" ? "feature_off" : flag === "unknown" ? "flags_unknown" : tab.readOnlyReason;
+    return officeFlags.status(tab.format, tab.identity.organizationId) === "off" ? "feature_off" : "flags_unknown";
   };
 
   const canOpen = (documentId?: string) => {

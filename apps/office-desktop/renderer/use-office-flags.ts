@@ -137,14 +137,20 @@ export function useOfficeFlags(bridge: RendererBridge, input: { enabled: boolean
  * is built from a fresh read of the document (`reopen`), never from the bytes
  * captured when the tab first opened, so a document that changed meanwhile is
  * not edited from a stale base (UNI-954 R4-2). A failed re-read leaves the tab
- * read-only and gated; the next answer tries again.
+ * read-only and gated, and is tried again like an unanswered scope: with
+ * backoff, at once on window focus / back online, and on the next answer
+ * (review-fe-r1 R4), so an answered "on" never strands a tab until a reload.
  */
 export function useFlagGatedTabs(tabs: ReturnType<typeof useDocumentTabs>, officeFlags: ReturnType<typeof useOfficeFlags>, reopen: (tab: TabDocument) => Promise<CloudReopen | null>) {
   const gated = useRef(new Set<string>());
   const upgrading = useRef(new Set<string>());
+  const failures = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const { flags, status } = officeFlags;
-  useEffect(() => {
-    if (flags === null) return;
+  // Rebuilt every render so a retry reads the newest tabs, status and reopen.
+  const attempt = useRef<() => void>(() => undefined);
+  attempt.current = () => {
+    clearTimeout(retryTimer.current);
     for (const id of [...gated.current]) {
       const tab = tabs.current.current.tabs.find((entry) => entry.id === id);
       if (!tab) { gated.current.delete(id); continue; }
@@ -154,12 +160,25 @@ export function useFlagGatedTabs(tabs: ReturnType<typeof useDocumentTabs>, offic
         upgrading.current.delete(id);
         // Re-check after the read: the tab may have closed, or the answer turned it off again.
         const live = tabs.current.current.tabs.find((entry) => entry.id === id);
-        if (!fresh || !live || status(live.format, live.data.identity.organizationId) !== "on") return;
-        if (tabs.upgradeCloud(id, fresh)) gated.current.delete(id);
+        if (!live || status(live.format, live.data.identity.organizationId) !== "on") return;
+        if (fresh) {
+          if (tabs.upgradeCloud(id, fresh)) { gated.current.delete(id); failures.current = 0; }
+          return;
+        }
+        failures.current += 1;
+        clearTimeout(retryTimer.current);
+        retryTimer.current = setTimeout(() => attempt.current(), Math.min(RETRY_BASE_MS * 2 ** (failures.current - 1), RETRY_MAX_MS));
       });
     }
-  // The tab set is read through its live ref; this only reacts to a new answer.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  };
+  useEffect(() => {
+    if (flags !== null) attempt.current();
   }, [flags]);
+  useEffect(() => {
+    const wake = () => { if (gated.current.size > 0) attempt.current(); };
+    window.addEventListener("focus", wake);
+    window.addEventListener("online", wake);
+    return () => { window.removeEventListener("focus", wake); window.removeEventListener("online", wake); clearTimeout(retryTimer.current); };
+  }, []);
   return (documentId: string) => { gated.current.add(documentId); };
 }

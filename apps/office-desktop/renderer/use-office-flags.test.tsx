@@ -134,3 +134,40 @@ it("upgrades a gated tab from a fresh read once the answer allows its format, an
   await waitFor(() => expect(reopen).toHaveBeenCalledTimes(3));
   expect(reopen.mock.calls[2]?.[0].identity.documentId).toBe("sheet");
 });
+
+it("retries a gated tab whose fresh read failed under an answered 'on': with backoff and at once on focus (R4)", async () => {
+  vi.useFakeTimers();
+  let answer: Record<string, boolean> = { office_engine: false };
+  const { bridge } = bridgeWith(() => Promise.resolve({ flags: answer }));
+  const tab = { id: "deck", format: "pptx", data: { kind: "cloud", format: "pptx", identity: { organizationId: "org-1", documentId: "deck" } } as unknown as TabDocument };
+  const upgradeCloud = vi.fn((_id: string, _fresh: CloudReopen) => true);
+  const tabs = { current: { current: { tabs: [tab] } }, upgradeCloud } as unknown as ReturnType<typeof useDocumentTabs>;
+  const fresh: CloudReopen = { bytes: { format: "pptx", dataBase64: "deck", checksum: "c" }, baseRevision: "7", baseVersionId: "3" };
+  let readable = false;
+  const reopen = vi.fn(async () => (readable ? fresh : null));
+  const { result, rerender } = renderHook((props) => useFlagGatedTabs(tabs, useOfficeFlags(bridge, props), reopen), { initialProps: base });
+  act(() => { result.current("deck"); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  answer = { office_engine: true };
+  rerender({ ...base, reload: 1 });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(reopen).toHaveBeenCalledTimes(1);
+  expect(upgradeCloud).not.toHaveBeenCalled();
+
+  // No new answer arrives (the scope is answered), yet the read is asked again after the backoff.
+  await act(async () => { await vi.advanceTimersByTimeAsync(9_900); });
+  expect(reopen).toHaveBeenCalledTimes(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+  expect(reopen).toHaveBeenCalledTimes(2);
+
+  // Focus asks at once, and a successful read upgrades the tab.
+  readable = true;
+  await act(async () => { window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(0); });
+  expect(reopen).toHaveBeenCalledTimes(3);
+  expect(upgradeCloud).toHaveBeenCalledWith("deck", fresh);
+
+  // Upgraded: nothing is asked again.
+  await act(async () => { window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(10 * 60_000); });
+  expect(reopen).toHaveBeenCalledTimes(3);
+});
