@@ -126,7 +126,11 @@ n=0 any_fail=false
 while IFS= read -r cmd || [ -n "$cmd" ]; do
   cmd=${cmd%$'\r'}
   case "$cmd" in ''|'#'*) continue ;; esac
-  letter=$(printf "\\$(printf '%03o' $((97 + n)))"); n=$((n + 1))
+  # a..z, then za..zz, zza..: every name stays a Windows-legal file name (the
+  # old ASCII walk went past z to '{' and '|', and collect aborted on '|.log').
+  letter="" k=$n
+  while [ "$k" -ge 26 ]; do letter="${letter}z"; k=$((k - 26)); done
+  letter="$letter$(printf "\\$(printf '%03o' $((97 + k)))")"; n=$((n + 1))
   log="$results/$letter.log"
   echo "\$ $cmd" > "$log"
   t=$(date +%s)
