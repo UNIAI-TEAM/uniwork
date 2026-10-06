@@ -43,8 +43,11 @@ func baseResolver() *Resolver {
 
 // ResolverFromEnv builds the resolver from the same environment the storage
 // loaders read. A group is only declared when its variables exist, mirroring
-// storage.LoadConfig's declaration rules.
-func ResolverFromEnv() *Resolver {
+// storage.LoadConfig's declaration rules. S3_KEY_PREFIX goes through
+// storage.ParseKeyRoot, the server's own reading: a value the server refuses
+// to start with stops the backfill too, instead of being cleaned into some
+// other root here.
+func ResolverFromEnv() (*Resolver, error) {
 	r := baseResolver()
 
 	// Local: the API serves /uploads/<key>; the base is either the explicit
@@ -57,10 +60,9 @@ func ResolverFromEnv() *Resolver {
 
 	if bucket := strings.TrimSpace(os.Getenv("S3_BUCKET")); bucket != "" {
 		region := strings.TrimSpace(os.Getenv("S3_REGION"))
-		prefix := strings.TrimSpace(os.Getenv("S3_KEY_PREFIX"))
-		prefix = strings.TrimPrefix(prefix, "/")
-		if prefix != "" && !strings.HasSuffix(prefix, "/") {
-			prefix += "/"
+		prefix, err := storage.ParseKeyRoot(os.Getenv("S3_KEY_PREFIX"))
+		if err != nil {
+			return nil, err
 		}
 		r.stripPrefix = prefix
 		if cdn := strings.TrimSpace(os.Getenv("CLOUDFRONT_DOMAIN")); cdn != "" {
@@ -113,7 +115,7 @@ func ResolverFromEnv() *Resolver {
 			}
 		}
 	}
-	return r
+	return r, nil
 }
 
 // stripKey removes the configured S3 key prefix the same way
