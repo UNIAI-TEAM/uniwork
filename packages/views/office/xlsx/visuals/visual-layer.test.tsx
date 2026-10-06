@@ -57,6 +57,17 @@ describe("XlsxVisualLayer", () => {
     expect(props.onRemove).toHaveBeenCalledWith(item.visual);
   });
 
+  it("renders the delete button beside the item, never inside it, and keeps it on screen at the top edge", () => {
+    setup([{ visual: visual("shape"), box: BOX }], { selectedId: "v-shape" });
+    const item = screen.getByTestId(SHAPE_ID);
+    const remove = screen.getByTestId("xlsx-visual-delete");
+    // No interactive control nested in the role=button item.
+    expect(item).not.toContainElement(remove);
+    expect(remove).toHaveStyle({ top: "64px" });
+    setup([{ visual: visual("shape", { id: "top" }), box: { ...BOX, y: 10 } }], { selectedId: "top" });
+    expect(screen.getAllByTestId("xlsx-visual-delete").at(-1)).toHaveStyle({ top: "14px" });
+  });
+
   it("handles keyboard remove, nudge, resize and escape", () => {
     const item = { visual: visual("shape"), box: BOX };
     const { props } = setup([item], { selectedId: "v-shape" });

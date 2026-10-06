@@ -7,7 +7,7 @@
 // its delete button). Keyboard: Tab reaches each item, arrows move it,
 // Shift+arrows resize it, Delete removes it, Escape returns focus to the grid.
 // A visual a save already wrote is locked (no edit path for file visuals).
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -25,6 +25,8 @@ const HANDLE_POSITION: Record<XlsxVisualHandle, string> = {
 };
 /** Keyboard step in container pixels. */
 const KEY_STEP = 8;
+/** How far above the item the delete button sits (its height plus a gap). */
+const DELETE_OFFSET = 36;
 
 export interface XlsxVisualLayerItem {
   readonly visual: XlsxEditorVisual;
@@ -155,66 +157,74 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
         const label = labelOf(visual);
         const locked = !editable(visual);
         return (
-          <div
-            key={visual.id}
-            role="button"
-            tabIndex={0}
-            aria-pressed={selected}
-            aria-label={label}
-            aria-roledescription={t("office.xlsx.visuals.item.roleDescription")}
-            aria-describedby={`xlsx-visual-help-${visual.id}`}
-            data-testid={`xlsx-visual-item-${visualKind(visual)}`}
-            data-visual-id={visual.id}
-            data-selected={selected || undefined}
-            title={locked ? t("office.xlsx.visuals.item.locked") : undefined}
-            className={cn(
-              "pointer-events-auto absolute touch-none bg-background",
-              locked ? "cursor-default" : "cursor-move",
-              selected && "ring-2 ring-primary",
-              visual.chart && "rounded-sm border border-border text-muted-foreground",
-              visual.shape && "bg-transparent text-foreground",
-            )}
-            style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
-            onFocus={() => onSelect(visual.id)}
-            onPointerDown={(event) => startDrag(event, item, null)}
-            onPointerMove={moveDrag}
-            onPointerUp={(event) => endDrag(event, visual)}
-            onPointerCancel={() => { setDrag(null); setPreview(null); }}
-            onKeyDown={(event) => onKeyDown(event, item)}
-          >
-            <span id={`xlsx-visual-help-${visual.id}`} className="sr-only">
-              {locked ? t("office.xlsx.visuals.item.locked") : t("office.xlsx.visuals.item.keyboardHelp")}
-            </span>
-            <VisualBody visual={visual} box={box} label={label} />
+          <Fragment key={visual.id}>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected}
+              aria-label={label}
+              aria-roledescription={t("office.xlsx.visuals.item.roleDescription")}
+              aria-describedby={`xlsx-visual-help-${visual.id}`}
+              data-testid={`xlsx-visual-item-${visualKind(visual)}`}
+              data-visual-id={visual.id}
+              data-selected={selected || undefined}
+              title={locked ? t("office.xlsx.visuals.item.locked") : undefined}
+              className={cn(
+                "pointer-events-auto absolute touch-none bg-background",
+                locked ? "cursor-default" : "cursor-move",
+                selected && "ring-2 ring-primary",
+                visual.chart && "rounded-sm border border-border text-muted-foreground",
+                visual.shape && "bg-transparent text-foreground",
+              )}
+              style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
+              onFocus={() => onSelect(visual.id)}
+              onPointerDown={(event) => startDrag(event, item, null)}
+              onPointerMove={moveDrag}
+              onPointerUp={(event) => endDrag(event, visual)}
+              onPointerCancel={() => { setDrag(null); setPreview(null); }}
+              onKeyDown={(event) => onKeyDown(event, item)}
+            >
+              <span id={`xlsx-visual-help-${visual.id}`} className="sr-only">
+                {locked ? t("office.xlsx.visuals.item.locked") : t("office.xlsx.visuals.item.keyboardHelp")}
+              </span>
+              <VisualBody visual={visual} box={box} label={label} />
+              {selected && !locked ? (
+                <>
+                  {HANDLES.map((handle) => (
+                    <span
+                      key={handle}
+                      aria-hidden="true"
+                      data-testid={`xlsx-visual-handle-${handle}`}
+                      className={cn("absolute size-3 rounded-full border border-primary bg-background", HANDLE_POSITION[handle])}
+                      onPointerDown={(event) => startDrag(event, item, handle)}
+                      onPointerMove={(event) => { event.stopPropagation(); moveDrag(event); }}
+                      onPointerUp={(event) => { event.stopPropagation(); endDrag(event, visual); }}
+                    />
+                  ))}
+                </>
+              ) : null}
+            </div>
+            {/* The delete button is the item's sibling, not its child: a control
+                nested in a role=button item is flattened by screen readers. It
+                sits above the item's right edge, or inside it near the top of
+                the layer, where the layer's overflow-hidden would clip it. */}
             {selected && !locked ? (
-              <>
-                {HANDLES.map((handle) => (
-                  <span
-                    key={handle}
-                    aria-hidden="true"
-                    data-testid={`xlsx-visual-handle-${handle}`}
-                    className={cn("absolute size-3 rounded-full border border-primary bg-background", HANDLE_POSITION[handle])}
-                    onPointerDown={(event) => startDrag(event, item, handle)}
-                    onPointerMove={(event) => { event.stopPropagation(); moveDrag(event); }}
-                    onPointerUp={(event) => { event.stopPropagation(); endDrag(event, visual); }}
-                  />
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  className="absolute -top-9 right-0 bg-background"
-                  aria-label={t("office.xlsx.visuals.item.delete", { name: label })}
-                  title={t("office.xlsx.visuals.item.delete", { name: label })}
-                  data-testid="xlsx-visual-delete"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={() => onRemove(visual)}
-                >
-                  <Trash2 aria-hidden />
-                </Button>
-              </>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="pointer-events-auto absolute -translate-x-full bg-background"
+                style={{ left: box.x + box.width, top: box.y < DELETE_OFFSET ? box.y + 4 : box.y - DELETE_OFFSET }}
+                aria-label={t("office.xlsx.visuals.item.delete", { name: label })}
+                title={t("office.xlsx.visuals.item.delete", { name: label })}
+                data-testid="xlsx-visual-delete"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => onRemove(visual)}
+              >
+                <Trash2 aria-hidden />
+              </Button>
             ) : null}
-          </div>
+          </Fragment>
         );
       })}
     </div>
