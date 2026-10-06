@@ -15,10 +15,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { addressParts } from "../xlsx-editor-model";
+import { selectionDvRange } from "../data-validation/dv-commands";
 import { fireCommand } from "../fire-command";
 import type { XlsxToolbarGroupProps } from "../toolbar/types";
-import type { XlsxSelection } from "../types";
 import { XlsxGroupBody, XlsxLargeButton, XlsxLargeLabel } from "../toolbar/group-layout";
 import {
   clearRangeParams,
@@ -26,26 +25,13 @@ import {
   XLSX_CF_CLEAR_RANGE_COMMAND,
   XLSX_CF_CLEAR_SHEET_COMMAND,
   type XlsxCfPreset,
-  type XlsxCfRange,
 } from "./cf-commands";
+import { XlsxCfRuleManager } from "./cf-rule-manager";
 import { XlsxConditionalFormatDialog } from "./conditional-format-dialog";
 import type { RibbonItem } from "../../ribbon";
 
 const BASE = "office.xlsx.conditionalFormat";
-const PRESET_ITEMS: readonly XlsxCfPreset[] = ["greaterThan", "lessThan", "between", "containsText", "duplicateValues"];
-
-function rangeOf(selection: XlsxSelection | null): XlsxCfRange | null {
-  if (!selection) return null;
-  const from = addressParts(selection.address);
-  const to = selection.endAddress ? addressParts(selection.endAddress) : from;
-  if (!from || !to) return null;
-  return {
-    startRow: Math.min(from.row, to.row),
-    endRow: Math.max(from.row, to.row),
-    startColumn: Math.min(from.column, to.column),
-    endColumn: Math.max(from.column, to.column),
-  };
-}
+const PRESET_ITEMS: readonly XlsxCfPreset[] = ["greaterThan", "lessThan", "between", "containsText", "duplicateValues", "uniqueValues"];
 
 export function XlsxConditionalFormatGroup({
   readOnly = false,
@@ -54,23 +40,23 @@ export function XlsxConditionalFormatGroup({
   unitId,
   sheetName,
   resolveSheetId,
-  host,
 }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [preset, setPreset] = useState<XlsxCfPreset | null>(null);
-  const range = rangeOf(selection);
+  const [managing, setManaging] = useState(false);
+  const range = selectionDvRange(selection);
   const sheetId = sheetName ? resolveSheetId?.(sheetName) : undefined;
   const blocked = readOnly || !commands || range === null || sheetId === undefined || unitId == null;
 
-  const x14 = host?.file.sheets.find((sheet) => sheet.id === sheetId)?.ruleSets?.conditionalFormats === "x14";
+  const canManage = !blocked && typeof commands?.readRuleSets === "function";
 
   const clearSelection = () => {
-    if (blocked || x14 || range === null || sheetId === undefined || unitId == null) return;
+    if (blocked || range === null || sheetId === undefined || unitId == null) return;
     fireCommand(commands, XLSX_CF_CLEAR_RANGE_COMMAND, clearRangeParams(unitId, sheetId, range));
   };
   const clearSheet = () => {
-    if (blocked || x14 || sheetId === undefined || unitId == null) return;
+    if (blocked || sheetId === undefined || unitId == null) return;
     fireCommand(commands, XLSX_CF_CLEAR_SHEET_COMMAND, clearSheetParams(unitId, sheetId));
   };
 
@@ -96,22 +82,28 @@ export function XlsxConditionalFormatGroup({
           <XlsxLargeLabel>{t(`${BASE}.menu.label`)}</XlsxLargeLabel>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-56">
-          {x14 ? (
-            <p className="max-w-56 px-2 py-1.5 text-caption text-muted-foreground" data-testid="xlsx-cf-x14-reason">
-              {t(`${BASE}.errors.x14Sheet`)}
-            </p>
-          ) : null}
           {PRESET_ITEMS.map((item) => (
             <DropdownMenuItem key={item} data-testid={`xlsx-cf-${item}`} onClick={() => setPreset(item)}>
               {t(`${BASE}.menu.${item}`)}
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <DropdownMenuItem data-testid="xlsx-cf-clear-selection" disabled={x14} onClick={clearSelection}>
+          <DropdownMenuItem data-testid="xlsx-cf-clear-selection" onClick={clearSelection}>
             {t(`${BASE}.menu.clearSelection`)}
           </DropdownMenuItem>
-          <DropdownMenuItem data-testid="xlsx-cf-clear-sheet" disabled={x14} onClick={clearSheet}>
+          <DropdownMenuItem data-testid="xlsx-cf-clear-sheet" onClick={clearSheet}>
             {t(`${BASE}.menu.clearSheet`)}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            data-testid="xlsx-cf-manage"
+            aria-disabled={!canManage || undefined}
+            title={canManage ? undefined : t(`${BASE}.manager.unavailable`)}
+            onClick={() => {
+              if (canManage) setManaging(true);
+            }}
+          >
+            {t(`${BASE}.menu.manage`)}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -123,8 +115,16 @@ export function XlsxConditionalFormatGroup({
           range={range}
           commands={commands}
           readOnly={readOnly}
-          blocked={x14}
           onClose={() => setPreset(null)}
+        />
+      ) : null}
+      {managing && canManage && range !== null && sheetId !== undefined && unitId != null && commands ? (
+        <XlsxCfRuleManager
+          unitId={unitId}
+          subUnitId={sheetId}
+          commands={commands}
+          selection={range}
+          onClose={() => setManaging(false)}
         />
       ) : null}
     </XlsxGroupBody>

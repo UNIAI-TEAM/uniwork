@@ -5,7 +5,7 @@
 // cf-commands.ts and fires the pinned add-rule command through the toolbar's
 // command port; the group owns open/close state.
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
@@ -13,12 +13,15 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { runRuleCommand } from "../data-validation/run-rule-command";
+import type { XlsxCfEditable } from "./cf-live-rule";
 import type { XlsxToolbarCommands } from "../toolbar/types";
 import {
   addRuleParams,
   buildCfInnerRule,
   cfStyleOf,
+  setRuleParams,
   XLSX_CF_ADD_COMMAND,
+  XLSX_CF_SET_COMMAND,
   XLSX_CF_STYLE_IDS,
   type XlsxCfPreset,
   type XlsxCfRange,
@@ -32,11 +35,20 @@ interface XlsxConditionalFormatDialogProps {
   range: XlsxCfRange;
   commands: XlsxToolbarCommands;
   readOnly?: boolean;
-  /** The sheet holds Excel extended (x14) conditional formatting the save
-   *  cannot rewrite: the dialog explains it and OK stays inert. */
-  blocked?: boolean;
+  /** Edit mode (rule manager): the dialog opens with the rule's values and OK
+   *  replaces rule `cfId` in place, keeping its areas and stop-if-true. */
+  edit?: {
+    cfId: string;
+    ranges: readonly XlsxCfRange[];
+    stopIfTrue: boolean;
+    initial: XlsxCfEditable;
+  };
   onClose: () => void;
 }
+
+/** The "keep the rule's current format" option of an edited rule whose format
+ *  is not one of the presets. */
+const CURRENT_STYLE = "current";
 
 const BASE = "office.xlsx.conditionalFormat";
 
@@ -47,16 +59,24 @@ export function XlsxConditionalFormatDialog({
   range,
   commands,
   readOnly = false,
-  blocked = false,
+  edit,
   onClose,
 }: XlsxConditionalFormatDialogProps) {
   const { t } = useTranslation();
-  const [first, setFirst] = useState("");
-  const [second, setSecond] = useState("");
-  const [styleId, setStyleId] = useState<XlsxCfStyleId>("lightRedDarkRed");
+  const ids = useId();
+  const firstId = `${ids}-first`;
+  const secondId = `${ids}-second`;
+  const styleFieldId = `${ids}-style`;
+  const errorId = `${ids}-error`;
+  const [first, setFirst] = useState(edit?.initial.first ?? "");
+  const [second, setSecond] = useState(edit?.initial.second ?? "");
+  const keepsStyle = edit !== undefined && edit.initial.styleId === null;
+  const [styleId, setStyleId] = useState<XlsxCfStyleId | typeof CURRENT_STYLE>(
+    edit ? (edit.initial.styleId ?? CURRENT_STYLE) : "lightRedDarkRed",
+  );
   const [error, setError] = useState<string | null>(null);
   const numeric = preset === "greaterThan" || preset === "lessThan" || preset === "between";
-  const previewStyle = cfStyleOf(styleId);
+  const previewStyle = styleId === CURRENT_STYLE ? (edit?.initial.style as ReturnType<typeof cfStyleOf> | undefined) ?? {} : cfStyleOf(styleId);
 
   const [refused, setRefused] = useState(false);
   const [pending, setPending] = useState(false);
@@ -64,14 +84,21 @@ export function XlsxConditionalFormatDialog({
   const apply = async () => {
     setError(null);
     setRefused(false);
-    if (readOnly || blocked || pending) return;
-    const built = buildCfInnerRule(preset, { first, second }, styleId);
+    if (readOnly || pending) return;
+    const built = buildCfInnerRule(preset, { first, second }, styleId === CURRENT_STYLE ? "lightRedDarkRed" : styleId);
     if (!built.ok) {
       setError(t(`${BASE}.errors.${built.error}`));
       return;
     }
+    const inner = styleId === CURRENT_STYLE ? { ...built.inner, style: edit?.initial.style } : built.inner;
     setPending(true);
-    const accepted = await runRuleCommand(commands, XLSX_CF_ADD_COMMAND, addRuleParams(unitId, subUnitId, range, built.inner));
+    const accepted = edit
+      ? await runRuleCommand(
+          commands,
+          XLSX_CF_SET_COMMAND,
+          setRuleParams(unitId, subUnitId, edit.cfId, edit.ranges, edit.stopIfTrue, inner),
+        )
+      : await runRuleCommand(commands, XLSX_CF_ADD_COMMAND, addRuleParams(unitId, subUnitId, range, inner));
     setPending(false);
     if (accepted) onClose();
     else setRefused(true);
@@ -83,8 +110,6 @@ export function XlsxConditionalFormatDialog({
       void apply();
     }
   };
-
-  const errorId = "xlsx-cf-error";
 
   return (
     <Dialog
@@ -102,11 +127,11 @@ export function XlsxConditionalFormatDialog({
           {numeric ? (
             <div className="flex flex-wrap items-end gap-2">
               <div className="grid min-w-0 flex-1 gap-1">
-                <Label htmlFor="xlsx-cf-first" className="text-caption font-medium">
+                <Label htmlFor={firstId} className="text-caption font-medium">
                   {t(`${BASE}.dialog.${preset === "between" ? "minimum" : "value"}`)}
                 </Label>
                 <Input
-                  id="xlsx-cf-first"
+                  id={firstId}
                   inputMode="decimal"
                   value={first}
                   autoFocus
@@ -121,11 +146,11 @@ export function XlsxConditionalFormatDialog({
                 <>
                   <span className="pb-2 text-caption text-muted-foreground">{t(`${BASE}.dialog.and`)}</span>
                   <div className="grid min-w-0 flex-1 gap-1">
-                    <Label htmlFor="xlsx-cf-second" className="text-caption font-medium">
+                    <Label htmlFor={secondId} className="text-caption font-medium">
                       {t(`${BASE}.dialog.maximum`)}
                     </Label>
                     <Input
-                      id="xlsx-cf-second"
+                      id={secondId}
                       inputMode="decimal"
                       value={second}
                       aria-invalid={error ? true : undefined}
@@ -141,11 +166,11 @@ export function XlsxConditionalFormatDialog({
           ) : null}
           {preset === "containsText" ? (
             <div className="grid gap-1">
-              <Label htmlFor="xlsx-cf-first" className="text-caption font-medium">
+              <Label htmlFor={firstId} className="text-caption font-medium">
                 {t(`${BASE}.dialog.text`)}
               </Label>
               <Input
-                id="xlsx-cf-first"
+                id={firstId}
                 value={first}
                 autoFocus
                 aria-invalid={error ? true : undefined}
@@ -156,26 +181,30 @@ export function XlsxConditionalFormatDialog({
               />
             </div>
           ) : null}
-          {preset === "duplicateValues" ? (
+          {preset === "duplicateValues" || preset === "uniqueValues" ? (
             <p className="text-caption font-medium" data-testid="xlsx-cf-duplicate-kind">
-              {t(`${BASE}.dialog.duplicate`)}
+              {t(`${BASE}.dialog.${preset === "uniqueValues" ? "unique" : "duplicate"}`)}
             </p>
           ) : null}
           <div className="grid gap-1">
-            <Label htmlFor="xlsx-cf-style" className="text-caption font-medium">
+            <Label htmlFor={styleFieldId} className="text-caption font-medium">
               {t(`${BASE}.dialog.with`)}
             </Label>
             <div className="flex items-center gap-2">
               <Select
-                id="xlsx-cf-style"
+                id={styleFieldId}
                 aria-label={t(`${BASE}.dialog.with`)}
                 triggerVariant="subtle"
                 value={styleId}
                 onValueChange={(value) => {
                   setRefused(false);
-                  if (XLSX_CF_STYLE_IDS.some((id) => id === value)) setStyleId(value as XlsxCfStyleId);
+                  if (value === CURRENT_STYLE && keepsStyle) setStyleId(CURRENT_STYLE);
+                  else if (XLSX_CF_STYLE_IDS.some((id) => id === value)) setStyleId(value as XlsxCfStyleId);
                 }}
-                items={XLSX_CF_STYLE_IDS.map((id) => ({ value: id, label: t(`${BASE}.styles.${id}`) }))}
+                items={[
+                  ...(keepsStyle ? [{ value: CURRENT_STYLE, label: t(`${BASE}.styles.current`) }] : []),
+                  ...XLSX_CF_STYLE_IDS.map((id) => ({ value: id, label: t(`${BASE}.styles.${id}`) })),
+                ]}
               />
               {/* Previews the cell format that is written into the file, not a theme colour. */}
               <span
@@ -193,11 +222,6 @@ export function XlsxConditionalFormatDialog({
               {error}
             </p>
           ) : null}
-          {blocked ? (
-            <p role="alert" className="text-caption text-destructive" data-testid="xlsx-cf-x14">
-              {t(`${BASE}.errors.x14Sheet`)}
-            </p>
-          ) : null}
           {refused ? (
             <p role="alert" className="text-caption text-destructive" data-testid="xlsx-cf-refused">
               {t(`${BASE}.errors.refused`)}
@@ -208,7 +232,7 @@ export function XlsxConditionalFormatDialog({
           <Button type="button" variant="outline" size="sm" data-testid="xlsx-cf-cancel" onClick={onClose}>
             {t(`${BASE}.dialog.cancel`)}
           </Button>
-          <Button type="button" size="sm" aria-disabled={readOnly || blocked || pending || undefined} data-testid="xlsx-cf-ok" onClick={apply}>
+          <Button type="button" size="sm" aria-disabled={readOnly || pending || undefined} data-testid="xlsx-cf-ok" onClick={apply}>
             {t(`${BASE}.dialog.ok`)}
           </Button>
         </div>

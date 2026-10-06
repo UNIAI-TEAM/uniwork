@@ -9,6 +9,20 @@ import type { XlsxSelection } from "../types";
 
 export const XLSX_DV_ADD_COMMAND = "sheet.command.addDataValidation";
 export const XLSX_DV_CLEAR_COMMAND = "sheets.command.clear-range-data-validation";
+export const XLSX_DV_SETTING_COMMAND = "sheets.command.update-data-validation-setting";
+export const XLSX_DV_OPTIONS_COMMAND = "sheets.command.update-data-validation-options";
+export const XLSX_DV_RANGE_COMMAND = "sheet.command.updateDataValidationRuleRange";
+export const XLSX_DV_REMOVE_COMMAND = "sheet.command.remove-data-validation-rule";
+
+export const XLSX_DV_ERROR_STYLES = ["stop", "warning", "information"] as const;
+export type XlsxDvErrorStyle = (typeof XLSX_DV_ERROR_STYLES)[number];
+/** Univer's DataValidationErrorStyle: INFO = 0, STOP = 1, WARNING = 2. */
+const ERROR_STYLE_CODE = { stop: 1, warning: 2, information: 0 } as const;
+
+/** The error style a stored code names; an absent code is Excel's default, stop. */
+export function errorStyleOfCode(code: unknown): XlsxDvErrorStyle {
+  return XLSX_DV_ERROR_STYLES.find((style) => ERROR_STYLE_CODE[style] === code) ?? "stop";
+}
 
 export const XLSX_DV_TYPES = ["list", "whole", "decimal", "date"] as const;
 export type XlsxDvType = (typeof XLSX_DV_TYPES)[number];
@@ -49,7 +63,7 @@ interface XlsxDvRule {
   ranges: XlsxDvRange[];
   allowBlank: true;
   showErrorMessage: true;
-  errorStyle: 1;
+  errorStyle: 0 | 1 | 2;
   error?: string;
   errorTitle?: string;
   showDropDown?: true;
@@ -64,6 +78,7 @@ export interface XlsxDvForm {
   value2: string;
   errorTitle: string;
   error: string;
+  errorStyle: XlsxDvErrorStyle;
 }
 
 /** Which form field a validation failure belongs to, plus the i18n code under
@@ -92,6 +107,7 @@ export const XLSX_DV_EMPTY_FORM: XlsxDvForm = {
   value2: "",
   errorTitle: "",
   error: "",
+  errorStyle: "stop",
 };
 
 export function isTwoValueOperator(operator: XlsxDvOperator): boolean {
@@ -170,6 +186,41 @@ function parseValue(
   return { text: String(num), num };
 }
 
+/** Params of the three commands that edit rule `ruleId` in place; they run
+ *  in this order and the first refusal stops the edit. */
+export function updateDvCommands(unitId: string, subUnitId: string, ruleId: string, rule: XlsxDvRule, ranges: readonly XlsxDvRange[]) {
+  return [
+    {
+      id: XLSX_DV_SETTING_COMMAND,
+      params: {
+        unitId,
+        subUnitId,
+        ruleId,
+        setting: { type: rule.type, operator: rule.operator, formula1: rule.formula1, formula2: rule.formula2, allowBlank: rule.allowBlank },
+      },
+    },
+    {
+      id: XLSX_DV_OPTIONS_COMMAND,
+      params: {
+        unitId,
+        subUnitId,
+        ruleId,
+        options: {
+          errorStyle: rule.errorStyle,
+          error: rule.error ?? "",
+          errorTitle: rule.errorTitle ?? "",
+          showErrorMessage: rule.showErrorMessage,
+        },
+      },
+    },
+    { id: XLSX_DV_RANGE_COMMAND, params: { unitId, subUnitId, ruleId, ranges: ranges.map((range) => ({ ...range })) } },
+  ];
+}
+
+export function removeDvParams(unitId: string, subUnitId: string, ruleId: string) {
+  return { unitId, subUnitId, ruleId };
+}
+
 /** Builds the pinned `IDataValidationRule` for the form over `range`. */
 export function buildDvRule(form: XlsxDvForm, range: XlsxDvRange, uid: string = newUid()): XlsxDvBuild {
   const title = form.errorTitle.trim();
@@ -181,7 +232,7 @@ export function buildDvRule(form: XlsxDvForm, range: XlsxDvRange, uid: string = 
     ranges: [{ ...range }],
     allowBlank: true as const,
     showErrorMessage: true as const,
-    errorStyle: 1 as const,
+    errorStyle: ERROR_STYLE_CODE[form.errorStyle],
     ...(message ? { error: message } : {}),
     ...(title ? { errorTitle: title } : {}),
   };

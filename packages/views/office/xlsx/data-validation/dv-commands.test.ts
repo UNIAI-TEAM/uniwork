@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import {
   addDvParams,
   buildDvRule,
   clearDvParams,
   isRealIsoDate,
+  removeDvParams,
   selectionDvRange,
+  updateDvCommands,
   XLSX_DV_EMPTY_FORM,
   type XlsxDvForm,
 } from "./dv-commands";
@@ -136,5 +139,48 @@ describe("helpers", () => {
       failure: { field: "value2", code: "rangeOrder" },
     });
     expect(build({ type: "whole", operator: "notBetween", value1: "3", value2: "9" })).toMatchObject({ ok: true });
+  });
+});
+
+describe("error styles", () => {
+  it("writes Univer's codes: stop 1, warning 2, information 0, and keeps showErrorMessage", () => {
+    for (const [errorStyle, code] of [["stop", 1], ["warning", 2], ["information", 0]] as const) {
+      expect(build({ type: "list", value1: "a", errorStyle })).toMatchObject({
+        ok: true,
+        rule: { errorStyle: code, showErrorMessage: true },
+      });
+    }
+    expect(XLSX_DV_EMPTY_FORM.errorStyle).toBe("stop");
+  });
+});
+
+describe("edit commands", () => {
+  it("orders setting, options and range updates with exact params", () => {
+    const built = build({ type: "whole", operator: "between", value1: "1", value2: "5", errorStyle: "warning", error: "no" });
+    if (!built.ok) throw new Error("expected ok");
+    const steps = updateDvCommands("u", "s", "r1", built.rule, [range]);
+    expect(steps).toEqual([
+      {
+        id: "sheets.command.update-data-validation-setting",
+        params: { unitId: "u", subUnitId: "s", ruleId: "r1", setting: { type: "whole", operator: "between", formula1: "1", formula2: "5", allowBlank: true } },
+      },
+      {
+        id: "sheets.command.update-data-validation-options",
+        params: { unitId: "u", subUnitId: "s", ruleId: "r1", options: { errorStyle: 2, error: "no", errorTitle: "", showErrorMessage: true } },
+      },
+      { id: "sheet.command.updateDataValidationRuleRange", params: { unitId: "u", subUnitId: "s", ruleId: "r1", ranges: [range] } },
+    ]);
+    expect(removeDvParams("u", "s", "r1")).toEqual({ unitId: "u", subUnitId: "s", ruleId: "r1" });
+  });
+});
+
+describe("review fixes stay fixed", () => {
+  it("refuses hex and exponent numbers, and words notBetween as 'không nằm giữa'", () => {
+    for (const raw of ["0x10", "1e3"]) {
+      expect(build({ type: "decimal", operator: "equal", value1: raw })).toMatchObject({ ok: false });
+    }
+    expect((viLocale as { office: { xlsx: { dataValidation: { operators: Record<string, string> } } } }).office.xlsx.dataValidation.operators.notBetween).toBe(
+      "không nằm giữa",
+    );
   });
 });

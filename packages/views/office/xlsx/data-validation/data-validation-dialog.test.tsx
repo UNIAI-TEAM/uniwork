@@ -175,4 +175,45 @@ describe("XlsxDataValidationDialog", () => {
     expect(execute).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("picks an error style, defaults to stop, and explains each", async () => {
+    const { execute } = renderDialog();
+    const hint = (style: string) => lookup(viLocale, `office.xlsx.dataValidation.errorStyleHints.${style}`) as string;
+    expect(screen.getByText(hint("stop"))).toBeInTheDocument();
+    pick("office.xlsx.dataValidation.dialog.errorStyle", "office.xlsx.dataValidation.errorStyles.warning");
+    expect(screen.getByText(hint("warning"))).toBeInTheDocument();
+    pick("office.xlsx.dataValidation.dialog.errorStyle", "office.xlsx.dataValidation.errorStyles.information");
+    expect(screen.getByText(hint("information"))).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("xlsx-dv-source"), { target: { value: "a,b" } });
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    await waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    expect(execute.mock.calls[0]![1]).toMatchObject({ rule: { errorStyle: 0, showErrorMessage: true } });
+  });
+
+  it("edit mode fires the three updates in order and stops at the first refusal", async () => {
+    const execute = vi.fn((id: string, _params?: unknown) => id !== "sheets.command.update-data-validation-options");
+    const onClose = vi.fn();
+    render(
+      <XlsxDataValidationDialog
+        commands={{ execute }}
+        unitId="file-abc"
+        subUnitId="sheet-1"
+        range={range}
+        edit={{
+          ruleId: "r1",
+          ranges: [range],
+          form: { type: "list", operator: "between", value1: "x,y", value2: "", errorTitle: "", error: "", errorStyle: "warning" },
+        }}
+        onClose={onClose}
+      />,
+    );
+    expect(screen.getByTestId("xlsx-dv-source")).toHaveValue("x,y");
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    await waitFor(() => expect(screen.getByTestId("xlsx-dv-refused")).toBeInTheDocument());
+    expect(execute.mock.calls.map((call) => call[0])).toEqual([
+      "sheets.command.update-data-validation-setting",
+      "sheets.command.update-data-validation-options",
+    ]);
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

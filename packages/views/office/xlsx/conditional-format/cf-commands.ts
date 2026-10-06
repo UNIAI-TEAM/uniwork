@@ -8,10 +8,13 @@ import { parsePlainDecimal } from "../data-validation/dv-commands";
 export const XLSX_CF_ADD_COMMAND = "sheet.command.add-conditional-rule";
 export const XLSX_CF_CLEAR_RANGE_COMMAND = "sheet.command.clear-range-conditional-rule";
 export const XLSX_CF_CLEAR_SHEET_COMMAND = "sheet.command.clear-worksheet-conditional-rule";
+export const XLSX_CF_SET_COMMAND = "sheet.command.set-conditional-rule";
+export const XLSX_CF_MOVE_COMMAND = "sheet.command.move-conditional-rule";
+export const XLSX_CF_DELETE_COMMAND = "sheet.command.delete-conditional-rule";
 
 const TEXT_MAX_LENGTH = 255;
 
-export type XlsxCfPreset = "greaterThan" | "lessThan" | "between" | "containsText" | "duplicateValues";
+export type XlsxCfPreset = "greaterThan" | "lessThan" | "between" | "containsText" | "duplicateValues" | "uniqueValues";
 export type XlsxCfStyleId = "lightRedDarkRed" | "yellowDarkYellow" | "greenDarkGreen" | "lightRedFill" | "redText";
 
 export interface XlsxCfRange {
@@ -41,6 +44,18 @@ const STYLES: Record<XlsxCfStyleId, XlsxCfStyle> = {
   lightRedFill: { bg: { rgb: "#FFC7CE" } },
   redText: { cl: { rgb: "#9C0006" } },
 };
+
+/** The preset whose cell format equals `style`, or null for any other format. */
+export function matchCfStyleId(style: unknown): XlsxCfStyleId | null {
+  if (!style || typeof style !== "object") return null;
+  const { bg, cl, ...rest } = style as { bg?: { rgb?: unknown }; cl?: { rgb?: unknown } };
+  if (Object.keys(rest).length > 0) return null;
+  const bgRgb = typeof bg?.rgb === "string" ? bg.rgb.toUpperCase() : undefined;
+  const clRgb = typeof cl?.rgb === "string" ? cl.rgb.toUpperCase() : undefined;
+  return (
+    XLSX_CF_STYLE_IDS.find((id) => STYLES[id].bg?.rgb.toUpperCase() === bgRgb && STYLES[id].cl?.rgb.toUpperCase() === clRgb) ?? null
+  );
+}
 
 export function cfStyleOf(id: XlsxCfStyleId): XlsxCfStyle {
   const style = STYLES[id];
@@ -88,6 +103,8 @@ export function buildCfInnerRule(preset: XlsxCfPreset, input: XlsxCfInput, style
     }
     case "duplicateValues":
       return { ok: true, inner: { type: "highlightCell", subType: "duplicateValues", style } };
+    case "uniqueValues":
+      return { ok: true, inner: { type: "highlightCell", subType: "uniqueValues", style } };
     default:
       return { ok: false, error: "invalidNumber" };
   }
@@ -115,4 +132,32 @@ export function clearRangeParams(unitId: string, subUnitId: string, range: XlsxC
 
 export function clearSheetParams(unitId: string, subUnitId: string) {
   return { unitId, subUnitId };
+}
+
+/** Params of `sheet.command.set-conditional-rule`: replaces the rule `cfId`
+ *  keeping its areas and stop-if-true flag. */
+export function setRuleParams(
+  unitId: string,
+  subUnitId: string,
+  cfId: string,
+  ranges: readonly XlsxCfRange[],
+  stopIfTrue: boolean,
+  inner: Record<string, unknown>,
+) {
+  return {
+    unitId,
+    subUnitId,
+    cfId,
+    rule: { cfId, ranges: ranges.map((range) => ({ ...range })), stopIfTrue, rule: inner },
+  };
+}
+
+/** Params of `sheet.command.move-conditional-rule`: puts `cfId` before or
+ *  after `otherCfId` in the priority list. */
+export function moveRuleParams(unitId: string, subUnitId: string, cfId: string, otherCfId: string, place: "before" | "after") {
+  return { unitId, subUnitId, start: { id: cfId, type: "self" }, end: { id: otherCfId, type: place } };
+}
+
+export function deleteRuleParams(unitId: string, subUnitId: string, cfId: string) {
+  return { unitId, subUnitId, cfId };
 }
