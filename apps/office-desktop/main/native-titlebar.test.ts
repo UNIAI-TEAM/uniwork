@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it, vi } from "vitest";
+import { BRAND_PRODUCT_NAME } from "./branding";
 import { applyTitleBarTheme, createMainWindow, DESKTOP_TITLE_BAR_TOKENS, DESKTOP_WINDOW_MIN_SIZE, desktopWindowMinSize, nativeWindowOptions } from "./window";
 
 it("keeps the window wide enough for the tab strip and tall enough that the page outweighs the chrome", () => {
@@ -19,12 +20,15 @@ it("never asks for more height than the work area, and never less than 480", () 
 it("builds the one window with the minimum size, the secure preferences and the native titlebar", () => {
   const built: Electron.BrowserWindowConstructorOptions[] = [];
   const setMenuBarVisibility = vi.fn();
-  class FakeWindow { constructor(options: Electron.BrowserWindowConstructorOptions) { built.push(options); } setMenuBarVisibility = setMenuBarVisibility; }
-  createMainWindow(FakeWindow as unknown as typeof Electron.BrowserWindow, { show: false, preload: "/p/index.cjs", platform: "win32", dark: true, workAreaHeight: 560 });
-  expect(built[0]).toMatchObject({ show: false, minWidth: 640, minHeight: 560, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: "/p/index.cjs" }, titleBarOverlay: { ...DESKTOP_TITLE_BAR_TOKENS.dark, height: 40 } });
+  const setTitle = vi.fn();
+  class FakeWindow { constructor(options: Electron.BrowserWindowConstructorOptions) { built.push(options); } setMenuBarVisibility = setMenuBarVisibility; setTitle = setTitle; on = vi.fn(); }
+  createMainWindow(FakeWindow as unknown as typeof Electron.BrowserWindow, { show: false, preload: "/p/index.cjs", platform: "win32", dark: true, workAreaHeight: 560, icon: "/d/icons/icon.ico" });
+  expect(built[0]).toMatchObject({ show: false, title: BRAND_PRODUCT_NAME, icon: "/d/icons/icon.ico", minWidth: 640, minHeight: 560, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: "/p/index.cjs" }, titleBarOverlay: { ...DESKTOP_TITLE_BAR_TOKENS.dark, height: 40 } });
   expect(setMenuBarVisibility).toHaveBeenCalledWith(false);
-  createMainWindow(FakeWindow as unknown as typeof Electron.BrowserWindow, { show: true, preload: "/p/index.cjs", platform: "darwin", dark: false });
+  expect(setTitle).toHaveBeenCalledWith(BRAND_PRODUCT_NAME);
+  createMainWindow(FakeWindow as unknown as typeof Electron.BrowserWindow, { show: true, preload: "/p/index.cjs", platform: "darwin", dark: false, icon: "/d/icons/icon.png" });
   expect(built[1]).not.toHaveProperty("titleBarOverlay");
+  expect(built[1]).not.toHaveProperty("icon");
   expect(built[1]).toMatchObject(DESKTOP_WINDOW_MIN_SIZE);
   expect(setMenuBarVisibility).toHaveBeenCalledTimes(1);
   // The entry module builds its window through this helper, not by hand.

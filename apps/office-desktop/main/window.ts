@@ -1,5 +1,6 @@
 import { themeChangedEventSchema } from "../shared/ipc";
 import { WINDOW_WEB_PREFERENCES } from "./index";
+import { brandWindowTitle, formatWindowTitle } from "./branding";
 
 export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
   // Electron requires literal colors. These mirror --muted and
@@ -40,9 +41,13 @@ type BrowserWindowConstructor = new (options: Electron.BrowserWindowConstructorO
 
 /** The one document window. Electron is injected so the entry module stays
  * the only file that imports it. */
-export function createMainWindow(BrowserWindow: BrowserWindowConstructor, options: { show: boolean; preload: string; platform: NodeJS.Platform; dark: boolean; workAreaHeight?: number }): Electron.BrowserWindow {
+export function createMainWindow(BrowserWindow: BrowserWindowConstructor, options: { show: boolean; preload: string; platform: NodeJS.Platform; dark: boolean; workAreaHeight?: number; icon?: string }): Electron.BrowserWindow {
   const window = new BrowserWindow({
     show: options.show,
+    title: formatWindowTitle("main"),
+    // macOS takes the bundle (or dev dock) icon; Windows and Linux need it
+    // on the window for the title bar, taskbar and Alt+Tab.
+    ...(options.icon && options.platform !== "darwin" ? { icon: options.icon } : {}),
     ...desktopWindowMinSize(options.workAreaHeight),
     webPreferences: {
       ...WINDOW_WEB_PREFERENCES,
@@ -51,6 +56,7 @@ export function createMainWindow(BrowserWindow: BrowserWindowConstructor, option
     ...nativeWindowOptions(options.platform, options.dark),
   });
   if (options.platform !== "darwin") window.setMenuBarVisibility(false);
+  brandWindowTitle(window);
   return window;
 }
 

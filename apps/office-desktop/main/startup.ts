@@ -4,6 +4,7 @@ import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../shared/identity"
 import type { DeploymentProfile } from "../shared/deployment";
 import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./platform-gate";
 import { registerAppImageScheme } from "./linux-desktop-integration";
+import { BRAND_PRODUCT_NAME } from "./branding";
 
 /** Node exposes the runtime glibc through the diagnostic report header; absent
  * on musl or when the report is unavailable, in which case the gate cannot
@@ -38,20 +39,22 @@ export async function passPlatformGate(app: Pick<Electron.App, "isPackaged" | "w
   // only writes to stderr). Nothing is created or written here: the user-data
   // path is never set and no window is made.
   await app.whenReady();
-  dialog.showErrorBox("UniWork Office", `${failure.messageVi}\n\n${failure.messageEn}`);
+  dialog.showErrorBox(BRAND_PRODUCT_NAME, `${failure.messageVi}\n\n${failure.messageEn}`);
   app.exit(1);
   return false;
 }
 
 /** An AppImage has no install step, so register the scheme from the running
  * AppImage on first launch (the .deb does this in its postinst). */
-export function registerAppImageOnFirstRun(app: Pick<Electron.App, "getPath">): void {
+export function registerAppImageOnFirstRun(app: Pick<Electron.App, "getPath" | "getName">, iconPath?: string): void {
   if (process.platform !== "linux" || !process.env.APPIMAGE) return;
   try {
     registerAppImageScheme({
       appImagePath: process.env.APPIMAGE,
       desktopFileName: `${DESKTOP_IDENTITY.executable}.desktop`,
-      productName: DESKTOP_IDENTITY_MANIFEST.product,
+      productName: BRAND_PRODUCT_NAME,
+      iconPath,
+      wmClass: app.getName(),
       scheme: DESKTOP_IDENTITY.userScheme,
       dataHomeDirectory: process.env.XDG_DATA_HOME && process.env.XDG_DATA_HOME.length > 0 ? process.env.XDG_DATA_HOME : join(app.getPath("home"), ".local", "share"),
     });

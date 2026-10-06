@@ -32,6 +32,7 @@ import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPr
 import { createMainWindow, DESKTOP_TITLE_BAR_TOKENS, watchNativeTheme } from "./main/window";
 import { systemLanguages } from "./main/appearance";
 import { createNativeMenuTemplate } from "./main/native-menu";
+import { applyAppBranding, brandIconPath, formatWindowTitle, printWindowTitle } from "./main/branding";
 import { installRendererProtocol, registerRendererScheme } from "./main/renderer-protocol";
 import { captureEarlyLaunchEvents, createNoopLaunchBridge } from "./main/launch-events";
 import { passPlatformGate, registerAppImageOnFirstRun, runSmokeDiagnostics } from "./main/startup";
@@ -41,6 +42,7 @@ import { registerWindowIpc } from "./main/window-ipc";
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
 const PRELOAD_PATH = resolve(DIST_MAIN_DIRECTORY, "../preload/index.cjs");
+const BRAND_ICON_PATH = brandIconPath(process.platform, dirname(DIST_MAIN_DIRECTORY));
 const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
 const launchEvents = captureEarlyLaunchEvents(app);
@@ -56,7 +58,7 @@ async function startElectronHost(): Promise<void> {
     return;
   }
   if (!(await passPlatformGate(app, dialog, SMOKE_MODE))) return;
-  registerAppImageOnFirstRun(app);
+  registerAppImageOnFirstRun(app, BRAND_ICON_PATH);
   // A packaged app never accepts a runtime environment override for its data
   // location. The smoke flag is an explicit local test seam and is the only
   // packaged exception; production profile binding remains download-time.
@@ -65,7 +67,8 @@ async function startElectronHost(): Promise<void> {
   // root is ~/.config/<userDataNamespace>.
   const defaultUserData = join(app.getPath("appData"), DESKTOP_IDENTITY.userDataNamespace);
   app.setPath("userData", configuredUserData ? resolve(configuredUserData) : defaultUserData);
-  app.setAppUserModelId(DESKTOP_IDENTITY.appId);
+  // Name, AppUserModelId (the installer shortcut's), About panel, dev dock icon.
+  applyAppBranding(app, process.platform, BRAND_ICON_PATH);
   const deploymentResolution = resolveDeploymentProfile({
     installedProfilePath: app.isPackaged ? join(process.resourcesPath, "deployment-profile.json") : undefined,
     userDataDirectory: app.getPath("userData"),
@@ -117,7 +120,7 @@ async function startElectronHost(): Promise<void> {
   await authManager?.restore();
   installRendererProtocol(protocol, net, RENDERER_DIRECTORY);
 
-  const window = createMainWindow(BrowserWindow, { show: !SMOKE_MODE, preload: PRELOAD_PATH, platform: process.platform, dark: nativeTheme.shouldUseDarkColors, workAreaHeight: screen.getPrimaryDisplay().workAreaSize.height });
+  const window = createMainWindow(BrowserWindow, { show: !SMOKE_MODE, preload: PRELOAD_PATH, platform: process.platform, dark: nativeTheme.shouldUseDarkColors, workAreaHeight: screen.getPrimaryDisplay().workAreaSize.height, icon: BRAND_ICON_PATH });
   watchNativeTheme(nativeTheme, window, process.platform);
   let nativeSaveListener: (() => void) | undefined;
   const officeTransport = deploymentProfile && credentials ? createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
@@ -176,7 +179,7 @@ async function startElectronHost(): Promise<void> {
   installPrintSessionGuard(session.fromPartition(PRINT_PARTITION), pathToFileURL(printRoot).href);
   // A process that quit with a print dialog open never ran its cleanup.
   await clearPrintRoot(printRoot);
-  const printHandlers = createPrintIpcHandler({ owner: window, createWindow: (options) => new BrowserWindow({ ...options, parent: window }), writeFile: createPrintFileWriter(printRoot) });
+  const printHandlers = createPrintIpcHandler({ owner: window, createWindow: (options) => new BrowserWindow({ ...options, title: printWindowTitle(options.title), parent: window }), writeFile: createPrintFileWriter(printRoot) });
   const host = createDesktopHost({
     handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
@@ -251,7 +254,7 @@ async function startElectronHost(): Promise<void> {
     report: async (code) => {
       await dialog.showMessageBox(window, {
         type: code === "auto_update_disabled" ? "info" : "error",
-        title: "Cập nhật UniWork Office",
+        title: formatWindowTitle("dialog", "Cập nhật"),
         message: code === "auto_update_disabled" ? "Bản dựng này chưa hỗ trợ cập nhật tự động." : "Không thể cập nhật. Ứng dụng vẫn đang mở.",
         detail: `Mã: ${code}`, buttons: ["Đóng"],
       });

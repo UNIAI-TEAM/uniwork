@@ -5,7 +5,7 @@ import { useWindowTitle } from "./window-title";
 
 describe("useWindowTitle", () => {
   it("follows the active document and falls back to the product title", () => {
-    const { rerender } = renderHook(({ title }: { title?: string }) => useWindowTitle(title), { initialProps: { title: "Báo cáo quý.docx" } });
+    const { rerender } = renderHook(({ title }: { title?: string }) => useWindowTitle(title), { initialProps: { title: "Báo cáo quý.docx" } as { title?: string } });
     expect(document.title).toBe("Báo cáo quý.docx");
     rerender({ title: "Kế hoạch.xlsx" });
     expect(document.title).toBe("Kế hoạch.xlsx");
