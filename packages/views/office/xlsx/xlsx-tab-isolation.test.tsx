@@ -2,7 +2,9 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OfficeDocumentActiveProvider } from "../common/document-active";
 import { fireCommand } from "./fire-command";
-import { appliedFormatKey, readAppliedPattern, recordAppliedFormat } from "./number-format/applied-format";
+import { OfficeRibbon } from "../ribbon";
+import { appliedFormatKey, forgetAppliedFormat, readAppliedPattern, recordAppliedFormat } from "./number-format/applied-format";
+import { xlsxNumberRibbonItems } from "./number-format/number-format-group";
 import { XLSX_FORMAT_PAINTER_OFF, XLSX_FORMAT_PAINTER_OPERATION, XlsxFormatPainterButton } from "./toolbar/clear/format-painter";
 import type { XlsxToolbarCommands } from "./toolbar/types";
 import type { XlsxToolbarGroupProps } from "./toolbar/types";
@@ -87,17 +89,30 @@ describe("xlsx tab isolation", () => {
     expect(within(screen.getByTestId("doc-b")).queryByTestId("xlsx-command-refused")).toBeNull();
   });
 
-  it("keeps the last applied number format per workbook unit", () => {
-    const selection = { sheet: "Data", address: "B2" };
-    const keyA = appliedFormatKey("unit-a", selection);
-    const keyB = appliedFormatKey("unit-b", selection);
-    recordAppliedFormat(keyA, "0.00%");
-    recordAppliedFormat(keyB, "#,##0");
-    expect(readAppliedPattern(keyA)).toBe("0.00%");
-    expect(readAppliedPattern(keyB)).toBe("#,##0");
-    // A later selection in the same unit still replaces that unit's entry.
-    recordAppliedFormat(appliedFormatKey("unit-a", { sheet: "Data", address: "C3" }), "0");
-    expect(readAppliedPattern(keyA)).toBeNull();
-    expect(readAppliedPattern(keyB)).toBe("#,##0");
+  it("keeps the last applied number format per open document, even for the same bytes", async () => {
+    // Two tabs of one template: the same Univer unit id, two documents.
+    const formatGroup = (documentKey: string, testId: string) => (
+      <div data-testid={testId}>
+        <OfficeRibbon scope={`xlsx-iso-${testId}`} activeTabId="home"
+          tabs={[{ id: "home", labelKey: "Home", groups: [{ id: "number", labelKey: "Number", priority: 0, items: xlsxNumberRibbonItems({ ...painterProps({ execute: vi.fn(() => true) }), unitId: "file-same-sha", documentKey, selection: { sheet: "Data", address: "B2" } }) }] }]} />
+      </div>
+    );
+    render(<>{formatGroup("doc-a", "doc-a")}<OfficeDocumentActiveProvider active={false}>{formatGroup("doc-b", "doc-b")}</OfficeDocumentActiveProvider></>);
+    const triggerA = within(screen.getByTestId("doc-a")).getByTestId("xlsx-number-format-trigger");
+    const triggerB = within(screen.getByTestId("doc-b")).getByTestId("xlsx-number-format-trigger");
+    const generalLabel = triggerB.textContent;
+    fireEvent.click(screen.getByTestId("doc-a").querySelector<HTMLElement>("[data-ribbon-item='number-percent']")!);
+    await waitFor(() => expect(triggerA.textContent).not.toBe(generalLabel));
+    expect(triggerB.textContent).toBe(generalLabel);
+  });
+
+  it("drops a closed document's applied format", () => {
+    const key = appliedFormatKey("doc-closed", { sheet: "Data", address: "B2" });
+    recordAppliedFormat(key, "0.00%");
+    expect(readAppliedPattern(key)).toBe("0.00%");
+    forgetAppliedFormat("doc-closed");
+    expect(readAppliedPattern(key)).toBeNull();
+    // No document, no entry: a toolbar without a document key records nothing.
+    expect(appliedFormatKey(undefined, { sheet: "Data", address: "B2" })).toBeNull();
   });
 });

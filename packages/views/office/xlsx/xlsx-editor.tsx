@@ -448,7 +448,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 onPrint={rendererHost ? pageSetup.print : undefined}
                 onExportCsv={rendererHost ? pageSetup.exportCsv : undefined}
                 host={rendererHost}
-                unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null}
+                unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null} documentKey={documentKey}
                 sheetName={selection?.sheet ?? activeSheet}
                 tables={tables} resolveSheetId={gridSheetId}
                 onOpenFunctionLibrary={rendererHost ? () => setFunctionLibraryOpen(true) : undefined}

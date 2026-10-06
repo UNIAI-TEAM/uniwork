@@ -469,3 +469,15 @@ describe("toolbar i18n", () => {
     expect(keys).toEqual(toolbarKeyPaths(en));
   });
 });
+
+describe("applied number format lifetime (UNI-957)", () => {
+  it("drops the document's applied format when its toolbar unmounts", async () => {
+    const { appliedFormatKey, readAppliedPattern, recordAppliedFormat } = await import("./number-format/applied-format");
+    const key = appliedFormatKey("doc-toolbar", { sheet: "Data", address: "B2" });
+    const view = render(<XlsxToolbar {...renderProps({ documentKey: "doc-toolbar" })} />);
+    recordAppliedFormat(key, "0.00%");
+    expect(readAppliedPattern(key)).toBe("0.00%");
+    view.unmount();
+    expect(readAppliedPattern(key)).toBeNull();
+  });
+});
