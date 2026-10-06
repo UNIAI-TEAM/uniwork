@@ -84,6 +84,6 @@ export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows:
     return () => { clearTimeout(grace); window.removeEventListener("blur", onBlur); window.removeEventListener("focus", onFocus); };
   }, [lingering]);
   const shown = windows && (inFlight > 0 || lingering);
-  const hint = shown ? <p role="status" className="px-4 py-2 text-caption text-muted-foreground" data-testid="print-preview-hint">{t("printPreviewHint")}</p> : null;
+  const hint = shown ? <p role="status" className="pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md ring-1 ring-foreground/10" data-testid="print-preview-hint">{t("printPreviewHint")}</p> : null;
   return { port, hint };
 }

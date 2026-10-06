@@ -54,7 +54,10 @@ it("shows the Windows preview hint while a print is in flight, then clears it", 
   const hint = await screen.findByTestId("print-preview-hint");
   expect(hint).toHaveTextContent(i18n.t("officeDesktop.library.printPreviewHint"));
   expect(hint).toHaveAttribute("role", "status");
-  expect(hint).toHaveClass("text-muted-foreground");
+  expect(hint).toHaveClass("text-popover-foreground");
+  // An overlay, not a strip: out of the flow, so the editor below does not shift while the dialog is open.
+  expect(hint).toHaveClass("fixed");
+  expect(hint).not.toHaveClass("px-4", "py-2");
   await waitFor(() => expect(bridge.call).toHaveBeenCalledTimes(1));
   await act(async () => { finish!({ outcome: "printed" }); await pending; });
   expect(screen.queryByTestId("print-preview-hint")).toBeNull();
