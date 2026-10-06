@@ -9,7 +9,7 @@ import { createByteTestEditor } from "../../test/byte-editor";
 
 const printTextDocument = vi.hoisted(() => vi.fn());
 const createDesktopPrintPort = vi.hoisted(() => vi.fn(() => ({ print: vi.fn() })));
-vi.mock("./text-print", () => ({ printTextDocument, createDesktopPrintPort, isPrintBusy: (outcome: { outcome: string; reason?: string }) => outcome.outcome === "failed" && outcome.reason === "print_busy" }));
+vi.mock("./text-print", async (importOriginal) => ({ ...(await importOriginal<typeof import("./text-print")>()), printTextDocument, createDesktopPrintPort }));
 
 const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", generation: 1, baseRevision: "2", baseVersionId: "v2" };
 const checksum = `sha256:${"b".repeat(64)}`;
@@ -68,8 +68,25 @@ it("says a print is already open instead of the generic action error", async () 
   await screen.findByTestId("md-editor", {}, { timeout: 15000 });
   openMenu();
   fireEvent.click(await screen.findByRole("menuitem", { name: printLabel() }));
-  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("officeDesktop.library.printBusy"));
-  expect(screen.getByRole("alert")).not.toHaveTextContent(i18n.t("officeDesktop.library.actionError"));
+  const notice = await screen.findByText(i18n.t("officeDesktop.library.printBusy"));
+  expect(notice).toHaveAttribute("role", "status");
+  expect(notice).toHaveClass("text-muted-foreground");
+  expect(notice).not.toHaveClass("text-destructive");
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("clears the print-busy notice when the next print settles", async () => {
+  printTextDocument.mockClear();
+  printTextDocument.mockResolvedValueOnce({ outcome: "failed", reason: "print_busy" }).mockResolvedValueOnce({ outcome: "printed" });
+  mount("md", "x");
+  await screen.findByTestId("md-editor", {}, { timeout: 15000 });
+  openMenu();
+  fireEvent.click(await screen.findByRole("menuitem", { name: printLabel() }));
+  await screen.findByText(i18n.t("officeDesktop.library.printBusy"));
+  openMenu();
+  fireEvent.click(await screen.findByRole("menuitem", { name: printLabel() }));
+  await waitFor(() => expect(printTextDocument).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.queryByText(i18n.t("officeDesktop.library.printBusy"))).toBeNull());
 });
 
 it("offers no print item for a docx session", async () => {
