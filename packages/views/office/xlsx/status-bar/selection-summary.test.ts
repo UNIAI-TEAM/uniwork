@@ -14,12 +14,16 @@ describe("summarizeCells", () => {
     expect(summarizeCells([cell(7)])).toEqual({ kind: "numeric", nonEmptyCount: 1, numericCount: 1, sum: 7, average: 7, min: 7, max: 7 });
   });
 
-  it("shows count only for a mixed selection", () => {
-    expect(summarizeCells([cell(2), cell("two"), cell(4), cell(true)])).toEqual({ kind: "count", nonEmptyCount: 4 });
+  it("summarizes numbers and counts every value for a mixed selection (Excel)", () => {
+    expect(summarizeCells([cell(2), cell("two"), cell(4), cell(true)])).toEqual({
+      kind: "numeric", nonEmptyCount: 4, numericCount: 2, sum: 6, average: 3, min: 2, max: 4,
+    });
   });
 
-  it("treats a boolean as a non-numeric value", () => {
-    expect(summarizeCells([cell(1), cell(true)])).toEqual({ kind: "count", nonEmptyCount: 2 });
+  it("treats a boolean as a non-numeric value that still counts", () => {
+    expect(summarizeCells([cell(1), cell(true)])).toEqual({
+      kind: "numeric", nonEmptyCount: 2, numericCount: 1, sum: 1, average: 1, min: 1, max: 1,
+    });
   });
 
   it("keeps zero and negative values as data", () => {

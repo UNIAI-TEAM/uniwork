@@ -27,15 +27,15 @@ function summaryContent(state: Extract<XlsxSummaryState, { kind: "ready" }>, loc
   if (summary.kind === "numeric") {
     return (
       <>
-        <span className="tabular-nums" data-testid="xlsx-status-bar-sum">{t("office.xlsx.statusBar.sum", { value: number(summary.sum) })}</span>
         <span className="tabular-nums" data-testid="xlsx-status-bar-average">{t("office.xlsx.statusBar.average", { value: number(summary.average) })}</span>
-        <span className="tabular-nums" data-testid="xlsx-status-bar-count">{t("office.xlsx.statusBar.count", { value: number(summary.numericCount) })}</span>
-        <span className="tabular-nums" data-testid="xlsx-status-bar-min">{t("office.xlsx.statusBar.min", { value: number(summary.min) })}</span>
-        <span className="tabular-nums" data-testid="xlsx-status-bar-max">{t("office.xlsx.statusBar.max", { value: number(summary.max) })}</span>
+        <span className="tabular-nums" data-testid="xlsx-status-bar-count">{t("office.xlsx.statusBar.count", { value: number(summary.nonEmptyCount) })}</span>
+        <span className="tabular-nums" data-testid="xlsx-status-bar-sum">{t("office.xlsx.statusBar.sum", { value: number(summary.sum) })}</span>
       </>
     );
   }
   if (summary.kind === "count") {
+    // Excel shows no count for a lone text cell.
+    if (summary.nonEmptyCount < 2) return <span className="sr-only" data-testid="xlsx-status-bar-single-value" />;
     return <span className="tabular-nums" data-testid="xlsx-status-bar-count">{t("office.xlsx.statusBar.count", { value: number(summary.nonEmptyCount) })}</span>;
   }
   if (state.partial) {

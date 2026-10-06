@@ -68,8 +68,27 @@ describe("XlsxStatusBar", () => {
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(10)}`);
     expect(screen.getByTestId("xlsx-status-bar-average")).toHaveTextContent(`Trung bình: ${viNumber(2.5)}`);
     expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số lượng: 4");
-    expect(screen.getByTestId("xlsx-status-bar-min")).toHaveTextContent(`Nhỏ nhất: ${viNumber(1)}`);
-    expect(screen.getByTestId("xlsx-status-bar-max")).toHaveTextContent(`Lớn nhất: ${viNumber(4)}`);
+    // Excel default status bar: Average, Count, Sum - in that order, no Min/Max.
+    expect(screen.queryByTestId("xlsx-status-bar-min")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-status-bar-max")).not.toBeInTheDocument();
+    expect(screen.getByTestId("xlsx-status-bar").textContent).toBe(
+      `Trung bình: ${viNumber(2.5)}Số lượng: 4Tổng: ${viNumber(10)}`,
+    );
+  });
+
+  it("formats large totals with the Vietnamese grouping", async () => {
+    const readRange = vi.fn(async () => result([cell(1_250_000_000)]));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-sum");
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent("Tổng: 1.250.000.000");
+  });
+
+  it("shows nothing for a single text cell, like Excel", async () => {
+    const readRange = vi.fn(async () => result([cell("alpha")]));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-single-value");
+    expect(screen.queryByTestId("xlsx-status-bar-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-status-bar-no-values")).not.toBeInTheDocument();
   });
 
   it("shows only the count for a text-only selection", async () => {
@@ -80,12 +99,13 @@ describe("XlsxStatusBar", () => {
     expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
   });
 
-  it("shows only the count for a mixed selection", async () => {
+  it("shows Average, Count and Sum over the numbers for a mixed selection", async () => {
     const readRange = vi.fn(async () => result([cell(1, 0, 0), cell("two", 1, 0), cell(3, 2, 0)]));
     render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A3")} host={host(readRange)} />);
     await screen.findByTestId("xlsx-status-bar-count");
     expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số lượng: 3");
-    expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(4)}`);
+    expect(screen.getByTestId("xlsx-status-bar-average")).toHaveTextContent(`Trung bình: ${viNumber(2)}`);
   });
 
   it("keeps the previous summary visible while the next read is pending", async () => {
@@ -214,7 +234,7 @@ describe("XlsxStatusBar", () => {
     render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={host(readRange)} />);
     await screen.findByTestId("xlsx-status-bar-sum");
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Sum: ${(1010).toLocaleString("en")}`);
-    expect(screen.getByTestId("xlsx-status-bar-max")).toHaveTextContent("Max: 1,010");
+    expect(screen.getByTestId("xlsx-status-bar-average")).toHaveTextContent("Average: 1,010");
   });
 });
 
