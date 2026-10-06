@@ -1,6 +1,6 @@
 # UniWork - FileService dùng chung và vòng đời file
 
-> **Trạng thái:** in-progress - Thiết kế đã được triển khai trên nhánh `feature/UNI-726-shared-file-service` (cập nhật 2026-09-27; kết quả và việc còn mở ở plan §9); chờ người dùng nghiệm thu.
+> **Trạng thái:** in-progress - Thiết kế đã được triển khai trên nhánh `feature/UNI-726-shared-file-service` (cập nhật 2026-09-27; kết quả và việc còn mở ở plan §9; 2026-10-06 thêm gốc môi trường trước `v1/` ở §6.2, UNI-947); chờ người dùng nghiệm thu.
 
 **Ngày:** 2026-09-22
 
@@ -361,10 +361,14 @@ Endpoint nghiệp vụ chọn purpose; không tin purpose/path/scope do client t
 ### 6.2 Key chuẩn
 
 ```text
-v1/users/{userId}/{purposePrefix}/{YYYY}/{MM}/{fileId}/original
-v1/orgs/{orgId}/workspaces/{workspaceId}/{purposePrefix}/{YYYY}/{MM}/{fileId}/original
-v1/orgs/{orgId}/{purposePrefix}/{YYYY}/{MM}/{fileId}/original
+{envRoot}v1/users/{userId}/{purposePrefix}/{YYYY}/{MM}/{fileId}/original
+{envRoot}v1/orgs/{orgId}/workspaces/{workspaceId}/{purposePrefix}/{YYYY}/{MM}/{fileId}/original
+{envRoot}v1/orgs/{orgId}/{purposePrefix}/{YYYY}/{MM}/{fileId}/original
 ```
+
+**Quyết định UNI-947 (2026-10-06):** nhiều môi trường có thể dùng chung một bucket, nên mọi key FileService nằm dưới gốc môi trường `{envRoot}` đứng trước `v1/`. `{envRoot}` đọc từ `S3_KEY_PREFIX` cho mọi backend (MinIO, S3, local), đã chuẩn hóa dạng `develop/` hoặc `production/`; rỗng nghĩa là gốc bucket (dev local). Giá trị không an toàn (`..`, slash đầu, segment rỗng, backslash, URL) làm server dừng khi khởi động. `v1/` vẫn là ranh giới FileService/legacy và là version bố cục. Key đầy đủ (kể cả gốc) được lưu trong `files.object_key`; adapter không bao giờ viết lại key. Hàng tạo trước quyết định này giữ key cũ và vẫn đọc được; không di chuyển object cũ, không làm backfill.
+
+Collector (§9) chỉ coi là của mình key bắt đầu bằng `{envRoot}v1/` của chính môi trường đó: key dưới gốc của môi trường khác, hoặc ở gốc bucket khi đã có gốc, là `unmanaged_locator` và không bao giờ bị xóa. Locator legacy nêu key, có hoặc không kèm gốc, đều giữ object (`legacy_locator_shared`).
 
 Đề xuất object basename không cần phần mở rộng: Content-Type và tên tải từ metadata. Cách này cho phép ghi nhận key trước khi đọc bytes và xác định MIME, tránh dùng đuôi file do client cung cấp. Nếu chọn thêm phần mở rộng khi duyệt, phải ghi intent cho key cuối trước Put, không đổi key sau khi object đã lưu.
 
