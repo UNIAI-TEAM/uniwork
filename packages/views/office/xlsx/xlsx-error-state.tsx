@@ -17,6 +17,7 @@ const FAILURE_ICON = {
   unsupported_feature: ShieldAlert,
   not_office_file: FileWarning,
   engine_error: AlertTriangle,
+  engine_unavailable: ShieldAlert,
 } as const;
 
 function failureKey(failureClass: string): keyof typeof FAILURE_ICON {

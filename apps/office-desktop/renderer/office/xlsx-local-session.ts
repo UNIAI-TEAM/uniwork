@@ -260,7 +260,12 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
         await editor.open();
         return { outcome: "opened", document_id: documentId, document_model_ref: `desktop:${documentId}`, snapshot: editor.getWorkbookSnapshot?.() ?? undefined };
       } catch (error) {
-        return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_error", message: error instanceof Error ? error.message : String(error) };
+        const message = error instanceof Error ? error.message : String(error);
+        // Main answers engine_incompatible when this build staged no xlsx
+        // gateway: not a retryable glitch, so the screen says the engine is
+        // missing from the build instead of "cannot open, retry".
+        if (/engine_incompatible/.test(message)) return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_unavailable", engine_error: "engine_incompatible", message };
+        return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_error", message };
       }
     },
   };

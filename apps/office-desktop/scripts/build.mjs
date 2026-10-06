@@ -6,6 +6,7 @@ import { mkdir, copyFile, writeFile, rm, readFile } from "node:fs/promises";
 import { dirname as pathDirname, join as pathJoin } from "node:path";
 import { deriveBuildMetadata, readDeploymentProfileFromEnv, writeDeploymentProfile } from "./deployment-profile.mjs";
 import { compileRendererStyles } from "./compile-styles.mjs";
+import { missingGatewayError, resolveXlsxAssetSources, stageXlsxAssets } from "./xlsx-assets.mjs";
 
 const app = join(dirname(fileURLToPath(import.meta.url)), "..");
 const identity = JSON.parse(await readFile(join(app, "identity.json"), "utf8"));
@@ -55,6 +56,16 @@ await copyFile(pathJoin(pathDirname(officeEngine.resolve("harfbuzzjs")), "harfbu
 for (const font of ["NotoSans-Regular.ttf", "NotoSans-Bold.ttf"]) {
   await copyFile(join(app, "..", "..", "packages", "office-engine", "assets", "fonts", font), join(pdfAssets, "fonts", font));
 }
+// The local .xlsx lane runs the bundled gateway in MAIN. package.mjs stages it
+// for a packaged build; an unpackaged run (electron <app>) resolves the same
+// dist/xlsx-assets dir, so stage it here too. The gateway comes from
+// scripts/office/build-upstream.mjs (or OFFICE_DESKTOP_XLSX_ASSETS); a dev
+// build without it still builds, says so, and every local .xlsx open answers
+// the typed engine_incompatible failure instead of a fake engine.
+const repositoryRoot = join(app, "..", "..");
+const xlsxSources = resolveXlsxAssetSources({ repositoryRoot });
+if (xlsxSources.gateway) await stageXlsxAssets({ repositoryRoot, distDirectory: dist });
+else process.stderr.write(`office-desktop: local .xlsx open is unavailable in this build - ${missingGatewayError(xlsxSources).message}\n`);
 await writeFile(join(dist, "BUILD-METADATA.json"), JSON.stringify({
   product: buildMetadata.identity.product,
   appId: buildMetadata.identity.appId,

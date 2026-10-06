@@ -45,6 +45,21 @@ describe("resolveLocalXlsxAssetsDir", () => {
     expect(resolveLocalXlsxAssetsDir({ resourcesPath: empty, envAssetsDir: undefined })).toBeUndefined();
   });
 
+  // The unpackaged dev run (electron <app>) has no resources/xlsx-assets, so a
+  // signed-out local .xlsx open failed with engine_incompatible even though
+  // the build had the gateway to hand. The dev bundle stages dist/xlsx-assets
+  // (the same dir package.mjs stages from) and main resolves it from there.
+  it("resolves the dev bundle's dist/xlsx-assets for an unpackaged run", () => {
+    const distDirectory = resourcesWithStagedAssets();
+    expect(resolveLocalXlsxAssetsDir({ resourcesPath: undefined, distDirectory, envAssetsDir: undefined })).toBe(join(distDirectory, PACKAGED_XLSX_ASSETS_DIRECTORY));
+  });
+
+  it("prefers the packaged resources dir over a dist dir", () => {
+    const resourcesPath = resourcesWithStagedAssets();
+    const distDirectory = resourcesWithStagedAssets();
+    expect(resolveLocalXlsxAssetsDir({ resourcesPath, distDirectory, envAssetsDir: undefined })).toBe(join(resourcesPath, PACKAGED_XLSX_ASSETS_DIRECTORY));
+  });
+
   it("returns undefined for an unpackaged run with no explicit dir", () => {
     expect(resolveLocalXlsxAssetsDir({ resourcesPath: undefined, envAssetsDir: undefined })).toBeUndefined();
     expect(resolveLocalXlsxAssetsDir()).toBeUndefined();

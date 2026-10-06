@@ -9703,6 +9703,7 @@
         "unsupported_feature": "Tính năng XLSX này chưa được hỗ trợ.",
         "not_office_file": "Tệp đã chọn không phải sổ tính OOXML XLSX.",
         "engine_error": "Không thể mở sổ tính này. Thử mở lại.",
+        "engine_unavailable": "Bản UniWork Office này chưa kèm bộ máy sổ tính nên chưa mở được tệp XLSX trên máy.",
         "capabilityUnavailable": "Chưa thể chỉnh sửa sổ tính XLSX này.",
         "rendererFailed": "Không thể hiển thị sổ tính. Thử mở lại.",
         "editFailed": "Không thể áp dụng thay đổi này. Mở lại sổ tính trước khi lưu.",

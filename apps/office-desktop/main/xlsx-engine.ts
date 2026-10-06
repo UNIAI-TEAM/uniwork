@@ -55,16 +55,21 @@ export const PACKAGED_XLSX_ASSETS_DIRECTORY = "xlsx-assets";
 /**
  * Resolve the local xlsx assets dir. Precedence:
  *   1. an explicit dev dir (UNIWORK_XLSX_ASSETS), when set;
- *   2. the packaged resources/xlsx-assets dir, when it was staged.
+ *   2. the packaged resources/xlsx-assets dir, when it was staged;
+ *   3. the dev bundle's dist/xlsx-assets dir, when scripts/build.mjs staged it
+ *      (an unpackaged `electron <app>` run has no resources dir of its own).
  * A packaged build therefore finds the gateway WITHOUT an env var the user
- * must set (the R3-2 defect). Undefined falls through to the engine's own
- * sibling/typed-failure resolution, never a fake engine.
+ * must set (the R3-2 defect), and so does a dev build. Undefined falls through
+ * to the engine's own sibling/typed-failure resolution, never a fake engine.
  */
-export function resolveLocalXlsxAssetsDir({ resourcesPath, envAssetsDir }: { readonly resourcesPath?: string | undefined; readonly envAssetsDir?: string | undefined } = {}): string | undefined {
+export function resolveLocalXlsxAssetsDir({ resourcesPath, distDirectory, envAssetsDir }: { readonly resourcesPath?: string | undefined; readonly distDirectory?: string | undefined; readonly envAssetsDir?: string | undefined } = {}): string | undefined {
   if (envAssetsDir && envAssetsDir.trim().length > 0) return envAssetsDir;
-  if (!resourcesPath) return undefined;
-  const staged = join(resourcesPath, PACKAGED_XLSX_ASSETS_DIRECTORY);
-  return existsSync(staged) ? staged : undefined;
+  for (const root of [resourcesPath, distDirectory]) {
+    if (!root) continue;
+    const staged = join(root, PACKAGED_XLSX_ASSETS_DIRECTORY);
+    if (existsSync(staged)) return staged;
+  }
+  return undefined;
 }
 
 function sha256Hex(bytes: Uint8Array): string {

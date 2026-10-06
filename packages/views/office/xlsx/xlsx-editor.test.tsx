@@ -352,6 +352,7 @@ describe("XlsxEditor", () => {
     ["not_office_file", "Tệp đã chọn"],
     ["corrupted", "Gói sổ tính"],
     ["unsupported_feature", "Tính năng XLSX"],
+    ["engine_unavailable", "Bản UniWork Office này"],
   ])("renders a typed %s error without a blank grid or Save", async (failureClass, message) => {
     renderEditor({ outcome: "failed", document_id: "doc", format: "xlsx", failure_class: failureClass, message });
     await waitFor(() => expect(screen.getByTestId("xlsx-error-state")).toBeInTheDocument());

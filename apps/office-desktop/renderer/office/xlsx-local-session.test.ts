@@ -40,6 +40,21 @@ describe("desktop local xlsx session (C1b)", () => {
     expect(bridge.call).toHaveBeenCalledWith("desktop:file-xlsx", expect.objectContaining({ handle: HANDLE, operation: "open" }));
   });
 
+  // A build without the staged gateway answers engine_incompatible from main.
+  // The open screen named it only "cannot open, retry"; it now gets its own
+  // failure class so the user is told the build lacks the spreadsheet engine.
+  it("types a missing local engine as engine_unavailable instead of a generic engine_error", async () => {
+    const call = vi.fn(async () => { throw new Error("Error invoking remote method 'desktop:file-xlsx': EngineBoundaryError: engine_incompatible"); });
+    const session = createDesktopLocalXlsxSession({ bridge: { call } as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    expect(await session.open.open()).toMatchObject({ outcome: "failed", failure_class: "engine_unavailable", engine_error: "engine_incompatible" });
+  });
+
+  it("keeps any other open failure an engine_error", async () => {
+    const call = vi.fn(async () => { throw new Error("office_open_snapshot_invalid"); });
+    const session = createDesktopLocalXlsxSession({ bridge: { call } as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    expect(await session.open.open()).toMatchObject({ outcome: "failed", failure_class: "engine_error" });
+  });
+
   it("edits, saves through the local file command and reopens the saved bytes", async () => {
     const bridge = makeLocalBridge();
     const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });

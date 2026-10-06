@@ -489,7 +489,7 @@ async function startElectronHost(): Promise<void> {
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
-    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createLocalXlsxEngine({ assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) }), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
+    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createLocalXlsxEngine({ assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) }), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [...desktopDialogFilters(), { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];

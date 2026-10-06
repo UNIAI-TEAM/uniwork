@@ -9709,6 +9709,7 @@
         "unsupported_feature": "This XLSX feature is not supported yet.",
         "not_office_file": "The selected file is not an OOXML XLSX workbook.",
         "engine_error": "This workbook could not be opened. Try opening it again.",
+        "engine_unavailable": "This UniWork Office build does not include the spreadsheet engine, so it cannot open XLSX files on this device.",
         "capabilityUnavailable": "XLSX editing is not available here.",
         "rendererFailed": "This workbook could not be displayed. Try opening it again.",
         "editFailed": "This edit could not be applied. Reopen the workbook before saving.",
