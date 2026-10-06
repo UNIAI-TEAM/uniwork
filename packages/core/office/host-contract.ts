@@ -162,9 +162,11 @@ export interface OfficeSaveTransport<TSnapshot = unknown> {
     intent: OfficeSaveIntent<TSnapshot>;
   }): Promise<unknown>;
   cancel?(input: { intent: OfficeSaveIntent<TSnapshot> }): Promise<void>;
-  /** The intent settled WITHOUT a commit of this document (terminal refusal,
-   *  conflict, or a reconcile that proved it never committed). A transport that
-   *  holds per-intent state for the retry window drops it here. Never called for
-   *  an intent the coordinator keeps for retry. */
+  /** The intent is proven not to have committed this document (a refusal
+   *  before or at commit, a conflict, a blocked refusal, or a reconcile that
+   *  proved no commit). A transport that holds per-intent state drops it here;
+   *  a blocked intent stays pending, and its Retry starts a fresh intent. Never
+   *  called while the outcome may be a landed write (an ambiguous failure, or a
+   *  commit-step throw that is not a refusal). */
   release?(input: { intent: OfficeSaveIntent<TSnapshot> }): Promise<void>;
 }
