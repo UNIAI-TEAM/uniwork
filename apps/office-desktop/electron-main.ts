@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
 import { desktopDialogFilters, desktopDocumentFormatForName } from "./shared/document-formats";
-import { handleDesktopEngineCall, type DesktopEngineCall } from "@uniwork/office-engine/desktop";
+import { handleDesktopEngineCall, releaseRetainedPdfs, type DesktopEngineCall } from "@uniwork/office-engine/desktop";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createLocalXlsxEngine, resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
@@ -303,6 +303,7 @@ async function startElectronHost(): Promise<void> {
   });
   if (process.platform !== "darwin") window.setMenuBarVisibility(false);
   installPrintShortcut(window.webContents);
+  window.webContents.on("did-navigate", () => releaseRetainedPdfs()).on("render-process-gone", () => releaseRetainedPdfs()).on("destroyed", () => releaseRetainedPdfs());
   let nativeSaveListener: (() => void) | undefined;
   // Local files always live under the stable `local:<device>` scope so their
   // protected drafts stay device-owned across sign-in and sign-out. Cloud work
@@ -468,7 +469,7 @@ async function startElectronHost(): Promise<void> {
   });
   const printHandlers = await createPrintHost({ tempDirectory: app.getPath("temp"), partitionSession: (partition) => session.fromPartition(partition), senderWindow: () => BrowserWindow.fromWebContents(window.webContents), createWindow: (options) => new BrowserWindow(options) });
   const host = createDesktopHost({
-    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, sessionGeneration: request.sessionGeneration, args: { dataBase64: request.args.dataBase64, retain: request.args.retain, pdfHandle: request.args.pdfHandle, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
+    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, sessionGeneration: request.sessionGeneration, args: { dataBase64: request.args.dataBase64, retain: request.args.retain, pdfHandle: request.args.pdfHandle, surface: request.args.surface, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
     }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }), ...printHandlers },
