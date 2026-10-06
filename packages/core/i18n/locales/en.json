@@ -10195,7 +10195,8 @@
         "edit_unbound": "This presentation cannot be edited here",
         "layouts_pending": "Masters and layouts are not supported yet",
         "embedded_fonts_pending": "Embedded fonts are not supported yet",
-        "render_fidelity_pending": "Render fidelity is measured against the reference renderer"
+        "render_fidelity_pending": "Render fidelity is measured against the reference renderer",
+        "master_view": "Close the master view to edit slides"
       },
       "colors": {
         "black": "Black",
@@ -10512,7 +10513,7 @@
         "type_passthrough": "Embedded object",
         "type_other": "Element",
         "text_style_applied": "Text style applied.",
-        "preview_label": "{{kind}}: {{name}} (preview)"
+        "preview_label": "{{kind}}: {{name}} (simplified preview)"
       },
       "context": {
         "chart": "Chart Design",
@@ -10532,6 +10533,7 @@
         "reason_unavailable": "Unavailable on this surface",
         "reason_readonly": "This presentation is read-only",
         "reason_no_slide": "Select a slide first",
+        "reason_master_view": "Close the master view to edit slides",
         "reason_pending": "Wait for the current change to finish",
         "reason_no_selection": "Select an element first",
         "reason_clipboard_unbound": "Copy and paste are not supported by this presentation engine yet",

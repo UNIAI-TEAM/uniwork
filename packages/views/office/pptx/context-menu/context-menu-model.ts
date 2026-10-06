@@ -41,6 +41,8 @@ export interface PptxContextMenuContext {
   gesturePending: boolean;
   /** A document read-only / capability gate refuses edits. */
   readonly: boolean;
+  /** The slide master view owns the canvas: the deck slide is not on screen, so no slide edit may run. */
+  masterView: boolean;
 }
 
 export interface PptxContextMenuRow {
@@ -68,11 +70,13 @@ const OFF: PptxContextMenuContext = {
   canReorder: false,
   gesturePending: false,
   readonly: false,
+  masterView: false,
 };
 
 /** Why an element command cannot run, or null when it can. */
 function elementBlocked(context: PptxContextMenuContext): string | null {
   if (context.readonly) return "reason_readonly";
+  if (context.masterView) return "reason_master_view";
   if (!context.slideBound) return "reason_no_slide";
   if (context.gesturePending) return "reason_pending";
   if (context.selectionCount === 0) return "reason_no_selection";
@@ -97,6 +101,7 @@ export function buildPptxContextMenu(input: Partial<PptxContextMenuContext> = {}
   const context: PptxContextMenuContext = { ...OFF, ...input };
   const blocked = elementBlocked(context);
   const hasSelection = context.selectionCount > 0;
+  const insertEnabled = context.canInsert && context.slideBound && !context.readonly && !context.masterView && !context.gesturePending;
 
   // The clipboard rows are honest about the engine: there is no copy/cut/paste
   // op in the PPTX edit union today, so they are disabled with that reason.
@@ -125,9 +130,9 @@ export function buildPptxContextMenu(input: Partial<PptxContextMenuContext> = {}
       shortcut: "F2",
       ...(hasSelection && context.canEditText && !blocked ? {} : { reasonKey: blocked ?? "reason_edit_text_unbound" }),
     }),
-    row("insert", "insert", context.canInsert && context.slideBound && !context.readonly && !context.gesturePending, {
+    row("insert", "insert", insertEnabled, {
       separatorBefore: true,
-      ...(context.canInsert && context.slideBound && !context.readonly && !context.gesturePending
+      ...(insertEnabled
         ? {}
         : { reasonKey: !context.canInsert ? "reason_insert_unbound" : (blocked ?? "reason_insert_unbound") }),
     }),

@@ -120,7 +120,7 @@ export const PPTX_MASTERS_I18N: Readonly<Record<string, PptxMastersI18nEntry>> =
   "office.pptx.masters.type_passthrough": { en: "Embedded object", vi: "Đối tượng nhúng" },
   "office.pptx.masters.type_other": { en: "Element", vi: "Phần tử" },
   "office.pptx.masters.text_style_applied": { en: "Text style applied.", vi: "Đã áp dụng kiểu chữ." },
-  "office.pptx.masters.preview_label": { en: "{{kind}}: {{name}} (preview)", vi: "{{kind}}: {{name}} (xem trước)" },
+  "office.pptx.masters.preview_label": { en: "{{kind}}: {{name}} (simplified preview)", vi: "{{kind}}: {{name}} (xem trước giản lược)" },
 };
 
 export type PptxMastersLocale = "en" | "vi";

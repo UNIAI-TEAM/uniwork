@@ -57,7 +57,7 @@ describe("PptxEditor slide master view (T01)", () => {
     const canvas = () => document.querySelector("[data-slide-canvas]") as HTMLElement;
     await waitFor(() => expect(canvas().querySelector("[data-pptx-master-preview]")).not.toBeNull());
     expect(canvas().querySelector('[data-master-element-id="e_2"]')).not.toBeNull();
-    expect(canvas().querySelector("[data-pptx-master-preview-label]")).toHaveTextContent("Master: Office Theme (preview)");
+    expect(canvas().querySelector("[data-pptx-master-preview-label]")).toHaveTextContent("Master: Office Theme (simplified preview)");
 
     // The handle's readers feed the view; a rename leaves through the handle's edit port.
     fireEvent.click(screen.getByText("Office Theme"));
@@ -72,5 +72,47 @@ describe("PptxEditor slide master view (T01)", () => {
     expect(document.querySelector("[data-pptx-master-preview-label]")).toBeNull();
     // Close master brings the deck slide back on the same canvas.
     expect(screen.getByText("Title")).toBeInTheDocument();
+  });
+
+  it("disables deck-slide edits while the master view hides the slide (F1)", async () => {
+    const { handle: editorHandle, edit } = handle();
+    const onTextEdit = vi.fn(async () => undefined);
+    render(<PptxEditor host={host()} editorHandle={editorHandle} loadRendererModule={async () => module()} slides={[{ id: "s1" }]} deck={deck} onTextEdit={onTextEdit} onCommitText={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Title")).toBeInTheDocument());
+    const item = (id: string) => document.querySelector(`[data-ribbon-item="${id}"]`) as HTMLElement;
+    const rowOf = (menu: HTMLElement, action: string) => menu.querySelector(`[data-pptx-context-item="${action}"]`) as HTMLElement;
+    const application = () => screen.getByRole("application", { name: "PowerPoint slide canvas" });
+
+    // Baseline: a slide selection makes the slide commands live.
+    fireEvent.keyDown(application(), { key: "a", ctrlKey: true });
+    await waitFor(() => expect(item("font-bold")).not.toHaveAttribute("aria-disabled"));
+    expect(item("edit-text")).not.toHaveAttribute("aria-disabled");
+
+    fireEvent.click(screen.getByRole("tab", { name: "View" }));
+    fireEvent.click(toggle());
+    await waitFor(() => expect(document.querySelector("[data-pptx-master-preview]")).not.toBeNull());
+
+    // The hidden slide's selection is dropped and its ribbon commands wait for Close master.
+    fireEvent.click(screen.getByRole("tab", { name: "Home" }));
+    await waitFor(() => expect(item("font-bold")).toHaveAttribute("aria-disabled", "true"));
+    expect(item("edit-text")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(item("edit-text"));
+    expect(onTextEdit).not.toHaveBeenCalled();
+
+    // The canvas context menu offers no slide edit over the preview.
+    fireEvent.contextMenu(application());
+    const menu = await screen.findByRole("menu");
+    for (const action of ["delete", "bring-to-front", "send-to-back", "edit-text", "insert"]) {
+      expect(rowOf(menu, action)).toHaveAttribute("aria-disabled", "true");
+      expect(rowOf(menu, action)).toHaveAttribute("data-capability", "unavailable");
+    }
+    expect(menu).toHaveTextContent("Close the master view to edit slides");
+    fireEvent.keyDown(menu, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(edit).not.toHaveBeenCalled();
+
+    // Close master (and the View tab toggle) stay usable; the slide commands return.
+    fireEvent.click(screen.getByRole("button", { name: "Close master view" }));
+    expect(item("edit-text")).not.toHaveAttribute("aria-disabled");
   });
 });

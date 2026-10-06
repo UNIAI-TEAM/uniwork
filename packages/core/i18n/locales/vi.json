@@ -10189,7 +10189,8 @@
         "edit_unbound": "Không thể chỉnh sửa bản trình bày này tại đây",
         "layouts_pending": "Chưa hỗ trợ trang chiếu cái và bố cục",
         "embedded_fonts_pending": "Chưa hỗ trợ phông chữ nhúng",
-        "render_fidelity_pending": "Độ trung thực được đo so với trình hiển thị tham chiếu"
+        "render_fidelity_pending": "Độ trung thực được đo so với trình hiển thị tham chiếu",
+        "master_view": "Đóng chế độ bản cái để chỉnh sửa trang chiếu"
       },
       "colors": {
         "black": "Đen",
@@ -10506,7 +10507,7 @@
         "type_passthrough": "Đối tượng nhúng",
         "type_other": "Phần tử",
         "text_style_applied": "Đã áp dụng kiểu chữ.",
-        "preview_label": "{{kind}}: {{name}} (xem trước)"
+        "preview_label": "{{kind}}: {{name}} (xem trước giản lược)"
       },
       "context": {
         "chart": "Thiết kế biểu đồ",
@@ -10526,6 +10527,7 @@
         "reason_unavailable": "Không dùng được ở bề mặt này",
         "reason_readonly": "Bản trình bày này chỉ để đọc",
         "reason_no_slide": "Chọn một trang trước",
+        "reason_master_view": "Đóng chế độ bản cái để chỉnh sửa trang chiếu",
         "reason_pending": "Đợi thay đổi hiện tại hoàn tất",
         "reason_no_selection": "Chọn một phần tử trước",
         "reason_clipboard_unbound": "Trình dựng bản trình bày này chưa hỗ trợ sao chép và dán",

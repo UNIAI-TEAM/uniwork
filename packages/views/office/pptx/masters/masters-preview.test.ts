@@ -42,6 +42,19 @@ describe("buildMasterPreview (MAJOR-2)", () => {
     expect(texts(title!)).toEqual(["Click to edit Master title style", "[masters.placeholder_title]"]);
   });
 
+  it("draws in ink for the white page, never the theme's muted foreground (F2)", () => {
+    const [title, band] = groups(buildMasterPreview({ elements: ELEMENTS, selectedId: null, page, t }).root);
+    const textClasses = (group: SvgNode) => (group.children ?? []).filter((child) => child.tag === "text").map((child) => child.attrs?.class);
+    // Light fill/no fill: dark ink; the dark #1F4E79 band: white text.
+    expect(textClasses(title!)).toEqual(["fill-neutral-700"]);
+    expect(textClasses(band!)).toEqual(["fill-white"]);
+    expect(rect(title!)?.attrs?.class).toBe("stroke-neutral-500");
+    const empty = buildMasterPreview({ elements: [], selectedId: null, page, t }).root;
+    expect(empty.children?.[0]?.attrs?.class).toBe("fill-neutral-700");
+    const all = JSON.stringify(buildMasterPreview({ elements: ELEMENTS, selectedId: null, page, t }).root);
+    expect(all).not.toContain("muted-foreground");
+  });
+
   it("marks the selected element", () => {
     const [title, band] = groups(buildMasterPreview({ elements: ELEMENTS, selectedId: "e_2", page, t }).root);
     expect(title?.attrs?.["data-selected"]).toBe("true");

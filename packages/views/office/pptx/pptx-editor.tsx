@@ -41,6 +41,7 @@ import { PptxStatusBar, PptxStatusHelpButton } from "./status-bar";
 import { PptxToolbar } from "./toolbar";
 import { usePptxEditorRender } from "./use-pptx-editor-render";
 import { usePptxFindShortcut } from "./use-pptx-find-shortcut";
+import { usePptxMasterViewGate } from "./use-pptx-master-view-gate";
 import { pptxTextCounts } from "./status-counts";
 import { usePptxGestureHistory } from "./use-pptx-gesture-history";
 import { usePptxInPlaceText } from "./use-pptx-in-place-text";
@@ -386,7 +387,12 @@ export function PptxEditor({
     // Not before the renderer is loaded: a click then would have nothing to print.
     printPort: deckRenderer ? printPort : null,
   }), [capabilities, deckRenderer, handleEdit, onApplyEdit, onCommitText, onOpen, onTextEdit, printPort, selectionHasText, transformRequest]);
-  const commands = useMemo(() => createPptxCommandMap({ host, capabilities: effectiveCapabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [effectiveCapabilities, host, includeSave, saveCoordinator]);
+  // B6: View > Slide master (open toggle, part/element reads, edits on the one channel).
+  const masters = usePptxEditorMasters({ ...(masterParts ? { masterParts } : {}), ...(masterElements ? { masterElements } : {}), editorHandle, ...(onApplyEdit ? { onApplyEdit } : {}), ...(handleEdit ? { handleEdit } : {}), refreshKey: deck?.revision, onError: reportCommandError });
+  const baseCommands = useMemo(() => createPptxCommandMap({ host, capabilities: effectiveCapabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [effectiveCapabilities, host, includeSave, saveCoordinator]);
+  const toggleMasters = masters.toggle;
+  // The open master view hides the deck slide, so slide-editing commands wait for Close master.
+  const commands = usePptxMasterViewGate({ open: masters.open, commands: baseCommands, clearSelection: selection.clear });
   const displaySize = useMemo(() => {
     const aspect = rendition && rendition.widthPx > 0 ? rendition.heightPx / rendition.widthPx : 9 / 16;
     return slideDisplaySize(fitWidthPx, zoom, aspect);
@@ -440,10 +446,6 @@ export function PptxEditor({
     rootRef: editorRootRef,
   });
   const { openCommandPanel } = panels;
-  // B6: View > Slide master (open toggle, part/element reads, edits on the one channel).
-  const masters = usePptxEditorMasters({ ...(masterParts ? { masterParts } : {}), ...(masterElements ? { masterElements } : {}), editorHandle, ...(onApplyEdit ? { onApplyEdit } : {}), ...(handleEdit ? { handleEdit } : {}), refreshKey: deck?.revision, onError: reportCommandError });
-  const toggleMasters = masters.toggle;
-
   const onCommand = useCallback((id: PptxCommandId) => {
     if (openCommandPanel(id)) return;
     switch (id) {
@@ -580,11 +582,9 @@ export function PptxEditor({
           <PptxContextMenu
             slideBound={slides.length > 0}
             selectionCount={selectedIds.length}
-            canDelete={Boolean(deleteElements)}
-            canEditText={canEditText}
-            canReorder={Boolean(reorderElements)}
-            canInsert={Boolean(onApplyEdit ?? handleEdit)}
-            gesturePending={gesturePending}
+            canDelete={Boolean(deleteElements)} canEditText={canEditText}
+            canReorder={Boolean(reorderElements)} canInsert={Boolean(onApplyEdit ?? handleEdit)}
+            gesturePending={gesturePending} masterView={masterCanvas !== null}
             onAction={onContextMenuAction}
           >
             <PptxCanvasSurface

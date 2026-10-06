@@ -27,8 +27,24 @@ export interface MasterPreviewInput {
   t: (key: string) => string;
 }
 
+/** The slide page is white in both themes (`bg-white` on the canvas page), so the preview
+ *  draws in ink meant for a white page, not in the theme's `muted-foreground` (light grey
+ *  in dark mode, unreadable on white). Text on a dark solid fill turns white. */
+const PAGE_INK_TEXT = "fill-neutral-700";
+const PAGE_INK_STROKE = "stroke-neutral-500";
+const ON_DARK_TEXT = "fill-white";
+
 const LABEL_MIN_PX = 10;
 const LABEL_MAX_PX = 22;
+
+/** Whether a "#RRGGBB" fill is dark enough that white text reads better on it. */
+function isDarkFill(fill: string | null | undefined): boolean {
+  const match = /^#?([0-9a-f]{6})$/i.exec(fill ?? "");
+  if (!match) return false;
+  const value = parseInt(match[1]!, 16);
+  const luminance = (0.2126 * (value >> 16) + 0.7152 * ((value >> 8) & 255) + 0.0722 * (value & 255)) / 255;
+  return luminance < 0.5;
+}
 
 function elementNode(element: MasterElementView, scale: number, selected: boolean, t: MasterPreviewInput["t"]): SvgNode {
   const w = Math.max(0, element.box.w * scale);
@@ -36,6 +52,7 @@ function elementNode(element: MasterElementView, scale: number, selected: boolea
   const placeholder = element.placeholder !== undefined;
   const name = masterElementName(element, t);
   const label = masterElementSnippet(element) || name;
+  const textClass = isDarkFill(element.fill) ? ON_DARK_TEXT : PAGE_INK_TEXT;
   const fontSize = px(Math.min(LABEL_MAX_PX, Math.max(LABEL_MIN_PX, h * 0.22)));
   return svgEl(
     "g",
@@ -51,7 +68,7 @@ function elementNode(element: MasterElementView, scale: number, selected: boolea
         width: px(w),
         height: px(h),
         fill: element.fill ?? "none",
-        class: selected ? "stroke-primary" : "stroke-muted-foreground",
+        class: selected ? "stroke-primary" : PAGE_INK_STROKE,
         stroke: "currentColor",
         "stroke-width": selected ? 2 : 1,
         "stroke-dasharray": placeholder && !selected ? "6 4" : undefined,
@@ -62,11 +79,11 @@ function elementNode(element: MasterElementView, scale: number, selected: boolea
         y: px(Math.min(h / 2, fontSize + 6)),
         "dominant-baseline": "middle",
         "font-size": fontSize,
-        class: "fill-muted-foreground",
+        class: textClass,
         "xml:space": "preserve",
       }, label),
       placeholder && label !== name
-        ? svgText("text", { x: 8, y: px(h - 6), "font-size": LABEL_MIN_PX, class: "fill-muted-foreground" }, name)
+        ? svgText("text", { x: 8, y: px(h - 6), "font-size": LABEL_MIN_PX, class: textClass }, name)
         : null,
     ],
   );
@@ -77,7 +94,7 @@ export function buildMasterPreview({ elements, selectedId, page, t }: MasterPrev
   const scale = page.widthPx / MASTER_BOX_SPACE_WIDTH_PX;
   const children = elements.length
     ? elements.map((element) => elementNode(element, scale, element.id === selectedId, t))
-    : [svgText("text", { x: px(page.widthPx / 2), y: px(page.heightPx / 2), "text-anchor": "middle", "font-size": 16, class: "fill-muted-foreground" }, t("masters.elements_empty"))];
+    : [svgText("text", { x: px(page.widthPx / 2), y: px(page.heightPx / 2), "text-anchor": "middle", "font-size": 16, class: PAGE_INK_TEXT }, t("masters.elements_empty"))];
   const root = svgEl("g", { "data-pptx-master-preview": "true" }, children);
   return { root, widthPx: page.widthPx, heightPx: page.heightPx };
 }
