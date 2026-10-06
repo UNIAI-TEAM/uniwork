@@ -38,15 +38,19 @@ export const UNIVER_STYLE_FILES = [
   '@univerjs/preset-sheets-table/lib/index.css',
 ];
 
-/** Symbols each applied patch must have introduced in the scratch tree. */
-const PATCHED_SYMBOLS = [
+/** Symbols each applied patch must have introduced in the scratch tree. Each
+ *  one is absent from the unpatched upstream source, so a lost hunk fails the
+ *  build (a parameter line the gateway already declares elsewhere would not). */
+export const PATCHED_SYMBOLS = [
   { patch: '0001', file: 'packages/xlsx-gateway/src/gateway/xlsx-styles.ts', symbol: 'xfIdentity' },
   { patch: '0002', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'lazilyLoadedXmls' },
-  { patch: '0008', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'tableAdditions: readonly SheetTableAddition[] = [],' },
-  { patch: '0010', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'visualAdditions: readonly SheetVisualAddition[] = [],' },
+  { patch: '0008', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: '    tableAdditions,' },
+  { patch: '0010', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: '    visualAdditions,' },
   { patch: '0010', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export const UNIWORK_XLSX_VISUAL_ADDITIONS = true' },
-  { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'visualEdits: readonly WorkbookVisualEdit[] = [],' },
+  { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: '    visualEdits,' },
   { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export const UNIWORK_XLSX_VISUAL_EDITS = true' },
+  { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export async function readEntriesBase64(' },
+  { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export const UNIWORK_XLSX_VISUAL_READ_BUDGET = true' },
 ];
 
 const FORBIDDEN_EXTERNAL = /^(?!react(?:\/|$)|react-dom(?:\/|$)|i18next$).+$/;
