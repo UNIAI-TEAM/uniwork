@@ -314,8 +314,12 @@ export function readRangeFromModel(model: XlsxRenderModel, sheetIdOrName: string
     autoFilterColumns: [],
     // X01: sheet-wide like CF - the pinned loader installs them once (it
     // marks the sheet even without rules, which unlocks DV/CF editing).
+    // An absent errorStyle is OOXML's "stop" (the save writes Univer's STOP
+    // that way); the loader would install it as undefined, which Univer
+    // treats as allow-invalid, so a reopened rule would stop rejecting.
     dataValidations: (sheet.dataValidations ?? []).map((rule) => ({ ...rule,
       ranges: rule.ranges.map((area) => ({ ...area })), formulas: [...rule.formulas],
+      errorStyle: rule.errorStyle ?? "stop",
     })),
     sheetProtection: null,
     protectedRanges: [],

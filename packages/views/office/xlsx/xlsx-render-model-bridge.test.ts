@@ -188,9 +188,24 @@ describe("render model bridge", () => {
       error: "Pick one" };
     const model = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!, dataValidations: [rule] }] };
     const result = readRangeFromModel(model, "Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 });
-    expect(result.dataValidations).toEqual([rule]);
+    expect(result.dataValidations).toEqual([{ ...rule, errorStyle: "stop" }]);
     expect(result.dataValidations[0]!.ranges[0]).not.toBe(rule.ranges[0]);
     expect(readRangeFromModel(MODEL, "Data", { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 }).dataValidations).toEqual([]);
+  });
+
+  it("hands the loader OOXML's default stop style for a rule without errorStyle, so a reopened list still rejects (X01 vfix-dv)", () => {
+    // The save writes Univer's STOP (1) as the attribute-less OOXML default;
+    // the pinned loader maps an absent style to undefined, which Univer treats
+    // as allow-invalid, so a saved list DV stopped rejecting after reopen.
+    const saved = { ranges: [{ startRow: 1, endRow: 4, startColumn: 3, endColumn: 3 }], ruleType: "list",
+      formulas: ['"Có,Không"'], allowBlank: true, suppressDropdown: false, showInputMessage: false, showErrorMessage: true,
+      error: "Chỉ Có/Không" };
+    const warning = { ...saved, errorStyle: "warning" };
+    const model = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!, dataValidations: [saved, warning] }] };
+    const [stop, kept] = readRangeFromModel(model, "Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 }).dataValidations;
+    expect(stop?.errorStyle).toBe("stop");
+    expect(kept?.errorStyle).toBe("warning");
+    expect(saved).not.toHaveProperty("errorStyle");
   });
 
   it("stamps each sheet with what its file ships per rule family, x14 first (X01 review M1/M2)", () => {
