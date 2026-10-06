@@ -20,6 +20,7 @@ import {
   type OpenProject,
   type ProjectRowPatch,
 } from "./project-row-metrics";
+import { useListScrollReset } from "./use-list-scroll-reset";
 
 function ProjectCard({
   workspaceId,
@@ -52,9 +53,9 @@ function ProjectCard({
   const { totalCount } = getProjectTaskMetrics(project);
 
   return (
-    <div className="group/card group/row flex flex-col rounded-md border border-border bg-card transition-colors hover:border-primary/50">
-      <div className="p-3 pb-2">
-        <div className="flex items-center gap-2">
+    <div className="group/card group/row flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-card transition-colors hover:border-primary/50">
+      <div className="min-w-0 p-3 pb-2">
+        <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
             className="flex min-w-0 flex-1 items-center gap-2 text-left"
@@ -91,21 +92,31 @@ function ProjectCard({
         )}
       </div>
 
-      <div className="mt-0 flex items-center justify-between gap-2 border-t border-border px-3 pb-3 pt-2">
+      <div
+        data-slot="project-card-footer"
+        className="mt-0 flex min-w-0 items-center justify-between gap-2 border-t border-border px-3 pb-3 pt-2"
+      >
         <ProjectLeadPicker
           project={project}
           options={leadOptions}
           onChange={handleUpdate}
-          triggerClassName="-mx-1"
+          triggerClassName="-mx-1 max-w-full flex-1 shrink overflow-hidden"
           labelClassName="max-w-[96px]"
         />
-        <div className="flex shrink-0 items-center gap-2">
+        <div
+          data-slot="project-card-metadata"
+          className="flex min-w-0 max-w-[65%] items-center justify-end gap-2"
+        >
           <ProjectPriorityBadge
             project={project}
             onUpdate={handleUpdate}
             align="start"
+            triggerClassName="min-w-0 overflow-hidden [&>span]:truncate"
           />
-          <span className="text-caption text-muted-foreground">
+          <span
+            data-slot="project-card-date"
+            className="min-w-0 truncate text-caption text-muted-foreground"
+          >
             {formatRelativeDate(project.created_at, locale)}
           </span>
         </div>
@@ -122,6 +133,7 @@ export function ProjectsListGrid({
   onOpenProject,
   locale,
   leadOptions,
+  scrollResetKey,
 }: {
   workspaceId: string;
   projects: Project[];
@@ -130,11 +142,18 @@ export function ProjectsListGrid({
   onOpenProject: OpenProject;
   locale: string;
   leadOptions: AssigneeOption[];
+  scrollResetKey: string | number;
 }) {
+  const scrollRef = useListScrollReset<HTMLDivElement>(scrollResetKey);
+
   return (
-    <div className={cn("min-h-0 flex-1 overflow-y-auto pt-4", PAGE_GUTTER)}>
+    <div
+      ref={scrollRef}
+      data-slot="project-list-scroll"
+      className={cn("min-h-0 flex-1 overflow-y-auto pt-4", PAGE_GUTTER)}
+    >
       <div
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
         style={{ paddingBottom: LIST_GRID_BOTTOM_CLEARANCE }}
       >
         {projects.map((project) => (

@@ -4726,7 +4726,9 @@
       "no_matches": "Không có dự án khớp",
       "no_tasks_yet": "Chưa có công việc",
       "selected": "{{count}} đã chọn",
-      "clear_selection": "Bỏ chọn"
+      "clear_selection": "Bỏ chọn",
+      "pagination_label": "Phân trang dự án",
+      "pagination_status": "Trang {{page}} / {{pageCount}}"
     },
     "table": {
       "name": "Tên",
