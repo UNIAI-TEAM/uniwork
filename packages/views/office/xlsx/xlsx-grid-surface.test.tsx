@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { createRef } from "react";
+import { setLocale } from "@uniwork/core/i18n";
 import { describe, expect, it, vi } from "vitest";
 import { XlsxGridSurface, type XlsxGridHandle, type XlsxRendererModule } from "./xlsx-grid-surface";
 import type { XlsxGridHostPort } from "./xlsx-grid-surface";
@@ -37,6 +38,7 @@ function fakeModule() {
     executeCommand: vi.fn(() => true),
     getActiveFormatState: vi.fn(() => null),
     setDarkMode: vi.fn(),
+    setLocale: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
     getDirtyGeneration: vi.fn(() => 0),
@@ -97,6 +99,24 @@ describe("XlsxGridSurface", () => {
     expect(handle.setDarkMode).toHaveBeenLastCalledWith(true);
     expect(handle.dispose).not.toHaveBeenCalled();
     expect(handle.loadWorkbook).toHaveBeenCalledOnce();
+  });
+
+  it("moves the numfmt locale on a live language change without reloading the workbook", async () => {
+    const { module, handle } = fakeModule();
+    const original = document.documentElement.lang === "en" ? "en" : "vi";
+    try {
+      await act(async () => { await setLocale("vi"); });
+      render(<XlsxGridSurface documentKey="lang-doc" host={host} loadModule={async () => module} />);
+      await waitFor(() => expect(handle.loadWorkbook).toHaveBeenCalledOnce());
+      await act(async () => { await setLocale("en"); });
+      expect(handle.setLocale).toHaveBeenLastCalledWith("en");
+      await act(async () => { await setLocale("vi"); });
+      expect(handle.setLocale).toHaveBeenLastCalledWith("vi");
+      expect(handle.loadWorkbook).toHaveBeenCalledOnce();
+      expect(handle.dispose).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => { await setLocale(original); });
+    }
   });
 
   it("forwards commands to the artifact handle and reports its boolean result", async () => {

@@ -86,6 +86,8 @@ export interface XlsxGridHandle extends XlsxVisualsGrid {
   /** UNI-953: a sheet's live CF / DV rules for the rule managers. */
   readRuleSets?(sheetId: string, family: XlsxRuleFamily): readonly XlsxLiveRule[] | null;
   setDarkMode(dark: boolean): void;
+  /** Live language change: number separators follow it (the renderer re-paints). */
+  setLocale?(lang: "en" | "vi"): void;
   undo(): void;
   redo(): void;
   /** UNI-953 item 9: undo/redo entries on the stack, and their changes. */
@@ -167,7 +169,8 @@ export function XlsxGridSurface({
   loadModule = loadXlsxRendererModule,
   ref,
 }: XlsxGridSurfaceProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang: "en" | "vi" = i18n.language?.toLowerCase().startsWith("vi") ? "vi" : "en";
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<XlsxGridHandle | null>(null);
   const darkRef = useRef(dark);
@@ -256,6 +259,9 @@ export function XlsxGridSurface({
   }, [documentKey, host, readOnly]);
 
   useEffect(() => { handleRef.current?.setDarkMode(dark); }, [dark]);
+
+  // A language switch keeps the workbook (and its undo journal): only the numfmt locale moves.
+  useEffect(() => { handleRef.current?.setLocale?.(lang); }, [lang]);
 
   // The Univer input lives in a nested React root, so the right click is caught
   // natively in the capture phase: it cannot be swallowed by a child handler

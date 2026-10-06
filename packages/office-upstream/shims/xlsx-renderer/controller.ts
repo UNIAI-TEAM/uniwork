@@ -208,6 +208,7 @@ export interface XlsxRendererHandle {
    *  (null before a workbook loads or for an unknown sheet). */
   readRuleSets(sheetId: string, kind: XlsxRendererRuleSetKind): XlsxRendererLiveRule[] | null;
   setDarkMode(dark: boolean): void;
+  setLocale(lang: "en" | "vi"): void;
   undo(): void;
   redo(): void;
   /** UNI-953: undo/redo entries on the workbook's stack (Undo/Redo empty state). */
@@ -926,6 +927,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       return worksheet ? readLiveRuleSet(worksheet, kind, linkedRuleIds(state, sheetId)) : null;
     },
     setDarkMode: (dark) => themeService.setDarkMode(dark),
+    setLocale(lang) {
+      applyHostNumfmtLocale(runtime, lang);
+      runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.refreshCanvas?.();
+    },
     undo() {
       if (!options.readOnly) void runtime.univerAPI.undo();
     },

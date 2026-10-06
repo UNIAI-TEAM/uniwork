@@ -270,6 +270,8 @@ export interface XlsxRendererHandle {
     kind: "conditionalFormats" | "dataValidations",
   ): { id: string; ranges: { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; stopIfTrue?: boolean; rule: Record<string, unknown>; linked?: true }[] | null;
   setDarkMode(dark: boolean): void;
+  /** Live language change (UNI-953): re-applies the numfmt locale and repaints. */
+  setLocale(lang: "en" | "vi"): void;
   undo(): void;
   redo(): void;
   /** UNI-953: undo/redo entries on the workbook's stack (Undo/Redo empty state). */
