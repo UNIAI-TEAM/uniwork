@@ -8,12 +8,22 @@ const ASYNC_HANDLER_ERROR = "[CommandService]: Command handler should not return
  *  so the person is told instead of seeing a silent no-op. */
 const STRUCTURAL_COMMAND = /^sheet\.command\.(insert-(row|col|multi-rows|multi-cols)|remove-(row|col))/;
 
-const refusalListeners = new Set<(commandId: string) => void>();
+interface RefusalListener {
+  /** The command port of one document; undefined listens to every document. */
+  readonly scope: XlsxToolbarCommands | undefined;
+  readonly notify: (commandId: string) => void;
+}
 
-/** Subscribes to refused structural commands (the frame notice); returns the unsubscribe. */
-export function subscribeCommandRefusals(listener: (commandId: string) => void): () => void {
-  refusalListeners.add(listener);
-  return () => { refusalListeners.delete(listener); };
+const refusalListeners = new Set<RefusalListener>();
+
+/** Subscribes to refused structural commands (the frame notice); returns the
+ *  unsubscribe. With `scope` (the document's command port) only refusals
+ *  dispatched through that port reach the listener, so one open document's
+ *  refusal never raises a notice in another (UNI-957). */
+export function subscribeCommandRefusals(listener: (commandId: string) => void, scope?: XlsxToolbarCommands): () => void {
+  const entry: RefusalListener = { scope, notify: listener };
+  refusalListeners.add(entry);
+  return () => { refusalListeners.delete(entry); };
 }
 
 /** Fires one toolbar command-port dispatch and marks the returned promise
@@ -34,7 +44,7 @@ export function fireCommand(
   const warn = onError ?? ((message: string) => console.warn(`[xlsx-command] ${message}`));
   const report = (message: string) => {
     warn(message);
-    if (STRUCTURAL_COMMAND.test(id)) refusalListeners.forEach((listener) => listener(id));
+    if (STRUCTURAL_COMMAND.test(id)) refusalListeners.forEach((listener) => { if (listener.scope === undefined || listener.scope === commands) listener.notify(id); });
   };
   try {
     // Preserve the caller's original call arity: a no-params command must be

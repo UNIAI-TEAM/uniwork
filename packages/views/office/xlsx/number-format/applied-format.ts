@@ -6,9 +6,10 @@ import type { XlsxSelection } from "../types";
  * format box shows the LAST format applied from the ribbon to the selection
  * that is still selected (General otherwise). One entry is enough: it is only
  * trusted while the selection key still matches, and any other selection reads
- * as General - never a stale name for a different cell.
+ * as General - never a stale name for a different cell. The entry is kept per
+ * workbook unit (UNI-957): documents open in other desktop tabs never overwrite it.
  */
-let latest: { readonly key: string; readonly pattern: string } | null = null;
+const latest = new Map<string, { readonly key: string; readonly pattern: string }>();
 const listeners = new Set<() => void>();
 
 /** `unit|sheet!range` - the identity an applied format is trusted for. */
@@ -17,9 +18,12 @@ export function appliedFormatKey(unitId: string | null | undefined, selection: X
   return `${unitId ?? ""}|${selection.sheet}!${selection.address}:${selection.endAddress ?? selection.address}`;
 }
 
+/** The workbook unit a key belongs to (the part before the first `|`). */
+const unitOf = (key: string): string => key.slice(0, key.indexOf("|"));
+
 export function recordAppliedFormat(key: string | null, pattern: string): void {
   if (key === null) return;
-  latest = { key, pattern };
+  latest.set(unitOf(key), { key, pattern });
   for (const listener of listeners) listener();
 }
 
@@ -30,16 +34,22 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
+function trusted(key: string | null): string | null {
+  if (key === null) return null;
+  const entry = latest.get(unitOf(key));
+  return entry?.key === key ? entry.pattern : null;
+}
+
 /** The pattern last applied to the selection `key`, or null. */
 export function useAppliedPattern(key: string | null): string | null {
   return useSyncExternalStore(
     subscribe,
-    () => (key !== null && latest?.key === key ? latest.pattern : null),
+    () => trusted(key),
     () => null,
   );
 }
 
 /** Non-hook read of the same trusted entry (for command handlers). */
 export function readAppliedPattern(key: string | null): string | null {
-  return key !== null && latest?.key === key ? latest.pattern : null;
+  return trusted(key);
 }
