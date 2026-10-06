@@ -154,11 +154,12 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     // A format the server's flags switch off (or that has no answer yet) opens
     // read-only, never in the editor; such a tab is upgraded if a later answer allows it.
     const editable = officeFlags.allows(document.format);
-    if (allowSave && document.canEdit && !editable) markFlagGated(document.id);
+    const featureOff = allowSave && document.canEdit && !editable;
+    if (featureOff) markFlagGated(document.id);
     const bytes = opened.success
       ? { ...opened.data, format: document.format, canSave: allowSave && document.canEdit && editable }
       : { dataBase64: "", checksum: "", format: document.format, canSave: allowSave && document.canEdit && editable };
-    if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
+    if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, ...(featureOff ? { readOnlyReason: "feature_off" as const } : {}), identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
   };
   const acceptLocal = (raw: unknown) => {
     const result = desktopFileResponseSchema.parse(raw);
@@ -372,7 +373,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
         {isXlsxTabSession(tab.data.session)
           ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
-          : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}
+          : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} readOnlyReason={tab.data.readOnlyReason} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}
       </div>)}
     </div>
     {accountDrafts.blocked ? <RecoveryNotice state={accountDrafts.blocked} className="p-4" /> : null}

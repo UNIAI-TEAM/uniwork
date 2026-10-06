@@ -9,6 +9,7 @@ import { useOfficeEnabled } from "@uniwork/core/documents/office-enabled";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
+import { useOfficeFormatName } from "../office/editor-slot";
 import { HeaderActionsFill } from "../layout/header-actions-slot";
 import { DocumentFileMenuItems, useDocumentFileActions } from "./document-file-actions";
 import { DocumentSaveIndicator } from "./document-save-indicator";
@@ -108,6 +109,7 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
   const actions = useDocumentFileActions(wsId, doc);
   const { download, downloading } = actions;
   const officeEnabled = useOfficeEditorEnabled(doc);
+  const formatName = useOfficeFormatName();
 
   if (!file) {
     return (
@@ -130,6 +132,8 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
   }
 
   const rows = versions.data?.pages.flatMap((page) => page.versions) ?? [];
+  const officeFormatId = officeFormat(doc);
+  const officeFormatOff = Boolean(OfficeEditorHost) && officeFormatId !== null && !officeEnabled;
 
   return (
     <div className="flex flex-col gap-4">
@@ -172,10 +176,18 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
         </dl>
       </div>
 
-      <Notice tone="info" icon={FileText} layout="inline">
-        <span className="font-medium text-foreground">{t("documents.file.no_web_editor_title")}</span>{" "}
-        {t("documents.file.no_web_editor_description")}
-      </Notice>
+      {/* A host is mounted and the format is an Office one, so the editor is missing only because its flag is off. */}
+      {officeFormatOff ? (
+        <Notice tone="info" icon={FileText} layout="inline">
+          <span className="font-medium text-foreground">{t("documents.file.office_off_title", { format: formatName(officeFormatId ?? "") })}</span>{" "}
+          {t("documents.file.office_off_description", { format: formatName(officeFormatId ?? "") })}
+        </Notice>
+      ) : (
+        <Notice tone="info" icon={FileText} layout="inline">
+          <span className="font-medium text-foreground">{t("documents.file.no_web_editor_title")}</span>{" "}
+          {t("documents.file.no_web_editor_description")}
+        </Notice>
+      )}
 
       <section aria-labelledby="document-versions-heading" className="rounded-lg border border-border">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">

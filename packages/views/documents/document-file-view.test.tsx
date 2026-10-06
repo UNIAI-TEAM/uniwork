@@ -153,6 +153,17 @@ describe("DocumentFileView", () => {
     expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
     expect(screen.queryByTestId("office-host")).toBeNull();
     expect(officeHost).not.toHaveBeenCalled();
+    // The card says why: the format's editing is turned off (not "a later step").
+    expect(screen.getByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.no_web_editor_title"))).toBeNull();
+  });
+
+  it("keeps the generic card note when no Office host is mounted", async () => {
+    mockApi();
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} />));
+
+    expect(await screen.findByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
   });
 
   it("keeps the editor when only another format's flag is off", async () => {

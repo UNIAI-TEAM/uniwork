@@ -44,6 +44,8 @@ export interface OpenTabInput {
   readonly bytes: OpenedBytes;
   readonly title: string;
   readonly format: DesktopDocumentFormat;
+  /** Why the tab is view-only when that is not the reader's permission: the format's Office flag is off. */
+  readonly readOnlyReason?: "feature_off";
 }
 
 export interface TabDocument extends OpenTabInput {
@@ -161,7 +163,7 @@ export function useDocumentTabs(bridge: RendererBridge) {
       const tab = live.tabs.find((entry) => entry.id === id);
       if (!tab || tab.data.kind !== "cloud" || tab.data.bytes.canSave !== false || isDocumentDirty(tab.data.session)) return false;
       const { session: previous, ...rest } = tab.data;
-      const next: OpenTabInput = { ...rest, bytes: { ...rest.bytes, canSave: true } };
+      const next: OpenTabInput = { ...rest, readOnlyReason: undefined, bytes: { ...rest.bytes, canSave: true } };
       const session = buildSession(next);
       commit({ ...live, tabs: live.tabs.map((entry) => entry.id === id ? { ...entry, data: { ...next, session } } : entry) });
       previous.dispose();

@@ -7417,6 +7417,8 @@
       "unknown_reason": "khác",
       "no_web_editor_title": "Chưa sửa được trong web",
       "no_web_editor_description": "UniWork Office mở định dạng này ở bản sau. Hiện tại bạn tải về để xem hoặc tải lên phiên bản mới.",
+      "office_off_title": "Chỉnh sửa {{format}} đang tắt",
+      "office_off_description": "Tổ chức này đang tắt chỉnh sửa tệp {{format}}. Bạn vẫn tải tệp về hoặc tải lên phiên bản mới được.",
       "upload_failed": "Không tải được tệp lên",
       "commit_failed": "Không lưu được phiên bản mới",
       "missing_file": "Tài liệu này chưa có tệp."
@@ -11623,6 +11625,8 @@
       "updated": "Cập nhật {{time}}",
       "contentPending": "Chỉnh sửa nội dung DOCX chưa khả dụng. Bạn có thể lưu và mở lại tệp.",
       "draftRecovered": "Đã khôi phục bản nháp đã chọn.",
+      "featureOffTitle": "Chỉnh sửa {{format}} đang tắt",
+      "featureOffDescription": "Tổ chức của bạn đang tắt chỉnh sửa tệp {{format}}, nên tệp này chỉ xem được.",
       "format": {
         "label": "Định dạng",
         "all": "Tất cả định dạng",

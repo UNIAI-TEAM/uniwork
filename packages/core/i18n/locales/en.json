@@ -7422,6 +7422,8 @@
       "unknown_reason": "other",
       "no_web_editor_title": "Not editable in the browser yet",
       "no_web_editor_description": "UniWork Office opens this format in a later step. For now, download it or upload a new version.",
+      "office_off_title": "{{format}} editing is turned off",
+      "office_off_description": "Editing {{format}} files is turned off for this organization. You can still download the file or upload a new version.",
       "upload_failed": "Could not upload the file",
       "commit_failed": "Could not save the new version",
       "missing_file": "This document has no file yet."
@@ -11647,6 +11649,8 @@
       "updated": "Updated {{time}}",
       "contentPending": "DOCX content editing is not available yet. You can save and reopen the file.",
       "draftRecovered": "The selected draft was restored.",
+      "featureOffTitle": "{{format}} editing is turned off",
+      "featureOffDescription": "Editing {{format}} files is turned off for your organization, so this file is view-only.",
       "format": {
         "label": "Format",
         "all": "All formats",

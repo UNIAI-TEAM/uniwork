@@ -7,6 +7,7 @@ import type { PdfOpenFailure } from "@uniwork/views/office/pdf";
 import { DraftRecoveryPrompt } from "@uniwork/views/office/leave-dialog";
 import { RecoveryNotice, type DesktopRecoveryState } from "../recovery-status";
 import { LockedAiEntry } from "../ai-entry";
+import { FeatureOffNotice } from "./feature-off-notice";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { OfficeHost, OfficeIdentity } from "@uniwork/core/office";
@@ -58,14 +59,16 @@ function useDraftRecovery(session: Pick<ByteDocumentSession, "listDrafts" | "rec
 export function OpenByteDocument(props: {
   bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession | PptxDocumentSession; title: string; onBack: () => void;
   active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void;
+  /** The tab is view-only because the format's Office flag is off, not because of the reader's permission. */
+  readOnlyReason?: "feature_off";
 }) {
-  const { session, ...rest } = props;
+  const { session, readOnlyReason, ...rest } = props;
   return session.editor.format === "pptx"
     ? <OpenPptxDocument {...rest} session={session as PptxDocumentSession} />
-    : <OpenByteSessionDocument {...rest} session={session as ByteDocumentSession} />;
+    : <OpenByteSessionDocument {...rest} readOnlyReason={readOnlyReason} session={session as ByteDocumentSession} />;
 }
 
-function OpenByteSessionDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud", signedIn = false, onSignIn, onLocalFileRebound }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void }) {
+function OpenByteSessionDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud", signedIn = false, onSignIn, onLocalFileRebound, readOnlyReason }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void; readOnlyReason?: "feature_off" }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const { t: tOffice } = useTranslation(undefined, { keyPrefix: "office" });
@@ -82,6 +85,9 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
   const documentKey = localFile?.handleId ?? identity.documentId;
   const current = loaded?.session === session ? loaded : null;
   const ready = Boolean(current && !current.failure);
+  // A flag-off tab is view-only by the feature switch: one neutral notice replaces the permission chip/alert and the capability box.
+  const featureOff = readOnlyReason === "feature_off" && !session.canSave;
+  const readOnlyMessage = !session.canSave && !current?.failure;
   useEffect(() => () => session.dispose(), [session]);
   useEffect(() => {
     let active = true;
@@ -120,7 +126,7 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
     } catch { setActionFailed(true); }
   };
   return <>{prompt(active)}
-    <OfficeShell title={effectiveTitle} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={session.coordinator} editorReady={active && ready && session.canSave}
+    <OfficeShell title={effectiveTitle} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={session.coordinator} saveStatus={featureOff ? "ready" : undefined} editorReady={active && ready && session.canSave}
       saveDestination={session.localHandle ? "local" : "cloud"}
       actions={<DropdownMenu>
         <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={tOffice("ribbon.more")} title={tOffice("ribbon.more")} data-office-document-menu />}>
@@ -137,8 +143,9 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}
         {actionFailed ? <p role="alert" className="mb-3 text-caption text-destructive">{t("actionError")}</p> : null}
-        {/* The shell header is the only frame: neutralize the shared EditorSlot card so the editor fills the page like DOCX/XLSX (web has no card either). */}
-        <EditorSlot className="rounded-none border-0 bg-transparent p-0" format={format} host={host} editorHandle={session.editor} capability={current?.failure ? { ...capability, status: "available" } : capability} openState={current?.failure ? "error" : ready ? "ready" : "loading"} openError={current?.failure?.message} onRetry={() => { setLoaded(null); setOpenAttempt((value) => value + 1); }} loadEditor={loadEditor} />
+        {featureOff ? <FeatureOffNotice formatName={tOffice(`formatName.${format}`, { defaultValue: format.toUpperCase() })} className="mx-4 my-2" /> : null}
+        {/* The shell header is the only frame: neutralize the shared EditorSlot card so the editor fills the page like DOCX/XLSX (web has no card either). A read-only message is a notice, not the editor: it keeps its margin and its own height so the read-only surface below sits right under it. */}
+        {featureOff && !current?.failure ? null : <EditorSlot className={readOnlyMessage ? "flex-none rounded-none border-0 bg-transparent px-4 py-2" : "rounded-none border-0 bg-transparent p-0"} format={format} host={host} editorHandle={session.editor} capability={current?.failure ? { ...capability, status: "available" } : capability} openState={current?.failure ? "error" : ready ? "ready" : "loading"} openError={current?.failure?.message} onRetry={() => { setLoaded(null); setOpenAttempt((value) => value + 1); }} loadEditor={loadEditor} />}
         {session.editor.renderSurface && ready && !session.canSave ? <section className="flex min-h-0 flex-1 flex-col" aria-label={effectiveTitle} data-testid="readonly-surface">{session.editor.renderSurface?.()}</section> : null}
       </>} /></>;
 }

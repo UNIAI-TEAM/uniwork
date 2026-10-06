@@ -162,6 +162,11 @@ it("opens a cloud document read-only when its format flag or the engine flag is 
     await open(0);
     expect(h.call).toHaveBeenCalledWith("desktop:public-config", expect.objectContaining({ organizationId: "org" }));
     await waitFor(() => expect(readonlySurface(h.container)).not.toBeNull());
+    // The reason is the feature switch: one neutral notice, no permission chip/alert, no capability box.
+    expect(h.container.querySelector("[data-testid='office-feature-off']")).not.toBeNull();
+    expect(h.container.querySelector("[data-testid^='office-save-permission']")).toBeNull();
+    expect(h.container.querySelector("[data-testid='office-capability-readonly']")).toBeNull();
+    expect(h.container.querySelectorAll("[data-testid='office-feature-off']")).toHaveLength(1);
     cleanup();
   }
   const control = harness({ flags: { office_engine: true } });
@@ -169,6 +174,15 @@ it("opens a cloud document read-only when its format flag or the engine flag is 
   await waitFor(() => expect(control.container.querySelector("#desktop-panel-doc-0")).not.toBeNull());
   await settleDocxSessions(sessions);
   expect(readonlySurface(control.container)).toBeNull();
+});
+
+it("keeps the permission state and the capability box for a document the reader cannot edit, with no feature-off notice", async () => {
+  const h = harness({ flags: { office_engine: true, office_docx: true }, readOnly: true });
+  await open(0);
+  await waitFor(() => expect(readonlySurface(h.container)).not.toBeNull());
+  expect(h.container.querySelector("[data-testid^='office-save-permission']")).not.toBeNull();
+  expect(h.container.querySelector("[data-testid='office-capability-readonly']")).not.toBeNull();
+  expect(h.container.querySelector("[data-testid='office-feature-off']")).toBeNull();
 });
 
 it("fails closed, after one retry, when the config call is rejected or malformed", async () => {
