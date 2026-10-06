@@ -32,7 +32,7 @@ import { usePptxPrint } from "./print";
 import { PptxPresenter } from "./presenter";
 import { pptxShowGroupItems } from "./ribbon-show-items";
 import { PptxSlideShow } from "./show/pptx-slide-show";
-import { matchPptxShortcut } from "./shortcuts/pptx-shortcuts";
+import { isPptxTypedKey, matchPptxShortcut } from "./shortcuts/pptx-shortcuts";
 import { PptxShortcutsHelp } from "./shortcuts/pptx-shortcuts-help";
 import { PptxSelectionOverlay } from "./selection/pptx-selection-overlay";
 import { PptxTextEditLayer, PptxTextEditorOverlay, type PptxTextCommit } from "./text/pptx-text-editor";
@@ -49,6 +49,7 @@ import { usePptxGestureHistory } from "./use-pptx-gesture-history";
 import { usePptxInPlaceText } from "./use-pptx-in-place-text";
 import { usePptxPanels } from "./use-pptx-panels";
 import { usePptxPendingSelect } from "./use-pptx-pending-select";
+import { usePptxSlideCommands } from "./use-pptx-slide-commands";
 
 export interface PptxEditorProps {
   host: OfficeHost;
@@ -229,27 +230,16 @@ export function PptxEditor({
   }, [onDirty, onTextEdit, selectedIndex, waitForGesture]);
 
   const textTargets = useMemo(() => (rendition ? collectTextTargets(rendition) : []), [rendition]);
-  const textTargetsRef = useRef(textTargets);
-  useEffect(() => { textTargetsRef.current = textTargets; }, [textTargets]);
 
   const reportCommandError = useCallback((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     setCommandError(message);
     onCommandError?.(error);
   }, [onCommandError]);
-  const { textTarget, openTextEditor, closeTextEditor, commitText, flushTextEdit } = usePptxInPlaceText({
+  const { textTarget, typed, openTextEditor, openTextEditorForSelection, closeTextEditor, commitText, flushTextEdit } = usePptxInPlaceText({
     rootRef: editorRootRef, ...(onCommitText ? { onCommitText } : {}), ...(onDirty ? { onDirty } : {}), onOpen: clearCommandError, onError: reportCommandError,
+    textTargets, selectedIds: () => selectionRef.current.ids,
   });
-
-  // The ribbon Text command (and the editor's onTextEdit seam) opens the in-place editor
-  // over the selected text element; with nothing selected it falls back to the seam.
-  const openTextEditorForSelection = useCallback(() => {
-    const target = selectionRef.current.ids.length
-      ? textTargetsRef.current.find((candidate) => candidate.sourceId === selectionRef.current.ids[0])
-      : undefined;
-    if (target) { openTextEditor(target); return true; }
-    return false;
-  }, [openTextEditor]);
 
 
   const runCommand = useCallback((operation: Promise<unknown>) => {
@@ -423,6 +413,7 @@ export function PptxEditor({
   }, [reorderElements, runCommand, selectedIndex]);
   // F-01: every built panel is reachable from a ribbon item, a launcher, a
   // panel command or the active (contextual) tab, bound to ONE edit channel.
+  const slideCommands = usePptxSlideCommands({ ...(handleEdit ? { edit: handleEdit } : {}), slideIndex: selectedIndex, slideCount: slides.length, selectSlide, clearSelection: selection.clear, onError: reportCommandError });
   const panels = usePptxPanels({
     activeTab,
     contextual,
@@ -443,6 +434,7 @@ export function PptxEditor({
     onSelectSlide: selectSlide,
     ...(loadLayouts ? { loadLayouts } : {}),
     showItems,
+    slideItems: slideCommands.slideItems,
     onCreated,
     rootRef: editorRootRef,
   });
@@ -488,7 +480,11 @@ export function PptxEditor({
   // documented and vice versa - there is no second, drifting handler.
   const onCanvasKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const binding = matchPptxShortcut(event);
-    if (!binding) return;
+    if (!binding) {
+      // UNI-958: a printable key over a selected text element starts editing it, as in PowerPoint.
+      if (isPptxTypedKey(event.nativeEvent) && openTextEditorForSelection(event.key)) event.preventDefault();
+      return;
+    }
     switch (binding.action) {
       case "undo": event.preventDefault(); requestHistory("undo"); return;
       case "redo": event.preventDefault(); requestHistory("redo"); return;
@@ -564,7 +560,7 @@ export function PptxEditor({
           {findOpen ? <PptxFindReplacePanel texts={findTexts} onActiveHitChange={onFindHit} onClose={closeFind} onError={reportCommandError} readonly={!findReplace} {...(findReplace ? { onFindReplace: findReplace } : {})} /> : null}
           {alerts}
         </>}
-        rail={<PptxSlideRail slides={railSlides} selectedIndex={selectedIndex} onSelect={selectSlide} />}
+        rail={<PptxSlideRail slides={railSlides} selectedIndex={selectedIndex} onSelect={selectSlide} {...(slideCommands.deleteSlide && !masters.open ? { onDelete: slideCommands.deleteSlide } : {})} />}
         bottom={!masters.open && panels.placement === "bottom" ? panels.node : undefined}
         aside={masters.aside ?? (panels.placement === "aside" ? panels.node : undefined)}
         statusBar={
@@ -599,7 +595,7 @@ export function PptxEditor({
                     <PptxTextEditLayer slideIndex={selectedIndex} targets={textTargets} page={page} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} controller={selection} activeId={textTarget?.sourceId ?? null} onOpen={openTextEditor} />
                   ) : null}
                   {onCommitText && textTarget ? (
-                    <PptxTextEditorOverlay slideIndex={selectedIndex} target={textTarget} page={page} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} onCommitText={commitText} onCancel={closeTextEditor} />
+                    <PptxTextEditorOverlay slideIndex={selectedIndex} target={textTarget} page={page} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} onCommitText={commitText} onCancel={closeTextEditor} caretAtEnd={typed} />
                   ) : null}
                 </>
               ) : null}

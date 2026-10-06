@@ -58,4 +58,51 @@ describe("PptxSlideRail", () => {
       expect(slide.className).toContain("pointer-coarse:max-[480px]:min-h-11");
     }
   });
+  it("deletes the focused slide with Delete or Backspace and keeps the key off the canvas (UNI-958)", () => {
+    const onDelete = vi.fn();
+    const outer = vi.fn();
+    render(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }, { id: "s3" }]} selectedIndex={1} onSelect={vi.fn()} onDelete={onDelete} />);
+    document.body.addEventListener("keydown", outer);
+    const slides = screen.getAllByRole("button");
+    fireEvent.keyDown(slides[1]!, { key: "Delete" });
+    fireEvent.keyDown(slides[2]!, { key: "Backspace" });
+    expect(onDelete.mock.calls).toEqual([[1], [2]]);
+    // The canvas Delete removes the selected shape; a rail Delete must never reach it.
+    expect(outer).not.toHaveBeenCalled();
+    document.body.removeEventListener("keydown", outer);
+  });
+
+  it("hands a last-slide Delete to the editor (which refuses it with a reason) and ignores Delete without a delete port", () => {
+    const onDelete = vi.fn();
+    const { rerender } = render(<PptxSlideRail slides={[{ id: "s1" }]} selectedIndex={0} onSelect={vi.fn()} onDelete={onDelete} />);
+    fireEvent.keyDown(screen.getByRole("button"), { key: "Delete" });
+    expect(onDelete).toHaveBeenCalledWith(0);
+    rerender(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }]} selectedIndex={0} onSelect={vi.fn()} />);
+    expect(() => fireEvent.keyDown(screen.getAllByRole("button")[0]!, { key: "Delete" })).not.toThrow();
+  });
+
+  it("moves focus to the thumbnail now at the selected index once the deck drops the deleted slide (UNI-958 r2 M2)", () => {
+    const onDelete = vi.fn();
+    const { rerender } = render(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }, { id: "s3" }]} selectedIndex={1} onSelect={vi.fn()} onDelete={onDelete} />);
+    const deleted = screen.getAllByRole("button")[1]!;
+    deleted.focus();
+    fireEvent.keyDown(deleted, { key: "Delete" });
+    rerender(<PptxSlideRail slides={[{ id: "s1" }, { id: "s3" }]} selectedIndex={1} onSelect={vi.fn()} onDelete={onDelete} />);
+    expect(document.activeElement).toBe(screen.getAllByRole("button")[1]);
+    expect(document.activeElement).toHaveAttribute("data-slide-index", "1");
+  });
+
+  it("refocuses the new last thumbnail when the last slide was deleted", () => {
+    const { rerender } = render(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }]} selectedIndex={1} onSelect={vi.fn()} onDelete={vi.fn()} />);
+    fireEvent.keyDown(screen.getAllByRole("button")[1]!, { key: "Delete" });
+    rerender(<PptxSlideRail slides={[{ id: "s1" }]} selectedIndex={1} onSelect={vi.fn()} onDelete={vi.fn()} />);
+    expect(document.activeElement).toBe(screen.getByRole("button"));
+  });
+
+  it("advertises Delete on the thumbnails only when a delete port is bound", () => {
+    const { rerender } = render(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }]} selectedIndex={0} onSelect={vi.fn()} onDelete={vi.fn()} />);
+    for (const slide of screen.getAllByRole("button")) expect(slide).toHaveAttribute("aria-keyshortcuts", "Delete");
+    rerender(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }]} selectedIndex={0} onSelect={vi.fn()} />);
+    for (const slide of screen.getAllByRole("button")) expect(slide).not.toHaveAttribute("aria-keyshortcuts");
+  });
 });
