@@ -1,48 +1,42 @@
 // Rich paste: an HTML table on the clipboard (Excel, Google Sheets, a web
-// page) carries bold, fill and number formats that the plain-text twin loses.
-// This module reads those three formats out of the table and plans the
-// `sheet.command.set-range-values` / numfmt writes that apply them after the
-// values land. Values always come from the plain text, so the existing
-// coercion rules stay the single source of cell content.
+// page) carries fonts, fills, borders, number formats and merged cells that
+// the plain-text twin loses. This module reads them out of the table and
+// plans one paste: on the live grid one set-range-values (values and styles
+// together) plus one merge command per merged area, run as ONE undo step; on
+// the fallback surface one edit batch. Values always come from the plain
+// text, so the existing coercion rules stay the single source of content.
 
 import { XLSX_CLIENT_MAX_EDIT_OPS } from "./xlsx-clipboard";
-import { XLSX_NUMBER_FORMAT_COMMANDS, numberFormatCommandParams } from "./number-format/catalog";
-import { excelNumberFormat, fillColor, usableFormat } from "./xlsx-clipboard-formats";
-import type { XlsxToolbarCommands } from "./toolbar/types";
+import { cellPasteStyle, collapsed, type XlsxPasteBorderSide, type XlsxPasteStyle } from "./xlsx-clipboard-style";
 
 export interface XlsxRichCell {
   readonly text: string;
-  readonly bold: boolean;
-  /** Lower-case `#rrggbb`, or null for no (or white) fill. */
-  readonly fill: string | null;
-  /** An OOXML format code, or null for General / unreadable. */
-  readonly numberFormat: string | null;
+  readonly style: XlsxPasteStyle;
+  /** The number behind a formatted display text (Excel `x:num`, Google
+   *  `data-sheets-value`): "50.00%" pastes as 0.5 under its format. */
+  readonly number?: number;
+}
+
+/** A 0-based inclusive rectangle relative to the table's top-left cell. */
+export interface XlsxPasteRange {
+  readonly startRow: number;
+  readonly endRow: number;
+  readonly startColumn: number;
+  readonly endColumn: number;
+}
+
+export interface XlsxRichTable {
+  readonly rows: readonly (readonly XlsxRichCell[])[];
+  readonly merges: readonly XlsxPasteRange[];
 }
 
 export interface XlsxRichPastePlan {
-  /** `{ [row]: { [column]: { s } } }` for `sheet.command.set-range-values`:
-   *  only cells that carry bold or a fill appear. */
-  readonly style: Record<number, Record<number, { s: Record<string, unknown> }>>;
-  /** Cells per format code, each group one numfmt command. */
-  readonly numberFormats: ReadonlyMap<string, readonly { row: number; column: number }[]>;
-  /** Distinct cells that carry any format (one extra op each at save time). */
-  readonly styledCells: number;
-}
-
-function declaration(style: string, property: string): string | null {
-  const match = new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+)`, "i").exec(style);
-  return match ? match[1]!.trim() : null;
-}
-
-function sheetsNumberFormat(cell: Element): string | null {
-  const raw = cell.getAttribute("data-sheets-numberformat");
-  if (!raw) return null;
-  try {
-    const pattern = (JSON.parse(raw) as { 2?: unknown })[2];
-    return typeof pattern === "string" ? pattern : null;
-  } catch {
-    return null;
-  }
+  /** Style per pasted cell (same grid as the plain text); null = unformatted. */
+  readonly styles: readonly (readonly (XlsxPasteStyle | null)[])[];
+  /** The source number per pasted cell, when the HTML names one. */
+  readonly numbers: readonly (readonly (number | null)[])[];
+  /** Absolute merge areas. */
+  readonly merges: readonly XlsxPasteRange[];
 }
 
 function classRules(doc: Document): Map<string, string> {
@@ -55,119 +49,111 @@ function classRules(doc: Document): Map<string, string> {
   return rules;
 }
 
-function collapsed(text: string | null): string {
-  return (text ?? "").replace(/\s+/g, " ").trim();
-}
-
 function richCell(cell: Element, rules: Map<string, string>): XlsxRichCell {
   const classes = (cell.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
   // Inline declarations come last so they win over a class rule.
   const style = [...classes.map((name) => rules.get(name) ?? ""), cell.getAttribute("style") ?? ""].join(";");
-  const weight = declaration(style, "font-weight");
-  const wrapped = cell.querySelector("b, strong");
   const text = collapsed(cell.textContent);
-  const bold = (weight !== null && /^(bold|bolder|[6-9]00)$/i.test(weight)) ||
-    (wrapped !== null && text !== "" && collapsed(wrapped.textContent) === text);
-  const fill = fillColor(declaration(style, "background-color") ?? declaration(style, "background") ?? cell.getAttribute("bgcolor"));
-  const numberFormat = usableFormat(excelNumberFormat(style) ?? sheetsNumberFormat(cell));
-  return { text, bold, fill, numberFormat };
+  const number = sourceNumber(cell);
+  return { text, style: cellPasteStyle(cell, style, text), ...(number === null ? {} : { number }) };
 }
 
-/** The first `<table>` of a clipboard HTML payload as rows of formatted cells;
- *  null when there is no table, or when its expanded grid would be larger than
- *  the edit-op bound (the plain text is refused at that size anyway).
- *  `colspan` expands into empty cells so the grid lines up with the plain-text
- *  twin (`rowspan` is not expanded: a shape mismatch falls back to the plain
- *  paste). */
-export function parseClipboardHtmlTable(html: string): XlsxRichCell[][] | null {
+function sourceNumber(cell: Element): number | null {
+  const excel = cell.getAttribute("x:num");
+  if (excel !== null && excel.trim() !== "") return Number.isFinite(Number(excel)) ? Number(excel) : null;
+  const sheets = cell.getAttribute("data-sheets-value");
+  if (!sheets) return null;
+  try {
+    const value = (JSON.parse(sheets) as { 1?: unknown; 3?: unknown });
+    return value[1] === 3 && typeof value[3] === "number" && Number.isFinite(value[3]) ? value[3] : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The anchor's border edges a covered cell of a merged area shows: only the
+ *  sides that lie on the area's outline. */
+function outlineBorders(style: XlsxPasteStyle, area: XlsxPasteRange, row: number, column: number): XlsxPasteStyle {
+  if (!style.bd) return {};
+  const onEdge: Record<XlsxPasteBorderSide, boolean> = {
+    t: row === area.startRow, b: row === area.endRow, l: column === area.startColumn, r: column === area.endColumn,
+  };
+  const bd = Object.fromEntries(Object.entries(style.bd).filter(([side]) => onEdge[side as XlsxPasteBorderSide]));
+  return Object.keys(bd).length > 0 ? { bd } : {};
+}
+
+function span(cell: Element, name: string, max: number): number {
+  return Math.min(Math.max(Number.parseInt(cell.getAttribute(name) ?? "1", 10) || 1, 1), max);
+}
+
+/** The first `<table>` of a clipboard HTML payload as a grid of formatted
+ *  cells plus its merged areas; null when there is no table, or when its
+ *  expanded grid would be larger than the edit-op bound (the plain text is
+ *  refused at that size anyway). `colspan`/`rowspan` expand into covered
+ *  cells, so the grid lines up with the plain-text twin; the bound is checked
+ *  while expanding, before anything large is allocated. */
+export function parseClipboardHtmlTable(html: string): XlsxRichTable | null {
   if (html.trim() === "" || typeof DOMParser === "undefined") return null;
   const doc = new DOMParser().parseFromString(html, "text/html");
   const table = doc.querySelector("table");
   if (!table) return null;
   const rules = classRules(doc);
-  const rows: XlsxRichCell[][] = [];
+  const trs = Array.from(table.querySelectorAll("tr"));
+  const rows: XlsxRichCell[][] = trs.map(() => []);
+  const merges: XlsxPasteRange[] = [];
   let total = 0;
-  for (const tr of Array.from(table.querySelectorAll("tr"))) {
-    const cells: XlsxRichCell[] = [];
+  for (const [rowIndex, tr] of trs.entries()) {
+    let column = 0;
     for (const cell of Array.from(tr.children)) {
       if (cell.tagName !== "TD" && cell.tagName !== "TH") continue;
-      const span = Math.max(Number.parseInt(cell.getAttribute("colspan") ?? "1", 10) || 1, 1);
-      total += span;
+      while (rows[rowIndex]![column]) column += 1;
+      const colSpan = span(cell, "colspan", 16_384);
+      const rowSpan = span(cell, "rowspan", trs.length - rowIndex);
+      total += colSpan * rowSpan;
       if (total > XLSX_CLIENT_MAX_EDIT_OPS) return null;
-      cells.push(richCell(cell, rules));
-      for (let extra = 1; extra < span; extra += 1) cells.push({ text: "", bold: false, fill: null, numberFormat: null });
+      const anchor = richCell(cell, rules);
+      const area = { startRow: rowIndex, endRow: rowIndex + rowSpan - 1, startColumn: column, endColumn: column + colSpan - 1 };
+      if (colSpan > 1 || rowSpan > 1) merges.push(area);
+      for (let row = area.startRow; row <= area.endRow; row += 1) {
+        for (let at = area.startColumn; at <= area.endColumn; at += 1) {
+          rows[row]![at] = row === rowIndex && at === column ? anchor : { text: "", style: outlineBorders(anchor.style, area, row, at) };
+        }
+      }
+      column += colSpan;
     }
-    rows.push(cells);
   }
-  return rows.length > 0 ? rows : null;
+  // A row a rowspan skipped over may have holes left of a later cell.
+  const dense = rows.map((cells) => Array.from({ length: cells.length }, (_, at) => cells[at] ?? { text: "", style: {} }));
+  return dense.length > 0 ? { rows: dense, merges } : null;
 }
 
-/** Plans the format writes for a paste anchored at `start`. null: nothing in
- *  the table is formatted, or its grid does not match the plain text (a stale
- *  or foreign HTML payload) - paste values only. "over-limit": values plus
- *  formatted cells would exceed the edit-op bound - paste values only and say
- *  so. */
+/** Plans the formats of a paste anchored at `start`. null: nothing in the
+ *  table is formatted or merged, or the table is not the plain text's twin
+ *  (a different grid, or any cell whose text differs: a stale or foreign
+ *  payload) - paste values only. "over-limit": the values plus one op per
+ *  merged area would exceed the edit-op bound - paste values only and say
+ *  so. A cell's style rides the same edit as its value, so styles add no op. */
 export function planRichPaste(
   start: { row: number; column: number },
-  table: readonly (readonly XlsxRichCell[])[],
+  table: XlsxRichTable,
   plainRows: readonly (readonly string[])[],
 ): XlsxRichPastePlan | "over-limit" | null {
-  if (table.length !== plainRows.length || table.some((row, index) => row.length !== plainRows[index]!.length)) return null;
-  const style: XlsxRichPastePlan["style"] = {};
-  const numberFormats = new Map<string, { row: number; column: number }[]>();
-  let styledCells = 0;
-  let values = 0;
-  table.forEach((cells, rowIndex) => {
-    cells.forEach((cell, columnIndex) => {
-      values += 1;
-      const row = start.row + rowIndex;
-      const column = start.column + columnIndex;
-      const s: Record<string, unknown> = {};
-      if (cell.bold) s.bl = 1;
-      if (cell.fill) s.bg = { rgb: cell.fill };
-      if (Object.keys(s).length > 0) (style[row] ??= {})[column] = { s };
-      if (cell.numberFormat) {
-        const group = numberFormats.get(cell.numberFormat) ?? [];
-        group.push({ row, column });
-        numberFormats.set(cell.numberFormat, group);
-      }
-      if (cell.bold || cell.fill || cell.numberFormat) styledCells += 1;
-    });
-  });
-  if (styledCells === 0) return null;
-  return values + styledCells > XLSX_CLIENT_MAX_EDIT_OPS ? "over-limit" : { style, numberFormats, styledCells };
-}
-
-/** The clipboard's `text/html` flavour; "" when the async clipboard is denied
- *  or absent (an insecure context, a refused permission). */
-export async function readClipboardHtml(): Promise<string> {
-  const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard;
-  if (!clipboard?.read) return "";
-  try {
-    for (const item of await clipboard.read()) {
-      if (item.types.includes("text/html")) return await (await item.getType("text/html")).text();
-    }
-  } catch {
-    // Denied or unsupported: the plain-text paste still works.
-  }
-  return "";
-}
-
-/** Runs the planned writes: one set-range-values for bold/fill, one numfmt
- *  command per format code. false when the renderer refused any of them (the
- *  values are already in; the caller says the formats were not kept). */
-export async function applyRichPaste(
-  commands: XlsxToolbarCommands,
-  unitId: string,
-  subUnitId: string,
-  plan: XlsxRichPastePlan,
-): Promise<boolean> {
-  let applied = true;
-  if (Object.keys(plan.style).length > 0) {
-    applied = (await commands.execute("sheet.command.set-range-values", { unitId, subUnitId, value: plan.style })) && applied;
-  }
-  for (const [pattern, cells] of plan.numberFormats) {
-    applied = (await commands.execute(XLSX_NUMBER_FORMAT_COMMANDS.set, numberFormatCommandParams(cells, pattern))) && applied;
-  }
-  return applied;
+  const { rows } = table;
+  if (rows.length !== plainRows.length || rows.some((row, index) => row.length !== plainRows[index]!.length)) return null;
+  if (rows.some((row, rowIndex) => row.some((cell, column) => cell.text !== collapsed(plainRows[rowIndex]![column]!)))) return null;
+  let formatted = table.merges.length > 0;
+  const styles = rows.map((row) => row.map((cell) => {
+    if (Object.keys(cell.style).length === 0) return null;
+    formatted = true;
+    return cell.style;
+  }));
+  if (!formatted) return null;
+  const values = plainRows.reduce((sum, row) => sum + row.length, 0);
+  if (values + table.merges.length > XLSX_CLIENT_MAX_EDIT_OPS) return "over-limit";
+  const merges = table.merges.map((area) => ({
+    startRow: start.row + area.startRow, endRow: start.row + area.endRow,
+    startColumn: start.column + area.startColumn, endColumn: start.column + area.endColumn,
+  }));
+  const numbers = rows.map((row) => row.map((cell) => cell.number ?? null));
+  return { styles, numbers, merges };
 }

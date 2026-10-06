@@ -78,9 +78,14 @@ describe("XlsxEditor live grid commands", () => {
     fireEvent.click(toolbar.getByRole("button", { name: /^Sao chép ô/ }));
     expect(handle.clipboard?.writeText).toHaveBeenCalledWith("2\t\n\t");
     grid.handle.setCellText.mockClear();
+    grid.handle.executeCommand.mockClear();
     fireEvent.click(toolbar.getByRole("button", { name: /^Dán/ }));
-    await waitFor(() => expect(grid.handle.setCellText).toHaveBeenCalledTimes(4));
-    expect(grid.handle.setCellText.mock.calls).toEqual([["sheet-1", 0, 0, "3"], ["sheet-1", 0, 1, "4"], ["sheet-1", 1, 0, "5"], ["sheet-1", 1, 1, "6"]]);
+    // UNI-953 MINOR-4: the whole paste is one set-range-values (one undo step).
+    const cell = (v: number) => ({ f: null, p: null, si: null, v, t: 2 });
+    await waitFor(() => expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.set-range-values", expect.objectContaining({
+      subUnitId: "sheet-1", value: { 0: { 0: cell(3), 1: cell(4) }, 1: { 0: cell(5), 1: cell(6) } },
+    })));
+    expect(grid.handle.setCellText).not.toHaveBeenCalled();
   });
 
   it("shows indeterminate Save progress and cancels the actual coordinator", async () => {

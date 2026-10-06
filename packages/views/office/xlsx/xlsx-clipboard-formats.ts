@@ -73,10 +73,11 @@ function hex(value: number): string {
   return value.toString(16).padStart(2, "0");
 }
 
-/** `#rgb`, `#rrggbb`, `rgb(r, g, b)` or a colour name as `#rrggbb`; white (and
- *  anything unreadable) is "no fill". */
-export function fillColor(value: string | null): string | null {
+/** `#rgb`, `#rrggbb`, `rgb(r, g, b)`, a colour name or Excel's `windowtext`
+ *  as `#rrggbb`; null when unreadable. */
+export function cssColor(value: string | null): string | null {
   if (!value) return null;
+  if (/\bwindowtext\b/i.test(value)) return "#000000";
   let color: string | null = null;
   const hexMatch = /#([0-9a-f]{3}|[0-9a-f]{6})\b/i.exec(value);
   if (hexMatch) {
@@ -90,5 +91,12 @@ export function fillColor(value: string | null): string | null {
       if (name) color = NAMED_COLORS.get(name)!;
     }
   }
+  return color;
+}
+
+/** A fill colour; white (and anything unreadable) is "no fill". */
+export function fillColor(value: string | null): string | null {
+  if (value && /\bwindowtext\b/i.test(value)) return null;
+  const color = cssColor(value);
   return color === "#ffffff" ? null : color;
 }

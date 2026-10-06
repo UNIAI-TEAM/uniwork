@@ -286,7 +286,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // FIX-EDITOR-SPLIT (UNI-926): copy / paste / cut, the clipboard failure
   // handler and the folded permissions live in ./use-xlsx-editor-clipboard.
-  const { copy, paste, cut, clipboardFailure, clipboardPermissions } = useXlsxEditorClipboard({
+  const { copy, paste, cut, clipboardFailure, clipboardPermissions, pasteNotice } = useXlsxEditorClipboard({
     editor,
     permissions,
     selection,
@@ -470,7 +470,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   <XlsxFindPanel documentKey={documentKey} host={rendererHost} commands={gridCommands} selection={selection}
                     sheetName={selection?.sheet ?? activeSheet} dirtyGeneration={coordinatorState.dirtyGeneration} readOnly={readOnly} onClose={() => setFindOpen(false)} />
                 ) : null}
-                <XlsxFrameNotices recalcProgress={recalcProgress} recalcError={recalcError} editFailed={Boolean(gridEdits.error)} onCancelRecalculate={cancelRecalculate} saveErrorCode={coordinatorState.error?.code} editor={editor} grid={gridRef} />
+                <XlsxFrameNotices recalcProgress={recalcProgress} recalcError={recalcError} editFailed={Boolean(gridEdits.error)} onCancelRecalculate={cancelRecalculate} saveErrorCode={coordinatorState.error?.code} editor={editor} grid={gridRef} pasteNotice={pasteNotice} />
               </>
             }
             bottom={

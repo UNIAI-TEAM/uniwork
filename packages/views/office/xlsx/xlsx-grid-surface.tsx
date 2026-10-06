@@ -177,7 +177,7 @@ export function XlsxGridSurface({
       selectSheet: (sheetId) => handleRef.current?.selectSheet(sheetId),
       setNumberFormat: (pattern) => handleRef.current?.setNumberFormat(pattern),
       executeCommand: (id, params) => handleRef.current?.executeCommand(id, params) ?? false,
-      executeCommandsAsOneStep: (steps) => handleRef.current?.executeCommandsAsOneStep(steps) ?? Promise.resolve(false),
+      executeCommandsAsOneStep: (steps) => handleRef.current?.executeCommandsAsOneStep?.(steps) ?? Promise.resolve(false),
       getActiveFormatState: () => handleRef.current?.getActiveFormatState() ?? null,
       getSheets: () => handleRef.current?.getSheets?.() ?? [],
       restoreRuleSet: (sheetId, family, rules) => handleRef.current?.restoreRuleSet?.(sheetId, family, rules) ?? false,
