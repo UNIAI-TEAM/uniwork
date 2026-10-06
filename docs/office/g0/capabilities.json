@@ -506,7 +506,8 @@
         "F-XLSX-BASIC",
         "F-XLSX-KITCHEN",
         "F-XLSX-VI",
-        "F-LARGE-XLSX"
+        "F-LARGE-XLSX",
+        "F-XLSX-NUMFMT"
       ],
       "evidence": [
         "apps/shell/src/main/index.ts XLSX_RE and OPEN_DIALOG_EXTENSIONS",
@@ -532,7 +533,8 @@
         "F-XLSX-VI",
         "F-LARGE-XLSX",
         "F-XLSX-KITCHEN",
-        "F-XLSX-SHEETS"
+        "F-XLSX-SHEETS",
+        "F-XLSX-NUMFMT"
       ],
       "evidence": [
         "apps/sheets/src/renderer/save-actions.ts",
