@@ -7845,7 +7845,13 @@
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
       "zoomReset": "Reset zoom",
-      "zoomValue": "{{value}}%"
+      "zoomValue": "{{value}}%",
+      "viewLabel": "View",
+      "fitWidth": "Fit to width",
+      "fitPage": "Fit to page",
+      "position": "Ln {{line}}, Col {{column}}",
+      "characters": "Characters: {{value}}",
+      "lines": "Lines: {{value}}"
     },
     "docx": {
       "title": "DOCX document",
@@ -10352,7 +10358,12 @@
         "characters": "Characters: {{value}}",
         "language": "Language: {{language}}",
         "selection": "Selected: {{value}}",
-        "selection_none": "No selection"
+        "selection_none": "No selection",
+        "notes": "Notes",
+        "viewLabel": "View",
+        "viewNormal": "Normal",
+        "viewSorter": "Slide sorter",
+        "viewShow": "Slide show"
       },
       "tabs": {
         "home": "Home",
@@ -10393,7 +10404,8 @@
         "animations": "Animations",
         "show": "Slide Show",
         "review": "Review",
-        "view": "View"
+        "view": "View",
+        "master": "Master views"
       },
       "state": {
         "opening": "Opening presentation…"
@@ -10419,7 +10431,45 @@
         "undo": "Undo",
         "redo": "Redo",
         "presenter": "Present",
-        "fullscreen": "Fullscreen"
+        "fullscreen": "Fullscreen",
+        "slideMaster": "Slide master"
+      },
+      "masters": {
+        "title": "Slide master",
+        "close": "Close master view",
+        "loading": "Loading the slide master...",
+        "unbound": "Slide master changes are not connected to this editor yet.",
+        "busy": "Applying...",
+        "parts_label": "Masters and layouts",
+        "parts_empty": "This presentation has no slide master or layouts.",
+        "kind_master": "Master",
+        "kind_layout": "Layout",
+        "elements_label": "Elements",
+        "no_part": "Select a master or layout to edit it.",
+        "elements_empty": "This part has no elements.",
+        "no_element": "Select an element to edit it.",
+        "inspector_label": "Element properties",
+        "text_label": "Text",
+        "text_placeholder": "Text shown on the master",
+        "text_apply": "Apply text",
+        "position_label": "Position and size (px)",
+        "x": "X",
+        "y": "Y",
+        "w": "Width",
+        "h": "Height",
+        "box_invalid": "Enter valid numbers; width and height must be at least 1.",
+        "box_apply": "Apply position",
+        "fill_label": "Fill colour",
+        "fill_apply": "Apply fill",
+        "fill_clear": "No fill",
+        "stroke_label": "Outline colour",
+        "stroke_width": "Outline width (pt)",
+        "stroke_width_invalid": "Outline width must be a number from 0 to {{max}}.",
+        "stroke_apply": "Apply outline",
+        "stroke_clear": "No outline",
+        "color_hex": "Hex colour",
+        "color_invalid": "Enter a colour like #4472C4.",
+        "delete": "Delete element"
       },
       "context": {
         "chart": "Chart Design",

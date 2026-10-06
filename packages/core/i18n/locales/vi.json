@@ -7840,7 +7840,13 @@
       "zoomIn": "Phóng to",
       "zoomOut": "Thu nhỏ",
       "zoomReset": "Đặt lại thu phóng",
-      "zoomValue": "{{value}}%"
+      "zoomValue": "{{value}}%",
+      "viewLabel": "Chế độ xem",
+      "fitWidth": "Vừa chiều rộng",
+      "fitPage": "Vừa cả trang",
+      "position": "Dòng {{line}}, Cột {{column}}",
+      "characters": "Ký tự: {{value}}",
+      "lines": "Số dòng: {{value}}"
     },
     "docx": {
       "title": "Tài liệu DOCX",
@@ -10346,7 +10352,12 @@
         "characters": "Ký tự: {{value}}",
         "language": "Ngôn ngữ: {{language}}",
         "selection": "Đang chọn: {{value}}",
-        "selection_none": "Chưa chọn"
+        "selection_none": "Chưa chọn",
+        "notes": "Ghi chú",
+        "viewLabel": "Chế độ xem",
+        "viewNormal": "Thường",
+        "viewSorter": "Sắp xếp trang chiếu",
+        "viewShow": "Trình chiếu"
       },
       "tabs": {
         "home": "Trang chủ",
@@ -10387,7 +10398,8 @@
         "animations": "Hoạt ảnh",
         "show": "Trình chiếu",
         "review": "Xem lại",
-        "view": "Xem"
+        "view": "Xem",
+        "master": "Chế độ xem bản cái"
       },
       "state": {
         "opening": "Đang mở bản trình bày…"
@@ -10413,7 +10425,45 @@
         "undo": "Hoàn tác",
         "redo": "Làm lại",
         "presenter": "Trình bày",
-        "fullscreen": "Toàn màn hình"
+        "fullscreen": "Toàn màn hình",
+        "slideMaster": "Bản cái"
+      },
+      "masters": {
+        "title": "Bản cái trang chiếu",
+        "close": "Đóng chế độ bản cái",
+        "loading": "Đang tải bản cái trang chiếu...",
+        "unbound": "Thay đổi bản cái trang chiếu chưa được kết nối với trình soạn thảo này.",
+        "busy": "Đang áp dụng...",
+        "parts_label": "Bản cái và bố cục",
+        "parts_empty": "Bản trình bày này không có bản cái hay bố cục nào.",
+        "kind_master": "Bản cái",
+        "kind_layout": "Bố cục",
+        "elements_label": "Phần tử",
+        "no_part": "Chọn một bản cái hoặc bố cục để chỉnh sửa.",
+        "elements_empty": "Phần này không có phần tử nào.",
+        "no_element": "Chọn một phần tử để chỉnh sửa.",
+        "inspector_label": "Thuộc tính phần tử",
+        "text_label": "Nội dung",
+        "text_placeholder": "Nội dung hiển thị trên bản cái",
+        "text_apply": "Áp dụng nội dung",
+        "position_label": "Vị trí và kích thước (px)",
+        "x": "X",
+        "y": "Y",
+        "w": "Rộng",
+        "h": "Cao",
+        "box_invalid": "Nhập số hợp lệ; chiều rộng và chiều cao phải từ 1 trở lên.",
+        "box_apply": "Áp dụng vị trí",
+        "fill_label": "Màu tô",
+        "fill_apply": "Áp dụng màu tô",
+        "fill_clear": "Không tô",
+        "stroke_label": "Màu viền",
+        "stroke_width": "Độ dày viền (pt)",
+        "stroke_width_invalid": "Độ dày viền phải là số từ 0 đến {{max}}.",
+        "stroke_apply": "Áp dụng viền",
+        "stroke_clear": "Không viền",
+        "color_hex": "Mã màu hex",
+        "color_invalid": "Nhập màu dạng #4472C4.",
+        "delete": "Xoá phần tử"
       },
       "context": {
         "chart": "Thiết kế biểu đồ",
