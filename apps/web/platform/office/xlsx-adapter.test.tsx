@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, createElement, isValidElement, StrictMode, useEffect, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { OfficeEditorHost } from "./editor-host";
 import type { OfficeCapabilityEntry, OfficeIdentity, OfficeSerializedOutput, OfficeUploadReceipt } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
@@ -393,12 +394,14 @@ describe("web XLSX format adapter", () => {
     const container = document.createElement("div");
     document.body.append(container);
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    function Host(): ReactElement {
-      useEffect(() => () => { void adapter.session.dispose(); }, []);
-      return adapter.editorView as ReactElement;
-    }
+    // T10: the shared host is the only StrictMode mechanism (its dispose is
+    // deferred past the replayed mount); the adapter disposes when asked.
+    const officeDocument = {
+      id: identity.documentId, workspace_id: identity.workspaceId, organization_id: identity.organizationId, kind: "file", title: "Office document", revision: "1", current_version: 1,
+      file: { file_id: "file", version_id: "version-1", version: 1, filename: "document.xlsx", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", size_bytes: 3, checksum_sha256: "sha256:file" },
+    } as never;
     let root!: Root;
-    await act(async () => { root = createRoot(container); root.render(createElement(StrictMode, null, createElement(Host))); });
+    await act(async () => { root = createRoot(container); root.render(createElement(StrictMode, null, createElement(OfficeEditorHost, { document: officeDocument, wsId: identity.workspaceId, readonly: false, formatAdapter: adapter as never }))); });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
     return { container, root };
   }
@@ -434,16 +437,13 @@ describe("web XLSX format adapter", () => {
     container.remove();
   });
 
-  it("makes session dispose idempotent and lets a later open cancel a pending disposal", async () => {
+  it("makes session dispose idempotent and releases the model once", async () => {
     const engine = runtime();
     const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: documents(), capability, draftStore: draftStore(), keyProvider: keyProvider() });
     await adapter.open.open();
     const first = adapter.session.dispose();
     expect(adapter.session.dispose()).toBe(first);
-    await adapter.open.open();
     await first;
-    expect(engine.released).toEqual([]);
-    await adapter.session.dispose();
     await adapter.session.dispose();
     expect(engine.released).toEqual(["model-1"]);
   });

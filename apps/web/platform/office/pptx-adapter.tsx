@@ -305,15 +305,10 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   let opening: Promise<void> | null = null;
   let generation = 0;
   let disposed = false;
-  // Set the moment the deferred dispose fires. `originalDispose` awaits the
+  // Set the moment dispose starts. `originalDispose` awaits the
   // draft before `editor.dispose()` sets `disposed`, and an open() landing in
   // that gap would report "opened" on a model about to be released.
   let disposeStarted = false;
-  // StrictMode (next dev) runs mount -> cleanup -> mount on a fresh tree: the
-  // cleanup disposes the session and the remount opens it again. Disposal is
-  // therefore deferred one task and cancelled by the next open(), so the
-  // remount revives the live session instead of reading a disposed one.
-  let cancelPendingDispose: () => void = () => undefined;
   let viewRevision = 0;
   let view: PptxSurfaceView | null = null;
   const listeners = new Set<() => void>();
@@ -332,7 +327,6 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   const editor: PptxEditorHandle = {
     format: "pptx",
     async open() {
-      cancelPendingDispose();
       if (disposed || disposeStarted) throw new Error("pptx_editor_disposed");
       if (opening) return opening;
       if (modelRef) return;
@@ -468,22 +462,12 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   session.coordinator.setCapability(options.capability);
   const originalDispose = session.dispose;
   let disposal: Promise<void> | null = null;
+  // A StrictMode replay of the OfficeEditorHost mount is absorbed by the host
+  // (editor-host.tsx defers its dispose past the replayed mount), so the
+  // session disposes once, when it is asked to.
   session.dispose = () => {
-    if (disposal) return disposal;
-    disposal = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        cancelPendingDispose = () => undefined;
-        disposeStarted = true;
-        originalDispose().then(resolve, reject);
-      }, 0);
-      cancelPendingDispose = () => {
-        clearTimeout(timer);
-        cancelPendingDispose = () => undefined;
-        disposal = null;
-        resolve();
-      };
-    });
-    return disposal;
+    disposeStarted = true;
+    return disposal ??= originalDispose();
   };
 
   const open = {

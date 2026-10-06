@@ -317,11 +317,6 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
   let opening: Promise<void> | null = null;
   let generation = 0;
   let disposed = false;
-  // StrictMode (next dev) runs mount -> cleanup -> mount on a fresh tree: the
-  // cleanup disposes the session and the remount opens it again. Disposal is
-  // therefore deferred one task and cancelled by the next open(), so the
-  // remount revives the live session instead of reading a disposed one.
-  let cancelPendingDispose: () => void = () => undefined;
   let currentSnapshot: XlsxWorkbookSnapshot | null = null;
   let serialized: XlsxRuntimeSerializedOutput | null = null;
   let viewReady = false;
@@ -358,7 +353,6 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     format: "xlsx",
     clipboard: options.clipboard,
     async open() {
-      cancelPendingDispose();
       if (disposed) throw new Error("xlsx_editor_disposed");
       if (opening) return opening;
       if (modelRef) return;
@@ -487,28 +481,12 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     serialize: transport.serialize,
   };
   const session = createOfficeEditorSession({ ...options, editor, transport: boundTransport });
-  // StrictMode replays the OfficeEditorHost mount (its [] cleanup disposes this
-  // session) against the SAME adapter, so an immediate dispose kills the live
-  // editor the replayed mount then opens (xlsx_editor_disposed). Defer one task
-  // and let the next open() cancel it; a real unmount still releases the model.
+  // A StrictMode replay of the OfficeEditorHost mount is absorbed by the host
+  // (editor-host.tsx defers its dispose past the replayed mount), so the
+  // session disposes once, when it is asked to.
   const originalDispose = session.dispose;
   let disposal: Promise<void> | null = null;
-  session.dispose = () => {
-    if (disposal) return disposal;
-    disposal = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        cancelPendingDispose = () => undefined;
-        originalDispose().then(resolve, reject);
-      }, 0);
-      cancelPendingDispose = () => {
-        clearTimeout(timer);
-        cancelPendingDispose = () => undefined;
-        disposal = null;
-        resolve();
-      };
-    });
-    return disposal;
-  };
+  session.dispose = () => disposal ??= originalDispose();
   const save = session.coordinator.save;
   session.coordinator.save = async (entryPoint) => {
     if (preparing) return { accepted: false, reason: "saving" };
