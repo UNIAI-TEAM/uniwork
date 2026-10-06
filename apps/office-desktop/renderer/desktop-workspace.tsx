@@ -372,7 +372,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       </div>
       {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
         {isXlsxTabSession(tab.data.session)
-          ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+          ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} readOnlyReason={tab.data.readOnlyReason} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
           : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} readOnlyReason={tab.data.readOnlyReason} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}
       </div>)}
     </div>

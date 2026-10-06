@@ -8,6 +8,7 @@ import { DraftRecoveryPrompt } from "@uniwork/views/office/leave-dialog";
 import { RecoveryNotice, type DesktopRecoveryState } from "../recovery-status";
 import { LockedAiEntry } from "../ai-entry";
 import { FeatureOffNotice } from "./feature-off-notice";
+import { FeatureOffShell } from "./feature-off-shell";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { OfficeHost, OfficeIdentity } from "@uniwork/core/office";
@@ -64,7 +65,7 @@ export function OpenByteDocument(props: {
 }) {
   const { session, readOnlyReason, ...rest } = props;
   return session.editor.format === "pptx"
-    ? <OpenPptxDocument {...rest} session={session as PptxDocumentSession} />
+    ? <OpenPptxDocument {...rest} readOnlyReason={readOnlyReason} session={session as PptxDocumentSession} />
     : <OpenByteSessionDocument {...rest} readOnlyReason={readOnlyReason} session={session as ByteDocumentSession} />;
 }
 
@@ -156,9 +157,10 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
  * surface; main still owns every file and cloud write. Every edit port the
  * desktop surface supports is bound here - a port with no implementation stays
  * unbound so the editor disables it honestly. */
-function OpenPptxDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud" }: {
+function OpenPptxDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud", readOnlyReason }: {
   bridge: RendererBridge; identity: OfficeIdentity; session: PptxDocumentSession; title: string; onBack: () => void;
   active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void;
+  readOnlyReason?: "feature_off";
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [failure, setFailure] = useState<string | null>(null);
@@ -233,7 +235,9 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
   return <>{prompt(active && ready)}
     {recovered ? <p role="status" className="px-4 py-2 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
     {notice ? <RecoveryNotice state={notice} className="mx-4 my-2" /> : null}
-    <PptxEditorView
+    {readOnlyReason === "feature_off" && !session.canSave
+      ? <FeatureOffShell format="pptx" title={title} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} />
+      : <PptxEditorView
     title={title}
     host={host}
     editorHandle={session.editor}
@@ -257,5 +261,5 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     saveDestination={session.localHandle ? "local" : "cloud"}
     breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]}
     fullscreen={false}
-  /></>;
+  />}</>;
 }

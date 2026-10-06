@@ -91,3 +91,28 @@ it("shows the real slides and deck on first open without any edit", async () => 
   ]);
   expect(probe.views.at(-1)?.deck).toMatchObject({ revision: 0, deck: { slides: [{ id: "s1" }, { id: "s2" }] } });
 });
+
+function readOnlyPptxSession(bridge: RendererBridge) {
+  return createPptxDocumentSession(bridge, identity, { format: "pptx", dataBase64: "UEsDBA==", checksum, canSave: false }, () => ({
+    editor: createLateOpenSurface().surface,
+    capability: { format: "pptx", operation: "serialize", host: "desktop", engineBuild: "test", contractRevision: "office-editor-host/1", status: "readonly", fidelityWarnings: [] },
+    open: async () => ({ outcome: "opened", document_id: identity.documentId, format: "pptx" }),
+  } as unknown as DesktopPptxAdapter));
+}
+const pptxBridge = () => ({ call: (async (channel: string) => (channel === "desktop:draft-list" ? { drafts: [] } : {})) as RendererBridge["call"], onSessionChanged: () => () => undefined } as RendererBridge);
+
+it("a flag-off PPTX tab shows one neutral notice, not the deck view, and no permission chip or alert (UIQ-1)", async () => {
+  const bridge = pptxBridge();
+  const { container } = render(<OpenByteDocument bridge={bridge} identity={identity} session={readOnlyPptxSession(bridge)} readOnlyReason="feature_off" title="Deck.pptx" active kind="cloud" onBack={() => undefined} />);
+  await waitFor(() => expect(container.querySelectorAll("[data-testid='office-feature-off']")).toHaveLength(1));
+  expect(container.querySelector("[data-testid^='office-save-permission']")).toBeNull();
+  expect(container.querySelector("[data-testid^='office-capability-']")).toBeNull();
+  expect(container.querySelector("[data-testid='pptx-editor-view-probe']")).toBeNull();
+});
+
+it("a read-only PPTX tab without the flag reason still goes through the deck view and shows no feature-off notice", async () => {
+  const bridge = pptxBridge();
+  const { container } = render(<OpenByteDocument bridge={bridge} identity={identity} session={readOnlyPptxSession(bridge)} title="Deck.pptx" active kind="cloud" onBack={() => undefined} />);
+  await waitFor(() => expect(container.querySelector("[data-testid='pptx-editor-view-probe']")).not.toBeNull());
+  expect(container.querySelector("[data-testid='office-feature-off']")).toBeNull();
+});
