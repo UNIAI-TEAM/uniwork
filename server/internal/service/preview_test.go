@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -15,7 +16,14 @@ func TestPreviewCapabilityIsTamperEvident(t *testing.T) {
 	if err != nil || claims.DocumentID != "d1" || len(claims.AssetIDs) != 1 {
 		t.Fatalf("verify = %#v, %v", claims, err)
 	}
-	for _, altered := range []string{token + "x", "x" + token, token[:len(token)-1] + "x"} {
+	// A MAC is 32 bytes = 43 base64 characters; the last one carries two
+	// padding bits. Flipping them gives a non-canonical spelling of the same
+	// bytes that must be refused too, so the check never depends on chance.
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+	last := strings.IndexByte(alphabet, token[len(token)-1])
+	nonCanonical := token[:len(token)-1] + string(alphabet[last^1])
+	swapped := token[:len(token)-1] + string(alphabet[(last+4)%64])
+	for _, altered := range []string{token + "x", "x" + token, swapped, nonCanonical} {
 		if _, err := s.verify(altered); err == nil {
 			t.Fatalf("altered capability accepted: %q", altered)
 		}
