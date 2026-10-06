@@ -25,6 +25,7 @@ import { XlsxVisualLayer } from "./visual-layer";
 import { fileEditsFromStream, visualsFromStream } from "./visual-recovery";
 import { applySavedVisuals, boxOfVisual, seedFileVisuals, type XlsxPendingFileRemoval } from "./visual-file";
 import { appendedFrom, applyOverlayShifts, streamOpKey, structuralShiftsOf } from "./visual-structure";
+import { gridSheetMetrics, printableVisuals, type XlsxPrintSheetMetrics, type XlsxPrintableVisual } from "./visual-print";
 import {
   anchorFromBox,
   insertBoxAt,
@@ -88,6 +89,10 @@ interface XlsxVisualsWiring {
   onViewportChange: () => void;
   /** The hidden picture input. */
   dialog: ReactNode;
+  /** Print (L1): the drawn visuals of one sheet (or all), positioned in sheet
+   *  px at 100% zoom. Without `metricsFor` only the sheet on screen is sized
+   *  (from the live grid); other sheets come back with `box: null`. */
+  getPrintableVisuals(sheetId?: string, metricsFor?: (sheetId: string) => XlsxPrintSheetMetrics | null): XlsxPrintableVisual[];
 }
 
 let visualSequence = 0;
@@ -342,7 +347,13 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     />
   );
 
-  return { commands, overlay, onViewportChange, dialog };
+  const getPrintableVisuals = useCallback((sheetId?: string, metricsFor?: (sheetId: string) => XlsxPrintSheetMetrics | null) => {
+    const measure = geometry();
+    const fallback = (id: string) => (measure ? gridSheetMetrics(measure, id) : null);
+    return printableVisuals(visuals, sheets, metricsFor ?? fallback, sheetId);
+  }, [geometry, sheets, visuals]);
+
+  return { commands, overlay, onViewportChange, dialog, getPrintableVisuals };
 }
 
 /** Gives the ribbon groups the commands and mounts the hidden picture input. */
