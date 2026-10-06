@@ -3,10 +3,14 @@
 // ("rgb(255,199,206)", "rgba(...)") while the journal converter keeps only
 // "#RRGGBB" - so a CF fill or font colour the canvas paints dropped out of
 // the print copy. Colours are brought to hex here before conversion; alpha
-// is dropped (a print cell is opaque, as Excel's dxf colours are).
+// is dropped (a print cell is opaque, as Excel's dxf colours are) except a
+// fully transparent colour, which prints as no colour.
 import { toNeutralStyle } from "../../upstream/apps/sheets/src/renderer/edit-journal";
 
-const RGB_FUNCTION = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+%?\s*)?\)$/i;
+const RGB_FUNCTION = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*([\d.]+%?)\s*)?\)$/i;
+
+/** `rgba(...,0)` / `0%`: a fully transparent colour paints nothing. */
+const isTransparent = (alpha: string | undefined): boolean => alpha !== undefined && Number.parseFloat(alpha) === 0;
 
 const channel = (value: string): string => Math.min(255, Number(value)).toString(16).padStart(2, "0").toUpperCase();
 
@@ -16,6 +20,8 @@ function hexColor(color: unknown): unknown {
   const rgb = (color as { rgb?: unknown }).rgb;
   const match = typeof rgb === "string" ? RGB_FUNCTION.exec(rgb.trim()) : null;
   if (!match) return color;
+  // Alpha is otherwise dropped, but a transparent fill or font colour must not turn opaque.
+  if (isTransparent(match[4])) return { ...color, rgb: null };
   return { ...color, rgb: `#${channel(match[1]!)}${channel(match[2]!)}${channel(match[3]!)}` };
 }
 

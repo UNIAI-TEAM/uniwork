@@ -45,3 +45,11 @@ test('keeps hex colours, clears and border colours', () => {
   const bordered = printStyleOf({ bd: { t: { s: 1, cl: { rgb: 'rgb(0,0,255)' } } } });
   assert.equal(bordered.borderTop?.color, '#0000FF');
 });
+
+test('prints a fully transparent rgba() colour as no colour, not an opaque fill', () => {
+  assert.equal(printStyleOf({ bg: { rgb: 'rgba(255,199,206,0)' } }).fillColor, null);
+  assert.equal(printStyleOf({ cl: { rgb: 'rgba(156,0,6,0%)' } }).fontColor, null);
+  assert.equal(printStyleOf({ bd: { t: { s: 1, cl: { rgb: 'rgba(0,0,255,0.0)' } } } }).borderTop?.color ?? null, null);
+  // Any visible alpha still prints at full strength.
+  assert.equal(printStyleOf({ bg: { rgb: 'rgba(255,199,206,0.01)' } }).fillColor, '#FFC7CE');
+});
