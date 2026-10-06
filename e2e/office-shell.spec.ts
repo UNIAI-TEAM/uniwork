@@ -6,12 +6,14 @@ import { createRecordingAccount } from "./meeting-recording-fixture";
 import { VI_LOCALE_STATE } from "./locale-state";
 
 /**
- * Shell-only browser contract. The format lanes own real byte/edit oracles;
- * this suite checks that the shared host remains reachable behind the flag,
- * survives a reload with a local recovery, and keeps keyboard/focus/layout
- * behavior stable. CI supplies an authenticated OFFICE_DOCUMENT_URL fixture.
+ * Shell browser contract over the bound DOCX host. The format lanes own the
+ * byte/edit oracles; this suite checks that the shared host mounts the editor
+ * behind the flag, keeps an unsaved edit as a recoverable draft across a reload,
+ * and holds keyboard/focus/layout. Without OFFICE_DOCUMENT_URL the suite seeds
+ * its own account and DOCX file (CI does this).
  */
-test.describe.configure({ mode: "serial", timeout: 120_000 });
+// Not serial: one failing case must not skip the rest; a new worker re-seeds.
+test.describe.configure({ timeout: 120_000 });
 
 const enabled = process.env.OFFICE_SHELL_E2E === "1";
 const suppliedDocumentUrl = process.env.OFFICE_DOCUMENT_URL;
@@ -105,8 +107,17 @@ async function installFlagOffConfig(page: Page): Promise<void> {
   });
 }
 
+/** The DOCX route is bound (G3-03b's unbound alert is gone): wait for the
+ * vendored editor surface itself, never for a placeholder. */
+async function expectDocxEditor(page: Page): Promise<void> {
+  await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("docx-canvas")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('[data-testid="docx-canvas"] [contenteditable="true"]').first()).toBeVisible();
+  await expect(page.getByTestId("office-host-unbound")).toHaveCount(0);
+}
+
 test.beforeAll(async ({ browser }) => {
-  test.skip(!enabled, "Set OFFICE_SHELL_E2E=1 to run the local Office shell browser contract.");
+  test.skip(!enabled, "Set OFFICE_SHELL_E2E=1 to run the Office shell browser contract.");
   await setOfficeFlag(true);
   officeFixture = suppliedDocumentUrl
     ? { documentUrl: suppliedDocumentUrl, flagOffUrl: suppliedFlagOffUrl ?? suppliedDocumentUrl, email: "" }
@@ -117,12 +128,31 @@ test.beforeEach(async ({ page }) => {
   if (officeFixture?.email) await signIn(page, officeFixture.email);
 });
 
-test("real-engine edit, reload, and recovery is deferred to 0Xb", async () => {
-  test.skip(true, "0Xb owns the real-engine edit -> reload -> recovery path; 03b covers the unbound shell and browser chrome.");
+test("an unsaved edit survives a reload as a recoverable local draft", async ({ page }) => {
+  const marker = `uw-shell-draft-${Date.now().toString(36)}`;
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(officeFixture!.documentUrl);
+  await expectDocxEditor(page);
+  const surface = page.locator('[data-testid="docx-canvas"] [contenteditable="true"]').first();
+  await surface.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(` ${marker}`);
+  await expect(surface).toContainText(marker);
+  // The host checkpoints a dirty editor on a 2s timer (editor-host.tsx);
+  // leave room for the encrypted IndexedDB write to settle.
+  await page.waitForTimeout(4_000);
+  await page.reload();
+  await expectDocxEditor(page);
+  const prompt = page.getByRole("dialog", { name: "Tìm thấy bản nháp" });
+  await expect(prompt).toBeVisible({ timeout: 30_000 });
+  await prompt.getByRole("button", { name: "Khôi phục bản nháp" }).click();
+  await expect(prompt).toBeHidden();
+  await expect(page.locator('[data-testid="docx-canvas"] [contenteditable="true"]').first()).toContainText(marker);
 });
 
 test("keeps bound Office header actions reachable at 390px without nested scrolling", async ({ page }) => {
-  test.skip(!process.env.OFFICE_HEADER_DOCUMENT_URL, "Supply an authenticated bound Office editor to verify real header actions.");
+  // An externally supplied editor (OFFICE_HEADER_DOCUMENT_URL) may bring its
+  // own session; the default is the seeded DOCX fixture.
   if (process.env.OFFICE_HEADER_STORAGE_STATE) {
     const state = JSON.parse(readFileSync(process.env.OFFICE_HEADER_STORAGE_STATE, "utf8")) as { cookies: Parameters<ReturnType<typeof page.context>["addCookies"]>[0]; origins: { origin: string; localStorage: { name: string; value: string }[] }[] };
     await page.context().addCookies(state.cookies);
@@ -133,22 +163,26 @@ test("keeps bound Office header actions reachable at 390px without nested scroll
     }, state.origins ?? []);
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(process.env.OFFICE_HEADER_DOCUMENT_URL!);
-  const shell = page.locator("[data-office-shell]");
-  const header = shell.locator(":scope > header");
-  await expect(header.locator("button").first()).toBeVisible();
+  await page.goto(process.env.OFFICE_HEADER_DOCUMENT_URL ?? officeFixture!.documentUrl);
+  await expectDocxEditor(page);
+  // The shell is embedded: its save/desktop cluster renders into the
+  // document page's one header through the header-actions slot.
+  const save = page.locator("[data-office-save]");
+  await expect(save).toBeVisible();
+  const header = save.locator("xpath=ancestor::header[1]");
+  await expect(header).toBeVisible();
   for (const theme of ["light", "dark"] as const) {
     await page.evaluate(mode => document.documentElement.classList.toggle("dark", mode === "dark"), theme);
     const layout = await header.evaluate(element => ({
-      actionBounds: [...element.querySelectorAll("button")].map(button => ({ left: button.getBoundingClientRect().left, right: button.getBoundingClientRect().right })),
-      scrollers: [...element.querySelectorAll("div")].filter(div => ["auto", "scroll"].includes(getComputedStyle(div).overflowX)).length,
-      followingBandEmpty: element.nextElementSibling?.textContent?.trim() === "",
+      actionBounds: [...element.querySelectorAll("button")].filter(button => button.getClientRects().length > 0).map(button => ({ left: button.getBoundingClientRect().left, right: button.getBoundingClientRect().right })),
+      scrollers: [...element.querySelectorAll("div")].filter(div => ["auto", "scroll"].includes(getComputedStyle(div).overflowX) && div.scrollWidth > div.clientWidth).length,
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     }));
     expect(layout.actionBounds.length).toBeGreaterThan(0);
     for (const bounds of layout.actionBounds) { expect(bounds.left).toBeGreaterThanOrEqual(0); expect(bounds.right).toBeLessThanOrEqual(390); }
     expect(layout.scrollers).toBe(0);
-    expect(layout.followingBandEmpty).toBe(false);
-    await shell.screenshot({ path: test.info().outputPath(`office-header-390-${theme}.png`) });
+    expect(layout.pageOverflow).toBeLessThanOrEqual(0);
+    await header.screenshot({ path: test.info().outputPath(`office-header-390-${theme}.png`) });
   }
 });
 
@@ -156,8 +190,7 @@ for (const width of viewports) {
   test(`holds the shell at ${width}px in both themes`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto(officeFixture!.documentUrl);
-    await expect(page.locator("[data-office-editor-host]")).toBeVisible();
-    await expect(page.getByTestId("office-host-unbound")).toBeVisible();
+    await expectDocxEditor(page);
     const shell = page.locator("[data-office-shell]");
     await expect(shell).toBeVisible();
     const bounds = await shell.boundingBox();
@@ -166,6 +199,8 @@ for (const width of viewports) {
     for (const theme of ["light", "dark"] as const) {
       await page.evaluate((mode) => document.documentElement.classList.toggle("dark", mode === "dark"), theme);
       await page.evaluate(() => document.fonts?.ready);
+      // Baselines are per platform (`-linux` from the CI image); the
+      // tolerance absorbs sub-pixel text antialiasing only.
       await expect(shell).toHaveScreenshot(`office-shell-${width}-${theme}.png`, {
         animations: "disabled",
         maxDiffPixels: 120,
@@ -174,10 +209,10 @@ for (const width of viewports) {
   });
 }
 
-test("keyboard-only navigation keeps focus visible on the unbound shell", async ({ page }) => {
+test("keyboard-only navigation keeps focus visible on the bound shell", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto(officeFixture!.documentUrl);
-  await expect(page.getByTestId("office-host-unbound")).toBeVisible();
+  await expectDocxEditor(page);
   await page.keyboard.press("Tab");
   await expect(page.locator(":focus-visible")).toHaveCount(1);
   await expect(page.locator(":focus-visible")).toBeVisible();

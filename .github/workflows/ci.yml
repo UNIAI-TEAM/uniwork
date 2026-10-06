@@ -449,6 +449,10 @@ jobs:
       NEXT_PUBLIC_WS_URL: ws://localhost:8080
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       E2E_BASE_URL: http://localhost:3000
+      # e2e/office-shell.spec.ts runs only with this set. It seeds its own
+      # account and DOCX file through the API (no OFFICE_DOCUMENT_URL) and
+      # needs no Office engine service: the web DOCX host is in the Next build.
+      OFFICE_SHELL_E2E: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
