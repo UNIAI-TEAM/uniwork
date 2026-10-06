@@ -16,7 +16,11 @@ import (
 // one body. A move or resize is the anchor-only set_visual (id + anchor, no
 // body), so a picture's bytes ride only its insert; officeVisualEditsOrdered
 // refuses an anchor-only set_visual whose insert is not earlier in the same
-// job (a media-less insert). remove_visual cancels a session visual by id. Bounds mirror the
+// job (a media-less insert). remove_visual cancels a session visual by id.
+// A visual already in the file is addressed by `file` (its anchor index in the
+// sheet's drawing part, 0..10000) instead of an id: set_visual {file, anchor}
+// moves it, remove_visual {file} deletes it; neither takes an id or a body
+// and neither needs an earlier insert. Bounds mirror the
 // engine parser (packages/office-engine/src/xlsx/ops-visuals.ts) and the
 // vendored ChartAdd/ShapeAdd/ImageAdd shapes the gateway writes.
 const (
@@ -27,6 +31,7 @@ const (
 	maxOfficeVisualRef        = 512
 	maxOfficeVisualOffsetEMU  = 100_000_000
 	maxOfficeVisualImageBytes = 512 * 1024
+	maxOfficeVisualFileIndex  = 10_000
 )
 
 var (
@@ -226,8 +231,15 @@ func officeSetVisualValid(edit office.EditOp) bool {
 	if !officeRangeTargetOK(edit.Target) {
 		return false
 	}
-	attributes, ok := officeVisualObject(edit.Attributes, "id", "anchor", "chart", "shape", "image")
-	if !ok || !officeVisualIDOK(attributes["id"]) || !officeVisualAnchorOK(attributes["anchor"]) {
+	attributes, ok := officeVisualObject(edit.Attributes, "id", "file", "anchor", "chart", "shape", "image")
+	if !ok {
+		return false
+	}
+	if _, fileForm := attributes["file"]; fileForm {
+		_, fileOK := officeStructuralInt(attributes, "file", 0, maxOfficeVisualFileIndex)
+		return fileOK && len(attributes) == 2 && officeVisualAnchorOK(attributes["anchor"])
+	}
+	if !officeVisualIDOK(attributes["id"]) || !officeVisualAnchorOK(attributes["anchor"]) {
 		return false
 	}
 	bodies := 0
@@ -265,6 +277,9 @@ func officeVisualEditsOrdered(edits []office.EditOp) bool {
 		if !ok {
 			return false
 		}
+		if _, fileForm := attributes["file"]; fileForm {
+			continue // a file visual is not a session visual: no id bookkeeping
+		}
 		id, ok := officeVisualString(attributes["id"], 64)
 		if !ok {
 			return false
@@ -290,6 +305,13 @@ func officeRemoveVisualValid(edit office.EditOp) bool {
 	if !officeRangeTargetOK(edit.Target) {
 		return false
 	}
-	attributes, ok := officeVisualObject(edit.Attributes, "id")
-	return ok && len(attributes) == 1 && officeVisualIDOK(attributes["id"])
+	attributes, ok := officeVisualObject(edit.Attributes, "id", "file")
+	if !ok || len(attributes) != 1 {
+		return false
+	}
+	if _, fileForm := attributes["file"]; fileForm {
+		_, fileOK := officeStructuralInt(attributes, "file", 0, maxOfficeVisualFileIndex)
+		return fileOK
+	}
+	return officeVisualIDOK(attributes["id"])
 }
