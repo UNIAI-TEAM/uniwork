@@ -183,8 +183,8 @@ describeWithPatchedGateway("x14 conditional formatting and data validation", () 
     // next save names the rest.
     const long = ruleSetDropReason([{ family: "conditionalFormats", ops: Array.from({ length: 200 }, (_, index) => 10000 + index) }]);
     expect(long.length).toBeLessThanOrEqual(300);
-    const [[, kept]] = JSON.parse(long.slice("xlsx_rule_sets_dropped:".length)) as [string, number[]][];
-    expect(kept.at(-1)).toBe(10199);
+    const named = JSON.parse(long.slice("xlsx_rule_sets_dropped:".length)) as [string, number[]][];
+    expect(named[0]?.[1].at(-1)).toBe(10199);
   });
 
   it("names a DV snapshot on an x14-validation sheet, drops it, and the next save keeps the x14 rule", async () => {

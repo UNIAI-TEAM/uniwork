@@ -3,7 +3,7 @@
 // source) across a save commit, over the REAL web runtime. A draft taken right
 // after a commit, before any further edit, must carry only the unsaved ops:
 // a restore that replays already-saved edits writes them twice.
-import { createHash } from "node:crypto";
+import { createHash, webcrypto } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
@@ -63,8 +63,12 @@ function heldDocuments() {
 }
 const editJobs = () => api.start.mock.calls.map((call) => call[1]).filter((body) => body.operation === "edit").map((body) => body.edits);
 
+// jsdom typed arrays belong to another realm than Node webcrypto, which rejects them; a browser accepts any realm.
+const nodeDigest = webcrypto.subtle.digest.bind(webcrypto.subtle);
+
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.spyOn(globalThis.crypto.subtle, "digest").mockImplementation((algorithm, data) => nodeDigest(algorithm, Buffer.from(data as ArrayBuffer)));
   api.start.mockResolvedValue({ jobId: "job" });
   api.get.mockResolvedValue({ jobId: "job", state: "completed" });
   api.cancel.mockResolvedValue({});

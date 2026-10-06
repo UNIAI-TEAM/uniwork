@@ -355,7 +355,7 @@ describe("web HTML visual-edit host (office_html_visual_edit)", () => {
     expect(created.editor.source?.getText()).toContain("<p>Uno</p>");
     expect(created.editor.getDirtyGeneration()).toBeGreaterThan(dirtyBefore);
     const snapshot = await created.editor.captureSnapshot();
-    const serialized = await created.editor.serializeSnapshot(snapshot);
+    const serialized = await (created as unknown as { editor: { serializeSnapshot(s: unknown): Promise<{ bytes: Uint8Array; checksum: string }> } }).editor.serializeSnapshot(snapshot);
     expect(new TextDecoder().decode(serialized.bytes)).toContain("<p>Uno</p>");
     created.editor.undo?.();
     expect(created.editor.source?.getText()).toBe(PAGE);

@@ -25,8 +25,8 @@ const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets
 const COMPAT_EDIT = "xlsx-compatibility-edit.xlsx";
 
 const area = (startRow: number, endRow: number, startColumn: number, endColumn: number) => ({ startRow, endRow, startColumn, endColumn });
-const cfItem = (rules: readonly Record<string, unknown>[], sheet = "Data") => ({ op: "set_conditional_formats", target: { sheet }, attributes: { rules } });
-const dvItem = (rules: readonly Record<string, unknown>[], sheet = "Data") => ({ op: "set_data_validations", target: { sheet }, attributes: { rules } });
+const cfItem = (rules: readonly unknown[], sheet = "Data") => ({ op: "set_conditional_formats", target: { sheet }, attributes: { rules } });
+const dvItem = (rules: readonly unknown[], sheet = "Data") => ({ op: "set_data_validations", target: { sheet }, attributes: { rules } });
 const greaterThan = (value: number) => ({
   ranges: [area(1, 20, 1, 1)],
   stopIfTrue: false,

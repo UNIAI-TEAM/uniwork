@@ -375,7 +375,7 @@ export function createTextFormatAdapter(options: TextFormatAdapterOptions): Text
       capability: { ...capability, format: "html" },
       open: open as HtmlEditorProps<TextDocumentSnapshot>["open"],
       // The visual editor host (ADR 0027): inert unless the office_html_visual_edit flag is on.
-      visualEdit: "parseMap" in engine ? createHtmlVisualEditHost({ engine, ref: () => editor.openOutcome()?.document_model_ref ?? null, setText: (next: string) => editor.setText?.(next), upstream: bindHtml() }) : undefined,
+      visualEdit: "parseMap" in engine ? createHtmlVisualEditHost({ engine, ref: () => { const outcome = editor.openOutcome(); return outcome?.outcome === "opened" ? outcome.document_model_ref : null; }, setText: (next: string) => editor.setText?.(next), upstream: bindHtml() }) : undefined,
     });
   return {
     session, editor, capability, open, editorView,

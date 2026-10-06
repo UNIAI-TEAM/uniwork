@@ -60,8 +60,8 @@ describe("web XLSX runtime journal (visuals, save boundary)", () => {
     expect(draft.pendingOps).toEqual([cell("B2", 8), insert, cell("C3", 9)]);
 
     // Crash: a new tab opens the saved revision (it holds A1 = 3) and restores the draft.
-    const saved = workbook();
-    saved.sheets[0]!.cells.A1 = { value: 3 };
+    const base = workbook();
+    const saved: XlsxWorkbookSnapshot = { ...base, sheets: [{ ...base.sheets[0]!, cells: { A1: { value: 3 } } }] };
     api.download.mockResolvedValueOnce({ text: async () => JSON.stringify({ snapshot: saved, render_model: renderModel() }) });
     const restored = createWebXlsxSessionRuntime({ documentId: "doc", baseRevision: "2" });
     await restored.open({ bytes: new Uint8Array([80, 75]), documentId: "doc" });
