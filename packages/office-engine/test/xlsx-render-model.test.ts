@@ -1,46 +1,28 @@
-// G3-05c render-model reader tests. The gateway bundle is built here (test
-// scope) because the service artifact set is produced by the Docker build,
-// not by the repository prepare step; the same source + patches feed it.
-import { beforeAll, describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { build } from "esbuild";
+// G3-05c render-model reader tests over the REAL patched gateway artifact
+// (scripts/office/build-upstream.mjs). The per-test esbuild of the unpatched
+// upstream source is gone: bindXlsxGateway refuses a bundle without patch
+// 0010's marker since da863e33. Locally a missing artifact skips with a
+// warning; REQUIRE_XLSX_GATEWAY=1 (the cloud round) fails instead.
+import { beforeAll, expect, it } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { bindXlsxGateway, readXlsxRenderModel, renderModelCellCount, type XlsxGatewayFunctions, type XlsxRenderModel } from "../src/xlsx";
+import { fileURLToPath } from "node:url";
+import { readXlsxRenderModel, renderModelCellCount, type XlsxGatewayFunctions, type XlsxRenderModel } from "../src/xlsx";
 import { parseThemeXml } from "../src/xlsx/render-model";
 import { parseDefinedNamesXml } from "../src/xlsx/render-model-xml";
 import { parseStylesXml } from "../src/xlsx/render-model-styles";
 import { parseConditionalRules } from "../src/xlsx/render-model-conditional";
+import { describeWithPatchedGateway, loadPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
 const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets");
-const UPSTREAM = join(REPO, "packages", "office-upstream", "upstream");
-const GATEWAY_ENTRY = join(UPSTREAM, "packages", "xlsx-gateway", "src", "gateway", "xlsx-gateway.ts");
-const TEST_DIST = join(REPO, ".go-tmp", "xlsx-gateway-test", "dist", "xlsx-gateway.mjs");
 // The run folder sits three levels above the worktree (worktrees/dev-uniwork/<lane>).
 const D3_FIXTURES = join(REPO, "..", "..", "..", "office-g3g4", "reports", "g3-d3-xlsx", "fixtures");
 
 let engine: XlsxGatewayFunctions;
 
-beforeAll(async () => {
-  if (!existsSync(TEST_DIST)) {
-    mkdirSync(dirname(TEST_DIST), { recursive: true });
-    await build({
-      absWorkingDir: UPSTREAM,
-      entryPoints: [GATEWAY_ENTRY],
-      bundle: true,
-      format: "esm",
-      platform: "node",
-      target: "node22",
-      outfile: TEST_DIST,
-      nodePaths: [join(REPO, "packages", "office-upstream", "node_modules")],
-      logLevel: "silent",
-    });
-  }
-  const mod = await import(pathToFileURL(TEST_DIST).href);
-  engine = bindXlsxGateway(mod as never);
-});
+const loadEngine = () => beforeAll(async () => { engine = await loadPatchedGateway(); });
 
 const readFixture = async (name: string): Promise<{ model: XlsxRenderModel; snapshotSheets: { name: string; cells: Record<string, unknown> }[] }> => {
   const bytes = new Uint8Array(readFileSync(join(FIXTURES, name)));
@@ -49,7 +31,8 @@ const readFixture = async (name: string): Promise<{ model: XlsxRenderModel; snap
   return { model, snapshotSheets: imported.snapshot.sheets as never };
 };
 
-describe("xlsx render model reader", () => {
+describeWithPatchedGateway("xlsx render model reader", () => {
+  loadEngine();
   it("reads classic visual-rule metadata and rejects malformed rule targets/priorities", () => {
     const rules = parseConditionalRules(`<worksheet>
       <conditionalFormatting sqref="bad"><cfRule type="expression" priority="1"><formula>A1&gt;0</formula></cfRule></conditionalFormatting>
@@ -195,7 +178,9 @@ describe("xlsx render model reader", () => {
 });
 
 const d3 = (name: string) => join(D3_FIXTURES, name);
-describe.skipIf(!existsSync(d3("features.xlsx")))("xlsx render model reader on the G3-D3 corpus", () => {
+describeWithPatchedGateway("xlsx render model reader on the G3-D3 corpus", () => {
+  loadEngine();
+  if (!existsSync(d3("features.xlsx"))) return;
   it("features.xlsx carries merges, custom widths/heights and a frozen pane", async () => {
     const bytes = new Uint8Array(readFileSync(d3("features.xlsx")));
     const model = await readXlsxRenderModel(engine, bytes);
