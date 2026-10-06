@@ -46,7 +46,7 @@ test("projects suite: list + detail TaskSurface always on", async ({ page }) => 
 
   await page.getByRole("button", { name: "Dự án mới" }).click();
   await page.getByLabel("Tiêu đề dự án").fill(projectTitle);
-  await page.getByRole("button", { name: "Tạo", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Tạo dự án", exact: true }).click();
 
   await expect(page).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/projects/[^/]+`), {
     timeout: 15_000,

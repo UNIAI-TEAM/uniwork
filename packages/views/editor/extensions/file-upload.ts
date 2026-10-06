@@ -303,9 +303,17 @@ export function pastedTextSource(file: File): string | undefined {
 }
 
 export function createFileUploadExtension(
-  onUploadFileRef: React.RefObject<
+  /**
+   * The host upload handler. OPTIONAL: an editor with no upload handler (the
+   * Markdown WYSIWYG surface before M5 wires one) still mounts this extension
+   * for its paste classification, and a missing ref must mean "no upload" -
+   * never a TypeError inside `handlePaste`, which would abort `someProp` and
+   * silently skip every LATER plugin's `handlePaste` too (a mixed clipboard
+   * then loses even its text).
+   */
+  onUploadFileRef?: React.RefObject<
     ((file: File, uploadId: string) => Promise<UploadResult | null>) | undefined
-  >,
+  > | undefined,
   /**
    * Character count above which a plain-text paste is uploaded as a .txt
    * attachment instead of being inserted into the document. A ref because the
@@ -321,7 +329,7 @@ export function createFileUploadExtension(
       const { editor } = this;
 
       const handleFiles = async (files: File[]) => {
-        const handler = onUploadFileRef.current;
+        const handler = onUploadFileRef?.current;
         if (!handler) return false;
         for (const file of files) {
           await uploadAndInsertFile(editor, file, handler);
@@ -344,7 +352,7 @@ export function createFileUploadExtension(
                 if (!threshold || threshold <= 0) return false;
                 const text = event.clipboardData?.getData("text/plain") ?? "";
                 if (text.length <= threshold) return false;
-                if (!onUploadFileRef.current) return false;
+                if (!onUploadFileRef?.current) return false;
                 // A paste INTO a code block is the one long paste that is
                 // deliberately inline — the user opened a fence to show the
                 // thing. Converting it to an attachment would take away what
@@ -354,7 +362,7 @@ export function createFileUploadExtension(
                 void handleFiles([markPastedTextFile(file, text)]);
                 return true;
               }
-              if (!onUploadFileRef.current) return false;
+              if (!onUploadFileRef?.current) return false;
               void handleFiles(dedupFiles(files));
               return true;
             },
@@ -362,7 +370,7 @@ export function createFileUploadExtension(
               const dragEvent = event as DragEvent;
               const files = dragEvent.dataTransfer?.files;
               if (!files?.length) return false;
-              const handler = onUploadFileRef.current;
+              const handler = onUploadFileRef?.current;
               if (!handler) return false;
               // Resolve drop position from mouse coordinates.
               // Only the first file uses the drop position; subsequent files

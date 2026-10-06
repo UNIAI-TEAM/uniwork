@@ -76,6 +76,18 @@ describe("capability and unsupported operations", () => {
     for (const op of ["open", "edit", "serialize"]) {
       expect(xlsRows.find((r) => r.operation === op)).toMatchObject({ supported: false, reason: "not bound in this service build" });
     }
+
+    const xlsx = await call(h, "GET", "/v1/capability?format=xlsx");
+    expect(xlsx.status).toBe(200);
+    const xlsxRows = xlsx.body.capabilities as { operation: string; supported: boolean; runtime: string; evidence_level: string; reason?: string }[];
+    for (const op of ["open", "edit", "serialize"]) {
+      expect(xlsxRows.find((r) => r.operation === op)).toMatchObject({
+        supported: true,
+        runtime: "internal_service",
+        evidence_level: "proven",
+        reason: expect.stringContaining("G3-05b real-loop evidence"),
+      });
+    }
     expect((await call(h, "GET", "/v1/capability?format=exe")).status).toBe(400);
   });
 

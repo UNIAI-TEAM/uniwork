@@ -6,6 +6,7 @@ import { setSchemaLogger } from "../api/schema";
 import { useAuthStore } from "../auth/store";
 import {
   clearRegisteredGlobalDrafts,
+  clearRegisteredOfficeDraftMemory,
   resetRegisteredDraftsInMemory,
 } from "../drafts/cleanup-registry";
 // Ensure every module-level draft store has registered itself before the
@@ -26,6 +27,9 @@ import { defaultStorage } from "./storage";
  */
 function clearRegisteredDraftsOnLogout(): void {
   resetRegisteredDraftsInMemory();
+  // Office ciphertext stays durable, but decrypted models, object URLs and
+  // worker callbacks must leave memory before another account can render.
+  clearRegisteredOfficeDraftMemory();
   clearRegisteredGlobalDrafts(defaultStorage);
   // Persist may rewrite the emptied state on the next microtask after reset.
   queueMicrotask(() => clearRegisteredGlobalDrafts(defaultStorage));

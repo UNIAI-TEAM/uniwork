@@ -66,6 +66,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.be.secrets.app.name }}
                   key: {{ .Values.be.secrets.app.key }}
+            - name: PREVIEW_CAPABILITY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.preview.name }}
+                  key: {{ .Values.be.secrets.preview.key }}
             - name: LIVEKIT_API_KEY
               valueFrom:
                 secretKeyRef:

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -29,13 +30,19 @@ import (
 // action can only sit there with a written reason, which is the thing a
 // reviewer reads instead of guessing why coverage has a hole.
 var actionsWithoutCommands = map[string]string{
-	audit.ActionCalendarConnected:        "requires a live provider authorization-code exchange; transaction is reviewed in CalendarConnectionService.Complete",
-	audit.ActionCalendarSelectionUpdated: "requires a provider calendar-list response; transaction is reviewed in CalendarConnectionService.Select",
-	audit.ActionOrganizationUpdated:      "no organization rename command exists yet",
-	audit.ActionMemberRemoved:            "deactivation replaced removal by an admin; leaving writes member.left",
-	audit.ActionAuditExportRequested:     "covered by the audit service's own tests",
-	audit.ActionAuditExported:            "covered by the audit export consumer's own tests",
-	audit.ActionAuditRetentionSet:        "covered by the audit service's own tests",
+	audit.ActionCalendarConnected:           "requires a live provider authorization-code exchange; transaction is reviewed in CalendarConnectionService.Complete",
+	audit.ActionCalendarSelectionUpdated:    "requires a provider calendar-list response; transaction is reviewed in CalendarConnectionService.Select",
+	audit.ActionOrganizationUpdated:         "no organization rename command exists yet",
+	audit.ActionMemberRemoved:               "deactivation replaced removal by an admin; leaving writes member.left",
+	audit.ActionAuditExportRequested:        "covered by the audit service's own tests",
+	audit.ActionAuditExported:               "covered by the audit export consumer's own tests",
+	audit.ActionAuditRetentionSet:           "covered by the audit service's own tests",
+	audit.ActionAuthDesktopStarted:          "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopConsentApproved:  "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopConsentCancelled: "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopSessionCreated:   "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopTokenRotated:     "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopSessionRevoked:   "covered by desktop_auth_test.go",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -861,6 +868,46 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionOfficeDesktopDownloaded: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewOfficeDesktopDownloadService(f.orgs, config.Config{APIPublicURL: "https://api.example.test", OfficeInstallerStableURL: "https://downloads.example.test/installer.exe", DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			if _, err := svc.Get(f.ctx, f.owner.ID, f.orgID, "stable"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeLaunchSessionCreated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			if _, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeLaunchSessionRedeemed: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			created, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			deviceID := util.NewID()
+			if _, err := f.q.CreateDeviceSession(f.ctx, db.CreateDeviceSessionParams{ID: deviceID, UserID: f.owner.ID, SessionFamilyID: deviceID, ClientID: "uniwork-office", DeploymentID: "default", RefreshTokenDigest: "audit-device", ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedByKind: "human"}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := launch.Exchange(f.ctx, OfficeLaunchExchangeInput{Ticket: created.Ticket, AccountID: f.owner.ID, DeploymentID: "default", ClientID: "uniwork-office", DeviceSessionID: deviceID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeLaunchSessionRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			created, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := launch.Revoke(f.ctx, Human(f.owner.ID), created.SessionID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentShared: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
 			if _, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
@@ -1129,6 +1176,29 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-925 B6: the per-user saved-signature store.
+		audit.ActionSignatureCreated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewSignatureService(f.pool, f.q, f.orgs)
+			if _, err := svc.SaveSignature(f.ctx, Human(f.owner.ID), f.orgID, SaveSignatureInput{
+				Label: "Chữ ký kiểm toán", ContentType: "image/png", Image: pngBody(t, 2, 2),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionSignatureDeleted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewSignatureService(f.pool, f.q, f.orgs)
+			row, err := svc.SaveSignature(f.ctx, Human(f.owner.ID), f.orgID, SaveSignatureInput{
+				Label: "Chữ ký kiểm toán", ContentType: "image/png", Image: pngBody(t, 2, 2),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteSavedSignature(f.ctx, Human(f.owner.ID), f.orgID, row.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -1200,6 +1270,12 @@ func auditActions() []string {
 		audit.ActionAuthPasswordResetRequested,
 		audit.ActionAuthPasswordChanged,
 		audit.ActionAuthSessionRevoked,
+		audit.ActionAuthDesktopStarted,
+		audit.ActionAuthDesktopConsentApproved,
+		audit.ActionAuthDesktopConsentCancelled,
+		audit.ActionAuthDesktopSessionCreated,
+		audit.ActionAuthDesktopTokenRotated,
+		audit.ActionAuthDesktopSessionRevoked,
 		audit.ActionAuthMFAEnabled,
 		audit.ActionAuthMFADisabled,
 		audit.ActionUserDeleted,
@@ -1222,6 +1298,10 @@ func auditActions() []string {
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,
 		audit.ActionDocumentCreated,
+		audit.ActionOfficeLaunchSessionCreated,
+		audit.ActionOfficeLaunchSessionRedeemed,
+		audit.ActionOfficeLaunchSessionRevoked,
+		audit.ActionOfficeDesktopDownloaded,
 		audit.ActionDocumentShared,
 		audit.ActionDocumentShareRevoked,
 		audit.ActionDocumentLinkCreated,
@@ -1246,6 +1326,8 @@ func auditActions() []string {
 		audit.ActionDocumentDeleted,
 		audit.ActionDocumentVersionsCompacted,
 		audit.ActionDocumentAssetPurged,
+		audit.ActionSignatureCreated,
+		audit.ActionSignatureDeleted,
 	}
 }
 
@@ -1489,5 +1571,18 @@ func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
 		"id": id, "organization_id": f.orgID, "workspace_id": w.ID,
 		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
 	}))
+	return svc, id
+}
+
+// fileDocument adapts the shared ACL fixture for commands whose contract is
+// restricted to file documents (the Office launch bridge never mints a ticket
+// for a page). It keeps the document ACL setup identical to document(), while
+// preserving the audit coverage test's single-purpose fixture.
+func (f *auditFixture) fileDocument(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	svc, id := f.document(t)
+	if _, err := f.pool.Exec(f.ctx, "UPDATE documents SET kind = 'file', content = NULL WHERE id = $1", id); err != nil {
+		t.Fatalf("make audit document a file: %v", err)
+	}
 	return svc, id
 }

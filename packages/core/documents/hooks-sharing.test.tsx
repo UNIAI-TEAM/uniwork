@@ -113,7 +113,8 @@ describe("documents sharing hooks (G1-05b)", () => {
     await act(async () => {
       await result.current.mutateAsync(7);
     });
-    expect(result.current.data?.token).toBe("t1");
+    // The observer publishes data after mutateAsync resolves; wait for it instead of racing the re-render.
+    await waitFor(() => expect(result.current.data?.token).toBe("t1"));
     expect(qc.getQueryState(documentKeys.shares("w1", "d1"))?.isInvalidated).toBe(true);
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ link: link(), url: "/share/x" }));

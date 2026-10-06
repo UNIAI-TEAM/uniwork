@@ -234,15 +234,16 @@ func (s *s3ObjectStore) SignRead(ctx context.Context, loc ObjectLocator, opts Si
 	if opts.Disposition != "" {
 		input.ResponseContentDisposition = aws.String(opts.Disposition)
 	}
+	ttl := clampPresignTTL(opts.TTL)
 	out, err := s3.NewPresignClient(s.presignClient).PresignGetObject(ctx, input, func(o *s3.PresignOptions) {
-		o.Expires = opts.TTL
+		o.Expires = ttl
 	})
 	if err != nil {
 		return SignedURL{}, fmt.Errorf("s3 SignRead: %w", err)
 	}
 	return SignedURL{
 		URL: out.URL, Method: out.Method, Headers: signedHeaderMap(out.SignedHeader),
-		ExpiresAt: time.Now().Add(opts.TTL),
+		ExpiresAt: time.Now().Add(ttl),
 	}, nil
 }
 
@@ -257,19 +258,34 @@ func (s *s3ObjectStore) SignWrite(ctx context.Context, loc ObjectLocator, opts S
 	if opts.TTL <= 0 {
 		return SignedURL{}, fmt.Errorf("s3 SignWrite: %w: ttl must be positive", ErrLocatorInvalid)
 	}
+	ttl := clampPresignTTL(opts.TTL)
 	out, err := s3.NewPresignClient(s.presignClient).PresignPutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(loc.Key),
 	}, func(o *s3.PresignOptions) {
-		o.Expires = opts.TTL
+		o.Expires = ttl
 	})
 	if err != nil {
 		return SignedURL{}, fmt.Errorf("s3 SignWrite: %w", err)
 	}
 	return SignedURL{
 		URL: out.URL, Method: out.Method, Headers: signedHeaderMap(out.SignedHeader),
-		ExpiresAt: time.Now().Add(opts.TTL),
+		ExpiresAt: time.Now().Add(ttl),
 	}, nil
+}
+
+// maxPresignTTL is the longest lifetime a presigned URL is signed for. AWS
+// SigV4 caps X-Amz-Expires at 604800s (7 days) and current S3 and MinIO reject
+// anything above it, so stay one minute below the limit.
+const maxPresignTTL = 7*24*time.Hour - time.Minute
+
+// clampPresignTTL bounds ttl to maxPresignTTL. Callers that report an expiry
+// to clients must use the instant derived from the clamped value.
+func clampPresignTTL(ttl time.Duration) time.Duration {
+	if ttl > maxPresignTTL {
+		return maxPresignTTL
+	}
+	return ttl
 }
 
 func signedHeaderMap(h http.Header) map[string]string {

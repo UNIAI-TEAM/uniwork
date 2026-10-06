@@ -20,6 +20,8 @@
     "./pdf": "./src/pdf/index.ts",
     "./xlsx": "./src/xlsx/index.ts",
     "./xlsx/native": "./src/node/xlsx.ts",
+    "./docx": "./src/docx/index.ts",
+    "./pptx": "./src/pptx/index.ts",
     "./convert/native": "./src/node/convert/index.ts"
   },
   "dependencies": {
@@ -31,6 +33,7 @@
     "jpeg-js": "catalog:"
   },
   "devDependencies": {
+    "esbuild": "catalog:",
     "@types/node": "catalog:",
     "@types/pngjs": "^6.0.5",
     "@uniwork/eslint-config": "workspace:*",

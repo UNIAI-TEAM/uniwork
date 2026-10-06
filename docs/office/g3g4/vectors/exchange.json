@@ -1,0 +1,31 @@
+{
+  "request": {
+    "launch_ticket": "ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde",
+    "deployment_id": "production-eu",
+    "client_id": "uniwork-office",
+    "device_session_id": "device-01"
+  },
+  "valid_response": {
+    "receipt_id": "01J8X4RECEIPT1P2Q3R4S5T6U7",
+    "document": {
+      "id": "01J8X4DOC0N1P2Q3R4S5T6U7",
+      "organization_id": "01J8X4ORGN1P2Q3R4S5T6U7V8",
+      "workspace_id": "01J8X4WS0N1P2Q3R4S5T6U7V8",
+      "title": "Q4 plan",
+      "kind": "file",
+      "operation": "edit",
+      "version": 0,
+      "revision": "41",
+      "contract_version": "uniwork-office-engine-contract/1",
+      "protocol_version": "1",
+      "download_path": "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download"
+    },
+    "redeemed_at": "2026-09-30T10:01:02Z"
+  },
+  "invalid": [
+    { "id": "missing-ticket", "request": { "deployment_id": "production-eu", "client_id": "uniwork-office", "device_session_id": "device-01" }, "expected_reason": "invalid_request" },
+    { "id": "login-code", "request": { "launch_ticket": "code_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "deployment_id": "production-eu", "client_id": "uniwork-office", "device_session_id": "device-01" }, "expected_reason": "invalid_request" },
+    { "id": "foreign-server-url", "response": { "receipt_id": "r", "document": { "id": "d", "organization_id": "o", "workspace_id": "w", "title": "Q4 plan", "kind": "file", "operation": "view", "version": 0, "revision": "1", "contract_version": "uniwork-office-engine-contract/1", "protocol_version": "1", "download_path": "https://storage.example/signed" }, "redeemed_at": "2026-09-30T10:01:02Z" }, "expected_reason": "malformed_response" },
+    { "id": "missing-receipt", "response": { "document": { "id": "d" }, "redeemed_at": "2026-09-30T10:01:02Z" }, "expected_reason": "malformed_response" }
+  ]
+}

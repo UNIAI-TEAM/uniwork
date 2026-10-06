@@ -6,7 +6,11 @@ import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
+import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
+import { HeaderActionsFill, HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DocumentActionsMenu } from "./document-actions-menu";
+import { DocumentCommentsHeaderActions, DocumentCommentsProvider } from "./document-comments-context";
 
 const { t } = initI18n();
 const WS = "ws1";
@@ -89,6 +93,41 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe("DocumentActionsMenu with an embedded editor", () => {
+  it("lists the editor's entries and a phone-only Comments entry that toggles the panel", async () => {
+    const doc = documentFixture();
+    const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
+    render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={service}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <DocumentCommentsProvider wsId={WS} doc={doc}>
+              <HeaderActionsSlotProvider>
+                <HeaderActionsSlot />
+                <HeaderActionsFill
+                  actions={<button type="button">office-save</button>}
+                  menuItems={<DropdownMenuItem>editor-entry</DropdownMenuItem>}
+                />
+                <DocumentCommentsHeaderActions />
+                <DocumentActionsMenu wsId={WS} doc={doc} />
+              </HeaderActionsSlotProvider>
+            </DocumentCommentsProvider>
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+      ),
+    );
+    await screen.findByRole("button", { name: "office-save" });
+    const trigger = screen.getByRole("button", { name: t("documents.comments.open") });
+    expect(trigger.closest("[data-document-comments-actions]")).toHaveClass("hidden", "sm:flex");
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: "editor-entry" })).toBeInTheDocument();
+    const comments = screen.getByRole("menuitem", { name: t("documents.actions.comments") });
+    expect(comments).toHaveClass("sm:hidden");
+    fireEvent.click(comments);
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));
+  });
 });
 
 describe("DocumentActionsMenu", () => {

@@ -9,6 +9,11 @@ SELECT * FROM organizations WHERE id = $1;
 -- name: GetOrganizationBySlug :one
 SELECT * FROM organizations WHERE slug = $1;
 
+-- name: ListOrganizationIDsForMaintenance :many
+-- The maintenance worker enumerates tenant roots before asking for each
+-- organization's workspace scopes; no business-table query is unscoped.
+SELECT id FROM organizations ORDER BY id;
+
 -- name: ListOrganizationsForUser :many
 -- tenant: self
 -- Deactivated memberships stay in the switcher so the person can see which

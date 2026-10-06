@@ -65,3 +65,28 @@ export function createBrowserOfficeEngine(options: BrowserTransportOptions): Off
 }
 
 export type { OfficeEngine };
+
+export {
+  applyPdfOpsInBrowser,
+  BrowserPdfUnsupportedError,
+  PdfOpError,
+  readPdfFormFields,
+  type BrowserPdfApplyResult,
+  type BrowserPdfFormField,
+  type BrowserPdfSkip,
+} from "./pdf";
+export {
+  BrowserPdfOpenError,
+  loadBrowserPdfium,
+  type BrowserPdfDocument,
+  type BrowserPdfium,
+  type BrowserPdfRenderedPage,
+} from "./pdfium";
+export {
+  readPdfNotes,
+  type BrowserPdfNoteRect,
+  type BrowserPdfNoteRow,
+  type BrowserPdfNoteSkip,
+  type BrowserPdfNotesRead,
+  type BrowserPdfNoteThread,
+} from "./notes-reader";

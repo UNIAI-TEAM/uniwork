@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -34,6 +35,7 @@ type Deps struct {
 	// FeatureFlags feeds GET /api/v1/config and other flag readers; nil
 	// evaluates every catalogue key at its declared default.
 	FeatureFlags *featureflag.Service
+	DeviceStatus func(context.Context, string, string) error
 }
 
 // New wires middleware and registers routes by OpenAPI tag (auth.go, me.go, …).
@@ -104,6 +106,14 @@ func New(d Deps, h Routes) http.Handler {
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
 		registerAuth(v1, h, credentialLimit)
+		v1.Group(func(desktop api) {
+			if d.DeviceStatus != nil {
+				desktop.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
+			} else {
+				desktop.Use(mw.RequireAuth(d.Minter))
+			}
+			registerDesktopAuth(desktop, h)
+		})
 		v1.Group(func(pub api) {
 			pub.Use(mw.OptionalAuth(d.Minter))
 			registerPublicMeetings(pub, h, credentialLimit, joinLimit, lobbyWSLimit)
@@ -111,8 +121,15 @@ func New(d Deps, h Routes) http.Handler {
 			registerFileContent(pub, h)
 			registerPublicDocuments(pub, h, mw.RateLimit(d.Redis, 60, time.Minute, proxies))
 		})
+		// Preview asset bytes are intentionally outside the app-authenticated
+		// group: the frame is credentialless and presents only its opaque scope.
+		registerPreview(v1, h)
 		v1.Group(func(authed api) {
-			authed.Use(mw.RequireAuth(d.Minter))
+			if d.DeviceStatus != nil {
+				authed.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
+			} else {
+				authed.Use(mw.RequireAuth(d.Minter))
+			}
 			registerMe(authed, h, credentialLimit)
 			registerOrganizations(authed, h)
 			registerPeople(authed, h)
@@ -141,6 +158,9 @@ func New(d Deps, h Routes) http.Handler {
 			registerChatFollowUps(authed, h, chatWriteLimit)
 			registerFiles(authed, h)
 			registerDocuments(authed, h, d.FeatureFlags)
+			registerSignatures(authed, h)
+			registerOfficeLaunch(authed, h)
+			registerOfficeDesktopDownload(authed, h, mw.RateLimit(d.Redis, 10, time.Minute, proxies))
 			if d.PlatformRoles != nil {
 				adminLimit := mw.RateLimit(d.Redis, d.Cfg.AdminRateLimitPerMin, time.Minute, proxies)
 				registerAdmin(authed, h, adminLimit,

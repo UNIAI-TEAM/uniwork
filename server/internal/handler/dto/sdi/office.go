@@ -1,5 +1,7 @@
 package sdi
 
+import "encoding/json"
+
 // SDI types for the Office surface (plan G2-07 / UNI-690; C-01 §6.2). The
 // client chooses an operation from the allowlist and never an engine route,
 // a storage key or an engine address: the server picks the engine endpoint
@@ -7,18 +9,31 @@ package sdi
 // writer saw (same encoding as the other document writes).
 
 // StartOfficeJobSDI is POST /api/v1/documents/{documentID}/office/jobs
-// (+ Idempotency-Key header). operation is one of open, serialize, export,
+// (+ Idempotency-Key header). operation is one of open, edit, serialize, export,
 // convert; export and convert answer unsupported_operation until an engine
 // lane binds it; convert (Q7, G2-07b) takes target_format - xlsx for an xls
 // document, docx for an odt one - and stages an OOXML output plus a change
 // list that POST .../copies with job_id accepts. format is optional and, when
 // present, must match the document's format.
 type StartOfficeJobSDI struct {
-	Operation    string  `json:"operation" description:"open | serialize | export | convert" example:"serialize"`
-	Format       *string `json:"format" description:"docx | xlsx | pptx | pdf | md | html | xls | odt; phải khớp định dạng tài liệu" example:"md"`
-	BaseRevision *string `json:"base_revision" description:"Revision nền dạng chuỗi thập phân client thấy; bỏ trống = revision hiện tại" example:"41"`
-	ModelRef     *string `json:"document_model_ref" description:"Tham chiếu document model của editor; chỉ dùng cho serialize" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
-	TargetFormat *string `json:"target_format" description:"Định dạng đích của convert: xlsx cho xls, docx cho odt; thao tác khác bỏ trống" example:"xlsx"`
+	Operation    string           `json:"operation" description:"open | edit | serialize | export | convert" example:"edit"`
+	Format       *string          `json:"format" description:"docx | xlsx | pptx | pdf | md | html | xls | odt; phải khớp định dạng tài liệu" example:"md"`
+	BaseRevision *string          `json:"base_revision" description:"Revision nền dạng chuỗi thập phân client thấy; bỏ trống = revision hiện tại" example:"41"`
+	ModelRef     *string          `json:"document_model_ref" description:"Tham chiếu document model của editor; chỉ dùng cho serialize" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	Edits        *[]OfficeEditSDI `json:"edits,omitempty" description:"Danh sách edit cho operation=edit; tối đa 10000 operations"`
+	TargetFormat *string          `json:"target_format" description:"Định dạng đích của convert: xlsx cho xls, docx cho odt; thao tác khác bỏ trống" example:"xlsx"`
+}
+
+// OfficeEditSDI mirrors the engine's deliberately open edit operation. The
+// target/style/range/attributes payloads stay raw so the handler does not
+// invent a format-specific schema; the engine contract validates their shape.
+type OfficeEditSDI struct {
+	Op         string          `json:"op" example:"set_cell"`
+	Target     json.RawMessage `json:"target,omitempty"`
+	Text       string          `json:"text,omitempty"`
+	Style      json.RawMessage `json:"style,omitempty"`
+	Range      json.RawMessage `json:"range,omitempty"`
+	Attributes json.RawMessage `json:"attributes,omitempty"`
 }
 
 // CreateBlankDocumentFileSDI is POST

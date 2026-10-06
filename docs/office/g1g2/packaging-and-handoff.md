@@ -146,7 +146,7 @@ holds them equal). G2-07b extended the format vocabulary inside `/1` with the Q7
 | Route | Use |
 | --- | --- |
 | `GET /api/v1/documents/{id}/office/capabilities` | one row per operation + `create_blank`; show an action only when `supported`; the `convert` row names its `target_format` |
-| `POST /api/v1/documents/{id}/office/jobs` (+ `Idempotency-Key`) | `open` / `serialize` / `convert` (`target_format`: `xlsx` for xls, `docx` for odt) |
+| `POST /api/v1/documents/{id}/office/jobs` (+ `Idempotency-Key`) | `open` / bounded `edit` (`edits[]`) / `serialize` / `convert` (`target_format`: `xlsx` for xls, `docx` for odt) |
 | `GET .../office/jobs/{jobID}` | job state; a completed convert job carries `result` = `{source_format, target_format, fidelity:{level, lost[]}, content:{sheets, cells, paragraphs}}` - the Q7 warning text comes from `fidelity.lost` and `content` |
 | `POST .../office/jobs/{jobID}/cancel` | Q7 Cancel: nothing is created, the output is never claimed |
 | `POST /api/v1/documents/{id}/copies` `{consent:"copy", job_id}` | Q7 Accept: a new OOXML document with provenance; only the job's creator; 409 `conversion_not_accepted` when the job is cancelled, spent or not a conversion |

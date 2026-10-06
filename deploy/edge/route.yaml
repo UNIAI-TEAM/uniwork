@@ -6,6 +6,15 @@ metadata:
 spec:
   ingressClassName: apisix
   http:
+    # The preview origin is a separate hostname. Only the opaque asset broker
+    # is reachable here; HTML is never served by this route.
+    - name: uniwork-preview-assets
+      priority: 250
+      match:
+        hosts: [preview.unicomhub.com]
+        paths: [/api/v1/preview/assets/*]
+      upstreams:
+        - name: uniwork-be
     - name: uniwork-api
       priority: 200
       websocket: true

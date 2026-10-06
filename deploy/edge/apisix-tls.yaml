@@ -6,6 +6,7 @@ metadata:
 spec:
   hosts:
     - uniwork.unicomhub.com
+    - preview.unicomhub.com
   secret:
     name: uniwork-tls
     namespace: reap-edge

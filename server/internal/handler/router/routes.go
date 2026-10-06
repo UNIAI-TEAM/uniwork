@@ -10,6 +10,7 @@ type Routes struct {
 	WS     http.HandlerFunc
 
 	Config                     http.HandlerFunc
+	OfficeDesktopDownload      http.HandlerFunc
 	RUM                        http.HandlerFunc
 	AdminMe                    http.HandlerFunc
 	AdminListOrganizations     http.HandlerFunc
@@ -25,16 +26,24 @@ type Routes struct {
 	AdminSetFlagOverride       http.HandlerFunc
 	AdminDeleteFlagOverride    http.HandlerFunc
 
-	Register       http.HandlerFunc
-	Login          http.HandlerFunc
-	ForgotPassword http.HandlerFunc
-	ResetPassword  http.HandlerFunc
-	Refresh        http.HandlerFunc
-	Logout         http.HandlerFunc
-	MFAVerify      http.HandlerFunc
-	AuthProviders  http.HandlerFunc
-	GoogleStart    http.HandlerFunc
-	GoogleCallback http.HandlerFunc
+	Register              http.HandlerFunc
+	Login                 http.HandlerFunc
+	ForgotPassword        http.HandlerFunc
+	ResetPassword         http.HandlerFunc
+	Refresh               http.HandlerFunc
+	Logout                http.HandlerFunc
+	MFAVerify             http.HandlerFunc
+	AuthProviders         http.HandlerFunc
+	GoogleStart           http.HandlerFunc
+	GoogleCallback        http.HandlerFunc
+	DesktopStart          http.HandlerFunc
+	DesktopConsent        http.HandlerFunc
+	DesktopConsentCommand http.HandlerFunc
+	DesktopExchange       http.HandlerFunc
+	DesktopRefresh        http.HandlerFunc
+	DesktopLogout         http.HandlerFunc
+	DesktopDevices        http.HandlerFunc
+	DesktopRevokeDevice   http.HandlerFunc
 
 	Me                  http.HandlerFunc
 	PatchMe             http.HandlerFunc
@@ -420,8 +429,12 @@ type Routes struct {
 	CreateBlankDocumentFile http.HandlerFunc
 	StartOfficeJob          http.HandlerFunc
 	GetOfficeJob            http.HandlerFunc
+	GetOfficeJobOutput      http.HandlerFunc
 	CancelOfficeJob         http.HandlerFunc
 	OfficeCapability        http.HandlerFunc
+	CreateOfficeLaunch      http.HandlerFunc
+	ExchangeOfficeLaunch    http.HandlerFunc
+	RevokeOfficeLaunch      http.HandlerFunc
 	CopyDocument            http.HandlerFunc
 	GetDocument             http.HandlerFunc
 	PatchDocument           http.HandlerFunc
@@ -434,6 +447,8 @@ type Routes struct {
 	UploadDocumentAsset     http.HandlerFunc
 	GetDocumentAsset        http.HandlerFunc
 	DownloadDocument        http.HandlerFunc
+	CreatePreviewScope      http.HandlerFunc
+	GetPreviewAsset         http.HandlerFunc
 
 	// Document comments + favorites (G1-07, UNI-681; lane 07b).
 	ListDocumentComments          http.HandlerFunc
@@ -447,6 +462,11 @@ type Routes struct {
 	FavoriteDocument              http.HandlerFunc
 	UnfavoriteDocument            http.HandlerFunc
 	ListDocumentFavorites         http.HandlerFunc
+
+	// Saved signatures (UNI-925 B6): the caller's own signature images.
+	ListSavedSignatures  http.HandlerFunc
+	CreateSavedSignature http.HandlerFunc
+	DeleteSavedSignature http.HandlerFunc
 
 	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
 	// §5.3, §5.4; UNI-679, G1-05b).

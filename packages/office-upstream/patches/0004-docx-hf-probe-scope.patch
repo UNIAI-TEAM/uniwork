@@ -1,0 +1,18 @@
+diff --git a/apps/docs/src/renderer/editor/hf-dom.ts b/apps/docs/src/renderer/editor/hf-dom.ts
+index ca78776e..0d070f6c 100644
+--- a/apps/docs/src/renderer/editor/hf-dom.ts
++++ b/apps/docs/src/renderer/editor/hf-dom.ts
+@@ -645,7 +645,12 @@ function hfProbeHost(): HTMLElement | null {
+       // floating-box content draws at its anchor, not in the strip flow
+       '#hf-strip-probe .page-hf-box-anchored { display: none; }'
+     document.head.appendChild(neutralize)
+-    document.body.appendChild(host)
++    // UniWork g3-04c T-02 (UNI-823): the repackaged renderer sheet is scoped to
++    // @scope (.docx-surface); a probe under document.body would measure with UA
++    // defaults (16px, line-height:normal, no --hf-* vars) and silently reserve
++    // the wrong body space. Mount it inside the scope root when present.
++    const scopeRoot = document.querySelector('.docx-surface') ?? document.body
++    scopeRoot.appendChild(host)
+   }
+   return host
+ }

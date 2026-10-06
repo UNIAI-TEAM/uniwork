@@ -1,0 +1,19 @@
+{
+  "canonical": "uniwork-office://open?ticket=ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde",
+  "valid": [
+    {
+      "id": "canonical-open",
+      "url": "uniwork-office://open?ticket=ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde",
+      "expected": { "ticket": "ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde" }
+    }
+  ],
+  "invalid": [
+    { "id": "wrong-scheme", "url": "https://open?ticket=ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "wrong_scheme" },
+    { "id": "wrong-host", "url": "uniwork-office://other?ticket=ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "wrong_host" },
+    { "id": "nested-path", "url": "uniwork-office://open/nested?ticket=ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "wrong_path" },
+    { "id": "duplicate-ticket", "url": "uniwork-office://open?ticket=ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde&ticket=ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "duplicate_ticket" },
+    { "id": "server-url", "url": "uniwork-office://open?ticket=ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde&server_url=https%3A%2F%2Fevil.test", "expected_reason": "unexpected_parameter" },
+    { "id": "path-metadata", "url": "uniwork-office://open?ticket=ticket_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde&path=%2Ftmp%2Fsecret", "expected_reason": "unexpected_parameter" },
+    { "id": "login-code", "url": "uniwork-office://open?ticket=code_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "login_code" }
+  ]
+}

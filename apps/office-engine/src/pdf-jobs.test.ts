@@ -64,7 +64,7 @@ describe("pdf jobs through the service", () => {
     const reply = await submit(h, job);
     expect(reply.status).toBe(202);
     const done = await waitTerminal(h, job);
-    expect(done.body.state).toBe("completed");
+    expect(done.body.state, JSON.stringify(done.body)).toBe("completed");
     // Original preserved, output carries the new text.
     const uploaded = h.target.uploads.at(-1)!.body;
     const text = await readPdfText(new Uint8Array(uploaded));
@@ -81,7 +81,7 @@ describe("pdf jobs through the service", () => {
     });
     await submit(h, job);
     const done = await waitTerminal(h, job);
-    expect(done.body.state).toBe("completed");
+    expect(done.body.state, JSON.stringify(done.body)).toBe("completed");
     expect(new Uint8Array(h.target.uploads.at(-1)!.body)).toEqual(input);
   });
 
@@ -94,7 +94,7 @@ describe("pdf jobs through the service", () => {
     });
     await submit(h, job);
     const done = await waitTerminal(h, job);
-    expect(done.body.state).toBe("completed");
+    expect(done.body.state, JSON.stringify(done.body)).toBe("completed");
     const probe = JSON.parse(h.target.uploads.at(-1)!.body.toString("utf8")) as {
       document_model: { pageCount: number; hasTextLayer: boolean; features: { ocr: boolean } };
     };
@@ -134,6 +134,21 @@ describe("pdf jobs through the service", () => {
   });
 
   it("fails an unbound pdf op vocabulary as unsupported_operation", async () => {
+    // addMarkup is bound since the G3 PDF lane; ocrPage is the vocabulary the
+    // engine build deliberately leaves unbound (no optical engine in service).
+    const input = await pdfFixture("pdf-text-editable.pdf");
+    const job = pdfJob(h.target, {
+      bytes: input,
+      operation: "edit",
+      payload: { edits: [{ op: "ocrPage", attributes: {} }] },
+    });
+    await submit(h, job);
+    const done = await waitTerminal(h, job);
+    expect(done.body.state).toBe("failed");
+    expect(errorCode(done)).toBe("unsupported_operation");
+  });
+
+  it("fails a bound pdf op with a malformed payload as engine_result_invalid", async () => {
     const input = await pdfFixture("pdf-text-editable.pdf");
     const job = pdfJob(h.target, {
       bytes: input,
@@ -143,7 +158,7 @@ describe("pdf jobs through the service", () => {
     await submit(h, job);
     const done = await waitTerminal(h, job);
     expect(done.body.state).toBe("failed");
-    expect(errorCode(done)).toBe("unsupported_operation");
+    expect(errorCode(done)).toBe("engine_result_invalid");
   });
 
   it("reports a skipped (stale) text edit as a warning, not a failure", async () => {
@@ -168,7 +183,7 @@ describe("pdf jobs through the service", () => {
     });
     await submit(h, job);
     const done = await waitTerminal(h, job);
-    expect(done.body.state).toBe("completed");
+    expect(done.body.state, JSON.stringify(done.body)).toBe("completed");
     const warnings = (done.body.warnings ?? []) as { code: string }[];
     expect(warnings.some((w) => w.code === "edit_skipped")).toBe(true);
   });

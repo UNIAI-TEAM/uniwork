@@ -386,8 +386,10 @@ func putWriteTarget(t *testing.T, target files.WriteTarget, body []byte, _ strin
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		// The status only: the target URL carries a signature.
-		t.Fatalf("provider PUT answered %d", resp.StatusCode)
+		// Keep the signed target out of the failure, but preserve the provider's
+		// bounded response body so MinIO/setup errors are diagnosable in CI.
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+		t.Fatalf("provider PUT answered %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 }
 

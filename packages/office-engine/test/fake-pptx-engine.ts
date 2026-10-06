@@ -8,6 +8,8 @@
 // runTxn:    executor-faithful — dry-run plan validates without mutating;
 //            atomic isolation snapshots and restores on any apply failure;
 //            result shape {applied, dryRun?, plan?, records?, failures?}
+// Wave A/B + format/notes/header-footer/media op cases live in the sibling
+// ./fake-pptx-op-cases.ts (the max-lines split); the core cases stay here.
 import type {
   OpenedPptxLike,
   PptxElementLike,
@@ -24,6 +26,8 @@ import type {
 } from "../src/pptx";
 import { FAKE_PPTX_MAGIC } from "./fake-pptx-fixtures";
 
+import { applyWaveOp, nextSeq, resolveElement, resolveSlide, validateWaveOp } from "./fake-pptx-op-cases";
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -33,6 +37,10 @@ interface FakePptxPackage {
   slides: Array<Record<string, unknown>>;
   layouts?: Array<{ name: string; path: string }>;
   entries?: Record<string, string>;
+  sections?: Array<{ id: string; name: string; slideIndices: number[] }>;
+  notes?: Record<string, string>;
+  comments?: Record<string, Array<Record<string, unknown>>>;
+  headerFooter?: Record<string, unknown>;
 }
 
 function decode(bytes: Uint8Array): FakePptxPackage {
@@ -59,12 +67,24 @@ export function decodeFakePptx(bytes: Uint8Array): FakePptxPackage {
 function toSlide(raw: Record<string, unknown>, i: number): PptxSlideLike {
   return {
     id: (raw.id as string) ?? "s_" + (i + 1),
-    ...(raw.hidden === true ? { hidden: true } : {}),
+    ...(typeof raw.bodyPrefix === "string" ? { bodyPrefix: raw.bodyPrefix } : {}),
+    // The real slide model has no `hidden` field: hiding patches `show="0"` onto the <p:sld> tag.
+    ...(raw.hidden === true ? { bodyPrefix: patchSlideHidden(raw.bodyPrefix as string | undefined, true) } : {}),
     elements: (raw.elements as PptxElementLike[]) ?? [],
   };
 }
 
-let newElementSeq = 100;
+const SLD_OPEN = /<p:sld\b[^>]*>/;
+
+/** Mirrors the vendored patchSlideHiddenXml; a slide with no bodyPrefix gets a bare <p:sld>. */
+function patchSlideHidden(bodyPrefix: string | undefined, hidden: boolean): string {
+  const prefix = bodyPrefix ?? "<p:sld>";
+  const open = SLD_OPEN.exec(prefix);
+  if (!open) return prefix;
+  let tag = open[0].replace(/\s+show="[^"]*"/, "");
+  if (hidden) tag = `${tag.slice(0, -1)} show="0">`;
+  return prefix.slice(0, open.index) + tag + prefix.slice(open.index + open[0].length);
+}
 
 export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: number; committedBase?: string } {
   const state = { commitCalls: 0, committedBase: undefined as string | undefined };
@@ -86,6 +106,10 @@ export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: num
           readText: (path: string) => entries.get(path) as string | undefined,
         },
         __layouts: pkg.layouts ?? [],
+        __sections: pkg.sections ?? [],
+        __notes: pkg.notes ?? {},
+        __comments: pkg.comments ?? {},
+        __headerFooter: pkg.headerFooter ?? {},
       };
     },
     async savePptx(opened: OpenedPptxLike): Promise<Uint8Array> {
@@ -99,6 +123,10 @@ export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: num
           size: opened.deck.size,
           slides: opened.deck.slides,
           layouts: (opened.__layouts as unknown[]) ?? [],
+          sections: (opened.__sections as unknown[]) ?? [],
+          notes: (opened.__notes as Record<string, string>) ?? {},
+          comments: (opened.__comments as Record<string, unknown[]>) ?? {},
+          headerFooter: (opened.__headerFooter as Record<string, unknown>) ?? {},
           entries,
         }),
       );
@@ -122,33 +150,9 @@ export function createFakePptxEngine(): PptxEngineFunctions & { commitCalls: num
 
 // ── fake runTxn ────────────────────────────────────────────────────────────
 
-function resolveSlide(opened: OpenedPptxLike, op: PptxOp): { index: number; slide: PptxSlideLike } {
-  const ref = op.target?.slide;
-  const slides = opened.deck.slides;
-  if (typeof ref === "string") {
-    const index = slides.findIndex((s) => s.id === ref);
-    if (index < 0) throw new Error('op "' + op.op + '": no slide "' + ref + '"');
-    return { index, slide: slides[index] as PptxSlideLike };
-  }
-  if (typeof ref !== "number") {
-    throw new Error('op "' + op.op + '" needs target.slide');
-  }
-  const slide = slides[ref];
-  if (!slide) {
-    throw new Error('op "' + op.op + '": slide index ' + ref + " is out of range");
-  }
-  return { index: ref, slide };
-}
-
-function resolveElement(opened: OpenedPptxLike, op: PptxOp): { slide: PptxSlideLike; el: PptxElementLike } {
-  const { slide } = resolveSlide(opened, op);
-  const id = op.target?.el;
-  const el = slide.elements.find((x) => x.id === id);
-  if (!el) throw new Error('op "' + op.op + '": no element "' + id + '"');
-  return { slide, el };
-}
-
 function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
+  const wave = applyWaveOp(opened, op);
+  if (wave !== undefined) return wave;
   switch (op.op) {
     case "setText": {
       const { el } = resolveElement(opened, op);
@@ -164,7 +168,7 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
     case "addElement": {
       const { slide } = resolveSlide(opened, op);
       const el: PptxElementLike = {
-        id: "new_" + newElementSeq++,
+        id: "new_" + nextSeq(),
         type: op.kind === "textbox" ? "text" : "shape",
         transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
       };
@@ -178,7 +182,7 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
         return { op };
       }
       const el: PptxElementLike = {
-        id: "new_" + newElementSeq++,
+        id: "new_" + nextSeq(),
         type: "picture",
         transform: { offset: op.offset as { x: number; y: number; cx: number; cy: number } },
       };
@@ -218,13 +222,13 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
     }
     case "setHidden": {
       const { slide } = resolveSlide(opened, op);
-      slide.hidden = op.hidden === true;
-      return { op, after: slide.hidden };
+      slide.bodyPrefix = patchSlideHidden(slide.bodyPrefix as string | undefined, op.hidden === true);
+      return { op, after: op.hidden === true };
     }
     case "duplicateSlide": {
       const { index, slide } = resolveSlide(opened, op);
       const copy = JSON.parse(JSON.stringify(slide)) as PptxSlideLike;
-      copy.id = "s_dup_" + newElementSeq++;
+      copy.id = "s_dup_" + nextSeq();
       opened.deck.slides.splice(index + 1, 0, copy);
       return { op, created: [copy.id as string] };
     }
@@ -235,14 +239,14 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
     }
     case "addBlankSlide": {
       const { index } = resolveSlide(opened, op);
-      const s: PptxSlideLike = { id: "s_" + newElementSeq++, elements: [] };
+      const s: PptxSlideLike = { id: "s_" + nextSeq(), elements: [] };
       opened.deck.slides.splice(index + 1, 0, s);
       return { op, created: [s.id as string] };
     }
     case "addSlideWithLayout": {
       const slides = opened.deck.slides;
       const index = op.target?.slide !== undefined ? resolveSlide(opened, op).index : slides.length - 1;
-      const s: PptxSlideLike = { id: "s_" + newElementSeq++, elements: [], layout: op.layout };
+      const s: PptxSlideLike = { id: "s_" + nextSeq(), elements: [], layout: op.layout };
       slides.splice(index + 1, 0, s);
       return { op, created: [s.id as string] };
     }
@@ -252,6 +256,7 @@ function applyOp(opened: OpenedPptxLike, op: PptxOp): PptxOpRecord {
 }
 
 function validateOp(opened: OpenedPptxLike, op: PptxOp): void {
+  if (validateWaveOp(opened, op)) return;
   switch (op.op) {
     case "setText":
     case "setTransform":

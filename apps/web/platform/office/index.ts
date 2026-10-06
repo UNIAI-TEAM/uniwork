@@ -25,3 +25,52 @@ export function createWebOfficeEngine(options: WebOfficeBoundaryOptions): Office
 }
 
 export type { OfficeEngine, HostIpcPort };
+export { createHttpPreviewAssetProxy, createOfficePreviewPort, type OfficePreviewPortOptions } from "./preview-port";
+export {
+  createXlsxFormatAdapter,
+  createXlsxDocumentsTransport,
+  createXlsxSaveTransport,
+  type XlsxDocumentsTransport,
+  type XlsxFormatAdapter,
+  type XlsxFormatAdapterOptions,
+  type XlsxRuntimeOpenResult,
+  type XlsxRuntimeSerializedOutput,
+  type XlsxSessionRuntime,
+  type XlsxSaveTransportOptions,
+} from "./xlsx-adapter";
+export { XlsxOfficeEditorHost } from "./xlsx-office-host";
+export { createWebXlsxSessionRuntime } from "./xlsx-runtime";
+export {
+  createPptxFormatAdapter,
+  type PptxEditorHandle,
+  type PptxFormatAdapter,
+  type PptxFormatAdapterOptions,
+  type PptxOpenOutcome,
+} from "./pptx-adapter";
+export { PptxOfficeEditorHost } from "./pptx-office-host";
+export {
+  createPptxDocumentsTransport,
+  createPptxSaveTransport,
+  type PptxDocumentsTransport,
+  type PptxSaveTransportOptions,
+} from "./pptx-save-transport";
+export {
+  createWebPptxSessionRuntime,
+  fingerprintPptxSnapshot,
+  type PptxDeckSnapshot,
+  type PptxJournalEntry,
+  type PptxRuntimeOpenResult,
+  type PptxRuntimeSerializedOutput,
+  type PptxSessionRuntime,
+  type PptxSlideSummary,
+} from "./pptx-runtime";
+export {
+  buildOfficeDeepLink,
+  launchOfficeDeepLink,
+  officeClientId,
+  officeScheme,
+  safeOfficeDeepLink,
+  type DeepLinkLauncherOptions,
+  type OfficeChannel,
+  type OfficeLaunchOutcome,
+} from "./desktop-handoff";

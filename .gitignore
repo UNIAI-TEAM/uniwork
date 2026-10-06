@@ -11,6 +11,7 @@ server/bin/
 coverage/
 .go-cache/
 .go-tmp/
+packages/office-upstream/dist/
 test-results/
 playwright-report/
 
@@ -51,4 +52,9 @@ server/internal/handler/data/
 .github/
 .codex/
 .pnpm-store/
+.uniwork-dev/
+.uniwork-dev-run/
+apps/office-desktop/.test-artifacts/
 
+# pdfium wasm copied from node_modules by apps/web/scripts/copy-pdfium-wasm.mjs
+apps/web/public/office/pdfium.wasm

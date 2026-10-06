@@ -4,6 +4,7 @@ import { setAccessToken } from "../session";
 import {
   cancelOfficeJob,
   copyDocument,
+  createPreviewScope,
   createBlankDocumentFile,
   getOfficeCapabilities,
   getOfficeJob,
@@ -124,6 +125,22 @@ describe("office endpoints", () => {
     expect(job?.outputFileId).toBe("f1");
   });
 
+  it("posts XLSX edit operations without narrowing their format-specific payloads", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(jobBody({ operation: "edit", format: "xlsx" })));
+    await startOfficeJob(
+      "d1",
+      { operation: "edit", format: "xlsx", base_revision: "41", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }] },
+      { idempotencyKey: "edit-key" },
+    );
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      operation: "edit",
+      format: "xlsx",
+      base_revision: "41",
+      edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }],
+    });
+  });
+
   it("getOfficeJob and cancelOfficeJob hit the job routes and narrow a settled error", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json(jobBody({ state: "failed", output_file_id: null, error: { code: "engine_timeout", reason: "deadline_exceeded", kind: "deadline_exceeded", retryable: true } })),
@@ -138,6 +155,30 @@ describe("office endpoints", () => {
     expect(cancelled?.state).toBe("cancelled");
   });
 
+  it("keeps the Q7 target and result change list", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(jobBody({
+        format: "xls",
+        target_format: "xlsx",
+        result: {
+          source_format: "xls",
+          target_format: "xlsx",
+          fidelity: { level: "limited", lost: ["cell_formatting"] },
+          content: { sheets: ["Sheet1"], cells: { "Sheet1!A1": "value" }, paragraphs: [] },
+        },
+      })),
+    );
+    const job = await getOfficeJob("d1", "j1");
+    expect(job).toMatchObject({
+      targetFormat: "xlsx",
+      result: {
+        sourceFormat: "xls",
+        targetFormat: "xlsx",
+        fidelity: { level: "limited", lost: ["cell_formatting"] },
+      },
+    });
+  });
+
   it("createBlankDocumentFile and copyDocument return the created document", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody() }));
     const blank = await createBlankDocumentFile("w1", { format: "md", title: "Ghi chú" }, { idempotencyKey: "k" });
@@ -147,9 +188,34 @@ describe("office endpoints", () => {
     expect(blank?.id).toBe("d2");
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ id: "d3" }) }));
-    const copy = await copyDocument("d1", { consent: "copy" });
+    const copy = await copyDocument("d1", { consent: "copy", job_id: "j1" });
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/documents/d1/copies");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]![1]?.body))).toEqual({ consent: "copy", job_id: "j1" });
     expect(copy?.id).toBe("d3");
+  });
+
+  it("rejects a malformed conversion result instead of exposing a partial job", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(jobBody({ result: { source_format: "xls", target_format: "xlsx" } })),
+    );
+    await expect(getOfficeJob("d1", "j1")).resolves.toBeNull();
+  });
+
+  it("creates a preview scope and rejects a malformed broker response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({
+      origin: "https://preview.example",
+      expires_at: "2026-09-30T12:00:00Z",
+      assets: [{ key: "assets/logo.png", asset_id: "a1", url: "https://preview.example/api/v1/preview/assets/c/a1" }],
+    }));
+    await expect(createPreviewScope("d1", { job_id: "j1", assets: [{ key: "assets/logo.png", asset_id: "a1" }] })).resolves.toEqual({
+      origin: "https://preview.example",
+      expiresAt: "2026-09-30T12:00:00Z",
+      assets: [{ key: "assets/logo.png", assetId: "a1", url: "https://preview.example/api/v1/preview/assets/c/a1" }],
+    });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/documents/d1/preview/scopes");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ origin: "not-an-origin" }));
+    await expect(createPreviewScope("d1", { job_id: "j1", assets: [] })).resolves.toBeNull();
   });
 
   it("every office answer degrades to null on a malformed body", async () => {

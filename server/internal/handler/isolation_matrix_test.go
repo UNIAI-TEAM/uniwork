@@ -261,6 +261,22 @@ func TestIsolationMatrix(t *testing.T) {
 		if changed := isoDiff(before, w.tenantDigest(t, w.alpha)); len(changed) > 0 {
 			t.Errorf("B's requests changed A's rows in: %s", strings.Join(changed, ", "))
 		}
+		// Device sessions and desktop attempts belong to an account, not an
+		// organization, so the digest above cannot see them: A's device must
+		// still be live and A's pending attempt still undecided.
+		var revoked, decided bool
+		if err := w.pool.QueryRow(context.Background(), `SELECT revoked_at IS NOT NULL FROM device_sessions WHERE id = $1`, w.alpha.ids["deviceSession"]).Scan(&revoked); err != nil {
+			t.Fatal(err)
+		}
+		if revoked {
+			t.Error("B's requests revoked A's device session")
+		}
+		if err := w.pool.QueryRow(context.Background(), `SELECT approved_at IS NOT NULL OR cancelled_at IS NOT NULL OR used_at IS NOT NULL FROM desktop_auth_attempts WHERE id = $1`, w.alpha.ids["desktopAttempt"]).Scan(&decided); err != nil {
+			t.Fatal(err)
+		}
+		if decided {
+			t.Error("B's requests approved or cancelled A's desktop attempt")
+		}
 	})
 
 	// The positive control of every write: a third organization's owner
@@ -361,7 +377,7 @@ func isoWritePhase(r isoRoute) int {
 
 // isoQueryNamesRow: the query string carries a tenant row (not a date).
 func isoQueryNamesRow(q string) bool {
-	for _, p := range []string{"{emailAccount}", "{callID}", "{peerEmail}", "{peerID}"} {
+	for _, p := range []string{"{emailAccount}", "{callID}", "{peerEmail}", "{peerID}", "{orgID}"} {
 		if strings.Contains(q, p) {
 			return true
 		}
@@ -395,6 +411,9 @@ var isoTenantParams = map[string]bool{
 	"{workspaceID}": true, "{orgID}": true, "{org}": true, "{taskID}": true, "{meetingID}": true,
 	"{documentID}": true, "{commentID}": true, "{attachmentID}": true, "{agentID}": true,
 	"{conversationID}": true, "{requestId}": true, "{fileID}": true,
+	// A launch receipt names a document of one organization; revoke answers
+	// 404 to every account but its creator.
+	"{launchSessionID}": true,
 }
 
 func isoUnclassified(routes []isoRoute) []string {
@@ -530,6 +549,14 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "document")
 	case "{assetID}":
 		return tn.get(t, "asset")
+	case "{signatureID}":
+		return tn.get(t, "signature")
+	case "{launchSessionID}":
+		return tn.get(t, "launchSession")
+	case "{deviceSessionID}":
+		return tn.get(t, "deviceSession")
+	case "{capability}":
+		return tn.get(t, "previewCapability")
 	case "{shareID}":
 		return tn.get(t, "share")
 	case "{versionNo}":
@@ -806,6 +833,7 @@ func isoQuery(q string, tn *isoTenant) string {
 		"{emailAccount}", tn.ids["emailAccount"],
 		"{callID}", tn.ids["callID"],
 		"{peerID}", tn.peerID,
+		"{orgID}", tn.orgID,
 		// The calendar window around the fixture's meetings (now + 24h).
 		"{fromDate}", time.Now().AddDate(0, 0, -30).Format("2006-01-02"),
 		"{toDate}", time.Now().AddDate(0, 0, 60).Format("2006-01-02"),

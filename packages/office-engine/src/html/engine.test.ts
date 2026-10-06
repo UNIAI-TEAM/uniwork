@@ -47,6 +47,23 @@ describe("html engine", () => {
     expect(html.applyPatchSet(ref, { patches: [], baseVersion: 1, origin: "format", label: "noop" }).revision).toBe(1);
   });
 
+  it("preserves comments and unrendered HTML parts when editing elsewhere", async () => {
+    const html = createHtmlEngine({ upstream: fakeHtmlUpstream() });
+    const source = "<!doctype html>\n<!-- keep this comment -->\n<head><meta name=\"keep\"><style>.keep{color:red}</style></head>\n<body><template><span>unrendered</span></template><p>Keep</p></body>";
+    const outcome = await html.open({ bytes: utf8(source), format: "html", document_id: "H1" });
+    if (outcome.outcome !== "opened") throw new Error("open");
+    const ref = outcome.document_model_ref;
+    const snapshot = html.snapshot(ref);
+    html.applyPatchSet(ref, {
+      patches: [{ from: snapshot.text.length, to: snapshot.text.length, text: "\n<p>Edited elsewhere</p>" }],
+      baseVersion: snapshot.revision,
+      origin: "manual",
+      label: "append",
+    });
+    const serialized = await html.serialize({ document_model_ref: ref, format: "html" });
+    expect(new TextDecoder().decode(serialized.bytes)).toBe(source + "\n<p>Edited elsewhere</p>");
+  });
+
   it("saves and reopens twice, carrying stylesheet and image bytes", async () => {
     const html = createHtmlEngine({ upstream: fakeHtmlUpstream() });
     const m = await manifest("index.html", { "css/site.css": [CSS, "text/css"], "img/a b.png": [PNG_BYTES, "image/png"] });

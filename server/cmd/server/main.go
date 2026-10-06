@@ -186,6 +186,7 @@ func main() {
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
 	authSvc.SetMail(renderer, mailOutbox)
+	desktopAuthSvc := service.NewDesktopAuthService(pool, q, minter, cfg)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
@@ -317,6 +318,8 @@ func main() {
 	// G1-04b) runs on the same service the routes use; it is awaited in the
 	// shutdown sequence below, so a sweep never outlives the process.
 	docWorkers := documentSvc.NewDocumentWorkers()
+	officeLaunchSvc := service.NewOfficeLaunchService(documentSvc, cfg)
+	docWorkers.SetOfficeLaunchService(officeLaunchSvc)
 	officeSvc := service.NewDocumentOfficeService(service.DocumentOfficeOptions{
 		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Documents: documentSvc, Metrics: officeMetrics,
 		MaxDeadline: officeCfg.MaxJobDeadline, ReconcileInterval: officeCfg.ReconcileInterval, Log: log,
@@ -349,6 +352,14 @@ func main() {
 	docSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
 	docSvc.SetEntitlements(service.NewEntitlementService(pool, q))
 	docSvc.SetFiles(fileSvc)
+	previewSvc, previewErr := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
+		Documents: docSvc, Origin: cfg.PreviewOrigin, Secret: cfg.PreviewCapabilitySecret,
+		TTL: cfg.PreviewAssetTTL, MaxBytes: cfg.PreviewAssetMaxBytes,
+	})
+	if previewErr != nil {
+		log.Error("preview broker", "err", previewErr)
+		os.Exit(1)
+	}
 	notifConsumer.SetDocumentReaders(docSvc)
 	var pushSender notification.PushSender
 	if cfg.PushEnabled() {
@@ -456,6 +467,7 @@ func main() {
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
+		DesktopAuth:         desktopAuthSvc,
 		Verification:        verification,
 		PasswordReset:       passwordReset,
 		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),
@@ -486,7 +498,10 @@ func main() {
 		Storage:             store,
 		FileAccess:          fileAccess,
 		Documents:           docSvc,
+		Signatures:          service.NewSignatureService(pool, q, orgSvc),
+		OfficeLaunch:        officeLaunchSvc,
 		Office:              officeSvc,
+		Preview:             previewSvc,
 		MembershipCache:     membershipCache,
 		HTTPMetrics:         httpMetrics,
 		WebVitals:           webVitals(reg),

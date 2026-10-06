@@ -70,14 +70,14 @@ export function EnterprisePage() {
     <ChapterHero titleKey="landing.productPages.enterpriseTitle" descriptionKey="landing.productPages.enterpriseDescription" visual={<ChapterScene featureKey="organization" index={2} />}>
       <div className="marketing-actions"><Link href={paths.feature("organization")} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.productPages.enterpriseCta")}<ArrowRight aria-hidden /></Link><a href="#governance" className="chapter-link">{t("landing.chapters.enterprise.explore")}<ArrowDown aria-hidden /></a></div><p className="marketing-scope">{t("landing.productPages.enterpriseStatus")}</p>
     </ChapterHero>
-    <section id="governance" className="chapter-section chapter-soft"><div className="chapter-width"><ChapterHeading titleKey="landing.productPages.enterpriseDetails" descriptionKey="landing.chapters.enterprise.structure" /><ScopeTable namespace="enterprise" /></div></section>
+    <section id="governance" className="chapter-section chapter-soft"><div className="chapter-width"><ChapterHeading titleKey="landing.productPages.enterpriseDetails" descriptionKey="landing.chapters.enterprise.structure" /><ScopeTable namespace="enterprise" /></div></section>{/* plan-literal-ok: landing page namespace key, not a plan code */}
     <div className="chapter-width chapter-section">{GOVERNANCE.map(({ feature, index }, n) => <section className="chapter-row" key={feature}>
       <div className="chapter-row-copy"><CircleCheck aria-hidden /><h2>{t(`landing.chapters.enterprise.examples.${n}`)}</h2><p>{t(`landing.productPages.enterprisePoints.${n}`)}</p><p>{t(`landing.chapters.enterprise.exampleDescriptions.${n}`)}</p><ChapterLink href={paths.feature(feature)} labelKey="landing.productPages.solutionExplore" /></div><ChapterScene featureKey={feature} index={index} />
     </section>)}</div>
   </div></MarketingShell>;
 }
 
-function ScopeTable({ namespace }: { namespace: "pricing" | "enterprise" }) {
+function ScopeTable({ namespace }: { namespace: "pricing" | "enterprise" }) { // plan-literal-ok: landing page namespace key, not a plan code
   const { t } = useTranslation();
   return <table className="chapter-table"><caption className="sr-only">{t(`landing.chapters.${namespace}.${namespace === "pricing" ? "checkTitle" : "structure"}`)}</caption><thead><tr>{["subject", "current", "confirm"].map(key => <th key={key} scope="col">{t(`landing.chapters.table.${key}`)}</th>)}</tr></thead>
     <tbody>{[0, 1, 2].map(index => <tr key={index}>{["subject", "current", "confirm"].map(key => key === "subject" ? <th scope="row" key={key}>{t(`landing.chapters.${namespace}.rows.${index}.${key}`)}</th> : <td key={key}>{t(`landing.chapters.${namespace}.rows.${index}.${key}`)}</td>)}</tr>)}</tbody>

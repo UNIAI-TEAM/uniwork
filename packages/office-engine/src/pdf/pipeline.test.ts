@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { PDFArray, PDFDocument, PDFHexString, PDFName } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
 import { applyPdfEditBytes, probePdf, PdfTypedError } from "./adapter";
@@ -245,6 +245,44 @@ describe("pdf edit — two-save persistence", () => {
     expect(text.pages[0]!.text).toContain("nam 2028");
     expect(text.pages[0]!.text).not.toContain("2027");
   });
+
+  it.each(["highlight", "underline", "strikeout"] as const)("writes a %s text markup without changing page content", async (type) => {
+    const input = TEXT_PDF();
+    const before = await readPdfText(input);
+    const out = await applyPdfEditBytes(input, [{
+      op: "addMarkup",
+      attributes: {
+        markup: {
+          pageIndex: 0,
+          type,
+          color: [1, 0.8, 0],
+          quads: [[72, 710, 190, 710, 72, 695, 190, 695]],
+        },
+      },
+    }]);
+    expect(await readPdfText(out.bytes)).toEqual(before);
+    const doc = await PDFDocument.load(out.bytes);
+    const page = doc.getPage(0)!;
+    const annots = page.node.get(PDFName.of("Annots"));
+    expect(annots).toBeDefined();
+    const refs = doc.context.lookup(annots!, PDFArray);
+    const annot = doc.context.lookup(refs.get(0)!, PDFDict);
+    expect(annot.get(PDFName.of("Subtype"))).toEqual(PDFName.of(type === "strikeout" ? "StrikeOut" : type[0]!.toUpperCase() + type.slice(1)));
+  });
+
+  it("keeps a markup on a second save and appends the second annotation", async () => {
+    const first = await applyPdfEditBytes(TEXT_PDF(), [{
+      op: "addMarkup",
+      attributes: { markup: { pageIndex: 0, type: "highlight", color: [1, 1, 0], quads: [[72, 710, 190, 710, 72, 695, 190, 695]] } },
+    }]);
+    const second = await applyPdfEditBytes(first.bytes, [{
+      op: "addMarkup",
+      attributes: { markup: { pageIndex: 0, type: "underline", color: [0, 0, 1], quads: [[72, 680, 190, 680, 72, 665, 190, 665]] } },
+    }]);
+    const doc = await PDFDocument.load(second.bytes);
+    const annots = doc.context.lookup(doc.getPage(0)!.node.get(PDFName.of("Annots"))!, PDFArray);
+    expect(annots.size()).toBe(2);
+  });
 });
 
 describe("pdf edit — typed refusals", () => {
@@ -275,7 +313,7 @@ describe("pdf edit — typed refusals", () => {
 
   it("refuses an unknown op as unsupported", async () => {
     await expect(
-      applyPdfEditBytes(TEXT_PDF(), [{ op: "addMarkup", attributes: {} }]),
+      applyPdfEditBytes(TEXT_PDF(), [{ op: "addUnknownThing", attributes: {} }]),
     ).rejects.toMatchObject({ code: "unsupported_operation" });
   });
 
@@ -285,6 +323,13 @@ describe("pdf edit — typed refusals", () => {
         { op: "putTextEdit", attributes: { pageIndex: "zero" } },
       ]),
     ).rejects.toMatchObject({ code: "engine_result_invalid", reason: expect.stringContaining("bad_op") });
+  });
+
+  it("names malformed markup fields as typed parse errors", async () => {
+    await expect(applyPdfEditBytes(TEXT_PDF(), [{
+      op: "addMarkup",
+      attributes: { markup: { pageIndex: 0, type: "highlight", color: [1, 1], quads: [[1, 2, 3, 4, 5, 6, 7, 8]] } },
+    }])).rejects.toMatchObject({ code: "engine_result_invalid", reason: expect.stringContaining("bad_op:addMarkup.color") });
   });
 
   it("is a PdfTypedError instance so handlers map it 1:1", async () => {

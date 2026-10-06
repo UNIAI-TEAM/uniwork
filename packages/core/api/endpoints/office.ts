@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DocumentEnvelopeSchema, type Document } from "../../types/document";
-import { request } from "../http";
+import { request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 
 // Office endpoints (plan G2-07 / UNI-690): capability, jobs, blank create and
@@ -13,8 +13,8 @@ const enc = encodeURIComponent;
 
 /** The engine operations the job route accepts. export and convert answer a
  *  typed unsupported_operation until an engine lane binds a converter (Q7). */
-export type OfficeOperation = "open" | "serialize" | "export" | "convert";
-export type OfficeFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "html";
+export type OfficeOperation = "open" | "edit" | "serialize" | "export" | "convert";
+export type OfficeFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "html" | "xls" | "odt";
 
 export interface OfficeCapabilityRow {
   operation: string;
@@ -25,6 +25,7 @@ export interface OfficeCapabilityRow {
   /** The product rule: bound and proven. false means the UI hides the action. */
   supported: boolean;
   reason: string | null;
+  targetFormat: string | null;
 }
 
 export interface OfficeCapabilities {
@@ -41,6 +42,13 @@ export interface OfficeJobError {
   retryable: boolean;
 }
 
+export interface OfficeJobResult {
+  sourceFormat: string;
+  targetFormat: string;
+  fidelity: { level: string; lost: string[] };
+  content: { sheets: string[]; cells: Record<string, string>; paragraphs: string[] };
+}
+
 export interface OfficeJob {
   jobId: string;
   documentId: string;
@@ -52,6 +60,8 @@ export interface OfficeJob {
   outputFileId: string | null;
   outputChecksum: string | null;
   outputLength: number | null;
+  targetFormat: string | null;
+  result: OfficeJobResult | null;
   error: OfficeJobError | null;
   engineName: string;
   engineVersion: string;
@@ -77,7 +87,18 @@ export interface StartOfficeJobBody {
   base_revision?: string;
   /** The editor's document model reference (serialize). */
   document_model_ref?: string;
+  /** Format-specific edit operations; accepted only for operation=edit. */
+  edits?: OfficeEditOp[];
   target_format?: OfficeFormat;
+}
+
+export interface OfficeEditOp {
+  op: string;
+  target?: unknown;
+  text?: string;
+  style?: unknown;
+  range?: unknown;
+  attributes?: unknown;
 }
 
 export interface CreateBlankDocumentFileBody {
@@ -91,6 +112,18 @@ export interface CopyDocumentBody {
   consent: "copy";
   title?: string;
   parent_id?: string;
+  job_id?: string;
+}
+
+export interface CreatePreviewScopeBody {
+  job_id: string;
+  assets: Array<{ key: string; asset_id: string }>;
+}
+
+export interface PreviewScope {
+  origin: string;
+  expiresAt: string;
+  assets: Array<{ key: string; assetId: string; url: string }>;
 }
 
 const CapabilityRowSchema = z.object({
@@ -100,6 +133,7 @@ const CapabilityRowSchema = z.object({
   engine_bound: z.boolean(),
   supported: z.boolean(),
   reason: z.string().optional(),
+  target_format: z.string().optional().nullable(),
 });
 
 const CapabilitiesSchema = z.object({
@@ -116,6 +150,20 @@ const JobErrorSchema = z.object({
   retryable: z.boolean().optional(),
 });
 
+const JobResultSchema = z.object({
+  source_format: z.string(),
+  target_format: z.string(),
+  fidelity: z.object({
+    level: z.string(),
+    lost: z.array(z.string()).optional().default([]),
+  }),
+  content: z.object({
+    sheets: z.array(z.string()).optional().default([]),
+    cells: z.record(z.string(), z.string()).optional().default({}),
+    paragraphs: z.array(z.string()).optional().default([]),
+  }),
+});
+
 const JobSchema = z.object({
   job_id: z.string(),
   document_id: z.string(),
@@ -127,6 +175,8 @@ const JobSchema = z.object({
   output_file_id: z.string().optional().nullable(),
   output_checksum_sha256: z.string().optional().nullable(),
   output_length: z.number().optional().nullable(),
+  target_format: z.string().optional().nullable(),
+  result: JobResultSchema.optional().nullable(),
   error: JobErrorSchema.optional().nullable(),
   engine_name: z.string().optional(),
   engine_version: z.string().optional(),
@@ -136,6 +186,12 @@ const JobSchema = z.object({
   deadline_at: z.string().optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
+});
+
+const PreviewScopeSchema = z.object({
+  origin: z.string().url(),
+  expires_at: z.string(),
+  assets: z.array(z.object({ key: z.string(), asset_id: z.string(), url: z.string().url() })),
 });
 
 function idempotencyHeaders(opts?: OfficeRequestOpts): Record<string, string> | undefined {
@@ -166,6 +222,15 @@ function narrowJob(raw: unknown): OfficeJob | null {
     outputFileId: job.output_file_id ?? null,
     outputChecksum: job.output_checksum_sha256 ?? null,
     outputLength: job.output_length ?? null,
+    targetFormat: job.target_format ?? null,
+    result: job.result
+      ? {
+          sourceFormat: job.result.source_format,
+          targetFormat: job.result.target_format,
+          fidelity: job.result.fidelity,
+          content: job.result.content,
+        }
+      : null,
     error,
     engineName: job.engine_name ?? "",
     engineVersion: job.engine_version ?? "",
@@ -175,6 +240,29 @@ function narrowJob(raw: unknown): OfficeJob | null {
     deadlineAt: job.deadline_at ?? "",
     createdAt: job.created_at ?? "",
     updatedAt: job.updated_at ?? "",
+  };
+}
+
+/** POST /api/v1/documents/{id}/preview/scopes. The response contains only
+ * opaque broker URLs; malformed responses fail closed to null. */
+export async function createPreviewScope(
+  documentId: string,
+  body: CreatePreviewScopeBody,
+  signal?: AbortSignal,
+): Promise<PreviewScope | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/preview/scopes`, {
+    method: "POST",
+    body,
+    signal,
+  });
+  const parsed = parseWithFallback<z.infer<typeof PreviewScopeSchema> | null>(raw, PreviewScopeSchema, null, {
+    endpoint: "POST /api/v1/documents/{id}/preview/scopes",
+  });
+  if (!parsed) return null;
+  return {
+    origin: parsed.origin,
+    expiresAt: parsed.expires_at,
+    assets: parsed.assets.map((asset) => ({ key: asset.key, assetId: asset.asset_id, url: asset.url })),
   };
 }
 
@@ -203,6 +291,7 @@ export async function getOfficeCapabilities(
       engineBound: row.engine_bound,
       supported: row.supported,
       reason: row.reason ?? null,
+      targetFormat: row.target_format ?? null,
     })),
   };
 }
@@ -232,6 +321,16 @@ export async function getOfficeJob(
     signal,
   });
   return narrowJob(raw);
+}
+
+/** GET /api/v1/documents/{id}/office/jobs/{jobID}/output — read a completed
+ * staged engine output before the normal upload/commit coordinator claims it. */
+export async function downloadOfficeJobOutput(
+  documentId: string,
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  return requestBlob(`/api/v1/documents/${enc(documentId)}/office/jobs/${enc(jobId)}/output`, { signal });
 }
 
 /** POST /api/v1/documents/{id}/office/jobs/{jobID}/cancel. */

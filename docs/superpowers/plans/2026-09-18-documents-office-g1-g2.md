@@ -1399,11 +1399,14 @@ Không chia tổng ngày công cho số worker để suy ra ngày hoàn tất.
 
 ## 9. Trạng thái tài liệu và việc tiếp theo
 
-- Plan này được viết theo yêu cầu người dùng để chuẩn bị triển khai G1 + G2.
+- Plan này được viết theo yêu cầu người dùng để chuẩn bị triển khai G1 + G2; implementation
+  của 16/16 task đã được Advisor nghiệm thu ngày 2026-09-29 theo trạng thái ở đầu file.
 - Cập nhật 2026-09-22 bổ sung tám nhóm trách nhiệm, sáu đợt P0..P5, phân việc
-  xuyên FE-BE, owner file chung và điều kiện bàn giao. Giữ 16 issue, không
-  khởi chạy implementation hoặc mở rộng phạm vi G3/G4/G5/G6/G7.
-- 16 issue đã được coordinator xác nhận; chưa bắt đầu implementation.
+  xuyên FE-BE, owner file chung và điều kiện bàn giao. Giữ 16 issue, không mở rộng
+  phạm vi G3/G4/G5/G6/G7.
+- 16 issue đã được coordinator xác nhận và hoàn tất trên nhánh triển khai; code đã
+  được merge vào checkout consumer. H4/full six-format acceptance vẫn theo evidence
+  và acceptance packet riêng, không suy ra chỉ từ trạng thái shipped của task.
 - Cập nhật 2026-09-24 theo quy tắc hợp đồng trước: G1-01/03/04, G2-02 dùng
   FileService FS-C1 thay ledger object riêng. Coordinator cần cập nhật mô tả
   UNI-677 và dependency tới UNI-739 (FS-C1) trên UniAI.
@@ -1411,8 +1414,9 @@ Không chia tổng ngày công cho số worker để suy ra ngày hoàn tất.
   `c6b567f0`/migration 217; H0 tick theo bằng chứng (§1.2); bốn quyết định chờ người dùng U-1..U-4
   (§1.3); giới hạn G0 còn mở có chủ (§1.4); bổ sung việc G2-01..07; thống nhất
   `idempotency_payload_mismatch` và một hình dạng API save; ước lượng rút về `m1-m2-estimate.md`.
-  Mô tả UNI-657/658/677 trên UniAI được cập nhật cùng đợt. Implementation chờ lệnh người dùng.
-- Các lệnh trong §7 là hướng dẫn thực thi, chưa được chạy như kiểm chứng sản phẩm
-  trong task viết tài liệu này.
-- Khi nhận triển khai, đọc H0 và issue/comments trước, chọn task đã đủ dependency,
-  gửi start qua coordinator và giữ bằng chứng theo §7.3.
+  Mô tả UNI-657/658/677 trên UniAI được cập nhật cùng đợt; các quyết định lịch sử này
+  không thay đổi trạng thái shipped ở đầu file.
+- Các lệnh trong §7 là hướng dẫn thực thi; kết quả lane và giới hạn hiện tại được ghi
+  ở `docs/office/g1-g2-evidence.md` và acceptance packet của Tester/Advisor.
+- Consumer G3/G4 phải đọc provider handoff/evidence mới nhất, nhận đúng SHA và contract
+  revision, rồi giữ bằng chứng tích hợp riêng theo §7.3.

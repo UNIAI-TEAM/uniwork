@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/office"
@@ -308,6 +309,32 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("provider output cancellation settles as a retryable commit failure", func(t *testing.T) {
+		f := newOfficeFixture(t, "output cancellation\n")
+		eng := newScriptedEngine()
+		eng.fake = f.files.Fake
+		svc := f.service(eng)
+		row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-output-canceled"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		eng.finish(t, row.ID, body, "text/markdown")
+		if err := f.files.CancelUpload(ctx, files.CancelInput{
+			Actor:  audit.User(f.actor.ID),
+			Scope:  files.Scope{OrganizationID: f.org, WorkspaceID: f.ws},
+			FileID: files.FileID(row.OutputFileID.String),
+		}); err != nil {
+			t.Fatalf("cancel provider output: %v", err)
+		}
+		done, err := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, row.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done.State != string(office.JobFailed) || done.ErrorCode.String != "commit_failed" || done.ErrorReason.String != "output_upload_canceled" {
+			t.Fatalf("canceled output job = %+v", done)
+		}
+	})
+
 	t.Run("commit and cancel of a completed job: whichever lands first is final", func(t *testing.T) {
 		f := newOfficeFixture(t, "order\n")
 		eng := newScriptedEngine()
@@ -466,17 +493,29 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A stranger never reaches a job: the document is not found for them.
-		if _, err := svc.StartOfficeJob(ctx, human(f.tn.bMember), f.input("k-acl-none")); !errors.Is(err, ErrNotFound) {
+		// The payload is a well-formed edit so the ACL gate, not op
+		// validation, is the refusal under test.
+		editInput := f.input("k-acl-none")
+		editInput.Operation = office.OperationEdit
+		editInput.Edits = []office.EditOp{{
+			Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","cell":"A1"}`), Attributes: json.RawMessage(`{"value":1}`),
+		}}
+		if _, err := svc.StartOfficeJob(ctx, human(f.tn.bMember), editInput); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("stranger submit: %v", err)
 		}
-		// A viewer may read a job's status but may neither submit nor cancel.
+		// A viewer may read a job's status but may neither submit edits nor cancel.
 		docRow, err := f.q.GetDocumentByID(ctx, f.doc)
 		if err != nil {
 			t.Fatal(err)
 		}
 		f.pf.share(t, docRow, DocumentPrincipalUser, f.tn.creator.ID, DocumentLevelView, f.tn.member.ID)
 		viewer := human(f.tn.creator)
-		if _, err := svc.StartOfficeJob(ctx, viewer, f.input("k-acl-view")); !errors.Is(err, ErrForbidden) {
+		viewerEdit := f.input("k-acl-view")
+		viewerEdit.Operation = office.OperationEdit
+		viewerEdit.Edits = []office.EditOp{{
+			Op: "set_cell", Target: json.RawMessage(`{"sheet":"Data","cell":"A1"}`), Attributes: json.RawMessage(`{"value":1}`),
+		}}
+		if _, err := svc.StartOfficeJob(ctx, viewer, viewerEdit); !errors.Is(err, ErrForbidden) {
 			t.Fatalf("viewer submit: %v", err)
 		}
 		row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-acl-edit"))
@@ -495,6 +534,31 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 		}
 		if _, err := svc.GetOfficeJob(ctx, agentActor(f.tn.agent), f.org, f.ws, row.ID); !errors.Is(err, ErrForbidden) {
 			t.Fatalf("agent status: %v", err)
+		}
+	})
+
+	t.Run("edit payloads are bounded and operation-scoped before storage", func(t *testing.T) {
+		f := newOfficeFixture(t, "edit validation\n")
+		svc := f.service(newScriptedEngine())
+		badOp := f.input("k-edit-empty-op")
+		badOp.Operation = office.OperationEdit
+		badOp.Edits = []office.EditOp{{}}
+		if _, err := svc.StartOfficeJob(ctx, f.actor, badOp); !errors.Is(err, ErrOfficeJobInvalid) {
+			t.Fatalf("empty edit op = %v", err)
+		}
+		wrongOperation := f.input("k-serialize-edits")
+		wrongOperation.Edits = []office.EditOp{{Op: "set_cell"}}
+		if _, err := svc.StartOfficeJob(ctx, f.actor, wrongOperation); !errors.Is(err, ErrOfficeJobInvalid) {
+			t.Fatalf("serialize edits = %v", err)
+		}
+		tooMany := f.input("k-edit-too-many")
+		tooMany.Operation = office.OperationEdit
+		tooMany.Edits = make([]office.EditOp, 10_001)
+		for i := range tooMany.Edits {
+			tooMany.Edits[i].Op = "set_cell"
+		}
+		if _, err := svc.StartOfficeJob(ctx, f.actor, tooMany); !errors.Is(err, ErrOfficeJobInvalid) {
+			t.Fatalf("too many edits = %v", err)
 		}
 	})
 

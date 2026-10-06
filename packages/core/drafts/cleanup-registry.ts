@@ -69,6 +69,27 @@ export interface DraftCleanupEntry {
 }
 
 const entries = new Map<string, DraftCleanupEntry>();
+// Office durable drafts deliberately do not participate in the global
+// localStorage/task/chat deletion policy. They only contribute a memory-layer
+// cleanup hook, invoked by the Office host on logout/account switch.
+const officeMemoryCleanups = new Set<() => void>();
+
+/** Register the Office host's clear-memory callback without a durable key. */
+export function registerOfficeDraftMemoryCleanup(cleanup: () => void): () => void {
+  officeMemoryCleanups.add(cleanup);
+  return () => officeMemoryCleanups.delete(cleanup);
+}
+
+/** Clear decrypted Office state while retaining IndexedDB ciphertext. */
+export function clearRegisteredOfficeDraftMemory(): void {
+  for (const cleanup of officeMemoryCleanups) {
+    try {
+      cleanup();
+    } catch {
+      // A host callback must not prevent the remaining Office state cleanup.
+    }
+  }
+}
 
 /** Register a draft store with every cleanup path below. Idempotent per key. */
 export function registerDraftCleanup(entry: DraftCleanupEntry): void {
@@ -105,8 +126,15 @@ function releaseDraftsNotOwnedBy(userId: string): void {
 // zustand calls listeners synchronously inside `set`, and React only schedules
 // its re-render from there, so the stores are released before the signed-in
 // screen can render them or accept a write.
-useAuthStore.subscribe((state) => {
-  if (state.status === "authed" && state.user) releaseDraftsNotOwnedBy(state.user.id);
+useAuthStore.subscribe((state, previous) => {
+  if (state.status === "authed" && state.user) {
+    if (previous.status === "authed" && previous.user?.id && previous.user.id !== state.user.id) {
+      // Account switches keep the previous user's ciphertext durable, but no
+      // decrypted Office model or object URL may survive into the next user.
+      clearRegisteredOfficeDraftMemory();
+    }
+    releaseDraftsNotOwnedBy(state.user.id);
+  }
 });
 
 /**
@@ -170,5 +198,5 @@ export function resetRegisteredDraftsInMemory(): void {
 /** Test-only: drop all registrations. */
 export function __clearDraftCleanupRegistryForTest(): void {
   entries.clear();
+  officeMemoryCleanups.clear();
 }
-

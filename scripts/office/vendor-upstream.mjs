@@ -55,9 +55,41 @@ export const SELECTION = [
   'packages/pdf2docx',
   'packages/html2docx',
   'packages/font-metrics',
+  'packages/ui/src/wordart-presets.ts',
+  'packages/ui/src/shape-gallery.tsx',
   'packages/i18n',
   'packages/project-store',
   'apps/docs/src/main',
+  'apps/docs/src/renderer/editor',
+  // G3-04c T-01: the renderer stylesheet and its chrome-token source. The
+  // document surface classes (.doc-table, .doc-li, .page-dark, --doc-b-* /
+  // --dk-* consumers) live here; without it the surface renders plain. The
+  // browser artifact scopes the sheet under .docx-surface so the app-global
+  // rules (body/html/:root) cannot leak into the UniWork shell.
+  'apps/docs/src/renderer/styles.css',
+  // G3-04d T (UNI-823): the document style sheet generator (docStyleCss /
+  // docThemeCss / docLineFactor). Without it the surface renders the
+  // stylesheet's own defaults instead of styles.xml + theme (G3-D3 T).
+  'apps/docs/src/renderer/doc-style-css.ts',
+  // G3-04d: display-only footnote/endnote areas; locale uses the existing shim.
+  'apps/docs/src/renderer/components/PageNoteAreas.tsx',
+  'packages/ui/src/tokens.css',
+  'apps/docs/src/renderer/line-metrics.ts',
+  'apps/docs/src/renderer/font-list.ts',
+  'apps/docs/src/renderer/font-check.ts',
+  'apps/docs/src/renderer/note-format.ts',
+  'apps/docs/src/renderer/dom-range.ts',
+  'apps/docs/src/renderer/phased-content.ts',
+  'apps/docs/src/renderer/pagination-lines.ts',
+  'apps/docs/src/renderer/pagination-measure.ts',
+  'apps/docs/src/renderer/pagination-slices.ts',
+  'apps/docs/src/renderer/pagination-types.ts',
+  'apps/docs/src/renderer/pagination-sections.ts',
+  // G3-04c T-02: the variants/page-number module the pagination barrel and the
+  // HF gap strips need (effectiveHfRefs, hfVariantOf, pageNumbers,
+  // formatPageNumber). Pure module: docx-engine types + PageSlice only.
+  'apps/docs/src/renderer/pagination-hf.ts',
+  'apps/docs/src/renderer/pagination.ts',
   'apps/docs/src/shared',
   'apps/sheets/src/main',
   'apps/sheets/src/shared',
@@ -75,6 +107,50 @@ export const SELECTION = [
   'apps/html/src/renderer/document/parse-map.ts',
   'apps/html/src/renderer/document/patch.ts',
   'apps/html/src/renderer/document/blank.ts',
+  // G3-05c (UNI-824): the sheets renderer's Univer integration closure - the
+  // runtime-graph of the UniWork controller in shims/xlsx-renderer. UI chrome
+  // (App/ExcelShell/ribbon/dialogs), ai/, i18n/, visuals and charts stay out;
+  // the checkpoint doc (docs/office/g3g4/xlsx-renderer-port.md) records why.
+  // Files are added here only when the browser-artifact build reaches them.
+  'apps/sheets/src/renderer/app-constants.ts',
+  'apps/sheets/src/renderer/autofit-line-pitch.ts',
+  'apps/sheets/src/renderer/autofit-wrap-budget.ts',
+  'apps/sheets/src/renderer/calc-options.ts',
+  'apps/sheets/src/renderer/cell-clip-anchor-fix.ts',
+  'apps/sheets/src/renderer/cell-font-fallback.ts',
+  'apps/sheets/src/renderer/center-continuous.ts',
+  'apps/sheets/src/renderer/cf-formula-fold.ts',
+  'apps/sheets/src/renderer/cf-thresholds.ts',
+  'apps/sheets/src/renderer/chart-sync-pending.ts',
+  'apps/sheets/src/renderer/create-univer.ts',
+  'apps/sheets/src/renderer/edit-journal.ts',
+  'apps/sheets/src/renderer/filter-range-outline.ts',
+  'apps/sheets/src/renderer/formula-cached-fallback.ts',
+  'apps/sheets/src/renderer/formula-closure.ts',
+  'apps/sheets/src/renderer/formula-cost.ts',
+  'apps/sheets/src/renderer/formula-functions.ts',
+  'apps/sheets/src/renderer/formula-stream-hold.ts',
+  'apps/sheets/src/renderer/load-perf-patches.ts',
+  'apps/sheets/src/renderer/long-text-render.ts',
+  'apps/sheets/src/renderer/merge-border-fix.ts',
+  'apps/sheets/src/renderer/number-as-text-alert.ts',
+  'apps/sheets/src/renderer/numfmt-fix.ts',
+  'apps/sheets/src/renderer/protected-ranges.ts',
+  'apps/sheets/src/renderer/rich-text-bidi-fix.ts',
+  'apps/sheets/src/renderer/rtl-grid-mirror.ts',
+  'apps/sheets/src/renderer/rtl-text-fix.ts',
+  'apps/sheets/src/renderer/selection-format.ts',
+  'apps/sheets/src/renderer/shared-formula-journal.ts',
+  'apps/sheets/src/renderer/thick-border-fix.ts',
+  'apps/sheets/src/renderer/undo-carry.ts',
+  'apps/sheets/src/renderer/univer-state.ts',
+  'apps/sheets/src/renderer/univer-sync.ts',
+  'apps/sheets/src/renderer/view-transform.ts',
+  // G3-05c: the Carlito faces the grid measures columns/rows with (SIL OFL)
+  // and the licence text that ships with the redistributed font bytes.
+  'packages/ui/src/fonts/Carlito-Regular.ttf',
+  'packages/ui/src/fonts/Carlito-Bold.ttf',
+  'apps/docs/src/renderer/fonts/LICENSE-OFL.txt',
   'LICENSE',
   'LICENSE-UNICODE.txt',
   'NOTICE',

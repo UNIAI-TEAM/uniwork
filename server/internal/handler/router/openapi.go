@@ -131,6 +131,11 @@ func pathParamSDI(path string) any {
 		return struct {
 			Provider string `path:"provider" description:"Calendar provider: google hoặc outlook" example:"google"`
 		}{}
+	case "capability,assetID":
+		return struct {
+			Capability string `path:"capability" description:"Opaque preview capability" example:"opaque-capability"`
+			AssetID    string `path:"assetID" description:"Opaque document asset id" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "workspaceID,provider":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
@@ -203,6 +208,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			SessionId string `path:"sessionId" description:"ULID phiên đăng nhập" example:"01J8X4SESS0N1P2Q3R4S5T6U7"`
 		}{}
+	case "deviceSessionID":
+		return struct {
+			DeviceSessionID string `path:"deviceSessionID" description:"ULID phiên thiết bị native" example:"01J8X4DEVN1P2Q3R4S5T6U7V8"`
+		}{}
 	case "taskID":
 		return struct {
 			TaskID string `path:"taskID" description:"ULID công việc hoặc identifier PREFIX-N (prefix không phân biệt hoa thường)" example:"ALP-42"`
@@ -269,6 +278,11 @@ func pathParamSDI(path string) any {
 		return struct {
 			OrgID   string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
 			EventID string `path:"eventID" description:"ULID bản ghi nhật ký" example:"01J8X4AUDIT0N1P2Q3R4S5T6"`
+		}{}
+	case "orgID,signatureID":
+		return struct {
+			OrgID       string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			SignatureID string `path:"signatureID" description:"ULID chữ ký đã lưu" example:"01K6SIGN1P2Q3R4S5T6U7V8YA"`
 		}{}
 	case "orgID,exportID":
 		return struct {
@@ -403,6 +417,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			LinkID     string `path:"linkID" description:"ULID liên kết công khai" example:"01J8X4LINK0N1P2Q3R4S5T6U7"`
+		}{}
+	case "launchSessionID":
+		return struct {
+			LaunchSessionID string `path:"launchSessionID" description:"ULID Office launch receipt" example:"01J8X4LAUNCHN1P2Q3R4S5T6U7V8"`
 		}{}
 	default:
 		return nil

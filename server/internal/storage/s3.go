@@ -374,7 +374,7 @@ func (s *S3Storage) PresignGetWithContentDisposition(ctx context.Context, key st
 		input.ResponseContentDisposition = aws.String(contentDisposition)
 	}
 	out, err := s3.NewPresignClient(s.client).PresignGetObject(ctx, input, func(opts *s3.PresignOptions) {
-		opts.Expires = ttl
+		opts.Expires = clampPresignTTL(ttl)
 	})
 	if err != nil {
 		return "", fmt.Errorf("s3 PresignGetObject: %w", err)

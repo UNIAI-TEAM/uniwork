@@ -14,7 +14,11 @@ WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now();
 UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1;
 
 -- name: RevokeAllRefreshTokensForUser :exec
-UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL;
+WITH revoked AS (
+  UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
+)
+UPDATE device_sessions SET revoked_at = COALESCE(device_sessions.revoked_at, now())
+WHERE device_sessions.user_id = $1 AND device_sessions.revoked_at IS NULL;
 
 -- name: RevokeSessionForUser :execrows
 UPDATE refresh_tokens SET revoked_at = now()

@@ -15,7 +15,12 @@ import (
 // GET /api/v1/config publishes work-management capabilities (stubs stay
 // unavailable) and no longer lists the removed parity flag.
 func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
-	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000"}, Log: slog.Default()})
+	h := New(Deps{Cfg: config.Config{
+		FrontendOrigin:           "http://localhost:3000",
+		OfficeInstallerDevURL:    "https://downloads.test/dev.exe",
+		OfficeInstallerBetaURL:   "https://downloads.test/beta.exe",
+		OfficeInstallerStableURL: "",
+	}, Log: slog.Default()})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/config", nil)
 	h.ServeHTTP(rec, req)
@@ -25,6 +30,12 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 	var out struct {
 		Flags                      map[string]bool                 `json:"flags"`
 		WorkManagementCapabilities map[string]workcapability.Entry `json:"work_management_capabilities"`
+		OfficeInstallerURLs        struct {
+			Dev    string `json:"dev"`
+			Beta   string `json:"beta"`
+			Stable string `json:"stable"`
+		} `json:"office_installer_urls"`
+		OfficeDeploymentID string `json:"office_deployment_id"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
@@ -47,5 +58,70 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 		if !ok || got != entry {
 			t.Fatalf("%s = %+v, want %+v", key, got, entry)
 		}
+	}
+	if out.OfficeInstallerURLs.Dev != "https://downloads.test/dev.exe" || out.OfficeInstallerURLs.Beta != "https://downloads.test/beta.exe" || out.OfficeInstallerURLs.Stable != "" {
+		t.Fatalf("installer URLs = %+v, want configured per-channel values", out.OfficeInstallerURLs)
+	}
+	if out.OfficeDeploymentID != "default" {
+		t.Fatalf("office deployment id = %q, want default fallback", out.OfficeDeploymentID)
+	}
+}
+
+func TestConfigPublishesOfficeInstallers(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  config.Config
+		want map[string][]config.OfficeInstaller
+	}{
+		{
+			name: "channel maps and legacy Windows",
+			cfg: config.Config{
+				OfficeInstallerDevURL:   "https://downloads.test/legacy.exe",
+				OfficeInstallerDevURLs:  `{"linux-x64-deb":"https://downloads.test/dev.deb"}`,
+				OfficeInstallerBetaURLs: `{"darwin-x64":"https://downloads.test/beta.dmg"}`,
+			},
+			want: map[string][]config.OfficeInstaller{
+				"dev":    {{Platform: "win32-x64", URL: "https://downloads.test/legacy.exe", Kind: ".exe"}, {Platform: "linux-x64-deb", URL: "https://downloads.test/dev.deb", Kind: ".deb"}},
+				"beta":   {{Platform: "darwin-x64", URL: "https://downloads.test/beta.dmg", Kind: ".dmg"}},
+				"stable": {},
+			},
+		},
+		{
+			name: "invalid map is empty without channel inheritance",
+			cfg: config.Config{
+				OfficeInstallerDevURLs:    `{"win32-x64":"https://downloads.test/dev.exe"}`,
+				OfficeInstallerStableURLs: `{"win32-x64":"javascript:alert(1)"}`,
+			},
+			want: map[string][]config.OfficeInstaller{
+				"dev":  {{Platform: "win32-x64", URL: "https://downloads.test/dev.exe", Kind: ".exe"}},
+				"beta": {}, "stable": {},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := New(Deps{Cfg: tc.cfg, Log: slog.Default()})
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/config", nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d", rec.Code)
+			}
+			var out struct {
+				Installers map[string][]config.OfficeInstaller `json:"office_installers"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+				t.Fatal(err)
+			}
+			for channel, want := range tc.want {
+				got, present := out.Installers[channel]
+				if !present || got == nil || len(got) != len(want) {
+					t.Fatalf("%s = %+v, want non-null array %+v", channel, got, want)
+				}
+				for i, item := range want {
+					if got[i] != item {
+						t.Fatalf("%s[%d] = %+v, want %+v", channel, i, got[i], item)
+					}
+				}
+			}
+		})
 	}
 }

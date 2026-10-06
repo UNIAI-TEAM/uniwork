@@ -91,13 +91,19 @@ const (
 	ActionProjectResourceUpdated = "project_resource.updated"
 	ActionProjectResourceDeleted = "project_resource.deleted"
 
-	ActionAuthLoginSucceeded         = "auth.login_succeeded"
-	ActionAuthLoginFailed            = "auth.login_failed"
-	ActionAuthPasswordResetRequested = "auth.password_reset_requested"
-	ActionAuthPasswordChanged        = "auth.password_changed"
-	ActionAuthSessionRevoked         = "auth.session_revoked"
-	ActionAuthMFAEnabled             = "auth.mfa_enabled"
-	ActionAuthMFADisabled            = "auth.mfa_disabled"
+	ActionAuthLoginSucceeded          = "auth.login_succeeded"
+	ActionAuthLoginFailed             = "auth.login_failed"
+	ActionAuthPasswordResetRequested  = "auth.password_reset_requested"
+	ActionAuthPasswordChanged         = "auth.password_changed"
+	ActionAuthSessionRevoked          = "auth.session_revoked"
+	ActionAuthDesktopStarted          = "auth.desktop_started"
+	ActionAuthDesktopConsentApproved  = "auth.desktop_consent_approved"
+	ActionAuthDesktopConsentCancelled = "auth.desktop_consent_cancelled"
+	ActionAuthDesktopSessionCreated   = "auth.desktop_session_created"
+	ActionAuthDesktopTokenRotated     = "auth.desktop_token_rotated"
+	ActionAuthDesktopSessionRevoked   = "auth.desktop_session_revoked"
+	ActionAuthMFAEnabled              = "auth.mfa_enabled"
+	ActionAuthMFADisabled             = "auth.mfa_disabled"
 	// The person asked for their account to be erased (Nghị định 13); the
 	// row is anonymised and this is the last event that names it (F-01).
 	ActionUserDeleted = "user.deleted"
@@ -164,6 +170,20 @@ const (
 	ActionDocumentDeleted           = "document.deleted"
 	ActionDocumentVersionsCompacted = "document.versions_compacted"
 	ActionDocumentAssetPurged       = "document.asset_purged"
+
+	// Office launch tickets are document-scoped business capabilities. They
+	// intentionally have no outbox event; these rows are the durable audit
+	// trail for create, atomic redeem and explicit revoke.
+	ActionOfficeLaunchSessionCreated  = "office.launch_session_created"
+	ActionOfficeLaunchSessionRedeemed = "office.launch_session_redeemed"
+	ActionOfficeLaunchSessionRevoked  = "office.launch_session_revoked"
+	ActionOfficeDesktopDownloaded     = "office.desktop_downloaded"
+
+	// Saved signatures (UNI-925 B6): a person's reusable signature images,
+	// stored server-side. Rows are personal and only the owner's own editor
+	// consumes them, so they audit without an outbox event.
+	ActionSignatureCreated = "signature.created"
+	ActionSignatureDeleted = "signature.deleted"
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.

@@ -12,6 +12,7 @@
 import { EngineBoundaryError } from "@uniwork/office-contracts";
 import type {
   XlsxCellEdit,
+  XlsxGatewayArguments,
   XlsxGatewayFunctions,
   XlsxImported,
   XlsxMutation,
@@ -42,6 +43,7 @@ export interface UpstreamXlsxGatewayModule {
     definedNamesState?: unknown,
     pageSetupStates?: readonly unknown[],
     noteStates?: readonly unknown[],
+    tableAdditions?: readonly unknown[],
     formulaValues?: readonly XlsxSheetFormulaValues[],
   ): Promise<XlsxMutation>;
   assertOnlyTouchedEntriesChanged(mutation: XlsxMutation): void;
@@ -105,31 +107,41 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
       if (!(await source.has(path))) return null;
       return source.readText(path);
     },
+    async readEntriesText(bytes: Uint8Array, paths: readonly string[]): Promise<Readonly<Record<string, string | null>>> {
+      const source = await gateway.createBufferEntrySource(toEngineBytes(bytes));
+      const out: Record<string, string | null> = {};
+      for (const path of paths) {
+        out[path] = (await source.has(path)) ? await source.readText(path) : null;
+      }
+      return out;
+    },
     async applyCellEdits(
       source: Uint8Array,
       edits: readonly XlsxCellEdit[],
       formulaValues: readonly XlsxSheetFormulaValues[] = [],
+      gatewayArguments: XlsxGatewayArguments = {},
     ): Promise<XlsxMutation> {
-      // Positional tail of applyCellEditsToXlsx this lane binds:
+      // Positional tail of applyCellEditsToXlsx this lane binds. Each slot's
+      // absent/empty default reproduces the pre-arguments call exactly:
       //   structuralOps [], chartEdits [], sheetPlan undefined,
       //   filterStates [], hyperlinkEdits [], cfStates [], dvStates [],
       //   sheetProtections [], definedNamesState null, pageSetupStates [],
-      //   noteStates [], formulaValues — everything else stays upstream's
-      //   default until the edit vocabulary grows.
+      //   noteStates [], tableAdditions [], formulaValues.
       const mutation = await gateway.applyCellEditsToXlsx(
         toEngineBytes(source),
         edits,
-        [],
-        [],
-        undefined,
-        [],
-        [],
-        [],
-        [],
-        [],
-        null,
-        [],
-        [],
+        gatewayArguments.structuralOps ?? [],
+        gatewayArguments.chartEdits ?? [],
+        gatewayArguments.sheetPlan,
+        gatewayArguments.filterStates ?? [],
+        gatewayArguments.hyperlinkEdits ?? [],
+        gatewayArguments.cfStates ?? [],
+        gatewayArguments.dvStates ?? [],
+        gatewayArguments.sheetProtections ?? [],
+        gatewayArguments.definedNamesState ?? null,
+        gatewayArguments.pageSetupStates ?? [],
+        gatewayArguments.noteStates ?? [],
+        gatewayArguments.tableAdditions ?? [],
         formulaValues,
       );
       assertMutationShape(mutation);

@@ -44,6 +44,7 @@ be:
     database: { name: uniwork-db, key: DATABASE_URL }
     redis: { name: uniwork-redis, key: REDIS_URL }
     app: { name: uniwork-app, key: JWT_SECRET }
+    preview: { name: uniwork-preview, key: PREVIEW_CAPABILITY_SECRET }
     livekitKey: { name: uniwork-livekit, key: LIVEKIT_API_KEY }
     livekitSecret: { name: uniwork-livekit, key: LIVEKIT_API_SECRET }
     # Optional — create when enabling mail / CMC S3 / Google OAuth.

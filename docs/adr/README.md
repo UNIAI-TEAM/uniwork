@@ -37,6 +37,8 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0023](0023-file-theo-tenant-va-ngoai-le-avatar-ca-nhan.md) | FileService giữ `organization_id` cho file theo tenant; NULL chỉ là nhánh avatar cá nhân (purpose `user_avatar` + `user_id`), không phải public hay tenant mờ |
 | [0024](0024-fileservice-so-huu-blob-intent-gc.md) | FileService sở hữu byte, ý định upload và dọn rác của Documents; Documents chỉ giữ `file_id`, claim/release trong transaction của mình; thay phần "sổ object mồ côi" trong QĐ3 của 0021 |
 | [0025](0025-mot-process-cho-api-va-worker.md) | Chưa tách API và worker; khi tách thì cùng binary theo `SERVER_ROLE`; mọi job phải an toàn đa replica trước khi tăng `be.replicaCount` |
+| [0026](0026-office-desktop-host.md) | Desktop host Electron tách main/preload/renderer, sandbox renderer và kiểm IPC allowlist có kiểu |
+| [0027](0027-inspector-script-uniwork-cho-che-do-visual-edit.md) | Script inspector do UniWork sở hữu, chỉ trong chế độ visual-edit của preview HTML (G3-D2 vẫn giữ) |
 
 ## Bản nháp
 

@@ -1,8 +1,8 @@
-// XLSX engine seam — structural types the adapter and the service handlers
+﻿// XLSX engine seam â€” structural types the adapter and the service handlers
 // read/write, plus the native recalculation port.
 //
 // Real upstream signatures this seam mirrors (genoffice pinned at
-// 09485f884dc845cf3bf27fb7edfe489f9d457aad — vendored, patched per
+// 09485f884dc845cf3bf27fb7edfe489f9d457aad â€” vendored, patched per
 // packages/office-upstream/patches/0001, imported ONLY through a built
 // artifact, never from the vendored source path):
 //   readBasicWorkbook(buffer: Buffer) => Promise<ImportedXlsx>
@@ -17,7 +17,7 @@
 //   createBufferEntrySource(buffer) => Promise<EntrySource>           :456
 //
 // Native recalculation seam (this package declares it; only src/node
-// implements it — there is no browser/WASM recalc path):
+// implements it â€” there is no browser/WASM recalc path):
 //   recalc_cells {path, edits:[{sheet,row,column,input}], reads:[{sheet,
 //       range:{startRow,endRow,startColumn,endColumn}}]}
 //     => {cells:[{sheet,row,column,formatted,number?,isError,isFormula}],
@@ -29,7 +29,7 @@
 //
 // Coordinates on every wire surface are 0-based (IronCalc internally works
 // 1-based; the sidecar translates). CellState.formula carries the leading
-// "=" — the gateway strips it when it writes <f>.
+// "=" â€” the gateway strips it when it writes <f>.
 
 export type XlsxCellScalar = string | number | boolean | null;
 
@@ -42,16 +42,54 @@ export interface XlsxCellState {
 }
 
 /** Upstream WorksheetState (workbook.types.ts:45): `cells` keyed by A1
- *  address; `id` is the gateway's `sheet-<sheetId>` token. */
+ *  address; `id` is the gateway's `sheet-<sheetId>` token. `hidden` is a
+ *  host-side session hint (a `set_sheet_hidden` op the browser model applied);
+ *  the gateway snapshot never sets it, so it stays absent there. */
 export interface XlsxWorksheet {
   readonly id: string;
   readonly name: string;
   readonly cells: Readonly<Record<string, XlsxCellState>>;
+  readonly hidden?: boolean | undefined;
 }
 
 export interface XlsxWorkbookSnapshot {
   readonly revision: number;
   readonly sheets: readonly XlsxWorksheet[];
+}
+
+/**
+ * Runtime guard for the JSON snapshot crossing the service/browser boundary.
+ * The gateway is the producer, but this check keeps a malformed or future
+ * gateway result from becoming an unbounded/ambiguous document model in the
+ * web host. Keep the accepted values aligned with the wire CellState scalar
+ * type; formula and rawValue are optional strings/scalars respectively.
+ */
+export function isXlsxWorkbookSnapshot(value: unknown): value is XlsxWorkbookSnapshot {
+  if (!value || typeof value !== "object") return false;
+  const snapshot = value as { revision?: unknown; sheets?: unknown };
+  if (!Number.isSafeInteger(snapshot.revision) || (snapshot.revision as number) < 0 || !Array.isArray(snapshot.sheets)) {
+    return false;
+  }
+  const isScalar = (candidate: unknown): candidate is XlsxCellScalar =>
+    candidate === null ||
+    typeof candidate === "string" ||
+    typeof candidate === "boolean" ||
+    (typeof candidate === "number" && Number.isFinite(candidate));
+  return snapshot.sheets.length > 0 && snapshot.sheets.every((candidate) => {
+    if (!candidate || typeof candidate !== "object") return false;
+    const sheet = candidate as { id?: unknown; name?: unknown; cells?: unknown };
+    if (typeof sheet.id !== "string" || sheet.id.length === 0 || typeof sheet.name !== "string" || sheet.name.length === 0) {
+      return false;
+    }
+    if (!sheet.cells || typeof sheet.cells !== "object" || Array.isArray(sheet.cells)) return false;
+    return Object.values(sheet.cells as Record<string, unknown>).every((cell) => {
+      if (!cell || typeof cell !== "object") return false;
+      const state = cell as { value?: unknown; formula?: unknown; rawValue?: unknown };
+      if (!isScalar(state.value)) return false;
+      if (state.formula !== undefined && typeof state.formula !== "string") return false;
+      return state.rawValue === undefined || isScalar(state.rawValue);
+    });
+  });
 }
 
 /** Upstream ImportedXlsx (xlsx-gateway.ts:194). */
@@ -62,7 +100,7 @@ export interface XlsxImported {
 
 /** Upstream CellEdit (xlsx-gateway.ts:199). `style` stays opaque here: the
  *  gateway owns the field vocabulary (WorkbookStyleEdit) and rejects unknown
- *  keys — the seam just carries the object the caller parsed. */
+ *  keys â€” the seam just carries the object the caller parsed. */
 export interface XlsxCellEdit {
   readonly sheetName: string;
   readonly row: number;
@@ -104,25 +142,71 @@ export interface XlsxMutation {
   readonly afterEntries: readonly XlsxPackageEntry[];
 }
 
+/**
+ * The non-cell argument slots applyCellEditsToXlsx accepts
+ * (xlsx-gateway.ts:579), behind one optional argument so a new op kind fills
+ * its slot without widening the gateway seam. Slot names mirror the upstream
+ * parameter names; the vendored payload types stay opaque here (upstream owns
+ * their vocabulary â€” SheetStructuralOps, WorkbookChartEdit, SheetEditPlan,
+ * SheetFilterState, SheetHyperlinkEdits, SheetCfState, SheetDvState,
+ * SheetProtectionState, DefinedNamesState, SheetPageSetupState,
+ * SheetNoteState). Every slot is optional, and an absent slot reproduces the
+ * gateway call this lane made before the slots existed: [] for the list
+ * slots, undefined for sheetPlan, null for definedNamesState.
+ */
+export interface XlsxGatewayArguments {
+  /** SheetStructuralOps[] â€” row/column inserts, deletes, sizes, merges. */
+  readonly structuralOps?: readonly unknown[];
+  /** WorkbookChartEdit[] â€” charts, images, shapes. */
+  readonly chartEdits?: readonly unknown[];
+  /** SheetEditPlan â€” sheet add/rename/delete/reorder/hide/tab colour. */
+  readonly sheetPlan?: unknown;
+  /** SheetFilterState[] â€” filter and sort state. */
+  readonly filterStates?: readonly unknown[];
+  /** SheetHyperlinkEdits[] â€” hyperlinks. */
+  readonly hyperlinkEdits?: readonly unknown[];
+  /** SheetCfState[] â€” conditional formatting. */
+  readonly cfStates?: readonly unknown[];
+  /** SheetDvState[] â€” data validation. */
+  readonly dvStates?: readonly unknown[];
+  /** SheetProtectionState[] â€” sheet/workbook protection. */
+  readonly sheetProtections?: readonly unknown[];
+  /** DefinedNamesState â€” workbook defined names. */
+  readonly definedNamesState?: unknown;
+  /** SheetPageSetupState[] â€” page setup and print options. */
+  readonly pageSetupStates?: readonly unknown[];
+  /** SheetNoteState[] â€” notes/comments. */
+  readonly noteStates?: readonly unknown[];
+  /** SheetTableAddition[] — tables created this session (B9). */
+  readonly tableAdditions?: readonly unknown[];
+}
+
 /** The vendored gateway functions this lane consumes (bound via vendor.ts).
  *  Everything takes/returns Uint8Array; vendor.ts bridges Buffer where the
  *  upstream signature names it. */
 export interface XlsxGatewayFunctions {
   /** Parse workbook.xml + worksheet cells into the snapshot (no styles,
-   *  no shared-formula expansion — readBasicWorkbook is the "basic" parse). */
+   *  no shared-formula expansion â€” readBasicWorkbook is the "basic" parse). */
   readWorkbook(bytes: Uint8Array): Promise<XlsxImported>;
   /** Sorted package inventory: path, uncompressed size, sha256. */
   inventory(bytes: Uint8Array): Promise<readonly XlsxPackageEntry[]>;
   /** Raw text of one package entry (workbook.xml, a worksheet part) or null
-   *  when absent — the probe's feature-flag source. */
+   *  when absent â€” the probe's feature-flag source. */
   readEntryText(bytes: Uint8Array, path: string): Promise<string | null>;
+  /** Batched variant over ONE entry source: the render-model reader needs
+   *  workbook/styles/theme/worksheet parts together, and one source per part
+   *  would re-inflate the package once per part. */
+  readEntriesText(bytes: Uint8Array, paths: readonly string[]): Promise<Readonly<Record<string, string | null>>>;
   /** Apply the cell edits plus refreshed formula cached values in ONE
-   *  assemble pass (applyCellEditsToXlsx with only the arguments this lane
-   *  binds: edits + formulaValues). */
+   *  assemble pass (applyCellEditsToXlsx). The optional trailing
+   *  XlsxGatewayArguments carries the other 11 gateway slots; absent (or
+   *  empty) reproduces the edits + formulaValues call this lane bound
+   *  before the slots existed. */
   applyCellEdits(
     source: Uint8Array,
     edits: readonly XlsxCellEdit[],
     formulaValues?: readonly XlsxSheetFormulaValues[],
+    gatewayArguments?: XlsxGatewayArguments,
   ): Promise<XlsxMutation>;
   /** The preservation guard: every package entry outside
    *  touched/added/removed must be byte-identical before/after; throws when
@@ -130,9 +214,9 @@ export interface XlsxGatewayFunctions {
   assertPreserved(mutation: XlsxMutation): void;
 }
 
-// ── native recalculation port ──────────────────────────────────────────────
+// â”€â”€ native recalculation port â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/** Sidecar wire edit (recalc.rs:36): `input` is user-input text — "=SUM(A1:A2)",
+/** Sidecar wire edit (recalc.rs:36): `input` is user-input text â€” "=SUM(A1:A2)",
  *  "42", "TRUE", free text; "" clears the cell. */
 export interface XlsxRecalcEdit {
   readonly sheet: string;
@@ -179,7 +263,7 @@ export interface XlsxRecalcResult {
 /** The recalculation seam the adapter/service hold. Bytes-based so the port
  *  stays host-neutral: the Node implementation stages the bytes into the
  *  job's sandbox and drives the Rust sidecar over NDJSON. A host with no
- *  native runtime binds no port — the caller then answers with the contract
+ *  native runtime binds no port â€” the caller then answers with the contract
  *  warning (adapter) or a typed refusal (service), never a silent stale save. */
 export interface XlsxRecalcPort {
   recalc(
@@ -191,7 +275,7 @@ export interface XlsxRecalcPort {
   close(): Promise<void>;
 }
 
-/** Typed errors the adapter/handler branch on — `code` carries the meaning,
+/** Typed errors the adapter/handler branch on â€” `code` carries the meaning,
  *  never the message text. */
 export class XlsxEngineError extends Error {
   readonly code: string;
@@ -202,6 +286,6 @@ export class XlsxEngineError extends Error {
   }
 }
 
-/** Codes the recalc port / sidecar client report (closed set — the handler
+/** Codes the recalc port / sidecar client report (closed set â€” the handler
  *  maps each to a worker outcome code). */
 export const XLSX_SIDECAR_PROTOCOL_VERSION = 1;

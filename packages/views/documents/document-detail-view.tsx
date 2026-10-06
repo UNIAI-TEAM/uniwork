@@ -1,10 +1,12 @@
 "use client";
 
 import { FileWarning, FolderX, RotateCw, ShieldAlert, XCircle } from "lucide-react";
+import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useFlag } from "@uniwork/core/feature-flags";
+import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { CollectionPageState } from "../layout/collection-page";
@@ -30,6 +32,7 @@ export interface DocumentDetailViewProps {
   ownerHref?: (ownerId: string) => string;
   /** Called when the caller should go back to the library. */
   onBackToList: () => void;
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
 }
 
 /**
@@ -47,6 +50,7 @@ export function DocumentDetailView({
   documentHref,
   ownerHref,
   onBackToList,
+  officeEditorHost,
 }: DocumentDetailViewProps) {
   const { t } = useTranslation();
   const enabled = useFlag("documents", false);
@@ -65,6 +69,7 @@ export function DocumentDetailView({
   if (!enabled) {
     return (
       <CollectionPageState
+        className="mx-auto w-full max-w-3xl"
         icon={FileWarning}
         title={t("documents.page.off_title")}
         description={t("documents.page.off_description")}
@@ -75,9 +80,11 @@ export function DocumentDetailView({
 
   if (query.isPending) {
     return (
-      <div className="space-y-3 p-6" aria-busy="true">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full" />
+      <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pt-12 md:pt-16" aria-busy="true">
+        <Skeleton className="mb-8 h-10 w-2/3" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-5/6" />
+        <Skeleton className="h-4 w-2/3" />
       </div>
     );
   }
@@ -87,6 +94,7 @@ export function DocumentDetailView({
   if (error && errorClass === "permission") {
     return (
       <CollectionPageState
+        className="mx-auto w-full max-w-3xl"
         icon={XCircle}
         title={t("documents.detail.revoked_title")}
         description={t("documents.detail.revoked_description")}
@@ -103,6 +111,7 @@ export function DocumentDetailView({
     const missing = errorClass === "missing";
     return (
       <CollectionPageState
+        className="mx-auto w-full max-w-3xl"
         icon={missing ? FolderX : ShieldAlert}
         title={missing ? t("documents.detail.not_found") : t("documents.detail.load_error")}
         description={missing ? undefined : t("documents.detail.load_error_description")}
@@ -142,6 +151,7 @@ export function DocumentDetailView({
           documentHref={documentHref}
           ownerHref={ownerHref}
           refetch={() => query.refetch()}
+          officeEditorHost={officeEditorHost}
           headerActions={
             <DocumentActionsMenu
               wsId={wsId}

@@ -70,10 +70,15 @@ test("create task: fields, draft recovery, duplicate, view action, attachment", 
   await description.click();
   await page.keyboard.type(`Mô tả parity ${stamp}`);
 
-  // Closing without create must keep the draft for the next open.
+  // Closing an unsaved draft asks first; saving parks it in the draft tray,
+  // and the tray (not a fresh "Tạo việc") reopens it.
   await page.keyboard.press("Escape");
+  const closeConfirm = page.getByRole("alertdialog");
+  await expect(closeConfirm).toBeVisible({ timeout: 10_000 });
+  await closeConfirm.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(closeConfirm).toBeHidden({ timeout: 10_000 });
   await expect(dialog).toBeHidden({ timeout: 10_000 });
-  await page.getByRole("button", { name: "Tạo việc", exact: true }).click();
+  await page.getByRole("button", { name: "Mở bản nháp Bản nháp tạm", exact: true }).click();
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await expect(title).toHaveValue("Bản nháp tạm");
 

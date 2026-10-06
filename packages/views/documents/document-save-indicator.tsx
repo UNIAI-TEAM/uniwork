@@ -15,6 +15,10 @@ export interface DocumentSaveIndicatorProps {
   onRetry?: () => void;
   onResolveConflict?: () => void;
   className?: string;
+  /** Keep the page header compact below sm; the full status stays accessible. */
+  compact?: boolean;
+  /** The surrounding Notice supplies the live region when the status is moved into a strip. */
+  announce?: boolean;
 }
 
 const BASE = "flex items-center gap-1.5 text-caption text-muted-foreground";
@@ -44,15 +48,18 @@ export function DocumentSaveIndicator({
   onRetry,
   onResolveConflict,
   className,
+  compact = false,
+  announce = true,
 }: DocumentSaveIndicatorProps) {
   const { t } = useTranslation();
+  const statusProps = announce ? { role: "status" as const, "aria-live": "polite" as const } : {};
 
   if (readonly) {
     return <span className={cn(BASE, className)}>{t("documents.save.readonly")}</span>;
   }
   if (pendingUploads > 0) {
     return (
-      <span role="status" aria-live="polite" className={cn(BASE, className)}>
+      <span {...statusProps} className={cn(BASE, className)}>
         <Loader2 aria-hidden className="size-3.5 animate-spin" />
         {t("documents.save.asset_uploading")}
       </span>
@@ -63,23 +70,29 @@ export function DocumentSaveIndicator({
   switch (state.phase) {
     case "saving":
       return (
-        <span role="status" aria-live="polite" className={cn(BASE, className)}>
+        <span {...statusProps} className={cn(BASE, className)}>
           <Loader2 aria-hidden className="size-3.5 animate-spin" />
           {t("documents.save.saving")}
         </span>
       );
     case "saved": {
       const at = savedTime(state.acked?.updated_at);
+      const label = t("documents.save.saved_at", { time: at ?? "" }).trim();
       return (
-        <span role="status" aria-live="polite" className={cn(BASE, className)}>
+        <span {...statusProps} aria-label={label} title={label} className={cn(BASE, className)}>
           <Check aria-hidden className="size-3.5" />
-          {t("documents.save.saved_at", { time: at ?? "" })}
+          {compact ? (
+            <>
+              <span aria-hidden className="sm:hidden">{t("documents.save.saved_at", { time: "" }).trim()}</span>
+              <span className="sr-only sm:not-sr-only">{label}</span>
+            </>
+          ) : label}
         </span>
       );
     }
     case "conflict":
       return (
-        <span role="status" aria-live="polite" className={cn(BASE, "text-warning", className)}>
+        <span {...statusProps} className={cn(BASE, "text-warning", className)}>
           <AlertTriangle aria-hidden className="size-3.5" />
           {t("documents.save.conflict")}
           {onResolveConflict ? (
@@ -92,7 +105,7 @@ export function DocumentSaveIndicator({
     case "error":
     case "unverifiable":
       return (
-        <span role="status" aria-live="polite" className={cn(BASE, "text-warning", className)}>
+        <span {...statusProps} className={cn(BASE, "text-warning", className)}>
           <AlertTriangle aria-hidden className="size-3.5" />
           {state.phase === "unverifiable" ? t("documents.save.unverified") : t("documents.save.error")}
           {onRetry ? (
@@ -106,7 +119,7 @@ export function DocumentSaveIndicator({
     case "idle":
     default:
       return (
-        <span role="status" aria-live="polite" className={cn(BASE, className)}>
+        <span {...statusProps} className={cn(BASE, className)}>
           <Clock aria-hidden className="size-3.5" />
           {t("documents.save.unsaved")}
         </span>

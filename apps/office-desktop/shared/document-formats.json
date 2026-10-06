@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "defaultFormat": "docx",
+  "formats": {
+    "docx": {
+      "extensions": ["docx"],
+      "mimeTypes": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+      "dialogFilterName": "Word",
+      "associationName": "Word document",
+      "untitledName": "Untitled.docx",
+      "untitledLocaleKey": "officeDesktop.local.untitled",
+      "engineBuild": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+    },
+    "pdf": {
+      "extensions": ["pdf"],
+      "mimeTypes": ["application/pdf"],
+      "dialogFilterName": "PDF",
+      "associationName": "PDF document",
+      "untitledName": "Untitled.pdf",
+      "engineBuild": "pdf-desktop-lane/1"
+    },
+    "md": {
+      "extensions": ["md", "markdown"],
+      "mimeTypes": ["text/markdown", "text/x-markdown"],
+      "dialogFilterName": "Markdown",
+      "associationName": "Markdown document",
+      "untitledName": "Untitled.md",
+      "untitledLocaleKey": "officeDesktop.local.untitledMarkdown",
+      "engineBuild": "uniwork-text/text-document-1"
+    },
+    "html": {
+      "extensions": ["html", "htm"],
+      "mimeTypes": ["text/html"],
+      "dialogFilterName": "HTML",
+      "associationName": "HTML document",
+      "untitledName": "Untitled.html",
+      "untitledLocaleKey": "officeDesktop.local.untitledHtml",
+      "engineBuild": "uniwork-text/text-document-1"
+    },
+    "xlsx": {
+      "extensions": ["xlsx"],
+      "mimeTypes": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+      "dialogFilterName": "Excel",
+      "associationName": "Excel spreadsheet",
+      "untitledName": "Untitled.xlsx",
+      "engineBuild": "xlsx-desktop-1"
+    },
+    "pptx": {
+      "extensions": ["pptx"],
+      "mimeTypes": ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+      "dialogFilterName": "PowerPoint",
+      "associationName": "PowerPoint presentation",
+      "untitledName": "Untitled.pptx",
+      "engineBuild": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+    }
+  }
+}

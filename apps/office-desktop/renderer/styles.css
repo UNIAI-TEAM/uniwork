@@ -1,0 +1,74 @@
+@import "tailwindcss";
+@import "@uniwork/ui/styles/tokens.css";
+@import "@uniwork/ui/styles/base.css";
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/plus-jakarta-sans/wght.css";
+@import "@fontsource-variable/plus-jakarta-sans/wght-italic.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+
+/* Same dark-mode binding as the web host (ADR'd in apps/web/app/globals.css):
+   the `.dark` class on <html>, not prefers-color-scheme, so the renderer can
+   follow the OS theme explicitly instead of inheriting a media query. */
+@custom-variant dark (&:is(.dark *));
+
+/* Tailwind v4 does not scan workspace packages through the node_modules
+   symlink on its own; declare the sources this renderer actually uses. */
+@source "../../../packages/ui";
+@source "../../../packages/views";
+@source "./";
+
+.desktop-titlebar { -webkit-app-region: drag; user-select: none; }
+.desktop-titlebar button { -webkit-app-region: no-drag; }
+
+.desktop-tabbar {
+  display: flex;
+  flex: 0 0 auto;
+  height: 40px;
+  padding-left: env(titlebar-area-x, 0px);
+  padding-right: max(0px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px))));
+  box-shadow: inset 0 -1px var(--border);
+}
+.desktop-logo-cell { display: flex; align-items: center; justify-content: center; width: 40px; flex-shrink: 0; }
+.desktop-tablist { display: flex; min-width: 0; max-width: 100%; }
+.desktop-tab-scroll { display: flex; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.desktop-tab-scroll::-webkit-scrollbar { display: none; }
+.desktop-library-tab, .desktop-document-tab { height: 32px; margin-top: 8px; border-radius: 10px 10px 0 0; }
+.desktop-library-tab { flex-shrink: 0; padding: 0 12px; }
+.desktop-document-tab { position: relative; display: flex; align-items: center; flex: 0 1 220px; min-width: 112px; width: 220px; -webkit-app-region: no-drag; }
+.desktop-document-tab::before { content: ""; position: absolute; left: 0; top: 8px; width: 1px; height: 16px; background: var(--border); }
+.desktop-document-tab[data-active="true"]::before, .desktop-document-tab:hover::before { display: none; }
+.desktop-tab-select { display: flex; align-items: center; gap: 8px; text-align: left; color: var(--foreground); cursor: pointer; }
+.desktop-document-tab .desktop-tab-select { height: 100%; padding: 0 8px 0 12px; border-radius: inherit; }
+.desktop-document-tab:hover, .desktop-library-tab:hover { background: color-mix(in oklch, var(--background) 70%, transparent); }
+.desktop-document-tab[data-active="true"], .desktop-library-tab[aria-selected="true"] { background: var(--background); }
+.desktop-tab-close { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 24px; height: 24px; margin-right: 4px; border-radius: 50%; opacity: 0; cursor: pointer; }
+.desktop-document-tab:hover .desktop-tab-close, .desktop-document-tab:focus-within .desktop-tab-close, .desktop-document-tab[data-active="true"] .desktop-tab-close { opacity: 1; }
+.desktop-tab-close:hover, .desktop-chrome-button:hover { background: var(--accent); color: var(--accent-foreground); }
+.desktop-tab-state { width: 6px; height: 6px; flex-shrink: 0; margin-right: 4px; border-radius: 50%; background: var(--foreground); }
+.desktop-tab-saving { width: 10px; height: 10px; background: transparent; border: 2px solid var(--muted-foreground); border-top-color: transparent; }
+.desktop-tab-actions { display: flex; align-items: center; flex-shrink: 0; gap: 2px; padding: 0 4px; }
+.desktop-chrome-button { display: flex; align-items: center; justify-content: center; align-self: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; cursor: pointer; }
+.desktop-tab-drag-space { min-width: 12px; flex: 1; }
+.desktop-account-button { margin: 0 8px 0 4px; }
+.desktop-chrome-popup { -webkit-app-region: no-drag; user-select: text; }
+
+@media (pointer: coarse) {
+  .desktop-tabbar { height: 52px; }
+  .desktop-library-tab, .desktop-document-tab { height: 44px; }
+  .desktop-chrome-button, .desktop-tab-close { min-width: 44px; min-height: 44px; }
+  .desktop-tab-close { opacity: 1; margin-right: 0; }
+  .desktop-chrome-popup [role="menuitem"], .desktop-chrome-popup button { min-height: 44px; }
+}
+
+/* Native controls (scrollbars, form widgets) follow the same .dark class. */
+:root { color-scheme: light; }
+:root.dark { color-scheme: dark; }
+
+/* tokens.css reads these three vars; the web host sets them through
+   next/font. The desktop renderer must stay offline, so the families come
+   from the bundled Fontsource variable fonts imported above. */
+:root {
+  --font-inter: "Inter Variable";
+  --font-plus-jakarta: "Plus Jakarta Sans Variable";
+  --font-jetbrains-mono: "JetBrains Mono Variable";
+}

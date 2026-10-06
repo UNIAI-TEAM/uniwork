@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { ArrowLeft, Eye, FileWarning } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -19,7 +19,9 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
 import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
@@ -27,8 +29,10 @@ import type { DocumentAssetUploader } from "./document-asset-upload";
 import { DocumentCommentsHeaderActions } from "./document-comments-context";
 import { DocumentConflictDialog } from "./conflict-dialog";
 import type { DocumentEditorHandle } from "./document-editor";
-import { DocumentFileView } from "./document-file-view";
+import { DocumentFileView, usesOfficeEditor } from "./document-file-view";
 import { DocumentSaveIndicator } from "./document-save-indicator";
+import { DocumentPageHeader } from "./document-page-header";
+import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
 
 /**
  * The editor chunk. The document route must stay inside the bundle budget, so
@@ -58,7 +62,7 @@ export interface DocumentWorkspaceProps {
   ownerHref?: (ownerId: string) => string;
   /**
    * Actions the detail host adds to the header (G1-08's menu). Rendered
-   * before the save indicator so the menu is the last, stable control.
+   * last, so the menu is the last, stable control.
    */
   headerActions?: ReactNode;
   /**
@@ -68,6 +72,7 @@ export interface DocumentWorkspaceProps {
    * never be assumed fresh.
    */
   refetch: () => Promise<{ data?: Document | null; isError?: boolean }>;
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
 }
 
 /**
@@ -88,6 +93,7 @@ export function DocumentWorkspace({
   ownerHref,
   headerActions,
   refetch,
+  officeEditorHost,
 }: DocumentWorkspaceProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
@@ -95,8 +101,23 @@ export function DocumentWorkspace({
   const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
   const state = save.state as DocumentSaveState;
 
+  const officeEnabled = useFlag("office_engine", false);
+  const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(doc, officeEnabled, Boolean(officeEditorHost));
   const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
   const editorRef = useRef<DocumentEditorHandle>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const [pageTitle, setPageTitle] = useState(doc.title);
+  const metadataRef = useRef<DocumentPageMetadataHandle>(null);
+  const [metadataStatus, setMetadataStatus] = useState<DocumentPageMetadataStatus>({ dirty: false, pending: false, failed: false });
+  const metadataStatusRef = useRef(metadataStatus);
+  const queuedBodyRef = useRef<unknown>(undefined);
+  const [bodyQueued, setBodyQueued] = useState(false);
+  const bodyQueuedRef = useRef(false);
+  const handleMetadataStatus = useCallback((next: DocumentPageMetadataStatus) => {
+    metadataStatusRef.current = next;
+    setMetadataStatus((previous) => previous.dirty === next.dirty && previous.pending === next.pending
+      && previous.failed === next.failed ? previous : next);
+  }, []);
   const lastLocalContentRef = useRef<unknown>(undefined);
   const stateRef = useRef(state);
   const [pendingUploads, setPendingUploads] = useState(0);
@@ -111,12 +132,14 @@ export function DocumentWorkspace({
   const [keepMineError, setKeepMineError] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leavePending, setLeavePending] = useState(false);
+  const [leaveRecheck, setLeaveRecheck] = useState(0);
   const leaveResolveRef = useRef<((allowed: boolean) => void) | null>(null);
   const leaveDoneRef = useRef(false);
 
   stateRef.current = state;
+  bodyQueuedRef.current = bodyQueued;
   pendingUploadsRef.current = pendingUploads;
-  const dirty = state.dirty;
+  const dirty = state.dirty || bodyQueued;
   /**
    * Unsaved means "bytes the server has not acknowledged": a draft, or an
    * upload still in flight whose result has not reached the document yet. The
@@ -124,7 +147,7 @@ export function DocumentWorkspace({
    * to use the same definition or the image is lost without a word.
    */
   const hasUnsavedWork = useCallback(
-    () => stateRef.current.dirty || pendingUploadsRef.current > 0,
+    () => stateRef.current.dirty || bodyQueuedRef.current || pendingUploadsRef.current > 0 || Boolean(metadataRef.current?.hasUnsavedWork()),
     [],
   );
 
@@ -135,10 +158,21 @@ export function DocumentWorkspace({
 
   // Another writer (or a refetch) moved the base while we were clean: adopt it.
   useEffect(() => {
-    if (!dirty) save.updateBase(doc.revision, doc);
+    if (!dirty && newerPageRevision(stateRef.current.revision, doc.revision) === doc.revision) save.updateBase(doc.revision, doc);
     // `save` is rebuilt on every state change on purpose: updateBase is a no-op
     // unless the machine is clean, and a stale closure here would miss a base.
   }, [doc.revision, doc, dirty, save]);
+
+  // Title/icon and body share one revision. Keep typing live, but hand the
+  // newest body to the existing save machine only after metadata settles.
+  // The queued flag protects the editor from adopting the old body in its ACK.
+  useEffect(() => {
+    if (metadataStatus.pending || !bodyQueued || queuedBodyRef.current === undefined) return;
+    const content = queuedBodyRef.current;
+    queuedBodyRef.current = undefined;
+    save.edit({ content });
+    setBodyQueued(false);
+  }, [metadataStatus.pending, bodyQueued, save]);
 
   /* ---- leaving with unsaved changes (C-01 §7.3, FE design §5.4) ---- */
 
@@ -192,8 +226,24 @@ export function DocumentWorkspace({
    */
   useEffect(() => {
     if (!leavePending || leaveDoneRef.current) return;
+    if (bodyQueued) return;
     if (pendingUploads > 0) return;
     if (state.phase === "saving" || state.phase === "debouncing") return;
+    if (!state.dirty && state.phase !== "conflict" && metadataRef.current?.hasUnsavedWork()) {
+      // Metadata shares the leave policy, while its PATCH stays outside the
+      // content save machine. Await an existing flight instead of re-sending.
+      leaveDoneRef.current = true;
+      const resolve = leaveResolveRef.current;
+      void metadataRef.current.flush().then((saved) => {
+        if (leaveResolveRef.current !== resolve) return;
+        if (saved && !hasUnsavedWork()) finishLeave(true);
+        else if (!metadataStatusRef.current.failed && (bodyQueuedRef.current || stateRef.current.dirty)) {
+          leaveDoneRef.current = false;
+          setLeaveRecheck((value) => value + 1);
+        } else setLeavePending(false);
+      });
+      return;
+    }
     if (state.phase === "saved" && !state.dirty) {
       leaveDoneRef.current = true;
       finishLeave(true);
@@ -224,7 +274,7 @@ export function DocumentWorkspace({
     }
     leaveDoneRef.current = true;
     setLeavePending(false);
-  }, [leavePending, pendingUploads, state.phase, state.dirty, save, finishLeave]);
+  }, [leavePending, leaveRecheck, bodyQueued, pendingUploads, state.phase, state.dirty, metadataStatus.pending, metadataStatus.dirty, save, finishLeave, hasUnsavedWork]);
 
   const saveThenLeave = () => {
     leaveDoneRef.current = false;
@@ -328,6 +378,12 @@ export function DocumentWorkspace({
   const handleChange = useCallback(
     (content: unknown) => {
       lastLocalContentRef.current = content;
+      if (metadataStatusRef.current.pending || bodyQueuedRef.current) {
+        queuedBodyRef.current = content;
+        bodyQueuedRef.current = true;
+        setBodyQueued(true);
+        return;
+      }
       save.edit({ content });
     },
     [save],
@@ -337,7 +393,7 @@ export function DocumentWorkspace({
   const leaveCaption = (() => {
     if (leavePending) return t("documents.leave.waiting");
     if (state.phase === "unverifiable") return t("documents.save.unverified");
-    if (state.phase === "error") return t("documents.save.error");
+    if (state.phase === "error" || metadataStatus.failed) return t("documents.save.error");
     return t("documents.save.unsaved");
   })();
 
@@ -368,8 +424,31 @@ export function DocumentWorkspace({
   const backLabel = ownerCrumbHref
     ? t("documents.detail.back_to_owner")
     : t("documents.detail.back_to_library");
+  const indicatorState = metadataStatus.pending ? { ...state, phase: "saving" as const }
+    : !dirty && metadataStatus.failed ? { ...state, phase: "error" as const }
+    : !dirty && metadataStatus.dirty ? { ...state, phase: "debouncing" as const, dirty: true }
+    : bodyQueued ? { ...state, phase: "debouncing" as const, dirty: true }
+    : state;
+  const recoveryNotice = doc.kind === "page" && canEdit && (
+    pendingUploads > 0 || indicatorState.phase === "error" || indicatorState.phase === "unverifiable" || indicatorState.phase === "conflict"
+  );
+  const recoveryNoticeLive = indicatorState.phase === "error" || indicatorState.phase === "unverifiable"
+    ? "assertive" as const
+    : "polite" as const;
+  const saveIndicator = (
+    <DocumentSaveIndicator
+      compact
+      state={indicatorState}
+      pendingUploads={pendingUploads}
+      announce={!recoveryNotice}
+      className={recoveryNotice ? "flex-wrap [&>svg]:hidden" : "shrink-0 whitespace-nowrap"}
+      onRetry={() => { if (metadataStatus.failed && !dirty) void metadataRef.current?.flush(); else save.retry(); }}
+      onResolveConflict={() => setConflictOpen(true)}
+    />
+  );
 
   return (
+    <HeaderActionsSlotProvider>
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <BreadcrumbHeader
         leading={
@@ -389,51 +468,60 @@ export function DocumentWorkspace({
         segments={breadcrumbSegments}
         leaf={
           <span className="truncate font-medium text-foreground">
-            {doc.title || t("documents.detail.untitled")}
+            {(doc.kind === "page" ? pageTitle : doc.title) || t("documents.detail.untitled")}
           </span>
         }
         actions={
           <>
-            {headerActions}
-            {doc.kind === "page" ? (
-              <DocumentSaveIndicator
-                state={state}
-                pendingUploads={pendingUploads}
-                readonly={!canEdit}
-                onRetry={save.retry}
-                onResolveConflict={() => setConflictOpen(true)}
-              />
-            ) : null}
+            {/* An embedded Office editor's save + desktop cluster comes first. */}
+            <HeaderActionsSlot />
+            {doc.kind === "page" && canEdit && !recoveryNotice ? saveIndicator : null}
             {!canEdit ? (
-              <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
+              <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption text-muted-foreground"
+                title={t("documents.detail.readonly_description")}>
                 <Eye aria-hidden className="size-3.5" />
-                {t("documents.detail.readonly_title")}
+                {t(doc.kind === "page" ? "documents.save.readonly" : "documents.detail.readonly_title")}
               </span>
             ) : null}
             <DocumentCommentsHeaderActions />
+            {headerActions}
           </>
         }
       />
 
       {!canEdit ? (
-        <Notice tone="info" icon={Eye}>
+        <Notice tone="info" icon={Eye} className={doc.kind === "page" ? "hidden sm:flex" : undefined}>
           {t("documents.detail.readonly_description")}
+        </Notice>
+      ) : null}
+      {recoveryNotice ? (
+        <Notice tone="warning" icon={FileWarning} live={recoveryNoticeLive} className="[&>div]:min-w-0">
+          {saveIndicator}
         </Notice>
       ) : null}
 
       <div
         className={
           doc.kind === "page"
-            ? "min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-10 sm:py-8"
-            : `min-h-0 flex-1 overflow-y-auto py-4 ${PAGE_GUTTER}`
+            ? `min-h-0 min-w-0 flex-1 overflow-y-auto bg-background pt-12 pb-32 md:pt-16 ${PAGE_GUTTER}`
+            : officeEditorMounted
+              ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+              : `min-h-0 flex-1 overflow-y-auto py-4 ${PAGE_GUTTER}`
         }
       >
         {doc.kind === "page" ? (
+          <div className="mx-auto w-full min-w-0 max-w-3xl">
+            <DocumentPageHeader wsId={wsId} doc={doc} editable={canEdit} titleRef={titleRef} metadataRef={metadataRef}
+              onTitleChange={setPageTitle} onFocusBody={() => editorRef.current?.focus("start")}
+              canPersist={!dirty && state.phase !== "saving" && pendingUploads === 0}
+              getRevision={() => stateRef.current.revision}
+              onStatusChange={handleMetadataStatus} onSaved={(saved) => save.updateBase(saved.revision, saved)} />
           <Suspense
             fallback={
-              <div className="mx-auto w-full max-w-3xl space-y-3" aria-busy>
-                <Skeleton className="h-8 w-2/3" />
-                <Skeleton className="h-40 w-full" />
+              <div className="min-h-64 space-y-3" aria-busy>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="h-4 w-2/3" />
               </div>
             }
           >
@@ -452,11 +540,17 @@ export function DocumentWorkspace({
                 onAssetError={handleAssetError}
                 onPendingUploadsChange={setPendingUploads}
                 onContentError={handleContentError}
+                onFocusTitle={() => { titleRef.current?.focus(); const input = titleRef.current;
+                  if (input) input.setSelectionRange(input.value.length, input.value.length); }}
               />
             </div>
           </Suspense>
+          {canEdit ? <Button type="button" variant="ghost" tabIndex={-1}
+            className="mt-4 h-32 w-full cursor-text hover:bg-transparent" aria-label={t("documents.page_ui.focus_end")}
+            onClick={() => editorRef.current?.focus("end")}><span className="sr-only">{t("documents.page_ui.focus_end")}</span></Button> : null}
+          </div>
         ) : (
-          <DocumentFileView wsId={wsId} doc={doc} readonly={!canEdit} />
+          <DocumentFileView wsId={wsId} doc={doc} readonly={!canEdit} officeEditorHost={officeEditorHost} />
         )}
       </div>
 
@@ -505,5 +599,6 @@ export function DocumentWorkspace({
         </DialogContent>
       </Dialog>
     </div>
+    </HeaderActionsSlotProvider>
   );
 }

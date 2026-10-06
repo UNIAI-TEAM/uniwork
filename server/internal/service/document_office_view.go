@@ -25,6 +25,11 @@ type OfficeBoundaryView struct {
 	Retryable bool
 }
 
+// OfficeEdit is the handler-facing alias for the versioned engine edit shape.
+// Keeping the alias in service preserves the handler's boundary rule: HTTP
+// DTOs do not import the internal engine package directly.
+type OfficeEdit = office.EditOp
+
 // OfficeBoundaryError unwraps an error to the engine boundary's typed failure.
 func OfficeBoundaryError(err error) (OfficeBoundaryView, bool) {
 	var ee *office.EngineError
@@ -78,7 +83,7 @@ func ValidOfficeFormat(raw string) bool {
 // parseOfficeOperation maps the wire string onto the boundary operation.
 func parseOfficeOperation(raw string) (office.Operation, bool) {
 	switch op := office.Operation(strings.TrimSpace(raw)); op {
-	case office.OperationOpen, office.OperationSerialize, office.OperationExport, office.OperationConvert:
+	case office.OperationOpen, office.OperationEdit, office.OperationSerialize, office.OperationExport, office.OperationConvert:
 		return op, true
 	}
 	return "", false

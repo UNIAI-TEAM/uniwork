@@ -1,0 +1,9 @@
+{
+  "extends": "@uniwork/tsconfig/react-library.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["electron-main.ts", "main", "preload", "renderer", "shared", "test", "vitest.config.ts", "scripts"]
+}

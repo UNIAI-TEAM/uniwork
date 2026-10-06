@@ -1,5 +1,5 @@
 // Test harness: a REAL engine service on a loopback port with real worker
-// processes (src/worker/entry.ts under Node 22 type stripping), plus a real
+// processes (fresh production dist/worker.mjs built by test global setup), plus a real
 // HTTP "write target" standing in for the FileService provider-output URL.
 // Nothing here mocks the transport.
 
@@ -72,7 +72,7 @@ export async function startHarness(overrides: Partial<EngineServiceConfig> = {})
     maxQueue: 4,
     limits: { ...PROVISIONAL_LIMITS, maxJobMs: 30_000 },
     tempRoot,
-    workerEntry: resolve(import.meta.dirname, "../src/worker/entry.ts"),
+    workerEntry: resolve(import.meta.dirname, "../dist/worker.mjs"),
     sampleMs: 25,
     terminalRetentionMs: 60_000,
     maxRetainedJobs: 100,

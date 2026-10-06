@@ -1,0 +1,204 @@
+"use client";
+
+import { ArrowDownToLine, ArrowUpToLine, Columns3, Rows3, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Input } from "@uniwork/ui/components/ui/input";
+import { addressParts } from "../xlsx-editor-model";
+import type { XlsxSelection } from "../types";
+import { XLSX_RANGE_TYPE, type XlsxRangeType } from "../selection-mapping";
+import type { XlsxToolbarGroupProps } from "./types";
+import { fireCommand } from "../fire-command";
+import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
+
+/** The insert commands' count ceiling (Univer's own menu cap), mirrored by
+ *  the renderer policy's param validation. */
+export const XLSX_STRUCTURE_MAX_COUNT = 10_000;
+
+export interface XlsxSelectionSpan {
+  readonly startRow: number;
+  readonly endRow: number;
+  readonly startColumn: number;
+  readonly endColumn: number;
+  readonly rows: number;
+  readonly columns: number;
+}
+
+/** The 0-based grid span the toolbar selection covers; null when the
+ *  selection is absent or unreadable (then every control is disabled). */
+export function selectionSpan(selection: XlsxSelection | null): XlsxSelectionSpan | null {
+  if (!selection) return null;
+  const first = addressParts(selection.address);
+  const last = addressParts(selection.endAddress ?? selection.address);
+  if (!first || !last) return null;
+  const startRow = Math.min(first.row, last.row);
+  const endRow = Math.max(first.row, last.row);
+  const startColumn = Math.min(first.column, last.column);
+  const endColumn = Math.max(first.column, last.column);
+  return { startRow, endRow, startColumn, endColumn, rows: endRow - startRow + 1, columns: endColumn - startColumn + 1 };
+}
+
+/** Default Univer grid size: without a range type (fallback surface,
+ *  host-set selections), a selection spanning it from the first row/column
+ *  is read as a whole-column/whole-row selection. */
+const WHOLE_COLUMN_ROWS = 1000;
+const WHOLE_ROW_COLUMNS = 26;
+
+/** How many rows/columns the "insert before" commands default to. Excel
+ *  inserts the selection's own span on that axis, but with whole columns
+ *  selected the row span is the entire sheet (and vice versa), which is never
+ *  what an Insert-Rows click means: that axis falls back to one. The grid's
+ *  range type decides exactly; a NORMAL range keeps both spans however wide. */
+export function insertCounts(span: XlsxSelectionSpan, rangeType?: XlsxRangeType): { rows: number; columns: number } {
+  if (rangeType !== undefined) {
+    const wholeColumns = rangeType === XLSX_RANGE_TYPE.COLUMN || rangeType === XLSX_RANGE_TYPE.ALL;
+    const wholeRows = rangeType === XLSX_RANGE_TYPE.ROW || rangeType === XLSX_RANGE_TYPE.ALL;
+    return { rows: wholeColumns ? 1 : span.rows, columns: wholeRows ? 1 : span.columns };
+  }
+  const wholeColumns = span.startRow === 0 && span.rows >= WHOLE_COLUMN_ROWS;
+  const wholeRows = span.startColumn === 0 && span.columns >= WHOLE_ROW_COLUMNS;
+  return { rows: wholeColumns && !wholeRows ? 1 : span.rows, columns: wholeRows && !wholeColumns ? 1 : span.columns };
+}
+
+/** Digits only, 1..XLSX_STRUCTURE_MAX_COUNT; null keeps the last good count. */
+export function normalizeRowColCount(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^[0-9]+$/.test(trimmed)) return null;
+  const parsed = Number.parseInt(trimmed, 10);
+  return parsed >= 1 && parsed <= XLSX_STRUCTURE_MAX_COUNT ? parsed : null;
+}
+
+/** Insert tab: insert/delete rows and columns for the selection's span. The
+ *  count input drives the "before" inserts; the "after" commands insert the
+ *  selection's own height/width (Univer's semantics). */
+export function XlsxStructureInsertGroup({ readOnly = false, selection, commands }: XlsxToolbarGroupProps) {
+  const { t } = useTranslation();
+  const span = selectionSpan(selection);
+  const blocked = readOnly || !commands || !span;
+  const defaults = span ? insertCounts(span, selection?.rangeType) : null;
+  const rowSpan = defaults?.rows ?? 0;
+  const colSpan = defaults?.columns ?? 0;
+  const [rowCountDraft, setRowCountDraft] = useState("1");
+  const [colCountDraft, setColCountDraft] = useState("1");
+
+  useEffect(() => {
+    if (rowSpan > 0) setRowCountDraft(String(rowSpan));
+  }, [rowSpan]);
+  useEffect(() => {
+    if (colSpan > 0) setColCountDraft(String(colSpan));
+  }, [colSpan]);
+
+  const rowCount = normalizeRowColCount(rowCountDraft) ?? defaults?.rows ?? 1;
+  const colCount = normalizeRowColCount(colCountDraft) ?? defaults?.columns ?? 1;
+  const run = (id: string, params?: unknown) => {
+    if (blocked) return;
+    fireCommand(commands, id, params);
+  };
+  const removeParams = span === null ? undefined : {
+    range: { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn },
+  };
+
+  return (
+    <XlsxGroupBody>
+      <XlsxGroupRows>
+        <XlsxGroupRow>
+      <Rows3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      <Input
+        className="h-6 w-11 px-1 text-center text-caption"
+        inputMode="numeric"
+        aria-label={t("office.xlsx.structure.rowCount")}
+        disabled={blocked}
+        value={rowCountDraft}
+        onChange={(event) => setRowCountDraft(event.target.value)}
+        onBlur={() => setRowCountDraft(String(rowCount))}
+      />
+      <Button
+        type="button"
+        variant="toolbar"
+        size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
+        aria-label={t("office.xlsx.structure.insertRowsAbove", { count: rowCount })}
+        title={t("office.xlsx.structure.insertRowsAbove", { count: rowCount })}
+        aria-disabled={blocked || undefined}
+        onClick={() => run("sheet.command.insert-row-before", { value: rowCount })}
+      >
+        <ArrowUpToLine aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="toolbar"
+        size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
+        aria-label={t("office.xlsx.structure.insertRowsBelow")}
+        title={t("office.xlsx.structure.insertRowsBelow")}
+        aria-disabled={blocked || undefined}
+        onClick={() => run("sheet.command.insert-row-after")}
+      >
+        <ArrowDownToLine aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="toolbar"
+        size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
+        aria-label={t("office.xlsx.structure.deleteRows")}
+        title={t("office.xlsx.structure.deleteRows")}
+        aria-disabled={blocked || undefined}
+        onClick={() => run("sheet.command.remove-row", removeParams)}
+      >
+        <Trash2 aria-hidden />
+      </Button>
+        </XlsxGroupRow>
+        <XlsxGroupRow>
+      <Columns3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      <Input
+        className="h-6 w-11 px-1 text-center text-caption"
+        inputMode="numeric"
+        aria-label={t("office.xlsx.structure.colCount")}
+        disabled={blocked}
+        value={colCountDraft}
+        onChange={(event) => setColCountDraft(event.target.value)}
+        onBlur={() => setColCountDraft(String(colCount))}
+      />
+      <Button
+        type="button"
+        variant="toolbar"
+        size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
+        aria-label={t("office.xlsx.structure.insertColsLeft", { count: colCount })}
+        title={t("office.xlsx.structure.insertColsLeft", { count: colCount })}
+        aria-disabled={blocked || undefined}
+        onClick={() => run("sheet.command.insert-col-before", { value: colCount })}
+      >
+        <ArrowUpToLine aria-hidden className="-rotate-90" />
+      </Button>
+      <Button
+        type="button"
+        variant="toolbar"
+        size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
+        aria-label={t("office.xlsx.structure.insertColsRight")}
+        title={t("office.xlsx.structure.insertColsRight")}
+        aria-disabled={blocked || undefined}
+        onClick={() => run("sheet.command.insert-col-after")}
+      >
+        <ArrowDownToLine aria-hidden className="-rotate-90" />
+      </Button>
+      <Button
+        type="button"
+        variant="toolbar"
+        size="icon-sm"
+        className={XLSX_ICON_BUTTON_CLASS}
+        aria-label={t("office.xlsx.structure.deleteCols")}
+        title={t("office.xlsx.structure.deleteCols")}
+        aria-disabled={blocked || undefined}
+        onClick={() => run("sheet.command.remove-col", removeParams)}
+      >
+        <Trash2 aria-hidden />
+      </Button>
+        </XlsxGroupRow>
+      </XlsxGroupRows>
+    </XlsxGroupBody>
+  );
+}

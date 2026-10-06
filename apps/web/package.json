@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "sh -c 'next dev --port \"${FRONTEND_PORT:-3000}\"'",
-    "build": "next build",
+    "dev": "node scripts/copy-pdfium-wasm.mjs && sh -c 'next dev --port \"${FRONTEND_PORT:-3000}\"'",
+    "build": "node scripts/copy-pdfium-wasm.mjs && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
@@ -16,6 +16,7 @@
     "@uniwork/core": "workspace:*",
     "@uniwork/office-contracts": "workspace:*",
     "@uniwork/office-engine": "workspace:*",
+    "@uniwork/office-upstream": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "@uniwork/views": "workspace:*",
     "gsap": "catalog:",
@@ -25,9 +26,11 @@
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
     "three": "catalog:",
-    "web-vitals": "^6.2.1"
+    "web-vitals": "^6.2.1",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@embedpdf/pdfium": "catalog:",
     "@types/three": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
@@ -36,6 +39,7 @@
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
+    "esbuild": "catalog:",
     "eslint": "^9.32.0",
     "jsdom": "catalog:",
     "postcss": "catalog:",

@@ -1,27 +1,25 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { type ComponentType } from "react";
 import { Download, FileText, History, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
-import { useDocumentDownload, useUploadDocumentFile } from "@uniwork/core/documents/hooks";
-import {
-  useCommitDocumentVersion,
-  useDocumentVersions,
-} from "@uniwork/core/documents/hooks-versions";
+import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
-import { createSafeId } from "@uniwork/core/utils";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
-import { DocumentUploadDialog } from "./document-upload-dialog";
+import { HeaderActionsFill } from "../layout/header-actions-slot";
+import { DocumentFileMenuItems, useDocumentFileActions } from "./document-file-actions";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 
 export interface DocumentFileViewProps {
   wsId: string;
   doc: Document;
   readonly: boolean;
+  /** Platform-only Office host injected by the web app. Views never import
+   * Next.js or a browser engine directly. */
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
 }
 
 /** The version reason is a schema identifier; only its label is translated. */
@@ -76,72 +74,48 @@ function Fact({ label, value, mono }: { label: string; value: string; mono?: boo
  * cannot open anything is worse than saying the format is not editable here
  * yet.
  */
-export function DocumentFileView({ wsId, doc, readonly }: DocumentFileViewProps) {
+function officeFormat(doc: Document): string | null {
+  const filename = doc.file?.filename.toLowerCase() ?? "";
+  const mime = doc.file?.mime_type.toLowerCase() ?? "";
+  if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
+  if (mime.includes("spreadsheetml.sheet") || filename.endsWith(".xlsx")) return "xlsx";
+  if (mime.includes("presentationml.presentation") || filename.endsWith(".pptx")) return "pptx";
+  if (mime === "application/pdf" || filename.endsWith(".pdf")) return "pdf";
+  if (mime === "text/markdown" || filename.endsWith(".md") || filename.endsWith(".markdown")) return "md";
+  if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
+  return null;
+}
+
+/** True when the file opens in the Office editor instead of the file card. */
+export function usesOfficeEditor(doc: Document, officeEnabled: boolean, hasHost: boolean): boolean {
+  return officeEnabled && hasHost && Boolean(doc.file) && officeFormat(doc) !== null;
+}
+
+export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: OfficeEditorHost }: DocumentFileViewProps) {
   const { t, i18n } = useTranslation();
   const file = doc.file;
   const versions = useDocumentVersions(wsId, doc.id);
-  const downloadFile = useDocumentDownload(wsId, doc.id);
-  const upload = useUploadDocumentFile(wsId, doc.id);
-  const commit = useCommitDocumentVersion(wsId, doc.id);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState<string | null>(null);
-  // One key per user intent: a retry of the same pick must replay the same
-  // write, not mint a second version of one upload.
-  const idempotencyKey = useRef<string | null>(null);
-  const pending = upload.isPending || commit.isPending;
-
-  const download = async (version?: number) => {
-    const target = version === undefined ? "live" : String(version);
-    setDownloading(target);
-    try {
-      const blob = await downloadFile.mutateAsync({ version });
-      const url = URL.createObjectURL(blob);
-      const anchor = window.document.createElement("a");
-      anchor.href = url;
-      anchor.download = file?.filename ?? doc.title;
-      anchor.rel = "noopener";
-      window.document.body.append(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    } catch {
-      toast.error(t("documents.file.download_failed"));
-    } finally {
-      setDownloading(null);
-    }
-  };
-
-  const stageNewVersion = async (picked: File) => {
-    setError(null);
-    idempotencyKey.current ??= createSafeId();
-    let staged = false;
-    try {
-      const upload0 = await upload.mutateAsync({
-        file: picked,
-        idempotencyKey: idempotencyKey.current,
-      });
-      staged = true;
-      await commit.mutateAsync({
-        upload_id: upload0.upload_id,
-        base_revision: doc.revision,
-        idempotencyKey: idempotencyKey.current,
-      });
-      idempotencyKey.current = null;
-      setDialogOpen(false);
-    } catch (err) {
-      setError(
-        apiErrorMessage(err) ??
-          t(staged ? "documents.file.commit_failed" : "documents.file.upload_failed"),
-      );
-    }
-  };
+  const actions = useDocumentFileActions(wsId, doc);
+  const { download, downloading } = actions;
+  const officeEnabled = useFlag("office_engine", false);
 
   if (!file) {
     return (
       <Notice tone="warning" icon={FileText} layout="inline">
         {t("documents.file.missing_file")}
       </Notice>
+    );
+  }
+
+  if (usesOfficeEditor(doc, officeEnabled, Boolean(OfficeEditorHost)) && OfficeEditorHost) {
+    // The editor replaces this view, so its file commands move to the page
+    // overflow menu (version history is already one of its entries).
+    return (
+      <>
+        <HeaderActionsFill menuItems={<DocumentFileMenuItems actions={actions} readonly={readonly} />} />
+        <OfficeEditorHost wsId={wsId} document={doc} readonly={readonly} />
+        {actions.uploadDialog}
+      </>
     );
   }
 
@@ -173,7 +147,7 @@ export function DocumentFileView({ wsId, doc, readonly }: DocumentFileViewProps)
               {t("documents.file.download")}
             </Button>
             {!readonly ? (
-              <Button type="button" size="sm" onClick={() => setDialogOpen(true)}>
+              <Button type="button" size="sm" onClick={actions.openUpload}>
                 <Upload aria-hidden className="size-3.5" />
                 {t("documents.file.new_version")}
               </Button>
@@ -249,22 +223,7 @@ export function DocumentFileView({ wsId, doc, readonly }: DocumentFileViewProps)
         <DocumentSaveIndicator readonly={readonly} />
       </div>
 
-      <DocumentUploadDialog
-        open={dialogOpen}
-        onOpenChange={(next) => {
-          if (!next) {
-            idempotencyKey.current = null;
-            setError(null);
-          }
-          setDialogOpen(next);
-        }}
-        title={t("documents.upload.version_title")}
-        description={t("documents.upload.version_description")}
-        hint={t("documents.upload.size_hint")}
-        pending={pending}
-        error={error}
-        onSubmit={(picked) => void stageNewVersion(picked)}
-      />
+      {actions.uploadDialog}
     </div>
   );
 }

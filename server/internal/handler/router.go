@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,6 +26,7 @@ type Deps struct {
 	Log           *slog.Logger
 	Minter        auth.TokenMinter
 	Auth          *service.AuthService
+	DesktopAuth   *service.DesktopAuthService
 	Verification  *service.VerificationService
 	PasswordReset *service.PasswordResetService
 	GoogleAuth    *service.GoogleAuthService
@@ -60,10 +62,23 @@ type Deps struct {
 	// 501 on the document routes until the server wires it.
 	Documents *service.DocumentService
 
+	// Signatures is the per-user saved-signature store (UNI-925 B6); nil
+	// answers 501 on the signature routes until the server wires it.
+	Signatures *service.SignatureService
+
 	// Office is the Office job service (G2-07, UNI-690); nil answers 503
 	// office_not_configured on the office routes, so Documents keeps working
 	// without an engine.
 	Office *service.DocumentOfficeService
+
+	// Preview is the cookie-less, isolated-origin asset broker. Scope minting
+	// is authenticated; the byte route consumes only its opaque capability.
+	Preview *service.PreviewAssetService
+
+	// OfficeLaunch is the document-scoped single-use launch-ticket service.
+	// When omitted, New derives it from Documents and the deployment config.
+	OfficeLaunch          *service.OfficeLaunchService
+	OfficeDesktopDownload *service.OfficeDesktopDownloadService
 
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -104,6 +119,12 @@ type handlers struct {
 // New builds the HTTP handler. Routes live in package router, split by
 // OpenAPI tag. This constructor only maps *handlers methods onto Routes.
 func New(d Deps) http.Handler {
+	if d.OfficeDesktopDownload == nil && d.Organizations != nil {
+		d.OfficeDesktopDownload = service.NewOfficeDesktopDownloadService(d.Organizations, d.Cfg)
+	}
+	if d.OfficeLaunch == nil && d.Documents != nil {
+		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
+	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	return rt.New(rt.Deps{
 		Cfg:           d.Cfg,
@@ -113,11 +134,18 @@ func New(d Deps) http.Handler {
 		HTTPMetrics:   d.HTTPMetrics,
 		PlatformRoles: platformRoles(d.Admin),
 		FeatureFlags:  d.FeatureFlags,
+		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
+			if d.DesktopAuth == nil {
+				return nil
+			}
+			return d.DesktopAuth.CheckDeviceSession(ctx, userID, sessionID)
+		},
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
 
 		Config:                     h.config,
+		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
@@ -134,16 +162,24 @@ func New(d Deps) http.Handler {
 		AdminDeleteFlagOverride:    h.adminDeleteFlagOverride,
 		WS:                         h.ws,
 
-		Register:       h.register,
-		Login:          h.login,
-		ForgotPassword: h.forgotPassword,
-		ResetPassword:  h.resetPassword,
-		Refresh:        h.refresh,
-		Logout:         h.logout,
-		MFAVerify:      h.mfaVerify,
-		AuthProviders:  h.authProviders,
-		GoogleStart:    h.googleStart,
-		GoogleCallback: h.googleCallback,
+		Register:              h.register,
+		Login:                 h.login,
+		ForgotPassword:        h.forgotPassword,
+		ResetPassword:         h.resetPassword,
+		Refresh:               h.refresh,
+		Logout:                h.logout,
+		MFAVerify:             h.mfaVerify,
+		AuthProviders:         h.authProviders,
+		GoogleStart:           h.googleStart,
+		GoogleCallback:        h.googleCallback,
+		DesktopStart:          h.desktopStart,
+		DesktopConsent:        h.desktopConsent,
+		DesktopConsentCommand: h.desktopConsentCommand,
+		DesktopExchange:       h.desktopExchange,
+		DesktopRefresh:        h.desktopRefresh,
+		DesktopLogout:         h.desktopLogout,
+		DesktopDevices:        h.desktopDevices,
+		DesktopRevokeDevice:   h.desktopRevokeDevice,
 
 		Me:                  h.me,
 		PatchMe:             h.patchMe,
@@ -522,8 +558,12 @@ func New(d Deps) http.Handler {
 		CreateBlankDocumentFile: h.createBlankDocumentFile,
 		StartOfficeJob:          h.startOfficeJob,
 		GetOfficeJob:            h.getOfficeJob,
+		GetOfficeJobOutput:      h.getOfficeJobOutput,
 		CancelOfficeJob:         h.cancelOfficeJob,
 		OfficeCapability:        h.officeCapability,
+		CreateOfficeLaunch:      h.createOfficeLaunch,
+		ExchangeOfficeLaunch:    h.exchangeOfficeLaunch,
+		RevokeOfficeLaunch:      h.revokeOfficeLaunch,
 		CopyDocument:            h.copyDocument,
 		GetDocument:             h.getDocument,
 		PatchDocument:           h.patchDocument,
@@ -536,6 +576,8 @@ func New(d Deps) http.Handler {
 		UploadDocumentAsset:     h.uploadDocumentAsset,
 		GetDocumentAsset:        h.getDocumentAsset,
 		DownloadDocument:        h.downloadDocument,
+		CreatePreviewScope:      h.createPreviewScope,
+		GetPreviewAsset:         h.getPreviewAsset,
 
 		ListDocumentComments:          h.listDocumentComments,
 		CreateDocumentComment:         h.createDocumentComment,
@@ -548,6 +590,10 @@ func New(d Deps) http.Handler {
 		FavoriteDocument:              h.favoriteDocument,
 		UnfavoriteDocument:            h.unfavoriteDocument,
 		ListDocumentFavorites:         h.listDocumentFavorites,
+
+		ListSavedSignatures:  h.listSavedSignatures,
+		CreateSavedSignature: h.createSavedSignature,
+		DeleteSavedSignature: h.deleteSavedSignature,
 
 		ListDocuments:          h.listDocuments,
 		ListRecentDocuments:    h.listRecentDocuments,

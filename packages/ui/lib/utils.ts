@@ -26,7 +26,7 @@ const RADII = ["control"] as const;
 
 /* Mirrors the `--color-*` aliases in packages/ui/styles/tokens.css. */
 const COLORS = [
-  "background", "foreground", "app-shell", "page-canvas",
+  "background", "foreground", "app-shell", "page-canvas", "office-band", "office-canvas",
   "surface", "surface-foreground", "surface-raised", "surface-hover",
   "surface-selected", "surface-selected-foreground", "surface-border",
   "card", "card-foreground", "popover", "popover-foreground",

@@ -363,6 +363,46 @@ type Department struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type DesktopAuthAttempt struct {
+	ID                  string             `json:"id"`
+	ClientID            string             `json:"client_id"`
+	DeploymentID        string             `json:"deployment_id"`
+	CodeChallenge       string             `json:"code_challenge"`
+	CodeChallengeMethod string             `json:"code_challenge_method"`
+	RedirectUri         string             `json:"redirect_uri"`
+	State               string             `json:"state"`
+	StateDigest         string             `json:"state_digest"`
+	CsrfDigest          pgtype.Text        `json:"csrf_digest"`
+	CodeDigest          pgtype.Text        `json:"code_digest"`
+	CodeExpiresAt       pgtype.Timestamptz `json:"code_expires_at"`
+	UserID              pgtype.Text        `json:"user_id"`
+	DeviceLabel         string             `json:"device_label"`
+	Platform            string             `json:"platform"`
+	Build               string             `json:"build"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	ApprovedAt          pgtype.Timestamptz `json:"approved_at"`
+	UsedAt              pgtype.Timestamptz `json:"used_at"`
+	CancelledAt         pgtype.Timestamptz `json:"cancelled_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type DeviceSession struct {
+	ID                 string             `json:"id"`
+	UserID             string             `json:"user_id"`
+	SessionFamilyID    string             `json:"session_family_id"`
+	ClientID           string             `json:"client_id"`
+	DeploymentID       string             `json:"deployment_id"`
+	DeviceLabel        string             `json:"device_label"`
+	Platform           string             `json:"platform"`
+	Build              string             `json:"build"`
+	RefreshTokenDigest string             `json:"refresh_token_digest"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt         pgtype.Timestamptz `json:"last_used_at"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt          pgtype.Timestamptz `json:"revoked_at"`
+	CreatedByKind      string             `json:"created_by_kind"`
+}
+
 type Document struct {
 	ID                   string             `json:"id"`
 	OrganizationID       string             `json:"organization_id"`
@@ -1258,6 +1298,26 @@ type OfficeJob struct {
 	Result             []byte             `json:"result"`
 }
 
+type OfficeLaunchSession struct {
+	ID              string             `json:"id"`
+	TicketHash      string             `json:"ticket_hash"`
+	AccountID       string             `json:"account_id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	DocumentID      string             `json:"document_id"`
+	Operation       string             `json:"operation"`
+	Version         int32              `json:"version"`
+	ClientID        string             `json:"client_id"`
+	DeploymentID    string             `json:"deployment_id"`
+	DeviceSessionID pgtype.Text        `json:"device_session_id"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	RedeemedAt      pgtype.Timestamptz `json:"redeemed_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	CreatedBy       string             `json:"created_by"`
+	CreatedByKind   string             `json:"created_by_kind"`
+}
+
 type Organization struct {
 	ID              string             `json:"id"`
 	Slug            string             `json:"slug"`
@@ -1411,6 +1471,18 @@ type RefreshToken struct {
 	SessionID string             `json:"session_id"`
 	UserAgent string             `json:"user_agent"`
 	Ip        string             `json:"ip"`
+}
+
+type SavedSignature struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	Label          string             `json:"label"`
+	ContentType    string             `json:"content_type"`
+	Image          []byte             `json:"image"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type Subscription struct {

@@ -19,6 +19,8 @@ export interface FakePptxFixture {
   }>;
   layouts?: Array<{ name: string; path: string }>;
   entries?: Record<string, string>;
+  /** Deck-level sections, mirroring the vendored SectionInfo[] (sections.ts:28). */
+  sections?: Array<{ id: string; name: string; slideIndices: number[] }>;
 }
 
 export function para(text: string): PptxParagraphLike {
@@ -42,15 +44,25 @@ function shapeEl(id: string, offset = { x: 0, y: 0, cx: 914400, cy: 914400 }): P
   return { id, type: "shape", transform: { offset, rot: 0 }, text: { paragraphs: [para("")] } };
 }
 
-/** The standard kitchen-sink deck: two slides with text, picture and shape
- * elements, one layout, and a package carrying media + rels + an embedding
- * so the asset oracle and warnings both have real surface. */
+function tableEl(id: string, offset = { x: 0, y: 0, cx: 1828800, cy: 914400 }): PptxElementLike {
+  return { id, type: "table", transform: { offset, rot: 0 } };
+}
+
+function chartEl(id: string, offset = { x: 0, y: 0, cx: 1828800, cy: 914400 }): PptxElementLike {
+  return { id, type: "chart", transform: { offset, rot: 0 } };
+}
+
+/** The standard kitchen-sink deck: two slides with text, picture, shape,
+ * table and chart elements, one layout, and a package carrying media + rels
+ * + an embedding so the asset oracle and warnings both have real surface.
+ * The table/chart elements give the wave-A/B table and chart edits a real
+ * target without changing any slide count. */
 export function makeFakePptxBytes(extra?: Partial<FakePptxFixture>): Uint8Array {
   const fixture: FakePptxFixture = {
     size: { cx: 9144000, cy: 5143500 },
     slides: [
-      { elements: [textEl("t1", "title slide"), picEl("p1"), shapeEl("s1")] },
-      { elements: [textEl("t2", "second slide"), shapeEl("s2")] },
+      { elements: [textEl("t1", "title slide"), picEl("p1"), shapeEl("s1"), tableEl("tbl1"), chartEl("chart1")] },
+      { elements: [textEl("t2", "second slide"), shapeEl("s2"), tableEl("tbl2"), chartEl("chart2")] },
     ],
     layouts: [{ name: "Title Slide", path: "ppt/slideLayouts/slideLayout1.xml" }],
     entries: {

@@ -3,9 +3,12 @@
 //
 // Enforces the three boundary rules the lane owns:
 //   1. Browser isolation: the browser-facing surface of @uniwork/office-engine
-//      (src/index.ts, src/shared/**, src/browser/**) and all of
-//      @uniwork/office-contracts must not resolve Node, Electron, native or
-//      canvas - directly OR transitively through relative imports.
+//      (src/index.ts, src/shared/**, src/browser/**, and the markdown/html/
+//      assets/xlsx lanes), @uniwork/office-contracts, packages/core/office and
+//      apps/web/platform/office must not resolve Node, Electron, native or
+//      canvas - directly OR transitively through relative imports - and must
+//      not reference a bare Node global (Buffer, process, global, module,
+//      exports, ...) the import scan cannot see.
 //   2. No /ee anywhere in the office tree: upstream /ee is separately licensed
 //      enterprise material and must never enter the source package
 //      (docs/office/g0/source-manifest.json).
@@ -37,9 +40,91 @@ export const FORBIDDEN_BROWSER_SPECIFIERS = [
  * that itself pulls Node). */
 export const BROWSER_SAFE_PACKAGES = new Set([
   "zod",
+  "zustand",
+  // UNI-931 ribbon collapse preference: persist/createJSONStorage are plain JS
+  // and write through the StorageAdapter, never a Node API.
+  "zustand/middleware",
+  // G3 web host: the platform shell is browser code and consumes the shared
+  // core/view/ui contracts. Their package exports keep Node-only code out of
+  // this graph; the checker treats the package boundary as the seam.
+  "react",
+  "react-dom/client",
+  "react-i18next",
+  "@uniwork/core/office",
+  // G4-06a: the desktop renderer mounts React through packages/ui and the
+  // shared host-agnostic i18n singleton. Same package-boundary argument as
+  // the entries above - their exports contain no Node/Electron import.
+  "@uniwork/core/i18n",
+  "@uniwork/ui/brand",
+  "@uniwork/ui/components/ui/button",
+  "@uniwork/ui/components/ui/avatar",
+  "@uniwork/ui/components/ui/input",
+  "@uniwork/ui/components/ui/skeleton",
+  "@uniwork/ui/components/ui/radio-group",
+  // UNI-917 desktop tab strip/library header
+  "@uniwork/views/layout/collection-page",
+  "@uniwork/ui/components/ui/dropdown-menu",
+  "@uniwork/ui/components/ui/popover",
+  "@uniwork/views/office/office-shell",
+  "@uniwork/views/office/editor-slot",
+  "@uniwork/views/office/docx",
+  "@uniwork/views/office/pdf",
+  // UNI-928 D2 desktop text lane: the shared Markdown/HTML editors mount over the byte session.
+  "@uniwork/views/office/markdown",
+  "@uniwork/views/office/html",
+  "@uniwork/views/documents/document-type-icon",
+  "lucide-react",
+  "@uniwork/ui/lib/utils",
+  "@uniwork/core/api/endpoints/office",
+  "@uniwork/core/api/endpoints/config",
+  "@uniwork/core/api/endpoints/office-desktop",
+  "@uniwork/core/office/save-coordinator",
+  "@uniwork/core/auth",
+  "@uniwork/core/api/endpoints/office",
+  // G3-05b: the XLSX adapter binds browser-safe HTTP document endpoints and
+  // the view component; these exports contain contracts/fetch wrappers only.
+  "@uniwork/core/api/endpoints/documents",
+  "@uniwork/core/api/endpoints/documents-versions",
+  "@uniwork/views/office/xlsx",
+  "@uniwork/core/drafts/cleanup-registry",
+  "@uniwork/core/types/document",
+  "@uniwork/ui/components/ui/alert",
+  "@uniwork/views/navigation",
+  "@uniwork/views/office",
+  "@uniwork/views/office/leave-dialog",
   "@uniwork/office-contracts",
   "@uniwork/office-engine",
+  // G3-04c: the DOCX host is browser code. `next/dynamic` is the framework's
+  // client-only dynamic import (ssr:false keeps the DOCX graph out of the
+  // server build); the views subpath mirrors the xlsx entry above;
+  // docs-renderer-editor is the generated browser ESM artifact whose build
+  // rejects any non-browser external.
+  "next/dynamic",
+  "@uniwork/views/office/docx",
+  "@uniwork/office-upstream/docs-renderer-editor",
+  // UNI-927 P0-1: the PPTX host binds the generated pptx browser artifact in
+  // the browser. Its build rejects any non-browser external, and the engine
+  // closure it bundles (pptx-engine/pptx-ops/pptx-render) carries no
+  // Node/Electron import — node:crypto/node:zlib/Buffer are shimmed at build
+  // time (scripts/office/build-pptx-browser.mjs).
+  "@uniwork/office-upstream/pptx-renderer",
+  // UNI-927 D1: the desktop renderer mounts the shared PPTX view exactly as it
+  // mounts @uniwork/views/office/docx. The view graph is browser code (it binds
+  // the pptx artifact and office-engine/pptx, both already allowlisted).
+  "@uniwork/views/office/pptx",
+  // UNI-927 F9: the web adapter imports PptxEditor and the slide-rail types
+  // directly. They are the same browser-safe pptx view graph as the barrel
+  // above - only the subpath entry differs - so both subpaths are allowlisted
+  // rather than routed through the barrel (PptxEditor is not barrel-exported;
+  // only PptxEditorView is).
+  "@uniwork/views/office/pptx/editor-view",
+  "@uniwork/views/office/pptx/slide-rail",
+  // UNI-925: the browser PDF apply (pdf-lib) and render (embedpdf wasm) are plain JS/wasm
+  // fetched from a host URL; neither touches node:*.
+  "pdf-lib",
+  "@embedpdf/pdfium",
 ]);
+const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx", "pptx"]);
 
 /** Browser-scope roots, relative to the repo root. Every file under these
  * roots (plus relative-import closure) must stay free of forbidden specifiers. */
@@ -54,7 +139,20 @@ export const BROWSER_SCOPE_ROOTS = [
   // G2-04: the browser-safe half of the xlsx lane. Its native sidecar lives
   // under src/node and stays out of this scope by construction.
   "packages/office-engine/src/xlsx",
+  "packages/core/office",
+  "apps/web/platform/office",
 ];
+
+/** R14-2: the bare-global scan now covers every browser root (see
+ * BROWSER_SCOPE_ROOTS) instead of a narrow subset, so a stray `Buffer.from` in
+ * apps/web/platform/office or the markdown/html/assets/xlsx lanes can no longer
+ * pass silently. The only carve-out is this per-file allowlist: the xlsx
+ * seam feature-detects `typeof Buffer === "undefined"` before a Node host hands
+ * it bytes, and that `typeof` guard is exactly what the scanner would flag.
+ * Every other browser file must stay clean. */
+export const BROWSER_GLOBAL_SCOPE_EXCLUDE_FILES = new Set([
+  "packages/office-engine/src/xlsx/vendor.ts",
+]);
 
 /** Directories the /ee and licence checks scan. */
 export const OFFICE_TREE_ROOTS = [
@@ -63,7 +161,15 @@ export const OFFICE_TREE_ROOTS = [
   "packages/office-upstream",
   "apps/office-engine",
   "apps/web/platform/office",
+  "apps/office-desktop",
 ];
+
+/** Desktop renderer/preload are a second host boundary. Renderer code is
+ * browser code and may not resolve Node/Electron/main; preload may use the
+ * Electron bridge but must not import the main graph. Both graphs are chased
+ * transitively so a helper cannot smuggle privileged code across the seam. */
+export const DESKTOP_RENDERER_ROOTS = ["apps/office-desktop/renderer"];
+export const DESKTOP_PRELOAD_ROOTS = ["apps/office-desktop/preload"];
 
 const SOURCE_EXT = new Set([".ts", ".tsx", ".mts", ".js", ".mjs", ".jsx"]);
 
@@ -143,6 +249,182 @@ export function unverifiableModuleCalls(source) {
   return hits;
 }
 
+/** Node globals a browser bundle does not define. A bare reference such as
+ * `Buffer.from(...)` or `process.cwd()` is invisible to the import scan yet
+ * throws the moment the browser bundle runs, so the browser surface is scanned
+ * for the identifiers too. Node-22 built-ins only. */
+export const BROWSER_FORBIDDEN_GLOBALS = [
+  "Buffer",
+  "process",
+  "__dirname",
+  "__filename",
+  "setImmediate",
+  "clearImmediate",
+  // R14-2: CJS/Node ambient bindings a browser bundle does not define either.
+  "global",
+  "module",
+  "exports",
+];
+
+/**
+ * Blank comments and string/template-literal contents so an identifier scan
+ * sees only code; a `${...}` expression inside a template stays code, so a
+ * global hidden in an interpolation is still found. A small scanner, not a
+ * parser: enough to keep prose and quoted literals out of the match set.
+ */
+export function stripCommentsAndStrings(source) {
+  const out = source.split("");
+  const blank = (from, to) => {
+    for (let k = from; k < to && k < out.length; k += 1) if (out[k] !== "\n") out[k] = " ";
+  };
+  const skipLineComment = (i) => {
+    let j = i + 2;
+    while (j < source.length && source[j] !== "\n") j += 1;
+    blank(i, j);
+    return j;
+  };
+  const skipBlockComment = (i) => {
+    let j = i + 2;
+    while (j < source.length && !(source[j] === "*" && source[j + 1] === "/")) j += 1;
+    j = Math.min(source.length, j + 2);
+    blank(i, j);
+    return j;
+  };
+  const skipString = (i) => {
+    const quote = source[i];
+    let j = i + 1;
+    while (j < source.length && source[j] !== quote) {
+      if (source[j] === "\\") j += 1;
+      j += 1;
+    }
+    j = Math.min(source.length, j + 1);
+    blank(i, j);
+    return j;
+  };
+  // R14-3: a regex literal is not a comment/string, but its body must be
+  // blanked too - otherwise `/a\/\/` reads as a line comment and blanks the
+  // rest of the line, and `/Buffer/` false-positives as a global.
+  const REGEX_KEYWORDS = /(?:^|[^\w$])(?:return|typeof|instanceof|in|of|new|delete|void|do|else|yield|await|case)$/;
+  const regexOpensHere = (i) => {
+    for (let j = i - 1; j >= 0; j -= 1) {
+      const p = out[j];
+      if (p === " " || p === "\t" || p === "\r" || p === "\n") continue;
+      if (/[\w$)\]]/.test(p)) {
+        const word = out.slice(0, j + 1).join("").match(/[\w$]+$/);
+        return word ? REGEX_KEYWORDS.test(word[0]) : false;
+      }
+      if (p === "+" && out[j - 1] === "+") return false;
+      if (p === "-" && out[j - 1] === "-") return false;
+      return true;
+    }
+    return true;
+  };
+  const skipRegex = (i) => {
+    let j = i + 1;
+    let inClass = false;
+    while (j < source.length) {
+      const c = source[j];
+      if (c === "\\") { blank(j, j + 2); j += 2; continue; }
+      if (c === "\n") break;
+      if (c === "[") inClass = true;
+      else if (c === "]") inClass = false;
+      else if (c === "/" && !inClass) { blank(j, j + 1); j += 1; break; }
+      blank(j, j + 1);
+      j += 1;
+    }
+    while (j < source.length && /[a-z]/i.test(source[j])) { blank(j, j + 1); j += 1; }
+    blank(i, i + 1);
+    return j;
+  };
+  const skipTemplate = (i) => {
+    blank(i, i + 1);
+    let j = i + 1;
+    while (j < source.length) {
+      const c = source[j];
+      if (c === "\\") { blank(j, j + 2); j += 2; continue; }
+      if (c === "`") { blank(j, j + 1); return j + 1; }
+      if (c === "$" && source[j + 1] === "{") { blank(j, j + 2); j = skipExpression(j + 2); continue; }
+      blank(j, j + 1);
+      j += 1;
+    }
+    return j;
+  };
+  const skipExpression = (i) => {
+    let depth = 1;
+    let j = i;
+    while (j < source.length && depth > 0) {
+      const c = source[j];
+      const next = source[j + 1];
+      if (c === "/" && next === "/") { j = skipLineComment(j); continue; }
+      if (c === "/" && next === "*") { j = skipBlockComment(j); continue; }
+      if (c === '"' || c === "'") { j = skipString(j); continue; }
+      if (c === "`") { j = skipTemplate(j); continue; }
+      if (c === "/" && regexOpensHere(j)) { j = skipRegex(j); continue; }
+      if (c === "{") depth += 1;
+      else if (c === "}") depth -= 1;
+      j += 1;
+    }
+    return j;
+  };
+  let i = 0;
+  while (i < source.length) {
+    const c = source[i];
+    const next = source[i + 1];
+    if (c === "/" && next === "/") { i = skipLineComment(i); continue; }
+    if (c === "/" && next === "*") { i = skipBlockComment(i); continue; }
+    if (c === '"' || c === "'") { i = skipString(i); continue; }
+    if (c === "`") { i = skipTemplate(i); continue; }
+    if (c === "/" && regexOpensHere(i)) { i = skipRegex(i); continue; }
+    i += 1;
+  }
+  return out.join("");
+}
+
+/** Identifiers the file binds itself (declarations, params, imports). A local
+ * `module`/`process` shadow is not the Node global, so the scanner skips it
+ * instead of reporting a false positive on `(module) => module.X`. */
+export function collectLocalBindings(code) {
+  const bound = new Set();
+  const add = (name) => { if (name) bound.add(name); };
+  const addList = (list) => {
+    for (const part of list.split(",")) {
+      const name = part.trim().split(/[:=]/)[0].trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(name)) add(name);
+    }
+  };
+  for (const m of code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+  for (const m of code.matchAll(/\b(?:const|let|var)\s*\{([^}]*)\}/g)) addList(m[1]);
+  for (const m of code.matchAll(/\b(?:function|class)\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
+  for (const m of code.matchAll(/\(([^()]*)\)\s*=>/g)) addList(m[1]);
+  for (const m of code.matchAll(/\bfunction\s*\w*\s*\(([^()]*)\)/g)) addList(m[1]);
+  return bound;
+}
+
+/** Bare Node globals referenced in code (comments/strings/regex ignored). A
+ * property key (`{ process: 1 }`) and a locally bound name are not a reference
+ * and are skipped; `foo.Buffer` is a property access, not the global, and the
+ * lookbehind excludes it too. R14-3: the old blanket skip-if-followed-by-":"
+ * rule also swallowed `cond ? process : x` and `case Buffer:`; the ":" skip now
+ * applies only where a key can occur (start of an object / after , ( ; or at a
+ * declaration), so a ternary or a switch case is still caught. */
+export function bareNodeGlobals(source) {
+  const code = stripCommentsAndStrings(source);
+  const bound = collectLocalBindings(code);
+  const pattern = new RegExp(`(?<![\\w$.])(?:${BROWSER_FORBIDDEN_GLOBALS.join("|")})(?![\\w$])`, "g");
+  const hits = [];
+  for (const match of code.matchAll(pattern)) {
+    const name = match[0];
+    if (bound.has(name)) continue;
+    const after = code.slice(match.index + name.length);
+    if (/^\s*:/.test(after)) {
+      const before = code.slice(0, match.index).replace(/\s+$/, "").slice(-1);
+      if (before === "" || "{,(;".includes(before)) continue;
+    }
+    hits.push(name);
+  }
+  return hits;
+}
+
 /** Resolve a relative specifier to a file that exists. */
 function resolveRelative(fromFile, specifier) {
   const base = path.resolve(path.dirname(fromFile), specifier);
@@ -156,6 +438,14 @@ function resolveRelative(fromFile, specifier) {
 
 function isForbiddenSpecifier(specifier) {
   return FORBIDDEN_BROWSER_SPECIFIERS.some((re) => re.test(specifier));
+}
+
+function isBrowserSafePackage(specifier) {
+  if (BROWSER_SAFE_PACKAGES.has(specifier)) return true;
+  const prefix = "@uniwork/office-engine/";
+  if (!specifier.startsWith(prefix)) return false;
+  const subpath = specifier.slice(prefix.length);
+  return BROWSER_SAFE_ENGINE_SUBPATHS.has(subpath);
 }
 
 /** A path segment exactly "ee" = the separately licensed upstream enterprise
@@ -198,6 +488,15 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
     for (const hit of unverifiableModuleCalls(source)) {
       report("browser_isolation", normalized, `unverifiable module access: ${hit}`);
     }
+    // R14-2: scan every file in the browser walk for bare Node globals. The
+    // only carve-out is the per-file allowlist (xlsx/vendor.ts's typeof Buffer
+    // feature-detect); every other browser file must stay clean.
+    const relFile = path.relative(root, normalized).replaceAll("\\", "/");
+    if (!BROWSER_GLOBAL_SCOPE_EXCLUDE_FILES.has(relFile)) {
+      for (const name of bareNodeGlobals(source)) {
+        report("browser_isolation", normalized, `references the Node global ${JSON.stringify(name)}`);
+      }
+    }
     for (const specifier of extractImportSpecifiers(source)) {
       if (isForbiddenSpecifier(specifier)) {
         report("browser_isolation", normalized, `resolves forbidden specifier ${JSON.stringify(specifier)}`);
@@ -218,11 +517,58 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
           if (resolved.startsWith(root + path.sep)) queue.push(resolved);
           else report("browser_isolation", normalized, `resolves outside the checkout: ${resolved}`);
         }
-      } else if (!BROWSER_SAFE_PACKAGES.has(specifier)) {
+      } else if (!isBrowserSafePackage(specifier)) {
         report("browser_isolation", normalized, `resolves non-browser-safe specifier ${JSON.stringify(specifier)}`);
       }
     }
   }
+
+  function scanDesktopGraph(relRoots, rule, { renderer = false } = {}) {
+    const roots = relRoots.map((rel) => path.join(root, rel));
+    const graphQueue = [];
+    const graphSeen = new Set();
+    for (const entry of roots) {
+      if (!fs.existsSync(entry)) continue;
+      if (fs.statSync(entry).isFile()) graphQueue.push(entry);
+      else for (const f of walk(entry)) if (!isTestFile(f)) graphQueue.push(f);
+    }
+    while (graphQueue.length) {
+      const file = path.resolve(graphQueue.shift());
+      if (graphSeen.has(file) || !SOURCE_EXT.has(path.extname(file))) continue;
+      graphSeen.add(file);
+      const source = fs.readFileSync(file, "utf8");
+      for (const hit of unverifiableModuleCalls(source)) report(rule, path.relative(root, file), `unverifiable module access: ${hit}`);
+      for (const specifier of extractImportSpecifiers(source)) {
+        const isRelative = specifier.startsWith("./") || specifier.startsWith("../");
+        if (!isRelative) {
+          // Renderer/preload graphs use the same browser-safe package allowlist.
+          // A preload may import Electron's bridge primitives, but neither
+          // graph may smuggle Node built-ins or the desktop engine entry.
+          const preloadElectron = !renderer && specifier === "electron";
+          if (isForbiddenSpecifier(specifier) && !preloadElectron) {
+            report(rule, path.relative(root, file), `${renderer ? "renderer" : "preload"} resolves forbidden privileged specifier ${JSON.stringify(specifier)}`);
+            continue;
+          }
+          if (!preloadElectron && !isBrowserSafePackage(specifier)) {
+            report(rule, path.relative(root, file), `${renderer ? "renderer" : "preload"} resolves non-browser-safe specifier ${JSON.stringify(specifier)}`);
+            continue;
+          }
+        }
+        if (specifier.startsWith("./") || specifier.startsWith("../")) {
+          const resolved = resolveRelative(file, specifier);
+          if (!resolved) { report(rule, path.relative(root, file), `unresolvable specifier ${JSON.stringify(specifier)}`); continue; }
+          const relResolved = path.relative(root, resolved).replaceAll("\\", "/");
+          if (relResolved.startsWith("apps/office-desktop/main/") || relResolved.startsWith("apps/office-desktop/preload/")) {
+            if (renderer || relResolved.startsWith("apps/office-desktop/main/")) report(rule, path.relative(root, file), `imports privileged desktop graph ${JSON.stringify(specifier)}`);
+          }
+          if (!graphSeen.has(resolved) && resolved.startsWith(root + path.sep)) graphQueue.push(resolved);
+        }
+      }
+    }
+  }
+
+  scanDesktopGraph(DESKTOP_RENDERER_ROOTS, "desktop_renderer_isolation", { renderer: true });
+  scanDesktopGraph(DESKTOP_PRELOAD_ROOTS, "desktop_preload_isolation");
 
   // --- 2. No /ee ------------------------------------------------------------
   for (const rel of OFFICE_TREE_ROOTS) {

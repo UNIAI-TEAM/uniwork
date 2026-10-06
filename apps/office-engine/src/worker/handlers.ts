@@ -19,6 +19,7 @@ import { pathToFileURL } from "node:url";
 import {
   applyXlsxEditBytes,
   bindXlsxGateway,
+  openXlsxModel,
   probeXlsx,
   XlsxTypedError,
   type XlsxGatewayFunctions,
@@ -191,8 +192,18 @@ async function openXlsx(message: RunMessage): Promise<HandlerOutcome> {
   const bytes = await readFile(message.inputPath);
   try {
     const { functions: engine } = await xlsxGateway(message.xlsxAssetsDir);
-    const probe = await probeXlsx(engine, bytes);
-    await writeOutput(message.outputPath, JSON.stringify({ document_model: probe }));
+    const model = await openXlsxModel(engine, bytes);
+    // G3-05c: the render model rides the same payload (layout/styles/cached
+    // formula results) so the browser can mount the vendored sheets renderer.
+    const encoded = JSON.stringify({ document_model: model.probe, snapshot: model.snapshot, render_model: model.renderModel });
+    // The browser consumes this model through the staged output download. A
+    // hard bound prevents a pathological workbook from turning a probe job
+    // into an unbounded JSON response; the engine's normal output limit still
+    // applies at the supervisor boundary.
+    if (Buffer.byteLength(encoded, "utf8") > 16 * 1024 * 1024) {
+      return { ok: false, code: "engine_result_invalid", reason: "xlsx_open_model_too_large" };
+    }
+    await writeOutput(message.outputPath, encoded);
     return { ok: true, warnings: [] };
   } catch (error) {
     return xlsxFail(error);

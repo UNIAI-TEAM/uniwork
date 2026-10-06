@@ -3,14 +3,17 @@
 // failure leaves here as a PdfTypedError whose code is one of the worker's
 // closed outcome codes; nothing below this file throws a bare Error across
 // the handler boundary. The input buffer is never mutated and a failed edit
-// produces no output bytes — the caller keeps the original.
+// produces no output bytes — the caller keeps the original. probePdf accepts
+// an optional password for encrypted documents: pdfium decrypts in memory for
+// that probe, and no decrypted bytes are ever produced as output.
 import { EncryptedPDFError, PDFDocument } from "pdf-lib";
 
 import { ImageTooLargeError } from "./codec.ts";
-import { readPdfText } from "./extract.ts";
+import { readPdfText, type PdfTextDoc } from "./extract.ts";
 import { parsePdfOps, PdfOpError } from "./ops.ts";
-import { FPDF_ERR_PASSWORD, PdfOpenError } from "./pdfium.ts";
+import { FPDF_ERR_PASSWORD, FPDF_ERR_SECURITY, PdfOpenError } from "./pdfium.ts";
 import { applyPdfEdits, PdfVerifyError } from "./serialize.ts";
+import { PdfPageOpSourceError } from "./page-ops.ts";
 import type { PdfEditRequest } from "./types.ts";
 
 export type PdfFailureCode = "engine_result_invalid" | "unsupported_operation" | "engine_crashed";
@@ -24,6 +27,29 @@ export class PdfTypedError extends Error {
     this.name = "PdfTypedError";
     this.code = code;
     this.reason = reason;
+  }
+}
+
+/**
+ * Open-path outcome when a document is encrypted. "required" means the bytes
+ * are encrypted and no password was supplied (the host should prompt);
+ * "wrong" means a supplied password was refused (the host re-prompts, showing
+ * the error). The reason strings are the host-visible contract — the worker
+ * forwards them verbatim — and the supplied password never appears in the
+ * reason, the message or any payload.
+ */
+export const PDF_PASSWORD_REASONS = {
+  required: "password_required",
+  wrong: "wrong_password",
+} as const;
+export type PdfPasswordStatus = keyof typeof PDF_PASSWORD_REASONS;
+
+export class PdfPasswordError extends PdfTypedError {
+  readonly status: PdfPasswordStatus;
+  constructor(status: PdfPasswordStatus) {
+    super("engine_result_invalid", PDF_PASSWORD_REASONS[status]);
+    this.name = "PdfPasswordError";
+    this.status = status;
   }
 }
 
@@ -69,7 +95,12 @@ function trailerEncrypted(input: Uint8Array): boolean {
   return false;
 }
 
-function sniffHeader(input: Uint8Array): void {
+/**
+ * Header + trailer inspection shared by both entries. `encrypted` is the
+ * trailer's /Encrypt mark: the open path can accept a password for those bytes
+ * (pdfium decrypts in memory), while the edit path keeps its typed refusal.
+ */
+function inspectPdf(input: Uint8Array): { encrypted: boolean } {
   // Some producers emit a BOM or junk before the header; PDFium tolerates a
   // small lead-in, so scan the first KiB rather than demanding offset 0.
   const head = input.subarray(0, Math.min(input.length, 1024));
@@ -79,27 +110,35 @@ function sniffHeader(input: Uint8Array): void {
   }
   // Encryption lives in the trailer's /Encrypt entry, which is never itself
   // encrypted — a trailer sniff catches password/cert files that pdf-lib's
-  // xref parser can only report as corrupt. This build has no password path.
-  if (trailerEncrypted(input)) {
-    throw new PdfTypedError("engine_result_invalid", "encrypted_pdf");
-  }
+  // xref parser can only report as corrupt.
+  return { encrypted: trailerEncrypted(input) };
 }
 
 /**
  * Pre-flight with pdf-lib: cheap compared to the pdfium load, and its error
- * surface carries the distinctions the adapter must report — encrypted bytes
- * (typed refusal; this build has no password path) vs. bytes that merely look
- * like a PDF but are corrupt.
+ * surface carries the distinction the adapter must report — bytes that merely
+ * look like a PDF but are corrupt. `null` means pdf-lib reports the bytes
+ * encrypted: it cannot decrypt (1.17 has no password support), so the caller
+ * routes them to the pdfium password path instead.
  */
-async function preflight(input: Uint8Array): Promise<PDFDocument> {
+async function preflight(input: Uint8Array): Promise<PDFDocument | null> {
   try {
     return await PDFDocument.load(input, { updateMetadata: false });
   } catch (error) {
-    if (error instanceof EncryptedPDFError) {
-      throw new PdfTypedError("engine_result_invalid", "encrypted_pdf");
-    }
+    if (error instanceof EncryptedPDFError) return null;
     throw new PdfTypedError("engine_result_invalid", "corrupt_pdf");
   }
+}
+
+/** One document produced by a page op, base64-encoded so it can cross the
+    worker / IPC boundary unchanged. F2: the host commits each one through
+    Documents — the engine never writes it anywhere. */
+export interface PdfNewDocumentPayload {
+  op: "extractPages" | "mergePdfs" | "splitPdf";
+  name: string;
+  pageCount: number;
+  part?: number;
+  dataBase64: string;
 }
 
 export interface PdfEditOutcome {
@@ -111,8 +150,26 @@ export interface PdfEditOutcome {
     textInserts: { applied: number; skipped: number };
     imageEdits: { applied: number; skipped: number };
     annotDeletes: { applied: number; skipped: number };
+    markups: { applied: number; skipped: number };
+    drawings: { applied: number; skipped: number };
+    stamps: { applied: number; skipped: number };
+    notes: { applied: number; skipped: number };
+    noteEdits: { applied: number; skipped: number };
+    noteResolves: { applied: number; skipped: number };
+    formValues: { applied: number; skipped: number };
+    flattenForms: { applied: number };
     pageOps: { rotations: number; deletions: number; reordered: boolean; metadata: boolean };
+    blankPages: { applied: number; skipped: number };
+    insertedPdfs: { applied: number; skipped: number };
+    /** MediaBox / CropBox writes and their typed refusals. */
+    pageBoxes: { applied: number; skipped: number };
+    /** 1 when an N-up imposition produced sheets, 0 otherwise. */
+    nUp: { applied: number; skipped: number };
+    /** Produced documents by kind, plus every producer that was skipped. */
+    newDocuments: { extracted: number; merged: number; splitParts: number; skipped: number };
   };
+  /** NEW documents for the host to commit (extract / merge / split). */
+  documents: PdfNewDocumentPayload[];
 }
 
 export interface PdfProbe {
@@ -126,6 +183,14 @@ export interface PdfProbe {
     imageEdit: true;
     pageOps: true;
     annotationDelete: true;
+    drawing: true;
+    ink: true;
+    stamp: true;
+    note: true;
+    noteResolve: true;
+    formFill: true;
+    pageBox: true;
+    nUp: true;
     ocr: false;
     ocrReason: string;
   };
@@ -144,14 +209,19 @@ function typed<T>(fn: () => Promise<T>): Promise<T> {
     if (error instanceof PdfVerifyError) {
       throw new PdfTypedError("engine_result_invalid", "verify_failed:" + error.message.slice(0, 200));
     }
+    if (error instanceof PdfPageOpSourceError) {
+      throw new PdfTypedError("engine_result_invalid", `bad_op:${error.op}: ${error.reason}`);
+    }
     if (error instanceof ImageTooLargeError) {
       // Fixed-size refusal string — no pixel dims come from a bigger error path.
       throw new PdfTypedError("engine_result_invalid", "image_too_large");
     }
     if (error instanceof PdfOpenError) {
-      // A document pdfium could not open: a password wall is an encrypted
-      // refusal, every other load failure is corruption — both typed, both
-      // keep the original bytes. A heap failure is engine-side: rethrow.
+      // A document pdfium could not open outside the open path's password
+      // classification (probeEncrypted owns FPDF_ERR_PASSWORD/_SECURITY): a
+      // password wall is an encrypted refusal, every other load failure is
+      // corruption — both typed, both keep the original bytes. A heap failure
+      // is engine-side: rethrow.
       if (error.detail === "heap") throw error;
       throw new PdfTypedError(
         "engine_result_invalid",
@@ -165,31 +235,73 @@ function typed<T>(fn: () => Promise<T>): Promise<T> {
   });
 }
 
+function probeFromText(text: PdfTextDoc, pageCount: number): PdfProbe {
+  return {
+    pageCount,
+    info: text.info,
+    hasTextLayer: text.pages.some((p) => p.hasTextLayer),
+    emptyTextPages: text.pages.filter((p) => !p.hasTextLayer).map((p) => p.page),
+    features: {
+      textEdit: true,
+      imageEdit: true,
+      pageOps: true,
+      annotationDelete: true,
+      drawing: true,
+      ink: true,
+      stamp: true,
+      note: true,
+      noteResolve: true,
+      formFill: true,
+      pageBox: true,
+      nUp: true,
+      ocr: false,
+      ocrReason: OCR_REASON,
+    },
+  };
+}
+
+/**
+ * Encrypted-document probe. pdf-lib cannot decrypt, so pdfium performs the
+ * load with the supplied password (or with none) and its load error classifies
+ * the refusal: FPDF_ERR_PASSWORD is "password required" when no password was
+ * supplied and "wrong password" when one was; FPDF_ERR_SECURITY is a handler a
+ * password can never satisfy (certificate encryption), which stays a named
+ * refusal. Only a successful load produces a probe — this build never returns
+ * decrypted bytes as output, and the password is not kept anywhere.
+ */
+async function probeEncrypted(input: Uint8Array, password: string | undefined): Promise<PdfProbe> {
+  let text: PdfTextDoc;
+  try {
+    text = await readPdfText(input, password === undefined ? {} : { password });
+  } catch (error) {
+    if (error instanceof PdfOpenError) {
+      if (error.detail === FPDF_ERR_PASSWORD) {
+        throw new PdfPasswordError(password === undefined ? "required" : "wrong");
+      }
+      if (error.detail === FPDF_ERR_SECURITY) {
+        throw new PdfTypedError("unsupported_operation", "certificate_encrypted");
+      }
+    }
+    throw error;
+  }
+  return probeFromText(text, text.pageCount);
+}
+
 /**
  * `open:pdf` — probe the bytes into a document model summary. Output is a
  * JSON document (the host's open-outcome payload), never the input bytes.
+ * An encrypted document takes the pdfium password path: with no password it
+ * answers a typed password_required, with a wrong one wrong_password, and with
+ * the right one the ordinary probe.
  */
-export async function probePdf(input: Uint8Array): Promise<PdfProbe> {
+export async function probePdf(input: Uint8Array, password?: string): Promise<PdfProbe> {
   return typed(async () => {
-    sniffHeader(input);
+    const { encrypted } = inspectPdf(input);
+    if (encrypted) return probeEncrypted(input, password);
     const doc = await preflight(input);
-    const pageCount = doc.getPageCount();
-    const text = await readPdfText(input);
-    const emptyTextPages = text.pages.filter((p) => !p.hasTextLayer).map((p) => p.page);
-    return {
-      pageCount,
-      info: text.info,
-      hasTextLayer: text.pages.some((p) => p.hasTextLayer),
-      emptyTextPages,
-      features: {
-        textEdit: true,
-        imageEdit: true,
-        pageOps: true,
-        annotationDelete: true,
-        ocr: false,
-        ocrReason: OCR_REASON,
-      },
-    };
+    // pdf-lib saw /Encrypt the trailer sniff missed; same encrypted path.
+    if (!doc) return probeEncrypted(input, password);
+    return probeFromText(await readPdfText(input), doc.getPageCount());
   });
 }
 
@@ -204,8 +316,11 @@ export async function applyPdfEditBytes(
   edits: unknown[],
 ): Promise<PdfEditOutcome> {
   return typed(async () => {
-    sniffHeader(input);
-    await preflight(input);
+    const { encrypted } = inspectPdf(input);
+    // The edit path carries no password channel: encrypted bytes stay the
+    // existing typed refusal and no output is produced.
+    if (encrypted) throw new PdfTypedError("engine_result_invalid", "encrypted_pdf");
+    if ((await preflight(input)) === null) throw new PdfTypedError("engine_result_invalid", "encrypted_pdf");
     const request: PdfEditRequest = parsePdfOps(edits);
     const applied = await applyPdfEdits(input, request);
     const warnings: { code: string; detail?: string }[] = [];
@@ -218,7 +333,36 @@ export async function applyPdfEditBytes(
     pushSkips("insert", applied.skips.skippedTextInserts);
     pushSkips("image", applied.skips.skippedImageEdits);
     pushSkips("annot", applied.skips.skippedAnnotDeletes);
+    pushSkips("markup", applied.skips.skippedMarkups);
+    pushSkips("drawing", applied.skips.skippedDrawings);
+    pushSkips("stamp", applied.skips.skippedStamps);
+    pushSkips("note", applied.skips.skippedNotes);
+    pushSkips("note-edit", applied.skips.skippedNoteEdits);
+    pushSkips("note-resolve", applied.skips.skippedNoteResolves);
+    for (const s of applied.skips.skippedFormValues) {
+      warnings.push({ code: "edit_skipped", detail: `form field "${s.name}": ${s.reason}` });
+    }
+    for (const s of applied.skips.skippedPageInserts) {
+      warnings.push({ code: "edit_skipped", detail: `${s.op} #${s.index + 1}: ${s.reason}` });
+    }
+    for (const s of applied.skips.skippedPageBoxes) {
+      warnings.push({ code: "edit_skipped", detail: `setPageBox #${s.index + 1}: ${s.reason}` });
+    }
+    for (const s of applied.skips.skippedNUp) {
+      warnings.push({ code: "edit_skipped", detail: `setNUp #${s.index + 1}: ${s.reason}` });
+    }
+    for (const s of applied.skips.skippedNewDocuments) {
+      warnings.push({ code: "edit_skipped", detail: `${s.op} #${s.index + 1}: ${s.reason}` });
+    }
+    const documents: PdfNewDocumentPayload[] = applied.documents.map((doc) => ({
+      op: doc.op,
+      name: doc.name,
+      pageCount: doc.pageCount,
+      ...(doc.part === undefined ? {} : { part: doc.part }),
+      dataBase64: Buffer.from(doc.bytes).toString("base64"),
+    }));
     return {
+      documents,
       bytes: applied.bytes,
       warnings,
       report: {
@@ -235,11 +379,35 @@ export async function applyPdfEditBytes(
           skipped: applied.skips.skippedImageEdits.length,
         },
         annotDeletes: { applied: applied.annotDeletesApplied, skipped: applied.skips.skippedAnnotDeletes.length },
+        markups: { applied: (request.markups?.length ?? 0) - applied.skips.skippedMarkups.length, skipped: applied.skips.skippedMarkups.length },
+        drawings: { applied: (request.drawings?.length ?? 0) - applied.skips.skippedDrawings.length, skipped: applied.skips.skippedDrawings.length },
+        stamps: { applied: (request.stamps?.length ?? 0) - applied.skips.skippedStamps.length, skipped: applied.skips.skippedStamps.length },
+        notes: { applied: (request.notes?.length ?? 0) - applied.skips.skippedNotes.length, skipped: applied.skips.skippedNotes.length },
+        noteEdits: { applied: (request.noteEdits?.length ?? 0) - applied.skips.skippedNoteEdits.length, skipped: applied.skips.skippedNoteEdits.length },
+        noteResolves: { applied: (request.noteResolves?.length ?? 0) - applied.skips.skippedNoteResolves.length, skipped: applied.skips.skippedNoteResolves.length },
+        formValues: { applied: (request.formValues?.length ?? 0) - applied.skips.skippedFormValues.length, skipped: applied.skips.skippedFormValues.length },
+        flattenForms: { applied: applied.formsFlattened },
         pageOps: {
           rotations: request.rotations?.length ?? 0,
           deletions: request.deletedPages?.length ?? 0,
           reordered: request.pageOrder !== undefined,
           metadata: request.metadata !== undefined,
+        },
+        blankPages: {
+          applied: (request.blankPages?.length ?? 0) - applied.skips.skippedPageInserts.filter((s) => s.op === "insertBlankPage").length,
+          skipped: applied.skips.skippedPageInserts.filter((s) => s.op === "insertBlankPage").length,
+        },
+        insertedPdfs: {
+          applied: (request.insertedPdfs?.length ?? 0) - applied.skips.skippedPageInserts.filter((s) => s.op === "insertPdfPages").length,
+          skipped: applied.skips.skippedPageInserts.filter((s) => s.op === "insertPdfPages").length,
+        },
+        pageBoxes: { applied: applied.pageBoxesApplied, skipped: applied.skips.skippedPageBoxes.length },
+        nUp: { applied: applied.nUpApplied, skipped: applied.skips.skippedNUp.length },
+        newDocuments: {
+          extracted: applied.documents.filter((doc) => doc.op === "extractPages").length,
+          merged: applied.documents.filter((doc) => doc.op === "mergePdfs").length,
+          splitParts: applied.documents.filter((doc) => doc.op === "splitPdf").length,
+          skipped: applied.skips.skippedNewDocuments.length,
         },
       },
     };

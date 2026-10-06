@@ -1,0 +1,349 @@
+import { createHash, randomBytes } from "node:crypto";
+import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import {
+  cloneCiphertext,
+  draftNamespace,
+  DraftRecoveryError,
+  metadataFromSnapshot,
+  sameBase,
+  type CheckpointResult,
+  type DraftCheckpointRequest,
+  type DraftDeleteRequest,
+  type DraftIdentity,
+  type DraftListRequest,
+  type DraftLookup,
+  type DraftMetadata,
+  type DraftRecoveryAdapter,
+  type DraftRecoveryRequest,
+  type RecoveryResult,
+  type DraftSession,
+  type DraftSnapshot,
+} from "../../../../packages/core/office/draft-recovery";
+import { checksum, decryptDraft, encryptDraft } from "./crypto";
+import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../../shared/identity";
+import { migrateDraftEnvelope, readDraftEnvelope, type DraftEnvelope } from "./migration";
+
+/** Channel-isolated temp prefix and key namespace are both accepted identity
+ * values; drafts never fall back to an app-id literal. */
+export const DRAFT_TEMP_PREFIX = `${DESKTOP_IDENTITY_MANIFEST.channelNamespaces[DESKTOP_IDENTITY_MANIFEST.build.channel].replaceAll(/[^a-z0-9-]/gi, "-")}-draft-`;
+
+export interface DraftKeyStore {
+  /** A draft key is intentionally a separate port from refresh credentials. */
+  getOrCreate(namespace: string): Promise<Uint8Array>;
+  /** Read-only lookup used during recovery. A missing key is distinct from a
+   * first checkpoint, so an existing ciphertext can never trigger key
+   * regeneration. */
+  get(namespace: string): Promise<Uint8Array | undefined>;
+  delete?(namespace: string): Promise<void>;
+}
+
+interface DesktopDraftStoreOptions {
+  readonly rootDirectory: string;
+  readonly keyStore: DraftKeyStore;
+  readonly maxPlaintextBytes?: number;
+  readonly tempDirectory?: string;
+  readonly now?: () => number;
+  readonly randomBytes?: (size: number) => Uint8Array;
+}
+
+interface PlaintextCheckpoint {
+  readonly session: DraftSession;
+  readonly identity: DraftIdentity;
+  readonly draftId: string;
+  readonly generation: number;
+  readonly plaintext: Uint8Array;
+}
+
+type DurableRow = DraftEnvelope;
+
+/** Main-only encrypted draft store. It stores JSON envelopes atomically; the
+ * envelope contains no plaintext or raw key, and its key is obtained from the
+ * independent OS KeyStore port. */
+export class DesktopDraftStore implements DraftRecoveryAdapter {
+  private readonly maxPlaintextBytes: number;
+  private readonly now: () => number;
+  private readonly random: (size: number) => Uint8Array;
+  private readonly revoked = new Set<string>();
+  private readonly activeGenerations = new Map<string, number>();
+  private locked = false;
+  private failNext = false;
+  private readonly pending = new Map<string, { input: PlaintextCheckpoint; timer: ReturnType<typeof setTimeout> }>();
+  private readonly checkpointFailures = new Map<string, unknown>();
+  private readonly scheduledWrites = new Set<Promise<void>>();
+  private restartPrepared = false;
+  private writeVersion: 1 | 2 = 1;
+  /** Serialize read/validate/write/delete transactions so generations cannot
+   * regress when independent IPC invokes overlap. */
+  private mutationTail: Promise<void> = Promise.resolve();
+
+  constructor(private readonly options: DesktopDraftStoreOptions) {
+    if (!options.rootDirectory || !options.keyStore) throw new TypeError("draft store configuration is incomplete");
+    this.maxPlaintextBytes = options.maxPlaintextBytes ?? 64 * 1024 * 1024;
+    this.now = options.now ?? (() => Date.now());
+    this.random = options.randomBytes ?? ((size) => randomBytes(size));
+  }
+
+  async checkpoint(request: DraftCheckpointRequest): Promise<CheckpointResult> {
+    this.assertSession(request.session, request.snapshot.identity);
+    return this.withMutationLock(async () => {
+      this.assertWritable();
+      const metadata = metadataFromSnapshot(request.snapshot, this.now());
+      const existing = await this.readRow(request.snapshot.identity, request.snapshot.draftId);
+      if (existing && existing.generation > metadata.generation) throw new DraftRecoveryError("generation_conflict", "draft generation is older than the confirmed snapshot");
+      if (existing && existing.generation === metadata.generation && existing.checksum === metadata.checksum) return { status: "unchanged", metadata: rowMetadata(existing) };
+      await this.writeRow(request.snapshot.identity, migrateDraftEnvelope({ version: 1, encrypted: false, draftId: request.snapshot.draftId, identity: request.snapshot.identity, generation: metadata.generation, checksum: metadata.checksum, byteLength: request.snapshot.ciphertext.byteLength, updatedAt: metadata.updatedAt, ciphertext: Buffer.from(request.snapshot.ciphertext).toString("base64") }, this.writeVersion));
+      return { status: "stored", metadata };
+    });
+  }
+
+  async checkpointPlaintext(input: PlaintextCheckpoint): Promise<DraftMetadata> {
+    this.assertSession(input.session, input.identity);
+    return this.withMutationLock(async () => {
+      this.assertWritable();
+      if (input.plaintext.byteLength > this.maxPlaintextBytes) throw new DraftRecoveryError("quota_exceeded", "draft exceeds the local size limit");
+      if (!Number.isSafeInteger(input.generation) || input.generation < 1) throw new DraftRecoveryError("invalid_snapshot", "draft generation is invalid");
+      const old = await this.readRow(input.identity, input.draftId);
+      if (old && old.generation > input.generation) throw new DraftRecoveryError("generation_conflict", "draft generation is older than the confirmed snapshot");
+      const namespace = namespaceFor(input.identity);
+      let encrypted;
+      try {
+        const existingKey = await this.options.keyStore.get(namespace);
+        if (old && !existingKey) throw new DraftRecoveryError("draft_recovery_locked", "draft key is unavailable");
+        encrypted = encryptDraft(existingKey ?? await this.options.keyStore.getOrCreate(namespace), input.plaintext, input.identity, input.generation, this.random);
+      }
+      catch { throw new DraftRecoveryError("draft_recovery_locked", "draft key is unavailable"); }
+      const row: DurableRow = { version: 1, encrypted: true, draftId: input.draftId, identity: input.identity, generation: input.generation, checksum: encrypted.checksum, byteLength: encrypted.ciphertext.byteLength, updatedAt: this.now(), nonce: Buffer.from(encrypted.nonce).toString("base64"), ciphertext: Buffer.from(encrypted.ciphertext).toString("base64") };
+      await this.writeRow(input.identity, migrateDraftEnvelope(row, this.writeVersion));
+      return rowMetadata(row);
+    });
+  }
+
+  async list(request: DraftListRequest): Promise<readonly DraftMetadata[]> {
+    this.assertSessionLookup(request.session, request.lookup);
+    this.assertReadable();
+    const rows = await this.readAllRows();
+    // A lookup-free list is still session-scoped: an account session can never
+    // observe a local-device row and the local session can never observe an
+    // account row, even before the IPC layer applies its own filter.
+    return rows
+      .filter((row) => row.identity.accountId === request.session.accountId && row.identity.deploymentId === request.session.deploymentId)
+      .filter((row) => matchesLookup(row, request.lookup))
+      .map(rowMetadata)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  async recover(request: DraftRecoveryRequest): Promise<RecoveryResult> {
+    this.assertSessionLookup(request.session, request.lookup);
+    if (this.locked) {
+      try {
+        const candidate = (await this.readAllRows()).find((row) => matchesLookup(row, request.lookup));
+        return { status: "locked", ...(candidate ? { metadata: rowMetadata(candidate) } : {}), code: "draft_recovery_locked" };
+      } catch (error) {
+        if (error instanceof DraftRecoveryError && error.code === "draft_recovery_locked") return { status: "locked", code: "draft_recovery_locked" };
+        throw error;
+      }
+    }
+    const candidates = (await this.readAllRows()).filter((row) => matchesLookup(row, request.lookup));
+    if (candidates.length === 0) return { status: "missing" };
+    if (!request.lookup.base && candidates.length > 1) return { status: "ambiguous", candidates: candidates.map(rowMetadata) };
+    const row = candidates.find((candidate) => !request.lookup.base || sameBase(candidate.identity.base, request.lookup.base));
+    if (!row) return { status: "conflict", metadata: rowMetadata(candidates[0]!), currentBase: request.currentBase, draftBase: candidates[0]!.identity.base };
+    if (!sameBase(row.identity.base, request.currentBase)) return { status: "conflict", metadata: rowMetadata(row), currentBase: request.currentBase, draftBase: row.identity.base };
+    if (request.liveAccess !== "edit") return { status: "blocked", metadata: rowMetadata(row), reason: "edit_acl_missing" };
+    const ciphertext = Uint8Array.from(Buffer.from(row.ciphertext, "base64"));
+    if (row.encrypted && checksum(ciphertext) !== row.checksum) return { status: "locked", metadata: rowMetadata(row), code: "draft_recovery_locked" };
+    return { status: "recovered", metadata: rowMetadata(row), ciphertext };
+  }
+
+  async recoverPlaintext(request: DraftRecoveryRequest): Promise<{ readonly status: "recovered"; readonly metadata: DraftMetadata; readonly plaintext: Uint8Array } | Exclude<RecoveryResult, { status: "recovered" }>> {
+    const recovered = await this.recover(request);
+    if (recovered.status !== "recovered") return recovered;
+    const row = await this.readRow(recovered.metadata.identity, recovered.metadata.draftId);
+    if (!row) return { status: "missing" };
+    if (!row.encrypted || !row.nonce) return { status: "locked", metadata: recovered.metadata, code: "draft_recovery_locked" };
+    try {
+      const namespace = namespaceFor(row.identity);
+      const key = await this.options.keyStore.get(namespace);
+      if (!key) return { status: "locked", metadata: recovered.metadata, code: "draft_recovery_locked" };
+      const plaintext = decryptDraft(key, { nonce: Uint8Array.from(Buffer.from(row.nonce, "base64")), ciphertext: recovered.ciphertext }, row.identity, row.generation);
+      if (plaintext.byteLength > this.maxPlaintextBytes) throw new Error("draft exceeds local limit");
+      return { status: "recovered", metadata: recovered.metadata, plaintext };
+    } catch { return { status: "locked", metadata: recovered.metadata, code: "draft_recovery_locked" }; }
+  }
+
+  async deleteDurable(request: DraftDeleteRequest): Promise<void> {
+    this.assertActiveSession(request.session);
+    await this.withMutationLock(async () => {
+      this.assertWritable();
+      const rows = await this.readAllRows();
+      const matches = rows.filter((candidate) => candidate.draftId === request.draftId);
+      if (matches.length > 1) throw new DraftRecoveryError("forbidden", "draft id is ambiguous");
+      const row = matches[0];
+      if (row && (row.identity.accountId !== request.session.accountId || row.identity.deploymentId !== request.session.deploymentId)) throw new DraftRecoveryError("forbidden", "draft is outside the active session");
+      if (!row) return;
+      if (row.generation !== request.generation) throw new DraftRecoveryError("generation_conflict", "draft generation changed");
+      await fs.unlink(fileFor(this.options.rootDirectory, row.identity, row.draftId)).catch(() => undefined);
+    });
+  }
+
+  clearMemory(): void { /* decrypted buffers are returned by value and never retained */ }
+  revokeSession(sessionId: string): void { this.revoked.add(sessionId); }
+  setLocked(locked: boolean): void { this.locked = locked; }
+  failNextCheckpoint(): void { this.failNext = true; }
+
+  scheduleCheckpoint(input: PlaintextCheckpoint, stable: boolean): void {
+    if (!stable) return;
+    if (this.restartPrepared) throw new DraftRecoveryError("storage_unavailable", "restart checkpoint is sealed");
+    const key = fileFor(this.options.rootDirectory, input.identity, input.draftId);
+    const old = this.pending.get(key);
+    if (old) clearTimeout(old.timer);
+    const snapshot = { ...input, plaintext: Uint8Array.from(input.plaintext) };
+    const timer = setTimeout(() => {
+      this.pending.delete(key);
+      const write = this.storeScheduled(key, snapshot);
+      this.scheduledWrites.add(write);
+      void write.finally(() => this.scheduledWrites.delete(write));
+    }, 2_000);
+    this.pending.set(key, { input: snapshot, timer });
+  }
+
+  async flushScheduled(): Promise<void> {
+    const pending = [...this.pending.entries()];
+    this.pending.clear();
+    for (const [key, value] of pending) {
+      clearTimeout(value.timer);
+      await this.storeScheduled(key, value.input);
+    }
+    await Promise.all([...this.scheduledWrites]);
+    await this.mutationTail;
+    if (this.checkpointFailures.size) throw new DraftRecoveryError("storage_unavailable", "a scheduled draft checkpoint failed");
+  }
+
+  private async storeScheduled(key: string, input: PlaintextCheckpoint): Promise<void> {
+    try { await this.checkpointPlaintext(input); this.checkpointFailures.delete(key); }
+    catch (error) { this.checkpointFailures.set(key, error); }
+  }
+
+  /** Freeze writes across the confirmation dialog. Reopen on cancel/error. */
+  async prepareForRestart(): Promise<readonly DraftMetadata[]> {
+    await this.flushScheduled();
+    return this.withMutationLock(async () => {
+      this.assertWritable();
+      if (this.pending.size || this.scheduledWrites.size) throw new DraftRecoveryError("storage_unavailable", "draft changed during restart checkpoint");
+      const rows = await this.readAllRows();
+      for (const row of rows) {
+        if (row.encrypted && checksum(Buffer.from(row.ciphertext, "base64")) !== row.checksum) throw new DraftRecoveryError("draft_recovery_locked", "checkpoint readback failed");
+      }
+      this.restartPrepared = true;
+      return rows.map(rowMetadata);
+    });
+  }
+
+  cancelRestart(): void { this.restartPrepared = false; }
+
+  /** Convert real durable rows atomically, retaining a copy of each source
+   * envelope. Both formats remain readable if a later row fails to migrate. */
+  async migrateFormat(target: 1 | 2): Promise<void> {
+    await this.flushScheduled();
+    await this.withMutationLock(async () => {
+      this.assertWritable();
+      const rows = await this.readAllRows();
+      for (const row of rows) {
+        if (row.version === target) continue;
+        const source = fileFor(this.options.rootDirectory, row.identity, row.draftId);
+        const retained = `${source}.v${row.version}.${row.generation}.${createHash("sha256").update(row.ciphertext).digest("hex")}.keep`;
+        try {
+          // Exclusive copy never overwrites retained ciphertext. No key reads
+          // or namespace changes are involved in a metadata migration.
+          await fs.copyFile(source, retained, 1);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw new DraftRecoveryError("storage_unavailable", "draft migration backup failed");
+        }
+        await this.writeRow(row.identity, migrateDraftEnvelope(row, target));
+      }
+      this.writeVersion = target;
+    });
+  }
+
+  /** Bounded lifecycle-managed plaintext temp for native engine adapters. */
+  async withPlaintextTemp<T>(plaintext: Uint8Array, callback: (path: string) => Promise<T>): Promise<T> {
+    if (plaintext.byteLength > this.maxPlaintextBytes) throw new DraftRecoveryError("quota_exceeded", "plaintext temp exceeds the local size limit");
+    const root = this.options.tempDirectory ?? tmpdir();
+    const directory = await fs.mkdtemp(join(root, DRAFT_TEMP_PREFIX));
+    const path = join(directory, "snapshot.bin");
+    try { await fs.writeFile(path, plaintext, { mode: 0o600 }); return await callback(path); }
+    finally { await fs.rm(directory, { recursive: true, force: true }).catch(() => undefined); }
+  }
+
+  private assertWritable(): void { if (this.restartPrepared) throw new DraftRecoveryError("storage_unavailable", "restart checkpoint is sealed"); if (this.locked) throw new DraftRecoveryError("draft_recovery_locked", "draft store is locked"); if (this.failNext) { this.failNext = false; throw new DraftRecoveryError("storage_unavailable", "draft checkpoint was not durable"); } }
+  private assertReadable(): void { if (this.locked) throw new DraftRecoveryError("draft_recovery_locked", "draft store is locked"); }
+  private assertSession(session: DraftSession, identity: DraftIdentity): void { this.assertActiveSession(session); if (session.accountId !== identity.accountId || session.deploymentId !== identity.deploymentId) throw new DraftRecoveryError("forbidden", "draft identity is outside the session scope"); }
+  private assertSessionLookup(session: DraftSession, lookup?: DraftLookup): void { this.assertActiveSession(session); if (lookup && (lookup.accountId !== session.accountId || lookup.deploymentId !== session.deploymentId)) throw new DraftRecoveryError("forbidden", "draft lookup is outside the session scope"); }
+  private assertActiveSession(session: DraftSession): void {
+    if (!session.sessionId || !session.accountId || !session.deploymentId || !Number.isSafeInteger(session.generation) || session.generation < 1 || this.revoked.has(session.sessionId)) throw new DraftRecoveryError("token_expired", "draft session is no longer active");
+    const scope = `${session.deploymentId}:${session.accountId}`;
+    const active = this.activeGenerations.get(scope);
+    if (active !== undefined && session.generation < active) throw new DraftRecoveryError("token_expired", "draft session generation is stale");
+    this.activeGenerations.set(scope, Math.max(active ?? 0, session.generation));
+  }
+
+  private async withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.mutationTail;
+    let release!: () => void;
+    this.mutationTail = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try { return await operation(); } finally { release(); }
+  }
+
+  private async readRow(identity: DraftIdentity, draftId: string): Promise<DurableRow | undefined> {
+    try {
+      const raw = await fs.readFile(fileFor(this.options.rootDirectory, identity, draftId), "utf8");
+      return readDraftEnvelope(JSON.parse(raw));
+    }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      // A filesystem failure stays retryable storage_unavailable; a corrupt
+      // or unsupported envelope is a typed locked state, never a replacement.
+      if (typeof (error as NodeJS.ErrnoException).code === "string") throw new DraftRecoveryError("storage_unavailable", "draft store could not be read");
+      throw new DraftRecoveryError("draft_recovery_locked", "draft record is corrupt");
+    }
+  }
+
+  private async readAllRows(): Promise<DurableRow[]> {
+    try {
+      await fs.mkdir(this.options.rootDirectory, { recursive: true });
+      const namespaces = await fs.readdir(this.options.rootDirectory, { withFileTypes: true });
+      const rows: DurableRow[] = [];
+      for (const namespace of namespaces) {
+        if (!namespace.isDirectory()) continue;
+        for (const file of await fs.readdir(join(this.options.rootDirectory, namespace.name))) {
+          if (!file.endsWith(".draft")) continue;
+          try { rows.push(readDraftEnvelope(JSON.parse(await fs.readFile(join(this.options.rootDirectory, namespace.name, file), "utf8")))); } catch { throw new DraftRecoveryError("draft_recovery_locked", "draft record is corrupt or unsupported"); }
+        }
+      }
+      return rows;
+    } catch (error) { if (error instanceof DraftRecoveryError) throw error; throw new DraftRecoveryError("storage_unavailable", "draft store could not be read"); }
+  }
+
+  private async writeRow(identity: DraftIdentity, row: DurableRow): Promise<void> {
+    const path = fileFor(this.options.rootDirectory, identity, row.draftId);
+    const directory = dirname(path);
+    const temp = `${path}.${Buffer.from(this.random(12)).toString("hex")}.tmp`;
+    await fs.mkdir(directory, { recursive: true });
+    try {
+      await fs.writeFile(temp, JSON.stringify(row), { encoding: "utf8", mode: 0o600 });
+      const handle = await fs.open(temp, "r+");
+      try { await handle.sync(); } finally { await handle.close(); }
+      await fs.rename(temp, path);
+    } catch { await fs.rm(temp, { force: true }).catch(() => undefined); throw new DraftRecoveryError("storage_unavailable", "draft checkpoint was not durable"); }
+  }
+}
+
+export function createDesktopDraftStore(options: DesktopDraftStoreOptions): DesktopDraftStore { return new DesktopDraftStore(options); }
+
+function namespaceFor(identity: DraftIdentity): string { return createHash("sha256").update(`${DESKTOP_IDENTITY.keyNamespace}:${draftNamespace(identity)}`).digest("hex"); }
+function fileFor(root: string, identity: DraftIdentity, draftId: string): string { const draftHash = createHash("sha256").update(draftId).digest("hex"); return join(root, namespaceFor(identity), `${draftHash}.draft`); }
+function rowMetadata(row: DurableRow): DraftMetadata { return { draftId: row.draftId, identity: row.identity, generation: row.generation, checksum: row.checksum, byteLength: row.byteLength, updatedAt: row.updatedAt }; }
+function matchesLookup(row: DurableRow, lookup?: DraftLookup): boolean { if (!lookup) return true; return row.identity.deploymentId === lookup.deploymentId && row.identity.accountId === lookup.accountId && row.identity.organizationId === lookup.organizationId && row.identity.workspaceId === lookup.workspaceId && row.identity.documentId === lookup.documentId && (!lookup.draftId || row.draftId === lookup.draftId) && (!lookup.base || sameBase(row.identity.base, lookup.base)); }

@@ -49,9 +49,11 @@ var errorClassByCode = map[string]string{
 	// unusable, so the client runs its session recovery path (refresh,
 	// re-login, restart the code/token flow). unauthorized covers both a
 	// missing and an invalid/expired bearer; the recovery is the same.
-	"unauthorized":  "session",
-	"invalid_token": "session",
-	"invalid_code":  "session",
+	"unauthorized":   "session",
+	"invalid_token":  "session",
+	"invalid_code":   "session",
+	"device_revoked": "session",
+	"refresh_reused": "session",
 }
 
 // ErrorClassFor returns the error_class a wire code carries, "" when the code

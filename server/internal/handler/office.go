@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -84,8 +85,25 @@ func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !service.ValidOfficeOperation(in.Operation) {
-		respondError(w, http.StatusBadRequest, "invalid_request", "operation must be open, serialize, export or convert")
+		respondError(w, http.StatusBadRequest, "invalid_request", "operation must be open, edit, serialize, export or convert")
 		return
+	}
+	if in.Operation != "edit" && in.Edits != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "edits are only valid for operation edit")
+		return
+	}
+	var edits []service.OfficeEdit
+	if in.Edits != nil {
+		edits = make([]service.OfficeEdit, len(*in.Edits))
+	}
+	if in.Edits != nil {
+		for i, edit := range *in.Edits {
+			if strings.TrimSpace(edit.Op) == "" {
+				respondError(w, http.StatusBadRequest, "invalid_request", "edits[].op is required")
+				return
+			}
+			edits[i] = service.OfficeEdit{Op: edit.Op, Target: edit.Target, Text: edit.Text, Style: edit.Style, Range: edit.Range, Attributes: edit.Attributes}
+		}
 	}
 	var base int64
 	hasBase := in.BaseRevision != nil && strings.TrimSpace(*in.BaseRevision) != ""
@@ -100,7 +118,7 @@ func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 	row, err := h.Office.StartOfficeJobForDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.OfficeJobRequest{
 		Operation: in.Operation, Format: strings.TrimSpace(stringValue(in.Format)),
 		BaseRevision: base, HasBaseRevision: hasBase, IdempotencyKey: r.Header.Get("Idempotency-Key"),
-		DocumentModelRef: stringValue(in.ModelRef), Deadline: 0,
+		DocumentModelRef: stringValue(in.ModelRef), Edits: edits, Deadline: 0,
 		TargetFormat: strings.TrimSpace(stringValue(in.TargetFormat)),
 	})
 	if err != nil {
@@ -123,6 +141,34 @@ func (h *handlers) getOfficeJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, officeJobDTO(row))
+}
+
+// getOfficeJobOutput streams a completed, staged engine output.  It is a
+// read-only bridge for the browser adapter; the output remains uncommitted
+// until the ordinary Documents upload/commit coordinator claims it.
+func (h *handlers) getOfficeJobOutput(w http.ResponseWriter, r *http.Request) {
+	if h.Office == nil {
+		respondError(w, http.StatusServiceUnavailable, "office_not_configured", "office engine is not configured")
+		return
+	}
+	reader, err := h.Office.OpenOfficeJobOutput(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), chi.URLParam(r, "jobID"))
+	if err != nil {
+		h.mapOfficeError(w, err)
+		return
+	}
+	defer reader.Close()
+	w.Header().Set("Content-Type", reader.File.ContentType)
+	w.Header().Set("Content-Disposition", "attachment; filename=\"office-output.xlsx\"")
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Length", strconv.FormatInt(reader.File.SizeBytes, 10))
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if _, err := io.Copy(w, reader.Body); err != nil && r.Context().Err() == nil {
+		h.Log.Error("office job output stream", "err", err, "document_id", chi.URLParam(r, "documentID"))
+	}
 }
 
 // cancelOfficeJob is POST /documents/{documentID}/office/jobs/{jobID}/cancel.

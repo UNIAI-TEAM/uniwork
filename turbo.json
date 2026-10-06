@@ -17,6 +17,10 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
+    "package": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"]
+    },
     "typecheck": { "dependsOn": ["^typecheck"] },
     "lint": {},
     // Hash-only transit task. No package implements a `cache-inputs` script, so

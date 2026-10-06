@@ -65,6 +65,7 @@ export function parseArgs(argv) {
     else if (a === '--skip-install') out.skipInstall = true;
     else if (a === '--with-native') out.withNative = true;
     else if (a === '--keep') out.keep = true;
+    else if (a === '--docx-browser') out.docxBrowser = true;
     else if (a === '--json') out.json = true;
     else if (a === '--help' || a === '-h') out.help = true;
     else throw new Error('unknown argument: ' + a);
@@ -270,8 +271,25 @@ export async function run({ out, skipInstall, withNative, keep }) {
 
   for (const patchFile of fs.existsSync(PATCHES_DIR) ? fs.readdirSync(PATCHES_DIR).filter((f) => f.endsWith('.patch')).sort() : []) {
     const patchPath = path.join(PATCHES_DIR, patchFile);
-    const applied = spawnSync('git', ['apply', '-p1', '--whitespace=nowarn', patchPath], { cwd: scratchUpstream, encoding: 'utf8' });
+    // GIT_CEILING_DIRECTORIES: the scratch lives inside the lane worktree, and
+    // git apply SILENTLY SKIPS patch paths that resolve outside the current
+    // directory when it walks up to a repository root (exit 0, no change). The
+    // ceiling stops that walk at the scratch, so the apply is cwd-relative.
+    const runApply = (extra) =>
+      spawnSync('git', ['apply', ...extra, '-p1', '--whitespace=nowarn', patchPath], {
+        cwd: scratchUpstream,
+        encoding: 'utf8',
+        env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(scratchUpstream) },
+      });
+    // Fail loudly on every degradation: --check rejects a patch that cannot
+    // land, and the reverse --check after applying rejects a no-op apply (the
+    // exact way a skip used to be recorded as applied).
+    const pre = runApply(['--check']);
+    if (pre.status !== 0) fail(record, 'patch:' + patchFile, (pre.stderr || pre.stdout || 'git apply --check failed').trim());
+    const applied = runApply([]);
     if (applied.status !== 0) fail(record, 'patch:' + patchFile, (applied.stderr || applied.stdout || 'git apply failed').trim());
+    const landed = runApply(['-R', '--check']);
+    if (landed.status !== 0) fail(record, 'patch:' + patchFile, 'patch did not change the tree (reverse check): ' + (landed.stderr || 'git apply -R --check failed').trim());
     record.patchesApplied.push({ patch: patchFile, sha256: sha256File(patchPath) });
   }
   record.steps.push({ step: 'patches', status: 'pass', detail: `${record.patchesApplied.length} applied` });
@@ -373,6 +391,11 @@ export async function buildAll(args) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.docxBrowser) {
+    const { buildDocxBrowser } = await import('./build-docx-browser.mjs');
+    console.log(JSON.stringify(await buildDocxBrowser()));
+    return;
+  }
   if (args.help) {
     console.log('usage: build-upstream.mjs [--out <dir>] [--skip-install] [--with-native] [--json]');
     return;

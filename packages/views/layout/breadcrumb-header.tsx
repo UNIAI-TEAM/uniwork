@@ -25,12 +25,14 @@ interface BreadcrumbHeaderProps {
   /** The current page — a non-clickable leaf. */
   leaf: ReactNode;
   actions?: ReactNode;
+  /** Additional classes for the action wrapper at a specific host breakpoint. */
+  actionsClassName?: string;
   leading?: ReactNode;
   className?: string;
 }
 
 /** Detail-page header: `ancestor › ancestor › leaf  [actions]`. */
-export function BreadcrumbHeader({ segments, leaf, actions, leading, className }: BreadcrumbHeaderProps) {
+export function BreadcrumbHeader({ segments, leaf, actions, actionsClassName, leading, className }: BreadcrumbHeaderProps) {
   return (
     <PageHeader leading={leading} className={cn("bg-background text-body", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
@@ -60,7 +62,7 @@ export function BreadcrumbHeader({ segments, leaf, actions, leading, className }
         // Narrow screens scroll the actions sideways only: overflow-x-auto alone
         // turns overflow-y to auto too, and a pressed button's 1px shift would
         // then flash a scrollbar. From sm up the row is unbounded, so nothing clips.
-        <div className="flex min-w-0 max-w-[58%] shrink-0 items-center justify-end gap-1 overflow-x-auto overflow-y-hidden sm:max-w-none sm:overflow-visible">
+        <div className={cn("flex min-w-0 max-w-[58%] shrink-0 items-center justify-end gap-1 overflow-x-auto overflow-y-hidden sm:max-w-none sm:overflow-visible", actionsClassName)}>
           {actions}
         </div>
       ) : null}

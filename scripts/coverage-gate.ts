@@ -1,12 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export type CoverageThresholds = {
+type CoverageThresholds = {
   statements: number;
   branches: number;
   functions: number;
   lines: number;
 };
+
+/**
+ * Vitest also accepts a map of per-glob thresholds. Keeping that shape here
+ * lets a package retain historical floors for already-covered files while
+ * giving newly introduced files their measured baseline floor.
+ */
+export type CoverageThresholdConfig =
+  | CoverageThresholds
+  | (Partial<CoverageThresholds> & Record<string, number | boolean | CoverageThresholds | undefined>);
 
 /**
  * The TypeScript twin of scripts/gate-level.sh, for the vitest configs.
@@ -41,6 +50,6 @@ function gateLevel(): "fast" | "standard" | "strict" {
  * edit to any config. Returning undefined is what vitest reads as "report the
  * coverage, assert nothing".
  */
-export function coverageThresholds(thresholds: CoverageThresholds): CoverageThresholds | undefined {
+export function coverageThresholds<T extends CoverageThresholdConfig>(thresholds: T): T | undefined {
   return gateLevel() === "fast" ? undefined : thresholds;
 }

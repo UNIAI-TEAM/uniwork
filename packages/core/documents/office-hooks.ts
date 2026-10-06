@@ -10,6 +10,7 @@ import {
   type CopyDocumentBody,
   type CreateBlankDocumentFileBody,
   type OfficeJob,
+  type OfficeJobResult,
   type StartOfficeJobBody,
 } from "../api/endpoints/office";
 import { DocumentNotVerifiableError } from "../types/document";
@@ -39,6 +40,16 @@ export const officeKeys = {
 
 export function isLiveOfficeJob(job: OfficeJob | null | undefined): boolean {
   return !!job && LIVE_OFFICE_STATES.has(job.state);
+}
+
+export function isCompletedOfficeConversion(
+  job: OfficeJob | null | undefined,
+): job is OfficeJob & { result: OfficeJobResult; targetFormat: string } {
+  return job?.operation === "convert"
+    && job.state === "completed"
+    && job.targetFormat !== null
+    && job.result !== null
+    && job.result.targetFormat === job.targetFormat;
 }
 
 /** The document's office capabilities (engine rows + create_blank). A null

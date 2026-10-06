@@ -15,6 +15,71 @@ import {
   type PptxParagraphLike,
   type PptxTxnResult,
 } from "./engine";
+import type { AnimationEdit } from "./edits/animation-edits";
+import type { ConnectorEdit } from "./edits/connector-edits";
+import type { ChartEdit } from "./edits/chart-edits";
+import type { FindLinkEdit } from "./edits/find-link-edits";
+import type { FormatEdit } from "./edits/format-edits";
+import type { HeaderFooterEdit } from "./edits/headerfooter-edits";
+import type { MediaEdit } from "./edits/media-edits";
+import type { NotesCommentEdit } from "./edits/notes-comment-edits";
+import type { SectionEdit } from "./edits/section-edits";
+import type { TableEdit } from "./edits/table-edits";
+import type { TextEdit } from "./edits/text-edits";
+import type { ThemeEdit } from "./edits/theme-edits";
+import type { TransitionEdit } from "./edits/transition-edits";
+import {
+  addAnimationGesture,
+  addChartGesture,
+  addConnectorGesture,
+  addCommentGesture,
+  addMediaGesture,
+  addModel3dGesture,
+  addSectionGesture,
+  addSmartArtGesture,
+  addTableGesture,
+  alignElementsGesture,
+  applyHeaderFooterGesture,
+  applyThemeGesture,
+  deleteCommentGesture,
+  distributeElementsGesture,
+  findReplaceGesture,
+  flipElementsGesture,
+  groupElementsGesture,
+  insertSlidePptxGesture,
+  moveSectionGesture,
+  removeAnimationGesture,
+  removeSectionGesture,
+  renameSectionGesture,
+  reorderAnimationGesture,
+  setAdvanceTimeGesture,
+  setAnimationsGesture,
+  setBackgroundGesture,
+  setChartGesture,
+  setEffectsGesture,
+  setFillGesture,
+  setFontGesture,
+  setLinkGesture,
+  setNotesGesture,
+  setParagraphFormatGesture,
+  setSectionsGesture,
+  setShapeAdjustGesture,
+  setShapeGeometryGesture,
+  setSlideLayoutGesture,
+  setSlideSizeGesture,
+  setStrokeGesture,
+  setTableCellAnchorGesture,
+  setTableCellGesture,
+  setTableColWidthGesture,
+  setTableRowHeightGesture,
+  setTableStyleGesture,
+  setTextAnchorGesture,
+  setTextBodyPropsGesture,
+  setTransitionGesture,
+  tableMergeGesture,
+  tableStructureGesture,
+  ungroupElementGesture,
+} from "./wave-ab-gestures";
 
 export const EMU_PER_PX_96 = 9525;
 const DEFAULT_FIT_WIDTH_PX = 960;
@@ -54,6 +119,15 @@ export function makePxToEmu(opened: OpenedPptxLike, fitWidthPx: number): (px: nu
   return (px) => Math.round((px / scale) * EMU_PER_PX_96);
 }
 
+/** pt -> EMU for an inserted stroke; 0, negative, NaN or a missing width would write w="0" / w="NaN". */
+const strokeWidthEmu = (widthPt: number): number => {
+  const emu = Math.round(widthPt * 12700);
+  if (typeof widthPt !== "number" || !Number.isFinite(emu) || emu <= 0) {
+    throw new PptxEngineError("bad_stroke_width", "stroke.widthPt must be a finite number > 0");
+  }
+  return emu;
+};
+
 const requirePositive = (value: number, field: string): number => {
   if (!Number.isFinite(value) || value < 0) {
     throw new PptxEngineError("bad_geometry", field + " must be a finite number >= 0");
@@ -88,7 +162,20 @@ export type PptxEdit =
   | { op: "delete_slide"; slideIndex: number }
   | { op: "add_blank_slide"; slideIndex: number }
   | { op: "add_slide_with_layout"; slideIndex?: number; layout: string | number }
-  | { op: "delete_element"; slideIndex: number; elementId: string };
+  | { op: "delete_element"; slideIndex: number; elementId: string }
+  | ThemeEdit
+  | TableEdit
+  | ChartEdit
+  | TransitionEdit
+  | FindLinkEdit
+  | SectionEdit
+  | AnimationEdit
+  | TextEdit
+  | FormatEdit
+  | ConnectorEdit
+  | NotesCommentEdit
+  | HeaderFooterEdit
+  | MediaEdit;
 
 /** One open deck, mutated only via runTxn — the same object openPptx produced
  * and savePptx will serialize (one engine instance, one model). */
@@ -237,7 +324,8 @@ export class PptxSessionModel {
         },
         ...(input.paragraphs?.length ? { paragraphs: input.paragraphs } : {}),
         ...(input.fillColor ? { fill: input.fillColor } : {}),
-        ...(input.stroke ? { stroke: input.stroke } : {}),
+        // The vendored buildSpXml reads stroke.widthEmu; the typed edit speaks pt.
+        ...(input.stroke ? { stroke: { color: input.stroke.color, widthEmu: strokeWidthEmu(input.stroke.widthPt) } } : {}),
       },
     ]);
     const created = PptxSessionModel.createdIds(result.records);
@@ -345,44 +433,22 @@ export class PptxSessionModel {
     this.txn([{ op: "deleteElement", target: { slide: slideIndex, el: elementId } }]);
   }
 
-  /** Typed dispatch so the adapter's edit channel stays a single entry. */
-  applyEdit(edit: PptxEdit): { applied: true; createdId?: string; targetId?: string } {
-    switch (edit.op) {
-      case "edit_text":
-        return this.editText(edit);
-      case "edit_transform":
-        return this.editTransform(edit);
-      case "add_element":
-        return this.addElement(edit);
-      case "add_image":
-        return this.addImage(edit);
-      case "replace_picture":
-        return this.replacePicture(edit);
-      case "move_slide":
-        this.moveSlide(edit.slideIndex, edit.toIndex);
-        return { applied: true };
-      case "reorder_element":
-        this.reorderElement(edit.slideIndex, edit.elementId, edit.dir);
-        return { applied: true };
-      case "set_slide_hidden":
-        this.setSlideHidden(edit.slideIndex, edit.hidden);
-        return { applied: true };
-      case "duplicate_slide":
-        this.duplicateSlide(edit.slideIndex, edit.clearText);
-        return { applied: true };
-      case "delete_slide":
-        this.deleteSlide(edit.slideIndex);
-        return { applied: true };
-      case "add_blank_slide":
-        this.addBlankSlide(edit.slideIndex);
-        return { applied: true };
-      case "add_slide_with_layout":
-        this.addSlideWithLayout(edit.layout, edit.slideIndex);
-        return { applied: true };
-      case "delete_element":
-        this.deleteElement(edit.slideIndex, edit.elementId);
-        return { applied: true };
+  /** One transaction for the extracted wave-A/B gestures (wave-ab-gestures.ts):
+   * the same dry-run plan + atomic apply + journal seam the built-in gestures
+   * use. Validation and px->EMU stay in the builders, never here. */
+  runBuiltTxn(ops: PptxOp[]): PptxTxnResult {
+    return this.txn(ops);
+  }
+
+  /** Typed dispatch so the adapter's edit channel stays a single entry.
+   * The kind → handler table is PPTX_EDIT_REGISTRY below (the B1..B8
+   * extension point); an unregistered kind is refused, never ignored. */
+  applyEdit(edit: PptxEdit): PptxEditResult {
+    const handler = PPTX_EDIT_REGISTRY[edit.op] as PptxEditHandler | undefined;
+    if (typeof handler !== "function") {
+      throw new PptxEngineError("unsupported_edit", "no handler is registered for edit kind " + String(edit.op));
     }
+    return handler(this, edit);
   }
 
   /** Called by the adapter after a successful save — upstream commitSaved
@@ -391,4 +457,139 @@ export class PptxSessionModel {
   markSaved(): void {
     this.dirty = false;
   }
+}
+
+/** Result of one applied edit; createdId/targetId let the host track selection. */
+interface PptxEditResult {
+  applied: true;
+  createdId?: string;
+  targetId?: string;
+  /** tableMerge/tableStructure only: the surviving element id (after.elementId). */
+  elementId?: string;
+}
+
+/** One edit kind → one handler. `Extract` keeps every entry tied to its own
+ * union member, so a handler cannot read another kind's fields. */
+type PptxEditHandlerFor<K extends PptxEdit["op"]> = (
+  model: PptxSessionModel,
+  edit: Extract<PptxEdit, { op: K }>,
+) => PptxEditResult;
+
+/** Handler as called from the registry lookup (kind already matched by the
+ * record index; TypeScript cannot correlate a union-valued index, so callers
+ * cast the single selected entry). */
+type PptxEditHandler = (model: PptxSessionModel, edit: PptxEdit) => PptxEditResult;
+
+/**
+ * EDIT-KIND REGISTRY — the extension point for the B1..B8 richer-edit tasks.
+ *
+ * The mapped type makes the union and the table agree: adding a kind to the
+ * `PptxEdit` union without registering it here is a compile error, so the
+ * model can never advertise an edit it does not apply.
+ *
+ * Wave A/B logic kinds are registered here: design (apply_theme,
+ * set_slide_size, set_background, set_slide_layout), tables (add_table,
+ * set_table_cell, table_merge, table_structure, set_table_row_height,
+ * set_table_col_width, set_table_cell_anchor, set_table_style), charts
+ * (add_chart, set_chart), transitions (set_transition, set_advance_time),
+ * find/link (find_replace, set_link) and sections (add_section,
+ * rename_section, remove_section, move_section, set_sections).
+ * Animation (add_animation, remove_animation, reorder_animation,
+ * set_animations) and text formatting (set_font, set_paragraph_format) are
+ * registered alongside them.
+ * The A4e format/arrange kinds (set_fill, set_stroke, set_effects,
+ * set_shape_geometry, set_shape_adjust, ungroup_element, group_elements,
+ * flip_elements, set_text_anchor, set_text_body_props, align_elements,
+ * distribute_elements), the A5e notes/comment kinds (set_notes, add_comment,
+ * delete_comment), the B7e header/footer kinds (apply_header_footer,
+ * insert_slide_pptx) and the B8e media kinds (add_media, add_smartart,
+ * add_model3d) are registered the same way.
+ *
+ * To add a kind:
+ *   1. add its shape to the `PptxEdit` union above;
+ *   2. register one entry here whose handler calls a gesture method that
+ *      builds the vendored pptx-ops op and runs through `txn()` (dry-run plan
+ *      + atomic apply) — validation and px→EMU conversion stay in the gesture,
+ *      never in the table;
+ *   3. map the op onto its inverse for undo (the B track owns undo/redo) and
+ *      cover it with the edit → save → reopen round-trip test.
+ */
+const PPTX_EDIT_REGISTRY: { [K in PptxEdit["op"]]: PptxEditHandlerFor<K> } = {
+  edit_text: (model, edit) => model.editText(edit),
+  edit_transform: (model, edit) => model.editTransform(edit),
+  add_element: (model, edit) => model.addElement(edit),
+  add_image: (model, edit) => model.addImage(edit),
+  replace_picture: (model, edit) => model.replacePicture(edit),
+  move_slide: (model, edit) => { model.moveSlide(edit.slideIndex, edit.toIndex); return { applied: true }; },
+  reorder_element: (model, edit) => { model.reorderElement(edit.slideIndex, edit.elementId, edit.dir); return { applied: true }; },
+  set_slide_hidden: (model, edit) => { model.setSlideHidden(edit.slideIndex, edit.hidden); return { applied: true }; },
+  duplicate_slide: (model, edit) => { model.duplicateSlide(edit.slideIndex, edit.clearText); return { applied: true }; },
+  delete_slide: (model, edit) => { model.deleteSlide(edit.slideIndex); return { applied: true }; },
+  add_blank_slide: (model, edit) => { model.addBlankSlide(edit.slideIndex); return { applied: true }; },
+  add_slide_with_layout: (model, edit) => { model.addSlideWithLayout(edit.layout, edit.slideIndex); return { applied: true }; },
+  delete_element: (model, edit) => { model.deleteElement(edit.slideIndex, edit.elementId); return { applied: true }; },
+  // Wave A/B logic kinds (UNI-927): design, tables, charts, transitions,
+  // find/link, sections. Each handler is the mechanical txn(build<Area>Ops)
+  // gesture; validation and px->EMU stay in the builders.
+  apply_theme: (model, edit) => { applyThemeGesture(model, edit); return { applied: true }; },
+  set_slide_size: (model, edit) => { setSlideSizeGesture(model, edit); return { applied: true }; },
+  set_background: (model, edit) => { setBackgroundGesture(model, edit); return { applied: true }; },
+  set_slide_layout: (model, edit) => { setSlideLayoutGesture(model, edit); return { applied: true }; },
+  add_table: (model, edit) => addTableGesture(model, edit),
+  set_table_cell: (model, edit) => { setTableCellGesture(model, edit); return { applied: true }; },
+  table_merge: (model, edit) => tableMergeGesture(model, edit),
+  table_structure: (model, edit) => tableStructureGesture(model, edit),
+  set_table_row_height: (model, edit) => { setTableRowHeightGesture(model, edit); return { applied: true }; },
+  set_table_col_width: (model, edit) => { setTableColWidthGesture(model, edit); return { applied: true }; },
+  set_table_cell_anchor: (model, edit) => { setTableCellAnchorGesture(model, edit); return { applied: true }; },
+  set_table_style: (model, edit) => { setTableStyleGesture(model, edit); return { applied: true }; },
+  add_chart: (model, edit) => addChartGesture(model, edit),
+  set_chart: (model, edit) => { setChartGesture(model, edit); return { applied: true }; },
+  set_transition: (model, edit) => { setTransitionGesture(model, edit); return { applied: true }; },
+  set_advance_time: (model, edit) => { setAdvanceTimeGesture(model, edit); return { applied: true }; },
+  find_replace: (model, edit) => { findReplaceGesture(model, edit); return { applied: true }; },
+  set_link: (model, edit) => { setLinkGesture(model, edit); return { applied: true }; },
+  add_section: (model, edit) => { addSectionGesture(model, edit); return { applied: true }; },
+  rename_section: (model, edit) => { renameSectionGesture(model, edit); return { applied: true }; },
+  remove_section: (model, edit) => { removeSectionGesture(model, edit); return { applied: true }; },
+  move_section: (model, edit) => { moveSectionGesture(model, edit); return { applied: true }; },
+  set_sections: (model, edit) => { setSectionsGesture(model, edit); return { applied: true }; },
+  // Animation (B5e) + text formatting (A1e) kinds: same mechanical
+  // txn(build<Area>Ops) gesture; validation/px->EMU stay in the builders.
+  add_animation: (model, edit) => { addAnimationGesture(model, edit); return { applied: true }; },
+  remove_animation: (model, edit) => { removeAnimationGesture(model, edit); return { applied: true }; },
+  reorder_animation: (model, edit) => { reorderAnimationGesture(model, edit); return { applied: true }; },
+  set_animations: (model, edit) => { setAnimationsGesture(model, edit); return { applied: true }; },
+  set_font: (model, edit) => { setFontGesture(model, edit); return { applied: true }; },
+  set_paragraph_format: (model, edit) => { setParagraphFormatGesture(model, edit); return { applied: true }; },
+  // Format/arrange (A4e), notes/comments (A5e), header/footer (B7e) and
+  // media (B8e) kinds: same mechanical txn(build<Area>Ops) gesture;
+  // validation/px->EMU stay in the builders.
+  set_fill: (model, edit) => { setFillGesture(model, edit); return { applied: true }; },
+  set_stroke: (model, edit) => { setStrokeGesture(model, edit); return { applied: true }; },
+  set_effects: (model, edit) => { setEffectsGesture(model, edit); return { applied: true }; },
+  set_shape_geometry: (model, edit) => { setShapeGeometryGesture(model, edit); return { applied: true }; },
+  set_shape_adjust: (model, edit) => { setShapeAdjustGesture(model, edit); return { applied: true }; },
+  ungroup_element: (model, edit) => { ungroupElementGesture(model, edit); return { applied: true }; },
+  group_elements: (model, edit) => { groupElementsGesture(model, edit); return { applied: true }; },
+  flip_elements: (model, edit) => { flipElementsGesture(model, edit); return { applied: true }; },
+  set_text_anchor: (model, edit) => { setTextAnchorGesture(model, edit); return { applied: true }; },
+  set_text_body_props: (model, edit) => { setTextBodyPropsGesture(model, edit); return { applied: true }; },
+  align_elements: (model, edit) => { alignElementsGesture(model, edit); return { applied: true }; },
+  distribute_elements: (model, edit) => { distributeElementsGesture(model, edit); return { applied: true }; },
+  set_notes: (model, edit) => { setNotesGesture(model, edit); return { applied: true }; },
+  add_comment: (model, edit) => { addCommentGesture(model, edit); return { applied: true }; },
+  delete_comment: (model, edit) => { deleteCommentGesture(model, edit); return { applied: true }; },
+  apply_header_footer: (model, edit) => { applyHeaderFooterGesture(model, edit); return { applied: true }; },
+  insert_slide_pptx: (model, edit) => insertSlidePptxGesture(model, edit),
+  add_media: (model, edit) => addMediaGesture(model, edit),
+  add_smartart: (model, edit) => addSmartArtGesture(model, edit),
+  add_model3d: (model, edit) => addModel3dGesture(model, edit),
+  // Glued connector insert (R4fix-connector-engine).
+  add_connector: (model, edit) => addConnectorGesture(model, edit),
+};
+
+/** Registered edit kinds, in registry order — the surface the B track extends. */
+export function pptxEditKinds(): PptxEdit["op"][] {
+  return Object.keys(PPTX_EDIT_REGISTRY) as PptxEdit["op"][];
 }
