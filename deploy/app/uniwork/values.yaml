@@ -84,3 +84,52 @@ networkPolicy:
   # Namespace of the in-cluster Prometheus allowed to scrape be.metricsPort.
   # Empty renders no rule: the port stays closed to every other pod.
   metricsScrapeNamespace: ""
+
+# Office engine (apps/office-engine, G2-02): private conversion/render service
+# the BE calls over the cluster network. Off by default; with it off nothing
+# below renders and the BE refuses office jobs (OFFICE_ENGINE_URL must then be
+# empty in deploy/app/env/uniwork-be.env). Build the image from the repo root:
+#   docker build -f apps/office-engine/Dockerfile -t <registry>/uniwork-office-engine .
+officeEngine:
+  enabled: false
+  replicaCount: 1
+  image:
+    registry: registry-harbor.ubos.vn/uniwork
+    repository: uniwork-office-engine
+    tag: pending
+    digest: ""
+    requireDigest: true
+    pullPolicy: IfNotPresent
+  port: 8090
+  # Bare http(s) origins the engine may fetch inputs from / write outputs to
+  # (the file store's presigned-URL origin). Plain value, not a secret.
+  outputOrigins: ""
+  # Extra OFFICE_ENGINE_* settings (name: value), mirroring the compose
+  # `office` profile defaults. OFFICE_ENGINE_SANDBOX=required is set by the image.
+  env:
+    OFFICE_ENGINE_MAX_WORKERS: "2"
+    OFFICE_ENGINE_MAX_QUEUE: "16"
+    OFFICE_ENGINE_FAULT_OPERATIONS: "0"
+  # tmpfs pages count against the memory limit: 512Mi /tmp (2 workers x 256 MiB
+  # temp) + 2 x 512 MiB job RSS + the service itself stays under 2Gi.
+  tmpSizeLimit: 512Mi
+  terminationGracePeriodSeconds: 15
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "2", memory: 2Gi }
+  securityContext:
+    # The supervisor runs as uid 0 to drop each worker to its slot uid; every
+    # capability it does not need stays dropped (compose cap_add list). The
+    # container also sets allowPrivilegeEscalation=false (no-new-privileges)
+    # and readOnlyRootFilesystem. Compose caps the container at pids_limit 256;
+    # a pod spec has no per-pod pids field, so enforce the same ceiling on the
+    # node with the kubelet `podPidsLimit: 256` (KubeletConfiguration) for the
+    # nodes that carry this pool.
+    addCapabilities: [CHOWN, SETUID, SETGID, KILL, DAC_OVERRIDE, FOWNER]
+  # Existing Secret (created out of band) holding the two engine credentials.
+  # The BE reads the same Secret through be.secrets.officeEngine*.
+  secrets:
+    # Service credential the BE sends; >= 32 chars.
+    serviceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }
+    # Grant signing key; >= 32 chars and DIFFERENT from the service token.
+    grantKey: { name: uniwork-office-engine, key: OFFICE_ENGINE_GRANT_KEY }
