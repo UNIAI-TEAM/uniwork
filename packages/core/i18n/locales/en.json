@@ -7837,6 +7837,7 @@
   },
   "office": {
     "common": {
+      "print": "Print",
       "chrome": {
         "undo": "Undo",
         "redo": "Redo",
@@ -11947,6 +11948,7 @@
       "fileOpenQueued": "The file will open after you close the current document.",
       "actionError": "The action could not be completed. Try again.",
       "printBusy": "A print dialog is already open. Finish or close it first.",
+      "printPreviewHint": "The Windows print dialog may show no preview. The printed pages are still correct.",
       "back": "Back to library",
       "untitled": "Untitled.docx",
       "saveLocal": "Save file",

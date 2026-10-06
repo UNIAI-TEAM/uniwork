@@ -7832,6 +7832,7 @@
   },
   "office": {
     "common": {
+      "print": "In",
       "chrome": {
         "undo": "Hoàn tác",
         "redo": "Làm lại",
@@ -11923,6 +11924,7 @@
       "fileOpenQueued": "Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.",
       "actionError": "Không thể thực hiện thao tác. Thử lại.",
       "printBusy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
+      "printPreviewHint": "Hộp thoại in của Windows có thể không hiện bản xem trước. Trang in ra vẫn đúng.",
       "back": "Về thư viện",
       "untitled": "Tài liệu mới.docx",
       "saveLocal": "Lưu tệp",
