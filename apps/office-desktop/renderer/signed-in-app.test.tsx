@@ -28,7 +28,7 @@ beforeEach(() => sessions.clear());
 afterEach(() => settleDocxSessions(sessions));
 
 /** What the upgrade re-read answers after the first open: a read-only document, or a thrown coded / foreign error. */
-type SecondRead = "view_only" | "gone" | "thrown_forbidden" | "lookalike" | "transient";
+type SecondRead = "view_only" | "gone" | "thrown_forbidden" | "lookalike" | "prefixed" | "transient";
 
 function harness(options: { flags?: Record<string, boolean>; config?: (payload: unknown) => unknown; localFile?: boolean; failSave?: boolean; failLogout?: boolean; readOnly?: boolean; secondRead?: SecondRead; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = fixtureChecksum;
@@ -53,6 +53,7 @@ function harness(options: { flags?: Record<string, boolean>; config?: (payload: 
     if (channel === "desktop:office-open" && options.secondRead && ++opens > 1) {
       if (options.secondRead === "gone") throw new Error("Error invoking remote method 'desktop:office-open': Error: office_document_gone");
       if (options.secondRead === "thrown_forbidden") throw new Error("Error invoking remote method 'desktop:office-open': Error: forbidden");
+      if (options.secondRead === "prefixed") throw new Error("login: forbidden");
       if (options.secondRead === "lookalike") throw new Error("Error invoking remote method 'desktop:office-open': Error: not forbidden by a gateway, office_document_gone_soon");
       if (options.secondRead === "transient") throw new Error("office_request_failed");
     }
@@ -291,7 +292,7 @@ it.each([["view_only", "view_only"], ["thrown_forbidden", "view_only"], ["gone",
   } finally { vi.useRealTimers(); }
 });
 
-it.each([["transient"], ["lookalike"]] as const)("keeps retrying the upgrade read with backoff when the failure is transient (%s)", async (answer) => {
+it.each([["transient"], ["lookalike"], ["prefixed"]] as const)("keeps retrying the upgrade read with backoff when the failure is transient (%s)", async (answer) => {
   vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
   try {
     const { h, opens } = await openThenUpgradeRead(answer);

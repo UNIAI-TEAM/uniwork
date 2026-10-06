@@ -151,8 +151,8 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     const channel = tab.format === "xlsx" ? "desktop:office-context" : "desktop:office-open";
     let raw: unknown;
     try { raw = await bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId }); } catch (error) {
-      // The coded token is the whole message, behind Electron's "Error invoking remote method '<channel>': Error: " wrapper when present.
-      const token = error instanceof Error ? /(?:^|: )(office_document_gone|forbidden)$/.exec(error.message.trim())?.[1] : undefined;
+      // The coded token is the whole message (the transport throws `new Error(code)`), behind Electron's "Error invoking remote method '<channel>': Error: " wrapper when present; any other prefix stays transient.
+      const token = error instanceof Error ? /^(?:Error invoking remote method '[^']*': Error: )?(office_document_gone|forbidden)$/.exec(error.message.trim())?.[1] : undefined;
       if (token === "office_document_gone") return { permanent: "gone" };
       if (token === "forbidden") return { permanent: "view_only" };
       throw error;

@@ -219,3 +219,28 @@ it("backs off each gated tab on its own count: a tab that keeps failing does not
   expect(reads("old")).toBe(oldAfterFocus);
   expect(upgradeCloud).not.toHaveBeenCalled();
 });
+
+it("clears a closed tab's pending retry timer: no reopen runs after the tab is gone, and the other tab keeps its own", async () => {
+  vi.useFakeTimers();
+  const { bridge } = bridgeWith(() => Promise.resolve({ flags: { office_engine: true } }));
+  const tab = (id: string) => ({ id, format: "pptx", data: { kind: "cloud", format: "pptx", identity: { organizationId: "org-1", documentId: id } } as unknown as TabDocument });
+  const list = { tabs: [tab("closing"), tab("staying")] };
+  const upgradeCloud = vi.fn((_id: string, _fresh: CloudReopen) => true);
+  const reopen = vi.fn(async (_doc: TabDocument): Promise<CloudReopen | ReopenRefused | null> => null);
+  const reads = (id: string) => reopen.mock.calls.filter(([doc]) => doc.identity.documentId === id).length;
+  const { result, rerender } = renderHook((props: { open: readonly unknown[] }) => {
+    const tabs = { current: { current: list }, tabs: props.open, upgradeCloud } as unknown as ReturnType<typeof useDocumentTabs>;
+    return useFlagGatedTabs(tabs, useOfficeFlags(bridge, base), reopen);
+  }, { initialProps: { open: list.tabs } });
+  act(() => { result.current("closing"); result.current("staying"); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect([reads("closing"), reads("staying")]).toEqual([1, 1]);
+
+  // Close the tab while its 10 s retry is pending: the timer must not fire.
+  list.tabs = [tab("staying")];
+  rerender({ open: list.tabs });
+  await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+  expect(reads("closing")).toBe(1);
+  expect(reads("staying")).toBeGreaterThan(1);
+  expect(vi.getTimerCount()).toBeLessThanOrEqual(1);
+});

@@ -198,6 +198,14 @@ export function useFlagGatedTabs(
   useEffect(() => {
     if (flags !== null) attempt.current();
   }, [flags]);
+  // A closed tab leaves the gate at once: its pending retry timer is cleared instead of firing once more.
+  const openTabs = tabs.tabs;
+  useEffect(() => {
+    const open = new Set(tabs.current.current.tabs.map((entry) => entry.id));
+    for (const id of [...gated.current, ...retryTimers.current.keys()]) if (!open.has(id)) { gated.current.delete(id); settle(id); }
+  // settle only touches stable refs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openTabs]);
   useEffect(() => {
     const wake = () => { if (gated.current.size > 0) attempt.current(); };
     const timers = retryTimers.current;
