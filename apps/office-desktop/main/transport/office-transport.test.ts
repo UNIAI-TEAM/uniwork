@@ -69,11 +69,28 @@ describe("desktop office HTTP transport", () => {
     expect(refreshSession).toHaveBeenCalledTimes(1);
   });
 
-  it("answers a 404 with its own code, keeps 403 as forbidden, and leaves every other status transient", async () => {
-    for (const [status, code] of [[404, "office_document_gone"], [403, "forbidden"], [500, "office_request_failed"], [429, "office_request_failed"]] as const) {
-      const fetchImpl = vi.fn(async () => new Response(null, { status }));
+  const apiBody = (code: string) => JSON.stringify({ error: { code, message: code } });
+  it("maps the API's own 404 / 403 envelope to a permanent code and leaves every other status transient", async () => {
+    for (const [status, body, code] of [
+      [404, apiBody("not_found"), "office_document_gone"],
+      [403, apiBody("forbidden"), "forbidden"],
+      [403, apiBody("email_unverified"), "office_request_failed"],
+      [404, apiBody("something_else"), "office_request_failed"],
+      [500, apiBody("internal"), "office_request_failed"],
+      [429, apiBody("rate_limited"), "office_request_failed"],
+    ] as const) {
+      const fetchImpl = vi.fn(async () => new Response(body, { status }));
       const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
-      await expect(transport.open({ workspaceId: "ws", documentId: "doc-1" })).rejects.toThrow(code);
+      await expect(transport.open({ workspaceId: "ws", documentId: "doc-1" })).rejects.toThrow(new RegExp(`^${code}$`));
+    }
+  });
+  it("keeps a bare or foreign 404 / 403 (gateway, proxy, edge rule) transient", async () => {
+    for (const status of [404, 403]) {
+      for (const body of [null, "", "<html>Bad gateway</html>", JSON.stringify({ message: "nope" }), JSON.stringify({ error: "forbidden" }), JSON.stringify({ error: { code: 404 } })]) {
+        const fetchImpl = vi.fn(async () => new Response(body, { status }));
+        const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+        await expect(transport.open({ workspaceId: "ws", documentId: "doc-1" })).rejects.toThrow(/^office_request_failed$/);
+      }
     }
   });
 

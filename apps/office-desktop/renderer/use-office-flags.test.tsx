@@ -193,3 +193,29 @@ it("drops a gated tab from the retry on a permanent answer, reports it once, and
   expect(onPermanent).toHaveBeenCalledTimes(1);
   expect(upgradeCloud).not.toHaveBeenCalled();
 });
+
+it("backs off each gated tab on its own count: a tab that keeps failing does not delay a newer one (R3-5)", async () => {
+  vi.useFakeTimers();
+  const { bridge } = bridgeWith(() => Promise.resolve({ flags: { office_engine: true } }));
+  const tab = (id: string) => ({ id, format: "pptx", data: { kind: "cloud", format: "pptx", identity: { organizationId: "org-1", documentId: id } } as unknown as TabDocument });
+  const upgradeCloud = vi.fn((_id: string, _fresh: CloudReopen) => true);
+  const tabs = { current: { current: { tabs: [tab("old"), tab("late")] } }, upgradeCloud } as unknown as ReturnType<typeof useDocumentTabs>;
+  const reopen = vi.fn(async (_doc: TabDocument): Promise<CloudReopen | ReopenRefused | null> => null);
+  const reads = (id: string) => reopen.mock.calls.filter(([doc]) => doc.identity.documentId === id).length;
+  const { result } = renderHook(() => useFlagGatedTabs(tabs, useOfficeFlags(bridge, base), reopen));
+  act(() => { result.current("old"); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  // "old" fails at 0 s, 10 s and 30 s: its next retry is 40 s away (t = 70 s).
+  await act(async () => { await vi.advanceTimersByTimeAsync(30_100); });
+  expect(reads("old")).toBe(3);
+
+  // A newer tab starts its own count: its first failure retries after 10 s, whatever "old" has suffered.
+  act(() => { result.current("late"); });
+  await act(async () => { window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(0); });
+  expect(reads("late")).toBe(1);
+  const oldAfterFocus = reads("old");
+  await act(async () => { await vi.advanceTimersByTimeAsync(10_100); });
+  expect(reads("late")).toBe(2);
+  expect(reads("old")).toBe(oldAfterFocus);
+  expect(upgradeCloud).not.toHaveBeenCalled();
+});

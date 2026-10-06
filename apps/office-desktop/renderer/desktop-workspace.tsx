@@ -151,9 +151,10 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     const channel = tab.format === "xlsx" ? "desktop:office-context" : "desktop:office-open";
     let raw: unknown;
     try { raw = await bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId }); } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      if (message.includes("office_document_gone")) return { permanent: "gone" };
-      if (message.includes("forbidden")) return { permanent: "view_only" };
+      // The coded token is the whole message, behind Electron's "Error invoking remote method '<channel>': Error: " wrapper when present.
+      const token = error instanceof Error ? /(?:^|: )(office_document_gone|forbidden)$/.exec(error.message.trim())?.[1] : undefined;
+      if (token === "office_document_gone") return { permanent: "gone" };
+      if (token === "forbidden") return { permanent: "view_only" };
       throw error;
     }
     const read = readCloudOpen(raw);

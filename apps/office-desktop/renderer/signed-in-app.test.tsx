@@ -27,7 +27,10 @@ vi.mock("./office/session", async (importOriginal) => {
 beforeEach(() => sessions.clear());
 afterEach(() => settleDocxSessions(sessions));
 
-function harness(options: { flags?: Record<string, boolean>; config?: (payload: unknown) => unknown; localFile?: boolean; failSave?: boolean; failLogout?: boolean; readOnly?: boolean; secondRead?: "view_only" | "gone" | "transient"; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
+/** What the upgrade re-read answers after the first open: a read-only document, or a thrown coded / foreign error. */
+type SecondRead = "view_only" | "gone" | "thrown_forbidden" | "lookalike" | "transient";
+
+function harness(options: { flags?: Record<string, boolean>; config?: (payload: unknown) => unknown; localFile?: boolean; failSave?: boolean; failLogout?: boolean; readOnly?: boolean; secondRead?: SecondRead; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = fixtureChecksum;
   const documents = Array.from({ length: 10 }, (_, index) => ({ id: `doc-${index}`, workspaceId: "ws", title: `Plan${index}.docx`, kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-01T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }));
   let account = "account";
@@ -49,6 +52,8 @@ function harness(options: { flags?: Record<string, boolean>; config?: (payload: 
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
     if (channel === "desktop:office-open" && options.secondRead && ++opens > 1) {
       if (options.secondRead === "gone") throw new Error("Error invoking remote method 'desktop:office-open': Error: office_document_gone");
+      if (options.secondRead === "thrown_forbidden") throw new Error("Error invoking remote method 'desktop:office-open': Error: forbidden");
+      if (options.secondRead === "lookalike") throw new Error("Error invoking remote method 'desktop:office-open': Error: not forbidden by a gateway, office_document_gone_soon");
       if (options.secondRead === "transient") throw new Error("office_request_failed");
     }
     if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), version: savedVersion, revision: savedRevision, canEdit: !options.readOnly && !(options.secondRead === "view_only" && opens > 1) }, dataBase64: fixtureBase64, checksum: savedChecksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
@@ -256,7 +261,7 @@ it("upgrades a tab that opened read-only before the config arrived, from a fresh
 });
 
 /** A tab that opened read-only before the config arrived, whose upgrade re-read then answers `secondRead`. */
-async function openThenUpgradeRead(secondRead: "view_only" | "gone" | "transient") {
+async function openThenUpgradeRead(secondRead: SecondRead) {
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   const h = harness({ secondRead, config: async () => { await gate; return { flags: { office_engine: true } }; } });
@@ -272,10 +277,10 @@ async function openThenUpgradeRead(secondRead: "view_only" | "gone" | "transient
   return { h, opens };
 }
 
-it.each([["view_only"], ["gone"]] as const)("stops retrying the upgrade read for a permanent %s answer and says so instead of promising an upgrade", async (reason) => {
+it.each([["view_only", "view_only"], ["thrown_forbidden", "view_only"], ["gone", "gone"]] as const)("stops retrying the upgrade read for a permanent %s answer and says so instead of promising an upgrade", async (answer, reason) => {
   vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
   try {
-    const { h, opens } = await openThenUpgradeRead(reason);
+    const { h, opens } = await openThenUpgradeRead(answer);
     await waitFor(() => expect(featureOffReason(h.container)).toBe(reason));
     expect(readonlySurface(h.container)).not.toBeNull();
     expect(screen.queryByText(i18n.t("officeDesktop.library.flagsUnknownDescription", { format: "DOCX" }))).toBeNull();
@@ -286,10 +291,10 @@ it.each([["view_only"], ["gone"]] as const)("stops retrying the upgrade read for
   } finally { vi.useRealTimers(); }
 });
 
-it("keeps retrying the upgrade read with backoff when the failure is transient", async () => {
+it.each([["transient"], ["lookalike"]] as const)("keeps retrying the upgrade read with backoff when the failure is transient (%s)", async (answer) => {
   vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
   try {
-    const { h, opens } = await openThenUpgradeRead("transient");
+    const { h, opens } = await openThenUpgradeRead(answer);
     expect(featureOffReason(h.container)).toBe("flags_unknown");
     await act(async () => { await vi.advanceTimersByTimeAsync(10_100); });
     await waitFor(() => expect(opens()).toBe(3));

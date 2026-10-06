@@ -157,19 +157,21 @@ export function useFlagGatedTabs(
 ) {
   const gated = useRef(new Set<string>());
   const upgrading = useRef(new Set<string>());
-  const failures = useRef(0);
-  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Each gated tab has its own failure count and retry timer, so one flaky tab never delays another.
+  const failures = useRef(new Map<string, number>());
+  const retryTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const { flags, status } = officeFlags;
   const onPermanentRef = useRef(onPermanent);
   onPermanentRef.current = onPermanent;
-  // Rebuilt every render so a retry reads the newest tabs, status and reopen.
-  const attempt = useRef<() => void>(() => undefined);
-  attempt.current = () => {
-    clearTimeout(retryTimer.current);
-    for (const id of [...gated.current]) {
+  const settle = (id: string) => { failures.current.delete(id); clearTimeout(retryTimers.current.get(id)); retryTimers.current.delete(id); };
+  // Rebuilt every render so a retry reads the newest tabs, status and reopen. `only` limits it to one tab (its own timer).
+  const attempt = useRef<(only?: string) => void>(() => undefined);
+  attempt.current = (only) => {
+    for (const id of only === undefined ? [...gated.current] : gated.current.has(only) ? [only] : []) {
       const tab = tabs.current.current.tabs.find((entry) => entry.id === id);
-      if (!tab) { gated.current.delete(id); continue; }
+      if (!tab) { gated.current.delete(id); settle(id); continue; }
       if (upgrading.current.has(id) || status(tab.format, tab.data.identity.organizationId) !== "on") continue;
+      clearTimeout(retryTimers.current.get(id));
       upgrading.current.add(id);
       void reopen(tab.data).catch(() => null).then((fresh) => {
         upgrading.current.delete(id);
@@ -178,17 +180,18 @@ export function useFlagGatedTabs(
         if (!live || status(live.format, live.data.identity.organizationId) !== "on") return;
         if (fresh && "permanent" in fresh) {
           gated.current.delete(id);
+          settle(id);
           onPermanentRef.current(id, fresh.permanent);
-          if (gated.current.size === 0) { failures.current = 0; clearTimeout(retryTimer.current); }
           return;
         }
         if (fresh) {
-          if (tabs.upgradeCloud(id, fresh)) { gated.current.delete(id); failures.current = 0; }
+          if (tabs.upgradeCloud(id, fresh)) { gated.current.delete(id); settle(id); }
           return;
         }
-        failures.current += 1;
-        clearTimeout(retryTimer.current);
-        retryTimer.current = setTimeout(() => attempt.current(), Math.min(RETRY_BASE_MS * 2 ** (failures.current - 1), RETRY_MAX_MS));
+        const count = (failures.current.get(id) ?? 0) + 1;
+        failures.current.set(id, count);
+        clearTimeout(retryTimers.current.get(id));
+        retryTimers.current.set(id, setTimeout(() => attempt.current(id), Math.min(RETRY_BASE_MS * 2 ** (count - 1), RETRY_MAX_MS)));
       });
     }
   };
@@ -197,9 +200,10 @@ export function useFlagGatedTabs(
   }, [flags]);
   useEffect(() => {
     const wake = () => { if (gated.current.size > 0) attempt.current(); };
+    const timers = retryTimers.current;
     window.addEventListener("focus", wake);
     window.addEventListener("online", wake);
-    return () => { window.removeEventListener("focus", wake); window.removeEventListener("online", wake); clearTimeout(retryTimer.current); };
+    return () => { window.removeEventListener("focus", wake); window.removeEventListener("online", wake); for (const timer of timers.values()) clearTimeout(timer); timers.clear(); };
   }, []);
   return (documentId: string) => { gated.current.add(documentId); };
 }
