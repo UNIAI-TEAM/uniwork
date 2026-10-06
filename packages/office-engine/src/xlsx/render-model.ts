@@ -16,6 +16,7 @@ export type { XlsxRenderTable };
 import { attribute, decodeXml, elements, parseDefinedNamesXml, sectionInner, type XlsxParsedDefinedName } from "./render-model-xml.ts";
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
+import { parseDataValidations, type XlsxRenderDataValidation } from "./render-model-validations.ts";
 export { parseThemeXml } from "./render-model-styles.ts";
 
 import type { XlsxCellScalar, XlsxGatewayFunctions } from "./engine.ts";
@@ -85,6 +86,9 @@ export interface XlsxRenderSheet {
   readonly hyperlinks: readonly XlsxRenderHyperlink[];
   readonly cells: Readonly<Record<string, XlsxRenderCell>>;
   readonly conditionalRules?: readonly XlsxRenderConditionalRule[] | undefined;
+  /** Classic data-validation rules the sheet ships (X01). Additive: an absent
+   *  value reads as no rules. */
+  readonly dataValidations?: readonly XlsxRenderDataValidation[] | undefined;
   /** Tables the file ships (xl/tables/tableN.xml). Additive: an absent value
    *  reads as no tables. Read-only; the write path is the table ops. */
   readonly tables?: readonly XlsxRenderTable[] | undefined;
@@ -335,6 +339,7 @@ function parseWorksheetXml(
     hyperlinks,
     cells,
     conditionalRules: parseConditionalRules(xml, parseRefRange, palette),
+    dataValidations: parseDataValidations(xml, parseRefRange),
   };
 }
 

@@ -110,6 +110,7 @@ describe("op-kind registry", () => {
       "add_sheet", "duplicate_sheet", "rename_sheet", "remove_sheet", "reorder_sheet", "set_sheet_hidden",
       "create_table", "remove_table",
       "set_hyperlink", "set_notes", "set_sheet_protection", "set_defined_names",
+      "set_conditional_formats", "set_data_validations",
       "set_visual", "remove_visual",
     ]);
     expect(XLSX_OP_KINDS.map((kind) => kind.slot)).toEqual([
@@ -122,6 +123,7 @@ describe("op-kind registry", () => {
       "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan",
       "tableAdditions", "tableAdditions",
       "hyperlinkEdits", "noteStates", "sheetProtections", "definedNamesState",
+      "cfStates", "dvStates",
       "visualAdditions", "visualAdditions",
     ]);
   });
@@ -179,6 +181,16 @@ describe("op-kind registry", () => {
       set_notes: { op: "set_notes", target: { sheet: "Data" }, attributes: { notes: [{ row: 0, column: 0, author: "Ann", text: "note" }] } },
       set_sheet_protection: { op: "set_sheet_protection", target: { sheet: "Data" }, attributes: { protected: true } },
       set_defined_names: { op: "set_defined_names", attributes: { names: [{ name: "Total", formula: "=SUM(A1:A2)" }] } },
+      set_conditional_formats: {
+        op: "set_conditional_formats",
+        target: { sheet: "Data" },
+        attributes: { rules: [{ ranges: [{ startRow: 0, endRow: 4, startColumn: 0, endColumn: 0 }], rule: { type: "highlightCell", subType: "duplicateValues", style: {} } }] },
+      },
+      set_data_validations: {
+        op: "set_data_validations",
+        target: { sheet: "Data" },
+        attributes: { rules: [{ ranges: [{ startRow: 0, endRow: 4, startColumn: 1, endColumn: 1 }], rule: { type: "list", formula1: "Yes,No" } }] },
+      },
       set_visual: {
         op: "set_visual",
         target: { sheet: "Data" },

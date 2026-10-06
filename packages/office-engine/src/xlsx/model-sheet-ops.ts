@@ -8,6 +8,7 @@ import { type XlsxPageSetupOp } from "./page-setup.ts";
 import { type XlsxTableAddOp } from "./tables.ts";
 import { type XlsxVisualSetOp } from "./ops-visuals.ts";
 import { type XlsxSheetProtectionOp } from "./ops-protection.ts";
+import { renamedRuleSet, type XlsxRuleSetEntry } from "./ops-cf-dv.ts";
 import { type ModelSheetState, type PendingCell, type RemovedSheetState, type XlsxSheetEditPlan } from "./model-state.ts";
 
 /** The subset of session state the sheet ops read and write. */
@@ -24,6 +25,7 @@ export interface XlsxSheetOpHost {
   sheetProtections: Map<string, XlsxSheetProtectionOp>;
   hyperlinks: Map<string, Map<string, XlsxHyperlinkOp>>;
   notes: Map<string, XlsxNotesOp>;
+  ruleSets: Map<string, XlsxRuleSetEntry>;
   sheetOrderChanged: boolean;
   sheetOpsApplied: number;
   addedSheetSequence: number;
@@ -65,6 +67,7 @@ export class XlsxSheetOps {
           if (tombstone.protection !== undefined) this.host.sheetProtections.set(tombstone.state.name, tombstone.protection);
           if (tombstone.hyperlinks !== undefined) this.host.hyperlinks.set(tombstone.state.name, new Map(tombstone.hyperlinks.map((link) => [link.address, link])));
           if (tombstone.notes !== undefined) this.host.notes.set(tombstone.state.name, tombstone.notes);
+          if (tombstone.ruleSets !== undefined) this.host.ruleSets.set(tombstone.state.name, tombstone.ruleSets);
           break;
         }
         this.host.sheetStates.splice(this.insertIndex(op.index), 0, this.makeAddedSheet(op.name, undefined));
@@ -108,6 +111,7 @@ export class XlsxSheetOps {
           protection: this.host.sheetProtections.get(sheet.name),
           ...(this.host.hyperlinks.has(sheet.name) ? { hyperlinks: [...(this.host.hyperlinks.get(sheet.name) ?? new Map()).values()] } : {}),
           ...(this.host.notes.has(sheet.name) ? { notes: this.host.notes.get(sheet.name) } : {}),
+          ...(this.host.ruleSets.has(sheet.name) ? { ruleSets: this.host.ruleSets.get(sheet.name) } : {}),
           index,
         });
         this.dropPendingSheet(sheet.name);
@@ -211,6 +215,11 @@ export class XlsxSheetOps {
       this.host.notes.delete(previous);
       this.host.notes.set(next, { ...notes, sheetName: next });
     }
+    const ruleSets = this.host.ruleSets.get(previous);
+    if (ruleSets !== undefined) {
+      this.host.ruleSets.delete(previous);
+      this.host.ruleSets.set(next, renamedRuleSet(ruleSets, next));
+    }
   }
 
   dropPendingSheet(sheetName: string): void {
@@ -225,6 +234,7 @@ export class XlsxSheetOps {
     this.host.sheetProtections.delete(sheetName);
     this.host.hyperlinks.delete(sheetName);
     this.host.notes.delete(sheetName);
+    this.host.ruleSets.delete(sheetName);
   }
 
   cloneSheetEdits(fromName: string, toName: string): void {
@@ -253,6 +263,8 @@ export class XlsxSheetOps {
     if (links !== undefined) this.host.hyperlinks.set(toName, new Map([...links].map(([address, link]) => [address, { ...link, sheetName: toName }])));
     const notes = this.host.notes.get(fromName);
     if (notes !== undefined) this.host.notes.set(toName, { ...notes, sheetName: toName });
+    const ruleSets = this.host.ruleSets.get(fromName);
+    if (ruleSets !== undefined) this.host.ruleSets.set(toName, renamedRuleSet(ruleSets, toName));
   }
 
   /** The gateway's SheetEditPlan rebuilt from the model's final state. Field

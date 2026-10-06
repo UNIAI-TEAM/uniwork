@@ -21,6 +21,7 @@ import { parseSetHyperlink } from "./ops-hyperlinks.ts";
 import { parseSetNotes } from "./ops-notes.ts";
 import { parseSetSheetProtection } from "./ops-protection.ts";
 import { parseSetDefinedNames } from "./ops-names.ts";
+import { parseSetConditionalFormats, parseSetDataValidations } from "./ops-cf-dv.ts";
 import { parseSetVisual, parseRemoveVisual } from "./ops-visuals.ts";
 
 export {
@@ -115,6 +116,8 @@ export const XLSX_OP_KINDS: readonly XlsxOpKind[] = [
   { wireName: "set_notes", slot: "noteStates", parse: parseSetNotes },
   { wireName: "set_sheet_protection", slot: "sheetProtections", parse: parseSetSheetProtection },
   { wireName: "set_defined_names", slot: "definedNamesState", parse: parseSetDefinedNames },
+  { wireName: "set_conditional_formats", slot: "cfStates", parse: parseSetConditionalFormats },
+  { wireName: "set_data_validations", slot: "dvStates", parse: parseSetDataValidations },
   { wireName: "set_visual", slot: "visualAdditions", parse: parseSetVisual },
   { wireName: "remove_visual", slot: "visualAdditions", parse: parseRemoveVisual },
 ];

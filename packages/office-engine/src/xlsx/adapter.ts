@@ -391,6 +391,16 @@ export class XlsxAdapter {
       .model
       .pendingNoteStates()
       .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // CF/DV rule sets (X01) are declarative whole-sheet snapshots the gateway
+    // rewrites after the worksheet flush; like notes they never move cells.
+    const cfStates = session
+      .model
+      .pendingConditionalFormatStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    const dvStates = session
+      .model
+      .pendingDataValidationStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
     // The pre-assemble recalc runs against the ORIGINAL bytes plus the cell
     // edits, so it is only sound when the save keeps every coordinate and the
     // sheet set: a structural op moves cells the sidecar would read at their
@@ -435,7 +445,7 @@ export class XlsxAdapter {
       keptWarning(mapped.kept);
     }
     const gatewayArguments: XlsxGatewayArguments =
-      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && visualAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
+      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && visualAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && cfStates.length === 0 && dvStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
         ? {}
         : {
             ...(structuralOps.length > 0 ? { structuralOps } : {}),
@@ -446,6 +456,8 @@ export class XlsxAdapter {
             ...(visualAdditions.length > 0 ? { visualAdditions } : {}),
             ...(hyperlinkEdits.length > 0 ? { hyperlinkEdits } : {}),
             ...(noteStates.length > 0 ? { noteStates } : {}),
+            ...(cfStates.length > 0 ? { cfStates } : {}),
+            ...(dvStates.length > 0 ? { dvStates } : {}),
             ...(sheetProtections.length > 0 ? { sheetProtections } : {}),
             ...(definedNamesState === undefined ? {} : { definedNamesState }),
           };

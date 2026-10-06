@@ -8,6 +8,7 @@ export * from "./ops.ts";
 export * from "./page-setup.ts";
 export * from "./ops-protection.ts";
 export * from "./ops-names.ts";
+export * from "./ops-cf-dv.ts";
 export * from "./tables.ts";
 export * from "./recalc.ts";
 export * from "./render-model.ts";
