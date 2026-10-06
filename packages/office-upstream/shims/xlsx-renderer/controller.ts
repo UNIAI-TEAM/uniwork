@@ -7,28 +7,18 @@ import {
   BooleanNumber,
   CommandType,
   ICommandService,
-  LocaleType,
   ThemeService,
   WrapStrategy,
-  mergeLocales,
 } from "@univerjs/core";
 import { UniverSheetsConditionalFormattingPreset } from "@univerjs/preset-sheets-conditional-formatting";
-import UniverPresetSheetsConditionalFormattingEnUS from "@univerjs/preset-sheets-conditional-formatting/locales/en-US";
 import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
-import UniverPresetSheetsCoreEnUS from "@univerjs/preset-sheets-core/locales/en-US";
 import { UniverSheetsDataValidationPreset } from "@univerjs/preset-sheets-data-validation";
-import UniverPresetSheetsDataValidationEnUS from "@univerjs/preset-sheets-data-validation/locales/en-US";
 import { UniverSheetsDrawingPreset } from "@univerjs/preset-sheets-drawing";
 import { UniverSheetsFilterPreset } from "@univerjs/preset-sheets-filter";
-import UniverPresetSheetsFilterEnUS from "@univerjs/preset-sheets-filter/locales/en-US";
 import { UniverSheetsFindReplacePreset } from "@univerjs/preset-sheets-find-replace";
-import UniverPresetSheetsFindReplaceEnUS from "@univerjs/preset-sheets-find-replace/locales/en-US";
 import { UniverSheetsNotePreset } from "@univerjs/preset-sheets-note";
-import UniverPresetSheetsNoteEnUS from "@univerjs/preset-sheets-note/locales/en-US";
 import { UniverSheetsSortPreset } from "@univerjs/preset-sheets-sort";
-import UniverPresetSheetsSortEnUS from "@univerjs/preset-sheets-sort/locales/en-US";
 import { UniverSheetsTablePreset, UniverSheetsTableUIPlugin } from "@univerjs/preset-sheets-table";
-import UniverPresetSheetsTableEnUS from "@univerjs/preset-sheets-table/locales/en-US";
 import type { WorkbookFile, WorkbookRangeResult } from "../../upstream/apps/sheets/src/shared/desktop-api";
 import type { IRange, IStyleData } from "@univerjs/core";
 import { SheetInterceptorService } from "@univerjs/sheets";
@@ -37,6 +27,7 @@ import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { ingestRuleSetMutation, restoreRuleSetFamily, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
 import { ruleSetRestoreAllowed } from "./rule-set-policy";
+import { installDvRejectDialogTitle, rendererLocaleOptions } from "./dv-reject-dialog";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
 import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
 import {
@@ -336,19 +327,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   const runtime: UniverRuntime = createUniver({
     darkMode: options.dark ?? false,
-    locale: LocaleType.EN_US,
-    locales: {
-      [LocaleType.EN_US]: mergeLocales(
-        UniverPresetSheetsCoreEnUS,
-        UniverPresetSheetsConditionalFormattingEnUS,
-        UniverPresetSheetsFilterEnUS,
-        UniverPresetSheetsDataValidationEnUS,
-        UniverPresetSheetsNoteEnUS,
-        UniverPresetSheetsFindReplaceEnUS,
-        UniverPresetSheetsSortEnUS,
-        UniverPresetSheetsTableEnUS,
-      ),
-    },
+    // The app language, with the app's copy for the DV surfaces (X01 vfix-dv).
+    ...rendererLocaleOptions(),
     presets: [
       UniverSheetsCorePreset({
         container: univerHost.id,
@@ -379,6 +359,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   installInjectorResolutionGuard(runtime);
   let findRevealDispose: (() => void) | undefined;
   let numberFormatDispose: { dispose(): void } | undefined;
+  let dvRejectDialogDispose: { dispose(): void } | undefined;
   const wrapMeasureDisposable = installWrapMeasureLifecycle(runtime);
   installJournalSuppressionUndoFilter();
   installLoadAutoHeightGate();
@@ -723,6 +704,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         installForceStringMarkGate(runtime.univer.__getInjector().get(SheetInterceptorService));
         findRevealDispose ??= installFindRevealFix(runtime);
         numberFormatDispose ??= installNumberFormatFix(runtime, () => lazyWorkbookRef.current?.file.date1904 ?? false);
+        dvRejectDialogDispose ??= installDvRejectDialogTitle(runtime, container.ownerDocument, RENDERER_ROOT_CLASS);
       } finally {
         loadAutoHeightSuppression.active = false;
         journalSuppression.active = false;
@@ -856,6 +838,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       for (const disposable of disposables) disposable.dispose();
       findRevealDispose?.();
       numberFormatDispose?.dispose();
+      dvRejectDialogDispose?.dispose();
       wrapMeasureDisposable?.dispose();
       lazyWorkbookRef.current = null;
       try {
