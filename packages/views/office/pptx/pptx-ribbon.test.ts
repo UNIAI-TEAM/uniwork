@@ -72,10 +72,10 @@ describe("pptxRibbonTabs", () => {
     expect(pptxGroupPriority(1)).toBe(5);
     expect(pptxGroupPriority(2)).toBe(0);
     const home = tabs[0]!;
-    expect(home.groups.map((group) => group.id)).toEqual(["slides", "drawing", "editing", "file"]);
-    expect(home.groups.map((group) => group.priority)).toEqual([10, 5, 0, 0]);
-    // Injected groups join the ranking once the editor fills them.
-    const filled = pptxRibbonTabs(commands, { groupItems: { font: [button("font-bold")] } });
+    expect(home.groups.map((group) => group.id)).toEqual(["drawing", "editing", "file"]);
+    expect(home.groups.map((group) => group.priority)).toEqual([10, 5, 0]);
+    // Injected groups (Slides, Font) join the ranking once the editor fills them.
+    const filled = pptxRibbonTabs(commands, { groupItems: { slides: [button("new-slide", "large")], font: [button("font-bold")] } });
     expect(filled[0]!.groups.map((group) => group.id)).toEqual(["slides", "font", "drawing", "editing", "file"]);
     expect(filled[0]!.groups.map((group) => group.priority)).toEqual([10, 5, 0, 0, 0]);
   });
@@ -136,7 +136,7 @@ describe("pptxRibbonTabs", () => {
 
   it("regroups Insert into Office-like groups with one large item each", () => {
     const insert = tabs.find((tab) => tab.id === "insert")!;
-    expect(insert.groups.map((group) => group.id)).toEqual(["slides", "tables", "images", "text", "media"]);
+    expect(insert.groups.map((group) => group.id)).toEqual(["tables", "images", "text", "media"]);
     expect(insert.groups.find((group) => group.id === "images")!.items.map((item) => [item.id, item.size])).toEqual([
       ["panel-insert", "large"],
       ["charts", "small"],
@@ -224,6 +224,17 @@ describe("pptxRibbonTabs", () => {
     expect(media.tooltipKey).toBe(reason);
     exec(media);
     expect(onOpenPanel).not.toHaveBeenCalled();
+  });
+
+  it("puts the editor's New slide button in the Home and Insert Slides groups, and the sorter only on View (UNI-958)", () => {
+    const wired = pptxRibbonTabs(commands, { groupItems: { slides: [button("new-slide", "large")] } });
+    for (const id of ["home", "insert"]) {
+      const tab = wired.find((entry) => entry.id === id)!;
+      expect(tab.groups[0]!.id, id).toBe("slides");
+      expect(tab.groups[0]!.items.map((entry) => entry.id), id).toEqual(["new-slide"]);
+    }
+    const sorterTabs = wired.filter((tab) => itemsOf(tab).some((entry) => entry.id.endsWith("sorter"))).map((tab) => tab.id);
+    expect(sorterTabs).toEqual(["view"]);
   });
 
   it("keeps item ids unique inside every tab, and puts the view panel before the command", () => {

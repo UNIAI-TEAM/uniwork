@@ -15,12 +15,15 @@ export interface PptxSlideRailProps {
   slides: readonly PptxSlideView[];
   selectedIndex: number;
   onSelect: (index: number) => void;
+  /** Delete/Backspace on a focused thumbnail deletes that slide (UNI-958). The
+   *  rail never offers it on a one-slide deck: the engine refuses that delete. */
+  onDelete?: (index: number) => void;
   className?: string;
 }
 
-/** A keyboard-first slide navigator. It never edits the deck; selection is
- * passed back to the one editor session owned by the caller. */
-export function PptxSlideRail({ slides, selectedIndex, onSelect, className }: PptxSlideRailProps) {
+/** A keyboard-first slide navigator. It never edits the deck itself; selection
+ * and Delete are passed back to the one editor session owned by the caller. */
+export function PptxSlideRail({ slides, selectedIndex, onSelect, onDelete, className }: PptxSlideRailProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const buttonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const moveSelection = (index: number) => {
@@ -55,6 +58,12 @@ export function PptxSlideRail({ slides, selectedIndex, onSelect, className }: Pp
               if (event.key === "ArrowUp" || event.key === "ArrowLeft") { event.preventDefault(); moveSelection(index - 1); }
               if (event.key === "Home") { event.preventDefault(); moveSelection(0); }
               if (event.key === "End") { event.preventDefault(); moveSelection(slides.length - 1); }
+              if (event.key === "Delete" || event.key === "Backspace") {
+                // The canvas Delete removes the selected shape; a slide's Delete stays here.
+                event.preventDefault();
+                event.stopPropagation();
+                if (onDelete && slides.length > 1) onDelete(index);
+              }
             }}
           >
             <span className="relative flex aspect-video items-center justify-center overflow-hidden rounded-sm border border-border bg-background text-caption text-muted-foreground">

@@ -58,4 +58,26 @@ describe("PptxSlideRail", () => {
       expect(slide.className).toContain("pointer-coarse:max-[480px]:min-h-11");
     }
   });
+  it("deletes the focused slide with Delete or Backspace and keeps the key off the canvas (UNI-958)", () => {
+    const onDelete = vi.fn();
+    const outer = vi.fn();
+    render(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }, { id: "s3" }]} selectedIndex={1} onSelect={vi.fn()} onDelete={onDelete} />);
+    document.body.addEventListener("keydown", outer);
+    const slides = screen.getAllByRole("button");
+    fireEvent.keyDown(slides[1]!, { key: "Delete" });
+    fireEvent.keyDown(slides[2]!, { key: "Backspace" });
+    expect(onDelete.mock.calls).toEqual([[1], [2]]);
+    // The canvas Delete removes the selected shape; a rail Delete must never reach it.
+    expect(outer).not.toHaveBeenCalled();
+    document.body.removeEventListener("keydown", outer);
+  });
+
+  it("never deletes the last slide and ignores Delete without a delete port", () => {
+    const onDelete = vi.fn();
+    const { rerender } = render(<PptxSlideRail slides={[{ id: "s1" }]} selectedIndex={0} onSelect={vi.fn()} onDelete={onDelete} />);
+    fireEvent.keyDown(screen.getByRole("button"), { key: "Delete" });
+    expect(onDelete).not.toHaveBeenCalled();
+    rerender(<PptxSlideRail slides={[{ id: "s1" }, { id: "s2" }]} selectedIndex={0} onSelect={vi.fn()} />);
+    expect(() => fireEvent.keyDown(screen.getAllByRole("button")[0]!, { key: "Delete" })).not.toThrow();
+  });
 });

@@ -142,3 +142,9 @@ export function pptxShortcutKeys(binding: PptxShortcutBinding, platform: string 
   keys.push(binding.chord.key);
   return keys;
 }
+
+/** A key that types a character (no Ctrl/Cmd/Alt chord): over a selected text element
+ *  it starts editing that element (UNI-958). Checked only after the chords above. */
+export function isPptxTypedKey(event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }): boolean {
+  return event.key.length === 1 && event.ctrlKey !== true && event.metaKey !== true && event.altKey !== true;
+}
