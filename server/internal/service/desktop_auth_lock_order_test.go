@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -156,26 +159,124 @@ func assertUserFullyRevoked(t *testing.T, svc *DesktopAuthService, owner string)
 	}
 }
 
-// The two halves of a user-wide revoke are called only by
-// revokeAllUserSessions, so no caller can take refresh_tokens first or leave
-// the device sessions live.
+// The two halves of a user-wide revoke are referenced only by
+// revokeAllUserSessions - once each, device sessions first - so no caller can
+// take refresh_tokens first or leave the device sessions live. The scan is on the
+// syntax tree: any identifier with either name counts, so a method value
+// (f := q.RevokeAllDeviceSessions), a method expression, an alias or a call
+// through a struct field escapes no more than a plain call does.
+var userWideRevokeHalves = []string{"RevokeAllDeviceSessions", "RevokeAllRefreshTokensForUser"}
+
+const userWideRevokeHelper = "revokeAllUserSessions"
+
+// userWideRevokeViolations returns one line per reference to a half that sits
+// outside the helper, plus any way the helper itself breaks the order.
+func userWideRevokeViolations(fset *token.FileSet, file *ast.File) []string {
+	var found []string
+	positions := map[string][]token.Pos{}
+	var inspect func(n ast.Node, inHelper bool)
+	inspect = func(n ast.Node, inHelper bool) {
+		ast.Inspect(n, func(node ast.Node) bool {
+			switch node := node.(type) {
+			case *ast.FuncDecl:
+				if node.Recv == nil && node.Name.Name == userWideRevokeHelper {
+					inspect(node.Body, true)
+					return false
+				}
+			case *ast.Ident:
+				for _, half := range userWideRevokeHalves {
+					if node.Name != half {
+						continue
+					}
+					if inHelper {
+						positions[half] = append(positions[half], node.Pos())
+					} else {
+						found = append(found, fset.Position(node.Pos()).String()+": "+half+" referenced outside "+userWideRevokeHelper)
+					}
+				}
+			}
+			return true
+		})
+	}
+	inspect(file, false)
+	if len(positions) > 0 {
+		for _, half := range userWideRevokeHalves {
+			if len(positions[half]) != 1 {
+				found = append(found, fmt.Sprintf("%s: %s referenced %d times in %s; want once", fset.Position(file.Pos()).Filename, half, len(positions[half]), userWideRevokeHelper))
+			}
+		}
+		if len(positions[userWideRevokeHalves[0]]) == 1 && len(positions[userWideRevokeHalves[1]]) == 1 && positions[userWideRevokeHalves[0]][0] > positions[userWideRevokeHalves[1]][0] {
+			found = append(found, userWideRevokeHelper+" takes refresh_tokens before the device session rows")
+		}
+	}
+	return found
+}
+
 func TestUserWideRevokeGoesThroughOneHelper(t *testing.T) {
-	files, err := filepath.Glob("*.go")
+	root := filepath.Join("..", "..") // server/; the generated queries (pkg/db) define the halves
+	helpers := 0
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if filepath.ToSlash(path) == "../../pkg/db" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return err
+		}
+		for _, line := range userWideRevokeViolations(fset, file) {
+			t.Errorf("%s; a user-wide revoke goes through %s", line, userWideRevokeHelper)
+		}
+		for _, decl := range file.Decls {
+			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Name.Name == userWideRevokeHelper {
+				helpers++
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range files {
-		if strings.HasSuffix(f, "_test.go") {
-			continue
-		}
-		src, err := os.ReadFile(f)
+	if helpers != 1 {
+		t.Fatalf("found %d definitions of %s; want exactly 1", helpers, userWideRevokeHelper)
+	}
+}
+
+// The guard itself: calls, method values, aliases and method expressions of a
+// half outside the helper are all reported, and the helper's order is checked.
+func TestUserWideRevokeGuardSeesMethodValuesAndAliases(t *testing.T) {
+	check := func(src string) []string {
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, "x.go", "package x;"+src, parser.SkipObjectResolution)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, call := range []string{".RevokeAllRefreshTokensForUser(", ".RevokeAllDeviceSessions("} {
-			if n := strings.Count(string(src), call); n > 0 && (f != "desktop_auth.go" || n != 1) {
-				t.Errorf("%s calls %s %d time(s); a user-wide revoke goes through revokeAllUserSessions", f, call, n)
-			}
+		return userWideRevokeViolations(fset, file)
+	}
+	clean := `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllRefreshTokensForUser() }`
+	if got := check(clean); len(got) != 0 {
+		t.Fatalf("the helper alone must pass, got %v", got)
+	}
+	for name, src := range map[string]string{
+		"call":               clean + `; func f(q *Q) { _ = q.RevokeAllRefreshTokensForUser() }`,
+		"method value":       clean + `; func f(q *Q) { g := q.RevokeAllDeviceSessions; _ = g }`,
+		"alias var":          clean + `; var alias = (*Q).RevokeAllRefreshTokensForUser`,
+		"passed as a value":  clean + `; func f(q *Q) { run(q.RevokeAllDeviceSessions) }`,
+		"helper order":       `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllRefreshTokensForUser(); _ = q.RevokeAllDeviceSessions() }`,
+		"helper twice":       `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllRefreshTokensForUser() }`,
+		"helper missing one": `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions() }`,
+	} {
+		if got := check(src); len(got) == 0 {
+			t.Errorf("%s: the guard let it through", name)
 		}
 	}
 }
