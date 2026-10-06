@@ -57,7 +57,7 @@ describe("XlsxFilterGroup", () => {
       ["xlsx-filter-clear", "clearShort", "clear"],
       ["xlsx-filter-reapply", "reapply", "reapply"],
       ["xlsx-filter-advanced", "advancedShort", "advanced"],
-    ]) {
+    ] as const) {
       const button = screen.getByTestId(id);
       expect(button).toHaveTextContent(lookup(viLocale, `office.xlsx.filter.${short}`) as string);
       expect(button).toHaveAccessibleName(lookup(viLocale, `office.xlsx.filter.${short}`) as string);
