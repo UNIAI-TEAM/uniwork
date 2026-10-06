@@ -722,3 +722,40 @@ describe("PdfEditor", () => {
     expect(screen.getByTestId("pdf-status-zoom")).toHaveTextContent("100%");
   });
 });
+
+describe("PdfEditor in a background desktop tab (review-fe-r1 R7)", () => {
+  it("ignores document Escape and presses while its panel is hidden and inert, so the visible tab's rail still closes", async () => {
+    const panel = (id: string) => (
+      <div data-testid={`panel-${id}`}>
+        <PdfEditor documentKey={`doc-${id}`} editor={editor()} open={{ open: vi.fn(async () => opened()) }} coordinator={coordinator()} capability={capability} />
+      </div>
+    );
+    render(<>{panel("a")}{panel("b")}</>);
+    await waitFor(() => expect(screen.getAllByTestId("pdf-canvas")).toHaveLength(2));
+    const [panelA, panelB] = [screen.getByTestId("panel-a"), screen.getByTestId("panel-b")];
+    const inA = within(panelA);
+    const inB = within(panelB);
+
+    // Tab A's rail is open when the user switches to tab B: A stays mounted, hidden and inert.
+    fireEvent.click(inA.getByTestId("pdf-rail-toggle"));
+    expect(inA.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+    panelA.hidden = true;
+    panelA.setAttribute("inert", "");
+
+    fireEvent.click(inB.getByTestId("pdf-rail-toggle"));
+    expect(inB.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+    // Escape in B closes B's rail; A's handler neither runs nor swallows the key.
+    const escape = fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(inB.getByTestId("pdf-thumbnails-rail")).toHaveClass("hidden");
+    expect(inB.getByTestId("pdf-rail-toggle")).toHaveFocus();
+    expect(escape).toBe(false);
+    expect(inA.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+
+    // A press anywhere in B does not close A's rail either, and focus never moves into A.
+    fireEvent.click(inB.getByTestId("pdf-rail-toggle"));
+    fireEvent.pointerDown(inB.getByTestId("pdf-ribbon-bar"));
+    expect(inB.getByTestId("pdf-thumbnails-rail")).toHaveClass("hidden");
+    expect(inA.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+    expect(panelA).not.toContainElement(document.activeElement as HTMLElement);
+  });
+});
