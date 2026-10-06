@@ -35,6 +35,11 @@ export function DesktopDocumentMenu({ children }: { children?: ReactNode }) {
   </DropdownMenu>;
 }
 
+/** A print_timeout that lands while the window already has focus means the dialog
+ * is gone (its callback never fired): the hint ends after this grace unless the
+ * window blurs first, which hands the decision back to the next focus. */
+const LINGER_FOCUSED_GRACE_MS = 3000;
+
 /** Windows routes Electron's print through the system dialog, which gets no
  * preview from Chromium ("No preview available") while the printed pages are
  * right; no `webContents.print` option fills it. The renderer has no OS API,
@@ -52,7 +57,8 @@ function isWindowsHost(): boolean {
  * must not hide the hint of the dialog that is still open. A `print_timeout`
  * means the same dialog outlived the callback wait, so the hint lingers until
  * a print settles with any other outcome or the app window regains focus after
- * the dialog (the rule main's own busy guard uses).
+ * the dialog (the rule main's own busy guard uses). A timeout answered while the
+ * window is already focused ends it after a short grace instead.
  */
 export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows: boolean = isWindowsHost()): { port: OfficePrintPort; hint: ReactNode } {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
@@ -70,11 +76,12 @@ export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows:
   useEffect(() => {
     if (!lingering) return undefined;
     let sawBlur = !document.hasFocus();
-    const onBlur = () => { sawBlur = true; };
+    let grace = sawBlur ? undefined : setTimeout(() => setLingering(false), LINGER_FOCUSED_GRACE_MS);
+    const onBlur = () => { sawBlur = true; clearTimeout(grace); grace = undefined; };
     const onFocus = () => { if (sawBlur) setLingering(false); };
     window.addEventListener("blur", onBlur);
     window.addEventListener("focus", onFocus);
-    return () => { window.removeEventListener("blur", onBlur); window.removeEventListener("focus", onFocus); };
+    return () => { clearTimeout(grace); window.removeEventListener("blur", onBlur); window.removeEventListener("focus", onFocus); };
   }, [lingering]);
   const shown = windows && (inFlight > 0 || lingering);
   const hint = shown ? <p role="status" className="px-4 py-2 text-caption text-muted-foreground" data-testid="print-preview-hint">{t("printPreviewHint")}</p> : null;

@@ -128,3 +128,39 @@ it("shows the trigger for a view's item alone", async () => {
   openMenu();
   expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["Print"]);
 });
+
+it("ends a lingering hint after a short grace when the timeout lands on an already focused window", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const bridge = pendingBridge([async () => ({ outcome: "failed", reason: "print_timeout" })]);
+    let hook!: Hook;
+    render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+    await act(async () => { await hook.port.print(printArgs); });
+    expect(screen.getByTestId("print-preview-hint")).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(2999); });
+    expect(screen.getByTestId("print-preview-hint")).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("keeps waiting for the next focus when the window blurs during the grace", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const bridge = pendingBridge([async () => ({ outcome: "failed", reason: "print_timeout" })]);
+    let hook!: Hook;
+    render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+    await act(async () => { await hook.port.print(printArgs); });
+    act(() => { window.dispatchEvent(new Event("blur")); });
+    act(() => { vi.advanceTimersByTime(10_000); });
+    expect(screen.getByTestId("print-preview-hint")).toBeInTheDocument();
+    act(() => { window.dispatchEvent(new Event("focus")); });
+    expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
