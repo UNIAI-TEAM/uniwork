@@ -1,7 +1,7 @@
 // Electron is supplied by electron-builder at runtime and intentionally stays
 // a devDependency; this is the only privileged entry module that imports it.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, session, shell, utilityProcess } from "electron";
 import { existsSync } from "node:fs";
 import { release as osRelease } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
@@ -9,9 +9,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
 import { desktopDialogFilters, desktopDocumentFormatForName } from "./shared/document-formats";
-import { handleDesktopEngineCall, type DesktopEngineCall } from "@uniwork/office-engine/desktop";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
-import { createLocalXlsxEngine, resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
+import { resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
+import { createEngineHostClient } from "./main/engine-host/supervisor";
+import { createRemotePdfCall, createRemoteXlsxEngine, engineHostHeapMegabytes } from "./main/engine-host/remote";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./main/platform-gate";
 import { registerAppImageScheme } from "./main/linux-desktop-integration";
@@ -469,8 +470,15 @@ async function startElectronHost(): Promise<void> {
   // A process that quit with a print dialog open never ran its cleanup.
   await clearPrintRoot(printRoot);
   const printHandlers = createPrintIpcHandler({ owner: window, createWindow: (options) => new BrowserWindow({ ...options, parent: window }), writeFile: createPrintFileWriter(printRoot) });
+  // The unbounded local engines (xlsx, pdfium) run in a utilityProcess with a
+  // machine-sized heap: a heap OOM there kills only the child, and every request
+  // in flight answers insufficient_memory (see main/engine-host).
+  const xlsxAssetsDir = resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS });
+  const engineHostClient = createEngineHostClient(() => utilityProcess.fork(join(DIST_MAIN_DIRECTORY, "engine-host.mjs"), [xlsxAssetsDir ?? ""], { serviceName: "uniwork-engine-host", execArgv: [`--max-old-space-size=${engineHostHeapMegabytes()}`] }));
+  app.once("will-quit", () => engineHostClient.dispose());
+  const remotePdfCall = createRemotePdfCall(engineHostClient);
   const host = createDesktopHost({
-    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { data: request.args.data, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
+    handlers: { "desktop:engine-call": (request) => remotePdfCall({ operation: request.operation, handle: request.handle, args: { data: request.args.data, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } }), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
     }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }), ...printHandlers },
@@ -494,7 +502,7 @@ async function startElectronHost(): Promise<void> {
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
-    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createLocalXlsxEngine({ assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) }), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
+    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createRemoteXlsxEngine(engineHostClient), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave, onSaveAsConfirmed: noteConfirmedLocalRebind,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [...desktopDialogFilters(), { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];

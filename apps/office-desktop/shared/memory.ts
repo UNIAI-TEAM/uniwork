@@ -8,6 +8,7 @@ const MEMORY_CODES: ReadonlySet<string> = new Set([
   "ERR_BUFFER_TOO_LARGE",
   "ERR_MEMORY_ALLOCATION_FAILED",
   "ENOMEM",
+  "insufficient_memory",
 ]);
 
 const MEMORY_MESSAGE = /array buffer allocation failed|invalid typed array length|invalid (array( buffer)?|string) length|cannot create a string longer|allocation failed|out of memory|buffer size/i;
