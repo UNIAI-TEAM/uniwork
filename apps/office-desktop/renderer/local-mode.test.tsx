@@ -286,6 +286,28 @@ it("keeps the protection warning visible while the sign-in card is shown", async
   expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailedNamed", { titles: "Local.docx" }))).toBeInTheDocument();
 });
 
+it("treats a checkpoint overtaken by a newer edit as retry-next-tick, not as a protection failure (UNI-956)", async () => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  await screen.findByRole("tab", { name: /Local.docx/ });
+  const handle = `file_${"f".repeat(32)}`;
+  await edit(handle);
+  // Every capture lands one generation behind: the user is still typing.
+  const session = sessions.get(handle)!;
+  const capture = vi.mocked(session.editor.captureSnapshot).getMockImplementation()!;
+  const behind = vi.spyOn(session.editor, "captureSnapshot").mockImplementation(async () => { const snapshot = await capture(); return { ...snapshot, generation: snapshot.generation - 1 }; });
+  await waitFor(() => expect(behind.mock.calls.length).toBeGreaterThanOrEqual(2), { timeout: 20_000 });
+  expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailedNamed", { titles: "Local.docx" }))).toBeNull();
+  expect(h.call).not.toHaveBeenCalledWith("desktop:draft-checkpoint", expect.anything());
+  // The typing stops: the next tick stores the draft (this harness answers no draft row by default).
+  const answer = h.call.getMockImplementation()!;
+  h.call.mockImplementation(async (channel: string, payload?: unknown) => channel === "desktop:draft-checkpoint" ? { stored: true, generation: (payload as { generation: number }).generation } : answer(channel, payload));
+  behind.mockImplementation(capture);
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:draft-checkpoint", expect.objectContaining({ documentId: handle })), { timeout: 20_000 });
+  expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailedNamed", { titles: "Local.docx" }))).toBeNull();
+}, 60_000);
+
 it("clears the protective-checkpoint warning once a local save is confirmed", async () => {
   const h = harness({ localMode: true, failCheckpoint: true });
   await enterLocal(h);

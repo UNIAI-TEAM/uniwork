@@ -217,3 +217,27 @@ it("creates the first local checkpoint through Keep, then recovers the edit afte
     expect(call.mock.calls.some(([channel]) => /office-save|file-save/.test(channel))).toBe(false);
   } finally { restarted.dispose(); }
 });
+
+it("tells a checkpoint overtaken by a newer edit (superseded) from a refused draft write (UNI-956)", async () => {
+  let refuse = false;
+  const call = vi.fn(async (channel: string, payload: { generation: number }) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:draft-checkpoint") { if (refuse) throw new Error("draft store unavailable"); return { stored: true, generation: payload.generation }; }
+    throw new Error(`Unexpected IPC: ${channel}`);
+  });
+  const identity = { ...docxIdentity, documentId: handle, baseVersionId: original.checksum, baseRevision: "10" };
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...original, localHandle: handle });
+  await session.openEditor();
+  session.editor.commands!.setHeading(2);
+  expect(await session.protectDraft()).toBe("stored");
+  // An edit lands while the slow DOCX snapshot is still being serialized.
+  session.editor.commands!.setHeading(3);
+  const racing = session.protectDraft();
+  session.editor.commands!.setHeading(1);
+  expect(await racing).toBe("superseded");
+  expect(await session.keepDraft()).toBe(true);
+  refuse = true;
+  session.editor.commands!.setHeading(2);
+  expect(await session.protectDraft()).toBe("refused");
+  expect(await session.keepDraft()).toBe(false);
+}, 60_000);

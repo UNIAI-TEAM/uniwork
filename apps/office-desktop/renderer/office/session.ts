@@ -414,6 +414,18 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     const snapshot = await editor.captureSnapshot();
     return snapshot.generation === editor.getDirtyGeneration() ? snapshot : null;
   };
+  /** One protection attempt for the current edits. A capture overtaken by a
+   * newer edit (a slow DOCX serialize while the user types) is "superseded":
+   * nothing failed, the next attempt covers the newer edit. Only a failed
+   * capture, draft write or refused IPC is "refused". */
+  const protectDraft = async (): Promise<DraftProtection> => {
+    const state = coordinator.getState();
+    if (state.state === "ready" || state.state === "saved") return "stored";
+    let snapshot: StableSnapshot<Uint8Array> | null;
+    try { snapshot = await captured(); } catch { return "refused"; }
+    if (!snapshot) return "superseded";
+    try { await draft.checkpoint(snapshot); return "stored"; } catch { return "refused"; }
+  };
   return {
     editor,
     coordinator,
@@ -439,12 +451,10 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     /** Keep confirms an encrypted checkpoint for the current edits. This is
      * independent of the main process's pre-write protection for local Save. */
     async keepDraft(): Promise<boolean> {
-      const state = coordinator.getState();
-      if (state.state === "ready" || state.state === "saved") return true;
-      const snapshot = await captured().catch(() => null);
-      if (!snapshot) return false;
-      try { await draft.checkpoint(snapshot); return true; } catch { return false; }
+      return await protectDraft() === "stored";
     },
+    /** The tab timer's attempt: tells a superseded capture from a refusal. */
+    protectDraft,
     /** Discard consumes the chosen row when the caller names it (a conflict row
      * is stored under its own older-base id) and otherwise the current base row. */
     async discardDraft(metadata?: DesktopDraftMetadata): Promise<boolean> {
@@ -495,3 +505,5 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
 }
 
 export type ByteDocumentSession = ReturnType<typeof createByteDocumentSession>;
+/** Outcome of one draft protection attempt (see protectDraft). */
+export type DraftProtection = "stored" | "superseded" | "refused";
