@@ -35,6 +35,17 @@ export interface MasterElementView {
   fill?: string | null;
   /** Current text of a text/placeholder element; seeds the inspector text field. */
   text?: string;
+  /** Level-1 text style the part holds for a placeholder (what Apply text style wrote). */
+  style?: MasterElementStyle;
+}
+
+/** The text style the preview draws; each field is present only when the part sets it. */
+interface MasterElementStyle {
+  sizePt?: number;
+  bold?: boolean;
+  italic?: boolean;
+  /** "#RRGGBB" */
+  color?: string;
 }
 
 /** Every edit the panel can emit; field names match the engine union exactly. */

@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { listMasterPartInfos } from "../src/pptx/edits/master-edits";
 import { createPptxAdapter, PptxEngineError, type PptxEdit } from "../src/pptx";
-import { addPlaceholderXml, removePlaceholderXml, renamePartXml, setTextStyleXml } from "../src/pptx/edits/master-part-xml";
+import { addPlaceholderXml, readTextStyleXml, removePlaceholderXml, renamePartXml, setTextStyleXml } from "../src/pptx/edits/master-part-xml";
 import {
   createFakePptxEngine,
   createFakePptxOps,
@@ -144,6 +144,44 @@ async function opened() {
   if (result.outcome !== "opened") throw new Error("open failed");
   return { adapter, ref: result.document_model_ref };
 }
+
+describe("reading back the text style (master_fix3 #2)", () => {
+  it("reads the level-1 style setTextStyleXml wrote: size, bold, italic, direct colour", () => {
+    const master = setTextStyleXml(XML_MASTER, true, { type: "title" }, { sizePt: 40, bold: true, italic: true, color: "#112233" });
+    expect(readTextStyleXml(master, true, { type: "title" })).toEqual({ sizePt: 40, bold: true, italic: true, color: "#112233" });
+    // A layout placeholder holds its own lstStyle.
+    const layout = setTextStyleXml(XML_LAYOUT, false, { type: "ctrTitle" }, { sizePt: 54, italic: false });
+    expect(readTextStyleXml(layout, false, { type: "ctrTitle" })).toEqual({ sizePt: 54, italic: false });
+    // The slot is addressed by idx like the writer.
+    const two = setTextStyleXml(TWO_BODIES, false, { type: "body", idx: 2 }, { sizePt: 20 });
+    expect(readTextStyleXml(two, false, { type: "body", idx: 2 })).toEqual({ sizePt: 20 });
+    expect(readTextStyleXml(two, false, { type: "body", idx: 1 })).toBeNull();
+  });
+
+  it("reports nothing for an unstyled slot, an unknown slot, and a theme colour", () => {
+    expect(readTextStyleXml(XML_LAYOUT, false, { type: "ctrTitle" })).toBeNull();
+    expect(readTextStyleXml(XML_LAYOUT, false, { type: "body" })).toBeNull();
+    // The master's own title style has sz="4400" and a scheme colour: size read, colour left out.
+    expect(readTextStyleXml(XML_MASTER, true, { type: "title" })).toEqual({ sizePt: 44 });
+  });
+
+  it("readMasterElements carries the style after the edit, re-read from the part text", async () => {
+    const base = createFakePptxEngine();
+    const stub = (archive: unknown, part: string) => ({
+      path: part,
+      elements: [{ id: "t", type: "shape", placeholder: part === FAKE_MASTER_PART ? "title" : "ctrTitle", transform: { offset: { x: 0, y: 0, cx: 9525, cy: 9525 }, rot: 0 } }],
+    });
+    const adapter = createPptxAdapter({ engine: { ...base, parseMasterPart: stub } as typeof base, ops: createFakePptxOps() });
+    const result = await adapter.open({ bytes: makeFakePptxBytes(xmlMasterFixture()), format: "pptx", document_id: "styles" });
+    if (result.outcome !== "opened") throw new Error("open failed");
+    const ref = result.document_model_ref;
+    expect(adapter.masterElements(ref, FAKE_LAYOUT_PART)[0]).not.toHaveProperty("style");
+    adapter.edit(ref, { op: "master_set_text_style", part: FAKE_LAYOUT_PART, placeholder: "ctrTitle", sizePt: 40, italic: true });
+    adapter.edit(ref, { op: "master_set_text_style", part: FAKE_MASTER_PART, placeholder: "title", bold: true, color: "#AA0000" });
+    expect(adapter.masterElements(ref, FAKE_LAYOUT_PART)[0]?.style).toEqual({ sizePt: 40, italic: true });
+    expect(adapter.masterElements(ref, FAKE_MASTER_PART)[0]?.style).toEqual({ sizePt: 44, bold: true, color: "#AA0000" });
+  });
+});
 
 describe("master part edits through the model", () => {
   it("applies all four kinds, survives serialize -> reopen, and lists the renamed layout", async () => {

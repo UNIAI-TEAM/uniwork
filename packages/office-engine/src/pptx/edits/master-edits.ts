@@ -67,6 +67,7 @@ import {
   type PptxFillPatch,
   type PptxStrokePatch,
 } from "./format-edits";
+import { readTextStyleXml, type MasterTextStyleRead } from "./master-part-xml";
 
 /** One master or layout part (structural twin of pptx-engine MasterPartInfo,
  * master-edit.ts:20-27). Masters come first, each followed by its layouts. */
@@ -392,6 +393,8 @@ export interface MasterElementData {
   fill?: string | null;
   /** Plain text of a text/shape element (paragraphs joined by newline). */
   text?: string;
+  /** Level-1 text style the part holds for this placeholder (what Apply text style wrote). */
+  style?: MasterTextStyleRead;
 }
 
 /** The vendored parseMasterPart as the engine seam binds it. */
@@ -464,6 +467,9 @@ export function readMasterElements(
     throw badEdit("bad_master_part", "readMasterElements", 'part "' + part + '" could not be parsed');
   }
   const pxPerEmu = fitWidthPx / (opened.deck.size!.cx / EMU_PER_PX_96) / EMU_PER_PX_96;
+  // The style is read from the part text the edit wrote, so the preview shows what the file holds.
+  const partXml = opened.archive?.readText?.(part);
+  const isMaster = listMasterPartInfos(opened).find((info) => info.partPath === part)?.kind === "master";
   return parsed.elements.map((element) => {
     const offset = element.transform?.offset;
     const text = paragraphsText(element);
@@ -483,6 +489,10 @@ export function readMasterElements(
     const idx = placeholderIdx(element);
     if (idx !== undefined) data.idx = idx;
     if (text !== undefined) data.text = text;
+    if (data.placeholder !== undefined && typeof partXml === "string") {
+      const style = readTextStyleXml(partXml, isMaster, { type: data.placeholder, ...(idx !== undefined ? { idx } : {}) });
+      if (style) data.style = style;
+    }
     return data;
   });
 }

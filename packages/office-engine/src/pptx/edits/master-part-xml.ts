@@ -221,6 +221,51 @@ function patchLevelStyle(listInner: string, patch: MasterTextStylePatch): string
 /** Master text styles that govern a placeholder type (`<p:txStyles>`). */
 const TX_STYLE_OF: Record<string, string> = { title: "p:titleStyle", ctrTitle: "p:titleStyle", body: "p:bodyStyle", subTitle: "p:bodyStyle", obj: "p:bodyStyle" };
 
+/** The level-1 text style a placeholder carries, as `setTextStyleXml` wrote it. */
+export interface MasterTextStyleRead {
+  sizePt?: number;
+  bold?: boolean;
+  italic?: boolean;
+  /** "#RRGGBB" of a direct sRGB text fill; theme colours are not resolved. */
+  color?: string;
+}
+
+const SRGB_RE = /<a:srgbClr\b[^>]*?\sval\s*=\s*["']([0-9A-Fa-f]{6})["']/;
+
+/** Read the style `setTextStyleXml` writes (same slot lookup: master title/body
+ *  from `<p:txStyles>`, else the placeholder's `<a:lstStyle>`; level 1). Null when
+ *  the slot carries no level-1 run style or sets none of the four fields. */
+export function readTextStyleXml(xml: string, isMaster: boolean, wanted: MasterPlaceholderRef): MasterTextStyleRead | null {
+  const txStyle = isMaster ? TX_STYLE_OF[wanted.type] : undefined;
+  let list: string | null = null;
+  if (txStyle) {
+    const styles = findElement(xml, "p:txStyles");
+    list = (styles?.inner ? findElement(styles.inner, txStyle) : null)?.inner ?? null;
+  } else {
+    for (const match of xml.matchAll(SHAPE_RE)) {
+      const found = placeholderOf(match[0]);
+      if (!found || !samePlaceholder(found, wanted)) continue;
+      const body = findElement(match[0], "p:txBody");
+      list = (body?.inner ? findElement(body.inner, "a:lstStyle") : null)?.inner ?? null;
+      break;
+    }
+  }
+  const level = list ? findElement(list, "a:lvl1pPr") : null;
+  const def = level?.inner ? findElement(level.inner, "a:defRPr") : null;
+  if (!def) return null;
+  const style: MasterTextStyleRead = {};
+  const size = Number(readAttr(def.open, "sz"));
+  if (Number.isFinite(size) && size > 0) style.sizePt = size / 100;
+  const bold = readAttr(def.open, "b");
+  if (bold !== undefined) style.bold = bold === "1" || bold === "true";
+  const italic = readAttr(def.open, "i");
+  if (italic !== undefined) style.italic = italic === "1" || italic === "true";
+  const fill = def.inner ? findDirectFill(def.inner) : null;
+  const rgb = fill && def.inner ? SRGB_RE.exec(def.inner.slice(fill.start, fill.end))?.[1] : undefined;
+  if (rgb) style.color = "#" + rgb.toUpperCase();
+  return Object.keys(style).length > 0 ? style : null;
+}
+
 /** Set a placeholder's text style. On a master, title/body slots edit the
  *  master `<p:txStyles>` (what every layout and slide inherits); any other
  *  slot, and every slot on a layout, edits that placeholder's `<a:lstStyle>`. */

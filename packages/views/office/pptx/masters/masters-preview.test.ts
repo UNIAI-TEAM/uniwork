@@ -61,6 +61,23 @@ describe("buildMasterPreview (MAJOR-2)", () => {
     expect(all).not.toMatch(/(fill|stroke)-(neutral|zinc|slate|gray|white|black)/);
   });
 
+  it("draws the text style the part holds: scaled size, weight, italic, colour (master_fix3 #2)", () => {
+    const styled: MasterElementView = { ...ELEMENTS[0]!, style: { sizePt: 40, bold: true, italic: true, color: "#AA0000" } };
+    const [title] = groups(buildMasterPreview({ elements: [styled], selectedId: null, page, t }).root);
+    const label = title!.children?.find((child) => child.tag === "text");
+    // 40 pt at the engine box space, page = 2x the space -> 80 px.
+    expect(label?.attrs).toMatchObject({ "font-size": 80, "font-weight": "bold", "font-style": "italic", fill: "#AA0000" });
+    // The part's colour replaces the ink class (a class would beat the fill attribute).
+    expect(label?.attrs?.class).toBeUndefined();
+    // Italic switched off and no colour: normal style, page ink kept, size from the box heuristic.
+    const plain: MasterElementView = { ...ELEMENTS[0]!, style: { italic: false } };
+    const [unstyled] = groups(buildMasterPreview({ elements: [plain], selectedId: null, page, t }).root);
+    const plainLabel = unstyled!.children?.find((child) => child.tag === "text");
+    expect(plainLabel?.attrs).toMatchObject({ "font-style": "normal", class: "fill-office-page-ink" });
+    expect(plainLabel?.attrs?.["font-size"]).toBe(22);
+    expect(plainLabel?.attrs?.fill).toBeUndefined();
+  });
+
   it("marks the selected element", () => {
     const [title, band] = groups(buildMasterPreview({ elements: ELEMENTS, selectedId: "e_2", page, t }).root);
     expect(title?.attrs?.["data-selected"]).toBe("true");

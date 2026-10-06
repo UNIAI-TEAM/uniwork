@@ -36,6 +36,7 @@ const ON_DARK_TEXT = "fill-office-page-ink-inverse";
 
 const LABEL_MIN_PX = 10;
 const LABEL_MAX_PX = 22;
+const STYLED_MIN_PX = 6;
 
 /** Whether a "#RRGGBB" fill is dark enough that the inverse ink reads better on it than the
  *  dark ink (WCAG relative luminance; ~0.28 is where the two contrast equally). */
@@ -56,8 +57,17 @@ function elementNode(element: MasterElementView, scale: number, selected: boolea
   const placeholder = element.placeholder !== undefined;
   const name = masterElementName(element, t);
   const label = masterElementSnippet(element) || name;
-  const textClass = isDarkFill(element.fill) ? ON_DARK_TEXT : PAGE_INK_TEXT;
-  const fontSize = px(Math.min(LABEL_MAX_PX, Math.max(LABEL_MIN_PX, h * 0.22)));
+  const style = element.style;
+  // The part's own text colour wins over the page ink; the class is dropped then (a class would beat the fill attribute).
+  const inkClass = isDarkFill(element.fill) ? ON_DARK_TEXT : PAGE_INK_TEXT;
+  const textClass = style?.color ? undefined : inkClass;
+  // Applied size: the engine box space is 960 wide, one point per unit (a 13.33in slide), scaled with the page.
+  const fontSize = px(style?.sizePt !== undefined ? Math.max(STYLED_MIN_PX, style.sizePt * scale) : Math.min(LABEL_MAX_PX, Math.max(LABEL_MIN_PX, h * 0.22)));
+  const textStyle = {
+    "font-weight": style?.bold === undefined ? undefined : style.bold ? "bold" : "normal",
+    "font-style": style?.italic === undefined ? undefined : style.italic ? "italic" : "normal",
+    fill: style?.color,
+  };
   return svgEl(
     "g",
     {
@@ -84,6 +94,7 @@ function elementNode(element: MasterElementView, scale: number, selected: boolea
         "dominant-baseline": "middle",
         "font-size": fontSize,
         class: textClass,
+        ...textStyle,
         "xml:space": "preserve",
       }, label),
       placeholder && label !== name
