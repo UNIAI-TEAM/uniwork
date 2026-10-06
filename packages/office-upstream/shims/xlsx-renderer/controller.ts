@@ -26,7 +26,8 @@ import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { ingestRuleSetMutation, readLiveRuleSet, restoreRuleSetFamily, type XlsxRendererLiveRule, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
-import { ruleSetRestoreAllowed } from "./rule-set-policy";
+import { isRuleSetCommand, ruleSetRestoreAllowed, ruleSetTargetsLive } from "./rule-set-policy";
+import { installStacked } from "./dv-error-style";
 import { watchRendererHistory, type XlsxRendererHistoryState } from "./history";
 import { installDvRejectDialogTitle, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
@@ -372,8 +373,9 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   installInjectorResolutionGuard(runtime);
   let findRevealDispose: (() => void) | undefined;
   let numberFormatDispose: { dispose(): void } | undefined;
-  let dvRejectDialogDispose: { dispose(): void } | undefined;
-  let validatedWriteVerdictDispose: { dispose(): void } | undefined;
+  // The DV prompts and the write gate both wrap onValidateCell; installStacked
+  // removes them in reverse so each wrapper restores its own original.
+  let validateCellWrappersDispose: { dispose(): void } | undefined;
   const wrapMeasureDisposable = installWrapMeasureLifecycle(runtime);
   installJournalSuppressionUndoFilter();
   installLoadAutoHeightGate();
@@ -587,9 +589,15 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     const source = liveSessionSheets(state).find((sheet) => sheet.id === params.subUnitId);
     if (source) pendingSheetCopy = { sourceSheetId: source.id, sourceName: source.name };
   };
+  // The rule ids the live model holds: a rule-manager command must name one.
+  const liveRuleIds = (sheetId: string, kind: XlsxRendererRuleSetKind): string[] | null => {
+    const worksheet = runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId);
+    return worksheet ? readLiveRuleSet(worksheet, kind).map((rule) => rule.id) : null;
+  };
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeCommandExecute, (event) => {
     if (journalSuppression.active) return;
-    if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) {
+    if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false) ||
+        (isRuleSetCommand(event.id) && !ruleSetTargetsLive(event, liveRuleIds))) {
       if (commitInProgress) commitDenied = true;
       // F10: a refused copy never inserts, so a marker left by an earlier
       // copy must not survive to mislabel a later unrelated insert.
@@ -741,8 +749,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         numberFormatDispose ??= installNumberFormatFix(runtime, () => lazyWorkbookRef.current?.file.date1904 ?? false);
         // Separators follow the editor language (vi: 1.250.000.000); Univer keeps "en" otherwise.
         applyHostNumfmtLocale(runtime, getLang() === "vi" ? "vi" : "en");
-        dvRejectDialogDispose ??= installDvRejectDialogTitle(runtime, container.ownerDocument, RENDERER_ROOT_CLASS);
-        validatedWriteVerdictDispose ??= observeValidationVerdicts(runtime.univer.__getInjector().get(SheetInterceptorService), validatedWrites);
+        validateCellWrappersDispose ??= installStacked([
+          () => installDvRejectDialogTitle(runtime, container.ownerDocument, RENDERER_ROOT_CLASS),
+          () => observeValidationVerdicts(runtime.univer.__getInjector().get(SheetInterceptorService), validatedWrites),
+        ]);
       } finally {
         loadAutoHeightSuppression.active = false;
         journalSuppression.active = false;
@@ -889,8 +899,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       for (const disposable of disposables) disposable.dispose();
       findRevealDispose?.();
       numberFormatDispose?.dispose();
-      dvRejectDialogDispose?.dispose();
-      validatedWriteVerdictDispose?.dispose();
+      validateCellWrappersDispose?.dispose();
       wrapMeasureDisposable?.dispose();
       lazyWorkbookRef.current = null;
       try {

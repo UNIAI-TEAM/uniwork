@@ -34,7 +34,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed, readLiveRuleSet, settleDvErrorStyle, ensureDvHintStyle, askOnValidateCell } = module.exports;
+const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed, readLiveRuleSet, settleDvErrorStyle, ensureDvHintStyle, askOnValidateCell, ruleSetTargetsLive, installStacked } = module.exports;
 
 const area = (startRow, endRow, startColumn, endColumn) => ({ startRow, endRow, startColumn, endColumn });
 function state({ applied = ['s1'], ruleSets, ruleCounts } = {}) {
@@ -434,7 +434,8 @@ test('a warning rule asks whether to keep an invalid value; the answer is the ve
   const no = errorStylePort({ errorStyle: 2 }, false, false);
   assert.equal(await settleDvErrorStyle(true, cell, no.port), false);
   assert.equal(no.asked[0].title, 'dvWarningTitle');
-  assert.equal(no.asked[0].message, 'dvRejectTitle');
+  // Without a custom message the body is a sentence, not the title again (F8).
+  assert.equal(no.asked[0].message, 'dvInvalidMessage');
 });
 
 test('an information rule shows a notice: OK keeps the value, Cancel drops it', async () => {
@@ -490,7 +491,87 @@ test('askOnValidateCell settles the question on the verdict the editor awaits, a
   assert.equal(probe.asked.length, 1);
   // Without a usable cell the plugin's verdict passes through untouched.
   assert.equal(await inner({}, sheet, 1, 2), true);
+  // Dispose in the controller's order (installStacked): outer gate first.
   source.onValidateCell = inner;
   ask.dispose();
+  assert.equal(source.onValidateCell, original);
+});
+
+// review dvcf: rule-manager ids, options keys, error-style codes, rejection
+// fallback and the onValidateCell wrapper teardown order.
+test('a rule-manager command must name a rule the live model holds (F2)', () => {
+  const live = { conditionalFormats: ['cf-1', 'cf-2'], dataValidations: ['dv-1'] };
+  const liveIds = (sheetId, kind) => (sheetId === 's1' ? live[kind] : null);
+  const ok = (id, params) => ruleSetTargetsLive(command(id, { ...scope, ...params }), liveIds);
+  assert.equal(ok('sheet.command.remove-data-validation-rule', { ruleId: 'dv-1' }), true);
+  assert.equal(ok('sheet.command.remove-data-validation-rule', { ruleId: 'dv-gone' }), false);
+  assert.equal(ok('sheets.command.update-data-validation-setting', { ruleId: 'dv-gone', setting: { type: 'any' } }), false);
+  assert.equal(ok('sheets.command.update-data-validation-options', { ruleId: 'dv-gone', options: {} }), false);
+  assert.equal(ok('sheet.command.updateDataValidationRuleRange', { ruleId: 'dv-gone', ranges: [area(0, 0, 0, 0)] }), false);
+  assert.equal(ok('sheet.command.set-conditional-rule', { cfId: 'cf-1', rule: cfRule }), true);
+  assert.equal(ok('sheet.command.set-conditional-rule', { cfId: 'cf-9', rule: { ...cfRule, cfId: 'cf-9' } }), false);
+  assert.equal(ok('sheet.command.delete-conditional-rule', { cfId: 'cf-9' }), false);
+  assert.equal(ok('sheet.command.move-conditional-rule', { start: { id: 'cf-1', type: 'self' }, end: { id: 'cf-2', type: 'after' } }), true);
+  assert.equal(ok('sheet.command.move-conditional-rule', { start: { id: 'cf-1', type: 'self' }, end: { id: 'cf-9', type: 'after' } }), false);
+  // A DV id is not a CF id, an unknown sheet holds nothing.
+  assert.equal(ok('sheet.command.delete-conditional-rule', { cfId: 'dv-1' }), false);
+  assert.equal(ruleSetTargetsLive(command('sheet.command.remove-data-validation-rule', { ...scope, subUnitId: 's9', ruleId: 'dv-1' }), liveIds), false);
+  // Area commands name no rule and pass.
+  assert.equal(ok('sheet.command.addDataValidation', { rule: dvRule }), true);
+  assert.equal(ok('sheets.command.clear-range-data-validation', { ranges: [area(0, 0, 0, 0)] }), true);
+});
+
+test('the DV options command admits only the keys the manager sends (F5)', () => {
+  const book = state();
+  const options = (value) => canExecuteCommand(command('sheets.command.update-data-validation-options', { ...scope, ruleId: 'dv-1', options: value }), book, false);
+  assert.equal(options({ errorStyle: 1, error: 'e', errorTitle: 't', showErrorMessage: false }), true);
+  for (const extra of [{ prompt: 'x'.repeat(5000) }, { promptTitle: 'p' }, { showInputMessage: true }, { showDropDown: true }, { renderMode: 1 }, { imeMode: 1 }, { bizInfo: {} }]) {
+    assert.equal(options({ errorStyle: 1, ...extra }), false, JSON.stringify(Object.keys(extra)));
+  }
+  assert.equal(options([]), false);
+});
+
+test('a DV error style is an integer code 0, 1 or 2 (F9)', () => {
+  const book = state();
+  const add = (errorStyle) => canExecuteCommand(command('sheet.command.addDataValidation', { ...scope, rule: { ...dvRule, errorStyle } }), book, false);
+  const options = (errorStyle) => canExecuteCommand(command('sheets.command.update-data-validation-options', { ...scope, ruleId: 'dv-1', options: { errorStyle } }), book, false);
+  for (const code of [0, 1, 2, null, undefined]) {
+    assert.equal(add(code), true, String(code));
+    assert.equal(options(code), true, String(code));
+  }
+  for (const code of [true, '', '1', '2', 1.5, 3, -1]) {
+    assert.equal(add(code), false, JSON.stringify(code));
+    assert.equal(options(code), false, JSON.stringify(code));
+  }
+});
+
+test('a prompt step that throws falls back to the plugin verdict instead of rejecting (F7)', async () => {
+  const source = { onValidateCell: () => Promise.resolve(true) };
+  const workbook = { getUnitId: () => 'file-sha' };
+  const sheet = { getSheetId: () => 's1' };
+  const throwing = (part) => ({
+    ruleAt: () => { if (part === 'ruleAt') throw new Error('sheet gone'); return { errorStyle: 2 }; },
+    isValid: async () => { if (part === 'isValid') throw new Error('no sheet'); return false; },
+    confirm: async () => { throw new Error('dialog gone'); },
+  });
+  for (const part of ['ruleAt', 'isValid', 'confirm']) {
+    const ask = askOnValidateCell(source, throwing(part));
+    assert.equal(await source.onValidateCell(workbook, sheet, 1, 2), true, part);
+    ask.dispose();
+  }
+});
+
+test('stacked onValidateCell wrappers come off in reverse, so the original is restored (F6)', () => {
+  const source = { onValidateCell: () => Promise.resolve(true) };
+  const original = source.onValidateCell;
+  const outer = () => {
+    const inner = source.onValidateCell;
+    const wrapped = (...args) => inner(...args);
+    source.onValidateCell = wrapped;
+    return { dispose() { if (source.onValidateCell === wrapped) source.onValidateCell = inner; } };
+  };
+  const stack = installStacked([() => askOnValidateCell(source, errorStylePort(null).port), outer]);
+  assert.notEqual(source.onValidateCell, original);
+  stack.dispose();
   assert.equal(source.onValidateCell, original);
 });

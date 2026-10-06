@@ -63,7 +63,7 @@ export async function settleDvErrorStyle(accepted: boolean, cell: DvErrorStyleCe
   const style = styleOf(rule);
   if (style === null || rule?.showErrorMessage === false) return true;
   if (await port.isValid(cell)) return true;
-  const message = text(rule?.error) ?? t("dvRejectTitle");
+  const message = text(rule?.error) ?? t("dvInvalidMessage");
   return style === WARNING
     ? port.confirm({
       id: DV_ERROR_STYLE_DIALOG_ID,
@@ -105,12 +105,28 @@ export function askOnValidateCell(source: DvValidateCellSource, port: DvErrorSty
     if (typeof unitId !== "string" || typeof subUnitId !== "string" || typeof row !== "number" || typeof col !== "number") {
       return verdict;
     }
-    return Promise.resolve(verdict).then((accepted) => settleDvErrorStyle(accepted !== false, { unitId, subUnitId, row, col }, port));
+    // A rule lookup, validator or dialog that throws (a sheet gone mid-commit)
+    // falls back to the plugin's own verdict instead of rejecting the
+    // promise the editor awaits (review dvcf F7).
+    return Promise.resolve(verdict).then((accepted) =>
+      settleDvErrorStyle(accepted !== false, { unitId, subUnitId, row, col }, port).catch(() => accepted !== false));
   };
   source.onValidateCell = wrapped;
   return {
     dispose() {
       if (source.onValidateCell === wrapped) source.onValidateCell = original;
+    },
+  };
+}
+
+/** Installs wrappers of one method in order and removes them in reverse:
+ *  each wrapper restores its original only while it is the outermost, so the
+ *  last installed must go first (review dvcf F6). */
+export function installStacked(installs: readonly (() => { dispose(): void })[]): { dispose(): void } {
+  const installed = installs.map((install) => install());
+  return {
+    dispose() {
+      for (const entry of installed.reverse()) entry.dispose();
     },
   };
 }

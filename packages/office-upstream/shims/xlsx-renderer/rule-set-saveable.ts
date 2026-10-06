@@ -21,7 +21,10 @@ export function dvRuleSaveable(rule: unknown): boolean {
   const { type, operator, errorStyle } = rule as { type?: unknown; operator?: unknown; errorStyle?: unknown };
   if (typeof type !== "string" || !DV_RULE_TYPES.has(type)) return false;
   if (operator !== undefined && operator !== "" && (typeof operator !== "string" || !DV_OPERATORS.has(operator))) return false;
-  return errorStyle === undefined || errorStyle === null || DV_ERROR_STYLES.has(Number(errorStyle));
+  // The model holds the loader's integer codes; Number() let true, "" and "1"
+  // through, and the prompt (dv-error-style.ts) never asks for those.
+  return errorStyle === undefined || errorStyle === null ||
+    (typeof errorStyle === "number" && DV_ERROR_STYLES.has(errorStyle));
 }
 
 /** The inner Univer CF rule object (`rule.rule`) the gateway's own serializer

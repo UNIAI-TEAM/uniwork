@@ -115,6 +115,42 @@ export function ruleSetCommandAllowed(event: RendererCommand, state: LazyWorkboo
   return false;
 }
 
+/** The model ids a rule-manager command addresses, or null for the commands
+ *  that address areas instead (add, clear). */
+function ruleManagerTargets(event: RendererCommand): string[] | null {
+  const params = event.params as RuleSetParams | undefined;
+  switch (event.id) {
+    case "sheet.command.set-conditional-rule":
+    case "sheet.command.delete-conditional-rule":
+      return [params?.cfId as string];
+    case "sheet.command.move-conditional-rule":
+      return [(params?.start as { id?: string } | undefined)?.id as string, (params?.end as { id?: string } | undefined)?.id as string];
+    case "sheets.command.update-data-validation-setting":
+    case "sheets.command.update-data-validation-options":
+    case "sheet.command.updateDataValidationRuleRange":
+    case "sheet.command.remove-data-validation-rule":
+      return [params?.ruleId as string];
+  }
+  return null;
+}
+
+/** A rule-manager command must address rules the sheet's live model holds
+ *  (review dvcf F2): the pinned remove-DV handler "succeeds" on an unknown id
+ *  and pushes an undo that inserts an empty rule. `liveIds` reads the live
+ *  model (readLiveRuleSet); null = no such sheet. Runs after
+ *  ruleSetCommandAllowed, which already checked the params' shapes. */
+export function ruleSetTargetsLive(
+  event: RendererCommand,
+  liveIds: (sheetId: string, kind: XlsxRendererRuleSetKind) => readonly string[] | null,
+): boolean {
+  const targets = ruleManagerTargets(event);
+  if (targets === null) return true;
+  const sheetId = (event.params as RuleSetParams | undefined)?.subUnitId;
+  if (typeof sheetId !== "string") return false;
+  const live = liveIds(sheetId, event.id.includes("conditional") ? "conditionalFormats" : "dataValidations");
+  return !!live && targets.every((id) => typeof id === "string" && live.includes(id));
+}
+
 const MAX_RULE_ID = 200;
 
 function idOK(value: unknown): boolean {
@@ -127,10 +163,16 @@ function anchorOK(value: unknown, types: readonly string[]): boolean {
   return idOK(anchor.id) && typeof anchor.type === "string" && types.includes(anchor.type);
 }
 
+/** The option keys the DV rule manager sends. Any other key (prompt,
+ *  promptTitle, showDropDown, renderMode, …) is refused: nothing bounds it
+ *  here, and an unbounded prompt would fail the save (review dvcf F5). */
+const DV_OPTION_KEYS = new Set(["errorStyle", "error", "errorTitle", "showErrorMessage"]);
+
 /** DV options: an error style xlsx-dv.ts maps, bounded message strings and a
- *  boolean alert flag; anything else in the object stays the plugin's. */
+ *  boolean alert flag, and nothing else. */
 function dvOptionsOK(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (Object.keys(value).some((key) => !DV_OPTION_KEYS.has(key))) return false;
   const options = value as { errorStyle?: unknown; error?: unknown; errorTitle?: unknown; showErrorMessage?: unknown };
   const textOK = (field: unknown, max: number) => field === undefined || (typeof field === "string" && field.length <= max);
   return dvRuleSaveable({ type: "any", errorStyle: options.errorStyle }) && textOK(options.error, 255) &&
