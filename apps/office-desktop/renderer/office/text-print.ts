@@ -1,5 +1,5 @@
-import type { OfficePrintOutcome, OfficePrintPort } from "@uniwork/views/office/print";
-import { desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES, type DesktopIpcRequest } from "../../shared/ipc";
+import { A4_PORTRAIT_PAGE, type OfficePrintOutcome, type OfficePrintPage, type OfficePrintPort } from "@uniwork/views/office/print";
+import { desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES, type DesktopIpcRequest, type DesktopPrintOptions } from "../../shared/ipc";
 
 /**
  * The desktop print port for every Office format (UNI-928, UNI-952).
@@ -32,6 +32,30 @@ function withDocumentTitle(html: string, title: string): string {
   return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
 }
 
+/** The schema's paper-side bounds (10 mm .. 2 m), in microns. */
+const MIN_MICRONS = 10_000;
+const MAX_MICRONS = 2_000_000;
+
+function microns(mm: number): number {
+  return Math.min(MAX_MICRONS, Math.max(MIN_MICRONS, Math.round(mm * 1000)));
+}
+
+/**
+ * The print options for a document page (A4 portrait when the view gave
+ * none). Chromium reads `pageSize` as the physical sheet and turns it with
+ * `landscape`, so the sheet goes over portrait (short side first) and the
+ * orientation rides on the flag: a 13.33 x 7.5 in slide becomes a 7.5 x 13.33
+ * in sheet printed landscape, which is what the copy's `@page size` lays out.
+ */
+export function desktopPrintOptions(page: OfficePrintPage | undefined): DesktopPrintOptions {
+  // A size that is not a number would fail the schema and print nothing.
+  const usable = page && Number.isFinite(page.widthMm) && Number.isFinite(page.heightMm) ? page : A4_PORTRAIT_PAGE;
+  const { widthMm, heightMm, landscape } = usable;
+  const short = Math.min(widthMm, heightMm);
+  const long = Math.max(widthMm, heightMm);
+  return { landscape, pageSize: { width: microns(short), height: microns(long) } };
+}
+
 /** A blank title would leave the copy untitled and Chromium would name the job
  * after the app ("Electron"); fall back to the generic document name. */
 function jobTitle(title: string): string {
@@ -46,13 +70,15 @@ function utf8Bytes(text: string): number {
 
 /**
  * The desktop `OfficePrintPort`: stamp the document title on the sanitized
- * copy a view produced and send it to main, which prints it. Never throws - a
+ * copy a view produced and send it to main with the page geometry as print
+ * options (the system dialog opens in the document's orientation and paper,
+ * not portrait), and main prints it. Never throws - a
  * refused call, a malformed answer, an oversized copy or a missing bridge is a
  * typed failure, never a silent success.
  */
 export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): OfficePrintPort {
   return {
-    async print({ html, title }): Promise<OfficePrintOutcome> {
+    async print({ html, title, page }): Promise<OfficePrintOutcome> {
       if (!bridge) return { outcome: "failed", reason: "print_unavailable" };
       // Checked before the title is stamped (no reparse of a copy that cannot
       // be sent) and after (the title adds a few bytes).
@@ -62,7 +88,7 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): 
       const copy = withDocumentTitle(html, jobName);
       if (utf8Bytes(copy) > PRINT_HTML_MAX_BYTES) return tooLarge;
       try {
-        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy }));
+        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy, options: desktopPrintOptions(page) }));
         return parsed.success ? parsed.data : { outcome: "failed", reason: "print_response_invalid" };
       } catch {
         // A refused call (sender check, closed bridge): a code, never the raw Electron message.

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createIpcDispatcher, IpcValidationError, IPC_MAX_BYTES, PRINT_HTML_MAX_BYTES, validateIpcRequest } from "./ipc";
-import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_CALLBACK_TIMEOUT_MS, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printJobTitle, printOutcome, type PrintOwner, type PrintWindow, type PrintWindowOptions } from "./print";
+import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, electronPrintOptions, installPrintSessionGuard, PRINT_CALLBACK_TIMEOUT_MS, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printJobTitle, printOutcome, type PrintOwner, type PrintWindow, type PrintWindowOptions } from "./print";
 
 const context = { senderId: 7, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 7, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const request = { sessionGeneration: "session_1234", title: "Doc.md", html: `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="script-src 'none'"></head><body><p>x</p></body></html>` };
@@ -19,7 +19,7 @@ function fakeWindow(answer: (callback: PrintCallback) => void, load: () => Promi
     webContents: {
       setWindowOpenHandler: vi.fn((handler: () => { action: "deny" }) => { openHandler = handler; }),
       on: vi.fn((event: string, listener: (event: { preventDefault(): void }) => void) => { listeners.set(event, listener); }),
-      print: vi.fn((_options: { silent: boolean; printBackground: boolean }, callback: PrintCallback) => answer(callback)),
+      print: vi.fn((_options: object, callback: PrintCallback) => answer(callback)),
     },
     loadFile: vi.fn(load),
     isDestroyed: () => destroyed,
@@ -63,6 +63,40 @@ describe("desktop:print-document validation", () => {
   it("fails closed when a handler answers outside the response schema", async () => {
     const dispatch = createIpcDispatcher({ "desktop:print-document": async () => ({ outcome: "printed", path: "C:\\x" }) }, context);
     await expect(dispatch("desktop:print-document", request)).rejects.toThrowError(IpcValidationError);
+  });
+});
+
+// A 13.333 x 7.5 in slide deck, sent as a portrait sheet turned landscape.
+const slideOptions = { landscape: true, pageSize: { width: 190_500, height: 338_658 } };
+
+describe("desktop:print-document page options", () => {
+  it("accepts the document's orientation and paper", () => {
+    const withOptions = { ...request, options: slideOptions };
+    expect(validateIpcRequest("desktop:print-document", withOptions, context)).toEqual(withOptions);
+  });
+  it.each([
+    ["a missing landscape flag", { pageSize: slideOptions.pageSize }],
+    ["a named size", { landscape: false, pageSize: "A4" }],
+    ["a fractional micron", { landscape: false, pageSize: { width: 210_000.5, height: 297_000 } }],
+    ["a sheet under 10 mm", { landscape: false, pageSize: { width: 9_999, height: 297_000 } }],
+    ["a sheet over 2 m", { landscape: false, pageSize: { width: 210_000, height: 2_000_001 } }],
+    ["a negative side", { landscape: false, pageSize: { width: -210_000, height: 297_000 } }],
+    ["an extra size key", { landscape: false, pageSize: { width: 210_000, height: 297_000, unit: "mm" } }],
+    ["a silent print", { ...slideOptions, silent: true }],
+    ["a printer name", { ...slideOptions, deviceName: "Office printer" }],
+    ["a string flag", { landscape: "true", pageSize: slideOptions.pageSize }],
+  ])("refuses %s", (_label, options) => {
+    expect(() => validateIpcRequest("desktop:print-document", { ...request, options }, context)).toThrowError(expect.objectContaining({ code: "schema" }));
+  });
+  it("opens the dialog in the document's orientation and paper, never silently", () => {
+    expect(electronPrintOptions(slideOptions)).toEqual({ silent: false, printBackground: true, landscape: true, pageSize: { width: 190_500, height: 338_658 } });
+    expect(electronPrintOptions({ landscape: false, pageSize: { width: 210_000, height: 297_000 } })).toEqual({ silent: false, printBackground: true, landscape: false, pageSize: { width: 210_000, height: 297_000 } });
+    expect(electronPrintOptions(undefined)).toEqual({ silent: false, printBackground: true });
+  });
+  it("hands the validated options to webContents.print", async () => {
+    const { handler, window } = harness((callback) => callback(true, ""));
+    expect(await handler({ ...request, options: slideOptions })).toEqual({ outcome: "printed" });
+    expect(window.webContents.print).toHaveBeenCalledWith({ silent: false, printBackground: true, landscape: true, pageSize: { width: 190_500, height: 338_658 } }, expect.any(Function));
   });
 });
 

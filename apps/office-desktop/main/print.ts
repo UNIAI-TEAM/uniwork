@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { DesktopIpcRequest, DesktopPrintResponse } from "../shared/ipc";
+import type { DesktopIpcRequest, DesktopPrintOptions, DesktopPrintResponse } from "../shared/ipc";
 
 /**
  * Desktop print for every Office format (UNI-928, UNI-952). A print started from a sandboxed
@@ -41,12 +41,26 @@ export type PrintWindow = {
   webContents: {
     setWindowOpenHandler(handler: () => { action: "deny" }): void;
     on(event: "will-navigate" | "will-redirect" | "will-frame-navigate" | "will-attach-webview", listener: (event: PreventableEvent) => void): void;
-    print(options: { silent: boolean; printBackground: boolean }, callback: (success: boolean, failureReason: string) => void): void;
+    print(options: ElectronPrintOptions, callback: (success: boolean, failureReason: string) => void): void;
   };
   loadFile(path: string): Promise<void>;
   isDestroyed(): boolean;
   close(): void;
 };
+
+/** The slice of Electron's `WebContentsPrintOptions` main ever passes. */
+type ElectronPrintOptions = { silent: false; printBackground: true; landscape?: boolean; pageSize?: { width: number; height: number } };
+
+/**
+ * Map the validated request options onto `webContents.print`: the dialog
+ * always opens (never silent) and opens in the document's orientation and
+ * paper. Each key is copied by name, never a spread of the payload. No
+ * options (an older renderer) keeps Chromium's plain dialog.
+ */
+export function electronPrintOptions(options: DesktopPrintOptions | undefined): ElectronPrintOptions {
+  if (!options) return { silent: false, printBackground: true };
+  return { silent: false, printBackground: true, landscape: options.landscape, pageSize: { width: options.pageSize.width, height: options.pageSize.height } };
+}
 
 export type PrintFile = Readonly<{ path: string; cleanup(): Promise<void> }>;
 
@@ -189,7 +203,7 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
           // returns to the app as the dialog appears does not count.
           owner?.on("blur", onBlur);
           owner?.on("focus", onFocus);
-          created.webContents.print({ silent: false, printBackground: true }, (success, failureReason) => resolve(printOutcome(success, failureReason)));
+          created.webContents.print(electronPrintOptions(request.options), (success, failureReason) => resolve(printOutcome(success, failureReason)));
         });
       } catch {
         await release();

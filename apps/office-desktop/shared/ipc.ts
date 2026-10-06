@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, DESKTOP_DOCUMENT_FORMATS, desktopDocumentMimeTypes, type DesktopDocumentFormat } from "./document-formats";
 import { isAllowedExternalUrl } from "./external-url";
+import { desktopPrintOptionsSchema, desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES } from "./ipc-print";
+
+export { PRINT_HTML_MAX_BYTES, desktopPrintResponseSchema, type DesktopPrintOptions, type DesktopPrintResponse } from "./ipc-print";
 
 /** The closed desktop wire surface. Keep this module free of Electron and
  * main-process imports so preload and renderer can consume only contracts. */
@@ -293,16 +296,6 @@ export const desktopDiagnosticsResponseSchema = z.object({
   originHost: z.string().min(1).max(255).optional(),
 }).strict();
 export const desktopAuthConfigResponseSchema = z.object({ clientId: clientIdSchema, deploymentId: deploymentSchema }).strict();
-/** Desktop print of an already-sanitized copy of any Office format. The renderer
- * sends only a sanitized, script-free copy; main prints it from a separate
- * hidden window with JavaScript off, so the cap only bounds memory. */
-export const PRINT_HTML_MAX_BYTES = 16 * 1024 * 1024;
-export const desktopPrintResponseSchema = z.discriminatedUnion("outcome", [
-  z.object({ outcome: z.literal("printed") }).strict(),
-  z.object({ outcome: z.literal("cancelled") }).strict(),
-  z.object({ outcome: z.literal("failed"), reason: z.string().regex(/^[a-z0-9_]{1,64}$/) }).strict(),
-]);
-export type DesktopPrintResponse = z.infer<typeof desktopPrintResponseSchema>;
 export const desktopTabsUpdateResponseSchema = z.object({ updated: z.boolean() }).strict();
 const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-pick-open": desktopFileResponseSchema,
@@ -397,7 +390,7 @@ const requestSchemas = {
   "desktop:file-xlsx": desktopFileXlsxRequestSchema,
   "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
   "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),
-  "desktop:print-document": z.object({ sessionGeneration: sessionGenerationSchema, title: z.string().max(255), html: z.string().min(1).max(PRINT_HTML_MAX_BYTES) }).strict(),
+  "desktop:print-document": z.object({ sessionGeneration: sessionGenerationSchema, title: z.string().max(255), html: z.string().min(1).max(PRINT_HTML_MAX_BYTES), options: desktopPrintOptionsSchema.optional() }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
 export type IpcSenderContext = { senderId: number; frameId: number; origin: string; expectedSenderId: number; expectedFrameId: number; expectedOrigin: string; sessionGeneration: string; allowedExternalHosts?: readonly string[] };

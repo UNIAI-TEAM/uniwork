@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, expect, it, vi } from "vitest";
 import { PRINT_HTML_MAX_BYTES } from "../../shared/ipc";
-import { createDesktopPrintPort, observePrintPort } from "./text-print";
+import { createDesktopPrintPort, desktopPrintOptions, observePrintPort } from "./text-print";
 
 // Any format's copy: a view builds it (DOCX sections, XLSX sheet, PPTX slides,
 // PDF pages, Markdown/HTML preview); the desktop port only stamps the title
@@ -12,7 +12,7 @@ const slideCopy = `<!DOCTYPE html><html><head>${CSP}<style>@page s1 { size: 13.3
 afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ""; });
 
 function stubBridge(answer: () => Promise<unknown>) {
-  const call = vi.fn((_channel: "desktop:print-document", _payload: { sessionGeneration: string; title: string; html: string }) => answer());
+  const call = vi.fn((_channel: "desktop:print-document", _payload: { sessionGeneration: string; title: string; html: string; options?: unknown }) => answer());
   return { call };
 }
 
@@ -24,7 +24,7 @@ it("hands any format's copy to main over the typed print channel, never an in-wi
   expect(bridge.call).toHaveBeenCalledTimes(1);
   const [channel, payload] = bridge.call.mock.calls[0]!;
   expect(channel).toBe("desktop:print-document");
-  expect(payload).toEqual({ sessionGeneration: "desktop-dev-session", title: "Deck.pptx", html: expect.any(String) });
+  expect(payload).toEqual({ sessionGeneration: "desktop-dev-session", title: "Deck.pptx", html: expect.any(String), options: { landscape: false, pageSize: { width: 210_000, height: 297_000 } } });
   const sent = new DOMParser().parseFromString(payload.html, "text/html");
   // Only the title differs from the view's copy; page geometry and data: images pass untouched.
   expect(sent.title).toBe("Deck.pptx");
@@ -105,4 +105,22 @@ it("settles the observer even when the port throws", async () => {
   const port = observePrintPort({ print: () => { throw new Error("boom"); } }, { onStart: () => undefined, onSettled });
   await expect(port.print({ html: "<p>x</p>", title: "t" })).rejects.toThrow("boom");
   expect(onSettled).toHaveBeenCalledTimes(1);
+});
+
+it("opens the system dialog in the document's orientation and paper, not portrait", async () => {
+  const bridge = stubBridge(async () => ({ outcome: "printed" }));
+  // A 13.333 x 7.5 in slide as printed: the sheet goes portrait, the flag turns it.
+  await createDesktopPrintPort(bridge).print({ html: slideCopy, title: "Deck.pptx", page: { widthMm: 338.658, heightMm: 190.5, landscape: true } });
+  expect(bridge.call.mock.calls[0]![1].options).toEqual({ landscape: true, pageSize: { width: 190_500, height: 338_658 } });
+});
+
+it.each([
+  ["A4 portrait when the view gave no page", undefined, { landscape: false, pageSize: { width: 210_000, height: 297_000 } }],
+  ["Letter landscape", { widthMm: 279.4, heightMm: 215.9, landscape: true }, { landscape: true, pageSize: { width: 215_900, height: 279_400 } }],
+  ["A3 portrait", { widthMm: 297, heightMm: 420, landscape: false }, { landscape: false, pageSize: { width: 297_000, height: 420_000 } }],
+  ["a size that is not a number (A4 portrait)", { widthMm: Number.NaN, heightMm: 297, landscape: true }, { landscape: false, pageSize: { width: 210_000, height: 297_000 } }],
+  ["a tiny label clamped to the 10 mm floor", { widthMm: 5, heightMm: 8, landscape: false }, { landscape: false, pageSize: { width: 10_000, height: 10_000 } }],
+  ["a banner clamped to the 2 m ceiling", { widthMm: 3000, heightMm: 500, landscape: true }, { landscape: true, pageSize: { width: 500_000, height: 2_000_000 } }],
+] as const)("maps %s", (_label, page, expected) => {
+  expect(desktopPrintOptions(page)).toEqual(expected);
 });

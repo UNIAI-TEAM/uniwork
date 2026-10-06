@@ -9,14 +9,46 @@
  * injects its host port (apps/office-desktop/renderer/office/text-print.ts),
  * which prints the copy from main's own hidden window.
  */
-import type { MarkdownPrintOutcome, MarkdownPrintPort, MarkdownPrintRequest } from "../markdown/wysiwyg/print";
+import type { MarkdownPrintOutcome, MarkdownPrintRequest } from "../markdown/wysiwyg/print";
 
-/** What a print port receives: the sanitized copy and the document title. */
-export type OfficePrintRequest = MarkdownPrintRequest;
+/**
+ * The document's page geometry, for hosts whose print API takes it as options
+ * instead of reading the copy's `@page` rule (Electron's `webContents.print`
+ * opens the system dialog in portrait otherwise). One value per run: the first
+ * DOCX section, the active sheet's setup, the deck's slide size, the PDF's
+ * first page. Width and height are the page AS PRINTED (a landscape page is
+ * wider than tall) and agree with the copy's `@page size`.
+ */
+export interface OfficePrintPage {
+  widthMm: number;
+  heightMm: number;
+  landscape: boolean;
+}
+
+/** Markdown and HTML print on A4 portrait (their copy's `@page`); also what
+ * the desktop port assumes for a request that carries no page. */
+export const A4_PORTRAIT_PAGE: OfficePrintPage = Object.freeze({ widthMm: 210, heightMm: 297, landscape: false });
+
+/** The geometry of a `widthMm` x `heightMm` page as printed: landscape when
+ * wider than tall. Undefined for a size that is not positive and finite, so a
+ * request never carries a page the host would have to refuse. */
+export function officePrintPage(widthMm: number, heightMm: number): OfficePrintPage | undefined {
+  if (!(Number.isFinite(widthMm) && Number.isFinite(heightMm) && widthMm > 0 && heightMm > 0)) return undefined;
+  return { widthMm, heightMm, landscape: widthMm > heightMm };
+}
+
+/** What a print port receives: the sanitized copy, the document title and,
+ * when the view knows it, the page geometry ({@link OfficePrintPage}). */
+export interface OfficePrintRequest extends MarkdownPrintRequest {
+  page?: OfficePrintPage | undefined;
+}
 /** `printed`, `cancelled` (dialog dismissed, silent) or a typed `failed`. */
 export type OfficePrintOutcome = MarkdownPrintOutcome;
-/** The host print path a view is given. */
-export type OfficePrintPort = MarkdownPrintPort;
+/** The host print path a view is given. Every Office port is also a Markdown
+ * port: a Markdown request is an Office request without a page. */
+export interface OfficePrintPort {
+  print(request: OfficePrintRequest): OfficePrintOutcome | Promise<OfficePrintOutcome>;
+}
 
 /** Reasons that mean "a print dialog may still be open": `print_busy` (one
  * print at a time) and `print_timeout` (the desktop host got no answer from
