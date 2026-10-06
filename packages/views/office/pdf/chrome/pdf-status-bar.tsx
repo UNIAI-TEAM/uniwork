@@ -1,7 +1,9 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, type Ref } from "react";
+import { PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
 
@@ -34,6 +36,12 @@ export interface PdfStatusBarProps {
   /** Zoom as a fraction (1 = 100%). */
   zoom: number;
   onZoomChange?: (zoom: number) => void;
+  /** Below the sm breakpoint the thumbnail rail is hidden; when a host passes the
+   *  toggle, the bar shows the button that opens it (hidden from sm up). */
+  onRailToggle?: () => void;
+  railOpen?: boolean;
+  /** The toggle button, so the host can return focus to it when the rail closes. */
+  railToggleRef?: Ref<HTMLButtonElement>;
   /** The shortcuts-help trigger; always the last item of the row (F9). */
   help?: ReactNode;
   className?: string;
@@ -54,6 +62,9 @@ export function PdfStatusBar({
   selection,
   zoom,
   onZoomChange,
+  onRailToggle,
+  railOpen = false,
+  railToggleRef,
   help,
   className,
   minZoom = 0.25,
@@ -85,6 +96,16 @@ export function PdfStatusBar({
         labelKey="office.pdf.chrome.statusBarLabel"
         start={
           <div className="flex min-w-0 items-center gap-x-2" data-testid="pdf-status-left">
+            {onRailToggle ? (
+              <Button
+                ref={railToggleRef} type="button" variant="ghost" size="icon-xs" className="sm:hidden" data-testid="pdf-rail-toggle"
+                aria-label={t(railOpen ? "office.pdf.chrome.hideThumbnails" : "office.pdf.chrome.showThumbnails")}
+                title={t(railOpen ? "office.pdf.chrome.hideThumbnails" : "office.pdf.chrome.showThumbnails")}
+                aria-pressed={railOpen} onClick={onRailToggle}
+              >
+                <PanelLeft aria-hidden />
+              </Button>
+            ) : null}
             {left.map((item, index) => (
               <Fragment key={item.testId}>
                 {index > 0 ? (

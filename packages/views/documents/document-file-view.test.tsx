@@ -144,6 +144,78 @@ describe("DocumentFileView", () => {
     expect(screen.queryByText(t("documents.file.history_title"))).toBeNull();
   });
 
+  it("falls back to the file card when the format's own flag is off", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_pdf" ? false : key === "office_engine" ? true : fallback));
+    const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+    expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+    expect(screen.queryByTestId("office-host")).toBeNull();
+    expect(officeHost).not.toHaveBeenCalled();
+    // The card says why: the format's editing is turned off (not "a later step").
+    expect(screen.getByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.no_web_editor_title"))).toBeNull();
+  });
+
+  it("keeps the generic card note when no Office host is mounted", async () => {
+    mockApi();
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} />));
+
+    expect(await screen.findByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
+  });
+
+  it("keeps the editor when only another format's flag is off", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_docx" ? false : key === "office_engine" ? true : fallback));
+    const officeHost = () => <div data-testid="office-host">Office host</div>;
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+    expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+  });
+
+  describe("organization-scoped flags", () => {
+    const orgConfig = (flags: Record<string, boolean>) => requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/config?organization_id=org1") return Promise.resolve({ flags });
+      return Promise.resolve({ versions: [], next_cursor: null });
+    });
+
+    it("asks /config for the document's organization and honours its format override", async () => {
+      // The host-wide flags say on; the organization says the PDF format is off.
+      featureFlagMock.useFlag.mockReturnValue(true);
+      orgConfig({ office_engine: true, office_pdf: false });
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+
+      expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/config?organization_id=org1", expect.anything());
+      expect(screen.queryByTestId("office-host")).toBeNull();
+      expect(officeHost).not.toHaveBeenCalled();
+    });
+
+    it("mounts the editor once the organization's answer has both flags on", async () => {
+      orgConfig({ office_engine: true });
+      const officeHost = () => <div data-testid="office-host">Office host</div>;
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+
+      expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    });
+
+    it("stays on the file card when the organization's config is rejected or malformed", async () => {
+      requestMock.mockImplementation((path: string) => (path.startsWith("/api/v1/config") ? Promise.reject(new Error("offline")) : Promise.resolve({ versions: [], next_cursor: null })));
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      const { unmount } = render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+      expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+      unmount();
+
+      requestMock.mockImplementation((path: string) => Promise.resolve(path.startsWith("/api/v1/config") ? { flags: "yes" } : { versions: [], next_cursor: null }));
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+      expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+      expect(officeHost).not.toHaveBeenCalled();
+    });
+  });
+
   it("keeps download and upload reachable from the page menu while the editor is mounted", async () => {
     mockApi();
     featureFlagMock.useFlag.mockReturnValue(true);

@@ -12,7 +12,7 @@ vi.mock("@uniwork/core/feature-flags", () => ({
 
 initI18n();
 
-function docxDocument(): Document {
+function docxDocument(over: Record<string, unknown> = {}): Document {
   const parsed = DocumentSchema.parse({
     id: "d1",
     workspace_id: "ws1",
@@ -32,6 +32,7 @@ function docxDocument(): Document {
     },
     created_at: "2026-09-28T03:00:00Z",
     updated_at: "2026-09-28T03:00:00Z",
+    ...over,
   });
   return {
     ...parsed,
@@ -76,5 +77,20 @@ describe("DocumentWorkspace header slot", () => {
     expect(labels.indexOf("office-save")).toBeGreaterThanOrEqual(0);
     expect(labels.indexOf("office-save")).toBeLessThan(labels.indexOf("page-menu"));
     expect(labels.at(-1)).toBe("page-menu");
+  });
+
+  it("keeps the editor out of the workspace when the organization turns the format off", async () => {
+    requestMock.mockImplementation((path: string) => Promise.resolve(path === "/api/v1/config?organization_id=org1" ? { flags: { office_engine: true, office_docx: false } } : {}));
+    render(wrapWithNav(
+      <DocumentWorkspace
+        wsId="ws1"
+        doc={docxDocument({ organization_id: "org1" })}
+        libraryHref="/acme/doi/documents"
+        refetch={vi.fn(() => Promise.resolve({}))}
+        officeEditorHost={FakeOfficeHost}
+      />,
+    ));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/config?organization_id=org1", expect.anything()));
+    expect(screen.queryByTestId("office-host")).toBeNull();
   });
 });

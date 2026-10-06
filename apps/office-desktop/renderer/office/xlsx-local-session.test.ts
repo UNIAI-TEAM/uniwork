@@ -15,7 +15,7 @@ const editOp = { op: "set_cell", target: { sheet: "Data", cell: "A1" }, attribut
  *  desktop:file-save, and no cloud channel is ever reached. */
 function makeLocalBridge() {
   const saved: Uint8Array[] = [];
-  const call = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
+  const call = vi.fn(async (channel: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> => {
     if (channel === "desktop:file-xlsx") {
       if (payload.operation === "open") return { state: "completed", outputBase64: encode({ snapshot, render_model: renderModel }) };
       return { state: "completed", outputBase64: Buffer.from([1, 2, 3, 4]).toString("base64"), outputChecksum: `sha256:${"a".repeat(64)}` };
@@ -100,6 +100,29 @@ describe("desktop local xlsx session (C1b)", () => {
     expect((await session.coordinator.save("button")).accepted).toBe(false);
     expect(session.coordinator.getState().error).toMatchObject({ code: "xlsx_recalc_unavailable", errorClass: "engine", state: "error", retryable: false });
     expect(bridge.call).not.toHaveBeenCalledWith("desktop:file-save", expect.anything());
+  });
+
+  // Main answers a refused file with a typed code (a thrown code would not
+  // survive Electron's invoke); the session hands it to the save status.
+  it("carries a refused local file's code to the save error instead of office_unknown_error", async () => {
+    const bridge = makeLocalBridge();
+    const local = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation(async (channel, payload) => {
+      if (channel === "desktop:file-save") return { opened: false, code: "file_changed_on_disk" };
+      return local(channel, payload);
+    });
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await session.open.open();
+    await session.editor.edit?.([editOp]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    expect((await session.coordinator.save("button")).accepted).toBe(false);
+    expect(session.coordinator.getState().error).toMatchObject({ code: "file_changed_on_disk" });
+  });
+  it("types a failed local xlsx job by the code main answered", async () => {
+    const bridge = makeLocalBridge();
+    bridge.call.mockImplementation(async (channel) => channel === "desktop:file-xlsx" ? { state: "failed", code: "file_not_found" } : { drafts: [] });
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await expect(session.open.open()).resolves.toMatchObject({ outcome: "failed", message: "file_not_found" });
   });
 
   it("keeps a protected draft through the desktop draft IPC (local:<device>)", async () => {

@@ -7422,6 +7422,8 @@
       "unknown_reason": "other",
       "no_web_editor_title": "Not editable in the browser yet",
       "no_web_editor_description": "UniWork Office opens this format in a later step. For now, download it or upload a new version.",
+      "office_off_title": "{{format}} editing is turned off",
+      "office_off_description": "Editing {{format}} files is turned off for this organization. You can still download the file or upload a new version.",
       "upload_failed": "Could not upload the file",
       "commit_failed": "Could not save the new version",
       "missing_file": "This document has no file yet."
@@ -9054,7 +9056,20 @@
       },
       "correlation": "Correlation id: {{id}}",
       "reason": {
-        "xlsx_recalc_unavailable": "This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept."
+        "xlsx_recalc_unavailable": "This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept.",
+        "file_invalid_path": "The location of this file is not valid. Open it again from your files.",
+        "file_not_found": "The file was not found. It may have been moved or deleted.",
+        "file_access_denied": "UniWork Office cannot use this file because it is a shortcut or link. Open the original file instead.",
+        "file_locked": "The file is in use by another program. Close it there, then try again.",
+        "file_changed_on_disk": "The file changed on this computer after you opened it. Your changes are kept: save under a new name or open the file again.",
+        "file_handle_invalid": "This file is no longer open in UniWork Office. Open it again.",
+        "file_session_revoked": "The session changed while the file was being handled. Try again.",
+        "file_write_failed": "The file could not be written. Check the free space and permissions, then try again. Your changes are kept.",
+        "file_replace_failed": "The file could not be replaced with the new version. Close it in other programs, then try again. Your changes are kept.",
+        "file_too_large": "The file is too large for UniWork Office to handle.",
+        "file_save_in_progress": "Another save is still running. Wait for it to finish, then try again.",
+        "file_engine_unavailable": "This UniWork Office build cannot process this file type on this computer yet.",
+        "file_failed": "The file could not be processed. Try again."
       },
       "short": {
         "checkpoint": "Draft on this device",
@@ -11256,6 +11271,7 @@
         "undo": "Undo",
         "redo": "Redo",
         "thumbnailsLabel": "Page thumbnails",
+        "showThumbnails": "Show page thumbnails", "hideThumbnails": "Hide page thumbnails",
         "thumbnailPage": "Page {{page}}",
         "statusBarLabel": "PDF status bar",
         "statusBarPage": "Page {{page}} / {{total}}",
@@ -11530,6 +11546,7 @@
         "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again.",
         "editRejected": "The PDF cannot take this value. Check it and try again.",
         "unsupportedInBrowser": "This edit is not available in the browser yet.",
+        "unsupportedPagesInBrowser": "Insert, extract and merge pages are not available in the browser yet.",
         "editSkipped": "Part of this edit was skipped because the browser cannot apply it.",
         "formValueRejected": "This field cannot store the characters you typed (for example Vietnamese accents): its form font does not support them. The value was not saved.",
         "formsFailed": "The form fields could not be read from this PDF.",
@@ -11632,6 +11649,8 @@
       "updated": "Updated {{time}}",
       "contentPending": "DOCX content editing is not available yet. You can save and reopen the file.",
       "draftRecovered": "The selected draft was restored.",
+      "featureOffTitle": "{{format}} editing is turned off",
+      "featureOffDescription": "Editing {{format}} files is turned off for your organization, so this file is view-only.",
       "format": {
         "label": "Format",
         "all": "All formats",

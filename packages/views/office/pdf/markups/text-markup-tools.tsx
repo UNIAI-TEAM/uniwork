@@ -34,10 +34,13 @@ export function PdfTextMarkupTools({ selection, disabled = false, onMarkup }: Pd
   };
 
   return (
-    <div className="flex items-center gap-1" data-testid="pdf-text-markup-tools" aria-label={t("office.pdf.markups.label")} role="group">
+    <div className="flex flex-wrap items-center gap-1" data-testid="pdf-text-markup-tools" aria-label={t("office.pdf.markups.label")} role="group">
       {(Object.keys(MARKUP_ICONS) as PdfMarkupType[]).map((type) => {
         const Icon = MARKUP_ICONS[type];
-        return <Button key={type} type="button" variant="toolbar" size="icon-sm" disabled={blocked} aria-label={t(`office.pdf.markups.${type}`)} onClick={() => apply(type)}><Icon aria-hidden /></Button>;
+        const label = t(`office.pdf.markups.${type}`);
+        // Icon plus visible name: an icon-only row in a side panel says nothing
+        // about which button is which until it is hovered.
+        return <Button key={type} type="button" variant="outline" size="sm" className="whitespace-nowrap" disabled={blocked} title={label} onClick={() => apply(type)}><Icon aria-hidden />{label}</Button>;
       })}
     </div>
   );

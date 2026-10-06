@@ -61,6 +61,15 @@ it("saves a local file even when the captured revision is not an integer", async
   expect(session.coordinator.getState().identity.baseRevision).toBe("1759322123456");
 });
 
+it("carries a refused local Save's code to the save error instead of office_unknown_error", async () => {
+  const handle = `file_${"z".repeat(40)}`;
+  const call = vi.fn(async () => ({ opened: false, code: "file_locked" }));
+  const session = await openSession({ call: call as never }, { ...identity, documentId: handle, baseRevision: "0" }, { ...opened, localHandle: handle });
+  session.coordinator.markDirty(1);
+  await expect(session.coordinator.save("menu")).resolves.toMatchObject({ accepted: false });
+  expect(session.coordinator.getState().error).toMatchObject({ code: "file_locked" });
+});
+
 const draft = { draftId: "doc:v2:2", identity: { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", base: { revision: "2", version: "v2" } }, generation: 3, checksum: `sha256:${"c".repeat(64)}`, byteLength: 5, updatedAt: 7 };
 
 function bridgeWith(handler: (channel: string, payload: unknown) => Promise<unknown>) {
@@ -240,9 +249,30 @@ it("forwards the pdf form and saved-note readers so the panels leave their loadi
   await session.openEditor();
   expect(session.editor.readFormFields).toBeTypeOf("function");
   expect(session.editor.readSavedNotes).toBeTypeOf("function");
-  // The fixture bytes are not a parseable PDF: the readers answer empty lists.
-  await expect(session.editor.readFormFields!()).resolves.toEqual([]);
-  await expect(session.editor.readSavedNotes!()).resolves.toEqual([]);
+  // The fixture bytes are not a parseable PDF: the readers reject, as on web, so the panels show their error (R-3).
+  await expect(session.editor.readFormFields!()).rejects.toThrow();
+  await expect(session.editor.readSavedNotes!()).rejects.toThrow();
+});
+
+it("forwards the pdf byte-change notify so undo/redo refresh the shared editor (G-1)", async () => {
+  let edited = false;
+  const call = vi.fn(async (_channel: string, payload: unknown) => {
+    const request = payload as { operation: string };
+    if (request.operation === "edit") { edited = true; return { ok: true, operation: "edit", dataBase64: "JVBERi0y" }; }
+    return { ok: true, operation: "open", probe: { pageCount: edited ? 2 : 1 }, pageSizes: [] };
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
+  expect(session.editor.subscribe).toBeUndefined();
+  await session.openEditor();
+  const changes = vi.fn();
+  const unsubscribe = session.editor.subscribe!(changes);
+  await session.editor.submitEngineOperations!([{ op: "a" }]);
+  const afterEdit = session.editor.getDirtyGeneration();
+  session.editor.undo!();
+  await vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(2));
+  expect(session.editor.getDirtyGeneration()).toBe(afterEdit + 1);
+  expect(session.editor.getPdfSnapshot!()?.pageCount).toBe(2);
+  unsubscribe();
 });
 
 

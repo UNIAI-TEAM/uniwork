@@ -110,7 +110,23 @@ function passwordFailureClass(error: EngineResponse["error"]): "password_require
   return error.status === "wrong" ? "wrong_password" : "password_required";
 }
 
-export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEditorHandle<Uint8Array> & {
+/** The undo/redo stacks keep the newest byte snapshots until this budget is
+ * spent; the web lane uses the same budget. */
+const UNDO_BYTE_BUDGET = 256 * 1024 * 1024;
+
+/** Push a snapshot and drop the oldest entries past the budget, always keeping
+ * at least the newest one. */
+function pushBounded(stack: Uint8Array[], entry: Uint8Array, budget: number): void {
+  stack.push(entry);
+  let total = stack.reduce((sum, item) => sum + item.byteLength, 0);
+  while (total > budget && stack.length > 1) {
+    const dropped = stack.shift();
+    if (dropped) total -= dropped.byteLength;
+  }
+}
+
+/** `undoByteBudget` is a test seam; production uses UNDO_BYTE_BUDGET. */
+export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoByteBudget = UNDO_BYTE_BUDGET): PdfEditorHandle<Uint8Array> & {
   format: DesktopDocumentFormat;
   open(signal?: AbortSignal, password?: string): Promise<void>;
   openOutcome(): PdfOpenOutcome | null;
@@ -119,6 +135,9 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
   selection: PdfSelectionPort;
   edit(operations: readonly unknown[]): Promise<void>;
   submitEngineOperations(operations: readonly unknown[]): Promise<{ skipped: readonly { op: string; reason: string }[] }>;
+  subscribe(listener: () => void): () => void;
+  undo(): void;
+  redo(): void;
 } {
   let bytes: Uint8Array = Uint8Array.from([]);
   let generation = settings.generation;
@@ -129,6 +148,20 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
   let password: string | undefined;
   let disposed = false;
   const listeners = new Set<(generation: number) => void>();
+  /** Byte-change listeners of the shared editor (edit, undo, redo): it refreshes
+   * the canvas and re-marks dirty with the new generation (G-1). */
+  const changeListeners = new Set<() => void>();
+  /** Pre-edit bytes for undo, and the bytes an undo stepped away from for redo.
+   * Open and dispose reset both; a new edit clears redo. */
+  let undoStack: Uint8Array[] = [];
+  let redoStack: Uint8Array[] = [];
+  /** Serialises edits and undo/redo so the byte stacks never interleave. */
+  let queue: Promise<unknown> = Promise.resolve();
+  const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
+    const run = queue.then(task, task);
+    queue = run.catch(() => undefined);
+    return run;
+  };
   let selected: Parameters<NonNullable<PdfSelectionPort["setSelection"]>>[0] = null;
   const selection: PdfSelectionPort = {
     getSelection: () => selected,
@@ -238,23 +271,50 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
     }
   };
 
-  /** Apply one batch of engine envelopes, swap the bytes, bump the generation and
-   * report the skips. Shared by the snake_case `edit` path and the camelCase
-   * panel path so both keep one dirty/refresh discipline. */
-  const applyEngineEdits = async (edits: readonly unknown[]): Promise<{ skipped: { op: string; reason: string }[] }> => {
-    if (settings.readOnly) throw new Error("pdf_readonly");
-    const result = await callEngine("edit", { dataBase64: bytesBase64(), edits: [...edits] });
-    if (!result.ok || !result.dataBase64) throw new Error("pdf_edit_failed");
-    bytes = Uint8Array.from(decodeBase64(result.dataBase64));
+  /** Make `next` the document: re-probe the page geometry, bump the generation,
+   * drop every cached page and text read, and tell both listener sets. Edits,
+   * undo and redo all swap through here. */
+  const swapBytes = async (next: Uint8Array): Promise<void> => {
+    bytes = next;
     clearEncoded();
     await refreshGeometry();
     generation += 1;
-    // The edited bytes paint differently: drop every cached page and let the
+    // The new bytes paint differently: drop every cached page and let the
     // canvas re-request it through the new generation key.
     clearCache();
     clearTextCache();
     for (const listener of listeners) listener(generation);
+    for (const listener of [...changeListeners]) listener();
+  };
+
+  /** Apply one batch of engine envelopes, swap the bytes, bump the generation and
+   * report the skips. Shared by the snake_case `edit` path and the camelCase
+   * panel path so both keep one dirty/refresh discipline. */
+  const applyEngineEdits = (edits: readonly unknown[]): Promise<{ skipped: { op: string; reason: string }[] }> => enqueue(async () => {
+    if (settings.readOnly) throw new Error("pdf_readonly");
+    const before = bytes;
+    const result = await callEngine("edit", { dataBase64: bytesBase64(), edits: [...edits] });
+    if (!result.ok || !result.dataBase64) throw new Error("pdf_edit_failed");
+    await swapBytes(Uint8Array.from(decodeBase64(result.dataBase64)));
+    pushBounded(undoStack, before, undoByteBudget);
+    redoStack = [];
     return { skipped: skippedFromWarnings(result.warnings) };
+  });
+
+  /** One history step with the web lane's semantics: an empty stack is a
+   * no-op; otherwise the stack's newest bytes become the document and the
+   * current bytes move onto the other stack. */
+  const step = (from: () => Uint8Array[], to: () => Uint8Array[]): void => {
+    if (settings.readOnly) return;
+    void enqueue(async () => {
+      const source = from();
+      const target = source[source.length - 1];
+      if (!target || disposed) return;
+      const current = bytes;
+      await swapBytes(target);
+      source.pop();
+      pushBounded(to(), current, undoByteBudget);
+    }).catch(() => undefined);
   };
 
   const surface = {
@@ -268,6 +328,8 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
       const result = await callEngine("open", args);
       if (result.ok && result.probe) {
         password = nextPassword;
+        undoStack = [];
+        redoStack = [];
         clearCache();
         clearTextCache();
         applyGeometry(result.probe, result.pageSizes ?? []);
@@ -337,25 +399,29 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
       return hits;
     },
     /** Form fields of the current bytes, read with the browser-safe pdf-lib
-     * reader (no IPC). Bytes the reader cannot parse - a password-protected file
-     * the engine only reads with its password - answer an empty list so the
-     * panel leaves its loading state instead of failing forever. */
+     * reader (no IPC). As on the web lane, bytes the reader cannot parse (a
+     * password-protected file the engine only reads with its password) reject,
+     * so the shared panel leaves its loading state with its error message
+     * instead of claiming the file has no fields (R-3). */
     async readFormFields() {
       if (bytes.byteLength === 0) return [];
-      try { return await readPdfFormFields(bytes); } catch { return []; }
+      return await readPdfFormFields(bytes);
     },
     /** Saved note threads of the current bytes, same reader discipline as the web
-     * lane; unreadable bytes degrade to no threads. */
+     * lane: an unreadable file rejects and the notes panel shows its error. */
     async readSavedNotes() {
       if (bytes.byteLength === 0) return [];
-      try { return toNoteThreads(await readPdfNotes(bytes)); } catch { return []; }
+      return toNoteThreads(await readPdfNotes(bytes));
     },
     getPdfSnapshot: () => snapshot,
     renderer,
     getCanvasPages: canvasPages,
     selection,
     subscribeDirty: (listener: (next: number) => void) => { listeners.add(listener); return () => listeners.delete(listener); },
-    dispose: () => { disposed = true; listeners.clear(); clearCache(); clearTextCache(); bytes = Uint8Array.from([]); clearEncoded(); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
+    subscribe: (listener: () => void) => { changeListeners.add(listener); return () => { changeListeners.delete(listener); }; },
+    undo: () => step(() => undoStack, () => redoStack),
+    redo: () => step(() => redoStack, () => undoStack),
+    dispose: () => { disposed = true; listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = [];clearCache(); clearTextCache(); bytes = Uint8Array.from([]); clearEncoded(); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
   };
   return surface;
 }

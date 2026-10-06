@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { FeatureFlagsProvider, useFlag, useVariant } from "./context";
 import { FeatureFlagService } from "./service";
 import { StaticProvider } from "./static-provider";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG } from "./keys";
 
 function FlagBadge({ flagKey, defaultValue }: { flagKey: string; defaultValue: boolean }) {
   const enabled = useFlag(flagKey, defaultValue);
@@ -26,6 +27,19 @@ describe("FeatureFlagsProvider + hooks", () => {
       </FeatureFlagsProvider>,
     );
     expect(screen.getByTestId("flag").textContent).toBe("ON");
+  });
+
+  it("reads office_html_visual_edit through the provider and defaults it off", () => {
+    const on = new FeatureFlagService(new StaticProvider({ [OFFICE_HTML_VISUAL_EDIT_FLAG]: { default: true } }));
+    const { unmount } = render(
+      <FeatureFlagsProvider service={on}>
+        <FlagBadge flagKey={OFFICE_HTML_VISUAL_EDIT_FLAG} defaultValue={false} />
+      </FeatureFlagsProvider>,
+    );
+    expect(screen.getByTestId("flag").textContent).toBe("ON");
+    unmount();
+    render(<FlagBadge flagKey={OFFICE_HTML_VISUAL_EDIT_FLAG} defaultValue={false} />);
+    expect(screen.getByTestId("flag").textContent).toBe("OFF");
   });
 
   it("useFlag falls back to default outside any provider (tests / stories)", () => {

@@ -14,6 +14,13 @@ vi.mock("electron", () => ({
 }));
 vi.mock("../shared/deployment", () => ({ resolveDeploymentProfile: () => ({ kind: "setup-required" }) }));
 
+it("keeps the window wide enough that the tab strip and ribbon never overlap", async () => {
+  const { DESKTOP_WINDOW_MIN_SIZE } = await import("../electron-main");
+  expect(DESKTOP_WINDOW_MIN_SIZE).toEqual({ minWidth: 640, minHeight: 480 });
+  // The BrowserWindow is built with it, not only exported.
+  expect(readFileSync(new URL("../electron-main.ts", import.meta.url), "utf8")).toContain("...DESKTOP_WINDOW_MIN_SIZE,");
+});
+
 it("matches the 40px strip and semantic muted/foreground colors in both themes", async () => {
   const { nativeWindowOptions, DESKTOP_TITLE_BAR_TOKENS } = await import("../electron-main");
   const tokens = readFileSync(new URL("../../../packages/ui/styles/tokens.css", import.meta.url), "utf8");

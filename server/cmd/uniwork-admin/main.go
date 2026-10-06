@@ -1,15 +1,18 @@
-// uniwork-admin grants and revokes users.platform_role (spec F-11 §5.3). It
-// is the only way to create the first platform admin: there is no UI for it.
+// uniwork-admin grants and revokes users.platform_role (spec F-11 §5.3) and
+// revokes a user's desktop device on their behalf. It is the only way to
+// create the first platform admin: there is no UI for it.
 // Runs on the host with DATABASE_URL; every change lands in admin_actions
 // (actor "cli") and audit_events with the reason given.
 //
 //	uniwork-admin grant-platform-role --email a@b.c --role admin --reason "..."
 //	uniwork-admin revoke-platform-role --email a@b.c --reason "..."
 //	uniwork-admin list-platform-roles
+//	uniwork-admin revoke-desktop-device --user-id U --device-id D --reason "..."
 package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -63,13 +66,34 @@ func main() {
 		for _, r := range rows {
 			fmt.Printf("%-8s %s %s granted_by=%s at=%s\n", r.PlatformRole.String, r.ID, r.Email, r.PlatformRoleGrantedBy.String, r.PlatformRoleGrantedAt.Time.Format("2006-01-02"))
 		}
+	case "revoke-desktop-device":
+		fs := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
+		userID := fs.String("user-id", "", "owner of the device")
+		deviceID := fs.String("device-id", "", "device session id (GET /auth/desktop/devices)")
+		reason := fs.String("reason", "", "why (≥ 10 characters), recorded in admin_actions")
+		_ = fs.Parse(os.Args[2:])
+		if *userID == "" || *deviceID == "" {
+			fail("--user-id and --device-id are required")
+		}
+		res, err := admin.RevokeDesktopDevice(ctx, service.CLIActor, *userID, *deviceID, *reason)
+		if errors.Is(err, service.ErrNotFound) {
+			fail("no desktop device " + *deviceID + " for user " + *userID)
+		}
+		if err != nil {
+			fail(err.Error())
+		}
+		if res.AlreadyRevoked {
+			fmt.Printf("%s already revoked, nothing changed\n", res.DeviceID)
+			return
+		}
+		fmt.Printf("%s revoked (session family %s, %d device session(s) and %d refresh token(s) closed)\n", res.DeviceID, res.SessionFamilyID, res.Revoked, res.TokensRevoked)
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: uniwork-admin grant-platform-role|revoke-platform-role --email E [--role admin|support] --reason R\n       uniwork-admin list-platform-roles")
+	fmt.Fprintln(os.Stderr, "usage: uniwork-admin grant-platform-role|revoke-platform-role --email E [--role admin|support] --reason R\n       uniwork-admin list-platform-roles\n       uniwork-admin revoke-desktop-device --user-id U --device-id D --reason R")
 	os.Exit(2)
 }
 

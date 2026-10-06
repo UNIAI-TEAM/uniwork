@@ -127,10 +127,12 @@ Sidecar XLSX: không có biến riêng cần đặt.
 | Cờ | Mặc định | Làm gì |
 | --- | --- | --- |
 | `documents` | tắt | Tài liệu trong workspace |
-| `office_engine` | tắt | Bật trình soạn Office cho cả web và desktop host |
+| `office_engine` | tắt | Công tắc tổng: bật trình soạn Office cho cả web và desktop host |
+| `office_docx` `office_xlsx` `office_pptx` `office_pdf` `office_markdown` `office_html` | bật | Cho phép sửa riêng từng định dạng (cần `office_engine` bật) |
+| `office_html_visual_edit` | tắt | Sửa HTML trực quan (chưa có giao diện) |
 
 1. Bật `documents` rồi `office_engine`: đặt trong file YAML (`FEATURE_FLAGS_FILE`) hoặc `FF_OFFICE_ENGINE=true`.
-2. Tắt/bật **riêng từng định dạng** (DOCX/XLSX/PPTX/PDF/MD/HTML): Chưa có — chỉ có một cờ `office_engine` cho tất cả.
+2. Tắt/bật **riêng từng định dạng**: mỗi định dạng có cờ riêng, mặc định **bật** — `office_docx`, `office_xlsx`, `office_pptx`, `office_pdf`, `office_markdown`, `office_html`. Một định dạng chỉ sửa được khi `office_engine` **và** cờ của nó cùng bật. Để tắt một định dạng: `FF_OFFICE_DOCX=false` (đổi tên theo cờ) hoặc override trong file/org. Tệp định dạng đó mở ở màn xem/tải như khi tắt `office_engine`, không mở trình soạn; các định dạng khác không đổi. Web đọc `GET /api/v1/config` theo tổ chức của tài liệu, nên override theo org có hiệu lực. Desktop đọc cùng các cờ này theo tổ chức đang chọn (lấy sau khi chọn tổ chức, đọc lại khi đổi tổ chức hoặc tài khoản; thử lại một lần nếu lỗi, và việc mở tài liệu chờ tối đa vài giây cho câu trả lời đang về): tài liệu cloud thuộc định dạng bị tắt, hoặc khi chưa đọc được cấu hình, mở ở chế độ chỉ xem; một tab đang chỉ xem chỉ vì chưa có cấu hình sẽ tự chuyển sang sửa được khi câu trả lời về và cho phép (chưa có chỉnh sửa nào trong chế độ chỉ xem nên không mất dữ liệu). Tệp cục bộ không bị cờ chặn.
 3. Cờ chỉ ẩn tính năng, không cấp quyền.
 
 ## 4. Kiểm tra sau deploy
@@ -186,13 +188,16 @@ Chi tiết: `desktop-install-macos-ubuntu.md`.
 - Đăng xuất thiết bị: `POST /auth/desktop/logout`.
 - Dùng lại refresh token cũ: server trả 401 `refresh_reused` và tự thu hồi thiết bị đó.
 - Thu hồi thiết bị xong, lần gọi tiếp theo bị chặn ngay (`device_revoked`).
-- Thu hồi thay người dùng bằng công cụ vận hành (CLI/admin): Chưa có — chỉ chủ tài khoản thu hồi được.
+- Thu hồi thay người dùng bằng công cụ vận hành (chạy trên máy chủ, cần `DATABASE_URL`):
+  `uniwork-admin revoke-desktop-device --user-id <id người dùng> --device-id <id thiết bị> --reason "<lý do, ít nhất 10 ký tự>"`.
+  Lệnh thu hồi cả họ phiên của thiết bị đó, nên lần refresh tiếp theo bị chặn (`device_revoked`). Id thiết bị lấy từ `GET /auth/desktop/devices` của chủ tài khoản, hoặc từ bảng `device_sessions`.
+  Id không có, hoặc thiết bị không thuộc người dùng đó: lệnh báo lỗi, thoát mã khác 0, không ghi gì. Thiết bị đã thu hồi từ trước: lệnh báo "already revoked", không ghi thêm. Mỗi lần thu hồi thật ghi một dòng `admin_actions` (actor `cli`) và một dòng `audit_events` (`desktop_device.revoked`) cùng mã trace.
 
 ## 6. Khi có sự cố / rollback
 
 Nguyên tắc (plan §8.2):
 
-1. **Tắt sửa, giữ xem.** Tắt cờ `office_engine` (`FF_OFFICE_ENGINE=false` hoặc override trong file/org). Tài liệu đã lưu vẫn xem, tải, xem lịch sử theo quyền. Tắt riêng từng định dạng: Chưa có.
+1. **Tắt sửa, giữ xem.** Tắt cờ `office_engine` (`FF_OFFICE_ENGINE=false` hoặc override trong file/org). Tài liệu đã lưu vẫn xem, tải, xem lịch sử theo quyền. Tắt riêng một định dạng: đặt cờ của nó về `false` (ví dụ `FF_OFFICE_DOCX=false`), các định dạng còn lại vẫn sửa được (mục 3.6).
 2. **Không xóa nháp.** Giữ nguyên nháp mã hóa, khóa, và store. Rollback không được làm mất nháp.
 3. **Không down migration.** Không chạy `make migrate-down` trên production.
 4. **Không xóa blob.** FileService tự giữ staged/claim/GC. Không dọn tay kho file.

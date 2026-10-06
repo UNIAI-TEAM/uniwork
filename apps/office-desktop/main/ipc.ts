@@ -3,7 +3,7 @@
 export * from "../shared/ipc";
 
 import type { NativeLoginManager } from "./auth/manager";
-import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeSaveResponseSchema, desktopOfficeJobResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeContextResponse, type DesktopOfficeSaveResponse, type DesktopOfficeJobResponse, type DesktopLibraryCreateResponse, type DesktopFileXlsxResponse } from "../shared/ipc";
+import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopPublicConfigResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeSaveResponseSchema, desktopOfficeJobResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopPublicConfigResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeContextResponse, type DesktopOfficeSaveResponse, type DesktopOfficeJobResponse, type DesktopLibraryCreateResponse, type DesktopFileXlsxResponse } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -13,6 +13,7 @@ import type { DeploymentProfile } from "../shared/deployment";
 import type { OfficeSaveGuard } from "../../../packages/core/office/save-guard";
 import { sameDocumentSession } from "./opened-documents";
 import { blankDocumentBytes, blankDocumentName } from "./files/blank-documents";
+import { answerRefusal } from "./files/failure-codes";
 import type { LocalModeStore } from "./local/mode";
 import type { RecentFilesStore } from "./local/recent-files";
 import { LocalDeviceError } from "./local/device";
@@ -24,6 +25,8 @@ import type { LocalXlsxEngine } from "./xlsx-engine";
  * bootstrap; renderer requests contain only scoped opaque ids and bytes. */
 export type DesktopOfficeTransport = Readonly<{
   context(): Promise<DesktopLibraryContextResponse>;
+  /** Public feature flags (GET /api/v1/config); the renderer gates editors on them. */
+  publicConfig(organizationId?: string): Promise<DesktopPublicConfigResponse>;
   list(input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }): Promise<DesktopLibraryResponse>;
   download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse>;
   create(input: { workspaceId: string; title: string; format: DesktopDocumentFormat }): Promise<DesktopLibraryCreateResponse>;
@@ -79,6 +82,13 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
     "desktop:library-context": async (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
       requireSession();
       return desktopLibraryContextResponseSchema.parse(await options.transport.context());
+    },
+    "desktop:public-config": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
+      requireSession();
+      // A malformed transport answer degrades to no flags (the renderer reads that
+      // as engine off and opens cloud documents read-only), never a thrown open.
+      const parsed = desktopPublicConfigResponseSchema.safeParse(await options.transport.publicConfig((request as { organizationId?: string }).organizationId));
+      return parsed.success ? parsed.data : { flags: {} };
     },
     "desktop:library-recent": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string }>) => {
       requireSession();
@@ -210,7 +220,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
   const requireOpened = (handle: string) => {
     if (options.isOpened && !options.isOpened(handle)) throw new FileIpcError("invalid_handle");
   };
-  return {
+  const commands = {
     "desktop:file-pick-open": async (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
       if (!options.pickOpen) throw new FileIpcError("invalid_path");
       const session = options.session?.();
@@ -313,7 +323,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
     "desktop:file-xlsx": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; operation: "open" | "edit"; baseRevision: string; edits?: readonly Record<string, unknown>[] }>): Promise<DesktopFileXlsxResponse> => {
       requireOpened(request.handle);
       const session = options.session?.();
-      if (!options.xlsx) throw new FileIpcError("write_failed");
+      if (!options.xlsx) throw new FileIpcError("engine_unavailable");
       const bytes = await safeFile(() => options.registry.read(request.handle));
       // The local xlsx job answers the shared DesktopFileXlsxResponse contract
       // (the same schema the renderer parses), so main and renderer cannot drift.
@@ -327,7 +337,23 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       return { state: "completed" as const, outputBase64: Buffer.from(result.bytes).toString("base64"), outputChecksum: result.checksum };
     },
   };
+  // A refused file command answers with a typed code instead of throwing: only
+  // the message of a thrown Error crosses Electron's invoke, so the code would
+  // be lost. Faults that are not file refusals (the xlsx engine) still throw.
+  const refused = (code: string) => ({ opened: false as const, code });
+  const refuse = <Q, R>(handler: (request: Q) => Promise<R>) => answerRefusal(handler, fileRefusalCode, refused);
+  return {
+    "desktop:file-pick-open": refuse(commands["desktop:file-pick-open"]),
+    "desktop:file-create": refuse(commands["desktop:file-create"]),
+    "desktop:recent-open": refuse(commands["desktop:recent-open"]),
+    "desktop:file-open": refuse(commands["desktop:file-open"]),
+    "desktop:file-save": refuse(commands["desktop:file-save"]),
+    "desktop:file-save-as": refuse(commands["desktop:file-save-as"]),
+    "desktop:file-xlsx": answerRefusal(commands["desktop:file-xlsx"], fileRefusalCode, (code): DesktopFileXlsxResponse => ({ state: "failed", code })),
+  };
 }
+
+const fileRefusalCode = (error: unknown): string | undefined => (error instanceof FileIpcError ? error.code : undefined);
 
 async function runGuardedSave<T>(guard: OfficeSaveGuard | undefined, operation: () => Promise<T>): Promise<T> {
   const release = guard?.tryAcquire();

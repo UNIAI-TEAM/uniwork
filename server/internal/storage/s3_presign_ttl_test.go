@@ -81,3 +81,36 @@ func TestS3SignedURLsNeverExceedSigV4Limit(t *testing.T) {
 		t.Errorf("short TTL X-Amz-Expires = %d, want 300", got)
 	}
 }
+
+// The legacy Presigner (avatars, chat voice, downloads) signs through its own
+// client rather than the ObjectStore, so it needs its own proof that a request
+// beyond the SigV4 limit is clamped and a default stays well inside it.
+func TestS3StoragePresignGetNeverExceedsSigV4Limit(t *testing.T) {
+	store := newStubS3(t, &stubS3{})
+	legacy := &S3Storage{client: store.client, bucket: store.bucket}
+
+	for name, ttl := range map[string]time.Duration{"30 days": 30 * 24 * time.Hour, "exactly 7 days": 7 * 24 * time.Hour} {
+		for variant, sign := range map[string]func() (string, error){
+			"PresignGet": func() (string, error) { return legacy.PresignGet(context.Background(), "avatars/a.png", ttl) },
+			"PresignGetWithContentDisposition": func() (string, error) {
+				return legacy.PresignGetWithContentDisposition(context.Background(), "avatars/a.png", ttl, `attachment; filename="a.png"`)
+			},
+		} {
+			signed, err := sign()
+			if err != nil {
+				t.Fatalf("%s (%s): %v", variant, name, err)
+			}
+			if got := presignedExpires(t, signed); got != int(maxPresignTTL/time.Second) || got >= sigV4MaxExpiresSeconds {
+				t.Errorf("%s (%s) X-Amz-Expires = %d, want %d (< %d)", variant, name, got, int(maxPresignTTL/time.Second), sigV4MaxExpiresSeconds)
+			}
+		}
+	}
+
+	signed, err := legacy.PresignGet(context.Background(), "avatars/a.png", 0)
+	if err != nil {
+		t.Fatalf("PresignGet default: %v", err)
+	}
+	if got := presignedExpires(t, signed); got != 1800 {
+		t.Errorf("default X-Amz-Expires = %d, want 1800", got)
+	}
+}

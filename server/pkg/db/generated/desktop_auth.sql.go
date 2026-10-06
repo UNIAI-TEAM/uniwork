@@ -76,6 +76,23 @@ func (q *Queries) CancelDesktopAuthAttempt(ctx context.Context, arg CancelDeskto
 	return result.RowsAffected(), nil
 }
 
+const countLiveDeviceSessionsInFamily = `-- name: CountLiveDeviceSessionsInFamily :one
+SELECT count(*) FROM device_sessions
+WHERE user_id = $1 AND session_family_id = $2 AND revoked_at IS NULL
+`
+
+type CountLiveDeviceSessionsInFamilyParams struct {
+	UserID          string `json:"user_id"`
+	SessionFamilyID string `json:"session_family_id"`
+}
+
+func (q *Queries) CountLiveDeviceSessionsInFamily(ctx context.Context, arg CountLiveDeviceSessionsInFamilyParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLiveDeviceSessionsInFamily, arg.UserID, arg.SessionFamilyID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createDesktopAuthAttempt = `-- name: CreateDesktopAuthAttempt :one
 INSERT INTO desktop_auth_attempts (
   id, client_id, deployment_id, code_challenge, code_challenge_method,
@@ -432,25 +449,6 @@ func (q *Queries) RevokeAllDeviceSessions(ctx context.Context, userID string) er
 	return err
 }
 
-const revokeDesktopSessionFamily = `-- name: RevokeDesktopSessionFamily :exec
-WITH revoked_tokens AS (
-  UPDATE refresh_tokens SET revoked_at = now()
-  WHERE refresh_tokens.user_id = $1 AND refresh_tokens.session_id = $2 AND refresh_tokens.revoked_at IS NULL
-)
-UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
-WHERE device_sessions.user_id = $1 AND device_sessions.session_family_id = $2 AND device_sessions.revoked_at IS NULL
-`
-
-type RevokeDesktopSessionFamilyParams struct {
-	UserID          string `json:"user_id"`
-	SessionFamilyID string `json:"session_family_id"`
-}
-
-func (q *Queries) RevokeDesktopSessionFamily(ctx context.Context, arg RevokeDesktopSessionFamilyParams) error {
-	_, err := q.db.Exec(ctx, revokeDesktopSessionFamily, arg.UserID, arg.SessionFamilyID)
-	return err
-}
-
 const revokeDeviceSession = `-- name: RevokeDeviceSession :execrows
 UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
 WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
@@ -476,6 +474,27 @@ WHERE id = $1 AND revoked_at IS NULL
 
 func (q *Queries) RevokeDeviceSessionByID(ctx context.Context, id string) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeDeviceSessionByID, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeDeviceSessionFamily = `-- name: RevokeDeviceSessionFamily :execrows
+UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
+WHERE user_id = $1 AND session_family_id = $2 AND revoked_at IS NULL
+`
+
+type RevokeDeviceSessionFamilyParams struct {
+	UserID          string `json:"user_id"`
+	SessionFamilyID string `json:"session_family_id"`
+}
+
+// Closes every live device session of the family. The family's refresh
+// tokens are a separate statement (RevokeSessionForUser) run after it in the
+// same transaction, so each reports its own row count.
+func (q *Queries) RevokeDeviceSessionFamily(ctx context.Context, arg RevokeDeviceSessionFamilyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeDeviceSessionFamily, arg.UserID, arg.SessionFamilyID)
 	if err != nil {
 		return 0, err
 	}

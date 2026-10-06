@@ -4,6 +4,7 @@ import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot
 import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, stableJson, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopFileXlsxResponseSchema, type DesktopDraftMetadata, type DesktopFileXlsxRequest } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
+import { throwIfLocalFileFailed } from "./local-file-failure";
 
 const SESSION_GENERATION = "desktop-dev-session";
 const ENGINE_BUILD = "xlsx-desktop-local-1";
@@ -114,6 +115,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       throw error;
     }
     const response = desktopFileXlsxResponseSchema.parse(raw);
+    throwIfLocalFileFailed(response);
     if (response.state !== "completed" || response.outputBase64 === undefined) throw new Error(`local_xlsx_job_${response.state}`);
     return response;
   };
@@ -203,6 +205,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       const output = outputs.get(intent.intentId);
       if (!output) throw new Error("desktop save output missing");
       const result = desktopFileResponseSchema.parse(await options.bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: options.localHandle, dataBase64: output.dataBase64 }));
+      throwIfLocalFileFailed(result);
       if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
       if (result.metadata.checksum !== output.checksum) throw new Error("local_save_checksum_mismatch");
       outputs.delete(intent.intentId);

@@ -108,3 +108,11 @@ it("validates the office-job request surface in main", () => {
   expect(() => validateIpcRequest("desktop:office-job", job({ format: "txt" }), sender)).toThrow();
   expect(() => validateIpcRequest("desktop:office-job", job({ format: undefined }), sender)).toThrow();
 });
+
+it("accepts an optional organization id on the public-config request and nothing else", () => {
+  const request = { sessionGeneration: "session_1234" };
+  expect(() => validateIpcRequest("desktop:public-config", request, sender)).not.toThrow();
+  expect(() => validateIpcRequest("desktop:public-config", { ...request, organizationId: "org-1" }, sender)).not.toThrow();
+  expect(() => validateIpcRequest("desktop:public-config", { ...request, organizationId: "" }, sender)).toThrow();
+  expect(() => validateIpcRequest("desktop:public-config", { ...request, extra: 1 }, sender)).toThrow();
+});

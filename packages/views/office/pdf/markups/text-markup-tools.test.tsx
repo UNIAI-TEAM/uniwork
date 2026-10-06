@@ -15,6 +15,18 @@ describe("PdfTextMarkupTools", () => {
     });
   });
 
+  it("names every markup button: visible text, tooltip and accessible name agree", () => {
+    render(<PdfTextMarkupTools selection={null} onMarkup={vi.fn()} />);
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(3);
+    for (const button of buttons) {
+      expect(button.textContent).not.toBe("");
+      expect(button).toHaveAttribute("title", button.textContent);
+      expect(button).toHaveAccessibleName(button.textContent ?? "");
+    }
+    expect(new Set(buttons.map((button) => button.textContent)).size).toBe(3);
+  });
+
   it("disables actions without a text selection", () => {
     const onMarkup = vi.fn();
     render(<PdfTextMarkupTools selection={null} onMarkup={onMarkup} />);

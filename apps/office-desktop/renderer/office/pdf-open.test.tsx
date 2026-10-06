@@ -90,4 +90,48 @@ it("lets the Forms panel leave its loading state on the desktop host (R18-2)", a
   expect(await screen.findByTestId("pdf-forms-panel")).toBeInTheDocument();
   // The desktop surface reads the form fields itself, so the panel never spins forever.
   await waitFor(() => expect(screen.queryByTestId("pdf-forms-loading")).toBeNull(), { timeout: 10000 });
+  // The fixture bytes cannot be parsed: the panel shows the same error as on web (R-3).
+  expect(await screen.findByText("Không đọc được các trường biểu mẫu của PDF này.")).toBeInTheDocument();
+});
+
+it("steps the desktop byte history from the quick-access buttons and Ctrl+Z / Ctrl+Y (G-1)", async () => {
+  const editedBytes = Buffer.from("%PDF-1.7\n%edited\n").toString("base64");
+  const probes: string[] = [];
+  const call = vi.fn(async (channel: string, payload: unknown) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:engine-call") {
+      const request = payload as { operation: string; args: { dataBase64: string } };
+      if (request.operation === "open") { probes.push(request.args.dataBase64); return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] }; }
+      if (request.operation === "edit") return { ok: true, operation: "edit", dataBase64: editedBytes };
+      return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 100, height: 100 };
+    }
+    return {};
+  });
+  const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", dataBase64: pdfBytes, checksum });
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
+  const editor = await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
+  const undo = await screen.findByTestId("pdf-chrome-undo");
+  const redo = await screen.findByTestId("pdf-chrome-redo");
+  expect(undo).not.toHaveAttribute("aria-disabled");
+  expect(redo).not.toHaveAttribute("aria-disabled");
+
+  await session.editor.submitEngineOperations!([{ op: "rotatePage", pageIndex: 0, degrees: 90 }]);
+  const lastProbe = () => probes[probes.length - 1];
+  expect(lastProbe()).toBe(editedBytes);
+
+  fireEvent.keyDown(editor, { key: "z", ctrlKey: true });
+  await waitFor(() => expect(lastProbe()).toBe(pdfBytes));
+  fireEvent.keyDown(editor, { key: "y", ctrlKey: true });
+  await waitFor(() => expect(lastProbe()).toBe(editedBytes));
+  fireEvent.click(undo);
+  await waitFor(() => expect(lastProbe()).toBe(pdfBytes));
+  fireEvent.keyDown(editor, { key: "z", ctrlKey: true, shiftKey: true });
+  await waitFor(() => expect(lastProbe()).toBe(editedBytes));
+  fireEvent.click(undo);
+  await waitFor(() => expect(lastProbe()).toBe(pdfBytes));
+  fireEvent.click(redo);
+  await waitFor(() => expect(lastProbe()).toBe(editedBytes));
+  // Each step marked the coordinator dirty with the swapped bytes generation.
+  expect(session.coordinator.getState().dirtyGeneration).toBe(session.editor.getDirtyGeneration());
 });

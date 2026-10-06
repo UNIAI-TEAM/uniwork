@@ -7417,6 +7417,8 @@
       "unknown_reason": "khác",
       "no_web_editor_title": "Chưa sửa được trong web",
       "no_web_editor_description": "UniWork Office mở định dạng này ở bản sau. Hiện tại bạn tải về để xem hoặc tải lên phiên bản mới.",
+      "office_off_title": "Chỉnh sửa {{format}} đang tắt",
+      "office_off_description": "Tổ chức này đang tắt chỉnh sửa tệp {{format}}. Bạn vẫn tải tệp về hoặc tải lên phiên bản mới được.",
       "upload_failed": "Không tải được tệp lên",
       "commit_failed": "Không lưu được phiên bản mới",
       "missing_file": "Tài liệu này chưa có tệp."
@@ -9048,7 +9050,20 @@
       },
       "correlation": "Mã tương quan: {{id}}",
       "reason": {
-        "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ."
+        "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ.",
+        "file_invalid_path": "Vị trí của tệp này không hợp lệ. Mở lại tệp từ danh sách tệp.",
+        "file_not_found": "Không tìm thấy tệp. Tệp có thể đã bị di chuyển hoặc xoá.",
+        "file_access_denied": "UniWork Office không dùng được tệp này vì đây là lối tắt hoặc liên kết. Hãy mở tệp gốc.",
+        "file_locked": "Tệp đang được chương trình khác sử dụng. Đóng tệp ở đó rồi thử lại.",
+        "file_changed_on_disk": "Tệp đã thay đổi trên máy sau khi bạn mở. Thay đổi của bạn vẫn được giữ: hãy lưu thành tên khác hoặc mở lại tệp.",
+        "file_handle_invalid": "Tệp này không còn mở trong UniWork Office. Hãy mở lại.",
+        "file_session_revoked": "Phiên làm việc đã thay đổi khi đang xử lý tệp. Thử lại.",
+        "file_write_failed": "Không ghi được tệp. Kiểm tra dung lượng trống và quyền truy cập rồi thử lại. Thay đổi của bạn vẫn được giữ.",
+        "file_replace_failed": "Không thay được tệp bằng bản mới. Đóng tệp trong các chương trình khác rồi thử lại. Thay đổi của bạn vẫn được giữ.",
+        "file_too_large": "Tệp quá lớn để UniWork Office xử lý.",
+        "file_save_in_progress": "Một lần lưu khác vẫn đang chạy. Chờ xong rồi thử lại.",
+        "file_engine_unavailable": "Bản UniWork Office này chưa xử lý được loại tệp này trên máy.",
+        "file_failed": "Không xử lý được tệp. Thử lại."
       },
       "short": {
         "checkpoint": "Nháp trên máy",
@@ -11250,6 +11265,7 @@
         "undo": "Hoàn tác",
         "redo": "Làm lại",
         "thumbnailsLabel": "Ảnh thu nhỏ trang",
+        "showThumbnails": "Hiện ảnh thu nhỏ trang", "hideThumbnails": "Ẩn ảnh thu nhỏ trang",
         "thumbnailPage": "Trang {{page}}",
         "statusBarLabel": "Thanh trạng thái PDF",
         "statusBarPage": "Trang {{page}} / {{total}}",
@@ -11268,7 +11284,7 @@
         "retryOpen": "Thử mở lại"
       },
       "commands": {
-        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)", "highlight": "Tô sáng", "note": "Ghi chú", "stamp": "Đóng dấu", "forms": "Điền biểu mẫu", "zoomOut": "Thu nhỏ", "zoomIn": "Phóng to", "fitWidth": "Vừa chiều rộng", "fitPage": "Vừa trang"
+        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)", "highlight": "Tô sáng", "note": "Ghi chú", "stamp": "Đóng dấu", "forms": "Điền biểu mẫu", "zoomOut": "Thu nhỏ", "zoomIn": "Phóng to", "fitWidth": "Vừa rộng", "fitPage": "Vừa trang"
       },
       "selection": { "none": "Chưa chọn trang", "page": "Trang {{page}}", "background": "Nền trang {{page}}" },
       "capabilityPending": "Tính năng PDF này chưa có trong bản dựng engine hiện tại.",
@@ -11316,7 +11332,7 @@
         "errors": { "asset": "Không thể đọc ảnh.", "fileType": "Chọn ảnh PNG hoặc JPEG." }
       },
       "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này.", "missingUnknown": "Thiếu font nhúng; engine không âm thầm thay thế font." },
-      "markups": { "label": "Công cụ đánh dấu chữ", "highlight": "Tô sáng", "underline": "Gạch chân", "strikeout": "Gạch ngang" },
+      "markups": { "label": "Đánh dấu chữ", "highlight": "Tô sáng", "underline": "Gạch chân", "strikeout": "Gạch ngang" },
       "drawings": { "label": "Công cụ vẽ", "rect": "Hình chữ nhật", "ellipse": "Hình elip", "line": "Đường thẳng", "arrow": "Mũi tên" },
       "ink": { "draw": "Vẽ tay" },
       "annotations": {
@@ -11506,6 +11522,7 @@
         "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại.",
         "editRejected": "PDF không nhận giá trị này. Kiểm tra lại rồi thử lại.",
         "unsupportedInBrowser": "Thay đổi này chưa dùng được trên trình duyệt.",
+        "unsupportedPagesInBrowser": "Chèn, trích xuất và gộp trang chưa dùng được trên trình duyệt.",
         "editSkipped": "Một phần thay đổi bị bỏ qua vì trình duyệt chưa áp dụng được.",
         "formValueRejected": "Trường này không lưu được ký tự vừa nhập (ví dụ chữ có dấu) vì phông của biểu mẫu không hỗ trợ. Giá trị chưa được lưu.",
         "formsFailed": "Không đọc được các trường biểu mẫu của PDF này.",
@@ -11608,6 +11625,8 @@
       "updated": "Cập nhật {{time}}",
       "contentPending": "Chỉnh sửa nội dung DOCX chưa khả dụng. Bạn có thể lưu và mở lại tệp.",
       "draftRecovered": "Đã khôi phục bản nháp đã chọn.",
+      "featureOffTitle": "Chỉnh sửa {{format}} đang tắt",
+      "featureOffDescription": "Tổ chức của bạn đang tắt chỉnh sửa tệp {{format}}, nên tệp này chỉ xem được.",
       "format": {
         "label": "Định dạng",
         "all": "Tất cả định dạng",

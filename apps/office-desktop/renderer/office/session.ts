@@ -5,6 +5,7 @@ import { desktopSurfaceFactory } from "./surface-registry";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
+import { throwIfLocalFileFailed } from "./local-file-failure";
 import type { DesktopTextFacets } from "./text-surface";
 import type { PdfCanvasPage, PdfEditOperation, PdfFormField, PdfNoteThread, PdfPageRenderService, PdfSearchHit, PdfSnapshot } from "@uniwork/views/office/pdf";
 
@@ -49,6 +50,9 @@ type LaneEditorFacets = {
    * them the forms panel never leaves its loading state (R18-2). */
   readFormFields?(): Promise<readonly PdfFormField[]>;
   readSavedNotes?(): Promise<readonly PdfNoteThread[]>;
+  /** Byte-change notify (edit, undo, redo): the PDF editor refreshes its canvas
+   * and re-marks dirty after an async undo/redo swap (G-1). */
+  subscribe?(listener: () => void): () => void;
   /** Markdown / HTML text facets: the shared text views read and write the
    * one source port; the session only forwards the live lane's facets. */
   source?: DesktopTextFacets["source"];
@@ -182,6 +186,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     get searchText() { const lane = surface; return lane?.searchText?.bind(lane); },
     get readFormFields() { const lane = surface; return lane?.readFormFields?.bind(lane); },
     get readSavedNotes() { const lane = surface; return lane?.readSavedNotes?.bind(lane); },
+    get subscribe() { const lane = surface; return lane?.subscribe?.bind(lane); },
     get source() { return surface?.source; },
     get getText() { const lane = surface; return lane?.getText?.bind(lane); },
     get setText() { const lane = surface; return lane?.setText?.bind(lane); },
@@ -272,6 +277,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       if (localHandle) {
         const useSaveAs = output.saveAs || opened.localUntitled === true;
         const result = desktopFileResponseSchema.parse(await bridge.call(useSaveAs ? "desktop:file-save-as" : "desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localHandle, dataBase64: output.dataBase64 }));
+        throwIfLocalFileFailed(result);
         if (!result.opened && useSaveAs) { pickerCancelled = true; throw Object.assign(new Error("save_as_cancelled"), { code: "save_as_cancelled" }); }
         if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
         if (result.metadata.checksum !== output.checksum) throw Object.assign(new Error("local_save_checksum_mismatch"), { code: "local_save_checksum_mismatch" });
@@ -311,6 +317,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       if (localHandle) {
         const handle = localHandle;
         const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle }));
+        throwIfLocalFileFailed(result);
         if (disposed || !result.opened || result.metadata?.handle !== handle || localHandle !== handle) throw new Error("local_rebind_unconfirmed");
       } else {
         const target = currentIdentity();

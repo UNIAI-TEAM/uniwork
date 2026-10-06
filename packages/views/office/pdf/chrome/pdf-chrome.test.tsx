@@ -140,9 +140,9 @@ describe("createPdfRibbonTabs", () => {
     expect(view?.groups[0]?.items.map((item) => item.labelKey)).toEqual(["office.pdf.commands.zoomOut", "office.pdf.commands.zoomIn"]);
   });
 
-  it("renders a pair of items as two equal large buttons", () => {
+  it("renders the View pairs small so their captions stay on one line (UIQ-2)", () => {
     const view = createPdfRibbonTabs(viewCommands).find((tab) => tab.id === "view");
-    expect(view?.groups.map((group) => group.items.map((item) => item.size))).toEqual([["large", "large"], ["large", "large"]]);
+    expect(view?.groups.map((group) => group.items.map((item) => item.size))).toEqual([["small", "small"], ["small", "small"]]);
   });
 
   it("renders the first item of a group large and the rest small", () => {
@@ -155,7 +155,7 @@ describe("createPdfRibbonTabs", () => {
     const markups = annotate?.groups[0];
     expect(markups?.items.map((item) => item.size)).toEqual(["icon", "icon", "icon", "icon"]);
     expect(markups?.items.map((item) => item.rowBreak === true)).toEqual([false, false, true, false]);
-    expect(annotate?.groups[1]?.items.map((item) => item.size)).toEqual(["large"]);
+    expect(annotate?.groups[1]?.items.map((item) => item.size)).toEqual(["small"]);
   });
 
   it("gives the first group of a tab the highest priority so it collapses last", () => {

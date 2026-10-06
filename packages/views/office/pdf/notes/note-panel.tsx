@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CircleCheck, CircleDashed, Pencil, Reply } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -100,11 +101,12 @@ export function PdfNotesPanel({ threads, provider, addTarget, loading = false, e
                 </p>
                 {canAct(thread.root) ? (
                   <div className="flex flex-wrap items-center gap-1">
-                    <Button type="button" variant="ghost" size="sm" aria-pressed={thread.root.resolved === true} disabled={disabled || pending} onClick={() => void run(thread.root.id, async () => { await provider!.resolveNote({ identity: identityOf(thread.root), resolved: thread.root.resolved !== true }); })}>
+                    <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" aria-pressed={thread.root.resolved === true} disabled={disabled || pending} onClick={() => void run(thread.root.id, async () => { await provider!.resolveNote({ identity: identityOf(thread.root), resolved: thread.root.resolved !== true }); })}>
+                      {thread.root.resolved ? <CircleDashed aria-hidden="true" /> : <CircleCheck aria-hidden="true" />}
                       {thread.root.resolved ? t("office.pdf.notes.unresolve") : t("office.pdf.notes.resolve")}
                     </Button>
-                    <Button type="button" variant="ghost" size="sm" disabled={disabled || pending} onClick={() => { setEditingId(editingId === thread.root.id ? null : thread.root.id); setDraft(thread.root.contents); }}>{t("office.pdf.notes.edit")}</Button>
-                    <Button type="button" variant="ghost" size="sm" disabled={disabled || pending} onClick={() => { setReplyingId(replyingId === thread.id ? null : thread.id); setReplyDraft(""); }}>{t("office.pdf.notes.reply")}</Button>
+                    <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" disabled={disabled || pending} onClick={() => { setEditingId(editingId === thread.root.id ? null : thread.root.id); setDraft(thread.root.contents); }}><Pencil aria-hidden="true" />{t("office.pdf.notes.edit")}</Button>
+                    <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" disabled={disabled || pending} onClick={() => { setReplyingId(replyingId === thread.id ? null : thread.id); setReplyDraft(""); }}><Reply aria-hidden="true" />{t("office.pdf.notes.reply")}</Button>
                   </div>
                 ) : <span className="text-caption text-muted-foreground">{t("office.pdf.notes.readOnly")}</span>}
                 {rowError(thread.root.id)}
