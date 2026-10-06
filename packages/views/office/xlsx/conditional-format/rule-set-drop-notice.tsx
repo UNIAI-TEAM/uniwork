@@ -26,7 +26,8 @@ export function RuleSetDropNotice({ errorCode, editor }: RuleSetDropNoticeProps)
         <ul>
           {listed.map((drop, index) => (
             <li key={`${drop.family}:${drop.sheet}:${index}`}>
-              {t("office.xlsx.conditionalFormat.dropped.item", {
+              {t(drop.rules > 0 ? "office.xlsx.conditionalFormat.dropped.itemRules" : "office.xlsx.conditionalFormat.dropped.item", {
+                ...(drop.rules > 0 ? { count: drop.rules } : {}),
                 family: t(drop.family === "dataValidations" ? "office.xlsx.conditionalFormat.dropped.familyDataValidations" : "office.xlsx.conditionalFormat.dropped.familyConditionalFormats"),
                 sheet: drop.sheet,
                 interpolation: { escapeValue: false },

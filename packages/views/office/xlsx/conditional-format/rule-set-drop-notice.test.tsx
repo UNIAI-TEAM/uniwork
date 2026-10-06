@@ -14,14 +14,14 @@ const BASE = "office.xlsx.conditionalFormat.dropped.";
 
 describe("RuleSetDropNotice", () => {
   it("renders nothing for other codes", () => {
-    const { container } = render(<RuleSetDropNotice errorCode="engine_timeout" editor={editorOf([{ family: "dataValidations", sheet: "S", savedRules: null }])} />);
+    const { container } = render(<RuleSetDropNotice errorCode="engine_timeout" editor={editorOf([{ family: "dataValidations", sheet: "S", savedRules: null, rules: 0 }])} />);
     expect(container).toBeEmptyDOMElement();
     const none = render(<RuleSetDropNotice errorCode={null} editor={editorOf([])} />);
     expect(none.container).toBeEmptyDOMElement();
   });
 
   it("names the family and sheet of each drop, sheet text stays literal", () => {
-    render(<RuleSetDropNotice errorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf([{ family: "conditionalFormats", sheet: "<b>Sales</b>", savedRules: null }, { family: "dataValidations", sheet: "Data", savedRules: null }])} />);
+    render(<RuleSetDropNotice errorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf([{ family: "conditionalFormats", sheet: "<b>Sales</b>", savedRules: null, rules: 0 }, { family: "dataValidations", sheet: "Data", savedRules: null, rules: 0 }])} />);
     const alert = screen.getByRole("alert");
     expect(alert).toHaveAttribute("data-testid", "xlsx-rule-set-dropped");
     expect(alert).toHaveTextContent(lookup(`${BASE}title`));
@@ -29,6 +29,15 @@ describe("RuleSetDropNotice", () => {
     expect(alert).toHaveTextContent(`${lookup(`${BASE}familyDataValidations`)}: trang tính Data`);
     expect(alert.querySelector("b")).toBeNull();
     expect(alert).toHaveTextContent(lookup(`${BASE}saveAgain`));
+  });
+
+  // UNI-953 item 4: a family-wide drop says how many rules each sheet lost.
+  it("names how many rules the dropped snapshot held", () => {
+    render(<RuleSetDropNotice errorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf([{ family: "conditionalFormats", sheet: "Q1", savedRules: null, rules: 2 }, { family: "dataValidations", sheet: "Data", savedRules: null, rules: 0 }])} />);
+    const items = screen.getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent(`${lookup(`${BASE}familyConditionalFormats`)}: trang tính Q1 (2 quy tắc)`);
+    expect(items[1]).toHaveTextContent(`${lookup(`${BASE}familyDataValidations`)}: trang tính Data`);
+    expect(items[1]).not.toHaveTextContent("quy tắc)");
   });
 
   it("shows the generic text for an empty or missing list", () => {
@@ -41,7 +50,7 @@ describe("RuleSetDropNotice", () => {
   });
 
   it("caps the list at 10 with a +N more line", () => {
-    const drops = Array.from({ length: 13 }, (_, index) => ({ family: "conditionalFormats" as const, sheet: `S${index}`, savedRules: null }));
+    const drops = Array.from({ length: 13 }, (_, index) => ({ family: "conditionalFormats" as const, sheet: `S${index}`, savedRules: null, rules: 0 }));
     render(<RuleSetDropNotice errorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf(drops)} />);
     expect(screen.getAllByRole("listitem")).toHaveLength(10);
     expect(screen.getByRole("alert")).toHaveTextContent("và 3 mục khác");
@@ -52,7 +61,7 @@ describe("RuleSetDropNotice", () => {
 describe("XlsxFrameNotices pass-through", () => {
   const base = { recalcProgress: null, recalcError: null, editFailed: false, onCancelRecalculate: () => undefined };
   it("renders the drop notice for the dropped code only", () => {
-    const { rerender } = render(<XlsxFrameNotices {...base} saveErrorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf([{ family: "dataValidations", sheet: "Q", savedRules: null }])} />);
+    const { rerender } = render(<XlsxFrameNotices {...base} saveErrorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf([{ family: "dataValidations", sheet: "Q", savedRules: null, rules: 0 }])} />);
     expect(screen.getByTestId("xlsx-rule-set-dropped")).toHaveTextContent("trang tính Q");
     rerender(<XlsxFrameNotices {...base} saveErrorCode="other" editor={editorOf([])} />);
     expect(screen.queryByTestId("xlsx-rule-set-dropped")).toBeNull();
@@ -70,7 +79,7 @@ describe("XlsxFrameNotices grid restore", () => {
 
   it("restores each dropped family on the sheet the notice names, with the rules the file holds", () => {
     const grid = gridOf();
-    const drops: XlsxDroppedRuleSet[] = [{ family: "conditionalFormats", sheet: "Doanh thu", savedRules: saved }, { family: "dataValidations", sheet: "Data", savedRules: null }, { family: "dataValidations", sheet: "Gone", savedRules: null }];
+    const drops: XlsxDroppedRuleSet[] = [{ family: "conditionalFormats", sheet: "Doanh thu", savedRules: saved }, { family: "dataValidations", sheet: "Data", savedRules: null, rules: 0 }, { family: "dataValidations", sheet: "Gone", savedRules: null, rules: 0 }];
     const { rerender } = render(<XlsxFrameNotices {...base} saveErrorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf(drops)} grid={grid.ref} />);
     expect(grid.restoreRuleSet.mock.calls).toEqual([["s2", "conditionalFormats", saved], ["s1", "dataValidations", null]]);
     // A re-render of the same drop does not restore again.
@@ -80,9 +89,9 @@ describe("XlsxFrameNotices grid restore", () => {
 
   it("restores nothing for another error, an empty (generic) drop or a grid without the port", () => {
     const grid = gridOf();
-    render(<XlsxFrameNotices {...base} saveErrorCode="engine_timeout" editor={editorOf([{ family: "conditionalFormats", sheet: "Data", savedRules: null }])} grid={grid.ref} />);
+    render(<XlsxFrameNotices {...base} saveErrorCode="engine_timeout" editor={editorOf([{ family: "conditionalFormats", sheet: "Data", savedRules: null, rules: 0 }])} grid={grid.ref} />);
     render(<XlsxFrameNotices {...base} saveErrorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf([])} grid={grid.ref} />);
     expect(grid.restoreRuleSet).not.toHaveBeenCalled();
-    expect(() => render(<XlsxFrameNotices {...base} saveErrorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf([{ family: "conditionalFormats", sheet: "Data", savedRules: null }])} grid={{ current: { getSheets: () => [] } }} />)).not.toThrow();
+    expect(() => render(<XlsxFrameNotices {...base} saveErrorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf([{ family: "conditionalFormats", sheet: "Data", savedRules: null, rules: 0 }])} grid={{ current: { getSheets: () => [] } }} />)).not.toThrow();
   });
 });
