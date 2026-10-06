@@ -17,6 +17,8 @@ export const BRAND_PRODUCT_NAME: string = channelIdentity.product;
  * channel profile is what scripts/package.mjs hands electron-builder. */
 export const APP_USER_MODEL_ID: string = channelIdentity.appId;
 
+type BrandedWindowKind = "main" | "print" | "dialog";
+
 /** Only an empty title means "no document": the renderer leaves
  * `document.title` empty on the home tab (renderer/window-title.ts) and in
  * renderer/index.html, so a document named like the product, or literally
