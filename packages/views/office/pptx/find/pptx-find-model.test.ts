@@ -181,6 +181,12 @@ describe("replace-one resume (the active hit moves past the text just written)",
         : run,
     );
   };
+  // The position is null only when the hit does not exist; every case below names a real hit.
+  const positionAfter = (...args: Parameters<typeof resumePositionAfterReplace>): NonNullable<ReturnType<typeof resumePositionAfterReplace>> => {
+    const position = resumePositionAfterReplace(...args);
+    expect(position).not.toBeNull();
+    return position!;
+  };
 
   it("never lands back on the text it wrote: replacing a with aa walks forward through the run", () => {
     let runs: PptxFindTextTarget[] = [{ text: "banana", slideIndex: 0, elementId: "t1" }];
@@ -189,7 +195,7 @@ describe("replace-one resume (the active hit moves past the text just written)",
     const visited: number[] = [];
     for (let step = 0; step < 2; step += 1) {
       const hit = hits[at]!;
-      const position = resumePositionAfterReplace(hits, at, runs, "aa");
+      const position = positionAfter(hits, at, runs, "aa");
       runs = apply(runs, hits, at, "aa");
       hits = findOccurrences(runs, "a", false);
       at = resumeHitIndex(hits, position);
@@ -207,7 +213,7 @@ describe("replace-one resume (the active hit moves past the text just written)",
       { text: "ba", slideIndex: 1, elementId: "t2" },
     ];
     const hits = findOccurrences(runs, "a", false);
-    const position = resumePositionAfterReplace(hits, 0, runs, "aa");
+    const position = positionAfter(hits, 0, runs, "aa");
     const nextHits = findOccurrences(apply(runs, hits, 0, "aa"), "a", false);
     expect(nextHits[resumeHitIndex(nextHits, position)]).toMatchObject({ run: 1, offset: 1 });
   });
@@ -215,7 +221,7 @@ describe("replace-one resume (the active hit moves past the text just written)",
   it("wraps to the first hit when nothing remains after the written text", () => {
     const runs: PptxFindTextTarget[] = [{ text: "aXa", slideIndex: 0, elementId: "t1" }];
     const hits = findOccurrences(runs, "a", false);
-    const position = resumePositionAfterReplace(hits, 1, runs, "aa");
+    const position = positionAfter(hits, 1, runs, "aa");
     const nextHits = findOccurrences(apply(runs, hits, 1, "aa"), "a", false);
     expect(resumeHitIndex(nextHits, position)).toBe(0);
   });
@@ -226,7 +232,7 @@ describe("replace-one resume (the active hit moves past the text just written)",
       { text: "a", slideIndex: 0, elementId: "t2" },
     ];
     const hits = findOccurrences(runs, "a", false);
-    const position = resumePositionAfterReplace(hits, 0, runs, "");
+    const position = positionAfter(hits, 0, runs, "");
     // The emptied run is dropped from the flattened deck, so t2 is now run 0.
     const nextHits = findOccurrences([runs[1]!], "a", false);
     expect(nextHits[resumeHitIndex(nextHits, position)]).toMatchObject({ run: 0, offset: 0 });
