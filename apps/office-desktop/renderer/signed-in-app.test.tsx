@@ -156,7 +156,8 @@ it("closes an unchanged readonly document without a dirty leave prompt", async (
 const readonlySurface = (container: HTMLElement) => container.querySelector("[data-testid='readonly-surface']");
 
 it("opens a cloud document read-only when its format flag or the engine flag is off, and editable when both are on", async () => {
-  for (const flags of [{ office_engine: true, office_docx: false }, { office_docx: true }, {}]) {
+  const cases: Array<Record<string, boolean>> = [{ office_engine: true, office_docx: false }, { office_docx: true }, {}];
+  for (const flags of cases) {
     const h = harness({ flags });
     await open(0);
     expect(h.call).toHaveBeenCalledWith("desktop:public-config", expect.objectContaining({ organizationId: "org" }));

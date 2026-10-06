@@ -15,7 +15,7 @@ const editOp = { op: "set_cell", target: { sheet: "Data", cell: "A1" }, attribut
  *  desktop:file-save, and no cloud channel is ever reached. */
 function makeLocalBridge() {
   const saved: Uint8Array[] = [];
-  const call = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
+  const call = vi.fn(async (channel: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> => {
     if (channel === "desktop:file-xlsx") {
       if (payload.operation === "open") return { state: "completed", outputBase64: encode({ snapshot, render_model: renderModel }) };
       return { state: "completed", outputBase64: Buffer.from([1, 2, 3, 4]).toString("base64"), outputChecksum: `sha256:${"a".repeat(64)}` };
