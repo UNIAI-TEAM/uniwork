@@ -10,7 +10,7 @@ const renderer = path.join(REPO_ROOT, 'packages/office-upstream/shims/xlsx-rende
 const upstream = path.join(REPO_ROOT, 'packages/office-upstream/upstream');
 const bundled = await build({
   stdin: {
-    contents: `export * from './rule-set-capture'; export * from './rule-set-policy'; export { canExecuteCommand } from './command-policy';
+    contents: `export * from './rule-set-capture'; export * from './rule-set-policy'; export * from './dv-error-style'; export { canExecuteCommand } from './command-policy';
       export { createEditJournal, recordSheetDuplicate, recordSheetInsert } from '../../upstream/apps/sheets/src/renderer/edit-journal';`,
     resolveDir: renderer, loader: 'ts',
   },
@@ -34,7 +34,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed } = module.exports;
+const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed, readLiveRuleSet, settleDvErrorStyle, ensureDvHintStyle } = module.exports;
 
 const area = (startRow, endRow, startColumn, endColumn) => ({ startRow, endRow, startColumn, endColumn });
 function state({ applied = ['s1'], ruleSets, ruleCounts } = {}) {
@@ -338,4 +338,118 @@ test('a restore passes the rule-set policy gate: a live sheet of this workbook, 
   assert.equal(ruleSetRestoreAllowed(book, 's1', 'conditionalFormats', [{ ranges: [area(3, 1, 0, 0)], rule: {} }]), false);
   assert.equal(ruleSetRestoreAllowed(book, 's1', 'conditionalFormats', [{ ranges: [area(0, 0, 0, 0)] }]), false);
   assert.equal(ruleSetRestoreAllowed(book, 's1', 'conditionalFormats', 'x'), false);
+});
+
+// UNI-953: the rule managers read the live rules with their model ids and fire
+// edit / move / delete commands by id; the policy admits exactly those shapes.
+test('readLiveRuleSet returns each live rule with its model id, CF in model order', () => {
+  const sheet = worksheet([cfRule, { ...cfRule, cfId: 'cf-2' }, { ...cfRule, cfId: undefined }], [dvRule, { ...dvRule, uid: undefined }]);
+  assert.deepEqual(readLiveRuleSet(sheet, 'conditionalFormats').map((rule) => rule.id), ['cf-1', 'cf-2']);
+  assert.deepEqual(readLiveRuleSet(sheet, 'dataValidations'), [
+    { id: 'dv-1', ranges: [area(1, 9, 2, 2)], rule: { type: 'list', formula1: 'Yes,No', allowBlank: true } },
+  ]);
+  assert.deepEqual(readLiveRuleSet({}, 'conditionalFormats'), []);
+});
+
+test('the policy admits the rule-manager commands by model id and refuses malformed ones', () => {
+  const book = state();
+  const allow = (id, params) => assert.equal(canExecuteCommand(command(id, { ...scope, ...params }), book, false), true, id);
+  const refuse = (id, params, target = book, readOnly = false) =>
+    assert.equal(canExecuteCommand(command(id, { ...scope, ...params }), target, readOnly), false, `${id} ${JSON.stringify(params)}`);
+  allow('sheet.command.set-conditional-rule', { cfId: 'cf-1', rule: cfRule });
+  allow('sheet.command.move-conditional-rule', { start: { id: 'cf-1', type: 'self' }, end: { id: 'cf-2', type: 'after' } });
+  allow('sheet.command.delete-conditional-rule', { cfId: 'cf-1' });
+  allow('sheets.command.update-data-validation-setting', { ruleId: 'dv-1', setting: { type: 'whole', operator: 'between', formula1: '1', formula2: '5', allowBlank: true } });
+  allow('sheets.command.update-data-validation-options', { ruleId: 'dv-1', options: { errorStyle: 2, error: 'Keep?', errorTitle: 'Check', showErrorMessage: true } });
+  allow('sheets.command.update-data-validation-options', { ruleId: 'dv-1', options: { errorStyle: 0 } });
+  allow('sheet.command.updateDataValidationRuleRange', { ruleId: 'dv-1', ranges: [area(0, 3, 0, 0)] });
+  allow('sheet.command.remove-data-validation-rule', { ruleId: 'dv-1' });
+
+  refuse('sheet.command.set-conditional-rule', { cfId: 'cf-1', rule: { ...cfRule, cfId: 'cf-9' } });
+  refuse('sheet.command.set-conditional-rule', { cfId: 'cf-1', rule: { ...cfRule, rule: { type: 'formula' } } });
+  refuse('sheet.command.set-conditional-rule', { rule: cfRule });
+  refuse('sheet.command.move-conditional-rule', { start: { id: 'cf-1', type: 'before' }, end: { id: 'cf-2', type: 'after' } });
+  refuse('sheet.command.move-conditional-rule', { start: { id: 'cf-1', type: 'self' }, end: { id: '', type: 'after' } });
+  refuse('sheet.command.delete-conditional-rule', { cfId: 7 });
+  refuse('sheet.command.delete-conditional-rule', { cfId: 'x'.repeat(201) });
+  refuse('sheets.command.update-data-validation-setting', { ruleId: 'dv-1', setting: { type: 'listMultiple' } });
+  refuse('sheets.command.update-data-validation-setting', { ruleId: 'dv-1', setting: { type: 'whole', operator: 'like' } });
+  refuse('sheets.command.update-data-validation-options', { ruleId: 'dv-1', options: { errorStyle: 3 } });
+  refuse('sheets.command.update-data-validation-options', { ruleId: 'dv-1', options: { errorTitle: 'x'.repeat(33) } });
+  refuse('sheets.command.update-data-validation-options', { ruleId: 'dv-1', options: { showErrorMessage: 'yes' } });
+  refuse('sheet.command.updateDataValidationRuleRange', { ruleId: 'dv-1', ranges: [area(3, 1, 0, 0)] });
+  refuse('sheet.command.remove-data-validation-rule', {});
+  // The same scope rules as the toolbar commands: readiness, read-only, x14 DV.
+  refuse('sheet.command.delete-conditional-rule', { cfId: 'cf-1' }, state({ applied: [] }));
+  refuse('sheet.command.remove-data-validation-rule', { ruleId: 'dv-1' }, book, true);
+  refuse('sheet.command.remove-data-validation-rule', { ruleId: 'dv-1' }, state({ ruleSets: x14('classic', 'x14') }));
+});
+
+test('a rule-manager mutation snapshots the whole sheet like any CF/DV change', () => {
+  const book = state();
+  const [cf] = ingestRuleSetMutation(book, mutation('sheet.mutation.move-conditional-rule'), () => worksheet([{ ...cfRule, cfId: 'cf-2' }, cfRule]));
+  assert.equal(cf.ruleSet, 'conditionalFormats');
+  assert.equal(cf.rules.length, 2);
+  const [dv] = ingestRuleSetMutation(book, mutation('data-validation.mutation.updateRule'), () => worksheet([], [{ ...dvRule, errorStyle: 2 }]));
+  assert.equal(dv.rules[0].rule.errorStyle, 2);
+});
+
+// UNI-953: warning and information validations ask instead of accepting.
+const cell = { unitId: 'file-sha', subUnitId: 's1', row: 1, col: 2 };
+function errorStylePort(rule, valid = false, answer = true) {
+  const asked = [];
+  return {
+    asked,
+    port: {
+      ruleAt: () => rule,
+      isValid: async () => valid,
+      confirm: async (options) => { asked.push(options); return answer; },
+    },
+  };
+}
+
+test('a warning rule asks whether to keep an invalid value; the answer is the verdict', async () => {
+  const yes = errorStylePort({ errorStyle: 2, error: 'Only 1-5', errorTitle: 'Check' }, false, true);
+  assert.equal(await settleDvErrorStyle(true, cell, yes.port), true);
+  assert.deepEqual(yes.asked, [{ id: 'uniwork-dv-error-style', title: 'Check', message: 'Only 1-5', confirmText: 'dvWarningYes', cancelText: 'dvWarningNo' }]);
+  const no = errorStylePort({ errorStyle: 2 }, false, false);
+  assert.equal(await settleDvErrorStyle(true, cell, no.port), false);
+  assert.equal(no.asked[0].title, 'dvWarningTitle');
+  assert.equal(no.asked[0].message, 'dvRejectTitle');
+});
+
+test('an information rule shows a notice: OK keeps the value, Cancel drops it', async () => {
+  const ok = errorStylePort({ errorStyle: 0, error: 'Heads up' }, false, true);
+  assert.equal(await settleDvErrorStyle(true, cell, ok.port), true);
+  assert.equal(ok.asked[0].confirmText, 'dvInfoOk');
+  assert.equal(ok.asked[0].title, 'dvInfoTitle');
+  assert.equal(await settleDvErrorStyle(true, cell, errorStylePort({ errorStyle: '0' }, false, false).port), false);
+});
+
+test('a valid value, a stop or unstyled rule, a silenced alert and a plugin refusal never ask', async () => {
+  const never = (rule, valid = false, accepted = true) => {
+    const probe = errorStylePort(rule, valid);
+    return settleDvErrorStyle(accepted, cell, probe.port).then((verdict) => ({ verdict, asked: probe.asked.length }));
+  };
+  assert.deepEqual(await never({ errorStyle: 2 }, true), { verdict: true, asked: 0 });
+  assert.deepEqual(await never({ errorStyle: 1 }), { verdict: true, asked: 0 });
+  assert.deepEqual(await never({}), { verdict: true, asked: 0 });
+  assert.deepEqual(await never({ errorStyle: null }), { verdict: true, asked: 0 });
+  assert.deepEqual(await never(null), { verdict: true, asked: 0 });
+  assert.deepEqual(await never({ errorStyle: 2, showErrorMessage: false }), { verdict: true, asked: 0 });
+  assert.deepEqual(await never({ errorStyle: 2 }, false, false), { verdict: false, asked: 0 });
+});
+
+test('the invalid-cell hint grows to its title instead of wrapping it into the message', () => {
+  const appended = [];
+  const doc = {
+    getElementById: (id) => appended.find((node) => node.id === id) ?? null,
+    createElement: () => ({ id: '', textContent: '' }),
+    head: { appendChild: (node) => appended.push(node) },
+  };
+  ensureDvHintStyle(doc);
+  ensureDvHintStyle(doc);
+  assert.equal(appended.length, 1);
+  assert.match(appended[0].textContent, /\[class~='univer-w-\[156px\]'\][^{]*\{width:max-content;min-width:156px;max-width:min\(320px,80vw\)\}/);
+  assert.match(appended[0].textContent, /\[class~='univer-h-5'\]\{height:auto/);
 });

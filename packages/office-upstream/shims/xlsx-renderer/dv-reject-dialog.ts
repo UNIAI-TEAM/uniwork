@@ -1,4 +1,5 @@
-import { LocaleType, mergeLocales, type IDisposable } from "@univerjs/core";
+import { DataValidationStatus, IConfirmService, LocaleType, mergeLocales, type IDisposable } from "@univerjs/core";
+import { SheetDataValidationModel, SheetsDataValidationValidatorService } from "@univerjs/preset-sheets-data-validation";
 import UniverPresetSheetsConditionalFormattingEnUS from "@univerjs/preset-sheets-conditional-formatting/locales/en-US";
 import UniverPresetSheetsConditionalFormattingViVN from "@univerjs/preset-sheets-conditional-formatting/locales/vi-VN";
 import UniverPresetSheetsCoreEnUS from "@univerjs/preset-sheets-core/locales/en-US";
@@ -21,6 +22,7 @@ import type { CreateUniverOptions } from "../../upstream/apps/sheets/src/rendere
 import type { UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import type { ValidatedWriteGate } from "./edits";
 import { getLang, t } from "./locale";
+import { ensureDvHintStyle, settleDvErrorStyle, type DvErrorStyleCell, type DvErrorStylePort } from "./dv-error-style";
 
 // ── Univer locale + data-validation rejection dialog (X01 vfix-dv) ─────────
 //
@@ -154,11 +156,54 @@ export function installDvRejectDialogTitle(runtime: UniverRuntime, doc: Document
     if (title) reject.title = { ...reject.title, title };
     requestAnimationFrame(() => adoptOpenDialogs(doc, scopeClass));
   });
+  ensureDvHintStyle(doc);
+  const errorStyles = installDvErrorStyles(runtime, doc, scopeClass);
   return {
     dispose() {
       intercept();
       subscription.unsubscribe();
+      errorStyles.dispose();
     },
+  };
+}
+
+/** Between the DV plugin's handler (priority 0) and the write-gate verdict
+ *  reader (-0.5): a warning / information rule asks the user before the
+ *  verdict settles (dv-error-style.ts). */
+function installDvErrorStyles(runtime: UniverRuntime, doc: Document, scopeClass: string): IDisposable {
+  const injector = runtime.univer.__getInjector();
+  const port: DvErrorStylePort = {
+    ruleAt: ({ unitId, subUnitId, row, col }) => {
+      const model = injector.get(SheetDataValidationModel);
+      const ruleId = model.getRuleIdByLocation(unitId, subUnitId, row, col);
+      return (ruleId ? model.getRuleById(unitId, subUnitId, ruleId) : null) ?? null;
+    },
+    isValid: async ({ unitId, subUnitId, row, col }) =>
+      (await injector.get(SheetsDataValidationValidatorService).validatorCell(unitId, subUnitId, row, col)) === DataValidationStatus.VALID,
+    confirm: (options) => {
+      const answer = injector.get(IConfirmService).confirm({
+        id: options.id,
+        title: { title: options.title },
+        children: { title: options.message },
+        confirmText: options.confirmText,
+        cancelText: options.cancelText,
+      });
+      requestAnimationFrame(() => adoptOpenDialogs(doc, scopeClass));
+      return answer;
+    },
+  };
+  return {
+    dispose: injector.get(SheetInterceptorService).writeCellInterceptor.intercept(VALIDATE_CELL, {
+      priority: -0.25,
+      handler: (value, context, next) => {
+        const { unitId, subUnitId, row, col } = context as DvErrorStyleCell;
+        const settled = Promise.resolve(value).then(
+          (accepted) => settleDvErrorStyle(accepted !== false, { unitId, subUnitId, row, col }, port),
+          () => false,
+        );
+        return next(settled);
+      },
+    }),
   };
 }
 

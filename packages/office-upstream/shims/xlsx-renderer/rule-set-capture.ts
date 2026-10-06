@@ -37,13 +37,21 @@ export interface XlsxRendererRuleSetEdit {
 }
 
 /** The commands that change a rule model: the add/clear commands the
- *  toolbar fires plus the pinned commands those dispatch. */
+ *  toolbar fires, the edit/move/delete commands the rule managers fire
+ *  (UNI-953), plus the pinned commands those dispatch. */
 export const RULE_SET_COMMANDS = new Set([
   "sheet.command.add-conditional-rule",
   "sheet.command.clear-range-conditional-rule",
   "sheet.command.clear-worksheet-conditional-rule",
+  "sheet.command.set-conditional-rule",
+  "sheet.command.move-conditional-rule",
+  "sheet.command.delete-conditional-rule",
   "sheet.command.addDataValidation",
   "sheets.command.clear-range-data-validation",
+  "sheets.command.update-data-validation-setting",
+  "sheets.command.update-data-validation-options",
+  "sheet.command.updateDataValidationRuleRange",
+  "sheet.command.remove-data-validation-rule",
 ]);
 
 interface RuleSetWorksheet {

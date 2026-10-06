@@ -38,6 +38,12 @@ interface RuleSetParams {
   subUnitId?: unknown;
   ranges?: unknown;
   rule?: unknown;
+  cfId?: unknown;
+  ruleId?: unknown;
+  start?: unknown;
+  end?: unknown;
+  setting?: unknown;
+  options?: unknown;
 }
 
 /** The commands are sheet-scoped: an explicit unit must be this workbook, and
@@ -89,8 +95,46 @@ export function ruleSetCommandAllowed(event: RendererCommand, state: LazyWorkboo
       return params.ranges === undefined || areasOK(params.ranges);
     case "sheet.command.clear-worksheet-conditional-rule":
       return true;
+    // The rule managers (UNI-953): edit, reorder and delete one rule by its
+    // model id. An edited rule passes the same dry-run as a new one.
+    case "sheet.command.set-conditional-rule":
+      return idOK(params.cfId) && newRuleOK(params.rule, "cf") && (params.rule as { cfId?: unknown }).cfId === params.cfId;
+    case "sheet.command.move-conditional-rule":
+      return anchorOK(params.start, ["self"]) && anchorOK(params.end, ["before", "after"]);
+    case "sheet.command.delete-conditional-rule":
+      return idOK(params.cfId);
+    case "sheets.command.update-data-validation-setting":
+      return idOK(params.ruleId) && !!params.setting && typeof params.setting === "object" && dvRuleSaveable(params.setting);
+    case "sheets.command.update-data-validation-options":
+      return idOK(params.ruleId) && dvOptionsOK(params.options);
+    case "sheet.command.updateDataValidationRuleRange":
+      return idOK(params.ruleId) && areasOK(params.ranges);
+    case "sheet.command.remove-data-validation-rule":
+      return idOK(params.ruleId);
   }
   return false;
+}
+
+const MAX_RULE_ID = 200;
+
+function idOK(value: unknown): boolean {
+  return typeof value === "string" && value.length > 0 && value.length <= MAX_RULE_ID;
+}
+
+function anchorOK(value: unknown, types: readonly string[]): boolean {
+  if (!value || typeof value !== "object") return false;
+  const anchor = value as { id?: unknown; type?: unknown };
+  return idOK(anchor.id) && typeof anchor.type === "string" && types.includes(anchor.type);
+}
+
+/** DV options: an error style xlsx-dv.ts maps, bounded message strings and a
+ *  boolean alert flag; anything else in the object stays the plugin's. */
+function dvOptionsOK(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const options = value as { errorStyle?: unknown; error?: unknown; errorTitle?: unknown; showErrorMessage?: unknown };
+  const textOK = (field: unknown, max: number) => field === undefined || (typeof field === "string" && field.length <= max);
+  return dvRuleSaveable({ type: "any", errorStyle: options.errorStyle }) && textOK(options.error, 255) &&
+    textOK(options.errorTitle, 32) && (options.showErrorMessage === undefined || typeof options.showErrorMessage === "boolean");
 }
 
 /** Rule mutations replay through undo/redo and the ref-range handlers; they
