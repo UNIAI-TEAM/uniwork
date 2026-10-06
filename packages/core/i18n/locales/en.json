@@ -10111,7 +10111,8 @@
         "commandRefused": "The row or column change could not be applied. Check the selection and try again.",
         "dismiss": "Dismiss",
         "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again.",
-        "richPasteValuesOnly": "Formatting could not be kept for this paste, so only the values were pasted."
+        "richPasteValuesOnly": "Formatting could not be kept for this paste, so only the values were pasted.",
+        "richPasteMergesSkipped": "Merged cells could not be kept for this paste. The values and formatting were pasted."
       },
       "find": {
         "title": "Find and replace",

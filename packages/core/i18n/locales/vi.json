@@ -10105,7 +10105,8 @@
         "commandRefused": "Không thể áp dụng thay đổi hàng hoặc cột. Kiểm tra vùng chọn rồi thử lại.",
         "dismiss": "Đóng",
         "clipboardFailed": "Không thể truy cập bảng tạm. Kiểm tra quyền của trình duyệt rồi thử lại.",
-        "richPasteValuesOnly": "Không giữ được định dạng khi dán nên chỉ dán giá trị."
+        "richPasteValuesOnly": "Không giữ được định dạng khi dán nên chỉ dán giá trị.",
+        "richPasteMergesSkipped": "Không giữ được ô gộp khi dán. Giá trị và định dạng đã được dán."
       },
       "find": {
         "title": "Tìm và thay thế",
