@@ -9348,6 +9348,14 @@
           "pie": "Tròn",
           "doughnut": "Vành khuyên"
         },
+        "chartTypesInline": {
+          "column": "cột",
+          "bar": "thanh",
+          "line": "đường",
+          "area": "vùng",
+          "pie": "tròn",
+          "doughnut": "vành khuyên"
+        },
         "shapeTypes": {
           "rect": "Hình chữ nhật",
           "roundRect": "Hình chữ nhật bo góc",
@@ -9367,7 +9375,14 @@
           "roleDescription": "đối tượng vẽ",
           "keyboardHelp": "Phím mũi tên để di chuyển, Shift + mũi tên để đổi kích thước, Delete để xóa, Esc để quay lại trang tính.",
           "locked": "Đã lưu vào tệp. Chưa sửa được hình đã lưu.",
-          "delete": "Xóa {{name}}"
+          "delete": "Xóa {{name}}",
+          "fileReadOnly": "Hình vẽ này được neo theo kiểu trình sửa chưa di chuyển được. Hình hiển thị đúng như trong tệp.",
+          "unavailable": "Hiện chưa sửa được hình vẽ: tài liệu chỉ xem hoặc đang lưu.",
+          "fileChart": "Biểu đồ {{title}}"
+        },
+        "placeholder": {
+          "chart": "Chưa xem trước được loại biểu đồ này.",
+          "picture": "Hình ảnh quá lớn để xem trước ở đây."
         },
         "errors": {
           "noChartData": "Vùng đã chọn không có số liệu để vẽ biểu đồ.",
