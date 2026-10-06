@@ -74,12 +74,17 @@ export function cellStyleParams(
   return { unitId, subUnitId, range: { startRow, endRow, startColumn, endColumn }, value };
 }
 
+/** A sheet cell with no formatting: Excel's white fill and black text. A
+ *  preview is the cell it styles, so it is drawn on this swatch in either
+ *  theme; on the menu's own colours the dark title/heading text of a preset
+ *  would vanish in dark mode (review-design F9). */
+const DEFAULT_CELL = { fill: "#FFFFFF", text: "#000000" } as const;
+
 function previewStyle(style: XlsxCellStyle | null): CSSProperties {
-  if (style === null) return {};
   return {
-    ...(style.bg ? { backgroundColor: style.bg.rgb } : {}),
-    ...(style.cl ? { color: style.cl.rgb } : {}),
-    ...(style.bl ? { fontWeight: 600 } : {}),
+    backgroundColor: style?.bg?.rgb ?? DEFAULT_CELL.fill,
+    color: style?.cl?.rgb ?? DEFAULT_CELL.text,
+    ...(style?.bl ? { fontWeight: 600 } : {}),
   };
 }
 
@@ -129,6 +134,7 @@ export function XlsxCellStylesMenu({ readOnly = false, commands, selection, unit
               <span
                 className="min-w-0 flex-1 truncate rounded-sm border border-border px-1.5 py-0.5"
                 style={previewStyle(preset.style)}
+                data-testid={`xlsx-cell-style-${preset.id}-swatch`}
               >
                 {t(`office.xlsx.styles.presets.${preset.id}`)}
               </span>

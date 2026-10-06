@@ -90,6 +90,15 @@ describe("Home > Styles (design review X1)", () => {
       expect(await screen.findByTestId(`xlsx-cell-style-${preset.id}`)).toHaveTextContent(viText(`office.xlsx.styles.presets.${preset.id}`));
     }
     expect(screen.getByText(viText("office.xlsx.styles.cellStylesNote"))).toBeInTheDocument();
+    // review-design F9: every swatch is a document cell, a fill and a text
+    // colour of its own, so it reads the same on a dark menu.
+    for (const preset of XLSX_CELL_STYLE_PRESETS) {
+      const swatch = screen.getByTestId(`xlsx-cell-style-${preset.id}-swatch`);
+      expect(swatch.style.backgroundColor, preset.id).not.toBe("");
+      expect(swatch.style.color, preset.id).not.toBe("");
+    }
+    expect(screen.getByTestId("xlsx-cell-style-title-swatch").style.backgroundColor).toBe("rgb(255, 255, 255)");
+    expect(screen.getByTestId("xlsx-cell-style-bad-swatch").style.backgroundColor).toBe("rgb(255, 199, 206)");
     fireEvent.click(screen.getByTestId("xlsx-cell-style-normal"));
     expect(execute(props).mock.calls.map((call) => call[0])).toEqual(["sheet.command.clear-selection-format"]);
   });
