@@ -6,7 +6,8 @@
 // coercion rules stay the single source of cell content.
 
 import { XLSX_CLIENT_MAX_EDIT_OPS } from "./xlsx-clipboard";
-import { XLSX_CUSTOM_FORMAT_MAX_LENGTH, XLSX_NUMBER_FORMAT_COMMANDS, numberFormatCommandParams } from "./number-format/catalog";
+import { XLSX_NUMBER_FORMAT_COMMANDS, numberFormatCommandParams } from "./number-format/catalog";
+import { excelNumberFormat, fillColor, usableFormat } from "./xlsx-clipboard-formats";
 import type { XlsxToolbarCommands } from "./toolbar/types";
 
 export interface XlsxRichCell {
@@ -28,25 +29,9 @@ export interface XlsxRichPastePlan {
   readonly styledCells: number;
 }
 
-const EXCEL_FORMAT_KEYWORDS: Record<string, string | null> = {
-  general: null,
-  percent: "0%",
-  fixed: "0.00",
-  standard: "#,##0.00",
-};
-
 function declaration(style: string, property: string): string | null {
   const match = new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+)`, "i").exec(style);
   return match ? match[1]!.trim() : null;
-}
-
-function excelNumberFormat(style: string): string | null {
-  const match = /mso-number-format\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^;]+)/i.exec(style);
-  if (!match) return null;
-  const raw = match[1]!.trim();
-  const quoted = /^["'](.*)["']$/s.exec(raw);
-  if (!quoted) return EXCEL_FORMAT_KEYWORDS[raw.toLowerCase()] ?? null;
-  return quoted[1]!.replace(/\\(.)/g, "$1");
 }
 
 function sheetsNumberFormat(cell: Element): string | null {
@@ -58,31 +43,6 @@ function sheetsNumberFormat(cell: Element): string | null {
   } catch {
     return null;
   }
-}
-
-function usableFormat(pattern: string | null): string | null {
-  if (pattern === null || pattern === "" || pattern.toLowerCase() === "general") return null;
-  // eslint-disable-next-line no-control-regex -- control characters never belong in a format code
-  return pattern.length <= XLSX_CUSTOM_FORMAT_MAX_LENGTH && !/[\u0000-\u001f]/.test(pattern) ? pattern : null;
-}
-
-function hex(value: number): string {
-  return value.toString(16).padStart(2, "0");
-}
-
-/** `#rgb`, `#rrggbb` or `rgb(r, g, b)` as `#rrggbb`; white is "no fill". */
-function fillColor(value: string | null): string | null {
-  if (!value) return null;
-  let color: string | null = null;
-  const hexMatch = /#([0-9a-f]{3}|[0-9a-f]{6})\b/i.exec(value);
-  if (hexMatch) {
-    const digits = hexMatch[1]!.toLowerCase();
-    color = `#${digits.length === 3 ? [...digits].map((digit) => digit + digit).join("") : digits}`;
-  } else {
-    const rgb = /rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)/i.exec(value);
-    if (rgb) color = `#${[rgb[1], rgb[2], rgb[3]].map((part) => hex(Math.min(255, Number(part)))).join("")}`;
-  }
-  return color === "#ffffff" ? null : color;
 }
 
 function classRules(doc: Document): Map<string, string> {
@@ -114,23 +74,31 @@ function richCell(cell: Element, rules: Map<string, string>): XlsxRichCell {
 }
 
 /** The first `<table>` of a clipboard HTML payload as rows of formatted cells;
- *  null when there is no table. `colspan` expands into empty cells so the grid
- *  lines up with the plain-text twin (`rowspan` is not expanded: a shape
- *  mismatch falls back to the plain paste). */
+ *  null when there is no table, or when its expanded grid would be larger than
+ *  the edit-op bound (the plain text is refused at that size anyway).
+ *  `colspan` expands into empty cells so the grid lines up with the plain-text
+ *  twin (`rowspan` is not expanded: a shape mismatch falls back to the plain
+ *  paste). */
 export function parseClipboardHtmlTable(html: string): XlsxRichCell[][] | null {
   if (html.trim() === "" || typeof DOMParser === "undefined") return null;
   const doc = new DOMParser().parseFromString(html, "text/html");
   const table = doc.querySelector("table");
   if (!table) return null;
   const rules = classRules(doc);
-  const rows = Array.from(table.querySelectorAll("tr")).map((row) =>
-    Array.from(row.children)
-      .filter((child) => child.tagName === "TD" || child.tagName === "TH")
-      .flatMap((cell) => {
-        const span = Math.min(Math.max(Number.parseInt(cell.getAttribute("colspan") ?? "1", 10) || 1, 1), 16_384);
-        return [richCell(cell, rules), ...Array.from({ length: span - 1 }, (): XlsxRichCell => ({ text: "", bold: false, fill: null, numberFormat: null }))];
-      }),
-  );
+  const rows: XlsxRichCell[][] = [];
+  let total = 0;
+  for (const tr of Array.from(table.querySelectorAll("tr"))) {
+    const cells: XlsxRichCell[] = [];
+    for (const cell of Array.from(tr.children)) {
+      if (cell.tagName !== "TD" && cell.tagName !== "TH") continue;
+      const span = Math.max(Number.parseInt(cell.getAttribute("colspan") ?? "1", 10) || 1, 1);
+      total += span;
+      if (total > XLSX_CLIENT_MAX_EDIT_OPS) return null;
+      cells.push(richCell(cell, rules));
+      for (let extra = 1; extra < span; extra += 1) cells.push({ text: "", bold: false, fill: null, numberFormat: null });
+    }
+    rows.push(cells);
+  }
   return rows.length > 0 ? rows : null;
 }
 

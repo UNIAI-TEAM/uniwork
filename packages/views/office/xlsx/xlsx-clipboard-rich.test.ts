@@ -45,6 +45,49 @@ describe("parseClipboardHtmlTable", () => {
   });
 });
 
+describe("parseClipboardHtmlTable - Excel clipboard samples", () => {
+  const formats = (html: string): (string | null)[] => parseClipboardHtmlTable(`<table><tr>${html}</tr></table>`)![0]!.map((cell) => cell.numberFormat);
+
+  it("decodes CSS hex and backslash escapes in quoted formats", () => {
+    expect(formats(`<td style='mso-number-format:"\\0022$\\0022\\#\\,\\#\\#0\\.00"'>1</td>`)).toEqual(['"$"#,##0.00']);
+    expect(formats(`<td style='mso-number-format:"0\\.0\\0025"'>1</td>`)).toEqual(["0.0%"]);
+    expect(formats(`<td style='mso-number-format:"\\#\\,\\#\\#0\\;\\[Red\\]\\#\\,\\#\\#0"'>1</td>`)).toEqual(["#,##0;[Red]#,##0"]);
+  });
+
+  it("treats an unquoted \\@ as the text format", () => {
+    expect(formats(`<td style='mso-number-format:\\@'>1</td><td style='mso-number-format:"\\@"'>2</td>`)).toEqual(["@", "@"]);
+  });
+
+  it("maps Excel's named formats to real format codes", () => {
+    const names = ["Short Date", "Long Date", "Medium Date", "Short Time", "Long Time", "Medium Time", "Percent", "Fixed", "Standard", "Currency", "Scientific", "Yes/No", "General"];
+    const html = names.map((name) => `<td style='mso-number-format:"${name}"'>1</td>`).join("");
+    expect(formats(html)).toEqual([
+      "m/d/yyyy", "dddd, mmmm d, yyyy", "d-mmm-yy", "h:mm", "h:mm:ss AM/PM", "h:mm AM/PM",
+      "0%", "0.00", "#,##0.00", '"$"#,##0.00', "0.00E+00", '"Yes";"Yes";"No"', null,
+    ]);
+  });
+
+  it("drops unknown named formats instead of applying them as a pattern", () => {
+    expect(formats(`<td style='mso-number-format:"Some Odd Name"'>1</td><td style='mso-number-format:Euro'>2</td>`)).toEqual([null, null]);
+    expect(formats(`<td style='mso-number-format:"mmmm yyyy"'>1</td><td style='mso-number-format:"d mmm yyyy"'>2</td>`)).toEqual(["mmmm yyyy", "d mmm yyyy"]);
+  });
+
+  it("reads named CSS fills and ignores white, transparent and none", () => {
+    const html = `<td style='background:yellow;mso-pattern:black none'>a</td><td bgcolor="Red">b</td>`
+      + `<td style='background:white'>c</td><td style='background:transparent'>d</td><td style='background:none'>e</td>`
+      + `<td style='background-color:LIGHTGRAY'>f</td>`;
+    expect(parseClipboardHtmlTable(`<table><tr>${html}</tr></table>`)![0]!.map((cell) => cell.fill))
+      .toEqual(["#ffff00", "#ff0000", null, null, null, "#d3d3d3"]);
+  });
+
+  it("refuses a table whose expanded grid would exceed the op limit before allocating it", () => {
+    expect(parseClipboardHtmlTable("<table><tr><td colspan=16384>a</td></tr></table>")).toBeNull();
+    const rows = "<tr><td colspan=5000>a</td></tr>".repeat(3);
+    expect(parseClipboardHtmlTable(`<table>${rows}</table>`)).toBeNull();
+    expect(parseClipboardHtmlTable("<table><tr><td colspan=500>a</td></tr></table>")![0]).toHaveLength(500);
+  });
+});
+
 describe("planRichPaste", () => {
   const table = parseClipboardHtmlTable(EXCEL_HTML)!;
   const shape = [["0.5", "hi", "plain"], ["b", "s", "r"]];
