@@ -92,7 +92,7 @@ export const XML_LAYOUT =
 
 /** The kitchen-sink deck plus XML_MASTER / XML_LAYOUT at the fake part paths. */
 export function xmlMasterFixture(): Parameters<typeof makeFakePptxBytes>[0] {
-  const base = fakeMasterFixture();
+  const base = fakeMasterFixture() ?? {};
   return { ...base, entries: { ...(base.entries ?? {}), [FAKE_MASTER_PART]: XML_MASTER, [FAKE_LAYOUT_PART]: XML_LAYOUT } };
 }
 
