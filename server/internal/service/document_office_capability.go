@@ -734,8 +734,8 @@ var officeEditValidators = map[string]func(office.EditOp) bool{
 	// Conditional formatting + data validation (X01): whole-sheet declarative
 	// snapshots of the editor's rule model (Univer rule JSON the gateway maps
 	// to OOXML); an empty rules list removes every rule on the sheet.
-	"set_conditional_formats": officeRuleSetValid(officeCfRuleTypes, true),
-	"set_data_validations":    officeRuleSetValid(officeDvRuleTypes, false),
+	"set_conditional_formats": officeRuleSetValid(officeCfRuleTypes, true, officeCfRuleBodyOK),
+	"set_data_validations":    officeRuleSetValid(officeDvRuleTypes, false, officeDvRuleBodyOK),
 }
 
 // OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
@@ -2096,7 +2096,8 @@ func officeRemoveTableValid(edit office.EditOp) bool {
 // rules, each with 1..1000 ordered in-grid areas and a Univer rule object of a
 // type the gateway can write, at most 64 KiB serialized, and the whole op at
 // most 512 KiB. Bounds mirror the ops-cf-dv.ts parser; the gateway stays the
-// authority on the rule's inner shape.
+// authority on formulas, colours and styles; the inner allowlists live in
+// document_office_capability_rulesets.go.
 const (
 	maxOfficeRuleSetRules     = 1_000
 	maxOfficeRuleSetAreas     = 1_000
@@ -2115,8 +2116,12 @@ var (
 // officeRuleSetValid builds the validator for one rule-set op: a sheet-ref
 // target plus exactly one `rules` array. withStopIfTrue admits the CF rule's
 // optional boolean stopIfTrue.
-func officeRuleSetValid(types map[string]bool, withStopIfTrue bool) func(office.EditOp) bool {
+func officeRuleSetValid(types map[string]bool, withStopIfTrue bool, bodyOK officeRuleBodyCheck) func(office.EditOp) bool {
 	return func(edit office.EditOp) bool {
+		// No stray top-level fields: the op needs only target + attributes (n4).
+		if edit.Text != "" || len(edit.Style) > 0 || len(edit.Range) > 0 {
+			return false
+		}
 		if !officeRangeTargetOK(edit.Target) || len(edit.Attributes) > maxOfficeRuleSetBytes {
 			return false
 		}
@@ -2129,7 +2134,7 @@ func officeRuleSetValid(types map[string]bool, withStopIfTrue bool) func(office.
 			return false
 		}
 		for _, rule := range rules {
-			if !officeRuleSetRuleOK(rule, types, withStopIfTrue) {
+			if !officeRuleSetRuleOK(rule, types, withStopIfTrue, bodyOK) {
 				return false
 			}
 		}
@@ -2137,7 +2142,10 @@ func officeRuleSetValid(types map[string]bool, withStopIfTrue bool) func(office.
 	}
 }
 
-func officeRuleSetRuleOK(rule map[string]json.RawMessage, types map[string]bool, withStopIfTrue bool) bool {
+// officeRuleBodyCheck validates the inner rule object of an allowed type.
+type officeRuleBodyCheck func(ruleType string, body map[string]json.RawMessage) bool
+
+func officeRuleSetRuleOK(rule map[string]json.RawMessage, types map[string]bool, withStopIfTrue bool, bodyOK officeRuleBodyCheck) bool {
 	for name := range rule {
 		if name != "ranges" && name != "rule" && (name != "stopIfTrue" || !withStopIfTrue) {
 			return false
@@ -2168,5 +2176,5 @@ func officeRuleSetRuleOK(rule map[string]json.RawMessage, types map[string]bool,
 		return false
 	}
 	var ruleType string
-	return json.Unmarshal(shape["type"], &ruleType) == nil && types[ruleType]
+	return json.Unmarshal(shape["type"], &ruleType) == nil && types[ruleType] && bodyOK(ruleType, shape)
 }
