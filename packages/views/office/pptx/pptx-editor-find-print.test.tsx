@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { PptxRendererModule } from "./canvas/renderer-module";
-import { clearPptxThumbnailCache } from "./canvas/use-pptx-thumbnails";
 import { run, shapeNode, slide, textLayout } from "./canvas/pptx-render-fixtures";
 import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 import type { PptxPrintPort } from "./print";
@@ -12,7 +11,6 @@ import type { PptxPrintPort } from "./print";
 initI18n();
 beforeEach(async () => {
   await setLocale("en");
-  clearPptxThumbnailCache();
 });
 
 const host = { read: {} as never, write: { writeOutput: vi.fn() }, assets: {} as never, ipc: { call: vi.fn(), send: vi.fn(), subscribe: vi.fn() } } as unknown as OfficeHost;

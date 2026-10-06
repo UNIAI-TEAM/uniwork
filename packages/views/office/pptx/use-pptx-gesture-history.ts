@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
+import { useOfficeDocumentActiveRef } from "../common/document-active";
 import { matchPptxShortcut } from "./shortcuts/pptx-shortcuts";
 import { isNativeTextTarget } from "./text/native-text-target";
 
@@ -90,9 +91,11 @@ export function usePptxGestureHistory({ host, editorHandle, onTransform, onDirty
     }
   }, [finishGesture, host.ipc, onDirty, onStart, onTransform]);
 
+  const activeRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     if (suspended) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!activeRef.current) return;
       const root = rootRef.current;
       if (event.defaultPrevented || !root || !(event.target instanceof Node) || !root.contains(event.target)) return;
       if (isNativeTextTarget(event.target)) return;
@@ -104,7 +107,7 @@ export function usePptxGestureHistory({ host, editorHandle, onTransform, onDirty
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [requestHistory, rootRef, suspended]);
+  }, [activeRef, requestHistory, rootRef, suspended]);
 
   return { gesturePending, waitForGesture, requestHistory, runTransform };
 }

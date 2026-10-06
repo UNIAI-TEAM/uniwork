@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { PptxRendererModule } from "./canvas/renderer-module";
-import { clearPptxThumbnailCache } from "./canvas/use-pptx-thumbnails";
 import { run, shapeNode, slide, textLayout } from "./canvas/pptx-render-fixtures";
 import { PptxEditor } from "./pptx-editor";
 
@@ -15,7 +14,6 @@ import { PptxEditor } from "./pptx-editor";
 initI18n();
 beforeEach(async () => {
   await setLocale("en");
-  clearPptxThumbnailCache();
 });
 
 const MASTER = "ppt/slideMasters/slideMaster1.xml";
