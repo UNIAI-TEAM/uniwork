@@ -257,6 +257,13 @@ function observeRuleSetEvent(state: LazyWorkbookState, event: RendererCommand, s
     inherited[family] = ruleSetFamilyState(state, sourceId, family) === "ready" ? "ready" : "refused";
   }
   track.inherited.set(copyId, inherited);
+  // Review r4 R4-2: the gateway copies the source's file rules, so a restore
+  // to "the file's rules" (null) on the copy paints the source's baseline,
+  // not an empty sheet.
+  const sourceBaseline = track.baseline.get(sourceId);
+  if (sourceBaseline !== undefined) {
+    track.baseline.set(copyId, Object.fromEntries(Object.entries(sourceBaseline).map(([family, rules]) => [family, rules.map(plain)])));
+  }
 }
 
 /** A rule-set edit may only start once the sheet's file rules are installed

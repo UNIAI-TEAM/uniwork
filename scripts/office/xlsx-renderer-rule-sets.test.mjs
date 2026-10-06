@@ -328,6 +328,25 @@ test('a restore without saved rules reinstalls the file rules the loader install
   assert.equal(addCf(book), false);
 });
 
+// Review r4 R4-2: the gateway copies the source's file rules, so a copy's
+// restore to "the file's rules" paints them instead of clearing the sheet.
+test('a restore without saved rules on a copy reinstalls the file rules its source shipped', () => {
+  const book = state({ applied: [], ruleSets: classic, ruleCounts: { conditionalFormats: 1, dataValidations: 0 } });
+  install(book, 'sheet.mutation.add-conditional-rule', cfRule);
+  book.appliedDvSheets.add('s1');
+  copySheet(book, 'copy', 's1');
+  const cf = restorePort([{ ...cfRule, cfId: 'cf-copy-session' }], []);
+  restoreRuleSetFamily(book, 'copy', 'conditionalFormats', null, cf.port);
+  assert.deepEqual(cf.calls.map(([id, params]) => [id, params.subUnitId, params.cfId ?? params.rule?.cfId]), [
+    ['sheet.mutation.delete-conditional-rule', 'copy', 'cf-copy-session'], ['sheet.mutation.add-conditional-rule', 'copy', 'cf-1'],
+  ]);
+  // A plain new sheet has no file rules to restore.
+  copySheet(book, 'fresh');
+  const fresh = restorePort([{ ...cfRule, cfId: 'cf-fresh' }], []);
+  restoreRuleSetFamily(book, 'fresh', 'conditionalFormats', null, fresh.port);
+  assert.deepEqual(fresh.calls.map(([id]) => id), ['sheet.mutation.delete-conditional-rule']);
+});
+
 test('a restore passes the rule-set policy gate: a live sheet of this workbook, a known family, bounded rules', () => {
   const book = state();
   const rules = [{ ranges: [area(0, 0, 0, 0)], rule: { type: 'whole' } }];
