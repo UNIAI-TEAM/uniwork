@@ -22,6 +22,13 @@ helm upgrade --install uniwork deploy/app/uniwork \
 
 `ci/scripts/rollout-uniwork.sh` passes the same `--set-file` flags.
 
+Office engine rollout: the same script reads `OFFICE_ENGINE_ENABLED=1`,
+`OFFICE_ENGINE_DIGEST`, `OFFICE_ENGINE_OUTPUT_ORIGINS` and an optional
+`OFFICE_ENGINE_VALUES_FILE` (see the script header); unset means the engine stays
+off and the render is unchanged. Per-environment prerequisites (CIDRs, origins,
+Secret, kubelet pids limit, release URLs, bucket CORS) are one checklist:
+[`docs/ops/OFFICE_ENV_CHECKLIST.md`](../../../docs/ops/OFFICE_ENV_CHECKLIST.md).
+
 ### Office engine
 
 One switch: `officeEngine.enabled`. `OFFICE_ENGINE_URL` stays empty in
@@ -35,7 +42,7 @@ Secret `uniwork-office-engine` (keys `OFFICE_ENGINE_SERVICE_TOKEN`,
 engine:
 
 ```bash
-kubectl -n uniwork create secret generic uniwork-office-engine   --from-literal=OFFICE_ENGINE_SERVICE_TOKEN="$(openssl rand -hex 32)"   --from-literal=OFFICE_ENGINE_GRANT_KEY="$(openssl rand -hex 32)"   --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n uniwork create secret generic uniwork-office-engine \n  --from-literal=OFFICE_ENGINE_SERVICE_TOKEN="$(openssl rand -hex 32)" \n  --from-literal=OFFICE_ENGINE_GRANT_KEY="$(openssl rand -hex 32)" \n  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 `DESKTOP_AUTH_*` (public PKCE client for the Office desktop app) are non-secret
