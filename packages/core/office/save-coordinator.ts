@@ -27,6 +27,10 @@ export interface SaveCoordinatorState {
   lastSavedGeneration: number;
   activeIntentId: string | null;
   error: OfficeErrorDispatch | null;
+  /** The pending intent may have committed: an attempt failed ambiguously, or
+   *  after the commit step without a refusal, and no reconcile settled it yet.
+   *  Absent reads as false (hosts that build a state by hand). */
+  outcomeUnknown?: boolean;
 }
 
 export type SaveAttemptResult =
@@ -110,6 +114,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     lastSavedGeneration,
     activeIntentId: null,
     error: null,
+    outcomeUnknown: false,
   };
   let pendingIntent: OfficeSaveIntent<TSnapshot> | null = null;
   // A pending intent whose transport hold was already released: a blocked
@@ -130,7 +135,8 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
   let saveGate = false;
 
   function publish(next: Partial<SaveCoordinatorState>): void {
-    state = { ...state, ...next, identity: { ...identity }, dirtyGeneration, lastSavedGeneration };
+    const outcomeUnknown = pendingIntent !== null && unsureIntentId === pendingIntent.intentId;
+    state = { ...state, ...next, identity: { ...identity }, dirtyGeneration, lastSavedGeneration, outcomeUnknown };
     for (const listener of listeners) listener(state);
   }
 

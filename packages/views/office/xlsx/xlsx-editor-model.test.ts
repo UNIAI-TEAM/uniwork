@@ -11,6 +11,13 @@ describe("visualsFrozen (review m-3, ambiguous-save window)", () => {
     expect(visualsFrozen({ state: "error", activeIntentId: "intent-1", error: timeout })).toBe(true);
   });
 
+  it("freezes after a non-ambiguous failure whose commit outcome is unknown (review-session m-2)", () => {
+    const refused = dispatchOfficeError({ code: "xlsx_rule_sets_dropped", error_class: "engine" });
+    expect(refused.ambiguous).toBe(false);
+    expect(visualsFrozen({ state: "error", activeIntentId: "intent-1", error: refused, outcomeUnknown: true })).toBe(true);
+    expect(visualsFrozen({ state: "error", activeIntentId: null, error: refused, outcomeUnknown: true })).toBe(false);
+  });
+
   it("unfreezes once the outcome is known: settled, refused, or nothing pending", () => {
     expect(visualsFrozen({ state: "dirty", activeIntentId: null, error: null })).toBe(false);
     const refused = dispatchOfficeError({ code: "xlsx_rule_sets_dropped", error_class: "engine" });
