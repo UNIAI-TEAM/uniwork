@@ -58,7 +58,11 @@ export function TaskActivityRow({
     }
     return valueNames.get(value) ?? value;
   };
-  const changes = changeEntries(event).slice(0, 2);
+  // Position is an internal ordering coordinate, not a meaningful task-detail
+  // change. Keep it in the immutable audit event for the organization log,
+  // but omit it from this resource-local timeline and its remaining-field count.
+  const timelineChanges = changeEntries(event).filter(([field]) => field !== "position");
+  const changes = timelineChanges.slice(0, 2);
   return (
     <div
       data-testid={`task-timeline-activity-${event.id}`}
@@ -86,7 +90,7 @@ export function TaskActivityRow({
                 <>
                   <ChangeValue
                     value={valueLabel(field, change.from)}
-                    className="text-muted-foreground line-through"
+                    className="text-muted-foreground"
                   />
                   <ArrowRight aria-hidden className="size-3 shrink-0" />
                 </>
@@ -94,8 +98,8 @@ export function TaskActivityRow({
               <ChangeValue value={valueLabel(field, change.to)} />
             </span>
           ))}
-          {changeEntries(event).length > changes.length ? (
-            <span>+{changeEntries(event).length - changes.length}</span>
+          {timelineChanges.length > changes.length ? (
+            <span>+{timelineChanges.length - changes.length}</span>
           ) : null}
         </span>
       ) : null}

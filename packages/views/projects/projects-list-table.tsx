@@ -31,6 +31,7 @@ import {
   type OpenProject,
   type ProjectRowPatch,
 } from "./project-row-metrics";
+import { useListScrollReset } from "./use-list-scroll-reset";
 
 const COLUMN_WIDTHS: Record<ProjectColumnKey, number> = {
   priority: 116,
@@ -338,6 +339,7 @@ export function ProjectsListTable({
   onOpenProject,
   locale,
   leadOptions,
+  scrollResetKey,
 }: {
   workspaceId: string;
   projects: Project[];
@@ -353,13 +355,19 @@ export function ProjectsListTable({
   onOpenProject: OpenProject;
   locale: string;
   leadOptions: AssigneeOption[];
+  scrollResetKey: string | number;
 }) {
   const selectedCount = projects.filter((p) => selectedIds.has(p.id)).length;
   const allSelected = projects.length > 0 && selectedCount === projects.length;
   const someSelected = selectedCount > 0 && !allSelected;
+  const scrollRef = useListScrollReset<HTMLDivElement>(scrollResetKey);
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto @container">
+    <div
+      ref={scrollRef}
+      data-slot="project-list-scroll"
+      className="min-h-0 flex-1 overflow-auto @container"
+    >
       <ListGrid
         className={`${GRID_COLS} @2xl:min-w-[var(--pjc-minw)]`}
         style={{

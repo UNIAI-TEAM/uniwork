@@ -4730,7 +4730,9 @@
       "no_matches": "No projects match",
       "no_tasks_yet": "No tasks yet",
       "selected": "{{count}} selected",
-      "clear_selection": "Clear selection"
+      "clear_selection": "Clear selection",
+      "pagination_label": "Project pagination",
+      "pagination_status": "Page {{page}} / {{pageCount}}"
     },
     "table": {
       "name": "Name",

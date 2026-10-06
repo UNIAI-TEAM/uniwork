@@ -61,6 +61,46 @@ describe("TaskActivityRow", () => {
     expect(el).toHaveTextContent("Cần làm");
     expect(el).toHaveTextContent("Đang làm");
     expect(el).not.toHaveTextContent("in_progress");
+    expect(screen.getByText("Cần làm")).toHaveClass("text-muted-foreground");
+    expect(screen.getByText("Cần làm")).not.toHaveClass("line-through");
+    expect(screen.getByText("Đang làm")).toBeInTheDocument();
+    expect(el.querySelector("svg.lucide-arrow-right")).not.toBeNull();
+  });
+
+  it("ẩn position khỏi diff và số trường còn lại của timeline công việc", () => {
+    const el = row(
+      {
+        changes: {
+          status: { from: "todo", to: "in_progress" },
+          priority: { from: "low", to: "high" },
+          position: { from: 4094, to: 1023 },
+        },
+      },
+      "Lan",
+    );
+
+    expect(el).toHaveTextContent("Cần làm");
+    expect(el).toHaveTextContent("Đang làm");
+    expect(el).toHaveTextContent("Thấp");
+    expect(el).toHaveTextContent("Cao");
+    expect(el).not.toHaveTextContent("Vị trí");
+    expect(el).not.toHaveTextContent("4094");
+    expect(el).not.toHaveTextContent("1023");
+    expect(el).not.toHaveTextContent("+1");
+  });
+
+  it("vẫn hiện hoạt động khi thay đổi duy nhất là position", () => {
+    const el = row(
+      { changes: { position: { from: 4094, to: 1023 } } },
+      "Lan",
+    );
+
+    expect(el).toHaveTextContent("Lan");
+    expect(el).toHaveTextContent("Cập nhật việc");
+    expect(el).not.toHaveTextContent("Vị trí");
+    expect(el).not.toHaveTextContent("4094");
+    expect(el).not.toHaveTextContent("1023");
+    expect(el.querySelector(".rounded-md.bg-muted")).toBeNull();
   });
 
   it("hiển thị avatar tài khoản của người thực hiện", () => {

@@ -7,6 +7,7 @@ import {
   useProjectViewStore,
 } from "@uniwork/core/projects/stores/view-store";
 import type { User, Workspace } from "@uniwork/core/types";
+import type { Project } from "@uniwork/core/types/project";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import type { NavigationAdapter } from "../navigation";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -43,7 +44,7 @@ const base = {
   updated_at: "2026-06-01T00:00:00Z",
 };
 
-const launch = {
+const launch: Project = {
   ...base,
   id: "p1",
   title: "Q3 launch",
@@ -56,7 +57,7 @@ const launch = {
   created_at: "2026-06-01T00:00:00Z",
 };
 
-const tet = {
+const tet: Project = {
   ...base,
   id: "p2",
   title: "Dự án Tết",
@@ -68,6 +69,21 @@ const tet = {
   done_count: 0,
   created_at: "2026-06-02T00:00:00Z",
 };
+
+let listedProjects: Project[] = [launch, tet];
+
+function manyProjects(count: number): Project[] {
+  return Array.from({ length: count }, (_, index) => {
+    const number = index + 1;
+    return {
+      ...tet,
+      id: `p${number}`,
+      title: `Project ${String(number).padStart(2, "0")}`,
+      created_at: `2026-06-${String(number).padStart(2, "0")}T00:00:00Z`,
+      updated_at: `2026-06-${String(number).padStart(2, "0")}T00:00:00Z`,
+    };
+  });
+}
 
 function nav(): NavigationAdapter {
   return {
@@ -112,6 +128,7 @@ beforeEach(() => {
   resetAuthStoreForTests();
   resetProjectViewStoreForTests();
   setSessionUser(me);
+  listedProjects = [launch, tet];
   requestMock.mockReset();
   requestMock.mockImplementation((path: unknown, init?: { method?: string; body?: unknown }) => {
     const p = String(path);
@@ -121,8 +138,13 @@ beforeEach(() => {
         setTimeout(() => resolve({ project: { ...tet, ...body, id: "p9" } }), 0),
       );
     }
+    if (p.includes("/projects/") && init?.method === "DELETE") {
+      const projectId = p.split("/projects/")[1];
+      listedProjects = listedProjects.filter((project) => project.id !== projectId);
+      return Promise.resolve({});
+    }
     if (p.includes("/projects") && !p.includes("/resources")) {
-      return Promise.resolve({ projects: [launch, tet], total: 2 });
+      return Promise.resolve({ projects: listedProjects, total: listedProjects.length });
     }
     if (p.includes("/members")) {
       return Promise.resolve({
@@ -246,6 +268,143 @@ describe("ProjectsListPage", () => {
     const title = await screen.findByRole("heading", { name: "Q3 launch" });
     const card = title.closest(".group\\/card");
     expect(card).toHaveClass("border", "border-border");
+  });
+
+  it("keeps card metadata inside a shrinkable card footer", async () => {
+    useProjectViewStore.getState().setViewMode("comfortable");
+    renderPage();
+    const title = await screen.findByRole("heading", { name: "Q3 launch" });
+    const card = title.closest(".group\\/card");
+    expect(card).toHaveClass("min-w-0", "overflow-hidden");
+
+    const footer = card?.querySelector("[data-slot='project-card-footer']");
+    expect(footer).toHaveClass("min-w-0");
+    expect(footer?.querySelector("[aria-label^='Phụ trách']")).toHaveClass(
+      "min-w-0",
+      "max-w-full",
+      "shrink",
+      "overflow-hidden",
+    );
+    expect(footer?.querySelector("[aria-label^='Phụ trách'] span.truncate")).not.toBeNull();
+    const metadata = footer?.querySelector("[data-slot='project-card-metadata']");
+    expect(metadata).toHaveClass("min-w-0");
+    expect(metadata?.querySelector("[data-slot='project-card-date']")).toHaveClass(
+      "min-w-0",
+      "truncate",
+    );
+  });
+
+  it("paginates filtered projects in both directions with localized controls", async () => {
+    listedProjects = manyProjects(21);
+    renderPage();
+
+    expect(await screen.findByText("Project 21")).toBeInTheDocument();
+    expect(screen.queryByText("Project 01")).not.toBeInTheDocument();
+    expect(screen.getByText("Trang 1 / 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trang trước" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Trang sau" }));
+    expect(await screen.findByText("Project 01")).toBeInTheDocument();
+    expect(screen.queryByText("Project 21")).not.toBeInTheDocument();
+    expect(screen.getByText("Trang 2 / 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Trang trước" }));
+    expect(await screen.findByText("Project 21")).toBeInTheDocument();
+  });
+
+  it("resets pagination after search and sort changes", async () => {
+    listedProjects = manyProjects(21);
+    renderPage();
+    await screen.findByText("Project 21");
+    fireEvent.click(screen.getByRole("button", { name: "Trang sau" }));
+    expect(await screen.findByText("Project 01")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Tìm dự án…"), {
+      target: { value: "Project" },
+    });
+    expect(screen.getByText("Trang 1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Project 21")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Trang sau" }));
+    fireEvent.click(screen.getByText("Tên"));
+    expect(screen.getByText("Trang 1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Project 01")).toBeInTheDocument();
+  });
+
+  it("keeps selections while moving between pages", async () => {
+    listedProjects = manyProjects(21);
+    renderPage();
+    const firstPageTitle = await screen.findByText("Project 21");
+    const firstPageSelect = firstPageTitle
+      .closest("[role='row']")
+      ?.querySelector<HTMLButtonElement>("button[aria-pressed]");
+    if (!firstPageSelect) throw new Error("first page selection control missing");
+    fireEvent.click(firstPageSelect);
+    expect(screen.getByText("1 đã chọn")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Trang sau" }));
+    const secondPageTitle = await screen.findByText("Project 01");
+    expect(screen.getByText("1 đã chọn")).toBeInTheDocument();
+    const secondPageSelect = secondPageTitle
+      .closest("[role='row']")
+      ?.querySelector<HTMLButtonElement>("button[aria-pressed]");
+    if (!secondPageSelect) throw new Error("second page selection control missing");
+    fireEvent.click(secondPageSelect);
+    expect(screen.getByText("2 đã chọn")).toBeInTheDocument();
+
+    const batchToolbar = document.querySelector("[data-slot='project-batch-toolbar']");
+    expect(batchToolbar).not.toBeNull();
+    expect(batchToolbar).not.toHaveClass("absolute");
+    expect(batchToolbar?.querySelector("[aria-label='Bỏ chọn']")).toHaveClass(
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+    );
+    expect(
+      Array.from(
+        document.querySelectorAll(
+          "[data-slot='project-batch-toolbar'], [data-slot='pagination']",
+        ),
+      ).map((element) => element.getAttribute("data-slot")),
+    ).toEqual(["project-batch-toolbar", "pagination"]);
+  });
+
+  it.each(["compact", "comfortable"] as const)(
+    "scrolls the %s project list to the top after page navigation",
+    async (viewMode) => {
+      useProjectViewStore.getState().setViewMode(viewMode);
+      listedProjects = manyProjects(21);
+      renderPage();
+      await screen.findByText("Project 21");
+      const scroll = document.querySelector<HTMLElement>(
+        "[data-slot='project-list-scroll']",
+      );
+      if (!scroll) throw new Error("project list scroll container missing");
+      Object.defineProperty(scroll, "scrollTop", { value: 300, writable: true });
+
+      fireEvent.click(screen.getByRole("button", { name: "Trang sau" }));
+
+      await waitFor(() => expect(scroll.scrollTop).toBe(0));
+      expect(await screen.findByText("Project 01")).toBeInTheDocument();
+    },
+  );
+
+  it("clamps to the last valid page when deletion shrinks the result", async () => {
+    listedProjects = manyProjects(21);
+    renderPage();
+    await screen.findByText("Project 21");
+    fireEvent.click(screen.getByRole("button", { name: "Trang sau" }));
+    expect(await screen.findByText("Project 01")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Thao tác dự án" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Xóa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Xóa" }));
+
+    await waitFor(() => expect(screen.queryByText("Project 01")).not.toBeInTheDocument());
+    expect(screen.queryByText("Trang 2 / 2")).not.toBeInTheDocument();
+    expect(screen.getByText("Project 21")).toBeInTheDocument();
   });
 
   it("sends one create request when submit fires twice before the reply", async () => {

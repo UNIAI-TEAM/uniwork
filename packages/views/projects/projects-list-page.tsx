@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FolderKanban, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -40,6 +40,10 @@ import { useWorkspaceAssigneeOptions } from "../tasks/pickers/member-options";
 import { CreateProjectDialog } from "./create-project-dialog";
 import type { OpenProject } from "./project-row-metrics";
 import { ProjectsListGrid } from "./projects-list-grid";
+import {
+  PROJECTS_PAGE_SIZE,
+  ProjectsListPagination,
+} from "./projects-list-pagination";
 import { ProjectsListTable } from "./projects-list-table";
 import { ProjectsListToolbar } from "./projects-list-toolbar";
 import {
@@ -70,7 +74,10 @@ function ProjectBatchToolbar({
 
   return (
     <>
-      <div className="absolute bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 shadow-lg">
+      <div
+        data-slot="project-batch-toolbar"
+        className="z-10 mx-auto mb-2 flex shrink-0 items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 shadow-lg"
+      >
         <div className="mr-1 flex items-center gap-1.5 border-r border-border pl-1 pr-2">
           <span className="text-body font-medium">
             {t("projects.page.selected", { count: rows.length })}
@@ -79,7 +86,7 @@ function ProjectBatchToolbar({
             type="button"
             aria-label={t("projects.page.clear_selection")}
             onClick={onClear}
-            className="rounded p-0.5 transition-colors hover:bg-accent"
+            className="rounded p-0.5 transition-colors hover:bg-accent pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           >
             <X className="size-3.5 text-muted-foreground" />
           </button>
@@ -211,6 +218,7 @@ export function ProjectsListPage({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
+  const [page, setPage] = useState(1);
 
   const openProject: OpenProject = (projectId, intent = "push") =>
     navigateInternal(navigation, projectPath(projectId), intent);
@@ -239,11 +247,33 @@ export function ProjectsListPage({
     [projects, search, filters, sortField, sortDirection],
   );
 
+  const pageCount = Math.max(1, Math.ceil(visible.length / PROJECTS_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageProjects = useMemo(
+    () =>
+      visible.slice(
+        (currentPage - 1) * PROJECTS_PAGE_SIZE,
+        currentPage * PROJECTS_PAGE_SIZE,
+      ),
+    [currentPage, visible],
+  );
+
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage);
+  }, [currentPage, page]);
+
   const selectedProjects = visible.filter((p) => selectedIds.has(p.id));
   const allSelected =
-    visible.length > 0 && selectedProjects.length === visible.length;
+    pageProjects.length > 0 && pageProjects.every((p) => selectedIds.has(p.id));
   const handleToggleAll = () =>
-    setSelectedIds(allSelected ? new Set() : new Set(visible.map((p) => p.id)));
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      for (const project of pageProjects) {
+        if (allSelected) next.delete(project.id);
+        else next.add(project.id);
+      }
+      return next;
+    });
   const toggleSelected = (id: string) =>
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -286,17 +316,32 @@ export function ProjectsListPage({
         <>
           <ProjectsListToolbar
             search={search}
-            onSearchChange={setSearch}
+            onSearchChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
             visibleCount={visible.length}
             totalCount={projects.length}
             filters={filters}
             leadCounts={leadCounts}
-            toggleFilter={toggleFilter}
-            clearFilters={clearFilters}
+            toggleFilter={(key, value) => {
+              toggleFilter(key, value);
+              setPage(1);
+            }}
+            clearFilters={() => {
+              clearFilters();
+              setPage(1);
+            }}
             sortField={sortField}
             sortDirection={sortDirection}
-            setSortField={setSortField}
-            setSortDirection={setSortDirection}
+            setSortField={(field) => {
+              setSortField(field);
+              setPage(1);
+            }}
+            setSortDirection={(direction) => {
+              setSortDirection(direction);
+              setPage(1);
+            }}
             viewMode={viewMode}
             setViewMode={setViewMode}
             hiddenColumns={hiddenColumns}
@@ -314,7 +359,7 @@ export function ProjectsListPage({
           ) : isCompact ? (
             <ProjectsListTable
               workspaceId={workspaceId}
-              projects={visible}
+              projects={pageProjects}
               pinnedIds={pinnedProjectIds}
               canDelete={isWorkspaceAdmin}
               sortField={sortField}
@@ -323,20 +368,25 @@ export function ProjectsListPage({
               selectedIds={selectedIds}
               onToggleSelect={toggleSelected}
               onToggleAll={handleToggleAll}
-              onSort={toggleSort}
+              onSort={(field) => {
+                toggleSort(field);
+                setPage(1);
+              }}
               onOpenProject={openProject}
               locale={locale}
               leadOptions={leadOptions}
+              scrollResetKey={currentPage}
             />
           ) : (
             <ProjectsListGrid
               workspaceId={workspaceId}
-              projects={visible}
+              projects={pageProjects}
               pinnedIds={pinnedProjectIds}
               canDelete={isWorkspaceAdmin}
               onOpenProject={openProject}
               locale={locale}
               leadOptions={leadOptions}
+              scrollResetKey={currentPage}
             />
           )}
 
@@ -346,6 +396,12 @@ export function ProjectsListPage({
             pinnedIds={pinnedProjectIds}
             canDelete={isWorkspaceAdmin}
             onClear={() => setSelectedIds(new Set())}
+          />
+
+          <ProjectsListPagination
+            page={currentPage}
+            pageCount={pageCount}
+            onPageChange={setPage}
           />
         </>
       )}
