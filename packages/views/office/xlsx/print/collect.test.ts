@@ -54,6 +54,32 @@ describe("collectXlsxPrintSheet", () => {
     expect(sheet.merges).toHaveLength(1);
   });
 
+  // visual r1 M2 (print-test.xlsx): F2 = D2-E2 is a formula whose cached
+  // value the session snapshot leaves out (value null, formula "=D2-E2");
+  // the grid shows it right-aligned, so print must type it as a number.
+  it("types a formula cell by the value the grid computed, not the snapshot's null", async () => {
+    const port = host({ styles: [PLAIN] });
+    vi.mocked(port.readRange).mockResolvedValue({
+      cells: [{ row: 1, column: 0, value: 740, styleIndex: 0 }, { row: 1, column: 1, value: 480, styleIndex: 0 }],
+      rows: [], merges: [],
+    });
+    const formulas: XlsxWorkbookSnapshot = { revision: 1, sheets: [{ id: "sheet-1", name: "Data", cells: {
+      A2: { value: 740 }, B2: { value: null, formula: "=A2-260" },
+    } }] };
+    const grid = {
+      readRangeValues: vi.fn(() => ({ values: [[null, null], [740, 480], [null, null]], display: [["", ""], ["740", "480"], ["", ""]] })),
+      readPrintRange: vi.fn(() => ({ styles: [[null, null], [null, null], [null, null]], rows: [], columns: [], merges: [] })),
+    };
+    const result = await collectXlsxPrintSheet({ host: port, sheetName: "Data", sheetId: "sheet-1", snapshot: formulas, grid, title: "Book" });
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.sheet.cells.get("1:1")).toEqual({ text: "480", kind: "number" });
+    expect(result.sheet.cells.get("1:0")).toEqual({ text: "740", kind: "number" });
+    // Without a grid the file's cached value stands in for the missing one.
+    const bare = await collectXlsxPrintSheet({ host: port, sheetName: "Data", snapshot: formulas, title: "Book" });
+    if (!bare.ok) throw new Error(bare.reason);
+    expect(bare.sheet.cells.get("1:1")).toEqual({ text: "480", kind: "number", styleIndex: 0 });
+  });
+
   it("formats the live value itself without a grid", async () => {
     const result = await collectXlsxPrintSheet({ host: host(), sheetName: "Data", snapshot: live, title: "Book" });
     if (!result.ok) throw new Error(result.reason);

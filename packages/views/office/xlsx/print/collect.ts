@@ -160,7 +160,8 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
   for (const [position, read] of chunks.entries()) {
     if (position > 0) await yieldToBrowser();
     const model = await host.readRange({ sessionId: file.sessionId, sheetId: fileSheet.id, range: read });
-    const display = grid?.readRangeValues?.(gridSheetId, read)?.display ?? null;
+    const gridRead = grid?.readRangeValues?.(gridSheetId, read) ?? null;
+    const display = gridRead?.display ?? null;
     liveRead = live.add(read, grid?.readPrintRange?.(gridSheetId, read)) && liveRead;
     const styleOf = new Map(model.cells.map((cell) => [`${cell.row}:${cell.column}`, cell]));
     for (let row = read.startRow; row <= read.endRow; row += 1) {
@@ -168,7 +169,12 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
         const at = `${row}:${column}`;
         const modelCell = styleOf.get(at);
         const liveCell = liveSheet ? liveSheet.cells[toA1Address(row, column)] : undefined;
-        const value = liveSheet ? liveCell?.value : modelCell?.value;
+        // The grid's computed value types the cell (a formula's cached value is
+        // null in the session snapshot); without one, the file's cached value
+        // stands in for a snapshot formula that has none.
+        const computed = gridRead?.values[row - read.startRow]?.[column - read.startColumn];
+        const value = computed !== undefined ? computed
+          : liveSheet ? (liveCell?.formula !== undefined && liveCell.value === null ? modelCell?.value : liveCell?.value) : modelCell?.value;
         const painted = live.styleAt(row, column);
         const styleIndex = painted === undefined ? modelCell?.styleIndex : (painted ?? undefined);
         const style = styleIndex === undefined ? undefined : live.styles[styleIndex];
