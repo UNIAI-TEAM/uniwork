@@ -1,0 +1,292 @@
+$ set -a && . ./.env && set +a && bash scripts/test-go.sh --race --shard=rest --skip-floor
+ok  	github.com/unicomhub/uniwork/server/cmd/files-backfill	3.926s	coverage: 38.3% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/server	1.076s	coverage: 7.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal	3.284s	coverage: [no statements]
+ok  	github.com/unicomhub/uniwork/server/internal/ai	4.056s	coverage: 85.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	1.019s	coverage: 53.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/audit	6.193s	coverage: 72.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/auth	1.435s	coverage: 86.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/billing	1.010s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/config	1.032s	coverage: 93.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/document	1.343s	coverage: 93.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub	1.012s	coverage: 81.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/bodystore	1.011s	coverage: 51.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/imapclient	1.018s	coverage: 27.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/retention	1.015s	coverage: 84.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient	1.023s	coverage: 75.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/events	1.022s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/featureflags	1.011s	coverage: 88.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files	1.115s	coverage: 94.7% of statements
+	github.com/unicomhub/uniwork/server/internal/files/filescontract		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	1.223s	coverage: 93.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/logger	1.013s	coverage: 93.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mail	4.027s	coverage: 79.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/meetings	1.837s	coverage: 76.0% of statements
+	github.com/unicomhub/uniwork/server/internal/mentions		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	3.925s	coverage: 84.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	1.550s	coverage: 89.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/notification	21.501s	coverage: 76.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/office	1.114s	coverage: 80.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	15.508s	coverage: 84.9% of statements
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=1
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=2
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=3
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=4
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=5
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=6
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=7
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=8
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=9
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=10
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=11
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=12
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=13
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=14
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=15
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=16
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=17
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=18
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=19
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=20
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=21
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=22
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=23
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=24
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=25
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=26
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=27
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=28
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=29
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=30
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=31
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=32
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=33
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=34
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=35
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=36
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=37
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=38
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=39
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=40
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=41
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=42
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=43
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=44
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=45
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=46
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=47
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=48
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=49
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=50
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=51
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=52
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=53
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=54
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=55
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=56
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=57
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=58
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=59
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=60
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=61
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=62
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=63
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=64
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=65
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=66
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=67
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=68
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=69
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=70
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=71
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=72
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=73
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=74
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=75
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=76
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=77
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=78
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=79
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=80
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=81
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=82
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=83
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=84
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=85
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=86
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=87
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=88
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=89
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=90
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=91
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=92
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=93
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=94
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=95
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=96
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=97
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=98
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=99
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=100
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=101
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=102
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=103
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=104
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=105
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=106
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=107
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=108
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=109
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=110
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=111
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=112
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=113
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=114
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=115
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=116
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=117
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=118
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=119
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=120
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=121
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=122
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=123
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=124
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=125
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=126
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=127
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=128
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=129
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=130
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=131
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=132
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=133
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=134
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=135
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=136
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=137
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=138
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=139
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=140
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=141
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=142
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=143
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=144
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=145
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=146
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=147
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=148
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=149
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=150
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=151
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=152
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=153
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=154
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=155
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=156
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=157
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=158
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=159
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=160
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=161
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=162
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=163
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=164
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=165
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=166
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=167
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=168
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=169
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=170
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=171
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=172
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=173
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=174
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=175
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=176
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=177
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=178
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=179
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=180
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=181
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=182
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=183
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=184
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=185
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=186
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=187
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=188
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=189
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=190
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=191
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=192
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=193
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=194
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=195
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=196
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=197
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=198
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=199
+2026/10/06 10:07:00 INFO ws client connected workspace_id=ws-load user_id=user-ws-load total_clients=200
+2026/10/06 10:07:00 INFO ws client connected workspace_id="" user_id=guest:test total_clients=1
+2026/10/06 10:07:00 INFO ws client disconnected workspace_id=ws1 user_id=u1 total_clients=0
+2026/10/06 10:07:00 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:00 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=1
+2026/10/06 10:07:00 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=0
+2026/10/06 10:07:00 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:00 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=1
+2026/10/06 10:07:00 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:00 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=2
+2026/10/06 10:07:00 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=1
+2026/10/06 10:07:00 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=0
+2026/10/06 10:07:00 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:00 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=1
+2026/10/06 10:07:00 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=0
+2026/10/06 10:07:01 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:01 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=1
+2026/10/06 10:07:01 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:01 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=2
+2026/10/06 10:07:01 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:01 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=3
+2026/10/06 10:07:01 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:01 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=4
+2026/10/06 10:07:01 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:01 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=5
+2026/10/06 10:07:01 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=4
+2026/10/06 10:07:01 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=3
+2026/10/06 10:07:01 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=2
+2026/10/06 10:07:01 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=1
+2026/10/06 10:07:01 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=0
+2026/10/06 10:07:01 INFO websocket connected user_id=test-user workspace_id=test-workspace client_platform="" client_version="" client_os=""
+2026/10/06 10:07:01 INFO ws client connected workspace_id=test-workspace user_id=test-user total_clients=1
+2026/10/06 10:07:01 INFO ws client disconnected workspace_id=test-workspace user_id=test-user total_clients=0
+redis: 2026/10/06 10:07:02 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:0: connect: connection refused
+redis: 2026/10/06 10:07:03 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:0: connect: connection refused
+redis: 2026/10/06 10:07:03 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:0: connect: connection refused
+redis: 2026/10/06 10:07:03 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:0: connect: connection refused
+--- FAIL: TestRelayResubscribeDoesNotReplayTheGap (5.10s)
+    redis_relay_scope_test.go:141: consumer on ws:scope:meeting:lobby-gap:stream never started reading
+--- FAIL: TestRelayMovesALeftoverGroupToTheTail (5.02s)
+    redis_relay_scope_test.go:189: consumer on ws:scope:meeting:lobby-leftover:stream never started reading
+--- FAIL: TestRelayStopDestroysOnlyItsOwnGroup (5.03s)
+    redis_relay_scope_test.go:212: consumer on ws:scope:workspace:ws-destroy:stream never started reading
+--- FAIL: TestRelayRestartRightAfterStopStillDelivers (5.02s)
+    redis_relay_scope_test.go:242: consumer on ws:scope:meeting:lobby-flap:stream never started reading
+--- FAIL: TestRelayRecreatesAVanishedStream (5.03s)
+    redis_relay_scope_test.go:270: consumer on ws:scope:workspace:ws-vanish:stream never started reading
+--- FAIL: TestRelayKeysExpireWhenIdle (5.02s)
+    redis_relay_scope_test.go:311: consumer on ws:scope:workspace:ws-ttl:stream never started reading
+redis: 2026/10/06 10:07:34 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+redis: 2026/10/06 10:07:34 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+FAIL
+coverage: 88.8% of statements
+FAIL	github.com/unicomhub/uniwork/server/internal/realtime	39.256s
+ok  	github.com/unicomhub/uniwork/server/internal/storage	1.691s	coverage: 82.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/telemetry	1.017s	coverage: 85.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util	1.014s	coverage: 67.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util/secretbox	1.011s	coverage: 88.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/workcapability	1.009s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/migrations	19.636s	coverage: 73.8% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/db/tablequery	1.015s	coverage: 82.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/featureflag	1.021s	coverage: 85.9% of statements
+FAIL
