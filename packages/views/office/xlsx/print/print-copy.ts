@@ -7,11 +7,13 @@
 // order, at one shared scale; title columns repeat beside title rows; the
 // header/footer sits in the page margin boxes (print-header-footer); pictures
 // (when the collector supplies them) are placed absolutely by their anchor.
+// D3: data bars and icons (print-marks) print inside their cells.
 import type { XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
 import { PRINT_COPY_CSP } from "../../markdown/wysiwyg/print";
 import { columnLabel } from "../xlsx-editor-model";
 import { CELL_PADDING, renderRows } from "./print-cells";
 import { headerFooterRules, type XlsxPrintHeaderContext } from "./print-header-footer";
+import { markRules, type XlsxPrintMark } from "./print-marks";
 import { effectiveScale, layoutPrintPages, printableArea, type XlsxPrintGeometry, type XlsxPrintPage } from "./print-layout";
 import type { XlsxPrintRange, XlsxResolvedPrintSetup } from "./print-setup";
 import { cssFontFamily, escapeHtml, round, rotationDeclarations, styleDeclarations } from "./print-styles";
@@ -55,6 +57,8 @@ export interface XlsxPrintSheet {
   /** The values header/footer field codes print (&A, &F, &D, &T). */
   readonly headerContext?: XlsxPrintHeaderContext | undefined;
   readonly pictures?: readonly XlsxPrintPicture[] | undefined;
+  /** Data bars / icons the grid paints, keyed like `cells`. */
+  readonly marks?: ReadonlyMap<string, XlsxPrintMark> | undefined;
 }
 
 type XlsxPrintCopyResult =
@@ -153,7 +157,7 @@ function stylesheet(sheet: XlsxPrintSheet, scale: number, usedStyles: ReadonlySe
     ...headerFooterRules(setup.headerFooter, sheet.headerContext ?? { sheetName: "", fileName: sheet.title, date: "", time: "" }, {
       header: margins.header ?? 0.3,
       footer: margins.footer ?? 0.3,
-      fontSize: DEFAULT_FONT_SIZE * scale,
+      scale,
       fontFamily: family,
     }),
     "html,body{margin:0;padding:0;background:#ffffff}",
@@ -174,6 +178,7 @@ function stylesheet(sheet: XlsxPrintSheet, scale: number, usedStyles: ReadonlySe
     rules.push(`.page{display:flex;flex-direction:column;justify-content:center;height:${round(printableArea(setup).height - 2)}pt}`);
   }
   if (setup.gridlines) rules.push(`td{border:${GRIDLINE}}`);
+  if (sheet.marks && sheet.marks.size > 0) rules.push(...markRules(scale));
   for (const index of [...usedStyles].sort((left, right) => left - right)) {
     const style = sheet.styles[index]!;
     const declarations = styleDeclarations(style, scale);

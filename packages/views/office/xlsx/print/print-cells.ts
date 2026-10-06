@@ -7,8 +7,11 @@
 // fraction digits, as Excel does); rotated text is turned inside its cell.
 // Text widths are estimated from the font size (no layout engine here), so
 // the decision to overflow or show `####` is close to Excel's, not exact.
+// D3: a data bar or icon (print-marks) is placed first in its cell and the
+// text rides above it; "show bar/icon only" prints no text.
 import type { XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
 import type { XlsxPrintCell, XlsxPrintSheet } from "./print-copy";
+import { ICON_TEXT_OFFSET, markHtml } from "./print-marks";
 import { escapeHtml, horizontalAlignment, round, wrapsText } from "./print-styles";
 
 /** Cell padding at 100%, each side, in points. */
@@ -93,10 +96,11 @@ export function renderRows(sheet: XlsxPrintSheet, input: XlsxPrintRowsInput): st
   const { rows, columns, widths, scale, usedStyles } = input;
   const { spans, covered } = spansFor(sheet, rows, columns);
   const widthOf = (column: number): number => widths.get(column) ?? sheet.defaultColumnWidth;
+  const heightOf = (row: number): number => sheet.rows.get(row)?.height ?? sheet.defaultRowHeight;
   const baseSize = sheet.defaultFont?.size ?? DEFAULT_FONT_SIZE;
   let html = "";
   for (const row of rows) {
-    const height = sheet.rows.get(row)?.height ?? sheet.defaultRowHeight;
+    const height = heightOf(row);
     html += `<tr style="height:${round(height * scale)}pt">`;
     if (sheet.setup.headings) html += `<th class="rh">${row + 1}</th>`;
     // A neighbour is free for overflow when it shows nothing and is no merge.
@@ -119,7 +123,8 @@ export function renderRows(sheet: XlsxPrintSheet, input: XlsxPrintRowsInput): st
       const styleIndex = cell?.styleIndex;
       const style = styleIndex === undefined ? undefined : sheet.styles[styleIndex];
       if (styleIndex !== undefined && style) usedStyles.add(styleIndex);
-      let text = span && !span.showText ? "" : (cell?.text ?? "");
+      const mark = sheet.marks?.get(span ? span.anchor : at);
+      let text = (span && !span.showText) || mark?.hideValue ? "" : (cell?.text ?? "");
       const size = style?.fontSize ?? baseSize;
       const inner = widthOf(column) - 2 * CELL_PADDING;
       const plain = !span && text !== "" && !wrapsText(style) && !rotated(style);
@@ -145,10 +150,24 @@ export function renderRows(sheet: XlsxPrintSheet, input: XlsxPrintRowsInput): st
       } else if (text !== "" && rotated(style)) {
         body = `<span class="rt">${body}</span>`;
       }
+      let markup = "";
+      let padding = "";
+      if (mark) {
+        const spanned = <T,>(list: readonly T[], from: number, count: number, size: (item: T) => number): number =>
+          list.slice(from, from + count).reduce((total, item) => total + size(item), 0);
+        const box = span
+          ? { width: spanned(columns, position, span.colSpan, widthOf), height: spanned(rows, rows.indexOf(row), span.rowSpan, heightOf) }
+          : { width: widthOf(column), height };
+        markup = markHtml(mark, box, scale);
+        if (markup !== "") classes.push("cf");
+        // Plain (escaped) text gets a positioned wrapper; .ox / .rt already paint above.
+        if (markup !== "" && !body.startsWith("<")) body = `<span class="cv">${body}</span>`;
+        if (mark.icon) padding = ` style="padding-left:${round((CELL_PADDING + ICON_TEXT_OFFSET) * scale)}pt"`;
+      }
       if (styleIndex !== undefined && style) classes.push(`s${styleIndex}`);
       const classAttribute = classes.length === 0 ? "" : ` class="${classes.join(" ")}"`;
       const spanAttributes = span ? `${span.rowSpan > 1 ? ` rowspan="${span.rowSpan}"` : ""}${span.colSpan > 1 ? ` colspan="${span.colSpan}"` : ""}` : "";
-      html += `<td${classAttribute}${spanAttributes}>${body}</td>`;
+      html += `<td${classAttribute}${spanAttributes}${padding}>${markup}${body}</td>`;
     });
     html += "</tr>";
   }

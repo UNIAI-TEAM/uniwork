@@ -16,7 +16,7 @@ export function escapeHtml(text: string): string {
 }
 
 /** "#RRGGBB" from "RRGGBB" / "#RRGGBB" / "AARRGGBB"; null for anything else. */
-function cssColor(value: string | undefined): string | null {
+export function cssColor(value: string | undefined): string | null {
   if (!value) return null;
   const hex = value.trim().replace(/^#/, "");
   if (/^[0-9a-f]{8}$/i.test(hex)) return `#${hex.slice(2)}`;

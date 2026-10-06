@@ -5,8 +5,11 @@
 // row heights, column widths, visibility and merges. This module turns that
 // into the copy builder's inputs: live styles are appended after the file's
 // style table (deduplicated) so the builder's per-index classes still apply.
+// D3: the data bars and icons the canvas paints come along as marks (the CF
+// view model's evaluated result, absent from older bundles).
 import type { XlsxRenderBorderEdge, XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
 import type { XlsxVisualsGrid } from "../visuals/use-xlsx-visuals";
+import type { XlsxPrintMark } from "./print-marks";
 import type { XlsxPrintRange } from "./print-setup";
 
 type LiveEdge = { readonly style: string; readonly color?: string | undefined } | null | undefined;
@@ -39,6 +42,7 @@ interface XlsxLivePrintRange {
   readonly rows: readonly { readonly height: number; readonly hidden: boolean }[];
   readonly columns: readonly { readonly width: number; readonly hidden: boolean }[];
   readonly merges: readonly XlsxPrintRange[];
+  readonly marks?: readonly (XlsxPrintMark & { readonly row: number; readonly column: number })[] | undefined;
 }
 
 /** The grid members print reads; every one optional (older bundles and test
@@ -88,6 +92,8 @@ export class XlsxLiveLayout {
   readonly rows = new Map<number, { height: number; hidden?: boolean }>();
   readonly columns = new Map<number, { width: number; hidden?: boolean }>();
   readonly merges: XlsxPrintRange[] = [];
+  /** Data bars / icons by `${row}:${column}`. */
+  readonly marks = new Map<string, XlsxPrintMark>();
   private readonly styleIndex = new Map<string, number>();
   private readonly cellStyles = new Map<string, number | null>();
   private readonly mergeKeys = new Set<string>();
@@ -113,6 +119,9 @@ export class XlsxLiveLayout {
       if (this.mergeKeys.has(mergeKey)) continue;
       this.mergeKeys.add(mergeKey);
       this.merges.push({ startRow: merge.startRow, endRow: merge.endRow, startColumn: merge.startColumn, endColumn: merge.endColumn });
+    }
+    for (const { row, column, dataBar, icon, hideValue } of live.marks ?? []) {
+      this.marks.set(`${row}:${column}`, { ...(dataBar ? { dataBar } : {}), ...(icon ? { icon } : {}), ...(hideValue ? { hideValue } : {}) });
     }
     return true;
   }

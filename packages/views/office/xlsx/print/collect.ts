@@ -171,6 +171,7 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
       merges: liveRead ? live.merges : [...merges.values()],
       defaultFont: { family: file.normalFontName, size: file.styles[0]?.fontSize },
       rightToLeft: fileSheet.rightToLeft,
+      ...(live.marks.size > 0 ? { marks: live.marks } : {}),
       headerContext: {
         sheetName: input.sheetName,
         fileName: file.name,

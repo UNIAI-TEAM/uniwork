@@ -82,10 +82,59 @@ describe("print titles", () => {
 describe("header and footer", () => {
   it("splits Excel's sections and resolves its field codes", () => {
     expect(parseHeaderFooter("&L&A&C&\"Arial,Bold\"&14Page &P of &N&R&D && &F&KFF0000x&Z&G", CONTEXT)).toEqual({
-      left: [{ text: "Data" }],
-      center: [{ text: "Page " }, { counter: "page" }, { text: " of " }, { counter: "pages" }],
-      right: [{ text: "06/10/2026 & Book.xlsxx" }],
+      left: { parts: [{ text: "Data" }], font: { bold: false, italic: false, underline: "none", strike: false } },
+      center: {
+        parts: [{ text: "Page " }, { counter: "page" }, { text: " of " }, { counter: "pages" }],
+        font: { bold: true, italic: false, underline: "none", strike: false, family: "Arial", size: 14 },
+      },
+      // &Z prints nothing here: the string already prints the file name.
+      right: { parts: [{ text: "06/10/2026 & Book.xlsxx" }], font: { bold: false, italic: false, underline: "none", strike: false } },
     });
+  });
+
+  it("reads font codes per section: toggles, size, colour, name and style", () => {
+    const parsed = parseHeaderFooter("&L&B&I&U&S&8&K00FF00left&B bold off&C&\"Times New Roman,Italic\"&E centre&R&KTT+000plain", CONTEXT);
+    expect(parsed.left.font).toEqual({ bold: true, italic: true, underline: "single", strike: true, size: 8, color: "00FF00" });
+    // The font in effect at the first printed part wins; the later &B is ignored.
+    expect(parsed.left.parts).toEqual([{ text: "left bold off" }]);
+    expect(parsed.center.font).toEqual({ bold: false, italic: true, underline: "double", strike: false, family: "Times New Roman" });
+    // A theme colour keeps the default; each section starts plain.
+    expect(parsed.right).toEqual({ parts: [{ text: "plain" }], font: { bold: false, italic: false, underline: "none", strike: false } });
+    expect(parseHeaderFooter("&C&\"-,Regular\"&12x", CONTEXT).center.font).toEqual({ bold: false, italic: false, underline: "none", strike: false, size: 12 });
+  });
+
+  it("prints &Z as the location the host gives, else the document name, never twice", () => {
+    expect(parseHeaderFooter("&L&Z", CONTEXT).left.parts).toEqual([{ text: "Book.xlsx" }]);
+    expect(parseHeaderFooter("&L&Z&F", CONTEXT).left.parts).toEqual([{ text: "Book.xlsx" }]);
+    expect(parseHeaderFooter("&L&Z&&F", CONTEXT).left.parts).toEqual([{ text: "Book.xlsx&F" }]);
+    expect(parseHeaderFooter("&L&Z/&F", { ...CONTEXT, location: "Team / Finance" }).left.parts).toEqual([{ text: "Team / Finance/Book.xlsx" }]);
+  });
+
+  it("styles each margin box with its section's font, at the print scale", () => {
+    const { html } = build(sheet({
+      file: { headerFooter: { oddHeader: "&L&\"Arial;}<,Bold Italic\"&20&KC00000Red&C&E&Splain" } },
+    }));
+    expect(html).toMatch(/@top-left\{content:"Red";[^}]*;font-family:"Arial", sans-serif;font-size:20pt;font-weight:700;font-style:italic;color:#C00000\}/);
+    expect(html).toMatch(/@top-center\{content:"plain";[^}]*;text-decoration:underline line-through double\}/);
+    expect(html).not.toContain("Arial;}<");
+  });
+
+  it("prints even pages from the even text when differentOddEven is set, first page last", () => {
+    const { html } = build(sheet({
+      file: { headerFooter: { oddFooter: "&Codd", evenFooter: "&Ceven &P", firstFooter: "&Cfirst", differentOddEven: true, differentFirst: true } },
+    }));
+    const odd = html.indexOf("@page{@top-left");
+    const even = html.indexOf("@page:left{");
+    const first = html.indexOf("@page:first{");
+    expect(odd).toBeGreaterThan(-1);
+    expect(even).toBeGreaterThan(odd);
+    expect(first).toBeGreaterThan(even);
+    expect(html).toContain("@bottom-center{content:\"even \" counter(page);");
+    expect(html.slice(even, first)).toContain("content:\"even \" counter(page);");
+    // Without the flag the even text is ignored.
+    const plainHtml = build(sheet({ file: { headerFooter: { oddFooter: "&Codd", evenFooter: "&Ceven" } } })).html;
+    expect(plainHtml).not.toContain("@page:left");
+    expect(plainHtml).not.toContain("even");
   });
 
   it("prints odd and first-page text in the margin boxes with page counters", () => {

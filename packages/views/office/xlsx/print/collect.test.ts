@@ -103,6 +103,24 @@ describe("collectXlsxPrintSheet", () => {
     expect(sheet.rows.get(1)).toEqual({ height: 15, hidden: true });
     expect(sheet.columns.get(0)).toEqual({ width: 75 });
     expect(sheet.merges).toEqual([{ startRow: 1, endRow: 2, startColumn: 0, endColumn: 0 }]);
+    expect(sheet.marks).toBeUndefined();
+  });
+
+  it("carries the data bars and icons the grid paints, keyed by cell", async () => {
+    const bar = { color: "#638EC6", value: 40, startPoint: 0, isGradient: true };
+    const grid = {
+      readPrintRange: vi.fn(() => ({
+        styles: [[null, null], [null, null], [null, null]],
+        rows: [], columns: [], merges: [],
+        marks: [{ row: 0, column: 1, dataBar: bar }, { row: 2, column: 0, icon: "data:image/svg+xml;charset=utf-8,%3Csvg%3E", hideValue: true }],
+      })),
+    };
+    const result = await collectXlsxPrintSheet({ host: host(), sheetName: "Data", sheetId: "sheet-1", snapshot: null, grid, title: "Book" });
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.sheet.marks).toEqual(new Map([
+      ["0:1", { dataBar: bar }],
+      ["2:0", { icon: "data:image/svg+xml;charset=utf-8,%3Csvg%3E", hideValue: true }],
+    ]));
   });
 
   it("reads every area of a multi-area print area with the title rows and columns beside it", async () => {
