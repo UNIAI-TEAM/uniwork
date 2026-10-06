@@ -154,6 +154,22 @@ describe("XLSX visual ops in the session model", () => {
     expect(() => modelWith([setVisual("p1", { chart }), removeVisual("p1"), moveVisual("p1", anchor())])).toThrow(/insert/);
   });
 
+  it("replays a recovered stream (insert, then moves) and refuses a move once a save drained the insert", () => {
+    // Draft recovery re-emits the op stream verbatim and in order.
+    const stream = [setVisual("p1", { image: { mediaType: "image/png", base64: PNG_BASE64 } }), moveVisual("p1", anchor(3, 1, 8, 5)), moveVisual("p1", anchor(4, 1, 9, 5))];
+    const model = modelWith(stream);
+    expect(model.pendingVisualAdditions().map((visual) => visual.anchor)).toEqual([anchor(4, 1, 9, 5)]);
+    // Save 1 commits; the next base holds p1 in the file, not as a session visual.
+    model.rebase(baseSnapshot(), "sha-saved");
+    expect(model.pendingVisualAdditions()).toEqual([]);
+    // Save 2 never carries a move of p1: the editor locks a visual a save wrote
+    // and freezes visuals while a save is in flight. Had it, the job is refused.
+    expect(() => model.applyEdit(parseXlsxOps([moveVisual("p1", anchor(5, 1, 10, 5))], sheets)[0]!)).toThrow(XlsxOpError);
+    // A new visual in save 2 inserts and moves as usual.
+    parseXlsxOps([setVisual("s9", { shape: { shapeType: "rect" } }), moveVisual("s9", anchor(2, 2, 3, 3))], sheets, (op) => model.applyEdit(op));
+    expect(model.pendingVisualAdditions()).toEqual([{ sheetName: "Data", anchor: anchor(2, 2, 3, 3), shape: { shapeType: "rect" } }]);
+  });
+
   it("keeps 100 nudges of a picture at the cap far below the edits bound", () => {
     // Base64 of exactly XLSX_VISUAL_MAX_IMAGE_BYTES (zero bytes decode from "A").
     const capped = "A".repeat(Math.ceil((512 * 1024) / 3) * 4);

@@ -170,14 +170,14 @@ describe("useXlsxVisuals", () => {
     expect(edit).toHaveBeenCalledTimes(1);
   });
 
-  it("still inserts while a save is in flight; the new visual stays editable after that save", async () => {
+  it("offers no insert while a save is in flight, and offers it again after", () => {
     const { edit, rerender } = setup({ saving: true });
+    expect(commandsRef?.available).toBe(false);
+    expect(commandsRef?.canInsertChart).toBe(false);
     act(() => commandsRef?.insertShape("rect"));
-    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
-    // The save covered generation 0, before this insert (generation 1).
-    rerender({ saving: false, savedGeneration: 0 });
-    fireEvent.keyDown(await screen.findByTestId("xlsx-visual-item-shape"), { key: "ArrowDown" });
-    await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+    expect(edit).not.toHaveBeenCalled();
+    rerender({ saving: false });
+    expect(commandsRef?.available).toBe(true);
   });
 
   it("reads a bounded slice of a whole-column selection and trims its empty tail", async () => {

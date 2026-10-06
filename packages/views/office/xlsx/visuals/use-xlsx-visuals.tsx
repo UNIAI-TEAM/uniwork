@@ -5,8 +5,10 @@
 // channel: an insert sends set_visual with its body once, a move or resize
 // the anchor-only set_visual, a delete remove_visual; the engine folds them by
 // id and writes new drawing parts on save. While a save is in flight visuals
-// are frozen (no move or delete): an op typed after the save's snapshot would
-// otherwise address a visual the next base already holds in the file. The overlay is positioned through the renderer's geometry seam
+// are frozen (no insert, move or delete): a move typed after the save's
+// snapshot would address a visual the next base already holds in the file,
+// and the runtimes drop the draft op stream when a save commits, so an insert
+// typed in that window would recover as a move with no insert before it. The overlay is positioned through the renderer's geometry seam
 // (getCellBox / cellAtPoint) and re-measured on every viewport change.
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -61,7 +63,7 @@ export interface XlsxVisualsOptions {
   editor: { edit?: ((ops: readonly unknown[]) => Promise<void> | void) | undefined; getDirtyGeneration(): number };
   /** The coordinator's last saved generation. */
   savedGeneration: number;
-  /** A save is in flight: visuals may be inserted but not moved or deleted. */
+  /** A save is in flight: visuals are not inserted, moved or deleted. */
   saving?: boolean;
   onApplied: () => void;
   onError: (message: string) => void;
@@ -100,7 +102,7 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     return { getCellBox: grid.getCellBox.bind(grid), cellAtPoint: grid.cellAtPoint.bind(grid) };
   }, [gridReady, gridRef]);
 
-  const available = canEdit && typeof edit === "function" && gridReady && activeSheetId !== null && geometry() !== null;
+  const available = canEdit && !saving && typeof edit === "function" && gridReady && activeSheetId !== null && geometry() !== null;
 
   const onViewportChange = useCallback(() => {
     if (frameRef.current !== null) return;
