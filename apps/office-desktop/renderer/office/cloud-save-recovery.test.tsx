@@ -30,7 +30,7 @@ async function cloudHarness() {
   // The real store encrypts drafts; live ACL is injected edit here, so this
   // test deliberately makes no claim about production liveDraftAccess.
   const transport: DesktopOfficeTransport = {
-    context: unused, list: unused, create: unused, download: unused, officeJob: unused, openContext: unused,
+    context: unused, publicConfig: unused, list: unused, create: unused, download: unused, officeJob: unused, openContext: unused,
     open: async () => {
       if (saves) {
         refreshes++;

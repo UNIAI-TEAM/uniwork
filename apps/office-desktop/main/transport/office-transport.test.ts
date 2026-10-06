@@ -174,6 +174,21 @@ describe("desktop office HTTP transport", () => {
     expect(polls).toBe(2);
   }, 20_000);
 
+  it("reads the public flags through the session and keeps only boolean ones", async () => {
+    const fetchImpl = vi.fn(async (input: string, init?: RequestInit) => {
+      expect(input).toBe("http://127.0.0.1:8787/api/v1/config");
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer secret");
+      return new Response(JSON.stringify({ flags: { office_engine: true, office_docx: false, rum_sampling: "yes", Bad_Key: true }, rum_sample_rate: 0.1 }), { status: 200 });
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    await expect(transport.publicConfig()).resolves.toEqual({ flags: { office_engine: true, office_docx: false } });
+  });
+
+  it("answers no flags for a malformed config body", async () => {
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl: vi.fn(async () => new Response(JSON.stringify({ flags: [1, 2] }), { status: 200 })) });
+    await expect(transport.publicConfig()).resolves.toEqual({ flags: {} });
+  });
+
   it("registers a document context without downloading bytes for a metadata-only open", async () => {
     const summaryRow = { id: "doc-x", organization_id: "org-1", workspace_id: "ws-1", kind: "file", title: "budget.xlsx", visibility: "workspace", revision: "2", current_version: 1, position: 0, my_level: "edit", created_by: "user-1", created_by_kind: "human", updated_by: "user-1", updated_by_kind: "human", created_at: "2026-09-30T00:00:00Z", updated_at: "2026-09-30T00:00:00Z" };
     const fetchImpl = vi.fn(async (input: string) => {

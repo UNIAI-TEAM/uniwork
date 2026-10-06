@@ -33,6 +33,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:recent-remove",
   "desktop:library-list",
   "desktop:library-context",
+  "desktop:public-config",
   "desktop:library-recent",
   "desktop:library-search",
   "desktop:library-create",
@@ -170,6 +171,12 @@ export const desktopLibraryContextResponseSchema = z.object({
   workspaces: z.array(pickerEntrySchema),
 }).strict();
 export type DesktopLibraryContextResponse = z.infer<typeof desktopLibraryContextResponseSchema>;
+/** The public feature flags GET /api/v1/config answers (boolean flags only,
+ * bounded). Main fetches them with the session; the renderer never calls the API. */
+export const desktopPublicConfigResponseSchema = z.object({
+  flags: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/), z.boolean()).refine((flags) => Object.keys(flags).length <= 128, "too many flags"),
+}).strict();
+export type DesktopPublicConfigResponse = z.infer<typeof desktopPublicConfigResponseSchema>;
 export const desktopLibraryDownloadResponseSchema = z.object({
   documentId: documentIdSchema,
   version: z.number().int().nonnegative(),
@@ -296,6 +303,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:tabs-update": desktopTabsUpdateResponseSchema,
   "desktop:library-list": desktopLibraryResponseSchema,
   "desktop:library-context": desktopLibraryContextResponseSchema,
+  "desktop:public-config": desktopPublicConfigResponseSchema,
   "desktop:library-recent": desktopLibraryResponseSchema,
   "desktop:library-search": desktopLibraryResponseSchema,
   "desktop:library-create": desktopOfficeOpenResponseSchema,
@@ -355,6 +363,7 @@ const requestSchemas = {
   "desktop:draft-discard": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema.optional(), draftId: draftIdSchema, generation: z.number().int().positive() }).strict(),
   "desktop:library-list": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-context": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:public-config": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:library-recent": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-search": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, query: z.string().trim().min(1).max(256), cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255), format: documentFormatSchema.default(DEFAULT_DESKTOP_DOCUMENT_FORMAT) }).strict(),

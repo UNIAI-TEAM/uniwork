@@ -106,6 +106,16 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       }));
       return { deployments: [{ id: options.profile.deploymentId, name: new URL(options.profile.apiOrigin).host }], accounts: [{ id: session.accountId, name: typeof person.display_name === "string" && person.display_name ? person.display_name : "UniWork", ...(typeof person.email === "string" ? { email: person.email } : {}) }], organizations, workspaces: workspaceResults.flat() };
     },
+    async publicConfig() {
+      const raw = await json("/config");
+      const body = raw && typeof raw === "object" ? (raw as Record<string, unknown>).flags : undefined;
+      // Only well-formed boolean flags cross the boundary; anything else is dropped.
+      const flags: Record<string, boolean> = {};
+      if (body && typeof body === "object" && !Array.isArray(body)) {
+        for (const [key, value] of Object.entries(body)) if (typeof value === "boolean" && /^[a-z][a-z0-9_]{0,63}$/.test(key)) flags[key] = value;
+      }
+      return { flags };
+    },
     async list(input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }): Promise<DesktopLibraryResponse> {
       const endpoint = input.mode === "recent" ? "recent" : "";
       const params = new URLSearchParams();
