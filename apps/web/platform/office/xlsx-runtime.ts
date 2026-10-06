@@ -200,6 +200,7 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       if (activeJob) await cancelOfficeJob(options.documentId, activeJob).catch(() => undefined);
       snapshot = null; committed = null; pending = []; candidates.clear(); activeJob = null;
     },
+    releaseSave(intentId) { candidates.delete(intentId); },
     setBaseRevision(revision, intentId) {
       if (lastCommit?.intentId === intentId && lastCommit.revision === revision) return;
       const candidate = candidates.get(intentId);

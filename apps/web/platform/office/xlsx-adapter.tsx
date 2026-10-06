@@ -52,6 +52,8 @@ export interface XlsxSessionRuntime {
   cancelRecalculate?(documentModelRef: string): Promise<void> | void;
   /** Advance the server base after the coordinator commits a version. */
   setBaseRevision?(revision: string, intentId: string): void;
+  /** The Save settled without committing: drop its frozen candidate. */
+  releaseSave?(intentId: string): void;
   release(documentModelRef: string): Promise<void> | void;
 }
 
@@ -258,6 +260,10 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
     },
     async cancel({ intent }) {
       controllers.get(intent.intentId)?.abort();
+    },
+    async release({ intent }) {
+      outputs.delete(intent.intentId);
+      options.runtime?.releaseSave?.(intent.intentId);
     },
   };
 }
