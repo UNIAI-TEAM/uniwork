@@ -145,6 +145,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const onOpenRef = useRef(onOpen);
   const translateRef = useRef(t);
   const queueRef = useRef<Promise<unknown> | null>(null);
+  const [editsInFlight, setEditsInFlight] = useState(0);
   editorRef.current = editor;
   openRef.current = open;
   coordinatorRef.current = coordinator;
@@ -342,9 +343,10 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
       }
     };
     const previous = queueRef.current;
+    setEditsInFlight((count) => count + 1);
     const result = previous ? previous.catch(() => undefined).then(execute) : execute();
     queueRef.current = result;
-    const release = () => { if (queueRef.current === result) queueRef.current = null; };
+    const release = () => { setEditsInFlight((count) => count - 1); if (queueRef.current === result) queueRef.current = null; };
     result.then(release, release);
     return result;
   }, [markDirty, readOnly]);
@@ -372,7 +374,14 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   // empty stack (or a missing facet) is a no-op and must not flag the document
   // unsaved. The hosts swap bytes asynchronously and report the change through
   // `subscribe` above; `stepHistory` covers a handle that steps synchronously.
-  const undo = useCallback(() => { if (!readOnly && stepHistory(editor, "undo")) markDirty(); }, [editor, markDirty, readOnly]);
+  // review-fe-r1 R6: an Undo pressed while an edit awaits the engine undoes that
+  // edit (r5 F3): it waits behind the edit queue, then steps the stack the edit filled.
+  const undo = useCallback(() => {
+    if (readOnly) return;
+    const pending = queueRef.current;
+    if (!pending) { if (stepHistory(editor, "undo")) markDirty(); return; }
+    void pending.catch(() => undefined).then(() => { if (!disposedRef.current && stepHistory(editorRef.current, "undo")) markDirty(); });
+  }, [editor, markDirty, readOnly]);
   const redo = useCallback(() => { if (!readOnly && stepHistory(editor, "redo")) markDirty(); }, [editor, markDirty, readOnly]);
   const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
   const openFind = useCallback(() => setFindOpen(true), []);
@@ -433,7 +442,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const browserUnsupportedHint = browserLane && viewState === "ready" && (activeTab === "edit" || activeTab === "pages");
   const promptMode = failure ? passwordMode(failure) : null;
   // Read on every render: each byte change bumps `revision`, which re-renders.
-  const undoReady = canStepHistory(editor, "undo");
+  const undoReady = canStepHistory(editor, "undo") || (editsInFlight > 0 && Boolean(editor.undo));
   const redoReady = canStepHistory(editor, "redo");
 
   // One row per command the ribbon can render; the chrome decides which rows a

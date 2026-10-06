@@ -128,7 +128,8 @@ describe("PdfEditor", () => {
     // Undo/redo and Save moved off the deleted toolbar onto the editor's keyboard handler.
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "y", ctrlKey: true });
-    expect(handle.undo).toHaveBeenCalledTimes(1);
+    // The Undo pressed while the text edit was still settling runs right behind it (review-fe-r1 R6).
+    await waitFor(() => expect(handle.undo).toHaveBeenCalledTimes(1));
     expect(handle.redo).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
     expect(save).toHaveBeenNthCalledWith(1, "shortcut");

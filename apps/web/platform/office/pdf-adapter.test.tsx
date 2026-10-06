@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
+import { PdfEditor } from "@uniwork/views/office/pdf";
 import { applyPdfOpsInBrowser } from "@uniwork/office-engine/browser";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
@@ -438,6 +441,54 @@ describe("web PDF format adapter", () => {
     expect(sessions[0]!.disposed).toBe(true);
     expect(editor.getPdfSnapshot?.()).toBeNull();
     expect(editor.openOutcome()).toBeNull();
+    await adapter.session.dispose();
+  });
+});
+
+/** Polls inside act until the check holds (this package has no testing-library). */
+async function until(check: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const started = Date.now();
+  while (!check()) {
+    if (Date.now() - started > timeoutMs) throw new Error("condition not met in time");
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+  }
+}
+
+describe("web PDF host through the shared editor (review-fe-r1 R6)", () => {
+  it("an Undo pressed while a rotate awaits the engine undoes that rotate instead of being dropped", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    let releaseOps: (() => void) | null = null;
+    const edited = new Uint8Array([37, 80, 68, 70, 1, 9]);
+    const applyOps = vi.fn(async () => { await new Promise<void>((resolve) => { releaseOps = resolve; }); return { bytes: edited, skipped: [] }; });
+    const { adapter, editor, sessions } = setup({ applyOps });
+    const coordinator = { getState: () => ({ state: "ready" as const, identity, dirtyGeneration: 0, lastSavedGeneration: 0, activeIntentId: null, error: null }), subscribe: () => () => undefined, save: vi.fn(async () => ({ accepted: false as const, reason: "clean" as const })), markDirty: vi.fn() };
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => { root.render(createElement(PdfEditor, { documentKey: "doc-r6", editor, open: adapter.open, coordinator, capability })); });
+    const byTestId = (id: string) => container.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+    const button = (name: string) => [...container.querySelectorAll<HTMLElement>("button")].find((candidate) => (candidate.getAttribute("aria-label") ?? candidate.textContent?.trim()) === name);
+    await until(() => byTestId("pdf-canvas") !== null && button("Page 2") !== undefined);
+    const undo = byTestId("pdf-chrome-undo")!;
+    expect(undo.getAttribute("aria-disabled")).toBe("true");
+
+    await act(async () => { button("Page 2")!.click(); });
+    await act(async () => { byTestId("pdf-chrome-tab-pages")!.click(); });
+    await act(async () => { button("Rotate page")!.click(); });
+    await until(() => releaseOps !== null);
+    // The engine has not answered: Undo is offered and the press is kept.
+    await until(() => !undo.hasAttribute("aria-disabled"));
+    await act(async () => { undo.click(); });
+    await act(async () => { releaseOps!(); });
+
+    // The rotate landed, then the queued Undo swapped the original bytes back.
+    await until(() => sessions[0]!.bytesSeen.length >= 3);
+    expect(Array.from(sessions[0]!.bytesSeen.at(-2)!)).toEqual(Array.from(edited));
+    expect(Array.from(sessions[0]!.bytesSeen.at(-1)!)).toEqual(Array.from(original));
+    expect(editor.canUndo?.()).toBe(false);
+    expect(editor.canRedo?.()).toBe(true);
+    await act(async () => root.unmount());
+    container.remove();
     await adapter.session.dispose();
   });
 });
