@@ -57,6 +57,8 @@ export interface HtmlInlineEditPort {
   context(): HtmlOpContext | null;
   /** Apply an op's patch set through the engine; true when the source changed. */
   apply(set: UpstreamPatchSet): boolean;
+  /** An op the document cannot express was refused: tell the person. */
+  refused?(): void;
 }
 
 /** The toolbar callbacks H8 contributes; absent means "not wired". */
@@ -93,7 +95,10 @@ function buildAndApply(port: HtmlInlineEditPort | undefined, build: (context: Ht
   } catch (error) {
     // A void element, a missing target, an unmovable destination: the document
     // cannot express the intent, so nothing happens (never a crash).
-    if (error instanceof HtmlOpError) return false;
+    if (error instanceof HtmlOpError) {
+      port.refused?.();
+      return false;
+    }
     throw error;
   }
 }

@@ -120,6 +120,20 @@ describe("edits land as ops in the engine", () => {
     expect(read().match(/<p /g)).toHaveLength(1);
   });
 
+  it("html, head and body cannot be deleted or duplicated, their style edits stay", async () => {
+    const f = await openFixture("<html><head><title>T</title></head><body><p>x</p></body></html>");
+    const { hook } = setup(f);
+    for (const path of ["html", "html > head", "html > body"]) {
+      select(hook, elementByPath(f.map, path)!.sid);
+      expect(hook.result.current.floatCommands!.onDelete, path).toBeUndefined();
+      expect(hook.result.current.floatCommands!.onDuplicate, path).toBeUndefined();
+      expect(hook.result.current.floatCommands!.onBold, path).toBeDefined();
+    }
+    select(hook, elementByPath(f.map, "html > body > p:nth-of-type(1)")!.sid);
+    expect(hook.result.current.floatCommands!.onDelete).toBeDefined();
+    expect(hook.result.current.floatCommands!.onDuplicate).toBeDefined();
+  });
+
   it("an edit whose element is gone changes nothing and does not throw", async () => {
     const f = await openFixture(SOURCE);
     const { hook, onApplied } = setup(f);
@@ -148,6 +162,53 @@ describe("edits land as ops in the engine", () => {
     expect(hook.result.current.inlineEdit!.inspector).toBe(inspector);
     act(() => hook.result.current.onPreviewSession?.(null));
     expect(hook.result.current.inlineEdit!.inspector).toBeNull();
+  });
+});
+
+describe("a refused edit says so", () => {
+  const notice = () => screen.queryByRole("status");
+
+  it("shows a visible notice, then clears it on the next edit that lands", async () => {
+    const f = await openFixture(SOURCE);
+    const { hook } = setup(f);
+    expect(hook.result.current.overlay).toBeNull();
+    select(hook, 99999);
+    act(() => hook.result.current.floatCommands!.onDelete!());
+    const shown = render(<>{hook.result.current.overlay}</>);
+    expect(notice()).toHaveTextContent("That change can't be applied to this element.");
+    shown.unmount();
+
+    select(hook, elementByPath(f.map, P)!.sid);
+    act(() => hook.result.current.floatCommands!.onBold!());
+    expect(hook.result.current.overlay).toBeNull();
+  });
+
+  it("a stale patch set through the inline-edit port is also announced", async () => {
+    const f = await openFixture(SOURCE);
+    const { hook } = setup(f);
+    const stale = setText({ text: f.text, map: f.map, version: f.version }, { sid: elementByPath(f.map, P)!.sid }, "X");
+    act(() => void hook.result.current.inlineEdit!.apply(stale));
+    act(() => void hook.result.current.inlineEdit!.apply(stale));
+    render(<>{hook.result.current.overlay}</>);
+    expect(notice()).toHaveTextContent("That change can't be applied to this element.");
+  });
+
+  it("an op the document cannot express in the inline-edit bridge is announced through the port", async () => {
+    const f = await openFixture(SOURCE);
+    const { hook } = setup(f);
+    act(() => hook.result.current.inlineEdit!.refused!());
+    render(<>{hook.result.current.overlay}</>);
+    expect(notice()).toBeInTheDocument();
+  });
+
+  it("clears when the selection changes", async () => {
+    const f = await openFixture(SOURCE);
+    const { hook } = setup(f);
+    select(hook, 99999);
+    act(() => hook.result.current.floatCommands!.onDelete!());
+    expect(hook.result.current.overlay).not.toBeNull();
+    select(hook, elementByPath(f.map, P)!.sid);
+    expect(hook.result.current.overlay).toBeNull();
   });
 });
 

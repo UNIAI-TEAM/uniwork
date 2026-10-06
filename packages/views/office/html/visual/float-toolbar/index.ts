@@ -6,4 +6,4 @@
 // props/state types stay on their own modules (imported directly by the
 // component and its tests) so this list carries no unused surface.
 export { HtmlFloatToolbar, textColourValue, type HtmlFloatToolbarCommands } from "./float-toolbar";
-export { colourEdit, deleteEdit, duplicateEdit, fontSizeEdit, toggleMarkEdit } from "./actions";
+export { colourEdit, deleteEdit, duplicateEdit, fontSizeEdit, isDocumentStructure, toggleMarkEdit } from "./actions";

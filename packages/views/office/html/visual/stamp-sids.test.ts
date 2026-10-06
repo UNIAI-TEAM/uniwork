@@ -34,4 +34,37 @@ describe("stampSids", () => {
   it("an empty map is the identity", () => {
     expect(stampSids(SOURCE, { version: 1, elements: [], bySid: new Map(), errorCount: 0 })).toBe(SOURCE);
   });
+
+  describe("a document cannot claim a data-sid (ADR 0027: the stamp is the only source)", () => {
+    const stampedOf = (text: string): string => stampSids(text, buildFixtureParseMap(text, 1));
+
+    it("strips a data-sid on an element the map knows, whatever the quoting or case", () => {
+      const stamped = stampedOf(`<p data-sid="777" DATA-SID=888 data-sid='999' id="a">x</p>`);
+      expect(stamped).not.toMatch(/777|888|999/);
+      expect(stamped.match(/data-sid=/gi)).toHaveLength(1);
+      expect(stamped).toContain('id="a"');
+    });
+
+    it("strips a data-sid on a late <body>/<html> start tag that is not in the map", () => {
+      const text = `<p>x</p><body data-sid="777"><html lang="vi" data-sid='888'>`;
+      const map = buildFixtureParseMap(text, 1);
+      const stamped = stampSids(text, { ...map, elements: map.elements.filter((element) => element.tag === "p") });
+      expect(stamped).not.toMatch(/777|888/);
+      expect(stamped).toContain('lang="vi"');
+      expect(stamped.match(/data-sid=/gi)).toHaveLength(1);
+    });
+
+    it("strips the valueless and spaced forms and keeps a quoted '>' in another attribute intact", () => {
+      const stamped = stampedOf(`<div title="a>b" data-sid = 777 hidden data-sid>y</div>`);
+      expect(stamped).not.toContain("777");
+      expect(stamped).toContain('title="a>b"');
+      expect(stamped).toContain("hidden");
+      expect(stamped.match(/data-sid/gi)).toHaveLength(1);
+    });
+
+    it("keeps data-sid text inside another attribute's value", () => {
+      const stamped = stampedOf(`<p title='data-sid="5"'>y</p>`);
+      expect(stamped).toContain(`title='data-sid="5"'`);
+    });
+  });
 });

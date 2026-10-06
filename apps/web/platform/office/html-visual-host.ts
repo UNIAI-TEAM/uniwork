@@ -6,7 +6,7 @@ import { buildHtmlParseMap } from "./html-parse-map";
  * web host: the parse map of the live source, the engine revision, and a way to
  * apply an H3 patch set. Structural twin of `HtmlVisualEditHost` in views.
  */
-export interface HtmlVisualEditHostPort {
+interface HtmlVisualEditHostPort {
   parseMap(text: string): UpstreamParseMap;
   revision(): number;
   applyPatchSet(set: UpstreamPatchSet): void;

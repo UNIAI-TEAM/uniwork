@@ -18,11 +18,12 @@
  * Every edit builds its op from a FRESH context (source + parse map +
  * revision), so a second edit is never based on a stale revision.
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
 import type { UpstreamParseMap, UpstreamPatchSet } from "@uniwork/office-engine/html";
 import type { PreviewSession } from "../../source-editor-types";
-import { colourEdit, deleteEdit, duplicateEdit, fontSizeEdit, textColourValue, toggleMarkEdit, type HtmlFloatToolbarCommands } from "./float-toolbar";
+import { colourEdit, deleteEdit, duplicateEdit, fontSizeEdit, isDocumentStructure, textColourValue, toggleMarkEdit, type HtmlFloatToolbarCommands } from "./float-toolbar";
 import type { HtmlInlineEditPort, InlineEditInspector } from "./inline-edit";
 import { elementBySid, HtmlOpError, type HtmlOpContext } from "./ops";
 import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection } from "./selection/model";
@@ -65,6 +66,9 @@ const INERT: Pick<VisualShellProps, "visualEdit" | "inlineEdit" | "floatCommands
   visualEdit: false,
 };
 
+/** How long a "can't be applied" notice stays up when nothing else clears it. */
+const NOTICE_MS = 6000;
+
 export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, onApplied }: UseHtmlVisualEditOptions): VisualShellProps {
   const flag = useFlag(OFFICE_HTML_VISUAL_EDIT_FLAG, false);
   const active = flag && host !== undefined && !readOnly;
@@ -80,6 +84,16 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
   const [aspectLocked, setAspectLocked] = useState(false);
   // Bumped after every applied edit so the panel re-reads the element's style.
   const [editCount, setEditCount] = useState(0);
+  // An edit the document refused (stale revision, a gone element, CSS the
+  // validator turns down): shown to the person instead of failing silently.
+  const [refused, setRefused] = useState(false);
+  const { t } = useTranslation(undefined, { keyPrefix: "office.html.visual" });
+  useEffect(() => {
+    if (!refused) return undefined;
+    const timer = setTimeout(() => setRefused(false), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [refused]);
+  const markRefused = useCallback(() => setRefused(true), []);
 
   const previewText = useMemo(() => {
     if (!active || !host) return text;
@@ -107,8 +121,10 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
       hostRef.current?.applyPatchSet(set);
     } catch {
       // A stale or refused patch set changes nothing.
+      setRefused(true);
       return false;
     }
+    setRefused(false);
     setEditCount((count) => count + 1);
     onAppliedRef.current();
     return true;
@@ -124,7 +140,10 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
         if (set === null || !apply(set)) return false;
       } catch (error) {
         // The document cannot express the intent (gone element, refused CSS).
-        if (error instanceof HtmlOpError) return false;
+        if (error instanceof HtmlOpError) {
+          setRefused(true);
+          return false;
+        }
         throw error;
       }
     }
@@ -137,33 +156,42 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
     },
     context,
     apply,
-  }), [apply, context]);
+    refused: markRefused,
+  }), [apply, context, markRefused]);
 
   const sid = selection?.sid ?? null;
   const floatCommands = useMemo<HtmlFloatToolbarCommands>(() => {
     if (sid === null) return {};
+    // html, head and body take the whole page with them: no Delete / Duplicate.
+    const fresh = context();
+    const structural = fresh !== null && isDocumentStructure(fresh, sid);
     return {
       onBold: () => run([toggleMarkEdit(sid, "font-weight", "700")]),
       onItalic: () => run([toggleMarkEdit(sid, "font-style", "italic")]),
       onFontSizeIncrease: () => run([fontSizeEdit(sid, 1)]),
       onFontSizeDecrease: () => run([fontSizeEdit(sid, -1)]),
       onColour: (id) => run([colourEdit(sid, textColourValue(id))]),
-      onDuplicate: () => run([duplicateEdit(sid)]),
-      onDelete: () => {
-        if (run([deleteEdit(sid)])) {
-          setPanelOpen(false);
-          inspectorRef.current?.command({ type: "select", sid: null });
-        }
-      },
+      ...(structural
+        ? {}
+        : {
+            onDuplicate: () => run([duplicateEdit(sid)]),
+            onDelete: () => {
+              if (run([deleteEdit(sid)])) {
+                setPanelOpen(false);
+                inspectorRef.current?.command({ type: "select", sid: null });
+              }
+            },
+          }),
       onOpenStylePanel: () => setPanelOpen((open) => !open),
     };
-  }, [run, sid]);
+  }, [context, run, sid]);
 
   const onPreviewSession = useCallback((session: PreviewSession | null) => {
     inspectorRef.current = (session as { inspector?: InlineEditInspector | null } | null)?.inspector ?? null;
   }, []);
   const onPreviewSelection = useCallback((next: HtmlSelection | null) => {
     setSelection(next);
+    setRefused(false);
     if (next === null) setPanelOpen(false);
   }, []);
 
@@ -179,8 +207,8 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
     };
   }, [active, panelOpen, sid, editCount, aspectLocked, context]);
 
-  const overlay = panelValues === null || sid === null ? null : (
-    <div className="absolute end-3 top-3 z-20">
+  const panel =
+    panelValues === null || sid === null ? null : (
       <HtmlStylePanel
         values={panelValues.values}
         isImage={panelValues.isImage}
@@ -190,8 +218,18 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
         }}
         onRevert={() => run([styleRevertEdit(sid)])}
       />
-    </div>
-  );
+    );
+  const overlay =
+    panel === null && !refused ? null : (
+      <div className="absolute end-3 top-3 z-20 flex flex-col items-end gap-2">
+        {refused ? (
+          <p role="status" className="rounded-md border bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md">
+            {t("refused")}
+          </p>
+        ) : null}
+        {panel}
+      </div>
+    );
 
   if (!active) return { previewText: text, ...INERT };
   return {

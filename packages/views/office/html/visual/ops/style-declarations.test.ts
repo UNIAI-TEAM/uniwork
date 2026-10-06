@@ -45,6 +45,66 @@ describe("setStyleDeclarations", () => {
     }
   });
 
+  it("refuses every URL-bearing function, not only url(", async () => {
+    const { f, context } = await open();
+    const p = elementByPath(f.map, P1)!;
+    for (const bad of [
+      'background-image:image-set("https://e.example/x.png" 1x)',
+      'background-image:-webkit-image-set("https://e.example/x.png" 1x)',
+      'background:src("https://e.example/x.png")',
+      'background:image("https://e.example/x.png")',
+      "mask-image:image-set('https://e.example/x.png' 1x)",
+      'border-image-source:image-set("https://e.example/x.png" 1x)',
+      'cursor:image-set("https://e.example/x.png" 1x), auto',
+      'background-image:cross-fade(url(a.png), url(b.png))',
+      'background-image:element(#x)',
+      'background-image:paint(foo)',
+      'content:"https://e.example/x.png"',
+      'background:linear-gradient(red, blue), "x"',
+    ]) {
+      expect(() => setStyleDeclarations(context, { sid: p.sid }, [bad]), bad).toThrow(HtmlOpError);
+    }
+  });
+
+  it("refuses CSS escapes, comments and newlines that hide a function or swallow what follows", async () => {
+    const { f, context } = await open();
+    const p = elementByPath(f.map, P1)!;
+    for (const bad of [
+      "background:\\75rl(a.png)",
+      "background:u/**/rl(a.png)",
+      "color:red/*",
+      "color:red /* x */",
+      'font-family:"Foo',
+      "font-family:'Foo",
+      "width:calc(",
+      "width:calc(1px + (2px)",
+      "width:1px)",
+      "color:red\nbackground:blue",
+      "color:red\rbackground:blue",
+      "color:red\u2028x",
+      "color:re\u0000d",
+    ]) {
+      expect(() => setStyleDeclarations(context, { sid: p.sid }, [bad]), JSON.stringify(bad)).toThrow(HtmlOpError);
+    }
+  });
+
+  it("keeps the values the panel and ordinary CSS need", async () => {
+    const { f, context } = await open();
+    const p = elementByPath(f.map, P2)!;
+    for (const good of [
+      'font-family:"Be Vietnam Pro", sans-serif',
+      "font-family:'Open Sans',Arial",
+      "color:rgb(10 20 30 / 50%)",
+      "background-color:#2563eb",
+      "width:calc(100% - (2 * var(--gap, 4px)))",
+      "background-image:linear-gradient(to right, red 0%, hsla(0, 0%, 0%, .5))",
+      "transform:translate(-50%, 10px) rotate(3deg)",
+      "opacity:0.5",
+    ]) {
+      expect(() => setStyleDeclarations(context, { sid: p.sid }, [good]), good).not.toThrow();
+    }
+  });
+
   it("an empty request is a no_op", async () => {
     const { f, context } = await open();
     const p = elementByPath(f.map, P2)!;

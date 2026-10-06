@@ -37,7 +37,7 @@ describe("textEditOp: committed text edit -> set_text / set_inner_html", () => {
   it("a plain-text element takes set_text and escapes the committed text", async () => {
     const f = await fixture();
     const h1 = elementByPath(f.map, H1)!;
-    const set = textEditOp(context(f), { sid: h1.sid, text: "a < b & c" });
+    const set = textEditOp(context(f), { sid: h1.sid, text: "a < b & c" })!;
     expect(set.label).toBe("set_text");
     const after = applyOp(f, set);
     expectByteIdentical(SOURCE, after, [{ from: h1.inner[0], to: h1.inner[1], text: "a &lt; b &amp; c" }], "set_text");
@@ -46,7 +46,7 @@ describe("textEditOp: committed text edit -> set_text / set_inner_html", () => {
   it("an element with child markup takes set_inner_html with escaped text", async () => {
     const f = await fixture();
     const p = elementByPath(f.map, P1)!;
-    const set = textEditOp(context(f), { sid: p.sid, text: "Đoạn mạnh thường" });
+    const set = textEditOp(context(f), { sid: p.sid, text: "Đoạn mạnh thường" })!;
     expect(set.label).toBe("set_inner_html");
     const after = applyOp(f, set);
     // The child <b> is replaced by plain text; the tags are gone.
@@ -57,10 +57,30 @@ describe("textEditOp: committed text edit -> set_text / set_inner_html", () => {
   it("escapes a markup-looking payload so it lands as inert text", async () => {
     const f = await fixture();
     const p = elementByPath(f.map, P2)!;
-    const set = textEditOp(context(f), { sid: p.sid, text: '<img src=x onerror="alert(1)">' });
+    const set = textEditOp(context(f), { sid: p.sid, text: '<img src=x onerror="alert(1)">' })!;
     const after = applyOp(f, set);
     expect(after).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
     expect(after).not.toContain("<img src=x");
+  });
+
+  it("an unchanged commit is no op: the element keeps its markup and whitespace", async () => {
+    const f = await fixture();
+    // The frame reports the element's normalised text; for <p class="a"> that is the same words.
+    expect(textEditOp(context(f), { sid: sid(f, P1), text: "Đoạn đậm thường" })).toBeNull();
+    expect(textEditOp(context(f), { sid: sid(f, P2), text: "Hai" })).toBeNull();
+  });
+
+  it("an unchanged commit ignores source whitespace, entities and a script child", async () => {
+    const g = await openFixture('<div id="d">\n  a&nbsp;<b>b</b>\n  &amp; c <script>x()</script></div><pre id="e">p\n  q</pre>');
+    const ctx = context(g);
+    expect(textEditOp(ctx, { sid: sid(g, "div:nth-of-type(1)"), text: "a b & c" })).toBeNull();
+    expect(textEditOp(ctx, { sid: sid(g, "pre:nth-of-type(1)"), text: "p q" })).toBeNull();
+    expect(textEditOp(ctx, { sid: sid(g, "div:nth-of-type(1)"), text: "a b & d" })).not.toBeNull();
+  });
+
+  it("a changed commit still edits", async () => {
+    const f = await fixture();
+    expect(textEditOp(context(f), { sid: sid(f, P2), text: "Ba" })).not.toBeNull();
   });
 
   it("throws HtmlOpError for a void element (the controller turns it into no-op)", async () => {

@@ -67,16 +67,24 @@ export function colourEdit(sid: number, value: string | null): StyleEditBuilder 
       : setStyleDeclarations(context, { sid }, [`color:${value}`]);
 }
 
-/** Remove the element's whole range. */
-export function deleteEdit(sid: number): StyleEditBuilder {
-  return (context) => remove(context, { sid });
+const DOCUMENT_STRUCTURE_TAGS: ReadonlySet<string> = new Set(["html", "head", "body"]);
+
+/** True for html, head and body: deleting or copying one takes the whole page with it. */
+export function isDocumentStructure(context: HtmlOpContext, sid: number): boolean {
+  const tag = elementBySid(context.map, sid)?.tag;
+  return tag !== undefined && DOCUMENT_STRUCTURE_TAGS.has(tag);
 }
 
-/** Insert an exact copy of the element's source right after it. */
+/** Remove the element's whole range (never html, head or body: null). */
+export function deleteEdit(sid: number): StyleEditBuilder {
+  return (context) => (isDocumentStructure(context, sid) ? null : remove(context, { sid }));
+}
+
+/** Insert an exact copy of the element's source right after it (never html, head or body: null). */
 export function duplicateEdit(sid: number): StyleEditBuilder {
   return (context) => {
     const element = elementBySid(context.map, sid);
-    if (!element) return null;
+    if (!element || isDocumentStructure(context, sid)) return null;
     return insertHtml(context, context.text.slice(element.range[0], element.range[1]), { after: { sid } });
   };
 }

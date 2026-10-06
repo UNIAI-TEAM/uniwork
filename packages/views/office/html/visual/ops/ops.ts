@@ -1,4 +1,5 @@
 import type { UpstreamPatch, UpstreamPatchSet } from "@uniwork/office-engine/html";
+import { isSafeDeclaration } from "./css-declaration";
 import { escapeHtmlText } from "./insert-presets";
 import {
   attributeInsertionPoint,
@@ -311,17 +312,13 @@ export function setStyle(
   return mergeStyleAttribute(context, target, styleValue === "" ? [] : styleValue.split(";"), options.drop ?? []);
 }
 
-/** A `property:value` declaration: a lowercase property name, a value with no
- * second declaration, rule, tag or script/URL function in it. */
-const SAFE_DECLARATION = /^[a-z-]+:[^;{}<>\\]*$/;
-const UNSAFE_CSS_VALUE = /url\s*\(|expression\s*\(|@import|javascript:/i;
-
 /**
  * Set arbitrary inline CSS declarations (`["color:blue", "opacity:0.5"]`),
  * merging into the author's style attribute exactly like `setStyle`. The style
  * panel's typography / background / opacity / custom CSS groups all land here.
- * Each declaration is validated one by one so a value can never carry a second
- * declaration, a rule block or a URL into the document.
+ * Each declaration is validated one by one (css-declaration.ts) so a value can
+ * never carry a second declaration, a rule block, a URL-bearing function or an
+ * unbalanced quote or paren into the document.
  */
 export function setStyleDeclarations(
   context: HtmlOpContext,
@@ -330,7 +327,7 @@ export function setStyleDeclarations(
   drop: readonly string[] = [],
 ): UpstreamPatchSet {
   for (const declaration of declarations) {
-    if (!SAFE_DECLARATION.test(declaration) || UNSAFE_CSS_VALUE.test(declaration)) {
+    if (!isSafeDeclaration(declaration)) {
       throw new HtmlOpError("invalid_target", "not a safe CSS declaration", { declaration });
     }
   }

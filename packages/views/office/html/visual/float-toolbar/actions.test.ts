@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyOp, openFixture, type OpenFixture } from "../ops/test-fixture";
 import { elementByPath, HtmlOpError, type HtmlOpContext } from "../ops";
-import { colourEdit, deleteEdit, duplicateEdit, fontSizeEdit, inlineDeclaration, toggleMarkEdit } from "./actions";
+import { colourEdit, deleteEdit, duplicateEdit, fontSizeEdit, inlineDeclaration, isDocumentStructure, toggleMarkEdit } from "./actions";
 
 const SOURCE = `<main><p style="font-weight:700;font-size:20px">Hi</p><p>Two</p></main>`;
 const P1 = "main:nth-of-type(1) > p:nth-of-type(1)";
@@ -52,5 +52,21 @@ describe("float toolbar edits", () => {
     expect(() => deleteEdit(99999)(ctx(f))).toThrow(HtmlOpError);
     expect(duplicateEdit(99999)(ctx(f))).toBeNull();
     expect(inlineDeclaration(ctx(f), 99999, "color")).toBeUndefined();
+  });
+});
+
+describe("html, head and body are not deleted or duplicated", () => {
+  it("both builders return null and isDocumentStructure names them", async () => {
+    const f = await openFixture("<html><head><title>T</title></head><body><p>x</p></body></html>");
+    const context = { text: f.text, map: f.map, version: f.version };
+    for (const path of ["html", "html > head", "html > body"]) {
+      const sid = elementByPath(f.map, path)!.sid;
+      expect(isDocumentStructure(context, sid), path).toBe(true);
+      expect(deleteEdit(sid)(context), path).toBeNull();
+      expect(duplicateEdit(sid)(context), path).toBeNull();
+    }
+    const p = elementByPath(f.map, "html > body > p:nth-of-type(1)")!.sid;
+    expect(isDocumentStructure(context, p)).toBe(false);
+    expect(deleteEdit(p)(context)).not.toBeNull();
   });
 });
