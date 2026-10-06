@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHttpOfficeTransport } from "./office-transport";
+import { desktopPublicConfigResponseSchema } from "../../shared/ipc";
 import { blankDocxBytes } from "../files/blank-docx";
 
 const profile = { deploymentId: "lane", apiOrigin: "http://127.0.0.1:8787", clientId: "uniwork-office-dev", channel: "dev" as const };
@@ -182,6 +183,23 @@ describe("desktop office HTTP transport", () => {
     });
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
     await expect(transport.publicConfig()).resolves.toEqual({ flags: { office_engine: true, office_docx: false } });
+  });
+
+  it("asks for the selected organization so its overrides evaluate", async () => {
+    const fetchImpl = vi.fn(async (input: string) => {
+      expect(input).toBe("http://127.0.0.1:8787/api/v1/config?organization_id=org%2F1");
+      return new Response(JSON.stringify({ flags: { office_engine: true } }), { status: 200 });
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    await expect(transport.publicConfig("org/1")).resolves.toEqual({ flags: { office_engine: true } });
+  });
+
+  it("truncates a flag catalogue past the cap instead of overflowing the response schema", async () => {
+    const flags = Object.fromEntries(Array.from({ length: 200 }, (_, index) => [`flag_${index}`, true]));
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl: vi.fn(async () => new Response(JSON.stringify({ flags }), { status: 200 })) });
+    const answer = await transport.publicConfig();
+    expect(Object.keys(answer.flags)).toHaveLength(128);
+    expect(desktopPublicConfigResponseSchema.safeParse(answer).success).toBe(true);
   });
 
   it("answers no flags for a malformed config body", async () => {

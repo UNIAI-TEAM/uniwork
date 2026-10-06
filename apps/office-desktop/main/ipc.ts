@@ -26,7 +26,7 @@ import type { LocalXlsxEngine } from "./xlsx-engine";
 export type DesktopOfficeTransport = Readonly<{
   context(): Promise<DesktopLibraryContextResponse>;
   /** Public feature flags (GET /api/v1/config); the renderer gates editors on them. */
-  publicConfig(): Promise<DesktopPublicConfigResponse>;
+  publicConfig(organizationId?: string): Promise<DesktopPublicConfigResponse>;
   list(input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }): Promise<DesktopLibraryResponse>;
   download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse>;
   create(input: { workspaceId: string; title: string; format: DesktopDocumentFormat }): Promise<DesktopLibraryCreateResponse>;
@@ -83,9 +83,12 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       requireSession();
       return desktopLibraryContextResponseSchema.parse(await options.transport.context());
     },
-    "desktop:public-config": async (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
+    "desktop:public-config": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
       requireSession();
-      return desktopPublicConfigResponseSchema.parse(await options.transport.publicConfig());
+      // A malformed transport answer degrades to no flags (the renderer reads that
+      // as engine off and opens cloud documents read-only), never a thrown open.
+      const parsed = desktopPublicConfigResponseSchema.safeParse(await options.transport.publicConfig((request as { organizationId?: string }).organizationId));
+      return parsed.success ? parsed.data : { flags: {} };
     },
     "desktop:library-recent": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string }>) => {
       requireSession();

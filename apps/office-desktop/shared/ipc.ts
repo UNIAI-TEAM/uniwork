@@ -177,9 +177,22 @@ export const desktopLibraryContextResponseSchema = z.object({
 export type DesktopLibraryContextResponse = z.infer<typeof desktopLibraryContextResponseSchema>;
 /** The public feature flags GET /api/v1/config answers (boolean flags only,
  * bounded). Main fetches them with the session; the renderer never calls the API. */
+const PUBLIC_FLAG_KEY = /^[a-z][a-z0-9_]{0,63}$/;
+const PUBLIC_FLAG_LIMIT = 128;
 export const desktopPublicConfigResponseSchema = z.object({
-  flags: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/), z.boolean()).refine((flags) => Object.keys(flags).length <= 128, "too many flags"),
+  flags: z.record(z.string().regex(PUBLIC_FLAG_KEY), z.boolean()).refine((flags) => Object.keys(flags).length <= PUBLIC_FLAG_LIMIT, "too many flags"),
 }).strict();
+/** Keeps only well-formed boolean flags, at most the schema's cap, so a
+ * larger catalogue degrades to a truncated answer instead of a rejected one. */
+export function sanitizeDesktopPublicFlags(raw: unknown): Record<string, boolean> {
+  const flags: Record<string, boolean> = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return flags;
+  for (const [key, value] of Object.entries(raw)) {
+    if (Object.keys(flags).length >= PUBLIC_FLAG_LIMIT) break;
+    if (typeof value === "boolean" && PUBLIC_FLAG_KEY.test(key)) flags[key] = value;
+  }
+  return flags;
+}
 export type DesktopPublicConfigResponse = z.infer<typeof desktopPublicConfigResponseSchema>;
 export const desktopLibraryDownloadResponseSchema = z.object({
   documentId: documentIdSchema,
@@ -369,7 +382,7 @@ const requestSchemas = {
   "desktop:draft-discard": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema.optional(), draftId: draftIdSchema, generation: z.number().int().positive() }).strict(),
   "desktop:library-list": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-context": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
-  "desktop:public-config": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:public-config": z.object({ sessionGeneration: sessionGenerationSchema, organizationId: opaqueHandleSchema.optional() }).strict(),
   "desktop:library-recent": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-search": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, query: z.string().trim().min(1).max(256), cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255), format: documentFormatSchema.default(DEFAULT_DESKTOP_DOCUMENT_FORMAT) }).strict(),

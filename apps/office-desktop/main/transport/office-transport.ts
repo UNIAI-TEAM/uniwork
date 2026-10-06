@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { DeploymentProfile } from "../../shared/deployment";
 import { desktopDocumentFormatForMime, desktopDocumentFormatForName, desktopDocumentMimeTypes, desktopMimeTypeForFormat, desktopUntitledName, desktopExtensionsForFormat, type DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopLibraryCreateResponse, DesktopOfficeOpenResponse, DesktopOfficeContextResponse, DesktopOfficeSaveResponse, DesktopOfficeJobResponse } from "../../shared/ipc";
+import { sanitizeDesktopPublicFlags } from "../../shared/ipc";
 import type { CredentialStore } from "../auth/credentials";
 import type { DesktopOfficeTransport } from "../ipc";
 import { assertOrigin } from "./auth-transport";
@@ -106,15 +107,10 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       }));
       return { deployments: [{ id: options.profile.deploymentId, name: new URL(options.profile.apiOrigin).host }], accounts: [{ id: session.accountId, name: typeof person.display_name === "string" && person.display_name ? person.display_name : "UniWork", ...(typeof person.email === "string" ? { email: person.email } : {}) }], organizations, workspaces: workspaceResults.flat() };
     },
-    async publicConfig() {
-      const raw = await json("/config");
-      const body = raw && typeof raw === "object" ? (raw as Record<string, unknown>).flags : undefined;
-      // Only well-formed boolean flags cross the boundary; anything else is dropped.
-      const flags: Record<string, boolean> = {};
-      if (body && typeof body === "object" && !Array.isArray(body)) {
-        for (const [key, value] of Object.entries(body)) if (typeof value === "boolean" && /^[a-z][a-z0-9_]{0,63}$/.test(key)) flags[key] = value;
-      }
-      return { flags };
+    async publicConfig(organizationId?: string) {
+      // Organization-scoped overrides only evaluate when the server is asked for that organization.
+      const raw = await json(organizationId ? `/config?organization_id=${encodeURIComponent(organizationId)}` : "/config");
+      return { flags: sanitizeDesktopPublicFlags(raw && typeof raw === "object" ? (raw as Record<string, unknown>).flags : undefined) };
     },
     async list(input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }): Promise<DesktopLibraryResponse> {
       const endpoint = input.mode === "recent" ? "recent" : "";

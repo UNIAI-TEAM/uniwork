@@ -258,6 +258,12 @@ describe("desktop IPC allowlist", () => {
     expect(transport.officeJob).toHaveBeenCalledWith(expect.objectContaining({ format: "xlsx" }));
     expect(desktopLibraryResponseSchema.safeParse(await handlers["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).success).toBe(true);
     await expect(handlers["desktop:public-config"]({ sessionGeneration: "session_1234" })).resolves.toEqual({ flags: { office_engine: true, office_docx: false } });
+    expect(transport.publicConfig).toHaveBeenLastCalledWith(undefined);
+    await handlers["desktop:public-config"]({ sessionGeneration: "session_1234", organizationId: "org-1" });
+    expect(transport.publicConfig).toHaveBeenLastCalledWith("org-1");
+    // A malformed transport answer degrades to no flags instead of throwing.
+    transport.publicConfig.mockResolvedValueOnce({ flags: { office_engine: "yes" } } as never);
+    await expect(handlers["desktop:public-config"]({ sessionGeneration: "session_1234" })).resolves.toEqual({ flags: {} });
     const signedOut = createOfficeIpcHandlers({ transport: transport as never, isSignedIn: () => false });
     await expect(signedOut["desktop:public-config"]({ sessionGeneration: "session_1234" })).rejects.toMatchObject({ code: "login_required" });
     await expect(signedOut["desktop:library-list"]({ sessionGeneration: "session_1234", workspaceId: "ws-1" })).rejects.toMatchObject({ code: "login_required" });
