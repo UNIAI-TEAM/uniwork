@@ -2,10 +2,12 @@
 
 import { Suspense, lazy } from "react";
 import { useParams } from "next/navigation";
+import { useDocument } from "@uniwork/core/documents/hooks";
 import { paths } from "@uniwork/core/paths";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { DocumentOfficeEditorHost } from "@/platform/office/document-office-host";
+import { useDocumentsTabTitle } from "@/platform/office/tab-title";
 
 // The detail view owns the lazy editor chunk; this route only reads params.
 const DocumentDetailView = lazy(() =>
@@ -18,6 +20,8 @@ export default function DocumentDetailPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const { workspace } = useWorkspace();
   const { replace } = useNavigation();
+  // Same query key as the detail view: a cache read, not a second request.
+  useDocumentsTabTitle(useDocument(workspace.id, documentId).data?.title);
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   return (
     <Suspense fallback={null}>
