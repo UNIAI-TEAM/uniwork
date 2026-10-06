@@ -1,0 +1,58 @@
+diff --git a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts b/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
+--- a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
++++ b/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
+@@ -578,6 +578,37 @@ export async function applyPlanToXlsx(
+ /// a bundle without it instead of shifting formulaValues one slot.
+ export const UNIWORK_XLSX_VISUAL_ADDITIONS = true
+ 
++/// UniWork patch 0013 capability marker: a bundle exporting it binds
++/// visualEdits AFTER formulaValues on applyCellEditsToXlsx (edits to visuals
++/// that already live in the file) and exports readEntriesBase64. Hosts refuse
++/// a bundle without it instead of silently dropping visual edits.
++export const UNIWORK_XLSX_VISUAL_EDITS = true
++
++/// UniWork patch 0013: base64 bytes of package entries the render model draws
++/// (pictures already in the file). A missing entry, a directory, or an entry
++/// whose decoded size exceeds maxBytes reads as null.
++export async function readEntriesBase64(
++  buffer: Buffer,
++  paths: readonly string[],
++  maxBytes: number,
++): Promise<Record<string, string | null>> {
++  const zip = await loadSafeZip(buffer)
++  const out: Record<string, string | null> = {}
++  for (const path of paths) {
++    const file = zip.file(path)
++    if (!file || file.dir) {
++      out[path] = null
++      continue
++    }
++    const bytes = await file.async('uint8array')
++    out[path] =
++      bytes.byteLength > maxBytes
++        ? null
++        : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('base64')
++  }
++  return out
++}
++
+ /// Save path for user edits on streamed workbooks. Unlike applyPlanToXlsx
+ /// there is no per-cell before-check: the caller gates on the whole-file
+ /// SHA-256 recorded at open time, which the streamed originals came from.
+@@ -598,6 +629,7 @@ export async function applyCellEditsToXlsx(
+   tableAdditions: readonly SheetTableAddition[] = [],
+   visualAdditions: readonly SheetVisualAddition[] = [],
+   formulaValues: readonly SheetFormulaValues[] = [],
++  visualEdits: readonly WorkbookVisualEdit[] = [],
+ ): Promise<XlsxMutation> {
+   const plan = await planCellEditsToXlsx(
+     await createBufferEntrySource(source),
+@@ -618,7 +650,7 @@ export async function applyCellEditsToXlsx(
+     [],
+     [],
+     [],
+-    [],
++    visualEdits,
+     [],
+     formulaValues,
+   )
