@@ -2,6 +2,7 @@ import { readPdfFormFields, readPdfNotes } from "@uniwork/office-engine/browser"
 import { bridgePdfOperations, quadsForRange, toNoteThreads, type PdfCanvasPage, type PdfEditOperation, type PdfEditorHandle, type PdfOpenOutcome, type PdfPageRenderService, type PdfRenderPageRequest, type PdfRenderResult, type PdfSelectionPort, type PdfSnapshot } from "@uniwork/views/office/pdf";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopIpcRequest } from "../../shared/ipc";
+import { createPdfEngineSession } from "./pdf-engine-session";
 import type { DesktopSurfaceSettings } from "./surface";
 
 /** One page's size in PDF points, in page order; zero when pdfium could not
@@ -30,6 +31,9 @@ type EngineResponse = {
   probe?: { pageCount: number };
   /** Real per-page sizes from the open probe (U2). */
   pageSizes?: PageSize[];
+  /** The retained document an `open` with `retain` answers; renders and text
+   * reads name it instead of sending the bytes again. */
+  pdfHandle?: string;
   /** Rendered page pixels, base64 PNG (render). */
   pngBase64?: string;
   width?: number;
@@ -180,10 +184,29 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     setSelection: (next) => { selected = next ?? null; },
     subscribe: (listener) => { listener(selected); return () => undefined; },
   };
-  const callEngine = async (operation: "open" | "edit" | "render" | "text", args: Record<string, unknown>): Promise<EngineResponse> => {
+  const callEngine = async (operation: "open" | "edit" | "render" | "text" | "close", args: Record<string, unknown>): Promise<EngineResponse> => {
     const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args };
     return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse;
   };
+
+  /** The engine keeps the opened bytes: open and every byte swap send the
+   * document once, and a render or text read sends only its request. A stale
+   * handle (the engine dropped it) re-sends the current bytes once. */
+  const engineSession = createPdfEngineSession({
+    reopen: async () => {
+      const result = await callEngine("open", retainedOpenArgs(password));
+      if (!result.ok || !result.pdfHandle) throw new Error("pdf_reopen_failed");
+      return result.pdfHandle;
+    },
+    close: (pdfHandle) => callEngine("close", { pdfHandle }),
+  });
+  /** An open of the current bytes the engine keeps; the password goes with
+   * this one transfer and stays engine-side for the handle's renders. */
+  function retainedOpenArgs(withPassword: string | undefined): Record<string, unknown> {
+    const args: Record<string, unknown> = { dataBase64: bytesBase64(), retain: true };
+    if (withPassword !== undefined) args.password = withPassword;
+    return args;
+  }
 
   /** Rendered pages, keyed by page@scale@generation. An edit bumps the
    * generation, so a stale key never serves the pre-edit pixels; a failed
@@ -215,11 +238,10 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     const map = geometry ? caches.geometry : caches.text;
     const cached = map.get(start);
     if (cached) return cached;
-    const args: Record<string, unknown> = { dataBase64: bytesBase64(), pageIndex: start, pageLimit: geometry ? 1 : TEXT_CHUNK_PAGES, geometry };
-    if (password !== undefined) args.password = password;
+    const args: Record<string, unknown> = { pageIndex: start, pageLimit: geometry ? 1 : TEXT_CHUNK_PAGES, geometry };
     const pending = (async (): Promise<TextRead> => {
       try {
-        const result = await callEngine("text", args);
+        const result = await engineSession.run((pdfHandle) => callEngine("text", { ...args, pdfHandle }));
         if (result.ok && Array.isArray(result.pages)) return { status: "ok", pages: result.pages };
         return result.error?.kind === "password" ? { status: "wall" } : { status: "failed" };
       } catch {
@@ -243,10 +265,9 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
       const key = `${request.pageNumber}:${request.scale}:${generation}`;
       let pending = cache.get(key);
       if (!pending) {
-        const args: Record<string, unknown> = { dataBase64: bytesBase64(), pageIndex: index, scale: request.scale };
-        if (password !== undefined) args.password = password;
+        const args: Record<string, unknown> = { pageIndex: index, scale: request.scale };
         const created = (async () => {
-          const result = await callEngine("render", args);
+          const result = await engineSession.run((pdfHandle) => callEngine("render", { ...args, pdfHandle }));
           if (!result.ok || !result.pngBase64) throw new Error("pdf_render_failed");
           return { src: `data:image/png;base64,${result.pngBase64}`, width: result.width ?? 0, height: result.height ?? 0 };
         })();
@@ -280,13 +301,15 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
    * boxes, or the canvas draws a phantom page the engine then refuses to render.
    * A failed re-probe keeps the previous geometry and never fails the edit. */
   const refreshGeometry = async (): Promise<void> => {
-    const args: Record<string, unknown> = { dataBase64: bytesBase64() };
-    if (password !== undefined) args.password = password;
     try {
-      const result = await callEngine("open", args);
+      const result = await callEngine("open", retainedOpenArgs(password));
+      // The engine now holds the new bytes; without a handle the next render
+      // re-sends them instead of drawing the pre-edit document.
+      engineSession.adopt(result.ok ? result.pdfHandle : undefined);
       if (result.ok && result.probe) applyGeometry(result.probe, result.pageSizes ?? []);
     } catch {
       // Keep the pre-edit geometry; the edit itself already succeeded.
+      engineSession.adopt(undefined);
     }
   };
 
@@ -342,9 +365,8 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
       if (disposed) throw new Error("pdf_surface_disposed");
       bytes = Uint8Array.from(await settings.readBytes());
       clearEncoded();
-      const args: Record<string, unknown> = { dataBase64: bytesBase64() };
-      if (nextPassword !== undefined) args.password = nextPassword;
-      const result = await callEngine("open", args);
+      const result = await callEngine("open", retainedOpenArgs(nextPassword));
+      engineSession.adopt(result.ok ? result.pdfHandle : undefined);
       if (result.ok && result.probe) {
         password = nextPassword;
         undoStack = [];
@@ -440,7 +462,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     subscribe: (listener: () => void) => { changeListeners.add(listener); return () => { changeListeners.delete(listener); }; },
     undo: () => step(() => undoStack, () => redoStack),
     redo: () => step(() => redoStack, () => undoStack),
-    dispose: () => { disposed = true; listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = [];clearCache(); clearTextCache(); bytes = Uint8Array.from([]); clearEncoded(); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
+    dispose: () => { disposed = true; engineSession.close(); listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = [];clearCache(); clearTextCache(); bytes = Uint8Array.from([]); clearEncoded(); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
   };
   return surface;
 }
