@@ -109,6 +109,49 @@ it("clears a lingering hint when a later print settles with a real outcome, but 
   expect(screen.queryByTestId("print-preview-hint")).toBeNull();
 });
 
+const LANDSCAPE_SLIDE = { widthMm: 338.67, heightMm: 190.5, landscape: true };
+
+it("asks for Landscape in the dialog when the document page is landscape, since Windows opens on the printer default", async () => {
+  let finish: ((value: unknown) => void) | undefined;
+  const bridge = { call: vi.fn(() => new Promise((resolve) => { finish = resolve; })) };
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let pending!: Promise<unknown>;
+  act(() => { pending = Promise.resolve(hook.port.print({ ...printArgs, title: "Deck.pptx", page: LANDSCAPE_SLIDE })); });
+  const hint = await screen.findByTestId("print-preview-hint");
+  expect(hint).toHaveTextContent(i18n.t("officeDesktop.library.printPreviewHint"));
+  expect(hint).toHaveTextContent(i18n.t("officeDesktop.library.printLandscapeHint"));
+  await act(async () => { finish!({ outcome: "printed" }); await pending; });
+});
+
+it("reads the orientation from the copy's own @page when the request carries no page", async () => {
+  for (const [html, landscape] of [[`<style>@page { size: A4 landscape }</style><p>x</p>`, true], [`<style>@page { size: A4 }</style><p>x</p>`, false], ["<p>x</p>", false]] as const) {
+    let finish: ((value: unknown) => void) | undefined;
+    const bridge = { call: vi.fn(() => new Promise((resolve) => { finish = resolve; })) };
+    let hook!: Hook;
+    const { unmount } = render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+    let pending!: Promise<unknown>;
+    act(() => { pending = Promise.resolve(hook.port.print({ html, title: "Notes.md" })); });
+    const hint = await screen.findByTestId("print-preview-hint");
+    expect(hint.textContent?.includes(i18n.t("officeDesktop.library.printLandscapeHint"))).toBe(landscape);
+    await act(async () => { finish!({ outcome: "printed" }); await pending; });
+    unmount();
+  }
+});
+
+it("keeps the open dialog's landscape line when a portrait print is answered print_busy", async () => {
+  let finish: ((value: unknown) => void) | undefined;
+  const bridge = pendingBridge([() => new Promise((resolve) => { finish = resolve; }), async () => ({ outcome: "failed", reason: "print_busy" })]);
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let first!: Promise<unknown>;
+  act(() => { first = Promise.resolve(hook.port.print({ ...printArgs, page: LANDSCAPE_SLIDE })); });
+  await screen.findByTestId("print-preview-hint");
+  await act(async () => { await hook.port.print(printArgs); });
+  expect(screen.getByTestId("print-preview-hint")).toHaveTextContent(i18n.t("officeDesktop.library.printLandscapeHint"));
+  await act(async () => { finish!({ outcome: "printed" }); await first; });
+});
+
 it("shows no hint off Windows", async () => {
   const bridge = { call: vi.fn(async () => ({ outcome: "printed" })) };
   let hook!: Hook;

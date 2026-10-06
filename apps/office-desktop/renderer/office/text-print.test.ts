@@ -90,10 +90,14 @@ it("caps the title at the channel limit", async () => {
 it("tells the observer when a print starts and settles, and passes the outcome through", async () => {
   const events: string[] = [];
   const settledWith: unknown[] = [];
+  const started: unknown[] = [];
   let finish: ((value: { outcome: "cancelled" }) => void) | undefined;
-  const port = observePrintPort({ print: () => new Promise((resolve) => { finish = resolve; }) }, { onStart: () => events.push("start"), onSettled: (outcome) => { events.push("settled"); settledWith.push(outcome); } });
-  const result = port.print({ html: "<p>x</p>", title: "t" });
+  const port = observePrintPort({ print: () => new Promise((resolve) => { finish = resolve; }) }, { onStart: (request) => { events.push("start"); started.push(request); }, onSettled: (outcome) => { events.push("settled"); settledWith.push(outcome); } });
+  const request = { html: "<p>x</p>", title: "t", page: { widthMm: 297, heightMm: 210, landscape: true } };
+  const result = port.print(request);
   expect(events).toEqual(["start"]);
+  // The host reads the request's page (the Windows hint asks for Landscape).
+  expect(started).toEqual([request]);
   finish!({ outcome: "cancelled" });
   expect(await result).toEqual({ outcome: "cancelled" });
   expect(events).toEqual(["start", "settled"]);

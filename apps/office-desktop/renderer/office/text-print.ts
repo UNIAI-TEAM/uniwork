@@ -1,4 +1,4 @@
-import { A4_PORTRAIT_PAGE, printPageFromCopy, type OfficePrintOutcome, type OfficePrintPage, type OfficePrintPort } from "@uniwork/views/office/print";
+import { A4_PORTRAIT_PAGE, printPageFromCopy, type OfficePrintOutcome, type OfficePrintPage, type OfficePrintPort, type OfficePrintRequest } from "@uniwork/views/office/print";
 import { desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES, type DesktopIpcRequest, type DesktopPrintOptions } from "../../shared/ipc";
 
 /**
@@ -56,6 +56,12 @@ export function desktopPrintOptions(page: OfficePrintPage | undefined): DesktopP
   return { landscape, pageSize: { width: microns(short), height: microns(long) } };
 }
 
+/** The page a print run lays out: the one the view gave, else the copy's own
+ * first `@page` size (Markdown, HTML), else undefined (A4 portrait). */
+export function printRequestPage(request: OfficePrintRequest): OfficePrintPage | undefined {
+  return request.page ?? printPageFromCopy(request.html);
+}
+
 /** A blank title would leave the copy untitled and Chromium would name the job
  * after the app ("Electron"); fall back to the generic document name. */
 function jobTitle(title: string): string {
@@ -79,7 +85,8 @@ function utf8Bytes(text: string): number {
  */
 export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): OfficePrintPort {
   return {
-    async print({ html, title, page }): Promise<OfficePrintOutcome> {
+    async print(request): Promise<OfficePrintOutcome> {
+      const { html, title } = request;
       if (!bridge) return { outcome: "failed", reason: "print_unavailable" };
       // Checked before the title is stamped (no reparse of a copy that cannot
       // be sent) and after (the title adds a few bytes).
@@ -89,7 +96,7 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): 
       const copy = withDocumentTitle(html, jobName);
       if (utf8Bytes(copy) > PRINT_HTML_MAX_BYTES) return tooLarge;
       try {
-        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy, options: desktopPrintOptions(page ?? printPageFromCopy(html)) }));
+        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy, options: desktopPrintOptions(printRequestPage(request)) }));
         return parsed.success ? parsed.data : { outcome: "failed", reason: "print_response_invalid" };
       } catch {
         // A refused call (sender check, closed bridge): a code, never the raw Electron message.
@@ -99,15 +106,15 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): 
   };
 }
 
-/** Wrap a port so the host learns when a print is in flight (the shell
- * shows its Windows preview hint while the dialog is up). The outcome passes
+/** Wrap a port so the host learns when a print is in flight and what it
+ * prints (the shell shows its Windows preview hint while the dialog is up). The outcome passes
  * through untouched - every view shows its own busy/failed notice - and is
  * also handed to `onSettled` (undefined when the port threw). `print_busy` and
  * `print_timeout` mean a dialog from an earlier print may still be open. */
-export function observePrintPort(port: OfficePrintPort, observer: { onStart(): void; onSettled(outcome?: OfficePrintOutcome): void }): OfficePrintPort {
+export function observePrintPort(port: OfficePrintPort, observer: { onStart(request: OfficePrintRequest): void; onSettled(outcome?: OfficePrintOutcome): void }): OfficePrintPort {
   return {
     async print(request) {
-      observer.onStart();
+      observer.onStart(request);
       let outcome: OfficePrintOutcome | undefined;
       try {
         outcome = await port.print(request);

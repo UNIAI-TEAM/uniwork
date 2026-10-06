@@ -1,10 +1,10 @@
-import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Children, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, useHeaderActionsMenuFilled } from "@uniwork/views/layout/header-actions-slot";
 import type { OfficePrintPort } from "@uniwork/views/office/print";
-import { createDesktopPrintPort, observePrintPort, type DesktopPrintBridge } from "./text-print";
+import { createDesktopPrintPort, observePrintPort, printRequestPage, type DesktopPrintBridge } from "./text-print";
 
 /** The header overflow control. Inline rather than a lucide import: the
  * desktop package does not depend on the icon set directly. */
@@ -59,13 +59,24 @@ function isWindowsHost(): boolean {
  * a print settles with any other outcome or the app window regains focus after
  * the dialog (the rule main's own busy guard uses). A timeout answered while the
  * window is already focused ends it after a short grace instead.
+ *
+ * The dialog opens on the printer's default orientation whatever the print
+ * options say (Electron passes them to Chromium's silent path only), so a
+ * landscape page adds a line asking for Landscape. The print that opened the
+ * dialog decides it; one answered print_busy while it is up does not.
  */
 export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows: boolean = isWindowsHost()): { port: OfficePrintPort; hint: ReactNode } {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [inFlight, setInFlight] = useState(0);
   const [lingering, setLingering] = useState(false);
+  const [landscape, setLandscape] = useState(false);
+  const dialogUp = useRef(false);
   const port = useMemo(() => observePrintPort(createDesktopPrintPort(bridge), {
-    onStart: () => setInFlight((count) => count + 1),
+    onStart: (request) => {
+      if (!dialogUp.current) setLandscape(printRequestPage(request)?.landscape === true);
+      dialogUp.current = true;
+      setInFlight((count) => count + 1);
+    },
     onSettled: (outcome) => {
       setInFlight((count) => Math.max(0, count - 1));
       const reason = outcome?.outcome === "failed" ? outcome.reason : undefined;
@@ -83,7 +94,9 @@ export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows:
     window.addEventListener("focus", onFocus);
     return () => { clearTimeout(grace); window.removeEventListener("blur", onBlur); window.removeEventListener("focus", onFocus); };
   }, [lingering]);
-  const shown = windows && (inFlight > 0 || lingering);
-  const hint = shown ? <p role="status" className="pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md ring-1 ring-foreground/10" data-testid="print-preview-hint">{t("printPreviewHint")}</p> : null;
+  const open = inFlight > 0 || lingering;
+  useEffect(() => { dialogUp.current = open; }, [open]);
+  const shown = windows && open;
+  const hint = shown ? <p role="status" className="pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md ring-1 ring-foreground/10" data-testid="print-preview-hint">{t("printPreviewHint")}{landscape ? <span className="mt-1 block">{t("printLandscapeHint")}</span> : null}</p> : null;
   return { port, hint };
 }
