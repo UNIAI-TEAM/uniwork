@@ -32,7 +32,7 @@ async function succeeds(attempt: () => Promise<unknown>): Promise<boolean> {
  *  An empty answer means the failure is not a rule set's (or a rule set only
  *  fails in combination), and the original error stands. Costs one extra
  *  assemble per pending state, on the failure path only. */
-export async function isolateRuleSetFailures(
+async function isolateRuleSetFailures(
   args: XlsxGatewayArguments | undefined,
   assemble: (args: XlsxGatewayArguments) => Promise<unknown>,
 ): Promise<XlsxRuleSetFailure[]> {

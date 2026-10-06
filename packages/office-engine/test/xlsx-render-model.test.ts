@@ -180,7 +180,13 @@ describeWithPatchedGateway("xlsx render model reader", () => {
 const d3 = (name: string) => join(D3_FIXTURES, name);
 describeWithPatchedGateway("xlsx render model reader on the G3-D3 corpus", () => {
   loadEngine();
-  if (!existsSync(d3("features.xlsx"))) return;
+  // The corpus lives outside the repo (run folder), so a cloud VM never has it.
+  // An empty describe is a hard "No test found in suite" failure, so register
+  // one explicit skip instead; with the corpus present the tests stay strict.
+  if (!existsSync(d3("features.xlsx"))) {
+    it.skip("needs the out-of-repo G3-D3 corpus (office-g3g4/reports/g3-d3-xlsx/fixtures)", () => {});
+    return;
+  }
   it("features.xlsx carries merges, custom widths/heights and a frozen pane", async () => {
     const bytes = new Uint8Array(readFileSync(d3("features.xlsx")));
     const model = await readXlsxRenderModel(engine, bytes);
