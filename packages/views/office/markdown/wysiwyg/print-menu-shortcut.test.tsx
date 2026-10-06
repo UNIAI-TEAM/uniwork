@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dro
 import { OfficePrintShortcutScope } from "../../print/shortcut";
 import { MarkdownPrintMenuItems, MarkdownPrintShortcut } from "./print-menu";
 import type { MarkdownPrintOutcome, MarkdownPrintPort } from "./print";
+import { pressPrintChord } from "../../../test/print-chord";
 
 const { t } = initI18n();
 
@@ -49,18 +50,18 @@ describe("Markdown print: menu entry and Ctrl/Cmd+P", () => {
     fireEvent.click(menuPrint());
     await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
     // Still blocks the app window's native print, but starts no second run.
-    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(false);
+    expect(pressPrintChord(document.body)).toBe(false);
     await act(async () => { await Promise.resolve(); });
     expect(print).toHaveBeenCalledTimes(1);
     await act(async () => { settle[0]!({ outcome: "printed" }); });
-    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(false);
+    expect(pressPrintChord(document.body)).toBe(false);
     await waitFor(() => expect(print).toHaveBeenCalledTimes(2));
   });
 
   it("ignores the menu click while a run started from Ctrl+P is still in flight", async () => {
     const { port, print, settle } = pendingPort();
     render(<Page port={port} />);
-    fireEvent.keyDown(document.body, { key: "p", ctrlKey: true });
+    pressPrintChord(document.body);
     await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(menuPrint()).toHaveAttribute("aria-busy", "true"));
     fireEvent.click(menuPrint());

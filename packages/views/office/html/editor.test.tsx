@@ -12,6 +12,7 @@ import type { HtmlEditorHandle, HtmlOpenOutcome } from "./types";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome } from "../markdown/types";
 import type { IsolatedPreviewPort, PreviewMountOptions } from "../source-editor-types";
 import type { MarkdownPrintOutcome, MarkdownPrintPort } from "../markdown/wysiwyg/print";
+import { PRINT_PLATFORMS, pressPrintChord, stubPrintPlatform } from "../../test/print-chord";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -969,20 +970,22 @@ describe("HtmlEditor print entry (UNI-928 parity)", () => {
     }
   });
 
-  it("prints the same copy on Ctrl/Cmd+P from the page menu (outside the editor), never the app window", async () => {
+  it.each(PRINT_PLATFORMS)("prints the same copy on the print chord from the page menu (outside the editor), never the app window (%s)", async (platform) => {
+    const restore = stubPrintPlatform(platform);
     const windowPrint = vi.spyOn(window, "print").mockImplementation(() => undefined);
     const calls: string[] = [];
     try {
       renderWithMenu({ print(request) { calls.push(request.html); return { outcome: "printed" }; } }, true);
       await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
       const menu = await screen.findByRole("menu");
-      expect(fireEvent.keyDown(menu, { key: "p", metaKey: true })).toBe(false);
+      expect(pressPrintChord(menu)).toBe(false);
       await waitFor(() => expect(calls).toHaveLength(1));
       expect(calls[0]).toContain("Keep");
       expect(calls[0]).not.toMatch(/<script/i);
       expect(windowPrint).not.toHaveBeenCalled();
     } finally {
       windowPrint.mockRestore();
+      restore();
     }
   });
 

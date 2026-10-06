@@ -6,6 +6,7 @@ import { OfficePrintShortcutScope } from "../../print/shortcut";
 import type { PdfCanvasPage } from "../canvas";
 import { PdfPrintButton, PdfPrintNotice } from "./pdf-print-button";
 import { usePdfPrint, type PdfPrintController, type UsePdfPrintOptions } from "./use-pdf-print";
+import { PRINT_PLATFORMS, pressPrintChord, stubPrintPlatform } from "../../../test/print-chord";
 
 const pages: PdfCanvasPage[] = [{ pageNumber: 1, width: 595, height: 842, rotation: 0 }];
 const renderer = { renderPage: vi.fn(async () => ({ src: "data:image/png;base64,AAAA", width: 1, height: 1 })) };
@@ -53,23 +54,28 @@ function ShellScope({ children }: { children: ReactNode }) {
 }
 
 describe("PDF print on Ctrl/Cmd+P", () => {
-  it("runs the same print as the entries and blocks the app window's print", async () => {
-    const print = vi.fn(async (): Promise<OfficePrintOutcome> => ({ outcome: "printed" }));
-    renderHook(() => usePdfPrint(options({ print })), { wrapper: ShellScope });
-    expect(fireEvent.keyDown(document.body, { key: "p", metaKey: true })).toBe(false);
-    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+  it.each(PRINT_PLATFORMS)("runs the same print as the entries and blocks the app window's print (%s)", async (platform) => {
+    const restore = stubPrintPlatform(platform);
+    try {
+      const print = vi.fn(async (): Promise<OfficePrintOutcome> => ({ outcome: "printed" }));
+      renderHook(() => usePdfPrint(options({ print })), { wrapper: ShellScope });
+      expect(pressPrintChord(document.body)).toBe(false);
+      await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    } finally {
+      restore();
+    }
   });
 
   it("never prints a blank copy before any page is laid out", () => {
     const print = vi.fn();
     renderHook(() => usePdfPrint({ ...options({ print }), getPages: () => [] }), { wrapper: ShellScope });
-    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(false);
+    expect(pressPrintChord(document.body)).toBe(false);
     expect(print).not.toHaveBeenCalled();
   });
 
   it("leaves Ctrl/Cmd+P to the platform without a port", () => {
     renderHook(() => usePdfPrint(options()), { wrapper: ShellScope });
-    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(true);
+    expect(pressPrintChord(document.body)).toBe(true);
   });
 });
 

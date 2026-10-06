@@ -10,6 +10,7 @@ import { createDocxCommandRuntime } from "./commands";
 import { DocxEditor } from "./docx-editor";
 import { docxExtensions } from "./docx-schema";
 import type { DocxEditorHandle, DocxSaveCoordinator } from "./types";
+import { PRINT_PLATFORMS, pressPrintChord, stubPrintPlatform } from "../../test/print-chord";
 
 const DOC = { type: "doc", content: [{ type: "docParagraph", attrs: {}, content: [{ type: "text", text: "Điều 1" }] }] };
 const live: Editor[] = [];
@@ -105,20 +106,22 @@ describe("DocxEditor print entry", () => {
     expect(notice).toHaveAttribute("data-print-notice", "busy");
   });
 
-  it("prints the document copy on Ctrl+P instead of the app window", async () => {
+  it.each(PRINT_PLATFORMS)("prints the document copy on the print chord instead of the app window (%s)", async (platform) => {
+    const restore = stubPrintPlatform(platform);
     const print = vi.fn<OfficePrintPort["print"]>(async () => ({ outcome: "printed" }));
     const windowPrint = vi.spyOn(window, "print").mockImplementation(() => undefined);
     renderEditor({ print });
     await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
     // Focus outside the editor (the page header's menu trigger) still prints the document.
-    const outside = fireEvent.keyDown(screen.getByTestId("page-menu"), { key: "p", ctrlKey: true });
+    const outside = pressPrintChord(screen.getByTestId("page-menu"));
     expect(outside).toBe(false);
     await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
     expect(print.mock.calls[0]?.[0].html).toContain("<p>Điều 1</p>");
-    fireEvent.keyDown(screen.getByTestId("docx-editor"), { key: "p", metaKey: true });
+    pressPrintChord(screen.getByTestId("docx-editor"));
     await waitFor(() => expect(print).toHaveBeenCalledTimes(2));
     expect(windowPrint).not.toHaveBeenCalled();
     windowPrint.mockRestore();
+    restore();
   });
 
   it("defaults to the browser port on web: an isolated frame prints, never the app window", async () => {

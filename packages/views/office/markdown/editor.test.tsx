@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dro
 import type { MarkdownEditorHandle, MarkdownOpenOutcome, MarkdownSaveCoordinator } from "./types";
 import type { MarkdownPrintOutcome, MarkdownPrintPort } from "./wysiwyg/print";
 import type { IsolatedPreviewPort, PreviewMountOptions, TextCapability } from "../source-editor-types";
+import { pressPrintChord } from "../../test/print-chord";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -495,7 +496,7 @@ describe("MarkdownEditor mounts the Markdown features (production surface)", () 
     try {
       renderEditor({ shell: true, printPort, text: "# Bao cao\n" });
       await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
-      expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(false);
+      expect(pressPrintChord(document.body)).toBe(false);
       await waitFor(() => expect(calls).toHaveLength(1));
       expect(calls[0]).toContain("Bao cao");
       expect(windowPrint).not.toHaveBeenCalled();

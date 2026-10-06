@@ -8,6 +8,7 @@ import type { OfficePrintOutcome, OfficePrintPort } from "../../print";
 import { OfficePrintShortcutScope } from "../../print/shortcut";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import { runXlsxPrint, useXlsxPrint, type XlsxPrintOptions } from "./use-xlsx-print";
+import { PRINT_PLATFORMS, pressPrintChord, stubPrintPlatform } from "../../../test/print-chord";
 
 function host(): XlsxGridHostPort {
   return {
@@ -131,18 +132,23 @@ function ShellScope({ children }: { children: ReactNode }) {
 }
 
 describe("useXlsxPrint Ctrl/Cmd+P", () => {
-  it("runs the same print on Ctrl/Cmd+P and blocks the app window print", async () => {
-    const port = portReturning({ outcome: "printed" });
-    render(<ShellScope><Harness {...base(port)} /></ShellScope>);
-    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(false);
-    await waitFor(() => expect(port.print).toHaveBeenCalledTimes(1));
-    expect(fireEvent.keyDown(document.body, { key: "p", metaKey: true })).toBe(false);
-    await waitFor(() => expect(port.print).toHaveBeenCalledTimes(2));
+  it.each(PRINT_PLATFORMS)("runs the same print on the print chord and blocks the app window print (%s)", async (platform) => {
+    const restore = stubPrintPlatform(platform);
+    try {
+      const port = portReturning({ outcome: "printed" });
+      render(<ShellScope><Harness {...base(port)} /></ShellScope>);
+      expect(pressPrintChord(document.body)).toBe(false);
+      await waitFor(() => expect(port.print).toHaveBeenCalledTimes(1));
+      expect(pressPrintChord(document.body)).toBe(false);
+      await waitFor(() => expect(port.print).toHaveBeenCalledTimes(2));
+    } finally {
+      restore();
+    }
   });
 
   it("leaves Ctrl/Cmd+P alone when the host cannot print", () => {
     render(<ShellScope><Harness {...base(null)} /></ShellScope>);
-    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(true);
+    expect(pressPrintChord(document.body)).toBe(true);
   });
 });
 
