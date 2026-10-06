@@ -9594,6 +9594,8 @@
         "dropped": {
           "title": "Some rules could not be saved and were left out.",
           "item": "{{family}}: sheet {{sheet}}",
+          "itemRules_one": "{{family}}: sheet {{sheet}} ({{count}} rule)",
+          "itemRules_other": "{{family}}: sheet {{sheet}} ({{count}} rules)",
           "familyConditionalFormats": "Conditional formatting",
           "familyDataValidations": "Data validation",
           "more": "+{{count}} more",

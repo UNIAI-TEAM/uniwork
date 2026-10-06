@@ -9588,6 +9588,8 @@
         "dropped": {
           "title": "Một số quy tắc chưa lưu được nên đã được bỏ qua.",
           "item": "{{family}}: trang tính {{sheet}}",
+          "itemRules_one": "{{family}}: trang tính {{sheet}} ({{count}} quy tắc)",
+          "itemRules_other": "{{family}}: trang tính {{sheet}} ({{count}} quy tắc)",
           "familyConditionalFormats": "Định dạng có điều kiện",
           "familyDataValidations": "Xác thực dữ liệu",
           "more": "và {{count}} mục khác",
