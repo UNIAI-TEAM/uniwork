@@ -1,5 +1,8 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, it } from "vitest";
-import { createSafeStorageDraftKeyStore, DraftKeyStoreError, windowsSystemPath, windowsWhoamiPath, type DraftKeyFileSystem, type DraftSafeStorage } from "./keystore";
+import { createSafeStorageDraftKeyStore, DraftKeyStoreError, windowsAclPath, windowsSystemPath, windowsWhoamiPath, type DraftKeyFileSystem, type DraftSafeStorage } from "./keystore";
 
 function fakeStore() {
   const files = new Map<string, Uint8Array>();
@@ -85,3 +88,27 @@ it("resolves whoami through the absolute Windows System32 path", () => {
     if (original !== undefined) process.env.SystemRoot = original;
   }
 });
+
+it("hands icacls the extended-length form of a key path", () => {
+  expect(windowsAclPath(String.raw`C:\Users\a\draft-keys\x.key`)).toBe(String.raw`\\?\C:\Users\a\draft-keys\x.key`);
+  expect(windowsAclPath("D:/deep/dir/x.key")).toBe(String.raw`\\?\D:\deep\dir\x.key`);
+  expect(windowsAclPath(String.raw`\\server\share\x.key`)).toBe(String.raw`\\?\UNC\server\share\x.key`);
+  expect(windowsAclPath(String.raw`\\?\C:\x.key`)).toBe(String.raw`\\?\C:\x.key`);
+});
+
+// Regression: a userData directory deep enough that the draft key temp file
+// passes MAX_PATH made the real icacls fail, so every draft checkpoint (and the
+// protective checkpoint a local Save writes first) failed as locked.
+it.runIf(process.platform === "win32")("creates a draft key with the real Windows ACL under a path past MAX_PATH", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uniwork-keystore-"));
+  try {
+    const userDataDirectory = join(root, "d".repeat(80), "e".repeat(80));
+    const store = createSafeStorageDraftKeyStore({ userDataDirectory, channel: "dev", keyNamespace: "uniwork-office-dev", safeStorage: fakeStore().safeStorage });
+    const namespace = "a".repeat(64);
+    const key = await store.getOrCreate(namespace);
+    expect(key.byteLength).toBe(32);
+    expect(await store.get(namespace)).toEqual(key);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}, 30_000);

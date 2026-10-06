@@ -59,6 +59,17 @@ export function windowsSystemPath(executable: string, systemRoot = process.env.S
   return windowsPath.join(systemRoot, "System32", executable);
 }
 
+/** icacls is a Win32 tool bound by MAX_PATH (260): a key file under a deep
+ * profile or userData directory (the temp name adds ~45 characters to a
+ * 64-hex namespace) fails with "path not found" although Node wrote it through
+ * its own long-path prefix. Hand icacls the same extended-length form. */
+export function windowsAclPath(path: string): string {
+  const prefix = "\\\\?\\";
+  if (path.startsWith(prefix)) return path;
+  const resolved = windowsPath.resolve(path);
+  return resolved.startsWith("\\\\") ? `${prefix}UNC\\${resolved.slice(2)}` : `${prefix}${resolved}`;
+}
+
 export function windowsWhoamiPath(systemRoot = process.env.SystemRoot): string {
   return windowsSystemPath("whoami.exe", systemRoot);
 }
@@ -107,7 +118,7 @@ export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
         // Modify includes read/write/delete, which is required for atomic key
         // rotation and explicit logout cleanup while still granting only the
         // current account after inherited ACLs are removed.
-        await execFileAsync(windowsSystemPath("icacls.exe"), [path, "/inheritance:r", "/remove:g", "*S-1-5-32-544", "/grant:r", `${account}:(M)`]);
+        await execFileAsync(windowsSystemPath("icacls.exe"), [windowsAclPath(path), "/inheritance:r", "/remove:g", "*S-1-5-32-544", "/grant:r", `${account}:(M)`]);
       } catch { throw new DraftKeyStoreError("unavailable", "draft key permissions could not be restricted"); }
     }
   });
@@ -117,7 +128,7 @@ export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
       if (process.platform !== "win32") return;
       try {
         const account = currentWindowsAccount();
-        await execFileAsync(windowsSystemPath("icacls.exe"), [path, "/inheritance:r", "/remove:g", "*S-1-5-32-544", "/grant:r", `${account}:(M)`]);
+        await execFileAsync(windowsSystemPath("icacls.exe"), [windowsAclPath(path), "/inheritance:r", "/remove:g", "*S-1-5-32-544", "/grant:r", `${account}:(M)`]);
       } catch { throw new DraftKeyStoreError("unavailable", "draft key directory permissions could not be restricted"); }
     });
 
