@@ -18,10 +18,10 @@ import {
   type XlsxRecalcPort,
   type XlsxWorkbookSnapshot,
 } from "../src/xlsx";
+import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
-const ARTIFACT = join(REPO, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets");
 const KITCHEN_SINK = "xlsx-kitchen-sink.xlsx";
 const COMPAT_EDIT = "xlsx-compatibility-edit.xlsx";
@@ -138,7 +138,7 @@ describe("XLSX merge ops in the session model", () => {
   });
 });
 
-describe.skipIf(!existsSync(ARTIFACT))("xlsx merge ops on the real gateway", () => {
+describeWithPatchedGateway("xlsx merge ops on the real gateway", () => {
   it("merge then unmerge round-trips through one file (two-save chain)", async () => {
     const engine = await load();
     const first = await savedWith(engine, COMPAT_EDIT, [

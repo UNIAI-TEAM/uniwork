@@ -8,10 +8,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createXlsxAdapter, bindXlsxGateway, probeXlsx } from "../src/xlsx";
+import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
-const ARTIFACT = join(REPO, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets");
 
 const load = async () => {
@@ -19,7 +19,7 @@ const load = async () => {
   return bindXlsxGateway(mod as never);
 };
 
-describe.skipIf(!existsSync(ARTIFACT))("xlsx real gateway artifact", () => {
+describeWithPatchedGateway("xlsx real gateway artifact", () => {
   it("opens kitchen-sink: 2 sheets, cross-sheet formulas, chart part preserved-listed", async () => {
     const engine = await load();
     const adapter = createXlsxAdapter({ engine });

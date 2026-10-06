@@ -13,10 +13,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { applyXlsxEditBytes, bindXlsxGateway, createXlsxAdapter, type XlsxRecalcPort, type XlsxWorkbookSnapshot } from "../src/xlsx";
+import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
-const ARTIFACT = join(REPO, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets");
 const KITCHEN_SINK = "xlsx-kitchen-sink.xlsx";
 const COMPAT_EDIT = "xlsx-compatibility-edit.xlsx";
@@ -74,7 +74,7 @@ const rowXml = (xml: string, rowNumber: number): string =>
 const colXml = (xml: string, column: number): string =>
   new RegExp(`<col min="${column}" max="${column}"[^>]*/>`).exec(xml)?.[0] ?? "";
 
-describe.skipIf(!existsSync(ARTIFACT))("xlsx structural ops on the real gateway", () => {
+describeWithPatchedGateway("xlsx structural ops on the real gateway", () => {
   it("insert_rows shifts values, rewrites formulas and moves ranged features", async () => {
     const engine = await load();
     const recalc = recordingRecalc();
