@@ -7227,7 +7227,9 @@
       "off_title": "Documents are off",
       "off_description": "Documents are not enabled for this workspace.",
       "create_failed": "Could not create the page",
-      "upload_failed": "Could not upload the file"
+      "upload_failed": "Could not upload the file",
+      "tab_title": "{{title}} · UniWork",
+      "office_tab_title": "{{title}} · UniWork Office"
     },
     "library": {
       "count_label": "documents",

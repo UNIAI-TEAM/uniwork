@@ -7222,7 +7222,9 @@
       "off_title": "Tài liệu chưa bật",
       "off_description": "Tính năng tài liệu chưa được bật cho workspace này.",
       "create_failed": "Không tạo được trang",
-      "upload_failed": "Không tải được tệp lên"
+      "upload_failed": "Không tải được tệp lên",
+      "tab_title": "{{title}} · UniWork",
+      "office_tab_title": "{{title}} · UniWork Office"
     },
     "library": {
       "count_label": "tài liệu",
