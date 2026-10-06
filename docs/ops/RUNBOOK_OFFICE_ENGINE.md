@@ -338,7 +338,10 @@ The engine switch and the format switches are feature flags (`server/internal/fe
 Set a flag with `FF_<KEY>` (for example `FF_OFFICE_DOCX=false`), the `FEATURE_FLAGS_FILE`, or an override
 (user > organization > global). Web reads the config for the document's organization, so an organization override
 takes effect; the desktop reads it for the selected organization. A format that is off opens the view / download card
-(web) or a read-only tab (desktop cloud documents) with the reason; local desktop files are not gated.
+(web) or a read-only tab (desktop cloud documents) with the reason; local desktop files are not gated. While the
+config is not readable yet the web card says "checking" or "could not check" (with Try again), never "turned off";
+the desktop retries with growing back-off (up to 5 minutes), on window focus / network return and before each cloud
+open.
 
 Changes apply on the next config refresh (cached up to 5 minutes, refetched on focus). A refetch never unmounts a
 live editor: a settled answer is kept while a refetch is in flight or fails, and only a settled "off" answer closes
