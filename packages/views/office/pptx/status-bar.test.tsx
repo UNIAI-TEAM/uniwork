@@ -136,6 +136,20 @@ describe("PptxStatusBar", () => {
     expect(screen.getByRole("group", { name: "Presentation status" }).closest("[data-pptx-status-bar]")).toHaveAttribute("aria-live", "off");
   });
 
+  it("leaves no unlabeled tab stop in the row, help last (T12)", () => {
+    const { container } = render(
+      <PptxStatusBar
+        slideCurrent={1} slideTotal={2} counts={{ words: 3, characters: 9 }} selectionCount={1}
+        onToggleNotes={vi.fn()} onViewChange={vi.fn()} onSlideShow={vi.fn()}
+        zoom={1} onZoomChange={vi.fn()} help={<PptxStatusHelpButton onOpen={vi.fn()} />}
+      />,
+    );
+    const stops = Array.from(container.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'));
+    expect(stops.length).toBeGreaterThan(5);
+    for (const stop of stops) expect(stop, stop.outerHTML).toHaveAccessibleName();
+    expect(stops.at(-1)).toHaveAttribute("data-pptx-status-help");
+  });
+
   it("renders the help slot last and the help button opens shortcuts", () => {
     const onOpen = vi.fn();
     render(

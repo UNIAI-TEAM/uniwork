@@ -43,10 +43,12 @@ describe("DocxStatusBar", () => {
       "docx-status-words",
       "docx-status-characters",
       "docx-status-characters-no-spaces",
-      "docx-status-language",
     ]) {
       expect(screen.getByTestId(testId)).toHaveTextContent("—");
     }
+    // T12: an unknown language is left out, never a dash slot.
+    expect(screen.queryByTestId("docx-status-language")).toBeNull();
+    expect(screen.getByTestId("docx-status-left")).not.toHaveTextContent("Language");
     expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("–");
     expect(screen.getByTestId("docx-status-zoom")).not.toHaveTextContent("%");
   });
@@ -172,7 +174,7 @@ describe("DocxStatusBar", () => {
     renderBar({ className: "w-24", page: { current: 1, total: 9 }, counts: { words: 1234 } });
     expect(screen.getByTestId("docx-status-bar")).toBeInTheDocument();
     expect(screen.getByTestId("docx-status-words")).toHaveTextContent("Words: 1234");
-    expect(screen.getByTestId("docx-status-language")).toHaveTextContent("Language: —");
+    expect(screen.queryByTestId("docx-status-language")).toBeNull();
   });
 
   it("uses a well-formed primary subtag of a language tag and rejects malformed ones", () => {

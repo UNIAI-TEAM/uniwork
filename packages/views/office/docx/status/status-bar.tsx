@@ -128,7 +128,8 @@ export function DocxStatusBar({ editor, counts, page, language, zoom, selection,
       text: t("office.docx.status.charactersNoSpaces", { value: countText(resolvedCounts?.charactersWithoutSpaces, unknown) }),
       hide: "max-lg:hidden",
     },
-    { testId: "docx-status-language", text: t("office.docx.status.language", { language: languageLabel ?? unknown }), hide: "max-sm:hidden" },
+    // T12: no placeholder slot - a document that declares no language shows no language readout.
+    ...(languageLabel === null ? [] : [{ testId: "docx-status-language", text: t("office.docx.status.language", { language: languageLabel }), hide: "max-sm:hidden" }]),
   ];
 
   return (
