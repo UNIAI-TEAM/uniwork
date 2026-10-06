@@ -1,7 +1,8 @@
 "use client";
 
 import { createElement, type ReactNode } from "react";
-import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
+import { uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
+import { readDocumentBytesWithinBound } from "./download-bound";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
 import { createSaveSettleGate, isOfficeTooLarge, officeSaveReceiptSchema } from "@uniwork/core/office";
 import { bytesOf, cloneSnapshot, digestHex, fingerprint } from "./xlsx-adapter-data";
@@ -114,8 +115,7 @@ export interface XlsxDocumentsTransport {
 export function createXlsxDocumentsTransport(options: { documentId: string; version?: number }): XlsxDocumentsTransport {
   return {
     async read() {
-      const blob = await downloadDocumentFile(options.documentId, options.version);
-      return new Uint8Array(await blob.arrayBuffer());
+      return readDocumentBytesWithinBound(options.documentId, options.version);
     },
     async upload({ file, idempotencyKey }) {
       const receipt = await uploadDocumentFile(options.documentId, file, { idempotencyKey });
