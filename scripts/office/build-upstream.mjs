@@ -357,11 +357,18 @@ export async function run({ out, skipInstall, withNative, keep }) {
       record.artifacts.push({ package: name, entry: entryRel, status: 'fail', detail: String(e.message || e).split('\n').slice(0, 3).join(' | ') });
     }
   }
-  // Patch 0010's capability marker must survive bundling: hosts refuse an
-  // xlsx gateway bundle without it (packages/office-engine/src/xlsx/vendor.ts).
+  // Patch 0010's and 0013's capability markers must survive bundling: hosts
+  // refuse an xlsx gateway bundle without them (packages/office-engine/src/xlsx/vendor.ts).
   const xlsxGateway = record.artifacts.find((a) => a.status === 'built' && a.out === 'dist/xlsx-gateway.mjs');
-  if (xlsxGateway && !/\bUNIWORK_XLSX_VISUAL_ADDITIONS\b/.test(fs.readFileSync(path.join(distDir, 'xlsx-gateway.mjs'), 'utf8'))) {
-    Object.assign(xlsxGateway, { status: 'fail', detail: 'patch 0010 marker UNIWORK_XLSX_VISUAL_ADDITIONS missing from the bundle' });
+  if (xlsxGateway) {
+    const bundle = fs.readFileSync(path.join(distDir, 'xlsx-gateway.mjs'), 'utf8');
+    const lost = [
+      ['0010', /\bUNIWORK_XLSX_VISUAL_ADDITIONS\b/, 'UNIWORK_XLSX_VISUAL_ADDITIONS'],
+      ['0013', /\bUNIWORK_XLSX_VISUAL_EDITS\b/, 'UNIWORK_XLSX_VISUAL_EDITS'],
+    ].filter(([, pattern]) => !pattern.test(bundle));
+    if (lost.length > 0) {
+      Object.assign(xlsxGateway, { status: 'fail', detail: lost.map(([patch, , marker]) => `patch ${patch} marker ${marker} missing from the bundle`).join('; ') });
+    }
   }
   const built = record.artifacts.filter((a) => a.status === 'built').length;
   const failed = record.artifacts.filter((a) => a.status === 'fail');

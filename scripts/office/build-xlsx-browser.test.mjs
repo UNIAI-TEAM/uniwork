@@ -44,6 +44,8 @@ test('the built xlsx artifact carries its contract symbols', () => {
       'tableAdditions: readonly SheetTableAddition[] = [],',
       'visualAdditions: readonly SheetVisualAddition[] = [],',
       'export const UNIWORK_XLSX_VISUAL_ADDITIONS = true',
+      'visualEdits: readonly WorkbookVisualEdit[] = [],',
+      'export const UNIWORK_XLSX_VISUAL_EDITS = true',
     ],
     'the build records the enforced patched symbols',
   );
