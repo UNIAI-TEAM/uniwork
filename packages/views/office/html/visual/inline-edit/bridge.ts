@@ -84,6 +84,11 @@ export interface UseHtmlInlineEditOptions {
   port?: HtmlInlineEditPort;
 }
 
+/** The sink payload is untrusted: only an object whose `type` is "ready" counts. */
+function isReadyEvent(event: unknown): boolean {
+  return typeof event === "object" && event !== null && "type" in event && event.type === "ready";
+}
+
 /** Build an op from the live context and apply it; a rejected op is "no op". */
 function buildAndApply(port: HtmlInlineEditPort | undefined, build: (context: HtmlOpContext) => UpstreamPatchSet | null): boolean {
   if (!port) return false;
@@ -116,7 +121,7 @@ export function useHtmlInlineEdit({ sink, selection, port }: UseHtmlInlineEditOp
   useEffect(() => {
     if (!enabled) return undefined;
     return sink.subscribe((event) => {
-      if (event.type === "ready") {
+      if (isReadyEvent(event)) {
         // Every applied edit re-renders the frame, and the new inspector starts
         // with nothing selected: ask it to pick the selection again so it
         // reports a fresh rect (a width change would otherwise leave the
