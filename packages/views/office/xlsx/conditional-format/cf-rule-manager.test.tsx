@@ -68,7 +68,7 @@ describe("XlsxCfRuleManager", () => {
     setup(true, [{ id: "cf-bar", ranges: [SELECTION], rule: { type: "dataBar", config: { positiveColor: "#00AA55" } } }]);
     const swatch = within(rowOf("cf-bar")).getByTestId("xlsx-cf-rule-databar");
     expect(swatch.getAttribute("style")).toContain("linear-gradient");
-    expect(swatch.getAttribute("style")).toMatch(/#00AA55|rgb(0, 170, 85)/i);
+    expect(swatch.getAttribute("style")).toMatch(/#00AA55|rgb\(0, 170, 85\)/i);
     expect(within(rowOf("cf-bar")).queryByTestId("xlsx-cf-rule-chip")).not.toBeInTheDocument();
   });
 
