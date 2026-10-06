@@ -98,9 +98,11 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
 
   const changeLanguage = (next: SupportedLocale) => {
     localeAdapter.persist(next);
-    void setLocale(next);
     document.documentElement.lang = next;
-    toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+    // The toast text resolves after the language switched, in the new language.
+    void setLocale(next).then(() => {
+      toast.success(i18n.t("settings.preferences.toastSaved", { lng: next }), { id: "settings-auto-save" });
+    });
   };
 
   return (
