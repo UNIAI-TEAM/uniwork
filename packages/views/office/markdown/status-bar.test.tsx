@@ -95,3 +95,26 @@ describe("MarkdownStatusBar", () => {
     expect(container.querySelector("[data-office-status-bar]")!.className).not.toContain("border-t-0");
   });
 });
+
+describe("MarkdownStatusBar figures and position (T12)", () => {
+  it("shows characters, lines and the caret position beside the save state", () => {
+    renderBar({ text: "ab\ncde", caret: { line: 2, column: 3 } });
+    expect(screen.getByTestId("md-status-characters")).toHaveTextContent("Characters: 6");
+    expect(screen.getByTestId("md-status-lines")).toHaveTextContent("Lines: 2");
+    expect(screen.getByTestId("md-status-position")).toHaveTextContent("Ln 2, Col 3");
+  });
+
+  it("renders no figure or position slot before the document is open", () => {
+    renderBar();
+    expect(screen.queryByTestId("md-status-characters")).toBeNull();
+    expect(screen.queryByTestId("md-status-lines")).toBeNull();
+    expect(screen.queryByTestId("md-status-position")).toBeNull();
+  });
+
+  it("speaks Vietnamese under the vi locale", async () => {
+    await setLocale("vi");
+    renderBar({ text: "x", caret: { line: 1, column: 2 } });
+    expect(screen.getByTestId("md-status-characters")).toHaveTextContent("Ký tự: 1");
+    expect(screen.getByTestId("md-status-position")).toHaveTextContent("Dòng 1, Cột 2");
+  });
+});
