@@ -39,6 +39,15 @@ export function useXlsxGridFormat(gridRef: RefObject<XlsxGridHandle | null>): {
       return result;
     },
     readRuleSets: (sheetId, family) => gridRef.current?.readRuleSets?.(sheetId, family) ?? null,
+    executeAsOneStep: (steps) => {
+      const grid = gridRef.current;
+      if (!grid?.executeCommandsAsOneStep) return Promise.resolve(false);
+      const result = grid.executeCommandsAsOneStep(steps).catch(() => false);
+      void result.then((executed) => {
+        if (executed) refreshFormatState();
+      });
+      return result;
+    },
   }), [gridRef, refreshFormatState]);
   return { formatState, refreshFormatState, commands };
 }

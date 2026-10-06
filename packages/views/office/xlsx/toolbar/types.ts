@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { RibbonItem } from "../../ribbon";
 import type { XlsxViewEcho } from "./view-echo";
 import type { XlsxGridFormatState, XlsxGridHostPort } from "../xlsx-grid-surface";
@@ -24,6 +25,16 @@ export interface XlsxToolbarCommands {
    *  without a mounted grid. Absent on hosts and doubles that only run
    *  commands. */
   readRuleSets?(sheetId: string, family: XlsxRuleFamily): readonly XlsxLiveRule[] | null;
+  /** Runs the steps as ONE undo entry on the mounted grid (the Data tools
+   *  rewrite a range in one step); resolves false when any step is refused.
+   *  Absent on doubles that only run single commands. */
+  executeAsOneStep?(steps: readonly XlsxToolbarCommandStep[]): Promise<boolean>;
+}
+
+/** One command of a batched, single-undo-step run. */
+export interface XlsxToolbarCommandStep {
+  readonly id: string;
+  readonly params?: unknown;
 }
 
 export type XlsxRuleFamily = "conditionalFormats" | "dataValidations";
@@ -121,6 +132,11 @@ export interface XlsxToolbarGroupProps {
   /** The live tables of the open workbook; the contextual Table tabs (R4)
    *  show while the selection sits inside one. Absent = no tables. */
   tables?: readonly XlsxToolbarTable[];
+  /** The editor's LIVE workbook snapshot (current values, edits included) for
+   *  the groups that must read a range's values (Data tools). The renderer
+   *  host's readRange serves the open-time model and must not be used for
+   *  that. Absent = no live values (the commands stay disabled). */
+  snapshot?: XlsxWorkbookSnapshot | null;
 }
 
 /** One entry of the extension seam. A Wave A task adds one group to one tab
