@@ -24,7 +24,7 @@ import { fitPicture, readPictureFile } from "./picture-file";
 import { XlsxVisualLayer } from "./visual-layer";
 import { fileEditsFromStream, visualsFromStream } from "./visual-recovery";
 import { applySavedVisuals, boxOfVisual, seedFileVisuals, type XlsxPendingFileRemoval } from "./visual-file";
-import { appendedFrom, applyOverlayShifts, streamOpKey, structuralShiftsOf } from "./visual-structure";
+import { appendedFrom, applyOverlayShifts, streamOpKeys, structuralShiftsOf } from "./visual-structure";
 import { gridSheetMetrics, printableVisuals, type XlsxPrintSheetMetrics, type XlsxPrintableVisual } from "./visual-print";
 import {
   anchorFromBox,
@@ -176,7 +176,7 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     if (!Array.isArray(stream)) return;
     // Row/column inserts and deletes appended since the last look move the
     // drawn visuals now, the way the save will write them (UNI-953 r2).
-    const keys = stream.map(streamOpKey);
+    const keys = streamOpKeys(stream);
     const segment = stream.slice(appendedFrom(streamSeenRef.current.keys, keys));
     streamSeenRef.current = { ops: stream, keys };
     const shifts = structuralShiftsOf(segment);

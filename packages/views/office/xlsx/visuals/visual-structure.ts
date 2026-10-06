@@ -21,17 +21,39 @@ export function streamOpKey(op: unknown): string {
   return JSON.stringify(op);
 }
 
-/** Where the ops appended since `previous` start in `next`. A save trims the
- *  stream's head, so `next` may begin with a suffix of `previous`. */
+const keyCache = new WeakMap<object, string>();
+
+/** The keys of a stream, each op serialized once: the stream is append-only
+ *  and its ops are not mutated, so a key is cached per op object. */
+export function streamOpKeys(stream: readonly unknown[]): string[] {
+  return stream.map((op) => {
+    if (typeof op !== "object" || op === null) return streamOpKey(op);
+    let key = keyCache.get(op);
+    if (key === undefined) {
+      key = streamOpKey(op);
+      keyCache.set(op, key);
+    }
+    return key;
+  });
+}
+
+/** Where the ops appended since `previous` start in `next`: the length of the
+ *  longest suffix of `previous` that is a prefix of `next` (a save trims the
+ *  stream's head), 0 when none. KMP prefix function over next + sentinel +
+ *  previous, so it is linear. */
 export function appendedFrom(previous: readonly string[], next: readonly string[]): number {
-  for (let trimmed = 0; trimmed <= previous.length; trimmed += 1) {
-    const kept = previous.length - trimmed;
-    if (kept > next.length) continue;
-    let same = true;
-    for (let at = 0; at < kept && same; at += 1) same = previous[trimmed + at] === next[at];
-    if (same) return kept;
+  const n = next.length;
+  const total = n + 1 + previous.length;
+  // Index n is the sentinel; it equals nothing, so a border never crosses it.
+  const same = (i: number, j: number): boolean => i !== n && j !== n && (i < n ? next[i] : previous[i - n - 1]) === (j < n ? next[j] : previous[j - n - 1]);
+  const fail = new Array<number>(total).fill(0);
+  for (let i = 1; i < total; i += 1) {
+    let k = fail[i - 1] ?? 0;
+    while (k > 0 && !same(i, k)) k = fail[k - 1] ?? 0;
+    if (same(i, k)) k += 1;
+    fail[i] = k;
   }
-  return 0;
+  return fail[total - 1] ?? 0;
 }
 
 /** One structural op of a stream segment, with the visuals a later op of

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendedFrom, applyOverlayShifts, streamOpKey, structuralShiftsOf } from "./visual-structure";
+import { appendedFrom, applyOverlayShifts, streamOpKey, streamOpKeys, structuralShiftsOf } from "./visual-structure";
 import { fileEditsFromStream, visualsFromStream } from "./visual-recovery";
 import type { XlsxEditorVisual } from "./visual-model";
 
@@ -18,10 +18,54 @@ describe("appendedFrom", () => {
     expect(appendedFrom(["a", "b"], ["a", "b"])).toBe(2);
   });
 
+
+  it("matches a naive longest-suffix-prefix search on random key arrays with repeats", () => {
+    const naive = (previous: readonly string[], next: readonly string[]): number => {
+      for (let trimmed = 0; trimmed <= previous.length; trimmed += 1) {
+        const kept = previous.length - trimmed;
+        if (kept > next.length) continue;
+        if (previous.slice(trimmed).every((key, at) => key === next[at])) return kept;
+      }
+      return 0;
+    };
+    let seed = 12345;
+    const random = (limit: number): number => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed % limit;
+    };
+    const keys = (length: number, alphabet: number): string[] => Array.from({ length }, () => String.fromCharCode(97 + random(alphabet)));
+    for (let round = 0; round < 3000; round += 1) {
+      const alphabet = 1 + random(3);
+      const previous = keys(random(9), alphabet);
+      const next = random(2) === 0 ? [...previous.slice(random(previous.length + 1)), ...keys(random(4), alphabet)] : keys(random(9), alphabet);
+      expect(appendedFrom(previous, next)).toBe(naive(previous, next));
+    }
+  });
+
+  it("handles a long stream with a trimmed head", () => {
+    const previous = Array.from({ length: 20000 }, (_, at) => `op${at}`);
+    const next = [...previous.slice(10000), "new1", "new2"];
+    expect(appendedFrom(previous, next)).toBe(10000);
+    expect(appendedFrom(previous, [...previous, "tail"])).toBe(20000);
+  });
+
   it("keys a picture insert by id and anchor, not by its bytes", () => {
     const op = { op: "set_visual", target: { sheet: "Data" }, attributes: { id: "p1", anchor: ANCHOR, image: { mediaType: "image/png", base64: "A".repeat(1000) } } };
     expect(streamOpKey(op)).not.toContain("AAAA");
     expect(streamOpKey(op)).toBe(streamOpKey(structuredClone(op)));
+  });
+
+  it("serializes each op object once across looks at a growing stream", () => {
+    let calls = 0;
+    const op = (id: number) => ({ op: "set_cell", id, toJSON: () => { calls += 1; return { id }; } });
+    const stream: unknown[] = [op(1), op(2), op(3), 7, null];
+    const first = streamOpKeys(stream);
+    expect(calls).toBe(3);
+    stream.push(op(4));
+    const second = streamOpKeys(stream);
+    expect(calls).toBe(4);
+    expect(second.slice(0, 5)).toEqual(first);
+    expect(second[5]).toBe(streamOpKey(stream[5]));
   });
 });
 
