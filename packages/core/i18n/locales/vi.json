@@ -10796,6 +10796,17 @@
           "to_label": "Hình kết thúc",
           "shape_n": "Hình {{n}}",
           "pick_shape": "Chọn hình",
+          "from_side_label": "Cạnh bắt đầu",
+          "to_side_label": "Cạnh kết thúc",
+          "side": {
+            "auto": "Tự động",
+            "top": "Trên",
+            "right": "Phải",
+            "bottom": "Dưới",
+            "left": "Trái"
+          },
+          "apply_line": "Áp dụng nét cho đường nối đang chọn",
+          "apply_line_hint": "Chọn một đường nối trên trang chiếu để đổi nét.",
           "arrow_label": "Đầu mũi tên",
           "arrow": {
             "none": "Không",

@@ -10802,6 +10802,17 @@
           "to_label": "End shape",
           "shape_n": "Shape {{n}}",
           "pick_shape": "Choose a shape",
+          "from_side_label": "Start side",
+          "to_side_label": "End side",
+          "side": {
+            "auto": "Auto",
+            "top": "Top",
+            "right": "Right",
+            "bottom": "Bottom",
+            "left": "Left"
+          },
+          "apply_line": "Apply line to selected connector",
+          "apply_line_hint": "Select a connector on the slide to restyle its line.",
           "arrow_label": "Arrowheads",
           "arrow": {
             "none": "None",

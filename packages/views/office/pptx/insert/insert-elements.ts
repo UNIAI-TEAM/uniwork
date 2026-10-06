@@ -27,6 +27,8 @@ export function pptxInsertElements(rendition: PptxRenderSlide | null): readonly 
     .filter((node) => !node.decoration && !node.background)
     .map((node) => {
       const label = labelOf(node);
-      return { id: node.sourceId, type: node.type, ...(label ? { label } : {}) };
+      // A connector is a `shape` node drawn as a line (p:cxnSp): the pane restyles it but never connects to it.
+      const connector = node.type === "shape" && node.line !== undefined;
+      return { id: node.sourceId, type: node.type, ...(label ? { label } : {}), ...(connector ? { connector: true } : {}) };
     });
 }
