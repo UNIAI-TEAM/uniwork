@@ -152,7 +152,7 @@ export interface XlsxFileVisualRemoveOp {
 }
 
 /** The pending edit of one file visual: its last anchor, or its removal. */
-export interface XlsxFileVisualEntry {
+interface XlsxFileVisualEntry {
   readonly kind: "file_visual";
   readonly sheetName: string;
   readonly file: number;

@@ -28,7 +28,7 @@ const MAX_TEXT = 255;
 /** Same pattern as the gateway's applyVisualEdits: the index pairing depends on it. */
 const ANCHOR_PATTERN = /<([A-Za-z_][\w.-]*:)?(twoCellAnchor|oneCellAnchor|absoluteAnchor)\b[\s\S]*?<\/\1\2>/g;
 
-export type XlsxFileVisualKind = "chart" | "picture" | "shape" | "other";
+type XlsxFileVisualKind = "chart" | "picture" | "shape" | "other";
 
 /** One anchor of a sheet's drawing as the editor overlay consumes it. */
 export interface XlsxRenderVisual {
