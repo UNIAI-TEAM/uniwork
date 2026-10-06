@@ -17,6 +17,7 @@ import { resolveConferenceStage, speakerSlots, trackTileKey } from "./conference
 import { MeetingParticipantTile } from "./meeting-participant-tile";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { participantRole } from "./meeting-signals";
+import { useShareOrder } from "./use-share-order";
 import { useSpeakerOrder } from "./use-speaker-order";
 import { useStripPlacement } from "./use-strip-placement";
 
@@ -129,7 +130,8 @@ export const MeetingStageTiles = memo(function MeetingStageTiles({
     slots.slots,
     speaking.map((p) => p.identity),
   );
-  const stage = resolveConferenceStage(tracks, { ...filters, page, speakerOrder });
+  const shareOrder = useShareOrder(tracks);
+  const stage = resolveConferenceStage(tracks, { ...filters, page, speakerOrder, shareOrder });
   // A page that no longer exists (people left) clamps to the last one.
   if (stage.page !== page) setPage(stage.page);
 

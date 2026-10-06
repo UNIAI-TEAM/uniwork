@@ -312,14 +312,19 @@ export async function removeParticipant(meetingId: string, participantId: string
   await request(`/api/v1/meetings/${enc(meetingId)}/participants/${enc(participantId)}`, { method: "DELETE" });
 }
 
+/** What a host lock covers: the mic, or the screen share with its audio. */
+export type MeetingPublishSource = "microphone" | "screen_share";
+
 export async function setParticipantPublish(
   meetingId: string,
   participantId: string,
   enabled: boolean,
+  source: MeetingPublishSource = "microphone",
 ): Promise<void> {
   await request(`/api/v1/meetings/${enc(meetingId)}/participants/${enc(participantId)}/publish`, {
     method: "POST",
-    body: { enabled },
+    // A missing source is the mic on the server, so the mic body stays as it was.
+    body: source === "microphone" ? { enabled } : { enabled, source },
   });
 }
 

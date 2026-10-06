@@ -15,6 +15,7 @@ import { Hand, Lock, MicOff, MonitorUp, Volume2, WifiLow, WifiOff } from "lucide
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
+import { Toaster } from "@uniwork/ui/components/ui/sonner";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   cameraTileSize,
@@ -26,7 +27,9 @@ import {
   type TileRingTone,
 } from "./conference-layout";
 import { MeetingPresentingBar, MeetingPresentingCard } from "./meeting-screen-share-notices";
-import { ownSharePreviewable } from "./screen-share";
+import { MeetingConnectionNotice } from "./meeting-connection-notice";
+import { ownSharePreview, useTileFullscreen } from "./screen-share";
+import { holdScreenShareFullscreen } from "./share-adaptive-stream";
 import { useParticipantSignal } from "./use-meeting-signals";
 import { MeetingTileActions } from "./meeting-tile-actions";
 import { useMicLocked } from "./meeting-moderation";
@@ -246,7 +249,6 @@ function MeetingParticipantTileImpl({
   const [focused, setFocused] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const touch = useTouchReveal(tileRef, menuOpen);
-  const showActions = hovered || focused || menuOpen || touch.revealed;
   // Room the corner controls take: one button width each (2rem, or 2.75rem
   // on a coarse pointer, where buttons grow to 44px) plus their padding and
   // both insets. Exact, so a phone's tile keeps "quang (Bạn)" beside pin and
@@ -263,27 +265,54 @@ function MeetingParticipantTileImpl({
   const ring = isScreenShare
     ? tileRingTone({ handRaised: false, speaking: false, pinned: false })
     : tileRingTone({ handRaised, speaking, pinned });
-  // Your own share of a tab or window is drawn back to you; a whole screen
-  // stays a card, or it would show the meeting inside itself.
+  // Your own share of a tab is drawn back to you, a window only on request
+  // (it may hold the meeting itself); a whole screen stays a card, or it
+  // would show the meeting inside itself. See ownSharePreview.
   const ownShare = Boolean(isScreenShare && participant.isLocal);
-  const previewable =
-    ownShare && track !== undefined && isTrackReference(track) && ownSharePreviewable(track.publication.track?.mediaStreamTrack);
-  // The presenter may put the preview away (a busy screen, a slow machine);
-  // the choice follows the share across stage, grid and strip.
-  const shareSid = ownShare && track && isTrackReference(track) ? track.publication.trackSid : "";
-  const previewHidden = useMeetingViewSessionStore((s) => s.hiddenSharePreviews.includes(shareSid));
+  const ownCapture =
+    ownShare && track && isTrackReference(track) ? track.publication.track?.mediaStreamTrack : undefined;
+  const previewDefault = ownSharePreview(ownCapture);
+  const previewable = previewDefault !== "none";
+  // The presenter may put the preview away (a busy screen, a slow machine) or
+  // bring a window's back; the choice follows the capture across stage, grid,
+  // strip and a reconnect's republish (see hiddenSharePreviews).
+  const captureId = ownCapture?.id ?? "";
+  const previewChoice = useMeetingViewSessionStore((s) => s.hiddenSharePreviews[captureId]);
   const setSharePreviewHidden = useMeetingViewSessionStore((s) => s.setSharePreviewHidden);
-  const setPreviewHidden = (hidden: boolean) => setSharePreviewHidden(shareSid, hidden);
+  const setPreviewHidden = (hidden: boolean) => setSharePreviewHidden(captureId, hidden);
+  const previewHidden = previewChoice ?? previewDefault === "hidden";
   const ownPreview = previewable && !previewHidden;
   const presenting = ownShare && !ownPreview;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  // Anyone but the presenter may watch a share full screen; a thumbnail is
+  // brought to the stage first.
+  const shareTrack = isScreenShare && track && isTrackReference(track) ? track.publication.track : undefined;
+  const fullscreen = useTileFullscreen(tileRef, videoRef, isScreenShare && !ownShare && !compact, (video) =>
+    holdScreenShareFullscreen(shareTrack, video),
+  );
+  const offerFullscreen = fullscreen.available && (showVideo || fullscreen.active);
+  // Full screen leaves no edge to leave and keeps the toggle focused, so a
+  // pause hides the overlays there instead of hover and focus.
+  const showActions = fullscreen.active
+    ? !fullscreen.idle
+    : hovered || focused || menuOpen || touch.revealed;
+  const overlaysAway = fullscreen.active && fullscreen.idle;
+  // Full screen adds its button to the chip, and is the only one there while
+  // on (see MeetingTileActions).
+  const controlCount = fullscreen.active ? "1" : offerFullscreen ? `(${buttonCount} + 1)` : buttonCount;
   // A shared screen keeps its corners: a big radius clipped the logo, menus
   // or close button that usually sit there.
-  const radius = compact ? "rounded-2xl" : isScreenShare ? "rounded-xl" : "rounded-3xl";
+  const radius = fullscreen.active
+    ? "rounded-none"
+    : compact
+      ? "rounded-2xl"
+      : isScreenShare
+        ? "rounded-xl"
+        : "rounded-3xl";
   // A tile takes its video's shape and centres in its cell: a camera may crop
   // its sides a little (see cameraTileSize), a screen share never crops, so
   // the frame hugs the shared screen whatever shape the cell takes.
   const fitVideo = !compact && !presenting;
-  const videoRef = useRef<HTMLVideoElement>(null);
   const videoSid = track && isTrackReference(track) ? track.publication.trackSid : null;
   const dimensions = track && isTrackReference(track) ? track.publication.dimensions : undefined;
   const advertisedAspect =
@@ -321,9 +350,16 @@ function MeetingParticipantTileImpl({
         // One corner button's width, for the name chip's room beside them.
         "[--tile-control:2rem] [--tile-mute-slot:1] pointer-coarse:[--tile-control:2.75rem] pointer-coarse:[--tile-mute-slot:0]",
         radius,
-        compact ? "aspect-[4/3]" : placement === "cell" && (shaped ? "h-full" : "size-full"),
+        overlaysAway && "cursor-none",
+        // Full screen drops the size worked out for the cell: the tile is the
+        // whole screen and the share fits inside it (object-contain).
+        fullscreen.active
+          ? "size-full"
+          : compact
+            ? "aspect-[4/3]"
+            : placement === "cell" && (shaped ? "h-full" : "size-full"),
       )}
-      style={tileStyle}
+      style={fullscreen.active ? undefined : tileStyle}
       data-hand-raised={handRaised || undefined}
       data-pinned={pinned || undefined}
       data-speaking={speaking || undefined}
@@ -341,6 +377,7 @@ function MeetingParticipantTileImpl({
         micMuted={micMuted}
         screenShare={isScreenShare}
         visible={showActions}
+        fullscreen={offerFullscreen ? { active: fullscreen.active, onToggle: fullscreen.toggle } : undefined}
         onMenuOpenChange={setMenuOpen}
         onPin={handlePin}
       />
@@ -374,11 +411,13 @@ function MeetingParticipantTileImpl({
         <MeetingPresentingCard
           compact={compact}
           onShowPreview={previewable ? () => setPreviewHidden(false) : undefined}
+          windowShare={previewDefault === "hidden"}
         />
       ) : showVideo && isTrackReference(track) ? (
         <VideoTrack
           ref={videoRef}
           trackRef={track}
+          onDoubleClick={offerFullscreen ? fullscreen.toggle : undefined}
           className={cn(
             "absolute inset-0 size-full",
             isScreenShare ? "bg-meeting-video-bg object-contain" : "object-cover",
@@ -407,6 +446,19 @@ function MeetingParticipantTileImpl({
           />
         </div>
       )}
+      {/* Full screen shows this tile alone, so the room's notices (muted by
+          the host, a share stopped, a reconnect) show here too, top centre,
+          clear of the exit button. The page's own outlets stay in the
+          accessibility tree in full screen and announce each notice, so these
+          copies are for the eyes only: second live regions read it twice. */}
+      {fullscreen.active ? (
+        <div aria-hidden className="contents">
+          <Toaster position="top-center" className="toaster group absolute!" />
+          <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex justify-center">
+            <MeetingConnectionNotice />
+          </div>
+        </div>
+      ) : null}
       {/* The presenter's own preview carries the bar in place of the name chip:
           "X is presenting" about yourself says the same thing twice. */}
       {ownPreview ? <MeetingPresentingBar compact={compact} onHidePreview={() => setPreviewHidden(true)} /> : null}
@@ -415,6 +467,8 @@ function MeetingParticipantTileImpl({
           className={cn(
             "pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption",
             "bg-meeting-tile-name-bg text-meeting-tile-name-foreground",
+            "transition-opacity duration-fast motion-reduce:transition-none",
+            overlaysAway && "opacity-0",
             // Leave the bottom-right corner to the tile controls.
             compact
               ? "bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)]"
@@ -428,7 +482,7 @@ function MeetingParticipantTileImpl({
           )}
           style={
             !compact && showActions
-              ? { maxWidth: `calc(100% - (${buttonCount} * var(--tile-control) + 1.5rem))` }
+              ? { maxWidth: `calc(100% - (${controlCount} * var(--tile-control) + 1.5rem))` }
               : undefined
           }
         >

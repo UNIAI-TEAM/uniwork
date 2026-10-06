@@ -147,17 +147,19 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   const shareControl = (inMenu: boolean) =>
     !screen.supported ? null : inMenu ? (
       <MenuControl caption={screen.label} pressed={screen.enabled} disabled={screen.pending} onClick={screen.toggle}>
-        <MonitorUp aria-hidden />
+        {screen.locked ? <Lock aria-hidden /> : <MonitorUp aria-hidden />}
       </MenuControl>
     ) : (
       <IconControl
+        // Locked like the mic: named so, and a click explains (useScreenShareControl).
         label={screen.label}
+        tooltip={screen.locked ? t("meetings.shareLockedYou") : undefined}
         pressed={screen.enabled}
         tone={screen.enabled ? "active" : undefined}
         disabled={screen.pending}
         onClick={screen.toggle}
       >
-        <MonitorUp aria-hidden />
+        {screen.locked ? <Lock aria-hidden /> : <MonitorUp aria-hidden />}
       </IconControl>
     );
 

@@ -21,6 +21,7 @@ export type ConferenceStage = {
 type TrackPublicationLike = {
   track?: unknown;
   isMuted?: boolean;
+  trackSid?: string;
 };
 
 /** CSS grid columns for the conference stage. Keep tiles inside the shell. */
@@ -58,6 +59,11 @@ export function trackHasVideo(track: TrackReferenceOrPlaceholder): boolean {
   return Boolean(publication?.track) && !publication?.isMuted;
 }
 
+/**
+ * The tiles the viewer chose to see. Hiding a person hides their camera only:
+ * a screen share is the room's content, and hiding it would leave the viewer
+ * the one person in the room not watching the presentation.
+ */
 export function filterVisibleTracks(
   tracks: readonly TrackReferenceOrPlaceholder[],
   hiddenIdentities: readonly string[],
@@ -65,7 +71,7 @@ export function filterVisibleTracks(
 ): TrackReferenceOrPlaceholder[] {
   const hidden = new Set(hiddenIdentities);
   return tracks.filter((track) => {
-    if (hidden.has(track.participant.identity)) return false;
+    if (track.source !== Track.Source.ScreenShare && hidden.has(track.participant.identity)) return false;
     if (hideWithoutVideo && track.source === Track.Source.Camera && !trackHasVideo(track)) return false;
     return true;
   });
@@ -91,6 +97,36 @@ export function conferenceStagePage(
 
 export function trackTileKey(track: TrackReferenceOrPlaceholder): string {
   return `${track.participant.identity}:${String(track.source)}`;
+}
+
+/** A share's publication sid: a new share is a new sid, even from the same person. */
+export function shareTrackSid(track: TrackReferenceOrPlaceholder): string {
+  return (track as { publication?: TrackPublicationLike }).publication?.trackSid ?? trackTileKey(track);
+}
+
+/**
+ * Share sids, newest first by when this client first saw each. A tie (both
+ * already on when this client joined) goes to the greater identity, the one
+ * presenterVerdict keeps on, so every client puts the same share on the stage.
+ */
+export function newestSharesFirst(
+  shares: readonly { sid: string; identity: string; seenAt: number }[],
+): string[] {
+  return [...shares]
+    .sort((a, b) => b.seenAt - a.seenAt || (a.identity < b.identity ? 1 : a.identity > b.identity ? -1 : 0))
+    .map((s) => s.sid);
+}
+
+/** Shares in `shareOrder` (sids, newest first); any it does not name follow in the room's order. */
+function orderShares(
+  screenShares: readonly TrackReferenceOrPlaceholder[],
+  shareOrder: readonly string[],
+): TrackReferenceOrPlaceholder[] {
+  const slot = new Map(shareOrder.map((sid, i) => [sid, i]));
+  return screenShares
+    .map((t, i) => ({ t, i, r: slot.get(shareTrackSid(t)) ?? Infinity }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map((x) => x.t);
 }
 
 /**
@@ -219,7 +255,7 @@ export function paginate<T>(
   return { items: items.slice(safe * perPage, safe * perPage + perPage), pages, page: safe };
 }
 
-/** Screen share fills the stage; cameras (and extra shares) sit in the side strip. */
+/** The first (newest) share fills the stage; cameras and any other share sit in the side strip. */
 function resolvePresentationStage(
   screenShares: readonly TrackReferenceOrPlaceholder[],
   orderedCameras: readonly TrackReferenceOrPlaceholder[],
@@ -251,6 +287,12 @@ export function resolveConferenceStage(
     hideWithoutVideo?: boolean;
     /** Camera identities in stage order, from useSpeakerOrder; omitted, the room's own order. */
     speakerOrder?: readonly string[];
+    /**
+     * Screen-share sids, newest first, from useShareOrder: while a takeover
+     * runs two shares are briefly on and the new one takes the stage.
+     * Omitted, the room's own order.
+     */
+    shareOrder?: readonly string[];
   },
 ): ConferenceStage {
   const {
@@ -261,13 +303,18 @@ export function resolveConferenceStage(
     hiddenIdentities = [],
     hideWithoutVideo = false,
     speakerOrder = [],
+    shareOrder = [],
   } = options;
 
   const visible = filterVisibleTracks(tracks, hiddenIdentities, hideWithoutVideo);
   const { screenShares, cameras } = splitTracksBySource(visible);
 
   if (screenShares.length > 0) {
-    return resolvePresentationStage(screenShares, orderTracks(cameras, speakerOrder, pinnedIdentity), page);
+    return resolvePresentationStage(
+      orderShares(screenShares, shareOrder),
+      orderTracks(cameras, speakerOrder, pinnedIdentity),
+      page,
+    );
   }
 
   const ordered = orderTracks(visible, speakerOrder, pinnedIdentity);

@@ -287,8 +287,8 @@ export function useRemoveParticipant(meetingId: string) {
 
 export function useSetParticipantPublish(meetingId: string) {
   return useMutation({
-    mutationFn: (args: { participantId: string; enabled: boolean }) =>
-      meetings.setParticipantPublish(meetingId, args.participantId, args.enabled),
+    mutationFn: (args: { participantId: string; enabled: boolean; source?: meetings.MeetingPublishSource }) =>
+      meetings.setParticipantPublish(meetingId, args.participantId, args.enabled, args.source),
   });
 }
 

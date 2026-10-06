@@ -5,6 +5,9 @@ import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingAdmitGuestsButton } from "./meeting-admit-guests-button";
 import { MeetingWaitingToJoinCard } from "./meeting-waiting-to-join-card";
 
+const leaveShareFullscreen = vi.hoisted(() => vi.fn());
+vi.mock("./screen-share", () => ({ leaveShareFullscreen }));
+
 beforeAll(() => {
   initI18n();
 });
@@ -52,6 +55,28 @@ describe("MeetingAdmitGuestsButton", () => {
     render(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" />));
 
     expect(await screen.findByRole("button", { name: "1 người đang chờ, xem danh sách" })).toBeInTheDocument();
+  });
+
+  it("takes a full-screen share out of the way once for each new knock", async () => {
+    leaveShareFullscreen.mockClear();
+    pendingOnce();
+    const view = render(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" />));
+    await screen.findByRole("button", { name: "Ẩn thông báo" });
+    expect(leaveShareFullscreen).toHaveBeenCalledOnce();
+
+    // Seen and hidden, then the host goes back to full screen: no pull out.
+    fireEvent.click(screen.getByRole("button", { name: "Ẩn thông báo" }));
+    view.rerender(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" />));
+    expect(screen.queryByRole("button", { name: "Ẩn thông báo" })).not.toBeInTheDocument();
+    expect(leaveShareFullscreen).toHaveBeenCalledOnce();
+  });
+
+  it("leaves full screen alone while the people tab shows the list", async () => {
+    leaveShareFullscreen.mockClear();
+    pendingOnce();
+    render(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" peopleOpen />));
+    await screen.findByRole("button", { name: "1 người đang chờ, xem danh sách" });
+    expect(leaveShareFullscreen).not.toHaveBeenCalled();
   });
 
   it("opens the people tab instead of admitting when the chip is pressed", async () => {

@@ -225,6 +225,18 @@ describe("meetings D08b endpoints", () => {
     expect(JSON.parse(String(init.body))).toEqual({ enabled: false });
   });
 
+  it("setParticipantPublish names the screen-share source, and only that one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    await setParticipantPublish("m1", "p1", false, "screen_share");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({ enabled: false, source: "screen_share" });
+    // The mic stays the server's default, so an older server still reads the body.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    await setParticipantPublish("m1", "p1", true, "microphone");
+    const second = vi.mocked(fetch).mock.calls[1]![1] as RequestInit;
+    expect(JSON.parse(String(second.body))).toEqual({ enabled: true });
+  });
+
   it("transcript append", async () => {
     const seg = { id: "s1", meeting_id: "m1", text: "hi", spoken_at: "2026-08-29T02:00:00Z" };
     vi.mocked(fetch).mockResolvedValueOnce(json({ segment: seg }));

@@ -5,7 +5,13 @@ import {
   useParticipants as useLiveKitParticipants,
   useRoomContext,
 } from "@livekit/components-react";
-import { ConnectionState, RoomEvent, type RemoteParticipant } from "livekit-client";
+import {
+  ConnectionState,
+  RoomEvent,
+  Track,
+  type RemoteParticipant,
+  type TrackPublication,
+} from "livekit-client";
 import { useTranslation } from "react-i18next";
 import { useMeetingChat } from "@uniwork/core/meetings";
 import { chatWatermark, unreadChatSince, type ChatWatermark } from "./meeting-chat";
@@ -110,6 +116,104 @@ export function ParticipantPresenceAnnouncer() {
 
   return (
     <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-presence-announcer">
+      {text}
+    </p>
+  );
+}
+
+/**
+ * "X started presenting" / "X stopped presenting" for other people's screen
+ * shares: the stage swaps silently, so a screen reader would not otherwise
+ * know. Like the presence announcer, the shares already on when we connect
+ * and the re-sync after a reconnect are not news. Nor is a share that starts
+ * while ours is on: MeetingSinglePresenter settles it and its toast says who
+ * took over. Once ours is off, the share left on stage is news again when it
+ * stops; one that gave way to ours in a race stops unsaid.
+ */
+export function ScreenShareAnnouncer() {
+  const { t } = useTranslation();
+  const room = useRoomContext();
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    let readyAt = room.state === ConnectionState.Connected ? Date.now() + PRESENCE_SETTLE_MS : Infinity;
+    let pending: string[] = [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Shares whose start went unsaid: their stop goes unsaid too.
+    const unsaid = new Set<string>();
+    // MeetingSinglePresenter listens first and may stop ours from inside the
+    // same TrackPublished dispatch, so the share that took over finds ours
+    // already gone. Held until the dispatch ends.
+    let ownJustStopped = false;
+
+    const flush = () => {
+      if (pending.length > 0) setText(pending.join(". "));
+      pending = [];
+    };
+    const queue = (key: string, pub: TrackPublication, p: RemoteParticipant) => {
+      if (Date.now() < readyAt) return;
+      pending.push(t(key, { name: p.name || p.identity }));
+      clearTimeout(timer);
+      timer = setTimeout(flush, PRESENCE_BATCH_MS);
+    };
+    const onSettle = () => {
+      readyAt = Date.now() + PRESENCE_SETTLE_MS;
+    };
+    // A full reconnect unpublishes every remote share just before Reconnecting
+    // fires, then publishes them again: none of it is news. So does a
+    // server-side leave just before Disconnected, ahead of room-view's rejoin.
+    const onReconnecting = () => {
+      readyAt = Infinity;
+      clearTimeout(timer);
+      pending = [];
+    };
+    const onPublished = (pub: TrackPublication, p: RemoteParticipant) => {
+      if (pub.source !== Track.Source.ScreenShare) return;
+      if (room.localParticipant.getTrackPublication(Track.Source.ScreenShare)) {
+        unsaid.add(pub.trackSid);
+        return;
+      }
+      if (ownJustStopped) return;
+      queue("meetings.announcePresentingStarted", pub, p);
+    };
+    // Ours stopped: a share still on has taken the stage (the takeover toast
+    // said who), so its stop is news again.
+    const onLocalUnpublished = (pub: TrackPublication) => {
+      if (pub.source !== Track.Source.ScreenShare) return;
+      unsaid.clear();
+      ownJustStopped = true;
+      queueMicrotask(() => {
+        ownJustStopped = false;
+      });
+    };
+    const onUnpublished = (pub: TrackPublication, p: RemoteParticipant) => {
+      if (pub.source !== Track.Source.ScreenShare || unsaid.delete(pub.trackSid)) return;
+      queue("meetings.announcePresentingStopped", pub, p);
+    };
+
+    room
+      .on(RoomEvent.Connected, onSettle)
+      .on(RoomEvent.Reconnecting, onReconnecting)
+      .on(RoomEvent.Disconnected, onReconnecting)
+      .on(RoomEvent.Reconnected, onSettle)
+      .on(RoomEvent.TrackPublished, onPublished)
+      .on(RoomEvent.TrackUnpublished, onUnpublished)
+      .on(RoomEvent.LocalTrackUnpublished, onLocalUnpublished);
+    return () => {
+      clearTimeout(timer);
+      room
+        .off(RoomEvent.Connected, onSettle)
+        .off(RoomEvent.Reconnecting, onReconnecting)
+        .off(RoomEvent.Disconnected, onReconnecting)
+        .off(RoomEvent.Reconnected, onSettle)
+        .off(RoomEvent.TrackPublished, onPublished)
+        .off(RoomEvent.TrackUnpublished, onUnpublished)
+        .off(RoomEvent.LocalTrackUnpublished, onLocalUnpublished);
+    };
+  }, [room, t]);
+
+  return (
+    <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-presenting-announcer">
       {text}
     </p>
   );
