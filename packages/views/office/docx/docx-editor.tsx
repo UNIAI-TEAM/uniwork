@@ -7,8 +7,11 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "./commands";
 import { DocxContextMenuSurface } from "./context-menu/docx-context-menu-surface";
+import { DocxPrintMenuItem, runDocxPrint } from "./export/docx-print-entry";
 import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
 import { OfficeFrame } from "../frame/office-frame";
+import { HeaderActionsFill } from "../../layout/header-actions-slot";
+import { createBrowserPrintPort } from "../print";
 import { DocxErrorState } from "./docx-error-state";
 import { DocxToolbar } from "./docx-toolbar";
 import { DocxFindPanel } from "./find/docx-find-panel";
@@ -56,6 +59,7 @@ export function DocxEditor<TSnapshot = unknown>({
   showDocumentControls = true,
   onOpen,
   onSelectionChange,
+  printPort,
 }: DocxEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<DocxViewState>("opening");
@@ -87,6 +91,12 @@ export function DocxEditor<TSnapshot = unknown>({
   const capabilityStatus = capability?.status;
   const capabilityOperation = capability?.operation;
   const effectiveTitle = title ?? t("office.docx.title");
+  // UNI-952: web prints through the browser port (an isolated frame holding the
+  // document copy); the desktop host injects its own port.
+  const [browserPrintPort] = useState(createBrowserPrintPort);
+  const activePrintPort = printPort ?? browserPrintPort;
+  const print = useMemo(() => ({ port: activePrintPort, title: effectiveTitle }), [activePrintPort, effectiveTitle]);
+  const printContextRef = useRef<Parameters<typeof runDocxPrint>[0] | null>(null);
 
   useEffect(() => {
     setCoordinatorState(coordinator.getState());
@@ -208,6 +218,11 @@ export function DocxEditor<TSnapshot = unknown>({
       event.preventDefault();
       save("shortcut");
     }
+    // UNI-952: Ctrl/Cmd+P prints the document copy, never the app window.
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "p" && printContextRef.current) {
+      event.preventDefault();
+      void runDocxPrint(printContextRef.current);
+    }
   }, [save]);
 
   const canUndo = useMemo(() => typeof editor.undo === "function", [editor.undo]);
@@ -232,7 +247,17 @@ export function DocxEditor<TSnapshot = unknown>({
     onUndo: undo,
     onRedo: redo,
     onSave: showDocumentControls ? save : undefined,
+    print,
   };
+  printContextRef.current = viewState === "ready" ? sharedContext : null;
+  // Memoized on the ready flag, not the whole format state, so typing does not
+  // re-publish the header menu entry on every transaction.
+  const printCommands = sharedContext.commands;
+  const printReady = sharedContext.format?.docxExportReady ?? false;
+  const headerPrintItem = useMemo(
+    () => <DocxPrintMenuItem commands={printCommands} print={print} ready={printReady} />,
+    [printCommands, print, printReady],
+  );
 
   return (
     <div className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
@@ -242,6 +267,7 @@ export function DocxEditor<TSnapshot = unknown>({
           {viewState === "opening" ? t("office.docx.state.opening") : viewState === "ready" ? t(`office.docx.saveState.${coordinatorState.state}`) : t("office.docx.state.error")}
         </span>
       </header> : null}
+      {viewState === "ready" ? <HeaderActionsFill menuItems={headerPrintItem} /> : null}
       {viewState === "ready" ? (
         <OfficeFrame
           className="bg-office-canvas"

@@ -1,136 +1,311 @@
-// C1 (UNI-924): browser print for the open DOCX document.
+// UNI-952 (E-docx): print for the open DOCX document as a DOCUMENT COPY.
 //
-// The vendored renderer sheet already drops the document's own editor
-// furniture (page gaps, guide lines, resize handles) under @media print, but
-// its chrome rules target genoffice class names (.ribbon, .status-bar, ...)
-// which the UniWork shell does not carry. This module adds a print-only sheet
-// for the UniWork chrome (never editing the vendored stylesheet): while the
-// body carries the print marker, everything outside the paginated surface is
-// hidden and the surface is unclipped so the browser prints the document
-// alone. The marker is stamped by the print command and by beforeprint, so a
-// native Ctrl+P on the editor page gets the same output once the sheet is
-// installed.
+// Printing never touches the app window: the document model (the editor's
+// JSON, the same model the HTML export walks) is serialized into a
+// self-contained, script-free HTML document whose page geometry comes from
+// the DOCX sections, and that copy is handed to the INJECTED print port
+// (browser: an isolated hidden frame; desktop: the host's own hidden window).
+// So page 1 of the job is the document's first page and no app chrome
+// (ribbon, header, panels) can reach the paper.
+//
+// The copy is built from escaped text and generated markup only (see
+// ./docx-html-export), then passed through the shared print sanitizer, whose
+// CSP allows `data:` images alone. Images that are not inline `data:image`
+// sources are dropped from the copy rather than left as blocked links.
+//
+// Geometry: every section gets a named @page carrying its own size and
+// margins (orientation is the paper box itself), the section's blocks are
+// paginated with `page: <name>`, and a non-continuous section starts a new
+// sheet (odd/even page starts map to right/left). Word page breaks and
+// "page break before" paragraphs force breaks. The document-level header and
+// footer (default, first-page, even-page) print through @page margin boxes,
+// with the page number as `counter(page)` when the part carries one.
 
-export const DOCX_PRINT_ATTRIBUTE = "data-docx-printing";
-export const DOCX_PRINT_STYLE_ID = "uniwork-docx-print-styles";
-export const DOCX_PRINT_SURFACE_SELECTOR = '[data-testid="docx-document-surface"]';
+import type { JSONContent } from "@tiptap/core";
+import { sanitizePrintCopy } from "../../markdown/wysiwyg/print";
+import type { OfficePrintOutcome, OfficePrintPort } from "../../print";
+import type { DocxHeaderFooterState } from "../header-footer/header-footer-state";
+import { sectionIndexAtDocxIndex, type DocxPageSetupSection } from "../page-setup/docx-page-setup";
+import { escapeDocxHtmlText, serializeBlockNodes } from "./docx-html-export";
 
-const DOCX_PRINT_HIDE_SELECTORS = [
-  '[data-testid="docx-toolbar"]',
-  '[data-testid="docx-editor"] > header',
-  '[data-testid="docx-find-panel"]',
-  '[data-testid="docx-status-bar"]',
-  '[data-testid="docx-view-chrome"]',
-  '[data-testid="docx-image-layer"]',
-  '[data-testid="docx-review-panel"]',
-  '[data-testid="docx-notes-panel"]',
-];
+/** The page setup the copy uses when the document reports no section: A4, 2.54 cm margins. */
+const DEFAULT_SECTION: DocxPageSetupSection = {
+  index: 0,
+  firstBlockIndex: 0,
+  lastBlockIndex: Number.MAX_SAFE_INTEGER,
+  pageWidth: 11906,
+  pageHeight: 16838,
+  orientation: "portrait",
+  marginTop: 1440,
+  marginRight: 1440,
+  marginBottom: 1440,
+  marginLeft: 1440,
+  columns: 1,
+  columnSpace: 720,
+  startType: "nextPage",
+};
 
-const DOCX_PRINT_EXPAND_SELECTORS = [
-  '[data-testid="docx-editor"]',
-  '[data-testid="docx-canvas"]',
-  '[data-testid="docx-surface"]',
-  DOCX_PRINT_SURFACE_SELECTOR,
-];
+const SAFE_LANG = /^[A-Za-z0-9-]+$/;
+const SAFE_FONT_FAMILY = /^[\p{L}\p{N}\s,'".()-]+$/u;
+const SAFE_CSS_COLOR = /^(?:#[0-9A-Fa-f]{3,8}|rgba?\([\d\s.,%/]+\))$/;
+const DATA_IMAGE = /^data:image\/[a-z0-9.+-]+[;,]/i;
+
+export interface DocxPrintCopyInput {
+  /** The editor's JSON document. */
+  doc: JSONContent;
+  /** Printed page title (the document name). */
+  title: string;
+  /** The document's sections with pending page-setup edits applied; empty or absent = A4 default. */
+  sections?: readonly DocxPageSetupSection[] | null;
+  /** The document-level header/footer parts; absent = none printed. */
+  headerFooter?: DocxHeaderFooterState | null;
+  lang?: string;
+  fontFamily?: string;
+  textColor?: string;
+}
+
+function pt(twips: number): string {
+  const value = Math.max(0, twips) / 20;
+  return `${Number.isInteger(value) ? value : Number(value.toFixed(2))}pt`;
+}
+
+function pageName(index: number): string {
+  return `docx-s${index}`;
+}
+
+/** A CSS string literal for a margin box: quotes, backslashes and `<` escaped, newlines kept. */
+function cssString(value: string): string {
+  let out = "";
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (char === "\\" || char === '"') out += `\\${char}`;
+    else if (char === "\n") out += "\\A ";
+    else if (char === "<" || char === ">" || code < 0x20 || code === 0x7f) out += `\\${code.toString(16)} `;
+    else out += char;
+  }
+  return `"${out}"`;
+}
+
+/** Drops inline images whose source is not an inline data:image (the copy's CSP would block them anyway). */
+function printableNodes(nodes: readonly JSONContent[] | undefined): JSONContent[] {
+  const out: JSONContent[] = [];
+  for (const node of nodes ?? []) {
+    if (node.type === "docInlineImage") {
+      const src = typeof node.attrs?.dataUrl === "string" ? node.attrs.dataUrl.trim() : "";
+      if (!DATA_IMAGE.test(src)) continue;
+    }
+    out.push(node.content ? { ...node, content: printableNodes(node.content) } : node);
+  }
+  return out;
+}
 
 /**
- * Print-only rules, all guarded by the body marker so printing any other page
- * of the app is untouched. The hide list removes the editor chrome from the
- * layout; the visibility pair then removes every remaining host element
- * (shell header, sidebars, panels) from the printed picture while the surface
- * subtree stays visible and is pinned to the top-left of the paper.
+ * The sections in print order, merged the way the paginator merges them
+ * (upstream liveSections): a non-final section whose closing break paragraph
+ * was deleted from the document flows into the next section's page setup.
  */
-export function docxPrintStyleSheet(): string {
-  const marker = `body[${DOCX_PRINT_ATTRIBUTE}]`;
-  const hide = DOCX_PRINT_HIDE_SELECTORS.map((selector) => `${marker} ${selector}`).join(",\n  ");
-  const expand = DOCX_PRINT_EXPAND_SELECTORS.map((selector) => `${marker} ${selector}`).join(",\n  ");
+function liveSectionsOf(sections: readonly DocxPageSetupSection[], blocks: readonly JSONContent[]): DocxPageSetupSection[] {
+  if (sections.length <= 1) return sections.length === 1 ? [...sections] : [DEFAULT_SECTION];
+  const present = new Set<number>();
+  for (const block of blocks) {
+    const docxIndex = block.attrs?.docxIndex as unknown;
+    if (typeof docxIndex === "number") present.add(docxIndex);
+  }
+  const out: DocxPageSetupSection[] = [];
+  let carryFirst: number | null = null;
+  sections.forEach((section, at) => {
+    const first = carryFirst ?? section.firstBlockIndex;
+    carryFirst = null;
+    if (at < sections.length - 1 && !present.has(section.lastBlockIndex)) {
+      carryFirst = first;
+      return;
+    }
+    out.push({ ...section, firstBlockIndex: first });
+  });
+  return out;
+}
+
+interface SectionRun {
+  section: DocxPageSetupSection;
+  blocks: JSONContent[];
+}
+
+/** Top-level blocks grouped by owning section; a block without a docxIndex (editor-created) stays with the previous one. */
+function sectionRuns(sections: readonly DocxPageSetupSection[], blocks: readonly JSONContent[]): SectionRun[] {
+  const runs: SectionRun[] = [];
+  let current = 0;
+  for (const block of blocks) {
+    const docxIndex = block.attrs?.docxIndex as unknown;
+    if (typeof docxIndex === "number") {
+      const ordinal = sections.findIndex((section) => section.index === sectionIndexAtDocxIndex(sections, docxIndex));
+      current = ordinal >= 0 ? ordinal : current;
+    }
+    const last = runs[runs.length - 1];
+    if (last && last.section === sections[current]) last.blocks.push(block);
+    else runs.push({ section: sections[current] ?? DEFAULT_SECTION, blocks: [block] });
+  }
+  return runs.length > 0 ? runs : [{ section: sections[0] ?? DEFAULT_SECTION, blocks: [] }];
+}
+
+/** `@page` with an optional selector (a page name, `:first`, `:left`). */
+function pageAt(selector: string): string {
+  return selector ? `@page ${selector}` : "@page";
+}
+
+function pageRule(selector: string, section: DocxPageSetupSection): string {
   return [
-    "@media print {",
-    `  ${hide} {`,
-    "    display: none !important;",
-    "  }",
-    `  ${expand} {`,
-    "    display: block !important;",
-    "    overflow: visible !important;",
-    "    height: auto !important;",
-    "    min-height: 0 !important;",
-    "    flex: none !important;",
-    "    background: none !important;",
-    "  }",
-    `  ${marker} ${DOCX_PRINT_SURFACE_SELECTOR} {`,
-    "    position: absolute !important;",
-    "    inset: 0 auto auto 0 !important;",
-    "    width: 100% !important;",
-    "    padding: 0 !important;",
-    "  }",
-    `  ${marker} * {`,
-    "    visibility: hidden !important;",
-    "  }",
-    `  ${marker} ${DOCX_PRINT_SURFACE_SELECTOR},`,
-    `  ${marker} ${DOCX_PRINT_SURFACE_SELECTOR} * {`,
-    "    visibility: visible !important;",
-    "  }",
+    `${pageAt(selector)} {`,
+    `  size: ${pt(section.pageWidth)} ${pt(section.pageHeight)};`,
+    `  margin: ${pt(section.marginTop)} ${pt(section.marginRight)} ${pt(section.marginBottom)} ${pt(section.marginLeft)};`,
     "}",
+  ].join("\n");
+}
+
+type HfSlot = keyof DocxHeaderFooterState["slots"];
+
+function marginBox(state: DocxHeaderFooterState, slot: HfSlot, box: "@top-center" | "@bottom-center"): string | null {
+  const value = state.slots[slot]?.value;
+  if (!value) return null;
+  const text = value.text.trim();
+  const parts = [text ? cssString(text) : null, value.pageNumber ? "counter(page)" : null].filter(
+    (part): part is string => part !== null,
+  );
+  if (parts.length === 0) return null;
+  return `  ${box} { content: ${parts.join(' " " ')}; white-space: pre-wrap; font-size: 9pt; }`;
+}
+
+/** Header/footer margin boxes: default on every page, first-page and even-page variants when the document asks for them. */
+function headerFooterRules(state: DocxHeaderFooterState | null | undefined): string[] {
+  if (!state) return [];
+  const rule = (selector: string, header: HfSlot, footer: HfSlot): string | null => {
+    const boxes = [marginBox(state, header, "@top-center"), marginBox(state, footer, "@bottom-center")].filter(
+      (box): box is string => box !== null,
+    );
+    return boxes.length > 0 ? `${pageAt(selector)} {\n${boxes.join("\n")}\n}` : null;
+  };
+  // An empty first/even variant must blank the default part on those pages.
+  const blank = (selector: string): string => `${pageAt(selector)} {\n  @top-center { content: none; }\n  @bottom-center { content: none; }\n}`;
+  const rules: string[] = [];
+  const base = rule("", "header", "footer");
+  if (base) rules.push(base);
+  if (state.evenAndOddHeaders) rules.push(rule(":left", "headerEven", "footerEven") ?? blank(":left"));
+  if (state.titlePg) rules.push(rule(":first", "headerFirst", "footerFirst") ?? blank(":first"));
+  return rules;
+}
+
+function breakBefore(section: DocxPageSetupSection): string {
+  switch (section.startType) {
+    case "continuous":
+    case "nextColumn":
+      return "auto";
+    case "oddPage":
+      return "right";
+    case "evenPage":
+      return "left";
+    default:
+      return "page";
+  }
+}
+
+function sectionStyle(run: SectionRun, ordinal: number, previous: DocxPageSetupSection | null): string {
+  const styles = [`page:${pageName(ordinal)}`];
+  // Named pages of a different size already break; a same-size continuous section flows on.
+  if (previous) styles.push(`break-before:${breakBefore(run.section)}`);
+  if (run.section.columns > 1) {
+    styles.push(`column-count:${run.section.columns}`, `column-gap:${pt(run.section.columnSpace)}`);
+  }
+  return styles.join(";");
+}
+
+const PRINT_BASE_CSS = [
+  "*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
+  "html,body{margin:0;padding:0;background:#fff}",
+  "body{color:#111;font-size:11pt;line-height:1.15}",
+  "p,h1,h2,h3,h4,h5,h6{margin:0 0 8pt}",
+  "img{max-width:100%;height:auto}",
+  "table{border-collapse:collapse;border-spacing:0;margin:0 0 8pt;max-width:100%}",
+  "td,th{padding:2pt 5pt;vertical-align:top;border:0.5pt solid #bfbfbf}",
+  "td>p,th>p{margin:0}",
+  "tr,img{break-inside:avoid}",
+  "ruby rt{font-size:0.6em}",
+  "sup,sub{font-size:0.75em}",
+  ".docx-page-break{display:block;break-after:page}",
+].join("\n");
+
+function safeFont(value: string | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 200 || !SAFE_FONT_FAMILY.test(trimmed)) return null;
+  const families = trimmed.split(",").map((family) => family.replace(/['"]/g, "").trim()).filter(Boolean);
+  return families.length > 0 ? families.map((family) => `'${family}'`).join(", ") : null;
+}
+
+/**
+ * The print document BEFORE sanitizing: generated markup only. Exported for
+ * the copy tests; callers print through {@link docxPrintCopy}.
+ */
+export function buildDocxPrintHtml(input: DocxPrintCopyInput): string {
+  const blocks = printableNodes(input.doc.content);
+  const sections = liveSectionsOf(input.sections ?? [], blocks);
+  const runs = sectionRuns(sections, blocks);
+  const first = runs[0]?.section ?? DEFAULT_SECTION;
+  const pages = [pageRule("", first), ...runs.map((run, ordinal) => pageRule(pageName(ordinal), run.section))];
+  const font = safeFont(input.fontFamily);
+  const color = input.textColor && SAFE_CSS_COLOR.test(input.textColor.trim()) ? input.textColor.trim() : null;
+  const css = [
+    PRINT_BASE_CSS,
+    font ? `body{font-family:${font}}` : null,
+    color ? `body{color:${color}}` : null,
+    ...pages,
+    ...headerFooterRules(input.headerFooter),
+  ].filter((part): part is string => part !== null);
+  const body = runs
+    .map((run, ordinal) => {
+      const previous = ordinal > 0 ? (runs[ordinal - 1]?.section ?? null) : null;
+      return `<section class="docx-print-section" style="${sectionStyle(run, ordinal, previous)}">${serializeBlockNodes(run.blocks)}</section>`;
+    })
+    .join("\n");
+  const lang = input.lang && SAFE_LANG.test(input.lang) ? ` lang="${input.lang}"` : "";
+  const title = input.title.trim() || "Document";
+  return [
+    "<!DOCTYPE html>",
+    `<html${lang}>`,
+    "<head>",
+    '<meta charset="utf-8">',
+    `<title>${escapeDocxHtmlText(title)}</title>`,
+    `<style>\n${css.join("\n")}\n</style>`,
+    "</head>",
+    "<body>",
+    body,
+    "</body>",
+    "</html>",
     "",
   ].join("\n");
 }
 
-const DOCUMENTS_WITH_PRINT_LISTENERS = new WeakSet<Document>();
-
-function stampPrintMarker(target: Document): void {
-  if (!target.body || !target.querySelector(DOCX_PRINT_SURFACE_SELECTOR)) return;
-  target.body.setAttribute(DOCX_PRINT_ATTRIBUTE, "");
+/** The sanitized, script-free print copy a port receives. */
+export function docxPrintCopy(input: DocxPrintCopyInput): string {
+  return sanitizePrintCopy(buildDocxPrintHtml(input));
 }
 
-function clearPrintMarker(target: Document): void {
-  target.body?.removeAttribute(DOCX_PRINT_ATTRIBUTE);
-}
-
-/**
- * Installs the print sheet once per document and wires beforeprint/afterprint
- * so native printing behaves like the command. Idempotent and safe to call
- * from an effect; no-op without a DOM (SSR).
- */
-export function installDocxPrintStyles(target?: Document): void {
-  const doc = target ?? (typeof document === "undefined" ? null : document);
-  if (!doc?.head) return;
-  if (!doc.getElementById(DOCX_PRINT_STYLE_ID)) {
-    const style = doc.createElement("style");
-    style.id = DOCX_PRINT_STYLE_ID;
-    style.dataset.uniworkDocxPrintStyles = "1";
-    style.textContent = docxPrintStyleSheet();
-    doc.head.appendChild(style);
-  }
-  if (DOCUMENTS_WITH_PRINT_LISTENERS.has(doc)) return;
-  DOCUMENTS_WITH_PRINT_LISTENERS.add(doc);
-  const view = doc.defaultView;
-  view?.addEventListener("beforeprint", () => stampPrintMarker(doc));
-  view?.addEventListener("afterprint", () => clearPrintMarker(doc));
+interface DocxPrintActionOptions {
+  port: OfficePrintPort;
+  /** Builds the copy from the CURRENT document; null when no document is open. */
+  buildCopy(): string | null;
+  title: string;
 }
 
 /**
- * Prints through the browser dialog with the surface as the print target.
- * Returns false when no DOCX surface is mounted (nothing to print). The
- * marker is removed on afterprint, with a macrotask fallback for engines that
- * never fire it; the print snapshot is taken synchronously by print(), so the
- * fallback cannot leak chrome into the job.
+ * The one print action every DOCX entry calls: build the copy, hand it to the
+ * port, return the port's outcome. A copy that cannot be built or a port that
+ * throws becomes a typed failure, never a crash in the menu; no retry.
  */
-export function printDocxDocument(view: Window = window): boolean {
-  const target = view.document;
-  if (!target.querySelector(DOCX_PRINT_SURFACE_SELECTOR)) return false;
-  installDocxPrintStyles(target);
-  stampPrintMarker(target);
-  const cleanup = () => clearPrintMarker(target);
-  view.addEventListener("afterprint", cleanup, { once: true });
+export async function printDocxDocument(options: DocxPrintActionOptions): Promise<OfficePrintOutcome> {
   try {
-    view.print();
-  } catch {
-    // A host without a print implementation (embedded webviews, jsdom) must
-    // not take the editor down; the caller reports the refusal.
-    view.removeEventListener("afterprint", cleanup);
-    cleanup();
-    return false;
+    const html = options.buildCopy();
+    if (html === null) return { outcome: "failed", reason: "no_document" };
+    return await options.port.print({ html, title: options.title });
+  } catch (error) {
+    return { outcome: "failed", reason: error instanceof Error ? error.message : String(error) };
   }
-  view.setTimeout(cleanup, 0);
-  return true;
 }

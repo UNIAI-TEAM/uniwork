@@ -8,6 +8,7 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import type { OpenFailureClass, OpenOutcome } from "@uniwork/office-contracts";
+import type { OfficePrintPort } from "../print";
 
 /** A selection reported by the G3-01 host. The adapter owns the document
  * model; the view only keeps the identifier needed to label the active target. */
@@ -104,6 +105,9 @@ export interface DocxEditorProps<TSnapshot = unknown> {
   showDocumentControls?: boolean;
   onOpen?: (outcome: DocxOpenOutcome) => void;
   onSelectionChange?: (selection: DocxSelection | null) => void;
+  /** UNI-952: the host print path (desktop: createDesktopPrintPort). Defaults to
+   * the web browser port, which prints an isolated frame holding the copy. */
+  printPort?: OfficePrintPort;
 }
 
 export type DocxViewState = "opening" | "ready" | "error";

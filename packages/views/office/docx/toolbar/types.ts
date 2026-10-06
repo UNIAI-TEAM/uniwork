@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { OfficePrintPort } from "../../print";
 import type { RibbonItem } from "../../ribbon";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "../commands";
 import type { DocxEditorHandle, DocxSaveCoordinator, DocxSelection } from "../types";
@@ -30,6 +31,9 @@ export interface DocxToolbarGroupContext {
   onUndo: () => void;
   onRedo: () => void;
   onSave?: () => void;
+  /** UNI-952: the injected print port and the printed title. Absent = the host
+   * cannot print, so no Print entry is offered anywhere. */
+  print?: { port: OfficePrintPort; title: string };
 }
 
 export interface DocxToolbarGroup {

@@ -19,8 +19,9 @@ import {
 export interface DocxExportPdfDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opens the browser print dialog; the caller keeps the guidance open state. */
-  onPrint: () => void;
+  /** Prints the document copy (UNI-952); absent when the host has no print
+   * port, so the dialog offers no dead Print button. */
+  onPrint?: () => void;
 }
 
 export function DocxExportPdfDialog({ open, onOpenChange, onPrint }: DocxExportPdfDialogProps) {
@@ -37,9 +38,11 @@ export function DocxExportPdfDialog({ open, onOpenChange, onPrint }: DocxExportP
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.close")}
           </Button>
-          <Button type="button" onClick={() => onPrint()} data-testid="docx-export-pdf-print">
-            {t("office.docx.export.pdf.print")}
-          </Button>
+          {onPrint ? (
+            <Button type="button" onClick={() => onPrint()} data-testid="docx-export-pdf-print">
+              {t("office.docx.export.pdf.print")}
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

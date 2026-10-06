@@ -1,0 +1,111 @@
+"use client";
+
+// UNI-952 (E-docx): the one DOCX print entry point. The View ribbon (Export and
+// print > Print), the Export-PDF dialog's Print button, the page header's
+// overflow-menu item and Ctrl/Cmd+P all call `runDocxPrint`, which builds the
+// document copy (./docx-print) from the CURRENT format state and hands it to
+// the injected port. Outcomes: `cancelled` is silent, `print_busy` shows the
+// neutral "already open" status, any other failure the generic error. There
+// is no automatic retry, and a second request while one is pending is ignored.
+// A host without a port gets no entry at all (`context.print` absent).
+
+import { Printer } from "lucide-react";
+import { useEffect, useSyncExternalStore } from "react";
+import { useTranslation } from "react-i18next";
+import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
+import { isPrintBusy } from "../../print";
+import { createRibbonController } from "../toolbar/groups/ribbon-open-store";
+import type { DocxToolbarGroupContext } from "../toolbar/types";
+import { printDocxDocument } from "./docx-print";
+
+/** i18next keys this module reads. */
+const DOCX_PRINT_KEYS = {
+  // Format-neutral print label; switches to office.common.print once it lands.
+  menuItem: "office.markdown.print.title",
+  busy: "office.docx.export.printBusy",
+  failed: "office.docx.export.printFailed",
+} as const;
+
+type DocxPrintNoticeKind = "busy" | "failed";
+
+const printNotice = createRibbonController<DocxPrintNoticeKind | null>(null);
+let pending = false;
+
+/** How long a print notice stays before it clears itself. */
+const NOTICE_MS = 6000;
+
+type DocxPrintContext = Pick<DocxToolbarGroupContext, "commands" | "print">;
+
+/** Build the copy from the live document and print it through the injected port. */
+export async function runDocxPrint(context: DocxPrintContext): Promise<void> {
+  const { commands, print } = context;
+  if (!commands || !print || pending) return;
+  pending = true;
+  printNotice.set(null);
+  try {
+    const outcome = await printDocxDocument({
+      port: print.port,
+      title: print.title,
+      buildCopy: () => {
+        // Read the state at click time: the page-setup dialog may have just changed a section.
+        const state = commands.getState();
+        return commands.buildDocxPrintCopy({
+          title: print.title,
+          sections: state.docxPageSetup?.sections ?? null,
+          headerFooter: state.docxHeaderFooter ?? null,
+        });
+      },
+    });
+    if (outcome.outcome === "failed") printNotice.set(isPrintBusy(outcome) ? "busy" : "failed");
+  } finally {
+    pending = false;
+  }
+}
+
+interface DocxPrintMenuItemProps extends DocxPrintContext {
+  /** A document is open (`docxExportReady`). */
+  ready: boolean;
+}
+
+/** The page header overflow-menu entry. Render it only when `print` is set. */
+export function DocxPrintMenuItem({ ready, ...context }: DocxPrintMenuItemProps) {
+  const { t } = useTranslation();
+  const disabled = !context.commands || !ready;
+  return (
+    <DropdownMenuItem
+      className="gap-2 px-2 py-2"
+      data-testid="docx-header-print"
+      disabled={disabled}
+      onClick={() => {
+        void runDocxPrint(context);
+      }}
+    >
+      <Printer aria-hidden className="size-3.5" />
+      {t(DOCX_PRINT_KEYS.menuItem)}
+    </DropdownMenuItem>
+  );
+}
+
+/** The print outcome line: a polite status that survives on both hosts (no toast provider assumed). */
+export function DocxPrintNotice() {
+  const { t } = useTranslation();
+  const notice = useSyncExternalStore(printNotice.subscribe, printNotice.get, printNotice.get);
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = setTimeout(() => printNotice.set(null), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  return (
+    <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-12 z-50 flex justify-center px-4">
+      {notice ? (
+        <p
+          data-testid="docx-print-notice"
+          data-print-notice={notice}
+          className="max-w-md rounded-md border border-border bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md"
+        >
+          {t(notice === "busy" ? DOCX_PRINT_KEYS.busy : DOCX_PRINT_KEYS.failed)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
