@@ -9790,6 +9790,7 @@
           "edit": "Edit rule: {{rule}}",
           "editTitle": "Edit rule",
           "editUnsupported": "This kind of rule can't be edited here. Delete it and add a new one, or edit it in Excel.",
+          "editLinked": "This rule carries Excel-only settings (such as a data bar's extras) that are saved as they are, so it can't be edited here. Delete it and add a new one, or edit it in Excel.",
           "moveUp": "Move rule up: {{rule}}",
           "moveUpTitle": "Move up",
           "moveDown": "Move rule down: {{rule}}",

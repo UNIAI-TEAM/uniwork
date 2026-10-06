@@ -9784,6 +9784,7 @@
           "edit": "Sửa quy tắc: {{rule}}",
           "editTitle": "Sửa quy tắc",
           "editUnsupported": "Loại quy tắc này chưa sửa được tại đây. Hãy xóa rồi thêm quy tắc mới, hoặc sửa trong Excel.",
+          "editLinked": "Quy tắc này có thiết lập riêng của Excel (như phần mở rộng của thanh dữ liệu) được giữ nguyên khi lưu, nên chưa sửa được tại đây. Hãy xóa rồi thêm quy tắc mới, hoặc sửa trong Excel.",
           "moveUp": "Chuyển quy tắc lên: {{rule}}",
           "moveUpTitle": "Chuyển lên",
           "moveDown": "Chuyển quy tắc xuống: {{rule}}",
