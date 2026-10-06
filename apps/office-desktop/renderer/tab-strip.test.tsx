@@ -82,19 +82,45 @@ it("selects an overflow document and offers workspace/sign-out in the account me
   expect(actions.onSignOut).toHaveBeenCalledOnce();
 });
 
-it("maps the mouse wheel to horizontal overflow and reveals the selected tab", () => {
-  const scrollIntoView = vi.fn();
-  const previous = HTMLElement.prototype.scrollIntoView;
-  HTMLElement.prototype.scrollIntoView = scrollIntoView;
+it("maps the mouse wheel to horizontal overflow", () => {
+  const { container } = render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...callbacks()} />);
+  const scroller = container.querySelector("[data-desktop-tab-scroll]")!;
+  Object.defineProperties(scroller, { scrollWidth: { value: 800 }, clientWidth: { value: 200 } });
+  fireEvent.wheel(scroller, { deltaY: 100 });
+  expect(scroller.scrollLeft).toBe(100);
+});
+
+it("scrolls the whole active tab into the strip on activation and when the strip resizes", () => {
+  const resizeCallbacks: (() => void)[] = [];
+  vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resizeCallbacks.push(callback); } observe() {} disconnect() {} });
   try {
-    const { container, rerender } = render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...callbacks()} />);
-    const scroller = container.querySelector("[data-desktop-tab-scroll]")!;
-    Object.defineProperties(scroller, { scrollWidth: { value: 800 }, clientWidth: { value: 200 } });
-    fireEvent.wheel(scroller, { deltaY: 100 });
-    expect(scroller.scrollLeft).toBe(100);
+    // 3 tabs of 220 px in a 300 px strip that starts at x = 100.
+    const box = (left: number, width: number) => () => ({ left, right: left + width, width, top: 0, bottom: 32, height: 32, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const place = (container: HTMLElement, scrollLeft: number) => {
+      const scroller = container.querySelector<HTMLElement>("[data-desktop-tab-scroll]")!;
+      scroller.getBoundingClientRect = box(100, 300);
+      container.querySelectorAll<HTMLElement>(".desktop-document-tab").forEach((tab, index) => { tab.getBoundingClientRect = box(100 + index * 220 - scrollLeft, 220); });
+      return scroller;
+    };
+    const { container, rerender } = render(<DesktopTabStrip tabs={tabs} activeTabId={null} {...callbacks()} />);
+    const scroller = place(container, 0);
+    expect(scroller.scrollLeft).toBe(0);
+    // Tab c spans 540-760 in a strip ending at 400: it scrolls right by exactly the overflow.
     rerender(<DesktopTabStrip tabs={tabs} activeTabId="c" {...callbacks()} />);
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
-  } finally { HTMLElement.prototype.scrollIntoView = previous; }
+    expect(scroller.scrollLeft).toBe(360);
+    // Tab a now sits 360 px left of the strip's edge: activating it scrolls back.
+    place(container, 360);
+    rerender(<DesktopTabStrip tabs={tabs} activeTabId="a" {...callbacks()} />);
+    expect(scroller.scrollLeft).toBe(0);
+    place(container, 0);
+    rerender(<DesktopTabStrip tabs={tabs} activeTabId="b" {...callbacks()} />);
+    expect(scroller.scrollLeft).toBe(140);
+    // A narrower strip (window resize) clips tab b on the right: the resize observer pulls it back in.
+    place(container, 140);
+    scroller.getBoundingClientRect = box(100, 200);
+    resizeCallbacks.at(-1)!();
+    expect(scroller.scrollLeft).toBe(220);
+  } finally { vi.unstubAllGlobals(); }
 });
 
 it("keeps signed-out chrome free of account/document actions and shortcuts", () => {

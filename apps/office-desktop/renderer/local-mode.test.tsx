@@ -6,6 +6,7 @@ import type { DesktopSessionMetadata, RecentFile } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
 import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
 import { settleDocxSessions } from "../test/settle-sessions";
+import { supportedFormatsLabel } from "./supported-formats";
 
 installDocxGeometry();
 const fixtureBase64 = Buffer.from(docxSource).toString("base64");
@@ -350,7 +351,7 @@ it("shows a dismissible unsupported alert for a .txt pick and opens no tab", asy
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   const alert = await screen.findByRole("alert");
-  expect(alert).toHaveTextContent(i18n.t("officeDesktop.local.unsupported"));
+  expect(alert).toHaveTextContent(i18n.t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) }));
   expect(screen.queryAllByRole("tab")).toHaveLength(1);
   fireEvent.click(within(alert).getByRole("button", { name: i18n.t("officeDesktop.tabs.dismissAlert") }));
   expect(screen.queryByRole("alert")).toBeNull();
@@ -369,7 +370,7 @@ it.each([
   ["a locked file", { opened: false, code: "file_locked" }, () => i18n.t("office.save.reason.file_locked")],
   ["an oversized file", { opened: false, code: "file_too_large" }, () => i18n.t("office.save.reason.file_too_large")],
   ["a linked file", { opened: false, code: "file_access_denied" }, () => i18n.t("office.save.reason.file_access_denied")],
-  ["an unsupported format", { opened: false, unsupported: true }, () => i18n.t("officeDesktop.local.unsupported")],
+  ["an unsupported format", { opened: false, unsupported: true }, () => i18n.t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) })],
   ["a code from a newer main", { opened: false, code: "file_from_a_newer_main" }, () => i18n.t("officeDesktop.library.actionError")],
   ["a transport failure", new Error("boom"), () => i18n.t("officeDesktop.library.actionError")],
 ])("says why a dropped file was refused: %s", async (_label, drop, expected) => {
@@ -395,7 +396,7 @@ it("rejects an opened file whose extension is outside the format table", async (
   const h = harness({ localMode: true, pick: { opened: true, metadata: fileMeta(`file_${"9".repeat(32)}`, "page.xhtml"), dataBase64: "AAAA" } });
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
-  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("officeDesktop.local.unsupported"));
+  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) }));
   expect(screen.queryAllByRole("tab")).toHaveLength(1);
 });
 

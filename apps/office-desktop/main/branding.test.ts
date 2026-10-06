@@ -1,9 +1,9 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "../shared/identity";
-import { APP_USER_MODEL_ID, BRAND_PRODUCT_NAME, aboutPanelOptions, applyAppBranding, brandIconPath, brandWindowTitle, formatWindowTitle, printWindowTitle, type BrandableApp } from "./branding";
+import { APP_USER_MODEL_ID, BRAND_PRODUCT_NAME, aboutIconPath, aboutPanelOptions, applyAppBranding, brandIconPath, brandWindowTitle, formatWindowTitle, printWindowTitle, type BrandableApp } from "./branding";
 // @ts-expect-error -- the packaging script is plain ESM without declarations.
 import { createPackagerConfig } from "../scripts/package.mjs";
 
@@ -70,6 +70,16 @@ describe("desktop branding", () => {
     expect(brandIconPath("darwin", "/dist")).toBe(join("/dist", "icons", "icon.png"));
   });
 
+  it("hands the About panel a png sibling of the window icon, never the .ico it ignores", () => {
+    // Windows shows the system "i" icon when iconPath is an .ico.
+    expect(aboutIconPath("win32", brandIconPath("win32", "/dist"))).toBe(join("/dist", "icons", "icon.png"));
+    expect(aboutIconPath("linux", "/dist/icons/icon.png")).toBe("/dist/icons/icon.png");
+    expect(aboutIconPath("darwin", "/dist/icons/icon.png")).toBeUndefined();
+    expect(aboutIconPath("win32", undefined)).toBeUndefined();
+    const build = readFileSync(join(appDirectory, "scripts", "build.mjs"), "utf8");
+    expect(build).toContain('join(dist, "icons", "icon.png")');
+  });
+
   it("ships the icon sources the build and the installer read", () => {
     for (const file of ["icon.ico", "icon.png", "icons/16x16.png", "icons/256x256.png", "icons/512x512.png"]) {
       expect(existsSync(join(appDirectory, "build", file)), file).toBe(true);
@@ -79,7 +89,7 @@ describe("desktop branding", () => {
   it("brands the process per platform before any window exists", () => {
     const win = fakeApp();
     applyAppBranding(win, "win32", "C:/dist/icons/icon.ico");
-    expect(win.calls).toEqual([`name:${BRAND_PRODUCT_NAME}`, `aumid:${APP_USER_MODEL_ID}`, `about:${BRAND_PRODUCT_NAME}:C:/dist/icons/icon.ico`]);
+    expect(win.calls).toEqual([`name:${BRAND_PRODUCT_NAME}`, `aumid:${APP_USER_MODEL_ID}`, `about:${BRAND_PRODUCT_NAME}:C:/dist/icons/icon.png`]);
 
     // Linux keeps the packaged name so WM_CLASS still matches StartupWMClass.
     const linux = fakeApp();

@@ -7,6 +7,7 @@ import { CollectionPageHeader } from "@uniwork/views/layout/collection-page";
 import { desktopDocumentFormatForName, type DesktopDocumentFormat } from "../shared/document-formats";
 import type { RecentFile } from "../shared/ipc";
 import { CreateDocumentMenu } from "./create-document-menu";
+import { supportedFormatsLabel } from "./supported-formats";
 
 const HomeIcon: ComponentProps<typeof CollectionPageHeader>["icon"] = forwardRef((props, ref) => (
   <svg ref={ref} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /></svg>
@@ -47,7 +48,7 @@ export function LocalHomeView({ files, error = false, busy = false, onOpen, onCr
           <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center" role="status">
             <DocumentTypeIcon format="file" className="size-12 text-muted-foreground" />
             <h2 className="text-title font-semibold">{t("empty")}</h2>
-            <p className="max-w-sm text-body text-muted-foreground">{t("emptyDescription")}</p>
+            <p className="max-w-sm text-body text-muted-foreground">{t("emptyDescription", { formats: supportedFormatsLabel(i18n.language) })}</p>
             {actions}
           </div>
         ) : (

@@ -79,6 +79,14 @@ export function aboutPanelOptions(options: { iconPath?: string; website?: string
   };
 }
 
+/** Electron's About panel reads `iconPath` as a JPEG or PNG, never an .ico: handed
+ * the window's .ico on Windows it falls back to the system "i" icon. build.mjs
+ * copies the brand png beside the .ico, so the About panel takes that sibling. */
+export function aboutIconPath(platform: NodeJS.Platform, iconPath: string | undefined): string | undefined {
+  if (platform === "darwin" || !iconPath) return undefined;
+  return iconPath.replace(/\.ico$/i, ".png");
+}
+
 export type BrandableApp = {
   setName(name: string): void;
   setAppUserModelId(id: string): void;
@@ -98,7 +106,7 @@ export type BrandableApp = {
 export function applyAppBranding(app: BrandableApp, platform: NodeJS.Platform, iconPath?: string): void {
   if (platform !== "linux") app.setName(BRAND_PRODUCT_NAME);
   if (platform === "win32") app.setAppUserModelId(APP_USER_MODEL_ID);
-  app.setAboutPanelOptions(aboutPanelOptions({ iconPath: platform === "darwin" ? undefined : iconPath }));
+  app.setAboutPanelOptions(aboutPanelOptions({ iconPath: aboutIconPath(platform, iconPath) }));
   if (platform === "darwin" && !app.isPackaged && iconPath) app.dock?.setIcon(iconPath);
 }
 

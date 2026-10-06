@@ -4,6 +4,7 @@ import i18n from "i18next";
 import { expect, it, vi } from "vitest";
 import type { RecentFile } from "../shared/ipc";
 import { LocalHomeView } from "./local-home";
+import { supportedFormatsLabel } from "./supported-formats";
 
 const row = (overrides: Partial<RecentFile> = {}): RecentFile => ({ id: `recent_${"a".repeat(32)}`, name: "Plan.docx", directory: "…\\Docs", modifiedAtMs: 1, updatedAt: 2, missing: false, ...overrides });
 const actions = () => ({ onOpen: vi.fn(), onCreate: vi.fn(), onOpenRecent: vi.fn(), onRemoveRecent: vi.fn(), onRetry: vi.fn() });
@@ -18,7 +19,7 @@ it("shows the empty illustration with both primary actions", async () => {
   const callbacks = actions();
   render(<LocalHomeView files={[]} {...callbacks} />);
   expect(screen.getByText(i18n.t("officeDesktop.local.empty"))).toBeInTheDocument();
-  expect(screen.getByText(i18n.t("officeDesktop.local.emptyDescription"))).toBeInTheDocument();
+  expect(screen.getByText(i18n.t("officeDesktop.local.emptyDescription", { formats: supportedFormatsLabel(i18n.language) }))).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.create") }));
   fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(i18n.t("officeDesktop.tabs.createHtml")) }));

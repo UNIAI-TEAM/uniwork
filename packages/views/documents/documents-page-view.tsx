@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FilePlus2, FileText, FileWarning, FolderTree, Upload } from "lucide-react";
+import { FilePlus2, FileText, FolderTree, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -15,7 +15,6 @@ import {
   useSharedWithMe,
 } from "@uniwork/core/documents/hooks-collections";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
-import { useFlag } from "@uniwork/core/feature-flags";
 import type { DocumentList } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -29,10 +28,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components
 import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
-  CollectionPageState,
 } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
 import { DocumentTree, DocumentTreeSheet } from "./document-tree";
+import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 
@@ -119,7 +118,8 @@ function infiniteState(q: {
  */
 export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
   const { t } = useTranslation();
-  const enabled = useFlag("documents", false);
+  const { gate, retry: retryGate } = useDocumentsGate();
+  const enabled = gate === "on";
   const createPage = useCreateDocument(wsId);
   const createFile = useCreateDocumentFile(wsId);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -277,13 +277,8 @@ export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
         }
       />
 
-      {!enabled ? (
-        <CollectionPageState
-          icon={FileWarning}
-          title={t("documents.page.off_title")}
-          description={t("documents.page.off_description")}
-          role="status"
-        />
+      {gate !== "on" ? (
+        <DocumentsGateState gate={gate} retry={retryGate} />
       ) : (
         <div className="flex min-h-0 flex-1">
           <aside className="hidden w-64 shrink-0 overflow-hidden border-r border-border xl:block">

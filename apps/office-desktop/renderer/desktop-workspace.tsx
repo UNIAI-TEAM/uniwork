@@ -14,6 +14,7 @@ import { OpenXlsxDocument } from "./office/xlsx-surface";
 import { DOCUMENT_TAB_LIMIT } from "./tabs/tab-model";
 import { isDocumentDirty, isXlsxTabSession, useDocumentTabs, type CloudReopen, type ReadOnlyReason, type TabDocument } from "./tabs/use-document-tabs";
 import { RecoveryNotice } from "./recovery-status";
+import { supportedFormatsLabel } from "./supported-formats";
 import { WorkspaceAlerts } from "./workspace-alert";
 import { DesktopShell } from "./desktop-shell";
 import { DesktopTabStrip } from "./tab-strip";
@@ -60,7 +61,7 @@ export interface DesktopWorkspaceProps {
  * the signed-in account; local device tabs and their protected drafts survive
  * sign-in and sign-out because this component never unmounts for a mode change. */
 export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLockedReason, onLoginStart, onLoginCancel, onUseLocal, onSignIn, onLogout }: DesktopWorkspaceProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const signedIn = mode === "signed-in" && Boolean(metadata);
   const tabs = useDocumentTabs(bridge);
   const currentTabs = tabs.current;
@@ -208,7 +209,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       // Typed non-throwing answers: a recent whose file vanished and a pick
       // outside the shared format table each get their own copy.
       if (result.missing) setActionError(t("officeDesktop.local.missing"));
-      else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported"));
+      else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) }));
       // A refused file names why (office.save.reason.<code>); a missing or
       // unknown code keeps the generic copy.
       else if (result.code !== undefined) setActionError(t(`office.save.reason.${result.code}`, { defaultValue: t("officeDesktop.library.actionError") }));
@@ -218,7 +219,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     if (!result.metadata || result.dataBase64 === undefined) throw new Error("invalid_file");
     const file = result.metadata;
     const format = desktopDocumentFormatForName(file.name);
-    if (!format) { setActionError(t("officeDesktop.local.unsupported")); return; }
+    if (!format) { setActionError(t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) })); return; }
     const spec = desktopDocumentFormatSpec(format);
     const title = file.untitled ? (spec.untitledLocaleKey ? t(spec.untitledLocaleKey) : spec.untitledName) : file.name;
     if (tabs.open({ kind: "local", title, format, bytes: { format, dataBase64: result.dataBase64, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));

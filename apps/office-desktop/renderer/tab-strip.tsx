@@ -78,7 +78,20 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
   }, [signedOut]);
 
   useEffect(() => {
-    const reveal = () => barRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    // Scroll the whole active tab (select button, state dot and close button)
+    // into the strip. Only the strip's own scrollLeft moves: scrollIntoView on
+    // the inner button left the close button clipped and could scroll ancestors.
+    const reveal = () => {
+      const strip = scrollRef.current;
+      const active = strip?.querySelector<HTMLElement>('.desktop-document-tab[data-active="true"]');
+      if (!strip || !active) return;
+      const bounds = strip.getBoundingClientRect();
+      const tab = active.getBoundingClientRect();
+      let delta = Math.max(0, tab.right - bounds.right);
+      // The tab's left edge wins when the tab is wider than the strip.
+      if (tab.left - delta < bounds.left) delta = tab.left - bounds.left;
+      if (delta !== 0) strip.scrollLeft += delta;
+    };
     reveal();
     const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(reveal);
     if (scrollRef.current) observer?.observe(scrollRef.current);
