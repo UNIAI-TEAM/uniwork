@@ -283,14 +283,16 @@ export function ingestCellMutation(
 
 export interface ValidatedWriteGate {
   /** An editor commit on `sheetId` is about to run: hold its cell edits. */
-  begin(state: LazyWorkbookState | null, sheetId: string): void;
+  begin(state: LazyWorkbookState | null, sheetId: string, cell?: { row: number; column: number }): void;
   /** Returns the edits that may be emitted now (the held sheet's cell edits are kept back). */
   capture(edits: XlsxRendererCellEdit[]): XlsxRendererCellEdit[];
   /** The validation verdict of the pending commit is on its way; call the
    *  returned function with it, or null when nothing is pending. A verdict
    *  for another sheet (`sheetId` given and not the pending write's) is not
-   *  the pending write's and gets null too (review-session n-1). */
-  awaitVerdict(sheetId?: string): ((accepted: boolean) => void) | null;
+   *  the pending write's and gets null too (review-session n-1); so does a
+   *  verdict for another cell when the commit's cell is known (a paste or an
+   *  autofill validates several cells of one sheet in one tick, X2). */
+  awaitVerdict(sheetId?: string, cell?: { row: number; column: number }): ((accepted: boolean) => void) | null;
   /** True while the rollback of a refused commit on `sheetId` runs. */
   isRollback(sheetId: string): boolean;
 }
@@ -298,9 +300,19 @@ export interface ValidatedWriteGate {
 interface PendingValidatedWrite {
   state: LazyWorkbookState;
   sheetId: string;
+  cell: { row: number; column: number } | undefined;
   before: Map<string, JournalEntry> | undefined;
   held: XlsxRendererCellEdit[];
   awaited: boolean;
+}
+
+/** The cell an editor commit writes: its set-range-values range is that one
+ *  cell (Univer 0.25.1 `_submitEdit`), and the verdict that matters is the one
+ *  asked for the same cell. Any other shape names no cell. */
+export function editorCommitCell(range: unknown): { row: number; column: number } | undefined {
+  const at = range as Partial<AxisRange> | null | undefined;
+  if (typeof at?.startRow !== "number" || typeof at.startColumn !== "number") return undefined;
+  return at.startRow === at.endRow && at.startColumn === at.endColumn ? { row: at.startRow, column: at.startColumn } : undefined;
 }
 
 export function createValidatedWriteGate(emit: (edits: XlsxRendererCellEdit[]) => void): ValidatedWriteGate {
@@ -330,12 +342,12 @@ export function createValidatedWriteGate(emit: (edits: XlsxRendererCellEdit[]) =
   };
 
   return {
-    begin(state, sheetId) {
+    begin(state, sheetId, cell) {
       if (pending) settle(pending, true);
       if (!state) return;
       const journaled = state.editJournal.cells.get(sheetId);
       const write: PendingValidatedWrite = {
-        state, sheetId, before: journaled ? new Map(journaled) : undefined, held: [], awaited: false,
+        state, sheetId, cell, before: journaled ? new Map(journaled) : undefined, held: [], awaited: false,
       };
       pending = write;
       // The editor asks for the verdict in the same tick as the command; when
@@ -350,9 +362,10 @@ export function createValidatedWriteGate(emit: (edits: XlsxRendererCellEdit[]) =
       write.held.push(...held);
       return edits.filter((edit) => edit.sheetId !== write.sheetId);
     },
-    awaitVerdict(sheetId) {
+    awaitVerdict(sheetId, cell) {
       const write = pending;
       if (!write || (sheetId !== undefined && sheetId !== write.sheetId)) return null;
+      if (write.cell && cell && (cell.row !== write.cell.row || cell.column !== write.cell.column)) return null;
       write.awaited = true;
       return (accepted) => settle(write, accepted);
     },
@@ -381,7 +394,9 @@ export function observeValidationVerdicts(source: ValidateCellSource, gate: Vali
     // Univer 0.25.1: onValidateCell(workbook, worksheet, row, col).
     const worksheet = args[1] as { getSheetId?: unknown } | null | undefined;
     const sheetId = typeof worksheet?.getSheetId === "function" ? (worksheet.getSheetId as () => unknown)() : undefined;
-    const settle = gate.awaitVerdict(typeof sheetId === "string" ? sheetId : undefined);
+    const [row, column] = [args[2], args[3]];
+    const cell = typeof row === "number" && typeof column === "number" ? { row, column } : undefined;
+    const settle = gate.awaitVerdict(typeof sheetId === "string" ? sheetId : undefined, cell);
     if (settle) Promise.resolve(verdict).then((accepted) => settle(accepted !== false), () => settle(true));
     return verdict;
   };

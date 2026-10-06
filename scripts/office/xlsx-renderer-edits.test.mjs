@@ -38,7 +38,7 @@ new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.ex
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
   snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, outlineLevels, outlineHistoryItem, outlineDetailSpan, seedColumnOutline, seedRowOutline, liveSessionSheets,
   sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
-  sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate, observeValidationVerdicts } = module.exports;
+  sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate, observeValidationVerdicts, editorCommitCell } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
@@ -231,6 +231,45 @@ test('a validation of another sheet does not settle the pending write (review-se
   assert.equal(await own, true);
   assert.equal(gate.isRollback('s1'), false);
   assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
+});
+
+test('a validation of another cell of the same sheet does not settle the pending write (review-delta-r2 X2)', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  const sheet = { getSheetId: () => 's1' };
+  // A paste or an autofill validates several cells of one sheet in one tick;
+  // only the committed cell A1 (0, 0) is refused here as the pending write's.
+  const service = { onValidateCell(_workbook, _worksheet, row, column) { return Promise.resolve(!(row === 5 && column === 5)); } };
+  observeValidationVerdicts(service, gate);
+  gate.begin(model, 's1', { row: 0, column: 0 });
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Mot' } } }))), []);
+  const other = service.onValidateCell({}, sheet, 5, 5);
+  const own = service.onValidateCell({}, sheet, 0, 0);
+  assert.equal(await other, false);
+  assert.equal(await own, true);
+  assert.equal(gate.isRollback('s1'), false);
+  assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
+});
+
+test('an editor commit names its cell only when its range is exactly one cell (review-delta-r2 X2)', () => {
+  assert.deepEqual(editorCommitCell({ startRow: 3, endRow: 3, startColumn: 4, endColumn: 4 }), { row: 3, column: 4 });
+  assert.equal(editorCommitCell({ startRow: 3, endRow: 4, startColumn: 4, endColumn: 4 }), undefined);
+  assert.equal(editorCommitCell({ startRow: 3, endRow: 3 }), undefined);
+  assert.equal(editorCommitCell(undefined), undefined);
+  assert.equal(editorCommitCell('A1'), undefined);
+});
+
+test('a pending write without a known cell keeps taking the first verdict of its sheet (review-delta-r2 X2)', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  const service = { onValidateCell() { return Promise.resolve(true); } };
+  observeValidationVerdicts(service, gate);
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Mot' } } }))), []);
+  await service.onValidateCell({}, { getSheetId: () => 's1' }, 4, 4);
+  assert.equal(emitted.length, 1);
 });
 
 test('observeValidationVerdicts leaves a validation with no pending commit alone and restores on dispose', async () => {

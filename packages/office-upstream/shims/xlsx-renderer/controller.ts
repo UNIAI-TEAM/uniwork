@@ -56,6 +56,7 @@ import {
   hyperlinkEdit,
   intersectMergeRanges,
   selectsOneMergedCell,
+  editorCommitCell,
   isSheetMutation,
   liveSessionSheets,
   seedColumnOutline,
@@ -716,11 +717,11 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     // The editor commit is the only set-range-values carrying a redo/undo id;
     // it validates after it writes, so its edits wait for the verdict.
     const write = event.id === "sheet.command.set-range-values"
-      ? event.params as { unitId?: string; subUnitId?: string; redoUndoId?: unknown } | undefined
+      ? event.params as { unitId?: string; subUnitId?: string; redoUndoId?: unknown; range?: unknown } | undefined
       : undefined;
     if (write && typeof write.redoUndoId === "string" && write.unitId && write.subUnitId &&
         sheetHasDataValidation(runtime, write.unitId, write.subUnitId)) {
-      validatedWrites.begin(lazyWorkbookRef.current, write.subUnitId);
+      validatedWrites.begin(lazyWorkbookRef.current, write.subUnitId, editorCommitCell(write.range));
     }
   }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeSheetEditStart, (event) => {
