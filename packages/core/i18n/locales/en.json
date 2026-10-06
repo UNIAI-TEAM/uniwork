@@ -9713,7 +9713,8 @@
         "capabilityUnavailable": "XLSX editing is not available here.",
         "rendererFailed": "This workbook could not be displayed. Try opening it again.",
         "editFailed": "This edit could not be applied. Reopen the workbook before saving.",
-        "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again."
+        "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again.",
+        "richPasteValuesOnly": "Formatting could not be kept for this paste, so only the values were pasted."
       },
       "find": {
         "title": "Find and replace",
@@ -11618,6 +11619,7 @@
       "emptySearchDescription": "No documents match your search.",
       "fileOpenQueued": "The file will open after you close the current document.",
       "actionError": "The action could not be completed. Try again.",
+      "printBusy": "A print dialog is already open. Finish or close it first.",
       "back": "Back to library",
       "untitled": "Untitled.docx",
       "saveLocal": "Save file",

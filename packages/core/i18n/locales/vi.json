@@ -9707,7 +9707,8 @@
         "capabilityUnavailable": "Chưa thể chỉnh sửa sổ tính XLSX này.",
         "rendererFailed": "Không thể hiển thị sổ tính. Thử mở lại.",
         "editFailed": "Không thể áp dụng thay đổi này. Mở lại sổ tính trước khi lưu.",
-        "clipboardFailed": "Không thể truy cập bảng tạm. Kiểm tra quyền của trình duyệt rồi thử lại."
+        "clipboardFailed": "Không thể truy cập bảng tạm. Kiểm tra quyền của trình duyệt rồi thử lại.",
+        "richPasteValuesOnly": "Không giữ được định dạng khi dán nên chỉ dán giá trị."
       },
       "find": {
         "title": "Tìm và thay thế",
@@ -11594,6 +11595,7 @@
       "emptySearchDescription": "Không có tài liệu nào khớp từ khóa tìm kiếm.",
       "fileOpenQueued": "Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.",
       "actionError": "Không thể thực hiện thao tác. Thử lại.",
+      "printBusy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
       "back": "Về thư viện",
       "untitled": "Tài liệu mới.docx",
       "saveLocal": "Lưu tệp",
