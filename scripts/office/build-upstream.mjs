@@ -288,6 +288,7 @@ export async function run({ out, skipInstall, withNative, keep }) {
   const problems = checkVendored(manifest);
   if (problems.length) fail(record, 'provenance', JSON.stringify(problems.slice(0, 5)));
   record.steps.push({ step: 'provenance', status: 'pass', detail: `${provenance.fileCount} files match ${provenance.upstream.pinnedCommit.slice(0, 12)}` });
+  record.vendoredFilesDigest = provenance.integrity?.filesDigest ?? null;
 
   const scratch = path.resolve(out || DEFAULT_OUT);
   const scratchUpstream = path.join(scratch, 'upstream');

@@ -47,7 +47,7 @@ describeWithPatchedGateway("Excel linked x14 data bars under a CF snapshot (opti
     original = (await engine.readEntryText(excelDataBar(), SHEET1)) ?? "";
   });
 
-  const saved = async (ops: readonly Record<string, unknown>[]) =>
+  const saved = async (ops: Record<string, unknown>[]) =>
     (await engine.readEntryText((await applyXlsxEditBytes(engine, undefined, excelDataBar(), ops)).bytes, SHEET1)) ?? "";
   const part = (pattern: RegExp, xml: string) => pattern.exec(xml)?.[0] ?? "missing";
 

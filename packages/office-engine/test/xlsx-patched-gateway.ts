@@ -23,11 +23,13 @@ const sha256Hex = (path: string): string => createHash("sha256").update(readFile
 interface BuildRecord {
   patchesApplied?: { patch?: string; sha256?: string }[];
   steps?: { step?: string; detail?: string }[];
+  vendoredFilesDigest?: string | null;
 }
 
 /**
  * Problems that make a built gateway bundle stale against the checkout: the
- * patch list/hashes in the build record, and the vendored upstream pin the
+ * patch list/hashes in the build record, the vendored upstream pin and the
+ * vendored-file digest (provenance integrity.filesDigest) the
  * record's provenance step saw. Empty array = fresh.
  */
 export function gatewayStaleness(paths: { patchesDir: string; recordPath: string; provenancePath: string }): string[] {
@@ -49,10 +51,12 @@ export function gatewayStaleness(paths: { patchesDir: string; recordPath: string
   for (const a of applied) if (a.patch && !current.includes(a.patch)) problems.push(`built bundle applied ${a.patch}, which no longer exists`);
   if (!problems.length && applied.map((a) => a.patch).join("\n") !== current.join("\n")) problems.push("patch order differs from the built bundle");
   if (existsSync(paths.provenancePath)) {
-    const prov = JSON.parse(readFileSync(paths.provenancePath, "utf8")) as { fileCount?: number; upstream?: { pinnedCommit?: string } };
+    const prov = JSON.parse(readFileSync(paths.provenancePath, "utf8")) as { fileCount?: number; upstream?: { pinnedCommit?: string }; integrity?: { filesDigest?: string } };
     const want = `${prov.fileCount} files match ${String(prov.upstream?.pinnedCommit).slice(0, 12)}`;
     const got = record.steps?.find((s) => s.step === "provenance")?.detail;
     if (got !== want) problems.push(`upstream provenance changed (bundle built with "${got ?? "none"}", checkout is "${want}")`);
+    const digest = prov.integrity?.filesDigest;
+    if (digest && record.vendoredFilesDigest !== digest) problems.push(`vendored upstream sources changed (bundle digest ${record.vendoredFilesDigest ?? "none"}, checkout ${digest})`);
   }
   return problems;
 }
