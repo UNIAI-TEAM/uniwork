@@ -1977,6 +1977,18 @@ func (q *Queries) LockOpenAttendance(ctx context.Context, participantID string) 
 	return i, err
 }
 
+const lockParticipantMediaLocks = `-- name: LockParticipantMediaLocks :exec
+SELECT pg_advisory_xact_lock(hashtextextended('meeting_participant_media:' || $1::text, 0))
+`
+
+// Serializes moderators changing one participant's media locks: each reads
+// the provider's current locks and writes the whole set back, so two at once
+// would otherwise lift the lock the other one set.
+func (q *Queries) LockParticipantMediaLocks(ctx context.Context, participantID string) error {
+	_, err := q.db.Exec(ctx, lockParticipantMediaLocks, participantID)
+	return err
+}
+
 const lockRoomSessionsOfParticipant = `-- name: LockRoomSessionsOfParticipant :exec
 SELECT pg_advisory_xact_lock(hashtextextended('meeting_attendance_sessions:' || $1::text, 0))
 `

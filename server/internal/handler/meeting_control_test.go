@@ -93,3 +93,34 @@ func TestJoinAfterRejectionNeedsRequestAgain(t *testing.T) {
 		t.Fatalf("request again: %d %v", res.StatusCode, out)
 	}
 }
+
+// The publish route takes an optional source; anything but the two known ones
+// is a 400 before any provider work, and the host's own share cannot be locked.
+func TestSetParticipantPublishSource(t *testing.T) {
+	f := setupChatFixture(t, "publishsrc")
+	res, out := doJSON(t, f.srv, "POST", "/api/v1/workspaces/"+f.wsID+"/meetings/instant", f.tokens["a"], map[string]string{"title": "Share lock"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("instant meeting: %d %v", res.StatusCode, out)
+	}
+	meetingID := out["meeting"].(map[string]any)["id"].(string)
+	if res, out = doJSON(t, f.srv, "POST", "/api/v1/meetings/"+meetingID+"/join", f.tokens["a"], map[string]any{}); res.StatusCode != http.StatusOK {
+		t.Fatalf("host join: %d %v", res.StatusCode, out)
+	}
+	_, out = doJSON(t, f.srv, "GET", "/api/v1/meetings/"+meetingID+"/attendance", f.tokens["a"], nil)
+	hostPID := out["rows"].([]any)[0].(map[string]any)["participant_id"].(string)
+	path := "/api/v1/meetings/" + meetingID + "/participants/" + hostPID + "/publish"
+
+	res, out = doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]any{"enabled": false, "source": "camera"})
+	if res.StatusCode != http.StatusBadRequest || out["error"].(map[string]any)["code"] != "invalid_request" {
+		t.Fatalf("unknown source: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]any{"enabled": false, "source": "screen_share"})
+	if res.StatusCode != http.StatusConflict || out["error"].(map[string]any)["code"] != "cannot_lock_host_share" {
+		t.Fatalf("host share: %d %v", res.StatusCode, out)
+	}
+	// No source is the microphone, as before the field existed.
+	res, out = doJSON(t, f.srv, "POST", path, f.tokens["a"], map[string]any{"enabled": false})
+	if res.StatusCode != http.StatusConflict || out["error"].(map[string]any)["code"] != "cannot_mute_host" {
+		t.Fatalf("host mic: %d %v", res.StatusCode, out)
+	}
+}

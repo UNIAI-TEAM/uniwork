@@ -5,9 +5,13 @@ type MediaPermissions struct {
 	CanSubscribe   bool
 	CanPublish     bool
 	CanPublishData bool
-	// MicrophoneLocked keeps publishing on for every source but the mic: the
-	// host locks someone's mic without taking their camera or share.
+	// MicrophoneLocked keeps publishing on for every source but the mic and
+	// shared-tab audio: the host locks someone's voice without taking their
+	// camera or the picture of their share.
 	MicrophoneLocked bool
+	// ScreenShareLocked takes the screen share and its audio: a live share
+	// stops and a new one is refused, while the mic and camera stay.
+	ScreenShareLocked bool
 }
 
 // MediaPermissionsForRole maps meeting participant roles to provider grants.

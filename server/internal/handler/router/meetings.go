@@ -78,7 +78,7 @@ func registerMeetings(r api, h Routes) {
 		summary: "Remove participant", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/participants/{participantID}/publish", h.SetParticipantPublish, apiOp{
-		summary: "Enable or revoke participant media publish (host)", tags: []string{"meetings"},
+		summary: "Lock or unlock a participant's microphone or screen share (host)", tags: []string{"meetings"},
 		sdi: sdi.SetParticipantPublishSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	r.Patch("/meetings/{meetingID}/participants/{participantID}", h.PatchParticipant, apiOp{

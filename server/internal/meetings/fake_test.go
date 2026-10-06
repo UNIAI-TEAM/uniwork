@@ -60,6 +60,24 @@ func TestFakeProviderCoversConferenceSurface(t *testing.T) {
 	if fp.UpdateCalls != 1 || fp.LastUpdate.Identity != "u" {
 		t.Fatalf("UpdateParticipant calls=%d last=%+v", fp.UpdateCalls, fp.LastUpdate)
 	}
+	// The fake remembers what was written, so a lock survives a later change.
+	if got, err := fp.GetParticipantPermissions(ctx, GetProviderParticipantRequest{RoomName: "r", Identity: "fresh"}); err != nil || got != (MediaPermissions{}) {
+		t.Fatalf("GetParticipantPermissions before any update = %+v %v", got, err)
+	}
+	locked := MediaPermissions{CanPublish: true, ScreenShareLocked: true}
+	if err := fp.UpdateParticipant(ctx, UpdateProviderParticipantRequest{RoomName: "r", Identity: "u", Permissions: locked}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := fp.GetParticipantPermissions(ctx, GetProviderParticipantRequest{RoomName: "r", Identity: "u"}); err != nil || got != locked {
+		t.Fatalf("GetParticipantPermissions = %+v %v", got, err)
+	}
+	fp.GetPermissionsErr = errors.New("get boom")
+	if _, err := fp.GetParticipantPermissions(ctx, GetProviderParticipantRequest{}); err == nil {
+		t.Fatal("expected GetPermissionsErr")
+	}
+	if fp.GetPermissionsCalls != 3 {
+		t.Fatalf("GetParticipantPermissions calls=%d", fp.GetPermissionsCalls)
+	}
 
 	if err := fp.EndSession(ctx, EndProviderSessionRequest{RoomName: "r"}); err != nil {
 		t.Fatal(err)
