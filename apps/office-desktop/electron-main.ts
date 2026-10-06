@@ -36,6 +36,7 @@ import { deviceScopeAccountId, resolveLocalDevice, LocalDeviceError } from "./ma
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
 import { createPrintHost } from "./main/print-host";
+import { installPrintShortcut } from "./main/print-shortcut";
 import type { DraftIdentity, DraftSession } from "../../packages/core/office/draft-recovery";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
@@ -301,6 +302,7 @@ async function startElectronHost(): Promise<void> {
     ...nativeWindowOptions(process.platform, nativeTheme.shouldUseDarkColors),
   });
   if (process.platform !== "darwin") window.setMenuBarVisibility(false);
+  installPrintShortcut(window.webContents);
   let nativeSaveListener: (() => void) | undefined;
   // Local files always live under the stable `local:<device>` scope so their
   // protected drafts stay device-owned across sign-in and sign-out. Cloud work

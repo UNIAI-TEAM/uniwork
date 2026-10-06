@@ -96,3 +96,17 @@ it("delivers every buffered native file and launch in channel order after subscr
   expect(files).toHaveLength(5);
   expect(launches).toHaveLength(4);
 });
+
+it("forwards only a well-formed print request from main, and unsubscribes", () => {
+  let event: ((...args: unknown[]) => void) | undefined;
+  const removeListener = vi.fn();
+  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (channel, listener) => { if (channel === "desktop:office-print-requested") event = listener; }, removeListener });
+  const received = vi.fn();
+  const off = bridge.onOfficePrintRequested(received);
+  event?.({}, {});
+  event?.({}, { documentId: "file_x" });
+  expect(received).toHaveBeenCalledOnce();
+  off();
+  expect(removeListener).toHaveBeenCalledWith("desktop:office-print-requested", event);
+  expect(createPreloadBridge({ invoke: vi.fn() }).onOfficePrintRequested(received)()).toBeUndefined();
+});
