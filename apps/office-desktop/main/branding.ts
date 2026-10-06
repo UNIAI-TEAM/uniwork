@@ -17,15 +17,13 @@ export const BRAND_PRODUCT_NAME: string = channelIdentity.product;
  * channel profile is what scripts/package.mjs hands electron-builder. */
 export const APP_USER_MODEL_ID: string = channelIdentity.appId;
 
-/** Titles that mean "no document": the renderer's static `<title>`
- * (renderer/index.html) and the name Electron gives an untitled window. */
-const DEFAULT_TITLES = new Set(["UniWork Office", "Electron"]);
-
-type BrandedWindowKind = "main" | "print" | "dialog";
-
-function cleanTitle(value: string | undefined, product: string): string {
-  const title = value?.replace(/\s+/g, " ").trim() ?? "";
-  return title === product || DEFAULT_TITLES.has(title) ? "" : title;
+/** Only an empty title means "no document": the renderer leaves
+ * `document.title` empty on the home tab (renderer/window-title.ts) and in
+ * renderer/index.html, so a document named like the product, or literally
+ * "Electron", keeps its own name. The window is created with the product
+ * title, so nothing shows empty or "Electron" while the page loads. */
+function cleanTitle(value: string | undefined): string {
+  return value?.replace(/\s+/g, " ").trim() ?? "";
 }
 
 /** The title for a window of `kind`.
@@ -34,7 +32,7 @@ function cleanTitle(value: string | undefined, product: string): string {
  *   suggested PDF file after it), the product when the document has none.
  * - dialog: "<subject> - <product>", or the product alone. */
 export function formatWindowTitle(kind: BrandedWindowKind, subject?: string, product: string = BRAND_PRODUCT_NAME): string {
-  const title = cleanTitle(subject, product);
+  const title = cleanTitle(subject);
   if (kind === "print") return title || product;
   return title ? `${title} - ${product}` : product;
 }

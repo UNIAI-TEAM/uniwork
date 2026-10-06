@@ -43,8 +43,10 @@ describe("desktop branding", () => {
     const product = "UniWork Office (test)";
     expect(formatWindowTitle("main", undefined, product)).toBe(product);
     expect(formatWindowTitle("main", "  ", product)).toBe(product);
-    expect(formatWindowTitle("main", "UniWork Office", product)).toBe(product);
-    expect(formatWindowTitle("main", product, product)).toBe(product);
+    // A document named like the product keeps its name: only empty means "no document".
+    expect(formatWindowTitle("main", "UniWork Office", product)).toBe(`UniWork Office - ${product}`);
+    expect(formatWindowTitle("main", product, product)).toBe(`${product} - ${product}`);
+    expect(formatWindowTitle("print", "UniWork Office", product)).toBe("UniWork Office");
     expect(formatWindowTitle("main", "Báo cáo\nquý.docx", product)).toBe(`Báo cáo quý.docx - ${product}`);
     expect(formatWindowTitle("dialog", "Cập nhật", product)).toBe(`Cập nhật - ${product}`);
     expect(formatWindowTitle("dialog", undefined, product)).toBe(product);
@@ -55,10 +57,11 @@ describe("desktop branding", () => {
     expect(formatWindowTitle("main", "Hợp đồng.docx")).toBe(`Hợp đồng.docx - ${BRAND_PRODUCT_NAME}`);
   });
 
-  it("never lets a title fall back to Electron's default", () => {
+  it("never lets an empty title fall back to Electron's default, and keeps a document named Electron", () => {
     for (const kind of ["main", "print", "dialog"] as const) {
-      for (const subject of [undefined, "", "Electron"]) expect(formatWindowTitle(kind, subject)).not.toBe("Electron");
+      for (const subject of [undefined, "", " \n "]) expect(formatWindowTitle(kind, subject)).toBe(BRAND_PRODUCT_NAME);
     }
+    expect(formatWindowTitle("main", "Electron")).toBe(`Electron - ${BRAND_PRODUCT_NAME}`);
   });
 
   it("picks the icon each platform reads", () => {
@@ -113,7 +116,10 @@ describe("desktop branding", () => {
     listener?.({ preventDefault }, "Báo cáo.docx");
     expect(preventDefault).toHaveBeenCalled();
     expect(setTitle).toHaveBeenLastCalledWith(`Báo cáo.docx - ${BRAND_PRODUCT_NAME}`);
-    listener?.({ preventDefault }, "UniWork Office");
+    // The home tab and the first load (renderer/index.html) hand back an empty title.
+    listener?.({ preventDefault }, "");
     expect(setTitle).toHaveBeenLastCalledWith(BRAND_PRODUCT_NAME);
+    listener?.({ preventDefault }, "UniWork Office");
+    expect(setTitle).toHaveBeenLastCalledWith(`UniWork Office - ${BRAND_PRODUCT_NAME}`);
   });
 });
