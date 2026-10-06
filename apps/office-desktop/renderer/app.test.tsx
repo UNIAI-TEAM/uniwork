@@ -197,6 +197,7 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
     if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
     if (channel === "desktop:auth-session") return { status: "signed-in", accountId: "account-1", deploymentId: "lane" };
     if (channel === "desktop:library-context") return { deployments: [{ id: "default", name: "Default" }], accounts: [{ id: "account-1", name: "me" }], organizations: [{ id: "org-1", name: "Acme" }], workspaces: [{ id: "ws-1", name: "Team" }] };
+    if (channel === "desktop:public-config") return { flags: { office_engine: true } };
     if (channel === "desktop:library-list") return { documents: [document], nextCursor: null, engineAvailable: true };
     const bytes = { dataBase64: Buffer.from(docxSource).toString("base64"), checksum: bytesChecksum(docxSource), filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:library-download") return { ...bytes, documentId: document.id, version: 1 };

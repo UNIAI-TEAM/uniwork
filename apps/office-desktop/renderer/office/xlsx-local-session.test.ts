@@ -1,5 +1,5 @@
 ﻿/** @vitest-environment jsdom */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OfficeIdentity } from "@uniwork/core/office";
 import { createDesktopLocalXlsxSession } from "./xlsx-local-session";
 
@@ -19,7 +19,7 @@ const dvRuleOp = { op: "set_data_validations", target: { sheet: "Data" }, attrib
  *  desktop:file-save, and no cloud channel is ever reached. */
 function makeLocalBridge() {
   const saved: Uint8Array[] = [];
-  const call = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
+  const call = vi.fn(async (channel: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> => {
     if (channel === "desktop:file-xlsx") {
       if (payload.operation === "open") return { state: "completed", outputBase64: encode({ snapshot, render_model: renderModel }) };
       return { state: "completed", outputBase64: Buffer.from([1, 2, 3, 4]).toString("base64"), outputChecksum: `sha256:${"a".repeat(64)}` };
@@ -116,6 +116,29 @@ describe("desktop local xlsx session (C1b)", () => {
     expect(bridge.call).not.toHaveBeenCalledWith("desktop:file-save", expect.anything());
   });
 
+  // Main answers a refused file with a typed code (a thrown code would not
+  // survive Electron's invoke); the session hands it to the save status.
+  it("carries a refused local file's code to the save error instead of office_unknown_error", async () => {
+    const bridge = makeLocalBridge();
+    const local = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation(async (channel, payload) => {
+      if (channel === "desktop:file-save") return { opened: false, code: "file_changed_on_disk" };
+      return local(channel, payload);
+    });
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await session.open.open();
+    await session.editor.edit?.([editOp]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    expect((await session.coordinator.save("button")).accepted).toBe(false);
+    expect(session.coordinator.getState().error).toMatchObject({ code: "file_changed_on_disk" });
+  });
+  it("types a failed local xlsx job by the code main answered", async () => {
+    const bridge = makeLocalBridge();
+    bridge.call.mockImplementation(async (channel) => channel === "desktop:file-xlsx" ? { state: "failed", code: "file_not_found" } : { drafts: [] });
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await expect(session.open.open()).resolves.toMatchObject({ outcome: "failed", message: "file_not_found" });
+  });
+
   it("keeps a protected draft through the desktop draft IPC (local:<device>)", async () => {
     const bridge = makeLocalBridge();
     const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
@@ -153,5 +176,166 @@ describe("desktop local xlsx session (C1b)", () => {
     expect(edits()).toEqual([[editOp, cfOp], [editOp]]);
     expect(session.editor.droppedRuleSets?.()).toEqual([]);
     expect(bridge.saved).toHaveLength(1);
+  });
+});
+
+/** A local bridge whose desktop:file-save waits for the test (or forever). */
+function heldSaveSession(behaviour: "hold" | "never" = "hold") {
+  const bridge = makeLocalBridge();
+  const base = bridge.call.getMockImplementation()!;
+  let saveEntered = false;
+  let releaseSave!: () => void;
+  bridge.call.mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+    if (channel !== "desktop:file-save") return base(channel, payload);
+    saveEntered = true;
+    await new Promise<void>((resolve) => { if (behaviour === "hold") releaseSave = resolve; });
+    return base(channel, payload);
+  });
+  const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+  const editA1 = async (value: number) => { await session.editor.edit?.([{ ...editOp, attributes: { value } }]); session.coordinator.markDirty(session.editor.getDirtyGeneration()); };
+  const rowsFor = (draftId: string) => bridge.call.mock.calls.filter(([channel, payload]) => channel === "desktop:draft-checkpoint" && (payload as { draftId: string }).draftId === draftId)
+    .map(([, payload]) => (JSON.parse(Buffer.from((payload as { dataBase64: string }).dataBase64, "base64").toString("utf8")) as { value: { sheets: Array<{ cells: { A1: unknown } }> } }).value.sheets[0]?.cells.A1);
+  return { bridge, session, editA1, rowsFor, saveEntered: () => saveEntered, releaseSave: () => releaseSave() };
+}
+
+/** coordinator.checkpoint reads a snapshot itself, then the gate captures:
+ *  hold that second read (the gate's capture) until the test releases it. */
+function holdGateCapture(session: ReturnType<typeof heldSaveSession>["session"]) {
+  const capture = session.editor.captureSnapshot.bind(session.editor);
+  let reads = 0;
+  let held = false;
+  let release!: () => void;
+  const hold = new Promise<void>((resolve) => { release = resolve; });
+  session.editor.captureSnapshot = async () => {
+    reads += 1;
+    const value = await capture();
+    if (reads === 2) { held = true; await hold; }
+    return value;
+  };
+  return { held: () => held, reads: () => reads, release: () => release() };
+}
+
+/** Resolves once the gate has parked on its bound (its timer is the only
+ *  fake one). Polls on setImmediate, which stays real: vi.waitFor would move
+ *  the fake clock by its interval on every check and eat into the bound.
+ *  Date is faked too, so the deadline is counted on the same fake clock. */
+async function gateParked() {
+  while (vi.getTimerCount() !== 1) await new Promise((resolve) => setImmediate(resolve));
+}
+
+const oldDraftId = `${HANDLE}:${identity.baseVersionId}:100`;
+const savedDraftId = `${HANDLE}:sha256:${"a".repeat(64)}:250`;
+
+describe("desktop local xlsx session: draft checkpoints around a Save (T09)", () => {
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("holds a checkpoint asked for mid-save until the Save settles, then writes it under the saved base", async () => {
+    const { session, editA1, rowsFor, saveEntered, releaseSave } = heldSaveSession();
+    await session.open.open();
+    await editA1(7);
+    const saving = session.coordinator.save("button");
+    await vi.waitFor(() => expect(saveEntered()).toBe(true));
+    await editA1(8);
+    const gateCapture = holdGateCapture(session);
+    const checkpointing = session.coordinator.checkpoint();
+    await vi.waitFor(() => expect(gateCapture.reads()).toBe(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Parked behind the Save: the gate has not captured, nothing was written.
+    expect(gateCapture.reads()).toBe(1);
+    expect([...rowsFor(oldDraftId), ...rowsFor(savedDraftId)]).toEqual([]);
+    releaseSave();
+    await expect(saving).resolves.toMatchObject({ accepted: true });
+    await vi.waitFor(() => expect(gateCapture.held()).toBe(true));
+    gateCapture.release();
+    await checkpointing;
+    expect(rowsFor(savedDraftId)).toEqual([{ value: 8 }]);
+    expect(rowsFor(oldDraftId)).toEqual([]);
+  });
+
+  it("releases a blocked Save at once and retries it as a fresh intent with a fresh candidate", async () => {
+    const bridge = makeLocalBridge();
+    const base = bridge.call.getMockImplementation()!;
+    let refuse = true;
+    bridge.call.mockImplementation(async (channel, payload) => {
+      if (channel === "desktop:file-save" && refuse) { refuse = false; throw Object.assign(new Error("quota_exceeded"), { code: "quota_exceeded" }); }
+      return base(channel, payload);
+    });
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await session.open.open();
+    await session.editor.edit?.([editOp]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    await expect(session.coordinator.save("button")).resolves.toEqual({ accepted: false, reason: "blocked" });
+    await expect(session.coordinator.retry()).resolves.toMatchObject({ accepted: true });
+    expect(bridge.call.mock.calls.filter(([channel]) => channel === "desktop:file-save")).toHaveLength(2);
+    // The released candidate is gone, so the Retry spends a fresh edit job.
+    expect(bridge.call.mock.calls.filter(([channel, payload]) => channel === "desktop:file-xlsx" && payload.operation === "edit")).toHaveLength(2);
+    expect(bridge.saved).toHaveLength(1);
+  });
+
+  it("writes nothing for a checkpoint parked behind a held Save once the session is disposed", async () => {
+    const { session, editA1, rowsFor, saveEntered, releaseSave } = heldSaveSession();
+    await session.open.open();
+    await editA1(7);
+    const saving = session.coordinator.save("button");
+    await vi.waitFor(() => expect(saveEntered()).toBe(true));
+    await editA1(8);
+    const gateCapture = holdGateCapture(session);
+    const checkpointing = session.coordinator.checkpoint();
+    await vi.waitFor(() => expect(gateCapture.reads()).toBe(1));
+    session.dispose();
+    releaseSave();
+    await saving.catch(() => undefined);
+    // The parked capture resumes on a disposed editor and writes nothing.
+    await expect(checkpointing).rejects.toThrow(/xlsx_(editor_disposed|snapshot_unavailable)/);
+    expect([...rowsFor(oldDraftId), ...rowsFor(savedDraftId)]).toEqual([]);
+  });
+
+  it("keeps the draft under the pre-save base when the Save never answers", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    const { session, editA1, rowsFor, saveEntered } = heldSaveSession("never");
+    await session.open.open();
+    await editA1(7);
+    void session.coordinator.save("button");
+    await vi.waitFor(() => expect(saveEntered()).toBe(true));
+    await editA1(8);
+    const keeping = session.keepDraft();
+    // Advance the fake clock only once the gate has parked on its bound. The
+    // coordinator's own read digests through WebCrypto first, which settles on
+    // a real thread, not on the fake clock: advancing before the park armed
+    // the timer moved time past nothing, and the bound then never ran out.
+    await gateParked();
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(rowsFor(oldDraftId)).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(keeping).resolves.toBe(true);
+    expect(rowsFor(oldDraftId)).toEqual([{ value: 8 }]);
+  });
+
+  it("re-captures a timed-out capture that straddles the confirmed write", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    const { session, editA1, rowsFor, saveEntered, releaseSave } = heldSaveSession();
+    await session.open.open();
+    await editA1(7);
+    const saving = session.coordinator.save("button");
+    await vi.waitFor(() => expect(saveEntered()).toBe(true));
+    await editA1(8);
+    const gateCapture = holdGateCapture(session);
+    const checkpointing = session.coordinator.checkpoint();
+    await vi.waitFor(() => expect(gateCapture.reads()).toBe(1));
+    // Read 1 is still digesting on a real thread; wait until the gate parked
+    // and armed its bound before moving the fake clock past it.
+    await gateParked();
+    // The bound runs out while the Save is still held: the gate captures edit 8.
+    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.waitFor(() => expect(gateCapture.held()).toBe(true));
+    // The write is confirmed and the Save settles while that capture digests.
+    releaseSave();
+    await expect(saving).resolves.toMatchObject({ accepted: true });
+    await editA1(9);
+    gateCapture.release();
+    await checkpointing;
+    // The pre-save capture is never written under the saved base; the retake is.
+    expect(rowsFor(savedDraftId)).toEqual([{ value: 9 }]);
+    expect(rowsFor(oldDraftId)).toEqual([]);
   });
 });

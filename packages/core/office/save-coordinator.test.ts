@@ -501,4 +501,31 @@ describe("Office save coordinator", () => {
     await expect(h.coordinator.save()).resolves.toEqual({ accepted: false, reason: "readonly" });
     expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(0);
   });
+
+  it("lets Retry re-run a local save after file_locked clears, and keeps the draft after file_changed_on_disk", async () => {
+    const h = setup();
+    h.transport.commit = vi.fn(async () => {
+      throw { code: "file_locked" };
+    });
+    h.setDirty(1);
+    await expect(h.coordinator.save("button")).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(h.coordinator.getState()).toMatchObject({ state: "error", error: { code: "file_locked", action: "retry" } });
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(3);
+    // The user closes the other program and presses Retry on the same bytes.
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    const retried = await h.coordinator.save("button");
+    expect(retried.accepted).toBe(true);
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1);
+    expect(h.coordinator.getState().state).toBe("saved");
+
+    h.transport.commit = vi.fn(async () => {
+      throw { code: "file_changed_on_disk" };
+    });
+    h.setDirty(2);
+    await expect(h.coordinator.save("button")).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(h.coordinator.getState()).toMatchObject({ state: "error", error: { code: "file_changed_on_disk", action: "keep_draft" } });
+    // Not terminal: a later Save on the same bytes runs the pending intent again.
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    await expect(h.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
+  });
 });

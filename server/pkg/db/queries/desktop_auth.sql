@@ -57,13 +57,16 @@ WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL;
 UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
 WHERE user_id = $1 AND revoked_at IS NULL;
 
--- name: RevokeDesktopSessionFamily :exec
-WITH revoked_tokens AS (
-  UPDATE refresh_tokens SET revoked_at = now()
-  WHERE refresh_tokens.user_id = $1 AND refresh_tokens.session_id = $2 AND refresh_tokens.revoked_at IS NULL
-)
+-- name: RevokeDeviceSessionFamily :execrows
+-- Closes every live device session of the family. The family's refresh
+-- tokens are a separate statement (RevokeSessionForUser) run after it in the
+-- same transaction, so each reports its own row count.
 UPDATE device_sessions SET revoked_at = COALESCE(revoked_at, now())
-WHERE device_sessions.user_id = $1 AND device_sessions.session_family_id = $2 AND device_sessions.revoked_at IS NULL;
+WHERE user_id = $1 AND session_family_id = $2 AND revoked_at IS NULL;
+
+-- name: CountLiveDeviceSessionsInFamily :one
+SELECT count(*) FROM device_sessions
+WHERE user_id = $1 AND session_family_id = $2 AND revoked_at IS NULL;
 
 -- name: RotateDeviceSessionToken :one
 UPDATE device_sessions SET refresh_token_digest = $2, last_used_at = now()

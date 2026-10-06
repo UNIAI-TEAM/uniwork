@@ -27,7 +27,7 @@ vi.mock("./office/session", async (importOriginal) => {
 beforeEach(() => sessions.clear());
 afterEach(() => settleDocxSessions(sessions));
 
-function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
+function harness(options: { flags?: Record<string, boolean>; config?: (payload: unknown) => unknown; localFile?: boolean; failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = fixtureChecksum;
   const documents = Array.from({ length: 10 }, (_, index) => ({ id: `doc-${index}`, workspaceId: "ws", title: `Plan${index}.docx`, kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-01T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }));
   let account = "account";
@@ -43,6 +43,8 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
     if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
     if (channel === "desktop:auth-session") return { status: "signed-in", deploymentId: "lane", accountId: account };
     if (channel === "desktop:library-context") return { deployments: [{ id: "lane", name: "Server" }], accounts: [{ id: account, name: account }], organizations: [{ id: "org", name: "Org" }], workspaces: [{ id: "ws", name: "Workspace" }] };
+    if (channel === "desktop:public-config") return options.config ? options.config(payload) : { flags: options.flags ?? { office_engine: true } };
+    if (channel === "desktop:file-pick-open" && options.localFile) return { opened: true, metadata: { handle: `file_${"f".repeat(32)}`, name: "Local.docx", byteLength: docxSource.length, modifiedAtMs: 1_000, checksum }, dataBase64: fixtureBase64 };
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
     if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), version: savedVersion, revision: savedRevision, canEdit: !options.readOnly }, dataBase64: fixtureBase64, checksum: savedChecksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:tabs-update") { await options.beforeTabsUpdate?.(); return { updated: true }; }
@@ -149,6 +151,95 @@ it("closes an unchanged readonly document without a dirty leave prompt", async (
   fireEvent.keyDown(window, { key: "w", ctrlKey: true });
   await waitFor(() => expect(h.container.querySelector("#desktop-panel-doc-0")).toBeNull());
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+const readonlySurface = (container: HTMLElement) => container.querySelector("[data-testid='readonly-surface']");
+
+it("opens a cloud document read-only when its format flag or the engine flag is off, and editable when both are on", async () => {
+  const cases: Array<Record<string, boolean>> = [{ office_engine: true, office_docx: false }, { office_docx: true }, {}];
+  for (const flags of cases) {
+    const h = harness({ flags });
+    await open(0);
+    expect(h.call).toHaveBeenCalledWith("desktop:public-config", expect.objectContaining({ organizationId: "org" }));
+    await waitFor(() => expect(readonlySurface(h.container)).not.toBeNull());
+    // The reason is the feature switch: one neutral notice, no permission chip/alert, no capability box.
+    expect(h.container.querySelector("[data-testid='office-feature-off']")).not.toBeNull();
+    expect(h.container.querySelector("[data-testid^='office-save-permission']")).toBeNull();
+    expect(h.container.querySelector("[data-testid='office-capability-readonly']")).toBeNull();
+    expect(h.container.querySelectorAll("[data-testid='office-feature-off']")).toHaveLength(1);
+    cleanup();
+  }
+  const control = harness({ flags: { office_engine: true } });
+  await open(0);
+  await waitFor(() => expect(control.container.querySelector("#desktop-panel-doc-0")).not.toBeNull());
+  await settleDocxSessions(sessions);
+  expect(readonlySurface(control.container)).toBeNull();
+});
+
+it("keeps the permission state and the capability box for a document the reader cannot edit, with no feature-off notice", async () => {
+  const h = harness({ flags: { office_engine: true, office_docx: true }, readOnly: true });
+  await open(0);
+  await waitFor(() => expect(readonlySurface(h.container)).not.toBeNull());
+  expect(h.container.querySelector("[data-testid^='office-save-permission']")).not.toBeNull();
+  expect(h.container.querySelector("[data-testid='office-capability-readonly']")).not.toBeNull();
+  expect(h.container.querySelector("[data-testid='office-feature-off']")).toBeNull();
+});
+
+it("fails closed, after one retry, when the config call is rejected or malformed", async () => {
+  const rejected = harness({ config: () => { throw new Error("offline"); } });
+  await open(0);
+  await waitFor(() => expect(readonlySurface(rejected.container)).not.toBeNull());
+  expect(rejected.call.mock.calls.filter(([channel]) => channel === "desktop:public-config")).toHaveLength(2);
+  cleanup();
+  const malformed = harness({ config: () => ({ flags: { office_engine: "yes" } }) });
+  await open(0);
+  await waitFor(() => expect(readonlySurface(malformed.container)).not.toBeNull());
+});
+
+it("waits for a config that is still in flight so a fast open does not lose to a slow config", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const h = harness({ config: async () => { await gate; return { flags: { office_engine: true } }; } });
+  fireEvent.click(await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") }));
+  const library = screen.getByRole("tabpanel");
+  await within(library).findByText("Plan0.docx");
+  fireEvent.click(within(library).getAllByRole("button", { name: i18n.t("officeDesktop.library.open") })[0]!);
+  await act(async () => { await Promise.resolve(); });
+  expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:office-open")).toHaveLength(0);
+  await act(async () => { release(); await gate; });
+  await screen.findByRole("tab", { name: /Plan0/ });
+  await waitFor(() => expect(h.container.querySelector("#desktop-panel-doc-0")).not.toBeNull());
+  await settleDocxSessions(sessions);
+  expect(readonlySurface(h.container)).toBeNull();
+});
+
+it("upgrades a tab that opened read-only before the config arrived, once the answer allows its format", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const h = harness({ config: async () => { await gate; return { flags: { office_engine: true } }; } });
+  // The open gives up waiting after a few seconds and fails closed.
+  await open(0);
+  await waitFor(() => expect(readonlySurface(h.container)).not.toBeNull(), { timeout: 10_000 });
+  await act(async () => { release(); await gate; });
+  await waitFor(() => expect(readonlySurface(h.container)).toBeNull(), { timeout: 10_000 });
+  expect(h.container.querySelector("#desktop-panel-doc-0")).not.toBeNull();
+}, 30_000);
+
+it("leaves a local file editable whatever the server flags say", async () => {
+  const h = harness({ flags: {}, localFile: true });
+  fireEvent.click(await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") }));
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("officeDesktop.library.openLocal") }));
+  await screen.findByRole("tab", { name: /Local.docx/ });
+  await settleDocxSessions(sessions);
+  expect(readonlySurface(h.container)).toBeNull();
+});
+
+it("asks for the new account's flags after an account change", async () => {
+  const h = harness();
+  await open(0);
+  const before = h.call.mock.calls.filter(([channel]) => channel === "desktop:public-config").length;
+  h.switchAccount();
+  await waitFor(() => expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:public-config").length).toBeGreaterThan(before));
 });
 
 it("shows dirty state, cancels dirty close and keeps a failed dialog Save open", async () => {

@@ -106,6 +106,14 @@ const COMMAND_ORDER: readonly PdfCommandId[] = [
 
 const ZOOM_STEP = 0.1;
 
+/** Controls that own a native undo stack; the document shortcut must leave their Ctrl+Z / Ctrl+Y alone. */
+function isEditableTarget(target: EventTarget): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  const editable = target.closest("[contenteditable], [role='textbox']");
+  return editable !== null && editable.getAttribute("contenteditable") !== "false";
+}
+
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<PdfViewState>("opening");
@@ -121,7 +129,10 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const [revision, setRevision] = useState(0);
   const [editErrorKey, setEditErrorKey] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [railOpen, setRailOpen] = useState(false);
+  const railToggleRef = useRef<HTMLButtonElement>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const initialFitDoneRef = useRef<string | null>(null);
   const disposedRef = useRef(false);
   const passwordControllerRef = useRef<AbortController | null>(null);
@@ -236,6 +247,15 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     // to measure it in a real host (and the only signal jsdom offers).
     window.addEventListener("resize", apply);
     return () => window.removeEventListener("resize", apply);
+  }, [documentKey, viewState]);
+
+  // The key handler lives on the editor landmark, so a shortcut pressed right
+  // after load (focus still on body) would reach the browser instead: take focus
+  // once the document is ready unless something else already holds it.
+  useEffect(() => {
+    if (viewState !== "ready") return;
+    const active = document.activeElement;
+    if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true });
   }, [documentKey, viewState]);
 
   const submitPassword = useCallback(async (password: string) => {
@@ -389,8 +409,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     const key = event.key.toLowerCase();
     if (key === "s") { event.preventDefault(); save("shortcut"); }
     else if (key === "f" && !event.shiftKey) { event.preventDefault(); toggleFind(); }
-    else if (key === "z" && !event.shiftKey && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); undo(); }
-    else if ((key === "y" || (key === "z" && event.shiftKey)) && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); redo(); }
+    else if (key === "z" && !event.shiftKey && !isEditableTarget(event.target)) { event.preventDefault(); undo(); }
+    else if ((key === "y" || (key === "z" && event.shiftKey)) && !isEditableTarget(event.target)) { event.preventDefault(); redo(); }
   }, [redo, save, toggleFind, undo]);
 
   const canEditText = capability?.operation === "serialize" && capability.status === "available";
@@ -428,7 +448,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     };
     return COMMAND_ORDER.map((id) => {
       const browserReasonKey = pdfCommandDisabledReason(id, browserLane);
-      // A handle with no undo/redo facet (e.g. desktop) cannot step history, so
+      // A handle with no undo/redo facet cannot step history, so
       // disable the control instead of letting it no-op and mark the document dirty.
       const facetMissing = (id === PDF_COMMANDS.undo && !editor.undo) || (id === PDF_COMMANDS.redo && !editor.redo);
       const disabled = facetMissing
@@ -447,7 +467,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   // F1: once ready, the shared Office frame (ribbon, sub-bars, rail, canvas,
   // status bar) is the only chrome; the page header owns the title and Save.
   return (
-    <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
+    <div ref={rootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {viewState === "ready" ? (
         <PdfEditorSurface
           editor={editor}
@@ -462,7 +482,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           onActivePanelChange={setActivePanel}
           findOpen={findOpen}
           onFindClose={() => setFindOpen(false)}
-          onSelectPage={selectPageNumber}
+          railOpen={railOpen}
+          onSelectPage={(page) => { selectPageNumber(page); if (railOpen) { setRailOpen(false); railToggleRef.current?.focus(); } }}
           onCanvasSelect={selectPage}
           fontReport={fontReport}
           errorKey={editErrorKey}
@@ -470,12 +491,12 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           ribbon={<PdfRibbonBar activeTab={activeTab} onTabChange={setActiveTab} commands={commands} findOpen={findOpen} onFindToggle={toggleFind} />}
           banner={browserUnsupportedHint ? (
             <p className="text-caption text-muted-foreground" role="note" data-testid="pdf-browser-unsupported">
-              {t(PDF_BROWSER_UNSUPPORTED_REASON_KEY)}
+              {t(activeTab === "pages" ? "office.pdf.errors.unsupportedPagesInBrowser" : PDF_BROWSER_UNSUPPORTED_REASON_KEY)}
             </p>
           ) : null}
           // The page readout already follows the selected page; object kinds
           // have no translated summary yet, so no raw kind string is shown.
-          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} />}
+          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} onFitWidth={fitWidth} onFitPage={fitPage} railOpen={railOpen} railToggleRef={railToggleRef} onRailToggle={() => setRailOpen((open) => !open)} />}
         />
       ) : viewState === "error" && failure ? (
         promptMode ? (

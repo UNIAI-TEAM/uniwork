@@ -121,6 +121,27 @@ describe("PptxFindReplacePanel", () => {
     expect(onFindReplace).toHaveBeenLastCalledWith({ op: "find_replace", find: "alpha", replace: "GAMMA", matchCase: false });
   });
 
+  it("moves past the text just written when the replacement matches the query (a -> aa)", async () => {
+    const onFindReplace = vi.fn(async () => undefined);
+    const textsOf = (text: string): PptxFindTextTarget[] => [{ text, slideIndex: 0, elementId: "t1" }];
+    const { view } = renderPanel({ texts: textsOf("banana"), onFindReplace });
+    const count = () => document.querySelector("[data-pptx-find-count]");
+    fireEvent.change(screen.getByRole("textbox", { name: "Find" }), { target: { value: "a" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Replace with" }), { target: { value: "aa" } });
+    expect(count()).toHaveTextContent("Match 1 of 3");
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await waitFor(() => expect(onFindReplace).toHaveBeenCalledTimes(1));
+    // "baanana": the "aa" just written holds hits 1-2; the next remaining is the third "a".
+    view.rerender(<PptxFindReplacePanel texts={textsOf("baanana")} onFindReplace={onFindReplace} />);
+    expect(count()).toHaveTextContent("Match 3 of 4");
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await waitFor(() => expect(onFindReplace).toHaveBeenCalledTimes(2));
+    expect(onFindReplace).toHaveBeenLastCalledWith(expect.objectContaining({ occurrence: 2 }));
+    view.rerender(<PptxFindReplacePanel texts={textsOf("baanaana")} onFindReplace={onFindReplace} />);
+    // The last "a" of "baanaana" is untouched, so it is the next hit, not the "aa" just written.
+    expect(count()).toHaveTextContent("Match 5 of 5");
+  });
+
   it("closes on Escape from any control in the panel, not only the query (X4fix F6)", () => {
     const onClose = vi.fn();
     renderPanel({ onClose });

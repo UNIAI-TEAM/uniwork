@@ -26,6 +26,14 @@ describe("PdfCanvas", () => {
     expect(onSelectionChange).toHaveBeenCalledWith({ page: 1, objectId: "headline", kind: "text" });
   });
 
+  it("edges each page with the shared office page shadow so it reads on the dark canvas", () => {
+    render(<PdfCanvas pages={pages} renderer={service()} />);
+    // `--office-page-shadow` carries a light 1px edge in `.dark`; a black drop or a
+    // border-coloured ring vanishes on the near-black canvas.
+    expect(screen.getByTestId("pdf-page-1")).toHaveClass("shadow-office-page");
+    expect(screen.getByTestId("pdf-page-1")).not.toHaveClass("ring-1");
+  });
+
   it("uses tile rendering when a tile size is supplied", async () => {
     const renderTile = vi.fn(async ({ pageNumber, x, y }: { pageNumber: number; x: number; y: number }) => ({ src: `${pageNumber}:${x}:${y}`, width: 50, height: 50 }));
     const renderer: PdfPageRenderService = { renderPage: vi.fn(), renderTile };

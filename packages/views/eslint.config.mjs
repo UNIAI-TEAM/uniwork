@@ -45,7 +45,22 @@ export default [
         message: "Use <DateField> (packages/views/common) or <TimeInput> from @uniwork/ui, not a native date/time input.",
       }],
       "no-restricted-imports": ["error", {
+        // views ships to the browser and the sandboxed desktop renderer; OS
+        // access belongs to the host (apps/office-desktop/main) behind an
+        // adapter, never to a shared screen.
+        paths: ["fs", "fs/promises", "path", "path/posix", "path/win32", "child_process", "electron"].map((name) => ({
+          name,
+          message: "packages/views runs in the browser and the sandboxed renderer. Reach the OS through a host adapter, not a Node built-in or electron.",
+        })),
         patterns: [
+          {
+            group: ["node:*"],
+            message: "packages/views runs in the browser and the sandboxed renderer. Reach the OS through a host adapter, not a Node built-in.",
+          },
+          {
+            group: ["electron/*"],
+            message: "packages/views must not import electron. Reach the OS through a host adapter.",
+          },
           {
             group: ["next", "next/*"],
             message:

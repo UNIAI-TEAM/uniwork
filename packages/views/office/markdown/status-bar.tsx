@@ -5,7 +5,8 @@ import { CircleHelp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
-import { OfficeStatusBar } from "../frame";
+import { OfficeStatusBar, textFigures } from "../frame";
+import type { MarkdownCaret } from "./use-caret-position";
 
 /** The rows the Markdown shortcuts sheet lists; labels reuse existing keys. */
 const SHORTCUT_ROWS: readonly { id: string; labelKey: string; keys: string }[] = [
@@ -23,8 +24,9 @@ const SHORTCUT_ROWS: readonly { id: string; labelKey: string; keys: string }[] =
  * affordance last. It replaces the hand-rolled header state text, so the
  * editor draws no chrome row of its own.
  */
-export function MarkdownStatusBar({ state, mode, readOnly = false, joinedBand = false }: { state: string; mode: "visual" | "source"; readOnly?: boolean; joinedBand?: boolean }) {
+export function MarkdownStatusBar({ state, mode, readOnly = false, joinedBand = false, text = null, caret = null }: { state: string; mode: "visual" | "source"; readOnly?: boolean; joinedBand?: boolean; text?: string | null; caret?: MarkdownCaret | null }) {
   const { t } = useTranslation();
+  const figures = text === null ? null : textFigures(text);
   const [helpOpen, setHelpOpen] = useState(false);
   return (
     <>
@@ -34,10 +36,19 @@ export function MarkdownStatusBar({ state, mode, readOnly = false, joinedBand = 
         // so the status row drops its own separator and only the strip keeps it.
         className={joinedBand ? "border-t-0" : undefined}
         start={
-          <span data-testid="md-open-state">{t(`office.markdown.saveState.${state}`)}</span>
+          <>
+            <span data-testid="md-open-state">{t(`office.markdown.saveState.${state}`)}</span>
+            {figures ? (
+              <>
+                <span data-testid="md-status-characters">{t("office.status.characters", { value: figures.characters })}</span>
+                <span data-testid="md-status-lines">{t("office.status.lines", { value: figures.lines })}</span>
+              </>
+            ) : null}
+          </>
         }
         end={
           <>
+            {caret ? <span className="tabular-nums" data-testid="md-status-position">{t("office.status.position", { line: caret.line, column: caret.column })}</span> : null}
             {readOnly ? <span data-testid="md-readonly">{t("office.markdown.saveState.readonly")}</span> : null}
             <span data-testid="md-view-label">{t(mode === "source" ? "office.markdown.view.source" : "office.markdown.view.wysiwyg")}</span>
           </>

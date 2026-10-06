@@ -21,6 +21,15 @@ describe("PdfNotesPanel", () => {
     expect(screen.getAllByText(/Trang 2/)).toHaveLength(2);
   });
 
+  it("draws the thread actions as icon buttons that never wrap", () => {
+    render(<PdfNotesPanel threads={[thread]} provider={provider()} />);
+    for (const name of ["Đánh dấu đã xử lý", "Sửa", "Trả lời"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveClass("whitespace-nowrap");
+      expect(button.querySelector("svg[aria-hidden=true]")).not.toBeNull();
+    }
+  });
+
   it("shows an empty state when the document has no notes", () => {
     render(<PdfNotesPanel threads={[]} provider={provider()} />);
     expect(screen.getByText("Chưa có ghi chú nào trong tài liệu.")).toBeInTheDocument();

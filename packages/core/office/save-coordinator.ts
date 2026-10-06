@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { dispatchOfficeError, type OfficeErrorDispatch, type OfficeState } from "./error-state";
+import { dispatchOfficeError, isOfficeRefusal, type OfficeErrorDispatch, type OfficeState } from "./error-state";
 import type { OfficeSaveGuard } from "./save-guard";
 import {
   officeIdentitySchema,
@@ -112,6 +112,9 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     error: null,
   };
   let pendingIntent: OfficeSaveIntent<TSnapshot> | null = null;
+  // A pending intent whose transport hold was already released: a blocked
+  // refusal proved it never committed, so a Retry mints a fresh intent.
+  let releasedIntentId: string | null = null;
   let terminalGeneration: number | null = null;
   let capabilityStatus: OfficeCapabilityStatus | null = null;
   let capabilityReason: string | null = null;
@@ -232,23 +235,37 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
    *  that landed for another document. Terminal outcomes also record their
    *  snapshot generation so a later Save without new content cannot mint a
    *  replacement intent for the same bytes; `released` records nothing because
-   *  the generation counters of another document are not comparable. */
-  async function settlePending(intent: OfficeSaveIntent<TSnapshot>, kind: "saved" | "released" | "terminal" | "conflict"): Promise<void> {
+   *  the generation counters of another document are not comparable.
+   *  `release: false` keeps the transport's hold: the bytes may have landed. */
+  async function settlePending(intent: OfficeSaveIntent<TSnapshot>, kind: "saved" | "released" | "terminal" | "conflict", release = true): Promise<void> {
     if (pendingIntent?.intentId === intent.intentId) pendingIntent = null;
+    const alreadyReleased = releasedIntentId === intent.intentId;
+    if (alreadyReleased) releasedIntentId = null;
     if (kind === "saved") terminalGeneration = null;
     else if (kind === "terminal" || kind === "conflict") terminalGeneration = intent.snapshotGeneration;
     const cleanup = [options.draft.clearIntent(intent.intentId).catch(() => undefined)];
     if (kind === "saved") {
       cleanup.push(options.draft.discard(intent.identity, intent.snapshotGeneration).catch(() => undefined));
-    } else if (options.transport.release) {
+    } else if (release && !alreadyReleased && options.transport.release) {
       cleanup.push(options.transport.release({ intent }).catch(() => undefined));
     }
     await Promise.all(cleanup);
   }
 
-  async function failIntent(intent: OfficeSaveIntent<TSnapshot>, dispatch: OfficeErrorDispatch): Promise<SaveAttemptResult> {
-    if (dispatch.action === "stop" || dispatch.code === "stale_generation") await settlePending(intent, "terminal");
+  /** A blocked refusal (quota, permission, sign-in, a deleted document) proves
+   *  the intent never committed but leaves it pending for Retry: the hold on
+   *  its prefix ends now, and Retry starts over from the current content. */
+  async function releaseBlocked(intent: OfficeSaveIntent<TSnapshot>): Promise<void> {
+    if (releasedIntentId === intent.intentId) return;
+    releasedIntentId = intent.intentId;
+    await options.transport.release?.({ intent }).catch(() => undefined);
+  }
+
+  /** `release` is false when the failure may follow a write that landed. */
+  async function failIntent(intent: OfficeSaveIntent<TSnapshot>, dispatch: OfficeErrorDispatch, release = true): Promise<SaveAttemptResult> {
+    if (dispatch.action === "stop" || dispatch.code === "stale_generation") await settlePending(intent, "terminal", release);
     else if (dispatch.action === "resolve_conflict") await settlePending(intent, "conflict");
+    else if (dispatch.state === "blocked" && !dispatch.ambiguous) await releaseBlocked(intent);
     return saveError(dispatch);
   }
 
@@ -268,7 +285,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       // The commit is real and belongs to this document; keep the server base
       // even though the session moved on. The state still never turns `saved`.
       identity = { ...identity, baseVersionId: receipt.versionId, baseRevision: receipt.revision };
-      return await failIntent(intent, staleGenerationDispatch());
+      return await failIntent(intent, staleGenerationDispatch(), false);
     }
     // Another document's commit: settle it, but never record its generation -
     // the current document's counter has nothing to do with it (G3-01-T1).
@@ -278,6 +295,8 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
 
   async function runIntent(intent: OfficeSaveIntent<TSnapshot>): Promise<SaveAttemptResult> {
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      // Past this point the provider may hold the bytes even when the step throws.
+      let committing = false;
       try {
         const serialized = officeSerializedOutputSchema.safeParse(await options.transport.serialize({
           intent,
@@ -286,6 +305,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
         if (!serialized.success) throw pipelineError("malformed_serialized_output");
         const uploaded = officeUploadReceiptSchema.safeParse(await options.transport.upload({ intent, output: serialized.data }));
         if (!uploaded.success) throw pipelineError("malformed_upload_receipt");
+        committing = true;
         const receipt = parseReceipt(await options.transport.commit({ intent, upload: uploaded.data }), intent);
         if (!receipt) throw pipelineError("malformed_commit_receipt");
         return await complete(intent, receipt);
@@ -295,7 +315,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
           const answer = await answerReconcile(intent);
           if (answer.status === "found") return await complete(intent, answer.receipt);
         }
-        if (!dispatch.retryable || attempt + 1 >= maxAttempts) return await failIntent(intent, dispatch);
+        if (!dispatch.retryable || attempt + 1 >= maxAttempts) return await failIntent(intent, dispatch, !committing || isOfficeRefusal(dispatch));
         publish({ state: "saving", activeIntentId: intent.intentId, error: dispatch });
         await sleep(backoffMs[Math.min(attempt, backoffMs.length - 1)] ?? 0);
       }
@@ -339,6 +359,10 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
   async function recoverPendingSave(snapshot: StableSnapshot<TSnapshot>): Promise<SaveAttemptResult> {
     const intent = pendingIntent;
     if (!intent) return { accepted: false, reason: "clean" };
+    if (releasedIntentId === intent.intentId) {
+      await settlePending(intent, "released");
+      return await startNewIntent(snapshot);
+    }
     const answer = await answerReconcile(intent);
     if (answer.status === "found") return await complete(intent, answer.receipt);
     if (answer.status === "error") {

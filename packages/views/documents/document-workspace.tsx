@@ -21,7 +21,6 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
-import { useFlag } from "@uniwork/core/feature-flags";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
 import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
@@ -29,7 +28,7 @@ import type { DocumentAssetUploader } from "./document-asset-upload";
 import { DocumentCommentsHeaderActions } from "./document-comments-context";
 import { DocumentConflictDialog } from "./conflict-dialog";
 import type { DocumentEditorHandle } from "./document-editor";
-import { DocumentFileView, usesOfficeEditor } from "./document-file-view";
+import { DocumentFileView, useOfficeEditorEnabled, usesOfficeEditor } from "./document-file-view";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 import { DocumentPageHeader } from "./document-page-header";
 import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
@@ -101,7 +100,7 @@ export function DocumentWorkspace({
   const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
   const state = save.state as DocumentSaveState;
 
-  const officeEnabled = useFlag("office_engine", false);
+  const officeEnabled = useOfficeEditorEnabled(doc);
   const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(doc, officeEnabled, Boolean(officeEditorHost));
   const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
   const editorRef = useRef<DocumentEditorHandle>(null);

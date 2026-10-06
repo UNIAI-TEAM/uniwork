@@ -7417,6 +7417,8 @@
       "unknown_reason": "khác",
       "no_web_editor_title": "Chưa sửa được trong web",
       "no_web_editor_description": "UniWork Office mở định dạng này ở bản sau. Hiện tại bạn tải về để xem hoặc tải lên phiên bản mới.",
+      "office_off_title": "Chỉnh sửa {{format}} đang tắt",
+      "office_off_description": "Tổ chức này đang tắt chỉnh sửa tệp {{format}}. Bạn vẫn tải tệp về hoặc tải lên phiên bản mới được.",
       "upload_failed": "Không tải được tệp lên",
       "commit_failed": "Không lưu được phiên bản mới",
       "missing_file": "Tài liệu này chưa có tệp."
@@ -7840,7 +7842,13 @@
       "zoomIn": "Phóng to",
       "zoomOut": "Thu nhỏ",
       "zoomReset": "Đặt lại thu phóng",
-      "zoomValue": "{{value}}%"
+      "zoomValue": "{{value}}%",
+      "viewLabel": "Chế độ xem",
+      "fitWidth": "Vừa chiều rộng",
+      "fitPage": "Vừa cả trang",
+      "position": "Dòng {{line}}, Cột {{column}}",
+      "characters": "Ký tự: {{value}}",
+      "lines": "Số dòng: {{value}}"
     },
     "docx": {
       "title": "Tài liệu DOCX",
@@ -9048,7 +9056,20 @@
       },
       "correlation": "Mã tương quan: {{id}}",
       "reason": {
-        "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ."
+        "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ.",
+        "file_invalid_path": "Vị trí của tệp này không hợp lệ. Mở lại tệp từ danh sách tệp.",
+        "file_not_found": "Không tìm thấy tệp. Tệp có thể đã bị di chuyển hoặc xoá.",
+        "file_access_denied": "UniWork Office không dùng được tệp này vì đây là lối tắt hoặc liên kết. Hãy mở tệp gốc.",
+        "file_locked": "Tệp đang được chương trình khác sử dụng. Đóng tệp ở đó rồi thử lại.",
+        "file_changed_on_disk": "Tệp đã thay đổi trên máy sau khi bạn mở. Thay đổi của bạn vẫn được giữ: hãy lưu thành tên khác hoặc mở lại tệp.",
+        "file_handle_invalid": "Tệp này không còn mở trong UniWork Office. Hãy mở lại.",
+        "file_session_revoked": "Phiên làm việc đã thay đổi khi đang xử lý tệp. Thử lại.",
+        "file_write_failed": "Không ghi được tệp. Kiểm tra dung lượng trống và quyền truy cập rồi thử lại. Thay đổi của bạn vẫn được giữ.",
+        "file_replace_failed": "Không thay được tệp bằng bản mới. Đóng tệp trong các chương trình khác rồi thử lại. Thay đổi của bạn vẫn được giữ.",
+        "file_too_large": "Tệp quá lớn để UniWork Office xử lý.",
+        "file_save_in_progress": "Một lần lưu khác vẫn đang chạy. Chờ xong rồi thử lại.",
+        "file_engine_unavailable": "Bản UniWork Office này chưa xử lý được loại tệp này trên máy.",
+        "file_failed": "Không xử lý được tệp. Thử lại."
       },
       "fix": {
         "xlsx_recalc_unavailable": "Cài bản UniWork Office mới nhất (có kèm bộ tính lại công thức), hoặc tải sổ tính lên UniWork rồi lưu ở đó."
@@ -10359,7 +10380,8 @@
         "edit_unbound": "Không thể chỉnh sửa bản trình bày này tại đây",
         "layouts_pending": "Chưa hỗ trợ trang chiếu cái và bố cục",
         "embedded_fonts_pending": "Chưa hỗ trợ phông chữ nhúng",
-        "render_fidelity_pending": "Độ trung thực được đo so với trình hiển thị tham chiếu"
+        "render_fidelity_pending": "Độ trung thực được đo so với trình hiển thị tham chiếu",
+        "master_view": "Đóng chế độ bản cái để chỉnh sửa trang chiếu"
       },
       "colors": {
         "black": "Đen",
@@ -10525,7 +10547,12 @@
         "characters": "Ký tự: {{value}}",
         "language": "Ngôn ngữ: {{language}}",
         "selection": "Đang chọn: {{value}}",
-        "selection_none": "Chưa chọn"
+        "selection_none": "Chưa chọn",
+        "notes": "Ghi chú",
+        "viewLabel": "Chế độ xem",
+        "viewNormal": "Thường",
+        "viewSorter": "Sắp xếp trang chiếu",
+        "viewShow": "Trình chiếu"
       },
       "tabs": {
         "home": "Trang chủ",
@@ -10566,7 +10593,8 @@
         "animations": "Hoạt ảnh",
         "show": "Trình chiếu",
         "review": "Xem lại",
-        "view": "Xem"
+        "view": "Xem",
+        "master": "Chế độ xem bản cái"
       },
       "state": {
         "opening": "Đang mở bản trình bày…"
@@ -10592,7 +10620,85 @@
         "undo": "Hoàn tác",
         "redo": "Làm lại",
         "presenter": "Trình bày",
-        "fullscreen": "Toàn màn hình"
+        "fullscreen": "Toàn màn hình",
+        "slideMaster": "Bản cái"
+      },
+      "masters": {
+        "title": "Bản cái trang chiếu",
+        "close": "Đóng chế độ bản cái",
+        "loading": "Đang tải bản cái trang chiếu...",
+        "unbound": "Thay đổi bản cái trang chiếu chưa được kết nối với trình soạn thảo này.",
+        "busy": "Đang áp dụng...",
+        "parts_label": "Bản cái và bố cục",
+        "parts_empty": "Bản trình bày này không có bản cái hay bố cục nào.",
+        "kind_master": "Bản cái",
+        "kind_layout": "Bố cục",
+        "elements_label": "Phần tử",
+        "no_part": "Chọn một bản cái hoặc bố cục để chỉnh sửa.",
+        "elements_empty": "Phần này không có phần tử nào.",
+        "no_element": "Chọn một phần tử để chỉnh sửa.",
+        "inspector_label": "Thuộc tính phần tử",
+        "text_label": "Nội dung",
+        "text_placeholder": "Nội dung hiển thị trên bản cái",
+        "text_apply": "Áp dụng nội dung",
+        "position_label": "Vị trí và kích thước (px)",
+        "x": "X",
+        "y": "Y",
+        "w": "Rộng",
+        "h": "Cao",
+        "box_invalid": "Nhập số hợp lệ; chiều rộng và chiều cao phải từ 1 trở lên.",
+        "box_apply": "Áp dụng vị trí",
+        "fill_label": "Màu tô",
+        "fill_apply": "Áp dụng màu tô",
+        "fill_clear": "Không tô",
+        "stroke_label": "Màu viền",
+        "stroke_width": "Độ dày viền (pt)",
+        "stroke_width_invalid": "Độ dày viền phải là số từ 0 đến {{max}}.",
+        "stroke_apply": "Áp dụng viền",
+        "stroke_clear": "Không viền",
+        "color_hex": "Mã màu hex",
+        "color_invalid": "Nhập màu dạng #4472C4.",
+        "delete": "Xoá phần tử",
+        "rename_layout": "Tên bố cục",
+        "rename_master": "Tên bản cái",
+        "rename_apply": "Đổi tên",
+        "add_placeholder_label": "Thêm chỗ dành sẵn",
+        "add_placeholder": "Thêm",
+        "placeholder_title": "Tiêu đề",
+        "placeholder_body": "Nội dung",
+        "placeholder_pic": "Hình ảnh",
+        "placeholder_chart": "Biểu đồ",
+        "placeholder_tbl": "Bảng",
+        "placeholder_dt": "Ngày",
+        "placeholder_ftr": "Chân trang",
+        "placeholder_sldnum": "Số trang chiếu",
+        "text_style_label": "Kiểu chữ của chỗ dành sẵn",
+        "font_size": "Cỡ chữ (pt)",
+        "font_color": "Màu chữ",
+        "font_name": "Phông chữ",
+        "bold": "Đậm",
+        "italic": "Nghiêng",
+        "text_style_invalid": "Nhập cỡ chữ từ 1 đến 400 và màu dạng #1F4E79.",
+        "text_style_apply": "Áp dụng kiểu chữ",
+        "placeholder_ctrtitle": "Tiêu đề giữa",
+        "placeholder_subtitle": "Tiêu đề phụ",
+        "placeholder_obj": "Đối tượng",
+        "placeholder_clipart": "Hình minh hoạ",
+        "placeholder_dgm": "Sơ đồ",
+        "placeholder_media": "Phương tiện",
+        "placeholder_sldimg": "Hình trang chiếu",
+        "placeholder_hdr": "Đầu trang",
+        "placeholder_other": "Chỗ dành sẵn",
+        "type_text": "Hộp văn bản",
+        "type_shape": "Hình",
+        "type_picture": "Hình ảnh",
+        "type_group": "Nhóm",
+        "type_table": "Bảng",
+        "type_chart": "Biểu đồ",
+        "type_passthrough": "Đối tượng nhúng",
+        "type_other": "Phần tử",
+        "text_style_applied": "Đã áp dụng kiểu chữ.",
+        "preview_label": "{{kind}}: {{name}} (xem trước giản lược)"
       },
       "context": {
         "chart": "Thiết kế biểu đồ",
@@ -10612,6 +10718,7 @@
         "reason_unavailable": "Không dùng được ở bề mặt này",
         "reason_readonly": "Bản trình bày này chỉ để đọc",
         "reason_no_slide": "Chọn một trang trước",
+        "reason_master_view": "Đóng chế độ bản cái để chỉnh sửa trang chiếu",
         "reason_pending": "Đợi thay đổi hiện tại hoàn tất",
         "reason_no_selection": "Chọn một phần tử trước",
         "reason_clipboard_unbound": "Trình dựng bản trình bày này chưa hỗ trợ sao chép và dán",
@@ -10975,6 +11082,17 @@
           "to_label": "Hình kết thúc",
           "shape_n": "Hình {{n}}",
           "pick_shape": "Chọn hình",
+          "from_side_label": "Cạnh bắt đầu",
+          "to_side_label": "Cạnh kết thúc",
+          "side": {
+            "auto": "Tự động",
+            "top": "Trên",
+            "right": "Phải",
+            "bottom": "Dưới",
+            "left": "Trái"
+          },
+          "apply_line": "Áp dụng nét cho đường nối đang chọn",
+          "apply_line_hint": "Chọn một đường nối trên trang chiếu để đổi nét.",
           "arrow_label": "Đầu mũi tên",
           "arrow": {
             "none": "Không",
@@ -11426,6 +11544,7 @@
         "undo": "Hoàn tác",
         "redo": "Làm lại",
         "thumbnailsLabel": "Ảnh thu nhỏ trang",
+        "showThumbnails": "Hiện ảnh thu nhỏ trang", "hideThumbnails": "Ẩn ảnh thu nhỏ trang",
         "thumbnailPage": "Trang {{page}}",
         "statusBarLabel": "Thanh trạng thái PDF",
         "statusBarPage": "Trang {{page}} / {{total}}",
@@ -11444,7 +11563,7 @@
         "retryOpen": "Thử mở lại"
       },
       "commands": {
-        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)", "highlight": "Tô sáng", "note": "Ghi chú", "stamp": "Đóng dấu", "forms": "Điền biểu mẫu", "zoomOut": "Thu nhỏ", "zoomIn": "Phóng to", "fitWidth": "Vừa chiều rộng", "fitPage": "Vừa trang"
+        "editText": "Sửa chữ hiện có", "insertText": "Chèn chữ", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)", "highlight": "Tô sáng", "note": "Ghi chú", "stamp": "Đóng dấu", "forms": "Điền biểu mẫu", "zoomOut": "Thu nhỏ", "zoomIn": "Phóng to", "fitWidth": "Vừa rộng", "fitPage": "Vừa trang"
       },
       "selection": { "none": "Chưa chọn trang", "page": "Trang {{page}}", "background": "Nền trang {{page}}" },
       "capabilityPending": "Tính năng PDF này chưa có trong bản dựng engine hiện tại.",
@@ -11492,7 +11611,7 @@
         "errors": { "asset": "Không thể đọc ảnh.", "fileType": "Chọn ảnh PNG hoặc JPEG." }
       },
       "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này.", "missingUnknown": "Thiếu font nhúng; engine không âm thầm thay thế font." },
-      "markups": { "label": "Công cụ đánh dấu chữ", "highlight": "Tô sáng", "underline": "Gạch chân", "strikeout": "Gạch ngang" },
+      "markups": { "label": "Đánh dấu chữ", "highlight": "Tô sáng", "underline": "Gạch chân", "strikeout": "Gạch ngang" },
       "drawings": { "label": "Công cụ vẽ", "rect": "Hình chữ nhật", "ellipse": "Hình elip", "line": "Đường thẳng", "arrow": "Mũi tên" },
       "ink": { "draw": "Vẽ tay" },
       "annotations": {
@@ -11682,6 +11801,7 @@
         "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại.",
         "editRejected": "PDF không nhận giá trị này. Kiểm tra lại rồi thử lại.",
         "unsupportedInBrowser": "Thay đổi này chưa dùng được trên trình duyệt.",
+        "unsupportedPagesInBrowser": "Chèn, trích xuất và gộp trang chưa dùng được trên trình duyệt.",
         "editSkipped": "Một phần thay đổi bị bỏ qua vì trình duyệt chưa áp dụng được.",
         "formValueRejected": "Trường này không lưu được ký tự vừa nhập (ví dụ chữ có dấu) vì phông của biểu mẫu không hỗ trợ. Giá trị chưa được lưu.",
         "formsFailed": "Không đọc được các trường biểu mẫu của PDF này.",
@@ -11785,6 +11905,8 @@
       "updated": "Cập nhật {{time}}",
       "contentPending": "Chỉnh sửa nội dung DOCX chưa khả dụng. Bạn có thể lưu và mở lại tệp.",
       "draftRecovered": "Đã khôi phục bản nháp đã chọn.",
+      "featureOffTitle": "Chỉnh sửa {{format}} đang tắt",
+      "featureOffDescription": "Tổ chức của bạn đang tắt chỉnh sửa tệp {{format}}, nên tệp này chỉ xem được.",
       "format": {
         "label": "Định dạng",
         "all": "Tất cả định dạng",

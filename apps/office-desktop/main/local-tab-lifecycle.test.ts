@@ -68,11 +68,13 @@ it("rebinds Save As at eight documents without writing and then reporting a capa
   } });
   const response = await handlers["desktop:file-save-as"]({ sessionGeneration, handle: h.metadata.handle, dataBase64: Buffer.from("copied").toString("base64") });
   expect(response.opened).toBe(true);
+  // The refused branch of the result union carries a code, not metadata.
+  if (!("metadata" in response) || !response.metadata) throw new Error("expected Save As to answer with metadata");
   expect(await fs.readFile(destination, "utf8")).toBe("copied");
   expect(await fs.readFile(h.path, "utf8")).toBe("old");
   expect(h.documents.all()).toHaveLength(8);
   expect(h.documents.context(h.metadata.handle)).toBeUndefined();
-  expect(h.documents.context(response.metadata!.handle)?.kind).toBe("local");
-  expect(h.documents.activeDocumentId()).toBe(response.metadata!.handle);
+  expect(h.documents.context(response.metadata.handle)?.kind).toBe("local");
+  expect(h.documents.activeDocumentId()).toBe(response.metadata.handle);
   expect(h.registry.size).toBe(1);
 });

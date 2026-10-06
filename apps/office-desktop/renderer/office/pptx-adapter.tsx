@@ -9,7 +9,7 @@
 
 import type { EditorHandle, OfficeCapabilityEntry, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
 import { isPptxSessionDiverged, type PptxEdit, type PptxSlideAnimationRead, type PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
-import type { PptxDeckModel } from "@uniwork/views/office/pptx";
+import type { MasterElementView, MasterPartView, PptxDeckModel } from "@uniwork/views/office/pptx";
 import { fingerprintPptxSnapshot, type PptxDeckSnapshot, type PptxSessionRuntime, type PptxSlideSummary } from "./pptx-runtime";
 
 export interface DesktopPptxOpenOutcome {
@@ -40,6 +40,12 @@ export interface DesktopPptxEditorHandle extends EditorHandle<PptxDeckSnapshot> 
   slideAnimations(slideIndex: number): PptxSlideAnimationRead[] | null;
   /** Layout catalog of the LIVE package ([] once released or when the engine binds no read). */
   slideLayouts(): { name: string; path: string }[];
+  /** Slide masters and layouts of the LIVE session (the Masters panel part
+   *  list); [] when unavailable (released session or a runtime without the read).
+   *  The names match the PptxEditorView props (UNI-927 B6). */
+  masterParts(): readonly MasterPartView[];
+  /** Editable elements of one master/layout part; [] when unavailable. */
+  masterElements(partPath: string): readonly MasterElementView[];
   /** Replay a recovered draft journal onto the freshly opened base. */
   restore(snapshot: PptxDeckSnapshot): Promise<void>;
   /** Serialize the current model to pptx bytes (the renderer save path) for the Save `intentId`. */
@@ -184,6 +190,9 @@ export function createDesktopPptxAdapter(options: DesktopPptxAdapterOptions): De
     slideLayouts: () => (modelRef && !disposed ? options.runtime.slideLayouts?.(modelRef) ?? [] : []),
     slideTransition: (slideIndex) => (modelRef && !disposed ? options.runtime.slideTransition?.(modelRef, slideIndex) ?? null : null),
     slideAnimations: (slideIndex) => (modelRef && !disposed ? options.runtime.slideAnimations?.(modelRef, slideIndex) ?? null : null),
+    // UNI-927 B6: the Masters panel reads the LIVE session like the notes do.
+    masterParts: () => (modelRef && !disposed ? options.runtime.masterParts?.(modelRef) ?? [] : []),
+    masterElements: (partPath) => (modelRef && !disposed ? options.runtime.masterElements?.(modelRef, partPath) ?? [] : []),
     revision: () => viewRevision,
   };
 

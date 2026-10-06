@@ -13,7 +13,7 @@ import type {} from "@tiptap/starter-kit";
 import { createElement, useEffect, useState, type ReactNode } from "react";
 import { installDocxRendererStyles, pmDocOptions, setNoteNumFmts, type RendererParsed } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { DocxAdapter, DocxCommentInfo, DocxEdit } from "@uniwork/office-engine/docx";
-import type { StableSnapshot } from "@uniwork/core/office";
+import type { OfficeSaveReceipt, StableSnapshot } from "@uniwork/core/office";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "./commands";
 import type { DocxNotesSnapshot } from "./commands/notes";
 import type { DocxNumberingSnapshot } from "./commands/numbering";
@@ -26,6 +26,7 @@ import { prepareDocxHeadingStyles } from "./docx-heading-styles";
 import { DocxNoteAreas } from "./docx-note-areas";
 import { attachDocxPagination, createDocxPaginationSpec, type DocxPaginationSpec } from "./docx-pagination";
 import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
+import { checksumKey, readCoreProps, withCoreProps } from "./docx-save-source";
 import { docxExtensions, type DocxBlockAttrs } from "./docx-schema";
 // B1 (UNI-924): the image layer rides inside the editing surface â€” the insert
 // entry and the inspector for the selected picture.
@@ -167,6 +168,7 @@ export interface DocxTiptapHandle extends DocxEditorHandle<DocxTiptapSnapshot> {
   modelRef(): string | null;
   openOutcome(): DocxOpenSuccess | null;
   serializeSnapshot(snapshot: StableSnapshot<DocxTiptapSnapshot>): Promise<{ bytes: Uint8Array; checksum: string; warnings?: unknown[] }>;
+  rebaseSaveSource(receipt: Pick<OfficeSaveReceipt, "checksumSha256">): Promise<void>;
   restoreSnapshot(snapshot: StableSnapshot<DocxTiptapSnapshot>): void;
 }
 
@@ -195,6 +197,10 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
   let lastCommentsRevision = 0;
   let lastNotesRevision = 0;
   let disposed = false;
+  // Recent Save outputs by checksum, and the committed core part the next
+  // Save counts its revision from (CORE-REPEAT-001).
+  const serializedOutputs = new Map<string, Uint8Array>();
+  let committedCoreProps: string | null = null;
   const selectionListeners = new Set<(selection: DocxSelection | null) => void>();
   const dirtyListeners = new Set<(generation: number) => void>();
 
@@ -357,7 +363,9 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     openOutcome: () => openedOutcome,
     async serializeSnapshot(snapshot) {
       if (disposed || options.readOnly) throw new Error("docx_save_unavailable");
-      const opened = await options.adapter.open({ bytes: decodeDocxSource(snapshot.value.sourceBase64), format: "docx", document_id: options.documentId });
+      let source = decodeDocxSource(snapshot.value.sourceBase64);
+      if (committedCoreProps !== null && snapshot.value.sourceBase64 === sourceBase64) source = await withCoreProps(source, committedCoreProps);
+      const opened = await options.adapter.open({ bytes: source, format: "docx", document_id: options.documentId });
       if (opened.outcome !== "opened") throw new Error(opened.message ?? "docx_snapshot_open_failed");
       let saveRef = opened.document_model_ref;
       try {
@@ -384,10 +392,23 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         // A13: header/footer - the parts live outside the body plan, so replay
         // the pending edits onto the same save session.
         commandRuntime.applyDocxHeaderFooterEdits(options.adapter, saveRef);
-        return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
+        const output = await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
+        // Only a few outputs can be in flight; the oldest drops first.
+        if (serializedOutputs.size >= 4) serializedOutputs.delete(serializedOutputs.keys().next().value!);
+        serializedOutputs.set(checksumKey(output.checksum), output.bytes.slice());
+        return output;
       } finally {
         options.adapter.release(saveRef);
       }
+    },
+    async rebaseSaveSource(receipt) {
+      const committed = serializedOutputs.get(checksumKey(receipt.checksumSha256));
+      if (!committed) return;
+      serializedOutputs.clear();
+      // The Save already committed: an unreadable core part only leaves the
+      // next revision counting from the previous source, never fails the Save.
+      const coreProps = await readCoreProps(committed).catch(() => null);
+      if (coreProps !== null) committedCoreProps = coreProps;
     },
     restoreSnapshot(snapshot) {
       if (!tiptapEditor || !ref || options.readOnly) throw new Error("docx_restore_unavailable");

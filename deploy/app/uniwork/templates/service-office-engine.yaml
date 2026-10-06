@@ -1,0 +1,16 @@
+{{- if .Values.officeEngine.enabled }}
+# ClusterIP only: no edge route. NetworkPolicy lets only uniwork-be reach it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: uniwork-office-engine
+  namespace: {{ .Values.namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: uniwork-office-engine
+  ports:
+    - name: http
+      port: {{ .Values.officeEngine.port }}
+      targetPort: http
+{{- end }}

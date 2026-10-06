@@ -38,6 +38,7 @@ import {
   type PptxInsertWordArtPreset,
 } from "./insert-model";
 import { insertShapeEdit, insertTextBoxEdit } from "./insert-defaults";
+import { connectorStrokeEdit, type PptxConnectorLineChoice } from "./connector-model";
 import { PptxConnectorPicker } from "./pptx-connector-picker";
 import { PptxImageInsert, type PptxImageBytes } from "./pptx-image-insert";
 import { PptxShapeGallery } from "./pptx-shape-gallery";
@@ -167,6 +168,15 @@ export function PptxInsertPanel({
     [onInsertConnector, slideIndex],
   );
 
+  // Restyle an existing connector: set_stroke through the same edit channel as every other insert.
+  const onStrokeConnector = useCallback(
+    (elementId: string, line: PptxConnectorLineChoice) => {
+      if (slideIndex === null) return;
+      emit(connectorStrokeEdit(slideIndex, elementId, line));
+    },
+    [emit, slideIndex],
+  );
+
   const onGroup = useCallback(
     (elementIds: readonly string[]) => {
       if (!onGroupSelection || slideIndex === null) return;
@@ -268,6 +278,7 @@ export function PptxInsertPanel({
           groupDisabled={!canGroup}
           busy={busy}
           onInsertConnector={onConnector}
+          {...(canEdit ? { onStrokeConnector } : {})}
           onGroupSelection={onGroup}
         />
       </div>

@@ -23,6 +23,21 @@ describe("PptxEditorView", () => {
     expect(screen.getByRole("button", { name })).toHaveTextContent(/^Save$/);
   });
 
+  it("renders the host notice in the shell editor slot: below the file header, above the editor, like DOCX", () => {
+    render(<PptxEditorView title="Deck" host={host} capability="available" openState="loading" notice={<p role="status">Draft recovered</p>} />);
+    const notice = screen.getByText("Draft recovered");
+    const title = screen.getByText("Deck");
+    expect(title.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const main = notice.closest("main")!;
+    expect(main.firstElementChild).toBe(notice);
+    expect(notice.closest("[data-office-canvas]")).toBeNull();
+  });
+
+  it("renders nothing extra without a notice", () => {
+    render(<PptxEditorView title="Deck" host={host} capability="available" openState="loading" />);
+    expect(screen.queryByText("Draft recovered")).not.toBeInTheDocument();
+  });
+
   it("keeps the lazy editor mounted when the shared shell rerenders", async () => {
     const editorHandle = {
       format: "pptx",

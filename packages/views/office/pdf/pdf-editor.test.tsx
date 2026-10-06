@@ -135,6 +135,32 @@ describe("PdfEditor", () => {
     expect(saveCoordinator.writeBytes).not.toHaveBeenCalled();
   });
 
+  it("leaves Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z to editable controls and still undoes from the canvas", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+    const textarea = document.createElement("textarea");
+    const select = document.createElement("select");
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    const textbox = document.createElement("div");
+    textbox.setAttribute("role", "textbox");
+    root.append(textarea, select, editable, textbox);
+    for (const target of [textarea, select, editable, textbox]) {
+      expect(fireEvent.keyDown(target, { key: "z", ctrlKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: "y", ctrlKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: "z", ctrlKey: true, shiftKey: true })).toBe(true);
+    }
+    expect(handle.undo).not.toHaveBeenCalled();
+    expect(handle.redo).not.toHaveBeenCalled();
+
+    expect(fireEvent.keyDown(screen.getByTestId("pdf-canvas"), { key: "z", ctrlKey: true })).toBe(false);
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByTestId("pdf-canvas"), { key: "z", ctrlKey: true, shiftKey: true });
+    expect(handle.redo).toHaveBeenCalledTimes(1);
+  });
+
   it("selects pages and submits every page operation through the edit envelope", async () => {
     const handle = editor();
     renderEditor(opened(), { editor: handle });
@@ -348,6 +374,8 @@ describe("PdfEditor", () => {
     for (const id of ["insert-page", "extract-page", "merge-pages"]) {
       expect(document.querySelector(`[data-ribbon-item='${id}']`)).toHaveAttribute("aria-disabled", "true");
     }
+    // The Pages banner names only the ops that are refused, not "this edit".
+    expect(screen.getByTestId("pdf-browser-unsupported")).toHaveTextContent("Chèn, trích xuất và gộp trang chưa dùng được trên trình duyệt.");
     // Delete, rotate and reorder need no Buffer producer and stay usable.
     for (const id of ["delete-page", "rotate-page", "reorder-page"]) {
       expect(document.querySelector(`[data-ribbon-item='${id}']`)).not.toHaveAttribute("aria-disabled");
@@ -436,6 +464,50 @@ describe("PdfEditor", () => {
     expect(screen.getByRole("search")).toBeInTheDocument();
     fireEvent.keyDown(root, { key: "f", ctrlKey: true });
     expect(screen.queryByRole("search")).not.toBeInTheDocument();
+  });
+
+  it("takes focus on load so Ctrl+F right after opening reaches the editor, not the browser", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+    expect(document.activeElement).toBe(root);
+    // The browser targets the focused element: that is the editor landmark now.
+    expect(fireEvent.keyDown(document.activeElement ?? document.body, { key: "f", ctrlKey: true })).toBe(false);
+    expect(screen.getByRole("search")).toBeInTheDocument();
+  });
+
+  it("does not steal focus from a control that already holds it", async () => {
+    const outside = document.createElement("input");
+    document.body.appendChild(outside);
+    outside.focus();
+    try {
+      renderEditor();
+      await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+      expect(document.activeElement).toBe(outside);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("opens the thumbnail rail from the status bar below sm and closes it on a page pick", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const rail = screen.getByTestId("pdf-thumbnails-rail");
+    expect(rail).toHaveClass("hidden", "sm:flex");
+    const toggle = screen.getByTestId("pdf-rail-toggle");
+    expect(toggle).toHaveAccessibleName("Hiện ảnh thu nhỏ trang");
+    fireEvent.click(toggle);
+    expect(rail).toHaveClass("flex");
+    expect(rail).not.toHaveClass("hidden");
+    // Open below sm the rail floats over the canvas, so the page is not squeezed (UIQ-3).
+    expect(rail).toHaveClass("absolute");
+    expect(screen.getByTestId("pdf-rail-slot")).toHaveClass("w-0");
+    expect(toggle).toHaveAccessibleName("Ẩn ảnh thu nhỏ trang");
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("pdf-thumbnail-1"));
+    expect(rail).toHaveClass("hidden");
+    // Focus returns to the toggle, not BODY, once the rail closes (UIQ-3).
+    expect(toggle).toHaveFocus();
   });
 
   it("does not toggle Find on Ctrl+Shift+F - the shifted chord is out of scope", async () => {

@@ -6,17 +6,18 @@
  * Left  = slide x/y, word/character counts, document language.
  * Right = selection info and the zoom control (- value +).
  *
- * Presentational and props-driven: the wiring owns the numbers, and a field it
- * cannot source yet renders the unknown mark instead of a fabricated value
- * (the DOCX status bar's rule). Selection/position text lives ONLY here, never
- * in the ribbon (C6).
+ * Presentational and props-driven: the wiring owns the numbers, and a readout it
+ * cannot source (counts, deck language) is left out rather than shown as a
+ * placeholder (T12). Selection/position text lives ONLY here, never in the
+ * ribbon (C6). The right cluster also carries the Notes toggle and the view
+ * buttons (Normal / Slide sorter / Slide show); each shows only when wired.
  */
 import { Fragment, type ReactNode } from "react";
-import { CircleHelp } from "lucide-react";
+import { CircleHelp, LayoutGrid, Monitor, Presentation, StickyNote } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { OfficeStatusBar, OfficeStatusZoom } from "../frame/office-status-bar";
+import { OfficeStatusActions, OfficeStatusBar, OfficeStatusZoom, type OfficeStatusAction } from "../frame/office-status-bar";
 import { PPTX_ZOOM_MAX, PPTX_ZOOM_MIN, stepZoom, zoomPercent } from "./canvas/zoom";
 
 /** Counts the wiring can precompute; a missing field renders the unknown mark. */
@@ -34,6 +35,14 @@ export interface PptxStatusBarProps {
   language?: string | null;
   /** Selected element count; null/undefined means "nothing selected". */
   selectionCount?: number | null;
+  /** Notes pane toggle; absent hides the button. */
+  notesOpen?: boolean;
+  onToggleNotes?: () => void;
+  /** Normal / Slide sorter view; absent hides the button. */
+  view?: "normal" | "sorter";
+  onViewChange?: (view: "normal" | "sorter") => void;
+  /** Starts the slide show; absent hides the button. */
+  onSlideShow?: () => void;
   /** A gesture is applying; shown as a live status on the left. */
   gesturePending?: boolean;
   zoom: number;
@@ -56,8 +65,8 @@ export function pptxLanguageLabel(language: string | null | undefined): string |
   return primary.length > 0 ? primary : null;
 }
 
-function countText(value: number | null | undefined, unknown: string): string {
-  return typeof value === "number" && Number.isFinite(value) ? String(value) : unknown;
+function isCount(value: number | null | undefined): boolean {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function positiveInt(value: number | null | undefined): number | null {
@@ -70,6 +79,11 @@ export function PptxStatusBar({
   counts,
   language,
   selectionCount,
+  notesOpen = false,
+  onToggleNotes,
+  view = "normal",
+  onViewChange,
+  onSlideShow,
   gesturePending = false,
   zoom,
   onZoomChange,
@@ -83,7 +97,7 @@ export function PptxStatusBar({
   const languageLabel = pptxLanguageLabel(language);
   const slideText =
     current === null && total === null
-      ? unknown
+      ? null
       : t("status.slide", {
           current: current === null ? unknown : String(current),
           total: total === null ? unknown : String(total),
@@ -93,11 +107,18 @@ export function PptxStatusBar({
   // F-09: the slide position is the one readout a phone keeps (it never
   // truncates); the counts and language drop out below 480px instead of
   // shrinking into "S... W.. Ch..".
-  const left: ReadonlyArray<{ testId: string; text: string; essential?: boolean }> = [
-    { testId: "pptx-status-slide", text: slideText, essential: true },
-    { testId: "pptx-status-words", text: t("status.words", { value: countText(counts?.words, unknown) }) },
-    { testId: "pptx-status-characters", text: t("status.characters", { value: countText(counts?.characters, unknown) }) },
-    { testId: "pptx-status-language", text: t("status.language", { language: languageLabel ?? unknown }) },
+  const left: Array<{ testId: string; text: string; essential?: boolean }> = [];
+  if (slideText !== null) left.push({ testId: "pptx-status-slide", text: slideText, essential: true });
+  if (isCount(counts?.words)) left.push({ testId: "pptx-status-words", text: t("status.words", { value: String(counts?.words) }) });
+  if (isCount(counts?.characters)) left.push({ testId: "pptx-status-characters", text: t("status.characters", { value: String(counts?.characters) }) });
+  if (languageLabel !== null) left.push({ testId: "pptx-status-language", text: t("status.language", { language: languageLabel }) });
+  const viewActions: OfficeStatusAction[] = [
+    ...(onToggleNotes ? [{ id: "notes", label: t("status.notes"), icon: <StickyNote aria-hidden />, pressed: notesOpen, onClick: onToggleNotes }] : []),
+    ...(onViewChange ? [
+      { id: "view-normal", label: t("status.viewNormal"), icon: <Monitor aria-hidden />, pressed: view === "normal", onClick: () => onViewChange("normal") },
+      { id: "view-sorter", label: t("status.viewSorter"), icon: <LayoutGrid aria-hidden />, pressed: view === "sorter", onClick: () => onViewChange("sorter") },
+    ] : []),
+    ...(onSlideShow ? [{ id: "view-show", label: t("status.viewShow"), icon: <Presentation aria-hidden />, onClick: onSlideShow }] : []),
   ];
 
   return (
@@ -121,6 +142,7 @@ export function PptxStatusBar({
         }
         end={
           <>
+            <OfficeStatusActions label={t("status.viewLabel")} actions={viewActions} className="max-[480px]:hidden" />
             <span data-testid="pptx-status-selection" className={cn(!selected && NARROW_HIDDEN)}>
               {selected ? t("status.selection", { value: String(selectionCount) }) : t("status.selection_none")}
             </span>

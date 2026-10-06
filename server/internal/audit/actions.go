@@ -194,6 +194,9 @@ const (
 	ActionFlagOverrideSet         = "flag.override_set"
 	ActionFlagOverrideDeleted     = "flag.override_deleted"
 
+	// An operator closed a desktop device session family on the owner's behalf.
+	ActionDesktopDeviceRevoked = "desktop_device.revoked"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"

@@ -39,6 +39,13 @@ var catalogue = []Flag{
 	{Key: "chat_work_hub", Description: "Kênh hạng nhất gắn Project, khám phá và tham gia (C-13)", Default: true, Public: true, Owner: "chat", ReviewAt: day(2026, 12, 31)},
 	{Key: "documents", Description: "Tài liệu trong workspace: page, tệp, phiên bản (UNI-679; route và UI theo sau)", Default: false, Public: true, Owner: "documents", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_engine", Description: "Shared Office editor shell and browser draft host (UNI-822; default off until format acceptance)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_docx", Description: "Sửa tệp DOCX trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_xlsx", Description: "Sửa tệp XLSX trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_pptx", Description: "Sửa tệp PPTX trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_pdf", Description: "Sửa tệp PDF trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_markdown", Description: "Sửa tệp Markdown trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_html", Description: "Sửa tệp HTML trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_html_visual_edit", Description: "Visual editing of HTML files in the Office editor (UNI-941; default off until the visual editor is accepted)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 }
 
 // Catalogue returns a copy of the declared flags.

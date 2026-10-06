@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isSlideHidden, PptxEngineError } from "@uniwork/office-engine/pptx";
 import type { OpenedPptxLike, PptxEdit, PptxTxnRequest } from "@uniwork/office-engine/pptx";
+import { makeFakeMasterXml } from "../../../../packages/office-engine/test/fake-pptx-engine";
 import { makeFakePptxBytes } from "../../../../packages/office-engine/test/fake-pptx-fixtures";
 import { registerReplayIdScenarios, registerSaveRebaseScenarios } from "../../../../packages/office-engine/test/pptx-replay-scenarios";
 import {
@@ -63,6 +64,9 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
       if (!opened || index === undefined) return "";
       return opened.__notes?.[String(Number(index) - 1)] ?? "";
     },
+    // The master/layout parser is an optional artifact member like getSlideNotes;
+    // the fake engine parses the part text the fake archive carries.
+    parseMasterPart: (archive: unknown, partPath: string) => engine.parseMasterPart?.(archive, partPath) ?? null,
     commitSaved: (opened: OpenedPptxLike) => engine.commitSaved?.(opened),
     reparseDeck: (opened: OpenedPptxLike) => engine.reparseDeck?.(opened) ?? opened,
     listSlideLayouts: (archive: unknown) => engine.listSlideLayouts?.(archive) ?? [],
@@ -372,6 +376,67 @@ describe("web PPTX session runtime", () => {
     expect(runtime.slideLayouts!(ref)).toEqual([{ name: "Title Slide", path: "ppt/slideLayouts/slideLayout1.xml" }]);
     await runtime.release(ref);
     expect(() => runtime.slideLayouts!(ref)).toThrow("pptx_runtime_not_open");
+  });
+
+  it("reads the live session's master parts and elements, follows edits and undo, and refuses after release", async () => {
+    const MASTER = "ppt/slideMasters/slideMaster1.xml";
+    const LAYOUT = "ppt/slideLayouts/slideLayout1.xml";
+    const runtime = createWebPptxSessionRuntime({ documentId: "doc" });
+    const result = await runtime.open({
+      documentId: "doc",
+      bytes: makeFakePptxBytes({
+        entries: {
+          "ppt/presentation.xml": "<p:presentation/>",
+          "ppt/slides/slide1.xml": "<p:sld/>",
+          "ppt/slides/slide2.xml": "<p:sld/>",
+          [MASTER]: makeFakeMasterXml("Office Theme", [{
+            id: "m1",
+            type: "text",
+            placeholder: "title",
+            transform: { offset: { x: 914400, y: 457200, cx: 4572000, cy: 914400 } },
+            text: { paragraphs: [{ runs: [{ text: "Master title" }] }] },
+            fill: { type: "solid", color: "#aabbcc" },
+          }]),
+          "ppt/slideMasters/_rels/slideMaster1.xml.rels":
+            '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>',
+          [LAYOUT]: makeFakeMasterXml("Title Layout", [], "p:sldLayout"),
+        },
+      }),
+    });
+    if (result.outcome !== "opened" || !result.document_model_ref) throw new Error("open failed");
+    const ref = result.document_model_ref;
+
+    expect(runtime.masterParts!(ref)).toEqual([
+      { partPath: MASTER, kind: "master", name: "Office Theme" },
+      { partPath: LAYOUT, kind: "layout", name: "Title Layout" },
+    ]);
+    const [first] = runtime.masterElements!(ref, MASTER);
+    expect(first).toMatchObject({ id: "m1", type: "text", placeholder: "title", text: "Master title", fill: "#AABBCC" });
+    expect(first!.label).toContain("title");
+    expect(first!.box.w).toBeGreaterThan(0);
+    expect(runtime.masterElements!(ref, LAYOUT)).toEqual([]);
+
+    // A part the deck does not carry is the engine's typed refusal.
+    let refusal: unknown;
+    try {
+      runtime.masterElements!(ref, "ppt/slideMasters/slideMaster9.xml");
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toBeInstanceOf(PptxEngineError);
+    expect((refusal as PptxEngineError).code).toBe("bad_master_part");
+
+    // The read follows the LIVE engine session: an edit is visible, and undo's
+    // reopen swaps the session the read resolves.
+    await runtime.edit(ref, [{ op: "master_edit_text", part: MASTER, elementId: "m1", paragraphs: [{ runs: [{ text: "Edited" }] }] }]);
+    expect(runtime.masterElements!(ref, MASTER)[0]?.text).toBe("Edited");
+    expect(await runtime.undo(ref)).toBe(true);
+    expect(runtime.masterElements!(ref, MASTER)[0]?.text).toBe("Master title");
+
+    // A released session refuses instead of reading a freed engine ref.
+    await runtime.release(ref);
+    expect(() => runtime.masterParts!(ref)).toThrow("pptx_runtime_not_open");
+    expect(() => runtime.masterElements!(ref, MASTER)).toThrow("pptx_runtime_not_open");
   });
 
   it("keeps revision and fingerprint consistent across history", async () => {

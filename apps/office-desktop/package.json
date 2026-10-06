@@ -17,7 +17,7 @@
     "smoke:installer": "node scripts/installer-smoke.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
-    "test": "vitest run --passWithNoTests=false --coverage && node --test scripts/package.test.mjs scripts/release-inventory.test.mjs"
+    "test": "vitest run --passWithNoTests=false --coverage && node --test scripts/package.test.mjs scripts/release-inventory.test.mjs scripts/check-xlsx-assets.test.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "catalog:",

@@ -37,3 +37,37 @@ func TestNoInheritedCompatKeysArePublished(t *testing.T) {
 		}
 	}
 }
+
+func TestOfficeHTMLVisualEditIsPublicAndOffByDefault(t *testing.T) {
+	f, ok := Lookup("office_html_visual_edit")
+	if !ok {
+		t.Fatal("office_html_visual_edit is not declared")
+	}
+	if f.Default || !f.Public || f.Owner != "office" {
+		t.Fatalf("office_html_visual_edit = %+v, want default off, public, owner office", f)
+	}
+	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
+	if v, published := flags["office_html_visual_edit"]; !published || v {
+		t.Fatalf("published=%v value=%v, want published and false", published, v)
+	}
+}
+
+func TestOfficeFormatFlagsAreOnByDefaultAndEngineStaysOff(t *testing.T) {
+	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
+	for _, key := range []string{"office_docx", "office_xlsx", "office_pptx", "office_pdf", "office_markdown", "office_html"} {
+		f, ok := Lookup(key)
+		if !ok {
+			t.Fatalf("%s is not declared", key)
+		}
+		if !f.Default || !f.Public || f.Owner != "office" {
+			t.Fatalf("%s = %+v, want default on, public, owner office", key, f)
+		}
+		if v, published := flags[key]; !published || !v {
+			t.Fatalf("%s published=%v value=%v, want published and true", key, published, v)
+		}
+	}
+	engine, ok := Lookup("office_engine")
+	if !ok || engine.Default {
+		t.Fatalf("office_engine = %+v ok=%v, want declared and default off", engine, ok)
+	}
+}

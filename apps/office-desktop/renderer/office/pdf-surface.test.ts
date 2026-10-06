@@ -367,12 +367,136 @@ describe("desktop PDF surface", () => {
       expect(await surface.readFormFields!()).toMatchObject([{ name: "fullName", value: "changed" }]);
     });
 
-    it("degrades to empty lists for bytes the reader cannot parse instead of throwing", async () => {
+    it("rejects for bytes the reader cannot parse, like the web lane, so the panel shows its error (R-3)", async () => {
       const { surface } = await openWith(PDF_BYTES);
-      await expect(surface.readFormFields!()).resolves.toEqual([]);
-      await expect(surface.readSavedNotes!()).resolves.toEqual([]);
+      await expect(surface.readFormFields!()).rejects.toThrow();
+      await expect(surface.readSavedNotes!()).rejects.toThrow();
+      // A disposed surface holds no bytes: nothing to read, not a failure.
       await surface.dispose();
       await expect(surface.readFormFields!()).resolves.toEqual([]);
+      await expect(surface.readSavedNotes!()).resolves.toEqual([]);
+    });
+  });
+  describe("byte history (G-1)", () => {
+    const versions = [Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x31]), Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x32]), Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x33])];
+    /** Each edit answers the next version; every engine call records the bytes it was handed. */
+    const historySurface = (budget?: number, overrides: Partial<DesktopSurfaceSettings> = {}) => {
+      let next = 1;
+      const sent: string[] = [];
+      const call = vi.fn(async (_channel: string, payload: unknown) => {
+        const request = payload as { operation: string; args: { dataBase64: string } };
+        sent.push(`${request.operation}:${Buffer.from(request.args.dataBase64, "base64").at(-1)}`);
+        if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+        const edited = versions[next]!;
+        next += 1;
+        return { ok: true, operation: "edit", dataBase64: Buffer.from(edited).toString("base64") };
+      });
+      const surface = createDesktopPdfSurface(settings(call, { readBytes: async () => versions[0]!, ...overrides }), budget);
+      return { surface, call, sent };
+    };
+    const lastByte = async (surface: ReturnType<typeof createDesktopPdfSurface>) => (await surface.captureSnapshot()).value.at(-1);
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    it("steps back and forward through the edits and notifies both listener sets", async () => {
+      const { surface } = historySurface();
+      await surface.open();
+      await surface.submitEngineOperations([{ op: "a" }]);
+      await surface.submitEngineOperations([{ op: "b" }]);
+      expect(await lastByte(surface)).toBe(0x33);
+      const changes = vi.fn();
+      const dirty: number[] = [];
+      surface.subscribe(changes);
+      surface.subscribeDirty((generation) => dirty.push(generation));
+
+      surface.undo();
+      await settle();
+      expect(await lastByte(surface)).toBe(0x32);
+      surface.undo();
+      await settle();
+      expect(await lastByte(surface)).toBe(0x31);
+      surface.redo();
+      await settle();
+      expect(await lastByte(surface)).toBe(0x32);
+      expect(changes).toHaveBeenCalledTimes(3);
+      // Every step bumps the generation so the coordinator saves the swapped bytes.
+      expect(dirty).toEqual([5, 6, 7]);
+      expect(surface.getDirtyGeneration()).toBe(7);
+    });
+
+    it("is a no-op on an empty stack, like the web lane", async () => {
+      const { surface } = historySurface();
+      await surface.open();
+      const changes = vi.fn();
+      surface.subscribe(changes);
+      surface.undo();
+      surface.redo();
+      await settle();
+      expect(changes).not.toHaveBeenCalled();
+      expect(surface.getDirtyGeneration()).toBe(2);
+    });
+
+    it("clears redo on a new edit and edits from the undone bytes", async () => {
+      const { surface, sent } = historySurface();
+      await surface.open();
+      await surface.submitEngineOperations([{ op: "a" }]);
+      surface.undo();
+      await surface.submitEngineOperations([{ op: "b" }]);
+      // The second edit queued behind the undo, so the engine saw the original bytes.
+      expect(sent.filter((entry) => entry.startsWith("edit"))).toEqual(["edit:49", "edit:49"]);
+      const generation = surface.getDirtyGeneration();
+      surface.redo();
+      await settle();
+      expect(surface.getDirtyGeneration()).toBe(generation);
+    });
+
+    it("re-probes the page geometry after a step so a restored page is drawn", async () => {
+      const { surface, sent } = historySurface();
+      await surface.open();
+      await surface.submitEngineOperations([{ op: "a" }]);
+      const probes = sent.filter((entry) => entry.startsWith("open")).length;
+      surface.undo();
+      await settle();
+      expect(sent.filter((entry) => entry.startsWith("open"))).toHaveLength(probes + 1);
+      expect(sent.at(-1)).toBe("open:49");
+    });
+
+    it("drops the oldest snapshots past the byte budget but keeps the newest", async () => {
+      const { surface } = historySurface(5);
+      await surface.open();
+      await surface.submitEngineOperations([{ op: "a" }]);
+      await surface.submitEngineOperations([{ op: "b" }]);
+      surface.undo();
+      await settle();
+      surface.undo();
+      await settle();
+      expect(await lastByte(surface)).toBe(0x32);
+    });
+
+    it("does not step a read-only document", async () => {
+      const { surface } = historySurface(undefined, { readOnly: true });
+      await surface.open();
+      const changes = vi.fn();
+      surface.subscribe(changes);
+      surface.undo();
+      await settle();
+      expect(changes).not.toHaveBeenCalled();
+    });
+
+    it("resets the history on a re-open and on dispose", async () => {
+      const { surface } = historySurface();
+      await surface.open();
+      await surface.submitEngineOperations([{ op: "a" }]);
+      await surface.open();
+      const changes = vi.fn();
+      surface.subscribe(changes);
+      surface.undo();
+      await settle();
+      expect(changes).not.toHaveBeenCalled();
+      await surface.submitEngineOperations([{ op: "b" }]);
+      await surface.dispose();
+      surface.undo();
+      await settle();
+      expect(changes).toHaveBeenCalledTimes(1);
     });
   });
 });

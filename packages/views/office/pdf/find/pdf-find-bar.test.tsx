@@ -16,4 +16,12 @@ describe("PdfFindBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next match" }));
     expect(onNext).toHaveBeenCalledOnce();
   });
+
+  it("keeps the count on one line and the input from stretching the whole bar", async () => {
+    await setLocale("vi");
+    render(<PdfFindBar query="one" hits={hits} onQueryChange={vi.fn()} onNext={vi.fn()} onPrevious={vi.fn()} />);
+    const count = screen.getByText(/^1 trên 1/);
+    expect(count).toHaveClass("whitespace-nowrap", "shrink-0");
+    expect(screen.getByRole("textbox")).toHaveClass("max-w-64");
+  });
 });

@@ -30,6 +30,34 @@ describe("PdfStatusBar", () => {
     expect(onZoomChange).toHaveBeenLastCalledWith(1);
   });
 
+  it("shows the rail toggle only when a host wires it and reflects the open state", () => {
+    const onRailToggle = vi.fn();
+    const { rerender } = render(<PdfStatusBar page={1} pageCount={3} zoom={1} />);
+    expect(screen.queryByTestId("pdf-rail-toggle")).not.toBeInTheDocument();
+    rerender(<PdfStatusBar page={1} pageCount={3} zoom={1} onRailToggle={onRailToggle} />);
+    const toggle = screen.getByTestId("pdf-rail-toggle");
+    // Only below sm: from sm up the rail is always visible.
+    expect(toggle).toHaveClass("sm:hidden");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    expect(onRailToggle).toHaveBeenCalledOnce();
+    rerender(<PdfStatusBar page={1} pageCount={3} zoom={1} railOpen onRailToggle={onRailToggle} />);
+    expect(screen.getByTestId("pdf-rail-toggle")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("offers fit-width and fit-page buttons that call the host, and none without a host (T12)", () => {
+    const onFitWidth = vi.fn();
+    const onFitPage = vi.fn();
+    const { unmount } = render(<PdfStatusBar page={1} pageCount={2} zoom={1} />);
+    expect(screen.queryByRole("group", { name: "View" })).toBeNull();
+    unmount();
+    render(<PdfStatusBar page={1} pageCount={2} zoom={1} onFitWidth={onFitWidth} onFitPage={onFitPage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Fit to width" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fit to page" }));
+    expect(onFitWidth).toHaveBeenCalledTimes(1);
+    expect(onFitPage).toHaveBeenCalledTimes(1);
+  });
+
   it("does not step past the zoom limits", () => {
     const onZoomChange = vi.fn();
     render(<PdfStatusBar page={1} pageCount={1} zoom={4} onZoomChange={onZoomChange} />);

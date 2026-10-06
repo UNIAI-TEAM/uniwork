@@ -13,6 +13,8 @@ import {
   planFind,
   replaceAllEdit,
   replaceOneEdit,
+  resumeHitIndex,
+  resumePositionAfterReplace,
   stepHitIndex,
   type PptxFindOccurrence,
   type PptxFindTextTarget,
@@ -166,6 +168,78 @@ describe("emitted edits", () => {
 
   it("emits no replace-one edit without a hit", () => {
     expect(replaceOneEdit(findOccurrences(targets, "zzz", false), 0, "zzz", "x", false)).toBeNull();
+  });
+});
+
+describe("replace-one resume (the active hit moves past the text just written)", () => {
+  // Apply the one-occurrence replace to a run, the way the engine does.
+  const apply = (runs: PptxFindTextTarget[], hits: PptxFindOccurrence[], at: number, replacement: string): PptxFindTextTarget[] => {
+    const hit = hits[at]!;
+    return runs.map((run, index) =>
+      index === hit.run
+        ? { ...run, text: run.text.slice(0, hit.offset) + replacement + run.text.slice(hit.offset + hit.length) }
+        : run,
+    );
+  };
+  // The position is null only when the hit does not exist; every case below names a real hit.
+  const positionAfter = (...args: Parameters<typeof resumePositionAfterReplace>): NonNullable<ReturnType<typeof resumePositionAfterReplace>> => {
+    const position = resumePositionAfterReplace(...args);
+    expect(position).not.toBeNull();
+    return position!;
+  };
+
+  it("never lands back on the text it wrote: replacing a with aa walks forward through the run", () => {
+    let runs: PptxFindTextTarget[] = [{ text: "banana", slideIndex: 0, elementId: "t1" }];
+    let hits = findOccurrences(runs, "a", false);
+    let at = 0;
+    const visited: number[] = [];
+    for (let step = 0; step < 2; step += 1) {
+      const hit = hits[at]!;
+      const position = positionAfter(hits, at, runs, "aa");
+      runs = apply(runs, hits, at, "aa");
+      hits = findOccurrences(runs, "a", false);
+      at = resumeHitIndex(hits, position);
+      visited.push(hit.offset);
+      // The new active hit is strictly after the text just written.
+      expect(hits[at]!.offset).toBeGreaterThanOrEqual(hit.offset + 2);
+    }
+    expect(runs[0]!.text).toBe("baanaana");
+    expect(visited).toEqual([1, 4]);
+  });
+
+  it("moves to the next run when the written text was the run's last match", () => {
+    const runs: PptxFindTextTarget[] = [
+      { text: "a", slideIndex: 0, elementId: "t1" },
+      { text: "ba", slideIndex: 1, elementId: "t2" },
+    ];
+    const hits = findOccurrences(runs, "a", false);
+    const position = positionAfter(hits, 0, runs, "aa");
+    const nextHits = findOccurrences(apply(runs, hits, 0, "aa"), "a", false);
+    expect(nextHits[resumeHitIndex(nextHits, position)]).toMatchObject({ run: 1, offset: 1 });
+  });
+
+  it("wraps to the first hit when nothing remains after the written text", () => {
+    const runs: PptxFindTextTarget[] = [{ text: "aXa", slideIndex: 0, elementId: "t1" }];
+    const hits = findOccurrences(runs, "a", false);
+    const position = positionAfter(hits, 1, runs, "aa");
+    const nextHits = findOccurrences(apply(runs, hits, 1, "aa"), "a", false);
+    expect(resumeHitIndex(nextHits, position)).toBe(0);
+  });
+
+  it("follows a run that vanished (replaced with nothing) to the run now in its place", () => {
+    const runs: PptxFindTextTarget[] = [
+      { text: "a", slideIndex: 0, elementId: "t1" },
+      { text: "a", slideIndex: 0, elementId: "t2" },
+    ];
+    const hits = findOccurrences(runs, "a", false);
+    const position = positionAfter(hits, 0, runs, "");
+    // The emptied run is dropped from the flattened deck, so t2 is now run 0.
+    const nextHits = findOccurrences([runs[1]!], "a", false);
+    expect(nextHits[resumeHitIndex(nextHits, position)]).toMatchObject({ run: 0, offset: 0 });
+  });
+
+  it("reports unset when there are no hits left", () => {
+    expect(resumeHitIndex([], { run: 0, offset: 0 })).toBe(PPTX_FIND_UNSET_HIT);
   });
 });
 

@@ -154,6 +154,18 @@ export interface PptxEngineFunctions {
    * read leaves it unbound and the adapter refuses with a typed
    * notes_unbound, never a fabricated empty string. */
   getSlideNotes?(archive: unknown, slidePath: string): string;
+  /** Parse a master/layout part into its editable element tree
+   * (master-edit.ts:72). Optional: unbound => masterElements refuses with a
+   * typed master_unbound, never an invented empty element list. */
+  parseMasterPart?(archive: unknown, partPath: string): PptxMasterPartLike | null;
+}
+
+/** The slice of a vendored parsed master/layout part (a Slide, types.ts:675)
+ * that the element reader needs; ids are the parse-time ids the part-addressed
+ * ops target. */
+export interface PptxMasterPartLike {
+  elements: PptxElementLike[];
+  [key: string]: unknown;
 }
 
 /** packages/pptx-ops executor (executor.ts:160). */

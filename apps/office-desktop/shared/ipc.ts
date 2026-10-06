@@ -33,6 +33,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:recent-remove",
   "desktop:library-list",
   "desktop:library-context",
+  "desktop:public-config",
   "desktop:library-recent",
   "desktop:library-search",
   "desktop:library-create",
@@ -93,7 +94,11 @@ export const desktopFileMetadataSchema = z.object({
   /** A new local document has no backing path until its first Save As. */
   untitled: z.boolean().optional(),
 }).strict();
-export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional() }).strict();
+/** Why a `desktop:file-*` command failed: a stable `[a-z0-9_]` code (never an OS
+ * message or a path). An unknown code is still valid; the renderer falls back to
+ * its generic copy for it. */
+const fileFailureCodeSchema = z.string().regex(/^[a-z0-9_]{1,64}$/);
+export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional(), code: fileFailureCodeSchema.optional() }).strict();
 const recentFileIdSchema = z.string().regex(/^recent_[A-Za-z0-9]{16,64}$/, "invalid recent file id");
 export const recentFileSchema = z.object({
   id: recentFileIdSchema,
@@ -170,6 +175,25 @@ export const desktopLibraryContextResponseSchema = z.object({
   workspaces: z.array(pickerEntrySchema),
 }).strict();
 export type DesktopLibraryContextResponse = z.infer<typeof desktopLibraryContextResponseSchema>;
+/** The public feature flags GET /api/v1/config answers (boolean flags only,
+ * bounded). Main fetches them with the session; the renderer never calls the API. */
+const PUBLIC_FLAG_KEY = /^[a-z][a-z0-9_]{0,63}$/;
+const PUBLIC_FLAG_LIMIT = 128;
+export const desktopPublicConfigResponseSchema = z.object({
+  flags: z.record(z.string().regex(PUBLIC_FLAG_KEY), z.boolean()).refine((flags) => Object.keys(flags).length <= PUBLIC_FLAG_LIMIT, "too many flags"),
+}).strict();
+/** Keeps only well-formed boolean flags, at most the schema's cap, so a
+ * larger catalogue degrades to a truncated answer instead of a rejected one. */
+export function sanitizeDesktopPublicFlags(raw: unknown): Record<string, boolean> {
+  const flags: Record<string, boolean> = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return flags;
+  for (const [key, value] of Object.entries(raw)) {
+    if (Object.keys(flags).length >= PUBLIC_FLAG_LIMIT) break;
+    if (typeof value === "boolean" && PUBLIC_FLAG_KEY.test(key)) flags[key] = value;
+  }
+  return flags;
+}
+export type DesktopPublicConfigResponse = z.infer<typeof desktopPublicConfigResponseSchema>;
 export const desktopLibraryDownloadResponseSchema = z.object({
   documentId: documentIdSchema,
   version: z.number().int().nonnegative(),
@@ -246,6 +270,8 @@ export const desktopFileXlsxResponseSchema = z.object({
   /** The JSON snapshot (open) or the produced bytes (edit), base64. */
   outputBase64: base64BytesSchema.optional(),
   outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
+  /** Set on a `failed` answer that main can name (a refused file, not an engine fault). */
+  code: fileFailureCodeSchema.optional(),
 }).strict();
 export type DesktopFileXlsxResponse = z.infer<typeof desktopFileXlsxResponseSchema>;
 export const desktopLeaveResolvedResponseSchema = z.object({ resolved: z.boolean() }).strict();
@@ -298,6 +324,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:tabs-update": desktopTabsUpdateResponseSchema,
   "desktop:library-list": desktopLibraryResponseSchema,
   "desktop:library-context": desktopLibraryContextResponseSchema,
+  "desktop:public-config": desktopPublicConfigResponseSchema,
   "desktop:library-recent": desktopLibraryResponseSchema,
   "desktop:library-search": desktopLibraryResponseSchema,
   "desktop:library-create": desktopOfficeOpenResponseSchema,
@@ -357,6 +384,7 @@ const requestSchemas = {
   "desktop:draft-discard": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema.optional(), draftId: draftIdSchema, generation: z.number().int().positive() }).strict(),
   "desktop:library-list": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-context": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:public-config": z.object({ sessionGeneration: sessionGenerationSchema, organizationId: opaqueHandleSchema.optional() }).strict(),
   "desktop:library-recent": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-search": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, query: z.string().trim().min(1).max(256), cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255), format: documentFormatSchema.default(DEFAULT_DESKTOP_DOCUMENT_FORMAT) }).strict(),

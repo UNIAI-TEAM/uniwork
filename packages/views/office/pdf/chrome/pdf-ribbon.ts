@@ -79,6 +79,12 @@ interface PdfRibbonGroupSpec {
   id: string;
   labelKey: string;
   ids: readonly PdfCommandId[];
+  /**
+   * Render every item small (icon + label on one line). A large ribbon button
+   * is sized for a label that wraps to two lines, so a caption that must stay
+   * on one line (vi "Phóng to", "Vừa trang", "Điền biểu mẫu") uses this.
+   */
+  oneLine?: boolean;
 }
 
 /**
@@ -114,7 +120,7 @@ const PDF_RIBBON_TABS: ReadonlyArray<{ id: PdfToolbarTab; groups: readonly PdfRi
         labelKey: "office.pdf.markups.label",
         ids: [PDF_COMMANDS.annotations, PDF_COMMANDS.highlight, PDF_COMMANDS.note, PDF_COMMANDS.stamp],
       },
-      { id: "forms", labelKey: "office.pdf.forms.title", ids: [PDF_COMMANDS.forms] },
+      { id: "forms", labelKey: "office.pdf.forms.title", ids: [PDF_COMMANDS.forms], oneLine: true },
     ],
   },
   {
@@ -137,11 +143,13 @@ const PDF_RIBBON_TABS: ReadonlyArray<{ id: PdfToolbarTab; groups: readonly PdfRi
         id: "zoom",
         labelKey: "office.pdf.view.zoomGroup",
         ids: [PDF_COMMANDS.zoomOut, PDF_COMMANDS.zoomIn],
+        oneLine: true,
       },
       {
         id: "fit",
         labelKey: "office.pdf.view.fitGroup",
         ids: [PDF_COMMANDS.fitWidth, PDF_COMMANDS.fitPage],
+        oneLine: true,
       },
     ],
   },
@@ -183,7 +191,7 @@ export function createPdfRibbonTabs(
             id,
             labelKey: PDF_RIBBON_COMMAND_LABEL_KEYS[id],
             icon: PDF_RIBBON_ICONS[id],
-            size: packed ? "icon" : position === 0 || present.length === 2 ? "large" : "small",
+            size: packed ? "icon" : spec.oneLine ? "small" : position === 0 || present.length === 2 ? "large" : "small",
             ...(packed && position > 0 && position % ICONS_PER_ROW === 0 ? { rowBreak: true } : {}),
             disabled: command.disabled,
             onExecute: () => {

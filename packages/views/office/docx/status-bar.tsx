@@ -80,6 +80,8 @@ export function DocxStatusBar({ selection, help }: Pick<DocxToolbarGroupContext,
       selection={selection ? { from: selection.from, to: selection.to } : null}
       onZoomIn={surface ? () => controller.zoomIn() : undefined}
       onZoomOut={surface ? () => controller.zoomOut() : undefined}
+      onFitWidth={surface ? () => controller.fit("width") : undefined}
+      onFitPage={surface ? () => controller.fit("page") : undefined}
       help={help}
     />
   );

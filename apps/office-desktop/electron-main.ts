@@ -86,6 +86,10 @@ export function createNativeMenuTemplate(channel: "dev" | "beta" | "stable", onS
   return template;
 }
 
+/** Smallest window the shell lays out without overlap: below it the tab strip
+ * collides with its new-tab and overflow controls and the ribbon scrolls. */
+export const DESKTOP_WINDOW_MIN_SIZE = { minWidth: 640, minHeight: 480 } as const;
+
 export function nativeWindowOptions(platform: NodeJS.Platform, dark = false): Pick<Electron.BrowserWindowConstructorOptions, "titleBarStyle" | "titleBarOverlay"> {
   if (platform === "darwin") return {};
   const colors = dark ? DESKTOP_TITLE_BAR_TOKENS.dark : DESKTOP_TITLE_BAR_TOKENS.light;
@@ -289,6 +293,7 @@ async function startElectronHost(): Promise<void> {
 
   const window = new BrowserWindow({
     show: !SMOKE_MODE,
+    ...DESKTOP_WINDOW_MIN_SIZE,
     webPreferences: {
       ...WINDOW_WEB_PREFERENCES,
       preload: PRELOAD_PATH,

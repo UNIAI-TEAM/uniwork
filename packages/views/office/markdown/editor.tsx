@@ -37,6 +37,7 @@ import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import { OfficeFrame } from "../frame";
 import { MarkdownStatusBar } from "./status-bar";
+import { useMarkdownCaret } from "./use-caret-position";
 import type { PreviewSession } from "../source-editor-types";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
@@ -56,10 +57,7 @@ type MarkdownViewMode = "visual" | "source";
 
 function failureFor(documentKey: string, error: unknown): Extract<MarkdownOpenOutcome, { outcome: "failed" }> {
   return {
-    outcome: "failed",
-    document_id: documentKey,
-    format: "md",
-    failure_class: "engine_error",
+    outcome: "failed", document_id: documentKey, format: "md", failure_class: "engine_error",
     message: error instanceof Error ? error.message : String(error),
   } as Extract<MarkdownOpenOutcome, { outcome: "failed" }>;
 }
@@ -167,6 +165,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
   const sectionRef = useRef<HTMLElement>(null);
   const findRef = useRef<MarkdownFindHandle>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const caret = useMarkdownCaret(mode, instance, textAreaRef, viewState === "ready");
   const sourceWrapperRef = useRef<HTMLDivElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewSessionRef = useRef<PreviewSession | null>(null);
@@ -528,7 +527,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
               </aside>
             ) : undefined
           }
-          statusBar={<MarkdownStatusBar state={coordinatorState.state} mode={mode} readOnly={readOnly} joinedBand={assetRowCount > 0} />}
+          statusBar={<MarkdownStatusBar state={coordinatorState.state} mode={mode} readOnly={readOnly} joinedBand={assetRowCount > 0} text={viewState === "ready" ? text : null} caret={caret} />}
           canvasClassName="flex min-h-0 flex-col overflow-hidden"
         >
           {/* M-6/C4: print + export ride the page overflow menu, not a

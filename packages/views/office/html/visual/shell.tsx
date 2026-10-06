@@ -45,7 +45,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { HtmlSourceEditor } from "../source";
+import { HtmlSourceEditor, type HtmlSourceSelection } from "../source";
 import type { AssetManifestLike } from "../../asset-manifest";
 import type { IsolatedPreviewPort, PreviewMountOptions, PreviewSession } from "../../source-editor-types";
 import { createVisualEditNonce } from "./nonce";
@@ -71,6 +71,8 @@ export interface HtmlVisualShellProps {
   /** Fired on a source edit, never mid-IME composition (H1 owns that gate). */
   onChange?(next: string): void;
   onCheckpoint?(): void;
+  /** The source caret / selection moved (status row). */
+  onSourceSelectionChange?(selection: HtmlSourceSelection): void;
   /** The ONLY preview runtime. Absent -> the pane shows "preview unavailable". */
   preview?: IsolatedPreviewPort;
   manifest?: AssetManifestLike | null;
@@ -269,6 +271,7 @@ export function HtmlVisualShell({
   readOnly = false,
   onChange,
   onCheckpoint,
+  onSourceSelectionChange,
   preview,
   manifest,
   onPreviewSession,
@@ -398,6 +401,7 @@ export function HtmlVisualShell({
         ariaLabel={t("source.label")}
         onChange={(next) => onChange?.(next)}
         onCheckpoint={onCheckpoint}
+        onSelectionChange={onSourceSelectionChange}
       />
     </div>
   ) : null;
