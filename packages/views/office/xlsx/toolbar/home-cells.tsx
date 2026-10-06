@@ -105,9 +105,9 @@ function InsertMenu(context: XlsxToolbarGroupProps) {
   const counts = span === null ? null : insertCounts(span, selection?.rangeType);
   const entries: readonly CellsMenuEntry[] = counts === null ? [] : [
     { id: "rows-above", label: t("office.xlsx.structure.insertRowsAbove", { count: counts.rows }), onSelect: run("sheet.command.insert-row-before", { value: counts.rows }) },
-    { id: "rows-below", label: t("office.xlsx.structure.insertRowsBelow"), onSelect: run("sheet.command.insert-row-after") },
+    { id: "rows-below", label: t("office.xlsx.structure.insertRowsBelow"), onSelect: run("sheet.command.insert-multi-rows-after", { value: counts.rows }) },
     { id: "cols-left", label: t("office.xlsx.structure.insertColsLeft", { count: counts.columns }), onSelect: run("sheet.command.insert-col-before", { value: counts.columns }) },
-    { id: "cols-right", label: t("office.xlsx.structure.insertColsRight"), onSelect: run("sheet.command.insert-col-after") },
+    { id: "cols-right", label: t("office.xlsx.structure.insertColsRight"), onSelect: run("sheet.command.insert-multi-cols-right", { value: counts.columns }) },
   ];
   return <CellsMenu id="cells-insert" labelKey="office.xlsx.toolbar.groups.cellsItems.insert" icon={SquarePlus} blocked={blocked} entries={entries} />;
 }

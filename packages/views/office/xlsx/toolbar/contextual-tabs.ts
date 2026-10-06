@@ -82,7 +82,7 @@ function tableLayoutTab(context: XlsxToolbarGroupProps, when: boolean): RibbonTa
         disabled,
         menu: [
           { id: "table-layout-row-above", labelKey: "office.xlsx.structure.insertRowsAbove", onSelect: () => context.commands?.execute("sheet.command.insert-row-before", { value: 1 }) },
-          { id: "table-layout-row-below", labelKey: "office.xlsx.structure.insertRowsBelow", onSelect: () => context.commands?.execute("sheet.command.insert-row-after") },
+          { id: "table-layout-row-below", labelKey: "office.xlsx.structure.insertRowsBelow", onSelect: () => context.commands?.execute("sheet.command.insert-multi-rows-after", { value: 1 }) },
           { id: "table-layout-row-delete", labelKey: "office.xlsx.structure.deleteRows", onSelect: () => context.commands?.execute("sheet.command.remove-row", rect === null ? undefined : { range: rect }) },
         ],
       },
@@ -102,7 +102,7 @@ function tableLayoutTab(context: XlsxToolbarGroupProps, when: boolean): RibbonTa
         disabled,
         menu: [
           { id: "table-layout-col-left", labelKey: "office.xlsx.structure.insertColsLeft", onSelect: () => context.commands?.execute("sheet.command.insert-col-before", { value: 1 }) },
-          { id: "table-layout-col-right", labelKey: "office.xlsx.structure.insertColsRight", onSelect: () => context.commands?.execute("sheet.command.insert-col-after") },
+          { id: "table-layout-col-right", labelKey: "office.xlsx.structure.insertColsRight", onSelect: () => context.commands?.execute("sheet.command.insert-multi-cols-right", { value: 1 }) },
           { id: "table-layout-col-delete", labelKey: "office.xlsx.structure.deleteCols", onSelect: () => context.commands?.execute("sheet.command.remove-col", rect === null ? undefined : { range: rect }) },
         ],
       },
