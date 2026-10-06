@@ -71,9 +71,10 @@ function fontSize(value: string | null): number | null {
   return rounded >= 1 && rounded <= 409 ? rounded : null;
 }
 
-/** Width in points: `.5pt`, `1px`, or the CSS keywords. */
+/** Width in points: `.5pt`, `1px`, or the CSS keywords (`thick` is 3px: the
+ *  web's `2px solid` is Excel's medium, not its thick). */
 function borderWidth(token: string): number | null {
-  const keyword = { thin: 0.75, medium: 1, thick: 1.5 }[token.toLowerCase()];
+  const keyword = { thin: 0.75, medium: 1, thick: 2.25 }[token.toLowerCase()];
   if (keyword !== undefined) return keyword;
   const match = /^(\d+(?:\.\d+)?|\.\d+)(pt|px)$/i.exec(token);
   return match ? Number(match[1]) * (match[2]!.toLowerCase() === "px" ? 0.75 : 1) : null;
@@ -96,7 +97,7 @@ function border(value: string | null): XlsxPasteBorder | null {
   else if (line === "dot-dash") s = 5;
   else if (line === "dot-dot-dash") s = 6;
   else if (line === "dashed") s = width > 0.75 ? 9 : 4;
-  else s = width <= 0.75 ? 1 : width <= 1.25 ? 8 : 13;
+  else s = width <= 0.75 ? 1 : width <= 1.5 ? 8 : 13;
   return { s, cl: { rgb: color } };
 }
 

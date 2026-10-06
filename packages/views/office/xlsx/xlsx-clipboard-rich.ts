@@ -39,23 +39,45 @@ export interface XlsxRichPastePlan {
   readonly merges: readonly XlsxPasteRange[];
 }
 
+/** F-P4: bounds for a hostile or huge clipboard payload - the HTML as a
+ *  whole, one cell's style string and the classes one cell may name. */
+const MAX_HTML_LENGTH = 2_000_000;
+const MAX_STYLE_LENGTH = 4096;
+const MAX_CELL_CLASSES = 16;
+
+/** The tail wins: a later declaration overrides an earlier one in CSS, so a
+ *  cap keeps the end of the string. */
+function capStyle(style: string): string {
+  return style.length > MAX_STYLE_LENGTH ? style.slice(-MAX_STYLE_LENGTH) : style;
+}
+
 function classRules(doc: Document): Map<string, string> {
-  const rules = new Map<string, string>();
+  // A repeated body moves to the end instead of piling up, so the cascade
+  // order holds and a class repeated thousands of times stays one rule.
+  const bodies = new Map<string, Set<string>>();
   for (const sheet of Array.from(doc.querySelectorAll("style"))) {
     for (const rule of (sheet.textContent ?? "").matchAll(/\.([\w-]+)\s*\{([^}]*)\}/g)) {
-      rules.set(rule[1]!, `${rules.get(rule[1]!) ?? ""};${rule[2]!}`);
+      const set = bodies.get(rule[1]!) ?? new Set<string>();
+      const body = rule[2]!.trim();
+      set.delete(body);
+      set.add(body);
+      bodies.set(rule[1]!, set);
     }
   }
-  return rules;
+  return new Map(Array.from(bodies, ([name, set]) => [name, capStyle(Array.from(set).join(";"))]));
 }
 
 function richCell(cell: Element, rules: Map<string, string>): XlsxRichCell {
-  const classes = (cell.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
+  const classes = (cell.getAttribute("class") ?? "").split(/\s+/).filter(Boolean).slice(0, MAX_CELL_CLASSES);
   // Inline declarations come last so they win over a class rule.
-  const style = [...classes.map((name) => rules.get(name) ?? ""), cell.getAttribute("style") ?? ""].join(";");
+  const style = capStyle([...classes.map((name) => rules.get(name) ?? ""), cell.getAttribute("style") ?? ""].join(";"));
   const text = collapsed(cell.textContent);
-  const number = sourceNumber(cell);
-  return { text, style: cellPasteStyle(cell, style, text), ...(number === null ? {} : { number }) };
+  const pasted = cellPasteStyle(cell, style, text);
+  // F-P1: the raw number replaces the display text only under a number format
+  // that survived; without one (an unmapped named format) the number would
+  // show as a bare serial or amount, so the typed display text is pasted.
+  const number = pasted.n ? sourceNumber(cell) : null;
+  return { text, style: pasted, ...(number === null ? {} : { number }) };
 }
 
 function sourceNumber(cell: Element): number | null {
@@ -93,7 +115,7 @@ function span(cell: Element, name: string, max: number): number {
  *  cells, so the grid lines up with the plain-text twin; the bound is checked
  *  while expanding, before anything large is allocated. */
 export function parseClipboardHtmlTable(html: string): XlsxRichTable | null {
-  if (html.trim() === "" || typeof DOMParser === "undefined") return null;
+  if (html.trim() === "" || html.length > MAX_HTML_LENGTH || typeof DOMParser === "undefined") return null;
   const doc = new DOMParser().parseFromString(html, "text/html");
   const table = doc.querySelector("table");
   if (!table) return null;

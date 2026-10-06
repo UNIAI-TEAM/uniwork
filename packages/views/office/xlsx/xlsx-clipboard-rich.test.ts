@@ -43,6 +43,42 @@ describe("parseClipboardHtmlTable", () => {
   });
 });
 
+describe("parseClipboardHtmlTable - source numbers need a surviving format (F-P1)", () => {
+  it("keeps the display text for a number whose format was dropped", () => {
+    const row = firstRow(`<td x:num="46301" style='mso-number-format:Euro'>25/09/2026</td><td x:num="1234.5">1234.5</td>`
+      + `<td data-sheets-value="{&quot;1&quot;:3,&quot;3&quot;:0.25}">25%</td>`
+      + `<td x:num="0.5" style='mso-number-format:"0\\.00%"'>50.00%</td>`);
+    expect(row.map((cell) => cell.number)).toEqual([undefined, undefined, undefined, 0.5]);
+  });
+});
+
+describe("parseClipboardHtmlTable - bounds on a hostile payload (F-P4)", () => {
+  it("refuses an HTML payload over 2 MB", () => {
+    const table = `<table><tr><td style='font-weight:bold'>a</td></tr></table>`;
+    expect(parseClipboardHtmlTable(table)).not.toBeNull();
+    expect(parseClipboardHtmlTable(`${table}<!--${"x".repeat(2_000_001)}-->`)).toBeNull();
+  });
+
+  it("caps one cell's style string and keeps the end, where the inline style wins", () => {
+    const filler = "x-y:z;".repeat(1000);
+    expect(firstRow(`<td style='font-style:italic;${filler}'>a</td>`)[0]!.style).toEqual({});
+    expect(firstRow(`<td style='${filler}font-style:italic'>a</td>`)[0]!.style).toEqual({ it: 1 });
+  });
+
+  it("folds a class rule repeated thousands of times into one", () => {
+    const rules = `.a{font-style:italic}${".a{color:red}".repeat(1000)}`;
+    const html = `<style>${rules}</style><table><tr><td class=a>x</td></tr></table>`;
+    expect(parseClipboardHtmlTable(html)!.rows[0]![0]!.style).toEqual({ it: 1, cl: { rgb: "#ff0000" } });
+  });
+
+  it("reads at most 16 classes of one cell", () => {
+    const names = Array.from({ length: 20 }, (_, index) => `c${index}`);
+    const rules = names.map((name, index) => `.${name}{${index === 19 ? "font-style:italic" : "color:red"}}`).join("");
+    const html = `<style>${rules}</style><table><tr><td class="${names.join(" ")}">x</td></tr></table>`;
+    expect(parseClipboardHtmlTable(html)!.rows[0]![0]!.style).toEqual({ cl: { rgb: "#ff0000" } });
+  });
+});
+
 describe("parseClipboardHtmlTable - fonts and borders", () => {
   it("reads font family, size, italic, underline, strike and colour", () => {
     const [cell] = firstRow(`<td style='font-family:"Times New Roman", serif;font-size:14.0pt;font-style:italic;text-decoration:underline line-through;color:#C00000'>x</td>`);
@@ -63,6 +99,15 @@ describe("parseClipboardHtmlTable - fonts and borders", () => {
     expect(excel!.style.bd).toEqual({ t: { s: 1, cl: black }, b: { s: 1, cl: black }, l: { s: 1, cl: black }, r: { s: 1, cl: black } });
     expect(sides!.style.bd).toEqual({ t: { s: 8, cl: { rgb: "#ff0000" } }, b: { s: 7, cl: { rgb: "#0000ff" } }, l: { s: 4, cl: black } });
     expect(google!.style.bd).toEqual({ b: { s: 13, cl: black }, t: { s: 3, cl: { rgb: "#008000" } } });
+  });
+
+  it("maps a web 2px solid border to medium and 3px or thick to thick (F-P6)", () => {
+    const [two, three, keyword, excelThick] = firstRow(`<td style='border:2px solid #000000'>a</td><td style='border:3px solid #000000'>b</td>`
+      + `<td style='border:thick solid #000000'>c</td><td style='border:2.0pt solid windowtext'>d</td>`);
+    expect(two!.style.bd!.t!.s).toBe(8);
+    expect(three!.style.bd!.t!.s).toBe(13);
+    expect(keyword!.style.bd!.t!.s).toBe(13);
+    expect(excelThick!.style.bd!.t!.s).toBe(13);
   });
 
   it("lets the inline style win over the class rule", () => {
