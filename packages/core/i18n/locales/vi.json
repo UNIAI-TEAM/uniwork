@@ -11944,6 +11944,10 @@
       "featureOffDescription": "Tổ chức của bạn đang tắt chỉnh sửa tệp {{format}}, nên tệp này chỉ xem được.",
       "flagsUnknownTitle": "Chưa sửa được tệp {{format}}",
       "flagsUnknownDescription": "Tệp này tạm thời chỉ xem được trong lúc kiểm tra cấu hình trình soạn thảo của tổ chức. Tệp sẽ sửa được khi kiểm tra xong.",
+      "viewOnlyTitle": "Tệp {{format}} chỉ xem được với bạn",
+      "viewOnlyDescription": "Quyền truy cập của bạn vào tệp này đã thay đổi nên tệp chỉ xem được. Hãy nhờ chủ sở hữu cấp quyền chỉnh sửa, rồi mở lại tệp.",
+      "goneTitle": "Tệp {{format}} này không còn nữa",
+      "goneDescription": "Tệp đã bị xóa hoặc di chuyển nên không thể sửa ở đây. Hãy đóng thẻ này và mở lại tệp từ thư viện.",
       "format": {
         "label": "Định dạng",
         "all": "Tất cả định dạng",

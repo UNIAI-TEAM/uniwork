@@ -11968,6 +11968,10 @@
       "featureOffDescription": "Editing {{format}} files is turned off for your organization, so this file is view-only.",
       "flagsUnknownTitle": "{{format}} editing isn't available yet",
       "flagsUnknownDescription": "This file is view-only for now while your organization's editor settings are checked. It becomes editable once the check succeeds.",
+      "viewOnlyTitle": "{{format}} file is view-only for you",
+      "viewOnlyDescription": "Your access to this file changed, so it stays view-only. Ask the owner for edit access, then open it again.",
+      "goneTitle": "This {{format}} file is no longer available",
+      "goneDescription": "The file was deleted or moved, so it can't be edited here. Close this tab and open it again from the library.",
       "format": {
         "label": "Format",
         "all": "All formats",
