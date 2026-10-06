@@ -329,3 +329,43 @@ describe("web Markdown/HTML format adapter", () => {
     container.remove();
   });
 });
+
+describe("web HTML visual-edit host (office_html_visual_edit)", () => {
+  const PAGE = "<!doctype html><html><head><title>T</title></head><body><main><p>One</p><p>Two</p></main></body></html>";
+  type VisualHost = { parseMap(text: string): { elements: Array<{ sid: number; tag: string }> }; revision(): number; applyPatchSet(set: unknown): void };
+  const hostOf = (created: { editorView: unknown }) => (created.editorView as { props: { visualEdit?: VisualHost } }).props.visualEdit;
+
+  it("hands the HTML view a host with a real parse map; Markdown gets none", async () => {
+    const html = adapter("html", new TextEncoder().encode(PAGE)).adapter;
+    await html.open.open();
+    const host = hostOf(html)!;
+    expect(host.parseMap(PAGE).elements.map((element) => element.tag)).toEqual(["html", "head", "title", "body", "main", "p", "p"]);
+    expect(hostOf(adapter("md").adapter)).toBeUndefined();
+  });
+
+  it("a visual edit is an ordinary text edit: dirty, undoable, and in the saved bytes", async () => {
+    const created = adapter("html", new TextEncoder().encode(PAGE)).adapter;
+    await created.open.open();
+    const host = hostOf(created)!;
+    const first = host.parseMap(PAGE).elements.find((element) => element.tag === "p")!;
+    const range = PAGE.indexOf("<p>One</p>");
+    expect(first.sid).toBeGreaterThan(0);
+    const dirtyBefore = created.editor.getDirtyGeneration();
+    host.applyPatchSet({ patches: [{ from: range + 3, to: range + 6, text: "Uno" }], baseVersion: host.revision(), origin: "inspector", label: "set_text" });
+    expect(created.editor.source?.getText()).toContain("<p>Uno</p>");
+    expect(created.editor.getDirtyGeneration()).toBeGreaterThan(dirtyBefore);
+    const snapshot = await created.editor.captureSnapshot();
+    const serialized = await created.editor.serializeSnapshot(snapshot);
+    expect(new TextDecoder().decode(serialized.bytes)).toContain("<p>Uno</p>");
+    created.editor.undo?.();
+    expect(created.editor.source?.getText()).toBe(PAGE);
+  });
+
+  it("a stale base revision changes nothing", async () => {
+    const created = adapter("html", new TextEncoder().encode(PAGE)).adapter;
+    await created.open.open();
+    const host = hostOf(created)!;
+    expect(() => host.applyPatchSet({ patches: [{ from: 0, to: 0, text: "x" }], baseVersion: host.revision() + 7, origin: "inspector", label: "t" })).toThrow();
+    expect(created.editor.source?.getText()).toBe(PAGE);
+  });
+});
