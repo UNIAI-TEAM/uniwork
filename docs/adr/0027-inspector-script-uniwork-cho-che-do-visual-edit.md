@@ -79,7 +79,8 @@ một luật loại/cho phép nào đang có: nó chỉ thêm một lượt lo�
 chứng minh bản serialisation ổn định qua lần phân tích lại, việc chèn inspector
 sau đó (một lần phân tích lại + nối vào `<head>`) không mở lại đường nào. Thuộc
 tính `data-sid` vốn đã được cổng giữ nguyên (đã kiểm bằng test), nên việc gắn
-`data-sid` từ parse map là phạm vi của H5, không cần thêm gì ở cổng.
+`data-sid` từ parse map là phạm vi của H5, không cần thêm gì ở cổng
+(tên thuộc tính đã đổi, xem mục "Cập nhật 2026-10-06" cuối file).
 Khi bật, cổng **cũng** loại mọi `<meta http-equiv="Content-Security-Policy">`
 do tài liệu cung cấp: chính sách CSP giao nhau (intersect), nên một tài liệu thù
 địch có thể gửi `script-src 'none'` và âm thầm vô hiệu hoá inspector. Đây chỉ là
@@ -138,6 +139,27 @@ patch set áp lên nguồn qua `engine.applyPatchSet`, S1 không tự ghi DOM.
 - Khi thêm loại thông điệp mới, phải thêm vào union zod (parent) **và** allowlist
   trong script (frame) cùng lúc; một test sinh script từ chính các hằng số giao
   thức giữ hai phía không lệch.
+
+## Cập nhật 2026-10-06 — thuộc tính sid theo nonce của phiên (UNI-940)
+
+Khi nối trình soạn HTML visual-edit (H5-H8, lane UNI-940), triển khai không dùng
+`data-sid` như đoạn trên viết mà dùng `data-sid-<nonce>` (commit `7b01b7e7`).
+Quyết định không đổi: vẫn đúng một script inspector do UniWork sở hữu, CSP
+`script-src 'nonce-<n>'` chỉ ở chế độ visual-edit, sandbox không
+`allow-same-origin`.
+
+- Tên thuộc tính sid là `data-sid-<nonce>`, với `<nonce>` là nonce của phiên preview
+  (32 ký tự hex thường từ CSPRNG, đúng giá trị `visualEdit.nonce`). Trình soi và bản
+  sao xem trước dùng chung tên này.
+- Tài liệu không biết nonce nên không thể tự gán sid cho một phần tử; một
+  `data-sid` do tài liệu viết chỉ là thuộc tính vô hại mà trình soi không đọc.
+  Cổng vẫn giữ nguyên thuộc tính (đã kiểm bằng test), không thêm luật loại/cho phép.
+- Trong bảng thông điệp, `select` chọn phần tử theo sid này (không còn là
+  `data-sid` theo nghĩa đen); kiểu `sid` của thông điệp không đổi.
+
+Vì sao: một sid tên cố định cho phép tài liệu thù địch gán sid giả để dẫn hướng
+một thao tác sửa vào phần tử khác; tên theo nonce đóng đường đó mà không cần cổng
+phân biệt "sid của host" với "sid của tài liệu".
 
 ## Trạng thái
 

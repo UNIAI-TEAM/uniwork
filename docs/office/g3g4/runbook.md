@@ -112,6 +112,8 @@ Sidecar XLSX: không có biến riêng cần đặt.
 3. Giá trị mặc định trong compose chỉ để dev. Nơi dùng chung phải đặt khóa thật.
 4. Trên Kubernetes dùng chart Helm thay compose: bật `officeEngine.enabled`, xem mục A ở đầu file.
 
+**Bundle gateway XLSX phải build lại với patch 0010** (`packages/office-upstream/patches/0010-xlsx-visual-additions.patch`, UNI-940 X02). Patch này thêm tham số `visualAdditions` vào `applyCellEditsToXlsx` và xuất cờ `UNIWORK_XLSX_VISUAL_ADDITIONS`; `bindXlsxGateway` từ chối bundle không có cờ này, nên một `xlsx-gateway.mjs` build trước patch sẽ lỗi ngay khi bind chứ không lưu sai. Mọi nơi đóng gói gateway (image `office-engine`, `dist/xlsx-assets` của bản cài desktop, bản dev tại `.go-tmp/office-upstream-build`) phải chạy lại `node scripts/office/build-upstream.mjs` rồi build lại image/bản cài; không copy bundle cũ sang. Kiểm: `grep -c UNIWORK_XLSX_VISUAL_ADDITIONS <đường dẫn>/xlsx-gateway.mjs` phải >= 1.
+
 ### 3.4 Kho file (MinIO/S3)
 
 - Trình duyệt phải gọi được địa chỉ kho (`MINIO_PUBLIC_ENDPOINT` nếu khác địa chỉ nội bộ).
