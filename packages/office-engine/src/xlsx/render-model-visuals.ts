@@ -64,13 +64,13 @@ export type XlsxBase64Reader = (paths: readonly string[], maxBytes: number, maxT
 const isOn = (value: string | undefined): boolean => value === "1" || value === "true";
 
 /** `xl/worksheets/sheet1.xml` -> `xl/worksheets/_rels/sheet1.xml.rels`. */
-export function partRelsPath(partPath: string): string {
+function partRelsPath(partPath: string): string {
   const slash = partPath.lastIndexOf("/");
   return `${partPath.slice(0, slash + 1)}_rels/${partPath.slice(slash + 1)}.rels`;
 }
 
 /** Resolve a relationship target against the part that owns the rels file. */
-export function resolvePartTarget(partPath: string, target: string): string {
+function resolvePartTarget(partPath: string, target: string): string {
   if (target.startsWith("/")) return target.slice(1);
   const segments = partPath.split("/").slice(0, -1);
   for (const part of target.split("/")) {
@@ -100,7 +100,7 @@ function relationships(relsXml: string | null | undefined): Relationship[] {
 
 /** The drawing part a worksheet's relationships name (the gateway's
  *  ensureSheetDrawing picks it the same way: the first drawing relationship). */
-export function drawingPathOf(sheetPath: string, sheetRelsXml: string | null | undefined): string | null {
+function drawingPathOf(sheetPath: string, sheetRelsXml: string | null | undefined): string | null {
   const rel = relationships(sheetRelsXml).find((entry) => /\/drawing$/.test(entry.type) && !entry.external);
   return rel ? resolvePartTarget(sheetPath, rel.target) : null;
 }
