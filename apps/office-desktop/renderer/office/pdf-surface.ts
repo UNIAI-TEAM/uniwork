@@ -73,6 +73,18 @@ function abortError(): DOMException {
   return new DOMException("The pdf render was aborted", "AbortError");
 }
 
+/** Settle with `pending`, or reject with AbortError as soon as `signal`
+ * aborts: an engine render in flight cannot be stopped, but its caller (a
+ * print run walking every page) must not wait for it. */
+function untilAborted<T>(pending: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return pending;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(abortError());
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
+}
+
 /** The op name each engine warning detail begins with; the detail prefixes the
  * kind (`note page=1: …`) or, for a form value, the field (`form field "x": …`). */
 const SKIP_OP_BY_PREFIX: Readonly<Record<string, string>> = {
@@ -175,7 +187,8 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
 
   /** Rendered pages, keyed by page@scale@generation. An edit bumps the
    * generation, so a stale key never serves the pre-edit pixels; a failed
-   * render is dropped from the cache instead of poisoning it. */
+   * render is dropped from the cache instead of poisoning it. An uncached
+   * request (print) reads an entry the view holds but never adds one. */
   let cache = new Map<string, Promise<PdfRenderResult>>();
   const clearCache = (): void => { cache = new Map(); };
 
@@ -232,15 +245,21 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
       if (!pending) {
         const args: Record<string, unknown> = { dataBase64: bytesBase64(), pageIndex: index, scale: request.scale };
         if (password !== undefined) args.password = password;
-        pending = (async () => {
+        const created = (async () => {
           const result = await callEngine("render", args);
           if (!result.ok || !result.pngBase64) throw new Error("pdf_render_failed");
           return { src: `data:image/png;base64,${result.pngBase64}`, width: result.width ?? 0, height: result.height ?? 0 };
         })();
-        cache.set(key, pending);
-        pending.catch(() => { if (cache.get(key) === pending) cache.delete(key); });
+        pending = created;
+        if (request.cache !== false) {
+          cache.set(key, created);
+          created.catch(() => { if (cache.get(key) === created) cache.delete(key); });
+        } else {
+          // Nobody else awaits an uncached render: an abandoned one must not reject unhandled.
+          created.catch(() => undefined);
+        }
       }
-      const result = await pending;
+      const result = await untilAborted(pending, request.signal);
       if (request.signal?.aborted) throw abortError();
       return result;
     },

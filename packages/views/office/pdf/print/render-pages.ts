@@ -43,15 +43,22 @@ export const inlinePrintImage: PdfPrintImageInliner = async (src, signal) => {
 
 type PassResult = { kind: "done"; pages: PdfPrintPage[] } | { kind: "over"; projectedBytes: number };
 
-async function renderPass(request: PdfPrintRenderRequest, dpi: number, budget: number): Promise<PassResult> {
+/** Page 1, already rendered at the pass's dpi, so the pass does not render it again. */
+interface FirstPage {
+  dpi: number;
+  src: string;
+}
+
+async function renderPass(request: PdfPrintRenderRequest, dpi: number, budget: number, first: FirstPage | null): Promise<PassResult> {
   const inline = request.inlineImage ?? inlinePrintImage;
   const total = request.pages.length;
   const pages: PdfPrintPage[] = [];
   let bytes = 0;
   for (const [index, page] of request.pages.entries()) {
     if (request.signal?.aborted) throw cancelled();
-    request.onProgress?.({ page: index + 1, total });
-    const src = await renderOne(request, page, dpi, inline);
+    const reused = index === 0 && first?.dpi === dpi ? first.src : null;
+    if (reused === null) request.onProgress?.({ page: index + 1, total });
+    const src = reused ?? await renderOne(request, page, dpi, inline);
     bytes += src.length;
     pages.push({ pageNumber: page.pageNumber, widthPt: page.width, heightPt: page.height, src });
     // Stop as soon as the pass cannot fit: the rest would be rendered for nothing.
@@ -61,6 +68,7 @@ async function renderPass(request: PdfPrintRenderRequest, dpi: number, budget: n
 }
 
 async function renderOne(request: PdfPrintRenderRequest, page: PdfCanvasPage, dpi: number, inline: PdfPrintImageInliner): Promise<string> {
+  let release: (() => void) | undefined;
   try {
     const result = await request.renderer.renderPage({
       pageNumber: page.pageNumber,
@@ -69,33 +77,65 @@ async function renderOne(request: PdfPrintRenderRequest, page: PdfCanvasPage, dp
       scale: dpi / POINTS_PER_INCH,
       // The scale is already in print dpi: a HiDPI screen must not multiply it.
       pixelRatio: 1,
+      // A print raster is read once: it must not stay in the viewer's cache.
+      cache: false,
       signal: request.signal,
     });
+    release = result.release;
     const src = await inline(result.src, request.signal);
     if (!isInlinePrintImage(src)) throw new Error("pdf_print_not_inline_image");
     return src;
   } catch (error) {
     if (request.signal?.aborted) throw cancelled();
     throw new PdfPrintError("render_failed", `Page ${page.pageNumber} did not render: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    release?.();
   }
 }
 
+/** The next, lower resolution aimed just under the budget (bytes grow with the
+ * square of the dpi); always at least {@link MAX_RETRY_RATIO} lower, never
+ * below {@link PDF_PRINT_MIN_DPI}. */
+function fittedDpi(dpi: number, projectedBytes: number, budget: number): number {
+  const fitted = Math.floor(dpi * Math.min(MAX_RETRY_RATIO, Math.sqrt((budget * RETRY_HEADROOM) / projectedBytes)));
+  return Math.max(PDF_PRINT_MIN_DPI, fitted);
+}
+
+function area(page: PdfCanvasPage): number {
+  return Math.max(0, page.width) * Math.max(0, page.height);
+}
+
+/** The whole copy's size at page 1's bytes per point squared: raster bytes
+ * grow with the page area, so mixed page sizes are weighed, not counted. */
+function projectFromFirst(pages: readonly PdfCanvasPage[], firstBytes: number): number {
+  const firstArea = area(pages[0]!);
+  if (firstArea <= 0) return firstBytes * pages.length;
+  return (firstBytes / firstArea) * pages.reduce((sum, page) => sum + area(page), 0);
+}
+
 /**
- * Render every page for print, inlined as `data:` images. The first pass runs
- * at {@link PDF_PRINT_DPI}; when the images would not fit the byte budget the
- * resolution drops (bytes grow with the square of the dpi) and the pass runs
- * again, down to {@link PDF_PRINT_MIN_DPI}. Past that the run fails with
- * `print_too_large` - never a partial or silently truncated printout.
+ * Render every page for print, inlined as `data:` images. Page 1 renders at
+ * {@link PDF_PRINT_DPI} first and its bytes per point project the whole copy,
+ * which picks the resolution ONCE (bytes grow with the square of the dpi), so
+ * the common case renders each page exactly once - on desktop every render
+ * ships the document over IPC. Only a real overflow (page 1 was lighter than
+ * the rest) drops the resolution again, down to {@link PDF_PRINT_MIN_DPI}. Past
+ * that the run fails with `print_too_large` - never a partial or silently
+ * truncated printout.
  */
 export async function renderPdfPrintPages(request: PdfPrintRenderRequest): Promise<{ pages: PdfPrintPage[]; dpi: number }> {
   if (request.pages.length === 0) throw new PdfPrintError("no_pages", "PDF print needs at least one page");
   const budget = request.maxImageBytes ?? PDF_PRINT_IMAGE_BUDGET_BYTES;
-  let dpi = PDF_PRINT_DPI;
+  if (request.signal?.aborted) throw cancelled();
+  request.onProgress?.({ page: 1, total: request.pages.length });
+  const inline = request.inlineImage ?? inlinePrintImage;
+  const first: FirstPage = { dpi: PDF_PRINT_DPI, src: await renderOne(request, request.pages[0]!, PDF_PRINT_DPI, inline) };
+  const projected = projectFromFirst(request.pages, first.src.length);
+  let dpi = projected > budget ? fittedDpi(PDF_PRINT_DPI, projected, budget) : PDF_PRINT_DPI;
   for (;;) {
-    const pass = await renderPass(request, dpi, budget);
+    const pass = await renderPass(request, dpi, budget, first);
     if (pass.kind === "done") return { pages: pass.pages, dpi };
     if (dpi <= PDF_PRINT_MIN_DPI) throw new PdfPrintError("print_too_large", "PDF print copy exceeds the print size limit");
-    const fitted = Math.floor(dpi * Math.min(MAX_RETRY_RATIO, Math.sqrt((budget * RETRY_HEADROOM) / pass.projectedBytes)));
-    dpi = Math.max(PDF_PRINT_MIN_DPI, fitted);
+    dpi = fittedDpi(dpi, pass.projectedBytes, budget);
   }
 }

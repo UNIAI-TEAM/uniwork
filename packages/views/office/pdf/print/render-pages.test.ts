@@ -8,11 +8,12 @@ function pages(count: number): PdfCanvasPage[] {
   return Array.from({ length: count }, (_, index) => ({ ...A4, pageNumber: index + 1 }));
 }
 
-/** A renderer whose PNG grows with the square of the scale, like a real raster. */
+/** A renderer whose PNG grows with the page area and the square of the scale, like a real raster. */
 function renderer(bytesAtScaleOne = 100) {
   return {
     renderPage: vi.fn(async (request: PdfRenderPageRequest) => {
-      const size = Math.max(4, Math.round(bytesAtScaleOne * request.scale * request.scale / 4) * 4);
+      const area = (request.width * request.height) / (A4.width * A4.height);
+      const size = Math.max(4, Math.round(bytesAtScaleOne * area * request.scale * request.scale / 4) * 4);
       return { src: `data:image/png;base64,${"A".repeat(size)}`, width: request.width * request.scale, height: request.height * request.scale };
     }),
   };
@@ -73,6 +74,59 @@ describe("renderPdfPrintPages", () => {
     expect(result.dpi).toBeGreaterThanOrEqual(PDF_PRINT_MIN_DPI);
     expect(result.pages).toHaveLength(10);
     expect(result.pages.reduce((sum, page) => sum + page.src.length, 0)).toBeLessThanOrEqual(20_000);
+    // Page 1 at 150 dpi picks the resolution once; then one pass over all ten.
+    expect(service.renderPage).toHaveBeenCalledTimes(11);
+  });
+
+  it("renders an N-page document exactly N times when it fits at the first resolution", async () => {
+    const service = renderer();
+    const result = await renderPdfPrintPages({ renderer: service, pages: pages(12) });
+
+    expect(result.dpi).toBe(PDF_PRINT_DPI);
+    expect(service.renderPage).toHaveBeenCalledTimes(12);
+    expect(service.renderPage.mock.calls.map((call) => call[0].pageNumber)).toEqual(pages(12).map((page) => page.pageNumber));
+  });
+
+  it("projects the whole document from page 1 by area, so mixed page sizes pick one resolution up front", async () => {
+    const service = renderer(1000);
+    // Page 2 has four times the area of page 1: the projection must weigh it.
+    const big: PdfCanvasPage = { pageNumber: 2, width: 1190, height: 1684, rotation: 0 };
+    const result = await renderPdfPrintPages({ renderer: service, pages: [A4, big], maxImageBytes: 15_000 });
+
+    expect(result.dpi).toBeLessThan(PDF_PRINT_DPI);
+    expect(service.renderPage).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries lower only on a real overflow the projection from page 1 missed", async () => {
+    // Page 1 is nearly blank; the rest are dense, so the first pass really overflows.
+    const service = { renderPage: vi.fn(async (request: PdfRenderPageRequest) => {
+      const perScale = request.pageNumber === 1 ? 10 : 1000;
+      const size = Math.max(4, Math.round(perScale * request.scale * request.scale / 4) * 4);
+      return { src: `data:image/png;base64,${"A".repeat(size)}`, width: 1, height: 1 };
+    }) };
+    const result = await renderPdfPrintPages({ renderer: service, pages: pages(10), maxImageBytes: 20_000 });
+
+    expect(result.dpi).toBeLessThan(PDF_PRINT_DPI);
+    expect(result.pages.reduce((sum, page) => sum + page.src.length, 0)).toBeLessThanOrEqual(20_000);
+  });
+
+  it("asks for an uncached render and releases what the host handed over once it is inlined", async () => {
+    const release = vi.fn();
+    const inlineImage = vi.fn(async () => "data:image/png;base64,AAAA");
+    const service = { renderPage: vi.fn(async () => ({ src: "blob:https://app.test/1", width: 1, height: 1, release })) };
+    await renderPdfPrintPages({ renderer: service, pages: pages(2), inlineImage });
+
+    expect(service.renderPage.mock.calls.every((call) => (call as unknown as [PdfRenderPageRequest])[0].cache === false)).toBe(true);
+    expect(release).toHaveBeenCalledTimes(2);
+    expect(release.mock.invocationCallOrder[0]).toBeGreaterThan(inlineImage.mock.invocationCallOrder[0]!);
+  });
+
+  it("releases the host resource even when inlining fails", async () => {
+    const release = vi.fn();
+    const service = { renderPage: vi.fn(async () => ({ src: "blob:https://app.test/1", width: 1, height: 1, release })) };
+    const inlineImage = vi.fn(async () => { throw new Error("pdf_print_fetch_failed"); });
+    await expect(renderPdfPrintPages({ renderer: service, pages: [A4], inlineImage })).rejects.toMatchObject({ code: "render_failed" });
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it("fails as print_too_large past the resolution floor instead of printing part of the document", async () => {

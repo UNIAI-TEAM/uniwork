@@ -70,6 +70,44 @@ describe("desktop PDF surface", () => {
     expect(renderCall[1]).toMatchObject({ operation: "render", args: { pageIndex: 0, scale: 2 } });
   });
 
+  it("keeps an uncached (print) render out of the view cache but serves one the view already holds", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+      return { ok: true, operation: "render", pngBase64: PNG_BASE64, width: 10, height: 10 };
+    });
+    const renders = () => call.mock.calls.filter(([, payload]) => (payload as { operation: string }).operation === "render").length;
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    const page = { pageNumber: 1, width: 595.28, height: 841.89 };
+    await surface.renderer!.renderPage({ ...page, scale: 3, cache: false });
+    await surface.renderer!.renderPage({ ...page, scale: 3, cache: false });
+    expect(renders()).toBe(2);
+    // The view's own request was not served from a print raster: nothing was kept.
+    await surface.renderer!.renderPage({ ...page, scale: 3 });
+    expect(renders()).toBe(3);
+    // An entry the view already holds is reused by print instead of re-rendered.
+    await surface.renderer!.renderPage({ ...page, scale: 3, cache: false });
+    expect(renders()).toBe(3);
+  });
+
+  it("answers an abort while the engine is still rendering instead of waiting for it", async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+      return await new Promise((resolve) => { finish = resolve; });
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    const controller = new AbortController();
+    const pending = surface.renderer!.renderPage({ pageNumber: 1, width: 595.28, height: 841.89, scale: 2, cache: false, signal: controller.signal });
+    await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(2));
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    finish({ ok: true, operation: "render", pngBase64: PNG_BASE64, width: 1, height: 1 });
+  });
+
   it("re-probes page geometry after an edit and bumps the dirty generation", async () => {
     let pageCount = 2;
     const call = vi.fn(async (_channel: string, payload: unknown) => {

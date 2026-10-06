@@ -7,12 +7,13 @@ import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Notice } from "../../../common/notice";
 import type { PdfPrintController } from "./use-pdf-print";
 
-/** i18next keys the PDF print entries read. The label is the format-neutral
- * Print key every Office format shows in the same place. */
+/** i18next keys the PDF print entries read. The label and the too-large
+ * message are the format-neutral keys every Office format shares. */
 const PDF_PRINT_KEYS = {
   label: "office.common.print",
   preparing: "office.pdf.print.preparing",
   failed: "office.pdf.print.failed",
+  tooLarge: "office.common.printTooLarge",
   busy: "office.pdf.print.busy",
 } as const;
 
@@ -68,8 +69,9 @@ export function PdfPrintNotice({ controller }: PdfPrintEntryProps) {
   if (controller.status === "busy") {
     return <div data-testid="pdf-print-busy"><Notice tone="info" icon={Info}>{t(PDF_PRINT_KEYS.busy)}</Notice></div>;
   }
-  if (controller.status === "failed") {
-    return <div data-testid="pdf-print-error"><Notice tone="destructive" icon={AlertTriangle} live="assertive">{t(PDF_PRINT_KEYS.failed)}</Notice></div>;
+  if (controller.status === "failed" || controller.status === "tooLarge") {
+    const message = controller.status === "tooLarge" ? PDF_PRINT_KEYS.tooLarge : PDF_PRINT_KEYS.failed;
+    return <div data-testid="pdf-print-error"><Notice tone="destructive" icon={AlertTriangle} live="assertive">{t(message)}</Notice></div>;
   }
   return null;
 }

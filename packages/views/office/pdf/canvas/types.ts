@@ -5,6 +5,9 @@ export interface PdfRenderResult {
   src: string;
   width: number;
   height: number;
+  /** Present when the host handed over a resource it does not keep (an
+   * uncached `blob:` URL): the caller releases it once it has read `src`. */
+  release?(): void;
 }
 
 export interface PdfRenderPageRequest {
@@ -16,6 +19,9 @@ export interface PdfRenderPageRequest {
    * host's own display density (the on-screen canvas wants crisp pixels). Print
    * passes 1: its `scale` is already dpi / 72, so the raster must not grow again. */
   pixelRatio?: number;
+  /** `false` = a one-off render (print): the host neither stores the raster in
+   * its view cache nor keeps any resource for it. Omitted = cached as usual. */
+  cache?: boolean;
   signal?: AbortSignal;
 }
 

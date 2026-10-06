@@ -7,8 +7,9 @@ import { printPdfDocument } from "./print-document";
 import type { PdfPrintImageInliner } from "./types";
 
 /** What the print entries show after a run: nothing (printed or cancelled),
- * the neutral "a print dialog is already open" status, or the generic error. */
-type PdfPrintStatus = "busy" | "failed" | null;
+ * the neutral "a print dialog is already open" status, the shared too-large
+ * error, or the generic error. */
+type PdfPrintStatus = "busy" | "tooLarge" | "failed" | null;
 
 export interface PdfPrintController {
   /** True while pages render and the host prints; both entries are disabled. */
@@ -66,7 +67,7 @@ export function usePdfPrint({ port, renderer, getPages, title, lang, inlineImage
     }).then((outcome) => {
       if (controller.signal.aborted) return;
       // `cancelled` (dialog dismissed) is silent; busy is a neutral status.
-      if (outcome.outcome === "failed") setStatus(isPrintBusy(outcome) ? "busy" : "failed");
+      if (outcome.outcome === "failed") setStatus(isPrintBusy(outcome) ? "busy" : outcome.reason === "print_too_large" ? "tooLarge" : "failed");
     }).finally(() => {
       runningRef.current = false;
       if (controllerRef.current === controller) controllerRef.current = null;

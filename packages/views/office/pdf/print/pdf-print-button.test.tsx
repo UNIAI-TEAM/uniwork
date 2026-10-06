@@ -81,7 +81,7 @@ describe("PDF print entries", () => {
 
   it("shows the generic error for any other failure, and clears it on the next run", async () => {
     const print = vi.fn<OfficePrintPort["print"]>()
-      .mockResolvedValueOnce({ outcome: "failed", reason: "print_too_large" })
+      .mockResolvedValueOnce({ outcome: "failed", reason: "print_blocked" })
       .mockResolvedValueOnce({ outcome: "printed" });
     render(<Harness port={{ print }} />);
     fireEvent.click(screen.getByRole("button", { name: "In" }));
@@ -90,5 +90,12 @@ describe("PDF print entries", () => {
     fireEvent.click(screen.getByRole("button", { name: "In" }));
     await waitFor(() => expect(print).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("shows the shared too-large message when the copy exceeds the print cap", async () => {
+    render(<Harness port={{ print: async () => ({ outcome: "failed", reason: "print_too_large" }) }} />);
+    fireEvent.click(screen.getByRole("button", { name: "In" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Tài liệu quá lớn để in.");
+    expect(screen.getByTestId("pdf-print-error")).not.toHaveTextContent("Không thể in tài liệu.");
   });
 });

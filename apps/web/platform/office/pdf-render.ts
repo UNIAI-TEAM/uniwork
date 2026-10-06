@@ -120,6 +120,22 @@ export async function createPdfRenderSession(
     const ratio = requestPixelRatio(request);
     const key = `${request.pageNumber}@${request.scale}@${ratio}@${version}`;
     let pending = cache.get(key);
+    if (!pending && request.cache === false) {
+      // A one-off render (print) is never stored: the caller releases its url.
+      const src = await toImageUrl(document.renderPage(index, { scale: request.scale * ratio }));
+      let released = false;
+      const release = (): void => {
+        if (released) return;
+        released = true;
+        revokeImageUrl(src);
+      };
+      if (request.signal?.aborted || disposed) {
+        release();
+        if (request.signal?.aborted) throw abortError();
+        throw new Error("pdf_render_disposed");
+      }
+      return { src, width: size.width * request.scale, height: size.height * request.scale, release };
+    }
     if (!pending) {
       const rendered = document.renderPage(index, { scale: request.scale * ratio });
       const created = toImageUrl(rendered);
