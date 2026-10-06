@@ -13,10 +13,11 @@
 // CSP allows `data:` images alone. Images that are not inline `data:image`
 // sources are dropped from the copy rather than left as blocked links.
 //
-// Geometry: every section gets a named @page carrying its own size and
-// margins (orientation is the paper box itself), the section's blocks are
-// paginated with `page: <name>`, and a non-continuous section starts a new
-// sheet (odd/even page starts map to right/left). Word page breaks and
+// Geometry: every distinct paper (size + margins; orientation is the paper box
+// itself) gets a named @page, the section's blocks are paginated with
+// `page: <name>` and a non-continuous section starts a new sheet (odd/even
+// page starts map to right/left). Sections on the same paper share one name,
+// because a changed `page` value forces a sheet break by itself. Word page breaks and
 // "page break before" paragraphs force breaks. The document-level header and
 // footer (default, first-page, even-page) print through @page margin boxes,
 // with the page number as `counter(page)` when the part carries one.
@@ -69,8 +70,37 @@ function pt(twips: number): string {
   return `${Number.isInteger(value) ? value : Number(value.toFixed(2))}pt`;
 }
 
-function pageName(index: number): string {
-  return `docx-s${index}`;
+/** Sections that print on the same paper (size + the four margins) share one page name. */
+function pageGeometryKey(section: DocxPageSetupSection): string {
+  return [section.pageWidth, section.pageHeight, section.marginTop, section.marginRight, section.marginBottom, section.marginLeft].join(":");
+}
+
+interface NamedPages {
+  /** The page name of each run, by run ordinal. */
+  names: string[];
+  /** One entry per distinct geometry, in first-use order. */
+  pages: { name: string; section: DocxPageSetupSection }[];
+}
+
+/**
+ * CSS Paged Media starts a new sheet whenever the `page` value changes between
+ * siblings, so a continuous section can only flow on when it keeps the name of
+ * the section before it. Names are therefore keyed by geometry, not by section.
+ */
+function namePages(runs: readonly SectionRun[]): NamedPages {
+  const byGeometry = new Map<string, string>();
+  const pages: NamedPages["pages"] = [];
+  const names = runs.map((run) => {
+    const key = pageGeometryKey(run.section);
+    let name = byGeometry.get(key);
+    if (name === undefined) {
+      name = `docx-s${pages.length}`;
+      byGeometry.set(key, name);
+      pages.push({ name, section: run.section });
+    }
+    return name;
+  });
+  return { names, pages };
 }
 
 /** A CSS string literal for a margin box: quotes, backslashes and `<` escaped, newlines kept. */
@@ -207,9 +237,9 @@ function breakBefore(section: DocxPageSetupSection): string {
   }
 }
 
-function sectionStyle(run: SectionRun, ordinal: number, previous: DocxPageSetupSection | null): string {
-  const styles = [`page:${pageName(ordinal)}`];
-  // Named pages of a different size already break; a same-size continuous section flows on.
+function sectionStyle(run: SectionRun, name: string, previous: DocxPageSetupSection | null): string {
+  const styles = [`page:${name}`];
+  // A page name that differs from the previous section's already breaks; a same-geometry continuous section flows on.
   if (previous) styles.push(`break-before:${breakBefore(run.section)}`);
   if (run.section.columns > 1) {
     styles.push(`column-count:${run.section.columns}`, `column-gap:${pt(run.section.columnSpace)}`);
@@ -249,7 +279,8 @@ export function buildDocxPrintHtml(input: DocxPrintCopyInput): string {
   const sections = liveSectionsOf(input.sections ?? [], blocks);
   const runs = sectionRuns(sections, blocks);
   const first = runs[0]?.section ?? DEFAULT_SECTION;
-  const pages = [pageRule("", first), ...runs.map((run, ordinal) => pageRule(pageName(ordinal), run.section))];
+  const named = namePages(runs);
+  const pages = [pageRule("", first), ...named.pages.map((page) => pageRule(page.name, page.section))];
   const font = safeFont(input.fontFamily);
   const color = input.textColor && SAFE_CSS_COLOR.test(input.textColor.trim()) ? input.textColor.trim() : null;
   const css = [
@@ -262,7 +293,7 @@ export function buildDocxPrintHtml(input: DocxPrintCopyInput): string {
   const body = runs
     .map((run, ordinal) => {
       const previous = ordinal > 0 ? (runs[ordinal - 1]?.section ?? null) : null;
-      return `<section class="docx-print-section" style="${sectionStyle(run, ordinal, previous)}">${serializeBlockNodes(run.blocks)}</section>`;
+      return `<section class="docx-print-section" style="${sectionStyle(run, named.names[ordinal] ?? "docx-s0", previous)}">${serializeBlockNodes(run.blocks)}</section>`;
     })
     .join("\n");
   const lang = input.lang && SAFE_LANG.test(input.lang) ? ` lang="${input.lang}"` : "";

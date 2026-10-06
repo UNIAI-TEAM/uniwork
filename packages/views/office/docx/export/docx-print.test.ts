@@ -103,12 +103,51 @@ describe("buildDocxPrintHtml", () => {
     ];
     const html = buildDocxPrintHtml({ doc: doc(para("a", 0), para("b", 1), para("c", 2), para("d", 3)), title: "x", sections });
     const styles = Array.from(parse(html).querySelectorAll("section")).map((node) => node.getAttribute("style"));
+    // Same geometry throughout: one named page, so only the start type decides the breaks.
     expect(styles).toEqual([
       "page:docx-s0",
-      "page:docx-s1;break-before:auto;column-count:2;column-gap:36pt",
-      "page:docx-s2;break-before:right",
-      "page:docx-s3;break-before:left",
+      "page:docx-s0;break-before:auto;column-count:2;column-gap:36pt",
+      "page:docx-s0;break-before:right",
+      "page:docx-s0;break-before:left",
     ]);
+  });
+
+  it("keeps a continuous section of the same geometry on the previous section's named page", () => {
+    // A differing `page` value forces a sheet break in a real engine, so a continuous
+    // two-column section only flows on when it shares the page name of the section before it.
+    const sections = [
+      section({ index: 0, firstBlockIndex: 0, lastBlockIndex: 0 }),
+      section({ index: 1, firstBlockIndex: 1, lastBlockIndex: 1, startType: "continuous", columns: 2 }),
+    ];
+    const html = buildDocxPrintHtml({ doc: doc(para("a", 0), para("b", 1)), title: "x", sections });
+    const names = Array.from(parse(html).querySelectorAll("section")).map((node) => /page:([\w-]+)/.exec(node.getAttribute("style") ?? "")?.[1]);
+    expect(names).toEqual(["docx-s0", "docx-s0"]);
+    expect(styleText(html).match(/@page docx-s\d+ \{/g)).toEqual(["@page docx-s0 {"]);
+  });
+
+  it("gives a continuous section with a different size its own named page", () => {
+    // The break is unavoidable (Word starts a new sheet for a size change too).
+    const sections = [
+      section({ index: 0, firstBlockIndex: 0, lastBlockIndex: 0 }),
+      section({ index: 1, firstBlockIndex: 1, lastBlockIndex: 1, startType: "continuous", pageWidth: 12240, pageHeight: 15840 }),
+      section({ index: 2, firstBlockIndex: 2, lastBlockIndex: 2, startType: "continuous", marginLeft: 720 }),
+    ];
+    const html = buildDocxPrintHtml({ doc: doc(para("a", 0), para("b", 1), para("c", 2)), title: "x", sections });
+    const names = Array.from(parse(html).querySelectorAll("section")).map((node) => /page:([\w-]+)/.exec(node.getAttribute("style") ?? "")?.[1]);
+    expect(names).toEqual(["docx-s0", "docx-s1", "docx-s2"]);
+    expect(styleText(html)).toContain("@page docx-s1 {\n  size: 612pt 792pt;");
+  });
+
+  it("reuses a page name when the geometry comes back after another section", () => {
+    const landscape = { pageWidth: 16838, pageHeight: 11906 };
+    const sections = [
+      section({ index: 0, firstBlockIndex: 0, lastBlockIndex: 0 }),
+      section({ index: 1, firstBlockIndex: 1, lastBlockIndex: 1, ...landscape }),
+      section({ index: 2, firstBlockIndex: 2, lastBlockIndex: 2 }),
+    ];
+    const html = buildDocxPrintHtml({ doc: doc(para("a", 0), para("b", 1), para("c", 2)), title: "x", sections });
+    const names = Array.from(parse(html).querySelectorAll("section")).map((node) => /page:([\w-]+)/.exec(node.getAttribute("style") ?? "")?.[1]);
+    expect(names).toEqual(["docx-s0", "docx-s1", "docx-s0"]);
   });
 
   it("merges a section whose closing break paragraph was deleted into the next one", () => {
