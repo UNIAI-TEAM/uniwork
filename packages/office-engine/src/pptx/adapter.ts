@@ -28,6 +28,7 @@ import type {
 } from "./engine";
 import { PptxEngineError } from "./engine";
 import { PptxSessionModel, type PptxEdit } from "./model";
+import { listMasterPartInfos, readMasterElements, type MasterElementData, type MasterPartInfo } from "./edits/master-edits";
 import { inventoryPptxAssets, unsupportedPptxWarnings, type PptxAssetInventory } from "./assets";
 import { isEncryptedOoxml } from "../docx/adapter";
 import { readPptxNotesWithoutBodyPlaceholder } from "./notes-read";
@@ -218,6 +219,20 @@ export class PptxAdapter {
   slideLayouts(documentModelRef: string): { name: string; path: string }[] {
     const session = this.sessionOf(documentModelRef);
     return this.deps.engine.listSlideLayouts?.(session.model.opened.archive) ?? [];
+  }
+
+  /** Master and layout parts of the held deck, each master followed by its
+   * layouts (structural twin of the vendored listMasterParts). */
+  masterParts(documentModelRef: string): MasterPartInfo[] {
+    return listMasterPartInfos(this.sessionOf(documentModelRef).model.opened);
+  }
+
+  /** Elements of one master/layout part (vendored parseMasterPart). Refuses
+   * bad_master_part for an unknown part and master_unbound when the engine
+   * binds no parser - never an invented empty list. */
+  masterElements(documentModelRef: string, partPath: string): MasterElementData[] {
+    const model = this.sessionOf(documentModelRef).model;
+    return readMasterElements(model.opened, model.fitWidthPx, partPath, this.deps.engine.parseMasterPart);
   }
 
   async serialize(input: {

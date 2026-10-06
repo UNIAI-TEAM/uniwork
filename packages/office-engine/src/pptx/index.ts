@@ -23,3 +23,4 @@ export * from "./replay-refs";
 export * from "./journal-rebase";
 export * from "./slide-hidden";
 export * from "./slide-motion-read";
+export * from "./edits/master-edits";

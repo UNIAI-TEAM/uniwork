@@ -155,6 +155,20 @@ describe("pptxRibbonTabs", () => {
     expect(shapes.icon).not.toBe(Image);
   });
 
+  it("puts Slide master in its own captioned View group: a large toggle that reflects pressedCommands", () => {
+    const view = tabs.find((tab) => tab.id === "view")!;
+    expect(view.groups.map((group) => group.labelKey)).toEqual(["office.pptx.groups.views", "office.pptx.groups.master"]);
+    expect(view.groups.map((group) => group.priority)).toEqual([10, 5]);
+    const master = view.groups[1]!.items[0]!;
+    expect(master).toMatchObject({ id: "slideMaster", kind: "toggle", size: "large", disabled: false, pressed: false, labelKey: "office.pptx.commands.slideMaster" });
+    const seen: string[] = [];
+    const wired = pptxRibbonTabs(commands, { pressedCommands: ["slideMaster"], onCommand: (id) => seen.push(id) });
+    const pressed = wired.find((tab) => tab.id === "view")!.groups[1]!.items[0]!;
+    expect(pressed.kind === "toggle" && pressed.pressed).toBe(true);
+    if (pressed.kind === "toggle") pressed.onExecute();
+    expect(seen).toEqual(["slideMaster"]);
+  });
+
   it("gates the four contextual tabs on the selection flags (R4), chart included", () => {
     expect(PPTX_RIBBON_CONTEXTUAL_TABS.map((tab) => tab.labelKey)).toEqual([
       "office.pptx.context.picture",
@@ -218,7 +232,7 @@ describe("pptxRibbonTabs", () => {
       const ids = itemsOf(tab).map((item) => item.id);
       expect(new Set(ids).size, tab.id).toBe(ids.length);
     }
-    expect(itemsOf(wired.find((tab) => tab.id === "view")!).map((item) => item.id)).toEqual(["panel-sorter"]);
+    expect(itemsOf(wired.find((tab) => tab.id === "view")!).map((item) => item.id)).toEqual(["panel-sorter", "slideMaster"]);
   });
 
   it("opens the matching panel from a group launcher, and never when it is disabled", () => {

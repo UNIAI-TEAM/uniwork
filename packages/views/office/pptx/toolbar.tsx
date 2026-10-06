@@ -65,6 +65,8 @@ export interface PptxToolbarProps {
   panelDisabled?: PptxRibbonOptions["panelDisabled"];
   /** Items the editor injects into ribbon groups, keyed by group id. */
   groupItems?: PptxRibbonOptions["groupItems"];
+  /** Ribbon toggle commands that render pressed (e.g. the Slide master toggle). */
+  pressedCommands?: readonly PptxCommandId[];
   className?: string;
 }
 
@@ -90,6 +92,7 @@ export function PptxToolbar({
   onOpenPanel,
   panelDisabled,
   groupItems,
+  pressedCommands,
   className,
 }: PptxToolbarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
@@ -120,8 +123,9 @@ export function PptxToolbar({
         ...(onOpenPanel ? { onOpenPanel } : {}),
         ...(panelDisabled ? { panelDisabled } : {}),
         ...(groupItems ? { groupItems } : {}),
+        ...(pressedCommands ? { pressedCommands } : {}),
       }),
-    [activePanel, contextual, groupItems, onCommand, onOpenPanel, panelDisabled, resolved],
+    [activePanel, contextual, groupItems, onCommand, onOpenPanel, panelDisabled, pressedCommands, resolved],
   );
 
   // X4fix F8: the tab-row controls honour `hidden` the same way the ribbon groups do.

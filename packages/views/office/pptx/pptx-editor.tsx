@@ -22,6 +22,8 @@ import type { PptxContextMenuAction } from "./context-menu/context-menu-model";
 import { pptxEditorCapabilities } from "./pptx-editor-capabilities";
 import { pptxInsertElements } from "./insert/insert-elements";
 import { pptxContextualSelection, readPptxPanelMotion, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
+import type { MasterElementView, MasterPartView } from "./masters";
+import { usePptxEditorMasters } from "./pptx-masters-state";
 import type { PptxTabId } from "./pptx-ribbon";
 import { PptxFindReplacePanel, flattenDeckRuns, usePptxFindSelect, type PptxFindReplaceEdit } from "./find";
 import { collectPptxPrintSlides, createPptxPrintPort, type PptxPrintPort } from "./print";
@@ -38,6 +40,7 @@ import { PptxSlideRail, type PptxSlideView } from "./slide-rail";
 import { PptxStatusBar, PptxStatusHelpButton } from "./status-bar";
 import { PptxToolbar } from "./toolbar";
 import { usePptxEditorRender } from "./use-pptx-editor-render";
+import { usePptxFindShortcut } from "./use-pptx-find-shortcut";
 import { usePptxGestureHistory } from "./use-pptx-gesture-history";
 import { usePptxInPlaceText } from "./use-pptx-in-place-text";
 import { usePptxPanels } from "./use-pptx-panels";
@@ -69,6 +72,10 @@ export interface PptxEditorProps {
   /** The deck's slide layouts for "New slide" (W4 F-03); absent (or the handle's
    *  own reader on desktop) leaves the sorter's honest no-layouts state. */
   slideLayouts?: () => readonly { name: string; path: string }[];
+  /** Slide master read (B6): the deck master/layout parts. Absent leaves the masters panel unbound. */
+  masterParts?: () => readonly MasterPartView[];
+  /** Slide master read (B6): the elements of one master/layout part. */
+  masterElements?: (partPath: string) => readonly MasterElementView[];
   onOpen?: () => void;
   onCommandError?: (error: unknown) => void;
   fullscreen?: boolean;
@@ -125,6 +132,8 @@ export function PptxEditor({
   onCommitText,
   slideNotes,
   slideLayouts,
+  masterParts,
+  masterElements,
   onOpen,
   onCommandError,
   fullscreen = false,
@@ -280,6 +289,7 @@ export function PptxEditor({
     onPresenterView: openPresenter,
   }), [openPresenter, slides.length, startShow]);
 
+  const openFind = useCallback(() => setFindOpen(true), []);
   const closeFind = useCallback(() => {
     setFindOpen(false);
     // F9: restore focus to the control that opened the bar.
@@ -354,25 +364,7 @@ export function PptxEditor({
   const onFindHit = usePptxFindSelect({
     slideIndex: selectedIndex, selectSlide, boxes: nodeBoxes, ready: Boolean(rendition) && !building, select: selection.select,
   });
-  // R2-6: Ctrl+F opens the bar (or refocuses it) from anywhere in the editor, also
-  // with nothing focused yet; the browser's own page find would search the chrome.
-  useEffect(() => {
-    if (presenterOpen || showOpen || shortcutsOpen) return;
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      const root = editorRootRef.current;
-      const target = event.target;
-      const inside = target instanceof Node && root?.contains(target) === true;
-      const idle = target === document.body || target === document.documentElement;
-      if (event.defaultPrevented || (!inside && !idle) || matchPptxShortcut(event)?.action !== "find") return;
-      event.preventDefault();
-      setFindOpen(true);
-      const field = root?.querySelector<HTMLInputElement>("[data-pptx-find-query]");
-      field?.focus();
-      field?.select();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [presenterOpen, showOpen, shortcutsOpen]);
+  usePptxFindShortcut(editorRootRef, presenterOpen || showOpen || shortcutsOpen, openFind);
   // W5 review F11: "Edit text" only when the selection can actually be edited:
   // the host seam, or the in-place editor over a selected text element.
   const selectionHasText = selectedIds.length > 0 && textTargets.some((candidate) => candidate.sourceId === selectedIds[0]);
@@ -442,6 +434,9 @@ export function PptxEditor({
     rootRef: editorRootRef,
   });
   const { openCommandPanel } = panels;
+  // B6: View > Slide master (open toggle, part/element reads, edits on the one channel).
+  const masters = usePptxEditorMasters({ ...(masterParts ? { masterParts } : {}), ...(masterElements ? { masterElements } : {}), editorHandle, ...(onApplyEdit ? { onApplyEdit } : {}), ...(handleEdit ? { handleEdit } : {}), refreshKey: deck?.revision, onError: reportCommandError });
+  const toggleMasters = masters.toggle;
 
   const onCommand = useCallback((id: PptxCommandId) => {
     if (openCommandPanel(id)) return;
@@ -455,6 +450,7 @@ export function PptxEditor({
       case "redo": requestHistory("redo"); break;
       case "save": save(); break;
       case "find": setFindOpen((open) => !open); break;
+      case "slideMaster": toggleMasters(); break;
       case "export-pdf":
       case "print":
         // C1: one committed print run through the bound port; nothing is faked
@@ -483,7 +479,7 @@ export function PptxEditor({
       }
       default: break;
     }
-  }, [deckRenderer, flushTextEdit, fullscreen, onFullscreenChange, onOpen, openCommandPanel, palette, printPort, reportCommandError, requestHistory, runCommand, runTextCommand, runTransform, save, startShow, transformRequest]);
+  }, [deckRenderer, flushTextEdit, fullscreen, onFullscreenChange, onOpen, openCommandPanel, palette, printPort, reportCommandError, requestHistory, runCommand, runTextCommand, runTransform, save, startShow, toggleMasters, transformRequest]);
 
   // A7: one dispatch table owns the canvas keys. The chords live in the pure shortcut
   // map (which the help dialog also lists), so a key that runs is a key that is
@@ -553,6 +549,7 @@ export function PptxEditor({
             onOpenPanel={panels.openPanel}
             panelDisabled={panels.panelDisabled}
             groupItems={panels.groupItems}
+            pressedCommands={masters.pressed}
             {...(contextual ? { contextual } : {})}
             {...(editorHandle ? { canUndo: typeof editorHandle.undo === "function", canRedo: typeof editorHandle.redo === "function" } : { canUndo: false, canRedo: false })}
           />
@@ -562,8 +559,8 @@ export function PptxEditor({
           {alerts}
         </>}
         rail={<PptxSlideRail slides={railSlides} selectedIndex={selectedIndex} onSelect={selectSlide} />}
-        bottom={panels.placement === "bottom" ? panels.node : undefined}
-        aside={panels.placement === "aside" ? panels.node : undefined}
+        bottom={!masters.open && panels.placement === "bottom" ? panels.node : undefined}
+        aside={masters.aside ?? (panels.placement === "aside" ? panels.node : undefined)}
         statusBar={
           /* C10: the status bar owns slide x/y, counts, language, selection and zoom (no deck-language source yet, so the unknown mark). */
           <PptxStatusBar slideCurrent={slides.length ? selectedIndex + 1 : null} slideTotal={slides.length || null} language={null} selectionCount={selectedIds.length} gesturePending={gesturePending} zoom={zoom} onZoomChange={setZoom} help={<PptxStatusHelpButton onOpen={() => setShortcutsOpen(true)} />} />

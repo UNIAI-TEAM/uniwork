@@ -12,6 +12,7 @@ import { PptxEngineError } from "./engine";
 import type {
   OpenedPptxLike,
   PptxEngineFunctions,
+  PptxMasterPartLike,
   PptxOpsFunctions,
   PptxRenderPort,
   PptxRunTxn,
@@ -27,6 +28,7 @@ export interface UpstreamPptxEngineModule {
   shouldOfferBuiltinLayouts?(layouts: Array<{ name: string; path: string }>): boolean;
   builtinLayoutInfos?(size: { cx: number; cy: number }, existing: Set<string>): Array<{ name: string; path: string }>;
   getSlideNotes?(archive: unknown, slidePath: string): string;
+  parseMasterPart?(archive: unknown, partPath: string): PptxMasterPartLike | null;
 }
 
 /** The pptx-ops bundle (executor.ts:160); ops self-register at import. */
@@ -59,6 +61,7 @@ export function bindPptxEngine(mod: UpstreamPptxEngineModule): PptxEngineFunctio
       ? { builtinLayoutInfos: (s: { cx: number; cy: number }, e: Set<string>) => mod.builtinLayoutInfos!(s, e) }
       : {}),
     ...(mod.getSlideNotes ? { getSlideNotes: (a: unknown, p: string) => mod.getSlideNotes!(a, p) } : {}),
+    ...(mod.parseMasterPart ? { parseMasterPart: (a: unknown, p: string) => mod.parseMasterPart!(a, p) } : {}),
   };
 }
 

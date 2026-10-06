@@ -35,6 +35,7 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
       return ops.runTxn(opened, request);
     },
     getSlideNotes: () => "",
+    parseMasterPart: () => null,
     buildRenderSlide: () => ({ nodes: [] }),
     HeuristicMetrics: class HeuristicMetrics {},
   };

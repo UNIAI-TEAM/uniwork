@@ -15,6 +15,12 @@ describe("PPTX command map", () => {
     expect(commands.find((command) => command.id === "edit-shape-image")?.capability.status).toBe("available");
   });
 
+  it("maps View > Slide master as an available toggle outside the mandatory rows", () => {
+    const command = createPptxCommandMap({ host: null }).find((entry) => entry.id === "slideMaster");
+    expect(command).toMatchObject({ labelKey: "commands.slideMaster", toggle: true, capability: { status: "available" } });
+    expect(command?.mandatoryRow).toBeUndefined();
+  });
+
   it("renders shape gestures unavailable when the transform channel is absent", () => {
     const command = createPptxCommandMap({ host: null }).find((entry) => entry.id === "edit-shape-image");
     expect(command?.capability.status).toBe("unavailable");

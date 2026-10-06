@@ -24,6 +24,9 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
   // (an optional member); the mock must carry it or the import throws before
   // any test runs. The suite drives a fake runtime, so it is never called.
   getSlideNotes: () => "",
+  // Same optional-member read for the Masters panel parser (never called here:
+  // the suite drives a fake runtime).
+  parseMasterPart: () => null,
   // The real shared canvas (r6 d7768245) mounts PptxEditor, whose deck renderer
   // reads these three optional accessors off the artifact namespace
   // (deck-renderer.ts:89-91). The mock must carry them or the access throws
@@ -103,6 +106,12 @@ function runtime(): PptxSessionRuntime & { edits: PptxEdit[][]; released: string
     redo: vi.fn(async () => true),
     serialize: vi.fn(async () => ({ bytes: new Uint8Array([80, 75, 3, 4]), checksum: "sha256-output", warnings: [] })),
     slides: vi.fn(slides),
+    masterParts: vi.fn(() => [{ partPath: "ppt/slideMasters/slideMaster1.xml", kind: "master" as const, name: "Office Theme" }]),
+    masterElements: vi.fn((_ref: string, partPath: string) => (
+      partPath === "ppt/slideMasters/slideMaster1.xml"
+        ? [{ id: "m1", type: "text", label: "title", box: { x: 10, y: 20, w: 300, h: 80 }, fill: null }]
+        : []
+    )),
     deck: vi.fn(() => ({ slides: [{ id: "s1", elements: [{ id: "e1", type: "text", text: { paragraphs: [{ runs: [{ text: "Title" }] }] } }] }], size: { cx: 12192000, cy: 6858000 } })),
     release: vi.fn(async (ref) => { released.push(ref); }),
   };
@@ -319,6 +328,43 @@ describe("web PPTX format adapter", () => {
     // A non-creating edit stays `{ revision }` only.
     expect(await adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }])).toEqual({ revision: 1 });
     await adapter.session.dispose();
+  });
+
+  it("reads master parts and elements off the live session and yields [] before open, after dispose or when unbound", async () => {
+    type MasterProps = { masterParts: () => readonly unknown[]; masterElements: (partPath: string) => readonly unknown[] };
+    const engine = runtime();
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    const props = (adapter.editorView as ReactElement<MasterProps>).props;
+    // Before open there is no model ref: no runtime call, an empty list.
+    expect(props.masterParts()).toEqual([]);
+    expect(props.masterElements("ppt/slideMasters/slideMaster1.xml")).toEqual([]);
+    expect(engine.masterParts).not.toHaveBeenCalled();
+
+    await adapter.open.open();
+    expect(props.masterParts()).toEqual([{ partPath: "ppt/slideMasters/slideMaster1.xml", kind: "master", name: "Office Theme" }]);
+    expect(engine.masterParts).toHaveBeenCalledWith("model-1");
+    expect(props.masterElements("ppt/slideMasters/slideMaster1.xml")).toEqual([
+      { id: "m1", type: "text", label: "title", box: { x: 10, y: 20, w: 300, h: 80 }, fill: null },
+    ]);
+    expect(engine.masterElements).toHaveBeenCalledWith("model-1", "ppt/slideMasters/slideMaster1.xml");
+
+    await adapter.session.dispose();
+    // A disposed session never reaches the freed engine ref.
+    vi.mocked(engine.masterParts!).mockClear();
+    expect(props.masterParts()).toEqual([]);
+    expect(props.masterElements("ppt/slideMasters/slideMaster1.xml")).toEqual([]);
+    expect(engine.masterParts).not.toHaveBeenCalled();
+
+    // A runtime that predates the reads degrades to [] instead of throwing.
+    const bare = runtime();
+    delete (bare as Partial<PptxSessionRuntime>).masterParts;
+    delete (bare as Partial<PptxSessionRuntime>).masterElements;
+    const bareAdapter = createPptxFormatAdapter(options(bare, documents()));
+    await bareAdapter.open.open();
+    const bareProps = (bareAdapter.editorView as ReactElement<MasterProps>).props;
+    expect(bareProps.masterParts()).toEqual([]);
+    expect(bareProps.masterElements("ppt/slideMasters/slideMaster1.xml")).toEqual([]);
+    await bareAdapter.session.dispose();
   });
 
   it("mounts the real shared canvas once the deck is bound and republishes the revision per edit", async () => {

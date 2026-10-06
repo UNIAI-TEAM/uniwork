@@ -36,6 +36,7 @@ import {
   LayoutGrid,
   ArrowRightLeft,
   LayoutTemplate,
+  PanelsTopLeft,
   Maximize,
   Monitor,
   Presentation,
@@ -89,7 +90,8 @@ export type PptxGroupId =
   | "comments"
   | "notes"
   | "views"
-  | "arrange";
+  | "arrange"
+  | "master";
 
 /** Quick-access undo/redo, pinned at the far left of the tab row (C6). */
 export const PPTX_QUICK_ACCESS_COMMANDS: readonly PptxCommandId[] = ["undo", "redo"];
@@ -124,6 +126,7 @@ const PPTX_COMMAND_ICONS: Partial<Record<PptxCommandId, RibbonIcon>> = {
   redo: Redo2,
   presenter: Presentation,
   fullscreen: Maximize,
+  slideMaster: PanelsTopLeft,
 };
 
 /** Default icon per panel kind; a spec may override it. */
@@ -253,7 +256,11 @@ export const PPTX_RIBBON_TABS: readonly PptxRibbonTabSpec[] = [
   {
     id: "view",
     labelKey: "office.pptx.tabs.view",
-    groups: [{ id: "views", labelKey: g("views"), panels: [{ kind: "sorter", labelKey: p("sorter") }], commands: ["render-fidelity"], order: "panels-first" }],
+    groups: [
+      { id: "views", labelKey: g("views"), panels: [{ kind: "sorter", labelKey: p("sorter") }], commands: ["render-fidelity"], order: "panels-first" },
+      // B6: the slide master view replaces the canvas while the toggle is pressed.
+      { id: "master", labelKey: g("master"), commands: ["slideMaster"] },
+    ],
   },
 ];
 

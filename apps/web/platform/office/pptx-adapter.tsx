@@ -15,7 +15,7 @@ import { isPptxSessionDiverged, type PptxEdit, type PptxParagraphLike, type Pptx
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { PptxEditor } from "@uniwork/views/office/pptx/editor-view";
-import type { PptxDeckModel } from "@uniwork/views/office/pptx";
+import type { MasterElementView, MasterPartView, PptxDeckModel } from "@uniwork/views/office/pptx";
 import type { PptxSlideView } from "@uniwork/views/office/pptx/slide-rail";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions, type OfficeEditorSession } from "./editor-host-core";
 import { createPptxSaveTransport, type PptxDocumentsTransport } from "./pptx-save-transport";
@@ -161,6 +161,9 @@ function PptxEditorSurface(props: {
   slideNotes: (slideIndex: number) => string | null;
   /** Layout catalog of the live package (empty once released). */
   slideLayouts: () => { name: string; path: string }[];
+  /** Masters panel reads of the live session (UNI-927 B6). */
+  masterParts: () => readonly MasterPartView[];
+  masterElements: (partPath: string) => readonly MasterElementView[];
 }): ReactNode {
   const { t } = useTranslation();
   // F7: the open effect must not restart on a fresh `t` identity. react-i18next
@@ -170,7 +173,7 @@ function PptxEditorSurface(props: {
   // seam-stabilization the deck renderer and the editor use.
   const tRef = useRef(t);
   tRef.current = t;
-  const { editor, coordinator, editable, open, view, subscribe, slideNotes, slideLayouts } = props;
+  const { editor, coordinator, editable, open, view, subscribe, slideNotes, slideLayouts, masterParts, masterElements } = props;
   const current = useSyncExternalStore(subscribe, view, view);
   const [selected, setSelected] = useState(0);
   const [phase, setPhase] = useState<PptxOpenPhase>("loading");
@@ -288,6 +291,8 @@ function PptxEditorSurface(props: {
       printPort="browser"
       slideNotes={slideNotes}
       slideLayouts={slideLayouts}
+      masterParts={masterParts}
+      masterElements={masterElements}
       saveCoordinator={coordinator}
       includeSave={false}
     />
@@ -437,6 +442,13 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   // released session answers [] (the sorter then offers only its blank slide).
   const slideLayouts = (): { name: string; path: string }[] =>
     (modelRef && !disposed ? options.runtime.slideLayouts?.(modelRef) ?? [] : []);
+  // UNI-927 B6: the Masters panel reads parts and elements off the LIVE session
+  // like the notes; a runtime without the reads, or a released/disposed
+  // session, yields [] so the panel shows an empty list instead of a freed ref.
+  const masterParts = (): readonly MasterPartView[] =>
+    (modelRef && !disposed ? options.runtime.masterParts?.(modelRef) ?? [] : []);
+  const masterElements = (partPath: string): readonly MasterElementView[] =>
+    (modelRef && !disposed ? options.runtime.masterElements?.(modelRef, partPath) ?? [] : []);
 
   const transport = createPptxSaveTransport({
     documentId: options.identity.documentId,
@@ -522,6 +534,8 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
         open={open.open}
         slideNotes={slideNotes}
         slideLayouts={slideLayouts}
+        masterParts={masterParts}
+        masterElements={masterElements}
       />
     ),
     open,

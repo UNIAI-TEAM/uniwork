@@ -20,6 +20,7 @@ export {
   reparseDeck,
   listSlideLayouts,
   getSlideNotes,
+  parseMasterPart,
 } from "../upstream/packages/pptx-engine/src/index";
 export { runTxn } from "../upstream/packages/pptx-ops/src/index";
 export {
