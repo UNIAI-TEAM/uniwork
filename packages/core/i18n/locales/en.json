@@ -11966,8 +11966,8 @@
       "draftRecovered": "The selected draft was restored.",
       "featureOffTitle": "{{format}} editing is turned off",
       "featureOffDescription": "Editing {{format}} files is turned off for your organization, so this file is view-only.",
-      "flagsUnknownTitle": "Couldn't check {{format}} editing",
-      "flagsUnknownDescription": "Your organization's editor settings have not loaded yet, so this file is view-only for now. It becomes editable once they load.",
+      "flagsUnknownTitle": "{{format}} editing isn't available yet",
+      "flagsUnknownDescription": "This file is view-only for now while your organization's editor settings are checked. It becomes editable once the check succeeds.",
       "format": {
         "label": "Format",
         "all": "All formats",

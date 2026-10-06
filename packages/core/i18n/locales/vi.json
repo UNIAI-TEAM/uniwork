@@ -11942,8 +11942,8 @@
       "draftRecovered": "Đã khôi phục bản nháp đã chọn.",
       "featureOffTitle": "Chỉnh sửa {{format}} đang tắt",
       "featureOffDescription": "Tổ chức của bạn đang tắt chỉnh sửa tệp {{format}}, nên tệp này chỉ xem được.",
-      "flagsUnknownTitle": "Chưa kiểm tra được chế độ chỉnh sửa {{format}}",
-      "flagsUnknownDescription": "Chưa tải được cấu hình trình soạn thảo của tổ chức, nên tạm thời tệp này chỉ xem được. Tệp sẽ sửa được khi cấu hình tải xong.",
+      "flagsUnknownTitle": "Chưa sửa được tệp {{format}}",
+      "flagsUnknownDescription": "Tệp này tạm thời chỉ xem được trong lúc kiểm tra cấu hình trình soạn thảo của tổ chức. Tệp sẽ sửa được khi kiểm tra xong.",
       "format": {
         "label": "Định dạng",
         "all": "Tất cả định dạng",
