@@ -18,6 +18,7 @@ import { selectionSpan } from "../toolbar/structure-insert";
 import { buildChartFromRange, clampChartRange, trimBlankEdges } from "./chart-data";
 import { fitPicture, readPictureFile } from "./picture-file";
 import { XlsxVisualLayer } from "./visual-layer";
+import { visualsFromStream } from "./visual-recovery";
 import {
   anchorFromBox,
   boxFromAnchor,
@@ -65,6 +66,9 @@ export interface XlsxVisualsOptions {
   savedGeneration: number;
   /** A save is in flight: visuals are not inserted, moved or deleted. */
   saving?: boolean;
+  /** The editor's workbook snapshot; a recovered draft carries its raw op
+   *  stream as `pendingOps`, whose visuals the overlay draws again. */
+  snapshot?: unknown;
   onApplied: () => void;
   onError: (message: string) => void;
 }
@@ -94,6 +98,8 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [, setLayoutTick] = useState(0);
   const frameRef = useRef<number | null>(null);
+  /** Every id this overlay has held: a recovered stream only adds the others. */
+  const knownIdsRef = useRef(new Set<string>());
   const pictureInputRef = useRef<HTMLInputElement>(null);
 
   const geometry = useCallback((): XlsxVisualGeometry | null => {
@@ -126,6 +132,26 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
       : current));
   }, [savedGeneration]);
 
+  // A recovered draft re-emits its op stream (F4) into the next save, but the
+  // overlay state died with the tab: draw the stream's visuals again so they
+  // can be seen, moved and deleted. Ids this overlay already held are skipped
+  // (a stale stream must not resurrect a local delete).
+  const stream = (options.snapshot as { pendingOps?: unknown } | null | undefined)?.pendingOps;
+  useEffect(() => {
+    if (!Array.isArray(stream)) return;
+    const recovered = visualsFromStream(stream).flatMap((visual) => {
+      const sheetId = sheets.find((sheet) => sheet.name === visual.sheetName)?.id;
+      return sheetId === undefined || knownIdsRef.current.has(visual.id) ? [] : [{ ...visual, sheetId }];
+    });
+    if (recovered.length === 0) return;
+    const stamp = generation();
+    for (const visual of recovered) knownIdsRef.current.add(visual.id);
+    setVisuals((current) => [
+      ...current,
+      ...recovered.map(({ sheetName: _sheetName, ...visual }): XlsxEditorVisual => ({ ...visual, generation: stamp, saved: false })),
+    ]);
+  }, [generation, sheets, stream]);
+
   /** Apply `next` locally, send `op`, and restore this visual's entry from
    *  `previous` if it fails (other visuals keep any later change). */
   const commit = useCallback((previous: readonly XlsxEditorVisual[], next: readonly XlsxEditorVisual[], op: Record<string, unknown>, id: string) => {
@@ -154,6 +180,7 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     const anchor = anchorFromBox(measure, activeSheetId, box);
     if (!anchor) return;
     const visual: XlsxEditorVisual = { id: nextVisualId(), sheetId: activeSheetId, anchor, ...body, generation: 0, saved: false };
+    knownIdsRef.current.add(visual.id);
     commit(visuals, [...visuals, visual], setVisualOp(visual, name), visual.id);
     setSelectedId(visual.id);
   }, [activeSheetId, available, commit, geometry, sheetName, visuals]);

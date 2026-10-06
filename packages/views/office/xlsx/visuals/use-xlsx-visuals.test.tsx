@@ -206,6 +206,24 @@ describe("useXlsxVisuals", () => {
     expect(onError).toHaveBeenCalledWith("The chart uses only the first 1,000 rows and 24 series of the selection.");
   });
 
+  it("draws the visuals a recovered draft stream carries, and never resurrects one deleted here", async () => {
+    const recoveredAnchor = { fromRow: 2, fromColumn: 1, fromRowOffset: 0, fromColumnOffset: 0, toRow: 5, toColumn: 3, toRowOffset: 0, toColumnOffset: 0 };
+    const pendingOps = [{ op: "set_visual", target: { sheet: "Data" }, attributes: { id: "vr1", anchor: recoveredAnchor, shape: { shapeType: "ellipse" } } }];
+    const { edit, rerender } = setup({ snapshot: { revision: 3, sheets: [], pendingOps } });
+    const item = await screen.findByTestId("xlsx-visual-item-shape");
+    expect(item).toHaveAccessibleName("Shape: Oval");
+    // It moves and deletes like any session visual (anchor-only move, same id).
+    fireEvent.keyDown(item, { key: "ArrowDown" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    expect(lastOp(edit)).toMatchObject({ op: "set_visual", attributes: { id: "vr1" } });
+    expect(Object.keys(lastOp(edit).attributes).sort()).toEqual(["anchor", "id"]);
+    fireEvent.keyDown(screen.getByTestId("xlsx-visual-item-shape"), { key: "Delete" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+    // A later snapshot whose stream still lists it does not bring it back.
+    rerender({ snapshot: { revision: 4, sheets: [], pendingOps: [...pendingOps] } });
+    expect(screen.queryByTestId("xlsx-visual-item-shape")).not.toBeInTheDocument();
+  });
+
   it("inserts a picked picture keeping its aspect ratio and refuses other files", async () => {
     const { edit, onError } = setup({ selection: selection("A1", null) });
     const png = new Uint8Array(33);
