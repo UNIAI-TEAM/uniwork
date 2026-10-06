@@ -10782,7 +10782,9 @@
         "title": "Print presentation",
         "slide_label": "Slide {{index}}",
         "failed": "The presentation could not be printed.",
-        "blocked": "The browser blocked the print window. Allow pop-ups and try again."
+        "blocked": "The browser blocked the print window. Allow pop-ups and try again.",
+        "busy": "A print dialog is already open. Finish or close it first.",
+        "too_large": "This presentation is too large to print. Use smaller pictures and try again."
       },
       "charts": {
         "title": "Charts",

@@ -10776,7 +10776,9 @@
         "title": "In bản trình bày",
         "slide_label": "Trang chiếu {{index}}",
         "failed": "Không thể in bản trình bày.",
-        "blocked": "Trình duyệt đã chặn cửa sổ in. Cho phép cửa sổ bật lên rồi thử lại."
+        "blocked": "Trình duyệt đã chặn cửa sổ in. Cho phép cửa sổ bật lên rồi thử lại.",
+        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
+        "too_large": "Bản trình bày quá lớn để in. Hãy dùng hình ảnh nhỏ hơn rồi thử lại."
       },
       "charts": {
         "title": "Biểu đồ",
