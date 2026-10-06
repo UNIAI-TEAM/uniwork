@@ -80,7 +80,8 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
 
   constructor(private readonly options: DesktopDraftStoreOptions) {
     if (!options.rootDirectory || !options.keyStore) throw new TypeError("draft store configuration is incomplete");
-    this.maxPlaintextBytes = options.maxPlaintextBytes ?? 64 * 1024 * 1024;
+    // A local working file has no size cap, so neither has its recovery copy.
+    this.maxPlaintextBytes = options.maxPlaintextBytes ?? Number.POSITIVE_INFINITY;
     this.now = options.now ?? (() => Date.now());
     this.random = options.randomBytes ?? ((size) => randomBytes(size));
   }

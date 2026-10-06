@@ -19,7 +19,7 @@ export interface DesktopEngineCall {
   /** Opaque host handle; never a filesystem path. */
   readonly handle: string;
   readonly args: {
-    readonly dataBase64?: unknown;
+    readonly data?: unknown;
     readonly edits?: unknown;
     readonly password?: unknown;
     readonly pageIndex?: unknown;
@@ -46,7 +46,7 @@ export interface DesktopEngineOpenResult {
 export interface DesktopEngineEditResult {
   readonly ok: true;
   readonly operation: "edit";
-  readonly dataBase64: string;
+  readonly data: Uint8Array;
   readonly warnings: PdfEditOutcome["warnings"];
   readonly report: PdfEditOutcome["report"];
 }
@@ -96,13 +96,14 @@ export class DesktopEngineCallError extends Error {
 const MAX_TEXT_PAGE_LIMIT = 32;
 
 function decode(input: unknown): Uint8Array {
-  if (typeof input !== "string") throw new DesktopEngineCallError("engine_input_missing");
-  return Uint8Array.from(Buffer.from(input, "base64"));
+  // The document arrives as binary through the typed IPC seam (never base64).
+  if (!(input instanceof Uint8Array)) throw new DesktopEngineCallError("engine_input_missing");
+  return input;
 }
 
 async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResult> {
   if (call.operation === "open") {
-    const bytes = decode(call.args.dataBase64);
+    const bytes = decode(call.args.data);
     const password = typeof call.args.password === "string" ? call.args.password : undefined;
     // The probe is the gate: an encrypted document without the right password
     // must answer the typed wall before any size read touches pdfium.
@@ -111,13 +112,13 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
     return { ok: true, operation: "open", probe, pageSizes };
   }
   if (call.operation === "edit") {
-    const bytes = decode(call.args.dataBase64);
+    const bytes = decode(call.args.data);
     if (!Array.isArray(call.args.edits)) throw new DesktopEngineCallError("engine_input_missing");
     const result = await applyPdfEditBytes(bytes, call.args.edits);
-    return { ok: true, operation: "edit", dataBase64: Buffer.from(result.bytes).toString("base64"), warnings: result.warnings, report: result.report };
+    return { ok: true, operation: "edit", data: result.bytes, warnings: result.warnings, report: result.report };
   }
   if (call.operation === "text") {
-    const bytes = decode(call.args.dataBase64);
+    const bytes = decode(call.args.data);
     const password = typeof call.args.password === "string" ? call.args.password : undefined;
     const pageIndex = call.args.pageIndex;
     if (typeof pageIndex !== "number" || !Number.isInteger(pageIndex) || pageIndex < 0) throw new DesktopEngineCallError("engine_input_missing");
@@ -128,7 +129,7 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
     return { ok: true, operation: "text", pageCount: result.pageCount, pages: result.pages };
   }
   if (call.operation === "render") {
-    const bytes = decode(call.args.dataBase64);
+    const bytes = decode(call.args.data);
     const pageIndex = call.args.pageIndex;
     const scale = call.args.scale;
     if (typeof pageIndex !== "number" || !Number.isInteger(pageIndex) || pageIndex < 0) throw new DesktopEngineCallError("engine_input_missing");

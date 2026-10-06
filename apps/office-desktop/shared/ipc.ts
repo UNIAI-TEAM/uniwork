@@ -60,31 +60,31 @@ const attemptIdSchema = z.string().regex(/^attempt_[A-Za-z0-9_-]{32,160}$/, "inv
 const fileHandleSchema = z.string().regex(/^file_[A-Za-z0-9_-]{32,160}$/, "invalid file handle");
 export const fileOpenRequestedSchema = z.object({ handle: fileHandleSchema }).strict();
 const draftIdSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid draft id");
-const IPC_FILE_MAX_BYTES = 192 * 1024 * 1024;
-/**
- * Validate the base64 wire value with a bounded linear scan.  A large
- * Office document can contain hundreds of millions of base64 characters;
- * the usual grouped RegExp backtracks deeply enough to overflow the V8
- * stack long before the transport bound is reached.
- */
-function isBase64Bytes(value: string): boolean {
-  if (value.length > IPC_FILE_MAX_BYTES || (value.length & 3) !== 0) return false;
-  let padding = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code === 61) {
-      padding += 1;
-      if (padding > 2 || index < value.length - 2) return false;
-      continue;
-    }
-    const alphaNumeric = (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
-    if (padding > 0 || (!alphaNumeric && code !== 43 && code !== 47)) {
-      return false;
-    }
-  }
-  return true;
+/** A byte field crosses Electron IPC as a Uint8Array (structured clone), never
+ * as base64 text, so a local working file has no wire ceiling of its own: the
+ * only limit is the memory of the machine. The check is by tag, not by
+ * `instanceof`, because the preload bridge hands the renderer a copy made in
+ * another realm. Validation looks at the type only (never at the bytes), and
+ * the value is normalised to an exact Uint8Array view so a pooled Buffer never
+ * carries unrelated pool memory across the boundary. */
+function isByteValue(value: unknown): value is Uint8Array | ArrayBuffer {
+  const tag = Object.prototype.toString.call(value);
+  return tag === "[object Uint8Array]" || tag === "[object ArrayBuffer]";
 }
-const base64BytesSchema = z.string().max(IPC_FILE_MAX_BYTES).refine(isBase64Bytes, "invalid byte encoding");
+function exactBytes(value: Uint8Array | ArrayBuffer): Uint8Array {
+  if (!ArrayBuffer.isView(value)) return new Uint8Array(value);
+  if (value.byteOffset === 0 && value.byteLength === value.buffer.byteLength) return value;
+  return Uint8Array.prototype.slice.call(value) as Uint8Array;
+}
+const bytesSchema = z.custom<Uint8Array | ArrayBuffer>(isByteValue, "invalid byte field").transform(exactBytes);
+/** Engine-call arguments: free-form, except that `data` (the document's own
+ * bytes) must be binary and arrives as an exact Uint8Array. */
+const engineArgsSchema = z.record(z.string(), z.unknown()).default({}).transform((args, ctx) => {
+  if (!("data" in args)) return args;
+  const data = bytesSchema.safeParse(args.data);
+  if (!data.success) { ctx.addIssue({ code: "custom", message: "invalid byte field", path: ["data"] }); return z.NEVER; }
+  return { ...args, data: data.data };
+});
 const documentIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid document id");
 export const desktopFileMetadataSchema = z.object({
   handle: fileHandleSchema,
@@ -99,7 +99,7 @@ export const desktopFileMetadataSchema = z.object({
  * message or a path). An unknown code is still valid; the renderer falls back to
  * its generic copy for it. */
 const fileFailureCodeSchema = z.string().regex(/^[a-z0-9_]{1,64}$/);
-export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional(), code: fileFailureCodeSchema.optional() }).strict()
+export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), data: bytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional(), code: fileFailureCodeSchema.optional() }).strict()
   // A code names a refusal: main never sends one with a successful open.
   .refine((value) => value.code === undefined || !value.opened, "a code belongs to a refused answer");
 const recentFileIdSchema = z.string().regex(/^recent_[A-Za-z0-9]{16,64}$/, "invalid recent file id");
@@ -138,7 +138,7 @@ const draftMetadataSchema = z.object({
 export const desktopDraftListResponseSchema = z.object({ drafts: z.array(draftMetadataSchema), locked: z.boolean().optional() }).strict();
 export type DesktopDraftMetadata = z.infer<typeof draftMetadataSchema>;
 export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("recovered"), metadata: draftMetadataSchema, dataBase64: base64BytesSchema }).strict(),
+  z.object({ status: z.literal("recovered"), metadata: draftMetadataSchema, data: bytesSchema }).strict(),
   z.object({ status: z.literal("missing") }).strict(),
   z.object({ status: z.literal("ambiguous"), candidates: z.array(draftMetadataSchema) }).strict(),
   z.object({ status: z.literal("conflict"), metadata: draftMetadataSchema, currentBase: draftBaseSchema, draftBase: draftBaseSchema }).strict(),
@@ -206,13 +206,13 @@ export const desktopLibraryDownloadResponseSchema = z.object({
   version: z.number().int().nonnegative(),
   filename: z.string().min(1).max(255),
   mimeType: documentMimeTypeSchema,
-  dataBase64: base64BytesSchema,
+  data: bytesSchema,
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
 export type DesktopLibraryDownloadResponse = z.infer<typeof desktopLibraryDownloadResponseSchema>;
 export const desktopOfficeOpenResponseSchema = z.object({
   document: libraryDocumentSchema,
-  dataBase64: base64BytesSchema,
+  data: bytesSchema,
   filename: z.string().min(1).max(255),
   mimeType: documentMimeTypeSchema,
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
@@ -253,8 +253,8 @@ export const desktopOfficeJobResponseSchema = z.object({
   jobId: z.string().min(1).max(160),
   documentId: documentIdSchema,
   state: z.enum(["accepted", "running", "completed", "failed", "timed_out", "cancelled", "crashed"]),
-  /** The JSON snapshot (open) or the produced bytes (edit), base64. */
-  outputBase64: base64BytesSchema.optional(),
+  /** The JSON snapshot (open) or the produced bytes (edit), bytes. */
+  output: bytesSchema.optional(),
   outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
   /** Only the engine's `xlsx_rule_sets_dropped:` refusal (op positions, no document text). */
   errorReason: z.string().max(600).optional(),
@@ -274,8 +274,8 @@ export const desktopFileXlsxRequestSchema = z.object({
 export type DesktopFileXlsxRequest = z.infer<typeof desktopFileXlsxRequestSchema>;
 export const desktopFileXlsxResponseSchema = z.object({
   state: z.enum(["completed", "failed"]),
-  /** The JSON snapshot (open) or the produced bytes (edit), base64. */
-  outputBase64: base64BytesSchema.optional(),
+  /** The JSON snapshot (open) or the produced bytes (edit), bytes. */
+  output: bytesSchema.optional(),
   outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
   /** Set on a `failed` answer that main can name (a refused file, not an engine fault). */
   code: fileFailureCodeSchema.optional(),
@@ -373,7 +373,7 @@ export const desktopSessionMetadataSchema = z.object({
 export type DesktopSessionMetadata = z.infer<typeof desktopSessionMetadataSchema>;
 const requestSchemas = {
   "desktop:bootstrap": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
-  "desktop:engine-call": z.object({ sessionGeneration: sessionGenerationSchema, operation: operationSchema, handle: opaqueHandleSchema, args: z.record(z.string(), z.unknown()).default({}) }).strict(),
+  "desktop:engine-call": z.object({ sessionGeneration: sessionGenerationSchema, operation: operationSchema, handle: opaqueHandleSchema, args: engineArgsSchema }).strict(),
   "desktop:open-external": z.object({ sessionGeneration: sessionGenerationSchema, url: z.string().url().max(2048) }).strict(),
   "desktop:auth-start": z.object({ sessionGeneration: sessionGenerationSchema, clientId: clientIdSchema, deploymentId: deploymentSchema }).strict(),
   "desktop:auth-cancel": z.object({ sessionGeneration: sessionGenerationSchema, attemptId: attemptIdSchema }).strict(),
@@ -387,14 +387,14 @@ const requestSchemas = {
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-create": z.object({ sessionGeneration: sessionGenerationSchema, format: documentFormatSchema.default(DEFAULT_DESKTOP_DOCUMENT_FORMAT) }).strict(),
   "desktop:file-open": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema }).strict(),
-  "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
-  "desktop:file-save-as": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
+  "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, data: bytesSchema }).strict(),
+  "desktop:file-save-as": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, data: bytesSchema }).strict(),
   "desktop:local-state": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:local-mode": z.object({ sessionGeneration: sessionGenerationSchema, local: z.boolean() }).strict(),
   "desktop:recent-list": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:recent-open": z.object({ sessionGeneration: sessionGenerationSchema, id: recentFileIdSchema }).strict(),
   "desktop:recent-remove": z.object({ sessionGeneration: sessionGenerationSchema, id: recentFileIdSchema }).strict(),
-  "desktop:draft-checkpoint": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema, draftId: draftIdSchema, generation: z.number().int().positive(), dataBase64: base64BytesSchema }).strict(),
+  "desktop:draft-checkpoint": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema, draftId: draftIdSchema, generation: z.number().int().positive(), data: bytesSchema }).strict(),
   "desktop:draft-list": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema.optional() }).strict(),
   "desktop:draft-recover": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema, draftId: draftIdSchema, currentBase: draftBaseSchema }).strict(),
   "desktop:draft-discard": z.object({ sessionGeneration: sessionGenerationSchema, documentId: opaqueHandleSchema.optional(), draftId: draftIdSchema, generation: z.number().int().positive() }).strict(),
@@ -409,7 +409,7 @@ const requestSchemas = {
   "desktop:office-context": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-job": desktopOfficeJobRequestSchema,
   "desktop:file-xlsx": desktopFileXlsxRequestSchema,
-  "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
+  "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), data: bytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
   "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),
   "desktop:print-document": z.object({ sessionGeneration: sessionGenerationSchema, title: z.string().max(255), html: z.string().min(1).max(PRINT_HTML_MAX_BYTES) }).strict(),
 } as const;
@@ -418,23 +418,36 @@ export type IpcSenderContext = { senderId: number; frameId: number; origin: stri
 export type IpcValidationErrorCode = "unknown_channel" | "oversize" | "sender" | "frame" | "origin" | "session" | "schema" | "external_url";
 export class IpcValidationError extends Error { readonly code: IpcValidationErrorCode; constructor(code: IpcValidationErrorCode, message: string) { super(message); this.name = "IpcValidationError"; this.code = code; } }
 export const IPC_MAX_BYTES = 64 * 1024;
-/** File/draft byte payloads are bounded separately so ordinary control IPC
- * remains small while realistic Office documents can cross the typed seam. */
-export { IPC_FILE_MAX_BYTES };
+/** Channels whose root `data` field is the file's own bytes. */
+const BYTE_ROOT_CHANNELS: ReadonlySet<string> = new Set(["desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint", "desktop:office-save"]);
+/** True where binary file bytes may sit outside the JSON budget: root `data`
+ * on a byte channel, or `args.data` of an engine call. Nowhere else. */
+function isByteSlot(channel: string, key: string, depth: number, parentKey: string | undefined): boolean {
+  if (key !== "data") return false;
+  if (depth === 0) return BYTE_ROOT_CHANNELS.has(channel);
+  return depth === 1 && channel === "desktop:engine-call" && parentKey === "args";
+}
+/** JSON bytes of a string. Every string on the wire is bounded by the channel
+ * cap, so a longer one is refused without being measured. */
+function stringBytes(value: string, maxBytes: number, encoder: TextEncoder): number {
+  if (value.length > maxBytes) return maxBytes + 1;
+  return encoder.encode(JSON.stringify(value)).byteLength;
+}
 
 /** Measure the JSON wire representation without accepting values that
  * Electron's structured-clone transport can carry outside JSON. A bounded,
  * recursive walk rejects ArrayBuffer/Blob/Map/Set, class instances, cycles,
- * non-finite numbers and deeply nested values before schema parsing. */
-function sizeInBytes(value: unknown, maxBytes = IPC_MAX_BYTES): number {
+ * non-finite numbers and deeply nested values before schema parsing. Byte
+ * fields (see isByteSlot) are exempt from the budget. */
+function sizeInBytes(channel: string, value: unknown, maxBytes = IPC_MAX_BYTES): number {
   const encoder = new TextEncoder();
   const seen = new Set<object>();
-  const visit = (current: unknown, depth: number): number => {
+  const visit = (current: unknown, depth: number, parentKey?: string): number => {
     if (depth > 256) return maxBytes + 1;
     if (current === null) return 4;
     switch (typeof current) {
       case "boolean": return current ? 4 : 5;
-      case "string": return encoder.encode(JSON.stringify(current)).byteLength;
+      case "string": return stringBytes(current, maxBytes, encoder);
       case "number": return Number.isFinite(current) ? encoder.encode(String(current)).byteLength : maxBytes + 1;
       case "object": break;
       default: return maxBytes + 1;
@@ -450,7 +463,8 @@ function sizeInBytes(value: unknown, maxBytes = IPC_MAX_BYTES): number {
     } else {
       if (Object.getPrototypeOf(current) !== Object.prototype && Object.getPrototypeOf(current) !== null) return maxBytes + 1;
       for (const [key, child] of Object.entries(current)) {
-        total += encoder.encode(JSON.stringify(key)).byteLength + 1 + visit(child, depth + 1);
+        if (isByteSlot(channel, key, depth, parentKey) && isByteValue(child)) { total += encoder.encode(JSON.stringify(key)).byteLength + 1; continue; }
+        total += encoder.encode(JSON.stringify(key)).byteLength + 1 + visit(child, depth + 1, key);
         if (total > maxBytes) return total;
       }
     }
@@ -464,11 +478,10 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.senderId !== sender.expectedSenderId) throw new IpcValidationError("sender", "IPC sender is not the bound webContents");
   if (sender.frameId !== sender.expectedFrameId) throw new IpcValidationError("frame", "IPC frame is not the bound frame");
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
-  // Office saves, engine calls and office jobs carry the serialized document
-  // in the same bounded byte class as local-file and draft payloads; print
-  // HTML has its own cap. Keep the remaining control calls at the smaller limit.
-  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" || channel === "desktop:office-job" || channel === "desktop:engine-call" ? IPC_FILE_MAX_BYTES : channel === "desktop:print-document" ? PRINT_HTML_MAX_BYTES + IPC_MAX_BYTES : IPC_MAX_BYTES;
-  if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
+  // Every request keeps the small control cap, byte fields excepted (see
+  // sizeInBytes); print HTML has its own cap.
+  const byteLimit = channel === "desktop:print-document" ? PRINT_HTML_MAX_BYTES + IPC_MAX_BYTES : IPC_MAX_BYTES;
+  if (sizeInBytes(channel, payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {
     parsed = requestSchemas[channel].safeParse(payload);
@@ -501,6 +514,9 @@ export function createIpcDispatcher(handlers: Partial<{ [C in DesktopIpcChannel]
 }
 
 function containsPathLikeValue(value: unknown): boolean {
+  // Binary file bytes hold no keys; never walk them (a per-byte walk of a
+  // large PDF blocks the main process).
+  if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) return false;
   if (Array.isArray(value)) return value.some(containsPathLikeValue);
   if (!value || typeof value !== "object") return false;
   return Object.entries(value).some(([key, child]) => /(?:^|_)(?:path|filepath|file_path)$/i.test(key) || containsPathLikeValue(child));

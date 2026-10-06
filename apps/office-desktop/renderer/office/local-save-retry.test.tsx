@@ -14,7 +14,7 @@ import { createByteTestEditor } from "../../test/byte-editor";
 
 const checksum = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
 const handle = `file_${"r".repeat(40)}`;
-const opened = { format: "docx" as const, dataBase64: "aGVsbG8=", checksum, localHandle: handle };
+const opened = { format: "docx" as const, data: new TextEncoder().encode("hello"), checksum, localHandle: handle };
 const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: handle, generation: 1, baseRevision: "0", baseVersionId: "v0" };
 const saved = { opened: true, metadata: { handle, name: "Local.docx", byteLength: 5, modifiedAtMs: 10, checksum } };
 
@@ -64,13 +64,13 @@ it("names a failed draft checkpoint, and a later Save still runs", async () => {
   await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
 }, 30_000);
 
-it("keeps the draft and the pending intent when a Save outgrows the limit", async () => {
-  const { session } = await openSession(() => ({ opened: false, code: "file_save_too_large" }));
+it("keeps the draft and the pending intent when this computer runs out of memory for a Save", async () => {
+  const { session } = await openSession(() => ({ opened: false, code: "file_insufficient_memory" }));
   render(<OfficeShell title="Local.docx" editor={<div />} saveCoordinator={session.coordinator} editorReady saveDestination="local" />);
   act(() => session.coordinator.markDirty(1));
   await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: false, reason: "error" });
-  expect(session.coordinator.getState()).toMatchObject({ state: "error", error: { code: "file_save_too_large", action: "keep_draft", retryable: false } });
-  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("office.save.reason.file_save_too_large"));
+  expect(session.coordinator.getState()).toMatchObject({ state: "error", error: { code: "file_insufficient_memory", action: "keep_draft", retryable: false } });
+  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("office.save.reason.file_insufficient_memory"));
 });
 
 it("routes a refused context rebind after a confirmed local Save into the error state, without losing the receipt or rejecting", async () => {

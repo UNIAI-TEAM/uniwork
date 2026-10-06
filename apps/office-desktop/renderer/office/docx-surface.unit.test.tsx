@@ -78,3 +78,14 @@ it("refuses a snapshot when disposal happens during asynchronous capture", async
   await editor.dispose();
   await assertion;
 });
+
+it("does not refuse a document above the 64 MiB server input bound", async () => {
+  // Zeros are not a package, so a host that got past the size gate reports a
+  // corrupt/not-office file; the server bound would report too_large.
+  const editor = createDesktopDocxSurface({ documentId: "doc", readBytes: async () => new Uint8Array(65 * 1024 * 1024) });
+  try {
+    const outcome = await editor.open().then(() => "opened", (error: unknown) => error);
+    expect(JSON.stringify(outcome, Object.getOwnPropertyNames(outcome as object))).not.toContain("too_large");
+    expect(outcome).not.toBe("opened");
+  } finally { await editor.dispose(); }
+});

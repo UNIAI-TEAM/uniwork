@@ -1,4 +1,4 @@
-import { readZip } from "./zip.ts";
+import { readZip, type ZipBoundMode } from "./zip.ts";
 
 // ODF text reader for the Q7 .odt -> .docx converter. ODF is a zip whose first
 // entry, `mimetype`, names the media type; the text lives in content.xml. The
@@ -23,10 +23,10 @@ export class OdfError extends Error {
 }
 
 /** Proves the package is ODF text and reads its paragraphs in document order. */
-export function readOdfTextPackage(bytes: Uint8Array): OdfParagraph[] {
+export function readOdfTextPackage(bytes: Uint8Array, zipBounds?: ZipBoundMode): OdfParagraph[] {
   let pkg: Map<string, Uint8Array>;
   try {
-    pkg = readZip(bytes);
+    pkg = readZip(bytes, zipBounds);
   } catch {
     throw new OdfError("not_odt", "the package is not a readable zip");
   }

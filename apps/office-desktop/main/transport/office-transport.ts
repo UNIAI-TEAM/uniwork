@@ -90,7 +90,7 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
     void input.workspaceId;
     const path = `/documents/${encodeURIComponent(input.documentId)}/download${input.version === undefined ? "" : `?version=${input.version}`}`;
     const result = await bytes(path);
-    return { documentId: input.documentId, version: input.version ?? 0, filename: result.filename, mimeType: result.mimeType, dataBase64: Buffer.from(result.data).toString("base64"), checksum: `sha256:${createHash("sha256").update(result.data).digest("hex")}` };
+    return { documentId: input.documentId, version: input.version ?? 0, filename: result.filename, mimeType: result.mimeType, data: result.data, checksum: `sha256:${createHash("sha256").update(result.data).digest("hex")}` };
   }
   return Object.freeze({
     async readDocumentAccess(input: { workspaceId: string; documentId: string }): Promise<"edit" | "none"> {
@@ -164,7 +164,7 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       const document = toLibraryDocument(body, input.workspaceId);
       if (!document) throw new Error("document_invalid");
       const downloaded = await download({ workspaceId: input.workspaceId, documentId: document.id, version: document.version });
-      return { document, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
+      return { document, data: downloaded.data, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
     },
     download,
     // The server edit-job path for a carried non-docx format (xlsx today).
@@ -199,12 +199,12 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       }
       const output = await authRequest(`${base}/${encodeURIComponent(jobId)}/output`, { headers: { Accept: "*/*" } });
       const data = new Uint8Array(await output.arrayBuffer());
-      return { jobId, documentId: input.documentId, state: "completed", outputBase64: Buffer.from(data).toString("base64"), outputChecksum: `sha256:${createHash("sha256").update(data).digest("hex")}` };
+      return { jobId, documentId: input.documentId, state: "completed", output: data, outputChecksum: `sha256:${createHash("sha256").update(data).digest("hex")}` };
     },
     async open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse> {
       const [downloaded, document] = await Promise.all([download(input), readDocumentDetail(input)]);
       if (!document) throw new Error("document_invalid");
-      return { document, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
+      return { document, data: downloaded.data, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
     },
     /** Metadata-only open: register the context for a format whose editor opens
      *  through the server job and never reads the raw bytes (no byte haul). */
@@ -213,13 +213,13 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       if (!document) throw new Error("document_invalid");
       return { document };
     },
-    async save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse> {
+    async save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; data: Uint8Array; checksum: string }): Promise<DesktopOfficeSaveResponse> {
       void input.workspaceId;
       void input.baseVersionId;
-      const bytes = Buffer.from(input.dataBase64, "base64");
+      const bytes = input.data;
       const extension = desktopExtensionsForFormat(input.format)[0];
       const form = new FormData();
-      form.set("file", new Blob([bytes], { type: desktopMimeTypeForFormat(input.format) }), extension ? `document.${extension}` : "document");
+      form.set("file", new Blob([bytes as BlobPart], { type: desktopMimeTypeForFormat(input.format) }), extension ? `document.${extension}` : "document");
       const uploadRaw = await (await authRequest(`/documents/${encodeURIComponent(input.documentId)}/uploads`, { method: "POST", body: form, headers: { "Idempotency-Key": input.idempotencyKey } })).json();
       const upload = uploadRaw && typeof uploadRaw === "object" && "upload" in uploadRaw ? (uploadRaw as { upload: Record<string, unknown> }).upload : uploadRaw as Record<string, unknown>;
       if (!upload || typeof upload.upload_id !== "string") throw new Error("upload_invalid");

@@ -8,7 +8,7 @@ import type { TextDocumentEngine } from "@uniwork/office-engine/assets";
 import { sha256Hex } from "@uniwork/office-contracts";
 import { useSession } from "@uniwork/core/auth";
 import { getOfficeCapabilities, type OfficeCapabilities } from "@uniwork/core/api/endpoints/office";
-import type { OfficeCapabilityEntry, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
+import { isOfficeTooLarge, type OfficeCapabilityEntry, type OfficeIdentity, type StableSnapshot } from "@uniwork/core/office";
 import { HtmlEditor, MarkdownEditor, type HtmlEditorProps, type IsolatedPreviewPort, type MarkdownEditorProps, type TextEditorHandle, type TextOpenFailure, type TextOpenOutcome } from "@uniwork/views/office";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions, type OfficeEditorSession } from "./editor-host-core";
 import { OfficeEditorHost, type OfficeEditorHostProps, type OfficeFormatAdapter } from "./editor-host";
@@ -171,8 +171,8 @@ export interface TextFormatAdapter {
 }
 
 function openFailure(documentId: string, format: TextFormat, error: unknown): TextOpenFailure {
-  const cause = error as { failureClass?: string; message?: string };
-  return { outcome: "failed", document_id: documentId, format, failure_class: (cause.failureClass as TextOpenFailure["failure_class"]) ?? "engine_error", message: cause.message ?? "text_open_failed" };
+  const cause = error as { failureClass?: string; code?: string; kind?: string; message?: string };
+  return { outcome: "failed", document_id: documentId, format, failure_class: (cause.failureClass as TextOpenFailure["failure_class"]) ?? (isOfficeTooLarge(cause) ? "too_large" : "engine_error"), message: cause.message ?? "text_open_failed" };
 }
 
 /** The engine-backed handle: `source` is the ONE text source the views read. */

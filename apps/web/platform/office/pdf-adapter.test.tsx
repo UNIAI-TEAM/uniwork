@@ -339,6 +339,12 @@ describe("web PDF format adapter", () => {
     await adapter.session.dispose();
   });
 
+  it("maps a too-large source to the too_large failure class (UNI-956)", async () => {
+    const { adapter } = setup({ documents: { read: vi.fn(async () => { throw Object.assign(new Error("too big"), { code: "file_too_large" }); }), upload: vi.fn(), commit: vi.fn() } });
+    expect(await adapter.open.open()).toMatchObject({ outcome: "failed", format: "pdf", failure_class: "too_large" });
+    await adapter.session.dispose();
+  });
+
   it("maps an unknown open error to engine_error", async () => {
     const { adapter } = setup({ documents: { read: vi.fn(async () => { throw new Error("network"); }), upload: vi.fn(), commit: vi.fn() } });
     expect(await adapter.open.open()).toMatchObject({ outcome: "failed", failure_class: "engine_error", message: "network" });

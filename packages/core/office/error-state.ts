@@ -93,13 +93,13 @@ const ERROR_RULES: Record<string, ErrorRule> = {
   file_save_in_progress: { state: "error", action: "retry", retryable: true },
   // The draft checkpoint before a local Save failed; nothing was written, so a retry is safe.
   file_checkpoint_failed: { state: "error", action: "retry", retryable: true },
-  // A local Save that outgrew the limit. `file_too_large` (cloud rule above) is
-  // blocked and shows no reason; this one stays `error` so the sentence shows, and
-  // keeps the draft: the same bytes cannot succeed, so no automatic retry.
-  file_save_too_large: { state: "error", action: "keep_draft", retryable: false },
   file_changed_on_disk: { state: "error", action: "keep_draft", retryable: false },
   file_not_found: { state: "error", action: "keep_draft", retryable: false },
   file_session_revoked: { state: "error", action: "keep_draft", retryable: false },
+  // UNI-956: the desktop has no size cap, so a file past this machine's memory
+  // answers this instead of crashing; changes stay, a retry after freeing
+  // memory may succeed, nothing re-runs by itself.
+  file_insufficient_memory: { state: "error", action: "keep_draft", retryable: false },
   // Pipeline guard codes the coordinator raises itself when the transport
   // answers outside the seam schemas. The commit step is ambiguous: the
   // server may have committed before its answer was lost or garbled.

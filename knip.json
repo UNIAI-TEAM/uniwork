@@ -41,6 +41,7 @@
       "entry": [
         "electron-main.ts",
         "main/index.ts",
+        "main/engine-host/child.ts",
         "preload/index.ts",
         "renderer/index.tsx",
         "renderer/styles.css",

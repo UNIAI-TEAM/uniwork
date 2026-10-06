@@ -327,6 +327,12 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
   }
   const failed = (code: string, kind = "malformed_result") => ({ jobId: "job", state: "failed", error: { code, reason: "native failure", kind, retryable: true } }) as OfficeJob;
 
+  it("opens a server job refusal upload_bounds/xlsx_open_model_too_large as too_large, not engine_error (UNI-956)", async () => {
+    api.get.mockResolvedValueOnce({ jobId: "job", state: "failed", error: { code: "upload_bounds", reason: "xlsx_open_model_too_large", kind: "byte_bound", retryable: false } } as OfficeJob);
+    api.start.mockResolvedValueOnce({ jobId: "job" });
+    const engine = createWebXlsxSessionRuntime({ documentId: "doc", baseRevision: "1" });
+    expect(await engine.open({ bytes: new Uint8Array([80, 75]), documentId: "doc" })).toMatchObject({ outcome: "failed", failure_class: "too_large", message: "xlsx_open_model_too_large" });
+  });
   it("preserves native code/kind/flag and supplies a validated engine class", async () => {
     const engine = await opened();
     api.get.mockResolvedValueOnce(failed("engine_result_invalid"));

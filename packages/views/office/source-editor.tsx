@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CompositionEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { OfficeTooLargeNotice, openFailureClassOf } from "./too-large-notice";
 import { Clipboard, Copy, Redo2, Undo2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -43,7 +44,7 @@ function failureFor(documentKey: string, format: "md" | "html", error: unknown):
     outcome: "failed",
     document_id: documentKey,
     format,
-    failure_class: "engine_error",
+    failure_class: openFailureClassOf(error),
     message: error instanceof Error ? error.message : String(error),
   } as TextOpenFailure;
 }
@@ -431,7 +432,7 @@ export function SourceEditor<TSnapshot = unknown>({
             {blockedAsset ? <p className="px-3 pb-3 text-caption text-destructive" role="alert">{t("asset.saveBlocked")}</p> : null}
           </aside>
         </>
-      ) : viewState === "error" && failure ? (
+      ) : viewState === "error" && failure ? failure.failure_class === "too_large" ? <OfficeTooLargeNotice format={format} /> : (
         <Alert className="m-3" variant="destructive" role="alert" data-testid={`${format}-error-state`}>
           <AlertTitle>{t("errors.title")}</AlertTitle>
           <AlertDescription>{failure.message ?? t("errors.unknown")}</AlertDescription>

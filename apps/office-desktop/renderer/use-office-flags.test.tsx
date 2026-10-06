@@ -112,7 +112,7 @@ it("upgrades a gated tab from a fresh read once the answer allows its format, an
   const live = { tabs: [tab("deck", "pptx"), tab("sheet", "xlsx")] };
   const upgradeCloud = vi.fn((_id: string, _fresh: CloudReopen) => true);
   const tabs = { current: { current: live }, upgradeCloud } as unknown as ReturnType<typeof useDocumentTabs>;
-  const fresh = (id: string): CloudReopen => ({ bytes: { format: "pptx", dataBase64: id, checksum: "c" }, baseRevision: "7", baseVersionId: "3" });
+  const fresh = (id: string): CloudReopen => ({ bytes: { format: "pptx", data: new TextEncoder().encode(id), checksum: "c" }, baseRevision: "7", baseVersionId: "3" });
   const reopen = vi.fn(async (doc: TabDocument) => doc.identity.documentId === "sheet" ? null : fresh(doc.identity.documentId));
 
   const { result, rerender } = renderHook((props) => {
@@ -142,7 +142,7 @@ it("retries a gated tab whose fresh read failed under an answered 'on': with bac
   const tab = { id: "deck", format: "pptx", data: { kind: "cloud", format: "pptx", identity: { organizationId: "org-1", documentId: "deck" } } as unknown as TabDocument };
   const upgradeCloud = vi.fn((_id: string, _fresh: CloudReopen) => true);
   const tabs = { current: { current: { tabs: [tab] } }, upgradeCloud } as unknown as ReturnType<typeof useDocumentTabs>;
-  const fresh: CloudReopen = { bytes: { format: "pptx", dataBase64: "deck", checksum: "c" }, baseRevision: "7", baseVersionId: "3" };
+  const fresh: CloudReopen = { bytes: { format: "pptx", data: new TextEncoder().encode("deck"), checksum: "c" }, baseRevision: "7", baseVersionId: "3" };
   let readable = false;
   const reopen = vi.fn(async () => (readable ? fresh : null));
   const { result, rerender } = renderHook((props) => useFlagGatedTabs(tabs, useOfficeFlags(bridge, props), reopen), { initialProps: base });

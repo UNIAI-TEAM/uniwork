@@ -7842,6 +7842,12 @@
     }
   },
   "office": {
+    "too_large": {
+      "title": "Tệp quá lớn để chỉnh sửa trên web",
+      "description": "Tệp {{format}} này vượt giới hạn dung lượng của trình duyệt. Mở tệp trong ứng dụng UniWork Office trên máy tính để tiếp tục làm việc — ứng dụng không giới hạn dung lượng tệp.",
+      "download": "Tải xuống",
+      "download_failed": "Không thể tải tệp xuống. Hãy thử lại."
+    },
     "common": {
       "chrome": {
         "undo": "Hoàn tác",
@@ -9101,8 +9107,8 @@
         "file_session_revoked": "Phiên làm việc đã thay đổi khi đang xử lý tệp. Kiểm tra xem tệp đã được lưu chưa rồi thử lại.",
         "file_write_failed": "Không ghi được tệp. Kiểm tra dung lượng trống và quyền truy cập rồi thử lại. Thay đổi của bạn vẫn được giữ.",
         "file_replace_failed": "Không thay được tệp bằng bản mới. Đóng tệp trong các chương trình khác rồi thử lại. Thay đổi của bạn vẫn được giữ.",
-        "file_too_large": "Tệp quá lớn để UniWork Office mở.",
-        "file_save_too_large": "Tài liệu đã lớn hơn mức UniWork Office lưu được. Thay đổi của bạn vẫn được giữ: bớt nội dung rồi lưu lại.",
+        "file_too_large": "Tệp quá lớn để UniWork Office xử lý.",
+        "file_insufficient_memory": "Máy không đủ bộ nhớ để mở tệp này. Đóng bớt ứng dụng khác rồi thử lại.",
         "file_read_failed": "Không đọc được tệp. Kiểm tra quyền mở tệp rồi thử lại.",
         "file_checkpoint_failed": "Chưa bảo vệ được thay đổi trên máy nên tệp chưa được lưu. Thử lại.",
         "file_save_in_progress": "Một lần lưu khác vẫn đang chạy. Chờ xong rồi thử lại.",

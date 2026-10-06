@@ -1,4 +1,5 @@
 import { inflateRawSync } from "node:zlib";
+import { readCentralDirectory, ZipError, type ZipBoundMode } from "../../shared/zip-central.ts";
 
 // Minimal, dependency-free ZIP reader/writer for the Q7 converters
 // (G2-07b / UNI-690). The reader parses the central directory (never walks
@@ -15,49 +16,16 @@ export interface ZipInput {
 const EOCD_SIG = 0x06054b50;
 const CENTRAL_SIG = 0x02014b50;
 const LOCAL_SIG = 0x04034b50;
-const MAX_ENTRIES = 4096;
-const MAX_UNCOMPRESSED = 512 << 20;
 
-/** Refusal reasons are stable strings the caller maps to a typed engine error. */
-export type ZipFailure = "zip_unreadable" | "zip_unsupported_method" | "zip_too_large" | "zip_entry_missing";
-
-export class ZipError extends Error {
-  readonly reason: ZipFailure;
-  constructor(reason: ZipFailure, detail: string) {
-    super(detail);
-    this.name = "ZipError";
-    this.reason = reason;
-  }
-}
+export { ZipError, type ZipBoundMode };
 
 /** Read every entry of a zip into memory. Throws ZipError on anything that is
     not a readable, bounded zip package. */
-export function readZip(bytes: Uint8Array): Map<string, Uint8Array> {
+export function readZip(bytes: Uint8Array, mode: ZipBoundMode = "fixed"): Map<string, Uint8Array> {
+  const entries = readCentralDirectory(bytes, mode);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const eocd = findEocd(view);
-  if (eocd < 0) throw new ZipError("zip_unreadable", "end of central directory not found");
-  const entryCount = view.getUint16(eocd + 10, true);
-  const centralOffset = view.getUint32(eocd + 16, true);
-  if (entryCount > MAX_ENTRIES) throw new ZipError("zip_too_large", `${entryCount} entries`);
   const out = new Map<string, Uint8Array>();
-  let total = 0;
-  let cursor = centralOffset;
-  for (let i = 0; i < entryCount; i++) {
-    if (cursor + 46 > view.byteLength || view.getUint32(cursor, true) !== CENTRAL_SIG) {
-      throw new ZipError("zip_unreadable", "central directory entry is truncated");
-    }
-    const method = view.getUint16(cursor + 10, true);
-    const compressed = view.getUint32(cursor + 20, true);
-    const uncompressed = view.getUint32(cursor + 24, true);
-    const nameLen = view.getUint16(cursor + 28, true);
-    const extraLen = view.getUint16(cursor + 30, true);
-    const commentLen = view.getUint16(cursor + 32, true);
-    const localOffset = view.getUint32(cursor + 42, true);
-    const name = new TextDecoder().decode(bytes.subarray(cursor + 46, cursor + 46 + nameLen));
-    cursor += 46 + nameLen + extraLen + commentLen;
-    if (uncompressed > MAX_UNCOMPRESSED || (total += uncompressed) > MAX_UNCOMPRESSED) {
-      throw new ZipError("zip_too_large", `${name} inflates past the bound`);
-    }
+  for (const { name, method, compressed, uncompressed, localOffset } of entries) {
     if (name.endsWith("/")) continue; // directory markers carry no bytes
     if (localOffset + 30 > view.byteLength || view.getUint32(localOffset, true) !== LOCAL_SIG) {
       throw new ZipError("zip_unreadable", `${name} has no local header`);
@@ -70,25 +38,23 @@ export function readZip(bytes: Uint8Array): Map<string, Uint8Array> {
     if (method === 0) {
       out.set(name, raw.slice());
     } else if (method === 8) {
+      let inflated: Uint8Array;
       try {
-        out.set(name, new Uint8Array(inflateRawSync(raw)));
-      } catch {
+        // The header's size is only a claim: cap the real output by it so a
+        // lying header cannot inflate past the bound just checked.
+        inflated = new Uint8Array(inflateRawSync(raw, { maxOutputLength: Math.max(uncompressed, 1) }));
+      } catch (error) {
+        if ((error as { code?: string }).code === "ERR_BUFFER_TOO_LARGE") {
+          throw new ZipError("zip_too_large", `${name} inflates past its declared size`);
+        }
         throw new ZipError("zip_unreadable", `${name} does not inflate`);
       }
+      out.set(name, inflated);
     } else {
       throw new ZipError("zip_unsupported_method", `${name} uses compression method ${method}`);
     }
   }
   return out;
-}
-
-function findEocd(view: DataView): number {
-  const min = 22;
-  const max = Math.min(view.byteLength, min + 0xffff);
-  for (let i = view.byteLength - min; i >= view.byteLength - max; i--) {
-    if (view.getUint32(i, true) === EOCD_SIG) return i;
-  }
-  return -1;
 }
 
 // Fixed DOS date/time (1980-01-01 00:00) so identical input writes identical

@@ -16,18 +16,18 @@ it.each<DesktopDocumentFormat>(["docx", "md", "html", "pdf", "pptx", "xlsx"])("u
   const { result, unmount } = renderHook(() => useDocumentTabs(bridge));
   const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: `doc-${format}`, generation: 1, baseRevision: "1", baseVersionId: "1" };
   act(() => {
-    result.current.open({ kind: "cloud", title: `Doc.${format}`, format, readOnlyReason: "flags_unknown", identity, bytes: { format, dataBase64: "AA==", checksum: checksum("a"), canSave: false } });
+    result.current.open({ kind: "cloud", title: `Doc.${format}`, format, readOnlyReason: "flags_unknown", identity, bytes: { format, data: new Uint8Array([0]), checksum: checksum("a"), canSave: false } });
   });
   const before = result.current.current.current.tabs[0]!.data;
   const dispose = vi.spyOn(before.session, "dispose");
-  const fresh: CloudReopen = { bytes: { format, dataBase64: "AQI=", checksum: checksum("b") }, baseRevision: "5", baseVersionId: "4" };
+  const fresh: CloudReopen = { bytes: { format, data: new Uint8Array([1, 2]), checksum: checksum("b") }, baseRevision: "5", baseVersionId: "4" };
 
   let upgraded = false;
   act(() => { upgraded = result.current.upgradeCloud(identity.documentId, fresh); });
 
   expect(upgraded).toBe(true);
   const after = result.current.current.current.tabs[0]!.data;
-  expect(after.bytes).toMatchObject({ dataBase64: "AQI=", checksum: checksum("b"), canSave: true });
+  expect(after.bytes).toMatchObject({ data: new Uint8Array([1, 2]), checksum: checksum("b"), canSave: true });
   expect(after.identity).toMatchObject({ baseRevision: "5", baseVersionId: "4", documentId: identity.documentId });
   expect(after.readOnlyReason).toBeUndefined();
   expect(after.session).not.toBe(before.session);
@@ -38,7 +38,7 @@ it.each<DesktopDocumentFormat>(["docx", "md", "html", "pdf", "pptx", "xlsx"])("u
 it("refuses to upgrade a tab that can already save", () => {
   const { result, unmount } = renderHook(() => useDocumentTabs(bridge));
   const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc-1", generation: 1, baseRevision: "1", baseVersionId: "1" };
-  act(() => { result.current.open({ kind: "cloud", title: "Doc.docx", format: "docx", identity, bytes: { format: "docx", dataBase64: "AA==", checksum: checksum("a") } }); });
-  expect(result.current.upgradeCloud("doc-1", { bytes: { format: "docx", dataBase64: "AQI=", checksum: checksum("b") }, baseRevision: "5", baseVersionId: "4" })).toBe(false);
+  act(() => { result.current.open({ kind: "cloud", title: "Doc.docx", format: "docx", identity, bytes: { format: "docx", data: new Uint8Array([0]), checksum: checksum("a") } }); });
+  expect(result.current.upgradeCloud("doc-1", { bytes: { format: "docx", data: new Uint8Array([1, 2]), checksum: checksum("b") }, baseRevision: "5", baseVersionId: "4" })).toBe(false);
   unmount();
 });

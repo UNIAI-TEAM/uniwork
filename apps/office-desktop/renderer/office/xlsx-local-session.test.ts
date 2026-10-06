@@ -22,11 +22,11 @@ function makeLocalBridge() {
   const saved: Uint8Array[] = [];
   const call = vi.fn(async (channel: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> => {
     if (channel === "desktop:file-xlsx") {
-      if (payload.operation === "open") return { state: "completed", outputBase64: encode({ snapshot, render_model: renderModel }) };
-      return { state: "completed", outputBase64: Buffer.from([1, 2, 3, 4]).toString("base64"), outputChecksum: `sha256:${"a".repeat(64)}` };
+      if (payload.operation === "open") return { state: "completed", output: Uint8Array.from(Buffer.from(encode({ snapshot, render_model: renderModel }), "base64")) };
+      return { state: "completed", output: Uint8Array.from(Buffer.from([1, 2, 3, 4])), outputChecksum: `sha256:${"a".repeat(64)}` };
     }
     if (channel === "desktop:file-save") {
-      saved.push(Uint8Array.from(Buffer.from(payload.dataBase64 as string, "base64")));
+      saved.push(Uint8Array.from(Buffer.from(payload.data as Uint8Array)));
       return { opened: true, metadata: { handle: HANDLE, name: "Budget.xlsx", byteLength: 4, modifiedAtMs: 250, checksum: `sha256:${"a".repeat(64)}` } };
     }
     if (channel === "desktop:draft-list") return { drafts: [] };
@@ -196,7 +196,7 @@ function heldSaveSession(behaviour: "hold" | "never" = "hold") {
   const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
   const editA1 = async (value: number) => { await session.editor.edit?.([{ ...editOp, attributes: { value } }]); session.coordinator.markDirty(session.editor.getDirtyGeneration()); };
   const rowsFor = (draftId: string) => bridge.call.mock.calls.filter(([channel, payload]) => channel === "desktop:draft-checkpoint" && (payload as { draftId: string }).draftId === draftId)
-    .map(([, payload]) => (JSON.parse(Buffer.from((payload as { dataBase64: string }).dataBase64, "base64").toString("utf8")) as { value: { sheets: Array<{ cells: { A1: unknown } }> } }).value.sheets[0]?.cells.A1);
+    .map(([, payload]) => (JSON.parse(Buffer.from((payload as { data: Uint8Array }).data).toString("utf8")) as { value: { sheets: Array<{ cells: { A1: unknown } }> } }).value.sheets[0]?.cells.A1);
   return { bridge, session, editA1, rowsFor, saveEntered: () => saveEntered, releaseSave: () => releaseSave() };
 }
 

@@ -2,28 +2,7 @@ import type { OfficeFormat, OfficeHostAdapter, OpenOutcome } from "@uniwork/offi
 import type { DesktopIpcChannel, DesktopIpcRequest, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse } from "../../shared/ipc";
 import { isDesktopDocumentFormat, type DesktopDocumentFormat } from "../../shared/document-formats";
 import type { LibraryBridge } from "../library/model";
-
-function decodeBase64(value: string): Uint8Array {
-  if (typeof atob === "function") {
-    const binary = atob(value);
-    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  }
-  const maybeBuffer = (globalThis as { Buffer?: { from(value: string, encoding: string): Uint8Array } }).Buffer;
-  if (!maybeBuffer) throw new Error("base64 decoder unavailable");
-  return Uint8Array.from(maybeBuffer.from(value, "base64"));
-}
-
-function encodeBase64(bytes: Uint8Array): string {
-  if (typeof btoa === "function") {
-    let binary = "";
-    const chunk = 0x8000;
-    for (let offset = 0; offset < bytes.length; offset += chunk) binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
-    return btoa(binary);
-  }
-  const maybeBuffer = (globalThis as { Buffer?: { from(value: Uint8Array): { toString(encoding: string): string } } }).Buffer;
-  if (!maybeBuffer) throw new Error("base64 encoder unavailable");
-  return maybeBuffer.from(bytes).toString("base64");
-}
+import { incomingBytes } from "./bytes";
 
 export type DesktopOfficeContext = Readonly<{ sessionGeneration: string; workspaceId: string; documentId: string; version?: number }>;
 
@@ -39,8 +18,8 @@ export type DesktopOfficeHostOptions = Readonly<{
 export function createDesktopOfficeHost(options: DesktopOfficeHostOptions): OfficeHostAdapter {
   const call = <C extends DesktopIpcChannel>(channel: C, payload: DesktopIpcRequest<C>) => options.bridge.call(channel, payload);
   const readDocument = async (documentId: string): Promise<Uint8Array> => {
-    const result = await call("desktop:library-download", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId, ...(options.context.version === undefined ? {} : { version: options.context.version }) }) as { dataBase64: string };
-    return decodeBase64(result.dataBase64);
+    const result = await call("desktop:library-download", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId, ...(options.context.version === undefined ? {} : { version: options.context.version }) }) as { data: Uint8Array };
+    return incomingBytes(result.data);
   };
   const openDocument = async (documentId: string, format: OfficeFormat): Promise<OpenOutcome> => {
     if (!isDesktopDocumentFormat(format)) return { outcome: "failed", document_id: documentId, format, failure_class: "unsupported_feature", message: "format is outside the desktop host table" };
@@ -108,7 +87,7 @@ export function createDesktopOfficeSaveTransport<TSnapshot>(options: DesktopOffi
     async commit(input: { intent: { intentId: string; idempotencyKey: string; identity: { documentId: string; baseVersionId: string; baseRevision: string } }; upload: { checksumSha256: string } }) {
       const output = outputs.get(input.intent.intentId);
       if (!output) throw new Error("desktop save output missing");
-      const result = await options.bridge.call("desktop:office-save", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId: input.intent.identity.documentId, format: options.format, intentId: input.intent.intentId, idempotencyKey: input.intent.idempotencyKey, baseVersionId: input.intent.identity.baseVersionId, baseRevision: input.intent.identity.baseRevision, dataBase64: encodeBase64(output.bytes), checksum: input.upload.checksumSha256 }) as DesktopOfficeSaveResponse;
+      const result = await options.bridge.call("desktop:office-save", { sessionGeneration: options.context.sessionGeneration, workspaceId: options.context.workspaceId, documentId: input.intent.identity.documentId, format: options.format, intentId: input.intent.intentId, idempotencyKey: input.intent.idempotencyKey, baseVersionId: input.intent.identity.baseVersionId, baseRevision: input.intent.identity.baseRevision, data: output.bytes, checksum: input.upload.checksumSha256 }) as DesktopOfficeSaveResponse;
       outputs.delete(input.intent.intentId);
       return { intentId: result.intentId, idempotencyKey: result.idempotencyKey, documentId: result.documentId, versionId: result.versionId, revision: result.revision, checksumSha256: result.checksum, sizeBytes: output.bytes.byteLength, engineName: options.engineName ?? options.format, engineVersion: options.engineVersion ?? "desktop", contractVersion: options.contractVersion ?? ["uniwork", "office", "engine-contract"].join("-") + "/1", protocolVersion: "1" };
     },

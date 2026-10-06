@@ -3,6 +3,7 @@ import { bridgePdfOperations, quadsForRange, toNoteThreads, type PdfCanvasPage, 
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopIpcRequest } from "../../shared/ipc";
 import type { DesktopSurfaceSettings } from "./surface";
+import { incomingBytes, typedMemoryFailure } from "./bytes";
 
 /** One page's size in PDF points, in page order; zero when pdfium could not
  * read it. */
@@ -34,7 +35,7 @@ type EngineResponse = {
   pngBase64?: string;
   width?: number;
   height?: number;
-  dataBase64?: string;
+  data?: Uint8Array;
   /** Text layers of the requested page range (text read); `charBoxes` is empty unless
    * the request asked for geometry. */
   pageCount?: number;
@@ -44,17 +45,6 @@ type EngineResponse = {
   warnings?: readonly { code: string; detail?: string }[];
   error?: { kind?: string; status?: string };
 };
-
-function decodeBase64(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
-function encodeBase64(value: Uint8Array): string {
-  let binary = "";
-  for (let offset = 0; offset < value.length; offset += 0x8000) binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
 
 /** Pages one text-only read covers; the engine caps a range at 32. */
 const TEXT_CHUNK_PAGES = 16;
@@ -170,7 +160,10 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
   };
   const callEngine = async (operation: "open" | "edit" | "render" | "text", args: Record<string, unknown>): Promise<EngineResponse> => {
     const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args };
-    return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse;
+    // A crashed engine host (heap OOM) reaches here as a bare invoke rejection;
+    // it leaves as the typed file_insufficient_memory error.
+    try { return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse; }
+    catch (error) { throw typedMemoryFailure(error); }
   };
 
   /** Rendered pages, keyed by page@scale@generation. An edit bumps the
@@ -178,13 +171,6 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
    * render is dropped from the cache instead of poisoning it. */
   let cache = new Map<string, Promise<PdfRenderResult>>();
   const clearCache = (): void => { cache = new Map(); };
-
-  /** The document's base64, memoized per generation so a search or a render burst
-   * does not re-encode the whole file for every engine call. Every place that
-   * swaps `bytes` (open, edit, dispose) drops it. */
-  let encoded: string | null = null;
-  const bytesBase64 = (): string => { encoded ??= encodeBase64(bytes); return encoded; };
-  const clearEncoded = (): void => { encoded = null; };
 
   /** The engine's text reads within one generation: text-only chunks of
    * `TEXT_CHUNK_PAGES` pages keyed by chunk start, and one-page geometry reads
@@ -202,7 +188,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     const map = geometry ? caches.geometry : caches.text;
     const cached = map.get(start);
     if (cached) return cached;
-    const args: Record<string, unknown> = { dataBase64: bytesBase64(), pageIndex: start, pageLimit: geometry ? 1 : TEXT_CHUNK_PAGES, geometry };
+    const args: Record<string, unknown> = { data: bytes, pageIndex: start, pageLimit: geometry ? 1 : TEXT_CHUNK_PAGES, geometry };
     if (password !== undefined) args.password = password;
     const pending = (async (): Promise<TextRead> => {
       try {
@@ -230,7 +216,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
       const key = `${request.pageNumber}:${request.scale}:${generation}`;
       let pending = cache.get(key);
       if (!pending) {
-        const args: Record<string, unknown> = { dataBase64: bytesBase64(), pageIndex: index, scale: request.scale };
+        const args: Record<string, unknown> = { data: bytes, pageIndex: index, scale: request.scale };
         if (password !== undefined) args.password = password;
         pending = (async () => {
           const result = await callEngine("render", args);
@@ -261,7 +247,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
    * boxes, or the canvas draws a phantom page the engine then refuses to render.
    * A failed re-probe keeps the previous geometry and never fails the edit. */
   const refreshGeometry = async (): Promise<void> => {
-    const args: Record<string, unknown> = { dataBase64: bytesBase64() };
+    const args: Record<string, unknown> = { data: bytes };
     if (password !== undefined) args.password = password;
     try {
       const result = await callEngine("open", args);
@@ -280,7 +266,6 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
   const swapBytes = async (next: Uint8Array, commit: () => void): Promise<boolean> => {
     if (disposed) return false;
     bytes = next;
-    clearEncoded();
     await refreshGeometry();
     if (disposed) return false;
     generation += 1;
@@ -300,9 +285,9 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
   const applyEngineEdits = (edits: readonly unknown[]): Promise<{ skipped: { op: string; reason: string }[] }> => enqueue(async () => {
     if (settings.readOnly) throw new Error("pdf_readonly");
     const before = bytes;
-    const result = await callEngine("edit", { dataBase64: bytesBase64(), edits: [...edits] });
-    if (!result.ok || !result.dataBase64) throw new Error("pdf_edit_failed");
-    const applied = await swapBytes(Uint8Array.from(decodeBase64(result.dataBase64)), () => {
+    const result = await callEngine("edit", { data: bytes, edits: [...edits] });
+    if (!result.ok || !result.data) throw new Error("pdf_edit_failed");
+    const applied = await swapBytes(incomingBytes(result.data), () => {
       pushBounded(undoStack, before, undoByteBudget);
       redoStack = [];
     });
@@ -332,8 +317,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     async open(_signal?: AbortSignal, nextPassword?: string) {
       if (disposed) throw new Error("pdf_surface_disposed");
       bytes = Uint8Array.from(await settings.readBytes());
-      clearEncoded();
-      const args: Record<string, unknown> = { dataBase64: bytesBase64() };
+      const args: Record<string, unknown> = { data: bytes };
       if (nextPassword !== undefined) args.password = nextPassword;
       const result = await callEngine("open", args);
       if (result.ok && result.probe) {
@@ -433,7 +417,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     redo: () => step(() => redoStack, () => undoStack),
     canUndo: () => !settings.readOnly && undoStack.length > 0,
     canRedo: () => !settings.readOnly && redoStack.length > 0,
-    dispose: () => { disposed = true; listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = []; clearCache(); clearTextCache(); bytes = Uint8Array.from([]); clearEncoded(); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
+    dispose: () => { disposed = true; listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = []; clearCache(); clearTextCache(); bytes = Uint8Array.from([]); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
   };
   return surface;
 }

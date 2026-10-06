@@ -218,3 +218,23 @@ describe("createLocalXlsxEngine recalc port lifecycle (R4B-1)", () => {
     expect(decodePackage(saved.bytes).sheets[0]!.cells.A1).toMatchObject({ value: 5 });
   });
 });
+
+// A local workbook is not size-capped: the server contract bounds (64 MiB in,
+// 128 MiB out) are lifted for the desktop engine. JSON tolerates trailing
+// whitespace, so padding the fake package makes it arbitrarily large.
+describe("createLocalXlsxEngine byte bounds", () => {
+  const padded = (size: number): Uint8Array => {
+    const base = encodePackage({ sheets: [{ id: "sheet-1", name: "Data", cells: { A1: { value: 1 } } }] });
+    const out = new Uint8Array(size).fill(0x20);
+    out.set(base);
+    return out;
+  };
+
+  it("opens and edits a workbook above the 64 MiB server input bound", async () => {
+    const big = padded(130 * 1024 * 1024);
+    const engine = createLocalXlsxEngine({ engine: fakeGateway(), createRecalc: () => terminalPort() });
+    await expect(engine.open(big)).resolves.toMatchObject({ snapshot: { sheets: [{ name: "Data" }] } });
+    const edited = await engine.edit(big, SET_A1);
+    expect(decodePackage(edited.bytes).sheets[0]!.cells.A1).toMatchObject({ value: 5 });
+  }, 60_000);
+});

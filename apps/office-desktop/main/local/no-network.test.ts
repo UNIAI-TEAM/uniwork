@@ -24,7 +24,7 @@ const deviceScope = { sessionId: sessionGeneration, deploymentId: "local-device"
 
 describe("local mode opens no network connection", () => {
   it("never lets the renderer choose a draft namespace, identity or path", () => {
-    const checkpoint = { sessionGeneration, documentId: "doc-1", draftId: "d:1", generation: 1, dataBase64: "b2s=" };
+    const checkpoint = { sessionGeneration, documentId: "doc-1", draftId: "d:1", generation: 1, data: Uint8Array.from(Buffer.from("b2s=", "base64")) };
     expect(() => validateIpcRequest("desktop:draft-checkpoint", checkpoint, sender)).not.toThrow();
     for (const extra of [{ namespace: "local:zzz" }, { accountId: "account-b" }, { deploymentId: "other" }, { workspaceId: "ws-2" }, { path: "C:\\secret.docx" }]) {
       expect(() => validateIpcRequest("desktop:draft-checkpoint", { ...checkpoint, ...extra }, sender)).toThrow(IpcValidationError);
@@ -41,7 +41,7 @@ describe("local mode opens no network connection", () => {
     const dispatch = createIpcDispatcher(handlers, sender);
     for (const channel of ["desktop:library-list", "desktop:library-context", "desktop:library-recent", "desktop:library-search", "desktop:library-create", "desktop:library-download", "desktop:office-open", "desktop:office-context", "desktop:office-job", "desktop:office-save"]) {
       const payload = channel === "desktop:office-save"
-        ? { sessionGeneration, workspaceId: "ws", documentId: "doc", format: "docx", intentId: "i", idempotencyKey: "k", baseVersionId: "v", baseRevision: "1", dataBase64: "b2s=", checksum: `sha256:${"a".repeat(64)}` }
+        ? { sessionGeneration, workspaceId: "ws", documentId: "doc", format: "docx", intentId: "i", idempotencyKey: "k", baseVersionId: "v", baseRevision: "1", data: Uint8Array.from(Buffer.from("b2s=", "base64")), checksum: `sha256:${"a".repeat(64)}` }
         : channel === "desktop:office-job" ? { sessionGeneration, workspaceId: "ws", documentId: "doc", format: "xlsx", operation: "open", baseRevision: "1" }
         : channel === "desktop:library-create" ? { sessionGeneration, workspaceId: "ws", title: "Plan.docx" }
         : channel === "desktop:library-search" ? { sessionGeneration, workspaceId: "ws", query: "plan" }
@@ -142,18 +142,18 @@ describe("local mode opens no network connection", () => {
     expect(await dispatcher("desktop:recent-open", { sessionGeneration, id: recentId })).toMatchObject({ opened: true, metadata: { name: "source.docx" } });
     expect(await dispatcher("desktop:file-create", { sessionGeneration })).toMatchObject({ opened: true, metadata: { untitled: true } });
     const untitled = (await dispatcher("desktop:file-create", { sessionGeneration }) as { metadata: { handle: string } }).metadata.handle;
-    expect(await dispatcher("desktop:file-save", { sessionGeneration, handle: metadata.handle, dataBase64: "bmV3" })).toMatchObject({ opened: true });
+    expect(await dispatcher("desktop:file-save", { sessionGeneration, handle: metadata.handle, data: Uint8Array.from(Buffer.from("bmV3", "base64")) })).toMatchObject({ opened: true });
     expect(await fs.readFile(source, "utf8")).toBe("new");
-    expect(await dispatcher("desktop:file-save-as", { sessionGeneration, handle: metadata.handle, dataBase64: "Y29waWVk" })).toMatchObject({ opened: true, metadata: { name: "copy.docx" } });
+    expect(await dispatcher("desktop:file-save-as", { sessionGeneration, handle: metadata.handle, data: Uint8Array.from(Buffer.from("Y29waWVk", "base64")) })).toMatchObject({ opened: true, metadata: { name: "copy.docx" } });
     expect(await fs.readFile(destination, "utf8")).toBe("copied");
     expect(untitled).toMatch(/^file_/);
-    const opened = await dispatcher("desktop:file-xlsx", { sessionGeneration, handle: sheet.handle, operation: "open", baseRevision: "1" }) as { state: string; outputBase64?: string };
+    const opened = await dispatcher("desktop:file-xlsx", { sessionGeneration, handle: sheet.handle, operation: "open", baseRevision: "1" }) as { state: string; output?: Uint8Array };
     expect(opened.state).toBe("completed");
-    expect(JSON.parse(Buffer.from(opened.outputBase64!, "base64").toString("utf8"))).toMatchObject({ snapshot: { revision: 0 } });
+    expect(JSON.parse(Buffer.from(opened.output!).toString("utf8"))).toMatchObject({ snapshot: { revision: 0 } });
     expect(await dispatcher("desktop:file-xlsx", { sessionGeneration, handle: sheet.handle, operation: "edit", baseRevision: "1", edits: [{ op: "set_cell" }] })).toMatchObject({ state: "completed", outputChecksum: `sha256:${"b".repeat(64)}` });
     expect(await dispatcher("desktop:draft-list", { sessionGeneration })).toEqual({ drafts: [] });
     expect(await dispatcher("desktop:recent-remove", { sessionGeneration, id: recentId })).toEqual({ removed: true });
-    await expect(dispatcher("desktop:file-save", { sessionGeneration, handle: metadata.handle, dataBase64: "b2s=", path: "C:\\secret" })).rejects.toMatchObject({ code: "schema" });
+    await expect(dispatcher("desktop:file-save", { sessionGeneration, handle: metadata.handle, data: Uint8Array.from(Buffer.from("b2s=", "base64")), path: "C:\\secret" })).rejects.toMatchObject({ code: "schema" });
     expect(calls).toBe(0);
   }, 20_000);
 });

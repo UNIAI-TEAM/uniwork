@@ -37,7 +37,7 @@ function makeBridge(opened = workbook()) {
     if (channel === "desktop:office-job" || channel === "desktop:file-xlsx") {
       // The local channel answers without the cloud job envelope fields.
       const job = channel === "desktop:office-job" ? { jobId: "job", documentId: "doc-j" } : {};
-      if (payload.operation === "open") return { ...job, state: "completed", outputBase64: encode({ snapshot: opened, render_model: renderModel }) };
+      if (payload.operation === "open") return { ...job, state: "completed", output: Uint8Array.from(Buffer.from(encode({ snapshot: opened, render_model: renderModel }), "base64")) };
       if (holdEdit) await holdEdit;
       if (refuseEdit !== null) {
         const reason = refuseEdit;
@@ -46,7 +46,7 @@ function makeBridge(opened = workbook()) {
         if (channel === "desktop:file-xlsx") throw new Error(`Error invoking remote method 'desktop:file-xlsx': XlsxTypedError: ${reason}`);
         return { ...job, state: "failed", errorReason: reason };
       }
-      return { ...job, state: "completed", outputBase64: Buffer.from([1, 2, 3]).toString("base64"), outputChecksum: `sha256:${"a".repeat(64)}` };
+      return { ...job, state: "completed", output: Uint8Array.from(Buffer.from([1, 2, 3])), outputChecksum: `sha256:${"a".repeat(64)}` };
     }
     if (channel === "desktop:office-save" || channel === "desktop:file-save") {
       if (hold) await hold;

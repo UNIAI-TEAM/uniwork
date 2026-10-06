@@ -6,6 +6,8 @@ import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOpe
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopOfficeJobResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata, type DesktopOfficeJobRequest } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
+import { bytesToText, incomingBytes, textToBytes } from "./bytes";
+
 const SESSION_GENERATION = "desktop-dev-session";
 const ENGINE_BUILD = "xlsx-desktop-1";
 const CONTRACT_REVISION = "office-editor-host/1";
@@ -13,27 +15,12 @@ const CONTRACT_REVISION = "office-editor-host/1";
 /** The web-compatible render-model reference the shared XlsxEditor reads. */
 export type DesktopRenderModelRef = { current: XlsxModelHost | null; listeners: Set<(host: XlsxModelHost | null) => void> };
 
-function decode(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
 
-function encode(value: Uint8Array): string {
-  let binary = "";
-  for (let offset = 0; offset < value.length; offset += 0x8000) binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
 
-function encodeText(value: string): string {
-  return encode(new TextEncoder().encode(value));
-}
 
-function decodeText(value: string): string {
-  return new TextDecoder().decode(decode(value));
-}
 
 async function fingerprint(value: XlsxWorkbookSnapshot): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const bytes = textToBytes(JSON.stringify(value));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -90,7 +77,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
   const candidates = new Map<string, { baseRevision: string; snapshot: XlsxWorkbookSnapshot; operations: Record<string, unknown>[]; output?: { bytes: Uint8Array; checksum: string } }>();
   const rendererHostRef: DesktopRenderModelRef = { current: null, listeners: new Set() };
   const snapshotListeners = new Set<(snapshot: XlsxWorkbookSnapshot) => void>();
-  const outputs = new Map<string, { dataBase64: string; sizeBytes: number; checksum: string }>();
+  const outputs = new Map<string, { data: Uint8Array; sizeBytes: number; checksum: string }>();
 
   const publishRenderModel = (host: XlsxModelHost | null) => {
     rendererHostRef.current = host;
@@ -103,7 +90,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
   };
   const callJob = async (body: Omit<DesktopOfficeJobRequest, "sessionGeneration" | "workspaceId" | "documentId" | "format">) => {
     const response = desktopOfficeJobResponseSchema.parse(await options.bridge.call("desktop:office-job", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId, format: "xlsx", ...body }));
-    if (response.state !== "completed" || response.outputBase64 === undefined) {
+    if (response.state !== "completed" || response.output === undefined) {
       // The engine's rule-set refusal rides as the error message; no other reason crosses.
       throw new Error(response.errorReason ?? `office_job_${response.state}`);
     }
@@ -112,7 +99,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
   const runOpenJob = async (): Promise<{ snapshot: XlsxWorkbookSnapshot; renderModel: XlsxRenderModel }> => {
     const response = await callJob({ operation: "open", baseRevision });
     let parsed: unknown;
-    try { parsed = JSON.parse(decodeText(response.outputBase64!)); } catch { throw new Error("office_open_snapshot_invalid"); }
+    try { parsed = JSON.parse(bytesToText(incomingBytes(response.output))); } catch { throw new Error("office_open_snapshot_invalid"); }
     const value = parsed && typeof parsed === "object" ? parsed as { snapshot?: unknown; render_model?: unknown } : {};
     if (!isXlsxWorkbookSnapshot(value.snapshot)) throw new Error("office_open_snapshot_invalid");
     // F3: validate the render model with the SAME guard web applies, so a
@@ -216,11 +203,11 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
           throw ruleSetsDroppedError();
         }
         dropped = [];
-        const bytes = decode(response.outputBase64!);
+        const bytes = incomingBytes(response.output);
         captured.output = { bytes, checksum: response.outputChecksum ?? `sha256:${await fingerprint(captured.snapshot)}` };
       }
       const output = captured.output;
-      outputs.set(intent.intentId, { dataBase64: encode(output.bytes), sizeBytes: output.bytes.byteLength, checksum: output.checksum });
+      outputs.set(intent.intentId, { data: output.bytes, sizeBytes: output.bytes.byteLength, checksum: output.checksum });
       return { data: output.bytes.slice(), checksumSha256: output.checksum, sizeBytes: output.bytes.byteLength, format: "xlsx" };
     },
     async upload({ intent, output }) {
@@ -229,7 +216,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
     async commit({ intent }) {
       const output = outputs.get(intent.intentId);
       if (!output) throw new Error("desktop save output missing");
-      const result = desktopOfficeSaveResponseSchema.parse(await options.bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId, format: "xlsx", intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
+      const result = desktopOfficeSaveResponseSchema.parse(await options.bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId, format: "xlsx", intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, data: output.data, checksum: output.checksum }));
       gate.markRebase();
       outputs.delete(intent.intentId);
       const candidate = candidates.get(intent.intentId);
@@ -267,7 +254,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
     const rows = await listRows();
     generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
     const next = Math.max(1, generationFloor + 1, stable.generation);
-    const result = desktopDraftResponseSchema.parse(await options.bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId, draftId, generation: next, dataBase64: encodeText(JSON.stringify(stable)) }));
+    const result = desktopDraftResponseSchema.parse(await options.bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId, draftId, generation: next, data: textToBytes(JSON.stringify(stable)) }));
     lastCheckpoint = stable;
     generationFloor = Math.max(generationFloor, result.generation);
     durableRows.set(draftId, result.generation);
@@ -357,7 +344,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
         if (result.status !== "recovered") return "failed";
         await editor.open();
         let recovered: XlsxWorkbookSnapshot;
-        try { recovered = (JSON.parse(decodeText(result.dataBase64)) as StableSnapshot<XlsxWorkbookSnapshot>).value; } catch { return "failed"; }
+        try { recovered = (JSON.parse(bytesToText(incomingBytes(result.data))) as StableSnapshot<XlsxWorkbookSnapshot>).value; } catch { return "failed"; }
         if (!isXlsxWorkbookSnapshot(recovered)) return "failed";
         const operations = diffXlsxSnapshotsToOperations(snapshot ?? recovered, recovered);
         if (operations.length) await editor.edit?.(operations);

@@ -287,6 +287,13 @@ describe("web Markdown/HTML format adapter", () => {
     await created.session.dispose();
   });
 
+  it.each(["md", "html"] as const)("maps a too-large source to the too_large failure class (%s, UNI-956)", async (format) => {
+    const { adapter: created, files } = adapter(format);
+    vi.mocked(files.read).mockRejectedValueOnce(Object.assign(new Error("too big"), { code: "file_too_large" }));
+    expect(await created.open.open()).toMatchObject({ outcome: "failed", failure_class: "too_large", format });
+    await created.session.dispose();
+  });
+
   it("reports a corrupted source as a typed open failure, never a blank", async () => {
     const { adapter: created } = adapter("md", new Uint8Array([0xc3, 0x28]));
     expect(await created.open.open()).toMatchObject({ outcome: "failed", failure_class: "corrupted", format: "md" });
