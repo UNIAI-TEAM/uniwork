@@ -182,6 +182,64 @@ tests), package/inventory tests, `node scripts/office/check-boundaries.mjs`,
 The accepted artifacts are unsigned dev/beta evidence only and must not be
 described as a signed release or an enabled update channel.
 
+## CI installers and `OFFICE_INSTALLER_*_URLS` (UNI-944)
+
+`.github/workflows/office-desktop-installers.yml` builds the **unsigned** `dev` or
+`beta` installers, uploads them as workflow artifacts and release assets, and
+prints the value for the server's environment variable. It never runs on pull
+requests or ordinary pushes, only when:
+
+- **Run workflow** is used (`workflow_dispatch`): choose `channel` `dev` or `beta`;
+  `require_xlsx_sidecar` defaults to on;
+- a tag `office-desktop-v<version>-<dev|beta>.<build number>` is pushed, for
+  example `office-desktop-v0.1.0-dev.7`. The version part must equal `version` in
+  `apps/office-desktop/package.json`. Tag builds always require the sidecar.
+
+The matrix is **Windows x64** (`-setup.exe` and `.zip`) and **Linux x64** (`.deb`
+and `.AppImage`). **macOS is omitted**: a `.dmg` needs a macOS runner and none is
+wired. Once a Mac exists, build with `package:macos` and add the file to the same
+release; `installer-urls.mjs` already knows the `darwin-arm64` and `darwin-x64`
+keys. There is no signing, notarization or update feed (certificates are parked
+backlog); every file name contains `unsigned`, and the `stable` channel is still
+refused.
+
+Each platform also writes `SHA256SUMS-<platform>.txt` beside its installers. The
+job runs `apps/office-desktop/scripts/check-xlsx-assets.mjs` on `dist/xlsx-assets`
+and on `resources/xlsx-assets` inside the built package, and **fails** when the
+gateway or the recalculation sidecar is missing. Only a manual run can switch that
+off with `require_xlsx_sidecar: false`; the job then installs no Rust and builds
+no sidecar.
+
+### Putting the links on the server
+
+The last job step, `OFFICE_INSTALLER_<CHANNEL>_URLS`, writes a line like this to
+the job summary (and to the `installer_urls` step output and the
+`installer-urls-<channel>.json` artifact):
+
+```text
+OFFICE_INSTALLER_DEV_URLS={"win32-x64":"https://github.com/<owner>/<repo>/releases/download/office-desktop-v0.1.0-dev.7/uniwork-office-test_0.1.0-dev.7_unsigned_win32_x64-setup.exe","win32-x64-zip":"…","linux-x64-deb":"…","linux-x64-appimage":"…"}
+```
+
+1. Take everything after the `=` (one line of JSON). The `dev` channel fills
+   `OFFICE_INSTALLER_DEV_URLS`, `beta` fills `OFFICE_INSTALLER_BETA_URLS`;
+   `OFFICE_INSTALLER_STABLE_URLS` stays empty.
+2. Set it where the server is configured (Helm values or the deploy secret; see
+   `docs/office/g3g4/runbook.md`) and restart the server. The old single
+   `OFFICE_INSTALLER_*_URL` variables remain only as a Windows fallback and will be
+   removed.
+3. Check `GET /api/v1/config`: `office_installers.<channel>` lists the expected
+   `platform`, `url`, `version` and `unsigned: true`.
+
+The server accepts HTTPS only (HTTP only for localhost on dev), no credentials,
+query or fragment in the URL, and a file extension that matches the platform key.
+It fetches the installer without user credentials, so the release assets must be
+publicly downloadable; for a private repository, copy the files to a public HTTPS
+host and regenerate the value with:
+
+```bash
+node scripts/office/installer-urls.mjs --channel dev --base-url https://downloads.example/office/dev --dir <directory holding the installers>
+```
+
 ## Update and rollback (G4-07b)
 
 Configure `OFFICE_INSTALLER_DEV_URL`, `OFFICE_INSTALLER_BETA_URL`, and `OFFICE_INSTALLER_STABLE_URL` for the three deployment channels. The authenticated `GET /api/v1/office/desktop/download?organization_id=...&channel=...` route requires organization membership, returns the selected installer with the public API origin, channel, client id, and deployment id, and writes an audit row. The response contains no credentials, signing keys, or storage secrets. The web editor reuses the existing not-installed install prompt and fails closed when the selected channel has no installer.

@@ -22,6 +22,25 @@ helm upgrade --install uniwork deploy/app/uniwork \
 
 `ci/scripts/rollout-uniwork.sh` passes the same `--set-file` flags.
 
+### Office engine
+
+One switch: `officeEngine.enabled`. `OFFICE_ENGINE_URL` stays empty in
+`uniwork-be.env`; with `officeEngine.enabled=true` the chart deploys the engine and
+sets `OFFICE_ENGINE_URL` (the `uniwork-office-engine` Service, port
+`officeEngine.port`) on the BE container, and the BE's two credential refs stop
+being optional, so a missing Secret fails at pod start. With it off, nothing of
+the engine renders and the BE refuses office jobs. The two credentials live in the
+Secret `uniwork-office-engine` (keys `OFFICE_ENGINE_SERVICE_TOKEN`,
+`OFFICE_ENGINE_GRANT_KEY`; each >= 32 chars, different), read by both the BE and the
+engine:
+
+```bash
+kubectl -n uniwork create secret generic uniwork-office-engine   --from-literal=OFFICE_ENGINE_SERVICE_TOKEN="$(openssl rand -hex 32)"   --from-literal=OFFICE_ENGINE_GRANT_KEY="$(openssl rand -hex 32)"   --dry-run=client -o yaml | kubectl apply -f -
+```
+
+`DESKTOP_AUTH_*` (public PKCE client for the Office desktop app) are non-secret
+placeholders in `uniwork-be.env`.
+
 ### OpenRouter (AI gateway)
 
 ConfigMap `uniwork-be.env` ships `AI_PROVIDER=openai`, `OPENAI_BASE_URL=https://openrouter.ai/api/v1`,

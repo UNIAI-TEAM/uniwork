@@ -1,0 +1,235 @@
+# UniWork Office desktop installers (UNI-944 O03/O04): builds the UNSIGNED dev/beta
+# installers, uploads them as workflow artifacts and release assets, and prints
+# the OFFICE_INSTALLER_<CHANNEL>_URLS value the server reads.
+#
+# Never runs on pull_request or an ordinary push: only a manual dispatch or an
+# `office-desktop-v<version>-<dev|beta>.<build>` tag. Separate from ci.yml on
+# purpose (installer builds are slow and are not a merge gate).
+#
+# Not covered, on purpose:
+#  - macOS: a .dmg needs a Mac runner and none is wired here. The URL helper
+#    already knows the darwin-* keys, so a Mac-built asset can be added later.
+#  - signing, notarization and an update feed: certificates are parked backlog.
+#    Every file is named `..._unsigned_...`; stable is refused by package.mjs.
+#
+# Secrets are referenced by name only (the workflow token); nothing is stored here.
+name: Office desktop installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel (stable is refused while signing is disabled)
+        type: choice
+        options: [dev, beta]
+        default: dev
+      require_xlsx_sidecar:
+        description: Fail when the xlsx gateway or recalculation sidecar is missing from the build
+        type: boolean
+        default: true
+  push:
+    tags: ["office-desktop-v*"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  RUST_VERSION: "1.88.0"
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.resolve.outputs.channel }}
+      build_number: ${{ steps.resolve.outputs.build_number }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      require_sidecar: ${{ steps.resolve.outputs.require_sidecar }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_CHANNEL: ${{ inputs.channel }}
+          INPUT_REQUIRE_SIDECAR: ${{ inputs.require_xlsx_sidecar }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./apps/office-desktop/package.json').version")"
+          if [ "$EVENT_NAME" = "push" ]; then
+            # Tag builds always enforce the sidecar and must name the package version.
+            re='^office-desktop-v([0-9]+\.[0-9]+\.[0-9]+)-(dev|beta)\.([0-9]+)$'
+            if ! [[ "$REF_NAME" =~ $re ]]; then
+              echo "::error::tag $REF_NAME must look like office-desktop-v$version-dev.<build> or -beta.<build>"
+              exit 1
+            fi
+            if [ "${BASH_REMATCH[1]}" != "$version" ]; then
+              echo "::error::tag version ${BASH_REMATCH[1]} differs from apps/office-desktop/package.json $version"
+              exit 1
+            fi
+            channel="${BASH_REMATCH[2]}"
+            build_number="${BASH_REMATCH[3]}"
+            tag="$REF_NAME"
+            require_sidecar=true
+          else
+            channel="$INPUT_CHANNEL"
+            build_number="$RUN_NUMBER"
+            tag="office-desktop-v$version-$channel.$build_number"
+            require_sidecar="$INPUT_REQUIRE_SIDECAR"
+          fi
+          {
+            echo "channel=$channel"
+            echo "build_number=$build_number"
+            echo "tag=$tag"
+            echo "require_sidecar=$require_sidecar"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: meta
+    name: build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32-x64
+            unpacked: win-unpacked
+            installers: 2 # NSIS setup + portable ZIP
+          - os: ubuntu-latest
+            platform: linux-x64
+            unpacked: linux-unpacked
+            installers: 2 # .deb + AppImage
+    defaults:
+      run:
+        shell: bash
+    env:
+      UNIWORK_OFFICE_CHANNEL: ${{ needs.meta.outputs.channel }}
+      UNIWORK_OFFICE_BUILD_NUMBER: ${{ needs.meta.outputs.build_number }}
+      OFFICE_DESKTOP_OUTPUT: ${{ github.workspace }}/.office-out
+      REQUIRE_SIDECAR: ${{ needs.meta.outputs.require_sidecar }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        # Reads `packageManager` from package.json (pnpm 10.28), as ci.yml does.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends fakeroot
+      - name: Rust toolchain for the xlsx sidecar
+        if: needs.meta.outputs.require_sidecar == 'true'
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
+          rustup default "$RUST_VERSION"
+          cargo --version
+      - run: pnpm install --frozen-lockfile
+      # package.mjs stages dist/xlsx-assets from this build directory (UNI-940 X06
+      # makes `package` do it unaided; the step then only repeats cached work).
+      - name: Build the xlsx gateway and sidecar
+        env:
+          NATIVE_FLAG: ${{ needs.meta.outputs.require_sidecar == 'true' && '--with-native' || '' }}
+        run: node scripts/office/build-upstream.mjs ${NATIVE_FLAG:+"$NATIVE_FLAG"} --out .go-tmp/office-upstream-build
+      - name: Package the unsigned desktop installers
+        run: pnpm --filter @uniwork/office-desktop package
+      - name: Staged xlsx assets are present in the build and in the installer payload
+        run: |
+          node apps/office-desktop/scripts/check-xlsx-assets.mjs --require-sidecar "$REQUIRE_SIDECAR" \
+            apps/office-desktop/dist/xlsx-assets \
+            "$OFFICE_DESKTOP_OUTPUT/${{ matrix.unpacked }}/resources/xlsx-assets"
+      - name: Collect installers and SHA-256 sums
+        env:
+          EXPECTED: ${{ matrix.installers }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$OFFICE_DESKTOP_OUTPUT/upload"
+          find "$OFFICE_DESKTOP_OUTPUT" -maxdepth 1 -type f -name '*_unsigned_*' \
+            \( -name '*.exe' -o -name '*.zip' -o -name '*.deb' -o -name '*.AppImage' \) \
+            -exec cp {} "$OFFICE_DESKTOP_OUTPUT/upload/" \;
+          cd "$OFFICE_DESKTOP_OUTPUT/upload"
+          count="$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          if [ "$count" != "$EXPECTED" ]; then
+            echo "::error::expected $EXPECTED installer file(s) for $PLATFORM, found $count"
+            ls -l
+            exit 1
+          fi
+          sha256sum -- * > "SHA256SUMS-$PLATFORM.txt"
+          cat "SHA256SUMS-$PLATFORM.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: office-desktop-${{ matrix.platform }}
+          path: ${{ github.workspace }}/.office-out/upload/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload its assets
+    outputs:
+      installer_urls: ${{ steps.urls.outputs.installer_urls }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: office-desktop-*
+          path: release-files
+          merge-multiple: true
+      - name: Release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.meta.outputs.tag }}
+          CHANNEL: ${{ needs.meta.outputs.channel }}
+          EVENT_NAME: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ls -l release-files
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            target=(--verify-tag)
+            [ "$EVENT_NAME" = "push" ] || target=(--target "$SHA")
+            gh release create "$TAG" "${target[@]}" --prerelease \
+              --title "UniWork Office desktop $TAG (unsigned $CHANNEL)" \
+              --notes "Unsigned $CHANNEL desktop installers. No signing, no update feed. SHA-256 sums are attached."
+          fi
+          gh release upload "$TAG" release-files/* --clobber
+      - id: urls
+        name: OFFICE_INSTALLER_*_URLS for this channel
+        env:
+          TAG: ${{ needs.meta.outputs.tag }}
+          CHANNEL: ${{ needs.meta.outputs.channel }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          urls="$(node scripts/office/installer-urls.mjs --channel "$CHANNEL" \
+            --base-url "https://github.com/$REPOSITORY/releases/download/$TAG" --dir release-files)"
+          name="OFFICE_INSTALLER_$(echo "$CHANNEL" | tr '[:lower:]' '[:upper:]')_URLS"
+          echo "installer_urls=$urls" >> "$GITHUB_OUTPUT"
+          echo "$urls" > "installer-urls-$CHANNEL.json"
+          {
+            echo "### $name"
+            echo
+            echo "Set this on the server (docs/office/g3g4/desktop-packaging.md). The stable variable stays empty."
+            echo
+            echo '```'
+            echo "$name=$urls"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-urls-${{ needs.meta.outputs.channel }}
+          path: installer-urls-${{ needs.meta.outputs.channel }}.json
+          if-no-files-found: error

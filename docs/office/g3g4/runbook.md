@@ -3,41 +3,44 @@
 > **Trạng thái:** in-progress (UNI-819). Bản dev/beta chưa ký. Nguồn rollback: plan §8.2
 > (`docs/superpowers/plans/2026-09-27-office-g3-g4.md`).
 
-Ngắn gọn. Làm theo thứ tự. Chỗ nào ghi "Chưa có" là repo chưa có thứ đó.
+Ngắn gọn. Làm theo thứ tự. Chỗ nào ghi "Chưa có" là repo chưa có thứ đó. Ô đã tick là phần repo đã cung cấp; ô trống là việc DevOps làm trên môi trường thật.
 
 ## Hiện còn thiếu để chạy production
 
 Đã kiểm trong repo. Làm xong các mục này mới deploy Office lên production.
 
-**A. `office-engine` chưa có trên Helm.**
-`deploy/app/uniwork/templates/` chỉ có `deployment-be.yaml` và `deployment-fe.yaml`. Engine chỉ có ở docker compose profile `office` và `apps/office-engine/Dockerfile`. Sidecar XLSX nằm **trong** image engine, không phải dịch vụ riêng. DevOps làm:
+**A. `office-engine` trên Helm: chart đã có, DevOps còn phải vận hành.**
+Chart `deploy/app/uniwork/` đã có `templates/deployment-office-engine.yaml`, `templates/service-office-engine.yaml` (Service riêng tư, không ra edge), `templates/networkpolicy.yaml` (chính sách riêng cho engine) và khối `officeEngine:` trong `values.yaml` (mặc định `enabled: false`). Quyền container giống compose: bỏ hết capability trừ `CHOWN SETUID SETGID KILL DAC_OVERRIDE FOWNER`, `no-new-privileges`, root filesystem chỉ đọc, `/tmp` tmpfs 512Mi, bộ nhớ 2Gi, 2 cpu. Sidecar XLSX nằm **trong** image engine, không phải dịch vụ riêng. Repo đã làm (tick); phần còn lại là việc của DevOps (để trống):
 
-- [ ] Build và push image từ `apps/office-engine/Dockerfile` (build từ gốc repo).
-- [ ] Thêm Deployment + Service **riêng tư** (không ra edge), cổng `8090`, cùng quyền như compose: bỏ hết capability trừ `CHOWN SETUID SETGID KILL DAC_OVERRIDE FOWNER`, `no-new-privileges`, root filesystem chỉ đọc, tmpfs `/tmp` 512m, bộ nhớ 2g, 2 cpu, `pids_limit` 256.
-- [ ] Tạo Secret chứa `OFFICE_ENGINE_SERVICE_TOKEN` và `OFFICE_ENGINE_GRANT_KEY` (>= 32 ký tự, khác nhau).
-- [ ] Đặt `OFFICE_ENGINE_OUTPUT_ORIGINS` = origin kho file.
-- [ ] Mở NetworkPolicy: chỉ BE gọi engine; engine chỉ ra kho file.
-- [ ] Phía BE: thêm `OFFICE_ENGINE_URL` vào `deploy/app/env/uniwork-be.env`, thêm hai khóa trên vào Secret của BE (hiện file env này **chưa có** biến Office nào).
-- [ ] Thêm `DESKTOP_AUTH_*` vào `uniwork-be.env` (hiện **chưa có**; xem mục 3.2).
+- [ ] Build và push image từ `apps/office-engine/Dockerfile` (build từ gốc repo); điền `officeEngine.image.tag`/`digest`.
+- [x] Deployment + Service **riêng tư**, cổng `8090`, cùng quyền như compose (`deployment-office-engine.yaml`, `service-office-engine.yaml`).
+- [ ] Node chạy engine đặt `podPidsLimit: 256` (kubelet) cho bằng `pids_limit` của compose; pod spec không có trường này.
+- [ ] Tạo Secret `uniwork-office-engine` chứa `OFFICE_ENGINE_SERVICE_TOKEN` và `OFFICE_ENGINE_GRANT_KEY` (>= 32 ký tự, khác nhau). Chart chỉ tham chiếu tên Secret (`officeEngine.secrets`, `be.secrets.officeEngine*`), không chứa giá trị.
+- [ ] Đặt `officeEngine.outputOrigins` = origin kho file; liệt kê CIDR kho file trong `networkPolicy.officeEngineFileStore`; rồi bật `officeEngine.enabled: true`.
+- [x] NetworkPolicy: chỉ `uniwork-be` gọi engine; engine chỉ ra DNS và các CIDR kho file (`networkpolicy.yaml`).
+- [x] Phía BE: `OFFICE_ENGINE_URL`, `OFFICE_ENGINE_REQUEST_TIMEOUT_MS`, `OFFICE_JOB_*` đã có trong `deploy/app/env/uniwork-be.env`; hai khóa được BE đọc từ cùng Secret qua `be.secrets.officeEngine*`. `OFFICE_ENGINE_URL` để trống trong file env; chart tự đặt nó trên container BE khi `officeEngine.enabled: true` (một công tắc duy nhất).
+- [x] `DESKTOP_AUTH_*` đã có trong `uniwork-be.env` (xem mục 3.2).
 - [ ] Sau deploy chạy mục 4.
 
 **B. Origin xem trước: ĐÃ nối sẵn.** `deploy/edge/{route,certificate,apisix-tls}.yaml` có `preview.unicomhub.com`; `PREVIEW_ORIGIN` có trong `uniwork-be.env`; Secret `uniwork-preview` (khóa `PREVIEW_CAPABILITY_SECRET`) khai trong `values.yaml`. Chỉ cần tạo Secret thật.
 
-**C. Bản cài desktop: không có CI build.** `.github/workflows/ci.yml` không build hay upload bản cài. DevOps làm tay:
+**C. Bản cài desktop: có workflow build chưa ký, DevOps vẫn tải lên và điền link.**
+`.github/workflows/office-desktop-installers.yml` (chạy tay: Run workflow, chọn `channel` `dev`/`beta`; hoặc đẩy tag `office-desktop-v<version>-<dev|beta>.<số build>`) build Windows x64 (`-setup.exe`, `.zip`) và Linux x64 (`.deb`, `.AppImage`) **chưa ký**, ghi `SHA256SUMS-<nền tảng>.txt`, gắn vào release và in dòng `OFFICE_INSTALLER_<KÊNH>_URLS=…` ở job summary. `scripts/office/installer-urls.mjs` tạo cùng giá trị đó từ thư mục file (dùng khi copy file sang host khác). macOS `.dmg` **không** có trong workflow (cần máy Mac, chạy tay `package:macos`). Chi tiết: [desktop-packaging.md](desktop-packaging.md) mục "CI installers and `OFFICE_INSTALLER_*_URLS`".
 
-- [ ] Build: `pnpm --filter @uniwork/office-desktop package` (mục 5.1; macOS cần máy Mac).
-- [ ] Ghi SHA-256 từng file.
-- [ ] Upload lên một host HTTPS.
-- [ ] Điền link vào `OFFICE_INSTALLER_DEV_URLS` / `BETA_URLS` / `STABLE_URLS` của BE (JSON theo nền tảng, ví dụ `{"win32-x64":"https://…-setup.exe","linux-x64-deb":"https://….deb"}`). Xem `.env.example`.
-- [ ] `GET /api/v1/config` trả link này. Để trống = web hiện "chưa có bản tải"; không thay kênh khác.
-- [ ] Bản build **chưa ký**: có cảnh báo SmartScreen/Gatekeeper; **không** tự cập nhật.
+- [x] Workflow build + SHA-256 + script tạo JSON link (không còn "CI không build").
+- [ ] Chạy workflow cho kênh `dev`/`beta` và kiểm job pass (mục XLSX sidecar bắt buộc).
+- [ ] Release/host phải tải được công khai bằng HTTPS (server không gửi thông tin đăng nhập). Repo riêng: copy file sang host HTTPS rồi chạy `installer-urls.mjs`.
+- [ ] Điền JSON vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` của BE (`deploy/app/env/uniwork-be.env`, không phải Secret), ví dụ `{"win32-x64":"https://…-setup.exe","linux-x64-deb":"https://….deb"}`, rồi khởi động lại BE. Xem `.env.example`. Dòng này hiện chưa có trong `uniwork-be.env`.
+- [ ] `GET /api/v1/config` trả link này (`office_installers.<kênh>` có `unsigned: true`). Để trống = web hiện "chưa có bản tải"; không thay kênh khác.
+- [ ] macOS: build trên máy Mac và thêm file vào cùng release (chưa có).
+- [ ] Bản build **chưa ký**: có cảnh báo SmartScreen/Gatekeeper; **không** tự cập nhật. Ký mã/notarization vẫn ở backlog.
 
 ## 1. Office gồm những phần nào
 
 | Phần | Chạy ở đâu | Cần gì |
 | --- | --- | --- |
 | Trình soạn web DOCX, XLSX, PPTX, PDF, MD, HTML | Trình duyệt, trong `apps/web` (code ở `packages/views/office/`) | Cờ `office_engine` bật; file lưu qua kho file (MinIO/S3) |
-| Máy xử lý Office (`office-engine`) | Container riêng, cổng `8090`, chỉ Go gọi | 2 khóa bí mật; địa chỉ kho file; `docker compose --profile office` |
+| Máy xử lý Office (`office-engine`) | Container riêng, cổng `8090`, chỉ Go gọi | 2 khóa bí mật; địa chỉ kho file; `docker compose --profile office` hoặc chart Helm (`officeEngine.enabled`) |
 | Máy tính lại XLSX (`xlsx-sidecar`) | Nằm trong cùng image `office-engine`, do engine tự chạy | Không cần cấu hình riêng (`UNIWORK_XLSX_ASSETS` đã đặt trong image) |
 | Khung xem trước MD/HTML | Origin riêng `preview.<host>`, cùng tiến trình Go | `PREVIEW_ORIGIN`, `PREVIEW_CAPABILITY_SECRET`, DNS + chứng chỉ riêng |
 | Server Go | Như hiện tại | Migration, env, kho file |
@@ -107,12 +110,13 @@ Sidecar XLSX: không có biến riêng cần đặt.
 1. `docker compose --profile office build office-engine`
 2. `docker compose --profile office up -d office-engine`
 3. Giá trị mặc định trong compose chỉ để dev. Nơi dùng chung phải đặt khóa thật.
+4. Trên Kubernetes dùng chart Helm thay compose: bật `officeEngine.enabled`, xem mục A ở đầu file.
 
 ### 3.4 Kho file (MinIO/S3)
 
 - Trình duyệt phải gọi được địa chỉ kho (`MINIO_PUBLIC_ENDPOINT` nếu khác địa chỉ nội bộ).
 - `OFFICE_ENGINE_OUTPUT_ORIGINS` = origin kho file mà engine nhìn thấy.
-- Cấu hình CORS của bucket: Chưa có — repo không có file hay bước CORS cho bucket. Xem `docs/superpowers/specs/2026-09-22-shared-file-service-design.md` (mục lỗi browser không tới được MinIO).
+- CORS của bucket: xem [bucket-cors.md](bucket-cors.md) (quy tắc, `deploy/app/storage-cors.example.json`, cách áp trên S3 và MinIO). MinIO của compose không có CORS theo bucket: đặt `MINIO_API_CORS_ALLOW_ORIGIN` cho container MinIO. Lỗi browser không tới được MinIO: `docs/superpowers/specs/2026-09-22-shared-file-service-design.md`.
 - Mục đích file `document_file` do FileService quản lý. Nếu job báo `file_purpose_disabled` thì mục đích này chưa mở ở bản đang chạy.
 
 ### 3.5 Origin xem trước
@@ -167,7 +171,7 @@ Sidecar XLSX: không có biến riêng cần đặt.
 
 ### 5.2 Phát cho người dùng
 
-1. Đặt link tải vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` (chỉ HTTPS).
+1. Đặt link tải vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` (chỉ HTTPS). Workflow `office-desktop-installers.yml` in sẵn giá trị này; xem mục C ở đầu file.
 2. Người dùng đăng nhập, bấm Tải trên web. Server trả gói có kèm hồ sơ deployment.
 3. Không có hồ sơ deployment thì app báo `no_deployment_profile`. Tải lại từ web.
 
@@ -236,6 +240,7 @@ Nói gì với người dùng:
 
 - [RUNBOOK_OFFICE_ENGINE.md](../../ops/RUNBOOK_OFFICE_ENGINE.md): engine, giới hạn, XLSX sidecar
 - [preview-origin.md](preview-origin.md): origin xem trước MD/HTML
+- [bucket-cors.md](bucket-cors.md): CORS của kho file (S3/MinIO)
 - [desktop-packaging.md](desktop-packaging.md): đóng gói, cập nhật, rollback nháp
 - [desktop-install-macos-ubuntu.md](desktop-install-macos-ubuntu.md): cài macOS, Ubuntu
 - [desktop-auth-contract.md](desktop-auth-contract.md): đăng nhập, thiết bị, thu hồi
