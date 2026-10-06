@@ -78,6 +78,22 @@ export class XlsxPrintOffsets {
 
 const PRESENTATION = ["fill", "stroke", "color", "stop-color", "opacity", "fill-opacity", "stroke-opacity", "stroke-width", "font-family", "font-size", "font-weight", "font-style"] as const;
 
+/** A computed paint that points at a paint server (gradient, pattern): Chromium
+ *  resolves `url(#g)` to an absolute `url("http://host/page#g")`, which cannot
+ *  resolve inside the data: image, so only the fragment is kept. Null = drop. */
+function paintReference(value: string): string | null {
+  const id = /#([^"')\s]+)/.exec(value)?.[1];
+  return id === undefined ? null : `url(#${id})`;
+}
+
+/** An authored inline style with every url() that is not a same-document
+ *  fragment replaced by `none`, so nothing in it can load. */
+function authoredStyle(style: string | null): string[] {
+  if (style === null) return [];
+  const safe = style.replace(/url\(\s*(['"]?)(?!#)[^)]*\1\s*\)/gi, "none").trim().replace(/;$/, "");
+  return safe === "" ? [] : [safe];
+}
+
 /** The overlay SVG with every token class and currentColor resolved to the
  *  computed value inline (it is laid out inside the app's stylesheet for
  *  that), scripts, foreign content and event handlers dropped, as a data:
@@ -106,13 +122,17 @@ function selfContainedSvg(svg: string, doc: Document): string | null {
         for (const attribute of Array.from(element.attributes)) {
           if (/currentcolor/i.test(attribute.value) && color !== "") element.setAttribute(attribute.name, attribute.value.replace(/currentcolor/gi, color));
         }
+        // The authored style stays (display, transform, clip-path, ...); the
+        // computed presentation values follow it and win, as in the cascade.
+        const authored = authoredStyle(element.getAttribute("style"));
         const inline: string[] = [];
         for (const property of PRESENTATION) {
           const value = computed.getPropertyValue(property).trim();
           if (value === "") continue;
-          inline.push(`${property}:${/^currentcolor$/i.test(value) ? color : value}`);
+          const resolved = /^url\(/i.test(value) ? paintReference(value) : /^currentcolor$/i.test(value) ? color : value;
+          if (resolved !== null) inline.push(`${property}:${resolved}`);
         }
-        if (inline.length > 0) element.setAttribute("style", inline.join(";"));
+        if (authored.length + inline.length > 0) element.setAttribute("style", [...authored, ...inline].join(";"));
       }
       element.removeAttribute("class");
     }

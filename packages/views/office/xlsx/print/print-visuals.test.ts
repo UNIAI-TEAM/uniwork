@@ -17,6 +17,7 @@ const visual = (overrides: Partial<Listed>): Listed => ({ sheetId: "sheet-1", zI
 describe("collectPrintPictures", () => {
   afterEach(() => {
     document.head.innerHTML = "";
+    vi.restoreAllMocks();
   });
 
   it("hands print's sizes to the visuals layer and turns its boxes into points, back to front", () => {
@@ -63,6 +64,34 @@ describe("collectPrintPictures", () => {
     expect(markup).toMatch(/<rect[^>]*style="[^"]*fill:\s*(#123456|rgb\(18, 52, 86\))/);
     expect(markup).not.toMatch(/currentColor/i);
     expect(document.body.children).toHaveLength(0);
+  });
+
+  it("keeps gradient defs, url(#id) paints and authored inline styles in the data: SVG", () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><defs><linearGradient id="g"><stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/></linearGradient><clipPath id="c"><rect width="5" height="5"/></clipPath></defs><rect fill="url(#g)" clip-path="url(#c)" width="10" height="10" style="display:none;fill:url(https://example.com/x.svg#e)"/><rect fill="url(#g)" width="4" height="4" style="transform:rotate(5deg)"/></svg>`;
+    // Chromium returns paint-server references as absolute urls; jsdom has no
+    // presentation-attribute cascade, so the computed values are supplied.
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element: Element) => {
+      const computed = real(element);
+      return new Proxy(computed, {
+        get: (target, key) => key === "getPropertyValue"
+          ? (property: string) => (property === "fill" && element.getAttribute("fill")?.startsWith("url(") ? 'url("http://localhost:3000/office#g")' : target.getPropertyValue(property))
+          : Reflect.get(target, key) as unknown,
+      });
+    });
+    const [picture] = collectPrintPictures({ source: () => [visual({ box: { x: 0, y: 0, width: 10, height: 10 }, image: { type: "svg", svg } })], sheetIds: ["sheet-1"], columnWidth: () => 48, rowHeight: () => 15 });
+    const markup = decodeURIComponent(picture!.src!.slice("data:image/svg+xml;charset=utf-8,".length));
+    const doc = new DOMParser().parseFromString(markup, "image/svg+xml");
+    expect(doc.querySelector("linearGradient#g stop")).not.toBeNull();
+    expect(doc.querySelector("clipPath#c rect")).not.toBeNull();
+    const [hidden, tilted] = Array.from(doc.querySelectorAll("svg > rect"));
+    expect(hidden!.getAttribute("clip-path")).toBe("url(#c)");
+    expect(hidden!.getAttribute("style")).toContain("display:none");
+    expect(hidden!.getAttribute("style")).toContain("fill:url(#g)");
+    expect(tilted!.getAttribute("style")).toContain("transform:rotate(5deg)");
+    expect(tilted!.getAttribute("style")).toContain("fill:url(#g)");
+    expect(markup).not.toContain("localhost");
+    expect(markup).not.toContain("example.com");
   });
 
   it("prints a frame for an SVG that does not parse", () => {
