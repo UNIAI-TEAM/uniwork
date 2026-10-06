@@ -39,7 +39,7 @@ func NewLegacyStorage(cfg Config) Storage {
 		}
 	}
 	if cfg.Local != nil {
-		return &LocalStorage{uploadDir: cfg.Local.Root, baseURL: strings.TrimSuffix(cfg.Local.BaseURL, "/")}
+		return &LocalStorage{uploadDir: cfg.Local.Root, baseURL: strings.TrimSuffix(cfg.Local.BaseURL, "/"), keyRoot: cfg.KeyRoot}
 	}
 	return nil
 }

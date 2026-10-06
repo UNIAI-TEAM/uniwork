@@ -1,6 +1,6 @@
 # Runbook — thu gom file rác và reconcile của FileService
 
-> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-27 · **Thành phần:** `FileService.SweepFiles` / `FileGCWorker` trong tiến trình API · **Liên quan:** UNI-743 (T5), spec `docs/superpowers/specs/2026-09-22-shared-file-service-design.md` §9, FS-C1 §6
+> **Trạng thái:** in-progress · **Cập nhật:** 2026-10-06 · **Thành phần:** `FileService.SweepFiles` / `FileGCWorker` trong tiến trình API · **Liên quan:** UNI-743 (T5), spec `docs/superpowers/specs/2026-09-22-shared-file-service-design.md` §9, FS-C1 §6
 
 Collector chạy **một lần mỗi ngày** (mặc định 03:00 UTC+7) và làm ba việc
 trong cùng một lượt: đóng cửa sổ claim đã quá 24 giờ, tìm file không còn ai
@@ -33,6 +33,19 @@ khi nối, nó chạy trong shutdown sequence và dừng theo context.
    locator/version; nil từ `Delete` chưa phải bằng chứng.
 5. `deleted` + đóng job (fence theo generation).
 
+## Gốc môi trường (`S3_KEY_PREFIX`, UNI-947)
+
+Nhiều môi trường có thể dùng chung một bucket (ví dụ `uniwork/develop/` và
+`uniwork/production/`). FileService sinh key `<root>v1/...` với `<root>` là
+`S3_KEY_PREFIX` đã chuẩn hóa, cho mọi backend. Allowlist của collector (bước 2)
+và reconcile tombstone chỉ nhận key bắt đầu bằng `<root>v1/` của **chính** môi
+trường đang chạy: object dưới gốc của môi trường khác, hoặc ở gốc bucket khi đã
+đặt gốc (kể cả hàng `v1/...` tạo trước khi đặt gốc), là `unmanaged_locator`,
+bị cách ly và không bao giờ bị xóa. Collector không liệt kê bucket; nó chỉ xóa
+theo hàng `files` của database môi trường mình. Đổi `S3_KEY_PREFIX` của một
+môi trường đang chạy làm mọi file cũ thành `unmanaged_locator` — không đổi giá
+trị này sau khi đã có dữ liệu.
+
 ## Đọc báo cáo
 
 Mỗi dòng `FileGCEntry` có `Action` và `Reason`. Log cuối lượt:
@@ -45,7 +58,7 @@ Mỗi dòng `FileGCEntry` có `Action` và `Reason`. Log cuối lượt:
 | `retry` | `too_young`, `claim_window_open`, `writer_active` | Chưa tới hạn; tự chạy lại ở lượt sau. |
 | `retry` | `storage_unavailable`, `object_still_present`, `storage_version_required`, `storage_adapter_missing`, `tombstone_failed` | Lỗi storage. File giữ `deleting`, bytes chưa được coi là đã xóa. Xem mục Khắc phục. |
 | `quarantined` | `cross_tenant_reference`, `tenant_mismatch_session`, `tenant_mismatch_job` | Dữ liệu lệch tenant (T1-Q10). File **không** bị xóa. Điều tra như sự cố dữ liệu. |
-| `quarantined` | `unmanaged_locator`, `foreign_storage`, `legacy_locator_shared` | Object legacy/G0, của backend khác, hoặc key còn được một cột legacy dùng. Không bao giờ xóa tự động; chờ T9 bàn giao ownership. |
+| `quarantined` | `unmanaged_locator`, `foreign_storage`, `legacy_locator_shared` | Object legacy/G0, của backend khác, nằm ngoài gốc môi trường này, hoặc key còn được một cột legacy dùng. Không bao giờ xóa tự động; chờ T9 bàn giao ownership. |
 | `quarantined` | `object_missing` | File ready còn reference nhưng mất bytes. Reference giữ nguyên; cần phục hồi object. |
 | `quarantined` | `writer_unconfirmed` | Provider (LiveKit/Office) quá deadline mà chưa có object. Không xóa; provider có thể còn ghi muộn. |
 | `quarantined` | `abort_multipart_unsupported` | Chưa adapter nào abort được multipart; job được giữ. |
@@ -55,8 +68,8 @@ Mỗi dòng `FileGCEntry` có `Action` và `Reason`. Log cuối lượt:
 hoặc purpose đang bật mà chưa có provider: **mọi job cleanup bị để nguyên**
 (không lease, không tăng attempt). Lỗi khi chụp danh sách locator legacy
 (một truy vấn mỗi lượt quét trên `attachments`, `users`, `meeting_recordings`,
-`chat_voice_recordings`, `chat_messages`, lọc key dạng `v1/orgs/` hoặc
-`v1/users/`) cũng hiện ở đây và có cùng hậu quả. Cột `audit_exports.file_id` (T10) có provider `audit.exports`; bộ provider ở composition root phải gồm nó, nếu không collector sẽ báo gap và không xóa gì.
+`chat_voice_recordings`, `chat_messages`, lọc giá trị có chứa `v1/orgs/` hoặc
+`v1/users/`, có hoặc không kèm gốc môi trường) cũng hiện ở đây và có cùng hậu quả. Cột `audit_exports.file_id` (T10) có provider `audit.exports`; bộ provider ở composition root phải gồm nó, nếu không collector sẽ báo gap và không xóa gì.
 
 ## Truy vấn kiểm tra (chỉ đọc)
 

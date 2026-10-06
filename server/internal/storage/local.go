@@ -17,6 +17,9 @@ import (
 type LocalStorage struct {
 	uploadDir string
 	baseURL   string
+	// keyRoot is the environment root (Config.KeyRoot): FileService objects
+	// sit under <keyRoot>v1/ in the same directory, and ServeFile refuses them.
+	keyRoot string
 }
 
 // metaSuffix is the on-disk extension for the sidecar JSON file that
@@ -42,6 +45,8 @@ type localMeta struct {
 // Environment variables:
 //   - LOCAL_UPLOAD_DIR (default: "./data/uploads")
 //   - LOCAL_UPLOAD_BASE_URL (optional, e.g., "http://localhost:8080")
+//   - S3_KEY_PREFIX (the environment root; storage.LoadConfig refuses an
+//     unsafe one at startup, so an invalid value is ignored here)
 func NewLocalStorageFromEnv() *LocalStorage {
 	uploadDir := os.Getenv("LOCAL_UPLOAD_DIR")
 	if uploadDir == "" {
@@ -56,9 +61,14 @@ func NewLocalStorageFromEnv() *LocalStorage {
 	baseURL := strings.TrimSuffix(os.Getenv("LOCAL_UPLOAD_BASE_URL"), "/")
 
 	slog.Info("local storage initialized", "dir", uploadDir, "baseURL", baseURL)
+	keyRoot := normalizeKeyRoot(os.Getenv(envS3KeyPrefix))
+	if !ValidKeyRoot(keyRoot) {
+		keyRoot = ""
+	}
 	return &LocalStorage{
 		uploadDir: uploadDir,
 		baseURL:   baseURL,
+		keyRoot:   keyRoot,
 	}
 }
 
@@ -305,9 +315,9 @@ func (s *LocalStorage) ServeFile(w http.ResponseWriter, r *http.Request, filenam
 	// only by the authorized /api/v1/files route. The test is on the cleaned
 	// path, so "./v1/…" or "x/../v1/…" cannot slip past it, and ignores
 	// case: on a case-insensitive volume (macOS, Windows) "V1/…" opens the
-	// same object.
-	if rel, err := filepath.Rel(s.uploadDir, filePath); err != nil ||
-		strings.HasPrefix(strings.ToLower(filepath.ToSlash(rel))+"/", FileServiceKeyPrefix) {
+	// same object. Keys minted under the environment root (<keyRoot>v1/…) and
+	// the root-level v1/… written before the root existed are both refused.
+	if rel, err := filepath.Rel(s.uploadDir, filePath); err != nil || s.isFileServiceKey(rel) {
 		http.NotFound(w, r)
 		return
 	}
@@ -358,4 +368,25 @@ func (s *LocalStorage) UploadFromReader(ctx context.Context, key string, reader 
 	}
 
 	return s.Upload(ctx, key, data, contentType, filename)
+}
+
+// isFileServiceKey reports whether a path relative to uploadDir names a
+// FileService object: v1/… or <keyRoot>v1/…, compared case-insensitively.
+// Windows drops trailing dots and spaces from every path segment, so
+// "develop./v1./x" opens the same object as "develop/v1/x"; the segments are
+// stripped the same way before comparing (a segment that is only dots and
+// spaces vanishes).
+func (s *LocalStorage) isFileServiceKey(rel string) bool {
+	segs := strings.Split(strings.ToLower(filepath.ToSlash(rel)), "/")
+	kept := segs[:0]
+	for _, seg := range segs {
+		if seg = strings.TrimRight(seg, ". "); seg != "" {
+			kept = append(kept, seg)
+		}
+	}
+	key := strings.Join(kept, "/") + "/"
+	if strings.HasPrefix(key, FileServiceKeyPrefix) {
+		return true
+	}
+	return s.keyRoot != "" && strings.HasPrefix(key, strings.ToLower(s.keyRoot)+FileServiceKeyPrefix)
 }

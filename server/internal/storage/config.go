@@ -95,6 +95,11 @@ type Config struct {
 	Local   *LocalConfig
 	S3      *S3Config
 	MinIO   *MinIOConfig
+	// KeyRoot is the environment root (S3_KEY_PREFIX) in the stored "x/" form,
+	// or "" for the bucket top level. It applies to every backend, never to
+	// one group only, so two settings cannot disagree about where an
+	// environment writes (see ValidKeyRoot).
+	KeyRoot string
 }
 
 // LocalConfig configures the filesystem adapter. Root is always an absolute
@@ -132,9 +137,6 @@ type S3Config struct {
 	SecretAccessKey string
 	// SessionToken is the AWS_SESSION_TOKEN for temporary static credentials.
 	SessionToken string
-	// KeyPrefix is an optional root folder for every object key, normalized to
-	// the stored form ("production/").
-	KeyPrefix string
 }
 
 // MinIOConfig configures the MinIO adapter. Every field is explicit: MinIO
@@ -181,6 +183,8 @@ func LoadConfigFromEnv(reg *Registry) (Config, error) {
 //     validated and need a factory even when they are not selected. AWS_*
 //     credentials alone do not declare s3 - they are shared with other
 //     services in this repo.
+//   - S3_KEY_PREFIX is the environment root of every backend (Config.KeyRoot),
+//     not of the s3 group alone; an unsafe root is storage_config_invalid.
 //   - Missing or wrong fields are reported together, as variable names. Error
 //     text never contains a credential, a token or a signed URL.
 //
@@ -201,6 +205,7 @@ func LoadConfig(reg *Registry, lookup EnvLookup) (Config, error) {
 		Local:   localConfigFromEnv(lookup, backend == BackendLocal),
 		S3:      s3ConfigFromEnv(lookup, backend == BackendS3),
 		MinIO:   minIOConfigFromEnv(lookup, backend == BackendMinIO),
+		KeyRoot: normalizeKeyRoot(rawValue(lookup, envS3KeyPrefix)),
 	}
 	if err := requireFactories(reg, cfg); err != nil {
 		return Config{}, err
@@ -267,6 +272,9 @@ func (c Config) Validate() error {
 	}
 	if c.MinIO != nil {
 		problems = append(problems, c.MinIO.problems()...)
+	}
+	if !ValidKeyRoot(c.KeyRoot) {
+		problems = append(problems, envS3KeyPrefix+" must be a relative folder of letters, digits, ., _ and - segments (e.g. develop/ or production/), without .., empty segments, backslashes or a URL")
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("%w: %s", ErrConfigInvalid, strings.Join(problems, "; "))
@@ -436,7 +444,6 @@ func s3ConfigFromEnv(lookup EnvLookup, selected bool) *S3Config {
 		AccessKeyID:     rawValue(lookup, envAWSAccessKeyID),
 		SecretAccessKey: rawValue(lookup, envAWSSecretAccessKey),
 		SessionToken:    rawValue(lookup, envAWSSessionToken),
-		KeyPrefix:       normalizeKeyPrefix(rawValue(lookup, envS3KeyPrefix)),
 	}
 }
 
@@ -479,19 +486,6 @@ func envValue(lookup EnvLookup, key string) (string, bool) {
 func rawValue(lookup EnvLookup, key string) string {
 	raw, _ := lookup(key)
 	return raw
-}
-
-// normalizeKeyPrefix mirrors the shape storage/s3.go already stores: no
-// leading slash, exactly one trailing slash when a prefix is set.
-func normalizeKeyPrefix(raw string) string {
-	prefix := strings.TrimPrefix(strings.TrimSpace(raw), "/")
-	if prefix == "" {
-		return ""
-	}
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	return prefix
 }
 
 // checkBucketName rejects values that are not a plain bucket name: URLs,
