@@ -132,6 +132,12 @@ export interface HtmlVisualShellProps {
    * toolbar is mounted by the shell itself, ahead of these children.
    */
   overlay?: ReactNode;
+  /**
+   * A panel that sits BESIDE the preview (in flow, after it) instead of over
+   * it, so opening it never covers the preview's interactive area or the
+   * float toolbar. Rendered only while a preview is on screen.
+   */
+  sidePanel?: ReactNode;
   className?: string;
 }
 
@@ -276,6 +282,7 @@ export function HtmlVisualShell({
   floatCommands,
   inlineEdit,
   overlay,
+  sidePanel,
   className,
 }: HtmlVisualShellProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
@@ -422,6 +429,11 @@ export function HtmlVisualShell({
       >
         {sourcePane}
         {previewPane}
+        {showPreview && sidePanel ? (
+          <div className="max-h-full max-w-full shrink-0 self-end overflow-y-auto lg:self-start" data-testid="html-side-panel">
+            {sidePanel}
+          </div>
+        ) : null}
         {/*
           H5 selection bridge: inert, flag-gated, and only meaningful when a
           preview is on screen. It renders in the same `overlay` slot H6-H8

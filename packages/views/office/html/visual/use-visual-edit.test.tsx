@@ -64,6 +64,7 @@ describe("gates", () => {
     expect(props.inlineEdit).toBeUndefined();
     expect(props.floatCommands).toBeUndefined();
     expect(props.overlay).toBeUndefined();
+    expect(props.sidePanel).toBeUndefined();
     expect(props.onPreviewSelection).toBeUndefined();
   });
 
@@ -185,7 +186,7 @@ describe("edits land as ops in the engine", () => {
 const notice = () => screen.queryByRole("status");
 /** The overlay holds an empty live region and no panel: nothing visible, nothing to announce. */
 const expectIdle = (hook: ReturnType<typeof setup>["hook"]) => {
-  const view = render(<>{hook.result.current.overlay}</>);
+  const view = render(<>{hook.result.current.overlay}{hook.result.current.sidePanel}</>);
   expect(notice()).toBeEmptyDOMElement();
   expect(screen.queryByTestId("html-style-panel")).toBeNull();
   view.unmount();
@@ -198,7 +199,7 @@ describe("a refused edit says so", () => {
     expectIdle(hook);
     select(hook, 99999);
     act(() => hook.result.current.floatCommands!.onDelete!());
-    const shown = render(<>{hook.result.current.overlay}</>);
+    const shown = render(<>{hook.result.current.overlay}{hook.result.current.sidePanel}</>);
     expect(notice()).toHaveTextContent("That change can't be applied to this element.");
     shown.unmount();
 
@@ -210,12 +211,12 @@ describe("a refused edit says so", () => {
   it("the live region is mounted empty and the same element receives the text later", async () => {
     const f = await openFixture(SOURCE);
     const { hook } = setup(f);
-    const view = render(<>{hook.result.current.overlay}</>);
+    const view = render(<>{hook.result.current.overlay}{hook.result.current.sidePanel}</>);
     const region = notice()!;
     expect(region).toBeEmptyDOMElement();
     select(hook, 99999);
     act(() => hook.result.current.floatCommands!.onDelete!());
-    view.rerender(<>{hook.result.current.overlay}</>);
+    view.rerender(<>{hook.result.current.overlay}{hook.result.current.sidePanel}</>);
     expect(notice()).toBe(region);
     expect(region).toHaveTextContent("That change can't be applied to this element.");
   });
@@ -226,7 +227,7 @@ describe("a refused edit says so", () => {
     const stale = setText({ text: f.text, map: f.map, version: f.version }, { sid: elementByPath(f.map, P)!.sid }, "X");
     act(() => void hook.result.current.inlineEdit!.apply(stale));
     act(() => void hook.result.current.inlineEdit!.apply(stale));
-    render(<>{hook.result.current.overlay}</>);
+    render(<>{hook.result.current.overlay}{hook.result.current.sidePanel}</>);
     expect(notice()).toHaveTextContent("That change can't be applied to this element.");
   });
 
@@ -234,7 +235,7 @@ describe("a refused edit says so", () => {
     const f = await openFixture(SOURCE);
     const { hook } = setup(f);
     act(() => hook.result.current.inlineEdit!.refused!());
-    render(<>{hook.result.current.overlay}</>);
+    render(<>{hook.result.current.overlay}{hook.result.current.sidePanel}</>);
     expect(notice()).toBeInTheDocument();
   });
 
@@ -243,7 +244,7 @@ describe("a refused edit says so", () => {
     const { hook } = setup(f);
     select(hook, 99999);
     act(() => hook.result.current.floatCommands!.onDelete!());
-    const shown = render(<>{hook.result.current.overlay}</>);
+    const shown = render(<>{hook.result.current.overlay}{hook.result.current.sidePanel}</>);
     expect(notice()).toHaveTextContent("That change can't be applied");
     shown.unmount();
     select(hook, elementByPath(f.map, P)!.sid);
@@ -258,7 +259,7 @@ describe("style panel", () => {
     select(hook, elementByPath(f.map, IMG)!.sid);
     expectIdle(hook);
     act(() => hook.result.current.floatCommands!.onOpenStylePanel!());
-    render(<>{hook.result.current.overlay}</>);
+    render(<>{hook.result.current.overlay}{hook.result.current.sidePanel}</>);
     const panel = screen.getByTestId("html-style-panel");
     expect(panel).toHaveAttribute("data-style-image", "true");
     expect(screen.getByLabelText("Alt text")).toHaveValue("A");
@@ -269,7 +270,7 @@ describe("style panel", () => {
     const { hook } = setup(f);
     select(hook, elementByPath(f.map, P)!.sid);
     act(() => hook.result.current.floatCommands!.onOpenStylePanel!());
-    const open = render(<>{hook.result.current.overlay}</>);
+    const open = render(<>{hook.result.current.overlay}{hook.result.current.sidePanel}</>);
     expect(screen.getByTestId("html-style-panel")).toBeInTheDocument();
     open.unmount();
     act(() => hook.result.current.onPreviewSelection?.(null));

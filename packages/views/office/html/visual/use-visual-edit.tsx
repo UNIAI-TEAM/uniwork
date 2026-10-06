@@ -60,7 +60,7 @@ export interface UseHtmlVisualEditOptions {
 
 type VisualShellProps = Pick<
   HtmlVisualShellProps,
-  "previewText" | "visualEdit" | "visualEditNonce" | "inlineEdit" | "floatCommands" | "overlay" | "onPreviewSession" | "onPreviewSelection"
+  "previewText" | "visualEdit" | "visualEditNonce" | "inlineEdit" | "floatCommands" | "overlay" | "sidePanel" | "onPreviewSession" | "onPreviewSelection"
 >;
 
 const INERT: Pick<VisualShellProps, "visualEdit" | "visualEditNonce" | "inlineEdit" | "floatCommands" | "overlay" | "onPreviewSession" | "onPreviewSelection"> = {
@@ -251,7 +251,6 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
       >
         {refused ? t("refused") : null}
       </p>
-      {panel}
     </div>
   );
 
@@ -263,6 +262,7 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
     inlineEdit,
     floatCommands,
     overlay,
+    sidePanel: panel,
     onPreviewSession,
     onPreviewSelection,
   };

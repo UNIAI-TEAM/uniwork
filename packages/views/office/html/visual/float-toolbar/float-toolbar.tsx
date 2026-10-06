@@ -187,7 +187,7 @@ export function HtmlFloatToolbar({ selection, canvasRef, scrollRef, zoom = 100, 
       data-float-placement={anchor.placement}
       data-selection-sid={selection?.sid ?? undefined}
       style={style}
-      className="pointer-events-auto absolute z-20 flex min-h-9 items-center gap-0.5 rounded-lg bg-surface-raised p-1 text-body text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
+      className="pointer-events-auto absolute z-30 flex min-h-9 w-max max-w-full flex-nowrap whitespace-nowrap items-center gap-0.5 rounded-lg bg-surface-raised p-1 text-body text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
     >
       <Toggle
         variant="toolbar"
