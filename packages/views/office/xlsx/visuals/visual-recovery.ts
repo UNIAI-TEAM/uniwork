@@ -35,7 +35,7 @@ export interface RecoveredFileEdit {
 
 /** The moves and deletes of visuals already in the file that a raw op
  *  stream carries, folded per (sheet, index) and keyed by the sheet's final
- *  name. A delete is final, like in the engine. */
+ *  name. A move after a delete restores the visual, like in the engine. */
 export function fileEditsFromStream(stream: readonly unknown[]): RecoveredFileEdit[] {
   let edits: RecoveredFileEdit[] = [];
   for (const op of stream) {
@@ -60,7 +60,8 @@ export function fileEditsFromStream(stream: readonly unknown[]): RecoveredFileEd
     const file = attributes.file;
     if ((op.op !== "set_visual" && op.op !== "remove_visual") || typeof file !== "number" || !Number.isInteger(file) || file < 0) continue;
     const index = edits.findIndex((edit) => edit.sheetName === sheet && edit.file === file);
-    if (index >= 0 && edits[index]?.remove) continue;
+    // A move after a delete restores the visual (undo); a second delete is moot.
+    if (index >= 0 && edits[index]?.remove && op.op === "remove_visual") continue;
     let next: RecoveredFileEdit;
     if (op.op === "remove_visual") next = { sheetName: sheet, file, remove: true };
     else if (isRecord(attributes.anchor)) next = { sheetName: sheet, file, anchor: attributes.anchor as unknown as XlsxEditorVisual["anchor"] };

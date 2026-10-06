@@ -46,6 +46,8 @@ export interface XlsxEditorEditsWiring {
   /** UNI-953 item 9: false on an empty grid stack (the ribbon aria-disables). */
   canUndo: boolean;
   canRedo: boolean;
+  /** The grid's undo depth (0 without a history port): visual history orders itself against it. */
+  gridUndos: number;
   prepareSave: () => Promise<void>;
   save: (entryPoint?: "button" | "shortcut") => void;
   recalculate: () => Promise<void>;
@@ -186,5 +188,5 @@ export function useXlsxEditorEdits<TSnapshot = XlsxWorkbookSnapshot>(
     setRecalcError(t("office.xlsx.recalc.cancelled"));
   }, [recalcAbortRef, recalcController, setRecalcError, setRecalcFresh, setRecalcProgress, t]);
 
-  return { markDirty, commitCell, undo, redo, canUndo, canRedo, prepareSave, save, recalculate, cancelRecalculate };
+  return { markDirty, commitCell, undo, redo, canUndo, canRedo, gridUndos: history?.undos ?? 0, prepareSave, save, recalculate, cancelRecalculate };
 }

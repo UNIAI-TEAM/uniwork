@@ -13,6 +13,7 @@ import { XlsxFunctionLibraryMount } from "./formulas/function-library";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
 import { useEditorProtectNames } from "./protect/use-protect-names";
 import { XlsxVisualsProvider, useXlsxVisuals } from "./visuals/use-xlsx-visuals";
+import { useVisualUndo } from "./visuals/use-visual-undo";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { xlsxSelectionFromGrid } from "./selection-mapping";
 import { useXlsxContextMenu } from "./context-menu/use-context-menu";
@@ -246,7 +247,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // FIX-EDITOR-SPLIT (UNI-926): cell commit, undo/redo, save preparation and
   // recalculation live in ./use-xlsx-editor-edits, which also owns markDirty.
-  const { markDirty, commitCell, undo, redo, canUndo, canRedo, prepareSave, save, recalculate, cancelRecalculate } = useXlsxEditorEdits({
+  const { markDirty, commitCell, undo: gridUndo, redo: gridRedo, canUndo: gridCanUndo, canRedo: gridCanRedo, gridUndos, prepareSave, save, recalculate, cancelRecalculate } = useXlsxEditorEdits({
     editor,
     coordinator,
     rendererHost,
@@ -355,8 +356,10 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // Charts, pictures and shapes (UNI-940 X02): the hook owns the overlay and
   // the set_visual / remove_visual ops; see visuals/.
-  const visuals = useXlsxVisuals({ gridRef, gridReady, selection, canEdit, editor, savedGeneration: coordinatorState.lastSavedGeneration, saving: visualsFrozen(coordinatorState), snapshot, fileVisuals: rendererHost?.fileVisuals, onApplied: markDirty,
-    onError: setRecalcError, activeSheetId, activeSheetName: resolvedActiveSheet, sheets: liveSheets.length > 0 ? liveSheets : rendererHost?.file.sheets ?? [] });
+  const visuals = useXlsxVisuals({ gridRef, gridReady, selection, canEdit, editor, savedGeneration: coordinatorState.lastSavedGeneration, saving: visualsFrozen(coordinatorState), gridUndos, snapshot, fileVisuals: rendererHost?.fileVisuals, onApplied: markDirty, onError: setRecalcError, activeSheetId, activeSheetName: resolvedActiveSheet, sheets: liveSheets.length > 0 ? liveSheets : rendererHost?.file.sheets ?? [] });
+
+  // Visual moves, inserts and deletes are not on the grid's stack (visuals/).
+  const { canUndo, canRedo, undo, redo } = useVisualUndo(visuals.history, { canUndo: gridCanUndo, canRedo: gridCanRedo, undo: gridUndo, redo: gridRedo }, { rootRef, documentKey });
 
   // FIX-EDITOR-SPLIT (UNI-926): the JSX key handler and the capture-phase
   // Ctrl/Cmd+S shortcut live in ./use-xlsx-editor-keyboard.

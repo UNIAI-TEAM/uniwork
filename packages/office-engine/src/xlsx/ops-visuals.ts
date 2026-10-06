@@ -19,7 +19,8 @@
 // in the sheet's drawing part, in document order (the gateway's visualEdits
 // drawingIndex, bound by patch 0013; render-model-visuals.ts reads the same
 // order). A visual an earlier save wrote is addressed this way too. The last
-// move per (sheet, file) wins; a remove is final (a later edit is refused).
+// move per (sheet, file) wins; a move after a remove restores the visual
+// (undo of a delete), while a second remove is refused.
 //
 // The anchor is a two-cell anchor in final (post-structural) coordinates:
 // 0-based row/column plus EMU offsets inside the cell, exactly the gateway's
@@ -345,8 +346,10 @@ export function foldXlsxVisualOp(visuals: readonly XlsxVisualEntry[], op: XlsxVi
 function foldFileVisualOp(visuals: readonly XlsxVisualEntry[], op: XlsxFileVisualMoveOp | XlsxFileVisualRemoveOp): XlsxVisualEntry[] {
   const index = visuals.findIndex((visual) => visual.kind === "file_visual" && visual.sheetName === op.sheetName && visual.file === op.file);
   const previous = index < 0 ? undefined : (visuals[index] as XlsxFileVisualEntry);
-  if (previous?.remove) {
-    throw new XlsxOpError(op.kind === FILE_MOVE_OP_KIND ? VISUAL_SET_OP_KIND : VISUAL_REMOVE_OP_KIND, "attributes.file", "this file visual was deleted earlier in this session");
+  // A move after a delete restores the visual (the editor's undo of a delete);
+  // a second delete, like any other edit of a deleted visual, is refused.
+  if (previous?.remove && op.kind !== FILE_MOVE_OP_KIND) {
+    throw new XlsxOpError(VISUAL_REMOVE_OP_KIND, "attributes.file", "this file visual was deleted earlier in this session");
   }
   const next: XlsxFileVisualEntry = op.kind === FILE_MOVE_OP_KIND
     ? { kind: "file_visual", sheetName: op.sheetName, file: op.file, anchor: op.anchor }

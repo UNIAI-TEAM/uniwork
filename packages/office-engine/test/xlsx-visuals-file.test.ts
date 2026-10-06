@@ -75,8 +75,17 @@ describe("file visual ops in the session model", () => {
       { drawingPath: "xl/drawings/drawing1.xml", drawingIndex: 0, anchor: anchor(5, 5, 9, 9) },
       { drawingPath: "xl/drawings/drawing1.xml", drawingIndex: 1, remove: true },
     ]);
-    expect(() => model.applyEdit(parseXlsxOps([moveFile(1, anchor(1, 1, 2, 2))], sheets)[0]!)).toThrow(XlsxOpError);
+    expect(() => model.applyEdit(parseXlsxOps([removeFile(1)], sheets)[0]!)).toThrow(XlsxOpError);
     expect(() => groupXlsxFileVisualEdits(model.visuals, () => null)).toThrow(XlsxOpError);
+  });
+
+  it("restores a deleted file visual with a later move, and a delete after that wins again", () => {
+    const drawing = (name: string) => (name === "Data" ? "xl/drawings/drawing1.xml" : null);
+    const restored = modelWith([removeFile(1), moveFile(1, anchor(2, 2, 6, 6))]);
+    expect(groupXlsxFileVisualEdits(restored.visuals, drawing)).toEqual([{ drawingPath: "xl/drawings/drawing1.xml", drawingIndex: 1, anchor: anchor(2, 2, 6, 6) }]);
+    const again = modelWith([removeFile(1), moveFile(1, anchor(2, 2, 6, 6)), removeFile(1)]);
+    expect(groupXlsxFileVisualEdits(again.visuals, drawing)).toEqual([{ drawingPath: "xl/drawings/drawing1.xml", drawingIndex: 1, remove: true }]);
+    expect(() => modelWith([removeFile(1), removeFile(1)])).toThrow(XlsxOpError);
   });
 
   it("follows a sheet rename and drops the edits of a removed sheet", () => {
@@ -224,6 +233,32 @@ describeWithPatchedGateway("file visuals over the real gateway artifact", () => 
     // Deleting the chart took its part with it.
     const paths = (await engine.inventory(savedTwice.bytes)).map((entry) => entry.path);
     expect(paths.some((path) => path.startsWith("xl/charts/"))).toBe(false);
+  });
+});
+
+describeWithPatchedGateway("restoring a deleted file visual over the real gateway artifact", () => {
+  const source = () => new Uint8Array(readFileSync(FIXTURE));
+  async function save(operations: unknown[]) {
+    const engine = await loadPatchedGateway();
+    const adapter = createXlsxAdapter({ engine });
+    const opened = await adapter.open({ bytes: source(), format: "xlsx", document_id: "file-visuals-restore" });
+    if (opened.outcome !== "opened") throw new Error("fixture_open_failed");
+    adapter.edit(opened.document_model_ref, operations);
+    const saved = await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    adapter.release(opened.document_model_ref);
+    return (await readXlsxRenderModel(engine, saved.bytes)).sheets[0]?.visuals ?? [];
+  }
+
+  it("remove then restore keeps the picture at the restored anchor", async () => {
+    const after = await save([removeFile(1), moveFile(1, anchor(10, 2, 14, 6))]);
+    expect(after.map((visual) => visual.kind)).toEqual(["chart", "picture", "shape", "picture"]);
+    expect(after[1]).toMatchObject({ kind: "picture", anchor: { fromRow: 10, fromColumn: 2, toRow: 14, toColumn: 6 } });
+    expect(after[1]?.image?.mediaType).toBe("image/png");
+  });
+
+  it("remove, restore, remove saves without the picture", async () => {
+    const after = await save([removeFile(1), moveFile(1, anchor(10, 2, 14, 6)), removeFile(1)]);
+    expect(after.map((visual) => visual.kind)).toEqual(["chart", "shape", "picture"]);
   });
 });
 

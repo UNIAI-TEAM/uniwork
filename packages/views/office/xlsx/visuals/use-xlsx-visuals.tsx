@@ -36,6 +36,7 @@ import {
   type XlsxVisualBox,
   type XlsxVisualGeometry,
 } from "./visual-model";
+import { applyVisualHistory, type XlsxVisualHistoryDirection, type XlsxVisualHistoryDraft, type XlsxVisualHistoryEntry } from "./visual-history";
 import { XlsxVisualsContext, type XlsxVisualsCommands } from "./visuals-context";
 
 /** Default inserted sizes in unzoomed pixels (Excel's 5" x 3" chart). */
@@ -77,8 +78,23 @@ export interface XlsxVisualsOptions {
   snapshot?: unknown;
   /** The opened file's own visuals per sheet id (XlsxModelHost.fileVisuals). */
   fileVisuals?: Readonly<Record<string, readonly XlsxRenderVisual[]>> | undefined;
+  /** The grid's undo depth now (0 without a history port): orders visual
+   *  history entries against grid edits. */
+  gridUndos?: number;
   onApplied: () => void;
   onError: (message: string) => void;
+}
+
+/** Undo/redo of visual moves, inserts and deletes (the grid stack never sees them). */
+export interface XlsxVisualsHistory {
+  /** The next undo is a visual step: no grid edit came after it. */
+  canUndo: boolean;
+  /** The next redo is a visual step: the grid is back at the depth it was recorded at. */
+  canRedo: boolean;
+  /** A visual is selected (so no cell is being edited). */
+  selected: boolean;
+  undo: () => void;
+  redo: () => void;
 }
 
 interface XlsxVisualsWiring {
@@ -87,6 +103,7 @@ interface XlsxVisualsWiring {
   overlay: ReactNode;
   /** The renderer's onViewportChange: re-measure on the next frame. */
   onViewportChange: () => void;
+  history: XlsxVisualsHistory;
   /** The hidden picture input. */
   dialog: ReactNode;
   /** Print (L1): the drawn visuals of one sheet (or all), positioned in sheet
@@ -126,6 +143,15 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     sheetIdOfRef.current = sheetIdOf;
   }, [sheetIdOf]);
   const pictureInputRef = useRef<HTMLInputElement>(null);
+  const [past, setPast] = useState<readonly XlsxVisualHistoryEntry[]>([]);
+  const [future, setFuture] = useState<readonly XlsxVisualHistoryEntry[]>([]);
+  const gridUndos = options.gridUndos ?? 0;
+  const gridUndosRef = useRef(gridUndos);
+  gridUndosRef.current = gridUndos;
+  const record = useCallback((entry: XlsxVisualHistoryDraft) => {
+    setPast((current) => [...current, { ...entry, gridUndos: gridUndosRef.current } as XlsxVisualHistoryEntry]);
+    setFuture([]);
+  }, []);
 
   const geometry = useCallback((): XlsxVisualGeometry | null => {
     const grid = gridRef.current;
@@ -165,6 +191,9 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     const pending = removalsRef.current;
     removalsRef.current = pending.filter((removal) => !(removal.generation > 0 && removal.generation <= savedGeneration));
     setVisuals((current) => applySavedVisuals(current, pending, savedGeneration).visuals);
+    // A save renumbers the drawing: older entries would address stale handles.
+    setPast([]);
+    setFuture([]);
   }, [savedGeneration]);
 
   // A recovered draft re-emits its op stream (F4) into the next save, but the
@@ -244,9 +273,9 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     if (!anchor) return;
     const visual: XlsxEditorVisual = { id: nextVisualId(), sheetId: activeSheetId, anchor, ...body, generation: 0 };
     knownIdsRef.current.add(visual.id);
-    commit(visuals, [...visuals, visual], setVisualOp(visual, name), visual.id);
+    commit(visuals, [...visuals, visual], setVisualOp(visual, name), visual.id, () => record({ kind: "insert", visual }));
     setSelectedId(visual.id);
-  }, [activeSheetId, available, commit, geometry, sheetName, visuals]);
+  }, [activeSheetId, available, commit, geometry, record, sheetName, visuals]);
 
   const span = useMemo(() => selectionSpan(selection), [selection]);
   const anchorCell = useMemo(() => (span ? { row: span.startRow, column: span.startColumn } : { row: 0, column: 0 }), [span]);
@@ -297,8 +326,8 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     const anchor = anchorFromBox(measure, visual.sheetId, box);
     if (!anchor) return;
     const moved = { ...visual, anchor };
-    commit(visuals, visuals.map((candidate) => (candidate.id === visual.id ? moved : candidate)), moveVisualOp(moved, name), visual.id);
-  }, [commit, geometry, saving, sheetName, visuals]);
+    commit(visuals, visuals.map((candidate) => (candidate.id === visual.id ? moved : candidate)), moveVisualOp(moved, name), visual.id, () => record({ kind: "move", before: visual, after: moved }));
+  }, [commit, geometry, record, saving, sheetName, visuals]);
 
   const remove = useCallback((visual: XlsxEditorVisual) => {
     const name = sheetName(visual.sheetId);
@@ -308,8 +337,39 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     const recordRemoval = file === undefined ? undefined : (stamp: number) => {
       removalsRef.current = [...removalsRef.current, { sheetId: visual.sheetId, file, generation: stamp }];
     };
-    commit(visuals, visuals.filter((candidate) => candidate.id !== visual.id), removeVisualOp(visual, name), visual.id, recordRemoval);
-  }, [commit, saving, selectedId, sheetName, visuals]);
+    commit(visuals, visuals.filter((candidate) => candidate.id !== visual.id), removeVisualOp(visual, name), visual.id, (stamp) => {
+      recordRemoval?.(stamp);
+      record({ kind: "remove", visual });
+    });
+  }, [commit, record, saving, selectedId, sheetName, visuals]);
+
+  const step = useCallback((direction: XlsxVisualHistoryDirection) => {
+    const entry = (direction === "undo" ? past : future).at(-1);
+    if (!entry || !edit || saving || !canEdit) return;
+    const name = sheetName(entry.kind === "move" ? entry.after.sheetId : entry.visual.sheetId);
+    if (!name) return;
+    const { next, op, id } = applyVisualHistory(visuals, entry, direction, name);
+    commit(visuals, next, op, id, (stamp) => {
+      // A file visual's delete is pending for the next save until it is undone.
+      if (entry.kind === "remove" && entry.visual.file !== undefined) {
+        const { sheetId, file } = entry.visual;
+        const others = removalsRef.current.filter((removal) => !(removal.sheetId === sheetId && removal.file === file));
+        removalsRef.current = direction === "undo" ? others : [...others, { sheetId, file, generation: stamp }];
+      }
+      setPast((current) => (direction === "undo" ? current.slice(0, -1) : [...current, entry]));
+      setFuture((current) => (direction === "undo" ? [...current, entry] : current.slice(0, -1)));
+    });
+  }, [canEdit, commit, edit, future, past, saving, sheetName, visuals]);
+  const history = useMemo<XlsxVisualsHistory>(() => {
+    const usable = canEdit && typeof edit === "function" && !saving;
+    return {
+      canUndo: usable && past.length > 0 && (past.at(-1)?.gridUndos ?? 0) >= gridUndos,
+      canRedo: usable && future.length > 0 && future.at(-1)?.gridUndos === gridUndos,
+      selected: selectedId !== null,
+      undo: () => step("undo"),
+      redo: () => step("redo"),
+    };
+  }, [canEdit, edit, future, gridUndos, past, saving, selectedId, step]);
 
   const measure = geometry();
   const items = activeSheetId === null || !measure
@@ -353,7 +413,7 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     return printableVisuals(visuals, sheets, metricsFor ?? fallback, sheetId);
   }, [geometry, sheets, visuals]);
 
-  return { commands, overlay, onViewportChange, dialog, getPrintableVisuals };
+  return { commands, overlay, onViewportChange, dialog, getPrintableVisuals, history };
 }
 
 /** Gives the ribbon groups the commands and mounts the hidden picture input. */

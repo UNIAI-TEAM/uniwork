@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import type { XlsxSelection } from "../types";
-import { XlsxVisualsProvider, useXlsxVisuals, type XlsxVisualsGrid, type XlsxVisualsOptions } from "./use-xlsx-visuals";
+import { XlsxVisualsProvider, useXlsxVisuals, type XlsxVisualsGrid, type XlsxVisualsHistory, type XlsxVisualsOptions } from "./use-xlsx-visuals";
 import { useXlsxVisualsCommands, type XlsxVisualsCommands } from "./visuals-context";
 
 // A uniform fake grid: 64 x 20 px cells from (40, 24), zoom 1, sheet "s1" only.
@@ -23,6 +23,7 @@ const fakeGrid = (values: (string | number | null)[][] = [["", "Q1"], ["North", 
 const selection = (address = "A1", endAddress: string | null = "B3"): XlsxSelection => ({ sheet: "Data", address, ...(endAddress ? { endAddress } : {}) });
 
 let commandsRef: XlsxVisualsCommands | null = null;
+let historyRef: XlsxVisualsHistory | null = null;
 function Probe() {
   commandsRef = useXlsxVisualsCommands();
   return null;
@@ -45,6 +46,7 @@ function Harness({ grid, ...options }: Partial<XlsxVisualsOptions> & { grid: Xls
     onError: vi.fn(),
     ...options,
   });
+  historyRef = visuals.history;
   return (
     <XlsxVisualsProvider visuals={visuals}>
       <Probe />
@@ -83,6 +85,7 @@ const lastOp = (edit: ReturnType<typeof vi.fn>) => (edit.mock.calls.at(-1)?.[0] 
 
 beforeEach(async () => {
   commandsRef = null;
+  historyRef = null;
   await setLocale("en");
 });
 
@@ -356,5 +359,126 @@ describe("useXlsxVisuals", () => {
     expect(commandsRef?.available).toBe(false);
     setup({ grid: {} });
     expect(commandsRef?.available).toBe(false);
+  });
+
+  describe("undo and redo of visuals", () => {
+    it("undoes and redoes a move with one step each, then a delete of a session visual", async () => {
+      const { edit } = setup();
+      act(() => commandsRef?.insertShape("rect"));
+      const item = await screen.findByTestId("xlsx-visual-item-shape");
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+      const inserted = lastOp(edit).attributes.anchor;
+      fireEvent.keyDown(item, { key: "ArrowRight" });
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+      const moved = lastOp(edit).attributes.anchor;
+      expect(moved).not.toEqual(inserted);
+      await waitFor(() => expect(historyRef?.canUndo).toBe(true));
+      expect(historyRef?.canRedo).toBe(false);
+
+      act(() => historyRef?.undo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(3));
+      expect(lastOp(edit).attributes.anchor).toEqual(inserted);
+      expect(Object.keys(lastOp(edit).attributes).sort()).toEqual(["anchor", "id"]);
+      await waitFor(() => expect(historyRef?.canRedo).toBe(true));
+      act(() => historyRef?.redo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(4));
+      expect(lastOp(edit).attributes.anchor).toEqual(moved);
+
+      fireEvent.keyDown(screen.getByTestId("xlsx-visual-item-shape"), { key: "Delete" });
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(5));
+      expect(screen.queryByTestId("xlsx-visual-item-shape")).not.toBeInTheDocument();
+      await waitFor(() => expect(historyRef?.canUndo).toBe(true));
+      act(() => historyRef?.undo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(6));
+      expect(lastOp(edit)).toMatchObject({ op: "set_visual", attributes: { shape: { shapeType: "rect" }, anchor: moved } });
+      expect(await screen.findByTestId("xlsx-visual-item-shape")).toBeInTheDocument();
+      await waitFor(() => expect(historyRef?.canRedo).toBe(true));
+      act(() => historyRef?.redo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(7));
+      expect(lastOp(edit).op).toBe("remove_visual");
+      expect(screen.queryByTestId("xlsx-visual-item-shape")).not.toBeInTheDocument();
+    });
+
+    it("undoes the move of a file visual by index", async () => {
+      const { edit } = setup({ fileVisuals: FILE_VISUALS });
+      const chart = await screen.findByTestId("xlsx-visual-item-chart");
+      expect(historyRef?.canUndo).toBe(false);
+      fireEvent.keyDown(chart, { key: "ArrowDown" });
+      await waitFor(() => expect(historyRef?.canUndo).toBe(true));
+      act(() => historyRef?.undo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+      expect(lastOp(edit)).toMatchObject({ op: "set_visual", attributes: { file: 0, anchor: ANCHOR } });
+    });
+
+    it("restores a deleted file visual with one undo through its file move, and deletes it again on redo", async () => {
+      const { edit, rerender } = setup({ fileVisuals: FILE_VISUALS });
+      fireEvent.keyDown(await screen.findByTestId("xlsx-visual-item-chart"), { key: "Delete" });
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+      expect(screen.queryByTestId("xlsx-visual-item-chart")).not.toBeInTheDocument();
+      await waitFor(() => expect(historyRef?.canUndo).toBe(true));
+      act(() => historyRef?.undo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+      expect(lastOp(edit)).toEqual({ op: "set_visual", target: { sheet: "Data" }, attributes: { file: 0, anchor: ANCHOR } });
+      expect(await screen.findByTestId("xlsx-visual-item-chart")).toBeInTheDocument();
+      // The delete is no longer pending: a save does not renumber the others.
+      rerender({ fileVisuals: FILE_VISUALS, savedGeneration: 5 });
+      const picture = document.querySelector('[data-visual-id="file-s1-1"]')!;
+      fireEvent.keyDown(picture, { key: "ArrowDown" });
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(3));
+      expect(lastOp(edit).attributes.file).toBe(1);
+    });
+
+    it("re-records the pending delete on redo, so the next save renumbers", async () => {
+      const { edit, rerender } = setup({ fileVisuals: FILE_VISUALS });
+      fireEvent.keyDown(await screen.findByTestId("xlsx-visual-item-chart"), { key: "Delete" });
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(historyRef?.canUndo).toBe(true));
+      act(() => historyRef?.undo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(historyRef?.canRedo).toBe(true));
+      act(() => historyRef?.redo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(3));
+      expect(lastOp(edit)).toEqual({ op: "remove_visual", target: { sheet: "Data" }, attributes: { file: 0 } });
+      rerender({ fileVisuals: FILE_VISUALS, savedGeneration: 5 });
+      const picture = document.querySelector('[data-visual-id="file-s1-1"]')!;
+      fireEvent.keyDown(picture, { key: "ArrowDown" });
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(4));
+      expect(lastOp(edit).attributes.file).toBe(0);
+    });
+
+    it("orders visual steps against grid edits and clears the redo stack on a new step", async () => {
+      const { edit, rerender } = setup({ gridUndos: 2 });
+      act(() => commandsRef?.insertShape("rect"));
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(historyRef?.canUndo).toBe(true));
+      // A grid edit came after the insert: the grid's own step is next.
+      rerender({ gridUndos: 3 });
+      expect(historyRef?.canUndo).toBe(false);
+      rerender({ gridUndos: 2 });
+      expect(historyRef?.canUndo).toBe(true);
+      act(() => historyRef?.undo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+      expect(lastOp(edit).op).toBe("remove_visual");
+      await waitFor(() => expect(historyRef?.canRedo).toBe(true));
+      // The grid undid an older edit: the redo belongs to the grid first.
+      rerender({ gridUndos: 1 });
+      expect(historyRef?.canRedo).toBe(false);
+      rerender({ gridUndos: 2 });
+      expect(historyRef?.canRedo).toBe(true);
+      act(() => commandsRef?.insertShape("ellipse"));
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(3));
+      await waitFor(() => expect(historyRef?.canRedo).toBe(false));
+    });
+
+    it("offers nothing without edit rights, and forgets its steps when a save lands", async () => {
+      const { edit, rerender } = setup();
+      act(() => commandsRef?.insertShape("rect"));
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(historyRef?.canUndo).toBe(true));
+      rerender({ canEdit: false });
+      expect(historyRef?.canUndo).toBe(false);
+      rerender({ savedGeneration: 1 });
+      await waitFor(() => expect(historyRef?.canUndo).toBe(false));
+    });
   });
 });
