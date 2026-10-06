@@ -89,11 +89,13 @@ LIMIT sqlc.arg('limit_n');
 -- consumer that has not moved to file_id and still reads those bytes by key
 -- makes the object shared, so the collector must hold it (spec 9.2, plan
 -- T5). Run once per sweep, not per batch: each table is scanned once with a
--- cheap filter (managed keys start with v1/orgs/ or v1/users/, legacy keys
--- never do), and the worker matches the few rows it returns against each
--- candidate's key (exact key or a URL ending in it).
+-- cheap filter (managed keys contain v1/orgs/ or v1/users/ after the
+-- environment root S3_KEY_PREFIX, legacy keys never do; the filter is a
+-- contains match so a key with or without any root is caught), and the
+-- worker matches the few rows it returns against each candidate's key
+-- (exact key or a URL ending in it, with or without this environment's root).
 SELECT a.object_key::text AS locator FROM attachments a
-WHERE a.object_key LIKE 'v1/orgs/%' OR a.object_key LIKE 'v1/users/%'
+WHERE a.object_key LIKE '%v1/orgs/%' OR a.object_key LIKE '%v1/users/%'
 UNION ALL
 SELECT u.avatar_url::text FROM users u
 WHERE u.avatar_url LIKE '%v1/orgs/%' OR u.avatar_url LIKE '%v1/users/%'
@@ -105,7 +107,7 @@ SELECT r.file_url::text FROM chat_voice_recordings r
 WHERE r.file_url LIKE '%v1/orgs/%' OR r.file_url LIKE '%v1/users/%'
 UNION ALL
 SELECT (m.metadata->>'object_key')::text FROM chat_messages m
-WHERE m.metadata->>'object_key' LIKE 'v1/orgs/%' OR m.metadata->>'object_key' LIKE 'v1/users/%';
+WHERE m.metadata->>'object_key' LIKE '%v1/orgs/%' OR m.metadata->>'object_key' LIKE '%v1/users/%';
 
 -- name: FileGCAttachmentRefTenants :many
 -- tenant: system
