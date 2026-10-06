@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { Expand, Minimize2, PanelRight, Save, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OfficeState, SaveCoordinatorState } from "@uniwork/core/office";
@@ -81,19 +81,23 @@ function useCoordinatorState(coordinator?: OfficeSaveCoordinatorLike, provided?:
   return state;
 }
 
+// The server and the hydration pass both read `false`, so SSR markup and the
+// first client render agree; the real match applies right after hydration.
 function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() => typeof window !== "undefined" && window.matchMedia?.(query).matches === true);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const media = window.matchMedia(query);
-    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
-    setMatches(media.matches);
-    media.addEventListener?.("change", onChange);
-    return () => media.removeEventListener?.("change", onChange);
-  }, [query]);
-
-  return matches;
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      if (typeof window === "undefined" || !window.matchMedia) return () => undefined;
+      const media = window.matchMedia(query);
+      media.addEventListener?.("change", onChange);
+      return () => media.removeEventListener?.("change", onChange);
+    },
+    [query],
+  );
+  const getSnapshot = useCallback(
+    () => typeof window !== "undefined" && window.matchMedia?.(query).matches === true,
+    [query],
+  );
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
 
 function useDarkTheme(): boolean {
