@@ -45,14 +45,20 @@ describe("buildMasterPreview (MAJOR-2)", () => {
   it("draws in ink for the white page, never the theme's muted foreground (F2)", () => {
     const [title, band] = groups(buildMasterPreview({ elements: ELEMENTS, selectedId: null, page, t }).root);
     const textClasses = (group: SvgNode) => (group.children ?? []).filter((child) => child.tag === "text").map((child) => child.attrs?.class);
-    // Light fill/no fill: dark ink; the dark #1F4E79 band: white text.
-    expect(textClasses(title!)).toEqual(["fill-neutral-700"]);
-    expect(textClasses(band!)).toEqual(["fill-white"]);
-    expect(rect(title!)?.attrs?.class).toBe("stroke-neutral-500");
+    // No fill: page ink; the dark #1F4E79 band: inverse ink.
+    expect(textClasses(title!)).toEqual(["fill-office-page-ink"]);
+    expect(textClasses(band!)).toEqual(["fill-office-page-ink-inverse"]);
+    expect(rect(title!)?.attrs?.class).toBe("stroke-office-page-ink-muted");
     const empty = buildMasterPreview({ elements: [], selectedId: null, page, t }).root;
-    expect(empty.children?.[0]?.attrs?.class).toBe("fill-neutral-700");
+    expect(empty.children?.[0]?.attrs?.class).toBe("fill-office-page-ink");
+    // A light solid fill keeps the dark ink.
+    const light: MasterElementView = { ...ELEMENTS[1]!, id: "e_9", fill: "#FFE699" };
+    const [lightGroup] = groups(buildMasterPreview({ elements: [light], selectedId: null, page, t }).root);
+    expect(textClasses(lightGroup!)).toEqual(["fill-office-page-ink"]);
+    // Only semantic tokens: no theme foreground (wrong on the white page) and no palette colour.
     const all = JSON.stringify(buildMasterPreview({ elements: ELEMENTS, selectedId: null, page, t }).root);
     expect(all).not.toContain("muted-foreground");
+    expect(all).not.toMatch(/(fill|stroke)-(neutral|zinc|slate|gray|white|black)/);
   });
 
   it("marks the selected element", () => {

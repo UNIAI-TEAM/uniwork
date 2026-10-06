@@ -88,6 +88,13 @@
   /* A page (slide, sheet of paper) lifted off the office canvas: contact
      shadow plus a soft ambient drop, Office-like (frame rule F8). */
   --office-page-shadow: 0 1px 3px rgb(0 0 0 / 0.28), 0 4px 16px rgb(0 0 0 / 0.1);
+  /* Ink drawn ON the office page (slide, sheet). The page stays white in both
+     themes, so these keep the same dark-on-white values in `.dark`; the
+     theme's own foreground slots would turn light there and vanish on white.
+     Inverse is for text on a dark solid fill drawn on the page. */
+  --office-page-ink: #404040;
+  --office-page-ink-muted: #737373;
+  --office-page-ink-inverse: #ffffff;
   --background: #ffffff;
   --foreground: #202020;
 
@@ -354,6 +361,10 @@
   /* A black drop vanishes on the near-black canvas: a faint light edge keeps
      the page outline readable while the drop still grounds it. */
   --office-page-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 4px 16px rgb(0 0 0 / 0.6);
+  /* The page stays white in dark mode: same ink as :root. */
+  --office-page-ink: #404040;
+  --office-page-ink-muted: #737373;
+  --office-page-ink-inverse: #ffffff;
   --background: #111111;
   --foreground: #f8f9fa;
 
@@ -580,6 +591,9 @@ html.dark[data-accent] {
   --color-page-canvas: var(--page-canvas);
   --color-office-band: var(--office-band);
   --color-office-canvas: var(--office-canvas);
+  --color-office-page-ink: var(--office-page-ink);
+  --color-office-page-ink-muted: var(--office-page-ink-muted);
+  --color-office-page-ink-inverse: var(--office-page-ink-inverse);
   --color-surface: var(--surface);
   --color-surface-foreground: var(--surface-foreground);
   --color-surface-raised: var(--surface-raised);

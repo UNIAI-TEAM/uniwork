@@ -28,22 +28,26 @@ export interface MasterPreviewInput {
 }
 
 /** The slide page is white in both themes (`bg-white` on the canvas page), so the preview
- *  draws in ink meant for a white page, not in the theme's `muted-foreground` (light grey
- *  in dark mode, unreadable on white). Text on a dark solid fill turns white. */
-const PAGE_INK_TEXT = "fill-neutral-700";
-const PAGE_INK_STROKE = "stroke-neutral-500";
-const ON_DARK_TEXT = "fill-white";
+ *  draws in the office page ink tokens, not in the theme's `muted-foreground` (light grey
+ *  in dark mode, unreadable on white). Text on a dark solid fill uses the inverse ink. */
+const PAGE_INK_TEXT = "fill-office-page-ink";
+const PAGE_INK_STROKE = "stroke-office-page-ink-muted";
+const ON_DARK_TEXT = "fill-office-page-ink-inverse";
 
 const LABEL_MIN_PX = 10;
 const LABEL_MAX_PX = 22;
 
-/** Whether a "#RRGGBB" fill is dark enough that white text reads better on it. */
+/** Whether a "#RRGGBB" fill is dark enough that the inverse ink reads better on it than the
+ *  dark ink (WCAG relative luminance; ~0.28 is where the two contrast equally). */
 function isDarkFill(fill: string | null | undefined): boolean {
   const match = /^#?([0-9a-f]{6})$/i.exec(fill ?? "");
   if (!match) return false;
   const value = parseInt(match[1]!, 16);
-  const luminance = (0.2126 * (value >> 16) + 0.7152 * ((value >> 8) & 255) + 0.0722 * (value & 255)) / 255;
-  return luminance < 0.5;
+  const channel = (shift: number) => {
+    const c = ((value >> shift) & 255) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0) < 0.28;
 }
 
 function elementNode(element: MasterElementView, scale: number, selected: boolean, t: MasterPreviewInput["t"]): SvgNode {

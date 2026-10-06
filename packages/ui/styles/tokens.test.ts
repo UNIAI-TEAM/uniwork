@@ -376,6 +376,26 @@ describe("token contract", () => {
     }
   });
 
+  // The office page is white in both themes (`bg-white` on the canvas page), so ink
+  // drawn on it must stay dark in `.dark` too; the generic both-blocks rule cannot
+  // see that the value is wrong for the surface, this can.
+  describe("office page ink", () => {
+    for (const selector of [":root", ".dark"]) {
+      it(`reads on the white page in ${selector}`, () => {
+        expect(contrast(value(selector, "--office-page-ink"), "#ffffff")).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(value(selector, "--office-page-ink-muted"), "#ffffff")).toBeGreaterThanOrEqual(4.5);
+        // White text on a dark solid fill: checked against a dark fill.
+        expect(contrast(value(selector, "--office-page-ink-inverse"), "#595959")).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+    it("exposes the ink slots to Tailwind", () => {
+      const theme = block("@theme inline");
+      for (const name of ["office-page-ink", "office-page-ink-muted", "office-page-ink-inverse"]) {
+        expect(theme).toContain(`--color-${name}:`);
+      }
+    });
+  });
+
   describe("emphasis band", () => {
     const bandLight = value(":root", "--surface-emphasis");
     const bandDark = value(".dark", "--surface-emphasis");
