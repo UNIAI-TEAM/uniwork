@@ -9763,6 +9763,11 @@
         "print": "In",
         "csv": "Xuất CSV"
       },
+      "print": {
+        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
+        "failed": "Không thể in trang tính.",
+        "tooLarge": "Trang tính quá lớn để in. Hãy đặt vùng in nhỏ hơn rồi thử lại."
+      },
       "sheets": {
         "label": "Các trang tính trong sổ",
         "actions": "Thao tác trang tính",

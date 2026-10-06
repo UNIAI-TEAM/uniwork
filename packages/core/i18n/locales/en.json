@@ -9769,6 +9769,11 @@
         "print": "Print",
         "csv": "Export CSV"
       },
+      "print": {
+        "busy": "A print dialog is already open. Finish or close it first.",
+        "failed": "The sheet could not be printed.",
+        "tooLarge": "This sheet is too large to print. Set a smaller print area and try again."
+      },
       "sheets": {
         "label": "Workbook sheets",
         "actions": "Sheet actions",
