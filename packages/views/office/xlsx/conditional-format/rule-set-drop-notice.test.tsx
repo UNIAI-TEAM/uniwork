@@ -79,7 +79,7 @@ describe("XlsxFrameNotices grid restore", () => {
 
   it("restores each dropped family on the sheet the notice names, with the rules the file holds", () => {
     const grid = gridOf();
-    const drops: XlsxDroppedRuleSet[] = [{ family: "conditionalFormats", sheet: "Doanh thu", savedRules: saved }, { family: "dataValidations", sheet: "Data", savedRules: null, rules: 0 }, { family: "dataValidations", sheet: "Gone", savedRules: null, rules: 0 }];
+    const drops: XlsxDroppedRuleSet[] = [{ family: "conditionalFormats", sheet: "Doanh thu", savedRules: saved, rules: 1 }, { family: "dataValidations", sheet: "Data", savedRules: null, rules: 0 }, { family: "dataValidations", sheet: "Gone", savedRules: null, rules: 0 }];
     const { rerender } = render(<XlsxFrameNotices {...base} saveErrorCode={XLSX_RULE_SETS_DROPPED} editor={editorOf(drops)} grid={grid.ref} />);
     expect(grid.restoreRuleSet.mock.calls).toEqual([["s2", "conditionalFormats", saved], ["s1", "dataValidations", null]]);
     // A re-render of the same drop does not restore again.
