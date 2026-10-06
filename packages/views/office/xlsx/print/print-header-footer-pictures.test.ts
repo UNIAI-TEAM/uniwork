@@ -19,6 +19,8 @@ const pngBase64 = (width: number, height: number): string => {
   return bytes.toString("base64");
 };
 const LOGO = `data:image/png;base64,${pngBase64(96, 48)}`;
+const SMALL = `data:image/png;base64,${pngBase64(10, 10)}`;
+const BIG = `data:image/png;base64,${pngBase64(96, 96)}`;
 
 function htmlOf(headerFooter: XlsxRenderHeaderFooter): string {
   const used = { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 };
@@ -42,7 +44,8 @@ describe("header/footer pictures (&G)", () => {
     const html = htmlOf({
       oddHeader: "&L&G&Rp. &P",
       oddFooter: "&C&G",
-      pictures: { LH: { dataUrl: LOGO, widthPt: 48, heightPt: 24 }, CF: { dataUrl: LOGO } },
+      pictures: { LH: { media: "xl/media/logo.png", widthPt: 48, heightPt: 24 }, CF: { media: "xl/media/logo.png" } },
+      pictureMedia: { "xl/media/logo.png": LOGO },
     });
     // 48pt = 64px wide for a 96px picture -> 1.5x; the footer picture has no size -> intrinsic.
     expect(html).toMatch(/@top-left\{content:image-set\(var\(--docx-hf-img-0\) 1\.5x\);/);
@@ -54,7 +57,7 @@ describe("header/footer pictures (&G)", () => {
 
   it("scales a picture taller than its margin box down to the box", () => {
     // 1in top margin, 0.3in header distance -> 0.7in = ~67px of box for a 96px picture.
-    const html = htmlOf({ oddHeader: "&C&G", pictures: { CH: { dataUrl: `data:image/png;base64,${pngBase64(96, 96)}`, widthPt: 72, heightPt: 72 } } });
+    const html = htmlOf({ oddHeader: "&C&G", pictures: { CH: { media: "big.png", widthPt: 72, heightPt: 72 } }, pictureMedia: { "big.png": BIG } });
     expect(html).toMatch(/@top-center\{content:image-set\(var\(--docx-hf-img-0\) 1\.4\d*x\);/);
   });
 
@@ -66,9 +69,10 @@ describe("header/footer pictures (&G)", () => {
       differentOddEven: true,
       differentFirst: true,
       pictures: {
-        LH: { dataUrl: LOGO },
-        LHEVEN: { dataUrl: `data:image/png;base64,${pngBase64(10, 10)}` },
+        LH: { media: "logo.png" },
+        LHEVEN: { media: "small.png" },
       },
+      pictureMedia: { "logo.png": LOGO, "small.png": SMALL },
     });
     const even = html.indexOf("@page:left{");
     const first = html.indexOf("@page:first{");
@@ -78,16 +82,36 @@ describe("header/footer pictures (&G)", () => {
     expect(html.slice(first)).toMatch(/@top-left\{content:none;/);
   });
 
-  it("prints nothing for a skipped picture, an absent one or a URL that is not a raster data: URL", () => {
-    const cases: NonNullable<XlsxRenderHeaderFooter["pictures"]>[] = [
-      { LH: { skipped: "no_reader" } },
-      {},
-      { LH: { dataUrl: "https://example.com/logo.png" } },
-      { LH: { dataUrl: 'data:image/svg+xml;base64,PHN2Zy8+' } },
-      { LH: { dataUrl: 'data:image/png;base64,AA"};</style><script>x</script>' } },
+  it("defines a logo shared by every section and page variant once and references it from each margin box", () => {
+    const shared = { media: "xl/media/logo.png" };
+    const html = htmlOf({
+      oddHeader: "&L&G&C&G&R&G",
+      evenHeader: "&L&G",
+      firstHeader: "&L&G",
+      differentOddEven: true,
+      differentFirst: true,
+      pictures: { LH: shared, CH: shared, RH: shared, LHEVEN: shared, LHFIRST: shared },
+      pictureMedia: { "xl/media/logo.png": LOGO },
+    });
+    expect(html.match(/--docx-hf-img-0:\s*url\("/g)).toHaveLength(1);
+    expect(html).not.toContain("--docx-hf-img-1");
+    expect(html.match(/content:var\(--docx-hf-img-0\)/g)).toHaveLength(5);
+    expect(html.split(LOGO.slice(22))).toHaveLength(2);
+  });
+
+  it("prints nothing for a skipped picture, an absent one, a media path nothing holds or a URL that is not a raster data: URL", () => {
+    const named = { LH: { media: "m.png" } };
+    const cases: { pictures: NonNullable<XlsxRenderHeaderFooter["pictures"]>; pictureMedia?: Record<string, string> }[] = [
+      { pictures: { LH: { skipped: "no_reader" } } },
+      { pictures: {} },
+      { pictures: named },
+      { pictures: named, pictureMedia: { "other.png": LOGO } },
+      { pictures: named, pictureMedia: { "m.png": "https://example.com/logo.png" } },
+      { pictures: named, pictureMedia: { "m.png": 'data:image/svg+xml;base64,PHN2Zy8+' } },
+      { pictures: named, pictureMedia: { "m.png": 'data:image/png;base64,AA"};</style><script>x</script>' } },
     ];
-    for (const pictures of cases) {
-      const html = htmlOf({ oddHeader: "&L&G", pictures });
+    for (const { pictures, pictureMedia } of cases) {
+      const html = htmlOf({ oddHeader: "&L&G", pictures, ...(pictureMedia ? { pictureMedia } : {}) });
       expect(html).toMatch(/@top-left\{content:none;/);
       expect(html).not.toContain("--docx-hf-img-0");
       expect(html).not.toContain("<script>");

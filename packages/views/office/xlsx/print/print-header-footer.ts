@@ -16,7 +16,7 @@
 // The header/footer distance is clamped so one line still fits inside the
 // page margin (a distance at or past the margin would push the text out).
 // `&G` prints the section's picture (the file's header/footer drawing, read by
-// the engine as a data: URL) in the margin box, sized like the DOCX pictures
+// the engine as a data: URL held once per media part) in the margin box, sized like the DOCX pictures
 // (docx-print-hf-image: image-set + one :root definition per picture); with no
 // picture it prints nothing. Every literal reaches CSS as an escaped
 // string, and every font value passes print-styles' whitelists, so header
@@ -241,10 +241,12 @@ function pictureContent(
   boxHeightPx: number,
 ): string {
   const picture = headerFooter.pictures?.[key];
-  if (!picture || !("dataUrl" in picture) || !geometry.images) return "";
+  if (!picture || !("media" in picture) || !geometry.images) return "";
+  const dataUrl = headerFooter.pictureMedia?.[picture.media];
+  if (dataUrl === undefined) return "";
   const widthPx = picture.widthPt === undefined ? undefined : (picture.widthPt / 0.75) * geometry.scale;
   const heightPx = picture.heightPt === undefined ? undefined : (picture.heightPt / 0.75) * geometry.scale;
-  const [image] = printableHfImages([{ dataUrl: picture.dataUrl, widthPx, heightPx }]);
+  const [image] = printableHfImages([{ dataUrl, widthPx, heightPx }]);
   return image ? hfImageContent(image, { defs: geometry.images, boxHeightPx }) : "";
 }
 

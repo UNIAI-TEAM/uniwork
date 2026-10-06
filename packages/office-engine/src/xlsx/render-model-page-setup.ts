@@ -5,7 +5,7 @@
 // <printOptions>, <pageMargins>, <pageSetup>, <rowBreaks>/<colBreaks>) and the
 // <headerFooter> text; print area and print titles stay where they live, in
 // the workbook defined names.
-import type { XlsxRenderHeaderFooterPictures } from "./render-model-hf-pictures.ts";
+import type { XlsxRenderHeaderFooterPictureMedia, XlsxRenderHeaderFooterPictures } from "./render-model-hf-pictures.ts";
 import { attribute, decodeXml, elements, sectionInner } from "./render-model-xml.ts";
 
 /** The header/footer strings as the file stores them (Excel's `&L&C&R` codes
@@ -23,6 +23,9 @@ export interface XlsxRenderHeaderFooter {
   /** The `&G` pictures by VML shape id (LH, CF, RHEVEN, ...); filled by the
    *  render model when the gateway reads binary parts. */
   readonly pictures?: XlsxRenderHeaderFooterPictures | undefined;
+  /** The data: URL of each media part `pictures` names, by media path (each
+   *  held once however many shapes use it). */
+  readonly pictureMedia?: XlsxRenderHeaderFooterPictureMedia | undefined;
 }
 
 /** The file's page margins, in inches (OOXML <pageMargins> units). */

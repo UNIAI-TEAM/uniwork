@@ -44,19 +44,38 @@ function engineWith(parts: Record<string, string>, readEntriesBase64?: ReadBase6
 
 const read = (engine: XlsxGatewayFunctions) => readXlsxRenderModel(engine, new Uint8Array());
 const pictures = async (engine: XlsxGatewayFunctions) => (await read(engine)).sheets[0]?.pageSetup?.headerFooter?.pictures;
+const pictureMedia = async (engine: XlsxGatewayFunctions) => (await read(engine)).sheets[0]?.pageSetup?.headerFooter?.pictureMedia;
 
 describe("xlsx render model: header/footer pictures (&G)", () => {
-  it("reads each VML shape's picture as a data: URL with its declared size (points)", async () => {
+  it("reads each VML shape's picture by media path with its declared size (points), the data: URLs held once", async () => {
     const calls: { paths: readonly string[]; maxBytes: number; maxTotalBytes: number }[] = [];
     const engine = engineWith(PARTS, async (_bytes, paths, maxBytes, maxTotalBytes) => {
       calls.push({ paths, maxBytes, maxTotalBytes });
       return { "xl/media/image1.png": "iVBORw0KGgo=", "xl/media/image2.jpeg": "/9j/4AAQ" };
     });
-    expect(await pictures(engine)).toEqual({
-      LH: { dataUrl: "data:image/png;base64,iVBORw0KGgo=", widthPt: 96, heightPt: 48 },
-      CF: { dataUrl: "data:image/jpeg;base64,/9j/4AAQ", widthPt: 72, heightPt: 36 },
+    const model = await read(engine);
+    const headerFooter = model.sheets[0]?.pageSetup?.headerFooter;
+    expect(headerFooter?.pictures).toEqual({
+      LH: { media: "xl/media/image1.png", widthPt: 96, heightPt: 48 },
+      CF: { media: "xl/media/image2.jpeg", widthPt: 72, heightPt: 36 },
+    });
+    expect(headerFooter?.pictureMedia).toEqual({
+      "xl/media/image1.png": "data:image/png;base64,iVBORw0KGgo=",
+      "xl/media/image2.jpeg": "data:image/jpeg;base64,/9j/4AAQ",
     });
     expect(calls).toEqual([{ paths: ["xl/media/image1.png", "xl/media/image2.jpeg"], maxBytes: HF_PICTURE_MAX_BYTES, maxTotalBytes: HF_PICTURES_MAX_TOTAL_BYTES }]);
+  });
+
+  it("keeps one data: URL for a logo used by several shapes (odd, even and first, every section)", async () => {
+    const shapes = ["LH", "CH", "RH", "LHEVEN", "LHFIRST"].map((id) => vmlShape(id, "rId1")).join("");
+    const parts = { ...PARTS, "xl/drawings/vmlDrawing1.vml": `<xml>${shapes}</xml>` };
+    const engine = engineWith(parts, async () => ({ "xl/media/image1.png": "iVBORw0KGgo=" }));
+    const model = await read(engine);
+    const headerFooter = model.sheets[0]?.pageSetup?.headerFooter;
+    expect(Object.keys(headerFooter?.pictures ?? {})).toEqual(["LH", "CH", "RH", "LHEVEN", "LHFIRST"]);
+    expect(Object.values(headerFooter?.pictures ?? {}).every((picture) => "media" in picture && picture.media === "xl/media/image1.png")).toBe(true);
+    expect(headerFooter?.pictureMedia).toEqual({ "xl/media/image1.png": "data:image/png;base64,iVBORw0KGgo=" });
+    expect(JSON.stringify(headerFooter).split("iVBORw0KGgo=")).toHaveLength(2);
   });
 
   it("gives a sheet without a header/footer drawing no pictures", async () => {
@@ -65,7 +84,9 @@ describe("xlsx render model: header/footer pictures (&G)", () => {
   });
 
   it("types every picture as no_reader when the gateway cannot read binary parts", async () => {
-    expect(await pictures(engineWith(PARTS))).toEqual({ LH: { skipped: "no_reader" }, CF: { skipped: "no_reader" } });
+    const engine = engineWith(PARTS);
+    expect(await pictures(engine)).toEqual({ LH: { skipped: "no_reader" }, CF: { skipped: "no_reader" } });
+    expect(await pictureMedia(engine)).toBeUndefined();
   });
 
   it("skips a picture the reader refuses (over the cap or absent) and a type that cannot print", async () => {
@@ -75,6 +96,7 @@ describe("xlsx render model: header/footer pictures (&G)", () => {
     };
     const engine = engineWith(parts, async () => ({ "xl/media/image1.png": null }));
     expect(await pictures(engine)).toEqual({ LH: { skipped: "unread" }, CF: { skipped: "unsupported_type" } });
+    expect(await pictureMedia(engine)).toBeUndefined();
   });
 
   it("skips a shape that names no media and rejects a payload that is not base64", async () => {

@@ -470,9 +470,11 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
     const parsed: XlsxRenderSheet = xml
       ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels, palette)
       : { id: sheet.id, name: sheet.name, rowCount: 1, columnCount: 1, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [], cells: {} };
-    const pictures = hfPictures[index];
+    const hf = hfPictures[index];
     const headerFooter = parsed.pageSetup?.headerFooter;
-    const pageSetup = pictures && headerFooter ? { pageSetup: { ...parsed.pageSetup, headerFooter: { ...headerFooter, pictures } } } : {};
+    const pageSetup = hf && headerFooter
+      ? { pageSetup: { ...parsed.pageSetup, headerFooter: { ...headerFooter, pictures: hf.pictures, ...(Object.keys(hf.media).length > 0 ? { pictureMedia: hf.media } : {}) } } }
+      : {};
     return { ...parsed, ...pageSetup, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [] };
   });
 

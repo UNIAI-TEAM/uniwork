@@ -10,10 +10,12 @@
 // is the whole workbook's header-picture total.
 import { decodeXml, elements } from "./render-model-xml.ts";
 
-/** One header/footer picture: a base64 data: URL with the size the VML
- *  shape declares (points), or why it is not printable. */
+/** One header/footer picture: the media part it shows (a key of
+ *  `XlsxRenderHeaderFooterPictureMedia`, where the base64 data: URL is held
+ *  once however many shapes use it) with the size the VML shape declares
+ *  (points), or why it is not printable. */
 type XlsxRenderHeaderFooterPicture =
-  | { readonly dataUrl: string; readonly widthPt?: number | undefined; readonly heightPt?: number | undefined }
+  | { readonly media: string; readonly widthPt?: number | undefined; readonly heightPt?: number | undefined }
   /** no_reader: the gateway cannot read binary parts; missing: the shape names
    *  no media; unsupported_type: not PNG/JPEG/GIF/BMP; unread: absent, over
    *  the per-picture cap or past the workbook budget. */
@@ -22,6 +24,18 @@ type XlsxRenderHeaderFooterPicture =
 /** Pictures by VML shape id: `LH` `CH` `RH` (odd header), `LF` `CF` `RF`
  *  (odd footer), each also with an `EVEN` or `FIRST` suffix. */
 export type XlsxRenderHeaderFooterPictures = Readonly<Record<string, XlsxRenderHeaderFooterPicture>>;
+
+/** The data: URL of each media part a picture names, by media path. A logo
+ *  used in several sections or page variants is stored (and sent over the
+ *  desktop bridge) once, not once per shape. */
+export type XlsxRenderHeaderFooterPictureMedia = Readonly<Record<string, string>>;
+
+/** What one worksheet's header/footer drawing holds. `media` is empty when
+ *  no picture could be read. */
+interface XlsxHfPictureSet {
+  readonly pictures: XlsxRenderHeaderFooterPictures;
+  readonly media: XlsxRenderHeaderFooterPictureMedia;
+}
 
 type ReadText = (paths: readonly string[]) => Promise<Readonly<Record<string, string | null>>>;
 type XlsxReadBase64 = (paths: readonly string[], maxBytes: number, maxTotalBytes: number) => Promise<Readonly<Record<string, string | null>>>;
@@ -99,7 +113,7 @@ async function readHeaderFooterPictures(
   readText: ReadText,
   readBase64: XlsxReadBase64 | undefined,
   budget: XlsxHfPictureBudget,
-): Promise<XlsxRenderHeaderFooterPictures | undefined> {
+): Promise<XlsxHfPictureSet | undefined> {
   const drawing = elements(sheetXml, "legacyDrawingHF")[0];
   const relId = drawing ? (vmlAttribute(drawing.tag, "r:id") ?? vmlAttribute(drawing.tag, "id")) : undefined;
   if (relId === undefined) return undefined;
@@ -123,6 +137,7 @@ async function readHeaderFooterPictures(
     if (shapes.length === 0) return undefined;
 
     const out: Record<string, XlsxRenderHeaderFooterPicture> = {};
+    const mediaUrls: Record<string, string> = {};
     const wanted: string[] = [];
     for (const shape of shapes) {
       const type = shape.media ? MEDIA_TYPES[shape.media.slice(shape.media.lastIndexOf(".") + 1).toLowerCase()] : undefined;
@@ -147,13 +162,14 @@ async function readHeaderFooterPictures(
         continue;
       }
       const type = MEDIA_TYPES[shape.media.slice(shape.media.lastIndexOf(".") + 1).toLowerCase()]!;
+      mediaUrls[shape.media] ??= `data:${type};base64,${base64}`;
       out[shape.position] = {
-        dataUrl: `data:${type};base64,${base64}`,
+        media: shape.media,
         ...(shape.widthPt === undefined ? {} : { widthPt: shape.widthPt }),
         ...(shape.heightPt === undefined ? {} : { heightPt: shape.heightPt }),
       };
     }
-    return out;
+    return { pictures: out, media: mediaUrls };
   } catch {
     return undefined;
   }
@@ -164,7 +180,7 @@ interface XlsxBase64Engine {
   readEntriesBase64?(bytes: Uint8Array, paths: readonly string[], maxBytes: number, maxTotalBytes: number): Promise<Readonly<Record<string, string | null>>>;
 }
 
-/** Every sheet's header/footer pictures (index-aligned, undefined = none),
+/** Every sheet's header/footer pictures and their media (index-aligned, undefined = none),
  *  under one workbook budget. */
 export async function readWorkbookHeaderFooterPictures(
   sheets: readonly { readonly path?: string | undefined }[],
@@ -172,7 +188,7 @@ export async function readWorkbookHeaderFooterPictures(
   readText: ReadText,
   gateway: object,
   bytes: Uint8Array,
-): Promise<(XlsxRenderHeaderFooterPictures | undefined)[]> {
+): Promise<(XlsxHfPictureSet | undefined)[]> {
   // The gateway type does not declare the optional read (it exists only once
   // lane L2's patch is bound), so it is checked structurally here.
   const engine = gateway as XlsxBase64Engine;
@@ -180,7 +196,7 @@ export async function readWorkbookHeaderFooterPictures(
     ? (paths, maxBytes, maxTotalBytes) => engine.readEntriesBase64!(bytes, paths, maxBytes, maxTotalBytes)
     : undefined;
   const budget: XlsxHfPictureBudget = { remaining: HF_PICTURES_MAX_TOTAL_BYTES };
-  const out: (XlsxRenderHeaderFooterPictures | undefined)[] = [];
+  const out: (XlsxHfPictureSet | undefined)[] = [];
   for (const sheet of sheets) {
     const xml = sheet.path ? sheetXmls[sheet.path] : null;
     out.push(sheet.path && xml ? await readHeaderFooterPictures(sheet.path, xml, readText, readBase64, budget) : undefined);
