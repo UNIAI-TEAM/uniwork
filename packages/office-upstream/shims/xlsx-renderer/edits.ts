@@ -287,8 +287,10 @@ export interface ValidatedWriteGate {
   /** Returns the edits that may be emitted now (the held sheet's cell edits are kept back). */
   capture(edits: XlsxRendererCellEdit[]): XlsxRendererCellEdit[];
   /** The validation verdict of the pending commit is on its way; call the
-   *  returned function with it, or null when nothing is pending. */
-  awaitVerdict(): ((accepted: boolean) => void) | null;
+   *  returned function with it, or null when nothing is pending. A verdict
+   *  for another sheet (`sheetId` given and not the pending write's) is not
+   *  the pending write's and gets null too (review-session n-1). */
+  awaitVerdict(sheetId?: string): ((accepted: boolean) => void) | null;
   /** True while the rollback of a refused commit on `sheetId` runs. */
   isRollback(sheetId: string): boolean;
 }
@@ -348,9 +350,9 @@ export function createValidatedWriteGate(emit: (edits: XlsxRendererCellEdit[]) =
       write.held.push(...held);
       return edits.filter((edit) => edit.sheetId !== write.sheetId);
     },
-    awaitVerdict() {
+    awaitVerdict(sheetId) {
       const write = pending;
-      if (!write) return null;
+      if (!write || (sheetId !== undefined && sheetId !== write.sheetId)) return null;
       write.awaited = true;
       return (accepted) => settle(write, accepted);
     },
@@ -376,7 +378,10 @@ export function observeValidationVerdicts(source: ValidateCellSource, gate: Vali
   const original = source.onValidateCell;
   const wrapped = function (this: unknown, ...args: unknown[]): unknown {
     const verdict = original.apply(this ?? source, args);
-    const settle = gate.awaitVerdict();
+    // Univer 0.25.1: onValidateCell(workbook, worksheet, row, col).
+    const worksheet = args[1] as { getSheetId?: unknown } | null | undefined;
+    const sheetId = typeof worksheet?.getSheetId === "function" ? (worksheet.getSheetId as () => unknown)() : undefined;
+    const settle = gate.awaitVerdict(typeof sheetId === "string" ? sheetId : undefined);
     if (settle) Promise.resolve(verdict).then((accepted) => settle(accepted !== false), () => settle(true));
     return verdict;
   };

@@ -175,7 +175,7 @@ test('a commit whose verdict never comes, or a newer commit, releases the held e
 /** Univer's flat composeInterceptors + an async DV-like handler: the handler
  *  calls next only after awaits, so a later interceptor never runs. The
  *  editor's _submitEdit awaits onValidateCell, then rolls back on false. */
-function editorFlow(model, gate, verdict, steps) {
+function editorFlow(gate, verdict, steps) {
   const service = {
     onValidateCell() {
       return (async () => { for (let i = 0; i < steps; i += 1) await null; return verdict; })();
@@ -191,7 +191,7 @@ test('the verdict is observed from onValidateCell although the async DV handler 
   const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
   ingestCellMutation(model, mutation({ 0: { 0: { s: { bl: 1 } } } }));
   const journaled = JSON.stringify([...model.editJournal.cells.get('s1')]);
-  const service = editorFlow(model, gate, false, 6);
+  const service = editorFlow(gate, false, 6);
   // _submitEdit: write (begin + capture), then await onValidateCell, then rollback.
   gate.begin(model, 's1');
   assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Xyz' } } }))), []);
@@ -207,10 +207,29 @@ test('an accepted verdict observed from onValidateCell emits the held edits once
   const model = state();
   const emitted = [];
   const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
-  const service = editorFlow(model, gate, true, 6);
+  const service = editorFlow(gate, true, 6);
   gate.begin(model, 's1');
   assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Mot' } } }))), []);
   assert.equal(await service.onValidateCell(), true);
+  assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
+});
+
+test('a validation of another sheet does not settle the pending write (review-session n-1)', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  const sheet = (id) => ({ getSheetId: () => id });
+  const service = { onValidateCell(_workbook, worksheet) { return Promise.resolve(worksheet.getSheetId() === 's1'); } };
+  observeValidationVerdicts(service, gate);
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Mot' } } }))), []);
+  // Another sheet's refusal in the same tick is not this write's verdict:
+  // without the sheet check it would take the settle and roll s1 back.
+  const other = service.onValidateCell({}, sheet('s2'), 0, 0);
+  const own = service.onValidateCell({}, sheet('s1'), 0, 0);
+  assert.equal(await other, false);
+  assert.equal(await own, true);
+  assert.equal(gate.isRollback('s1'), false);
   assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
 });
 
