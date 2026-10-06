@@ -47,3 +47,6 @@ export {
 
 // UNI-927 WIRE-TEXT: the text-format panel (text-format-model + pptx-text-format-panel).
 export { PptxTextFormatPanel, type PptxTextFormatPanelProps } from "./text/pptx-text-format-panel";
+
+// UNI-939 T01 (B6): the master/layout view types the web and desktop adapters read.
+export type { MasterElementView, MasterPartView } from "./masters";

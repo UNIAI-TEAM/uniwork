@@ -45,6 +45,19 @@ describe("PdfStatusBar", () => {
     expect(screen.getByTestId("pdf-rail-toggle")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("offers fit-width and fit-page buttons that call the host, and none without a host (T12)", () => {
+    const onFitWidth = vi.fn();
+    const onFitPage = vi.fn();
+    const { unmount } = render(<PdfStatusBar page={1} pageCount={2} zoom={1} />);
+    expect(screen.queryByRole("group", { name: "View" })).toBeNull();
+    unmount();
+    render(<PdfStatusBar page={1} pageCount={2} zoom={1} onFitWidth={onFitWidth} onFitPage={onFitPage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Fit to width" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fit to page" }));
+    expect(onFitWidth).toHaveBeenCalledTimes(1);
+    expect(onFitPage).toHaveBeenCalledTimes(1);
+  });
+
   it("does not step past the zoom limits", () => {
     const onZoomChange = vi.fn();
     render(<PdfStatusBar page={1} pageCount={1} zoom={4} onZoomChange={onZoomChange} />);

@@ -413,4 +413,20 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     expect(persisted).toHaveBeenCalledOnce();
     expect(editRequests()[1].edits).toEqual([valueEdit(7)]);
   });
+
+  // T09: the frozen candidate blocks restore (xlsx_restore_save_pending) and
+  // is the xlsx counterpart of the pptx undo hold.
+  it("drops the frozen candidate when a blocked refusal releases the Save", async () => {
+    const { engine, coordinator, documents } = await setup();
+    vi.mocked(documents.commit).mockRejectedValueOnce({ code: "quota_exceeded", status: 413 });
+    expect(await coordinator.save("button")).toEqual({ accepted: false, reason: "blocked" });
+    await expect(engine.restore?.("model", stable(engine).value)).resolves.toBeUndefined();
+  });
+
+  it("keeps the frozen candidate after a commit-step throw that may follow a landed write", async () => {
+    const { engine, coordinator, documents } = await setup();
+    vi.mocked(documents.commit).mockResolvedValueOnce({ document: { id: "doc", revision: "2" }, version: { id: "v2", checksum_sha256: "not-the-output", size_bytes: 1 } });
+    expect(await coordinator.save("button")).toEqual({ accepted: false, reason: "error" });
+    await expect(engine.restore?.("model", stable(engine).value)).rejects.toThrow("xlsx_restore_save_pending");
+  });
 });

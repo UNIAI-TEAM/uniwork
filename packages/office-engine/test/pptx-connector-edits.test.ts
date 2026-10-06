@@ -30,6 +30,29 @@ describe("add_connector", () => {
     ]);
   });
 
+  it("forwards the attach sides and the line style to the vendored op", () => {
+    const line = { color: "#C00000", widthPt: 3, dash: "dash" };
+    expect(buildConnectorOps(opened, 960, { op: "add_connector", slideIndex: 0, elementIds: ["a", "b"], fromSide: "bottom", toSide: "top", line })).toEqual([
+      { op: "addConnector", target: { slide: 0 }, from: "a", to: "b", fromSide: "bottom", toSide: "top", line },
+    ]);
+    // One pinned end leaves the other to the closest-pair pick: only the given side is sent.
+    expect(buildConnectorOps(opened, 960, { op: "add_connector", slideIndex: 0, elementIds: ["a", "b"], toSide: "left" })).toEqual([
+      { op: "addConnector", target: { slide: 0 }, from: "a", to: "b", toSide: "left" },
+    ]);
+  });
+
+  it("refuses a bad side or line with typed codes", () => {
+    const build = (edit: Record<string, unknown>) => () =>
+      buildConnectorOps(opened, 960, { op: "add_connector", slideIndex: 0, elementIds: ["a", "b"], ...edit } as never);
+    expect(codeOf(build({ fromSide: "middle" }))).toBe("conn_bad_side");
+    expect(codeOf(build({ toSide: "" }))).toBe("conn_bad_side");
+    expect(codeOf(build({ line: { color: "red" } }))).toBe("conn_bad_line");
+    expect(codeOf(build({ line: { widthPt: 0 } }))).toBe("conn_bad_line");
+    expect(codeOf(build({ line: { widthEmu: Number.NaN } }))).toBe("conn_bad_line");
+    expect(codeOf(build({ line: { dash: "wavy" } }))).toBe("conn_bad_line");
+    expect(codeOf(build({ line: "thick" }))).toBe("conn_bad_line");
+  });
+
   it("refuses bad input with typed codes", () => {
     const build = (edit: Record<string, unknown>) => () =>
       buildConnectorOps(opened, 960, { op: "add_connector", slideIndex: 0, elementIds: ["a", "b"], ...edit } as never);

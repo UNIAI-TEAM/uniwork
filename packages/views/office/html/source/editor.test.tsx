@@ -38,6 +38,17 @@ describe("HtmlSourceEditor", () => {
     expect(onCheckpoint).toHaveBeenCalledTimes(1);
   });
 
+  it("reports the caret and selection as the document and cursor change (T12)", async () => {
+    const onSelectionChange = vi.fn();
+    const { container } = render(<HtmlSourceEditor value={"ab\ncde"} onChange={vi.fn()} onSelectionChange={onSelectionChange} ariaLabel="Source" />);
+    await waitFor(() => expect(container.querySelector(".cm-editor")).not.toBeNull());
+    const v = view(container);
+    v.dispatch({ selection: { anchor: 5 } });
+    expect(onSelectionChange).toHaveBeenLastCalledWith({ from: 5, to: 5, head: 5 });
+    v.dispatch({ selection: { anchor: 1, head: 4 } });
+    expect(onSelectionChange).toHaveBeenLastCalledWith({ from: 1, to: 4, head: 4 });
+  });
+
   it("does not fire onChange during an IME composition and fires once on compositionend", async () => {
     const onChange = vi.fn();
     const onCheckpoint = vi.fn();

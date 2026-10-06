@@ -19,7 +19,8 @@ export type PptxCommandId =
   | "undo"
   | "redo"
   | "presenter"
-  | "fullscreen";
+  | "fullscreen"
+  | "slideMaster";
 
 export interface PptxCommandCapability {
   status: OfficeCapabilityStatus;
@@ -71,6 +72,8 @@ const ROWS: Array<Pick<PptxCommand, "id" | "labelKey" | "mandatoryRow" | "gestur
   { id: "redo", labelKey: "commands.redo" },
   { id: "presenter", labelKey: "commands.presenter", toggle: true },
   { id: "fullscreen", labelKey: "commands.fullscreen" },
+  // View > Slide master: opens the master/layout panel (a toggle, aria-pressed).
+  { id: "slideMaster", labelKey: "commands.slideMaster", toggle: true },
 ];
 
 function asCapability(value: PptxCommandCapability | OfficeCapabilityStatus | undefined, fallback: PptxCommandCapability): PptxCommandCapability {
@@ -111,6 +114,8 @@ export function createPptxCommandMap(options: PptxCommandMapOptions = {}): PptxC
     redo: { status: "available" },
     presenter: { status: "available" },
     fullscreen: { status: "available" },
+    // The panel itself reports "unbound" when the host reads no master parts.
+    slideMaster: { status: "available" },
   };
   const commands = ROWS
     .filter(({ id }) => (id === "save" ? options.includeSave !== false : true))

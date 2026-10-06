@@ -29,3 +29,16 @@ describe("pptxInsertElements", () => {
     expect(elements[3]).toEqual({ id: "chart-1", type: "chart" });
   });
 });
+
+describe("pptxInsertElements connector flag", () => {
+  it("marks a shape drawn as a line, so the pane restyles it instead of connecting to it", () => {
+    const elements = pptxInsertElements(
+      slide([
+        shapeNode({ sourceId: "sp_0" }),
+        shapeNode({ id: "r2", sourceId: "cxn_1", line: { points: [0, 0, 100, 0] } }),
+      ]),
+    );
+    expect(elements[0]).toEqual({ id: "sp_0", type: "shape" });
+    expect(elements[1]).toEqual({ id: "cxn_1", type: "shape", connector: true });
+  });
+});

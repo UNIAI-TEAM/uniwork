@@ -19,10 +19,22 @@ import { useMemo, useState } from "react";
 import { Link2, Shapes } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
+import { formatColorInputValue, formatDashKey, type PptxFormatDash } from "../format/format-model";
+import { PPTX_CONNECTOR_DEFAULT_LINE } from "./insert-defaults";
+import {
+  PPTX_CONNECTOR_DASHES,
+  PPTX_CONNECTOR_SIDE_CHOICES,
+  connectorLineOf,
+  connectorRequestLine,
+  connectorSideOf,
+  type PptxConnectorLineChoice,
+  type PptxConnectorSideChoice,
+} from "./connector-model";
 import {
   PPTX_CONNECTOR_ARROWS,
   PPTX_CONNECTOR_KINDS,
@@ -44,6 +56,8 @@ export interface PptxConnectorPickerProps {
   /** No grouping channel bound / no slide: only the Group button is inert. */
   groupDisabled?: boolean;
   busy?: boolean;
+  /** Restyle the selected connector (set_stroke); absent disables Apply. */
+  onStrokeConnector?: (elementId: string, line: PptxConnectorLineChoice) => void;
   onInsertConnector: (request: PptxInsertConnectorRequest) => void;
   onGroupSelection: (elementIds: readonly string[]) => void;
   className?: string;
@@ -55,6 +69,7 @@ export function PptxConnectorPicker({
   connectorDisabled = false,
   groupDisabled = false,
   busy = false,
+  onStrokeConnector,
   onInsertConnector,
   onGroupSelection,
   className,
@@ -63,12 +78,15 @@ export function PptxConnectorPicker({
   const [kind, setKind] = useState<PptxConnectorKind>("straight");
   const [arrow, setArrow] = useState<PptxConnectorArrow>("end");
   const connectable = useMemo(
-    () => elements.filter((element) => element.type === "text" || element.type === "shape" || element.type === "picture"),
+    () => elements.filter((element) => !element.connector && (element.type === "text" || element.type === "shape" || element.type === "picture")),
     [elements],
   );
   // Seed from the canvas selection, but only with a shape the pickers can name:
   // a value without an item makes the select print the raw id.
   const seed = (id: string | undefined): string => (id !== undefined && connectable.some((element) => element.id === id) ? id : "");
+  const [fromSide, setFromSide] = useState<PptxConnectorSideChoice>("auto");
+  const [toSide, setToSide] = useState<PptxConnectorSideChoice>("auto");
+  const [line, setLine] = useState<PptxConnectorLineChoice>(() => ({ ...PPTX_CONNECTOR_DEFAULT_LINE, widthPt: String(PPTX_CONNECTOR_DEFAULT_LINE.widthPt) }));
   const [from, setFrom] = useState<string>(() => seed(selectedIds[0]));
   const [to, setTo] = useState<string>(() => seed(selectedIds[1]));
   // An unlabeled shape reads "Shape N" by its position, never by its id.
@@ -76,6 +94,10 @@ export function PptxConnectorPicker({
     () => connectable.map((element, index) => ({ value: element.id, label: element.label ?? t("office.pptx.insert.connector.shape_n", { n: index + 1 }) })),
     [connectable, t],
   );
+  const sideItems = useMemo(() => PPTX_CONNECTOR_SIDE_CHOICES.map((value) => ({ value, label: t(`office.pptx.insert.connector.side.${value}`) })), [t]);
+  const dashItems = useMemo(() => PPTX_CONNECTOR_DASHES.map((value) => ({ value, label: t(formatDashKey(value)) })), [t]);
+  const lineValid = connectorLineOf(line) !== null;
+  const selectedConnector = selectedIds.length === 1 ? elements.find((element) => element.id === selectedIds[0] && element.connector) : undefined;
   const pickerChildren = (id: string) => (
     <>
       <SelectTrigger id={id} className="w-full">
@@ -89,9 +111,21 @@ export function PptxConnectorPicker({
   const groupIds = useMemo(() => groupableSelection(selectedIds, elements), [elements, selectedIds]);
   const connectorBlocked = connectorDisabled || busy;
   const groupBlocked = groupDisabled || busy;
-  const request: PptxInsertConnectorRequest = { slideIndex: 0, from, to, kind, arrow };
+  const lineRequest = connectorRequestLine(line);
+  const sideFrom = connectorSideOf(fromSide);
+  const sideTo = connectorSideOf(toSide);
+  const request: PptxInsertConnectorRequest = {
+    slideIndex: 0,
+    from,
+    to,
+    kind,
+    arrow,
+    ...(sideFrom ? { fromSide: sideFrom } : {}),
+    ...(sideTo ? { toSide: sideTo } : {}),
+    ...(lineRequest ? { line: lineRequest } : {}),
+  };
   const validation = validateConnectorRequest({ ...request, slideIndex: 0 }, elements);
-  const canConnect = !connectorBlocked && validation.ok && connectable.length >= 2;
+  const canConnect = !connectorBlocked && validation.ok && lineValid && connectable.length >= 2;
   const reason = validation.ok ? null : t(validation.reasonKey);
 
   return (
@@ -139,6 +173,7 @@ export function PptxConnectorPicker({
         >
           {pickerChildren("pptx-connector-from")}
         </Select>
+        <SideSelect id="pptx-connector-from-side" label={t("office.pptx.insert.connector.from_side_label")} value={fromSide} items={sideItems} disabled={connectorBlocked} onChange={setFromSide} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="pptx-connector-to">{t("office.pptx.insert.connector.to_label")}</Label>
@@ -150,6 +185,7 @@ export function PptxConnectorPicker({
         >
           {pickerChildren("pptx-connector-to")}
         </Select>
+        <SideSelect id="pptx-connector-to-side" label={t("office.pptx.insert.connector.to_side_label")} value={toSide} items={sideItems} disabled={connectorBlocked} onChange={setToSide} />
       </div>
 
       <div className="space-y-1.5">
@@ -172,6 +208,55 @@ export function PptxConnectorPicker({
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+      </div>
+
+      <div className="space-y-1.5" data-pptx-connector-line>
+        <p className="text-caption font-medium text-foreground">{t("office.pptx.format.line_label")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="color"
+            aria-label={t("office.pptx.format.line_color")}
+            data-testid="pptx-connector-line-color"
+            value={formatColorInputValue(line.color, "#000000")}
+            disabled={connectorBlocked}
+            onChange={(event) => setLine((current) => ({ ...current, color: event.target.value }))}
+            className="size-8 rounded-md border border-border bg-background"
+          />
+          <Input
+            aria-label={t("office.pptx.format.line_width")}
+            data-testid="pptx-connector-line-width"
+            inputMode="decimal"
+            value={line.widthPt}
+            disabled={connectorBlocked}
+            aria-invalid={connectorLineOf(line) === null ? true : undefined}
+            onChange={(event) => setLine((current) => ({ ...current, widthPt: event.target.value }))}
+            className="w-20"
+          />
+          <Select
+            value={line.dash}
+            items={dashItems}
+            disabled={connectorBlocked}
+            onValueChange={(value) => setLine((current) => ({ ...current, dash: value as PptxFormatDash }))}
+          >
+            <SelectTrigger aria-label={t("office.pptx.format.line_dash")} data-testid="pptx-connector-line-dash" size="sm" className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {dashItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={connectorBlocked || !lineValid || !selectedConnector || !onStrokeConnector}
+          data-testid="pptx-connector-apply-line"
+          onClick={() => selectedConnector && onStrokeConnector?.(selectedConnector.id, line)}
+        >
+          <span className="text-label">{t("office.pptx.insert.connector.apply_line")}</span>
+        </Button>
+        {!selectedConnector ? <p className="text-caption text-muted-foreground">{t("office.pptx.insert.connector.apply_line_hint")}</p> : null}
       </div>
 
       <Button
@@ -213,6 +298,28 @@ export function PptxConnectorPicker({
           </p>
         ) : null}
       </div>
+    </div>
+  );
+}
+function SideSelect({ id, label, value, items, disabled, onChange }: {
+  id: string;
+  label: string;
+  value: PptxConnectorSideChoice;
+  items: ReadonlyArray<{ value: PptxConnectorSideChoice; label: string }>;
+  disabled: boolean;
+  onChange: (value: PptxConnectorSideChoice) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2" data-pptx-connector-side={id}>
+      <Label htmlFor={id} className="shrink-0 text-caption text-muted-foreground">{label}</Label>
+      <Select items={items} value={value} disabled={disabled} onValueChange={(next) => onChange(next as PptxConnectorSideChoice)}>
+        <SelectTrigger id={id} size="sm" className="w-full" data-testid={id}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {items.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

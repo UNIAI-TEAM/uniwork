@@ -86,3 +86,48 @@ export function OfficeStatusZoom({ value, onZoomIn, onZoomOut, onReset, min = 10
     </div>
   );
 }
+
+export interface OfficeStatusAction {
+  id: string;
+  /** Accessible name and tooltip; also the visible text when no icon is given. */
+  label: string;
+  icon?: ReactNode;
+  /** Defined -> a toggle (`aria-pressed`); undefined -> a plain command. */
+  pressed?: boolean;
+  /** Blocks the action in JS but keeps the button in the tab order. */
+  disabled?: boolean;
+  onClick?: () => void;
+}
+
+export interface OfficeStatusActionsProps {
+  actions: readonly OfficeStatusAction[];
+  /** Group name, already translated ("View"). */
+  label: string;
+  className?: string;
+}
+
+/** View buttons / toggles of the status row (fit, notes, slide sorter): real
+ * buttons with a name, the same size as the zoom steps. */
+export function OfficeStatusActions({ actions, label, className }: OfficeStatusActionsProps) {
+  if (actions.length === 0) return null;
+  return (
+    <div role="group" aria-label={label} className={cn("flex items-center gap-0.5", className)} data-office-status-actions>
+      {actions.map((action) => (
+        <Button
+          key={action.id}
+          type="button"
+          variant={action.pressed ? "secondary" : "ghost"}
+          size={action.icon ? "icon-xs" : "xs"}
+          aria-label={action.label}
+          title={action.label}
+          aria-pressed={action.pressed}
+          aria-disabled={action.disabled || undefined}
+          data-office-status-action={action.id}
+          onClick={action.disabled ? undefined : action.onClick}
+        >
+          {action.icon ?? action.label}
+        </Button>
+      ))}
+    </div>
+  );
+}

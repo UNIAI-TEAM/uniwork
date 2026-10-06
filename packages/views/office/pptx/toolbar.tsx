@@ -33,6 +33,7 @@ import {
   type PptxRibbonOptions,
   type PptxTabId,
 } from "./pptx-ribbon";
+import { gatePptxRibbonForMasterView } from "./pptx-ribbon-master-gate";
 
 export interface PptxToolbarProps {
   commands: readonly PptxCommand[];
@@ -65,6 +66,10 @@ export interface PptxToolbarProps {
   panelDisabled?: PptxRibbonOptions["panelDisabled"];
   /** Items the editor injects into ribbon groups, keyed by group id. */
   groupItems?: PptxRibbonOptions["groupItems"];
+  /** Ribbon toggle commands that render pressed (e.g. the Slide master toggle). */
+  pressedCommands?: readonly PptxCommandId[];
+  /** The slide master view is open: only the live groups stay enabled (see pptx-ribbon-master-gate). */
+  masterView?: boolean;
   className?: string;
 }
 
@@ -90,6 +95,8 @@ export function PptxToolbar({
   onOpenPanel,
   panelDisabled,
   groupItems,
+  pressedCommands,
+  masterView = false,
   className,
 }: PptxToolbarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
@@ -111,18 +118,18 @@ export function PptxToolbar({
       }),
     [canRedo, canUndo, commands, t],
   );
-  const tabs = useMemo(
-    () =>
-      pptxRibbonTabs(resolved, {
-        onCommand,
-        ...(contextual ? { contextual } : {}),
-        ...(activePanel !== undefined ? { activePanel } : {}),
-        ...(onOpenPanel ? { onOpenPanel } : {}),
-        ...(panelDisabled ? { panelDisabled } : {}),
-        ...(groupItems ? { groupItems } : {}),
-      }),
-    [activePanel, contextual, groupItems, onCommand, onOpenPanel, panelDisabled, resolved],
-  );
+  const tabs = useMemo(() => {
+    const mapped = pptxRibbonTabs(resolved, {
+      onCommand,
+      ...(contextual ? { contextual } : {}),
+      ...(activePanel !== undefined ? { activePanel } : {}),
+      ...(onOpenPanel ? { onOpenPanel } : {}),
+      ...(panelDisabled ? { panelDisabled } : {}),
+      ...(groupItems ? { groupItems } : {}),
+      ...(pressedCommands ? { pressedCommands } : {}),
+    });
+    return masterView ? gatePptxRibbonForMasterView(mapped) : mapped;
+  }, [activePanel, contextual, groupItems, masterView, onCommand, onOpenPanel, panelDisabled, pressedCommands, resolved]);
 
   // X4fix F8: the tab-row controls honour `hidden` the same way the ribbon groups do.
   const shown = (id: PptxCommandId) => resolved.find((entry) => entry.id === id && entry.capability.hidden !== true);

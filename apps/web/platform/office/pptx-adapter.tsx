@@ -11,11 +11,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
+import { createSaveSettleGate } from "@uniwork/core/office";
 import { isPptxSessionDiverged, type PptxEdit, type PptxParagraphLike, type PptxSlideAnimationRead, type PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { PptxEditor } from "@uniwork/views/office/pptx/editor-view";
-import type { PptxDeckModel } from "@uniwork/views/office/pptx";
+import type { MasterElementView, MasterPartView, PptxDeckModel } from "@uniwork/views/office/pptx";
 import type { PptxSlideView } from "@uniwork/views/office/pptx/slide-rail";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions, type OfficeEditorSession } from "./editor-host-core";
 import { createPptxSaveTransport, type PptxDocumentsTransport } from "./pptx-save-transport";
@@ -161,6 +162,9 @@ function PptxEditorSurface(props: {
   slideNotes: (slideIndex: number) => string | null;
   /** Layout catalog of the live package (empty once released). */
   slideLayouts: () => { name: string; path: string }[];
+  /** Masters panel reads of the live session (UNI-927 B6). */
+  masterParts: () => readonly MasterPartView[];
+  masterElements: (partPath: string) => readonly MasterElementView[];
 }): ReactNode {
   const { t } = useTranslation();
   // F7: the open effect must not restart on a fresh `t` identity. react-i18next
@@ -170,7 +174,7 @@ function PptxEditorSurface(props: {
   // seam-stabilization the deck renderer and the editor use.
   const tRef = useRef(t);
   tRef.current = t;
-  const { editor, coordinator, editable, open, view, subscribe, slideNotes, slideLayouts } = props;
+  const { editor, coordinator, editable, open, view, subscribe, slideNotes, slideLayouts, masterParts, masterElements } = props;
   const current = useSyncExternalStore(subscribe, view, view);
   const [selected, setSelected] = useState(0);
   const [phase, setPhase] = useState<PptxOpenPhase>("loading");
@@ -288,6 +292,8 @@ function PptxEditorSurface(props: {
       printPort="browser"
       slideNotes={slideNotes}
       slideLayouts={slideLayouts}
+      masterParts={masterParts}
+      masterElements={masterElements}
       saveCoordinator={coordinator}
       includeSave={false}
     />
@@ -300,15 +306,10 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   let opening: Promise<void> | null = null;
   let generation = 0;
   let disposed = false;
-  // Set the moment the deferred dispose fires. `originalDispose` awaits the
+  // Set the moment dispose starts. `originalDispose` awaits the
   // draft before `editor.dispose()` sets `disposed`, and an open() landing in
   // that gap would report "opened" on a model about to be released.
   let disposeStarted = false;
-  // StrictMode (next dev) runs mount -> cleanup -> mount on a fresh tree: the
-  // cleanup disposes the session and the remount opens it again. Disposal is
-  // therefore deferred one task and cancelled by the next open(), so the
-  // remount revives the live session instead of reading a disposed one.
-  let cancelPendingDispose: () => void = () => undefined;
   let viewRevision = 0;
   let view: PptxSurfaceView | null = null;
   const listeners = new Set<() => void>();
@@ -327,7 +328,6 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   const editor: PptxEditorHandle = {
     format: "pptx",
     async open() {
-      cancelPendingDispose();
       if (disposed || disposeStarted) throw new Error("pptx_editor_disposed");
       if (opening) return opening;
       if (modelRef) return;
@@ -437,7 +437,18 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   // released session answers [] (the sorter then offers only its blank slide).
   const slideLayouts = (): { name: string; path: string }[] =>
     (modelRef && !disposed ? options.runtime.slideLayouts?.(modelRef) ?? [] : []);
+  // UNI-927 B6: the Masters panel reads parts and elements off the LIVE session
+  // like the notes; a runtime without the reads, or a released/disposed
+  // session, yields [] so the panel shows an empty list instead of a freed ref.
+  const masterParts = (): readonly MasterPartView[] =>
+    (modelRef && !disposed ? options.runtime.masterParts?.(modelRef) ?? [] : []);
+  const masterElements = (partPath: string): readonly MasterElementView[] =>
+    (modelRef && !disposed ? options.runtime.masterElements?.(modelRef, partPath) ?? [] : []);
 
+  // The runtime rebases the journal inside commit, before the receipt returns:
+  // bracket it on the session's gate, so a checkpoint capture that overlaps
+  // either edge of that (asynchronous) step is retaken.
+  const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   const transport = createPptxSaveTransport({
     documentId: options.identity.documentId,
     documents: options.documents,
@@ -446,32 +457,24 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
       return options.runtime.serialize(modelRef, { snapshot, intentId });
     },
     setBaseRevision: async (revision, intentId) => {
-      if (modelRef) await options.runtime.setBaseRevision?.(modelRef, revision, intentId);
+      await gate.rebase(async () => {
+        if (modelRef) await options.runtime.setBaseRevision?.(modelRef, revision, intentId);
+      });
     },
     releaseSave: async (intentId) => {
       if (modelRef) await options.runtime.releaseSave?.(modelRef, intentId);
     },
   });
-  const session = createOfficeEditorSession({ ...options, editor, transport });
+  const session = createOfficeEditorSession({ ...options, editor, transport, gate });
   session.coordinator.setCapability(options.capability);
   const originalDispose = session.dispose;
   let disposal: Promise<void> | null = null;
+  // A StrictMode replay of the OfficeEditorHost mount is absorbed by the host
+  // (editor-host.tsx defers its dispose past the replayed mount), so the
+  // session disposes once, when it is asked to.
   session.dispose = () => {
-    if (disposal) return disposal;
-    disposal = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        cancelPendingDispose = () => undefined;
-        disposeStarted = true;
-        originalDispose().then(resolve, reject);
-      }, 0);
-      cancelPendingDispose = () => {
-        clearTimeout(timer);
-        cancelPendingDispose = () => undefined;
-        disposal = null;
-        resolve();
-      };
-    });
-    return disposal;
+    disposeStarted = true;
+    return disposal ??= originalDispose();
   };
 
   const open = {
@@ -522,6 +525,8 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
         open={open.open}
         slideNotes={slideNotes}
         slideLayouts={slideLayouts}
+        masterParts={masterParts}
+        masterElements={masterElements}
       />
     ),
     open,

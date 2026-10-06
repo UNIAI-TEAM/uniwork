@@ -27,6 +27,7 @@ import { buildChartOps, type ChartEdit } from "./edits/chart-edits";
 import { buildFindLinkOps, type FindLinkEdit } from "./edits/find-link-edits";
 import { buildFormatOps, type FormatEdit } from "./edits/format-edits";
 import { buildHeaderFooterOps, type HeaderFooterEdit } from "./edits/headerfooter-edits";
+import { buildMasterOps, type MasterEdit } from "./edits/master-edits";
 import { buildMediaOps, type MediaEdit } from "./edits/media-edits";
 import { buildNotesCommentOps, type NotesCommentEdit } from "./edits/notes-comment-edits";
 import { planStaleNotesShapeRemoval } from "./notes-read";
@@ -457,3 +458,20 @@ export function addModel3dGesture(
   const result = model.runBuiltTxn(buildMediaOps(model.opened, model.fitWidthPx, edit));
   return { applied: true, createdId: requireCreated(result.records, "addModel3d") };
 }
+
+// -- slide master / layout part edits (B6e master-edits.ts) ----------------
+
+/** master_* -> buildMasterOps: the five part-addressed vendored ops
+ * (setText, setTransform, setFill, setStroke, deleteElement with
+ * target { part, el }); validation and px->EMU stay in the builder. */
+const masterGesture =
+  <K extends MasterEdit["op"]>() =>
+  (model: WaveGestureModel, edit: Extract<MasterEdit, { op: K }>): void => {
+    model.runBuiltTxn(buildMasterOps(model.opened, model.fitWidthPx, edit));
+  };
+
+export const masterEditTextGesture = masterGesture<"master_edit_text">();
+export const masterSetTransformGesture = masterGesture<"master_set_transform">();
+export const masterSetFillGesture = masterGesture<"master_set_fill">();
+export const masterSetStrokeGesture = masterGesture<"master_set_stroke">();
+export const masterDeleteElementGesture = masterGesture<"master_delete_element">();

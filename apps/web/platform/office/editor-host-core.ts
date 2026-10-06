@@ -11,9 +11,10 @@ import type {
   OfficeIdentity,
   OfficeSaveIntent,
   OfficeSaveTransport,
+  SaveSettleGate,
   StableSnapshot,
 } from "@uniwork/core/office";
-import { DraftRecoveryError as DraftRecoveryErrorClass } from "@uniwork/core/office";
+import { createSaveSettleGate, DraftRecoveryError as DraftRecoveryErrorClass } from "@uniwork/core/office";
 import { registerOfficeDraftMemoryCleanup } from "@uniwork/core/drafts/cleanup-registry";
 import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
 import { createDraftKeyProvider, type DraftKeyProvider } from "./draft-key-provider";
@@ -27,6 +28,9 @@ export interface BrowserOfficeDraftOptions<TSnapshot> {
   /** The draft id is stable per document; it is not used as an auth scope. */
   draftId?: string;
   liveAccess?: "edit" | "none";
+  /** How long a checkpoint waits for a Save in flight before it writes under
+   *  the pre-rebase base (default 10 s). */
+  saveSettleMaxWaitMs?: number;
 }
 
 export interface BrowserOfficeDraftAdapter<TSnapshot> extends DraftAdapter<TSnapshot> {
@@ -241,11 +245,40 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
 export interface OfficeEditorSessionOptions<TSnapshot> extends BrowserOfficeDraftOptions<TSnapshot> {
   editor: EditorHandle<TSnapshot>;
   transport: OfficeSaveTransport<TSnapshot>;
+  /** The adapter's gate, when its transport rebases the editor before commit
+   *  returns and marks that rebase itself. */
+  gate?: SaveSettleGate;
 }
 
 export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessionOptions<TSnapshot>): OfficeEditorSession<TSnapshot> {
   const draft = createBrowserOfficeDraftAdapter<TSnapshot>(options);
-  const coordinator = createOfficeSaveCoordinator({ identity: options.identity, editor: options.editor, draft, transport: options.transport });
+  // A Save rebases the editor (pptx/xlsx journals, inside commit or reconcile)
+  // and then the draft identity; a checkpoint captured across that rebase would
+  // land a pre-rebase snapshot under the new base. Saves run inside the gate,
+  // and a capture that overlaps a rebase mark is retaken. An adapter whose
+  // runtime rebases inside commit (pptx, xlsx) passes its gate and brackets
+  // that rebase itself; a returned commit, or a reconcile that found one,
+  // marks again. A reconcile that found nothing rebased nothing (the retry
+  // that follows is network work) and marks nothing. No wait is unbounded: a
+  // Save that never answers, at any step, holds checkpoints back only for the
+  // gate's bound; they then write under the identity still bound, on the draft
+  // lane ahead of the Save's own draft rebase.
+  const gate = options.gate ?? createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
+  // Every other step delegates to the caller's transport as it is at call time.
+  const transport: OfficeSaveTransport<TSnapshot> = Object.assign(Object.create(options.transport) as OfficeSaveTransport<TSnapshot>, {
+    commit: async (input: Parameters<OfficeSaveTransport<TSnapshot>["commit"]>[0]) => {
+      const receipt = await options.transport.commit(input);
+      gate.markRebase();
+      return receipt;
+    },
+    reconcile: async (input: Parameters<OfficeSaveTransport<TSnapshot>["reconcile"]>[0]) => {
+      const answer = await options.transport.reconcile(input);
+      if (answer !== null && answer !== undefined) gate.markRebase();
+      return answer;
+    },
+  });
+  const coordinator = createOfficeSaveCoordinator({ identity: options.identity, editor: options.editor, draft, transport });
+  let disposed = false;
   const identity = toDraftIdentity(options.identity);
   const { base: _base, ...lookupScope } = identity;
   const rebaseDraft = async () => {
@@ -253,29 +286,47 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
     const snapshot = await options.editor.captureSnapshot();
     await draft.rebaseDurable(state.identity, snapshot, state.lastSavedGeneration);
   };
-  const save: typeof coordinator.save = async (entryPoint) => {
+  // A commit first rebases the editor's save source (DOCX core properties),
+  // then the draft; both inside the gate.
+  const save: typeof coordinator.save = (entryPoint) => gate.run(async () => {
     const result = await coordinator.save(entryPoint);
-    if (result.accepted) await rebaseDraft();
+    if (result.accepted) {
+      await options.editor.rebaseSaveSource?.(result.receipt);
+      await rebaseDraft();
+    }
     return result;
-  };
+  });
+  // `checkpointDurable` enqueues on the draft lane synchronously, so the
+  // write is ordered before any later Save's rebase of the draft identity. A
+  // capture parked behind a held Save resumes after dispose; it writes nothing.
+  const checkpointSettled = (markDirty: boolean) => gate.capture(
+    () => options.editor.captureSnapshot(),
+    (snapshot) => {
+      if (disposed) throw new Error("office_editor_disposed");
+      if (markDirty) coordinator.markDirty(snapshot.generation);
+      return draft.checkpointDurable(snapshot);
+    },
+  );
   const sessionCoordinator = {
     ...coordinator,
     save,
     retry: () => save("retry"),
-    reconcile: async () => {
+    checkpoint: () => checkpointSettled(false),
+    reconcile: () => gate.run(async () => {
       const receipt = await coordinator.reconcile();
-      if (receipt) await rebaseDraft();
+      if (receipt) {
+        await options.editor.rebaseSaveSource?.(receipt);
+        await rebaseDraft();
+      }
       return receipt;
-    },
+    }),
   };
   return {
     editor: options.editor,
     coordinator: sessionCoordinator,
     draft,
     async checkpoint() {
-      const snapshot = await options.editor.captureSnapshot();
-      coordinator.markDirty(snapshot.generation);
-      await draft.checkpointDurable(snapshot);
+      await checkpointSettled(true);
       return true;
     },
     async recoverDraft() {
@@ -311,6 +362,6 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
     },
     discardDraft: () => draft.discardDurable(),
     clearMemory: draft.clearMemory,
-    dispose: async () => { await draft.dispose(); await Promise.resolve(options.editor.dispose()); },
+    dispose: async () => { disposed = true; gate.dispose(); await draft.dispose(); await Promise.resolve(options.editor.dispose()); },
   };
 }

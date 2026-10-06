@@ -1,11 +1,11 @@
 "use client";
 
 import { Fragment, type ReactNode, type Ref } from "react";
-import { PanelLeft } from "lucide-react";
+import { Maximize, MoveHorizontal, PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
+import { OfficeStatusActions, OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
 
 /** Counts the PDF chrome can show on the left of the status bar (C10). */
 export interface PdfStatusCounts {
@@ -42,6 +42,9 @@ export interface PdfStatusBarProps {
   railOpen?: boolean;
   /** The toggle button, so the host can return focus to it when the rail closes. */
   railToggleRef?: Ref<HTMLButtonElement>;
+  /** Fit buttons: each shows only when the host can measure the pane. */
+  onFitWidth?: () => void;
+  onFitPage?: () => void;
   /** The shortcuts-help trigger; always the last item of the row (F9). */
   help?: ReactNode;
   className?: string;
@@ -65,6 +68,8 @@ export function PdfStatusBar({
   onRailToggle,
   railOpen = false,
   railToggleRef,
+  onFitWidth,
+  onFitPage,
   help,
   className,
   minZoom = 0.25,
@@ -127,6 +132,13 @@ export function PdfStatusBar({
                 {selection}
               </span>
             ) : null}
+            <OfficeStatusActions
+              label={t("office.status.viewLabel")}
+              actions={[
+                ...(onFitWidth ? [{ id: "fit-width", label: t("office.status.fitWidth"), icon: <MoveHorizontal aria-hidden />, onClick: onFitWidth }] : []),
+                ...(onFitPage ? [{ id: "fit-page", label: t("office.status.fitPage"), icon: <Maximize aria-hidden />, onClick: onFitPage }] : []),
+              ]}
+            />
             <div data-testid="pdf-status-zoom">
               <OfficeStatusZoom
                 value={Math.round(zoom * 100)}

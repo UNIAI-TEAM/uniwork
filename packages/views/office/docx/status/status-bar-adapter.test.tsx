@@ -78,10 +78,11 @@ describe("DocxStatusBar chrome adapter", () => {
       "docx-status-words",
       "docx-status-characters",
       "docx-status-characters-no-spaces",
-      "docx-status-language",
     ]) {
       expect(screen.getByTestId(testId)).toHaveTextContent("—");
     }
+    // T12: an unknown language is left out, not a dash slot.
+    expect(screen.queryByTestId("docx-status-language")).toBeNull();
     expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("–");
     expect(screen.getByTestId("docx-status-zoom")).not.toHaveTextContent("%");
   });

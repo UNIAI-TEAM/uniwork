@@ -36,7 +36,8 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
 
 vi.mock("@uniwork/views/office/pptx", async () => {
   const { createElement } = await import("react");
-  return { PptxEditorView: (props: { openState?: string }) => createElement("div", { "data-testid": "pptx-editor-view-probe", "data-open-state": props.openState }) };
+  // The probe renders the notice slot inside its own box, so a test can tell a notice routed through the view from one left above it.
+  return { PptxEditorView: (props: { openState?: string; notice?: unknown }) => createElement("div", { "data-testid": "pptx-editor-view-probe", "data-open-state": props.openState }, createElement("div", { "data-testid": "pptx-notice-slot" }, props.notice as never)) };
 });
 
 function mount(handler: (channel: string, payload: unknown) => Promise<unknown>) {
@@ -83,6 +84,8 @@ it("offers the relaunched local deck's draft and recovers exactly the pre-kill s
   await waitFor(() => expect(restored).toEqual([snapshot]));
   expect(calls.find((call) => call.channel === "desktop:draft-recover")?.payload).toMatchObject({ draftId: draft.draftId, currentBase: { revision: identity.baseRevision, version: identity.baseVersionId } });
   await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.library.draftRecovered"))).toBeInTheDocument());
+  // Routed through the view's notice slot (under the file header), not rendered above the shell.
+  expect(screen.getByTestId("pptx-notice-slot")).toContainElement(screen.getByText(i18n.t("officeDesktop.library.draftRecovered")));
   expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
   // The recovered deck is unsaved work: Save must have something to write.
   expect(session.coordinator.getState().dirtyGeneration).toBe(snapshot.revision);
@@ -116,5 +119,6 @@ it("renders the typed locked notice instead of a prompt", async () => {
     return {};
   });
   await waitFor(() => expect(document.querySelector('[data-testid="office-recovery-locked"]')).not.toBeNull());
+  expect(screen.getByTestId("pptx-notice-slot")).toContainElement(document.querySelector('[data-testid="office-recovery-locked"]') as HTMLElement);
   expect(screen.queryByRole("dialog")).toBeNull();
 });

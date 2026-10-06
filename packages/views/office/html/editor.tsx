@@ -33,6 +33,7 @@ import { HtmlFind, type HtmlFindHandle } from "./find";
 import { HtmlRibbon } from "./ribbon";
 import { HtmlStatusBar } from "./status-bar";
 import { HtmlVisualShell } from "./visual/shell";
+import type { HtmlSourceSelection } from "./source";
 import { HTML_ZOOM_DEFAULT, nextViewMode, type HtmlViewMode } from "./visual/shell-model";
 import type { HtmlEditorProps, HtmlOpenOutcome } from "./types";
 
@@ -119,6 +120,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   const [coordinatorState, setCoordinatorState] = useState(() => coordinator.getState());
   const [viewMode, setViewMode] = useState<HtmlViewMode>("split");
   const [zoom, setZoom] = useState(HTML_ZOOM_DEFAULT);
+  const [sourceSelection, setSourceSelection] = useState<HtmlSourceSelection | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const disposedRef = useRef(false);
   // The editor landmark owns the mode shortcut. A mode change can unmount the
@@ -420,7 +422,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             presenting ? undefined : (
               <HtmlStatusBar
                 text={text}
-                selection={null}
+                selection={viewMode === "preview" ? null : sourceSelection}
                 zoom={zoom}
                 onZoomChange={setZoom}
                 zoomDisabled={viewMode === "source"}
@@ -461,6 +463,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             readOnly={readOnly}
             onChange={onTextChange}
             onCheckpoint={checkpoint}
+            onSourceSelectionChange={setSourceSelection}
             preview={preview}
             manifest={manifest}
             title={effectiveTitle}

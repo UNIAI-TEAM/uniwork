@@ -1,4 +1,5 @@
 import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
+import { createSaveSettleGate } from "@uniwork/core/office";
 import type { DraftAdapter, EditorHandle, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import type { DesktopPptxAdapter } from "./pptx-adapter";
 import type { DesktopPptxSurface } from "./pptx-surface";
@@ -37,7 +38,7 @@ export function createPptxDocumentSession(
   inputIdentity: OfficeIdentity,
   openedBytes: OpenedBytes,
   createSurface: (onDirty: (generation: number) => void) => DesktopPptxAdapter,
-  options: { onLocalRebind?: (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: OpenedBytes }) => void } = {},
+  options: { onLocalRebind?: (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: OpenedBytes }) => void; saveSettleMaxWaitMs?: number } = {},
 ) {
   const identity = { ...inputIdentity };
   let localHandle = openedBytes.localHandle;
@@ -46,7 +47,8 @@ export function createPptxDocumentSession(
   let pendingIntent: OfficeSaveIntent<PptxDeckSnapshot> | null = null;
   let generationFloor = 0;
   let saveInProgress = false;
-  let saveSettled: Promise<void> | undefined;
+  // Saves run inside the gate; checkpoints capture only when no Save overlapped.
+  const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   let confirmedCloudBase: { revision: string; checksum: string } | undefined;
   const durableRows = new Map<string, number>();
   const checkpointRows = new Map<string, { dirtyGeneration: number; durableGeneration: number }>();
@@ -112,31 +114,30 @@ export function createPptxDocumentSession(
     dispose: () => { disposed = true; checkpoint = null; pendingIntent = null; return surface.dispose(); },
   };
 
+  const writeRow = async (snapshot: StableSnapshot<PptxDeckSnapshot>, draftId: string): Promise<void> => {
+    const rows = await listRows();
+    generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
+    const next = Math.max(1, generationFloor + 1, snapshot.generation);
+    const payload = encode(new TextEncoder().encode(JSON.stringify(snapshot.value)));
+    const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: next, dataBase64: payload }));
+    checkpoint = snapshot;
+    generationFloor = Math.max(generationFloor, result.generation);
+    durableRows.set(draftId, result.generation);
+    checkpointRows.set(draftId, { dirtyGeneration: snapshot.generation, durableGeneration: result.generation });
+  };
+
+  // The journal is base-relative: a snapshot read before a Save's rebase but
+  // written after it would replay the saved prefix twice. The gate re-captures
+  // across any Save and runs `write` in the same turn, so the draft id binds
+  // synchronously to the base the snapshot was taken under.
+  const checkpointNow = (): Promise<void> => gate.capture(() => surface.captureSnapshot(), (snapshot) => {
+    if (disposed) throw new Error("pptx_editor_disposed");
+    if (snapshot.generation <= rawCoordinator.getState().lastSavedGeneration) return undefined;
+    return writeRow(snapshot, draftIdFor(currentIdentity()));
+  });
+
   const draft: DraftAdapter<PptxDeckSnapshot> = {
-    checkpoint: async (captured) => {
-      let snapshot = captured;
-      // The journal is base-relative: a Save that commits meanwhile rebases the
-      // runtime and advances the identity, so the pre-wait snapshot (the full
-      // journal) would be stored under the NEW base and replay the saved prefix
-      // twice. Re-capture after every settled Save - post-rebase it is tail-only.
-      while (saveSettled) {
-        await saveSettled;
-        if (disposed) throw new Error("pptx_editor_disposed");
-        snapshot = await surface.captureSnapshot();
-      }
-      if (disposed) throw new Error("pptx_editor_disposed");
-      if (snapshot.generation <= rawCoordinator.getState().lastSavedGeneration) return;
-      const draftId = draftIdFor(currentIdentity());
-      const rows = await listRows();
-      generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
-      const next = Math.max(1, generationFloor + 1, snapshot.generation);
-      const payload = encode(new TextEncoder().encode(JSON.stringify(snapshot.value)));
-      const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: next, dataBase64: payload }));
-      checkpoint = snapshot;
-      generationFloor = Math.max(generationFloor, result.generation);
-      durableRows.set(draftId, result.generation);
-      checkpointRows.set(draftId, { dirtyGeneration: snapshot.generation, durableGeneration: result.generation });
-    },
+    checkpoint: () => checkpointNow(),
     recover: async () => checkpoint,
     discard: async (target, savedGeneration) => {
       const targetId = draftIdFor(target);
@@ -184,9 +185,10 @@ export function createPptxDocumentSession(
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;
       }
       // The write is confirmed: those bytes are the base the next draft row is
-      // keyed by, so the journal drops what they hold (W14). Checkpoints wait on
-      // saveSettled, so none can land between this rebase and the new identity.
-      await surface.setBaseRevision(revision, intent.intentId);
+      // keyed by, so the journal drops what they hold (W14). The gate brackets
+      // this step: a checkpoint capture that overlaps either edge is retaken, so
+      // none writes a pre-rebase journal once the identity moves.
+      await gate.rebase(() => surface.setBaseRevision(revision, intent.intentId));
       return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: intent.identity.documentId, versionId, revision, checksumSha256: checksum, sizeBytes: output.sizeBytes, engineName: "pptx", engineVersion: "09485f884dc845cf3bf27fb7edfe489f9d457aad", contractVersion: "office-editor-host/1", protocolVersion: "1" };
     },
     // Settled without a commit (terminal refusal, conflict): the retained output
@@ -231,9 +233,8 @@ export function createPptxDocumentSession(
       if (saveInProgress) return { accepted: false as const, reason: "saving" as const };
       if (disposed) return { accepted: false as const, reason: "readonly" as const };
       saveInProgress = true;
-      let releaseSave!: () => void;
-      saveSettled = new Promise<void>((resolve) => { releaseSave = resolve; });
       try {
+        return await gate.run(async () => {
         const result = await rawCoordinator.save(entryPoint);
         if (result.accepted) {
           await consumeRecoveredRow(rawCoordinator.getState().lastSavedGeneration);
@@ -261,7 +262,8 @@ export function createPptxDocumentSession(
           outputs.delete(result.intentId);
         }
         return result;
-      } finally { saveInProgress = false; releaseSave(); saveSettled = undefined; }
+        });
+      } finally { saveInProgress = false; }
     },
   };
 
@@ -292,7 +294,7 @@ export function createPptxDocumentSession(
     async keepDraft(): Promise<boolean> {
       const state = coordinator.getState();
       if (state.state === "ready" || state.state === "saved") return true;
-      try { const snapshot = await surface.captureSnapshot(); await draft.checkpoint(snapshot); return true; } catch { return false; }
+      try { await checkpointNow(); return true; } catch { return false; }
     },
     async discardDraft(metadata?: DesktopDraftMetadata): Promise<boolean> {
       checkpoint = null;
@@ -328,6 +330,7 @@ export function createPptxDocumentSession(
       outputs.clear();
       void coordinator.cancel();
       void surface.dispose();
+      gate.dispose();
     },
     get snapshotChecksum(): string { return openedBytes.checksum; },
     get localHandle(): string | undefined { return localHandle; },

@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { createOfficeSaveCoordinator, type DraftAdapter, type EditorHandle, type OfficeIdentity, type StableSnapshot } from "@uniwork/core/office";
@@ -177,6 +179,29 @@ describe("OfficeShell", () => {
     );
     expect(screen.getByRole("complementary")).toHaveAttribute("data-panel-mode", mode);
     unmount();
+    vi.unstubAllGlobals();
+  });
+
+  it("renders the server snapshot as drawer and hydrates a wide viewport without a mismatch", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: true,
+      media: "(min-width: 1024px)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })));
+    const tree = <OfficeShell title="Document" editor={<div />} panel={<div />} panelOpen />;
+    const html = renderToString(tree);
+    expect(html).toContain('data-panel-mode="drawer"');
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const root = hydrateRoot(container, tree);
+    await waitFor(() => expect(container.querySelector("[data-panel-mode]")).toHaveAttribute("data-panel-mode", "static"));
+    expect(errors).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+    errors.mockRestore();
     vi.unstubAllGlobals();
   });
 

@@ -24,6 +24,9 @@ export interface PptxEditorViewProps extends Omit<PptxEditorProps, "host" | "edi
   onFullscreenChange?: (fullscreen: boolean) => void;
   panel?: ReactNode;
   panelLabel?: string;
+  /** Host notice (draft recovered / locked): rendered in the shell editor slot,
+   *  under the file header and above the ribbon, the same slot DOCX uses. */
+  notice?: ReactNode;
   /** Wire-round seam: render the active panel for this surface inside the shell. */
   panelKind?: PptxPanelKind;
 }
@@ -46,6 +49,7 @@ export function PptxEditorView({
   panel,
   panelLabel,
   panelKind,
+  notice,
   ...editorProps
 }: PptxEditorViewProps) {
   // Wire-round: a host-supplied panel wins; otherwise compose the active panel
@@ -87,7 +91,8 @@ export function PptxEditorView({
     <OfficeShell
       title={title}
       breadcrumbs={breadcrumbs}
-      editor={editor}
+      // Always a fragment: a notice appearing later must not remount the editor.
+      editor={<>{notice}{editor}</>}
       toolbar={null}
       panel={composedPanel}
       panelLabel={panelLabel}

@@ -73,6 +73,8 @@ const ERROR_RULES: Record<string, ErrorRule> = {
   engine_result_invalid: { state: "error", action: "retry", retryable: true },
   engine_checksum_mismatch: { state: "error", action: "retry", retryable: true },
   draft_recovery_locked: { state: "blocked", action: "keep_draft", retryable: false },
+  // The desktop Save As picker closed before any byte was written.
+  save_as_cancelled: { state: "error", action: "stop", retryable: false },
   stale_generation: { state: "error", action: "keep_draft", retryable: false },
   // Desktop local-file answers (`desktop:file-*`). The state stays `error` so
   // SaveStatus shows the `office.save.reason.<code>` sentence, and none of these
@@ -155,6 +157,17 @@ export function dispatchOfficeError(error: unknown): OfficeErrorDispatch {
     action: rule?.action ?? (ambiguous ? "reconcile" : "stop"),
     message: "Office save could not be confirmed",
   };
+}
+
+/** True when the failure is an answer that nothing was written: a server or
+ *  engine refusal the error table knows, or a conflict/blocked/incompatible
+ *  outcome. Anything else thrown by a commit step (a receipt or checksum the
+ *  host could not match, an unconfirmed write, a failed rebase) may follow a
+ *  write that landed. */
+export function isOfficeRefusal(dispatch: OfficeErrorDispatch): boolean {
+  if (dispatch.ambiguous) return false;
+  if (dispatch.state === "conflict" || dispatch.state === "blocked" || dispatch.state === "incompatible" || dispatch.state === "readonly") return true;
+  return Object.hasOwn(ERROR_RULES, dispatch.code);
 }
 
 export function isOfficeState(value: string): value is OfficeState {

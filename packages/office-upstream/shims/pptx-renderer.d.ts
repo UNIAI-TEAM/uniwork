@@ -127,6 +127,10 @@ export declare function listSlideLayouts(archive: unknown): PptxSlideLayoutInfo[
 /** Speaker-notes text of a slide part ('' when the slide carries no notesSlide). */
 export declare function getSlideNotes(archive: unknown, slidePath: string): string;
 
+/** Parse a master/layout part into an editable slide-shaped part (its element
+ * ids are what part-addressed ops target); null when the part is missing. */
+export declare function parseMasterPart(archive: unknown, partPath: string): PptxSlideLike | null;
+
 // ── ops (packages/pptx-ops/src/ops/executor.ts) ───────────────────────────
 
 export declare function runTxn(opened: OpenedPptx, request: PptxTxnRequest): PptxTxnResult;

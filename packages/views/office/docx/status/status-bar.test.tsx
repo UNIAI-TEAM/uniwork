@@ -43,10 +43,12 @@ describe("DocxStatusBar", () => {
       "docx-status-words",
       "docx-status-characters",
       "docx-status-characters-no-spaces",
-      "docx-status-language",
     ]) {
       expect(screen.getByTestId(testId)).toHaveTextContent("—");
     }
+    // T12: an unknown language is left out, never a dash slot.
+    expect(screen.queryByTestId("docx-status-language")).toBeNull();
+    expect(screen.getByTestId("docx-status-left")).not.toHaveTextContent("Language");
     expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("–");
     expect(screen.getByTestId("docx-status-zoom")).not.toHaveTextContent("%");
   });
@@ -129,6 +131,20 @@ describe("DocxStatusBar", () => {
     expect(onZoomIn).toHaveBeenCalledTimes(1);
   });
 
+  it("offers page-width and whole-page view buttons only when the wiring supplies them (T12)", () => {
+    const onFitWidth = vi.fn();
+    const onFitPage = vi.fn();
+    const { unmount } = renderBar({ zoom: 100 });
+    expect(screen.queryByRole("group", { name: "View" })).toBeNull();
+    unmount();
+    renderBar({ zoom: 100, onFitWidth, onFitPage });
+    expect(screen.getByRole("group", { name: "View" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fit to width" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fit to page" }));
+    expect(onFitWidth).toHaveBeenCalledTimes(1);
+    expect(onFitPage).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the zoom step buttons inert when no controller is wired", () => {
     renderBar({ zoom: 100 });
     expect(screen.getByRole("button", { name: "Zoom out" })).toHaveAttribute("aria-disabled", "true");
@@ -158,7 +174,7 @@ describe("DocxStatusBar", () => {
     renderBar({ className: "w-24", page: { current: 1, total: 9 }, counts: { words: 1234 } });
     expect(screen.getByTestId("docx-status-bar")).toBeInTheDocument();
     expect(screen.getByTestId("docx-status-words")).toHaveTextContent("Words: 1234");
-    expect(screen.getByTestId("docx-status-language")).toHaveTextContent("Language: —");
+    expect(screen.queryByTestId("docx-status-language")).toBeNull();
   });
 
   it("uses a well-formed primary subtag of a language tag and rejects malformed ones", () => {

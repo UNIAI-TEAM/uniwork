@@ -232,12 +232,17 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     session.editor.edit(elementIds.map((elementId) => ({ op: "delete_element" as const, slideIndex, elementId }))), [session]);
 
   // The prompt waits for the deck: Recover replays the journal onto the opened model.
-  return <>{prompt(active && ready)}
+  // The recovery lines go through the view's notice slot (under the file header, like DOCX), not above the shell.
+  const recoveryLines = recovered || notice ? <>
     {recovered ? <p role="status" className="px-4 py-2 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
     {notice ? <RecoveryNotice state={notice} className="mx-4 my-2" /> : null}
+  </> : null;
+  // A flag-off deck cannot mount read-only: the neutral shell replaces the editor and keeps the recovery lines above it.
+  return <>{prompt(active && ready)}
     {readOnlyReason === "feature_off" && !session.canSave
-      ? <FeatureOffShell format="pptx" title={title} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} />
+      ? <>{recoveryLines}<FeatureOffShell format="pptx" title={title} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} /></>
       : <PptxEditorView
+    notice={recoveryLines}
     title={title}
     host={host}
     editorHandle={session.editor}
