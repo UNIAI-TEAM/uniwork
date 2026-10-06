@@ -45,6 +45,14 @@ it("names the copy after the document so the OS dialog is not 'Electron - Print'
   expect(doc.head.firstElementChild?.getAttribute("http-equiv")?.toLowerCase()).toBe("content-security-policy");
 });
 
+it.each(["", "   ", "\n"])("never sends an untitled copy (%j): the job falls back to the document name, not the app name", async (blank) => {
+  const bridge = stubBridge(async () => ({ outcome: "printed" }));
+  await createDesktopPrintPort(bridge).print({ html: `<html><head>${CSP}<title></title></head><body><p>x</p></body></html>`, title: blank });
+  const payload = bridge.call.mock.calls[0]![1];
+  expect(payload.title).toBe("document");
+  expect(new DOMParser().parseFromString(payload.html, "text/html").title).toBe("document");
+});
+
 it.each([
   [{ outcome: "cancelled" }, { outcome: "cancelled" }],
   [{ outcome: "failed", reason: "print_no_printer" }, { outcome: "failed", reason: "print_no_printer" }],

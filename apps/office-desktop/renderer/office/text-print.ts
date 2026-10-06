@@ -32,6 +32,12 @@ function withDocumentTitle(html: string, title: string): string {
   return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
 }
 
+/** A blank title would leave the copy untitled and Chromium would name the job
+ * after the app ("Electron"); fall back to the generic document name. */
+function jobTitle(title: string): string {
+  return title.replace(/\s+/g, " ").trim().slice(0, 255) || "document";
+}
+
 /** UTF-8 size of the copy: main refuses a payload over the cap, so a copy that
  * big fails here with a typed reason instead of an opaque refused call. */
 function utf8Bytes(text: string): number {
@@ -52,10 +58,11 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): 
       // be sent) and after (the title adds a few bytes).
       const tooLarge: OfficePrintOutcome = { outcome: "failed", reason: "print_too_large" };
       if (utf8Bytes(html) > PRINT_HTML_MAX_BYTES) return tooLarge;
-      const copy = withDocumentTitle(html, title);
+      const jobName = jobTitle(title);
+      const copy = withDocumentTitle(html, jobName);
       if (utf8Bytes(copy) > PRINT_HTML_MAX_BYTES) return tooLarge;
       try {
-        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: title.slice(0, 255), html: copy }));
+        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy }));
         return parsed.success ? parsed.data : { outcome: "failed", reason: "print_response_invalid" };
       } catch {
         // A refused call (sender check, closed bridge): a code, never the raw Electron message.

@@ -50,7 +50,7 @@ describe("print host wiring", () => {
     expect(await handler(request)).toEqual({ outcome: "printed" });
     current = senders[1]!;
     expect(await handler(request)).toEqual({ outcome: "printed" });
-    expect(h.createWindow.mock.calls[0]![0]).toEqual({ show: false, title: "Report.docx", webPreferences: PRINT_WINDOW_WEB_PREFERENCES, parent: senders[0] });
+    expect(h.createWindow.mock.calls[0]![0]).toEqual({ show: false, skipTaskbar: true, title: "Report.docx", webPreferences: PRINT_WINDOW_WEB_PREFERENCES, parent: senders[0] });
     expect(h.createWindow.mock.calls[1]![0]).toMatchObject({ parent: senders[1] });
   });
   it("prints unparented when the sender window is gone or destroyed", async () => {

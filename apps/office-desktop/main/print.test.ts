@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createIpcDispatcher, IpcValidationError, IPC_MAX_BYTES, PRINT_HTML_MAX_BYTES, validateIpcRequest } from "./ipc";
-import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_CALLBACK_TIMEOUT_MS, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printOutcome, type PrintOwner, type PrintWindow, type PrintWindowOptions } from "./print";
+import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_CALLBACK_TIMEOUT_MS, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printJobTitle, printOutcome, type PrintOwner, type PrintWindow, type PrintWindowOptions } from "./print";
 
 const context = { senderId: 7, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 7, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const request = { sessionGeneration: "session_1234", title: "Doc.md", html: `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="script-src 'none'"></head><body><p>x</p></body></html>` };
@@ -71,7 +71,7 @@ describe("main print window", () => {
     const { handler, createWindow, window, writeFile, cleanup } = harness((callback) => callback(true, ""));
     expect(await handler(request)).toEqual({ outcome: "printed" });
     const options = createWindow.mock.calls[0]![0];
-    expect(options).toEqual({ show: false, title: "Doc.md", webPreferences: PRINT_WINDOW_WEB_PREFERENCES });
+    expect(options).toEqual({ show: false, skipTaskbar: true, title: "Doc.md", webPreferences: PRINT_WINDOW_WEB_PREFERENCES });
     expect(options.webPreferences).toMatchObject({ javascript: false, sandbox: true, contextIsolation: true, nodeIntegration: false, nodeIntegrationInSubFrames: false, webviewTag: false, partition: PRINT_PARTITION });
     expect(options.webPreferences).not.toHaveProperty("preload");
     expect(PRINT_PARTITION.startsWith("persist:")).toBe(false);
@@ -80,6 +80,13 @@ describe("main print window", () => {
     expect(window.webContents.print).toHaveBeenCalledWith({ silent: false, printBackground: true }, expect.any(Function));
     expect(window.close).toHaveBeenCalledTimes(1);
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+  it("never lets a blank document title reach the window, so the job is not named after the app", async () => {
+    for (const blank of ["", "   ", "\n\t"]) {
+      const { handler, createWindow } = harness((callback) => callback(true, ""));
+      expect(await handler({ ...request, title: blank })).toEqual({ outcome: "printed" });
+      expect(createWindow.mock.calls[0]![0]).toMatchObject({ title: "document", skipTaskbar: true });
+    }
   });
   it("denies navigation, redirects, webviews and new windows", async () => {
     const { handler, listeners, openHandler } = harness((callback) => callback(true, ""));
@@ -316,6 +323,12 @@ describe("print helpers", () => {
     expect(printFileName("")).toBe("document.html");
     expect(printFileName("Báo cáo.docx")).toBe("Báo cáo.html");
     expect(printFileName("Sheet.XLSX")).toBe("Sheet.html");
+  });
+  it("falls back to the file-name stem when a title is blank and collapses whitespace", () => {
+    expect(printJobTitle("")).toBe("document");
+    expect(printJobTitle("  \n ")).toBe("document");
+    expect(printJobTitle("  Báo   cáo\n quý.docx ")).toBe("Báo cáo quý.docx");
+    expect(printFileName(printJobTitle(""))).toBe("document.html");
   });
   it("limits the print partition to the print root and inline data", () => {
     let filter: ((details: { url: string }, callback: (response: { cancel: boolean }) => void) => void) | undefined;

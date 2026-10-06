@@ -13,6 +13,9 @@ import type { DesktopIpcRequest, DesktopPrintResponse } from "../shared/ipc";
  * The copy keeps its own CSP meta, so the content policy also still applies.
  */
 
+/** Same stem as {@link printFileName} gives a document with no usable title. */
+const PRINT_FALLBACK_TITLE = "document";
+
 /** In-memory (no `persist:` prefix) session: no cookies, cache or app protocol. */
 export const PRINT_PARTITION = "uniwork-print";
 
@@ -29,7 +32,7 @@ export const PRINT_WINDOW_WEB_PREFERENCES = Object.freeze({
   partition: PRINT_PARTITION,
 } as const);
 
-export type PrintWindowOptions = Readonly<{ show: false; title: string; webPreferences: typeof PRINT_WINDOW_WEB_PREFERENCES }>;
+export type PrintWindowOptions = Readonly<{ show: false; skipTaskbar: true; title: string; webPreferences: typeof PRINT_WINDOW_WEB_PREFERENCES }>;
 
 type PreventableEvent = { preventDefault(): void };
 
@@ -97,10 +100,17 @@ export function printOutcome(success: boolean, failureReason: string | undefined
   return { outcome: "failed", reason: reason ? `print_${reason}`.slice(0, 64) : "print_failed" };
 }
 
+/** The title the print window and the copy carry: the document title, or the
+ * file-name fallback when it is blank. An empty title would make Chromium name
+ * the job (and the suggested PDF file) after the app, i.e. "Electron". */
+export function printJobTitle(title: string): string {
+  return title.replace(/\s+/g, " ").trim() || PRINT_FALLBACK_TITLE;
+}
+
 /** A file-system-safe job name derived from the document title. */
 export function printFileName(title: string): string {
   const stem = title.replace(/\.(md|markdown|html?|docx|xlsx|pptx|pdf)$/i, "").replace(/[^\p{L}\p{N} ._-]+/gu, " ").replace(/\s+/g, " ").trim().slice(0, 80).replace(/^[ .]+|[ .]+$/g, "");
-  return `${stem || "document"}.html`;
+  return `${stem || PRINT_FALLBACK_TITLE}.html`;
 }
 
 function denyNavigation(window: PrintWindow): void {
@@ -170,7 +180,7 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
       let printing: Promise<DesktopPrintResponse>;
       try {
         file = await options.writeFile(request.html, printFileName(request.title));
-        const created = options.createWindow({ show: false, title: request.title, webPreferences: PRINT_WINDOW_WEB_PREFERENCES }, owner);
+        const created = options.createWindow({ show: false, skipTaskbar: true, title: printJobTitle(request.title), webPreferences: PRINT_WINDOW_WEB_PREFERENCES }, owner);
         window = created;
         denyNavigation(created);
         await created.loadFile(file.path);
