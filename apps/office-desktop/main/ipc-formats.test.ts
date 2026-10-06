@@ -13,10 +13,10 @@ describe("desktop format validation at the IPC boundary", () => {
 
   it("defaults desktop:file-create to DOCX and rejects formats outside the table", () => {
     expect(validateIpcRequest("desktop:file-create", session, context)).toEqual({ ...session, format: "docx" });
-    for (const format of ["pptx", "markdown", "htm", "txt", "MD", ""]) {
+    for (const format of ["ppt", "markdown", "htm", "txt", "MD", ""]) {
       expect(() => validateIpcRequest("desktop:file-create", { ...session, format }, context)).toThrowError(IpcValidationError);
     }
-    expect(() => validateIpcRequest("desktop:library-create", { ...session, workspaceId: "ws", title: "x", format: "pptx" }, context)).toThrowError(IpcValidationError);
+    expect(() => validateIpcRequest("desktop:library-create", { ...session, workspaceId: "ws", title: "x", format: "ppt" }, context)).toThrowError(IpcValidationError);
   });
 
   it("refuses to create a blank XLSX: the table carries it but no generator exists yet", async () => {

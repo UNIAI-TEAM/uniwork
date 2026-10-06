@@ -9059,6 +9059,9 @@
         "done": "Done"
       },
       "correlation": "Correlation id: {{id}}",
+      "reason": {
+        "xlsx_recalc_unavailable": "This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept."
+      },
       "short": {
         "checkpoint": "Draft on this device",
         "saved-local": "Saved on this computer",

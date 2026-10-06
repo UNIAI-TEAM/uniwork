@@ -90,7 +90,9 @@ export function SaveStatus({
   // coordinator keeps the job failure code/class in its error slot; surface it
   // so the reader (and a tester) can see why the save was not confirmed.
   const saveFailureReason = normalized === "error" && coordinatorState?.error
-    ? [coordinatorState.error.code, coordinatorState.error.errorClass !== "unknown" ? coordinatorState.error.errorClass : null]
+    // A code with a written explanation (office.save.reason.<code>) reads as
+    // words; any other code stays as-is so a tester can still quote it.
+    ? [t(`reason.${coordinatorState.error.code}`, { defaultValue: coordinatorState.error.code }), coordinatorState.error.errorClass !== "unknown" ? coordinatorState.error.errorClass : null]
       .filter((part): part is string => Boolean(part))
       .join(" · ")
     : null;

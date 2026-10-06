@@ -9053,6 +9053,9 @@
         "done": "Xong"
       },
       "correlation": "Mã tương quan: {{id}}",
+      "reason": {
+        "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ."
+      },
       "short": {
         "checkpoint": "Nháp trên máy",
         "saved-local": "Đã lưu trên máy",

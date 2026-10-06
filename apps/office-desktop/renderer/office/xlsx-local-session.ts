@@ -9,6 +9,9 @@ import type { LibraryBridge } from "../library/model";
 const SESSION_GENERATION = "desktop-dev-session";
 const ENGINE_BUILD = "xlsx-desktop-local-1";
 const CONTRACT_REVISION = "office-editor-host/1";
+/** Main's code for a formula-bearing save refused without the recalc sidecar
+ *  (main/xlsx-engine.ts; the renderer cannot import main, so it is repeated). */
+const RECALC_UNAVAILABLE = "xlsx_recalc_unavailable";
 
 /** The web-compatible render-model reference the shared XlsxEditor reads. */
 export type DesktopRenderModelRef = { current: XlsxModelHost | null; listeners: Set<(host: XlsxModelHost | null) => void> };
@@ -101,7 +104,17 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     for (const listener of snapshotListeners) listener(value);
   };
   const callJob = async (body: Omit<DesktopFileXlsxRequest, "sessionGeneration" | "handle">) => {
-    const response = desktopFileXlsxResponseSchema.parse(await options.bridge.call("desktop:file-xlsx", { sessionGeneration: SESSION_GENERATION, handle: options.localHandle, ...body }));
+    let raw: unknown;
+    try { raw = await options.bridge.call("desktop:file-xlsx", { sessionGeneration: SESSION_GENERATION, handle: options.localHandle, ...body }); }
+    catch (error) {
+      // Electron's invoke rejection carries only main's message. A build with
+      // no recalc sidecar refuses a formula-bearing save with this code; give
+      // it back its code so the save banner names it (not office_unknown_error).
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes(RECALC_UNAVAILABLE)) throw Object.assign(new Error(RECALC_UNAVAILABLE), { code: RECALC_UNAVAILABLE, errorClass: "engine" });
+      throw error;
+    }
+    const response = desktopFileXlsxResponseSchema.parse(raw);
     if (response.state !== "completed" || response.outputBase64 === undefined) throw new Error(`local_xlsx_job_${response.state}`);
     return response;
   };
