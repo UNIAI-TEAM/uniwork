@@ -1,28 +1,26 @@
 import { readFileSync } from "node:fs";
 import { expect, it, vi } from "vitest";
+import { applyTitleBarTheme, createMainWindow, DESKTOP_TITLE_BAR_TOKENS, DESKTOP_WINDOW_MIN_SIZE, nativeWindowOptions } from "./window";
 
-vi.mock("electron", () => ({
-  // Importing electron-main boots the host; whenReady never settles here, so the
-  // mock only needs the calls reached before it (single-instance lock first).
-  app: {
-    on: vi.fn(), getPath: () => process.cwd(), setPath: vi.fn(), setAppUserModelId: vi.fn(),
-    requestSingleInstanceLock: vi.fn(() => true), hasSingleInstanceLock: vi.fn(() => true),
-    quit: vi.fn(), exit: vi.fn(), whenReady: () => new Promise(() => undefined),
-  },
-  protocol: { registerSchemesAsPrivileged: vi.fn() },
-  BrowserWindow: vi.fn(), dialog: {}, ipcMain: {}, Menu: {}, nativeTheme: {}, net: {}, safeStorage: {}, shell: {},
-}));
-vi.mock("../shared/deployment", () => ({ resolveDeploymentProfile: () => ({ kind: "setup-required" }) }));
-
-it("keeps the window wide enough that the tab strip and ribbon never overlap", async () => {
-  const { DESKTOP_WINDOW_MIN_SIZE } = await import("../electron-main");
+it("keeps the window wide enough that the tab strip and ribbon never overlap", () => {
   expect(DESKTOP_WINDOW_MIN_SIZE).toEqual({ minWidth: 640, minHeight: 480 });
-  // The BrowserWindow is built with it, not only exported.
-  expect(readFileSync(new URL("../electron-main.ts", import.meta.url), "utf8")).toContain("...DESKTOP_WINDOW_MIN_SIZE,");
 });
 
-it("matches the 40px strip and semantic muted/foreground colors in both themes", async () => {
-  const { nativeWindowOptions, DESKTOP_TITLE_BAR_TOKENS } = await import("../electron-main");
+it("builds the one window with the minimum size, the secure preferences and the native titlebar", () => {
+  const built: Electron.BrowserWindowConstructorOptions[] = [];
+  const setMenuBarVisibility = vi.fn();
+  class FakeWindow { constructor(options: Electron.BrowserWindowConstructorOptions) { built.push(options); } setMenuBarVisibility = setMenuBarVisibility; }
+  createMainWindow(FakeWindow as unknown as typeof Electron.BrowserWindow, { show: false, preload: "/p/index.cjs", platform: "win32", dark: true });
+  expect(built[0]).toMatchObject({ show: false, ...DESKTOP_WINDOW_MIN_SIZE, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: "/p/index.cjs" }, titleBarOverlay: { ...DESKTOP_TITLE_BAR_TOKENS.dark, height: 40 } });
+  expect(setMenuBarVisibility).toHaveBeenCalledWith(false);
+  createMainWindow(FakeWindow as unknown as typeof Electron.BrowserWindow, { show: true, preload: "/p/index.cjs", platform: "darwin", dark: false });
+  expect(built[1]).not.toHaveProperty("titleBarOverlay");
+  expect(setMenuBarVisibility).toHaveBeenCalledTimes(1);
+  // The entry module builds its window through this helper, not by hand.
+  expect(readFileSync(new URL("../electron-main.ts", import.meta.url), "utf8")).toContain("createMainWindow(BrowserWindow,");
+});
+
+it("matches the 40px strip and semantic muted/foreground colors in both themes", () => {
   const tokens = readFileSync(new URL("../../../packages/ui/styles/tokens.css", import.meta.url), "utf8");
   const light = tokens.slice(0, tokens.indexOf(".dark {"));
   const dark = tokens.slice(tokens.indexOf(".dark {"));
@@ -33,4 +31,14 @@ it("matches the 40px strip and semantic muted/foreground colors in both themes",
     expect(nativeWindowOptions("win32", mode === "dark").titleBarOverlay).toEqual({ ...expected, height: 40 });
   }
   expect(nativeWindowOptions("darwin")).toEqual({});
+});
+
+it("repaints the caption controls on a theme change except on macOS", () => {
+  const window = { setTitleBarOverlay: vi.fn() };
+  applyTitleBarTheme(window, "linux", true);
+  expect(window.setTitleBarOverlay).toHaveBeenLastCalledWith({ ...DESKTOP_TITLE_BAR_TOKENS.dark, height: 40 });
+  applyTitleBarTheme(window, "win32", false);
+  expect(window.setTitleBarOverlay).toHaveBeenLastCalledWith({ ...DESKTOP_TITLE_BAR_TOKENS.light, height: 40 });
+  applyTitleBarTheme(window, "darwin", true);
+  expect(window.setTitleBarOverlay).toHaveBeenCalledTimes(2);
 });
