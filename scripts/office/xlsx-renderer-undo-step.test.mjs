@@ -111,3 +111,124 @@ test('real Univer: values, formats and a merge undo in one step', async () => {
   assert.deepEqual(sheet.getMergeData(), []);
   univer.dispose();
 });
+
+// review dvcf F1: an atomic batch (a DV rule edit) takes back what ran when a
+// later step is refused; the default keeps it (a paste).
+test('rollback: a refused later step takes back the batched entry; the default keeps it', async () => {
+  const make = () => {
+    const stack = [{ unitID: 'file-1', undoMutations: [] }];
+    const rolled = [];
+    const service = {
+      __tempBatchingUndoRedo: () => ({ dispose() {} }),
+      pitchTopUndoElement: () => stack[stack.length - 1] ?? null,
+      rollback(id, unitId) {
+        const top = stack[stack.length - 1];
+        if (top?.id === id) { stack.pop(); rolled.push(unitId); }
+      },
+    };
+    const run = (steps, options) => executeAsOneUndoStep({ get: () => service }, 'file-1', steps, async (step) => {
+      if (step.id === 'refused') return false;
+      stack.push({ unitID: 'file-1', undoMutations: [step.id] });
+      return true;
+    }, options);
+    return { stack, rolled, run };
+  };
+  const atomic = make();
+  assert.equal(await atomic.run([{ id: 'a' }, { id: 'refused' }], { rollback: true }), 0);
+  assert.deepEqual(atomic.rolled, ['file-1']);
+  assert.equal(atomic.stack.length, 1);
+  // Nothing ran: nothing to take back, the earlier entry stays.
+  assert.equal(await atomic.run([{ id: 'refused' }], { rollback: true }), 0);
+  assert.deepEqual(atomic.rolled, ['file-1']);
+  // All ran: kept.
+  assert.equal(await atomic.run([{ id: 'a' }], { rollback: true }), 1);
+  assert.equal(atomic.stack.length, 2);
+  const kept = make();
+  assert.equal(await kept.run([{ id: 'a' }, { id: 'refused' }]), 1);
+  assert.deepEqual(kept.rolled, []);
+  assert.equal(kept.stack.length, 2);
+});
+
+test('real Univer: an atomic batch refused at a later step leaves the model and the undo stack as they were', async () => {
+  const { createRequire } = await import('node:module');
+  const require = createRequire(path.join(REPO_ROOT, 'packages/office-upstream/package.json'));
+  const real = await build({
+    stdin: { contents: `export * from './undo-step';`, resolveDir: renderer, loader: 'ts' },
+    bundle: true, write: false, format: 'cjs', platform: 'node', logLevel: 'silent', external: ['@univerjs/core'],
+  });
+  const realMod = { exports: {} };
+  new Function('module', 'exports', 'require', real.outputFiles[0].text)(realMod, realMod.exports, require);
+  const core = require('@univerjs/core');
+  const sheets = require('@univerjs/sheets');
+  const univer = new core.Univer({ locale: core.LocaleType.EN_US, locales: { [core.LocaleType.EN_US]: {} } });
+  univer.registerPlugin(sheets.UniverSheetsPlugin);
+  const workbook = univer.createUnit(core.UniverInstanceType.UNIVER_SHEET, {
+    id: 'u1', sheetOrder: ['s1'], sheets: { s1: { id: 's1', cellData: { 0: { 0: { v: 'old' } } } } },
+  });
+  const injector = univer.__getInjector();
+  injector.get(core.IUniverInstanceService).focusUnit('u1');
+  injector.get(core.IContextService).setContextValue(core.FOCUSING_SHEET, true);
+  const commands = injector.get(core.ICommandService);
+  const undoRedo = injector.get(core.IUndoRedoService);
+  const cell = { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 };
+  const write = (v) => ({ id: 'sheet.command.set-range-values', params: { unitId: 'u1', subUnitId: 's1', range: cell, value: { 0: { 0: { v } } } } });
+  assert.equal(await commands.executeCommand(write('before').id, write('before').params), true);
+  const earlier = undoRedo._undoStacks.get('u1').at(-1);
+  const sheet = workbook.getSheetBySheetId('s1');
+  const ran = await realMod.exports.executeAsOneUndoStep(injector, 'u1', [write('half'), { id: 'refused' }],
+    (step) => (step.id === 'refused' ? Promise.resolve(false) : commands.executeCommand(step.id, step.params)), { rollback: true });
+  assert.equal(ran, 0);
+  assert.equal(sheet.getCellRaw(0, 0).v, 'before');
+  assert.equal(undoRedo._undoStacks.get('u1').length, 1);
+  assert.equal(undoRedo._undoStacks.get('u1').at(-1), earlier);
+  // The earlier entry still undoes normally.
+  await commands.executeCommand(core.UndoCommand.id);
+  assert.equal(sheet.getCellRaw(0, 0).v, 'old');
+  univer.dispose();
+});
+
+// Univer folds a batched push by appending undo mutations in RUN order; one
+// undo must replay them newest first, or a bottom-up run of row inserts
+// removes the wrong rows and deletes data (design worker, Subtotal).
+test('real Univer: one undo of a bottom-up multi-insert batch restores every row exactly', async () => {
+  const { createRequire } = await import('node:module');
+  const require = createRequire(path.join(REPO_ROOT, 'packages/office-upstream/package.json'));
+  const real = await build({
+    stdin: { contents: `export * from './undo-step';`, resolveDir: renderer, loader: 'ts' },
+    bundle: true, write: false, format: 'cjs', platform: 'node', logLevel: 'silent', external: ['@univerjs/core'],
+  });
+  const realMod = { exports: {} };
+  new Function('module', 'exports', 'require', real.outputFiles[0].text)(realMod, realMod.exports, require);
+  const core = require('@univerjs/core');
+  const sheets = require('@univerjs/sheets');
+  const univer = new core.Univer({ locale: core.LocaleType.EN_US, locales: { [core.LocaleType.EN_US]: {} } });
+  univer.registerPlugin(sheets.UniverSheetsPlugin);
+  const rows = ['Ten', 'An', 'an', 'Binh', null, 'below'];
+  const cellData = Object.fromEntries(rows.flatMap((v, row) => (v === null ? [] : [[row, { 0: { v } }]])));
+  const workbook = univer.createUnit(core.UniverInstanceType.UNIVER_SHEET, {
+    id: 'u1', sheetOrder: ['s1'], sheets: { s1: { id: 's1', rowCount: 20, columnCount: 5, cellData } },
+  });
+  const injector = univer.__getInjector();
+  injector.get(core.IUniverInstanceService).focusUnit('u1');
+  injector.get(core.IContextService).setContextValue(core.FOCUSING_SHEET, true);
+  const commands = injector.get(core.ICommandService);
+  const undoRedo = injector.get(core.IUndoRedoService);
+  const sheet = workbook.getSheetBySheetId('s1');
+  const column = () => [0, 1, 2, 3, 4, 5, 6, 7, 8].map((row) => sheet.getCellRaw(row, 0)?.v ?? null);
+  const insert = (row) => ({ id: 'sheet.command.insert-row', params: {
+    unitId: 'u1', subUnitId: 's1', direction: 2,
+    range: { startRow: row, endRow: row, startColumn: 0, endColumn: 4, rangeType: 1 },
+  } });
+  const before = column();
+  const ran = await realMod.exports.executeAsOneUndoStep(injector, 'u1', [insert(4), insert(4), insert(3)],
+    (step) => commands.executeCommand(step.id, step.params));
+  assert.equal(ran, 3);
+  assert.deepEqual(column(), ['Ten', 'An', 'an', null, 'Binh', null, null, null, 'below']);
+  assert.equal(undoRedo._undoStacks.get('u1').length, 1);
+  await commands.executeCommand(core.UndoCommand.id);
+  assert.deepEqual(column(), before);
+  // Redo replays in run order and lands the same rows again.
+  await commands.executeCommand(core.RedoCommand.id);
+  assert.deepEqual(column(), ['Ten', 'An', 'an', null, 'Binh', null, null, null, 'below']);
+  univer.dispose();
+});
