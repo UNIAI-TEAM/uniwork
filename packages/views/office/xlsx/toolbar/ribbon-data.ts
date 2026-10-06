@@ -100,7 +100,8 @@ export const XLSX_GROUP_WIDTHS: Readonly<Record<string, number>> = {
   charts: 36,
   calculation: 104,
   formula: 40,
-  "structure-outline": 232,
+  // Group + Ungroup + Subtotal (large) + Show/Hide Detail.
+  "structure-outline": 296,
   filter: 180,
   sort: 216,
   // Text to Columns + Remove Duplicates (large) + the Data Validation group.
