@@ -100,3 +100,31 @@ describe("createHeaderFooterCommands", () => {
     ]);
   });
 });
+
+describe("docxPrintHeaderFooterSource (UNI-952)", () => {
+  it("is null before a document opens and for a parse without sections", () => {
+    const area = createHeaderFooterCommands({ getEditor: () => null });
+    expect(area.commands.docxPrintHeaderFooterSource()).toBeNull();
+    area.commands.seedDocxHeaderFooter(PARSED);
+    expect(area.commands.docxPrintHeaderFooterSource()).toBeNull();
+  });
+
+  it("keeps the per-section parts of the seeded parse for the print copy", () => {
+    const editor = editorWith();
+    const area = createHeaderFooterCommands({ getEditor: () => editor });
+    const sectPr = (refs: string) => `<w:sectPr>${refs}<w:pgSz w:w="11906" w:h="16838"/></w:sectPr>`;
+    area.commands.seedDocxHeaderFooter({
+      ...PARSED,
+      blocks: [
+        { docxIndex: 0, type: "paragraph", originalXml: `<w:p><w:pPr>${sectPr('<w:headerReference w:type="default" r:id="rId7"/>')}</w:pPr></w:p>` },
+        { docxIndex: 1, type: "sectPr", hidden: true, originalXml: sectPr("") },
+      ],
+      hfParts: { rId7: { text: "Phần 1", hasPageNumber: false, paras: [] } },
+    });
+    const source = area.commands.docxPrintHeaderFooterSource();
+    expect(source?.sections.map((section) => section.header.default?.text)).toEqual(["Phần 1", "Phần 1"]);
+    // Editing a slot does not rewrite the parse-side source; the print path overlays the edits itself.
+    area.commands.setDocxHeaderFooterSlot("header", { text: "x" });
+    expect(area.commands.docxPrintHeaderFooterSource()?.sections[1]?.header.default?.text).toBe("Phần 1");
+  });
+});
