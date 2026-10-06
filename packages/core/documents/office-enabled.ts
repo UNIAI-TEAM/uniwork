@@ -3,7 +3,7 @@ import { getPublicConfig } from "../api/endpoints/config";
 import { useFlag } from "../feature-flags";
 import { OFFICE_ENGINE_FLAG, officeFlagsAllow, officeFormatFlagKey } from "../office/format-flags";
 
-export const officeConfigKeys = {
+const officeConfigKeys = {
   all: ["office-public-config"] as const,
   organization: (organizationId: string) => [...officeConfigKeys.all, organizationId] as const,
 };
