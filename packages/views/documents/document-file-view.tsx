@@ -22,6 +22,11 @@ export interface DocumentFileViewProps {
   /** Platform-only Office host injected by the web app. Views never import
    * Next.js or a browser engine directly. */
   officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
+  /** The page's own gate (`useDocumentOfficeGate`), so the page layout and this
+   * view decide "editor mounted" from one state. Without it the view keeps its own. */
+  officeGate?: DocumentOfficeGate;
+  /** The page already states the permission reason; the card does not repeat it. */
+  permissionNoticeShown?: boolean;
 }
 
 /** The version reason is a schema identifier; only its label is translated. */
@@ -89,16 +94,6 @@ function officeFormat(doc: Document): string | null {
 }
 
 /**
- * The Office editor is allowed for this document: `office_engine` is on and
- * so is the flag of the document's own format, as answered for the document's
- * organization (organization-scoped overrides apply). A format switched off
- * falls back to the file card (view, download, history), never the editor.
- */
-export function useOfficeEditorEnabled(doc: Document): boolean {
-  return useOfficeEnabled(doc.organization_id, officeFormat(doc)).state === "on";
-}
-
-/**
  * F7: a mounted editor closes only on a settled "off" answer, never while the
  * answer is loading, refetching or failed. Closing runs the registered leave
  * guards first, so a dirty editor offers Save / keep draft / discard; when the
@@ -122,15 +117,39 @@ export function usesOfficeEditor(doc: Document, officeEnabled: boolean, hasHost:
   return officeEnabled && hasHost && Boolean(doc.file) && officeFormat(doc) !== null;
 }
 
-export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: OfficeEditorHost }: DocumentFileViewProps) {
+export type DocumentOfficeGate = { office: ReturnType<typeof useOfficeEnabled>; editorOpen: boolean };
+
+/**
+ * The Office editor is allowed for this document (`office_engine` and the
+ * format's own flag, answered for the document's organization) and, once
+ * mounted, stays mounted until a settled "off" passes the leave guards (F7).
+ * The page and the file view must read the same instance (review-fe-r1 R3).
+ */
+export function useDocumentOfficeGate(doc: Document): DocumentOfficeGate {
+  const format = officeFormat(doc);
+  const office = useOfficeEnabled(doc.organization_id, format);
+  // A page or a non-Office file never mounts the editor, so it never runs the leave guards either.
+  const editorOpen = useLiveEditorGate(format !== null && doc.file ? office.state : "off", office.answeredAt);
+  return { office, editorOpen };
+}
+
+export function DocumentFileView(props: DocumentFileViewProps) {
+  return props.officeGate ? <DocumentFileBody {...props} gate={props.officeGate} /> : <SelfGatedDocumentFileView {...props} />;
+}
+
+function SelfGatedDocumentFileView(props: DocumentFileViewProps) {
+  const gate = useDocumentOfficeGate(props.doc);
+  return <DocumentFileBody {...props} gate={gate} />;
+}
+
+function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorHost, permissionNoticeShown, gate }: DocumentFileViewProps & { gate: DocumentOfficeGate }) {
   const { t, i18n } = useTranslation();
   const file = doc.file;
   const versions = useDocumentVersions(wsId, doc.id);
   const actions = useDocumentFileActions(wsId, doc);
   const { download, downloading } = actions;
   const officeFormatId = officeFormat(doc);
-  const office = useOfficeEnabled(doc.organization_id, officeFormatId);
-  const editorOpen = useLiveEditorGate(office.state, office.answeredAt);
+  const { office, editorOpen } = gate;
   const formatName = useOfficeFormatName();
 
   if (!file) {
@@ -199,7 +218,7 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
           <Fact label={t("documents.file.checksum")} value={file.checksum_sha256} mono />
         </dl>
         {/* The permission reason, kept apart from the format/editor reason below. */}
-        {readonly ? (
+        {readonly && !permissionNoticeShown ? (
           <p className="border-t border-border px-4 py-2 text-caption text-muted-foreground" data-testid="document-file-readonly">
             {t("documents.file.readonly_hint")}
           </p>
