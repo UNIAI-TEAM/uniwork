@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { printPageFromCopy } from "./page";
 
 const copy = (css: string) => `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'"><style>${css}</style></head><body><p>@page { size: 1in 9in }</p></body></html>`;
@@ -35,5 +35,27 @@ describe("printPageFromCopy", () => {
 
   it("never reads document text as a rule", () => {
     expect(printPageFromCopy(`<html><body><p>@page { size: 10in 5in }</p></body></html>`)).toBeUndefined();
+  });
+
+  it("never parses the copy into a DOM (a 16 MiB copy is read in place, once per run)", () => {
+    const parser = vi.fn();
+    vi.stubGlobal("DOMParser", parser);
+    try {
+      const page = printPageFromCopy(copy("@page { size: 13.333in 7.5in }") + "x".repeat(2_000_000));
+      expect(page?.landscape).toBe(true);
+      expect(parser).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reads the first rule of any <style> element, with attributes, and skips a commented-out one", () => {
+    const html = `<html><head><!-- <style>@page { size: 1in 1in }</style> --><STYLE type="text/css" media="print">@page { size: 10in 5in }</STYLE><style>@page { size: 2in 2in }</style></head></html>`;
+    expect(printPageFromCopy(html)).toMatchObject({ widthMm: 254, heightMm: 127, landscape: true });
+  });
+
+  it("reads a size on a later <style> when an earlier one has no rule", () => {
+    const html = `<html><head><style>body{margin:0}</style><style>@page{size:A3 landscape}</style></head></html>`;
+    expect(printPageFromCopy(html)).toMatchObject({ widthMm: 420, heightMm: 297, landscape: true });
   });
 });

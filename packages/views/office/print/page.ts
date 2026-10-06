@@ -34,8 +34,14 @@ const NAMED_SIZES_MM: Readonly<Record<string, readonly [number, number]>> = {
 
 /** CSS comments and quoted strings: an `@page` inside one is not a rule. */
 const CSS_COMMENT_OR_STRING = /\/\*[\s\S]*?\*\/|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g;
-/** The first unnamed, pseudo-less `@page` rule's body. */
+/** The first unnamed, pseudo-less `@page` rule's body. It holds plain
+ * declarations only: a rule that nests margin boxes (`@top-left{...}`) is
+ * skipped, so a copy states its `size` in a rule of its own ahead of any
+ * margin-box rule (the XLSX header/footer copy does; print-copy-gaps.test pins it). */
 const UNNAMED_PAGE_RULE = /@page\s*\{([^{}]*)\}/i;
+/** The copy's comments and `<style>` elements in document order: only a
+ * style's text (group 1) can hold the rule, a commented-out one never does. */
+const COMMENT_OR_STYLE = /<!--[\s\S]*?-->|<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi;
 const SIZE_DECLARATION = /(?:^|;)\s*size\s*:\s*([^;!]+)/i;
 const LENGTH = /^(\d+(?:\.\d+)?|\.\d+)(mm|cm|q|in|pt|pc|px)$/i;
 
@@ -75,10 +81,11 @@ function pageFromCssSize(value: string): OfficePrintPage | undefined {
  * keeps its own default (A4 portrait on desktop).
  */
 export function printPageFromCopy(html: string): OfficePrintPage | undefined {
-  if (typeof DOMParser === "undefined") return undefined;
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  for (const style of Array.from(doc.querySelectorAll("style"))) {
-    const css = (style.textContent ?? "").replace(CSS_COMMENT_OR_STRING, "");
+  // The copy can be 16 MiB of base64 images: it is scanned in place for its
+  // style text, never parsed into a DOM (once per run on every host).
+  for (const match of html.matchAll(COMMENT_OR_STYLE)) {
+    if (match[1] === undefined) continue;
+    const css = match[1].replace(CSS_COMMENT_OR_STRING, "");
     const rule = UNNAMED_PAGE_RULE.exec(css);
     if (!rule) continue;
     const size = SIZE_DECLARATION.exec(rule[1]!);
