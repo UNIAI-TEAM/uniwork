@@ -37,7 +37,7 @@ import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { ingestRuleSetMutation } from "./rule-set-capture";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
-import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit } from "./geometry";
+import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
@@ -204,6 +204,8 @@ export interface XlsxRendererHandle {
    *  active sheet (null for any other sheet), and the cell under a point. */
   getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
   cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
+  /** Live values of a range on the active sheet (null for another sheet). */
+  readRangeValues(sheetId: string, range: IRange): XlsxRendererRangeValues | null;
   dispose(): void;
 }
 
@@ -826,6 +828,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     },
     getCellBox: geometry.getCellBox,
     cellAtPoint: geometry.cellAtPoint,
+    readRangeValues: geometry.readRangeValues,
     dispose() {
       disposed = true;
       removeShiftedNavigation();

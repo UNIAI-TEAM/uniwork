@@ -30,9 +30,17 @@ export interface XlsxRendererCellHit {
   readonly offsetY: number;
 }
 
+/** Live values of a range on the active sheet (session edits included), as
+ *  raw scalars and as the grid displays them. */
+export interface XlsxRendererRangeValues {
+  readonly values: readonly (readonly (string | number | boolean | null)[])[];
+  readonly display: readonly (readonly string[])[];
+}
+
 export interface XlsxRendererGeometry {
   getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
   cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
+  readRangeValues(sheetId: string, range: IRange): XlsxRendererRangeValues | null;
 }
 
 /** OOXML grid bounds; a walk never leaves them. */
@@ -118,5 +126,17 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
     return { row: row.index, column: column.index, offsetX: column.offset, offsetY: row.offset };
   };
 
-  return { getCellBox, cellAtPoint };
+  const readRangeValues: XlsxRendererGeometry["readRangeValues"] = (sheetId, range) => {
+    const active = activeSheet(sheetId);
+    if (!active) return null;
+    try {
+      const target = active.worksheet.getRange(range.startRow, range.startColumn, range.endRow - range.startRow + 1, range.endColumn - range.startColumn + 1);
+      const values = target.getValues().map((row) => row.map((value) => (value === undefined || value === null ? null : value as string | number | boolean)));
+      return { values, display: target.getDisplayValues() };
+    } catch {
+      return null;
+    }
+  };
+
+  return { getCellBox, cellAtPoint, readRangeValues };
 }

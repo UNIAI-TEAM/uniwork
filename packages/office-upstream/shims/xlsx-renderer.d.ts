@@ -260,6 +260,11 @@ export interface XlsxRendererHandle {
    *  active sheet (null for any other sheet), and the cell under a point. */
   getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
   cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
+  /** Live values of a range on the active sheet (null for another sheet). */
+  readRangeValues(
+    sheetId: string,
+    range: { startRow: number; endRow: number; startColumn: number; endColumn: number },
+  ): XlsxRendererRangeValues | null;
   dispose(): void;
 }
 
@@ -270,6 +275,12 @@ export interface XlsxRendererCellBox {
   readonly width: number;
   readonly height: number;
   readonly zoom: number;
+}
+
+/** Live values of a range (session edits included): raw and displayed. */
+export interface XlsxRendererRangeValues {
+  readonly values: readonly (readonly (string | number | boolean | null)[])[];
+  readonly display: readonly (readonly string[])[];
 }
 
 /** The cell under a container point; offsets are UNZOOMED sheet pixels. */
