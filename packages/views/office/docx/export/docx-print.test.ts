@@ -1,8 +1,8 @@
 import type { JSONContent } from "@tiptap/core";
 import { describe, expect, it, vi } from "vitest";
-import type { DocxHeaderFooterState } from "../header-footer/header-footer-state";
 import type { DocxPageSetupSection } from "../page-setup/docx-page-setup";
 import { buildDocxPrintHtml, docxPrintCopy, printDocxDocument } from "./docx-print";
+import type { DocxPrintHeaderFooter, DocxPrintHfPart, DocxPrintSectionHf } from "./docx-print-header-footer";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
@@ -41,13 +41,22 @@ function styleText(html: string): string {
   return parse(html).querySelector("style")?.textContent ?? "";
 }
 
-function emptyHf(): DocxHeaderFooterState {
-  const empty = { value: null, hasImages: false };
+function hfPart(id: string, overrides: Partial<DocxPrintHfPart> = {}): DocxPrintHfPart {
+  return { id, text: id, pageNumber: false, images: [], ...overrides };
+}
+
+function sectionHf(index: number, overrides: Partial<DocxPrintSectionHf> = {}): DocxPrintSectionHf {
   return {
-    slots: { header: empty, footer: empty, headerFirst: empty, footerFirst: empty, headerEven: empty, footerEven: empty },
+    index,
     titlePg: false,
-    evenAndOddHeaders: false,
+    header: { default: null, first: null, even: null },
+    footer: { default: null, first: null, even: null },
+    ...overrides,
   };
+}
+
+function pageNames(html: string): (string | undefined)[] {
+  return Array.from(parse(html).querySelectorAll("section")).map((node) => /page:([\w-]+)/.exec(node.getAttribute("style") ?? "")?.[1]);
 }
 
 describe("buildDocxPrintHtml", () => {
@@ -177,16 +186,66 @@ describe("buildDocxPrintHtml", () => {
   });
 
   it("prints the header and footer through margin boxes with the page number", () => {
-    const hf = emptyHf();
-    hf.slots.header = { value: { text: 'Công ty "A" </style>' }, hasImages: false };
-    hf.slots.footer = { value: { text: "Trang", pageNumber: true }, hasImages: false };
-    hf.titlePg = true;
-    const css = styleText(buildDocxPrintHtml({ doc: doc(para("x", 0)), title: "x", sections: [section()], headerFooter: hf }));
-    expect(css).toContain('@top-center { content: "Công ty \\"A\\" \\3c /style\\3e "; white-space: pre-wrap; font-size: 9pt; }');
+    const headerFooter: DocxPrintHeaderFooter = {
+      evenAndOddHeaders: false,
+      sections: [
+        sectionHf(0, {
+          titlePg: true,
+          header: { default: hfPart("h", { text: 'Công ty "A" </style>' }), first: null, even: null },
+          footer: { default: hfPart("f", { text: "Trang", pageNumber: true }), first: null, even: null },
+        }),
+      ],
+    };
+    const css = styleText(buildDocxPrintHtml({ doc: doc(para("x", 0)), title: "x", sections: [section()], headerFooter }));
+    expect(css).toContain('@page docx-s0 {\n  @top-center { content: "Công ty \\"A\\" \\3c /style\\3e "; white-space: pre-wrap; font-size: 9pt; }');
     expect(css).toContain('@bottom-center { content: "Trang" " " counter(page);');
     // A first page with an empty first-page variant prints no header there.
-    expect(css).toContain("@page :first {\n  @top-center { content: none; }");
-    expect(css).not.toContain("@page :left");
+    expect(css).toContain("@page docx-s0:first {\n  @top-left { content: none; }\n  @top-center { content: none; }");
+    expect(css).not.toContain(":left");
+  });
+
+  it("gives a section with its own header a new page name, and only the first page name a :first rule", () => {
+    const sections = [
+      section({ index: 0, firstBlockIndex: 0, lastBlockIndex: 0 }),
+      section({ index: 1, firstBlockIndex: 1, lastBlockIndex: 1, startType: "continuous" }),
+      section({ index: 2, firstBlockIndex: 2, lastBlockIndex: 2, startType: "continuous" }),
+      section({ index: 3, firstBlockIndex: 3, lastBlockIndex: 3 }),
+    ];
+    const chapter = (text: string) => ({ default: hfPart(text), first: hfPart(`${text}-first`), even: null });
+    const headerFooter: DocxPrintHeaderFooter = {
+      evenAndOddHeaders: false,
+      sections: [
+        sectionHf(0, { titlePg: true, header: chapter("Chương 1") }),
+        // Same printed parts (the first-page part cannot print past page 1): flows on.
+        sectionHf(1, { header: { default: hfPart("Chương 1"), first: null, even: null } }),
+        // A continuous section with another header: its own page name, so it starts a new sheet.
+        sectionHf(2, { titlePg: true, header: chapter("Chương 2") }),
+        sectionHf(3, { header: { default: hfPart("Chương 1"), first: null, even: null } }),
+      ],
+    };
+    const html = buildDocxPrintHtml({ doc: doc(para("a", 0), para("b", 1), para("c", 2), para("d", 3)), title: "x", sections, headerFooter });
+    expect(pageNames(html)).toEqual(["docx-s0", "docx-s0", "docx-s1", "docx-s0"]);
+    const css = styleText(html);
+    expect(css).toContain('@page docx-s1 {\n  @top-center { content: "Chương 2";');
+    expect(css.match(/@page [\w-]+:first/g)).toEqual(["@page docx-s0:first"]);
+    expect(css).toContain('@page docx-s0:first {\n  @top-left { content: none; }\n  @top-center { content: "Chương 1-first";');
+  });
+
+  it("prints each section's even parts on its own :left pages", () => {
+    const sections = [
+      section({ index: 0, firstBlockIndex: 0, lastBlockIndex: 0 }),
+      section({ index: 1, firstBlockIndex: 1, lastBlockIndex: 1 }),
+    ];
+    const headerFooter: DocxPrintHeaderFooter = {
+      evenAndOddHeaders: true,
+      sections: [
+        sectionHf(0, { header: { default: hfPart("Lẻ"), first: null, even: hfPart("Chẵn") } }),
+        sectionHf(1, { header: { default: hfPart("Lẻ"), first: null, even: hfPart("Chẵn 2") } }),
+      ],
+    };
+    const css = styleText(buildDocxPrintHtml({ doc: doc(para("a", 0), para("b", 1)), title: "x", sections, headerFooter }));
+    expect(css).toContain('@page docx-s0:left {\n  @top-left { content: none; }\n  @top-center { content: "Chẵn";');
+    expect(css).toContain('@page docx-s1:left {\n  @top-left { content: none; }\n  @top-center { content: "Chẵn 2";');
   });
 });
 
@@ -216,6 +275,15 @@ describe("docxPrintCopy", () => {
     expect(parsed.body.firstElementChild?.matches("section.docx-print-section")).toBe(true);
     expect(parsed.body.firstElementChild?.textContent?.startsWith("Text")).toBe(true);
     expect(parsed.title).toBe("Hợp đồng");
+  });
+
+  it("keeps a header picture as a data: URL in the sanitized copy", () => {
+    const headerFooter: DocxPrintHeaderFooter = {
+      evenAndOddHeaders: false,
+      sections: [sectionHf(0, { header: { default: hfPart("logo", { text: "", images: [{ dataUrl: PNG, align: "center" }] }), first: null, even: null } })],
+    };
+    const copy = docxPrintCopy({ doc: doc(para("Text", 0)), title: "x", sections: [section()], headerFooter });
+    expect(styleText(copy)).toContain(`@top-center { content: url("${PNG}");`);
   });
 });
 

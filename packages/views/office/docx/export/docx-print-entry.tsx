@@ -19,6 +19,7 @@ import { isPrintBusy, type OfficePrintPort } from "../../print";
 import { createRibbonController } from "../toolbar/groups/ribbon-open-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { printDocxDocument } from "./docx-print";
+import { resolveDocxPrintHeaderFooter } from "./docx-print-header-footer";
 
 /** i18next keys this module reads. */
 const DOCX_PRINT_KEYS = {
@@ -57,7 +58,11 @@ export async function runDocxPrint(context: DocxPrintContext): Promise<void> {
         return commands.buildDocxPrintCopy({
           title: print.title,
           sections: state.docxPageSetup?.sections ?? null,
-          headerFooter: state.docxHeaderFooter ?? null,
+          headerFooter: resolveDocxPrintHeaderFooter(
+            commands.docxPrintHeaderFooterSource(),
+            state.docxHeaderFooter ?? null,
+            commands.listDocxHeaderFooterEdits(),
+          ),
         });
       },
     });

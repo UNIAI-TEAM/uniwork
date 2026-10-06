@@ -7,6 +7,7 @@ import { chooseItem } from "../../../test/menu-interactions";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxExportGroup, docxExportRibbonItems } from "./docx-export-menu";
 import { DocxPrintMenuItem, DocxPrintNotice, runDocxPrint } from "./docx-print-entry";
+import { emptyHeaderFooterState } from "../header-footer/header-footer-state";
 
 const COPY = "<!DOCTYPE html><html><body><section>copy</section></body></html>";
 
@@ -14,6 +15,8 @@ function runtime(): DocxCommandRuntime {
   return {
     docxExportReady: true,
     getState: vi.fn(() => ({ docxPageSetup: null, docxHeaderFooter: null })),
+    docxPrintHeaderFooterSource: vi.fn(() => null),
+    listDocxHeaderFooterEdits: vi.fn(() => []),
     buildDocxPrintCopy: vi.fn(() => COPY),
     exportDocxHtml: vi.fn(() => "<html></html>"),
     downloadDocxHtml: vi.fn(() => true),
@@ -78,6 +81,29 @@ describe("DocxExportGroup", () => {
     await waitFor(() => expect(printPort.print).toHaveBeenCalledWith({ html: COPY, title: "Hợp đồng" }));
     expect(commands?.buildDocxPrintCopy).toHaveBeenCalledWith({ title: "Hợp đồng", sections: null, headerFooter: null });
     expect(screen.queryByTestId("docx-print-notice")).toBeNull();
+  });
+
+  it("prints the per-section headers and footers with the pending edits applied", async () => {
+    const printPort = port();
+    const commands = runtime();
+    const part = (id: string, text: string) => ({ id, text, pageNumber: false, images: [] });
+    const section = (index: number, text: string) => ({
+      index,
+      titlePg: false,
+      header: { default: part(`rId${index}`, text), first: null, even: null },
+      footer: { default: null, first: null, even: null },
+    });
+    const state = emptyHeaderFooterState();
+    state.slots.header = { value: { text: "Đã sửa" }, hasImages: false };
+    Object.assign(commands, {
+      getState: vi.fn(() => ({ docxPageSetup: null, docxHeaderFooter: state })),
+      docxPrintHeaderFooterSource: vi.fn(() => ({ evenAndOddHeaders: false, sections: [section(0, "Phần 1"), section(1, "Phần 2")] })),
+      listDocxHeaderFooterEdits: vi.fn(() => [{ op: "set_header_footer", slot: "header", hf: { text: "Đã sửa" } }]),
+    });
+    await runDocxPrint({ commands, print: { port: printPort, title: "Hợp đồng" } });
+    const options = vi.mocked(commands.buildDocxPrintCopy).mock.calls[0]?.[0];
+    expect(options?.headerFooter?.sections.map((entry) => entry.header.default?.text)).toEqual(["Phần 1", "Đã sửa"]);
+    expect(printPort.print).toHaveBeenCalledTimes(1);
   });
 
   it("offers no Print entry when the host injected no port", async () => {

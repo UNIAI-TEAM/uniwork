@@ -18,16 +18,24 @@
 // `page: <name>` and a non-continuous section starts a new sheet (odd/even
 // page starts map to right/left). Sections on the same paper share one name,
 // because a changed `page` value forces a sheet break by itself. Word page breaks and
-// "page break before" paragraphs force breaks. The document-level header and
-// footer (default, first-page, even-page) print through @page margin boxes,
-// with the page number as `counter(page)` when the part carries one.
+// "page break before" paragraphs force breaks. Headers and footers are resolved
+// per section (./docx-print-header-footer) and print through each named page's
+// margin boxes, pictures included; the page name is keyed by the printed
+// header/footer as well as the paper, so a section with other parts gets its
+// own page while an identical continuous section still flows on.
 
 import type { JSONContent } from "@tiptap/core";
 import { sanitizePrintCopy } from "../../markdown/wysiwyg/print";
 import type { OfficePrintOutcome, OfficePrintPort } from "../../print";
-import type { DocxHeaderFooterState } from "../header-footer/header-footer-state";
 import { sectionIndexAtDocxIndex, type DocxPageSetupSection } from "../page-setup/docx-page-setup";
 import { escapeDocxHtmlText, serializeBlockNodes } from "./docx-html-export";
+import {
+  headerFooterPageRules,
+  printedHfKey,
+  sectionHeaderFooter,
+  type DocxPrintHeaderFooter,
+  type DocxPrintSectionHf,
+} from "./docx-print-header-footer";
 
 /** The page setup the copy uses when the document reports no section: A4, 2.54 cm margins. */
 const DEFAULT_SECTION: DocxPageSetupSection = {
@@ -58,8 +66,8 @@ export interface DocxPrintCopyInput {
   title: string;
   /** The document's sections with pending page-setup edits applied; empty or absent = A4 default. */
   sections?: readonly DocxPageSetupSection[] | null;
-  /** The document-level header/footer parts; absent = none printed. */
-  headerFooter?: DocxHeaderFooterState | null;
+  /** The per-section header/footer parts (resolveDocxPrintHeaderFooter); absent = none printed. */
+  headerFooter?: DocxPrintHeaderFooter | null;
   lang?: string;
   fontFamily?: string;
   textColor?: string;
@@ -78,42 +86,32 @@ function pageGeometryKey(section: DocxPageSetupSection): string {
 interface NamedPages {
   /** The page name of each run, by run ordinal. */
   names: string[];
-  /** One entry per distinct geometry, in first-use order. */
-  pages: { name: string; section: DocxPageSetupSection }[];
+  /** One entry per distinct geometry + printed header/footer, in first-use order. */
+  pages: { name: string; section: DocxPageSetupSection; hf: DocxPrintSectionHf | null }[];
 }
 
 /**
  * CSS Paged Media starts a new sheet whenever the `page` value changes between
  * siblings, so a continuous section can only flow on when it keeps the name of
- * the section before it. Names are therefore keyed by geometry, not by section.
+ * the section before it. Names are therefore keyed by what the page prints
+ * (geometry and header/footer parts), not by section.
  */
-function namePages(runs: readonly SectionRun[]): NamedPages {
-  const byGeometry = new Map<string, string>();
+function namePages(runs: readonly SectionRun[], headerFooter: DocxPrintHeaderFooter | null | undefined): NamedPages {
+  const byKey = new Map<string, string>();
   const pages: NamedPages["pages"] = [];
+  const evenAndOdd = headerFooter?.evenAndOddHeaders === true;
   const names = runs.map((run) => {
-    const key = pageGeometryKey(run.section);
-    let name = byGeometry.get(key);
+    const hf = sectionHeaderFooter(headerFooter, run.section.index);
+    const key = `${pageGeometryKey(run.section)}|${printedHfKey(hf, evenAndOdd)}`;
+    let name = byKey.get(key);
     if (name === undefined) {
       name = `docx-s${pages.length}`;
-      byGeometry.set(key, name);
-      pages.push({ name, section: run.section });
+      byKey.set(key, name);
+      pages.push({ name, section: run.section, hf });
     }
     return name;
   });
   return { names, pages };
-}
-
-/** A CSS string literal for a margin box: quotes, backslashes and `<` escaped, newlines kept. */
-function cssString(value: string): string {
-  let out = "";
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    if (char === "\\" || char === '"') out += `\\${char}`;
-    else if (char === "\n") out += "\\A ";
-    else if (char === "<" || char === ">" || code < 0x20 || code === 0x7f) out += `\\${code.toString(16)} `;
-    else out += char;
-  }
-  return `"${out}"`;
 }
 
 /** Drops inline images whose source is not an inline data:image (the copy's CSP would block them anyway). */
@@ -191,38 +189,6 @@ function pageRule(selector: string, section: DocxPageSetupSection): string {
   ].join("\n");
 }
 
-type HfSlot = keyof DocxHeaderFooterState["slots"];
-
-function marginBox(state: DocxHeaderFooterState, slot: HfSlot, box: "@top-center" | "@bottom-center"): string | null {
-  const value = state.slots[slot]?.value;
-  if (!value) return null;
-  const text = value.text.trim();
-  const parts = [text ? cssString(text) : null, value.pageNumber ? "counter(page)" : null].filter(
-    (part): part is string => part !== null,
-  );
-  if (parts.length === 0) return null;
-  return `  ${box} { content: ${parts.join(' " " ')}; white-space: pre-wrap; font-size: 9pt; }`;
-}
-
-/** Header/footer margin boxes: default on every page, first-page and even-page variants when the document asks for them. */
-function headerFooterRules(state: DocxHeaderFooterState | null | undefined): string[] {
-  if (!state) return [];
-  const rule = (selector: string, header: HfSlot, footer: HfSlot): string | null => {
-    const boxes = [marginBox(state, header, "@top-center"), marginBox(state, footer, "@bottom-center")].filter(
-      (box): box is string => box !== null,
-    );
-    return boxes.length > 0 ? `${pageAt(selector)} {\n${boxes.join("\n")}\n}` : null;
-  };
-  // An empty first/even variant must blank the default part on those pages.
-  const blank = (selector: string): string => `${pageAt(selector)} {\n  @top-center { content: none; }\n  @bottom-center { content: none; }\n}`;
-  const rules: string[] = [];
-  const base = rule("", "header", "footer");
-  if (base) rules.push(base);
-  if (state.evenAndOddHeaders) rules.push(rule(":left", "headerEven", "footerEven") ?? blank(":left"));
-  if (state.titlePg) rules.push(rule(":first", "headerFirst", "footerFirst") ?? blank(":first"));
-  return rules;
-}
-
 function breakBefore(section: DocxPageSetupSection): string {
   switch (section.startType) {
     case "continuous":
@@ -279,8 +245,15 @@ export function buildDocxPrintHtml(input: DocxPrintCopyInput): string {
   const sections = liveSectionsOf(input.sections ?? [], blocks);
   const runs = sectionRuns(sections, blocks);
   const first = runs[0]?.section ?? DEFAULT_SECTION;
-  const named = namePages(runs);
-  const pages = [pageRule("", first), ...named.pages.map((page) => pageRule(page.name, page.section))];
+  const named = namePages(runs, input.headerFooter);
+  const evenAndOdd = input.headerFooter?.evenAndOddHeaders === true;
+  const pages = [
+    pageRule("", first),
+    ...named.pages.flatMap((page) => [
+      pageRule(page.name, page.section),
+      ...headerFooterPageRules(page.name, page.hf, evenAndOdd, page.name === named.names[0]),
+    ]),
+  ];
   const font = safeFont(input.fontFamily);
   const color = input.textColor && SAFE_CSS_COLOR.test(input.textColor.trim()) ? input.textColor.trim() : null;
   const css = [
@@ -288,7 +261,6 @@ export function buildDocxPrintHtml(input: DocxPrintCopyInput): string {
     font ? `body{font-family:${font}}` : null,
     color ? `body{color:${color}}` : null,
     ...pages,
-    ...headerFooterRules(input.headerFooter),
   ].filter((part): part is string => part !== null);
   const body = runs
     .map((run, ordinal) => {

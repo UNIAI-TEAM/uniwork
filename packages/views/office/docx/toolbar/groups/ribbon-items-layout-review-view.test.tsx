@@ -113,6 +113,8 @@ describe("View tab typed ribbon items", () => {
   it("runs print / HTML / PDF from the export dropdown", async () => {
     const commands = {
       getState: vi.fn(() => ({ docxPageSetup: null, docxHeaderFooter: null })),
+      docxPrintHeaderFooterSource: vi.fn(() => null),
+      listDocxHeaderFooterEdits: vi.fn(() => []),
       buildDocxPrintCopy: vi.fn(() => "<html></html>"),
       downloadDocxHtml: vi.fn(() => true),
     } as unknown as DocxCommandRuntime;
