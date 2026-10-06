@@ -110,6 +110,22 @@ describe("renderPdfPrintPages", () => {
     expect(result.pages.reduce((sum, page) => sum + page.src.length, 0)).toBeLessThanOrEqual(20_000);
   });
 
+  it("weighs a mid-pass overflow by page area, so mixed sizes settle in one more pass", async () => {
+    // Page 1 is nearly blank; the dense pages after it include two large sheets.
+    const huge = (pageNumber: number): PdfCanvasPage => ({ pageNumber, width: 1190, height: 1684, rotation: 0 });
+    const service = { renderPage: vi.fn(async (request: PdfRenderPageRequest) => {
+      const area = (request.width * request.height) / (A4.width * A4.height);
+      const perScale = request.pageNumber === 1 ? 10 : 1000;
+      const size = Math.max(4, Math.round(perScale * area * request.scale * request.scale / 4) * 4);
+      return { src: `data:image/png;base64,${"A".repeat(size)}`, width: 1, height: 1 };
+    }) };
+    const result = await renderPdfPrintPages({ renderer: service, pages: [A4, { ...A4, pageNumber: 2 }, huge(3), huge(4)], maxImageBytes: 20_000 });
+
+    expect(result.pages.reduce((sum, page) => sum + page.src.length, 0)).toBeLessThanOrEqual(20_000);
+    // Page 1 probe + the 150 dpi pass that overflows at page 3 (pages 2 and 3) + one pass of 4.
+    expect(service.renderPage).toHaveBeenCalledTimes(7);
+  });
+
   it("asks for an uncached render and releases what the host handed over once it is inlined", async () => {
     const release = vi.fn();
     const inlineImage = vi.fn(async () => "data:image/png;base64,AAAA");

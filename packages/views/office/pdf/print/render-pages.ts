@@ -54,15 +54,17 @@ async function renderPass(request: PdfPrintRenderRequest, dpi: number, budget: n
   const total = request.pages.length;
   const pages: PdfPrintPage[] = [];
   let bytes = 0;
+  let renderedArea = 0;
   for (const [index, page] of request.pages.entries()) {
     if (request.signal?.aborted) throw cancelled();
     const reused = index === 0 && first?.dpi === dpi ? first.src : null;
     if (reused === null) request.onProgress?.({ page: index + 1, total });
     const src = reused ?? await renderOne(request, page, dpi, inline);
     bytes += src.length;
+    renderedArea += area(page);
     pages.push({ pageNumber: page.pageNumber, widthPt: page.width, heightPt: page.height, src });
     // Stop as soon as the pass cannot fit: the rest would be rendered for nothing.
-    if (bytes > budget) return { kind: "over", projectedBytes: (bytes / (index + 1)) * total };
+    if (bytes > budget) return { kind: "over", projectedBytes: projectByArea(request.pages, bytes, renderedArea, index + 1) };
   }
   return { kind: "done", pages };
 }
@@ -105,12 +107,12 @@ function area(page: PdfCanvasPage): number {
   return Math.max(0, page.width) * Math.max(0, page.height);
 }
 
-/** The whole copy's size at page 1's bytes per point squared: raster bytes
- * grow with the page area, so mixed page sizes are weighed, not counted. */
-function projectFromFirst(pages: readonly PdfCanvasPage[], firstBytes: number): number {
-  const firstArea = area(pages[0]!);
-  if (firstArea <= 0) return firstBytes * pages.length;
-  return (firstBytes / firstArea) * pages.reduce((sum, page) => sum + area(page), 0);
+/** The whole copy's size from the pages rendered so far: raster bytes grow
+ * with the page area, so mixed page sizes are weighed, not counted. `renderedPages`
+ * is how many leading pages the bytes cover (the fallback when they have no area). */
+function projectByArea(pages: readonly PdfCanvasPage[], renderedBytes: number, renderedArea: number, renderedPages = 0): number {
+  if (renderedArea <= 0) return renderedBytes * (pages.length / Math.max(1, renderedPages));
+  return (renderedBytes / renderedArea) * pages.reduce((sum, page) => sum + area(page), 0);
 }
 
 /**
@@ -130,7 +132,7 @@ export async function renderPdfPrintPages(request: PdfPrintRenderRequest): Promi
   request.onProgress?.({ page: 1, total: request.pages.length });
   const inline = request.inlineImage ?? inlinePrintImage;
   const first: FirstPage = { dpi: PDF_PRINT_DPI, src: await renderOne(request, request.pages[0]!, PDF_PRINT_DPI, inline) };
-  const projected = projectFromFirst(request.pages, first.src.length);
+  const projected = projectByArea(request.pages, first.src.length, area(request.pages[0]!), 1);
   let dpi = projected > budget ? fittedDpi(PDF_PRINT_DPI, projected, budget) : PDF_PRINT_DPI;
   for (;;) {
     const pass = await renderPass(request, dpi, budget, first);
