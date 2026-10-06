@@ -180,6 +180,10 @@ export function XlsxGridSurface({
   const [failed, setFailed] = useState(false);
   const contextMenuRef = useRef(onContextMenu);
   contextMenuRef.current = onContextMenu;
+  // History listeners outlive a renderer swap (a readOnly or host change
+  // recreates the renderer while the editor stays ready): each new handle
+  // forwards to the same set and announces its own stack (review-session n-3).
+  const historyListenersRef = useRef(new Set<(state: XlsxGridHistoryState) => void>());
 
   useImperativeHandle(
     ref,
@@ -201,7 +205,10 @@ export function XlsxGridSurface({
       undo: () => handleRef.current?.undo(),
       redo: () => handleRef.current?.redo(),
       getHistory: () => handleRef.current?.getHistory?.() ?? null,
-      subscribeHistory: (listener) => handleRef.current?.subscribeHistory?.(listener) ?? (() => undefined),
+      subscribeHistory: (listener) => {
+        historyListenersRef.current.add(listener);
+        return () => { historyListenersRef.current.delete(listener); };
+      },
       getDirtyGeneration: () => handleRef.current?.getDirtyGeneration() ?? 0,
       getCellBox: (sheetId, row, column) => handleRef.current?.getCellBox?.(sheetId, row, column) ?? null,
       cellAtPoint: (sheetId, x, y) => handleRef.current?.cellAtPoint?.(sheetId, x, y) ?? null,
@@ -218,6 +225,7 @@ export function XlsxGridSurface({
     const container = containerRef.current;
     if (!container) return undefined;
     let disposed = false;
+    let unsubscribeHistory: (() => void) | null = null;
     setFailed(false);
     void (async () => {
       try {
@@ -240,9 +248,15 @@ export function XlsxGridSurface({
           return;
         }
         handleRef.current = handle;
+        const broadcast = (state: XlsxGridHistoryState) => {
+          for (const listener of historyListenersRef.current) listener(state);
+        };
+        unsubscribeHistory = handle.subscribeHistory?.(broadcast) ?? null;
         await handle.loadWorkbook(host.file);
         if (disposed) return;
         handle.setDarkMode(darkRef.current);
+        const history = handle.getHistory?.();
+        if (history) broadcast(history);
         callbacksRef.current.onReady?.();
       } catch (error) {
         if (disposed) return;
@@ -252,6 +266,7 @@ export function XlsxGridSurface({
     })();
     return () => {
       disposed = true;
+      unsubscribeHistory?.();
       handleRef.current?.dispose();
       handleRef.current = null;
     };
