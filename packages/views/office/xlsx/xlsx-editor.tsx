@@ -12,6 +12,7 @@ import { XlsxAdvancedFilterDialog } from "./filter/advanced-filter-dialog";
 import { XlsxFunctionLibraryMount } from "./formulas/function-library";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
 import { useEditorProtectNames } from "./protect/use-protect-names";
+import { XlsxVisualsProvider, useXlsxVisuals } from "./visuals/use-xlsx-visuals";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { xlsxSelectionFromGrid } from "./selection-mapping";
 import { useXlsxContextMenu } from "./context-menu/use-context-menu";
@@ -352,6 +353,11 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onApplied: () => { markDirty(); refreshSnapshot(); }, onError: setRecalcError,
   });
 
+  // Charts, pictures and shapes (UNI-940 X02): the hook owns the overlay and
+  // the set_visual / remove_visual ops; see visuals/.
+  const visuals = useXlsxVisuals({ gridRef, gridReady, selection, canEdit, editor, savedGeneration: coordinatorState.lastSavedGeneration, onApplied: markDirty,
+    onError: setRecalcError, activeSheetId, activeSheetName: resolvedActiveSheet, sheets: liveSheets.length > 0 ? liveSheets : rendererHost?.file.sheets ?? [] });
+
   // FIX-EDITOR-SPLIT (UNI-926): the JSX key handler and the capture-phase
   // Ctrl/Cmd+S shortcut live in ./use-xlsx-editor-keyboard.
   const { keyboardHandler } = useXlsxEditorKeyboard({
@@ -405,6 +411,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       </header> : <span className="sr-only" data-testid="xlsx-open-state" role="status">{visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? saveStateLabel : t("office.xlsx.state.error")}</span>}
       {viewState === "ready" ? (
         <>
+          <XlsxVisualsProvider visuals={visuals}>
           <OfficeFrame
             data-testid="xlsx-frame"
             canvasClassName="overflow-hidden"
@@ -498,6 +505,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   dark={dark}
                   readOnly={readOnly || !canEdit}
                   onContextMenu={contextMenu.open}
+                  overlay={visuals.overlay} onViewportChange={visuals.onViewportChange}
                   onEdits={(edits) => { gridEdits.onEdits(edits); onTableEdits(edits); refreshFormatState(); refreshSheets(); }}
                   onReady={() => { setGridReady(true); refreshFormatState(); refreshSheets(); }}
                   onFailure={(message) => {
@@ -536,6 +544,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
               )}
             </div>
           </OfficeFrame>
+          </XlsxVisualsProvider>
           {rendererHost && advancedFilterOpen ? (
             <XlsxAdvancedFilterDialog
               documentKey={documentKey}
