@@ -18,7 +18,7 @@ import type { RibbonComboItem, RibbonGroupStage, RibbonIcon, RibbonItem, RibbonS
 // 24px fine-pointer sizes below still meet the 44px coarse target.
 const SIZE_CLASS: Record<RibbonSize, string> = {
   large:
-    "h-auto min-w-12 flex-1 flex-col justify-start gap-0.5 self-stretch px-1.5 py-0.5 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-7",
+    "h-auto min-w-12 flex-1 flex-col justify-start gap-0.5 self-stretch px-1.5 py-1 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-8",
   small: "h-6 justify-start gap-1.5 px-1.5 text-caption font-normal",
   icon: "size-6 p-0 [&_svg:not([class*='size-'])]:size-4",
 };
@@ -45,7 +45,7 @@ function ItemFace({ icon: Icon, label, size, iconOnly }: { icon?: RibbonIcon; la
       {Icon ? <Icon aria-hidden /> : null}
       <span
         title={size === "large" ? label : undefined}
-        className={size === "large" ? "line-clamp-2 max-w-20 shrink-0 text-center leading-tight pb-px" : "truncate"}
+        className={size === "large" ? "line-clamp-2 max-w-20 shrink-0 text-center leading-tight" : "truncate"}
       >
         {label}
       </span>
