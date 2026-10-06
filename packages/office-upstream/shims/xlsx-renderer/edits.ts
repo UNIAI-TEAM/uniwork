@@ -19,6 +19,7 @@ import { FILTER_MUTATIONS, REORDER_RANGE_MUTATION, pixelsToCharacterWidth } from
 import type { SharedFormulaResolver } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import type { LazyWorkbookState, UniverWorksheet } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import type { IExecutionOptions } from "@univerjs/core";
+import type { XlsxRendererRuleSetEdit } from "./rule-set-capture";
 import { t } from "./locale";
 
 export interface XlsxRendererCellEdit {
@@ -126,7 +127,8 @@ export type XlsxRendererEdit =
   | XlsxRendererFilterEdit
   | XlsxRendererTableEdit
   | XlsxRendererHyperlinkEdit
-  | XlsxRendererNotesEdit;
+  | XlsxRendererNotesEdit
+  | XlsxRendererRuleSetEdit;
 
 /** tableId -> {sheetId, name} for a session add, so the delete mutation (which
  *  carries only the tableId) can name the table it cancels. */

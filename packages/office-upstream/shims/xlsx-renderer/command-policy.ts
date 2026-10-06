@@ -1,6 +1,7 @@
 import type { IRange } from "@univerjs/core";
 import { FILTER_MUTATIONS } from "../../upstream/apps/sheets/src/renderer/app-constants";
 import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
+import { isRuleSetCommand, isRuleSetMutation, ruleSetCommandAllowed, ruleSetMutationAllowed } from "./rule-set-policy";
 import {
   CELL_MUTATIONS,
   isSheetMutation,
@@ -923,6 +924,9 @@ export function canExecuteCommand(
     if (NOTE_COMMANDS.has(event.id)) return noteCommandAllowed(event, state);
     if (NOTE_MUTATIONS.has(event.id)) return noteMutationAllowed(event, state);
     if (HYPERLINK_COMMANDS.has(event.id)) return hyperlinkCommandAllowed(event, state);
+    // X01: conditional formatting + data validation (rule-set-policy.ts).
+    if (isRuleSetCommand(event.id)) return ruleSetCommandAllowed(event, state);
+    if (isRuleSetMutation(event.id)) return ruleSetMutationAllowed(event, state);
     return EDIT_COMMANDS.has(event.id);
   }
   const params = event.params as {

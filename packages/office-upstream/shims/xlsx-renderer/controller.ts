@@ -35,6 +35,7 @@ import { SheetInterceptorService } from "@univerjs/sheets";
 import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
+import { ingestRuleSetMutation } from "./rule-set-capture";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
 import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit } from "./geometry";
 import {
@@ -686,9 +687,16 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         (state, sheetId, range, order) => journalRangeSnapshot(runtime, state, sheetId, range, order),
         journalSuppression.active,
       );
-      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0 && noteEdits.length === 0 && sortEdits.length === 0) return;
+      // Conditional formatting + data validation (X01): every rule mutation
+      // snapshots its sheet's live rule model as a whole-sheet state.
+      const ruleSetEdits = ingestRuleSetMutation(
+        lazyWorkbookRef.current, event,
+        (sheetId) => workbook?.getSheetBySheetId(sheetId) ?? null,
+        journalSuppression.active,
+      );
+      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0 && noteEdits.length === 0 && sortEdits.length === 0 && ruleSetEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits, ...noteEdits, ...sortEdits]));
+      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits, ...noteEdits, ...sortEdits, ...ruleSetEdits]));
       options.onDirty?.();
     }),
   );
