@@ -50,7 +50,11 @@ export interface PptxAdapterDeps {
    * never a fabricated RenderSlide. */
   render?: PptxRenderPort;
   sha256?: (bytes: Uint8Array) => Promise<string>;
+  /** Input bound in bytes; defaults to the server contract. A host that does
+   *  not cap local files (the desktop app) passes Number.POSITIVE_INFINITY. */
   maxInputBytes?: number;
+  /** Output bound in bytes; same default and same unbounded convention. */
+  maxOutputBytes?: number;
 }
 
 interface PptxSession {
@@ -253,7 +257,7 @@ export class PptxAdapter {
     if (!out || out.length === 0) {
       throw new EngineBoundaryError("engine_result_invalid", { detail: "savePptx returned empty bytes" });
     }
-    if (out.length > ENGINE_LIMITS.max_output_bytes) {
+    if (out.length > (this.deps.maxOutputBytes ?? ENGINE_LIMITS.max_output_bytes)) {
       throw new EngineBoundaryError("upload_bounds", { detail: "output exceeds byte bound" });
     }
     // Save-verify: re-open the produced bytes; a deck that won't re-open is

@@ -57,7 +57,11 @@ export interface DocxAdapterDeps {
    * intent state rides to the service through the grant). */
   crypto?: OoxmlCrypto;
   sha256?: (bytes: Uint8Array) => Promise<string>;
+  /** Input bound in bytes; defaults to the server contract. A host that does
+   *  not cap local files (the desktop app) passes Number.POSITIVE_INFINITY. */
   maxInputBytes?: number;
+  /** Output bound in bytes; same default and same unbounded convention. */
+  maxOutputBytes?: number;
   /** Enumerate package part names for the asset oracle (seam may supply). */
   listPackageParts?: (parsed: DocxParsed) => string[];
 }
@@ -271,7 +275,7 @@ export class DocxAdapter {
     if (!out || out.length === 0) {
       throw new EngineBoundaryError("engine_result_invalid", { detail: "saveDocx returned empty bytes" });
     }
-    if (out.length > ENGINE_LIMITS.max_output_bytes) {
+    if (out.length > (this.deps.maxOutputBytes ?? ENGINE_LIMITS.max_output_bytes)) {
       throw new EngineBoundaryError("upload_bounds", { detail: "output exceeds byte bound" });
     }
 

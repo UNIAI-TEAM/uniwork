@@ -15,8 +15,36 @@ export interface ZipInput {
 const EOCD_SIG = 0x06054b50;
 const CENTRAL_SIG = 0x02014b50;
 const LOCAL_SIG = 0x04034b50;
-const MAX_ENTRIES = 4096;
-const MAX_UNCOMPRESSED = 512 << 20;
+
+/** How readZip bounds a package. "fixed" is the server contract (a flat entry
+ *  count and a flat inflated ceiling). "proportional" is for a local file the
+ *  host does not size-cap: the ceilings follow the input instead of a constant,
+ *  so a large honest package opens while a decompression bomb is still refused. */
+export type ZipBoundMode = "fixed" | "proportional";
+
+interface ZipBounds {
+  readonly maxEntries: number;
+  readonly maxTotal: number;
+  /** Inflate-ratio guard, applied to entries above `ratioFloor` inflated bytes. */
+  readonly maxRatio: number;
+  readonly ratioFloor: number;
+}
+
+const FIXED_BOUNDS: ZipBounds = { maxEntries: 4096, maxTotal: 512 << 20, maxRatio: Number.POSITIVE_INFINITY, ratioFloor: 0 };
+const PROPORTIONAL_RATIO = 100;
+const PROPORTIONAL_FLOOR = 1 << 20;
+
+function boundsFor(mode: ZipBoundMode, inputBytes: number): ZipBounds {
+  if (mode === "fixed") return FIXED_BOUNDS;
+  return {
+    maxEntries: 20000,
+    // Total inflated bytes never exceed the ratio times the input (plus a floor
+    // for tiny packages), however many entries share it.
+    maxTotal: Math.max(PROPORTIONAL_FLOOR * 16, inputBytes * PROPORTIONAL_RATIO),
+    maxRatio: PROPORTIONAL_RATIO,
+    ratioFloor: PROPORTIONAL_FLOOR,
+  };
+}
 
 /** Refusal reasons are stable strings the caller maps to a typed engine error. */
 export type ZipFailure = "zip_unreadable" | "zip_unsupported_method" | "zip_too_large" | "zip_entry_missing";
@@ -32,13 +60,14 @@ export class ZipError extends Error {
 
 /** Read every entry of a zip into memory. Throws ZipError on anything that is
     not a readable, bounded zip package. */
-export function readZip(bytes: Uint8Array): Map<string, Uint8Array> {
+export function readZip(bytes: Uint8Array, mode: ZipBoundMode = "fixed"): Map<string, Uint8Array> {
+  const bounds = boundsFor(mode, bytes.byteLength);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const eocd = findEocd(view);
   if (eocd < 0) throw new ZipError("zip_unreadable", "end of central directory not found");
   const entryCount = view.getUint16(eocd + 10, true);
   const centralOffset = view.getUint32(eocd + 16, true);
-  if (entryCount > MAX_ENTRIES) throw new ZipError("zip_too_large", `${entryCount} entries`);
+  if (entryCount > bounds.maxEntries) throw new ZipError("zip_too_large", `${entryCount} entries`);
   const out = new Map<string, Uint8Array>();
   let total = 0;
   let cursor = centralOffset;
@@ -55,7 +84,14 @@ export function readZip(bytes: Uint8Array): Map<string, Uint8Array> {
     const localOffset = view.getUint32(cursor + 42, true);
     const name = new TextDecoder().decode(bytes.subarray(cursor + 46, cursor + 46 + nameLen));
     cursor += 46 + nameLen + extraLen + commentLen;
-    if (uncompressed > MAX_UNCOMPRESSED || (total += uncompressed) > MAX_UNCOMPRESSED) {
+    // 0xffffffff is the zip64 sentinel: the real size lives in an extra field
+    // this reader does not parse, so the entry cannot be bounded honestly.
+    const oversized =
+      uncompressed === 0xffffffff ||
+      uncompressed > bounds.maxTotal ||
+      (total += uncompressed) > bounds.maxTotal ||
+      (uncompressed > bounds.ratioFloor && uncompressed > Math.max(compressed, 1) * bounds.maxRatio);
+    if (oversized) {
       throw new ZipError("zip_too_large", `${name} inflates past the bound`);
     }
     if (name.endsWith("/")) continue; // directory markers carry no bytes
@@ -70,11 +106,18 @@ export function readZip(bytes: Uint8Array): Map<string, Uint8Array> {
     if (method === 0) {
       out.set(name, raw.slice());
     } else if (method === 8) {
+      let inflated: Uint8Array;
       try {
-        out.set(name, new Uint8Array(inflateRawSync(raw)));
-      } catch {
+        // The header's size is only a claim: cap the real output by it so a
+        // lying header cannot inflate past the bound just checked.
+        inflated = new Uint8Array(inflateRawSync(raw, { maxOutputLength: Math.max(uncompressed, 1) }));
+      } catch (error) {
+        if ((error as { code?: string }).code === "ERR_BUFFER_TOO_LARGE") {
+          throw new ZipError("zip_too_large", `${name} inflates past its declared size`);
+        }
         throw new ZipError("zip_unreadable", `${name} does not inflate`);
       }
+      out.set(name, inflated);
     } else {
       throw new ZipError("zip_unsupported_method", `${name} uses compression method ${method}`);
     }

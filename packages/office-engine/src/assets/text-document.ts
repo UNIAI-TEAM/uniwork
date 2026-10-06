@@ -120,9 +120,12 @@ function newRef(format: TextFormat): string {
 
 export function createTextDocumentEngine(
   driver: TextFormatDriver,
-  options: { hash?: Sha256HexFn } = {},
+  options: { hash?: Sha256HexFn; maxInputBytes?: number } = {},
 ): TextDocumentEngine {
   const hash = options.hash ?? sha256Hex;
+  // The server contract bound unless the host injects its own; a host that
+  // does not cap local files passes Number.POSITIVE_INFINITY.
+  const maxInputBytes = options.maxInputBytes ?? ENGINE_LIMITS.max_input_bytes;
   const sessions = new Map<string, Session>();
 
   function session(ref: string): Session {
@@ -184,7 +187,7 @@ export function createTextDocumentEngine(
         operation: "capability",
         format,
         capabilities: driver.capabilities.map((c) => ({ ...c })),
-        limits: { max_input_bytes: ENGINE_LIMITS.max_input_bytes },
+        limits: { max_input_bytes: maxInputBytes },
       };
     },
 
@@ -197,7 +200,7 @@ export function createTextDocumentEngine(
         failure_class,
         message,
       });
-      if (input.bytes.byteLength > ENGINE_LIMITS.max_input_bytes) return failed("too_large", "document exceeds the input bound");
+      if (input.bytes.byteLength > maxInputBytes) return failed("too_large", "document exceeds the input bound");
       let decoded: { text: string; bom: boolean };
       try {
         decoded = decodeSource(input.bytes);
@@ -233,7 +236,7 @@ export function createTextDocumentEngine(
 
     async addAsset(ref, input) {
       const s = session(ref);
-      if (input.bytes.byteLength > ENGINE_LIMITS.max_input_bytes) {
+      if (input.bytes.byteLength > maxInputBytes) {
         throw new EngineBoundaryError("upload_bounds", { reason: "asset_too_large" });
       }
       const key = uniqueAssetKey(s.manifest, sanitizeAssetName(input.name));
