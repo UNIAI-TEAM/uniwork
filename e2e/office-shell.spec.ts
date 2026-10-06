@@ -49,6 +49,16 @@ async function setOfficeFlag(enabled: boolean): Promise<void> {
   } finally {
     await client.end();
   }
+  // The override bypasses the admin write path, so nothing invalidates the
+  // server's flag cache (featureflags.CacheTTL, 30s). Wait until /config
+  // answers the new value; otherwise the first page renders the file card
+  // (this was the "360px does not mount" failure: it ran first).
+  await expect.poll(async () => {
+    const response = await fetch(`${apiUrl}/api/v1/config`);
+    if (!response.ok) return null;
+    const body = (await response.json()) as { flags?: Record<string, boolean> };
+    return body.flags?.office_engine ?? null;
+  }, { timeout: 45_000, intervals: [1_000] }).toBe(enabled);
 }
 
 async function seedOfficeFixture(browser: Browser): Promise<OfficeFixture> {
@@ -93,7 +103,9 @@ async function signIn(page: Page, email: string): Promise<void> {
 }
 
 async function installFlagOffConfig(page: Page): Promise<void> {
-  await page.route("**/api/v1/config", async (route) => {
+  // The document page asks with ?organization_id=…, which a "**/api/v1/config"
+  // glob does not match; match the path instead.
+  await page.route((url) => url.pathname === "/api/v1/config", async (route) => {
     const response = await route.fetch();
     if (!response.ok()) {
       await route.fulfill({ response });
@@ -228,6 +240,8 @@ test("flag off leaves the existing file view unchanged", async ({ page }) => {
     await signIn(page, officeFixture.email);
   }
   await page.goto(officeFixture!.flagOffUrl);
+  // UNI-941: a DOCX whose flag is off keeps the file card with the typed
+  // "editing is off" notice; wait for it before asserting no host mounted.
+  await expect(page.getByText(/Chỉnh sửa DOCX đang tắt|DOCX editing is turned off/i)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("[data-office-editor-host]")).toHaveCount(0);
-  await expect(page.getByText(/Chưa sửa được trong web|Not editable in web/i)).toBeVisible();
 });
