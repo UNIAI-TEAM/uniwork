@@ -45,7 +45,7 @@ var catalogue = []Flag{
 	{Key: "office_pdf", Description: "Sửa tệp PDF trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_markdown", Description: "Sửa tệp Markdown trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_html", Description: "Sửa tệp HTML trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
-	{Key: "office_html_visual_edit", Description: "Visual editing of HTML files in the Office editor (UNI-941; default off until the visual editor is accepted)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_html_visual_edit", Description: "Sửa trực quan tệp HTML trong trình soạn Office; cần office_engine và office_html đang bật (UNI-941, mặc định tắt cho đến khi trình sửa trực quan được nghiệm thu)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 }
 
 // Catalogue returns a copy of the declared flags.

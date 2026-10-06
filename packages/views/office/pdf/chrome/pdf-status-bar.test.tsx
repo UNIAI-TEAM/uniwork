@@ -38,11 +38,15 @@ describe("PdfStatusBar", () => {
     const toggle = screen.getByTestId("pdf-rail-toggle");
     // Only below sm: from sm up the rail is always visible.
     expect(toggle).toHaveClass("sm:hidden");
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    // The flipping Show/Hide name carries the state; no aria-pressed repeats it (r3 F6).
+    const closedName = toggle.getAttribute("aria-label");
+    expect(closedName).toBeTruthy();
+    expect(toggle).not.toHaveAttribute("aria-pressed");
     fireEvent.click(toggle);
     expect(onRailToggle).toHaveBeenCalledOnce();
     rerender(<PdfStatusBar page={1} pageCount={3} zoom={1} railOpen onRailToggle={onRailToggle} />);
-    expect(screen.getByTestId("pdf-rail-toggle")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("pdf-rail-toggle").getAttribute("aria-label")).not.toBe(closedName);
+    expect(screen.getByTestId("pdf-rail-toggle")).not.toHaveAttribute("aria-pressed");
   });
 
   it("offers fit-width and fit-page buttons that call the host, and none without a host (T12)", () => {

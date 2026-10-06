@@ -2,9 +2,17 @@
 # installers, uploads them as workflow artifacts and release assets, and prints
 # the OFFICE_INSTALLER_<CHANNEL>_URLS value the server reads.
 #
-# Never runs on pull_request or an ordinary push: only a manual dispatch or an
-# `office-desktop-v<version>-<dev|beta>.<build>` tag. Separate from ci.yml on
-# purpose (installer builds are slow and are not a merge gate).
+# Never runs on pull_request or an ordinary push: only a manual dispatch, an
+# `office-desktop-v<version>-<dev|beta>.<build>` tag, or a push to the probe branch
+# `ci/office-desktop-installers-probe`. Separate from ci.yml on purpose (installer
+# builds are slow and are not a merge gate).
+#
+# What each trigger does (the publish job is the only one that writes):
+#   tag push `office-desktop-v*`   build both legs, then publish (release + assets)
+#   dispatch, publish=false        build both legs only; artifacts, no tag/release/asset
+#   dispatch, publish=true         build both legs, then publish (release + assets)
+#   push to the probe branch       build both legs only (channel dev, build number = run
+#                                  number); never a tag, release or asset; artifacts kept 3 days
 #
 # Not covered, on purpose:
 #  - macOS: a .dmg needs a Mac runner and none is wired here. The URL helper
@@ -13,6 +21,24 @@
 #    Every file is named `..._unsigned_...`; stable is refused by package.mjs.
 #
 # Secrets are referenced by name only (the workflow token); nothing is stored here.
+#
+# First real run (B8, nobody has run this yet - actionlint only). Start it from the
+# Actions tab or `gh workflow run office-desktop-installers.yml` on the branch that
+# carries this file (workflow_dispatch needs the file on the default branch, or run it
+# with `--ref <branch>` once it is pushed), or push the branch
+# `ci/office-desktop-installers-probe` for a build-only probe:
+#   channel               dev (default) or beta; stable is refused while signing is off.
+#   require_xlsx_sidecar  true (default) builds the Rust sidecar and fails without it;
+#                         false ships gateway-only (formula-bearing saves fail closed).
+#   publish               false (default) builds only; true also creates the release and
+#                         its assets (publish job). A tag push always publishes.
+# It needs: a Rust-capable runner (windows-latest and ubuntu-latest have rustup), up to
+# 60 minutes per build leg (timeout-minutes), `contents: write` on the publish job (and
+# only there) so the default token can create
+# the pre-release, and a repository whose release assets are publicly fetchable (else
+# mirror them: docs/ops/OFFICE_ENV_CHECKLIST.md). Things to look at first if it fails:
+# the Windows cargo step (MAX_PATH, CARGO_TARGET_DIR below), the installer count check,
+# and the two staged-assets checks. The run summary prints OFFICE_INSTALLER_<CHANNEL>_URLS.
 name: Office desktop installers
 
 on:
@@ -27,8 +53,13 @@ on:
         description: Fail when the xlsx gateway or recalculation sidecar is missing from the build
         type: boolean
         default: true
+      publish:
+        description: Also create the pre-release and upload the installers as its assets (false = build only)
+        type: boolean
+        default: false
   push:
     tags: ["office-desktop-v*"]
+    branches: ["ci/office-desktop-installers-probe"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -49,11 +80,13 @@ jobs:
       build_number: ${{ steps.resolve.outputs.build_number }}
       tag: ${{ steps.resolve.outputs.tag }}
       require_sidecar: ${{ steps.resolve.outputs.require_sidecar }}
+      retention_days: ${{ steps.resolve.outputs.retention_days }}
     steps:
       - uses: actions/checkout@v4
       - id: resolve
         env:
           EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
           INPUT_CHANNEL: ${{ inputs.channel }}
           INPUT_REQUIRE_SIDECAR: ${{ inputs.require_xlsx_sidecar }}
@@ -61,7 +94,16 @@ jobs:
         run: |
           set -euo pipefail
           version="$(node -p "require('./apps/office-desktop/package.json').version")"
-          if [ "$EVENT_NAME" = "push" ]; then
+          retention_days=30
+          if [ "$EVENT_NAME" = "push" ] && [ "$REF_TYPE" = "branch" ]; then
+            # Probe branch push: build-only, same defaults as a dispatch. No tag is
+            # needed by the build legs and the publish job never runs.
+            channel=dev
+            build_number="$RUN_NUMBER"
+            tag=""
+            require_sidecar=true
+            retention_days=3
+          elif [ "$EVENT_NAME" = "push" ]; then
             # Tag builds always enforce the sidecar and must name the package version.
             re='^office-desktop-v([0-9]+\.[0-9]+\.[0-9]+)-(dev|beta)\.([0-9]+)$'
             if ! [[ "$REF_NAME" =~ $re ]]; then
@@ -87,6 +129,7 @@ jobs:
             echo "build_number=$build_number"
             echo "tag=$tag"
             echo "require_sidecar=$require_sidecar"
+            echo "retention_days=$retention_days"
           } >> "$GITHUB_OUTPUT"
 
   build:
@@ -102,10 +145,14 @@ jobs:
             platform: win32-x64
             unpacked: win-unpacked
             installers: 2 # NSIS setup + portable ZIP
+            # MSVC link.exe fails past MAX_PATH (260) on the crate's build-script
+            # paths; keep the target dir as short as it gets from the first run.
+            cargo_target: 'C:\cargo-t'
           - os: ubuntu-latest
             platform: linux-x64
             unpacked: linux-unpacked
             installers: 2 # .deb + AppImage
+            cargo_target: /tmp/uniwork-cargo-target
     defaults:
       run:
         shell: bash
@@ -120,9 +167,10 @@ jobs:
       # The explicit build-upstream step below already builds the native sidecar
       # (and writes the attestation), so build/package must not run cargo again.
       OFFICE_DESKTOP_SKIP_NATIVE_BUILD: "1"
-      # Short, per-job cargo target dir: MSVC MAX_PATH on Windows. Never a drive
-      # root; an explicit value wins over the contract's default.
-      CARGO_TARGET_DIR: ${{ runner.temp }}/uniwork-cargo-target
+      # Short, per-job cargo target dir (matrix.cargo_target): MSVC MAX_PATH on
+      # Windows. Never a drive root; an explicit value wins over the contract's
+      # default (xlsx-assets.mjs nativeTargetDirectory).
+      CARGO_TARGET_DIR: ${{ matrix.cargo_target }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -184,10 +232,16 @@ jobs:
           name: office-desktop-${{ matrix.platform }}
           path: ${{ github.workspace }}/.office-out/upload/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: ${{ fromJSON(needs.meta.outputs.retention_days) }}
 
+  # Writes a release: only on an office-desktop-v* tag push, or a dispatch with
+  # publish=true. A dispatch with publish=false and the probe-branch push stop after
+  # the build legs.
   publish:
     needs: [meta, build]
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/office-desktop-v'))
+      || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the release and upload its assets
@@ -238,6 +292,9 @@ jobs:
             echo "### $name"
             echo
             echo "Set this on the server (docs/office/g3g4/desktop-packaging.md). The stable variable stays empty."
+            echo
+            echo "GitHub release download URLs answer 302; the server's bundle download refuses redirects, so for"
+            echo "that route mirror the files to a host that answers 200 directly (docs/ops/OFFICE_ENV_CHECKLIST.md)."
             echo
             echo '```'
             echo "$name=$urls"

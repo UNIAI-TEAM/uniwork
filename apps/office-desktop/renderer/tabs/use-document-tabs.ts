@@ -38,14 +38,29 @@ function createPptxTabSurface(input: OpenTabInput, bytes: OpenedBytes, onDirty: 
   });
 }
 
+/**
+ * Why a cloud tab is view-only when that is not the reader's permission: the
+ * organization switched the format's Office flag off, or its flags answer has
+ * not loaded (or failed), so the tab fails closed until one arrives. Two more
+ * are permanent answers of the upgrade re-read, which is then not retried: the
+ * reader lost edit access (`view_only`), or the document was deleted or moved (`gone`).
+ */
+export type ReadOnlyReason = "feature_off" | "flags_unknown" | "view_only" | "gone";
+
 export interface OpenTabInput {
   readonly kind: "local" | "cloud";
   readonly identity: OfficeIdentity;
   readonly bytes: OpenedBytes;
   readonly title: string;
   readonly format: DesktopDocumentFormat;
-  /** Why the tab is view-only when that is not the reader's permission: the format's Office flag is off. */
-  readonly readOnlyReason?: "feature_off";
+  readonly readOnlyReason?: ReadOnlyReason;
+}
+
+/** A fresh read of a cloud document, the base an upgraded (editable) tab is built from. */
+export interface CloudReopen {
+  readonly bytes: OpenedBytes;
+  readonly baseRevision: string;
+  readonly baseVersionId: string;
 }
 
 export interface TabDocument extends OpenTabInput {
@@ -155,15 +170,23 @@ export function useDocumentTabs(bridge: RendererBridge) {
     },
     /**
      * A cloud tab that opened read-only is rebuilt editable in place (same tab,
-     * same position). Refused when the tab is not a read-only cloud tab or its
-     * session went dirty; the old session is disposed only after the new one exists.
+     * same position) from `fresh`, a new read of the document: never from the
+     * bytes and base captured at the first open, which may be stale by now
+     * (every format, including the xlsx job session that reads only the base).
+     * Refused when the tab is not a read-only cloud tab or its session went
+     * dirty; the old session is disposed only after the new one exists.
      */
-    upgradeCloud(id: string): boolean {
+    upgradeCloud(id: string, fresh: CloudReopen): boolean {
       const live = current.current;
       const tab = live.tabs.find((entry) => entry.id === id);
       if (!tab || tab.data.kind !== "cloud" || tab.data.bytes.canSave !== false || isDocumentDirty(tab.data.session)) return false;
       const { session: previous, ...rest } = tab.data;
-      const next: OpenTabInput = { ...rest, readOnlyReason: undefined, bytes: { ...rest.bytes, canSave: true } };
+      const next: OpenTabInput = {
+        ...rest,
+        readOnlyReason: undefined,
+        bytes: { ...fresh.bytes, canSave: true },
+        identity: { ...rest.identity, baseRevision: fresh.baseRevision, baseVersionId: fresh.baseVersionId },
+      };
       const session = buildSession(next);
       commit({ ...live, tabs: live.tabs.map((entry) => entry.id === id ? { ...entry, data: { ...next, session } } : entry) });
       previous.dispose();

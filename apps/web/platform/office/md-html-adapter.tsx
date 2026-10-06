@@ -251,6 +251,8 @@ function createTextHandle(options: { engine: TextEngine; format: TextFormat; doc
       if (ref) options.engine.replaceText(ref, text);
       emit();
     },
+    canUndo: () => past.length > 0,
+    canRedo: () => future.length > 0,
     async dispose() {
       if (disposed) return;
       disposed = true;

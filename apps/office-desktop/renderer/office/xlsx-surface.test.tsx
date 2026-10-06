@@ -84,6 +84,14 @@ it("a flag-off XLSX tab shows one neutral notice and no permission chip or alert
   expect(container.querySelector("[data-testid^='office-save-permission']")).toBeNull();
 });
 
+it("a XLSX tab whose flags have not loaded shows the not-loaded notice, not the turned-off one", async () => {
+  const { container } = render(<OpenXlsxDocument bridge={xlsxBridge()} session={readOnlyXlsxSession()} readOnlyReason="flags_unknown" title="Book.xlsx" onBack={() => undefined} />);
+  await screen.findByTestId("xlsx-editor-stub");
+  expect(container.querySelectorAll("[data-testid='office-feature-off']")).toHaveLength(1);
+  expect(container.querySelector("[data-testid='office-feature-off']")?.getAttribute("data-reason")).toBe("flags_unknown");
+  expect(container.querySelector("[data-testid^='office-save-permission']")).toBeNull();
+});
+
 it("a read-only XLSX tab without the flag reason keeps the permission state and no feature-off notice", async () => {
   const { container } = render(<OpenXlsxDocument bridge={xlsxBridge()} session={readOnlyXlsxSession()} title="Book.xlsx" onBack={() => undefined} />);
   await screen.findByTestId("xlsx-editor-stub");

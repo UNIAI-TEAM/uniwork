@@ -89,6 +89,9 @@ export interface HtmlRibbonCommands {
 /** Which marks/blocks currently read as "on". */
 export interface HtmlRibbonState {
   readOnly?: boolean;
+  /** False while the history stack in that direction is empty; absent = can step. */
+  canUndo?: boolean;
+  canRedo?: boolean;
   marks?: Partial<Record<HtmlInlineMark, boolean>>;
   block?: HtmlBlockStyle;
   list?: "unordered" | "ordered" | null;
@@ -296,19 +299,22 @@ export function HtmlRibbon({
   const { t } = useTranslation();
   const readOnly = state?.readOnly === true;
   const tabs = useHtmlRibbonTabs({ commands, state, onFind, viewMode, onViewModeChange, presenting, onTogglePresent, scope, layout, className });
+  // Undo/Redo stay focusable when there is nothing to step: aria-disabled, blocked in JS.
+  const undoBlocked = readOnly || !commands?.onUndo || state?.canUndo === false;
+  const redoBlocked = readOnly || !commands?.onRedo || state?.canRedo === false;
 
   const quickAccess = useMemo(
     () => (
       <>
-        <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.html.actions.undo")} disabled={readOnly || !commands?.onUndo} onClick={() => commands?.onUndo?.()}>
+        <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.html.actions.undo")} aria-disabled={undoBlocked || undefined} onClick={() => { if (!undoBlocked) commands?.onUndo?.(); }}>
           <Undo2 aria-hidden />
         </Button>
-        <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.html.actions.redo")} disabled={readOnly || !commands?.onRedo} onClick={() => commands?.onRedo?.()}>
+        <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.html.actions.redo")} aria-disabled={redoBlocked || undefined} onClick={() => { if (!redoBlocked) commands?.onRedo?.(); }}>
           <Redo2 aria-hidden />
         </Button>
       </>
     ),
-    [commands, readOnly, t],
+    [commands, redoBlocked, t, undoBlocked],
   );
 
   const setViewMode = useCallback((mode: string) => onViewModeChange?.(mode as "source" | "split" | "preview"), [onViewModeChange]);

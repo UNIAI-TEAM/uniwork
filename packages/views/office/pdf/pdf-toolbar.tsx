@@ -61,11 +61,14 @@ export function PdfToolbar({
   const { t } = useTranslation();
   const blocked = readOnly || saving;
   const hasPage = selection?.page !== undefined;
+  // Undo/Redo stay focusable on an empty stack: aria-disabled, blocked in JS.
+  const undoBlocked = blocked || !canUndo;
+  const redoBlocked = blocked || !canRedo;
 
   return (
     <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid="pdf-toolbar" aria-label={t("office.pdf.toolbar.label")} role="toolbar">
-      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.actions.undo")} disabled={blocked || !canUndo} onClick={onUndo}><Undo2 aria-hidden /></Button>
-      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.actions.redo")} disabled={blocked || !canRedo} onClick={onRedo}><Redo2 aria-hidden /></Button>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.actions.undo")} aria-disabled={undoBlocked || undefined} onClick={() => { if (!undoBlocked) onUndo(); }}><Undo2 aria-hidden /></Button>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.actions.redo")} aria-disabled={redoBlocked || undefined} onClick={() => { if (!redoBlocked) onRedo(); }}><Redo2 aria-hidden /></Button>
       <span className="mx-1 h-5 w-px bg-border" aria-hidden />
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.commands.editText")} disabled={blocked || !canEditText || selection?.kind !== "text"} onClick={onEditText}><Type aria-hidden /></Button>
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.commands.replaceImage")} disabled={blocked || !canReplaceImage || selection?.kind !== "image"} onClick={onReplaceImage}><ImagePlus aria-hidden /></Button>

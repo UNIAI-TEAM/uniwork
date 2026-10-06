@@ -329,8 +329,21 @@ describe("MarkdownRibbon", () => {
     await waitForRibbon();
     const root = ribbonRegion();
     const quick = root.querySelector<HTMLElement>("[data-ribbon-quick-access]")!;
-    for (const button of Array.from(quick.querySelectorAll("button"))) expect(button).toBeDisabled();
+    for (const button of Array.from(quick.querySelectorAll("button"))) expect(button).toHaveAttribute("aria-disabled", "true");
     expect(ribbonItem(ribbonGroup(root, "inline"), "bold")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("keeps Undo aria-disabled until there is an edit to undo (UNI-954)", async () => {
+    render(<Harness />);
+    await waitForRibbon();
+    const quick = () => Array.from(ribbonRegion().querySelector<HTMLElement>("[data-ribbon-quick-access]")!.querySelectorAll("button"));
+    const before = live!.getText();
+    expect(quick()[0]).toHaveAttribute("aria-disabled", "true");
+    expect(quick()[1]).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(quick()[0]!);
+    expect(live!.getText()).toBe(before);
+    await act(async () => { live!.chain().focus().insertContent("x").run(); });
+    await waitFor(() => expect(quick()[0]).not.toHaveAttribute("aria-disabled"));
   });
 
   it("shows the contextual Table tab only while the cursor is inside a table", async () => {

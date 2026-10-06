@@ -8,6 +8,8 @@ export { PPTX_FIND_COMMAND, PPTX_QUICK_ACCESS_COMMANDS, PPTX_RIBBON_CONTEXTUAL_T
 // UNI-927 D1: the desktop host mounts this format view through the package
 // entry, so the view and the opaque deck model are re-exported here.
 export { PptxEditorView, type PptxEditorViewProps } from "./editor-view";
+// UNI-954: a flag-off desktop tab mounts the editor itself, without edit ports, as a read-only deck.
+export { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 export type { PptxDeckModel } from "./canvas/deck-renderer";
 
 // UNI-927 WIRE3: mount every built-but-unmounted panel through the lane barrel.

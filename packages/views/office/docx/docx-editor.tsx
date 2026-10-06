@@ -2,13 +2,14 @@
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- the editor application landmark captures the host Save shortcut */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "./commands";
 import { DocxContextMenuSurface } from "./context-menu/docx-context-menu-surface";
 import { createDocxDocumentScope, DocxDocumentScopeProvider } from "./editor-store";
 import { OfficeFrame } from "../frame/office-frame";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import { DocxErrorState } from "./docx-error-state";
 import { DocxToolbar } from "./docx-toolbar";
 import { DocxFindPanel } from "./find/docx-find-panel";
@@ -205,14 +206,14 @@ export function DocxEditor<TSnapshot = unknown>({
     coordinator.markDirty?.(editor.getDirtyGeneration());
   }, [coordinator, editor]);
 
+  // An empty history is not a change: only a step that moved the generation
+  // marks the document dirty (UNI-954).
   const undo = useCallback(() => {
-    editor.undo?.();
-    markDirtyFromHandle();
+    if (stepHistory(editor, "undo")) markDirtyFromHandle();
   }, [editor, markDirtyFromHandle]);
 
   const redo = useCallback(() => {
-    editor.redo?.();
-    markDirtyFromHandle();
+    if (stepHistory(editor, "redo")) markDirtyFromHandle();
   }, [editor, markDirtyFromHandle]);
 
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
@@ -222,8 +223,9 @@ export function DocxEditor<TSnapshot = unknown>({
     }
   }, [save]);
 
-  const canUndo = useMemo(() => typeof editor.undo === "function", [editor.undo]);
-  const canRedo = useMemo(() => typeof editor.redo === "function", [editor.redo]);
+  // Read on every render: each edit re-marks the coordinator, whose publish re-renders.
+  const canUndo = canStepHistory(editor, "undo");
+  const canRedo = canStepHistory(editor, "redo");
   const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
   const saving = coordinatorState.state === "saving";
 

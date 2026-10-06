@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { detectDocumentFormat, type OfficeEditorHostProps } from "./editor-host";
+import { useOfficeTabTitle } from "./tab-title";
 
 // The document page's one host entry. It routes by FORMAT, never by
 // elimination: a document whose format no host can open gets a typed
@@ -36,6 +37,7 @@ function UnsupportedHost({ format, title }: { format: string; title: string }) {
 }
 
 export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
+  useOfficeTabTitle(props.document.title);
   const format = detectDocumentFormat(props.document);
   if (format === "pdf") return <PdfHost {...props} />;
   if (format === "docx") return <DocxHost {...props} />;
