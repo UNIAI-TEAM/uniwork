@@ -7443,6 +7443,11 @@
       "no_web_editor_description": "UniWork Office mở định dạng này ở bản sau. Hiện tại bạn tải về để xem hoặc tải lên phiên bản mới.",
       "office_off_title": "Chỉnh sửa {{format}} đang tắt",
       "office_off_description": "Tổ chức này đang tắt chỉnh sửa tệp {{format}}. Bạn vẫn tải tệp về hoặc tải lên phiên bản mới được.",
+      "office_checking": "Đang kiểm tra tổ chức này có bật chỉnh sửa {{format}} không…",
+      "office_unknown_title": "Chưa kiểm tra được chế độ chỉnh sửa {{format}}",
+      "office_unknown_description": "Chưa tải được cấu hình trình soạn thảo của tổ chức, nên tạm thời tệp hiển thị ở đây. Thử lại, hoặc tải tệp về.",
+      "office_unknown_retry": "Thử lại",
+      "readonly_hint": "Bạn chỉ có quyền xem tệp này: tải về được, nhưng không tải lên phiên bản mới được.",
       "upload_failed": "Không tải được tệp lên",
       "commit_failed": "Không lưu được phiên bản mới",
       "missing_file": "Tài liệu này chưa có tệp."
@@ -11931,6 +11936,8 @@
       "draftRecovered": "Đã khôi phục bản nháp đã chọn.",
       "featureOffTitle": "Chỉnh sửa {{format}} đang tắt",
       "featureOffDescription": "Tổ chức của bạn đang tắt chỉnh sửa tệp {{format}}, nên tệp này chỉ xem được.",
+      "flagsUnknownTitle": "Chưa kiểm tra được chế độ chỉnh sửa {{format}}",
+      "flagsUnknownDescription": "Chưa tải được cấu hình trình soạn thảo của tổ chức, nên tạm thời tệp này chỉ xem được. Tệp sẽ sửa được khi cấu hình tải xong.",
       "format": {
         "label": "Định dạng",
         "all": "Tất cả định dạng",

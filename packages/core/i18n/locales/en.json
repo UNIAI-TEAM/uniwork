@@ -7448,6 +7448,11 @@
       "no_web_editor_description": "UniWork Office opens this format in a later step. For now, download it or upload a new version.",
       "office_off_title": "{{format}} editing is turned off",
       "office_off_description": "Editing {{format}} files is turned off for this organization. You can still download the file or upload a new version.",
+      "office_checking": "Checking whether {{format}} editing is available for this organization…",
+      "office_unknown_title": "Couldn't check {{format}} editing",
+      "office_unknown_description": "The organization's editor settings did not load, so the file stays here for now. Try again, or download the file.",
+      "office_unknown_retry": "Try again",
+      "readonly_hint": "You have view access to this file: you can download it, but not upload a new version.",
       "upload_failed": "Could not upload the file",
       "commit_failed": "Could not save the new version",
       "missing_file": "This document has no file yet."
@@ -11955,6 +11960,8 @@
       "draftRecovered": "The selected draft was restored.",
       "featureOffTitle": "{{format}} editing is turned off",
       "featureOffDescription": "Editing {{format}} files is turned off for your organization, so this file is view-only.",
+      "flagsUnknownTitle": "Couldn't check {{format}} editing",
+      "flagsUnknownDescription": "Your organization's editor settings have not loaded yet, so this file is view-only for now. It becomes editable once they load.",
       "format": {
         "label": "Format",
         "all": "All formats",
