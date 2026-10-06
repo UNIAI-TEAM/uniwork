@@ -7,6 +7,7 @@ import type { XlsxGridHandle, XlsxGridHostPort } from "./xlsx-grid-surface";
 
 const TABLE = `<table><tr><td style="font-weight:bold">a</td><td x:num="0.5" style='mso-number-format:"0\\.00%"'>50.00%</td></tr></table>`;
 const NOTICE = "Không giữ được định dạng khi dán nên chỉ dán giá trị.";
+const MERGES_NOTICE = "Không giữ được ô gộp khi dán. Giá trị và định dạng đã được dán.";
 
 function setClipboard(flavours: Record<string, string> | null) {
   const read = flavours === null
@@ -16,7 +17,7 @@ function setClipboard(flavours: Record<string, string> | null) {
   return read;
 }
 
-function setup(text: string, overrides: Partial<XlsxEditorClipboardOptions> = {}, batch?: (steps: readonly { id: string; params?: unknown }[]) => Promise<boolean>) {
+function setup(text: string, overrides: Partial<XlsxEditorClipboardOptions> = {}, batch?: (steps: readonly { id: string; params?: unknown }[]) => Promise<number>) {
   const setCellText = vi.fn();
   const execute = vi.fn(async (_id: string, _params?: unknown) => true);
   const setRecalcError = vi.fn();
@@ -71,7 +72,7 @@ describe("rich paste on the live grid", () => {
 
   it("runs values, formats and merges as one batched undo step when the grid can batch", async () => {
     setClipboard({ "text/plain": "a\t\tb", "text/html": "<table><tr><td colspan=2 style='font-style:italic'>a</td><td>b</td></tr></table>" });
-    const batch = vi.fn(async () => true);
+    const batch = vi.fn(async (steps: readonly unknown[]) => steps.length);
     const { hook, execute } = setup("unused", {}, batch);
     await act(async () => { await hook.result.current.paste(); });
     expect(execute).not.toHaveBeenCalled();
@@ -127,6 +128,40 @@ describe("rich paste on the live grid", () => {
     expect(setCellText).toHaveBeenCalledWith("s1", 1, 2, "50.00%");
     expect(setRecalcError).not.toHaveBeenCalled();
     expect(hook.result.current.pasteNotice?.message).toBe(NOTICE);
+  });
+
+  it("keeps a half-run batch as it is: no per-cell rewrite, a merges notice (F-P2)", async () => {
+    setClipboard({ "text/plain": "a		b", "text/html": "<table><tr><td colspan=2 style='font-style:italic'>a</td><td>b</td></tr></table>" });
+    // set-range-values ran, the merge was refused.
+    const batch = vi.fn(async () => 1);
+    const { hook, setCellText, setRecalcError } = setup("unused", {}, batch);
+    await act(async () => { await hook.result.current.paste(); });
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(setCellText).not.toHaveBeenCalled();
+    expect(setRecalcError).not.toHaveBeenCalled();
+    expect(hook.result.current.pasteNotice?.message).toBe(MERGES_NOTICE);
+  });
+
+  it("falls back to per-cell writes when the batch wrote nothing", async () => {
+    setClipboard({ "text/plain": "a		b", "text/html": "<table><tr><td colspan=2 style='font-style:italic'>a</td><td>b</td></tr></table>" });
+    const { hook, setCellText } = setup("unused", {}, vi.fn(async () => 0));
+    await act(async () => { await hook.result.current.paste(); });
+    expect(setCellText).toHaveBeenCalledTimes(3);
+    expect(hook.result.current.pasteNotice?.message).toBe(NOTICE);
+  });
+
+  it("takes the HTML only from the item that holds the plain text (F-P5)", async () => {
+    const items = [
+      { types: ["text/html"], getType: async () => ({ text: async () => TABLE }) },
+      { types: ["text/plain"], getType: async () => ({ text: async () => "a\t50.00%" }) },
+    ];
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { read: vi.fn(async () => items) } });
+    const { hook, execute, readText } = setup("unused");
+    await act(async () => { await hook.result.current.paste(); });
+    expect(readText).not.toHaveBeenCalled();
+    const params = execute.mock.calls[0]![1] as { value: Record<number, Record<number, { s?: unknown }>> };
+    expect(params.value[1]![1]!.s).toBeUndefined();
+    expect(params.value[1]![2]!.s).toBeUndefined();
   });
 
   it("falls back to the host port when the browser refuses the async read", async () => {

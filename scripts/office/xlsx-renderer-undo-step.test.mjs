@@ -42,18 +42,20 @@ test('runs every step inside one batch and closes it', async () => {
     log.push(step.id);
     return true;
   });
-  assert.equal(ok, true);
+  assert.equal(ok, 2);
   assert.deepEqual(log, ['open:file-1', 'a', 'b', 'close']);
 });
 
-test('stops at the first refusal, still closing the batch', async () => {
+test('stops at the first refusal, still closing the batch, and says how many steps ran (F-P2)', async () => {
   const { log, injector: inj } = injector();
-  const ok = await executeAsOneUndoStep(inj, 'file-1', [{ id: 'a' }, { id: 'b' }, { id: 'c' }], async (step) => {
+  const ran = await executeAsOneUndoStep(inj, 'file-1', [{ id: 'a' }, { id: 'b' }, { id: 'c' }], async (step) => {
     log.push(step.id);
     return step.id !== 'b';
   });
-  assert.equal(ok, false);
+  assert.equal(ran, 1);
   assert.deepEqual(log, ['open:file-1', 'a', 'b', 'close']);
+  // A refusal at the first step wrote nothing.
+  assert.equal(await executeAsOneUndoStep(inj, 'file-1', [{ id: 'a' }, { id: 'b' }], async () => false), 0);
 });
 
 test('closes the batch when a step throws', async () => {
@@ -65,8 +67,8 @@ test('closes the batch when a step throws', async () => {
 test('refuses while another batch is open and skips an empty list', async () => {
   const { injector: inj } = injector();
   inj.get('undo-redo').__tempBatchingUndoRedo('file-1');
-  assert.equal(await executeAsOneUndoStep(inj, 'file-1', [{ id: 'a' }], async () => true), false);
-  assert.equal(await executeAsOneUndoStep(inj, 'file-1', [], async () => { throw new Error('never'); }), true);
+  assert.equal(await executeAsOneUndoStep(inj, 'file-1', [{ id: 'a' }], async () => true), 0);
+  assert.equal(await executeAsOneUndoStep(inj, 'file-1', [], async () => { throw new Error('never'); }), 0);
 });
 
 // The real pinned Univer (no stub): a paste's set-range-values (value, style
@@ -98,7 +100,7 @@ test('real Univer: values, formats and a merge undo in one step', async () => {
     { id: 'sheet.command.set-range-values', params: { unitId: 'u1', subUnitId: 's1', range: area, value: { 0: { 0: { v: 0.5, t: 2, s: { bl: 1, n: { pattern: '0.00%' } } }, 1: { v: null } } } } },
     { id: 'sheet.command.add-worksheet-merge', params: { unitId: 'u1', subUnitId: 's1', selections: [area], defaultMerge: true } },
   ], (step) => commands.executeCommand(step.id, step.params));
-  assert.equal(ok, true);
+  assert.equal(ok, 2);
   const sheet = workbook.getSheetBySheetId('s1');
   assert.deepEqual(workbook.getStyles().getStyleByCell(sheet.getCellRaw(0, 0)), { bl: 1, n: { pattern: '0.00%' } });
   assert.deepEqual(sheet.getMergeData(), [area]);

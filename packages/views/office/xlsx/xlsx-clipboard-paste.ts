@@ -96,18 +96,24 @@ async function flavour(item: ClipboardItem, type: string): Promise<string | null
 /** Both clipboard flavours from ONE async-clipboard read (NIT-1: a second
  *  read can prompt again in Firefox/Safari). The host port's readText is the
  *  fallback when the browser has no `read()`, refuses it, or the clipboard
- *  holds no plain text; the port stays the gate for whether paste exists. */
+ *  holds no plain text; the port stays the gate for whether paste exists.
+ *
+ *  F-P5: when the browser read succeeds, ITS plain text is the paste's text
+ *  and the port's readText is never called - a host whose port reads a
+ *  different clipboard than `navigator.clipboard` (none of today's hosts) is
+ *  not consulted. The text and the HTML always come from the same clipboard
+ *  item, and the rich plan still refuses an HTML table whose cell text
+ *  differs from that plain text. */
 export async function readPasteClipboard(port: Required<Pick<XlsxClipboardPort, "readText">>): Promise<{ text: string; html: string }> {
   const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard;
   if (clipboard?.read) {
     try {
-      let text: string | null = null;
-      let html = "";
+      // The first item with plain text supplies both flavours: an HTML table
+      // from another item is not the twin of this text.
       for (const item of await clipboard.read()) {
-        text ??= await flavour(item, "text/plain");
-        html ||= (await flavour(item, "text/html")) ?? "";
+        const text = await flavour(item, "text/plain");
+        if (text !== null) return { text, html: (await flavour(item, "text/html")) ?? "" };
       }
-      if (text !== null) return { text, html };
     } catch {
       // Denied or unsupported: the host's plain-text read still works.
     }

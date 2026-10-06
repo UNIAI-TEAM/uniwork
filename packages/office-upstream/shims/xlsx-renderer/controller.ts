@@ -183,8 +183,9 @@ export interface XlsxRendererHandle {
    *  command policy cancels (the policy stays the single savability gate).
    *  Returns whether the command actually ran. */
   executeCommand(id: string, params?: unknown): Promise<boolean>;
-  /** UNI-953: several commands as ONE undo entry (a rich paste). */
-  executeCommandsAsOneStep(steps: readonly XlsxRendererCommandStep[]): Promise<boolean>;
+  /** UNI-953: several commands as ONE undo entry (a rich paste). Resolves to
+   *  how many steps ran: steps.length is all of them, 0 is nothing written. */
+  executeCommandsAsOneStep(steps: readonly XlsxRendererCommandStep[]): Promise<number>;
   /** The active range's composed style, or null without an active range.
    *  Read-only mounts still report state; only writes are refused. */
   getActiveFormatState(): XlsxRendererFormatState | null;
@@ -820,7 +821,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     },
     executeCommandsAsOneStep(steps) {
       const unitId = runtime.univerAPI.getActiveWorkbook()?.getId();
-      if (options.readOnly || !unitId) return Promise.resolve(false);
+      if (options.readOnly || !unitId) return Promise.resolve(0);
       return executeAsOneUndoStep(runtime.univer.__getInjector(), unitId, steps, (step) => this.executeCommand(step.id, step.params));
     },
     getActiveFormatState() {

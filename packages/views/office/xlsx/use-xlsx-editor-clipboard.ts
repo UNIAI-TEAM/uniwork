@@ -57,13 +57,16 @@ export interface XlsxEditorClipboardWiring {
 }
 
 /** Runs the steps as one undo entry when the grid can batch; a handle
- *  without the batch member (a test double) runs them one by one. */
-async function runSteps(grid: XlsxGridHandle | null, commands: XlsxToolbarCommands, steps: readonly XlsxPasteStep[]): Promise<boolean> {
+ *  without the batch member (a test double) runs them one by one. Resolves to
+ *  how many steps ran, stopping at the first refusal. */
+async function runSteps(grid: XlsxGridHandle | null, commands: XlsxToolbarCommands, steps: readonly XlsxPasteStep[]): Promise<number> {
   if (grid?.executeCommandsAsOneStep) return grid.executeCommandsAsOneStep(steps);
+  let ran = 0;
   for (const step of steps) {
-    if (!(await commands.execute(step.id, step.params))) return false;
+    if (!(await commands.execute(step.id, step.params))) break;
+    ran += 1;
   }
-  return true;
+  return ran;
 }
 
 export function useXlsxEditorClipboard<TSnapshot = XlsxWorkbookSnapshot>(
@@ -120,12 +123,20 @@ export function useXlsxEditorClipboard<TSnapshot = XlsxWorkbookSnapshot>(
       // MINOR-4: one set-range-values (values with their styles) plus the
       // merges, run as ONE undo step.
       const steps = gridPasteSteps(`file-${rendererHost.file.sha256}`, gridSheet.id, position, rows, plan);
-      if (!(await runSteps(gridRef.current, gridCommands, steps))) {
+      const ran = await runSteps(gridRef.current, gridCommands, steps);
+      if (ran < steps.length) {
         if (disposedRef.current || mountRef.current !== session) return;
-        // A refusal (say a protected cell in the range) falls back to the
-        // per-cell writes, which skip what may not be edited.
-        for (const cell of cells) gridRef.current?.setCellText(gridSheet.id, cell.row, cell.column, cell.text);
-        if (plan) setPasteNoticeMessage(valuesOnly);
+        if (ran === 0) {
+          // Nothing was written: a refusal (say a protected cell in the range)
+          // falls back to the per-cell writes, which skip what may not be edited.
+          for (const cell of cells) gridRef.current?.setCellText(gridSheet.id, cell.row, cell.column, cell.text);
+          if (plan) setPasteNoticeMessage(valuesOnly);
+        } else {
+          // F-P2: the values and styles landed (one undo entry) and a merge was
+          // refused. Writing the cells again would double the work and add one
+          // undo entry per cell, so the paste stands and the notice says so.
+          setPasteNoticeMessage(t("office.xlsx.errors.richPasteMergesSkipped"));
+        }
       }
       await gridEdits.flush();
       return;
