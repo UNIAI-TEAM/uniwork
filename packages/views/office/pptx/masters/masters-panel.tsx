@@ -18,6 +18,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MastersInspector } from "./masters-inspector";
+import { masterElementName, masterElementSnippet } from "./masters-labels";
 import {
   groupMasterParts,
   type MasterPanelEdit,
@@ -66,14 +67,17 @@ export function MastersPanel({
     () =>
       elements.map((element) => ({
         key: element.id,
-        content: (
+        // Localized kind, never the OOXML token; an element with text shows the text and the kind as a chip.
+        content: masterElementSnippet(element) ? (
           <>
-            <span className="min-w-0 flex-1 truncate">{element.label}</span>
-            <Badge variant="outline">{element.placeholder ?? element.type}</Badge>
+            <span className="min-w-0 flex-1 truncate">{masterElementSnippet(element)}</span>
+            <Badge variant="outline" data-pptx-masters-element-kind>{masterElementName(element, t)}</Badge>
           </>
+        ) : (
+          <span className="min-w-0 flex-1 truncate" data-pptx-masters-element-kind>{masterElementName(element, t)}</span>
         ),
       })),
-    [elements],
+    [elements, t],
   );
 
   const bound = typeof onEdit === "function";
@@ -81,10 +85,10 @@ export function MastersPanel({
   const selected = elements.find((element) => element.id === selectedElementId) ?? null;
   const active = parts.find((part) => part.partPath === activePart) ?? null;
 
-  const emit = (edit: MasterPanelEdit) => {
+  const emit = (edit: MasterPanelEdit, onApplied?: () => void) => {
     if (!onEdit || pending) return;
     // The host reports a refused edit; a rejection must not escape as unhandled.
-    void Promise.resolve(onEdit(edit)).catch(() => undefined);
+    void Promise.resolve(onEdit(edit)).then(() => onApplied?.(), () => undefined);
   };
 
   const closeButton = onClose ? (
@@ -126,89 +130,95 @@ export function MastersPanel({
       aria-busy={pending || undefined}
       data-pptx-masters-panel
       data-state={state}
-      className={cn("flex min-h-0 flex-col gap-3 overflow-y-auto p-3", className)}
+      className={cn("flex min-h-0 flex-col gap-3 overflow-hidden p-3", className)}
     >
-      <header className="flex items-center justify-between gap-2">
+      <header className="flex shrink-0 items-center justify-between gap-2">
         <h2 className="text-body font-medium text-foreground">{t("masters.title")}</h2>
         {closeButton}
       </header>
 
-      {state === "unbound" ? (
-        <p className="text-caption text-muted-foreground" data-testid="pptx-masters-unbound">
-          {t("masters.unbound")}
-        </p>
-      ) : null}
-      {pending ? (
-        <p role="status" className="text-caption text-muted-foreground" data-testid="pptx-masters-busy">
-          {t("masters.busy")}
-        </p>
-      ) : null}
-
-      {parts.length === 0 ? (
-        <p className="text-caption text-muted-foreground" data-testid="pptx-masters-parts-empty">
-          {t("masters.parts_empty")}
-        </p>
-      ) : (
-        <MasterSelectList
-          label={t("masters.parts_label")}
-          items={partItems}
-          selectedKey={activePart}
-          onSelect={onSelectPart}
-          disabled={pending}
-          testId="pptx-masters-parts"
-        />
-      )}
-
-      {active ? <MastersPartTools key={active.partPath + "|" + active.name} part={active} disabled={blocked} onEdit={emit} /> : null}
-
-      {parts.length === 0 ? null : activePart === null ? (
-        <p className="text-caption text-muted-foreground" data-testid="pptx-masters-no-part">
-          {t("masters.no_part")}
-        </p>
-      ) : elements.length === 0 ? (
-        <p className="text-caption text-muted-foreground" data-testid="pptx-masters-elements-empty">
-          {t("masters.elements_empty")}
-        </p>
-      ) : (
-        <MasterSelectList
-          label={t("masters.elements_label")}
-          items={elementItems}
-          selectedKey={selectedElementId}
-          onSelect={onSelectElement}
-          onClear={() => onSelectElement(null)}
-          disabled={pending}
-          testId="pptx-masters-elements"
-        />
-      )}
-
-      {activePart !== null && elements.length > 0 ? (
-        selected ? (
-          <MastersInspector
-            key={[
-              activePart,
-              selected.id,
-              selected.box.x,
-              selected.box.y,
-              selected.box.w,
-              selected.box.h,
-              selected.fill ?? "",
-              selected.text ?? "",
-            ].join("|")}
-            part={activePart}
-            element={selected}
-            disabled={blocked}
-            onEdit={emit}
-          />
-        ) : (
-          <p className="text-caption text-muted-foreground" data-testid="pptx-masters-no-element">
-            {t("masters.no_element")}
+      {/* Visual fix MAJOR-1: the part and element lists keep their height (each scrolls
+          on its own) so a layout switch is one click; only the details below scroll. */}
+      <div className="flex shrink-0 flex-col gap-3" data-pptx-masters-nav>
+        {state === "unbound" ? (
+          <p className="text-caption text-muted-foreground" data-testid="pptx-masters-unbound">
+            {t("masters.unbound")}
           </p>
-        )
-      ) : null}
+        ) : null}
+        {pending ? (
+          <p role="status" className="text-caption text-muted-foreground" data-testid="pptx-masters-busy">
+            {t("masters.busy")}
+          </p>
+        ) : null}
+        {parts.length === 0 ? (
+          <p className="text-caption text-muted-foreground" data-testid="pptx-masters-parts-empty">
+            {t("masters.parts_empty")}
+          </p>
+        ) : (
+          <MasterSelectList
+            label={t("masters.parts_label")}
+            items={partItems}
+            selectedKey={activePart}
+            onSelect={onSelectPart}
+            disabled={pending}
+            testId="pptx-masters-parts"
+            className="max-h-40"
+          />
+        )}
+        {parts.length === 0 ? null : activePart === null ? (
+          <p className="text-caption text-muted-foreground" data-testid="pptx-masters-no-part">
+            {t("masters.no_part")}
+          </p>
+        ) : elements.length === 0 ? (
+          <p className="text-caption text-muted-foreground" data-testid="pptx-masters-elements-empty">
+            {t("masters.elements_empty")}
+          </p>
+        ) : (
+          <MasterSelectList
+            label={t("masters.elements_label")}
+            items={elementItems}
+            selectedKey={selectedElementId}
+            onSelect={onSelectElement}
+            onClear={() => onSelectElement(null)}
+            disabled={pending}
+            testId="pptx-masters-elements"
+            className="max-h-32"
+          />
+        )}
+      </div>
 
-      {activePart !== null && selected?.placeholder ? (
-        <MastersTextStyle key={activePart + "|" + selected.id} part={activePart} placeholder={selected.placeholder} idx={selected.idx} disabled={blocked} onEdit={emit} />
-      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto [&>*]:shrink-0" data-pptx-masters-details>
+        {active ? <MastersPartTools key={active.partPath + "|" + active.name} part={active} disabled={blocked} onEdit={emit} /> : null}
+
+        {activePart !== null && elements.length > 0 ? (
+          selected ? (
+            <MastersInspector
+              key={[
+                activePart,
+                selected.id,
+                selected.box.x,
+                selected.box.y,
+                selected.box.w,
+                selected.box.h,
+                selected.fill ?? "",
+                selected.text ?? "",
+              ].join("|")}
+              part={activePart}
+              element={selected}
+              disabled={blocked}
+              onEdit={emit}
+            />
+          ) : (
+            <p className="text-caption text-muted-foreground" data-testid="pptx-masters-no-element">
+              {t("masters.no_element")}
+            </p>
+          )
+        ) : null}
+
+        {activePart !== null && selected?.placeholder ? (
+          <MastersTextStyle key={activePart + "|" + selected.id} part={activePart} placeholder={selected.placeholder} idx={selected.idx} disabled={blocked} onEdit={emit} />
+        ) : null}
+      </div>
     </section>
   );
 }

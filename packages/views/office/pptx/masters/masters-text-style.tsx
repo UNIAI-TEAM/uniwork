@@ -21,7 +21,8 @@ interface MastersTextStyleProps {
   /** The slot index of the selected placeholder; absent on a title. */
   idx?: number;
   disabled: boolean;
-  onEdit: (edit: MasterPanelEdit) => void;
+  /** `onApplied` runs once the host has applied the edit (a refusal never calls it). */
+  onEdit: (edit: MasterPanelEdit, onApplied: () => void) => void;
 }
 
 export function MastersTextStyle({ part, placeholder, idx, disabled, onEdit }: MastersTextStyleProps) {
@@ -32,6 +33,9 @@ export function MastersTextStyle({ part, placeholder, idx, disabled, onEdit }: M
   const [italic, setItalic] = useState<boolean | undefined>(undefined);
   const [color, setColor] = useState("");
   const [font, setFont] = useState("");
+  // Visual fix MINOR-1: a short confirmation after an applied style, cleared by the next change.
+  const [applied, setApplied] = useState(false);
+  const edited = <T,>(set: (value: T) => void) => (value: T) => { setApplied(false); set(value); };
 
   const sizePt = parseFontSize(size);
   const hex = color.trim() === "" ? undefined : normalizeMasterColor(color);
@@ -52,35 +56,38 @@ export function MastersTextStyle({ part, placeholder, idx, disabled, onEdit }: M
       aria-label={t("masters.text_style_label")}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!disabled && !invalid && !empty) onEdit({ op: "master_set_text_style", part, placeholder, ...(idx !== undefined ? { idx } : {}), ...draft });
+        if (disabled || invalid || empty) return;
+        setApplied(false);
+        onEdit({ op: "master_set_text_style", part, placeholder, ...(idx !== undefined ? { idx } : {}), ...draft }, () => setApplied(true));
       }}
     >
       <span className="text-caption font-medium text-foreground">{t("masters.text_style_label")}</span>
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
           <Label htmlFor={id + "-size"} className="text-caption text-muted-foreground">{t("masters.font_size")}</Label>
-          <Input id={id + "-size"} inputMode="decimal" value={size} disabled={disabled} aria-invalid={sizePt === null || undefined} onChange={(event) => setSize(event.target.value)} className="h-8" />
+          <Input id={id + "-size"} inputMode="decimal" value={size} disabled={disabled} aria-invalid={sizePt === null || undefined} onChange={(event) => edited(setSize)(event.target.value)} className="h-8" />
         </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor={id + "-color"} className="text-caption text-muted-foreground">{t("masters.font_color")}</Label>
-          <Input id={id + "-color"} value={color} placeholder="#1F4E79" disabled={disabled} aria-invalid={hex === null || undefined} onChange={(event) => setColor(event.target.value)} className="h-8" />
+          <Input id={id + "-color"} value={color} placeholder="#1F4E79" disabled={disabled} aria-invalid={hex === null || undefined} onChange={(event) => edited(setColor)(event.target.value)} className="h-8" />
         </div>
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor={id + "-font"} className="text-caption text-muted-foreground">{t("masters.font_name")}</Label>
-        <Input id={id + "-font"} value={font} disabled={disabled} onChange={(event) => setFont(event.target.value)} className="h-8" />
+        <Input id={id + "-font"} value={font} disabled={disabled} onChange={(event) => edited(setFont)(event.target.value)} className="h-8" />
       </div>
       <div className="flex items-center gap-4">
         <Label className="flex items-center gap-2 text-caption text-foreground">
-          <Checkbox checked={bold === true} disabled={disabled} onCheckedChange={(checked) => setBold(checked === true)} />
+          <Checkbox checked={bold === true} disabled={disabled} onCheckedChange={(checked) => edited(setBold)(checked === true)} />
           {t("masters.bold")}
         </Label>
         <Label className="flex items-center gap-2 text-caption text-foreground">
-          <Checkbox checked={italic === true} disabled={disabled} onCheckedChange={(checked) => setItalic(checked === true)} />
+          <Checkbox checked={italic === true} disabled={disabled} onCheckedChange={(checked) => edited(setItalic)(checked === true)} />
           {t("masters.italic")}
         </Label>
       </div>
       {invalid ? <p className="text-caption text-destructive" role="alert">{t("masters.text_style_invalid")}</p> : null}
+      {applied ? <p className="text-caption text-muted-foreground" role="status" data-pptx-masters-text-style-applied>{t("masters.text_style_applied")}</p> : null}
       <Button type="submit" size="sm" variant="outline" disabled={disabled || invalid || empty} data-pptx-masters-text-style-apply>
         {t("masters.text_style_apply")}
       </Button>

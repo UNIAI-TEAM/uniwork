@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { MastersPanel } from "./masters-panel";
@@ -78,7 +78,7 @@ describe("MastersPanel", () => {
     expect(onSelectElement).toHaveBeenLastCalledWith("p1");
     fireEvent.keyDown(list, { key: "Escape" });
     expect(onSelectElement).toHaveBeenLastCalledWith(null);
-    fireEvent.click(within(list).getByText("Logo"));
+    fireEvent.click(within(list).getByText("Picture"));
     expect(onSelectElement).toHaveBeenLastCalledWith("p1");
   });
 
@@ -282,5 +282,62 @@ describe("MastersPanel", () => {
   it("offers no text style for an element that is not a placeholder (T01)", () => {
     setup({ selectedElementId: "p1" });
     expect(document.querySelector("[data-pptx-masters-text-style]")).toBeNull();
+  });
+
+  it("keeps both lists in a fixed region and scrolls only the details, so a layout switch after selecting an element is one click (MAJOR-1)", () => {
+    const { onSelectPart } = setup({ selectedElementId: "t1" });
+    const nav = document.querySelector("[data-pptx-masters-nav]") as HTMLElement;
+    const details = document.querySelector("[data-pptx-masters-details]") as HTMLElement;
+    // Before: one overflow-y-auto column where the listboxes (overflow auto, min-height 0)
+    // shrank to slivers once the inspector grew. After: the lists never shrink.
+    expect(panel()).toHaveClass("overflow-hidden");
+    expect(panel()).not.toHaveClass("overflow-y-auto");
+    expect(nav).toHaveClass("shrink-0");
+    expect(details).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
+    const parts = within(nav).getByRole("listbox", { name: "Masters and layouts" });
+    const elements = within(nav).getByRole("listbox", { name: "Elements" });
+    expect(parts).toHaveClass("shrink-0", "max-h-40");
+    expect(elements).toHaveClass("shrink-0", "max-h-32");
+    expect(within(details).getByRole("button", { name: "Apply position" })).toBeInTheDocument();
+    expect(details.querySelector("[data-pptx-masters-part-tools]")).not.toBeNull();
+    expect(details.querySelector("[data-pptx-masters-text-style]")).not.toBeNull();
+    fireEvent.click(within(parts).getByText("Title and Content"));
+    expect(onSelectPart).toHaveBeenCalledTimes(1);
+    expect(onSelectPart).toHaveBeenLastCalledWith(PARTS[2]!.partPath);
+  });
+
+  it("names placeholders and element types in the user's language, never as OOXML tokens (MINOR-1)", async () => {
+    const tokens: MasterElementView[] = [
+      { id: "a", type: "shape", label: "dt", placeholder: "dt", box: { x: 0, y: 0, w: 1, h: 1 } },
+      { id: "b", type: "shape", label: "ftr", placeholder: "ftr", box: { x: 0, y: 0, w: 1, h: 1 } },
+      { id: "c", type: "shape", label: "sldNum", placeholder: "sldNum", box: { x: 0, y: 0, w: 1, h: 1 } },
+      { id: "d", type: "shape", label: "body: Click", placeholder: "body", box: { x: 0, y: 0, w: 1, h: 1 }, text: "Click to edit" },
+      { id: "e", type: "picture", label: "picture", box: { x: 0, y: 0, w: 1, h: 1 } },
+      { id: "f", type: "shape", label: "x", placeholder: "weird", box: { x: 0, y: 0, w: 1, h: 1 } },
+    ];
+    const kinds = () => Array.from(document.querySelectorAll("[data-pptx-masters-element-kind]")).map((node) => node.textContent);
+    const view = render(<MastersPanel {...baseProps({ elements: tokens, selectedElementId: null })} />);
+    expect(kinds()).toEqual(["Date", "Footer", "Slide number", "Content", "Picture", "Placeholder"]);
+    expect(within(screen.getByRole("listbox", { name: "Elements" })).getByText("Click to edit")).toBeInTheDocument();
+    view.unmount();
+    await setLocale("vi");
+    render(<MastersPanel {...baseProps({ elements: tokens, selectedElementId: null })} />);
+    expect(kinds()).toEqual(["Ngày", "Chân trang", "Số trang chiếu", "Nội dung", "Hình ảnh", "Chỗ dành sẵn"]);
+    expect(screen.getByRole("listbox", { name: "Phần tử" }).textContent).not.toMatch(/sldNum|ftr|dt/);
+  });
+
+  it("confirms an applied text style, not a refused one, and clears it on the next change (MINOR-1)", async () => {
+    const onEdit = vi.fn<(edit: MasterPanelEdit) => Promise<unknown>>().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("refused"));
+    render(<MastersPanel {...baseProps({ onEdit })} />);
+    const apply = document.querySelector("[data-pptx-masters-text-style-apply]") as HTMLButtonElement;
+    fireEvent.change(screen.getByLabelText("Size (pt)"), { target: { value: "30" } });
+    fireEvent.click(apply);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Text style applied."));
+    fireEvent.change(screen.getByLabelText("Size (pt)"), { target: { value: "31" } });
+    expect(document.querySelector("[data-pptx-masters-text-style-applied]")).toBeNull();
+    fireEvent.click(apply);
+    await waitFor(() => expect(onEdit).toHaveBeenCalledTimes(2));
+    await Promise.resolve();
+    expect(document.querySelector("[data-pptx-masters-text-style-applied]")).toBeNull();
   });
 });

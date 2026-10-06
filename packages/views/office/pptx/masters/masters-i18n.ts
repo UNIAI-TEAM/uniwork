@@ -101,6 +101,26 @@ export const PPTX_MASTERS_I18N: Readonly<Record<string, PptxMastersI18nEntry>> =
   "office.pptx.masters.italic": { en: "Italic", vi: "Nghiêng" },
   "office.pptx.masters.text_style_invalid": { en: "Enter a size from 1 to 400 and a colour like #1F4E79.", vi: "Nhập cỡ chữ từ 1 đến 400 và màu dạng #1F4E79." },
   "office.pptx.masters.text_style_apply": { en: "Apply text style", vi: "Áp dụng kiểu chữ" },
+  // UNI-939 visual fix: localized element names, style confirmation, canvas preview tag.
+  "office.pptx.masters.placeholder_ctrtitle": { en: "Centered title", vi: "Tiêu đề giữa" },
+  "office.pptx.masters.placeholder_subtitle": { en: "Subtitle", vi: "Tiêu đề phụ" },
+  "office.pptx.masters.placeholder_obj": { en: "Object", vi: "Đối tượng" },
+  "office.pptx.masters.placeholder_clipart": { en: "Clip art", vi: "Hình minh hoạ" },
+  "office.pptx.masters.placeholder_dgm": { en: "Diagram", vi: "Sơ đồ" },
+  "office.pptx.masters.placeholder_media": { en: "Media", vi: "Phương tiện" },
+  "office.pptx.masters.placeholder_sldimg": { en: "Slide image", vi: "Hình trang chiếu" },
+  "office.pptx.masters.placeholder_hdr": { en: "Header", vi: "Đầu trang" },
+  "office.pptx.masters.placeholder_other": { en: "Placeholder", vi: "Chỗ dành sẵn" },
+  "office.pptx.masters.type_text": { en: "Text box", vi: "Hộp văn bản" },
+  "office.pptx.masters.type_shape": { en: "Shape", vi: "Hình" },
+  "office.pptx.masters.type_picture": { en: "Picture", vi: "Hình ảnh" },
+  "office.pptx.masters.type_group": { en: "Group", vi: "Nhóm" },
+  "office.pptx.masters.type_table": { en: "Table", vi: "Bảng" },
+  "office.pptx.masters.type_chart": { en: "Chart", vi: "Biểu đồ" },
+  "office.pptx.masters.type_passthrough": { en: "Embedded object", vi: "Đối tượng nhúng" },
+  "office.pptx.masters.type_other": { en: "Element", vi: "Phần tử" },
+  "office.pptx.masters.text_style_applied": { en: "Text style applied.", vi: "Đã áp dụng kiểu chữ." },
+  "office.pptx.masters.preview_label": { en: "{{kind}}: {{name}} (preview)", vi: "{{kind}}: {{name}} (xem trước)" },
 };
 
 export type PptxMastersLocale = "en" | "vi";

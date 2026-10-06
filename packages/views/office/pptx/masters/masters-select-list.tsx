@@ -22,6 +22,8 @@ interface MasterSelectListProps {
   onClear?: () => void;
   disabled?: boolean;
   testId: string;
+  /** Extra classes, e.g. a tighter max height. */
+  className?: string;
 }
 
 export function MasterSelectList({
@@ -32,6 +34,7 @@ export function MasterSelectList({
   onClear,
   disabled = false,
   testId,
+  className,
 }: MasterSelectListProps) {
   const base = useId();
   const index = items.findIndex((item) => item.key === selectedKey);
@@ -67,7 +70,10 @@ export function MasterSelectList({
       tabIndex={disabled ? -1 : 0}
       data-testid={testId}
       onKeyDown={onKeyDown}
-      className="flex max-h-48 flex-col gap-0.5 overflow-y-auto rounded-md border border-border bg-background p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        "flex max-h-48 shrink-0 flex-col gap-0.5 overflow-y-auto rounded-md border border-border bg-background p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
     >
       {items.map((item, i) => {
         const selected = i === index;
