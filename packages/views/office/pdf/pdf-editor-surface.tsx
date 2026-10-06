@@ -61,6 +61,8 @@ export interface PdfEditorSurfaceProps {
   statusBar?: ReactNode;
   /** A shell-owned notice shown above the surface's own notices. */
   banner?: ReactNode;
+  /** Below sm the thumbnail rail is hidden until the status bar's toggle opens it. */
+  railOpen?: boolean;
 }
 
 const NOTE_SIZE = 24;
@@ -117,7 +119,7 @@ function noop(): void {
  * so a successful edit marks the save coordinator dirty and a failure shows a
  * translated message instead of crashing the editor.
  */
-export function PdfEditorSurface({ editor, pages, readOnly, zoom, canvasRef, selection, selectedPage, revision, activePanel, onActivePanelChange, findOpen, onFindClose, onSelectPage, onCanvasSelect, fontReport, errorKey, run, ribbon, statusBar, banner }: PdfEditorSurfaceProps) {
+export function PdfEditorSurface({ editor, pages, readOnly, zoom, canvasRef, selection, selectedPage, revision, activePanel, onActivePanelChange, findOpen, onFindClose, onSelectPage, onCanvasSelect, fontReport, errorKey, run, ribbon, statusBar, banner, railOpen = false }: PdfEditorSurfaceProps) {
   const { t } = useTranslation();
   const canvasMode = editor.renderer !== undefined && editor.getCanvasPages !== undefined;
   const [canvasPages, setCanvasPages] = useState<readonly PdfCanvasPage[]>(() => (canvasMode ? freshPages(editor) : NO_PAGES));
@@ -301,7 +303,7 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, canvasRef, sel
       data-testid="pdf-canvas"
       ribbon={ribbon}
       subbar={findBar || notices ? <>{findBar}{notices}</> : undefined}
-      rail={<PdfThumbnailsRail className="hidden sm:flex" pages={railPages} activePage={selectedPage ?? undefined} onSelect={navigate} renderThumbnail={renderer ? renderThumbnail : undefined} />}
+      rail={<PdfThumbnailsRail className={railOpen ? "flex" : "hidden sm:flex"} pages={railPages} activePage={selectedPage ?? undefined} onSelect={navigate} renderThumbnail={renderer ? renderThumbnail : undefined} />}
       aside={aside}
       bottom={objectEditor}
       statusBar={statusBar}

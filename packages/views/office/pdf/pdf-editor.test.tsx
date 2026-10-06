@@ -348,6 +348,8 @@ describe("PdfEditor", () => {
     for (const id of ["insert-page", "extract-page", "merge-pages"]) {
       expect(document.querySelector(`[data-ribbon-item='${id}']`)).toHaveAttribute("aria-disabled", "true");
     }
+    // The Pages banner names only the ops that are refused, not "this edit".
+    expect(screen.getByTestId("pdf-browser-unsupported")).toHaveTextContent("Chèn, trích xuất và gộp trang chưa dùng được trên trình duyệt.");
     // Delete, rotate and reorder need no Buffer producer and stay usable.
     for (const id of ["delete-page", "rotate-page", "reorder-page"]) {
       expect(document.querySelector(`[data-ribbon-item='${id}']`)).not.toHaveAttribute("aria-disabled");
@@ -436,6 +438,45 @@ describe("PdfEditor", () => {
     expect(screen.getByRole("search")).toBeInTheDocument();
     fireEvent.keyDown(root, { key: "f", ctrlKey: true });
     expect(screen.queryByRole("search")).not.toBeInTheDocument();
+  });
+
+  it("takes focus on load so Ctrl+F right after opening reaches the editor, not the browser", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+    expect(document.activeElement).toBe(root);
+    // The browser targets the focused element: that is the editor landmark now.
+    expect(fireEvent.keyDown(document.activeElement ?? document.body, { key: "f", ctrlKey: true })).toBe(false);
+    expect(screen.getByRole("search")).toBeInTheDocument();
+  });
+
+  it("does not steal focus from a control that already holds it", async () => {
+    const outside = document.createElement("input");
+    document.body.appendChild(outside);
+    outside.focus();
+    try {
+      renderEditor();
+      await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+      expect(document.activeElement).toBe(outside);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("opens the thumbnail rail from the status bar below sm and closes it on a page pick", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const rail = screen.getByTestId("pdf-thumbnails-rail");
+    expect(rail).toHaveClass("hidden", "sm:flex");
+    const toggle = screen.getByTestId("pdf-rail-toggle");
+    expect(toggle).toHaveAccessibleName("Hiện ảnh thu nhỏ trang");
+    fireEvent.click(toggle);
+    expect(rail).toHaveClass("flex");
+    expect(rail).not.toHaveClass("hidden");
+    expect(toggle).toHaveAccessibleName("Ẩn ảnh thu nhỏ trang");
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("pdf-thumbnail-1"));
+    expect(rail).toHaveClass("hidden");
   });
 
   it("does not toggle Find on Ctrl+Shift+F - the shifted chord is out of scope", async () => {
