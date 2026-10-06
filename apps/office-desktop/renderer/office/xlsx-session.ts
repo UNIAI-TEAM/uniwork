@@ -163,6 +163,11 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
   // The server edit job is the only serializer: serialize queues the ops the
   // editor applied and returns the produced bytes; commit rides the ordinary
   // desktop:office-save command (no second save path).
+  // The draft id binds synchronously inside the gate's write; a snapshot read
+  // across a Save (which filters the pending journal) is captured again. The
+  // commit marks the rebase once the write is confirmed; a capture parked behind
+  // a Save that never answers writes under the pre-save base after the bound.
+  const gate = createSaveSettleGate();
   const transport: OfficeSaveTransport<XlsxWorkbookSnapshot> = {
     async serialize({ intent, snapshot: stable }) {
       if (!snapshot || !committed) throw new Error("xlsx_editor_not_open");
@@ -194,6 +199,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
       const output = outputs.get(intent.intentId);
       if (!output) throw new Error("desktop save output missing");
       const result = desktopOfficeSaveResponseSchema.parse(await options.bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId, format: "xlsx", intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
+      gate.markRebase();
       outputs.delete(intent.intentId);
       const candidate = candidates.get(intent.intentId);
       if (candidate) { committed = structuredClone(candidate.snapshot); pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision); baseRevision = result.revision; lastCommit = { intentId: intent.intentId, revision: result.revision }; candidates.clear(); }
@@ -231,9 +237,6 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
     generationFloor = Math.max(generationFloor, result.generation);
     durableRows.set(draftId, result.generation);
   };
-  // The draft id binds synchronously inside the gate's write; a snapshot read
-  // across a Save (which filters the pending journal) is captured again.
-  const gate = createSaveSettleGate();
   const draft: DraftAdapter<XlsxWorkbookSnapshot> = {
     checkpoint: () => gate.capture(() => editor.captureSnapshot(), (stable) => {
       if (disposed) throw new Error("xlsx_editor_disposed");

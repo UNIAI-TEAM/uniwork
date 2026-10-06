@@ -183,9 +183,10 @@ export function createPptxDocumentSession(
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;
       }
       // The write is confirmed: those bytes are the base the next draft row is
-      // keyed by, so the journal drops what they hold (W14). The gate holds
-      // checkpoints until the Save settles, so none can land between this rebase
-      // and the new identity.
+      // keyed by, so the journal drops what they hold (W14). From the mark until
+      // the Save settles checkpoints wait, so none lands between this rebase and
+      // the new identity.
+      gate.markRebase();
       await surface.setBaseRevision(revision, intent.intentId);
       return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: intent.identity.documentId, versionId, revision, checksumSha256: checksum, sizeBytes: output.sizeBytes, engineName: "pptx", engineVersion: "09485f884dc845cf3bf27fb7edfe489f9d457aad", contractVersion: "office-editor-host/1", protocolVersion: "1" };
     },

@@ -162,6 +162,11 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
   // The local engine job is the serializer: serialize queues the ops the editor
   // applied and returns the produced bytes; commit writes them back to the
   // opaque local handle through the ordinary desktop:file-save command.
+  // The draft id binds synchronously inside the gate's write; a snapshot read
+  // across a Save (which filters the pending journal) is captured again. The
+  // commit marks the rebase once the write is confirmed; a capture parked behind
+  // a Save that never answers writes under the pre-save base after the bound.
+  const gate = createSaveSettleGate();
   const transport: OfficeSaveTransport<XlsxWorkbookSnapshot> = {
     async serialize({ intent, snapshot: stable }) {
       if (!snapshot || !committed) throw new Error("xlsx_editor_not_open");
@@ -193,6 +198,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       const result = desktopFileResponseSchema.parse(await options.bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: options.localHandle, dataBase64: output.dataBase64 }));
       if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
       if (result.metadata.checksum !== output.checksum) throw new Error("local_save_checksum_mismatch");
+      gate.markRebase();
       outputs.delete(intent.intentId);
       const candidate = candidates.get(intent.intentId);
       const versionId = result.metadata.checksum;
@@ -235,9 +241,6 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     generationFloor = Math.max(generationFloor, result.generation);
     durableRows.set(draftId, result.generation);
   };
-  // The draft id binds synchronously inside the gate's write; a snapshot read
-  // across a Save (which filters the pending journal) is captured again.
-  const gate = createSaveSettleGate();
   const draft: DraftAdapter<XlsxWorkbookSnapshot> = {
     checkpoint: () => gate.capture(() => editor.captureSnapshot(), (stable) => {
       if (disposed) throw new Error("xlsx_editor_disposed");
