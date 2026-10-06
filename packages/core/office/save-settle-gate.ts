@@ -47,7 +47,7 @@ export function createSaveSettleGate(): SaveSettleGate {
         }
       }
     },
-    async capture(capture, write) {
+    async capture<S, R>(capture: () => Promise<S>, write: (snapshot: S) => R): Promise<Awaited<R>> {
       for (;;) {
         const waiting = idle();
         if (waiting) {
@@ -56,7 +56,7 @@ export function createSaveSettleGate(): SaveSettleGate {
         }
         const started = epoch;
         const snapshot = await capture();
-        if (inFlight === 0 && epoch === started) return write(snapshot);
+        if (inFlight === 0 && epoch === started) return await write(snapshot);
       }
     },
   };
