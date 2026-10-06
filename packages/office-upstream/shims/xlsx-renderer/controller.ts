@@ -54,7 +54,7 @@ import {
   type XlsxRendererEdit,
   type XlsxRendererFilterEdit,
 } from "./edits";
-import { t } from "./locale";
+import { getLang, t } from "./locale";
 import { sharedFormulaResolverFor } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import { installAutofitLinePitch } from "../../upstream/apps/sheets/src/renderer/autofit-line-pitch";
 import { installAutofitWrapBudget } from "../../upstream/apps/sheets/src/renderer/autofit-wrap-budget";
@@ -68,7 +68,7 @@ import { installFormulaStreamHold } from "../../upstream/apps/sheets/src/rendere
 import { installForceStringMarkGate, installLongTextRender } from "../../upstream/apps/sheets/src/renderer/long-text-render";
 import { installMergeBorderFix } from "../../upstream/apps/sheets/src/renderer/merge-border-fix";
 import { installNumberAsTextAlertSeverity } from "../../upstream/apps/sheets/src/renderer/number-as-text-alert";
-import { installNumberFormatFix } from "../../upstream/apps/sheets/src/renderer/numfmt-fix";
+import { applyHostNumfmtLocale, installNumberFormatFix } from "../../upstream/apps/sheets/src/renderer/numfmt-fix";
 import { installRichTextBidiFix } from "../../upstream/apps/sheets/src/renderer/rich-text-bidi-fix";
 import { installRtlGridMirror } from "../../upstream/apps/sheets/src/renderer/rtl-grid-mirror";
 import { installRtlTextDirectionFix } from "../../upstream/apps/sheets/src/renderer/rtl-text-fix";
@@ -732,6 +732,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         installForceStringMarkGate(runtime.univer.__getInjector().get(SheetInterceptorService));
         findRevealDispose ??= installFindRevealFix(runtime);
         numberFormatDispose ??= installNumberFormatFix(runtime, () => lazyWorkbookRef.current?.file.date1904 ?? false);
+        // Separators follow the editor language (vi: 1.250.000.000); Univer keeps "en" otherwise.
+        applyHostNumfmtLocale(runtime, getLang() === "vi" ? "vi" : "en");
         dvRejectDialogDispose ??= installDvRejectDialogTitle(runtime, container.ownerDocument, RENDERER_ROOT_CLASS);
         validatedWriteVerdictDispose ??= observeValidationVerdicts(runtime.univer.__getInjector().get(SheetInterceptorService), validatedWrites);
       } finally {
