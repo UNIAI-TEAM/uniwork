@@ -34,7 +34,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed, readLiveRuleSet, settleDvErrorStyle, ensureDvHintStyle, askOnValidateCell, ruleSetTargetsLive, installStacked, noteLinkedConditionalRules, linkedRuleIds } = module.exports;
+const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed, readLiveRuleSet, settleDvErrorStyle, ensureDvHintStyle, askOnValidateCell, ruleSetTargetsLive, liveRuleIdsReader, installStacked, noteLinkedConditionalRules, linkedRuleIds } = module.exports;
 
 const area = (startRow, endRow, startColumn, endColumn) => ({ startRow, endRow, startColumn, endColumn });
 function state({ applied = ['s1'], ruleSets, ruleCounts } = {}) {
@@ -574,6 +574,48 @@ test('stacked onValidateCell wrappers come off in reverse, so the original is re
   assert.notEqual(source.onValidateCell, original);
   stack.dispose();
   assert.equal(source.onValidateCell, original);
+});
+
+// review-delta D4: the reader the controller hands ruleSetTargetsLive reads
+// the live model, so an id the sheet no longer holds is refused end to end.
+test('the controller live-id reader refuses a rule-manager command on a rule the sheet lost (F2, D4)', () => {
+  const sheets = { s1: worksheet([cfRule], [dvRule]) };
+  const liveIds = liveRuleIdsReader((sheetId) => sheets[sheetId] ?? null);
+  const ok = (id, params) => ruleSetTargetsLive(command(id, { ...scope, ...params }), liveIds);
+  assert.equal(ok('sheet.command.remove-data-validation-rule', { ruleId: 'dv-1' }), true);
+  assert.equal(ok('sheet.command.delete-conditional-rule', { cfId: cfRule.cfId }), true);
+  sheets.s1 = worksheet([], []);
+  assert.equal(ok('sheet.command.remove-data-validation-rule', { ruleId: 'dv-1' }), false);
+  assert.equal(ok('sheet.command.delete-conditional-rule', { cfId: cfRule.cfId }), false);
+  delete sheets.s1;
+  assert.equal(liveIds('s1', 'dataValidations'), null);
+});
+
+// review-delta D4: a throwing prompt keeps a FALSE plugin verdict too (a
+// constant-true fallback would accept an invalid value).
+test('a prompt step that throws keeps a false plugin verdict (F7, D4)', async () => {
+  const source = { onValidateCell: () => Promise.resolve(false) };
+  const ask = askOnValidateCell(source, {
+    ruleAt: () => { throw new Error('sheet gone'); },
+    isValid: async () => false,
+    confirm: async () => true,
+  });
+  assert.equal(await source.onValidateCell({ getUnitId: () => 'file-sha' }, { getSheetId: () => 's1' }, 1, 2), false);
+  ask.dispose();
+});
+
+// review-delta D2: a second dispose is a no-op (not a dispose in install
+// order), and an install that throws takes back the ones already installed.
+test('installStacked disposes once, and a throwing install leaves nothing installed (D2)', () => {
+  const log = [];
+  const entry = (name) => () => { log.push(`+${name}`); return { dispose() { log.push(`-${name}`); } }; };
+  const stack = installStacked([entry('a'), entry('b')]);
+  stack.dispose();
+  stack.dispose();
+  assert.deepEqual(log, ['+a', '+b', '-b', '-a']);
+  log.length = 0;
+  assert.throws(() => installStacked([entry('a'), entry('b'), () => { throw new Error('boom'); }]), /boom/);
+  assert.deepEqual(log, ['+a', '+b', '-b', '-a']);
 });
 
 // review dvcf B2: a CF rule the loader installs from an Excel linked x14 rule

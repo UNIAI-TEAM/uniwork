@@ -1,7 +1,7 @@
 import { CF_MUTATIONS, DV_MUTATIONS } from "../../upstream/apps/sheets/src/renderer/app-constants";
-import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
+import type { LazyWorkbookState, UniverWorksheet } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import { liveSessionSheets, type RendererCommand } from "./edits";
-import { RULE_SET_COMMANDS, ruleSetSheetReady, type XlsxRendererRuleSetKind } from "./rule-set-capture";
+import { readLiveRuleSet, RULE_SET_COMMANDS, ruleSetSheetReady, type XlsxRendererRuleSetKind } from "./rule-set-capture";
 import { cfRuleSaveable, dvRuleSaveable } from "./rule-set-saveable";
 
 // ── conditional formatting + data validation (X01) ─────────────────────────
@@ -149,6 +149,18 @@ export function ruleSetTargetsLive(
   if (typeof sheetId !== "string") return false;
   const live = liveIds(sheetId, event.id.includes("conditional") ? "conditionalFormats" : "dataValidations");
   return !!live && targets.every((id) => typeof id === "string" && live.includes(id));
+}
+
+/** The `liveIds` reader the controller hands ruleSetTargetsLive: the ids
+ *  readLiveRuleSet finds on the sheet `worksheetOf` resolves (the active
+ *  workbook's), null when it has no such sheet. */
+export function liveRuleIdsReader(
+  worksheetOf: (sheetId: string) => UniverWorksheet | null | undefined,
+): (sheetId: string, kind: XlsxRendererRuleSetKind) => string[] | null {
+  return (sheetId, kind) => {
+    const worksheet = worksheetOf(sheetId);
+    return worksheet ? readLiveRuleSet(worksheet, kind).map((rule) => rule.id) : null;
+  };
 }
 
 const MAX_RULE_ID = 200;

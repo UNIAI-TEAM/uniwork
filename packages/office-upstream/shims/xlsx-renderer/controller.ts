@@ -27,7 +27,7 @@ import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { ingestRuleSetMutation, linkedRuleIds, noteLinkedConditionalRules, readLiveRuleSet, restoreRuleSetFamily, type XlsxRendererLiveRule, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
-import { isRuleSetCommand, ruleSetRestoreAllowed, ruleSetTargetsLive } from "./rule-set-policy";
+import { isRuleSetCommand, liveRuleIdsReader, ruleSetRestoreAllowed, ruleSetTargetsLive } from "./rule-set-policy";
 import { installStacked } from "./dv-error-style";
 import { watchRendererHistory, type XlsxRendererHistoryState } from "./history";
 import { installDvRejectDialogTitle, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
@@ -612,10 +612,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     if (source) pendingSheetCopy = { sourceSheetId: source.id, sourceName: source.name };
   };
   // The rule ids the live model holds: a rule-manager command must name one.
-  const liveRuleIds = (sheetId: string, kind: XlsxRendererRuleSetKind): string[] | null => {
-    const worksheet = runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId);
-    return worksheet ? readLiveRuleSet(worksheet, kind).map((rule) => rule.id) : null;
-  };
+  const liveRuleIds = liveRuleIdsReader((sheetId) => runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeCommandExecute, (event) => {
     if (journalSuppression.active) return;
     if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false) ||

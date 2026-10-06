@@ -121,14 +121,22 @@ export function askOnValidateCell(source: DvValidateCellSource, port: DvErrorSty
 
 /** Installs wrappers of one method in order and removes them in reverse:
  *  each wrapper restores its original only while it is the outermost, so the
- *  last installed must go first (review dvcf F6). */
+ *  last installed must go first (review dvcf F6). A second dispose is a
+ *  no-op, and an install that throws takes back the ones before it before
+ *  the error propagates (review-delta D2). */
 export function installStacked(installs: readonly (() => { dispose(): void })[]): { dispose(): void } {
-  const installed = installs.map((install) => install());
-  return {
-    dispose() {
-      for (const entry of installed.reverse()) entry.dispose();
-    },
+  const installed: { dispose(): void }[] = [];
+  const disposeAll = () => {
+    for (let index = installed.length - 1; index >= 0; index -= 1) installed[index]!.dispose();
+    installed.length = 0;
   };
+  try {
+    for (const install of installs) installed.push(install());
+  } catch (error) {
+    disposeAll();
+    throw error;
+  }
+  return { dispose: disposeAll };
 }
 
 const HINT_STYLE_ID = "uniwork-xlsx-dv-hint";
