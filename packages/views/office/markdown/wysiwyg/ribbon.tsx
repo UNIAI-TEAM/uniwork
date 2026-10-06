@@ -247,6 +247,11 @@ export function MarkdownRibbon({
   const { t } = useTranslation();
   const tabs = useMarkdownRibbonTabs(editor, options);
   const readOnly = options.editable === false;
+  // Undo/Redo stay focusable on an empty history: aria-disabled, blocked in JS.
+  const canUndo = useEditorState({ editor, selector: ({ editor: live }) => live?.can().undo() ?? false }) ?? false;
+  const canRedo = useEditorState({ editor, selector: ({ editor: live }) => live?.can().redo() ?? false }) ?? false;
+  const undoBlocked = readOnly || !canUndo;
+  const redoBlocked = readOnly || !canRedo;
 
   const quickAccess = useMemo(
     () => (
@@ -256,8 +261,8 @@ export function MarkdownRibbon({
           variant="toolbar"
           size="icon-sm"
           aria-label={t("office.markdown.actions.undo")}
-          disabled={readOnly}
-          onClick={() => editor?.chain().focus().undo().run()}
+          aria-disabled={undoBlocked || undefined}
+          onClick={() => { if (!undoBlocked) editor?.chain().focus().undo().run(); }}
         >
           <Undo2 aria-hidden />
         </Button>
@@ -266,14 +271,14 @@ export function MarkdownRibbon({
           variant="toolbar"
           size="icon-sm"
           aria-label={t("office.markdown.actions.redo")}
-          disabled={readOnly}
-          onClick={() => editor?.chain().focus().redo().run()}
+          aria-disabled={redoBlocked || undefined}
+          onClick={() => { if (!redoBlocked) editor?.chain().focus().redo().run(); }}
         >
           <Redo2 aria-hidden />
         </Button>
       </>
     ),
-    [editor, readOnly, t],
+    [editor, redoBlocked, t, undoBlocked],
   );
 
   // M-4: at phone width the tab row carries TABS ONLY (plus the collapse

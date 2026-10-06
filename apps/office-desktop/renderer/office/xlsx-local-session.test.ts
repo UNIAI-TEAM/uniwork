@@ -1,4 +1,5 @@
 ﻿/** @vitest-environment jsdom */
+import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OfficeIdentity } from "@uniwork/core/office";
 import { createDesktopLocalXlsxSession } from "./xlsx-local-session";
@@ -136,7 +137,8 @@ describe("desktop local xlsx session (C1b)", () => {
     const bridge = makeLocalBridge();
     bridge.call.mockImplementation(async (channel) => channel === "desktop:file-xlsx" ? { state: "failed", code: "file_not_found" } : { drafts: [] });
     const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
-    await expect(session.open.open()).resolves.toMatchObject({ outcome: "failed", message: "file_not_found" });
+    await expect(session.open.open()).resolves.toMatchObject({ outcome: "failed", engine_error: "file_not_found", message: i18n.t("office.save.reason.file_not_found") });
+    expect(i18n.t("office.save.reason.file_not_found")).toMatch(/Không tìm thấy tệp/);
   });
 
   it("keeps a protected draft through the desktop draft IPC (local:<device>)", async () => {

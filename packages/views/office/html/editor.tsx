@@ -26,6 +26,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import { OfficeFrame } from "../frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { MarkdownPrintMenuItems } from "../markdown/wysiwyg/print-menu";
@@ -37,6 +38,7 @@ import { useHtmlVisualEdit } from "./visual/use-visual-edit";
 import type { HtmlSourceSelection } from "./source";
 import { HTML_ZOOM_DEFAULT, nextViewMode, type HtmlViewMode } from "./visual/shell-model";
 import type { HtmlEditorProps, HtmlOpenOutcome } from "./types";
+import { useOfficeDocumentActiveRef } from "../common/document-active";
 
 function failureFor(documentKey: string, error: unknown): Extract<HtmlOpenOutcome, { outcome: "failed" }> {
   return {
@@ -249,8 +251,8 @@ export function HtmlEditor<TSnapshot = unknown>({
     if (viewState === "ready" && !readOnly && !blockedAsset && !saving) void coordinator.save(entryPoint);
   }, [blockedAsset, coordinator, readOnly, saving, viewState]);
   const history = useCallback((kind: "undo" | "redo") => {
-    if (kind === "undo") editorRef.current.undo?.();
-    else editorRef.current.redo?.();
+    // An empty stack is not a change: no dirty mark, no checkpoint (UNI-954).
+    if (!stepHistory(editorRef.current, kind)) return;
     setText(sourceText(editorRef.current, ""));
     markDirty();
     checkpoint();
@@ -321,8 +323,11 @@ export function HtmlEditor<TSnapshot = unknown>({
   // click) the keydown never reaches the section and the press is lost, so the
   // cycle appears to need two presses. This window listener covers exactly that
   // gap; a press inside the landmark still runs the section handler alone.
+  // UNI-957: only the visible document's window listener may cycle its view.
+  const documentActiveRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!documentActiveRef.current) return;
       if (!(event.metaKey || event.ctrlKey) || event.code !== "Backslash") return;
       const target = event.target;
       if (target instanceof Node && rootRef.current?.contains(target)) return;
@@ -331,7 +336,7 @@ export function HtmlEditor<TSnapshot = unknown>({
     };
     window.addEventListener("keydown", onWindowKeyDown);
     return () => window.removeEventListener("keydown", onWindowKeyDown);
-  }, [cycleView]);
+  }, [cycleView, documentActiveRef]);
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
     if (mod && event.code === "Backslash") {
@@ -404,7 +409,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             */
             <HtmlRibbon
               commands={ribbonCommands}
-              state={{ readOnly }}
+              state={{ readOnly, canUndo: canStepHistory(editor, "undo"), canRedo: canStepHistory(editor, "redo") }}
               onFind={openFind}
               viewMode={ribbonViewMode}
               onViewModeChange={onRibbonViewModeChange}

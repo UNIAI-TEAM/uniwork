@@ -148,13 +148,11 @@ func (q *Queries) ListActiveSessionsForUser(ctx context.Context, userID string) 
 }
 
 const revokeAllRefreshTokensForUser = `-- name: RevokeAllRefreshTokensForUser :exec
-WITH revoked AS (
-  UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
-)
-UPDATE device_sessions SET revoked_at = COALESCE(device_sessions.revoked_at, now())
-WHERE device_sessions.user_id = $1 AND device_sessions.revoked_at IS NULL
+UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
 `
 
+// Second half of a user-wide revoke: call revokeAllUserSessions (service),
+// which closes the device sessions first so the locks come in one order.
 func (q *Queries) RevokeAllRefreshTokensForUser(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, revokeAllRefreshTokensForUser, userID)
 	return err

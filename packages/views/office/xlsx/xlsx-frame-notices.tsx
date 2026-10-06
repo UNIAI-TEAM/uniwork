@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { subscribeCommandRefusals } from "./fire-command";
 import { RuleSetDropNotice } from "./conditional-format/rule-set-drop-notice";
 import { useRuleSetDropRestore, type RuleSetRestoreGrid } from "./conditional-format/use-rule-set-drop-restore";
+import type { XlsxToolbarCommands } from "./toolbar/types";
 import type { XlsxEditorHandle } from "./types";
 import type { XlsxPasteNotice } from "./use-xlsx-editor-clipboard";
 
@@ -20,13 +21,15 @@ export interface XlsxFrameNoticesProps {
   grid?: RuleSetRestoreGrid;
   /** An informational notice (a paste kept only its values): neutral, not an error. */
   pasteNotice?: XlsxPasteNotice | null;
+  /** This document's command port: only its refusals raise the notice. */
+  commands?: XlsxToolbarCommands;
 }
 
 /** The frame subbar notices: recalculation progress, the inline errors and the neutral paste notice. */
-export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor, grid, pasteNotice }: XlsxFrameNoticesProps) {
+export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor, grid, pasteNotice, commands }: XlsxFrameNoticesProps) {
   const { t } = useTranslation();
   const [commandRefused, setCommandRefused] = useState(false);
-  useEffect(() => subscribeCommandRefusals(() => setCommandRefused(true)), []);
+  useEffect(() => subscribeCommandRefusals(() => setCommandRefused(true), commands), [commands]);
   useRuleSetDropRestore(saveErrorCode, editor, grid);
   return (
     <>

@@ -48,6 +48,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { HtmlSourceEditor, type HtmlSourceSelection } from "../source";
 import type { AssetManifestLike } from "../../asset-manifest";
 import type { IsolatedPreviewPort, PreviewMountOptions, PreviewSession } from "../../source-editor-types";
+import { useOfficeDocumentActiveRef } from "../../common/document-active";
 import { createVisualEditNonce } from "./nonce";
 import { createPreviewEventSink, type HtmlSelection, type PreviewEventSink } from "./selection/model";
 import { HtmlSelectionOverlay } from "./selection/bridge";
@@ -350,14 +351,16 @@ export function HtmlVisualShell({
   // Escape leaves present mode. Bound only while presenting.
   const onViewModeChangeRef = useRef(onViewModeChange);
   onViewModeChangeRef.current = onViewModeChange;
+  // UNI-957: a hidden tab that is still presenting must not answer Escape.
+  const documentActiveRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     if (!presenting) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onViewModeChangeRef.current("preview");
+      if (documentActiveRef.current && event.key === "Escape") onViewModeChangeRef.current("preview");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [presenting]);
+  }, [documentActiveRef, presenting]);
 
   // Present is a dialog: move focus in on open and restore it on close (N2).
   useEffect(() => {

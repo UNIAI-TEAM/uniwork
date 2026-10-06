@@ -7,6 +7,7 @@ import { DOCX_GROUP_PRIORITY_DEFAULT, buildDocxRibbonTabs, docxGroupPriority } f
 import { DOCX_TOOLBAR_TABS } from "./toolbar/tabs/tabs";
 import { DocxToolbarShell } from "./toolbar/toolbar";
 import type { DocxToolbarGroupContext } from "./toolbar/types";
+import { createDocxDocumentScope } from "./editor-store";
 
 function coordinator(): DocxToolbarGroupContext["coordinator"] {
   const state = {
@@ -36,6 +37,7 @@ function coordinator(): DocxToolbarGroupContext["coordinator"] {
 function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarGroupContext {
   const runtime = createDocxCommandRuntime(() => null);
   return {
+    docScope: createDocxDocumentScope(),
     editor: {
       format: "docx",
       open: vi.fn(async () => undefined),
@@ -249,8 +251,24 @@ describe("DocxToolbarShell", () => {
     fireEvent.click(bold);
     expect(toggleBold).not.toHaveBeenCalled();
 
-    expect(screen.getByRole("button", { name: "Ho\u00e0n t\u00e1c" })).toBeDisabled();
+    // Undo/Redo follow the a11y contract: aria-disabled keeps them focusable.
+    expect(screen.getByRole("button", { name: "Ho\u00e0n t\u00e1c" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("docx-save")).toBeDisabled();
+  });
+
+  it("keeps Undo/Redo focusable but inert while the history is empty (UNI-954)", () => {
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
+    render(<DocxToolbarShell {...context({ canUndo: false, canRedo: false, onUndo, onRedo })} />);
+    const undo = screen.getByRole("button", { name: t("office.docx.actions.undo") });
+    const redo = screen.getByRole("button", { name: t("office.docx.actions.redo") });
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    expect(redo).toHaveAttribute("aria-disabled", "true");
+    expect(undo).not.toBeDisabled();
+    fireEvent.click(undo);
+    fireEvent.click(redo);
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(onRedo).not.toHaveBeenCalled();
   });
 
   it("routes Save through onSave and reports the save state in the live region", () => {

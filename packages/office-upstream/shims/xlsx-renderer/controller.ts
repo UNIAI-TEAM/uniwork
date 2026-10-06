@@ -23,6 +23,7 @@ import { UniverSheetsTablePreset, UniverSheetsTableUIPlugin } from "@univerjs/pr
 import type { WorkbookFile, WorkbookRangeResult } from "../../upstream/apps/sheets/src/shared/desktop-api";
 import type { IRange, IStyleData } from "@univerjs/core";
 import { SheetInterceptorService } from "@univerjs/sheets";
+import { registerDesktopApiSession } from "./desktop-api-bridge";
 import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
@@ -131,8 +132,6 @@ export interface XlsxRendererOptions {
    *  sheet switch or any executed command); re-read the cell boxes. */
   onViewportChange?: () => void;
 }
-
-type DesktopApi = Record<string, unknown>;
 
 /** The cheap active-selection style read the toolbar mirrors control state
  *  from. Alignment numbers are the pinned Univer style values (horizontal
@@ -251,34 +250,6 @@ function withLiveSheetNames(state: LazyWorkbookState | null, edits: XlsxRenderer
   });
 }
 
-/**
- * A minimal, reversible bridge: the vendored modules read the genoffice host
- * port off `window.desktopApi`, so the controller installs the translation
- * while the renderer is mounted and restores whatever existed before on
- * dispose (the desktop shell owns its own global and must not lose it).
- */
-function installDesktopApiBridge(host: XlsxRendererHost, onRange: (sheetId: string, result: WorkbookRangeResult) => void): () => void {
-  const globalObject = globalThis as unknown as { desktopApi?: unknown };
-  const previous = globalObject.desktopApi;
-  const api: DesktopApi = {
-    readWorkbookRange: (input: { sessionId: string; sheetId: string; range: IRange }) => host.readRange(input).then((result) => {
-      onRange(input.sheetId, result);
-      return result;
-    }),
-    readWorkbookFormulas: (input: { sessionId: string; sheetId: string }) => host.readFormulas?.(input) ?? Promise.resolve({ cells: [] }),
-    recalcWorkbook: (input: unknown) => host.recalcWorkbook?.(input) ?? Promise.resolve({ cells: [], cached: false }),
-    // Visuals are outside this slice's render scope; the vendored callers get
-    // a typed empty answer, never a fabricated image.
-    readLocalImage: () => Promise.resolve(null),
-    fetchImage: () => Promise.resolve(null),
-    closeWorkbook: () => Promise.resolve(),
-  };
-  globalObject.desktopApi = api;
-  return () => {
-    if (globalObject.desktopApi === api) globalObject.desktopApi = previous;
-  };
-}
-
 function createLazyState(file: WorkbookFile): LazyWorkbookState {
   const gridCellCount = file.sheets.reduce((sum, sheet) => sum + sheet.rowCount * sheet.columnCount, 0);
   return {
@@ -350,10 +321,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   container.appendChild(univerHost);
   univerHost.id = `${containerId}-canvas`;
 
-  const restoreDesktopApi = installDesktopApiBridge(options.host, (sheetId, result) => {
-    // Linked x14 CF rules (review dvcf B2), noted before the loader installs them.
-    noteLinkedConditionalRules(lazyWorkbookRef.current, sheetId, (result as { conditionalRules?: unknown }).conditionalRules);
-  });
+  // The vendored loaders reach the host through window.desktopApi; the
+  // bridge routes by session, registered once the workbook (and so its
+  // sessionId) is known (UNI-957: several workbooks share one page).
+  let releaseDesktopApi: (() => void) | null = null;
   const setMessage = (message: string) => options.onMessage?.(message);
 
   const runtime: UniverRuntime = createUniver({
@@ -839,6 +810,16 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       loadingWorkbook = true;
       fontMappings = await loadWorkbookFonts(file, container.ownerDocument);
       if (disposed) return;
+      releaseDesktopApi?.();
+      releaseDesktopApi = registerDesktopApiSession(file.sessionId, {
+        readRange: (input) => options.host.readRange(input).then((result) => {
+          // Linked x14 CF rules (review dvcf B2), noted before the loader installs them.
+          noteLinkedConditionalRules(lazyWorkbookRef.current, input.sheetId, (result as { conditionalRules?: unknown }).conditionalRules);
+          return result;
+        }),
+        readFormulas: (input) => options.host.readFormulas?.(input) ?? Promise.resolve({ cells: [] }),
+        recalcWorkbook: (input) => options.host.recalcWorkbook?.(input) ?? Promise.resolve({ cells: [], cached: false }),
+      });
       container.setAttribute("data-xlsx-font-mappings", JSON.stringify(fontMappings));
       journalSuppression.active = true;
       loadAutoHeightSuppression.active = true;
@@ -1019,7 +1000,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       univerHost.remove();
       container.classList.remove(RENDERER_ROOT_CLASS);
       container.removeAttribute("data-xlsx-font-mappings");
-      restoreDesktopApi();
+      releaseDesktopApi?.();
+      releaseDesktopApi = null;
     },
   };
 }

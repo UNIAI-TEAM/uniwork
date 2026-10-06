@@ -11,6 +11,7 @@ import type { XlsxCellState, XlsxWorkbookSnapshot } from "@uniwork/office-engine
 import type { XlsxGridHandle, XlsxGridHostPort } from "./xlsx-grid-surface";
 import { addressParts, cellEditOperation, cellText } from "./xlsx-editor-model";
 import { useXlsxHistoryState } from "./use-xlsx-history-state";
+import { stepHistory } from "../common/history-step";
 import type { XlsxEditorHandle, XlsxRecalcController, XlsxSaveCoordinator, XlsxSelection, XlsxViewState } from "./types";
 
 export interface XlsxEditorEditsOptions<TSnapshot = XlsxWorkbookSnapshot> {
@@ -110,7 +111,8 @@ export function useXlsxEditorEdits<TSnapshot = XlsxWorkbookSnapshot>(
     // The vendored grid owns the live undo stack once it is mounted; the
     // adapter handle is the fallback for hosts without a render model.
     if (gridReady) { gridRef.current?.undo(); return; }
-    editor.undo?.();
+    // An empty history is not a change: no dirty mark (UNI-954).
+    if (!stepHistory(editor, "undo")) return;
     markDirty();
     refreshSnapshot();
   }, [canUndo, editor, gridReady, gridRef, markDirty, readOnly, refreshSnapshot]);
@@ -118,7 +120,7 @@ export function useXlsxEditorEdits<TSnapshot = XlsxWorkbookSnapshot>(
   const redo = useCallback(() => {
     if (readOnly || !canRedo) return;
     if (gridReady) { gridRef.current?.redo(); return; }
-    editor.redo?.();
+    if (!stepHistory(editor, "redo")) return;
     markDirty();
     refreshSnapshot();
   }, [canRedo, editor, gridReady, gridRef, markDirty, readOnly, refreshSnapshot]);

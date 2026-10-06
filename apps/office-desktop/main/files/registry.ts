@@ -11,6 +11,7 @@ export type LocalFileErrorCode =
   | "external_modification"
   | "invalid_handle"
   | "session_revoked"
+  | "read_failed"
   | "write_failed"
   | "replace_failed"
   | "too_large";
@@ -109,7 +110,7 @@ export class FileHandleRegistry {
     const signature = await this.validateTarget(absolute, false);
     this.assertSize(signature.signature.size);
     let bytes: Uint8Array;
-    try { bytes = await this.fs.readFile(absolute); } catch { throw new LocalFileError("not_found"); }
+    try { bytes = await this.fs.readFile(absolute); } catch (error) { throw readFailure(error); }
     this.assertSize(bytes.byteLength);
     const canonicalPath = await this.fs.realpath(absolute).catch(() => { throw new LocalFileError("not_found"); });
     // Reopening the same local file selects its existing tab and preserves the
@@ -150,7 +151,7 @@ export class FileHandleRegistry {
       this.assertSize(bytes.byteLength);
       return new Uint8Array(bytes);
     }
-    catch (error) { if (error instanceof LocalFileError) throw error; throw new LocalFileError("not_found"); }
+    catch (error) { if (error instanceof LocalFileError) throw error; throw readFailure(error); }
   }
 
   /** Validate an already-issued handle for an open command without exposing
@@ -301,6 +302,16 @@ export async function atomicReplace(path: string, bytes: Uint8Array, fileSystem:
     const message = error instanceof Error ? error.message.toLowerCase() : "";
     throw new LocalFileError(message.includes("rename") || message.includes("replace") ? "replace_failed" : "write_failed");
   }
+}
+
+/** A failed read names what the user can act on: a vanished file is not_found,
+ * a sharing violation is locked, anything else (permissions, I/O) is read_failed
+ * instead of the misleading "moved or deleted". */
+function readFailure(error: unknown): LocalFileError {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (code === "ENOENT" || code === "ENOTDIR") return new LocalFileError("not_found");
+  if (code === "EBUSY" || code === "ETXTBSY") return new LocalFileError("locked");
+  return new LocalFileError("read_failed");
 }
 
 function statModifiedNs(stat: Stats): string {

@@ -11,15 +11,17 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import type { RibbonItem } from "../../../ribbon";
 import { DocxNavigationHost } from "../../view";
+import type { DocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
-import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen, useRibbonOpenLive } from "./ribbon-open-store";
+import { scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen, useRibbonOpenLive } from "./ribbon-open-store";
 
 /** Shared open state of the navigation pane. */
-const navigationPane = createRibbonOpenStore();
+const navigationPaneFor = scopedRibbonOpenStore();
 
 /** The live navigation toggle: subscribes to the pane store so `aria-pressed`
  * tracks the current state instead of a build-time snapshot (F6). */
-function NavigationToggle() {
+function NavigationToggle({ scope }: { scope: DocxDocumentScope }) {
+  const navigationPane = navigationPaneFor(scope);
   const { t } = useTranslation();
   const open = useRibbonOpenLive(navigationPane);
   return (
@@ -38,14 +40,14 @@ function NavigationToggle() {
 }
 
 /** The typed ribbon items for the View > navigation group. */
-export function viewNavigationRibbonItems(_context: DocxToolbarGroupContext): readonly RibbonItem[] {
+export function viewNavigationRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
   return [
     {
       kind: "custom",
       id: "view-navigation",
       labelKey: "office.docx.view.navigation.label",
       width: 96,
-      render: () => <NavigationToggle />,
+      render: () => <NavigationToggle scope={context.docScope} />,
     },
     ribbonHostItem("view-navigation-host", "office.docx.toolbar.groups.navigation"),
   ];
@@ -53,7 +55,8 @@ export function viewNavigationRibbonItems(_context: DocxToolbarGroupContext): re
 
 /** View > navigation: this component owns the pane and is mounted by
  * `RibbonDialogHosts`. */
-export function ViewNavigationGroup(_props: DocxToolbarGroupContext) {
+export function ViewNavigationGroup({ docScope: scope }: DocxToolbarGroupContext) {
+  const navigationPane = navigationPaneFor(scope);
   const { t } = useTranslation();
   const [open] = useRibbonOpen(navigationPane);
   return (
@@ -75,7 +78,7 @@ export function ViewNavigationGroup(_props: DocxToolbarGroupContext) {
         <ListTree aria-hidden />
       </PopoverTrigger>
       <PopoverContent align="start" className="h-80 max-h-[70vh] w-80 overflow-hidden p-0">
-        <DocxNavigationHost className="min-h-0 flex-1" onClose={() => navigationPane.set(false)} />
+        <DocxNavigationHost className="min-h-0 flex-1" scope={scope} onClose={() => navigationPane.set(false)} />
       </PopoverContent>
     </Popover>
   );

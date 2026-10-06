@@ -1,10 +1,11 @@
 "use client";
 
 import { Redo2, Save, Search, Undo2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { OfficeRibbon } from "../ribbon";
+import { forgetAppliedFormat } from "./number-format/applied-format";
 import { xlsxRibbonTabs, XLSX_RIBBON_SCOPE } from "./toolbar/ribbon-data";
 import { useViewEcho } from "./toolbar/view-echo";
 import type { XlsxToolbarGroupProps, XlsxToolbarTabId } from "./toolbar/types";
@@ -51,6 +52,7 @@ export function XlsxToolbar({
   commands,
   host,
   unitId,
+  documentKey,
   sheetName,
   resolveSheetId,
   tables,
@@ -88,6 +90,8 @@ export function XlsxToolbar({
   // would reset on every tab switch while the renderer kept its state.
   // FRAME: the editor lifts the echo so the status-bar zoom shares it.
   const viewEcho = useViewEcho(externalViewEcho);
+  // The shell lives as long as the document: closing it drops its applied format.
+  useEffect(() => (documentKey ? () => forgetAppliedFormat(documentKey) : undefined), [documentKey]);
   const blocked = readOnly;
   const state = coordinator.getState();
   const groupProps: XlsxToolbarGroupProps = {
@@ -102,6 +106,7 @@ export function XlsxToolbar({
     commands,
     host,
     unitId,
+    documentKey,
     sheetName,
     resolveSheetId,
     tables,

@@ -61,6 +61,29 @@ it("bumps the dirty generation (offset by the session's) and notifies dirty and 
   expect(surface.getText()).toBe("a");
 });
 
+it("reports canUndo/canRedo and leaves the generation alone on an empty stack (UNI-954)", async () => {
+  const surface = await opened("md", utf8("a"), { generation: 5 });
+  const dirty = vi.fn();
+  surface.subscribeDirty!(dirty);
+  expect(surface.canUndo!()).toBe(false);
+  expect(surface.canRedo!()).toBe(false);
+  surface.undo!();
+  surface.redo!();
+  expect(dirty).not.toHaveBeenCalled();
+  expect(surface.getDirtyGeneration()).toBe(5);
+  surface.setText("ab");
+  expect(surface.canUndo!()).toBe(true);
+  surface.undo!();
+  expect(surface.canUndo!()).toBe(false);
+  expect(surface.canRedo!()).toBe(true);
+});
+
+it("reports no history for a read-only file (UNI-954)", async () => {
+  const surface = await opened("md", utf8("a"), { readOnly: true });
+  expect(surface.canUndo!()).toBe(false);
+  expect(surface.canRedo!()).toBe(false);
+});
+
 it("serialises the snapshot it captured, not the live text typed afterwards", async () => {
   const surface = await opened("md", utf8("one"));
   surface.setText("two");

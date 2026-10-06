@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Editor } from "@tiptap/core";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocxEditor } from "./docx-editor";
 import { docxExtensions } from "./docx-schema";
-import { publishDocxEditor } from "./editor-store";
+import { createDocxCommandRuntime } from "./commands";
 import type { DocxEditorHandle, DocxOpenFailure, DocxOpenOutcome, DocxSaveCoordinator } from "./types";
 
 function coordinator(overrides: Partial<DocxSaveCoordinator> = {}): DocxSaveCoordinator {
@@ -58,8 +58,8 @@ const opened = (): DocxOpenOutcome => ({
   warnings: [],
 });
 
-function renderEditor(outcome: DocxOpenOutcome, options?: { key?: string; open?: () => Promise<DocxOpenOutcome>; coordinator?: DocxSaveCoordinator }) {
-  const handle = editor();
+function renderEditor(outcome: DocxOpenOutcome, options?: { key?: string; open?: () => Promise<DocxOpenOutcome>; coordinator?: DocxSaveCoordinator; editor?: DocxEditorHandle }) {
+  const handle = options?.editor ?? editor();
   const saveCoordinator = options?.coordinator ?? coordinator();
   const open = options?.open ?? vi.fn(async () => outcome);
   render(
@@ -78,7 +78,6 @@ const liveEditors: Editor[] = [];
 
 afterEach(() => {
   for (const live of liveEditors.splice(0)) live.destroy();
-  publishDocxEditor(null);
 });
 
 describe("DocxEditor", () => {
@@ -301,8 +300,9 @@ describe("DocxEditor", () => {
       content: { type: "doc", content: [{ type: "docParagraph", content: [{ type: "text", text: "Body" }] }] },
     });
     liveEditors.push(live);
-    publishDocxEditor(live);
     const handle = editor();
+    // The handle's command runtime drives the live editor; DocxEditor reads it from there.
+    handle.commands = createDocxCommandRuntime(() => live);
     handle.renderSurface = () => <div data-testid="surface-child">Body</div>;
     render(
       <DocxEditor
@@ -328,5 +328,38 @@ describe("DocxEditor", () => {
     view.rerender(<DocxEditor documentKey="doc-v1" editor={handle} open={{ open }} coordinator={saveCoordinator} capability={{ ...capability }} onOpen={() => undefined} />);
     expect(open).toHaveBeenCalledTimes(1);
     expect(handle.dispose).not.toHaveBeenCalled();
+  });
+
+  it("marks dirty only when an undo/redo step moved the document and keeps an empty history aria-disabled (UNI-954)", async () => {
+    let generation = 2;
+    let depth = 0;
+    let emitSelection: ((next: { blockId: string; from: number; to: number } | null) => void) | null = null;
+    const handle: DocxEditorHandle = {
+      ...editor(),
+      getDirtyGeneration: () => generation,
+      canUndo: () => depth > 0,
+      canRedo: () => false,
+      // A selection change re-renders the shell, as a TipTap transaction does.
+      selection: { getSelection: () => ({ blockId: "p1", from: 2, to: 7 }), subscribe: (listener) => { emitSelection = listener; return () => { emitSelection = null; }; } },
+    };
+    const { saveCoordinator } = renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
+    const undo = screen.getByRole("button", { name: "Hoàn tác" });
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Làm lại" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(undo);
+    expect(handle.undo).not.toHaveBeenCalled();
+    expect(saveCoordinator.markDirty).not.toHaveBeenCalled();
+    // A handle that claims a step but does not move (an empty TipTap history)
+    // still leaves the document clean.
+    depth = 1;
+    act(() => emitSelection?.({ blockId: "p1", from: 3, to: 3 }));
+    expect(screen.getByRole("button", { name: "Hoàn tác" })).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    expect(saveCoordinator.markDirty).not.toHaveBeenCalled();
+    vi.mocked(handle.undo!).mockImplementation(() => { generation += 1; });
+    fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
+    expect(saveCoordinator.markDirty).toHaveBeenCalledWith(3);
   });
 });

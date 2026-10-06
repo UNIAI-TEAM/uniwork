@@ -1,11 +1,11 @@
-# Six jobs plus a secrets scan. `changes` decides whether the frontend half has anything to do;
-# the two frontend jobs are split so the jsdom test suite and the Next build
-# do not starve each other on a 4-vCPU runner; `backend-test` runs Go against
-# real Postgres, Redis and MinIO services, sharded three ways because the suite
-# is serialised per database, and `backend` merges their coverage and carries
-# the status-check name; `e2e` builds the server and a production Next app
-# against the same services plus MinIO for the file smoke tests, then runs the
-# Playwright suite.
+# Six jobs plus a secrets scan and a chart render check. `changes` decides
+# whether the frontend half has anything to do; the two frontend jobs are
+# split so the jsdom test suite and the Next build do not starve each other on
+# a 4-vCPU runner; `backend-test` runs Go against real Postgres, Redis and
+# MinIO services, sharded three ways because the suite is serialised per
+# database, and `backend` merges their coverage and carries the status-check
+# name; `e2e` builds the server and a production Next app against the same
+# services plus MinIO for the file smoke tests, then runs the Playwright suite.
 #
 # turbo.json lists this file in globalDependencies: the toolchain versions
 # pinned below are part of every task hash, so bumping Node can never replay
@@ -449,6 +449,10 @@ jobs:
       NEXT_PUBLIC_WS_URL: ws://localhost:8080
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       E2E_BASE_URL: http://localhost:3000
+      # e2e/office-shell.spec.ts runs only with this set. It seeds its own
+      # account and DOCX file through the API (no OFFICE_DOCUMENT_URL) and
+      # needs no Office engine service: the web DOCX host is in the Next build.
+      OFFICE_SHELL_E2E: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -508,3 +512,17 @@ jobs:
       - run: |
           curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
           ./gitleaks git --no-banner --redact --exit-code 1 .
+
+  # The Helm chart's render assertions (ci/scripts/render-uniwork-chart.sh):
+  # required values, no LoadBalancer/NodePort, and the office engine pod shape
+  # with officeEngine.enabled on and off. Seconds; no cluster.
+  chart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+      - run: bash ci/scripts/render-uniwork-chart.sh

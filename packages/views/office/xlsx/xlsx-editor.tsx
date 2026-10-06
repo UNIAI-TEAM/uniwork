@@ -448,7 +448,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 onPrint={rendererHost ? pageSetup.print : undefined}
                 onExportCsv={rendererHost ? pageSetup.exportCsv : undefined}
                 host={rendererHost}
-                unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null}
+                unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null} documentKey={documentKey}
                 sheetName={selection?.sheet ?? activeSheet}
                 tables={tables} resolveSheetId={gridSheetId} snapshot={snapshot} readLiveSnapshot={gridEdits.readLiveSnapshot}
                 onOpenFunctionLibrary={rendererHost ? () => setFunctionLibraryOpen(true) : undefined}
@@ -470,7 +470,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   <XlsxFindPanel documentKey={documentKey} host={rendererHost} commands={gridCommands} selection={selection}
                     sheetName={selection?.sheet ?? activeSheet} dirtyGeneration={coordinatorState.dirtyGeneration} readOnly={readOnly} onClose={() => setFindOpen(false)} />
                 ) : null}
-                <XlsxFrameNotices recalcProgress={recalcProgress} recalcError={recalcError} editFailed={Boolean(gridEdits.error)} onCancelRecalculate={cancelRecalculate} saveErrorCode={coordinatorState.error?.code} editor={editor} grid={gridRef} pasteNotice={pasteNotice} />
+                <XlsxFrameNotices recalcProgress={recalcProgress} recalcError={recalcError} editFailed={Boolean(gridEdits.error)} onCancelRecalculate={cancelRecalculate} saveErrorCode={coordinatorState.error?.code} editor={editor} grid={gridRef} pasteNotice={pasteNotice} commands={gridCommands} />
               </>
             }
             bottom={

@@ -39,6 +39,7 @@ import { OfficeFrame } from "../frame";
 import { MarkdownStatusBar } from "./status-bar";
 import { useMarkdownCaret } from "./use-caret-position";
 import type { PreviewSession } from "../source-editor-types";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
 import { MarkdownWysiwygEditor } from "./wysiwyg/editor";
@@ -51,6 +52,7 @@ import { MarkdownFrontmatterPanel } from "./wysiwyg/frontmatter";
 import { MarkdownPrintMenuItems } from "./wysiwyg/print-menu";
 import type { MarkdownPrintPort } from "./wysiwyg/print";
 import type { MarkdownEditorProps, MarkdownOpenOutcome } from "./types";
+import { useOfficeDocumentActive } from "../common/document-active";
 
 /** The two canvases the surface switches between. Visual is the demo default. */
 type MarkdownViewMode = "visual" | "source";
@@ -193,6 +195,8 @@ export function MarkdownEditor<TSnapshot = unknown>({
   const effectiveTitle = title ?? t("title");
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available" || !canWrite(editor);
   const saving = coordinatorState.state === "saving";
+  // Undo/Redo stay focusable on an empty stack: aria-disabled, blocked in JS.
+  const [undoBlocked, redoBlocked] = [readOnly || saving || !canStepHistory(editor, "undo"), readOnly || saving || !canStepHistory(editor, "redo")];
   // A host-reported failure (prop) or a failed paste/drop upload (recorded here)
   // keeps the document unsavable; a failed asset MUST block Save.
   const failures = useMemo(
@@ -377,8 +381,8 @@ export function MarkdownEditor<TSnapshot = unknown>({
     if (viewState === "ready" && !readOnly && !blockedAsset && !saving) void coordinator.save(entryPoint);
   }, [blockedAsset, coordinator, readOnly, saving, viewState]);
   const history = useCallback((kind: "undo" | "redo") => {
-    if (kind === "undo") editorRef.current.undo?.();
-    else editorRef.current.redo?.();
+    // An empty stack is not a change: no dirty mark, no checkpoint (UNI-954).
+    if (!stepHistory(editorRef.current, kind)) return;
     setText(sourceText(editorRef.current, latestTextRef.current));
     markDirty();
     checkpoint();
@@ -414,17 +418,17 @@ export function MarkdownEditor<TSnapshot = unknown>({
   // panel closes with Escape, focus falls to `document.body` and the press is
   // lost. This window listener covers that gap - a press inside the landmark is
   // skipped by the containment check AND by the section's `defaultPrevented`.
+  // UNI-957: only while this document is the visible one.
+  const documentActive = useOfficeDocumentActive();
   useEffect(() => {
     const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing) return;
-      if (event.key.toLowerCase() !== "s" || event.defaultPrevented) return;
-      const target = event.target;
-      if (target instanceof Node && sectionRef.current?.contains(target)) return;
+      if (!documentActive || !(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing || event.key.toLowerCase() !== "s" || event.defaultPrevented) return;
+      if (event.target instanceof Node && sectionRef.current?.contains(event.target)) return;
       save("shortcut");
     };
     window.addEventListener("keydown", onWindowKeyDown);
     return () => window.removeEventListener("keydown", onWindowKeyDown);
-  }, [save]);
+  }, [documentActive, save]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
@@ -510,8 +514,8 @@ export function MarkdownEditor<TSnapshot = unknown>({
                 {narrow ? <MarkdownViewModeToggle viewMode={mode} onViewModeChange={setMode} /> : null}
                 {mode === "source" ? (
                   <>
-                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
-                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
+                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} aria-disabled={undoBlocked || undefined} onClick={() => { if (!undoBlocked) history("undo"); }}><Undo2 aria-hidden /></Button>
+                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} aria-disabled={redoBlocked || undefined} onClick={() => { if (!redoBlocked) history("redo"); }}><Redo2 aria-hidden /></Button>
                     <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
                     <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
                   </>
@@ -550,7 +554,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
                       the live TipTap instance and render nothing until their
                       trigger fires - a typed `/`, or a selection in a table. */}
                   <MarkdownSlash editor={instance} />
-                  <MarkdownTableMenu editor={instance} />
+                  <MarkdownTableMenu editor={documentActive ? instance : null} />
                   <MarkdownWysiwygEditor
                     documentKey={documentKey}
                     editor={editor}

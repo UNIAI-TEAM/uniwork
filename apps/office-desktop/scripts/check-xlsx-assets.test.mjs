@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkStagedXlsxAssets, parseCheckArguments } from "./check-xlsx-assets.mjs";
@@ -54,6 +54,29 @@ test("fails when a recorded file is gone from disk or altered", () => {
   assert.match(checkStagedXlsxAssets({ directory: altered }).problems[0], /gateway .* does not match the sha256/);
   rmSync(gone, { recursive: true });
   rmSync(altered, { recursive: true });
+});
+
+test("fails closed when a manifest entry carries no sha256", () => {
+  for (const missing of [undefined, "", "   ", null, 7]) {
+    const directory = stage();
+    const manifestPath = join(directory, "staged-assets.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.gateway.sha256 = missing;
+    if (missing === undefined) delete manifest.gateway.sha256;
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    const result = checkStagedXlsxAssets({ directory });
+    assert.equal(result.ok, false, `sha256 ${JSON.stringify(missing)}`);
+    assert.match(result.problems[0], /gateway .* has no sha256/);
+    rmSync(directory, { recursive: true });
+  }
+  const sidecarless = stage();
+  const path = join(sidecarless, "staged-assets.json");
+  const manifest = JSON.parse(readFileSync(path, "utf8"));
+  delete manifest.sidecar.sha256;
+  writeFileSync(path, JSON.stringify(manifest));
+  assert.match(checkStagedXlsxAssets({ directory: sidecarless }).problems[0], /sidecar .* has no sha256/);
+  assert.equal(checkStagedXlsxAssets({ directory: sidecarless, requireSidecar: false }).ok, true);
+  rmSync(sidecarless, { recursive: true });
 });
 
 test("fails without a manifest or with a broken one", () => {

@@ -91,11 +91,21 @@ beforeEach(() => {
 });
 
 describe("DocumentDetailView", () => {
-  it("stays behind its flag", () => {
-    requestMock.mockResolvedValue({ document: pageDocument() });
+  it("stays behind its flag once the config answered that it is off", async () => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path.startsWith("/api/v1/config") ? { flags: { documents: false }, rum_sample_rate: 0 } : { document: pageDocument() }),
+    );
     renderView("d1", vi.fn(), false);
-    expect(screen.getByText(t("documents.page.off_title"))).toBeInTheDocument();
-    expect(requestMock).not.toHaveBeenCalled();
+    expect(await screen.findByText(t("documents.page.off_title"))).toBeInTheDocument();
+    expect(requestMock.mock.calls.filter(([path]) => !String(path).startsWith("/api/v1/config"))).toHaveLength(0);
+  });
+
+  it("says it could not check when the config call fails", async () => {
+    requestMock.mockRejectedValue(new ApiError("boom", "internal", 500));
+    renderView("d1", vi.fn(), false);
+    expect(await screen.findByText(t("documents.page.unknown_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.page.off_title"))).toBeNull();
+    expect(screen.getByRole("button", { name: t("documents.page.unknown_retry") })).toBeInTheDocument();
   });
 
   it("shows a skeleton while the working copy is loading", async () => {

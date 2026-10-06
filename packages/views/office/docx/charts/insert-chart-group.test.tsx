@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DocxCommandRuntime } from "../commands";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { InsertChartGroup } from "./insert-chart-group";
+import { createDocxDocumentScope } from "../editor-store";
 
 function runtime(overrides: Partial<DocxCommandRuntime> = {}): DocxCommandRuntime {
   return {
@@ -18,6 +19,7 @@ function runtime(overrides: Partial<DocxCommandRuntime> = {}): DocxCommandRuntim
 function renderGroup(options: { commands?: DocxCommandRuntime; readOnly?: boolean; tableReady?: boolean } = {}) {
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as unknown as DocxToolbarGroupContext["editor"],
     coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
     format: { docxChartTableReady: options.tableReady ?? false } as unknown as DocxToolbarGroupContext["format"],

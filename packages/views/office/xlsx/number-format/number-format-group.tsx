@@ -48,7 +48,7 @@ function applyPatternTo(context: XlsxToolbarGroupProps, pattern: string): void {
   const cells = selectionFormatCells(context.selection);
   if (isBlocked(context) || !cells) return;
   fireCommand(context.commands, XLSX_NUMBER_FORMAT_COMMANDS.set, numberFormatCommandParams(cells, pattern));
-  recordAppliedFormat(appliedFormatKey(context.unitId, context.selection), pattern);
+  recordAppliedFormat(appliedFormatKey(context.documentKey, context.selection), pattern);
   void autoFitColumnsAfterFormat(context, pattern);
 }
 
@@ -75,7 +75,7 @@ export function xlsxNumberRibbonItems(context: XlsxToolbarGroupProps): readonly 
     fireCommand(context.commands, command);
     if (!widen) return;
     // The port cannot read the format back: widen from the last applied one.
-    const base = readAppliedPattern(appliedFormatKey(context.unitId, context.selection)) ?? "0";
+    const base = readAppliedPattern(appliedFormatKey(context.documentKey, context.selection)) ?? "0";
     void autoFitColumnsAfterFormat(context, moreDecimals(base));
   };
   return [
@@ -124,9 +124,9 @@ function XlsxNumberFormatPicker(context: XlsxToolbarGroupProps) {
   const [open, setOpen] = useState(false);
   const [customDraft, setCustomDraft] = useState("");
   const [customError, setCustomError] = useState<XlsxCustomFormatError | null>(null);
-  const { selection, unitId } = context;
+  const { selection, documentKey } = context;
   const blocked = isBlocked(context);
-  const sessionPattern = useAppliedPattern(appliedFormatKey(unitId, selection));
+  const sessionPattern = useAppliedPattern(appliedFormatKey(documentKey, selection));
   const filePattern = useFileNumberFormat(context);
   const applied = sessionPattern ?? filePattern;
   const closePopover = useCallback(() => setOpen(false), []);

@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { test } from "node:test";
-import { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCUMENT_MIME_TYPES, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } from "./package.mjs";
+import { BRAND_ICONS, DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCUMENT_MIME_TYPES, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } from "./package.mjs";
 import { LINUX_BUILDER_DIGEST, LINUX_BUILDER_IMAGE, assertPinnedImage, dockerExecutable, dockerRunArguments } from "./package-linux-docker.mjs";
 import { deriveBuildMetadata, DeploymentProfileError, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 import identity from "../identity.json" with { type: "json" };
@@ -33,7 +33,14 @@ test("Windows x64 dev package is explicitly labelled and installs per-user", () 
   assert.equal(config.appId, "com.uniwork.office.dev");
   assert.match(config.artifactName, /uniwork-office-test_0\.1\.0-dev\.42_unsigned_win32_x64\.zip$/);
   assert.equal(config.publish, null);
-  assert.equal(config.win.signAndEditExecutable, false);
+  // Unsigned, but the exe still gets the brand icon and version strings.
+  assert.equal(config.win.signExecutable, false);
+  assert.equal(config.win.signAndEditExecutable, undefined);
+  assert.equal(config.win.icon, BRAND_ICONS.windows);
+  assert.equal(config.nsis.installerIcon, BRAND_ICONS.windows);
+  assert.equal(config.nsis.uninstallerIcon, BRAND_ICONS.windows);
+  assert.equal(config.nsis.uninstallDisplayName, config.nsis.shortcutName);
+  assert.equal(config.forceCodeSigning, false);
   assert.deepEqual(config.fileAssociations.map((association) => association.ext), Object.values(formatTable.formats).flatMap((format) => format.extensions));
   assert.deepEqual(config.win.target, [{ target: "zip", arch: ["x64"] }, { target: "nsis", arch: ["x64"] }]);
   assert.equal(config.nsis.oneClick, true);
@@ -49,6 +56,12 @@ test("Windows x64 dev package is explicitly labelled and installs per-user", () 
   assert.ok(config.files.includes("!node_modules/**"));
   assert.ok(config.files.includes("!dist/**/*.map"));
   assert.throws(() => createPackagerConfig({ platform: "win32", arch: "arm64" }), /unsupported/);
+});
+
+test("every platform package carries the UniWork Office icon", () => {
+  for (const file of [BRAND_ICONS.windows, BRAND_ICONS.macos, join(BRAND_ICONS.linux, "512x512.png"), join(BRAND_ICONS.linux, "16x16.png")]) assert.ok(existsSync(file), file);
+  assert.equal(createPackagerConfig({ platform: "darwin", arch: "arm64", channel: "dev" }).mac.icon, BRAND_ICONS.macos);
+  assert.equal(createPackagerConfig({ platform: "linux", arch: "x64", channel: "dev" }).linux.icon, BRAND_ICONS.linux);
 });
 
 test("beta and stable share install identity while dev is isolated", () => {

@@ -21,8 +21,10 @@ function problemsForEntry(directory, entry, name, label) {
   if (!entry) return [`${label} is not recorded in ${MANIFEST_FILE}`];
   const file = join(directory, name);
   if (!existsSync(file)) return [`${label} ${name} is missing from ${directory}`];
-  const recorded = typeof entry.sha256 === "string" ? entry.sha256.toLowerCase() : "";
-  if (recorded && createHash("sha256").update(readFileSync(file)).digest("hex") !== recorded) return [`${label} ${name} does not match the sha256 in ${MANIFEST_FILE}`];
+  // Fail closed: an entry without a sha256 cannot attest the file on disk.
+  const recorded = typeof entry.sha256 === "string" ? entry.sha256.trim().toLowerCase() : "";
+  if (!recorded) return [`${label} ${name} has no sha256 in ${MANIFEST_FILE}`];
+  if (createHash("sha256").update(readFileSync(file)).digest("hex") !== recorded) return [`${label} ${name} does not match the sha256 in ${MANIFEST_FILE}`];
   return [];
 }
 

@@ -230,7 +230,7 @@ describe("number quick formats", () => {
   });
 
   it("shows General, then the last applied format name while the same cell stays selected", async () => {
-    render(<XlsxNumberFormatGroup {...groupProps({ unitId: "file-name-test", selection: { sheet: "Data", address: "F6" } })} />);
+    render(<XlsxNumberFormatGroup {...groupProps({ documentKey: "doc-name-test", selection: { sheet: "Data", address: "F6" } })} />);
     const trigger = screen.getByTestId("xlsx-number-format-trigger");
     expect(trigger).toHaveTextContent("Chung");
     fireEvent.click(ribbonItem("number-percent"));
@@ -258,10 +258,10 @@ describe("number quick formats", () => {
   });
 
   it("reads General again for a different selection", () => {
-    render(<XlsxNumberFormatGroup {...groupProps({ unitId: "file-name-test-2", selection: { sheet: "Data", address: "G7" } })} />);
+    render(<XlsxNumberFormatGroup {...groupProps({ documentKey: "doc-name-test-2", selection: { sheet: "Data", address: "G7" } })} />);
     fireEvent.click(ribbonItem("number-currency"));
     cleanup();
-    render(<XlsxNumberFormatGroup {...groupProps({ unitId: "file-name-test-2", selection: { sheet: "Data", address: "H8" } })} />);
+    render(<XlsxNumberFormatGroup {...groupProps({ documentKey: "doc-name-test-2", selection: { sheet: "Data", address: "H8" } })} />);
     expect(screen.getByTestId("xlsx-number-format-trigger")).toHaveTextContent("Chung");
   });
 });

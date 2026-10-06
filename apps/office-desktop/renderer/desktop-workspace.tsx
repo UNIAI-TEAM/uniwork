@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DraftRecoveryPrompt, LeaveDialog, type LeaveChoice } from "@uniwork/views/office/leave-dialog";
+import { OfficeDocumentActiveProvider } from "@uniwork/views/office";
 import { desktopFileResponseSchema, desktopLibraryContextResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema, desktopTabsUpdateResponseSchema, type DesktopLibraryContextResponse, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../shared/ipc";
 import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, desktopDocumentFormatForName, desktopDocumentFormatSpec, type DesktopDocumentFormat } from "../shared/document-formats";
 import type { RendererBridge } from "./app";
@@ -12,16 +13,27 @@ import { LocalHomeView } from "./local-home";
 import { OpenByteDocument } from "./office/open-document";
 import { OpenXlsxDocument } from "./office/xlsx-surface";
 import { DOCUMENT_TAB_LIMIT } from "./tabs/tab-model";
-import { isDocumentDirty, isXlsxTabSession, useDocumentTabs } from "./tabs/use-document-tabs";
+import { isDocumentDirty, isXlsxTabSession, useDocumentTabs, type CloudReopen, type ReadOnlyReason, type TabDocument } from "./tabs/use-document-tabs";
 import { RecoveryNotice } from "./recovery-status";
+import { supportedFormatsLabel } from "./supported-formats";
 import { WorkspaceAlerts } from "./workspace-alert";
 import { DesktopShell } from "./desktop-shell";
 import { DesktopTabStrip } from "./tab-strip";
 import { useAccountDrafts } from "./use-account-drafts";
 import { useLocalRecents } from "./use-local-recents";
-import { useFlagGatedTabs, useOfficeFlags } from "./use-office-flags";
+import { useFlagGatedTabs, useOfficeFlags, type PermanentReopenReason, type ReopenRefused } from "./use-office-flags";
 
 const SESSION_GENERATION = "desktop-dev-session";
+
+/** F5: a format whose editor opens through the server job (xlsx) answers a
+ * metadata-only context; every other format answers the byte open. */
+function readCloudOpen(raw: unknown): { document: DesktopLibraryDocument; bytes: OpenTabBytes } | null {
+  const opened = desktopOfficeOpenResponseSchema.safeParse(raw);
+  if (opened.success) return { document: opened.data.document, bytes: { ...opened.data, format: opened.data.document.format } };
+  const context = desktopOfficeContextResponseSchema.safeParse(raw);
+  return context.success ? { document: context.data.document, bytes: { dataBase64: "", checksum: "", format: context.data.document.format } } : null;
+}
+type OpenTabBytes = CloudReopen["bytes"];
 export type SignedInMetadata = DesktopSessionMetadata & { status: "signed-in"; accountId: string; deploymentId: string };
 type HostLeave = { requestId: string; reason: "close" | "logout" | "update" };
 type PendingLeave = { ids: readonly string[]; host?: HostLeave; switchWorkspace?: boolean };
@@ -50,7 +62,7 @@ export interface DesktopWorkspaceProps {
  * the signed-in account; local device tabs and their protected drafts survive
  * sign-in and sign-out because this component never unmounts for a mode change. */
 export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLockedReason, onLoginStart, onLoginCancel, onUseLocal, onSignIn, onLogout }: DesktopWorkspaceProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const signedIn = mode === "signed-in" && Boolean(metadata);
   const tabs = useDocumentTabs(bridge);
   const currentTabs = tabs.current;
@@ -133,7 +145,36 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   }, [accountKey]);
 
   const officeFlags = useOfficeFlags(bridge, { enabled: mode === "signed-in", sessionGeneration: SESSION_GENERATION, accountKey, organizationId: scope?.organizationId, reload: contextReload });
-  const markFlagGated = useFlagGatedTabs(tabs, officeFlags);
+  // An upgrade re-reads the document (latest version) so the editable session starts from current bytes and base.
+  // Permanent answers (access dropped to view, document gone) end the retry and name the notice; a malformed or failed read stays transient (null).
+  const [permanentReasons, setPermanentReasons] = useState<ReadonlyMap<string, PermanentReopenReason>>(new Map());
+  const reopenForUpgrade = async (tab: TabDocument): Promise<CloudReopen | ReopenRefused | null> => {
+    const { identity } = tab;
+    const channel = tab.format === "xlsx" ? "desktop:office-context" : "desktop:office-open";
+    let raw: unknown;
+    try { raw = await bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId }); } catch (error) {
+      // The coded token is the whole message (the transport throws `new Error(code)`), behind Electron's "Error invoking remote method '<channel>': Error: " wrapper when present; any other prefix stays transient.
+      const token = error instanceof Error ? /^(?:Error invoking remote method '[^']*': Error: )?(office_document_gone|forbidden)$/.exec(error.message.trim())?.[1] : undefined;
+      if (token === "office_document_gone") return { permanent: "gone" };
+      if (token === "forbidden") return { permanent: "view_only" };
+      throw error;
+    }
+    const read = readCloudOpen(raw);
+    if (!read) return null;
+    if (read.document.id !== identity.documentId || read.document.workspaceId !== identity.workspaceId) return { permanent: "gone" };
+    if (!read.document.canEdit) return { permanent: "view_only" };
+    return { bytes: read.bytes, baseRevision: read.document.revision, baseVersionId: String(read.document.version) };
+  };
+  const markFlagGated = useFlagGatedTabs(tabs, officeFlags, reopenForUpgrade, (documentId, reason) => setPermanentReasons((previous) => new Map(previous).set(documentId, reason)));
+  /** The notice follows the newest answer: a tab that opened before the flags loaded says "off" once they say off.
+   * An "on" answer whose upgrade is still pending (or its fresh read failed and is retried) claims neither
+   * "off" nor a failed check: it takes the neutral not-yet notice (review-fe-r1 R4). */
+  const liveReadOnlyReason = (tab: TabDocument): ReadOnlyReason | undefined => {
+    if (!tab.readOnlyReason) return undefined;
+    const permanent = permanentReasons.get(tab.identity.documentId);
+    if (permanent) return permanent;
+    return officeFlags.status(tab.format, tab.identity.organizationId) === "off" ? "feature_off" : "flags_unknown";
+  };
 
   const canOpen = (documentId?: string) => {
     if (documentId && tabs.current.current.tabs.some((tab) => tab.id === documentId)) { tabs.select(documentId); return false; }
@@ -144,22 +185,24 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   const acceptCloud = (raw: unknown, selected: LibraryPickerSelection, allowSave = true) => {
     const current = scopeRef.current;
     if (!current || current.workspaceId !== selected.workspaceId || current.accountId !== selected.accountId || current.deploymentId !== selected.deploymentId) return;
-    // F5: a format whose editor opens through the server job (xlsx) answers a
-    // metadata-only context; every other format answers the byte open.
-    const opened = desktopOfficeOpenResponseSchema.safeParse(raw);
-    const context = opened.success ? null : desktopOfficeContextResponseSchema.safeParse(raw);
-    const document = opened.success ? opened.data.document : context?.success ? context.data.document : undefined;
-    if (!document) throw new Error("office_open_invalid");
+    const read = readCloudOpen(raw);
+    if (!read) throw new Error("office_open_invalid");
+    const { document } = read;
     if (document.workspaceId !== selected.workspaceId) throw new Error("workspace_mismatch");
-    // A format the server's flags switch off (or that has no answer yet) opens
-    // read-only, never in the editor; such a tab is upgraded if a later answer allows it.
-    const editable = officeFlags.allows(document.format);
-    const featureOff = allowSave && document.canEdit && !editable;
-    if (featureOff) markFlagGated(document.id);
-    const bytes = opened.success
-      ? { ...opened.data, format: document.format, canSave: allowSave && document.canEdit && editable }
-      : { dataBase64: "", checksum: "", format: document.format, canSave: allowSave && document.canEdit && editable };
-    if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, ...(featureOff ? { readOnlyReason: "feature_off" as const } : {}), identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
+    // A format the server's flags switch off for the document's organization (or
+    // that has no answer yet) opens read-only, never in the editor, and says which
+    // of the two it is; such a tab is upgraded if a later answer allows it.
+    const flag = officeFlags.status(document.format, selected.organizationId);
+    const editable = flag === "on";
+    const gatedByFlags = allowSave && document.canEdit && !editable;
+    if (gatedByFlags) {
+      // A tab opened again for a document that was once answered permanently starts from a clean slate.
+      setPermanentReasons((previous) => { if (!previous.has(document.id)) return previous; const next = new Map(previous); next.delete(document.id); return next; });
+      markFlagGated(document.id);
+    }
+    const bytes = { ...read.bytes, canSave: allowSave && document.canEdit && editable };
+    const readOnlyReason: ReadOnlyReason | undefined = gatedByFlags ? (flag === "off" ? "feature_off" : "flags_unknown") : undefined;
+    if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, ...(readOnlyReason ? { readOnlyReason } : {}), identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
   };
   const acceptLocal = (raw: unknown) => {
     const result = desktopFileResponseSchema.parse(raw);
@@ -167,7 +210,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       // Typed non-throwing answers: a recent whose file vanished and a pick
       // outside the shared format table each get their own copy.
       if (result.missing) setActionError(t("officeDesktop.local.missing"));
-      else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported"));
+      else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) }));
       // A refused file names why (office.save.reason.<code>); a missing or
       // unknown code keeps the generic copy.
       else if (result.code !== undefined) setActionError(t(`office.save.reason.${result.code}`, { defaultValue: t("officeDesktop.library.actionError") }));
@@ -177,7 +220,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     if (!result.metadata || result.dataBase64 === undefined) throw new Error("invalid_file");
     const file = result.metadata;
     const format = desktopDocumentFormatForName(file.name);
-    if (!format) { setActionError(t("officeDesktop.local.unsupported")); return; }
+    if (!format) { setActionError(t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) })); return; }
     const spec = desktopDocumentFormatSpec(format);
     const title = file.untitled ? (spec.untitledLocaleKey ? t(spec.untitledLocaleKey) : spec.untitledName) : file.name;
     if (tabs.open({ kind: "local", title, format, bytes: { format, dataBase64: result.dataBase64, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
@@ -344,10 +387,12 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   // while the sign-in card is shown too (close/update, deep-link prompt).
   const affected = tabs.tabs.filter((tab) => leave?.ids.includes(tab.id));
   const deviceLeaveSet = affected.length > 0 && affected.every((tab) => tab.data.kind === "local");
+  // The warning names the documents whose changes are not protected, not just "changes".
+  const unprotected = tabs.tabs.filter((tab) => tabs.checkpointFailures.includes(tab.id)).map((tab) => tab.title);
   const alerts = <WorkspaceAlerts items={[
     ...(actionError ? [{ id: "action", message: actionError, onDismiss: () => setActionError(null) }] : []),
     ...(syncError ? [{ id: "session", message: t("officeDesktop.tabs.sessionError") }] : []),
-    ...(tabs.checkpointFailures.length > 0 ? [{ id: "checkpoint", message: t("officeDesktop.tabs.checkpointFailed") }] : []),
+    ...(tabs.checkpointFailures.length > 0 ? [{ id: "checkpoint", message: unprotected.length > 0 ? t("officeDesktop.tabs.checkpointFailedNamed", { titles: unprotected.join(", ") }) : t("officeDesktop.tabs.checkpointFailed") }] : []),
   ]} />;
   const leaveDialog = <LeaveDialog key={leave?.host?.requestId ?? "tab-leave"} open={leave !== null} dirty={affected.some((tab) => isDocumentDirty(tab.data.session))} saving={affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")}
     saveLabel={deviceLeaveSet ? t("officeDesktop.local.leaveSave") : undefined}
@@ -370,10 +415,10 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
           ? <LocalHomeView files={recents.files} error={recents.error} busy={busy} onOpen={openLocal} onCreate={createLocal} onOpenRecent={openRecent} onRemoveRecent={(id) => { void recents.remove(id).then((removed) => { if (!removed) setActionError(t("officeDesktop.library.actionError")); }); }} onRetry={recents.reload} />
           : scope ? <LibraryHost bridge={bridge} scope={{ ...metadata!, ...scope }} onCreate={create} onOpenLocal={openLocal} onOpen={openCloud} /> : <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />}
       </div>
-      {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
-        {isXlsxTabSession(tab.data.session)
-          ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} readOnlyReason={tab.data.readOnlyReason} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
-          : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} readOnlyReason={tab.data.readOnlyReason} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}
+      {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} tabIndex={-1} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
+        <OfficeDocumentActiveProvider active={mode !== "login" && tabs.activeTabId === tab.id}>{isXlsxTabSession(tab.data.session)
+          ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} readOnlyReason={liveReadOnlyReason(tab.data)} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+          : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} readOnlyReason={liveReadOnlyReason(tab.data)} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}</OfficeDocumentActiveProvider>
       </div>)}
     </div>
     {accountDrafts.blocked ? <RecoveryNotice state={accountDrafts.blocked} className="p-4" /> : null}

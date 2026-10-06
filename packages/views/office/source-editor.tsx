@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "./asset-manifest";
+import { canStepHistory, stepHistory } from "./common/history-step";
 import { HtmlSourceEditor, type HtmlSourceEditorProps } from "./html/source";
 import type {
   IsolatedPreviewPort,
@@ -145,6 +146,9 @@ export function SourceEditor<TSnapshot = unknown>({
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available" || !canWrite(editor);
   const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
   const saving = coordinatorState.state === "saving";
+  // Undo/Redo stay focusable on an empty stack: aria-disabled, blocked in JS.
+  const undoBlocked = readOnly || saving || !canStepHistory(editor, "undo");
+  const redoBlocked = readOnly || saving || !canStepHistory(editor, "redo");
   const blockedAsset = hasFailedAsset(manifest, assetFailures);
 
   useEffect(() => {
@@ -292,8 +296,8 @@ export function SourceEditor<TSnapshot = unknown>({
     if (viewState === "ready" && !readOnly && !blockedAsset && !saving) void coordinator.save(entryPoint);
   }, [blockedAsset, coordinator, readOnly, saving, viewState]);
   const history = useCallback((kind: "undo" | "redo") => {
-    if (kind === "undo") editorRef.current.undo?.();
-    else editorRef.current.redo?.();
+    // An empty stack is not a change: no dirty mark, no checkpoint (UNI-954).
+    if (!stepHistory(editorRef.current, kind)) return;
     setText(sourceText(editorRef.current, latestTextRef.current));
     markDirty();
     checkpoint();
@@ -369,8 +373,8 @@ export function SourceEditor<TSnapshot = unknown>({
       {viewState === "ready" ? (
         <>
           <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid={`${format}-toolbar`} role="toolbar" aria-label={t("toolbar.label")}>
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
-            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
+            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} aria-disabled={undoBlocked || undefined} onClick={() => { if (!undoBlocked) history("undo"); }}><Undo2 aria-hidden /></Button>
+            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} aria-disabled={redoBlocked || undefined} onClick={() => { if (!redoBlocked) history("redo"); }}><Redo2 aria-hidden /></Button>
             {format === "md" ? (
               <>
                 <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>

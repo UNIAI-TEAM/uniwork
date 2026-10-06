@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DocxCommandRuntime } from "../commands";
 import { InsertSymbolsGroup } from "../toolbar/groups/insert-symbols";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
+import { createDocxDocumentScope } from "../editor-store";
 
 function runtime(): DocxCommandRuntime {
   return {
@@ -14,6 +15,7 @@ function runtime(): DocxCommandRuntime {
 function renderGroup(options: { readOnly?: boolean; saving?: boolean; commands?: DocxCommandRuntime } = {}) {
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as unknown as DocxToolbarGroupContext["editor"],
     coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
     format: null,

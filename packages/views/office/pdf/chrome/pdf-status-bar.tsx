@@ -106,7 +106,7 @@ export function PdfStatusBar({
                 ref={railToggleRef} type="button" variant="ghost" size="icon-xs" className="sm:hidden" data-testid="pdf-rail-toggle"
                 aria-label={t(railOpen ? "office.pdf.chrome.hideThumbnails" : "office.pdf.chrome.showThumbnails")}
                 title={t(railOpen ? "office.pdf.chrome.hideThumbnails" : "office.pdf.chrome.showThumbnails")}
-                aria-pressed={railOpen} onClick={onRailToggle}
+                onClick={onRailToggle}
               >
                 <PanelLeft aria-hidden />
               </Button>

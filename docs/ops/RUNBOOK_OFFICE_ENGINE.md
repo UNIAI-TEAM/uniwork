@@ -143,7 +143,10 @@ with no job running, capture `/metrics` and the logs and restart the container; 
 - **The job tag is not a security boundary.** It catches descendants that inherit the environment; a descendant that
   execs with a scrubbed environment escapes it. It is enough for our own handlers, not for hostile native code.
   Scanning `/proc/*/environ` on every sample assumes the container's own PID namespace (a handful of processes); do
-  not run the engine in the host PID namespace.
+  not run the engine in the host PID namespace. The Helm pod sets `shareProcessNamespace: true` so the pause
+  container is PID 1 and reaps orphans (compose uses `init: true`); the namespace is still the pod's own, and the
+  engine is its only container, so the scan sees the same handful of processes. Nothing in `process-tree.ts`
+  depends on the engine being PID 1.
 - **Per-slot uid sandbox (G2-05).** On Linux as uid 0 - the image runs the supervisor as root for exactly this - every
   worker is forked under its own uid/gid from a fixed pool (`OFFICE_ENGINE_WORKER_UID_BASE`/`_GID_BASE` + worker slot,
   one uid per `OFFICE_ENGINE_MAX_WORKERS` slot), and the job's temp dir is chowned to that uid with mode `0700` before
@@ -164,7 +167,10 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   `engine_result_invalid` and nothing reaches the grant target.
 - **Tmpfs bound.** The compose profile runs the root filesystem read-only with a 512 MiB
   tmpfs on `/tmp` (the job temp root; tmpfs pages count against `mem_limit`, so tmpfs + workers x job RSS + the service
-  stay under the 2 GiB ceiling), so all jobs together cannot fill more than the tmpfs.
+  stay under the 2 GiB ceiling), so all jobs together cannot fill more than the tmpfs. In the Helm pod `/tmp` is a
+  Memory `emptyDir`; it is created `0777` without the sticky bit, so an init container (`tmp-sticky`) runs
+  `chmod 1777 /tmp` first, matching compose's `mode=1777`. Without it any worker uid could rename or delete the
+  supervisor's `uniwork-office-engine` temp root.
 - The submit path parses and hashes the envelope on the service's event loop; a large input stalls other requests
   briefly (measured in `reports/g2-02-engine-service/limits-measurement.md`).
 
@@ -272,7 +278,8 @@ On Windows the native step needs the Rust toolchain and MSVC BuildTools:
 2. Build the artifacts: `node scripts/office/build-upstream.mjs --with-native --out .go-tmp/office-upstream-build`.
    MSVC's `link.exe` enforces the legacy MAX_PATH (260 chars), and the crate's build-script output path under a deep
    worktree checkout exceeds it, so cargo fails with `LNK1104: cannot open file ...build_script_build-*.exe`. When
-   that happens, run the native build with a short `CARGO_TARGET_DIR` (e.g. under `.uniwork-dev/` on `D:`) - the
+   that happens, run the native build with a short `CARGO_TARGET_DIR` (e.g. under `.uniwork-dev/` on `D:`; the
+   installer workflow's Windows leg uses `C:\cargo-t` from the start) - the
    binary then lands at `<CARGO_TARGET_DIR>/release/xlsx-sidecar.exe`, which `xlsx-assets.mjs` also searches when
    `CARGO_TARGET_DIR` is set. Do not stub the binary or copy a Linux ELF.
 3. Stage: `pnpm --filter @uniwork/office-desktop package` runs `stageXlsxAssets` and writes `staged-assets.json`
@@ -308,9 +315,57 @@ Revisit only if a large-workbook measurement shows the sidecar needs a different
 the rest of the engine (e.g. memory per workbook far above the per-job budget); then split it into its own container
 reached only by this service. Owner of the decision: Advisor with G2-04.
 
+## Kubernetes (Helm)
+
+The `uniwork` chart (`deploy/app/uniwork`) deploys the engine behind **one switch**, `officeEngine.enabled` (default
+`false`; off renders nothing of the engine and the BE refuses office jobs). Keep `OFFICE_ENGINE_URL` empty in
+`deploy/app/env/uniwork-be.env`: with the switch on, the chart sets it on the BE container. What the pod does and
+why (values in `deploy/app/uniwork/values.yaml`, template `deployment-office-engine.yaml`):
+
+- Same limits and capability set as compose (drop `ALL`, add `CHOWN SETUID SETGID KILL DAC_OVERRIDE FOWNER`, no
+  privilege escalation, read-only root filesystem, 512 Mi Memory `/tmp`, 2 Gi / 2 cpu). No `runAsNonRoot`: the
+  supervisor is uid 0 by design (see the sandbox above).
+- `shareProcessNamespace: true` (reaper, see Isolation limits) and the `tmp-sticky` init container (`/tmp` mode 1777).
+- Probes use `/healthz`, the only route without the service credential. The Service is ClusterIP only; there is no
+  edge route.
+- NetworkPolicy: ingress only from `uniwork-be` pods on the engine port; egress to DNS plus
+  `networkPolicy.officeEngineFileStore` CIDRs.
+- Rollout: `ci/scripts/rollout-uniwork.sh` with `OFFICE_ENGINE_ENABLED=1`, `OFFICE_ENGINE_DIGEST`,
+  `OFFICE_ENGINE_OUTPUT_ORIGINS` and an optional `OFFICE_ENGINE_VALUES_FILE`. Every later rollout must keep them or
+  the engine is removed.
+
+Per-environment values that cannot live in the chart (CIDRs, origins, the `uniwork-office-engine` Secret, the
+kubelet `podPidsLimit`, public installer URLs, bucket CORS) are one list:
+[`docs/ops/OFFICE_ENV_CHECKLIST.md`](OFFICE_ENV_CHECKLIST.md). Troubleshooting "Office job báo chưa cấu hình" on
+Helm means `officeEngine.enabled` is off or the Secret is missing, not an empty URL to fill by hand.
+
+## Per-format flags
+
+The engine switch and the format switches are feature flags (`server/internal/featureflags/keys.go`, served by
+`GET /api/v1/config`). Flags hide capability; they never grant it, and the engine switch still gates everything.
+
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `office_engine` | off | Master switch for Office editing; off = view / download / history only |
+| `office_docx` `office_xlsx` `office_pptx` `office_pdf` `office_markdown` `office_html` | on | One format editable only when `office_engine` **and** its own flag are on |
+| `office_html_visual_edit` | off | Visual HTML editing (no UI yet) |
+
+Set a flag with `FF_<KEY>` (for example `FF_OFFICE_DOCX=false`), the `FEATURE_FLAGS_FILE`, or an override
+(user > organization > global). Web reads the config for the document's organization, so an organization override
+takes effect; the desktop reads it for the selected organization. A format that is off opens the view / download card
+(web) or a read-only tab (desktop cloud documents) with the reason; local desktop files are not gated. While the
+config is not readable yet the web card says "checking" or "could not check" (with Try again), never "turned off";
+the desktop retries with growing back-off (up to 5 minutes), on window focus / network return and before each cloud
+open.
+
+Changes apply on the next config refresh (cached up to 5 minutes, refetched on focus). A refetch never unmounts a
+live editor: a settled answer is kept while a refetch is in flight or fails, and only a settled "off" answer closes
+the editor, through the leave guards, so a dirty editor offers Save / keep draft / discard first and keeps its draft.
+Rollback steps and the user-facing wording: [`docs/office/g3g4/runbook.md`](../office/g3g4/runbook.md) 3.6 and 6.
+
 ## Follow-ups
 
-- Helm: the repo has no chart. ADR 0021 E-01 asks for the runtime in compose **and** Helm; the chart is a follow-up
-  for the deployment owner (plan G2-02 checkbox stays open for Helm).
+- Helm: the chart exists (above). Still open per environment: the checklist items in
+  [`OFFICE_ENV_CHECKLIST.md`](OFFICE_ENV_CHECKLIST.md) and the first real production rollout with the engine on.
 - The engine's `/metrics` is not yet scraped by `deploy/prometheus.yml`; add it with the first alert rule
   (each alert needs a runbook in `docs/runbooks/`).

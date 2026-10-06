@@ -11,19 +11,19 @@ import type { DocxToolbarGroupContext } from "../types";
 
 /** View > zoom: a single live custom item; `DocxZoomControl` subscribes to the
  * shared zoom controller, so the combo reflects the CURRENT zoom after a pick. */
-export function viewZoomRibbonItems({ format }: DocxToolbarGroupContext): readonly RibbonItem[] {
+export function viewZoomRibbonItems({ format, docScope }: DocxToolbarGroupContext): readonly RibbonItem[] {
   return [
     {
       kind: "custom",
       id: "view-zoom",
       labelKey: "office.docx.view.zoom.label",
       width: 210,
-      render: () => <DocxZoomControl disabled={!format} />,
+      render: () => <DocxZoomControl controller={docScope.zoom} disabled={!format} />,
     },
   ];
 }
 
 /** View > zoom: the live control (kept exported for direct use). */
-export function ViewZoomGroup({ format }: DocxToolbarGroupContext) {
-  return <DocxZoomControl disabled={!format} />;
+export function ViewZoomGroup({ format, docScope }: DocxToolbarGroupContext) {
+  return <DocxZoomControl controller={docScope.zoom} disabled={!format} />;
 }

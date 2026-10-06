@@ -19,6 +19,7 @@
 // group's item list keeps its documented shape and width estimate.
 import { createElement, useEffect, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import type { RibbonCustomItem } from "../../../ribbon";
+import type { DocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
 
 export interface RibbonController<T> {
@@ -29,7 +30,7 @@ export interface RibbonController<T> {
   bind: (value: T, setter: (next: T) => void) => void;
 }
 
-export function createRibbonController<T>(initial: T): RibbonController<T> {
+function createRibbonController<T>(initial: T): RibbonController<T> {
   let value = initial;
   let setter: ((next: T) => void) | null = null;
   const listeners = new Set<() => void>();
@@ -62,7 +63,7 @@ export interface RibbonOpenStore {
 }
 
 /** Boolean convenience wrapper over `createRibbonController`. */
-export function createRibbonOpenStore(): RibbonOpenStore {
+function createRibbonOpenStore(): RibbonOpenStore {
   const controller = createRibbonController(false);
   return {
     get: controller.get,
@@ -71,6 +72,36 @@ export function createRibbonOpenStore(): RibbonOpenStore {
     set: controller.set,
     subscribe: controller.subscribe,
     bind: controller.bind,
+  };
+}
+
+/**
+ * UNI-957: the desktop keeps hidden document tabs mounted, so a module-scope
+ * controller would be bound by whichever document mounted last. These factories
+ * return a per-document lookup (lazily created, keyed by the document scope).
+ */
+export function scopedRibbonController<T>(initial: T): (scope: DocxDocumentScope) => RibbonController<T> {
+  const byScope = new WeakMap<DocxDocumentScope, RibbonController<T>>();
+  return (scope) => {
+    let controller = byScope.get(scope);
+    if (!controller) {
+      controller = createRibbonController(initial);
+      byScope.set(scope, controller);
+    }
+    return controller;
+  };
+}
+
+/** Boolean per-document open store; see `scopedRibbonController`. */
+export function scopedRibbonOpenStore(): (scope: DocxDocumentScope) => RibbonOpenStore {
+  const byScope = new WeakMap<DocxDocumentScope, RibbonOpenStore>();
+  return (scope) => {
+    let store = byScope.get(scope);
+    if (!store) {
+      store = createRibbonOpenStore();
+      byScope.set(scope, store);
+    }
+    return store;
   };
 }
 

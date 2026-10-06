@@ -32,19 +32,31 @@ export function createExportCommands(
     return editor && !editor.isDestroyed ? editor : null;
   };
 
+  // UNI-957: the DOM of the document these commands drive, so print and the
+  // export facts never read another DOCX mounted in the same page.
+  // An editor that is not mounted yet has no view; the page-wide default applies.
+  const ownRoot = (editor: Editor): ParentNode | undefined => {
+    try {
+      return (editor.view.dom as HTMLElement).closest('[data-testid="docx-editor"]') ?? undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
   const exportHtml = (title?: string): string | null => {
     const editor = liveEditor();
     if (!editor) return null;
     const doc: JSONContent = editor.getJSON();
-    return docxDocumentToHtml(doc, { title, ...readDocxExportContext() });
+    return docxDocumentToHtml(doc, { title, ...readDocxExportContext(ownRoot(editor)) });
   };
 
   return {
     commands: {
       printDocx() {
-        if (!liveEditor()) return false;
+        const editor = liveEditor();
+        if (!editor) return false;
         installDocxPrintStyles();
-        return printDocxDocument();
+        return printDocxDocument(window, ownRoot(editor));
       },
       exportDocxHtml: (title) => exportHtml(title),
       downloadDocxHtml(fileName, title) {
