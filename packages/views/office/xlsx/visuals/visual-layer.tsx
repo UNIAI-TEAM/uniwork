@@ -13,6 +13,7 @@ import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { keyTypesText, type XlsxCellEditingProbe } from "./key-target";
 import { XlsxVisualChartSvg } from "./visual-chart-svg";
 import { XlsxVisualShapeSvg } from "./visual-shape-svg";
 import { dragBox, nudgeBox, visualKind, type XlsxEditorVisual, type XlsxVisualBox, type XlsxVisualHandle } from "./visual-model";
@@ -45,6 +46,8 @@ export interface XlsxVisualLayerProps {
   onRemove: (visual: XlsxEditorVisual) => void;
   /** Escape on a visual hands focus back to the grid through this; without it the layer focuses the grid surface itself. */
   onReturnFocus?: () => void;
+  /** The renderer's cell-edit state: Delete in the grid's editor input removes the visual unless a cell edit is open. */
+  isCellEditing?: XlsxCellEditingProbe;
 }
 
 interface DragState {
@@ -104,7 +107,7 @@ function VisualBody({ visual, box, label }: { visual: XlsxEditorVisual; box: Xls
   return null;
 }
 
-export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove, onRemove, onReturnFocus }: XlsxVisualLayerProps) {
+export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove, onRemove, onReturnFocus, isCellEditing }: XlsxVisualLayerProps) {
   const { t } = useTranslation();
   const layerRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -127,8 +130,9 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
 
   // Delete / Backspace removes the selected visual wherever focus is: a press
   // on an item does not focus it (the drag starts first), so the key would
-  // otherwise reach the grid and clear cells. Typing in an input, a cell editor
-  // or a dialog is left alone; a handled key never reaches the grid.
+  // otherwise reach the grid and clear cells. The grid's focus target is its
+  // contenteditable editor input (review r3 F1): only an open cell edit there
+  // keeps the key, as do an input or a dialog; a handled key never reaches the grid.
   const selectedVisual = items.find((item) => item.visual.id === selectedId)?.visual ?? null;
   const removable = selectedVisual !== null && !readOnly && !selectedVisual.fixed;
   useEffect(() => {
@@ -141,14 +145,14 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
       const target = event.target instanceof Element ? event.target : null;
       // An item (or its delete button) answers its own keys.
       if (target && layerRef.current?.contains(target)) return;
-      if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable=\"false\"]), [role=\"dialog\"], [role=\"textbox\"]")) return;
+      if (keyTypesText(target, isCellEditing, true)) return;
       event.preventDefault();
       event.stopPropagation();
       onRemove(selectedVisual);
     };
     doc.addEventListener("keydown", onKeyDown, true);
     return () => doc.removeEventListener("keydown", onKeyDown, true);
-  }, [onRemove, removable, selectedVisual]);
+  }, [isCellEditing, onRemove, removable, selectedVisual]);
 
   const labelOf = (visual: XlsxEditorVisual): string => {
     const kind = visualKind(visual);

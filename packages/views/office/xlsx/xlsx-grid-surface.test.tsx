@@ -69,6 +69,19 @@ describe("XlsxGridSurface", () => {
     expect(ref.current?.getDirtyGeneration()).toBe(0);
   });
 
+  it("marks the grid surface and forwards the renderer's cell-edit state (null without the port, review r3 F1/F2)", async () => {
+    const { module, handle } = fakeModule();
+    const ref = createRef<XlsxGridHandle>();
+    const onReady = vi.fn();
+    render(<XlsxGridSurface ref={ref} documentKey="doc-edit" host={host} loadModule={async () => module} onReady={onReady} />);
+    expect(screen.getByTestId("xlsx-grid-surface")).toHaveAttribute("data-xlsx-grid-surface");
+    expect(ref.current?.isCellEditing?.()).toBeNull();
+    await waitFor(() => expect(onReady).toHaveBeenCalled());
+    expect(ref.current?.isCellEditing?.()).toBeNull();
+    handle.isCellEditing = vi.fn(() => true);
+    expect(ref.current?.isCellEditing?.()).toBe(true);
+  });
+
   it("routes the renderer callbacks back to the host", async () => {
     const { module, options } = fakeModule();
     const onDirty = vi.fn();

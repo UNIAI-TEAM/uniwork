@@ -93,6 +93,8 @@ export interface XlsxGridHandle extends XlsxVisualsGrid {
   /** UNI-953 item 9: undo/redo entries on the stack, and their changes. */
   getHistory?(): XlsxGridHistoryState | null;
   subscribeHistory?(listener: (state: XlsxGridHistoryState) => void): () => void;
+  /** Review r3 F1/F2: a cell edit is open; null when the renderer cannot tell. */
+  isCellEditing?(): boolean | null;
   getDirtyGeneration(): number;
   dispose(): void;
 }
@@ -100,6 +102,8 @@ export interface XlsxGridHandle extends XlsxVisualsGrid {
 export interface XlsxGridHistoryState {
   undos: number;
   redos: number;
+  /** Old entries the full stack has dropped (monotonic; review r3 F3). */
+  dropped?: number;
 }
 
 export interface XlsxRendererModule {
@@ -209,6 +213,7 @@ export function XlsxGridSurface({
         historyListenersRef.current.add(listener);
         return () => { historyListenersRef.current.delete(listener); };
       },
+      isCellEditing: () => handleRef.current?.isCellEditing?.() ?? null,
       getDirtyGeneration: () => handleRef.current?.getDirtyGeneration() ?? 0,
       getCellBox: (sheetId, row, column) => handleRef.current?.getCellBox?.(sheetId, row, column) ?? null,
       cellAtPoint: (sheetId, x, y) => handleRef.current?.cellAtPoint?.(sheetId, x, y) ?? null,
@@ -302,6 +307,7 @@ export function XlsxGridSurface({
       ref={containerRef}
       className={cn("relative h-[min(55vh,32rem)] min-h-64 min-w-0 flex-auto overflow-hidden bg-background", className)}
       data-testid="xlsx-grid-surface"
+      data-xlsx-grid-surface=""
       data-document-key={documentKey}
       role="group"
       aria-label={t("office.xlsx.surface.grid")}

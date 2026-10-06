@@ -470,6 +470,39 @@ describe("useXlsxVisuals", () => {
       await waitFor(() => expect(historyRef?.canRedo).toBe(false));
     });
 
+    it("drops the visual redo once a new grid edit lands, like Excel (review r3 F3b)", async () => {
+      const { edit, rerender } = setup({ gridUndos: 2 });
+      act(() => commandsRef?.insertShape("rect"));
+      await waitFor(() => expect(historyRef?.canUndo).toBe(true));
+      act(() => historyRef?.undo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(historyRef?.canRedo).toBe(true));
+      rerender({ gridUndos: 3 });
+      expect(historyRef?.canRedo).toBe(false);
+      // Undoing that grid edit does not bring the discarded visual redo back.
+      rerender({ gridUndos: 2 });
+      expect(historyRef?.canRedo).toBe(false);
+    });
+
+    it("keeps its order against a full grid stack that drops its oldest entry (review r3 F3a)", async () => {
+      const { edit, rerender } = setup({ gridUndos: 100, gridDropped: 4 });
+      act(() => commandsRef?.insertShape("rect"));
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(historyRef?.canUndo).toBe(true));
+      // A grid edit at the cap: the depth stays 100, one old entry is dropped.
+      rerender({ gridUndos: 100, gridDropped: 5 });
+      expect(historyRef?.canUndo).toBe(false);
+      // The grid undoes that edit: the visual is next again.
+      rerender({ gridUndos: 99, gridDropped: 5 });
+      expect(historyRef?.canUndo).toBe(true);
+      act(() => historyRef?.undo());
+      await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(historyRef?.canRedo).toBe(true));
+      // A new grid edit at the cap drops the visual redo too.
+      rerender({ gridUndos: 99, gridDropped: 6 });
+      expect(historyRef?.canRedo).toBe(false);
+    });
+
     it("offers nothing without edit rights, and forgets its steps when a save lands", async () => {
       const { edit, rerender } = setup();
       act(() => commandsRef?.insertShape("rect"));

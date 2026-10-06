@@ -35,10 +35,24 @@ describe("useVisualUndo", () => {
 });
 
 describe("useVisualUndo keyboard", () => {
-  function mount(visuals: XlsxVisualsHistory) {
+  // Review r3 F2: one undo order like Excel. After a visual move or delete,
+  // focus is back on the grid's contenteditable editor input with nothing
+  // selected; Ctrl+Z must still take the visual step first.
+  function gridEditor(root: HTMLElement) {
+    const surface = document.createElement("div");
+    surface.setAttribute("data-xlsx-grid-surface", "");
+    const editor = document.createElement("div");
+    editor.setAttribute("contenteditable", "true");
+    editor.dataset.uComp = "editor";
+    surface.append(editor);
+    root.append(surface);
+    return editor;
+  }
+
+  function mount(visuals: XlsxVisualsHistory, isCellEditing?: () => boolean | null) {
     const root = document.createElement("div");
     document.body.append(root);
-    const grid = side(true, true);
+    const grid = { ...side(true, true), ...(isCellEditing ? { isCellEditing } : {}) };
     const hook = renderHook(() => useVisualUndo(visuals, grid, { rootRef: { current: root }, documentKey: "d" }));
     const press = (target: Element, init: KeyboardEventInit) => {
       const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
@@ -91,14 +105,36 @@ describe("useVisualUndo keyboard", () => {
     root.remove();
   });
 
-  it("takes the key over the grid's editable surface once a visual is selected", () => {
+  it("takes the key over the grid's editor input once a visual is selected when the renderer cannot tell", () => {
     const visuals = visualSide(true, false, true);
     const { root, press } = mount(visuals);
-    const cell = document.createElement("div");
-    cell.setAttribute("contenteditable", "true");
-    root.append(cell);
+    const cell = gridEditor(root);
     expect(press(cell, { key: "z", ctrlKey: true }).event.defaultPrevented).toBe(true);
     expect(visuals.undo).toHaveBeenCalledTimes(1);
+    root.remove();
+  });
+
+  it("takes the visual step from the grid's focus target with nothing selected while no cell edit is open", () => {
+    const visuals = visualSide(true, true);
+    const { root, press } = mount(visuals, () => false);
+    const editor = gridEditor(root);
+    const undo = press(editor, { key: "z", ctrlKey: true });
+    expect(visuals.undo).toHaveBeenCalledTimes(1);
+    expect(undo.event.defaultPrevented).toBe(true);
+    expect(undo.below).not.toHaveBeenCalled();
+    press(editor, { key: "y", ctrlKey: true });
+    expect(visuals.redo).toHaveBeenCalledTimes(1);
+    root.remove();
+  });
+
+  it("hands the key to the grid while a cell edit is open, even with a visual step next", () => {
+    const visuals = visualSide(true, true, true);
+    const { root, press } = mount(visuals, () => true);
+    const editor = gridEditor(root);
+    const undo = press(editor, { key: "z", ctrlKey: true });
+    expect(undo.event.defaultPrevented).toBe(false);
+    expect(undo.below).toHaveBeenCalledTimes(1);
+    expect(visuals.undo).not.toHaveBeenCalled();
     root.remove();
   });
 });

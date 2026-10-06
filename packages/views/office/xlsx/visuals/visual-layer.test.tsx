@@ -139,6 +139,47 @@ describe("XlsxVisualLayer", () => {
       grid.remove();
     });
 
+    // Review r3 F1: with a cell selected, focus sits on Univer's own
+    // contenteditable editor input inside the grid surface.
+    function gridFocusTarget() {
+      const surface = document.createElement("div");
+      surface.setAttribute("data-xlsx-grid-surface", "");
+      const editor = document.createElement("div");
+      editor.setAttribute("contenteditable", "true");
+      editor.dataset.uComp = "editor";
+      surface.append(editor);
+      document.body.append(surface);
+      const below = vi.fn();
+      editor.addEventListener("keydown", below);
+      return { editor, below, remove: () => surface.remove() };
+    }
+
+    it("removes it from the grid's own focus target when no cell edit is open, and the grid never hears the key", () => {
+      const { props } = setup([selectedItem], { selectedId: "v-picture", isCellEditing: () => false });
+      const grid = gridFocusTarget();
+      fireEvent.keyDown(grid.editor, { key: "Delete" });
+      expect(props.onRemove).toHaveBeenCalledWith(selectedItem.visual);
+      expect(grid.below).not.toHaveBeenCalled();
+      grid.remove();
+    });
+
+    it("removes it from the grid's focus target when the renderer cannot tell (a visual selected means no cell edit)", () => {
+      const { props } = setup([selectedItem], { selectedId: "v-picture" });
+      const grid = gridFocusTarget();
+      fireEvent.keyDown(grid.editor, { key: "Backspace" });
+      expect(props.onRemove).toHaveBeenCalledTimes(1);
+      grid.remove();
+    });
+
+    it("leaves the key to an open cell edit in the grid", () => {
+      const { props } = setup([selectedItem], { selectedId: "v-picture", isCellEditing: () => true });
+      const grid = gridFocusTarget();
+      fireEvent.keyDown(grid.editor, { key: "Delete" });
+      expect(props.onRemove).not.toHaveBeenCalled();
+      expect(grid.below).toHaveBeenCalledTimes(1);
+      grid.remove();
+    });
+
     it("is ignored while typing, with a modifier, without a selection, read-only or on a file-locked visual", () => {
       const { props: { selectedId: _selected, ...handlers }, rerender } = setup([selectedItem], { selectedId: "v-picture" });
       const props = handlers;

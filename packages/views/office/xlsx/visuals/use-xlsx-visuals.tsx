@@ -55,6 +55,8 @@ export interface XlsxVisualsGrid {
     sheetId: string,
     range: { startRow: number; endRow: number; startColumn: number; endColumn: number },
   ): { values: readonly (readonly (string | number | boolean | null)[])[]; display: readonly (readonly string[])[] } | null;
+  /** A cell edit is open (null: cannot tell); Delete in the grid's editor input waits for it. */
+  isCellEditing?(): boolean | null;
 }
 
 export interface XlsxVisualsOptions {
@@ -81,6 +83,9 @@ export interface XlsxVisualsOptions {
   /** The grid's undo depth now (0 without a history port): orders visual
    *  history entries against grid edits. */
   gridUndos?: number;
+  /** Old grid entries the full stack has dropped (monotonic): each one lowers
+   *  the depth a visual step was recorded at (review r3 F3a). */
+  gridDropped?: number;
   onApplied: () => void;
   onError: (message: string) => void;
 }
@@ -104,6 +109,8 @@ interface XlsxVisualsWiring {
   /** The renderer's onViewportChange: re-measure on the next frame. */
   onViewportChange: () => void;
   history: XlsxVisualsHistory;
+  /** The grid's cell-edit state (null: cannot tell), for the undo keys. */
+  isCellEditing: () => boolean | null;
   /** The hidden picture input. */
   dialog: ReactNode;
   /** Print (L1): the drawn visuals of one sheet (or all), positioned in sheet
@@ -148,6 +155,23 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
   const gridUndos = options.gridUndos ?? 0;
   const gridUndosRef = useRef(gridUndos);
   gridUndosRef.current = gridUndos;
+  // The grid stack is capped: a push at the cap drops its oldest entry and
+  // leaves the depth alone, so every recorded depth moves down with it. A new
+  // grid edit above a visual redo's depth drops that redo branch, like Excel
+  // (review r3 F3a/b).
+  const gridDropped = options.gridDropped ?? 0;
+  const droppedRef = useRef(gridDropped);
+  useEffect(() => {
+    const shift = gridDropped - droppedRef.current;
+    droppedRef.current = gridDropped;
+    const lower = <T extends XlsxVisualHistoryEntry>(entries: readonly T[]) => (shift > 0 ? entries.map((entry) => ({ ...entry, gridUndos: entry.gridUndos - shift })) : entries);
+    if (shift > 0) setPast(lower);
+    setFuture((current) => {
+      const next = lower(current);
+      const top = next.at(-1);
+      return top && gridUndos > top.gridUndos ? [] : next;
+    });
+  }, [gridDropped, gridUndos]);
   const record = useCallback((entry: XlsxVisualHistoryDraft) => {
     setPast((current) => [...current, { ...entry, gridUndos: gridUndosRef.current } as XlsxVisualHistoryEntry]);
     setFuture([]);
@@ -386,8 +410,9 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     insertPicture: () => { if (available) pictureInputRef.current?.click(); },
   }), [available, insertChart, insertShape, span]);
 
+  const isCellEditing = useCallback(() => gridRef.current?.isCellEditing?.() ?? null, [gridRef]);
   const overlay = items.length > 0
-    ? <XlsxVisualLayer items={items} selectedId={selectedId} readOnly={!canEdit || saving} onSelect={setSelectedId} onMove={move} onRemove={remove} />
+    ? <XlsxVisualLayer items={items} selectedId={selectedId} readOnly={!canEdit || saving} onSelect={setSelectedId} onMove={move} onRemove={remove} isCellEditing={isCellEditing} />
     : null;
 
   const dialog = (
@@ -413,7 +438,7 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     return printableVisuals(visuals, sheets, metricsFor ?? fallback, sheetId);
   }, [geometry, sheets, visuals]);
 
-  return { commands, overlay, onViewportChange, dialog, getPrintableVisuals, history };
+  return { commands, overlay, onViewportChange, dialog, getPrintableVisuals, history, isCellEditing };
 }
 
 /** Gives the ribbon groups the commands and mounts the hidden picture input. */

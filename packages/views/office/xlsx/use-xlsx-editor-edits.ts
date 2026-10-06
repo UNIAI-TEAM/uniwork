@@ -11,7 +11,7 @@ import type { XlsxCellState, XlsxWorkbookSnapshot } from "@uniwork/office-engine
 import type { XlsxGridHandle, XlsxGridHostPort } from "./xlsx-grid-surface";
 import { addressParts, cellEditOperation, cellText } from "./xlsx-editor-model";
 import { useXlsxHistoryState } from "./use-xlsx-history-state";
-import { stepHistory } from "../common/history-step";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import type { XlsxEditorHandle, XlsxRecalcController, XlsxSaveCoordinator, XlsxSelection, XlsxViewState } from "./types";
 
 export interface XlsxEditorEditsOptions<TSnapshot = XlsxWorkbookSnapshot> {
@@ -48,6 +48,8 @@ export interface XlsxEditorEditsWiring {
   canRedo: boolean;
   /** The grid's undo depth (0 without a history port): visual history orders itself against it. */
   gridUndos: number;
+  /** Old grid entries the full stack has dropped (monotonic, 0 without the port). */
+  gridDropped: number;
   prepareSave: () => Promise<void>;
   save: (entryPoint?: "button" | "shortcut") => void;
   recalculate: () => Promise<void>;
@@ -104,8 +106,9 @@ export function useXlsxEditorEdits<TSnapshot = XlsxWorkbookSnapshot>(
   }, [activeCell, canEdit, editor, formulaDraft, flushGridEdits, gridReady, gridRef, markDirty, refreshSnapshot, rendererHost, selection]);
 
   const history = useXlsxHistoryState(gridRef, gridReady);
-  const canUndo = gridReady ? history === null || history.undos > 0 : typeof editor.undo === "function";
-  const canRedo = gridReady ? history === null || history.redos > 0 : typeof editor.redo === "function";
+  // Without a grid the handle's own canUndo/canRedo decide (review r3 N1).
+  const canUndo = gridReady ? history === null || history.undos > 0 : canStepHistory(editor, "undo");
+  const canRedo = gridReady ? history === null || history.redos > 0 : canStepHistory(editor, "redo");
 
   const undo = useCallback(() => {
     // An empty stack is a no-op that never marks the document dirty.
@@ -188,5 +191,5 @@ export function useXlsxEditorEdits<TSnapshot = XlsxWorkbookSnapshot>(
     setRecalcError(t("office.xlsx.recalc.cancelled"));
   }, [recalcAbortRef, recalcController, setRecalcError, setRecalcFresh, setRecalcProgress, t]);
 
-  return { markDirty, commitCell, undo, redo, canUndo, canRedo, gridUndos: history?.undos ?? 0, prepareSave, save, recalculate, cancelRecalculate };
+  return { markDirty, commitCell, undo, redo, canUndo, canRedo, gridUndos: history?.undos ?? 0, gridDropped: history?.dropped ?? 0, prepareSave, save, recalculate, cancelRecalculate };
 }

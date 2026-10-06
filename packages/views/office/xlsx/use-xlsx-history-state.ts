@@ -18,8 +18,8 @@ export function useXlsxHistoryState(
       return;
     }
     const initial = grid.getHistory();
-    setState(initial === null ? null : { undos: initial.undos, redos: initial.redos });
-    return grid.subscribeHistory((next) => setState({ undos: next.undos, redos: next.redos }));
+    setState(initial === null ? null : { undos: initial.undos, redos: initial.redos, dropped: initial.dropped ?? 0 });
+    return grid.subscribeHistory((next) => setState({ undos: next.undos, redos: next.redos, dropped: next.dropped ?? 0 }));
   }, [gridRef, gridReady]);
   return state;
 }

@@ -101,7 +101,8 @@ describe("fileEditsFromStream", () => {
       { op: "set_visual", target: { sheet: "Doanh thu" }, attributes: { file: -1, anchor: at(1) } },
     ])).toEqual([
       { sheetName: "Doanh thu", file: 0, anchor: at(5) },
-      { sheetName: "Doanh thu", file: 1, remove: true },
+      // A move after its delete is the undo of that delete: a restore (14e02958).
+      { sheetName: "Doanh thu", file: 1, anchor: at(9) },
     ]);
   });
 });
