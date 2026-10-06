@@ -350,6 +350,8 @@ describe("mountHtmlPreview", () => {
     });
     expect(opened[0]!.ttl_ms).toBe(10 * 60 * 1000);
     expect(session.iframe.srcdoc).not.toContain("about:blank#blocked");
+    expect(session.iframe.srcdoc).not.toContain("a%20b.png");
+    expect(session.iframe.srcdoc).not.toContain("a b.png");
     session.dispose();
     const before = session.iframe.srcdoc;
     await session.update("<p>after</p>");
@@ -402,6 +404,8 @@ describe("mountHtmlPreview", () => {
     };
     const { session } = await mount(`<img src="img/a%20b.png">`, { proxy });
     expect(session.iframe.srcdoc).not.toContain("about:blank#blocked");
+    expect(session.iframe.srcdoc).not.toContain("a%20b.png");
+    expect(session.iframe.srcdoc).not.toContain("a b.png");
   });
 
   it("shows an empty document and raises refused when the final gate cannot prove the copy", async () => {
@@ -452,6 +456,8 @@ describe("mountHtmlPreview", () => {
     expect(session.iframe.srcdoc).not.toContain("evil.example");
     await session.update(`<img src="img/a%20b.png">`, { ...MANIFEST, entries: [] });
     expect(session.iframe.srcdoc).not.toContain("about:blank#blocked");
+    expect(session.iframe.srcdoc).not.toContain("a%20b.png");
+    expect(session.iframe.srcdoc).not.toContain("a b.png");
   });
 
   it("drops the source of a blocked image so the frame makes no request the CSP must refuse", async () => {
