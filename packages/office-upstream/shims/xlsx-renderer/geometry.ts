@@ -5,10 +5,14 @@
 // on-screen box is the main canvas origin plus (scene - viewport scroll) x
 // zoom - the mapping genoffice's shape-draw.ts rectToAnchor uses. Boxes are
 // returned relative to the renderer container, which is where the overlay is
-// mounted. Frozen panes are modelled per axis: a cell inside the frozen rows
-// (columns) ignores the vertical (horizontal) scroll, and a point inside the
-// frozen band resolves by walking from row/column 0 with no scroll. Hidden
-// rows and columns have size 0 in the walk.
+// mounted. Frozen panes are modelled per axis. Univer's freeze is
+// { xSplit, ySplit, startRow, startColumn }: ySplit rows are frozen and
+// startRow is the first row of the scrolling viewport, so the frozen row band
+// is [startRow - ySplit, startRow) (rows above it are scrolled out behind the
+// band); columns likewise. A cell inside a band is drawn with the band's own
+// scroll (its offset from row/column 0), and a point inside a band resolves by
+// walking from the band's first row/column. Hidden rows and columns have size
+// 0 in the walk.
 import type { IRange } from "@univerjs/core";
 import { IRenderManagerService, SHEET_VIEWPORT_KEY } from "@univerjs/engine-render";
 import type { UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
@@ -90,6 +94,12 @@ export function commandMovesCells(commandId: unknown): boolean {
 const MAX_ROW = 1_048_575;
 const MAX_COLUMN = 16_383;
 
+/** A frozen band: indexes [start, end). */
+interface FrozenBand {
+  readonly start: number;
+  readonly end: number;
+}
+
 type ActiveWorksheet = NonNullable<ReturnType<ReturnType<UniverRuntime["univerAPI"]["getActiveWorkbook"]>["getActiveSheet"]>>;
 
 export function createGridGeometry(runtime: UniverRuntime, container: HTMLElement): XlsxRendererGeometry {
@@ -121,23 +131,25 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
     return { x: viewMain?.viewportScrollX ?? 0, y: viewMain?.viewportScrollY ?? 0 };
   };
 
-  /** Frozen row/column counts of a sheet; 0 when the sheet has no freeze.
-   *  Rows/columns before `startRow`/`startColumn` are the frozen band. */
-  const freezeOf = (worksheet: ActiveWorksheet): { rows: number; columns: number } => {
-    const count = (split: unknown, start: unknown): number => {
-      if (typeof split !== "number" || split <= 0) return 0;
-      return typeof start === "number" && start >= split ? start : split;
+  /** The frozen band per axis as a half-open index range; empty (start ==
+   *  end) when the sheet has no freeze. The band is [start - split, start). */
+  const freezeOf = (worksheet: ActiveWorksheet): { rows: FrozenBand; columns: FrozenBand } => {
+    const none: FrozenBand = { start: 0, end: 0 };
+    const band = (split: unknown, start: unknown): FrozenBand => {
+      if (typeof split !== "number" || split <= 0) return none;
+      if (typeof start === "number" && start >= split) return { start: start - split, end: start };
+      return { start: 0, end: split };
     };
     try {
       const freeze = worksheet.getFreeze?.();
-      if (freeze) return { rows: count(freeze.ySplit, freeze.startRow), columns: count(freeze.xSplit, freeze.startColumn) };
+      if (freeze) return { rows: band(freeze.ySplit, freeze.startRow), columns: band(freeze.xSplit, freeze.startColumn) };
     } catch { /* fall through to the count accessors */ }
     try {
       const rows = worksheet.getFrozenRows?.();
       const columns = worksheet.getFrozenColumns?.();
-      return { rows: typeof rows === "number" && rows > 0 ? rows : 0, columns: typeof columns === "number" && columns > 0 ? columns : 0 };
+      return { rows: band(rows, 0), columns: band(columns, 0) };
     } catch {
-      return { rows: 0, columns: 0 };
+      return { rows: none, columns: none };
     }
   };
 
@@ -163,9 +175,18 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
       const scroll = scrollOf(active.workbook.getId());
       const origin = container.getBoundingClientRect();
       const frozen = freezeOf(active.worksheet);
+      // A band cell moves with the band's own scroll: its distance from row/column 0.
+      const inRows = row >= frozen.rows.start && row < frozen.rows.end;
+      const inColumns = column >= frozen.columns.start && column < frozen.columns.end;
+      const bandY = inRows && frozen.rows.start > 0
+        ? active.worksheet.getRange(frozen.rows.start, column, 1, 1).getCellRect().y - active.worksheet.getRange(0, column, 1, 1).getCellRect().y
+        : 0;
+      const bandX = inColumns && frozen.columns.start > 0
+        ? active.worksheet.getRange(row, frozen.columns.start, 1, 1).getCellRect().x - active.worksheet.getRange(row, 0, 1, 1).getCellRect().x
+        : 0;
       return {
-        x: surface.x - origin.x + (cell.x - (column < frozen.columns ? 0 : scroll.x)) * zoom,
-        y: surface.y - origin.y + (cell.y - (row < frozen.rows ? 0 : scroll.y)) * zoom,
+        x: surface.x - origin.x + (cell.x - (inColumns ? bandX : scroll.x)) * zoom,
+        y: surface.y - origin.y + (cell.y - (inRows ? bandY : scroll.y)) * zoom,
         width: cell.width * zoom,
         height: cell.height * zoom,
         zoom,
@@ -200,19 +221,19 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
     const frozen = freezeOf(active.worksheet);
     const columnWidth = (index: number) => (isHidden(active.worksheet, "column", index) ? 0 : Math.max(active.worksheet.getColumnWidth(index), 1));
     const rowHeight = (index: number) => (isHidden(active.worksheet, "row", index) ? 0 : Math.max(active.worksheet.getRowHeight(index), 1));
-    // A point inside the frozen band starts at index 0 with no scroll; the far
-    // edge of the band is the last frozen cell's edge.
+    // A point inside the frozen band starts at the band's first index at that
+    // cell's box edge; the far edge of the band is the last band cell's edge.
     let columnStart = { index: visible.startColumn, edge: origin.x };
-    if (frozen.columns > 0) {
-      const first = getCellBox(sheetId, 0, 0);
-      const last = getCellBox(sheetId, 0, frozen.columns - 1);
-      if (first && last && x < last.x + last.width) columnStart = { index: 0, edge: first.x };
+    if (frozen.columns.end > frozen.columns.start) {
+      const first = getCellBox(sheetId, 0, frozen.columns.start);
+      const last = getCellBox(sheetId, 0, frozen.columns.end - 1);
+      if (first && last && x < last.x + last.width) columnStart = { index: frozen.columns.start, edge: first.x };
     }
     let rowStart = { index: visible.startRow, edge: origin.y };
-    if (frozen.rows > 0) {
-      const first = getCellBox(sheetId, 0, 0);
-      const last = getCellBox(sheetId, frozen.rows - 1, 0);
-      if (first && last && y < last.y + last.height) rowStart = { index: 0, edge: first.y };
+    if (frozen.rows.end > frozen.rows.start) {
+      const first = getCellBox(sheetId, frozen.rows.start, 0);
+      const last = getCellBox(sheetId, frozen.rows.end - 1, 0);
+      if (first && last && y < last.y + last.height) rowStart = { index: frozen.rows.start, edge: first.y };
     }
     const column = walk(columnStart.index, columnStart.edge, x, columnWidth, MAX_COLUMN, origin.zoom);
     const row = walk(rowStart.index, rowStart.edge, y, rowHeight, MAX_ROW, origin.zoom);

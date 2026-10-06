@@ -109,6 +109,31 @@ test('a point in the frozen column band resolves from column 0 with no scroll', 
   assert.equal(geometry.cellAtPoint('s1', HEADER_X + COL + 10, HEADER_Y + 1).column, 3);
 });
 
+test('a freeze set while scrolled keeps its band at [startRow - ySplit, startRow)', () => {
+  const geometry = fixture({ scroll: { x: 0, y: 60 }, freeze: { xSplit: 0, ySplit: 2, startRow: 5, startColumn: 0 }, visible: { startRow: 5, startColumn: 0 } });
+  assert.equal(geometry.getCellBox('s1', 3, 0).y, HEADER_Y);
+  assert.equal(geometry.getCellBox('s1', 4, 0).y, HEADER_Y + ROW);
+  // Scrolling rows keep cell.y - scroll.y exactly.
+  assert.equal(geometry.getCellBox('s1', 6, 0).y, HEADER_Y + 6 * ROW - 60);
+  const first = geometry.cellAtPoint('s1', HEADER_X + 10, HEADER_Y + 5);
+  assert.equal(first.row, 3);
+  assert.equal(first.offsetY, 5);
+  assert.equal(geometry.cellAtPoint('s1', HEADER_X + 10, HEADER_Y + ROW + 2).row, 4);
+  const below = geometry.cellAtPoint('s1', HEADER_X + 10, HEADER_Y + 2 * ROW + 3);
+  assert.equal(below.row, 5);
+  assert.equal(below.offsetY, 3);
+});
+
+test('a freeze set while scrolled keeps its column band at [startColumn - xSplit, startColumn)', () => {
+  const geometry = fixture({ scroll: { x: 300, y: 0 }, freeze: { xSplit: 1, ySplit: 0, startRow: 0, startColumn: 4 }, visible: { startRow: 0, startColumn: 4 } });
+  assert.equal(geometry.getCellBox('s1', 0, 3).x, HEADER_X);
+  assert.equal(geometry.getCellBox('s1', 0, 5).x, HEADER_X + 5 * COL - 300);
+  const hit = geometry.cellAtPoint('s1', HEADER_X + 30, HEADER_Y + 1);
+  assert.equal(hit.column, 3);
+  assert.equal(hit.offsetX, 30);
+  assert.equal(geometry.cellAtPoint('s1', HEADER_X + COL + 10, HEADER_Y + 1).column, 4);
+});
+
 test('hidden rows and columns take no room in cellAtPoint', () => {
   const geometry = fixture({ hiddenRows: [1, 2], hiddenColumns: [1] });
   const hit = geometry.cellAtPoint('s1', HEADER_X + COL + 5, HEADER_Y + ROW + 5);
