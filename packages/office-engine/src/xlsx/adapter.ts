@@ -359,6 +359,13 @@ export class XlsxAdapter {
       .model
       .pendingTableAdditions()
       .map((table) => ({ ...table, sheetName: gatewayName(table.sheetName) }));
+    // Visual additions (B8): new drawing/chart/media parts anchored at final
+    // coordinates; the gateway writes them after the worksheet flush, so they
+    // never move cells and the recalc pass is unaffected.
+    const visualAdditions = session
+      .model
+      .pendingVisualAdditions()
+      .map((visual) => ({ ...visual, sheetName: gatewayName(visual.sheetName) }));
     // Hyperlink edits carry final per-cell coordinates, so the gateway applies
     // them after structural replay; a hyperlink change never moves cells, so
     // the recalc pass is unaffected. Each op is a per-cell last-write link
@@ -428,7 +435,7 @@ export class XlsxAdapter {
       keptWarning(mapped.kept);
     }
     const gatewayArguments: XlsxGatewayArguments =
-      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
+      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && visualAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
         ? {}
         : {
             ...(structuralOps.length > 0 ? { structuralOps } : {}),
@@ -436,6 +443,7 @@ export class XlsxAdapter {
             ...(filterStates.length > 0 ? { filterStates } : {}),
             ...(pageSetupStates.length > 0 ? { pageSetupStates } : {}),
             ...(tableAdditions.length > 0 ? { tableAdditions } : {}),
+            ...(visualAdditions.length > 0 ? { visualAdditions } : {}),
             ...(hyperlinkEdits.length > 0 ? { hyperlinkEdits } : {}),
             ...(noteStates.length > 0 ? { noteStates } : {}),
             ...(sheetProtections.length > 0 ? { sheetProtections } : {}),

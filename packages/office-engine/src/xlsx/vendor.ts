@@ -44,6 +44,7 @@ export interface UpstreamXlsxGatewayModule {
     pageSetupStates?: readonly unknown[],
     noteStates?: readonly unknown[],
     tableAdditions?: readonly unknown[],
+    visualAdditions?: readonly unknown[],
     formulaValues?: readonly XlsxSheetFormulaValues[],
   ): Promise<XlsxMutation>;
   assertOnlyTouchedEntriesChanged(mutation: XlsxMutation): void;
@@ -126,7 +127,8 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
       //   structuralOps [], chartEdits [], sheetPlan undefined,
       //   filterStates [], hyperlinkEdits [], cfStates [], dvStates [],
       //   sheetProtections [], definedNamesState null, pageSetupStates [],
-      //   noteStates [], tableAdditions [], formulaValues.
+      //   noteStates [], tableAdditions [], visualAdditions [] (patch 0010),
+      //   formulaValues.
       const mutation = await gateway.applyCellEditsToXlsx(
         toEngineBytes(source),
         edits,
@@ -142,6 +144,7 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
         gatewayArguments.pageSetupStates ?? [],
         gatewayArguments.noteStates ?? [],
         gatewayArguments.tableAdditions ?? [],
+        gatewayArguments.visualAdditions ?? [],
         formulaValues,
       );
       assertMutationShape(mutation);

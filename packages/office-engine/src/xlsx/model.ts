@@ -34,6 +34,7 @@ import {
 } from "./ops.ts";
 import { groupXlsxPageSetupStates, isXlsxPageSetupOp, type XlsxPageSetupFields, type XlsxPageSetupOp, type XlsxSheetPageSetupState } from "./page-setup.ts";
 import { groupXlsxTableAdditions, isXlsxTableOp, type XlsxTableAddOp } from "./tables.ts";
+import { foldXlsxVisualOp, groupXlsxVisualAdditions, isXlsxVisualOp, type XlsxSheetVisualAddition, type XlsxVisualSetOp } from "./ops-visuals.ts";
 import { groupXlsxSheetProtectionStates, isXlsxSheetProtectionOp, type XlsxSheetProtectionOp, type XlsxSheetProtectionState } from "./ops-protection.ts";
 import { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, type XlsxDefinedNamesOp, type XlsxDefinedNamesState } from "./ops-names.ts";
 
@@ -57,6 +58,8 @@ function sheetOpsFor(model: XlsxSessionModel): XlsxSheetOps {
     pageSetups: model.pageSetups,
     get tables() { return model.tables; },
     set tables(value) { model.tables = value; },
+    get visuals() { return model.visuals; },
+    set visuals(value) { model.visuals = value; },
     sheetProtections: model.sheetProtections,
     hyperlinks: model.hyperlinks,
     notes: model.notes,
@@ -101,6 +104,10 @@ export class XlsxSessionModel {
    *  The key is the sheet's CURRENT name; a rename rewrites it, a removal
    *  drops the sheet's tables (nothing may reach a deleted part). */
   tables: XlsxTableAddOp[] = [];
+  /** Visual additions (B8): charts, pictures and shapes inserted this session,
+   *  in first-insert order; a set_visual with a pending id replaces it in
+   *  place, remove_visual drops it. Keyed by CURRENT sheet name like tables. */
+  visuals: XlsxVisualSetOp[] = [];
   /** Declarative sheet-protection journal: the LAST protection op per sheet,
    *  in first-touch order (whole-sheet, like filters). Keyed by CURRENT name. */
   sheetProtections = new Map<string, XlsxSheetProtectionOp>();
@@ -167,6 +174,7 @@ export class XlsxSessionModel {
       filters: this.filters,
       pageSetups: this.pageSetups,
       tables: this.tables,
+      visuals: this.visuals,
       sheetProtections: this.sheetProtections,
       definedNames: this.definedNames,
       hyperlinks: this.hyperlinks,
@@ -189,6 +197,7 @@ export class XlsxSessionModel {
     this.filters = new Map(checkpoint.filters);
     this.pageSetups = new Map(checkpoint.pageSetups);
     this.tables = checkpoint.tables;
+    this.visuals = checkpoint.visuals;
     this.sheetProtections = new Map(checkpoint.sheetProtections);
     this.definedNames = checkpoint.definedNames;
     this.hyperlinks = new Map(checkpoint.hyperlinks);
@@ -262,6 +271,12 @@ export class XlsxSessionModel {
     }
     if (isXlsxTableOp(op)) {
       this.applyTableOp(op);
+      return;
+    }
+    if (isXlsxVisualOp(op)) {
+      this.visuals = foldXlsxVisualOp(this.visuals, op);
+      this.touched = true;
+      this.revision += 1;
       return;
     }
     if (isXlsxHyperlinkOp(op)) {
@@ -519,6 +534,12 @@ export class XlsxSessionModel {
     return groupXlsxTableAdditions(this.tables);
   }
 
+  /** The visual additions for the gateway visualAdditions argument (patch
+   *  0010), in first-insert order. Empty when the session inserted none. */
+  pendingVisualAdditions(): XlsxSheetVisualAddition[] {
+    return groupXlsxVisualAdditions(this.visuals);
+  }
+
   /** The protection plan for the gateway sheetProtections argument: one
    *  declarative flag per touched sheet, last write per sheet, first-touch
    *  order. Empty when the session has no protection edits. */
@@ -613,6 +634,7 @@ export class XlsxSessionModel {
     this.filters.clear();
     this.pageSetups.clear();
     this.tables = [];
+    this.visuals = [];
     this.sheetProtections.clear();
     this.definedNames = undefined;
     this.sheetStates = newSnapshot.sheets.map((sheet) => ({

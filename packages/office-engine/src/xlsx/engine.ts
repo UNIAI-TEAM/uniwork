@@ -179,6 +179,9 @@ export interface XlsxGatewayArguments {
   readonly noteStates?: readonly unknown[];
   /** SheetTableAddition[] — tables created this session (B9). */
   readonly tableAdditions?: readonly unknown[];
+  /** SheetVisualAddition[] — charts, pictures and shapes inserted this
+   *  session (B8; positional slot added by office-upstream patch 0010). */
+  readonly visualAdditions?: readonly unknown[];
 }
 
 /** The vendored gateway functions this lane consumes (bound via vendor.ts).

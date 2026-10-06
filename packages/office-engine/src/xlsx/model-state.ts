@@ -10,6 +10,7 @@ import { toA1, type XlsxFilterOp, type XlsxHyperlinkOp, type XlsxNotesOp, type X
 import { type XlsxPageSetupOp } from "./page-setup.ts";
 import { type XlsxDefinedNamesOp } from "./ops-names.ts";
 import { type XlsxTableAddOp } from "./tables.ts";
+import { type XlsxVisualSetOp } from "./ops-visuals.ts";
 import { type XlsxSheetProtectionOp } from "./ops-protection.ts";
 
 /** The vendored gateway's SheetEditPlan, rebuilt from the model's final sheet
@@ -50,6 +51,7 @@ export interface RemovedSheetState {
   readonly filter?: XlsxFilterOp | undefined;
   readonly pageSetup?: XlsxPageSetupOp | undefined;
   readonly tables?: readonly XlsxTableAddOp[] | undefined;
+  readonly visuals?: readonly XlsxVisualSetOp[] | undefined;
   readonly protection?: XlsxSheetProtectionOp | undefined;
   /** Per-cell hyperlink ops set aside at removal (address -> op). */
   readonly hyperlinks?: readonly XlsxHyperlinkOp[] | undefined;
@@ -67,6 +69,7 @@ export interface ModelCheckpoint {
   readonly filters: Map<string, XlsxFilterOp>;
   readonly pageSetups: Map<string, XlsxPageSetupOp>;
   readonly tables: XlsxTableAddOp[];
+  readonly visuals: XlsxVisualSetOp[];
   readonly sheetProtections: Map<string, XlsxSheetProtectionOp>;
   readonly definedNames: XlsxDefinedNamesOp | undefined;
   readonly hyperlinks: Map<string, Map<string, XlsxHyperlinkOp>>;

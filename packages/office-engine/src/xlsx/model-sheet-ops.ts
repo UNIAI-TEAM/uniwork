@@ -6,6 +6,7 @@ import { XlsxEngineError } from "./engine.ts";
 import { toA1, type XlsxFilterOp, type XlsxHyperlinkOp, type XlsxNotesOp, type XlsxSheetOp, type XlsxStructuralOp } from "./ops.ts";
 import { type XlsxPageSetupOp } from "./page-setup.ts";
 import { type XlsxTableAddOp } from "./tables.ts";
+import { type XlsxVisualSetOp } from "./ops-visuals.ts";
 import { type XlsxSheetProtectionOp } from "./ops-protection.ts";
 import { type ModelSheetState, type PendingCell, type RemovedSheetState, type XlsxSheetEditPlan } from "./model-state.ts";
 
@@ -19,6 +20,7 @@ export interface XlsxSheetOpHost {
   filters: Map<string, XlsxFilterOp>;
   pageSetups: Map<string, XlsxPageSetupOp>;
   tables: XlsxTableAddOp[];
+  visuals: XlsxVisualSetOp[];
   sheetProtections: Map<string, XlsxSheetProtectionOp>;
   hyperlinks: Map<string, Map<string, XlsxHyperlinkOp>>;
   notes: Map<string, XlsxNotesOp>;
@@ -59,6 +61,7 @@ export class XlsxSheetOps {
           if (tombstone.filter !== undefined) this.host.filters.set(tombstone.state.name, tombstone.filter);
           if (tombstone.pageSetup !== undefined) this.host.pageSetups.set(tombstone.state.name, tombstone.pageSetup);
           if (tombstone.tables !== undefined) for (const table of tombstone.tables) this.host.tables.push(table);
+          if (tombstone.visuals !== undefined) this.host.visuals = [...this.host.visuals, ...tombstone.visuals];
           if (tombstone.protection !== undefined) this.host.sheetProtections.set(tombstone.state.name, tombstone.protection);
           if (tombstone.hyperlinks !== undefined) this.host.hyperlinks.set(tombstone.state.name, new Map(tombstone.hyperlinks.map((link) => [link.address, link])));
           if (tombstone.notes !== undefined) this.host.notes.set(tombstone.state.name, tombstone.notes);
@@ -101,6 +104,7 @@ export class XlsxSheetOps {
           filter: this.host.filters.get(sheet.name),
           pageSetup: this.host.pageSetups.get(sheet.name),
           tables: this.host.tables.filter((table) => table.sheetName === sheet.name),
+          visuals: this.host.visuals.filter((visual) => visual.sheetName === sheet.name),
           protection: this.host.sheetProtections.get(sheet.name),
           ...(this.host.hyperlinks.has(sheet.name) ? { hyperlinks: [...(this.host.hyperlinks.get(sheet.name) ?? new Map()).values()] } : {}),
           ...(this.host.notes.has(sheet.name) ? { notes: this.host.notes.get(sheet.name) } : {}),
@@ -191,6 +195,7 @@ export class XlsxSheetOps {
       this.host.pageSetups.set(next, { ...pageSetup, sheetName: next });
     }
     this.host.tables = this.host.tables.map((table) => (table.sheetName === previous ? { ...table, sheetName: next } : table));
+    this.host.visuals = this.host.visuals.map((visual) => (visual.sheetName === previous ? { ...visual, sheetName: next } : visual));
     const protection = this.host.sheetProtections.get(previous);
     if (protection !== undefined) {
       this.host.sheetProtections.delete(previous);
@@ -216,6 +221,7 @@ export class XlsxSheetOps {
     this.host.filters.delete(sheetName);
     this.host.pageSetups.delete(sheetName);
     this.host.tables = this.host.tables.filter((table) => table.sheetName !== sheetName);
+    this.host.visuals = this.host.visuals.filter((visual) => visual.sheetName !== sheetName);
     this.host.sheetProtections.delete(sheetName);
     this.host.hyperlinks.delete(sheetName);
     this.host.notes.delete(sheetName);

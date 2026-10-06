@@ -110,6 +110,7 @@ describe("op-kind registry", () => {
       "add_sheet", "duplicate_sheet", "rename_sheet", "remove_sheet", "reorder_sheet", "set_sheet_hidden",
       "create_table", "remove_table",
       "set_hyperlink", "set_notes", "set_sheet_protection", "set_defined_names",
+      "set_visual", "remove_visual",
     ]);
     expect(XLSX_OP_KINDS.map((kind) => kind.slot)).toEqual([
       "cellEdits", "cellEdits", "cellEdits",
@@ -121,6 +122,7 @@ describe("op-kind registry", () => {
       "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan", "sheetPlan",
       "tableAdditions", "tableAdditions",
       "hyperlinkEdits", "noteStates", "sheetProtections", "definedNamesState",
+      "visualAdditions", "visualAdditions",
     ]);
   });
 
@@ -177,6 +179,16 @@ describe("op-kind registry", () => {
       set_notes: { op: "set_notes", target: { sheet: "Data" }, attributes: { notes: [{ row: 0, column: 0, author: "Ann", text: "note" }] } },
       set_sheet_protection: { op: "set_sheet_protection", target: { sheet: "Data" }, attributes: { protected: true } },
       set_defined_names: { op: "set_defined_names", attributes: { names: [{ name: "Total", formula: "=SUM(A1:A2)" }] } },
+      set_visual: {
+        op: "set_visual",
+        target: { sheet: "Data" },
+        attributes: {
+          id: "v1",
+          anchor: { fromRow: 0, fromColumn: 0, fromRowOffset: 0, fromColumnOffset: 0, toRow: 4, toColumn: 3, toRowOffset: 0, toColumnOffset: 0 },
+          shape: { shapeType: "rect" },
+        },
+      },
+      remove_visual: { op: "remove_visual", target: { sheet: "Data" }, attributes: { id: "v1" } },
     };
     for (const kind of XLSX_OP_KINDS) {
       const item = items[kind.wireName]!;
