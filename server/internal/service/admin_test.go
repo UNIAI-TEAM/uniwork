@@ -54,7 +54,7 @@ func TestAdminRevokeDesktopDevice(t *testing.T) {
 	}
 
 	res, err := f.admin.RevokeDesktopDevice(ctx, CLIActor, userID, sess.DeviceSessionID, "lost laptop reported by owner")
-	if err != nil || res.AlreadyRevoked || res.Revoked != 1 || res.SessionFamilyID != sess.SessionID {
+	if err != nil || res.AlreadyRevoked || res.Revoked != 1 || res.TokensRevoked != 1 || res.SessionFamilyID != sess.SessionID {
 		t.Fatalf("revoke: %v %+v", err, res)
 	}
 	if _, err := desktop.Refresh(ctx, sess.DeviceSessionID, sess.RefreshToken, "default"); !errors.Is(err, ErrDesktopDeviceRevoked) {
@@ -83,6 +83,35 @@ func TestAdminRevokeDesktopDevice(t *testing.T) {
 	}
 	if rows, _ := f.q.ListAdminActionsByTarget(ctx, db.ListAdminActionsByTargetParams{TargetType: "device_session", TargetID: sess.DeviceSessionID, Limit: 10}); len(rows) != 1 {
 		t.Fatalf("repeat revoke wrote %d admin_actions rows", len(rows))
+	}
+}
+
+// A device whose session row was already closed but whose family still holds
+// a live refresh token (what a device-scope logout used to leave behind) is not
+// "already revoked": the operator revoke closes the token, says so, and
+// AuthService.Refresh refuses it afterwards.
+func TestAdminRevokeDesktopDeviceClosesLeftoverRefreshToken(t *testing.T) {
+	f := newAuditFixture(t)
+	ctx := context.Background()
+	_, userID, sess := f.desktopDevice(t, "leftover-token@example.com")
+
+	if n, err := f.q.RevokeDeviceSession(ctx, db.RevokeDeviceSessionParams{ID: sess.DeviceSessionID, UserID: userID}); err != nil || n != 1 {
+		t.Fatalf("close the device row only: %d %v", n, err)
+	}
+	res, err := f.admin.RevokeDesktopDevice(ctx, CLIActor, userID, sess.DeviceSessionID, "lost laptop reported by owner")
+	if err != nil || res.AlreadyRevoked || res.Revoked != 0 || res.TokensRevoked != 1 {
+		t.Fatalf("revoke with a live token: %v %+v", err, res)
+	}
+	if _, err := f.auth.Refresh(ctx, sess.RefreshToken); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("browser refresh with the family's token after operator revoke: %v", err)
+	}
+	actions, err := f.q.ListAdminActionsByTarget(ctx, db.ListAdminActionsByTargetParams{TargetType: "device_session", TargetID: sess.DeviceSessionID, Limit: 10})
+	if err != nil || len(actions) != 1 {
+		t.Fatalf("admin_actions: %v %+v", err, actions)
+	}
+	again, err := f.admin.RevokeDesktopDevice(ctx, CLIActor, userID, sess.DeviceSessionID, "lost laptop reported by owner")
+	if err != nil || !again.AlreadyRevoked || again.TokensRevoked != 0 {
+		t.Fatalf("repeat revoke: %v %+v", err, again)
 	}
 }
 

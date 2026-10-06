@@ -86,7 +86,7 @@ func main() {
 			fmt.Printf("%s already revoked, nothing changed\n", res.DeviceID)
 			return
 		}
-		fmt.Printf("%s revoked (session family %s, %d device session(s) closed)\n", res.DeviceID, res.SessionFamilyID, res.Revoked)
+		fmt.Printf("%s revoked (session family %s, %d device session(s) and %d refresh token(s) closed)\n", res.DeviceID, res.SessionFamilyID, res.Revoked, res.TokensRevoked)
 	default:
 		usage()
 	}

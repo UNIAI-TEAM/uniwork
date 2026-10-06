@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
-	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // RevokedDesktopDevice is what RevokeDesktopDevice reports back to the CLI.
@@ -15,9 +14,12 @@ type RevokedDesktopDevice struct {
 	DeviceID        string
 	UserID          string
 	SessionFamilyID string
-	// Revoked counts the device sessions of the family this call closed.
-	Revoked int
-	// AlreadyRevoked: the whole family was closed before; nothing was written.
+	// Revoked counts the device sessions of the family this call closed;
+	// TokensRevoked the family's refresh tokens it closed.
+	Revoked       int
+	TokensRevoked int
+	// AlreadyRevoked: no live device session and no live refresh token was
+	// left in the family; nothing was written.
 	AlreadyRevoked bool
 }
 
@@ -26,7 +28,9 @@ type RevokedDesktopDevice struct {
 // every sibling device session and the family's refresh tokens — so the next
 // refresh answers device_revoked. A device id that does not exist, or that
 // belongs to another user than userID, is ErrNotFound and nothing is written.
-// A family that is already closed is an idempotent no-op with no new rows.
+// A family with no live device session and no live refresh token is an
+// idempotent no-op with no new rows; a device already logged out whose refresh
+// token is still live is not "already revoked" and gets closed here.
 // actorID is a platform admin's user id, or CLIActor from uniwork-admin.
 func (s *AdminService) RevokeDesktopDevice(ctx context.Context, actorID, userID, deviceID, reason string) (RevokedDesktopDevice, error) {
 	if err := checkReason(reason); err != nil {
@@ -49,26 +53,17 @@ func (s *AdminService) RevokeDesktopDevice(ctx context.Context, actorID, userID,
 	if err != nil {
 		return RevokedDesktopDevice{}, err
 	}
-	rows, err := q.ListDeviceSessions(ctx, userID)
+	sessions, tokens, err := revokeDesktopFamily(ctx, q, userID, device.SessionFamilyID)
 	if err != nil {
 		return RevokedDesktopDevice{}, err
 	}
-	live := 0
-	for _, row := range rows {
-		if row.SessionFamilyID == device.SessionFamilyID && !row.RevokedAt.Valid {
-			live++
-		}
-	}
-	out := RevokedDesktopDevice{DeviceID: device.ID, UserID: userID, SessionFamilyID: device.SessionFamilyID, Revoked: live}
-	if live == 0 {
+	out := RevokedDesktopDevice{DeviceID: device.ID, UserID: userID, SessionFamilyID: device.SessionFamilyID, Revoked: int(sessions), TokensRevoked: int(tokens)}
+	if sessions == 0 && tokens == 0 {
 		out.AlreadyRevoked = true
 		return out, nil
 	}
-	if err := q.RevokeDesktopSessionFamily(ctx, db.RevokeDesktopSessionFamilyParams{UserID: userID, SessionFamilyID: device.SessionFamilyID}); err != nil {
-		return RevokedDesktopDevice{}, err
-	}
-	before := map[string]any{"revoked": false, "live_sessions": live}
-	after := map[string]any{"revoked": true, "live_sessions": 0}
+	before := map[string]any{"revoked": false, "live_sessions": sessions, "live_refresh_tokens": tokens}
+	after := map[string]any{"revoked": true, "live_sessions": 0, "live_refresh_tokens": 0}
 	if err := s.recordAdmin(ctx, q, traceID, actorID, audit.ActionDesktopDeviceRevoked, "device_session", device.ID, before, after, reason); err != nil {
 		return RevokedDesktopDevice{}, err
 	}

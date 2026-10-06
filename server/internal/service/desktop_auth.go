@@ -403,7 +403,7 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 		if !issued {
 			return DesktopSession{}, desktopRefreshReused()
 		}
-		if revokeErr := q.RevokeDesktopSessionFamily(ctx, db.RevokeDesktopSessionFamilyParams{UserID: device.UserID, SessionFamilyID: device.SessionFamilyID}); revokeErr != nil {
+		if _, _, revokeErr := revokeDesktopFamily(ctx, q, device.UserID, device.SessionFamilyID); revokeErr != nil {
 			return DesktopSession{}, revokeErr
 		}
 		if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(device.UserID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: device.ID, Metadata: map[string]any{"reason": "refresh_reuse"}}); err != nil {
@@ -444,6 +444,22 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 	return DesktopSession{AccountID: device.UserID, DeviceSessionID: device.ID, SessionID: device.SessionFamilyID, DeploymentID: device.DeploymentID, AccessToken: access, ExpiresIn: int32(s.minter.TTL / time.Second), RefreshToken: refresh, RefreshExpiresIn: refreshSeconds}, nil
 }
 
+// revokeDesktopFamily closes every live device session of the family, then the
+// family's refresh tokens, as two statements in the caller's transaction. It
+// returns how many rows each statement changed, so a caller can tell a real
+// revoke from a repeat.
+func revokeDesktopFamily(ctx context.Context, q *db.Queries, userID, familyID string) (sessions, tokens int64, err error) {
+	sessions, err = q.RevokeDeviceSessionFamily(ctx, db.RevokeDeviceSessionFamilyParams{UserID: userID, SessionFamilyID: familyID})
+	if err != nil {
+		return 0, 0, err
+	}
+	tokens, err = q.RevokeSessionForUser(ctx, db.RevokeSessionForUserParams{UserID: userID, SessionID: familyID})
+	if err != nil {
+		return 0, 0, err
+	}
+	return sessions, tokens, nil
+}
+
 func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deploymentID, scope string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -474,11 +490,25 @@ func (s *DesktopAuthService) Logout(ctx context.Context, userID, deviceID, deplo
 		return Invalid("scope must be device or family")
 	}
 	if scope == "family" {
-		if err := q.RevokeDesktopSessionFamily(ctx, db.RevokeDesktopSessionFamilyParams{UserID: userID, SessionFamilyID: device.SessionFamilyID}); err != nil {
+		if _, _, err := revokeDesktopFamily(ctx, q, userID, device.SessionFamilyID); err != nil {
 			return err
 		}
-	} else if _, err := q.RevokeDeviceSession(ctx, db.RevokeDeviceSessionParams{ID: deviceID, UserID: userID}); err != nil {
-		return err
+	} else {
+		if _, err := q.RevokeDeviceSession(ctx, db.RevokeDeviceSessionParams{ID: deviceID, UserID: userID}); err != nil {
+			return err
+		}
+		// The family shares one refresh-token chain: once its last live
+		// device session is gone the chain must die with it, or AuthService
+		// would still mint a browser session from the leftover token.
+		live, err := q.CountLiveDeviceSessionsInFamily(ctx, db.CountLiveDeviceSessionsInFamilyParams{UserID: userID, SessionFamilyID: device.SessionFamilyID})
+		if err != nil {
+			return err
+		}
+		if live == 0 {
+			if _, err := q.RevokeSessionForUser(ctx, db.RevokeSessionForUserParams{UserID: userID, SessionID: device.SessionFamilyID}); err != nil {
+				return err
+			}
+		}
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(userID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: deviceID, Metadata: map[string]any{"scope": scope}}); err != nil {
 		return err
