@@ -9995,7 +9995,14 @@
         "appRecalcPartial": "Đã tính lại công thức từ các sửa đổi — {{count}} ô giữ giá trị đã lưu (hàm mà công cụ dự phòng không hỗ trợ).",
         "appSheetStillIndexing": "Trang tính vẫn đang lập chỉ mục — thử lại sau giây lát.",
         "appAreaStreaming": "Khu vực này của trang tính vẫn đang tải — thử lại sau giây lát.",
-        "appStreamingRows": "Đang truyền {{name}}: {{rows}} hàng khả dụng."
+        "appStreamingRows": "Đang truyền {{name}}: {{rows}} hàng khả dụng.",
+        "dvRejectTitle": "Giá trị không hợp lệ",
+        "dvRejectOk": "Đã hiểu",
+        "dvRejectClose": "Đóng",
+        "dvInvalidHint": "Giá trị không hợp lệ:",
+        "dvListError": "Chọn một giá trị trong danh sách.",
+        "dvListDropdown": "Chọn một giá trị",
+        "dvListEdit": "Sửa"
       }
     },
     "markdown": {

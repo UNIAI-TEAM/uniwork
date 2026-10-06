@@ -10001,7 +10001,14 @@
         "appRecalcPartial": "Formulas recalculated from your edits — {{count}} kept cached values (functions the fallback engine lacks).",
         "appSheetStillIndexing": "The sheet is still indexing — try again in a moment.",
         "appAreaStreaming": "This part of the sheet is still loading — try again in a moment.",
-        "appStreamingRows": "Streaming {{name}}: {{rows}} rows available."
+        "appStreamingRows": "Streaming {{name}}: {{rows}} rows available.",
+        "dvRejectTitle": "Invalid value",
+        "dvRejectOk": "OK",
+        "dvRejectClose": "Close",
+        "dvInvalidHint": "Invalid value:",
+        "dvListError": "Choose a value from the list.",
+        "dvListDropdown": "Choose a value",
+        "dvListEdit": "Edit"
       }
     },
     "markdown": {
