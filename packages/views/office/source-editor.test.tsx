@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { SourceEditor } from "./source-editor";
 import type { TextCapability, TextEditorHandle, TextOpenOutcome, TextSaveCoordinator } from "./source-editor-types";
@@ -12,9 +12,9 @@ const { t } = initI18n();
 const capability = { format: "md", operation: "serialize", host: "browser", engineBuild: "t", contractRevision: "t", status: "available", fidelityWarnings: [] } as TextCapability;
 const opened = { outcome: "opened", document_id: "doc", document_model_ref: "m1", warnings: [] } as unknown as TextOpenOutcome;
 
-function coordinator(): TextSaveCoordinator & { markDirty: ReturnType<typeof vi.fn>; checkpoint: ReturnType<typeof vi.fn> } {
+function coordinator(): TextSaveCoordinator & { markDirty: Mock<(generation: number) => void>; checkpoint: Mock<() => Promise<void>> } {
   const state = { state: "ready" as const, identity: {} as never, dirtyGeneration: 0, lastSavedGeneration: 0, activeIntentId: null, error: null };
-  return { getState: () => state, subscribe: () => () => undefined, save: vi.fn(async () => ({ accepted: false as const, reason: "clean" as const })), markDirty: vi.fn(), checkpoint: vi.fn(async () => undefined) };
+  return { getState: () => state, subscribe: () => () => undefined, save: vi.fn(async () => ({ accepted: false as const, reason: "clean" as const })), markDirty: vi.fn<(generation: number) => void>(), checkpoint: vi.fn<() => Promise<void>>(async () => undefined) };
 }
 
 /** A text handle with a real snapshot stack; `moves: false` steps without changing anything. */
