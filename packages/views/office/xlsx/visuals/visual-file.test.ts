@@ -63,6 +63,23 @@ describe("applySavedVisuals", () => {
     expect(applySavedVisuals(untouched, [], 4).visuals).toEqual(untouched);
   });
 
+  it("appends after the render model's trailing slot when the drawing ran past the listing cap (review-visuals V2)", () => {
+    const seeded = seedFileVisuals({ s1: [{ index: 0, kind: "shape", editable: true, anchor: ANCHOR }, { index: 1_499, kind: "other", editable: false }] });
+    const result = applySavedVisuals([...seeded, session("a", "s1", 1)], [], 1);
+    expect(result.visuals.find((visual) => visual.id === "a")?.file).toBe(1_500);
+  });
+
+  it("keeps a visual a save wrote on a sheet whose drawing could not be read fixed, never numbered (review-visuals V2)", () => {
+    const seeded = seedFileVisuals({ s1: [{ index: -1, kind: "other", editable: false, unread: true }] });
+    expect(seeded[0]).toMatchObject({ file: -1, kind: "other", fixed: true, unread: true });
+    const result = applySavedVisuals([...seeded, session("a", "s1", 1), session("b", "s2", 1)], [], 1);
+    const written = result.visuals.find((visual) => visual.id === "a");
+    expect(written?.fixed).toBe(true);
+    expect(written?.file).toBeUndefined();
+    expect(result.visuals.find((visual) => visual.id === "b")).toMatchObject({ file: 0 });
+    expect(result.visuals.find((visual) => visual.id === "b")?.fixed).toBeUndefined();
+  });
+
   it("addresses a file visual's ops by index, never by id", () => {
     expect(moveVisualOp(fileVisual("s1", 2), "Data")).toEqual({ op: "set_visual", target: { sheet: "Data" }, attributes: { file: 2, anchor: ANCHOR } });
     expect(removeVisualOp(fileVisual("s1", 2), "Data")).toEqual({ op: "remove_visual", target: { sheet: "Data" }, attributes: { file: 2 } });

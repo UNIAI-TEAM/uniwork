@@ -33,6 +33,7 @@ export function seedFileVisuals(fileVisuals: Readonly<Record<string, readonly Xl
         kind: visual.kind,
         anchor: visual.anchor ?? { fromRow: 0, fromColumn: 0, fromRowOffset: 0, fromColumnOffset: 0, toRow: 0, toColumn: 0, toRowOffset: 0, toColumnOffset: 0 },
         ...(visual.editable ? {} : { fixed: true }),
+        ...(visual.unread ? { unread: true } : {}),
         ...(visual.extent ? { extent: visual.extent } : {}),
         ...(visual.position ? { position: visual.position } : {}),
         ...(visual.chart ? { chart: visual.chart } : {}),
@@ -66,8 +67,11 @@ const covered = (generation: number, savedGeneration: number) => generation > 0 
 /**
  * Renumber the overlay after a save landed: per sheet, the file deletes the
  * save carried shift the later anchors up, then the session visuals it wrote
- * take the next indexes in insert order. Returns the new list and the
- * deletes still waiting for a save.
+ * take the next indexes in insert order: after the last anchor the render
+ * model counted, a trailing slot past its listing cap included. On a sheet
+ * whose drawing could not be read the count is unknown, so a visual written
+ * there becomes fixed instead of being numbered against a guess. Returns the
+ * new list and the deletes still waiting for a save.
  */
 export function applySavedVisuals(
   visuals: readonly XlsxEditorVisual[],
@@ -88,8 +92,10 @@ export function applySavedVisuals(
     if (visual.file !== undefined) counts.set(visual.sheetId, Math.max(counts.get(visual.sheetId) ?? 0, visual.file + 1));
   }
   const writtenIds = new Set(written.map((visual) => visual.id));
+  const unread = new Set(next.filter((visual) => visual.unread).map((visual) => visual.sheetId));
   next = next.map((visual) => {
     if (!writtenIds.has(visual.id)) return visual;
+    if (unread.has(visual.sheetId)) return { ...visual, fixed: true };
     const index = counts.get(visual.sheetId) ?? 0;
     counts.set(visual.sheetId, index + 1);
     return { ...visual, file: index };

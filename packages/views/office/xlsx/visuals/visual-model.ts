@@ -26,6 +26,9 @@ export interface XlsxEditorVisual {
   readonly title?: string | undefined;
   /** A file visual the save path cannot move (oneCell / absolute anchor). */
   readonly fixed?: true | undefined;
+  /** The marker of a sheet whose drawing could not be read (file -1): its
+   *  anchor count is unknown, so a visual a save writes there stays fixed. */
+  readonly unread?: true | undefined;
   /** oneCell / absolute anchors: EMU size, and an absolute anchor's position. */
   readonly extent?: { readonly cx: number; readonly cy: number } | undefined;
   readonly position?: { readonly x: number; readonly y: number } | undefined;
