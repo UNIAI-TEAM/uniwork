@@ -29,7 +29,7 @@ import { ingestRuleSetMutation, restoreRuleSetFamily, type XlsxRendererRuleSetKi
 import { ruleSetRestoreAllowed } from "./rule-set-policy";
 import { installDvRejectDialogTitle, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
-import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
+import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
@@ -613,7 +613,9 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     if (options.readOnly || event.html) event.cancel = true;
   }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, () => { refreshViewport(); notifyViewport(); }));
-  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, notifyViewport));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, (event) => {
+    if (commandMovesCells(event?.id)) notifyViewport();
+  }));
   disposables.push(
     runtime.univerAPI.addEvent(runtime.univerAPI.Event.ActiveSheetChanged, () =>
       window.setTimeout(() => { refreshViewport(); notifySelection(); notifyViewport(); }, 0),

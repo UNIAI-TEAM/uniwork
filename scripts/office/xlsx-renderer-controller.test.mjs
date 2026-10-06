@@ -613,3 +613,21 @@ test('sheet mutations emit sheet edits, stamp live names and refuse out-of-polic
     assert.equal(readonly.handle.getJournal().sheets.renamed.size, 0);
   } finally { readonly.close(); }
 });
+
+test('onViewportChange fires only for commands that can move cells on screen', async () => {
+  let viewport = 0;
+  const mounted = mountController({ onViewportChange: () => viewport++ });
+  try {
+    await mounted.handle.loadWorkbook(file);
+    const before = viewport;
+    for (const id of ['sheet.operation.set-selections', 'sheet.mutation.set-range-values', 'sheet.command.set-range-values']) {
+      mounted.h.emit('CommandExecuted', { id });
+    }
+    assert.equal(viewport, before);
+    for (const id of ['sheet.operation.set-scroll', 'sheet.command.set-zoom-ratio', 'sheet.command.set-row-height',
+      'sheet.command.insert-row-before', 'sheet.command.set-col-frozen', 'sheet.future.scroll-thing']) {
+      mounted.h.emit('CommandExecuted', { id });
+    }
+    assert.equal(viewport, before + 6);
+  } finally { mounted.close(); }
+});
