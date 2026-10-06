@@ -13,11 +13,4 @@
  *   />
  */
 export { MastersPanel } from "./masters-panel";
-export type {
-  MasterBox,
-  MasterElementView,
-  MasterPanelEdit,
-  MasterPanelProps,
-  MasterPanelStatus,
-  MasterPartView,
-} from "./masters-model";
+export type { MasterElementView, MasterPanelEdit, MasterPanelProps, MasterPartView } from "./masters-model";
