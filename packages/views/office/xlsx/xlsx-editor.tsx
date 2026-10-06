@@ -26,7 +26,7 @@ import { XlsxFrameStatusBar, XlsxSheetTabsRow } from "./toolbar/status-area";
 import { useXlsxViewEcho } from "./toolbar/view-echo";
 import { OfficeFrame } from "../frame";
 import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
-import { cellText, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
+import { cellText, isSnapshot, snapshotForEditor, visualsFrozen } from "./xlsx-editor-model";
 import { useXlsxGridEdits } from "./use-xlsx-grid-edits";
 import { isFailure, unexpectedFailure } from "./xlsx-editor-failure";
 import { useXlsxEditorSelection } from "./use-xlsx-editor-selection";
@@ -355,7 +355,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // Charts, pictures and shapes (UNI-940 X02): the hook owns the overlay and
   // the set_visual / remove_visual ops; see visuals/.
-  const visuals = useXlsxVisuals({ gridRef, gridReady, selection, canEdit, editor, savedGeneration: coordinatorState.lastSavedGeneration, saving: coordinatorState.state === "saving", snapshot, fileVisuals: rendererHost?.fileVisuals, onApplied: markDirty,
+  const visuals = useXlsxVisuals({ gridRef, gridReady, selection, canEdit, editor, savedGeneration: coordinatorState.lastSavedGeneration, saving: visualsFrozen(coordinatorState), snapshot, fileVisuals: rendererHost?.fileVisuals, onApplied: markDirty,
     onError: setRecalcError, activeSheetId, activeSheetName: resolvedActiveSheet, sheets: liveSheets.length > 0 ? liveSheets : rendererHost?.file.sheets ?? [] });
 
   // FIX-EDITOR-SPLIT (UNI-926): the JSX key handler and the capture-phase
