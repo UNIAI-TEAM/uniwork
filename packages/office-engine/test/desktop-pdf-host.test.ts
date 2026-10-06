@@ -78,7 +78,7 @@ describe("desktop PDF engine host", () => {
 
   it("refuses a document that is not binary (a base64 string is no longer a wire form)", async () => {
     await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { data: "JVBERi0=" } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
-    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: "JVBERi0=" } })).rejects.toMatchObject({ code: "engine_input_missing" });
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: "JVBERi0=" } as unknown as Parameters<typeof handleDesktopEngineCall>[0]["args"] })).rejects.toMatchObject({ code: "engine_input_missing" });
   });
 
   it("refuses a malformed edit payload instead of fabricating an empty batch", async () => {
