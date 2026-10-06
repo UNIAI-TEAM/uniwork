@@ -231,6 +231,20 @@ describeWithPatchedGateway("CF/DV round-trip on the vendored gateway", () => {
     ]);
   });
 
+  it("keeps a rule's whole range over empty cells: D2:D5 with only D3 populated saves and reopens as D2:D5", async () => {
+    // The visual recheck's shape (vfix2-dvrange): a list rule over D2:D5 where
+    // only D3 holds a value must not shrink to the populated cell.
+    const rule = { ranges: [area(1, 4, 3, 3)], rule: { uid: "uw-dv-1", type: "list", formula1: "50%,Không", allowBlank: true, showDropDown: true, showErrorMessage: true, errorStyle: 1, errorTitle: "Giá trị sai", error: "Chỉ nhận 50% hoặc Không" } };
+    const saved = await saveOps(fixture(), [
+      { op: "set_cell", target: { sheet: "Data", cell: "D3" }, attributes: { value: 0.5 } },
+      dvItem([rule]),
+    ]);
+    const sheetXml = await engine.readEntryText(saved, "xl/worksheets/sheet1.xml") ?? "";
+    expect(sheetXml).toMatch(/<dataValidation type="list"[^>]*errorTitle="Giá trị sai"[^>]*sqref="D2:D5">/);
+    const data = (await readXlsxRenderModel(engine, saved)).sheets.find((sheet) => sheet.name === "Data");
+    expect(data?.dataValidations?.map((entry) => entry.ranges)).toEqual([[area(1, 4, 3, 3)]]);
+  });
+
   it("writes the five Highlight Cells presets the toolbar builds", async () => {
     const style = { bg: { rgb: "#C6EFCE" }, cl: { rgb: "#006100" } };
     const presets = [
