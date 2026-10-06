@@ -336,6 +336,32 @@ describe("sanitizePrintCopy: page geometry and blocked images", () => {
     expect(doc.body.firstElementChild!.localName).toBe("h1");
   });
 
+  it("keeps the copy's CSP meta the first thing in the head, the default style right after it", () => {
+    const copy = sanitizePrintCopy(`<style>p{color:red}</style><p>x</p>`);
+    const head = new DOMParser().parseFromString(copy, "text/html").head;
+    expect(head.firstElementChild!.getAttribute("http-equiv")?.toLowerCase()).toBe("content-security-policy");
+    const style = head.querySelector("style[data-print-page]")!;
+    expect(style.previousElementSibling!.localName).toBe("meta");
+    const styles = Array.from(head.querySelectorAll("style"));
+    const own = styles.find((s) => s.textContent?.includes("p{color:red}"))!;
+    expect(styles.indexOf(style as HTMLStyleElement)).toBeLessThan(styles.indexOf(own));
+  });
+
+  it("lets a table and a quote break across pages, but keeps a row and a code block whole", () => {
+    const css = new DOMParser()
+      .parseFromString(sanitizePrintCopy(`<p>x</p>`), "text/html")
+      .head.querySelector("style[data-print-page]")!.textContent!;
+    const avoided = /([^{}]+)\{[^}]*break-inside:avoid/.exec(css)![1]!.split(",").map((s) => s.trim());
+    expect(avoided).toEqual(expect.arrayContaining(["pre", "tr"]));
+    expect(avoided).not.toContain("table");
+    expect(avoided).not.toContain("blockquote");
+  });
+
+  it("still adds the default margins when a comment or a string only mentions @page", () => {
+    const copy = sanitizePrintCopy(`<style>/* @page { margin: 0 } */ p::before{content:"@page"}</style><p>x</p>`);
+    expect(new DOMParser().parseFromString(copy, "text/html").head.querySelector("style[data-print-page]")).not.toBeNull();
+  });
+
   it("keeps a document's own @page rule and adds none", () => {
     const copy = sanitizePrintCopy(`<style>@page{size:A5;margin:5mm}</style><p>x</p>`);
     expect(copy.match(/@page/g)).toHaveLength(1);

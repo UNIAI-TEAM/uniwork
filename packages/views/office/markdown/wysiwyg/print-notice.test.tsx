@@ -48,4 +48,9 @@ describe("PrintNotice", () => {
     rerender(<PrintNotice notice="failed" />);
     expect(screen.getByRole("status")).toHaveTextContent("Could not print the document. Try again.");
   });
+
+  it("never takes a click from the control under it (the line floats over the canvas)", () => {
+    render(<PrintNotice notice="busy" />);
+    expect(screen.getByRole("status")).toHaveClass("pointer-events-none");
+  });
 });

@@ -124,21 +124,34 @@ function isDangerousSrcset(value: string): boolean {
 
 /** Page geometry for a copy that brings none of its own (Markdown, plain HTML):
  * A4 with a real margin, so page 1 is content with a border of white and not
- * edge-to-edge text. It goes first in the head, so the document's own styles
+ * edge-to-edge text. It goes right after the copy's CSP meta (which stays the
+ * first thing in the head) and ahead of the document's own styles, so those
  * still win. A copy that already carries an `@page` rule (DOCX sections, a
- * styled HTML file) is left alone. */
+ * styled HTML file) is left alone. A table or a quote taller than the rest of
+ * a page flows on (a gap of white is worse than a split); a row or a code
+ * block stays whole. */
 const DEFAULT_PAGE_CSS =
   "@page{size:A4;margin:18mm}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
   "img,svg,video{max-width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere}" +
-  "h1,h2,h3,h4,h5,h6{break-after:avoid}pre,blockquote,table,img,figure{break-inside:avoid}";
+  "h1,h2,h3,h4,h5,h6{break-after:avoid}pre,tr,img,figure{break-inside:avoid}thead{display:table-header-group}";
+
+/** CSS comments and quoted strings: an `@page` inside one is not a rule. */
+const CSS_COMMENT_OR_STRING = /\/\*[\s\S]*?\*\/|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g;
+
+function hasPageRule(style: Element): boolean {
+  return /@page\b/i.test((style.textContent ?? "").replace(CSS_COMMENT_OR_STRING, ""));
+}
 
 function addDefaultPageGeometry(doc: Document): void {
-  const hasPageRule = Array.from(doc.querySelectorAll("style")).some((style) => /@page\b/i.test(style.textContent ?? ""));
-  if (hasPageRule) return;
+  if (Array.from(doc.querySelectorAll("style")).some(hasPageRule)) return;
   const style = doc.createElement("style");
   style.setAttribute("data-print-page", "");
   style.textContent = DEFAULT_PAGE_CSS;
-  doc.head.prepend(style);
+  const csp = Array.from(doc.head.querySelectorAll("meta[http-equiv]")).find(
+    (meta) => (meta.getAttribute("http-equiv") ?? "").trim().toLowerCase() === "content-security-policy",
+  );
+  if (csp) csp.after(style);
+  else doc.head.prepend(style);
 }
 
 /** The empty document a host with no DOM gets: nothing can be proven safe. */
