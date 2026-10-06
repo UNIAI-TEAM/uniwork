@@ -10,6 +10,8 @@ const options = {
   productName: "UniWork Office (test)",
   scheme: "uniwork-office-dev",
   dataHomeDirectory: "/home/zone/.local/share",
+  // A later launch finds this entry already the scheme's handler (never the real xdg-mime).
+  query: () => "uniwork-office-test.desktop" as string | undefined,
 };
 
 function memoryFileSystem() {
@@ -59,6 +61,31 @@ describe("AppImage first-run scheme registration", () => {
     const second = registerAppImageScheme({ ...options, fileSystem: memory.fileSystem, run });
     expect(second.written).toBe(false);
     expect(second.registered).toBe(false);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries xdg-mime on a later launch when the first call failed, and stops once it holds", () => {
+    const memory = memoryFileSystem();
+    let handler = "";
+    const run = vi.fn(() => { if (run.mock.calls.length < 2) return false; handler = "uniwork-office-test.desktop"; return true; });
+    const launch = () => registerAppImageScheme({ ...options, fileSystem: memory.fileSystem, run, query: () => handler });
+    expect(launch().registered).toBe(false);
+    // The entry exists now, yet nothing handles the scheme: ask again.
+    const second = launch();
+    expect(second.written).toBe(false);
+    expect(second.registered).toBe(true);
+    expect(run).toHaveBeenCalledTimes(2);
+    launch();
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it("never overrides the user's own handler on a later launch, nor retries when the answer is unreadable", () => {
+    const memory = memoryFileSystem();
+    const run = vi.fn(() => false);
+    registerAppImageScheme({ ...options, fileSystem: memory.fileSystem, run });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(registerAppImageScheme({ ...options, fileSystem: memory.fileSystem, run, query: () => "firefox.desktop" }).registered).toBe(false);
+    expect(registerAppImageScheme({ ...options, fileSystem: memory.fileSystem, run, query: () => undefined }).registered).toBe(false);
     expect(run).toHaveBeenCalledTimes(1);
   });
 

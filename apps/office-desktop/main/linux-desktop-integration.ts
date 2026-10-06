@@ -36,6 +36,8 @@ export type LinuxSchemeRegistrationOptions = Readonly<{
   /** Test seams: the real defaults write to the OS and run xdg-mime. */
   fileSystem?: LinuxDesktopFileSystem;
   run?: (command: string, args: readonly string[]) => boolean;
+  /** Prints what a command answers on stdout; undefined when it failed or is missing. */
+  query?: (command: string, args: readonly string[]) => string | undefined;
 }>;
 
 const nodeFileSystem: LinuxDesktopFileSystem = { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync };
@@ -66,6 +68,15 @@ function runCommand(command: string, args: readonly string[]): boolean {
   }
 }
 
+function queryCommand(command: string, args: readonly string[]): string | undefined {
+  try {
+    const result = spawnSync(command, [...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+    return result.status === 0 ? result.stdout.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function registerAppImageScheme(options: LinuxSchemeRegistrationOptions): LinuxSchemeRegistration {
   const fileSystem = options.fileSystem ?? nodeFileSystem;
   const applicationsDirectory = join(options.dataHomeDirectory, "applications");
@@ -91,11 +102,15 @@ export function registerAppImageScheme(options: LinuxSchemeRegistrationOptions):
       fileSystem.copyFileSync(options.iconPath, iconTarget);
     } catch { /* the entry still launches; the theme shows a generic icon */ }
   }
-  // First run only: once the entry exists, a deliberate user choice of another
-  // handler must survive every later launch. A rewrite (the upgrade that adds
-  // Icon=/StartupWMClass=, a moved AppImage's Exec=) keeps the same desktop file
-  // name, which is all `xdg-mime default` points at, so it needs no new default.
+  // The default is set on the first run, and on a later launch only while the
+  // scheme still has NO handler (the first call failed): a deliberate user choice
+  // of another handler answers non-empty and survives every launch. A rewrite (the
+  // upgrade that adds Icon=/StartupWMClass=, a moved AppImage's Exec=) keeps the
+  // same desktop file name, which is all `xdg-mime default` points at, so it needs
+  // no new default. An unreadable answer (no xdg-mime) is never a reason to retry.
   const run = options.run ?? runCommand;
-  const registered = existing === undefined ? run("xdg-mime", ["default", options.desktopFileName, `x-scheme-handler/${options.scheme}`]) : false;
+  const mimeType = `x-scheme-handler/${options.scheme}`;
+  const needsDefault = existing === undefined || (options.query ?? queryCommand)("xdg-mime", ["query", "default", mimeType]) === "";
+  const registered = needsDefault ? run("xdg-mime", ["default", options.desktopFileName, mimeType]) : false;
   return { desktopFilePath, written, registered };
 }
