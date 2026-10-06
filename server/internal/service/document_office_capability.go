@@ -1862,8 +1862,8 @@ const (
 )
 
 var (
-	officeTableNamePattern  = regexp.MustCompile("^[A-Za-z_\\\\][A-Za-z0-9_.]{0,254}$")
-	officeTableCellRefPat   = regexp.MustCompile("^\\$?[A-Za-z]{1,3}\\$?[1-9][0-9]*$")
+	officeTableNamePattern  = regexp.MustCompile(`^[A-Za-z_\\][A-Za-z0-9_.]{0,254}$`)
+	officeTableCellRefPat   = regexp.MustCompile(`^\$?[A-Za-z]{1,3}\$?[1-9][0-9]*$`)
 	officeTableStylePattern = regexp.MustCompile("^TableStyle(?:Light|Medium|Dark)[1-9][0-9]?$")
 )
 
