@@ -199,8 +199,11 @@ describe("createLocalXlsxEngine recalc port lifecycle (R4B-1)", () => {
       },
     });
 
-    // No sidecar fails closed for a formula-bearing save ...
-    await expect(engine.edit(FORMULA_WORKBOOK, SET_A1)).rejects.toMatchObject({ code: "unsupported_operation" });
+    // No sidecar fails closed for a formula-bearing save, and says why: the
+    // code rides the error MESSAGE because Electron's invoke rejection keeps
+    // only the message, so a bare unsupported_operation reached the renderer
+    // as office_unknown_error ...
+    await expect(engine.edit(FORMULA_WORKBOOK, SET_A1)).rejects.toMatchObject({ code: "xlsx_recalc_unavailable", message: expect.stringContaining("xlsx_recalc_unavailable") });
     // ... and the next job spawns again rather than inheriting the failure.
     await expect(engine.edit(FORMULA_WORKBOOK, SET_A1)).resolves.toMatchObject({ checksum: expect.stringMatching(/^sha256:/) });
     expect(attempts).toBe(2);

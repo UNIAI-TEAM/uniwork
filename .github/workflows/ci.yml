@@ -285,6 +285,8 @@ jobs:
       # and its capability secret (G3-08b); CI values, not secrets.
       PREVIEW_ORIGIN: http://localhost:3001
       PREVIEW_CAPABILITY_SECRET: ci-preview-capability-secret-0000000000
+      PREVIEW_ASSET_TTL: 10m
+      PREVIEW_ASSET_MAX_BYTES: "10485760"
       # Storage config and integration tests. The integration test skips when
       # MINIO_* is absent, so a fork without the service still gets a green Go
       # suite; here the service above is real, which is the point.
@@ -416,6 +418,8 @@ jobs:
       API_PUBLIC_URL: http://localhost:8080
       PREVIEW_ORIGIN: http://localhost:3001
       PREVIEW_CAPABILITY_SECRET: ci-e2e-preview-capability-secret-00000000
+      PREVIEW_ASSET_TTL: 10m
+      PREVIEW_ASSET_MAX_BYTES: "10485760"
       APP_ENV: development
       DEV_VERIFICATION_CODE: "123456"
       # The server writes every new file to MinIO; a missing or broken group

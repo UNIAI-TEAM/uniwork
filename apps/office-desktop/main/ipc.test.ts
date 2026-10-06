@@ -56,10 +56,11 @@ describe("desktop IPC allowlist", () => {
     const edited = await handlers["desktop:file-xlsx"]({ sessionGeneration: "session_1234", handle: metadata.handle, operation: "edit", baseRevision: "9", edits: [{ op: "set_cell" }] }) as { state: string; outputChecksum?: string };
     expect(edited.state).toBe("completed");
     expect(edited.outputChecksum).toBe(`sha256:${"b".repeat(64)}`);
-    // A picked .xlsx now registers a local open; a .pptx still answers unsupported.
+    // A picked .xlsx registers a local open; an extension outside the shared
+    // format table (here a legacy .xls) still answers unsupported.
     expect(await handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).toMatchObject({ opened: true, metadata: { name: "Budget.xlsx" } });
-    const pptx = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\deck.pptx" });
-    expect(await pptx["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).toEqual({ opened: false, unsupported: true });
+    const legacy = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\Budget.xls" });
+    expect(await legacy["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).toEqual({ opened: false, unsupported: true });
   });
   it("sanitizes file handler errors and validates handler responses", async () => {
     const registry = { openPath: async () => { throw new LocalFileError("symlink_refused", "C:\\secret.txt"); }, save: async () => { throw new LocalFileError("external_modification", "C:\\secret.txt"); } } as unknown as FileHandleRegistry;
@@ -87,11 +88,11 @@ describe("desktop IPC allowlist", () => {
   it("accepts every format-table pick and refuses any other extension", async () => {
     const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "Deck.pptx", byteLength: 1, modifiedAtMs: 7, checksum: `sha256:${"a".repeat(64)}` };
     const registry = { openPath: async () => metadata, read: async () => new Uint8Array([1]) } as unknown as FileHandleRegistry;
-    for (const path of ["C:\\Deck.pptx", "C:\\Report.pdf", "C:\\Plan.docx"]) {
+    for (const path of ["C:\\Deck.pptx", "C:\\Report.pdf", "C:\\Plan.docx", "C:\\Sheet.xlsx", "C:\\Notes.md", "C:\\Page.html"]) {
       const handlers = createFileIpcHandlers({ registry, pickOpen: async () => path });
       await expect(handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).resolves.toMatchObject({ opened: true, metadata });
     }
-    for (const path of ["C:\\notes.txt", "C:\\Sheet.xlsx"]) {
+    for (const path of ["C:\\notes.txt", "C:\\Sheet.xls", "C:\\Deck.ppt"]) {
       const refused = createFileIpcHandlers({ registry, pickOpen: async () => path });
       await expect(refused["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).resolves.toEqual({ opened: false, unsupported: true });
     }
