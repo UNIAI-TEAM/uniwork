@@ -17,7 +17,7 @@
  * are numbers produced by `geometry.ts` (clamped), plus the fixed palette's own
  * swatch fills.
  *
- * The whole surface is behind the SAME flag H5 uses (`HTML_SELECTION_FLAG`,
+ * The whole surface is behind the SAME flag H5 uses (`OFFICE_HTML_VISUAL_EDIT_FLAG`,
  * default OFF) and renders nothing when the flag is off or no renderable rect
  * is known, so a flag-off build is behaviourally identical to before H6.
  *
@@ -36,7 +36,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import { Separator } from "@uniwork/ui/components/ui/separator";
 import { Toggle } from "@uniwork/ui/components/ui/toggle";
 import { useFlag } from "@uniwork/core/feature-flags";
-import { HTML_SELECTION_FLAG, type HtmlSelection } from "../selection/model";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection } from "../selection/model";
 import { floatAnchor, renderableRect, selectionBox } from "./geometry";
 
 /** The preview frame's structural hook, the same one H5 probes. Kept as a
@@ -139,7 +139,7 @@ function ToolbarButton({ label, testId, disabled, onClick, children }: { label: 
 
 export function HtmlFloatToolbar({ selection, canvasRef, scrollRef, zoom = 100, commands = {}, state = {} }: HtmlFloatToolbarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html.float" });
-  const enabled = useFlag(HTML_SELECTION_FLAG, false);
+  const enabled = useFlag(OFFICE_HTML_VISUAL_EDIT_FLAG, false);
   const [offset, setOffset] = useState<Offset>(ZERO);
   const rect = renderableRect(selection);
   const rectKey = rect === null ? null : `${rect.x}:${rect.y}:${rect.width}:${rect.height}`;

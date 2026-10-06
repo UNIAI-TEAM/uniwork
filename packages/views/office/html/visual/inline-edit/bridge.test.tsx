@@ -9,7 +9,7 @@ import { useHtmlInlineEdit, type HtmlInlineEditCommands, type HtmlInlineEditCont
 /** A mutable flag mock, the pattern the H5/H6 suites use. */
 const flagMock = vi.hoisted(() => ({ value: false }));
 vi.mock("@uniwork/core/feature-flags", () => ({
-  useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_selection" ? flagMock.value : fallback),
+  useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_edit" ? flagMock.value : fallback),
 }));
 
 beforeEach(() => {

@@ -16,7 +16,7 @@ import type { IsolatedPreviewPort, PreviewSession } from "../../../source-editor
 
 const flagMock = vi.hoisted(() => ({ value: false }));
 vi.mock("@uniwork/core/feature-flags", () => ({
-  useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_selection" ? flagMock.value : fallback),
+  useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_edit" ? flagMock.value : fallback),
 }));
 
 initI18n();

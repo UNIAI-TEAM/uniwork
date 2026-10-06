@@ -307,12 +307,46 @@ export function setStyle(
   style: ImageStyleInput,
   options: { drop?: readonly string[] } = {},
 ): UpstreamPatchSet {
+  const styleValue = imageStyleValue(style);
+  return mergeStyleAttribute(context, target, styleValue === "" ? [] : styleValue.split(";"), options.drop ?? []);
+}
+
+/** A `property:value` declaration: a lowercase property name, a value with no
+ * second declaration, rule, tag or script/URL function in it. */
+const SAFE_DECLARATION = /^[a-z-]+:[^;{}<>\\]*$/;
+const UNSAFE_CSS_VALUE = /url\s*\(|expression\s*\(|@import|javascript:/i;
+
+/**
+ * Set arbitrary inline CSS declarations (`["color:blue", "opacity:0.5"]`),
+ * merging into the author's style attribute exactly like `setStyle`. The style
+ * panel's typography / background / opacity / custom CSS groups all land here.
+ * Each declaration is validated one by one so a value can never carry a second
+ * declaration, a rule block or a URL into the document.
+ */
+export function setStyleDeclarations(
+  context: HtmlOpContext,
+  target: HtmlTarget,
+  declarations: readonly string[],
+  drop: readonly string[] = [],
+): UpstreamPatchSet {
+  for (const declaration of declarations) {
+    if (!SAFE_DECLARATION.test(declaration) || UNSAFE_CSS_VALUE.test(declaration)) {
+      throw new HtmlOpError("invalid_target", "not a safe CSS declaration", { declaration });
+    }
+  }
+  return mergeStyleAttribute(context, target, declarations, drop);
+}
+
+function mergeStyleAttribute(
+  context: HtmlOpContext,
+  target: HtmlTarget,
+  declarations: readonly string[],
+  drop: readonly string[],
+): UpstreamPatchSet {
   const element = requireElement(context.map, target);
   const attrs = parseStartTagAttributes(context.text, element.startTag);
   const existing = findAttribute(attrs, "style");
-  const styleValue = imageStyleValue(style);
-  const declarations = styleValue === "" ? [] : styleValue.split(";");
-  const merged = mergeImageStyle(existing ? decodeAttributeValue(existing.value) : "", declarations, options.drop ?? []);
+  const merged = mergeImageStyle(existing ? decodeAttributeValue(existing.value) : "", declarations, drop);
   if (merged === "" && !existing) throw new HtmlOpError("no_op", "set_style has nothing to apply");
   const encoded = encodeAttributeValue(merged, existing?.quote ?? '"');
   if (existing) {

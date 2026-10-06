@@ -8,7 +8,7 @@
  * component folds them into a selection and paints an inert outline in the
  * `overlay` slot. It never edits: no H3 op, no command back to the frame.
  *
- * The whole surface is behind `HTML_SELECTION_FLAG` (default OFF). With the
+ * The whole surface is behind `OFFICE_HTML_VISUAL_EDIT_FLAG` (default OFF). With the
  * flag off this component returns null and does nothing else, so the shell is
  * byte-for-byte the same behaviour it had before H5.
  *
@@ -29,7 +29,7 @@ import { useFlag } from "@uniwork/core/feature-flags";
 import { clampZoom } from "../shell-model";
 import {
   HTML_SELECTION_EMPTY,
-  HTML_SELECTION_FLAG,
+  OFFICE_HTML_VISUAL_EDIT_FLAG,
   reduceSelection,
   type HtmlSelection,
   type HtmlSelectionRect,
@@ -87,7 +87,7 @@ export interface HtmlSelectionOverlayProps {
  */
 export function HtmlSelectionOverlay({ sink, canvasRef, zoom = 100, scrollRef, onSelectionChange }: HtmlSelectionOverlayProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html.selection" });
-  const enabled = useFlag(HTML_SELECTION_FLAG, false);
+  const enabled = useFlag(OFFICE_HTML_VISUAL_EDIT_FLAG, false);
   const [state, setState] = useState(HTML_SELECTION_EMPTY);
   const [offset, setOffset] = useState<Offset>(ZERO);
   const onSelectionChangeRef = useRef(onSelectionChange);
