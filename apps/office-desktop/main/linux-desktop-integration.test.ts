@@ -27,6 +27,7 @@ function memoryFileSystem() {
       writeFileSync: (path: string, data: string) => { files.set(path, data); },
       mkdirSync: (path: string) => { directories.push(path); },
       copyFileSync: (source: string, destination: string) => { files.set(destination, `copy:${source}`); },
+      existsSync: (path: string) => files.has(path),
     },
   };
 }
@@ -95,6 +96,41 @@ describe("AppImage first-run scheme registration", () => {
     const result = registerAppImageScheme({ ...options, iconPath: "/missing.png", fileSystem, run: () => true });
     expect(result.written).toBe(true);
     expect(memory.files.get(result.desktopFilePath)).toContain("Icon=uniwork-office-test");
+  });
+
+  it("adds Icon=/StartupWMClass= on upgrade without re-running xdg-mime, keeping the user's handler", () => {
+    const memory = memoryFileSystem();
+    const run = vi.fn(() => true);
+    // The entry an older build wrote: no icon, no WM class.
+    const first = registerAppImageScheme({ ...options, fileSystem: memory.fileSystem, run });
+    expect(run).toHaveBeenCalledTimes(1);
+    const upgraded = registerAppImageScheme({ ...options, iconPath: "/dist/icons/icon.png", wmClass: "uniwork-office-dev", fileSystem: memory.fileSystem, run });
+    expect(upgraded.written).toBe(true);
+    expect(upgraded.registered).toBe(false);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(memory.files.get(first.desktopFilePath)).toContain("Icon=uniwork-office-test\n");
+    // A moved AppImage rewrites Exec= under the same desktop file name: still no new default.
+    registerAppImageScheme({ ...options, appImagePath: "/opt/UniWork.AppImage", iconPath: "/dist/icons/icon.png", wmClass: "uniwork-office-dev", fileSystem: memory.fileSystem, run });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a failed icon copy on the next launch, and copies nothing once the icon is installed", () => {
+    const memory = memoryFileSystem();
+    const iconTarget = join(options.dataHomeDirectory, "icons", "hicolor", "512x512", "apps", "uniwork-office-test.png");
+    let failing = true;
+    const copyFileSync = vi.fn((source: string, destination: string) => {
+      if (failing) throw new Error("EACCES");
+      memory.files.set(destination, `copy:${source}`);
+    });
+    const launch = () => registerAppImageScheme({ ...options, iconPath: "/dist/icons/icon.png", fileSystem: { ...memory.fileSystem, copyFileSync }, run: () => true });
+    expect(launch().written).toBe(true);
+    expect(memory.files.has(iconTarget)).toBe(false);
+    failing = false;
+    // The entry is unchanged, so nothing is rewritten, but the missing icon is copied.
+    expect(launch().written).toBe(false);
+    expect(memory.files.get(iconTarget)).toBe("copy:/dist/icons/icon.png");
+    launch();
+    expect(copyFileSync).toHaveBeenCalledTimes(2);
   });
 
   it("writes no Icon line without an icon", () => {

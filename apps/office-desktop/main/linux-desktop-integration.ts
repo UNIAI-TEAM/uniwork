@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -17,6 +17,7 @@ export type LinuxDesktopFileSystem = Readonly<{
   writeFileSync(path: string, data: string, options: { mode: number }): void;
   mkdirSync(path: string, options: { recursive: true }): void;
   copyFileSync?(source: string, destination: string): void;
+  existsSync?(path: string): boolean;
 }>;
 
 export type LinuxSchemeRegistrationOptions = Readonly<{
@@ -37,7 +38,7 @@ export type LinuxSchemeRegistrationOptions = Readonly<{
   run?: (command: string, args: readonly string[]) => boolean;
 }>;
 
-const nodeFileSystem: LinuxDesktopFileSystem = { readFileSync, writeFileSync, mkdirSync, copyFileSync };
+const nodeFileSystem: LinuxDesktopFileSystem = { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync };
 
 function iconNameFor(desktopFileName: string): string {
   return desktopFileName.replace(/.desktop$/, "");
@@ -79,16 +80,22 @@ export function registerAppImageScheme(options: LinuxSchemeRegistrationOptions):
     fileSystem.writeFileSync(desktopFilePath, content, { mode: 0o644 });
     written = true;
   }
-  if (written && iconName && options.iconPath && fileSystem.copyFileSync) {
-    const iconDirectory = join(options.dataHomeDirectory, "icons", "hicolor", "512x512", "apps");
+  // The icon is installed whenever it is missing, not only when the entry was
+  // written, so a copy that failed on one launch is retried on the next.
+  const iconDirectory = join(options.dataHomeDirectory, "icons", "hicolor", "512x512", "apps");
+  const iconTarget = iconName ? join(iconDirectory, `${iconName}.png`) : undefined;
+  const iconMissing = iconTarget !== undefined && (fileSystem.existsSync ? !fileSystem.existsSync(iconTarget) : written);
+  if (iconMissing && iconTarget && options.iconPath && fileSystem.copyFileSync) {
     try {
       fileSystem.mkdirSync(iconDirectory, { recursive: true });
-      fileSystem.copyFileSync(options.iconPath, join(iconDirectory, `${iconName}.png`));
+      fileSystem.copyFileSync(options.iconPath, iconTarget);
     } catch { /* the entry still launches; the theme shows a generic icon */ }
   }
   // First run only: once the entry exists, a deliberate user choice of another
-  // handler must survive the next launch.
+  // handler must survive every later launch. A rewrite (the upgrade that adds
+  // Icon=/StartupWMClass=, a moved AppImage's Exec=) keeps the same desktop file
+  // name, which is all `xdg-mime default` points at, so it needs no new default.
   const run = options.run ?? runCommand;
-  const registered = written ? run("xdg-mime", ["default", options.desktopFileName, `x-scheme-handler/${options.scheme}`]) : false;
+  const registered = existing === undefined ? run("xdg-mime", ["default", options.desktopFileName, `x-scheme-handler/${options.scheme}`]) : false;
   return { desktopFilePath, written, registered };
 }
