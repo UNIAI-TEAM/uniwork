@@ -76,6 +76,14 @@ function exactBytes(value: Uint8Array | ArrayBuffer): Uint8Array {
   return Uint8Array.prototype.slice.call(value) as Uint8Array;
 }
 const bytesSchema = z.custom<Uint8Array | ArrayBuffer>(isByteValue, "invalid byte field").transform(exactBytes);
+/** Engine-call arguments: free-form, except that `data` (the document's own
+ * bytes) must be binary and arrives as an exact Uint8Array. */
+const engineArgsSchema = z.record(z.string(), z.unknown()).default({}).transform((args, ctx) => {
+  if (!("data" in args)) return args;
+  const data = bytesSchema.safeParse(args.data);
+  if (!data.success) { ctx.addIssue({ code: "custom", message: "invalid byte field", path: ["data"] }); return z.NEVER; }
+  return { ...args, data: data.data };
+});
 const documentIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid document id");
 export const desktopFileMetadataSchema = z.object({
   handle: fileHandleSchema,
@@ -350,7 +358,7 @@ export const desktopSessionMetadataSchema = z.object({
 export type DesktopSessionMetadata = z.infer<typeof desktopSessionMetadataSchema>;
 const requestSchemas = {
   "desktop:bootstrap": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
-  "desktop:engine-call": z.object({ sessionGeneration: sessionGenerationSchema, operation: operationSchema, handle: opaqueHandleSchema, args: z.record(z.string(), z.unknown()).default({}) }).strict(),
+  "desktop:engine-call": z.object({ sessionGeneration: sessionGenerationSchema, operation: operationSchema, handle: opaqueHandleSchema, args: engineArgsSchema }).strict(),
   "desktop:open-external": z.object({ sessionGeneration: sessionGenerationSchema, url: z.string().url().max(2048) }).strict(),
   "desktop:auth-start": z.object({ sessionGeneration: sessionGenerationSchema, clientId: clientIdSchema, deploymentId: deploymentSchema }).strict(),
   "desktop:auth-cancel": z.object({ sessionGeneration: sessionGenerationSchema, attemptId: attemptIdSchema }).strict(),
@@ -394,10 +402,15 @@ export type IpcSenderContext = { senderId: number; frameId: number; origin: stri
 export type IpcValidationErrorCode = "unknown_channel" | "oversize" | "sender" | "frame" | "origin" | "session" | "schema" | "external_url";
 export class IpcValidationError extends Error { readonly code: IpcValidationErrorCode; constructor(code: IpcValidationErrorCode, message: string) { super(message); this.name = "IpcValidationError"; this.code = code; } }
 export const IPC_MAX_BYTES = 64 * 1024;
-/** Measure the JSON wire representation without accepting values that
- * Electron's structured-clone transport can carry outside JSON. A bounded,
- * recursive walk rejects ArrayBuffer/Blob/Map/Set, class instances, cycles,
- * non-finite numbers and deeply nested values before schema parsing. */
+/** Channels whose root `data` field is the file's own bytes. */
+const BYTE_ROOT_CHANNELS: ReadonlySet<string> = new Set(["desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint", "desktop:office-save"]);
+/** True where binary file bytes may sit outside the JSON budget: root `data`
+ * on a byte channel, or `args.data` of an engine call. Nowhere else. */
+function isByteSlot(channel: string, key: string, depth: number, parentKey: string | undefined): boolean {
+  if (key !== "data") return false;
+  if (depth === 0) return BYTE_ROOT_CHANNELS.has(channel);
+  return depth === 1 && channel === "desktop:engine-call" && parentKey === "args";
+}
 /** JSON bytes of a string. Every string on the wire is bounded by the channel
  * cap, so a longer one is refused without being measured. */
 function stringBytes(value: string, maxBytes: number, encoder: TextEncoder): number {
@@ -405,10 +418,15 @@ function stringBytes(value: string, maxBytes: number, encoder: TextEncoder): num
   return encoder.encode(JSON.stringify(value)).byteLength;
 }
 
-function sizeInBytes(value: unknown, maxBytes = IPC_MAX_BYTES): number {
+/** Measure the JSON wire representation without accepting values that
+ * Electron's structured-clone transport can carry outside JSON. A bounded,
+ * recursive walk rejects ArrayBuffer/Blob/Map/Set, class instances, cycles,
+ * non-finite numbers and deeply nested values before schema parsing. Byte
+ * fields (see isByteSlot) are exempt from the budget. */
+function sizeInBytes(channel: string, value: unknown, maxBytes = IPC_MAX_BYTES): number {
   const encoder = new TextEncoder();
   const seen = new Set<object>();
-  const visit = (current: unknown, depth: number): number => {
+  const visit = (current: unknown, depth: number, parentKey?: string): number => {
     if (depth > 256) return maxBytes + 1;
     if (current === null) return 4;
     switch (typeof current) {
@@ -429,10 +447,8 @@ function sizeInBytes(value: unknown, maxBytes = IPC_MAX_BYTES): number {
     } else {
       if (Object.getPrototypeOf(current) !== Object.prototype && Object.getPrototypeOf(current) !== null) return maxBytes + 1;
       for (const [key, child] of Object.entries(current)) {
-        // The file's own bytes (the root `data`, or `data` inside an engine
-        // call's `args`) travel as binary and are not part of the JSON budget.
-        if (key === "data" && depth <= 1 && isByteValue(child)) { total += encoder.encode(JSON.stringify(key)).byteLength + 1; continue; }
-        total += encoder.encode(JSON.stringify(key)).byteLength + 1 + visit(child, depth + 1);
+        if (isByteSlot(channel, key, depth, parentKey) && isByteValue(child)) { total += encoder.encode(JSON.stringify(key)).byteLength + 1; continue; }
+        total += encoder.encode(JSON.stringify(key)).byteLength + 1 + visit(child, depth + 1, key);
         if (total > maxBytes) return total;
       }
     }
@@ -449,7 +465,7 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   // Every request keeps the small control cap, byte fields excepted (see
   // sizeInBytes); print HTML has its own cap.
   const byteLimit = channel === "desktop:print-document" ? PRINT_HTML_MAX_BYTES + IPC_MAX_BYTES : IPC_MAX_BYTES;
-  if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
+  if (sizeInBytes(channel, payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {
     parsed = requestSchemas[channel].safeParse(payload);
@@ -482,6 +498,9 @@ export function createIpcDispatcher(handlers: Partial<{ [C in DesktopIpcChannel]
 }
 
 function containsPathLikeValue(value: unknown): boolean {
+  // Binary file bytes hold no keys; never walk them (a per-byte walk of a
+  // large PDF blocks the main process).
+  if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) return false;
   if (Array.isArray(value)) return value.some(containsPathLikeValue);
   if (!value || typeof value !== "object") return false;
   return Object.entries(value).some(([key, child]) => /(?:^|_)(?:path|filepath|file_path)$/i.test(key) || containsPathLikeValue(child));
