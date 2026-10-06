@@ -13,6 +13,7 @@ import {
   recordHyperlinkEdit,
   recordTableAdd,
   removeTableAdd,
+  type JournalEntry,
   type StructuralJournalOp,
 } from "../../upstream/apps/sheets/src/renderer/edit-journal";
 import { FILTER_MUTATIONS, REORDER_RANGE_MUTATION, pixelsToCharacterWidth } from "../../upstream/apps/sheets/src/renderer/app-constants";
@@ -266,6 +267,95 @@ export function ingestCellMutation(
     });
   }
   return [...changed.values()];
+}
+
+// ── validated editor commits ───────────────────────────────────────────────
+//
+// The pinned editor applies a commit first, then validates the cell and, when
+// a stop-style data-validation rule refuses the input, rolls the write back
+// with plain mutations ({value: null, styleReset: true} in journal terms).
+// Journaled as they run, a refused input leaves a value edit and then a reset
+// behind, and the reset wipes the cell's saved format. The gate holds a
+// commit's cell edits until the verdict: accepted edits are emitted as usual,
+// a refusal restores the journal and swallows the rollback, so nothing about
+// the refused write ever reaches the save queue. A plain undo of an accepted
+// write is a later command and is untouched.
+
+export interface ValidatedWriteGate {
+  /** An editor commit on `sheetId` is about to run: hold its cell edits. */
+  begin(state: LazyWorkbookState | null, sheetId: string): void;
+  /** Returns the edits that may be emitted now (the held sheet's cell edits are kept back). */
+  capture(edits: XlsxRendererCellEdit[]): XlsxRendererCellEdit[];
+  /** The validation verdict of the pending commit is on its way; call the
+   *  returned function with it, or null when nothing is pending. */
+  awaitVerdict(): ((accepted: boolean) => void) | null;
+  /** True while the rollback of a refused commit on `sheetId` runs. */
+  isRollback(sheetId: string): boolean;
+}
+
+interface PendingValidatedWrite {
+  state: LazyWorkbookState;
+  sheetId: string;
+  before: Map<string, JournalEntry> | undefined;
+  held: XlsxRendererCellEdit[];
+  awaited: boolean;
+}
+
+export function createValidatedWriteGate(emit: (edits: XlsxRendererCellEdit[]) => void): ValidatedWriteGate {
+  let pending: PendingValidatedWrite | null = null;
+  let rollbackSheetId: string | null = null;
+
+  const settle = (write: PendingValidatedWrite, accepted: boolean): void => {
+    if (pending !== write) return;
+    pending = null;
+    if (accepted) {
+      if (write.held.length > 0) emit(write.held);
+      return;
+    }
+    const cells = write.state.editJournal.cells;
+    if (write.before === undefined) {
+      cells.delete(write.sheetId);
+    } else {
+      const live = cells.get(write.sheetId) ?? new Map<string, JournalEntry>();
+      live.clear();
+      for (const [key, entry] of write.before) live.set(key, entry);
+      cells.set(write.sheetId, live);
+    }
+    // The editor rolls back synchronously once the verdict resolves; the flag
+    // outlives that microtask chain and nothing else.
+    rollbackSheetId = write.sheetId;
+    setTimeout(() => { if (rollbackSheetId === write.sheetId) rollbackSheetId = null; }, 0);
+  };
+
+  return {
+    begin(state, sheetId) {
+      if (pending) settle(pending, true);
+      if (!state) return;
+      const journaled = state.editJournal.cells.get(sheetId);
+      const write: PendingValidatedWrite = {
+        state, sheetId, before: journaled ? new Map(journaled) : undefined, held: [], awaited: false,
+      };
+      pending = write;
+      // The editor asks for the verdict in the same tick as the command; when
+      // it does not (the command was refused), the write stands as accepted.
+      queueMicrotask(() => { if (!write.awaited) settle(write, true); });
+    },
+    capture(edits) {
+      const write = pending;
+      if (!write || edits.length === 0) return edits;
+      const held = edits.filter((edit) => edit.sheetId === write.sheetId);
+      if (held.length === 0) return edits;
+      write.held.push(...held);
+      return edits.filter((edit) => edit.sheetId !== write.sheetId);
+    },
+    awaitVerdict() {
+      const write = pending;
+      if (!write) return null;
+      write.awaited = true;
+      return (accepted) => settle(write, accepted);
+    },
+    isRollback: (sheetId) => rollbackSheetId === sheetId,
+  };
 }
 
 // ── structural (rows/columns) capture ──────────────────────────────────────

@@ -27,12 +27,13 @@ import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { ingestRuleSetMutation, restoreRuleSetFamily, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
 import { ruleSetRestoreAllowed } from "./rule-set-policy";
-import { installDvRejectDialogTitle, rendererLocaleOptions } from "./dv-reject-dialog";
+import { installDvRejectDialogTitle, installValidatedWriteVerdict, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
 import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
+  createValidatedWriteGate,
   ingestCellMutation,
   ingestFilterMutation,
   ingestMergeMutation,
@@ -360,6 +361,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   let findRevealDispose: (() => void) | undefined;
   let numberFormatDispose: { dispose(): void } | undefined;
   let dvRejectDialogDispose: { dispose(): void } | undefined;
+  let validatedWriteVerdictDispose: { dispose(): void } | undefined;
   const wrapMeasureDisposable = installWrapMeasureLifecycle(runtime);
   installJournalSuppressionUndoFilter();
   installLoadAutoHeightGate();
@@ -379,6 +381,13 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   const lazyWorkbookRef: { current: LazyWorkbookState | null } = { current: null };
   let dirtyGeneration = 0;
+  // A refused data-validation commit is held back until its verdict and then
+  // journals nothing (edits.ts). Accepted edits are emitted from here.
+  const validatedWrites = createValidatedWriteGate((held) => {
+    dirtyGeneration += 1;
+    options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, held));
+    options.onDirty?.();
+  });
   let fontMappings: XlsxRendererFontMapping[] = [];
   let disposed = false;
   let commitInProgress = false;
@@ -576,6 +585,15 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     }
     rememberMergeRemoval(event);
     rememberSheetCommand(event);
+    // The editor commit is the only set-range-values carrying a redo/undo id;
+    // it validates after it writes, so its edits wait for the verdict.
+    const write = event.id === "sheet.command.set-range-values"
+      ? event.params as { unitId?: string; subUnitId?: string; redoUndoId?: unknown } | undefined
+      : undefined;
+    if (write && typeof write.redoUndoId === "string" && write.unitId && write.subUnitId &&
+        sheetHasDataValidation(runtime, write.unitId, write.subUnitId)) {
+      validatedWrites.begin(lazyWorkbookRef.current, write.subUnitId);
+    }
   }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeSheetEditStart, (event) => {
     if (options.readOnly || !canEditRange(lazyWorkbookRef.current, event.worksheet.getSheetId(), {
@@ -612,14 +630,15 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       const sheetId = (event.params as { subUnitId?: string } | undefined)?.subUnitId;
       const workbook = runtime.univerAPI.getActiveWorkbook();
       const sheet = sheetId ? workbook?.getSheetBySheetId(sheetId) : undefined;
-      const edits = ingestCellMutation(
-        lazyWorkbookRef.current, event, journalSuppression.active,
+      const edits = validatedWrites.capture(ingestCellMutation(
+        // The rollback of a refused commit is not an edit either.
+        lazyWorkbookRef.current, event, journalSuppression.active || (sheetId !== undefined && validatedWrites.isRollback(sheetId)),
         sheetId ? sharedFormulaResolverFor(runtime, sheetId) : undefined,
         (row, column) => {
           const style = workbook?.getWorkbook().getStyles().getStyleByCell(sheet?.getSheet().getCellRaw(row, column));
           return style ? { ...style } : undefined;
         },
-      );
+      ));
       // Row/column structure rides the same channel: insert/remove, sizes,
       // hidden flags and auto-height resets journal here (outline levels are
       // recorded by the two commands above, outside Univer's mutation set).
@@ -705,6 +724,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         findRevealDispose ??= installFindRevealFix(runtime);
         numberFormatDispose ??= installNumberFormatFix(runtime, () => lazyWorkbookRef.current?.file.date1904 ?? false);
         dvRejectDialogDispose ??= installDvRejectDialogTitle(runtime, container.ownerDocument, RENDERER_ROOT_CLASS);
+        validatedWriteVerdictDispose ??= installValidatedWriteVerdict(runtime, validatedWrites);
       } finally {
         loadAutoHeightSuppression.active = false;
         journalSuppression.active = false;
@@ -839,6 +859,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       findRevealDispose?.();
       numberFormatDispose?.dispose();
       dvRejectDialogDispose?.dispose();
+      validatedWriteVerdictDispose?.dispose();
       wrapMeasureDisposable?.dispose();
       lazyWorkbookRef.current = null;
       try {

@@ -19,6 +19,7 @@ import { SheetInterceptorService, VALIDATE_CELL } from "@univerjs/sheets";
 import { IDialogService } from "@univerjs/ui";
 import type { CreateUniverOptions } from "../../upstream/apps/sheets/src/renderer/create-univer";
 import type { UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
+import type { ValidatedWriteGate } from "./edits";
 import { getLang, t } from "./locale";
 
 // ── Univer locale + data-validation rejection dialog (X01 vfix-dv) ─────────
@@ -161,3 +162,28 @@ export function installDvRejectDialogTitle(runtime: UniverRuntime, doc: Document
   };
 }
 
+/** Whether the sheet carries any data-validation rule: only then can a commit
+ *  be refused, so only then does the write gate hold its edits. */
+export function sheetHasDataValidation(runtime: UniverRuntime, unitId: string, subUnitId: string): boolean {
+  const api = runtime.univerAPI as unknown as {
+    getWorkbook(id: string): { getSheetBySheetId(id: string): { getDataValidations?: () => unknown[] } | null } | null;
+  };
+  return (api.getWorkbook(unitId)?.getSheetBySheetId(subUnitId)?.getDataValidations?.().length ?? 0) > 0;
+}
+
+/** Between the DV plugin's handler (priority 0) and the pinned pass-through
+ *  (-1): reads the verdict the DV plugin produced and hands it to the write
+ *  gate before the editor acts on it (its await was registered later, so this
+ *  continuation runs first and the gate is settled before the rollback). */
+export function installValidatedWriteVerdict(runtime: UniverRuntime, gate: ValidatedWriteGate): IDisposable {
+  const injector = runtime.univer.__getInjector();
+  const intercept = injector.get(SheetInterceptorService).writeCellInterceptor.intercept(VALIDATE_CELL, {
+    priority: -0.5,
+    handler: (value, _context, next) => {
+      const settle = gate.awaitVerdict();
+      if (settle) Promise.resolve(value).then((accepted) => settle(accepted !== false), () => settle(true));
+      return next(value);
+    },
+  });
+  return { dispose: intercept };
+}

@@ -38,7 +38,7 @@ new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.ex
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
   snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, seedColumnOutline, liveSessionSheets,
   sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
-  sessionTableIdForName, ingestSortMutation, recordSetRangeValues } = module.exports;
+  sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
@@ -107,6 +107,69 @@ test('bound grid mutations emit typed values and formulas through the vendored j
     { sheetId: 's1', row: 0, column: 3, writeValue: true, value: null, formula: '=SUM(A1:B1)' },
     { sheetId: 's1', row: 0, column: 4, writeValue: true, value: null, styleReset: true },
   ]);
+});
+
+/** The editor commit as the controller drives it: begin before the write,
+ *  capture every ingest, settle with the validation verdict. */
+function validatedCommit(model, gate, cellValue, verdict) {
+  gate.begin(model, 's1');
+  const emitted = gate.capture(ingestCellMutation(model, mutation(cellValue), gate.isRollback('s1')));
+  gate.awaitVerdict()(verdict);
+  return emitted;
+}
+
+test('a data-validation refusal journals and emits nothing, not even the rollback that follows', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  // The refused cell already carries a session style; the other cell an edit.
+  ingestCellMutation(model, mutation({ 0: { 0: { s: { bl: 1 } }, 1: { v: 5 } } }));
+  const journaled = JSON.stringify([...model.editJournal.cells.get('s1')]);
+  assert.deepEqual(validatedCommit(model, gate, { 0: { 0: { v: 'Xyz' } } }, false), []);
+  assert.equal(gate.isRollback('s1'), true);
+  // Univer rolls the refused write back with {value: null, s: null}.
+  const rollback = ingestCellMutation(model, mutation({ 0: { 0: { v: null, s: null } } }), gate.isRollback('s1'));
+  assert.deepEqual(rollback, []);
+  assert.deepEqual(emitted, []);
+  assert.equal(JSON.stringify([...model.editJournal.cells.get('s1')]), journaled);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(gate.isRollback('s1'), false);
+});
+
+test('a refusal on a sheet with no earlier edit leaves its journal untouched', () => {
+  const model = state();
+  const gate = createValidatedWriteGate(() => assert.fail('nothing may be emitted'));
+  validatedCommit(model, gate, { 0: { 0: { v: 'Xyz' } } }, false);
+  assert.equal(model.editJournal.cells.has('s1'), false);
+});
+
+test('an accepted validated commit emits its edits at the verdict and a later undo still journals', () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  assert.deepEqual(validatedCommit(model, gate, { 0: { 0: { v: 'Mot' } } }, true), []);
+  assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
+  assert.equal(gate.isRollback('s1'), false);
+  const undo = ingestCellMutation(model, mutation({ 0: { 0: { v: null, s: null } } }), gate.isRollback('s1'));
+  assert.equal(undo.length, 1);
+  assert.equal(undo[0].value, null);
+  assert.equal(undo[0].styleReset, true);
+});
+
+test('a commit whose verdict never comes, or a newer commit, releases the held edits as accepted', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 1 } } }))), []);
+  await Promise.resolve();
+  assert.equal(emitted.length, 1);
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 1: { v: 2 } } }))), []);
+  gate.awaitVerdict();
+  gate.begin(model, 's1');
+  assert.deepEqual(emitted.map((edit) => edit.column), [0, 1]);
+  assert.equal(gate.awaitVerdict() !== null, true);
 });
 
 test('viewport, selection, load, calculation, other workbooks and no-op writes emit no edits', () => {
