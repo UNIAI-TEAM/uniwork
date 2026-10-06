@@ -1,4 +1,5 @@
-﻿import i18n from "i18next";
+﻿// The renderer reads the shared i18n singleton through react-i18next (allowlisted by check-boundaries), never i18next directly.
+import { getI18n } from "react-i18next";
 import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
 import { createSaveSettleGate } from "@uniwork/core/office";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
@@ -330,7 +331,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
         // A refused local file (locked, missing, too large...) reads as the same
         // sentence the other formats show, not the raw file_* code.
         const fileCode = localFileFailureCode(error);
-        if (fileCode) return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_error", engine_error: fileCode, message: i18n.t(`office.save.reason.${fileCode}`, { defaultValue: i18n.t("office.save.reason.file_failed") }) };
+        if (fileCode) return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_error", engine_error: fileCode, message: getI18n().t(`office.save.reason.${fileCode}`, { defaultValue: getI18n().t("office.save.reason.file_failed") }) };
         return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_error", message };
       }
     },
