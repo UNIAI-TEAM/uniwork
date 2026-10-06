@@ -2593,8 +2593,8 @@
     "shareLockLiftedYou": "Chủ trì đã cho bạn chia sẻ màn hình lại",
     "muteRequestFailed": "Không tắt được mic của người này. Hãy thử lại.",
     "moderationErrors": {
-      "cannot_lock_host_share": "Không thể khóa chia sẻ màn hình của chủ tọa.",
-      "cannot_mute_host": "Không thể khóa mic của chủ tọa.",
+      "cannot_lock_host_share": "Không thể khóa chia sẻ màn hình của chủ trì.",
+      "cannot_mute_host": "Không thể khóa mic của chủ trì.",
       "participant_not_active": "Người này không còn trong cuộc họp.",
       "provider_unavailable": "Dịch vụ họp chưa phản hồi. Hãy thử lại."
     },

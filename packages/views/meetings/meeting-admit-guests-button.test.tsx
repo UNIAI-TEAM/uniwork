@@ -71,12 +71,18 @@ describe("MeetingAdmitGuestsButton", () => {
     expect(leaveShareFullscreen).toHaveBeenCalledOnce();
   });
 
-  it("leaves full screen alone while the people tab shows the list", async () => {
+  it("takes a full-screen share out of the way even with the people tab open", async () => {
+    // A full-screen tile covers the side panel too, so an open people tab
+    // shows the host nothing until full screen ends.
     leaveShareFullscreen.mockClear();
     pendingOnce();
-    render(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" peopleOpen />));
+    const view = render(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" peopleOpen />));
     await screen.findByRole("button", { name: "1 người đang chờ, xem danh sách" });
-    expect(leaveShareFullscreen).not.toHaveBeenCalled();
+    await waitFor(() => expect(leaveShareFullscreen).toHaveBeenCalledOnce());
+
+    // The same knock does not pull the host out again; a new one does.
+    view.rerender(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" peopleOpen />));
+    expect(leaveShareFullscreen).toHaveBeenCalledOnce();
   });
 
   it("opens the people tab instead of admitting when the chip is pressed", async () => {

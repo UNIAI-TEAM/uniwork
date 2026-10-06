@@ -60,17 +60,17 @@ export function MeetingAdmitGuestsButton({
 
   const panelVisible = count > 0 && !peopleOpen && pending.some((r) => !seen.has(r.id));
 
-  // A share watched full screen is the only thing in view: the panel would
-  // open behind it, and the guest wait unseen. Once per knock, so a host who
-  // goes back to full screen is not pulled out again by the same guest.
+  // A share watched full screen is the only thing in view: the panel, and an
+  // open people tab too, sit behind it, and the guest waits unseen. Once per
+  // knock as it arrives, so a host who goes back to full screen is not pulled
+  // out again by the same guest.
   const leftFor = useRef(new Set<string>());
   useEffect(() => {
-    if (!panelVisible) return;
-    const fresh = pending.filter((r) => !seen.has(r.id) && !leftFor.current.has(r.id));
+    const fresh = pending.filter((r) => !leftFor.current.has(r.id));
     if (fresh.length === 0) return;
     for (const r of fresh) leftFor.current.add(r.id);
     leaveShareFullscreen();
-  }, [panelVisible, pending, seen]);
+  }, [pending]);
 
   // The panel can vanish under the keyboard (hidden, the last person let in):
   // focus goes back to the chip, or to the stage heading if the chip went too.
