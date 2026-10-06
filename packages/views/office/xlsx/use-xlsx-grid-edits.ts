@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { rendererEditsToOperations, type XlsxGridEdit } from "./xlsx-edit-bridge";
+import { isSnapshot } from "./xlsx-editor-model";
 import type { XlsxGridHostPort } from "./xlsx-grid-surface";
 import type { XlsxEditorHandle, XlsxSaveCoordinator } from "./types";
 
@@ -41,5 +42,12 @@ export function useXlsxGridEdits<TSnapshot>(
   }, [canEdit, coordinator, editor, host, onApplied]);
 
   const flush = useCallback(() => pending.current, []);
-  return { onEdits, flush, error };
+  // A Data tool plans from the values as of OK: the queued edits land first,
+  // then the editor's snapshot is read; a failed edit rejects (review-design F3).
+  const readLiveSnapshot = useCallback(async () => {
+    await pending.current;
+    const next = editor.getWorkbookSnapshot?.();
+    return isSnapshot(next) ? next : null;
+  }, [editor]);
+  return { onEdits, flush, readLiveSnapshot, error };
 }

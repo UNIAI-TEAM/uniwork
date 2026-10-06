@@ -21,7 +21,7 @@ import { XlsxLargeButton, XlsxLargeLabel } from "../group-layout";
 import { selectionSpan, type XlsxSelectionSpan } from "../structure-insert";
 import type { XlsxToolbarGroupProps } from "../types";
 import { headerLabel } from "./remove-duplicates";
-import { readSpanCells, runDataToolSteps, XLSX_DATA_TOOLS_MAX_CELLS } from "./range-values";
+import { readSpanCells, runDataToolSteps, settledSnapshot, XLSX_DATA_TOOLS_MAX_CELLS } from "./range-values";
 import { planSubtotal, SUBTOTAL_FUNCTIONS, type XlsxSubtotalFunction } from "./subtotal";
 
 const BASE = "office.xlsx.dataTools";
@@ -134,7 +134,7 @@ function SubtotalBody({ cells, span, plan, onRun, onClose }: DialogBodyProps) {
   );
 }
 
-export function XlsxSubtotalButton({ readOnly = false, selection, snapshot, commands, unitId, sheetName, resolveSheetId }: XlsxToolbarGroupProps) {
+export function XlsxSubtotalButton({ readOnly = false, selection, snapshot, readLiveSnapshot, commands, unitId, sheetName, resolveSheetId }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const span = selectionSpan(selection);
@@ -145,16 +145,19 @@ export function XlsxSubtotalButton({ readOnly = false, selection, snapshot, comm
   const tooTall = span !== null && span.rows > XLSX_DATA_TOOLS_MAX_CELLS;
   const cells = open && !blocked && !tooTall ? readSpanCells(snapshot, selection.sheet, span) : null;
 
-  const plan = (choice: SubtotalChoice): ReturnType<typeof planSubtotal> => {
-    if (blocked || cells === null) return "needRows";
+  const planFrom = (source: typeof cells, choice: SubtotalChoice): ReturnType<typeof planSubtotal> => {
+    if (blocked || source === null) return "needRows";
     const fnLabel = t(`${BASE}.subtotalDialog.functions.${choice.fn}`);
-    return planSubtotal(cells, choice, span, { unitId, sheetId }, {
+    return planSubtotal(source, choice, span, { unitId, sheetId }, {
       group: (value) => t(`${BASE}.subtotalDialog.groupLabel`, { value, function: fnLabel }),
       grand: t(`${BASE}.subtotalDialog.grandLabel`, { function: fnLabel }),
     });
   };
+  const plan = (choice: SubtotalChoice) => planFrom(cells, choice);
   const run = async (choice: SubtotalChoice): Promise<boolean> => {
-    const planned = plan(choice);
+    if (blocked || cells === null) return false;
+    // Plan from the values as of OK, after the queued grid edits landed.
+    const planned = planFrom(readSpanCells(await settledSnapshot(readLiveSnapshot, snapshot), selection.sheet, span), choice);
     if (blocked || typeof planned === "string") return false;
     return runDataToolSteps(commands, planned.steps);
   };

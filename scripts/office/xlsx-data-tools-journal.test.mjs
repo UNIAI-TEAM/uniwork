@@ -243,3 +243,59 @@ test('Subtotal: inserts, one sparse write and the outline run as ONE undo step t
     }
   });
 });
+
+// review-design F1: the Data tools run atomic. A Subtotal whose last outline
+// step is refused (rows already at the deepest level) takes the inserts, the
+// write and the earlier outline back: the grid, the outline and the undo
+// stack are as they were, and the journal nets out to no row change.
+test('Subtotal refused at its last outline step leaves nothing behind (atomic)', async () => {
+  await withSheet({
+    0: { 0: { v: 'Ten' }, 1: { v: 'SL' } },
+    1: { 0: { v: 'An' }, 1: { v: 1 } },
+    2: { 0: { v: 'Binh' }, 1: { v: 2 } },
+    4: { 0: { v: 'below' } },
+  }, async ({ api, univer, model, worksheet, structural }) => {
+    const require = createRequire(path.join(REPO_ROOT, 'packages/office-upstream/package.json'));
+    const { ICommandService, IUndoRedoService } = require('@univerjs/core');
+    const injector = univer.__getInjector();
+    const undoRedo = injector.get(IUndoRedoService);
+    const registration = injector.get(ICommandService).registerCommand({
+      id: 'uniwork.command.set-rows-outline', type: 0,
+      handler: (_accessor, p) => {
+        if (p.refuse) return false;
+        const before = outlineLevels(model, p.subUnitId, 'rows', p.start, p.end);
+        const applied = applyOutlineAction(model, p.subUnitId, 'rows', p.start, p.end, p.action);
+        if (applied.length > 0 && p.history !== false) {
+          undoRedo.pushUndoRedo(outlineHistoryItem('file-sha', p.subUnitId, 'rows', p.start, p.end, p.action, before));
+        }
+        return applied.length > 0;
+      },
+    });
+    const insert = (row) => ({ id: 'sheet.command.insert-row', params: {
+      unitId: 'file-sha', subUnitId: 's1', direction: 2,
+      range: { startRow: row, endRow: row, startColumn: 0, endColumn: 1, rangeType: 1 },
+    } });
+    const outline = (start, end, refuse = false) => ({ id: 'uniwork.command.set-rows-outline', params: { subUnitId: 's1', start, end, action: 'group', refuse } });
+    const steps = [insert(3), insert(3), insert(2), { id: 'sheet.command.set-range-values', params: {
+      unitId: 'file-sha', subUnitId: 's1',
+      range: { startRow: 2, endRow: 5, startColumn: 0, endColumn: 1 },
+      value: { 2: { 0: text('Sum An') }, 4: { 0: text('Sum Binh') }, 5: { 0: text('Grand Sum') } },
+    } }, outline(1, 4), outline(1, 1, true)];
+    try {
+      const column = () => [0, 1, 2, 3, 4, 5, 6, 7].map((row) => valueAt(worksheet, row, 0));
+      const before = column();
+      const stackBefore = undoRedo._undoStacks.get('file-sha')?.length ?? 0;
+      const ran = await executeAsOneUndoStep({ get: () => undoRedo }, 'file-sha', steps,
+        (step) => api.executeCommand(step.id, step.params), { rollback: true });
+      assert.equal(ran, 0);
+      assert.deepEqual(column(), before);
+      assert.deepEqual(outlineLevels(model, 's1', 'rows', 0, 6), [0, 0, 0, 0, 0, 0, 0]);
+      assert.equal(undoRedo._undoStacks.get('file-sha')?.length ?? 0, stackBefore);
+      const kinds = structural.map((edit) => edit.structural.kind);
+      assert.equal(kinds.filter((kind) => kind === 'insert-rows').length, 3);
+      assert.equal(kinds.filter((kind) => kind === 'remove-rows').length, 3);
+    } finally {
+      registration.dispose();
+    }
+  });
+});

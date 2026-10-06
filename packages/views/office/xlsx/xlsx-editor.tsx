@@ -450,7 +450,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 host={rendererHost}
                 unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null}
                 sheetName={selection?.sheet ?? activeSheet}
-                tables={tables} resolveSheetId={gridSheetId} snapshot={snapshot}
+                tables={tables} resolveSheetId={gridSheetId} snapshot={snapshot} readLiveSnapshot={gridEdits.readLiveSnapshot}
                 onOpenFunctionLibrary={rendererHost ? () => setFunctionLibraryOpen(true) : undefined}
                 onOpenShortcuts={rendererHost ? () => setShortcutsOpen(true) : undefined}
                 onSave={() => save("button")}

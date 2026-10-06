@@ -78,16 +78,32 @@ export function writeValuesStep(
   return { id: XLSX_SET_RANGE_VALUES_COMMAND, params: { unitId, subUnitId, range, value } };
 }
 
-/** Runs the steps as ONE undo entry when the port can batch, else one by one;
- *  resolves false when a step is refused (the renderer policy decides). */
+/** Runs the steps as ONE atomic undo entry: a step the renderer refuses
+ *  takes back the ones that ran, so a failed tool leaves nothing behind
+ *  (review-design F1). Without a batching port only a single step runs (a
+ *  multi-step run could not be taken back); resolves false when refused. */
 export async function runDataToolSteps(commands: XlsxToolbarCommands, steps: readonly XlsxToolbarCommandStep[]): Promise<boolean> {
   try {
-    if (commands.executeAsOneStep) return await commands.executeAsOneStep(steps);
-    for (const step of steps) {
-      if (!(await commands.execute(step.id, step.params))) return false;
-    }
-    return true;
+    if (commands.executeAsOneStep) return await commands.executeAsOneStep(steps, { atomic: true });
+    const [only] = steps;
+    if (steps.length !== 1 || !only) return false;
+    return (await commands.execute(only.id, only.params)) === true;
   } catch {
     return false;
+  }
+}
+
+/** The snapshot a Data tool plans from at OK: the host's settled one when it
+ *  can wait for the queued grid edits (review-design F3), else `snapshot`;
+ *  null when a queued edit failed or no snapshot is left. */
+export async function settledSnapshot(
+  readLiveSnapshot: (() => Promise<XlsxWorkbookSnapshot | null>) | undefined,
+  snapshot: XlsxWorkbookSnapshot | null | undefined,
+): Promise<XlsxWorkbookSnapshot | null> {
+  if (!readLiveSnapshot) return snapshot ?? null;
+  try {
+    return await readLiveSnapshot();
+  } catch {
+    return null;
   }
 }

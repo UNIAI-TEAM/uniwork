@@ -6,7 +6,7 @@
 // with formulas is refused (moving a formula would re-point its references),
 // and cell formatting stays where it is.
 import type { XlsxCellState } from "@uniwork/office-engine/xlsx";
-import { scalarCellData } from "./range-values";
+import { isBlankCell, scalarCellData } from "./range-values";
 
 export interface XlsxRemoveDuplicatesPlan {
   /** The rewritten rectangle, row-major, as Univer cell data. */
@@ -29,9 +29,15 @@ function keyOf(cell: XlsxCellState | null): string {
 }
 
 export function planRemoveDuplicates(
-  cells: readonly (readonly (XlsxCellState | null)[])[],
+  selected: readonly (readonly (XlsxCellState | null)[])[],
   options: { hasHeader: boolean; columns: readonly number[] },
 ): XlsxRemoveDuplicatesPlan | XlsxRemoveDuplicatesRefusal {
+  // Excel works on the used range: the empty rows at the bottom of a
+  // whole-column selection are not data, never "duplicates", and stay
+  // untouched (review-design F4).
+  let used = selected.length;
+  while (used > 0 && (selected[used - 1] ?? []).every(isBlankCell)) used -= 1;
+  const cells = selected.slice(0, used);
   if (cells.some((row) => row.some((cell) => cell?.formula))) return "formulas";
   if (options.columns.length === 0) return "noColumns";
   const header = options.hasHeader ? cells.slice(0, 1) : [];

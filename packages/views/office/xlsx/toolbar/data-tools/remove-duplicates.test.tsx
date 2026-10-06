@@ -49,6 +49,18 @@ describe("planRemoveDuplicates", () => {
     expect(planRemoveDuplicates([[c(1)]], { hasHeader: false, columns: [0] })).toBe("needRows");
     expect(planRemoveDuplicates([[c(1)], [c(1)]], { hasHeader: false, columns: [] })).toBe("noColumns");
   });
+
+  it("plans over the used rows only: trailing blank rows are no duplicates and stay untouched (F4)", () => {
+    const column = [[c("a")], [c("b")], [c("A")], ...Array.from({ length: 997 }, () => [null]), [c("")]];
+    const plan = planRemoveDuplicates(column, { hasHeader: false, columns: [0] });
+    if (typeof plan === "string") throw new Error(plan);
+    expect(plan).toMatchObject({ removed: 1, kept: 2 });
+    expect(plan.values).toHaveLength(3);
+    // A blank row inside the used range still counts (Excel does the same).
+    const inside = planRemoveDuplicates([[c("a")], [null], [null], [c("b")], [null]], { hasHeader: false, columns: [0] });
+    expect(inside).toMatchObject({ removed: 1, kept: 3 });
+    expect(planRemoveDuplicates([[c("a")], [null], [null]], { hasHeader: false, columns: [0] })).toBe("needRows");
+  });
 });
 
 const snapshot = (cells: Record<string, XlsxCellState>): XlsxWorkbookSnapshot => ({ revision: 1, sheets: [{ id: "sheet-1", name: "Data", cells }] });
@@ -98,7 +110,31 @@ describe("XlsxRemoveDuplicatesButton", () => {
         },
       },
     }]);
+    // F1: atomic, so a refused write leaves nothing behind.
+    expect(step.mock.calls[0]![1]).toEqual({ atomic: true });
     expect(await screen.findByTestId("xlsx-remove-duplicates-result")).toHaveTextContent("Đã tìm thấy và xóa 1 giá trị trùng lặp; còn lại 2 giá trị duy nhất.");
+  });
+
+  it("plans at OK from the settled snapshot, after the queued grid edits, and fails when one failed (F3)", async () => {
+    // The dialog opened on the stale snapshot (A3 = "An"); a grid edit typed
+    // just before made A3 "Binh", so nothing repeats and nothing is written.
+    const settled = snapshot({ A1: c("Tên"), B1: c("SL"), A2: c("An"), B2: c(1), A3: c("Binh"), B3: c(1), A4: c("Chi"), B4: c(3) });
+    const readLiveSnapshot = vi.fn(async () => settled);
+    const props = groupProps({ readLiveSnapshot });
+    const view = render(<XlsxRemoveDuplicatesButton {...props} />);
+    fireEvent.click(screen.getByTestId("xlsx-remove-duplicates"));
+    fireEvent.click(await screen.findByTestId("xlsx-remove-duplicates-apply"));
+    expect(await screen.findByTestId("xlsx-remove-duplicates-result")).toHaveTextContent(viText("office.xlsx.dataTools.removeDuplicatesDialog.resultNone"));
+    expect(readLiveSnapshot).toHaveBeenCalledTimes(1);
+    expect(props.commands!.executeAsOneStep).not.toHaveBeenCalled();
+    view.unmount();
+
+    const failed = groupProps({ readLiveSnapshot: vi.fn(async () => { throw new Error("edit failed"); }) });
+    render(<XlsxRemoveDuplicatesButton {...failed} />);
+    fireEvent.click(screen.getByTestId("xlsx-remove-duplicates"));
+    fireEvent.click(await screen.findByTestId("xlsx-remove-duplicates-apply"));
+    expect(await screen.findByTestId("xlsx-remove-duplicates-result")).toHaveTextContent(viText("office.xlsx.dataTools.common.failed"));
+    expect(failed.commands!.executeAsOneStep).not.toHaveBeenCalled();
   });
 
   it("writes nothing when there is no duplicate, and says so", async () => {

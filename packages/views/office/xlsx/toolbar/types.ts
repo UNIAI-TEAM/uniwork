@@ -142,6 +142,12 @@ export interface XlsxToolbarGroupProps {
    *  host's readRange serves the open-time model and must not be used for
    *  that. Absent = no live values (the commands stay disabled). */
   snapshot?: XlsxWorkbookSnapshot | null;
+  /** Waits for the grid edits still queued for the editor, then answers its
+   *  snapshot as of then (null without one); rejects when a queued edit
+   *  failed. A Data tool plans from it at OK, so a grid edit typed just
+   *  before is never overwritten with an older value (review-design F3).
+   *  Absent = plan from `snapshot`. */
+  readLiveSnapshot?: () => Promise<XlsxWorkbookSnapshot | null>;
 }
 
 /** One entry of the extension seam. A Wave A task adds one group to one tab

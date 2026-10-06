@@ -16,7 +16,7 @@ import { Label } from "@uniwork/ui/components/ui/label";
 import { XlsxLargeButton, XlsxLargeLabel } from "../group-layout";
 import { selectionSpan, type XlsxSelectionSpan } from "../structure-insert";
 import type { XlsxToolbarGroupProps } from "../types";
-import { XLSX_DATA_TOOLS_MAX_CELLS, readSpanCells, runDataToolSteps } from "./range-values";
+import { XLSX_DATA_TOOLS_MAX_CELLS, readSpanCells, runDataToolSteps, settledSnapshot } from "./range-values";
 import { hasDelimiter, planTextToColumns, textToColumnsStep, type TextToColumnsOptions } from "./text-to-columns";
 
 const PREVIEW_ROWS = 5;
@@ -36,7 +36,7 @@ const DEFAULT_OPTIONS: TextToColumnsOptions = { tab: true, semicolon: false, com
 type FlagKey = "tab" | "semicolon" | "comma" | "space" | "consecutive";
 const DELIMITER_FLAGS = ["tab", "semicolon", "comma", "space"] as const;
 
-export function XlsxTextToColumnsButton({ readOnly = false, commands, selection, snapshot, unitId, sheetName, resolveSheetId }: XlsxToolbarGroupProps) {
+export function XlsxTextToColumnsButton({ readOnly = false, commands, selection, snapshot, readLiveSnapshot, unitId, sheetName, resolveSheetId }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const [session, setSession] = useState<Session | null>(null);
   const [options, setOptions] = useState<TextToColumnsOptions>(DEFAULT_OPTIONS);
@@ -60,17 +60,20 @@ export function XlsxTextToColumnsButton({ readOnly = false, commands, selection,
   const close = () => setSession(null);
 
   const singleColumn = session !== null && session.span.columns === 1;
-  const firstPass = singleColumn && session ? planTextToColumns(session.source, options) : null;
-  const right =
-    firstPass && session && firstPass.width > 1
-      ? readSpanCells(snapshot, session.sheetName, {
-          startRow: session.span.startRow,
-          endRow: session.span.startRow + firstPass.rows.length - 1,
-          startColumn: session.span.startColumn + 1,
-          endColumn: session.span.startColumn + Math.min(firstPass.width - 1, MAX_RIGHT_COLUMNS),
+  /** The split of `source` with the destination cells right of it read from `from`. */
+  const planOver = (current: Session, source: (XlsxCellState | null)[][], from: typeof snapshot) => {
+    const firstPass = planTextToColumns(source, options);
+    const right = firstPass.width > 1
+      ? readSpanCells(from, current.sheetName, {
+          startRow: current.span.startRow,
+          endRow: current.span.startRow + firstPass.rows.length - 1,
+          startColumn: current.span.startColumn + 1,
+          endColumn: current.span.startColumn + Math.min(firstPass.width - 1, MAX_RIGHT_COLUMNS),
         })
       : null;
-  const plan = singleColumn && session ? planTextToColumns(session.source, options, right ?? undefined) : null;
+    return planTextToColumns(source, options, right ?? undefined);
+  };
+  const plan = singleColumn && session ? planOver(session, session.source, snapshot) : null;
   const noDelimiter = !hasDelimiter(options);
   const overLimit = plan !== null && plan.rows.length * plan.width > XLSX_DATA_TOOLS_MAX_CELLS;
   const canApply = !!plan && !!commands && !busy && !noDelimiter && !overLimit && plan.rows.length > 0 && plan.width > 0;
@@ -79,8 +82,13 @@ export function XlsxTextToColumnsButton({ readOnly = false, commands, selection,
     if (!canApply || !plan || !session || !commands) return;
     setBusy(true);
     setFailed(false);
-    const step = textToColumnsStep(session.unitId, session.sheetId, session.span, plan.rows, plan.width);
-    const done = await runDataToolSteps(commands, [step]);
+    // Split the values as of OK, after the queued grid edits landed.
+    const live = await settledSnapshot(readLiveSnapshot, snapshot);
+    const source = readSpanCells(live, session.sheetName, session.span);
+    const settled = source ? planOver(session, source, live) : null;
+    const fits = settled !== null && settled.rows.length * settled.width <= XLSX_DATA_TOOLS_MAX_CELLS;
+    const done = fits && settled.rows.length > 0 && settled.width > 0 &&
+      await runDataToolSteps(commands, [textToColumnsStep(session.unitId, session.sheetId, session.span, settled.rows, settled.width)]);
     setBusy(false);
     if (done) close();
     else setFailed(true);

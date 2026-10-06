@@ -17,7 +17,7 @@ import { toA1Address } from "../../xlsx-render-model-bridge";
 import { XlsxLargeButton, XlsxLargeLabel } from "../group-layout";
 import { selectionSpan, type XlsxSelectionSpan } from "../structure-insert";
 import type { XlsxToolbarGroupProps } from "../types";
-import { readSpanCells, runDataToolSteps, writeValuesStep, XLSX_DATA_TOOLS_MAX_CELLS } from "./range-values";
+import { readSpanCells, runDataToolSteps, settledSnapshot, writeValuesStep, XLSX_DATA_TOOLS_MAX_CELLS } from "./range-values";
 import { headerLabel, planRemoveDuplicates } from "./remove-duplicates";
 
 const BASE = "office.xlsx.dataTools";
@@ -127,7 +127,7 @@ function RemoveDuplicatesBody({ cells, span, onRun, onClose }: DialogBodyProps) 
   );
 }
 
-export function XlsxRemoveDuplicatesButton({ readOnly = false, selection, snapshot, commands, unitId, sheetName, resolveSheetId }: XlsxToolbarGroupProps) {
+export function XlsxRemoveDuplicatesButton({ readOnly = false, selection, snapshot, readLiveSnapshot, commands, unitId, sheetName, resolveSheetId }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const span = selectionSpan(selection);
@@ -138,7 +138,10 @@ export function XlsxRemoveDuplicatesButton({ readOnly = false, selection, snapsh
 
   const run = async (hasHeader: boolean, columns: readonly number[]): Promise<Outcome> => {
     if (blocked || cells === null) return { kind: "failed" };
-    const plan = planRemoveDuplicates(cells, { hasHeader, columns });
+    // Plan from the values as of OK, after the queued grid edits landed.
+    const live = readSpanCells(await settledSnapshot(readLiveSnapshot, snapshot), selection.sheet, span);
+    if (live === null) return { kind: "failed" };
+    const plan = planRemoveDuplicates(live, { hasHeader, columns });
     if (typeof plan === "string") return { kind: "failed" };
     if (plan.removed === 0) return { kind: "result", removed: 0, kept: plan.kept };
     const ran = await runDataToolSteps(commands, [writeValuesStep(unitId, sheetId, span.startRow, span.startColumn, plan.values)]);

@@ -139,7 +139,31 @@ describe("XlsxSubtotalButton", () => {
     const step = props.commands!.executeAsOneStep as ReturnType<typeof vi.fn>;
     await waitFor(() => expect(step).toHaveBeenCalledTimes(1));
     expect(step.mock.calls[0]![0]).toEqual(EXPECTED_STEPS);
+    // F1: atomic, so a later refused step (the outline) takes the inserts back.
+    expect(step.mock.calls[0]![1]).toEqual({ atomic: true });
     await waitFor(() => expect(screen.queryByTestId("xlsx-subtotal-dialog")).toBeNull());
+  });
+
+  it("plans at OK from the settled snapshot, after the queued grid edits, and fails when one failed (F3)", async () => {
+    // A grid edit typed just before OK renamed A3 "an" to "Dung": a new group.
+    const readLiveSnapshot = vi.fn(async () => snapshot({ ...LIST_CELLS, A3: c("Dung") }));
+    const props = groupProps({ readLiveSnapshot });
+    const view = render(<XlsxSubtotalButton {...props} />);
+    fireEvent.click(screen.getByTestId("xlsx-subtotal"));
+    fireEvent.click(await screen.findByTestId("xlsx-subtotal-apply"));
+    const step = props.commands!.executeAsOneStep as ReturnType<typeof vi.fn>;
+    await waitFor(() => expect(step).toHaveBeenCalledTimes(1));
+    expect(readLiveSnapshot).toHaveBeenCalledTimes(1);
+    expect(step.mock.calls[0]![0]).not.toEqual(EXPECTED_STEPS);
+    expect(JSON.stringify(step.mock.calls[0]![0])).toContain("Dung");
+    view.unmount();
+
+    const failed = groupProps({ readLiveSnapshot: vi.fn(async () => { throw new Error("edit failed"); }) });
+    render(<XlsxSubtotalButton {...failed} />);
+    fireEvent.click(screen.getByTestId("xlsx-subtotal"));
+    fireEvent.click(await screen.findByTestId("xlsx-subtotal-apply"));
+    expect(await screen.findByTestId("xlsx-subtotal-error")).toHaveTextContent(viText("office.xlsx.dataTools.common.failed"));
+    expect(failed.commands!.executeAsOneStep).not.toHaveBeenCalled();
   });
 
   it("labels the rows with the chosen function", async () => {
