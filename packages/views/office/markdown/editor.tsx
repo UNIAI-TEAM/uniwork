@@ -49,7 +49,7 @@ import { MarkdownFind, type MarkdownFindHandle } from "./wysiwyg/find";
 import { MarkdownOutlinePane } from "./wysiwyg/outline";
 import { MarkdownFrontmatterPanel } from "./wysiwyg/frontmatter";
 import { MarkdownPrintMenuItems } from "./wysiwyg/print-menu";
-import type { MarkdownPrintPort } from "./wysiwyg/print";
+import { createBrowserPrintPort } from "../print";
 import type { MarkdownEditorProps, MarkdownOpenOutcome } from "./types";
 
 /** The two canvases the surface switches between. Visual is the demo default. */
@@ -76,25 +76,9 @@ function canWrite<TSnapshot>(editor: MarkdownEditorProps<TSnapshot>["editor"]): 
   return Boolean(editor.source?.setText || editor.setText);
 }
 
-/**
- * The web host's print path for this surface (M8: the view calls the INJECTED
- * port, never `window.print()`). The sanitized copy goes into an off-screen
- * frame and only that frame prints, so app chrome never reaches the job.
- */
-const browserPrintPort: MarkdownPrintPort = {
-  print({ html, title }) {
-    if (typeof document === "undefined") return { outcome: "failed", reason: "no_dom" };
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true"); frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-    document.body.append(frame);
-    const view = frame.contentWindow;
-    if (!view?.document) { frame.remove(); return { outcome: "failed", reason: "no_print_frame" }; }
-    view.document.open(); view.document.write(html); view.document.close();
-    view.document.title = title;
-    try { view.focus(); view.print(); } catch { frame.remove(); return { outcome: "failed", reason: "print_blocked" }; }
-    window.setTimeout(() => frame.remove(), 0); return { outcome: "printed" };
-  },
-};
+/** The web host's print path (M8): the shared isolated-frame port, so app
+ * chrome never reaches the job. */
+const browserPrintPort = createBrowserPrintPort();
 
 function statusLabel(status: AssetStatus, t: (key: string) => string): string {
   if (status === "ready") return t("asset.ready");
