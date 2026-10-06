@@ -10230,6 +10230,7 @@
         "dvInfoCancel": "Hủy",
         "dvInfoOk": "OK",
         "dvInfoTitle": "Thông tin",
+        "dvInvalidMessage": "Giá trị này không khớp với quy tắc xác thực dữ liệu của ô.",
         "dvWarningNo": "Không",
         "dvWarningTitle": "Giữ giá trị này?",
         "dvWarningYes": "Có",

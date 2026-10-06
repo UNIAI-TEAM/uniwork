@@ -10236,6 +10236,7 @@
         "dvInfoCancel": "Cancel",
         "dvInfoOk": "OK",
         "dvInfoTitle": "Information",
+        "dvInvalidMessage": "This value does not match the data validation rule for this cell.",
         "dvWarningNo": "No",
         "dvWarningTitle": "Keep this value?",
         "dvWarningYes": "Yes",
