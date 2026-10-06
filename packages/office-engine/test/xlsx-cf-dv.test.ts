@@ -17,6 +17,7 @@ import {
   type XlsxWorkbookSnapshot,
 } from "../src/xlsx";
 import { parseDataValidations } from "../src/xlsx/render-model-validations";
+import { withRuleSetSource } from "../src/xlsx/ops-cf-dv";
 import { describeWithPatchedGateway, loadPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -85,6 +86,16 @@ describe("XLSX CF/DV ops in the session model", () => {
     // Undo of the removal (an add of the same name) resurrects the snapshot.
     for (const op of parseXlsxOps([{ op: "add_sheet", attributes: { name: "Data" } }], removed.resolver({}))) removed.applyEdit(op);
     expect(removed.pendingConditionalFormatStates()).toEqual([{ sheetName: "Data", rules: [greaterThan(1)] }]);
+  });
+
+  // Review r4 R4-2: the copy's inherited state carries the duplicate op's wire
+  // position, so a refusal of only the copy never names the source's op.
+  it("stamps a duplicate's inherited rule sets with the duplicate op's own position", () => {
+    const model = createXlsxSessionModel(baseSnapshot(), "sha-base");
+    const ops = [cfItem([greaterThan(1)]), { op: "duplicate_sheet", target: { sheet: "Data" }, attributes: { name: "Data copy" } }, cfItem([greaterThan(2)], "Data copy")];
+    parseXlsxOps(ops, model.resolver({ "sheet-1": "Data", "sheet-2": "Report" }), (op, index) => model.applyEdit(withRuleSetSource(op, index)));
+    expect(model.ruleSets.get("Data")?.conditionalFormats?.sources).toEqual([0]);
+    expect(model.ruleSets.get("Data copy")?.conditionalFormats?.sources).toEqual([1, 2]);
   });
 
   it("rolls back to a checkpoint and drains on rebase", () => {

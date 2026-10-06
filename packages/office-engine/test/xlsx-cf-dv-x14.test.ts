@@ -170,6 +170,17 @@ describeWithPatchedGateway("x14 conditional formatting and data validation", () 
     expect(await engine.readEntryText(saved, SHEET1)).toMatch(/<c r="D2"[^>]*><v>7<\/v><\/c>/);
   });
 
+  // Review r4 R4-2: a copy's inherited state names the duplicate op, not the
+  // source's positions, so a refusal of the copy never drops the source's op.
+  it("names a duplicated sheet's inherited rule set by the duplicate op's position", async () => {
+    const ops = [loaderSnapshot, { op: "duplicate_sheet", target: { sheet: "Data" }, attributes: { name: "Data copy" } }, cellEdit("D2", 7)];
+    const failure = await applyXlsxEditBytes(engine, undefined, dataBar(), ops).then(() => null, (error: unknown) => error);
+    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["cf",[0]],["cf",[1]]]');
+    const copyEdit = { ...loaderSnapshot, target: { sheet: "Data copy" } };
+    const later = await applyXlsxEditBytes(engine, undefined, dataBar(), [ops[1]!, copyEdit]).then(() => null, (error: unknown) => error);
+    expect((later as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["cf",[1]]]');
+  });
+
   it("trims the dropped-rule-set reason to whole entries and bounded positions that fit the job channel", () => {
     expect(ruleSetDropReason([{ family: "dataValidations", ops: [3] }])).toBe('xlsx_rule_sets_dropped:[["dv",[3]]]');
     const many = Array.from({ length: 40 }, (_, index) => ({ family: "conditionalFormats" as const, ops: [1000 + index, 2000 + index] }));

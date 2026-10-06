@@ -302,7 +302,9 @@ export function groupXlsxFilterStates(ops: readonly XlsxEditOp[]): XlsxSheetFilt
  *  (add/duplicate default to the end). */
 export type XlsxSheetOp =
   | { readonly kind: "add_sheet"; readonly name: string; readonly index?: number | undefined }
-  | { readonly kind: "duplicate_sheet"; readonly sheetName: string; readonly name: string; readonly index?: number | undefined }
+  // `sources`: the duplicate's wire position, stamped like a rule-set op, so
+  // the copy's inherited rule sets name the copy, not its source (r4 R4-2).
+  | { readonly kind: "duplicate_sheet"; readonly sheetName: string; readonly name: string; readonly index?: number | undefined; readonly sources?: readonly number[] }
   | { readonly kind: "rename_sheet"; readonly sheetName: string; readonly newName: string }
   | { readonly kind: "remove_sheet"; readonly sheetName: string }
   | { readonly kind: "reorder_sheet"; readonly sheetName: string; readonly index: number }

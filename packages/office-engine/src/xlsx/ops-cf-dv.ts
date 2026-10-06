@@ -249,9 +249,10 @@ export function parseSetDataValidations(item: Dict, op: string, sheets: XlsxShee
   return [{ kind: DATA_VALIDATIONS_OP_KIND, sheetName, rules }];
 }
 
-/** The parsed op stamped with its wire position; other ops pass through. */
+/** The parsed op stamped with its wire position (a rule-set op, or a
+ *  duplicate_sheet whose copy inherits rule sets); other ops pass through. */
 export function withRuleSetSource(op: XlsxEditOp, position: number): XlsxEditOp {
-  return isXlsxRuleSetOp(op) ? { ...op, sources: [position] } : op;
+  return isXlsxRuleSetOp(op) || op.kind === "duplicate_sheet" ? { ...op, sources: [position] } : op;
 }
 
 /** Fold one rule-set op into its sheet's journal entry (last write per family
@@ -275,11 +276,13 @@ export function withoutRuleSetFamily(
   return rest.conditionalFormats || rest.dataValidations ? rest : undefined;
 }
 
-/** The same entry re-addressed to another sheet name (rename / duplicate). */
-export function renamedRuleSet(entry: XlsxRuleSetEntry, sheetName: string): XlsxRuleSetEntry {
+/** The same entry re-addressed to another sheet name (rename / duplicate);
+ *  `sources` replaces the positions (a copy names its own duplicate op). */
+export function renamedRuleSet(entry: XlsxRuleSetEntry, sheetName: string, sources?: readonly number[]): XlsxRuleSetEntry {
+  const own = sources === undefined ? {} : { sources };
   return {
-    ...(entry.conditionalFormats ? { conditionalFormats: { ...entry.conditionalFormats, sheetName } } : {}),
-    ...(entry.dataValidations ? { dataValidations: { ...entry.dataValidations, sheetName } } : {}),
+    ...(entry.conditionalFormats ? { conditionalFormats: { ...entry.conditionalFormats, sheetName, ...own } } : {}),
+    ...(entry.dataValidations ? { dataValidations: { ...entry.dataValidations, sheetName, ...own } } : {}),
   };
 }
 
