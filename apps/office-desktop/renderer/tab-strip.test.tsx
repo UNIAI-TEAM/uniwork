@@ -154,7 +154,7 @@ it.each([["createDocx", "docx"], ["createMarkdown", "md"], ["createHtml", "html"
   expect(actions.onCreate).toHaveBeenCalledExactlyOnceWith(format);
 });
 
-it("hands focus back to the page once a document tab is activated, so body shortcuts like PDF Ctrl+F work", () => {
+it("drops focus to the page when the activated tab has no panel to receive it", () => {
   const actions = callbacks();
   render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...actions} />);
   const budget = screen.getByRole("tab", { name: /Budget.xlsx/ });
@@ -173,4 +173,58 @@ it("keeps focus on the strip for the library tab and for arrow-key roving", () =
   expect(library).toHaveFocus();
   fireEvent.keyDown(library, { key: "ArrowRight" });
   expect(screen.getByRole("tab", { name: /Report.docx/ })).toHaveFocus();
+});
+
+/** Panels as the workspace mounts them: hidden + inert unless active, focusable as a fallback. */
+function panels(activeId: string, withRoot: Record<string, boolean>) {
+  const host = document.createElement("div");
+  for (const tab of tabs) {
+    const panel = document.createElement("div");
+    panel.id = `desktop-panel-${tab.id}`;
+    panel.setAttribute("role", "tabpanel");
+    panel.tabIndex = -1;
+    if (tab.id !== activeId) { panel.hidden = true; panel.setAttribute("inert", ""); }
+    if (withRoot[tab.id]) {
+      const root = document.createElement("div");
+      root.setAttribute("role", "application");
+      root.tabIndex = 0;
+      root.dataset.root = tab.id;
+      panel.append(root);
+    }
+    host.append(panel);
+  }
+  document.body.append(host);
+  return { host, show: (id: string) => { for (const panel of host.children) { const own = panel.id === `desktop-panel-${id}`; (panel as HTMLElement).hidden = !own; if (own) panel.removeAttribute("inert"); else panel.setAttribute("inert", ""); } } };
+}
+
+it("moves focus into the activated document's editor root, where the editor's own Ctrl+F handler runs (R5)", () => {
+  const actions = callbacks();
+  const view = panels("a", { a: true, b: true });
+  actions.onSelect.mockImplementation((id: string) => view.show(id));
+  render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...actions} />);
+  const budget = screen.getByRole("tab", { name: /Budget.xlsx/ });
+  budget.focus();
+  fireEvent.click(budget);
+  const root = view.host.querySelector<HTMLElement>("[data-root='b']")!;
+  expect(root).toHaveFocus();
+  // The root's own key handler sees the shortcut, exactly as a PDF editor root does.
+  const onKey = vi.fn((event: KeyboardEvent) => event.preventDefault());
+  root.addEventListener("keydown", onKey);
+  expect(fireEvent.keyDown(document.activeElement!, { key: "f", ctrlKey: true })).toBe(false);
+  expect(onKey).toHaveBeenCalledTimes(1);
+  view.host.remove();
+});
+
+it("falls back to the activated panel itself when its document has no editor root yet, never a hidden one (R5)", () => {
+  const actions = callbacks();
+  const view = panels("a", { a: true, b: false });
+  actions.onSelect.mockImplementation((id: string) => view.show(id));
+  render(<DesktopTabStrip tabs={tabs} activeTabId="a" {...actions} />);
+  const budget = screen.getByRole("tab", { name: /Budget.xlsx/ });
+  budget.focus();
+  fireEvent.keyDown(budget, { key: "Enter" });
+  fireEvent.click(budget);
+  expect(document.getElementById("desktop-panel-b")).toHaveFocus();
+  expect(view.host.querySelector("[data-root='a']")).not.toHaveFocus();
+  view.host.remove();
 });

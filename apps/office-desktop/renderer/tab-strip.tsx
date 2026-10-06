@@ -85,14 +85,22 @@ export function DesktopTabStrip({ tabs, activeTabId, onSelect, onClose, onCreate
     return () => observer?.disconnect();
   }, [activeTabId, tabs.length, signedOut]);
 
-  // A document tab the user activated (click, Enter, Space) hands focus back to
-  // the page: the tab button would otherwise keep it and swallow the editor's
-  // body-level shortcuts such as PDF Ctrl+F. Arrow-key roving and programmatic
+  // A document tab the user activated (click, Enter, Space) hands focus to the
+  // document it shows: the editor root (its own key handler takes Ctrl+F and the
+  // other shortcuts), else the panel itself, so keyboard users keep a visible
+  // focus and context (review-fe-r1 R5). The tab button would otherwise keep it
+  // and swallow the editor's shortcuts. Arrow-key roving and programmatic
   // restores never bump the counter, so they keep or never take focus.
   useEffect(() => {
     if (activation === 0) return;
     const held = document.activeElement;
-    if (held instanceof HTMLElement && barRef.current?.contains(held) && held.getAttribute("role") === "tab") held.blur();
+    if (!(held instanceof HTMLElement && barRef.current?.contains(held) && held.getAttribute("role") === "tab")) return;
+    const panel = document.getElementById(held.getAttribute("aria-controls") ?? "");
+    const shown = panel && !panel.closest("[hidden],[inert]") ? panel : null;
+    const root = shown?.querySelector<HTMLElement>('[role="application"][tabindex="0"]');
+    const target = root && !root.closest("[hidden],[inert]") ? root : shown?.hasAttribute("tabindex") ? shown : null;
+    if (target) target.focus({ preventScroll: true });
+    else held.blur();
   }, [activation]);
 
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, id: string | null) => {
