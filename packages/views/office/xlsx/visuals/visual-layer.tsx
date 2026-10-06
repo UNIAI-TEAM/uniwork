@@ -7,7 +7,7 @@
 // its delete button). Keyboard: Tab reaches each item, arrows move it,
 // Shift+arrows resize it, Delete removes it, Escape returns focus to the grid.
 // A visual a save already wrote is locked (no edit path for file visuals).
-import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -42,6 +42,8 @@ export interface XlsxVisualLayerProps {
   /** A drag, resize or keyboard move ended on `box` (container pixels). */
   onMove: (visual: XlsxEditorVisual, box: XlsxVisualBox) => void;
   onRemove: (visual: XlsxEditorVisual) => void;
+  /** Escape on a visual hands focus back to the grid through this; without it the layer focuses the grid surface itself. */
+  onReturnFocus?: () => void;
 }
 
 interface DragState {
@@ -51,6 +53,26 @@ interface DragState {
   readonly startY: number;
   readonly start: XlsxVisualBox;
   readonly pointerId: number;
+}
+
+const GRID_FOCUS_TARGET = "textarea, [contenteditable=\"true\"], [tabindex]:not([tabindex=\"-1\"])";
+
+/** The grid canvas under the layer: the largest <canvas> in the surface. */
+function gridCanvas(layer: HTMLElement | null): HTMLCanvasElement | null {
+  const surface = layer?.parentElement;
+  if (!surface) return null;
+  let best: HTMLCanvasElement | null = null;
+  let bestArea = -1;
+  for (const canvas of Array.from(surface.querySelectorAll("canvas"))) {
+    if (layer.contains(canvas)) continue;
+    const rect = canvas.getBoundingClientRect();
+    const area = rect.width * rect.height;
+    if (area > bestArea) {
+      best = canvas;
+      bestArea = area;
+    }
+  }
+  return best;
 }
 
 function VisualBody({ visual, box, label }: { visual: XlsxEditorVisual; box: XlsxVisualBox; label: string }) {
@@ -69,7 +91,7 @@ function VisualBody({ visual, box, label }: { visual: XlsxEditorVisual; box: Xls
   return null;
 }
 
-export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove, onRemove }: XlsxVisualLayerProps) {
+export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove, onRemove, onReturnFocus }: XlsxVisualLayerProps) {
   const { t } = useTranslation();
   const layerRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -92,7 +114,7 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
 
   const labelOf = (visual: XlsxEditorVisual): string => {
     const kind = visualKind(visual);
-    if (kind === "chart") return t("office.xlsx.visuals.item.chart", { type: t(`office.xlsx.visuals.chartTypes.${visual.chart!.chartType}`), title: visual.chart!.title });
+    if (kind === "chart") return t("office.xlsx.visuals.item.chart", { type: t(`office.xlsx.visuals.chartTypesInline.${visual.chart!.chartType}`), title: visual.chart!.title });
     if (kind === "shape") return t("office.xlsx.visuals.item.shape", { type: t(`office.xlsx.visuals.shapeTypes.${visual.shape!.shapeType}`) });
     return t("office.xlsx.visuals.item.picture");
   };
@@ -124,13 +146,31 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
     }
   };
 
+  // The wheel would stop at the item; hand it to the grid canvas below.
+  const forwardWheel = (event: ReactWheelEvent) => {
+    const canvas = gridCanvas(layerRef.current);
+    if (!canvas) return;
+    const { deltaX, deltaY, deltaZ, deltaMode, clientX, clientY, ctrlKey, shiftKey, altKey, metaKey } = event;
+    canvas.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaX, deltaY, deltaZ, deltaMode, clientX, clientY, ctrlKey, shiftKey, altKey, metaKey }));
+  };
+
+  const returnFocus = () => {
+    if (onReturnFocus) {
+      onReturnFocus();
+      return;
+    }
+    const layer = layerRef.current;
+    const surface = layer?.parentElement;
+    const target = Array.from(surface?.querySelectorAll<HTMLElement>(GRID_FOCUS_TARGET) ?? []).find((el) => !layer?.contains(el));
+    (target ?? surface)?.focus();
+  };
+
   const onKeyDown = (event: KeyboardEvent, item: XlsxVisualLayerItem) => {
     const { visual, box } = item;
     if (event.key === "Escape") {
       event.preventDefault();
       onSelect(null);
-      // Back to the grid surface the layer is mounted in (it is focusable).
-      (layerRef.current?.parentElement as HTMLElement | null)?.focus();
+      returnFocus();
       return;
     }
     if (event.key === "Delete" || event.key === "Backspace") {
@@ -183,6 +223,7 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
               onPointerUp={(event) => endDrag(event, visual)}
               onPointerCancel={() => { setDrag(null); setPreview(null); }}
               onKeyDown={(event) => onKeyDown(event, item)}
+              onWheel={forwardWheel}
             >
               <span id={`xlsx-visual-help-${visual.id}`} className="sr-only">
                 {locked ? t("office.xlsx.visuals.item.locked") : t("office.xlsx.visuals.item.keyboardHelp")}

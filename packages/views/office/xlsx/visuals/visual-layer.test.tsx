@@ -145,4 +145,51 @@ describe("XlsxVisualLayer", () => {
     fireEvent.pointerDown(screen.getByTestId("xlsx-visual-layer"));
     expect(props.onSelect).not.toHaveBeenCalled();
   });
+
+  it("forwards a wheel on an item to the grid canvas with the same deltas", () => {
+    const surface = document.createElement("div");
+    const small = document.createElement("canvas");
+    const grid = document.createElement("canvas");
+    small.getBoundingClientRect = () => new DOMRect(0, 0, 10, 10);
+    grid.getBoundingClientRect = () => new DOMRect(0, 0, 800, 600);
+    document.body.append(surface);
+    render(<XlsxVisualLayer items={[{ visual: visual("shape"), box: BOX }]} selectedId={null} readOnly={false} onSelect={vi.fn()} onMove={vi.fn()} onRemove={vi.fn()} />, { container: surface });
+    surface.append(small, grid);
+    const seen: WheelEvent[] = [];
+    grid.addEventListener("wheel", (e) => seen.push(e));
+    small.addEventListener("wheel", () => seen.push(new WheelEvent("wrong")));
+    fireEvent.wheel(screen.getByTestId(SHAPE_ID), { deltaX: 3, deltaY: 40, deltaMode: 1, clientX: 120, clientY: 130, ctrlKey: true, shiftKey: true });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ deltaX: 3, deltaY: 40, deltaMode: 1, clientX: 120, clientY: 130, ctrlKey: true, shiftKey: true });
+    surface.remove();
+  });
+
+  it("Escape calls onReturnFocus when provided", () => {
+    const onReturnFocus = vi.fn();
+    setup([{ visual: visual("shape"), box: BOX }], { onReturnFocus });
+    fireEvent.keyDown(screen.getByTestId(SHAPE_ID), { key: "Escape" });
+    expect(onReturnFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape without onReturnFocus focuses the grid focus target, then the surface", () => {
+    const surface = document.createElement("div");
+    surface.tabIndex = -1;
+    const editor = document.createElement("textarea");
+    document.body.append(surface);
+    const { unmount } = render(<XlsxVisualLayer items={[{ visual: visual("shape"), box: BOX }]} selectedId={null} readOnly={false} onSelect={vi.fn()} onMove={vi.fn()} onRemove={vi.fn()} />, { container: surface });
+    surface.append(editor);
+    fireEvent.keyDown(screen.getByTestId(SHAPE_ID), { key: "Escape" });
+    expect(document.activeElement).toBe(editor);
+    editor.remove();
+    fireEvent.keyDown(screen.getByTestId(SHAPE_ID), { key: "Escape" });
+    expect(document.activeElement).toBe(surface);
+    unmount();
+    surface.remove();
+  });
+
+  it("names a chart with the lowercase inline type in Vietnamese", async () => {
+    await setLocale("vi");
+    setup([{ visual: visual("chart"), box: BOX }]);
+    expect(screen.getByTestId("xlsx-visual-item-chart")).toHaveAccessibleName("Biểu đồ cột Sales");
+  });
 });
