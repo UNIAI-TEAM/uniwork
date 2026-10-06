@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, DollarSign, DecimalsArrowLeft, DecimalsArrowRight, Percent } from "lucide-react";
-import { useState, type KeyboardEvent } from "react";
+import { useCallback, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -22,6 +22,7 @@ import { appliedFormatKey, readAppliedPattern, recordAppliedFormat, useAppliedPa
 import { autoFitColumnsAfterFormat, moreDecimals } from "./auto-fit-width";
 import { useFileNumberFormat } from "./file-format";
 import { fireCommand } from "../fire-command";
+import { useCloseOnOutsidePointerDown } from "../toolbar/use-close-on-outside-pointerdown";
 
 const CUSTOM_ERROR_KEYS: Record<XlsxCustomFormatError, string> = {
   empty: "office.xlsx.toolbar.groups.numberFormat.customError.empty",
@@ -128,6 +129,8 @@ function XlsxNumberFormatPicker(context: XlsxToolbarGroupProps) {
   const sessionPattern = useAppliedPattern(appliedFormatKey(unitId, selection));
   const filePattern = useFileNumberFormat(context);
   const applied = sessionPattern ?? filePattern;
+  const closePopover = useCallback(() => setOpen(false), []);
+  useCloseOnOutsidePointerDown(open, closePopover);
 
   const applyPattern = (pattern: string) => {
     if (blocked) return;

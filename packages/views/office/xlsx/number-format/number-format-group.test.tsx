@@ -75,6 +75,22 @@ describe("XlsxNumberFormatGroup", () => {
     expect(screen.queryByTestId("xlsx-number-format-gallery")).not.toBeInTheDocument();
   });
 
+  // UNI-953 item 8: the first grid pointerdown closes the gallery and still
+  // reaches the grid, so a drag started there selects its whole range.
+  it("closes the gallery on the first outside pointerdown and lets it through", async () => {
+    const seen: boolean[] = [];
+    render(
+      <>
+        <XlsxNumberFormatGroup {...groupProps()} />
+        <div data-testid="grid" onPointerDown={(event) => seen.push(event.defaultPrevented)} />
+      </>,
+    );
+    await openGallery();
+    fireEvent.pointerDown(screen.getByTestId("grid"));
+    expect(seen).toEqual([false]);
+    await waitFor(() => expect(screen.queryByTestId("xlsx-number-format-gallery")).not.toBeInTheDocument());
+  });
+
   it("applies every preset to the whole selection through the pinned set command", async () => {
     const execute = vi.fn(() => true);
     render(
