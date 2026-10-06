@@ -16,7 +16,7 @@ const ALL_CONTEXT = { picture: true, shape: true, table: true, chart: true };
 const target = { slideIndex: 0, elementId: "e1", elementType: "shape", ids: ["e1"] };
 
 /** Enabled items that may stay live: file, view and slide-show items, Close master. */
-const ALLOWED = ["export-pdf", "fullscreen", "open", "panel-sorter", "print", "render-fidelity", "save", "slideMaster"];
+const ALLOWED = ["export-pdf", "fullscreen", "open", "print", "render-fidelity", "save", "slideMaster"];
 
 function build() {
   const onCommand = vi.fn();
@@ -60,8 +60,19 @@ describe("gatePptxRibbonForMasterView", () => {
     expect([...new Set(live.map((entry) => entry.split("/")[1]))].sort()).toEqual(ALLOWED);
     // The live items sit in the file (Home), views (View) and show (Slide show) groups, and nowhere else.
     expect(live.sort()).toEqual([
-      "home/export-pdf", "home/open", "home/print", "home/save", "slide-show/fullscreen", "view/panel-sorter", "view/render-fidelity", "view/slideMaster",
+      "home/export-pdf", "home/open", "home/print", "home/save", "slide-show/fullscreen", "view/render-fidelity", "view/slideMaster",
     ]);
+  });
+
+  it("locks the View tab's slide sorter, which edits the hidden deck, while the rest of the group stays live", () => {
+    const { tabs, onOpenPanel } = build();
+    const gated = gatePptxRibbonForMasterView(tabs);
+    const sorter = item(gated, "view", "panel-sorter");
+    expect(sorter.disabled).toBe(true);
+    expect(sorter.tooltipKey).toBe(PPTX_MASTER_VIEW_REASON);
+    if (sorter.kind === "toggle") sorter.onExecute();
+    expect(onOpenPanel).not.toHaveBeenCalled();
+    expect(item(gated, "view", "slideMaster").disabled).toBeFalsy();
   });
 
   it("locks Trang moi / Hinh dang / Dau-chan trang / Lien ket / Phuong tien with the master reason", () => {

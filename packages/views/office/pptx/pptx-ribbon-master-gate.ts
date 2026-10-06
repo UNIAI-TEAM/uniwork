@@ -4,7 +4,8 @@
  * The canvas shows a master/layout preview, not a deck slide, so any ribbon item
  * that would write the hidden slide has to wait for Close master. Instead of
  * naming the slide-editing items one by one, this is an ALLOWLIST by group: only
- * the groups below stay live (file, views, the master toggle, slide show); every
+ * the groups below stay live (file, views, the master toggle, slide show; the slide
+ * sorter is the one item inside them that is locked); every
  * other item - commands, panel toggles (new slide, shapes, header/footer, link,
  * media, ...), the injected Font/Paragraph/Arrange items and the contextual tabs
  * - is disabled with the master-view reason and does nothing when executed.
@@ -19,6 +20,9 @@ export const PPTX_MASTER_VIEW_REASON = "office.pptx.reasons.master_view";
 
 /** Ribbon groups that stay usable in master view: they do not edit a slide. */
 const MASTER_VIEW_LIVE_GROUPS: ReadonlySet<string> = new Set(["file", "views", "master", "show"]);
+
+/** Items locked even inside a live group: the sorter reorders, duplicates and deletes the hidden deck's slides. */
+const MASTER_VIEW_LOCKED_ITEMS: ReadonlySet<string> = new Set(["panel-sorter"]);
 
 const noop = (): void => undefined;
 
@@ -65,7 +69,7 @@ export function gatePptxRibbonForMasterView(tabs: readonly RibbonTab[]): RibbonT
     ...tab,
     groups: tab.groups.map((group) =>
       MASTER_VIEW_LIVE_GROUPS.has(group.id)
-        ? group
+        ? { ...group, items: group.items.map((entry) => (MASTER_VIEW_LOCKED_ITEMS.has(entry.id) ? lockItem(entry) : entry)) }
         : { ...group, ...(group.launcher ? { launcher: { ...group.launcher, onOpen: noop } } : {}), items: group.items.map(lockItem) },
     ),
   }));

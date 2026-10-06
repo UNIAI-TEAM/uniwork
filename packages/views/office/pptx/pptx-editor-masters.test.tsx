@@ -100,6 +100,39 @@ describe("PptxEditor slide master view (T01)", () => {
     for (const id of insertItems) expect(item(id), id).not.toHaveAttribute("aria-disabled");
   });
 
+  it("closes Find/Replace when the view opens, swallows Ctrl+F until Close master, and closes the sorter (find_gate F1/F2)", async () => {
+    const { handle: editorHandle } = handle();
+    render(<PptxEditor host={host()} editorHandle={editorHandle} loadRendererModule={async () => module()} slides={[{ id: "s1" }]} deck={deck} />);
+    await waitFor(() => expect(screen.getByText("Title")).toBeInTheDocument());
+    const findPanel = () => screen.queryByRole("region", { name: "Find and replace" });
+    const ctrlF = () => {
+      const event = new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true, cancelable: true });
+      fireEvent(document.body, event);
+      return event;
+    };
+
+    // Find is open (and the View tab's default sorter panel is up) when the master view opens.
+    ctrlF();
+    expect(findPanel()).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "View" }));
+    expect(document.querySelector("[data-pptx-sorter-panel]")).not.toBeNull();
+    fireEvent.click(toggle());
+    await waitFor(() => expect(document.querySelector("[data-pptx-master-preview]")).not.toBeNull());
+    expect(findPanel()).toBeNull();
+    expect(document.querySelector("[data-pptx-sorter-panel]")).toBeNull();
+    expect(document.querySelector('[data-ribbon-item="panel-sorter"]')).toHaveAttribute("aria-disabled", "true");
+
+    // Ctrl+F opens nothing, but the browser's own page find stays shut too.
+    expect(ctrlF().defaultPrevented).toBe(true);
+    expect(findPanel()).toBeNull();
+
+    // Close master: Ctrl+F works again, the sorter does not come back by itself.
+    fireEvent.click(screen.getByRole("button", { name: "Close master view" }));
+    expect(document.querySelector("[data-pptx-sorter-panel]")).toBeNull();
+    ctrlF();
+    expect(findPanel()).not.toBeNull();
+  });
+
   it("shows an applied text style in the preview: size and italic, re-read after the edit (master_fix3 #2)", async () => {
     let style: { sizePt?: number; italic?: boolean } | undefined;
     const edit = vi.fn(async (edits: readonly { op: string; sizePt?: number; italic?: boolean }[]) => {

@@ -371,7 +371,6 @@ export function PptxEditor({
   const onFindHit = usePptxFindSelect({
     slideIndex: selectedIndex, selectSlide, boxes: nodeBoxes, ready: Boolean(rendition) && !building, select: selection.select,
   });
-  usePptxFindShortcut(editorRootRef, presenterOpen || showOpen || shortcutsOpen, openFind);
   // W5 review F11: "Edit text" only when the selection can actually be edited:
   // the host seam, or the in-place editor over a selected text element.
   const selectionHasText = selectedIds.length > 0 && textTargets.some((candidate) => candidate.sourceId === selectedIds[0]);
@@ -391,8 +390,8 @@ export function PptxEditor({
   const masters = usePptxEditorMasters({ ...(masterParts ? { masterParts } : {}), ...(masterElements ? { masterElements } : {}), editorHandle, ...(onApplyEdit ? { onApplyEdit } : {}), ...(handleEdit ? { handleEdit } : {}), refreshKey: deck?.revision, onError: reportCommandError });
   const baseCommands = useMemo(() => createPptxCommandMap({ host, capabilities: effectiveCapabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [effectiveCapabilities, host, includeSave, saveCoordinator]);
   const toggleMasters = masters.toggle;
-  // The open master view hides the deck slide, so slide-editing commands wait for Close master.
-  const commands = usePptxMasterViewGate({ open: masters.open, commands: baseCommands, clearSelection: selection.clear });
+  // The open master view hides the deck: Ctrl+F is swallowed without opening Find (the gate below closes it).
+  usePptxFindShortcut(editorRootRef, presenterOpen || showOpen || shortcutsOpen, openFind, masters.open);
   const displaySize = useMemo(() => {
     const aspect = rendition && rendition.widthPx > 0 ? rendition.heightPx / rendition.widthPx : 9 / 16;
     return slideDisplaySize(fitWidthPx, zoom, aspect);
@@ -446,6 +445,8 @@ export function PptxEditor({
     rootRef: editorRootRef,
   });
   const { openCommandPanel } = panels;
+  // The open master view hides the deck slide, so slide-editing commands wait for Close master; Find and the sorter close.
+  const commands = usePptxMasterViewGate({ open: masters.open, commands: baseCommands, clearSelection: selection.clear, find: { open: findOpen, close: () => setFindOpen(false) }, sorter: { open: panels.activeKind === "sorter", close: () => panels.openPanel("sorter") } });
   const onCommand = useCallback((id: PptxCommandId) => {
     if (openCommandPanel(id)) return;
     switch (id) {
