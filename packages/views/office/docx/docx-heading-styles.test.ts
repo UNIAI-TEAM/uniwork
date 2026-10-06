@@ -4,15 +4,36 @@ import { bindDocxEngine, createDocxAdapter } from "@uniwork/office-engine/docx";
 import { parseDocx, saveDocx } from "@uniwork/office-upstream/docs-renderer-editor";
 import { createDocxTiptapHandle } from "./use-docx-tiptap-handle";
 import { assertDocxPartsPreserved } from "./test-fixtures/docx-preservation";
+import { revisionOf } from "./test-fixtures/docx-core-revision";
 
 const w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const levels = [1, 2, 3, 4, 5, 6];
 const style = (level: number) => `<w:style w:type="paragraph" w:styleId="Heading${level}"><w:name w:val="heading ${level}"/><w:pPr><w:outlineLvl w:val="${level - 1}"/></w:pPr></w:style>`;
 
-// Actual two-Save coordinator probe/source is retained in the lane report folder.
-// Advisor owns source acknowledgement/rebase; the heading repair does not change it.
-it.todo("CORE-REPEAT-001 (Advisor root follow-up): second changed Save must advance cp:revision 8 to 9; original source is not rebased");
+// CORE-REPEAT-001 (T08): the host rebases the save source after a commit, so
+// a second changed Save counts cp:revision from the committed bytes. The web
+// host and desktop session cover the same rule end to end.
+it("counts cp:revision from the committed Save once the save source is rebased", async () => {
+  const handle = handleFor(await fixture(levels));
+  try {
+    await handle.open();
+    handle.commands.setHeading(2);
+    const first = await handle.serializeSnapshot(await handle.captureSnapshot());
+    expect(await revisionOf(first.bytes)).toBe("8");
+    // Without a commit acknowledgement the source stays put: a retry re-derives the same revision.
+    expect(await revisionOf((await handle.serializeSnapshot(await handle.captureSnapshot())).bytes)).toBe("8");
+    await handle.rebaseSaveSource({ checksumSha256: `sha256:${first.checksum.replace(/^sha256:/, "")}` });
+    handle.commands.setHeading(1);
+    const second = await handle.serializeSnapshot(await handle.captureSnapshot());
+    expect(await revisionOf(second.bytes)).toBe("9");
+    // An unknown checksum (another Save's receipt) changes nothing.
+    await handle.rebaseSaveSource({ checksumSha256: "sha256:unknown" });
+    expect(await revisionOf((await handle.serializeSnapshot(await handle.captureSnapshot())).bytes)).toBe("9");
+  } finally {
+    await handle.dispose();
+  }
+});
 
 async function fixture(defined: number[], collision = "", missingPart = false, core = true) {
   const zip = new JSZip();

@@ -59,6 +59,12 @@ export function createDesktopDocxSurface(options: {
       if (disposed) throw new Error("docx_editor_disposed");
       return { ...result, value: result.value.slice() };
     },
+    // A committed Save: the next serialization counts cp:revision from these
+    // bytes (CORE-REPEAT-001), so the cached pre-commit output is stale.
+    async rebaseSaveSource(receipt) {
+      cached = null;
+      await tiptap.rebaseSaveSource(receipt);
+    },
     async dispose() {
       disposed = true;
       cached = null;

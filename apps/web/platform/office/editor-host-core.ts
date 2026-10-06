@@ -258,9 +258,14 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
     const snapshot = await options.editor.captureSnapshot();
     await draft.rebaseDurable(state.identity, snapshot, state.lastSavedGeneration);
   };
+  // A commit first rebases the editor's save source (DOCX core properties),
+  // then the draft; both inside the gate.
   const save: typeof coordinator.save = (entryPoint) => gate.run(async () => {
     const result = await coordinator.save(entryPoint);
-    if (result.accepted) await rebaseDraft();
+    if (result.accepted) {
+      await options.editor.rebaseSaveSource?.(result.receipt);
+      await rebaseDraft();
+    }
     return result;
   });
   // `checkpointDurable` enqueues on the draft lane synchronously, so the
@@ -279,7 +284,10 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
     checkpoint: () => checkpointSettled(false),
     reconcile: () => gate.run(async () => {
       const receipt = await coordinator.reconcile();
-      if (receipt) await rebaseDraft();
+      if (receipt) {
+        await options.editor.rebaseSaveSource?.(receipt);
+        await rebaseDraft();
+      }
       return receipt;
     }),
   };

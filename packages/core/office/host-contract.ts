@@ -43,6 +43,9 @@ export interface EditorHandle<TSnapshot = unknown> {
   captureSnapshot(): Promise<StableSnapshot<TSnapshot>>;
   undo?(): void;
   redo?(): void;
+  /** A Save committed these bytes: the editor rebases whatever its next
+   *  serialization derives from them (DOCX core properties). */
+  rebaseSaveSource?(receipt: OfficeSaveReceipt): void | Promise<void>;
   dispose(): void | Promise<void>;
 }
 

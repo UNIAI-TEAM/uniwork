@@ -355,6 +355,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       if (contextError) await bindDraftContext();
       const result = await rawCoordinator.save(entryPoint);
       if (result.accepted) {
+        await surface?.rebaseSaveSource?.(result.receipt);
         await consumeRecoveredRow(rawCoordinator.getState().lastSavedGeneration);
         const output = outputs.get(result.intentId);
         if (output?.rebound) {
