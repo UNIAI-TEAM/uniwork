@@ -265,7 +265,7 @@ func (s *FileService) retryAttempt(ctx context.Context, q *db.Queries, spec file
 
 func (s *FileService) insertIntentFile(ctx context.Context, q *db.Queries, spec files.PurposeSpec, scope files.Scope, filename string, now time.Time) (db.File, error) {
 	id := files.FileID(s.newID())
-	key, err := mintObjectKey(spec, scope, id, now)
+	key, err := mintObjectKey(s.keyRoot, spec, scope, id, now)
 	if err != nil {
 		return db.File{}, err
 	}
@@ -615,7 +615,7 @@ func (s *FileService) RegisterProviderOutput(ctx context.Context, in files.Provi
 
 	// Sign before recording: an adapter that cannot sign leaves no intent.
 	id := files.FileID(s.newID())
-	key, err := mintObjectKey(spec, in.Scope, id, now)
+	key, err := mintObjectKey(s.keyRoot, spec, in.Scope, id, now)
 	if err != nil {
 		return files.ProviderOutput{}, err
 	}

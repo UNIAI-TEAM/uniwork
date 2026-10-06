@@ -46,6 +46,7 @@ type FileService struct {
 	store    storage.ObjectStore
 	backend  storage.Backend
 	bucket   string
+	keyRoot  string
 	signer   FileObjectSigner
 	quota    FileQuotaHook
 	clock    func() time.Time
@@ -82,6 +83,12 @@ type FileServiceOptions struct {
 	// and the adapter refuses any other.
 	Store  storage.ObjectStore
 	Bucket string
+	// KeyRoot is the environment root (storage.Config.KeyRoot, read from
+	// S3_KEY_PREFIX) every minted key starts with, in the stored "x/" form;
+	// "" mints at the bucket top level. The full key is what files.object_key
+	// stores: adapters never rewrite it, and rows minted under another root
+	// keep reading from where they are.
+	KeyRoot string
 	// Registry is the purpose table. Nil loads files.DefaultRegistry.
 	Registry *files.Registry
 	// Signer overrides the store's own URL signing; nil uses the store.
@@ -129,6 +136,9 @@ func NewFileService(opts FileServiceOptions) (*FileService, error) {
 	if backend != storage.BackendLocal && bucket == "" {
 		return nil, fmt.Errorf("files: %s storage needs a bucket", string(backend))
 	}
+	if !storage.ValidKeyRoot(opts.KeyRoot) {
+		return nil, errors.New("files: the storage key root must be a relative \"x/\" folder (S3_KEY_PREFIX)")
+	}
 	registry := files.DefaultRegistry()
 	if opts.Registry != nil {
 		registry = *opts.Registry
@@ -170,6 +180,7 @@ func NewFileService(opts FileServiceOptions) (*FileService, error) {
 		store:    opts.Store,
 		backend:  backend,
 		bucket:   bucket,
+		keyRoot:  opts.KeyRoot,
 		signer:   signer,
 		quota:    quota,
 		clock:    clock,
@@ -226,11 +237,12 @@ func validActor(a audit.Actor) bool {
 	}
 }
 
-// mintObjectKey is the key layout of spec section 6.2, plus the purpose's
+// mintObjectKey is the key layout of spec section 6.2 under the environment
+// root (root is "" or a storage.ValidKeyRoot), plus the purpose's
 // ObjectKeySuffix. The segments come from an authorized scope and a server id;
 // anything that could leave its segment is refused as an invalid scope rather
 // than cleaned up.
-func mintObjectKey(spec files.PurposeSpec, scope files.Scope, id files.FileID, at time.Time) (string, error) {
+func mintObjectKey(root string, spec files.PurposeSpec, scope files.Scope, id files.FileID, at time.Time) (string, error) {
 	for _, seg := range []string{scope.OrganizationID, scope.WorkspaceID, scope.UserID, string(id)} {
 		if seg != "" && !safeKeySegment(seg) {
 			return "", files.ScopeInvalid("scope ids must be opaque path-safe ids")
@@ -239,11 +251,11 @@ func mintObjectKey(spec files.PurposeSpec, scope files.Scope, id files.FileID, a
 	tail := spec.Prefix + "/" + at.UTC().Format("2006/01") + "/" + string(id) + "/original" + spec.Policy.ObjectKeySuffix
 	switch {
 	case scope.OrganizationID == "":
-		return storage.FileServiceKeyPrefix + "users/" + scope.UserID + "/" + tail, nil
+		return root + storage.FileServiceKeyPrefix + "users/" + scope.UserID + "/" + tail, nil
 	case scope.WorkspaceID != "":
-		return storage.FileServiceKeyPrefix + "orgs/" + scope.OrganizationID + "/workspaces/" + scope.WorkspaceID + "/" + tail, nil
+		return root + storage.FileServiceKeyPrefix + "orgs/" + scope.OrganizationID + "/workspaces/" + scope.WorkspaceID + "/" + tail, nil
 	default:
-		return storage.FileServiceKeyPrefix + "orgs/" + scope.OrganizationID + "/" + tail, nil
+		return root + storage.FileServiceKeyPrefix + "orgs/" + scope.OrganizationID + "/" + tail, nil
 	}
 }
 
