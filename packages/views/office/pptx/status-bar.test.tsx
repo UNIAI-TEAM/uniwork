@@ -84,11 +84,50 @@ describe("PptxStatusBar", () => {
     expect(screen.queryByRole("button", { name: "Fit to width" })).not.toBeInTheDocument();
   });
 
-  it("renders the unknown mark for fields the wiring cannot source yet", () => {
+  it("leaves out the readouts the wiring cannot source instead of showing placeholders (T12)", () => {
     render(<PptxStatusBar slideCurrent={null} slideTotal={null} zoom={1} onZoomChange={vi.fn()} />);
-    expect(screen.getByTestId("pptx-status-slide")).toHaveTextContent("—");
-    expect(screen.getByTestId("pptx-status-words")).toHaveTextContent("Words: —");
-    expect(screen.getByTestId("pptx-status-language")).toHaveTextContent("Language: —");
+    for (const id of ["pptx-status-slide", "pptx-status-words", "pptx-status-characters", "pptx-status-language"]) {
+      expect(screen.queryByTestId(id)).toBeNull();
+    }
+    expect(screen.queryByRole("group", { name: "View" })).toBeNull();
+    // A partial position still keeps the unknown mark for its missing side.
+    render(<PptxStatusBar slideCurrent={2} slideTotal={null} zoom={1} onZoomChange={vi.fn()} />);
+    expect(screen.getByTestId("pptx-status-slide")).toHaveTextContent("Slide 2 / —");
+  });
+
+  it("keeps a known zero count: an empty deck says 0 words, not nothing", () => {
+    render(<PptxStatusBar slideCurrent={1} slideTotal={1} counts={{ words: 0, characters: 0 }} zoom={1} onZoomChange={vi.fn()} />);
+    expect(screen.getByTestId("pptx-status-words")).toHaveTextContent("Words: 0");
+  });
+
+  it("carries the notes toggle and the Normal / Slide sorter / Slide show buttons (T12)", () => {
+    const onToggleNotes = vi.fn();
+    const onViewChange = vi.fn();
+    const onSlideShow = vi.fn();
+    render(
+      <PptxStatusBar
+        slideCurrent={1} slideTotal={4} zoom={1} onZoomChange={vi.fn()}
+        notesOpen onToggleNotes={onToggleNotes}
+        view="sorter" onViewChange={onViewChange} onSlideShow={onSlideShow}
+      />,
+    );
+    expect(screen.getByRole("group", { name: "View" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Notes" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Slide sorter" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Normal" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Notes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Normal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Slide show" }));
+    expect(onToggleNotes).toHaveBeenCalledTimes(1);
+    expect(onViewChange).toHaveBeenCalledWith("normal");
+    expect(onSlideShow).toHaveBeenCalledTimes(1);
+  });
+
+  it("speaks Vietnamese for the new controls", async () => {
+    await setLocale("vi");
+    render(<PptxStatusBar slideCurrent={1} slideTotal={2} zoom={1} onZoomChange={vi.fn()} onToggleNotes={vi.fn()} onSlideShow={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Ghi chú" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trình chiếu" })).toBeInTheDocument();
   });
 
   it("announces a pending gesture without a live region for the counts", () => {

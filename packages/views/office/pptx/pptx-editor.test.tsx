@@ -293,14 +293,13 @@ describe("PptxEditor", () => {
 
   it("never shows the UI locale as the deck language (F1)", () => {
     // `document.documentElement.lang` is the app UI locale, not the deck's
-    // language. With no deck-language source wired the bar must show the
-    // unknown mark instead of echoing the UI locale.
+    // language. With no deck-language source wired the bar leaves the
+    // readout out (T12) instead of echoing the UI locale.
     const previous = document.documentElement.lang;
     document.documentElement.lang = "vi";
     renderEditor({ slides: [{ id: "s1" }] });
-    const language = screen.getByTestId("pptx-status-language");
-    expect(language).toHaveTextContent("Language: —");
-    expect(language.textContent ?? "").not.toContain("vi");
+    expect(screen.queryByTestId("pptx-status-language")).toBeNull();
+    expect(screen.getByRole("group", { name: "Presentation status" }).textContent ?? "").not.toContain("Language");
     document.documentElement.lang = previous;
   });
 
