@@ -135,6 +135,32 @@ describe("PdfEditor", () => {
     expect(saveCoordinator.writeBytes).not.toHaveBeenCalled();
   });
 
+  it("leaves Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z to editable controls and still undoes from the canvas", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+    const textarea = document.createElement("textarea");
+    const select = document.createElement("select");
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    const textbox = document.createElement("div");
+    textbox.setAttribute("role", "textbox");
+    root.append(textarea, select, editable, textbox);
+    for (const target of [textarea, select, editable, textbox]) {
+      expect(fireEvent.keyDown(target, { key: "z", ctrlKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: "y", ctrlKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: "z", ctrlKey: true, shiftKey: true })).toBe(true);
+    }
+    expect(handle.undo).not.toHaveBeenCalled();
+    expect(handle.redo).not.toHaveBeenCalled();
+
+    expect(fireEvent.keyDown(screen.getByTestId("pdf-canvas"), { key: "z", ctrlKey: true })).toBe(false);
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByTestId("pdf-canvas"), { key: "z", ctrlKey: true, shiftKey: true });
+    expect(handle.redo).toHaveBeenCalledTimes(1);
+  });
+
   it("selects pages and submits every page operation through the edit envelope", async () => {
     const handle = editor();
     renderEditor(opened(), { editor: handle });

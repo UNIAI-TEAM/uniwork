@@ -106,6 +106,14 @@ const COMMAND_ORDER: readonly PdfCommandId[] = [
 
 const ZOOM_STEP = 0.1;
 
+/** Controls that own a native undo stack; the document shortcut must leave their Ctrl+Z / Ctrl+Y alone. */
+function isEditableTarget(target: EventTarget): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  const editable = target.closest("[contenteditable], [role='textbox']");
+  return editable !== null && editable.getAttribute("contenteditable") !== "false";
+}
+
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<PdfViewState>("opening");
@@ -400,8 +408,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     const key = event.key.toLowerCase();
     if (key === "s") { event.preventDefault(); save("shortcut"); }
     else if (key === "f" && !event.shiftKey) { event.preventDefault(); toggleFind(); }
-    else if (key === "z" && !event.shiftKey && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); undo(); }
-    else if ((key === "y" || (key === "z" && event.shiftKey)) && !(event.target instanceof HTMLInputElement)) { event.preventDefault(); redo(); }
+    else if (key === "z" && !event.shiftKey && !isEditableTarget(event.target)) { event.preventDefault(); undo(); }
+    else if ((key === "y" || (key === "z" && event.shiftKey)) && !isEditableTarget(event.target)) { event.preventDefault(); redo(); }
   }, [redo, save, toggleFind, undo]);
 
   const canEditText = capability?.operation === "serialize" && capability.status === "available";
