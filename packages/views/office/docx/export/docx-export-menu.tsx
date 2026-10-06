@@ -14,16 +14,17 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { getI18n, useTranslation } from "react-i18next";
 import type { RibbonItem } from "../../ribbon";
-import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "../toolbar/groups/ribbon-open-store";
+import { scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "../toolbar/groups/ribbon-open-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxExportPdfDialog } from "./docx-export-pdf-dialog";
 import { runDocxPrint } from "./docx-print-entry";
 
 /** Shared open state of the PDF guidance dialog. */
-const pdfDialog = createRibbonOpenStore();
+const pdfDialogFor = scopedRibbonOpenStore();
 
 /** The typed ribbon items for the View > export group. */
 export function docxExportRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const pdfDialog = pdfDialogFor(context.docScope);
   const { commands, format, print } = context;
   const { t } = getI18n();
   const disabled = !commands || !(format?.docxExportReady ?? false);
@@ -78,6 +79,7 @@ export function docxExportRibbonItems(context: DocxToolbarGroupContext): readonl
  * keeps the PDF dialog mount and stays exported for direct use. */
 export function DocxExportGroup(context: DocxToolbarGroupContext) {
   const { commands, format, print } = context;
+  const pdfDialog = pdfDialogFor(context.docScope);
   const { t } = useTranslation();
   const [pdfOpen] = useRibbonOpen(pdfDialog);
   const disabled = !commands || !(format?.docxExportReady ?? false);

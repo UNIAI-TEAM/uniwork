@@ -5,12 +5,14 @@ import enDict from "@uniwork/core/i18n/locales/en.json";
 import viDict from "@uniwork/core/i18n/locales/vi.json";
 import { createDocxCommandRuntime } from "../commands";
 import { docxExtensions } from "../docx-schema";
-import { publishDocxEditor } from "../editor-store";
+import { createDocxDocumentScope } from "../editor-store";
 import { insertDocxShape } from "../shapes/docx-shape-actions";
 import { buildDocxContextualTabs, isSelectionInTable, selectedNodeKind } from "./contextual-tabs";
 import type { DocxToolbarGroupContext } from "./types";
 
 const editors: Editor[] = [];
+// The document scope the contextual tabs read their live editor from (UNI-957).
+const testScope = createDocxDocumentScope();
 
 const paragraph = (text: string): JSONContent => ({ type: "docParagraph", content: [{ type: "text", text }] });
 const cell = (text: string): JSONContent => ({ type: "docTableCell", content: [paragraph(text)] });
@@ -57,7 +59,7 @@ function createEditor(content: JSONContent, editable = true): Editor {
 }
 
 afterEach(() => {
-  publishDocxEditor(null);
+  testScope.publishEditor(null);
   for (const editor of editors.splice(0)) editor.destroy();
 });
 
@@ -87,6 +89,7 @@ function context(editor: Editor): DocxToolbarGroupContext {
     onUndo: vi.fn(),
     onRedo: vi.fn(),
     onSave: vi.fn(),
+    docScope: testScope,
   };
 }
 
@@ -159,7 +162,7 @@ describe("buildDocxContextualTabs", () => {
   it("exposes the two table tabs with when:true while the caret is in a table", () => {
     const editor = createEditor(tableDocument);
     caretInFirstCell(editor);
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
 
     const tabs = buildDocxContextualTabs(context(editor));
     const design = tabById(tabs, "table-design");
@@ -179,7 +182,7 @@ describe("buildDocxContextualTabs", () => {
   it("exposes no contextual tab for a caret in a plain paragraph", () => {
     const editor = createEditor({ type: "doc", content: [paragraph("Body")] });
     editor.commands.setTextSelection(2);
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
 
     for (const tab of buildDocxContextualTabs(context(editor))) {
       expect(tab.contextual?.when).toBe(false);
@@ -190,7 +193,7 @@ describe("buildDocxContextualTabs", () => {
     const editor = createEditor(imageDocument);
     const [imagePos] = positions(editor, "docProtected");
     editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, imagePos!)));
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
 
     const tabs = buildDocxContextualTabs(context(editor));
     const picture = tabById(tabs, "picture-format");
@@ -207,7 +210,7 @@ describe("buildDocxContextualTabs", () => {
     expect(insertDocxShape(editor, "rect", "Rectangle")).toBe(true);
     const [shapePos] = positions(editor, "docProtected");
     editor.commands.setNodeSelection(shapePos!);
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
 
     const tabs = buildDocxContextualTabs(context(editor));
     const shape = tabById(tabs, "shape-format");
@@ -218,7 +221,7 @@ describe("buildDocxContextualTabs", () => {
   });
 
   it("keeps every contextual tab hidden without a live editor", () => {
-    publishDocxEditor(null);
+    testScope.publishEditor(null);
     for (const tab of buildDocxContextualTabs(context(createEditor({ type: "doc", content: [paragraph("x")] })))) {
       expect(tab.contextual?.when).toBe(false);
     }
@@ -230,7 +233,7 @@ describe("label keys resolve and never render a raw placeholder", () => {
   function allTabs() {
     const editor = createEditor(tableDocument);
     caretInFirstCell(editor);
-    publishDocxEditor(editor);
+    testScope.publishEditor(editor);
     return buildDocxContextualTabs(context(editor));
   }
 

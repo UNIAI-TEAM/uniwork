@@ -53,6 +53,7 @@ import { MarkdownPrintMenuItems, MarkdownPrintShortcut } from "./wysiwyg/print-m
 import { PrintNotice, usePrintNotice } from "./wysiwyg/print-notice";
 import { createBrowserPrintPort } from "../print";
 import type { MarkdownEditorProps, MarkdownOpenOutcome } from "./types";
+import { useOfficeDocumentActive } from "../common/document-active";
 
 /** The two canvases the surface switches between. Visual is the demo default. */
 type MarkdownViewMode = "visual" | "source";
@@ -403,17 +404,17 @@ export function MarkdownEditor<TSnapshot = unknown>({
   // panel closes with Escape, focus falls to `document.body` and the press is
   // lost. This window listener covers that gap - a press inside the landmark is
   // skipped by the containment check AND by the section's `defaultPrevented`.
+  // UNI-957: only while this document is the visible one.
+  const documentActive = useOfficeDocumentActive();
   useEffect(() => {
     const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing) return;
-      if (event.key.toLowerCase() !== "s" || event.defaultPrevented) return;
-      const target = event.target;
-      if (target instanceof Node && sectionRef.current?.contains(target)) return;
+      if (!documentActive || !(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing || event.key.toLowerCase() !== "s" || event.defaultPrevented) return;
+      if (event.target instanceof Node && sectionRef.current?.contains(event.target)) return;
       save("shortcut");
     };
     window.addEventListener("keydown", onWindowKeyDown);
     return () => window.removeEventListener("keydown", onWindowKeyDown);
-  }, [save]);
+  }, [documentActive, save]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
@@ -541,7 +542,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
                       the live TipTap instance and render nothing until their
                       trigger fires - a typed `/`, or a selection in a table. */}
                   <MarkdownSlash editor={instance} />
-                  <MarkdownTableMenu editor={instance} />
+                  <MarkdownTableMenu editor={documentActive ? instance : null} />
                   <MarkdownWysiwygEditor
                     documentKey={documentKey}
                     editor={editor}

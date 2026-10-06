@@ -41,6 +41,7 @@ import {
   type FindReplacePanelHandle,
 } from "../common/find";
 import type { TextEditorHandle } from "../source-editor-types";
+import { useOfficeDocumentActiveRef } from "../common/document-active";
 
 /** The imperative surface a host's chrome affordance (C6) calls. */
 export interface HtmlFindHandle {
@@ -97,8 +98,11 @@ export function HtmlFind({
   // Ctrl/Cmd+F is find-only, Ctrl/Cmd+H shows the replace row. Capture on the
   // document so the browser's own find never wins AND CodeMirror's `Mod-f`
   // binding is skipped (a prevented event is not "for" the editor).
+  // UNI-957: a hidden tab's panel must not answer the shortcut.
+  const documentActiveRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!documentActiveRef.current) return;
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
       const key = event.key.toLowerCase();
       if (key !== "f" && key !== "h") return;
@@ -107,7 +111,7 @@ export function HtmlFind({
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [openWith]);
+  }, [documentActiveRef, openWith]);
 
   // Follow the shared text port, so an external edit (or a replacement applied
   // here) re-runs the matcher on the new bytes.

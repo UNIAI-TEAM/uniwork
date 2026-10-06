@@ -2,13 +2,13 @@
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- the editor application landmark captures the host Save shortcut */
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "./commands";
 import { DocxContextMenuSurface } from "./context-menu/docx-context-menu-surface";
 import { DocxPrintMenuItem, DocxPrintNotice, runDocxPrint } from "./export/docx-print-entry";
-import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
+import { createDocxDocumentScope, DocxDocumentScopeProvider } from "./editor-store";
 import { OfficeFrame } from "../frame/office-frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { createBrowserPrintPort } from "../print";
@@ -85,9 +85,23 @@ export function DocxEditor<TSnapshot = unknown>({
   translateRef.current = t;
 
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available";
-  // The context menu needs a TipTap Editor, not the host handle: read the
-  // editor the lane publishes from its schema extension (./editor-store).
-  const liveEditor = useSyncExternalStore(subscribeDocxLiveEditor, getDocxLiveEditor, getDocxLiveEditor);
+  // UNI-957: everything chrome shares across subtrees (live editor, Find, zoom,
+  // ribbon dialogs, the DOM root) lives in this document's own scope, so two
+  // DOCX documents mounted in one page never reach each other's state.
+  const [scope] = useState(createDocxDocumentScope);
+  // The context menu needs a TipTap Editor, not the host handle: the command
+  // runtime this handle drives reads it, and the scope publishes it to the rest
+  // of the chrome. Read on every render: open/dispose swap it under the handle.
+  // The handle builds its TipTap editor inside open(), before viewState turns
+  // "ready", so the ready render already sees it (review r1 n1).
+  const liveEditor = viewState === "ready" ? ((editor.commands as DocxCommandRuntime | undefined)?.liveEditor?.() ?? null) : null;
+  useLayoutEffect(() => {
+    scope.publishEditor(liveEditor);
+  }, [scope, liveEditor]);
+  useEffect(() => () => scope.publishEditor(null), [scope]);
+  const bindRoot = useCallback((node: HTMLDivElement | null) => {
+    scope.root.current = node;
+  }, [scope]);
   // Capability identity is semantic input to the session. Keep the object and
   // callbacks in refs so shell identity churn does not restart an active open.
   const capabilityStatus = capability?.status;
@@ -246,6 +260,7 @@ export function DocxEditor<TSnapshot = unknown>({
     onRedo: redo,
     onSave: showDocumentControls ? save : undefined,
     print,
+    docScope: scope,
   };
   printContextRef.current = viewState === "ready" ? sharedContext : null;
   // UNI-952: Ctrl/Cmd+P anywhere on the page (the Office shell's one listener)
@@ -259,12 +274,13 @@ export function DocxEditor<TSnapshot = unknown>({
   const printCommands = sharedContext.commands;
   const printReady = sharedContext.format?.docxExportReady ?? false;
   const headerPrintItem = useMemo(
-    () => <DocxPrintMenuItem commands={printCommands} print={print} ready={printReady} />,
-    [printCommands, print, printReady],
+    () => <DocxPrintMenuItem commands={printCommands} print={print} docScope={scope} ready={printReady} />,
+    [printCommands, print, scope, printReady],
   );
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
+    <DocxDocumentScopeProvider scope={scope}>
+    <div ref={bindRoot} className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {showDocumentControls ? <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="docx-open-state">
@@ -279,7 +295,7 @@ export function DocxEditor<TSnapshot = unknown>({
           className="bg-office-canvas"
           ribbon={<DocxToolbar {...sharedContext} />}
           subbar={<DocxFindPanel {...sharedContext} />}
-          statusBar={<DocxStatusBar selection={selection} help={<DocxShortcutsHelp {...sharedContext} />} />}
+          statusBar={<DocxStatusBar selection={selection} docScope={scope} help={<DocxShortcutsHelp {...sharedContext} />} />}
         >
           <div className="flex h-full min-h-0 min-w-0 flex-col" data-testid="docx-canvas">
             {/* A6-wire: attaches the zoom controller to the surface below and
@@ -311,6 +327,7 @@ export function DocxEditor<TSnapshot = unknown>({
         </div>
       )}
     </div>
+    </DocxDocumentScopeProvider>
   );
 }
 

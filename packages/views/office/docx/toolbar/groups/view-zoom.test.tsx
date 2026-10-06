@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { DocxToolbarGroupContext } from "../types";
 import { ViewZoomGroup } from "./view-zoom";
+import { createDocxDocumentScope } from "../../editor-store";
 
 function context(format: DocxToolbarGroupContext["format"]): DocxToolbarGroupContext {
   const coordinatorState = {
@@ -24,6 +25,7 @@ function context(format: DocxToolbarGroupContext["format"]): DocxToolbarGroupCon
     error: null,
   };
   return {
+    docScope: createDocxDocumentScope(),
     editor: {
       format: "docx",
       open: vi.fn(async () => undefined),

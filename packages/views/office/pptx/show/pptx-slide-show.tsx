@@ -31,6 +31,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOfficeDocumentActiveRef } from "../../common/document-active";
 import { SvgNodeView, type PptxCanvasContent } from "../canvas/pptx-canvas-surface";
 import { firstVisibleFrom, isShowActivationKey, isShowInteractiveTarget, resolveShowNavAction, visibleShowTarget, type PptxShowNavAction } from "./show-nav";
 
@@ -157,8 +158,11 @@ export function PptxSlideShow({
     [ended, exit, hidden, index, onIndexChange, slideCount],
   );
 
+  const activeRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // UNI-957: a show behind a hidden desktop tab must not swallow the visible deck's keys.
+      if (!activeRef.current) return;
       if (isHistoryChord(event)) {
         event.preventDefault();
         event.stopPropagation();
@@ -176,7 +180,7 @@ export function PptxSlideShow({
     // a key the show consumes never reaches them.
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [exit, navigate]);
+  }, [activeRef, exit, navigate]);
 
   const counter = t("show.counter", { current: slideCount ? index + 1 : 0, total: slideCount });
   const atStart = visibleShowTarget("previous", index, slideCount, hidden) === index;

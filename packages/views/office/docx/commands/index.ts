@@ -77,6 +77,9 @@ export type DocxCommandRuntime = DocxBaseCommands &
     emitState(): void;
     /** Drops every subscriber; the editing handle calls this on dispose. */
     clearListeners(): void;
+    /** The TipTap editor these commands drive (UNI-957: the DocxEditor that
+     *  renders this handle publishes it into its own document scope). */
+    liveEditor(): Editor | null;
   };
 
 export type DocxCommandAreaFactory<TCommands extends object = object, TState extends object = object> = (
@@ -149,6 +152,7 @@ export function createDocxCommandRuntime(
     subscribe,
     emitState,
     clearListeners,
+    liveEditor: getEditor,
   } as unknown as DocxCommandRuntime;
   return runtime;
 }

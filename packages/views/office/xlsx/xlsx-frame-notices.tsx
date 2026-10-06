@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { subscribeCommandRefusals } from "./fire-command";
 import { RuleSetDropNotice } from "./conditional-format/rule-set-drop-notice";
 import { useRuleSetDropRestore, type RuleSetRestoreGrid } from "./conditional-format/use-rule-set-drop-restore";
+import type { XlsxToolbarCommands } from "./toolbar/types";
 import type { XlsxEditorHandle } from "./types";
 
 export interface XlsxFrameNoticesProps {
@@ -17,13 +18,15 @@ export interface XlsxFrameNoticesProps {
   editor?: Pick<XlsxEditorHandle, "droppedRuleSets">;
   /** The live grid: a drop restores what the grid paints (r3 MA-3). */
   grid?: RuleSetRestoreGrid;
+  /** This document's command port: only its refusals raise the notice. */
+  commands?: XlsxToolbarCommands;
 }
 
 /** The frame subbar notices: recalculation progress and the two inline errors. */
-export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor, grid }: XlsxFrameNoticesProps) {
+export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor, grid, commands }: XlsxFrameNoticesProps) {
   const { t } = useTranslation();
   const [commandRefused, setCommandRefused] = useState(false);
-  useEffect(() => subscribeCommandRefusals(() => setCommandRefused(true)), []);
+  useEffect(() => subscribeCommandRefusals(() => setCommandRefused(true), commands), [commands]);
   useRuleSetDropRestore(saveErrorCode, editor, grid);
   return (
     <>

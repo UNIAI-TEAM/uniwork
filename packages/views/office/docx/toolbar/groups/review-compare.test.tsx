@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DocxCommandRuntime } from "../../commands";
 import type { DocxToolbarGroupContext } from "../types";
 import { ReviewCompareGroup } from "./review-compare";
+import { createDocxDocumentScope } from "../../editor-store";
 
 vi.mock("../../compare/read-compare", async (original) => ({
   ...(await original<typeof import("../../compare/read-compare")>()),
@@ -19,6 +20,7 @@ function runtime(): DocxCommandRuntime {
 function renderGroup(options: { commands?: DocxCommandRuntime; ready?: boolean; readOnly?: boolean } = {}) {
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as DocxToolbarGroupContext["editor"],
     coordinator: {} as DocxToolbarGroupContext["coordinator"],
     format: { docxCompareReady: options.ready ?? true } as unknown as DocxToolbarGroupContext["format"],

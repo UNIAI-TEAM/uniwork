@@ -4,6 +4,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { DocxStatusBar, readDocumentLang } from "../status-bar";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import type { DocxEditorHandle, DocxSaveCoordinator } from "../types";
+import { createDocxDocumentScope } from "../editor-store";
 
 initI18n();
 
@@ -49,6 +50,7 @@ function editor(): DocxEditorHandle {
 /** The shared context docx-editor.tsx spreads into every chrome slot. */
 function context(): DocxToolbarGroupContext {
   return {
+    docScope: createDocxDocumentScope(),
     editor: editor(),
     coordinator: coordinator(),
     format: null,

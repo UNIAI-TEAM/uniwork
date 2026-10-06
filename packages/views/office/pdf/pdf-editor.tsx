@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOfficeDocumentActive } from "../common/document-active";
 import { EngineBoundaryError } from "@uniwork/office-contracts";
 import { PdfErrorState } from "./pdf-error-state";
 import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
@@ -121,6 +122,8 @@ function isEditableTarget(target: EventTarget): boolean {
 
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange, printPort }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
+  // UNI-957: the desktop keeps inactive tabs mounted; window-level resize and focus must only act for the visible document.
+  const documentActive = useOfficeDocumentActive();
   const [viewState, setViewState] = useState<PdfViewState>("opening");
   const [failure, setFailure] = useState<PdfOpenFailure | null>(null);
   const [snapshot, setSnapshot] = useState<PdfSnapshot | null>(null);
@@ -240,7 +243,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   }, [documentKey, retryToken, capabilityOperation, capabilityStatus]);
 
   useEffect(() => {
-    if (viewState !== "ready") return undefined;
+    if (viewState !== "ready" || !documentActive) return undefined;
     const apply = () => {
       if (initialFitDoneRef.current === documentKey) return;
       const pane = canvasRef.current;
@@ -255,17 +258,17 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     // to measure it in a real host (and the only signal jsdom offers).
     window.addEventListener("resize", apply);
     return () => window.removeEventListener("resize", apply);
-  }, [documentKey, viewState]);
+  }, [documentKey, viewState, documentActive]);
 
   // The key handler lives on the editor landmark, so a shortcut pressed right
   // after load (focus still on body) would reach the browser instead: take focus
   // once the document is ready unless something else already holds it.
   useEffect(() => {
-    if (viewState !== "ready") return;
+    if (viewState !== "ready" || !documentActive) return;
     const active = document.activeElement;
     // r3 F1: a focus the user did not ask for draws no focus ring where supported.
     if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
-  }, [documentKey, viewState]);
+  }, [documentKey, viewState, documentActive]);
 
   const submitPassword = useCallback(async (password: string) => {
     const activeOpen = openRef.current;
@@ -429,7 +432,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     }
   }, [fitPage, fitWidth, redo, rotateSelected, save, undo, zoomIn, zoomOut]);
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.nativeEvent.isComposing) return;
+    // A key that still lands in a hidden tab's PDF (UNI-957) is not for it.
+    if (event.nativeEvent.isComposing || !documentActive) return;
     const modifier = event.metaKey || event.ctrlKey;
     if (!modifier) return;
     const key = event.key.toLowerCase();
@@ -437,7 +441,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     else if (key === "f" && !event.shiftKey) { event.preventDefault(); toggleFind(); }
     else if (key === "z" && !event.shiftKey && !isEditableTarget(event.target)) { event.preventDefault(); undo(); }
     else if ((key === "y" || (key === "z" && event.shiftKey)) && !isEditableTarget(event.target)) { event.preventDefault(); redo(); }
-  }, [redo, save, toggleFind, undo]);
+  }, [documentActive, redo, save, toggleFind, undo]);
 
   const canEditText = capability?.operation === "serialize" && capability.status === "available";
   const canReplaceImage = canEditText;

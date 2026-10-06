@@ -16,7 +16,8 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { isPrintBusy, type OfficePrintPort } from "../../print";
-import { createRibbonController } from "../toolbar/groups/ribbon-open-store";
+import { useDocxDocumentScope } from "../editor-store";
+import { scopedRibbonController } from "../toolbar/groups/ribbon-open-store";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { printDocxDocument } from "./docx-print";
 import { resolveDocxPrintHeaderFooter } from "./docx-print-header-footer";
@@ -31,7 +32,9 @@ const DOCX_PRINT_KEYS = {
 
 type DocxPrintNoticeKind = "busy" | "failed";
 
-const printNotice = createRibbonController<DocxPrintNoticeKind | null>(null);
+// UNI-957: one notice per document, so a hidden tab never shows another
+// document's print outcome.
+const printNoticeFor = scopedRibbonController<DocxPrintNoticeKind | null>(null);
 // Ports with a job in flight. Both shipped ports settle (the browser one
 // synchronously, the desktop one answers print_timeout), so an entry is never
 // stuck; keying by port keeps one editor's job from blocking another's.
@@ -40,12 +43,13 @@ const pendingPorts = new WeakSet<OfficePrintPort>();
 /** How long a print notice stays before it clears itself. */
 const NOTICE_MS = 6000;
 
-type DocxPrintContext = Pick<DocxToolbarGroupContext, "commands" | "print">;
+type DocxPrintContext = Pick<DocxToolbarGroupContext, "commands" | "print" | "docScope">;
 
 /** Build the copy from the live document and print it through the injected port. */
 export async function runDocxPrint(context: DocxPrintContext): Promise<void> {
-  const { commands, print } = context;
+  const { commands, print, docScope } = context;
   if (!commands || !print || pendingPorts.has(print.port)) return;
+  const printNotice = printNoticeFor(docScope);
   pendingPorts.add(print.port);
   printNotice.set(null);
   try {
@@ -99,12 +103,13 @@ export function DocxPrintMenuItem({ ready, ...context }: DocxPrintMenuItemProps)
 /** The print outcome line: a polite status that survives on both hosts (no toast provider assumed). Mounted once by DocxEditor. */
 export function DocxPrintNotice() {
   const { t } = useTranslation();
+  const printNotice = printNoticeFor(useDocxDocumentScope());
   const notice = useSyncExternalStore(printNotice.subscribe, printNotice.get, printNotice.get);
   useEffect(() => {
     if (!notice) return undefined;
     const timer = setTimeout(() => printNotice.set(null), NOTICE_MS);
     return () => clearTimeout(timer);
-  }, [notice]);
+  }, [notice, printNotice]);
   return (
     <div role="status" className="pointer-events-none fixed inset-x-0 bottom-12 z-50 flex justify-center px-4">
       {notice ? (

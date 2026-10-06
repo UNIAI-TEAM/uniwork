@@ -95,6 +95,9 @@ export interface XlsxToolbarGroupProps {
   host?: XlsxGridHostPort;
   /** The mounted workbook id (`file-<sha256>`); null without a live grid. */
   unitId?: string | null;
+  /** The open document this toolbar drives; keys per-document chrome state
+   *  such as the last applied number format (UNI-957). */
+  documentKey?: string;
   /** The active sheet's live name; the groups' reads target it. */
   sheetName?: string | null;
   /** Live-name -> live-id resolver (a session rename keeps the id). */

@@ -7,6 +7,7 @@ import { chooseItem } from "../../../test/menu-interactions";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxExportGroup, docxExportRibbonItems } from "./docx-export-menu";
 import { DocxPrintMenuItem, DocxPrintNotice, runDocxPrint } from "./docx-print-entry";
+import { createDocxDocumentScope, DocxDocumentScopeProvider, type DocxDocumentScope } from "../editor-store";
 import { emptyHeaderFooterState } from "../header-footer/header-footer-state";
 
 const COPY = "<!DOCTYPE html><html><body><section>copy</section></body></html>";
@@ -27,9 +28,10 @@ function port(outcome: OfficePrintOutcome = { outcome: "printed" }) {
   return { print: vi.fn<OfficePrintPort["print"]>(async () => outcome) };
 }
 
-function context(options: { commands?: DocxCommandRuntime; ready?: boolean; port?: OfficePrintPort } = {}): DocxToolbarGroupContext {
+function context(options: { commands?: DocxCommandRuntime; ready?: boolean; port?: OfficePrintPort; docScope?: DocxDocumentScope } = {}): DocxToolbarGroupContext {
   const commands = "commands" in options ? options.commands : runtime();
   return {
+    docScope: options.docScope ?? createDocxDocumentScope(),
     editor: {} as DocxToolbarGroupContext["editor"],
     coordinator: {} as DocxToolbarGroupContext["coordinator"],
     format: { docxExportReady: options.ready ?? true } as unknown as DocxToolbarGroupContext["format"],
@@ -51,7 +53,9 @@ function renderGroup(options: Parameters<typeof context>[0] = {}) {
   render(
     <>
       <DocxExportGroup {...props} />
-      <DocxPrintNotice />
+      <DocxDocumentScopeProvider scope={props.docScope}>
+        <DocxPrintNotice />
+      </DocxDocumentScopeProvider>
     </>,
   );
   return { commands: props.commands };
@@ -100,7 +104,7 @@ describe("DocxExportGroup", () => {
       docxPrintHeaderFooterSource: vi.fn(() => ({ evenAndOddHeaders: false, sections: [section(0, "Phần 1"), section(1, "Phần 2")] })),
       listDocxHeaderFooterEdits: vi.fn(() => [{ op: "set_header_footer", slot: "header", hf: { text: "Đã sửa" } }]),
     });
-    await runDocxPrint({ commands, print: { port: printPort, title: "Hợp đồng" } });
+    await runDocxPrint({ commands, print: { port: printPort, title: "Hợp đồng" }, docScope: createDocxDocumentScope() });
     const options = vi.mocked(commands.buildDocxPrintCopy).mock.calls[0]?.[0];
     expect(options?.headerFooter?.sections.map((entry) => entry.header.default?.text)).toEqual(["Phần 1", "Đã sửa"]);
     expect(printPort.print).toHaveBeenCalledTimes(1);
@@ -164,6 +168,30 @@ describe("DocxExportGroup", () => {
     expect(await screen.findByTestId("docx-print-notice")).toHaveAttribute("data-print-notice", "failed");
   });
 
+  it("shows a print outcome only in the document that printed (UNI-957)", async () => {
+    const a = context({ port: port({ outcome: "failed", reason: "print_call_failed" }) });
+    const b = createDocxDocumentScope();
+    render(
+      <>
+        <div data-testid="doc-a">
+          <DocxDocumentScopeProvider scope={a.docScope}>
+            <DocxPrintNotice />
+          </DocxDocumentScopeProvider>
+        </div>
+        <div data-testid="doc-b">
+          <DocxDocumentScopeProvider scope={b}>
+            <DocxPrintNotice />
+          </DocxDocumentScopeProvider>
+        </div>
+      </>,
+    );
+    await act(async () => {
+      await runDocxPrint(a);
+    });
+    expect(within(screen.getByTestId("doc-a")).getByTestId("docx-print-notice")).toHaveAttribute("data-print-notice", "failed");
+    expect(within(screen.getByTestId("doc-b")).queryByTestId("docx-print-notice")).toBeNull();
+  });
+
   it("stays silent when the dialog is cancelled", async () => {
     const printPort = port({ outcome: "cancelled" });
     renderGroup({ port: printPort });
@@ -218,14 +246,14 @@ describe("DocxPrintMenuItem", () => {
 
   it("prints from the page header menu through the same action", async () => {
     const printPort = port();
-    renderItem({ commands: runtime(), print: { port: printPort, title: "Doc" }, ready: true });
+    renderItem({ commands: runtime(), print: { port: printPort, title: "Doc" }, docScope: createDocxDocumentScope(), ready: true });
     const menu = await screen.findByRole("menu");
     await chooseItem(menu, "In", "mouse");
     await waitFor(() => expect(printPort.print).toHaveBeenCalledWith({ html: COPY, title: "Doc" }));
   });
 
   it("is disabled until a document is open", async () => {
-    renderItem({ commands: runtime(), print: { port: port(), title: "Doc" }, ready: false });
+    renderItem({ commands: runtime(), print: { port: port(), title: "Doc" }, docScope: createDocxDocumentScope(), ready: false });
     await screen.findByRole("menu");
     expect(screen.getByTestId("docx-header-print")).toHaveAttribute("aria-disabled", "true");
   });

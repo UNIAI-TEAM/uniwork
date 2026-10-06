@@ -18,13 +18,6 @@ import type { PptxDeckRenderer } from "./deck-renderer";
 export const PPTX_THUMBNAIL_WIDTH = 160;
 
 const CACHE_LIMIT = 256;
-const cache = new Map<string, string>();
-
-/** Test seam and deck-switch reset. */
-export function clearPptxThumbnailCache(): void {
-  cache.clear();
-}
-
 /** Cache key of one thumbnail: the slide, its deck revision, the build width and the theme the
  *  chip palette was resolved for (a light/dark switch must not serve the previous colours). */
 export function pptxThumbnailKey(slideId: string, revision: string | number | undefined, widthPx: number, theme = "light"): string {
@@ -79,6 +72,9 @@ function sameThumbnails(a: Map<string, string>, b: Map<string, string>): boolean
 
 /** `slideId -> data URL`, filled in as slides are rendered. */
 export function usePptxThumbnails({ renderer, slides, revision, widthPx = PPTX_THUMBNAIL_WIDTH, theme }: PptxThumbnailOptions): Map<string, string> {
+  // UNI-957: per document. Slide ids ("slide1") and revisions repeat across decks, so a module cache
+  // would hand one open deck the other deck's images.
+  const cacheRef = useRef(new Map<string, string>());
   const [thumbnails, setThumbnails] = useState<Map<string, string>>(() => new Map());
   const slidesRef = useRef(slides);
   slidesRef.current = slides;
@@ -105,6 +101,7 @@ export function usePptxThumbnails({ renderer, slides, revision, widthPx = PPTX_T
       // nothing and, with an unstable dependency, keep the loop alive.
       if (!sameThumbnails(thumbnailsRef.current, next)) setThumbnails(next);
     };
+    const cache = cacheRef.current;
     const active = rendererRef.current;
     if (!rendererReady || !active || !signature) {
       publish(new Map());

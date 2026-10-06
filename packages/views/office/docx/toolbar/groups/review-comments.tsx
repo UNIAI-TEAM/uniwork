@@ -13,8 +13,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import type { RibbonItem } from "../../../ribbon";
 import { groupCommentThreads } from "../../comments/docx-comment-model";
 import { DocxCommentsPanel } from "../../comments/docx-comments-panel";
+import { type DocxDocumentScope } from "../../editor-store";
 import type { DocxToolbarGroupContext } from "../types";
-import { createRibbonController, createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonBound, useRibbonOpen } from "./ribbon-open-store";
+import { scopedRibbonController, scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonBound, useRibbonOpen } from "./ribbon-open-store";
 
 /** Author stored when no session name is available (identity in the file, not
  * UI copy - the panel still renders names through the normal flow). */
@@ -24,17 +25,21 @@ const DEFAULT_COMMENT_AUTHOR = "UniWork";
 const EMPTY_ANCHORS: ReadonlyMap<string, string> = new Map<string, string>();
 
 /** Shared open / compose / active state of the comments pane. */
-const commentsPane = createRibbonOpenStore();
-const commentsComposing = createRibbonController(false);
-const commentsActiveId = createRibbonController<string | null>(null);
+const commentsPaneFor = scopedRibbonOpenStore();
+const commentsComposingFor = scopedRibbonController(false);
+const commentsActiveIdFor = scopedRibbonController<string | null>(null);
 
-function openComposer(): void {
+function openComposer(scope: DocxDocumentScope): void {
+  const commentsPane = commentsPaneFor(scope);
+  const commentsComposing = commentsComposingFor(scope);
   commentsPane.open();
   commentsComposing.set(true);
 }
 
 /** The typed ribbon items for the Review > comments group. */
-export function reviewCommentsRibbonItems({ format, commands, readOnly }: DocxToolbarGroupContext): readonly RibbonItem[] {
+export function reviewCommentsRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const { format, commands, readOnly } = context;
+  const commentsPane = commentsPaneFor(context.docScope);
   const editable = !readOnly && !!commands;
   const canComment = editable && (commands?.canAddDocxComment() ?? false);
   return [
@@ -53,7 +58,7 @@ export function reviewCommentsRibbonItems({ format, commands, readOnly }: DocxTo
           labelKey: "office.docx.comments.add",
           icon: MessageSquarePlus,
           disabled: !canComment,
-          onSelect: openComposer,
+          onSelect: () => openComposer(context.docScope),
         },
         {
           id: "review-comments-open",
@@ -70,7 +75,10 @@ export function reviewCommentsRibbonItems({ format, commands, readOnly }: DocxTo
 
 /** Review > comments: the typed items live on the registry entry; this
  * component owns the pane and is mounted by `RibbonDialogHosts`. */
-export function ReviewCommentsGroup({ format, commands, readOnly }: DocxToolbarGroupContext) {
+export function ReviewCommentsGroup({ format, commands, readOnly, docScope: scope }: DocxToolbarGroupContext) {
+  const commentsPane = commentsPaneFor(scope);
+  const commentsComposing = commentsComposingFor(scope);
+  const commentsActiveId = commentsActiveIdFor(scope);
   const { t } = useTranslation();
   const { user } = useSession();
   const [open] = useRibbonOpen(commentsPane);

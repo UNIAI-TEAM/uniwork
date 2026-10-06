@@ -3,6 +3,8 @@
 // driver paints on `.doc-zoom`.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { useState, type ReactNode } from "react";
+import { createDocxDocumentScope, DocxDocumentScopeProvider } from "../editor-store";
 import { DocxViewChrome } from "./docx-view-chrome";
 import { DOCX_ZOOM_CSS_VAR } from "./zoom-factor";
 import {
@@ -11,9 +13,19 @@ import {
   type DocxZoomController,
 } from "./zoom-controller";
 
+/** The document root a DocxEditor provides (UNI-957): scope + its root element. */
+function ScopedRoot({ children, testId }: { children: ReactNode; testId?: string }) {
+  const [scope] = useState(createDocxDocumentScope);
+  return (
+    <DocxDocumentScopeProvider scope={scope}>
+      <div data-testid={testId} ref={(node) => { scope.root.current = node; }}>{children}</div>
+    </DocxDocumentScopeProvider>
+  );
+}
+
 function Fixture({ controller, version = 1 }: { controller: DocxZoomController; version?: number }) {
   return (
-    <div data-testid="docx-editor">
+    <ScopedRoot testId="docx-editor">
       <div data-testid="docx-canvas">
         <DocxViewChrome controller={controller} />
         <div data-testid="docx-document-surface">
@@ -26,7 +38,7 @@ function Fixture({ controller, version = 1 }: { controller: DocxZoomController; 
           </div>
         </div>
       </div>
-    </div>
+    </ScopedRoot>
   );
 }
 

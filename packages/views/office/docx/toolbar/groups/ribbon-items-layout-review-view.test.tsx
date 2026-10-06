@@ -14,9 +14,11 @@ import { reviewCommentsRibbonItems } from "./review-comments";
 import { reviewCompareRibbonItems } from "./review-compare";
 import { reviewTrackChangesRibbonItems } from "./review-track-changes";
 import { viewNavigationRibbonItems } from "./view-navigation";
+import { createDocxDocumentScope } from "../../editor-store";
 
 function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarGroupContext {
   return {
+    docScope: createDocxDocumentScope(),
     editor: {} as DocxToolbarGroupContext["editor"],
     coordinator: {} as DocxToolbarGroupContext["coordinator"],
     format: null,
