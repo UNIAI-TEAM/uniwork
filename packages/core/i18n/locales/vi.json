@@ -11809,7 +11809,8 @@
       },
       "print": {
         "action": "In", "preparing": "Đang in…",
-        "failed": "Không thể in tài liệu."
+        "failed": "Không thể in tài liệu.",
+        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước."
       },
       "export": {
         "pages": "Xuất các trang thành PNG", "progress": "Đang xuất trang {{page}} / {{total}}…",

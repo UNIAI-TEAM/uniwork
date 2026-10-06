@@ -11833,7 +11833,8 @@
       },
       "print": {
         "action": "Print", "preparing": "Printing…",
-        "failed": "The document could not be printed."
+        "failed": "The document could not be printed.",
+        "busy": "A print dialog is already open. Finish or close it first."
       },
       "export": {
         "pages": "Export pages as PNG", "progress": "Exporting page {{page}} / {{total}}…",
