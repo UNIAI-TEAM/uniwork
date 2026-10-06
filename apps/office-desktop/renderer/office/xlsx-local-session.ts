@@ -2,7 +2,7 @@
 import { createSaveSettleGate } from "@uniwork/core/office";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
-import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, parseRuleSetDrops, planRuleSetDrops, ruleSetDropMessage, ruleSetsDroppedError, stableJson, withoutOperationsAt, withoutPendingOps, withPendingOps, type XlsxDroppedRuleSet, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
+import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, parseRuleSetDrops, pendingDropIndexes, planRuleSetDrops, ruleSetDropMessage, ruleSetHistory, ruleSetsDroppedError, stableJson, withoutOperationsAt, withoutPendingOps, withPendingOps, type XlsxDroppedRuleSet, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopFileXlsxResponseSchema, type DesktopDraftMetadata, type DesktopFileXlsxRequest } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 import { throwIfLocalFileFailed } from "./local-file-failure";
@@ -214,11 +214,13 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
           const later = pending.filter((entry) => entry.revision > captured.snapshot.revision).map((entry) => entry.operation);
           const plan = planRuleSetDrops(refusals, captured.operations, committedOps, later);
           dropped = plan.drops;
+          const queued = pendingDropIndexes(plan, captured.operations.length);
           captured.operations = withoutOperationsAt(captured.operations, plan.indexes);
-          pending = withoutOperationsAt(pending, plan.indexes);
+          // R4-3: later snapshots of a refused sheet go too, so one Save converges.
+          pending = withoutOperationsAt(pending, queued);
           const live = (snapshot as { pendingOps?: readonly unknown[] } | null)?.pendingOps;
           if (snapshot && Array.isArray(live)) {
-            const kept = withoutOperationsAt(live, plan.indexes);
+            const kept = withoutOperationsAt(live, queued);
             snapshot = kept.length ? withPendingOps(withoutPendingOps(snapshot), kept) : withoutPendingOps(snapshot);
           }
           throw ruleSetsDroppedError();
@@ -248,7 +250,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       // Local revisions are decimal strings; never feed a fractional Windows
       // mtime into BigInt, and never hand the coordinator a non-advancing base.
       const nextRevision = String(Math.trunc(result.metadata.modifiedAtMs));
-      if (candidate) { committedOps.push(...candidate.operations); committed = structuredClone(candidate.snapshot); pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision); baseRevision = nextRevision; baseVersionId = versionId; lastCommit = { intentId: intent.intentId, revision: nextRevision }; candidates.clear(); }
+      if (candidate) { committedOps.push(...ruleSetHistory(candidate.operations)); committed = structuredClone(candidate.snapshot); pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision); baseRevision = nextRevision; baseVersionId = versionId; lastCommit = { intentId: intent.intentId, revision: nextRevision }; candidates.clear(); }
       // F4: the live stream keeps exactly the edits the committed file lacks (typed
       // during the in-flight save or after), so a draft taken now recovers them and
       // never replays what the save already wrote.

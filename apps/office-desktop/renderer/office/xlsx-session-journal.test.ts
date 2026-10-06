@@ -31,12 +31,14 @@ function deferred() {
 function makeBridge(opened = workbook()) {
   let hold: Promise<void> | null = null;
   let refuseEdit: string | null = null;
+  let holdEdit: Promise<void> | null = null;
   let modified = 1_000;
   const call = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
     if (channel === "desktop:office-job" || channel === "desktop:file-xlsx") {
       // The local channel answers without the cloud job envelope fields.
       const job = channel === "desktop:office-job" ? { jobId: "job", documentId: "doc-j" } : {};
       if (payload.operation === "open") return { ...job, state: "completed", outputBase64: encode({ snapshot: opened, render_model: renderModel }) };
+      if (holdEdit) await holdEdit;
       if (refuseEdit !== null) {
         const reason = refuseEdit;
         refuseEdit = null;
@@ -58,7 +60,7 @@ function makeBridge(opened = workbook()) {
     if (channel === "desktop:draft-checkpoint") return { stored: true, generation: payload.generation };
     throw new Error("unexpected channel " + channel);
   });
-  return { call, refuseNextEdit: (reason: string) => { refuseEdit = reason; }, holdSaves: (gate: Promise<void> | null) => { hold = gate; } };
+  return { call, refuseNextEdit: (reason: string) => { refuseEdit = reason; }, holdSaves: (gate: Promise<void> | null) => { hold = gate; }, holdEdits: (gate: Promise<void> | null) => { holdEdit = gate; } };
 }
 
 const editJobs = (bridge: ReturnType<typeof makeBridge>) =>
@@ -129,9 +131,34 @@ describe.each(Object.entries(hosts))("desktop %s xlsx session journal", (_name, 
     bridge.refuseNextEdit('xlsx_rule_sets_dropped:[["cf",[0]]]');
     expect(await session.coordinator.save("button")).toEqual({ accepted: false, reason: "error" });
     expect(session.coordinator.getState()).toMatchObject({ state: "error", error: { code: "xlsx_rule_sets_dropped", retryable: false } });
-    expect(session.editor.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null }]);
+    expect(session.editor.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null, rules: 0 }]);
     expect(((await session.editor.captureSnapshot()).value as { pendingOps?: unknown[] }).pendingOps).toEqual([cell("A1", 5)]);
     expect(await session.coordinator.save("button")).toMatchObject({ accepted: true });
     expect(editJobs(bridge)).toEqual([[cfOp, cell("A1", 5)], [cell("A1", 5)]]);
+  });
+
+  // UNI-953 item 3 + r4 R4-3: edits typed while the refused save ran, among
+  // them a newer snapshot of the refused sheet, go out with ONE more Save.
+  it("saves everything typed during a refused save with one more Save", async () => {
+    const bridge = makeBridge();
+    const session = create(bridge);
+    const cfOp = { op: "set_conditional_formats", target: { sheet: "Data" }, attributes: { rules: [] } };
+    const dvOp = { op: "set_data_validations", target: { sheet: "Data" }, attributes: { rules: [] } };
+    await session.open.open();
+    await session.editor.edit?.([cfOp, cell("A1", 5)]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    const gate = deferred();
+    bridge.holdEdits(gate.promise);
+    bridge.refuseNextEdit('xlsx_rule_sets_dropped:[["cf",[0]]]');
+    const saving = session.coordinator.save("button");
+    await vi.waitFor(() => expect(editJobs(bridge)).toHaveLength(1));
+    await session.editor.edit?.([cell("B2", 8), cfOp, dvOp]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    gate.resolve();
+    bridge.holdEdits(null);
+    expect(await saving).toEqual({ accepted: false, reason: "error" });
+    expect(await session.coordinator.save("button")).toMatchObject({ accepted: true });
+    expect(editJobs(bridge).at(-1)).toEqual([cell("A1", 5), cell("B2", 8), dvOp]);
+    expect(session.coordinator.getState().state).toBe("saved");
   });
 });
