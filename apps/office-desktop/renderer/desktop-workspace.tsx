@@ -19,6 +19,7 @@ import { DesktopShell } from "./desktop-shell";
 import { DesktopTabStrip } from "./tab-strip";
 import { useAccountDrafts } from "./use-account-drafts";
 import { useLocalRecents } from "./use-local-recents";
+import { useOfficeFlags } from "./use-office-flags";
 
 const SESSION_GENERATION = "desktop-dev-session";
 export type SignedInMetadata = DesktopSessionMetadata & { status: "signed-in"; accountId: string; deploymentId: string };
@@ -61,6 +62,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   const [context, setContext] = useState<DesktopLibraryContextResponse | null>(null);
   const [contextError, setContextError] = useState(false);
   const [contextReload, setContextReload] = useState(0);
+  const officeAllows = useOfficeFlags(bridge, mode === "signed-in", contextReload);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const actionBusy = useRef(false);
@@ -147,9 +149,11 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     const document = opened.success ? opened.data.document : context?.success ? context.data.document : undefined;
     if (!document) throw new Error("office_open_invalid");
     if (document.workspaceId !== selected.workspaceId) throw new Error("workspace_mismatch");
+    // A format the server's flags switch off opens read-only, never in the editor.
+    const editable = officeAllows(document.format);
     const bytes = opened.success
-      ? { ...opened.data, format: document.format, canSave: allowSave && document.canEdit }
-      : { dataBase64: "", checksum: "", format: document.format, canSave: allowSave && document.canEdit };
+      ? { ...opened.data, format: document.format, canSave: allowSave && document.canEdit && editable }
+      : { dataBase64: "", checksum: "", format: document.format, canSave: allowSave && document.canEdit && editable };
     if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
   };
   const acceptLocal = (raw: unknown) => {

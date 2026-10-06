@@ -27,7 +27,7 @@ vi.mock("./office/session", async (importOriginal) => {
 beforeEach(() => sessions.clear());
 afterEach(() => settleDocxSessions(sessions));
 
-function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
+function harness(options: { flags?: Record<string, boolean>; failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = fixtureChecksum;
   const documents = Array.from({ length: 10 }, (_, index) => ({ id: `doc-${index}`, workspaceId: "ws", title: `Plan${index}.docx`, kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-01T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }));
   let account = "account";
@@ -43,6 +43,7 @@ function harness(options: { failSave?: boolean; failLogout?: boolean; readOnly?:
     if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
     if (channel === "desktop:auth-session") return { status: "signed-in", deploymentId: "lane", accountId: account };
     if (channel === "desktop:library-context") return { deployments: [{ id: "lane", name: "Server" }], accounts: [{ id: account, name: account }], organizations: [{ id: "org", name: "Org" }], workspaces: [{ id: "ws", name: "Workspace" }] };
+    if (channel === "desktop:public-config") return { flags: options.flags ?? { office_engine: true } };
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
     if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), version: savedVersion, revision: savedRevision, canEdit: !options.readOnly }, dataBase64: fixtureBase64, checksum: savedChecksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:tabs-update") { await options.beforeTabsUpdate?.(); return { updated: true }; }
@@ -149,6 +150,16 @@ it("closes an unchanged readonly document without a dirty leave prompt", async (
   fireEvent.keyDown(window, { key: "w", ctrlKey: true });
   await waitFor(() => expect(h.container.querySelector("#desktop-panel-doc-0")).toBeNull());
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("opens a cloud document read-only when its format flag or the engine flag is off", async () => {
+  for (const flags of [{ office_engine: true, office_docx: false }, { office_docx: true }, {}]) {
+    const h = harness({ flags });
+    await open(0);
+    expect(h.call).toHaveBeenCalledWith("desktop:public-config", expect.anything());
+    await waitFor(() => expect(h.container.querySelector("[data-testid='office-capability-readonly']") ?? h.container.querySelector("[data-testid='readonly-surface']")).not.toBeNull());
+    cleanup();
+  }
 });
 
 it("shows dirty state, cancels dirty close and keeps a failed dialog Save open", async () => {

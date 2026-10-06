@@ -132,7 +132,7 @@ Sidecar XLSX: không có biến riêng cần đặt.
 | `office_html_visual_edit` | tắt | Sửa HTML trực quan (chưa có giao diện) |
 
 1. Bật `documents` rồi `office_engine`: đặt trong file YAML (`FEATURE_FLAGS_FILE`) hoặc `FF_OFFICE_ENGINE=true`.
-2. Tắt/bật **riêng từng định dạng**: mỗi định dạng có cờ riêng, mặc định **bật** — `office_docx`, `office_xlsx`, `office_pptx`, `office_pdf`, `office_markdown`, `office_html`. Một định dạng chỉ sửa được khi `office_engine` **và** cờ của nó cùng bật. Để tắt một định dạng: `FF_OFFICE_DOCX=false` (đổi tên theo cờ) hoặc override trong file/org. Tệp định dạng đó mở ở màn xem/tải như khi tắt `office_engine`, không mở trình soạn; các định dạng khác không đổi. Desktop chưa đọc các cờ này: việc tắt riêng một định dạng hiện chỉ có hiệu lực trên web.
+2. Tắt/bật **riêng từng định dạng**: mỗi định dạng có cờ riêng, mặc định **bật** — `office_docx`, `office_xlsx`, `office_pptx`, `office_pdf`, `office_markdown`, `office_html`. Một định dạng chỉ sửa được khi `office_engine` **và** cờ của nó cùng bật. Để tắt một định dạng: `FF_OFFICE_DOCX=false` (đổi tên theo cờ) hoặc override trong file/org. Tệp định dạng đó mở ở màn xem/tải như khi tắt `office_engine`, không mở trình soạn; các định dạng khác không đổi. Desktop đọc cùng các cờ này (qua `GET /api/v1/config`, lấy lúc đăng nhập): tài liệu cloud thuộc định dạng bị tắt, hoặc khi không đọc được cấu hình, mở ở chế độ chỉ xem. Tệp cục bộ không bị cờ chặn.
 3. Cờ chỉ ẩn tính năng, không cấp quyền.
 
 ## 4. Kiểm tra sau deploy
