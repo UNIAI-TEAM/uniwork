@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
@@ -29,8 +29,8 @@ function stringPaths(dictionary: unknown): string[] {
 const range = { startRow: 0, endRow: 3, startColumn: 0, endColumn: 2 };
 const STYLE = { bg: { rgb: "#FFC7CE" }, cl: { rgb: "#9C0006" } };
 
-function renderDialog(preset: XlsxCfPreset, readOnly = false) {
-  const execute = vi.fn((_id: string, _params?: unknown) => true);
+function renderDialog(preset: XlsxCfPreset, readOnly = false, result: boolean | Promise<boolean> = true, blocked = false) {
+  const execute = vi.fn((_id: string, _params?: unknown) => result);
   const onClose = vi.fn();
   const view = render(
     <XlsxConditionalFormatDialog
@@ -40,6 +40,7 @@ function renderDialog(preset: XlsxCfPreset, readOnly = false) {
       range={range}
       commands={{ execute }}
       readOnly={readOnly}
+      blocked={blocked}
       onClose={onClose}
     />,
   );
@@ -49,7 +50,7 @@ function renderDialog(preset: XlsxCfPreset, readOnly = false) {
 const type = (testId: string, value: string) => fireEvent.change(screen.getByTestId(testId), { target: { value } });
 
 describe("XlsxConditionalFormatDialog", () => {
-  it("fires the greater-than rule and closes", () => {
+  it("fires the greater-than rule and closes", async () => {
     const { execute, onClose } = renderDialog("greaterThan");
     expect(screen.getByRole("dialog")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.conditionalFormat.titles.greaterThan") as string);
     type("xlsx-cf-first", "10");
@@ -64,7 +65,7 @@ describe("XlsxConditionalFormatDialog", () => {
         rule: { type: "highlightCell", subType: "number", operator: "greaterThan", value: 10, style: STYLE },
       },
     });
-    expect(onClose).toHaveBeenCalledOnce();
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("fires less-than, between, text and duplicate rules", () => {
@@ -115,5 +116,37 @@ describe("XlsxConditionalFormatDialog", () => {
     const subtree = (dictionary: unknown) => stringPaths(lookup(dictionary, "office.xlsx.conditionalFormat"));
     expect(subtree(viLocale).length).toBeGreaterThan(0);
     expect(subtree(viLocale)).toEqual(subtree(en));
+  });
+
+  it.each([
+    ["false", false],
+    ["async false", Promise.resolve(false)],
+  ])("stays open with a refused alert when the command returns %s, and retries", async (_name, result) => {
+    const { execute, onClose } = renderDialog("greaterThan", false, result);
+    type("xlsx-cf-first", "10");
+    fireEvent.click(screen.getByTestId("xlsx-cf-ok"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(lookup(viLocale, "office.xlsx.conditionalFormat.errors.refused") as string);
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("xlsx-cf-ok"));
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(2));
+    expect(onClose).not.toHaveBeenCalled();
+    type("xlsx-cf-first", "11");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("closes when the command resolves true asynchronously", async () => {
+    const { onClose } = renderDialog("duplicateValues", false, Promise.resolve(true));
+    fireEvent.click(screen.getByTestId("xlsx-cf-ok"));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it("explains an x14 sheet and keeps OK inert", () => {
+    const { execute, onClose } = renderDialog("duplicateValues", false, true, true);
+    expect(screen.getByRole("alert")).toHaveTextContent(lookup(viLocale, "office.xlsx.conditionalFormat.errors.x14Sheet") as string);
+    const ok = screen.getByTestId("xlsx-cf-ok");
+    expect(ok).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(ok);
+    expect(execute).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

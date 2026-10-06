@@ -67,6 +67,20 @@ describe("buildCfInnerRule", () => {
   });
 });
 
+describe("plain decimal numbers only", () => {
+  it("refuses hex, exponent, Infinity and blank values like the DV dialog", () => {
+    for (const raw of ["0x10", "1e3", "Infinity", " ", "1,5"]) {
+      expect(buildCfInnerRule("greaterThan", input(raw), "redText")).toEqual({ ok: false, error: "invalidNumber" });
+      expect(buildCfInnerRule("between", input("1", raw), "redText")).toEqual({ ok: false, error: "invalidNumber" });
+    }
+  });
+
+  it("still accepts signed and fractional plain decimals", () => {
+    expect(buildCfInnerRule("lessThan", input("-1.5"), "redText")).toMatchObject({ ok: true, inner: { value: -1.5 } });
+    expect(buildCfInnerRule("lessThan", input(" 10 "), "redText")).toMatchObject({ ok: true, inner: { value: 10 } });
+  });
+});
+
 describe("command params", () => {
   const range = { startRow: 0, endRow: 3, startColumn: 0, endColumn: 2 };
 

@@ -143,6 +143,15 @@ function listFormula(source: string): { formula: string } | XlsxDvFailure {
   return { formula };
 }
 
+/** A plain decimal ("10", "-1.5", ".5"): no hex, exponent, Infinity or blank.
+ *  Shared with the conditional-format presets. */
+export function parsePlainDecimal(raw: string): number | null {
+  const text = raw.trim();
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) return null;
+  const num = Number(text);
+  return Number.isFinite(num) ? num : null;
+}
+
 /** Checks one numeric/date value; returns the comparable number or a failure. */
 function parseValue(
   type: "whole" | "decimal" | "date",
@@ -188,7 +197,7 @@ export function buildDvRule(form: XlsxDvForm, range: XlsxDvRange, uid: string = 
   }
   const second = parseValue(form.type, "value2", form.value2);
   if ("code" in second) return { ok: false, failure: second };
-  if (form.operator === "between" && first.num > second.num) return fail("value2", "rangeOrder");
+  if (first.num > second.num) return fail("value2", "rangeOrder");
   return {
     ok: true,
     rule: { ...base, type: form.type, operator: form.operator, formula1: first.text, formula2: second.text },

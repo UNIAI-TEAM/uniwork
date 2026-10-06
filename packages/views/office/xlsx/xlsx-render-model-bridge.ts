@@ -84,6 +84,18 @@ export interface RendererWorkbookSheet {
   tables: RendererWorkbookTable[];
   comments: never[];
   pivotRanges: never[];
+  /** X01: per family, whether the file ships no rules, classic rules, or
+   *  Excel extended (x14) rules the declarative save cannot rewrite. The
+   *  loader ignores it; the renderer's rule-set policy and the DV/CF ribbon
+   *  groups read it. */
+  ruleSets?: { conditionalFormats: XlsxRuleSetFileState; dataValidations: XlsxRuleSetFileState };
+}
+
+type XlsxRuleSetFileState = "none" | "classic" | "x14";
+
+function ruleSetFileState(x14: boolean | undefined, rules: readonly unknown[] | undefined): XlsxRuleSetFileState {
+  if (x14) return "x14";
+  return rules && rules.length > 0 ? "classic" : "none";
 }
 
 type RendererWorkbookStyle = XlsxRenderStyle;
@@ -214,6 +226,10 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet, styles: readonly XlsxRe
     tables: (sheet.tables ?? []).map((table) => toRendererWorkbookTable(table)),
     comments: [],
     pivotRanges: [],
+    ruleSets: {
+      conditionalFormats: ruleSetFileState(sheet.x14ConditionalFormats, sheet.conditionalRules),
+      dataValidations: ruleSetFileState(sheet.x14DataValidations, sheet.dataValidations),
+    },
   };
 }
 

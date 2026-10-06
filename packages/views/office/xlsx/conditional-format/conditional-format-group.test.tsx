@@ -1,7 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { XlsxToolbarGroupProps } from "../toolbar/types";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { XlsxConditionalFormatGroup, xlsxConditionalFormatRibbonItems } from "./conditional-format-group";
+
+function lookup(dictionary: unknown, key: string): unknown {
+  return key.split(".").reduce<unknown>((node, part) => {
+    if (!node || typeof node !== "object") return undefined;
+    return (node as Record<string, unknown>)[part];
+  }, dictionary);
+}
 
 const RANGE = { startRow: 0, endRow: 3, startColumn: 0, endColumn: 2 };
 
@@ -101,5 +109,22 @@ describe("XlsxConditionalFormatGroup", () => {
     if (item?.kind !== "custom") throw new Error("custom item expected");
     render(<>{item.render({ size: "large", inPanel: false })}</>);
     expect(screen.getByTestId("xlsx-cf-menu")).toBeInTheDocument();
+  });
+
+  it("shows the x14 reason in the menu and disables both clear items", async () => {
+    const execute = vi.fn((_id: string, _params?: unknown) => true);
+    const host = { file: { sheets: [{ id: "sheet-1", ruleSets: { conditionalFormats: "x14", dataValidations: "none" } }] } } as unknown as XlsxToolbarGroupProps["host"];
+    render(<XlsxConditionalFormatGroup {...groupProps({ commands: { execute }, host })} />);
+    openMenu();
+    expect(await screen.findByTestId("xlsx-cf-x14-reason")).toHaveTextContent(lookup(viLocale, "office.xlsx.conditionalFormat.errors.x14Sheet") as string);
+    for (const id of ["xlsx-cf-clear-selection", "xlsx-cf-clear-sheet"]) {
+      const item = screen.getByTestId(id);
+      expect(item).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(item);
+    }
+    expect(execute).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("xlsx-cf-greaterThan"));
+    expect(await screen.findByTestId("xlsx-cf-x14")).toBeInTheDocument();
+    expect(screen.getByTestId("xlsx-cf-ok")).toHaveAttribute("aria-disabled", "true");
   });
 });

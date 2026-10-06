@@ -54,6 +54,7 @@ export function XlsxConditionalFormatGroup({
   unitId,
   sheetName,
   resolveSheetId,
+  host,
 }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -62,12 +63,14 @@ export function XlsxConditionalFormatGroup({
   const sheetId = sheetName ? resolveSheetId?.(sheetName) : undefined;
   const blocked = readOnly || !commands || range === null || sheetId === undefined || unitId == null;
 
+  const x14 = host?.file.sheets.find((sheet) => sheet.id === sheetId)?.ruleSets?.conditionalFormats === "x14";
+
   const clearSelection = () => {
-    if (blocked || range === null || sheetId === undefined || unitId == null) return;
+    if (blocked || x14 || range === null || sheetId === undefined || unitId == null) return;
     fireCommand(commands, XLSX_CF_CLEAR_RANGE_COMMAND, clearRangeParams(unitId, sheetId, range));
   };
   const clearSheet = () => {
-    if (blocked || sheetId === undefined || unitId == null) return;
+    if (blocked || x14 || sheetId === undefined || unitId == null) return;
     fireCommand(commands, XLSX_CF_CLEAR_SHEET_COMMAND, clearSheetParams(unitId, sheetId));
   };
 
@@ -93,16 +96,21 @@ export function XlsxConditionalFormatGroup({
           <XlsxLargeLabel>{t(`${BASE}.menu.label`)}</XlsxLargeLabel>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-56">
+          {x14 ? (
+            <p className="max-w-56 px-2 py-1.5 text-caption text-muted-foreground" data-testid="xlsx-cf-x14-reason">
+              {t(`${BASE}.errors.x14Sheet`)}
+            </p>
+          ) : null}
           {PRESET_ITEMS.map((item) => (
             <DropdownMenuItem key={item} data-testid={`xlsx-cf-${item}`} onClick={() => setPreset(item)}>
               {t(`${BASE}.menu.${item}`)}
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <DropdownMenuItem data-testid="xlsx-cf-clear-selection" onClick={clearSelection}>
+          <DropdownMenuItem data-testid="xlsx-cf-clear-selection" disabled={x14} onClick={clearSelection}>
             {t(`${BASE}.menu.clearSelection`)}
           </DropdownMenuItem>
-          <DropdownMenuItem data-testid="xlsx-cf-clear-sheet" onClick={clearSheet}>
+          <DropdownMenuItem data-testid="xlsx-cf-clear-sheet" disabled={x14} onClick={clearSheet}>
             {t(`${BASE}.menu.clearSheet`)}
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -115,6 +123,7 @@ export function XlsxConditionalFormatGroup({
           range={range}
           commands={commands}
           readOnly={readOnly}
+          blocked={x14}
           onClose={() => setPreset(null)}
         />
       ) : null}

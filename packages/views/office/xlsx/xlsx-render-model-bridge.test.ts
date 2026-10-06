@@ -193,6 +193,20 @@ describe("render model bridge", () => {
     expect(readRangeFromModel(MODEL, "Data", { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 }).dataValidations).toEqual([]);
   });
 
+  it("stamps each sheet with what its file ships per rule family, x14 first (X01 review M1/M2)", () => {
+    const rule = { ranges: [{ startRow: 1, endRow: 4, startColumn: 1, endColumn: 1 }], ruleType: "list",
+      formulas: ['"A,B"'], allowBlank: true, suppressDropdown: false, showInputMessage: false, showErrorMessage: false };
+    const model = { ...MODEL, sheets: [
+      { ...MODEL.sheets[0]!, dataValidations: [rule], x14ConditionalFormats: true as const },
+      { ...MODEL.sheets[1]!, x14DataValidations: true as const },
+    ] };
+    const file = toRendererWorkbookFile(model, { sessionId: "s", name: "n.xlsx", sha256: "x" });
+    expect(file.sheets[0]!.ruleSets).toEqual({ conditionalFormats: "x14", dataValidations: "classic" });
+    expect(file.sheets[1]!.ruleSets).toEqual({ conditionalFormats: "none", dataValidations: "x14" });
+    expect(toRendererWorkbookFile(MODEL, { sessionId: "s", name: "n.xlsx", sha256: "x" }).sheets[1]!.ruleSets)
+      .toEqual({ conditionalFormats: "none", dataValidations: "none" });
+  });
+
   it("builds a host whose readRange speaks the vendored loader contract", async () => {
     const host = createXlsxModelHost(MODEL, { sessionId: "s-1", name: "book.xlsx", sha256: "b".repeat(64) });
     const result = await host.readRange({ sessionId: "s-1", sheetId: "sheet-2", range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 } });

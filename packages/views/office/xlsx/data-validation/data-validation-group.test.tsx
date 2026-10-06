@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
@@ -44,7 +44,7 @@ describe("XlsxDataValidationGroup", () => {
     }
   });
 
-  it("opens the group-owned dialog and fires the add command", () => {
+  it("opens the group-owned dialog and fires the add command", async () => {
     const execute = vi.fn((_id: string, _params?: unknown) => true);
     render(<XlsxDataValidationGroup {...groupProps({ commands: { execute } })} />);
     const open = screen.getByTestId("xlsx-dv-open");
@@ -64,7 +64,7 @@ describe("XlsxDataValidationGroup", () => {
         }),
       }),
     );
-    expect(screen.queryByTestId("xlsx-dv-dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId("xlsx-dv-dialog")).not.toBeInTheDocument());
   });
 
   it("clears validation on the selection with the exact params", () => {
@@ -101,5 +101,20 @@ describe("XlsxDataValidationGroup", () => {
       expect(screen.queryByTestId("xlsx-dv-dialog")).not.toBeInTheDocument();
       view.unmount();
     }
+  });
+
+  it("blocks the dialog and the clear button on an x14 validation sheet", () => {
+    const execute = vi.fn((_id: string, _params?: unknown) => true);
+    const host = { file: { sheets: [{ id: "sheet-1", ruleSets: { conditionalFormats: "none", dataValidations: "x14" } }] } } as unknown as XlsxToolbarGroupProps["host"];
+    render(<XlsxDataValidationGroup {...groupProps({ commands: { execute }, host })} />);
+    const clear = screen.getByTestId("xlsx-dv-clear");
+    expect(clear).toHaveAttribute("aria-disabled", "true");
+    expect(clear).toHaveAttribute("title", lookup(viLocale, "office.xlsx.dataValidation.errors.x14Sheet") as string);
+    fireEvent.click(clear);
+    fireEvent.click(screen.getByTestId("xlsx-dv-open"));
+    expect(screen.getByRole("alert")).toHaveTextContent(lookup(viLocale, "office.xlsx.dataValidation.errors.x14Sheet") as string);
+    expect(screen.getByTestId("xlsx-dv-apply")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    expect(execute).not.toHaveBeenCalled();
   });
 });

@@ -58,7 +58,7 @@ describe("buildDvRule", () => {
       ok: true,
       rule: { type: "decimal", operator: "between", formula1: "1.5", formula2: "2.5" },
     });
-    expect(build({ type: "decimal", operator: "notBetween", value1: "5", value2: "1" })).toMatchObject({ ok: true });
+    expect(build({ type: "decimal", operator: "notBetween", value1: "1", value2: "5" })).toMatchObject({ ok: true });
   });
 
   it("rejects non-numbers, fractions for whole, and an inverted between", () => {
@@ -128,5 +128,13 @@ describe("helpers", () => {
     const built = build({ value1: "a" });
     if (!built.ok) throw new Error("expected ok");
     expect(addDvParams("u", "s", built.rule)).toEqual({ unitId: "u", subUnitId: "s", rule: built.rule });
+  });
+
+  it("applies the min <= max check to notBetween too", () => {
+    expect(build({ type: "whole", operator: "notBetween", value1: "9", value2: "3" })).toEqual({
+      ok: false,
+      failure: { field: "value2", code: "rangeOrder" },
+    });
+    expect(build({ type: "whole", operator: "notBetween", value1: "3", value2: "9" })).toMatchObject({ ok: true });
   });
 });

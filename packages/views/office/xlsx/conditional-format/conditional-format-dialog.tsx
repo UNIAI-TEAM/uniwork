@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
-import { fireCommand } from "../fire-command";
+import { runRuleCommand } from "../data-validation/run-rule-command";
 import type { XlsxToolbarCommands } from "../toolbar/types";
 import {
   addRuleParams,
@@ -32,6 +32,9 @@ interface XlsxConditionalFormatDialogProps {
   range: XlsxCfRange;
   commands: XlsxToolbarCommands;
   readOnly?: boolean;
+  /** The sheet holds Excel extended (x14) conditional formatting the save
+   *  cannot rewrite: the dialog explains it and OK stays inert. */
+  blocked?: boolean;
   onClose: () => void;
 }
 
@@ -44,6 +47,7 @@ export function XlsxConditionalFormatDialog({
   range,
   commands,
   readOnly = false,
+  blocked = false,
   onClose,
 }: XlsxConditionalFormatDialogProps) {
   const { t } = useTranslation();
@@ -54,22 +58,29 @@ export function XlsxConditionalFormatDialog({
   const numeric = preset === "greaterThan" || preset === "lessThan" || preset === "between";
   const previewStyle = cfStyleOf(styleId);
 
-  const apply = () => {
+  const [refused, setRefused] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  const apply = async () => {
     setError(null);
-    if (readOnly) return;
+    setRefused(false);
+    if (readOnly || blocked || pending) return;
     const built = buildCfInnerRule(preset, { first, second }, styleId);
     if (!built.ok) {
       setError(t(`${BASE}.errors.${built.error}`));
       return;
     }
-    fireCommand(commands, XLSX_CF_ADD_COMMAND, addRuleParams(unitId, subUnitId, range, built.inner));
-    onClose();
+    setPending(true);
+    const accepted = await runRuleCommand(commands, XLSX_CF_ADD_COMMAND, addRuleParams(unitId, subUnitId, range, built.inner));
+    setPending(false);
+    if (accepted) onClose();
+    else setRefused(true);
   };
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      apply();
+      void apply();
     }
   };
 
@@ -102,7 +113,7 @@ export function XlsxConditionalFormatDialog({
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? errorId : undefined}
                   data-testid="xlsx-cf-first"
-                  onChange={(event) => setFirst(event.target.value)}
+                  onChange={(event) => { setFirst(event.target.value); setRefused(false); }}
                   onKeyDown={onKeyDown}
                 />
               </div>
@@ -120,7 +131,7 @@ export function XlsxConditionalFormatDialog({
                       aria-invalid={error ? true : undefined}
                       aria-describedby={error ? errorId : undefined}
                       data-testid="xlsx-cf-second"
-                      onChange={(event) => setSecond(event.target.value)}
+                      onChange={(event) => { setSecond(event.target.value); setRefused(false); }}
                       onKeyDown={onKeyDown}
                     />
                   </div>
@@ -140,7 +151,7 @@ export function XlsxConditionalFormatDialog({
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? errorId : undefined}
                 data-testid="xlsx-cf-first"
-                onChange={(event) => setFirst(event.target.value)}
+                onChange={(event) => { setFirst(event.target.value); setRefused(false); }}
                 onKeyDown={onKeyDown}
               />
             </div>
@@ -161,6 +172,7 @@ export function XlsxConditionalFormatDialog({
                 triggerVariant="subtle"
                 value={styleId}
                 onValueChange={(value) => {
+                  setRefused(false);
                   if (XLSX_CF_STYLE_IDS.some((id) => id === value)) setStyleId(value as XlsxCfStyleId);
                 }}
                 items={XLSX_CF_STYLE_IDS.map((id) => ({ value: id, label: t(`${BASE}.styles.${id}`) }))}
@@ -181,12 +193,22 @@ export function XlsxConditionalFormatDialog({
               {error}
             </p>
           ) : null}
+          {blocked ? (
+            <p role="alert" className="text-caption text-destructive" data-testid="xlsx-cf-x14">
+              {t(`${BASE}.errors.x14Sheet`)}
+            </p>
+          ) : null}
+          {refused ? (
+            <p role="alert" className="text-caption text-destructive" data-testid="xlsx-cf-refused">
+              {t(`${BASE}.errors.refused`)}
+            </p>
+          ) : null}
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" size="sm" data-testid="xlsx-cf-cancel" onClick={onClose}>
             {t(`${BASE}.dialog.cancel`)}
           </Button>
-          <Button type="button" size="sm" aria-disabled={readOnly || undefined} data-testid="xlsx-cf-ok" onClick={apply}>
+          <Button type="button" size="sm" aria-disabled={readOnly || blocked || pending || undefined} data-testid="xlsx-cf-ok" onClick={apply}>
             {t(`${BASE}.dialog.ok`)}
           </Button>
         </div>

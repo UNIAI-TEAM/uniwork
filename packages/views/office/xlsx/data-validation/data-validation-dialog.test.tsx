@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
@@ -27,10 +27,10 @@ function stringPaths(dictionary: unknown): string[] {
   return paths.sort();
 }
 
-function renderDialog() {
-  const execute = vi.fn((_id: string, _params?: unknown) => true);
+function renderDialog(result: boolean | Promise<boolean> = true, blocked = false) {
+  const execute = vi.fn((_id: string, _params?: unknown) => result);
   const onClose = vi.fn();
-  render(<XlsxDataValidationDialog commands={{ execute }} unitId="file-abc" subUnitId="sheet-1" range={range} onClose={onClose} />);
+  render(<XlsxDataValidationDialog commands={{ execute }} unitId="file-abc" subUnitId="sheet-1" range={range} blocked={blocked} onClose={onClose} />);
   return { execute, onClose };
 }
 
@@ -51,7 +51,7 @@ describe("XlsxDataValidationDialog", () => {
     expect(screen.getByTestId("xlsx-dv-range")).toHaveTextContent("A1:C4");
   });
 
-  it("applies a list rule with the exact command params and closes", () => {
+  it("applies a list rule with the exact command params and closes", async () => {
     const { execute, onClose } = renderDialog();
     type("xlsx-dv-source", "Yes, No");
     type("xlsx-dv-error-title", "Oops");
@@ -74,7 +74,7 @@ describe("XlsxDataValidationDialog", () => {
         showDropDown: true,
       },
     });
-    expect(onClose).toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
   it("applies a whole-number between rule with two value inputs", () => {
@@ -140,5 +140,39 @@ describe("XlsxDataValidationDialog", () => {
     const subtree = (dictionary: unknown) => stringPaths(lookup(dictionary, "office.xlsx.dataValidation"));
     expect(subtree(viLocale).length).toBeGreaterThan(0);
     expect(subtree(viLocale)).toEqual(subtree(en));
+  });
+
+  it.each([
+    ["false", false],
+    ["async false", Promise.resolve(false)],
+  ])("stays open with a refused alert when the command returns %s, and retries", async (_name, result) => {
+    const { execute, onClose } = renderDialog(result);
+    type("xlsx-dv-source", "a,b");
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(lookup(viLocale, "office.xlsx.dataValidation.errors.refused") as string);
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(2));
+    expect(onClose).not.toHaveBeenCalled();
+    type("xlsx-dv-source", "a,b,c");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("closes when the command resolves true asynchronously", async () => {
+    const { onClose } = renderDialog(Promise.resolve(true));
+    type("xlsx-dv-source", "a,b");
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("explains an x14 sheet and keeps Apply inert", () => {
+    const { execute, onClose } = renderDialog(true, true);
+    expect(screen.getByRole("alert")).toHaveTextContent(lookup(viLocale, "office.xlsx.dataValidation.errors.x14Sheet") as string);
+    const apply = screen.getByTestId("xlsx-dv-apply");
+    expect(apply).toHaveAttribute("aria-disabled", "true");
+    type("xlsx-dv-source", "a,b");
+    fireEvent.click(apply);
+    expect(execute).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

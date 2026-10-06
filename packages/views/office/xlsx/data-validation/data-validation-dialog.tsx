@@ -14,7 +14,6 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { columnLabel } from "../xlsx-editor-model";
-import { fireCommand } from "../fire-command";
 import type { XlsxToolbarCommands } from "../toolbar/types";
 import {
   addDvParams,
@@ -32,12 +31,16 @@ import {
   type XlsxDvRange,
   type XlsxDvType,
 } from "./dv-commands";
+import { runRuleCommand } from "./run-rule-command";
 
 export interface XlsxDataValidationDialogProps {
   commands: XlsxToolbarCommands;
   unitId: string;
   subUnitId: string;
   range: XlsxDvRange;
+  /** The sheet holds Excel extended (x14) validation the save cannot rewrite:
+   *  the dialog explains it and Apply stays inert. */
+  blocked?: boolean;
   onClose: () => void;
 }
 
@@ -84,13 +87,16 @@ function Field({
   );
 }
 
-export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, onClose }: XlsxDataValidationDialogProps) {
+export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, blocked = false, onClose }: XlsxDataValidationDialogProps) {
   const { t } = useTranslation();
   const base = useId();
   const [form, setForm] = useState<XlsxDvForm>(XLSX_DV_EMPTY_FORM);
   const [failure, setFailure] = useState<XlsxDvFailure | null>(null);
+  const [refused, setRefused] = useState(false);
+  const [pending, setPending] = useState(false);
   const patch = (next: Partial<XlsxDvForm>) => {
     setFailure(null);
+    setRefused(false);
     setForm((current) => ({ ...current, ...next }));
   };
   const isList = form.type === "list";
@@ -102,14 +108,18 @@ export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, o
   const describedBy = (id: string, field: XlsxDvFailure["field"], hint = false) =>
     [hint ? `${id}-hint` : null, failure?.field === field ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
 
-  const apply = () => {
+  const apply = async () => {
+    if (blocked || pending) return;
     const built = buildDvRule(form, range);
     if (!built.ok) {
       setFailure(built.failure);
       return;
     }
-    fireCommand(commands, XLSX_DV_ADD_COMMAND, addDvParams(unitId, subUnitId, built.rule));
-    onClose();
+    setPending(true);
+    const accepted = await runRuleCommand(commands, XLSX_DV_ADD_COMMAND, addDvParams(unitId, subUnitId, built.rule));
+    setPending(false);
+    if (accepted) onClose();
+    else setRefused(true);
   };
 
   const typeId = `${base}-type`;
@@ -135,7 +145,7 @@ export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, o
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            apply();
+            void apply();
           }}
         >
           <p className="text-caption text-muted-foreground" data-testid="xlsx-dv-range">
@@ -243,11 +253,21 @@ export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, o
               />
             </Field>
           </fieldset>
+          {blocked ? (
+            <p role="alert" className="text-caption text-destructive" data-testid="xlsx-dv-x14">
+              {t("office.xlsx.dataValidation.errors.x14Sheet")}
+            </p>
+          ) : null}
+          {refused ? (
+            <p role="alert" className="text-caption text-destructive" data-testid="xlsx-dv-refused">
+              {t("office.xlsx.dataValidation.errors.refused")}
+            </p>
+          ) : null}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" size="sm" data-testid="xlsx-dv-cancel" onClick={onClose}>
               {t("office.xlsx.dataValidation.dialog.cancel")}
             </Button>
-            <Button type="submit" size="sm" data-testid="xlsx-dv-apply">
+            <Button type="submit" size="sm" aria-disabled={blocked || pending || undefined} data-testid="xlsx-dv-apply">
               {t("office.xlsx.dataValidation.dialog.apply")}
             </Button>
           </div>

@@ -22,6 +22,7 @@ export function XlsxDataValidationGroup({
   unitId,
   sheetName,
   resolveSheetId,
+  host,
 }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -29,8 +30,11 @@ export function XlsxDataValidationGroup({
   const sheetId = sheetName ? resolveSheetId?.(sheetName) : undefined;
   const blocked = readOnly || !commands || range === null || sheetId === undefined || !unitId;
 
+  const x14 = host?.file.sheets.find((sheet) => sheet.id === sheetId)?.ruleSets?.dataValidations === "x14";
+  const x14Reason = t("office.xlsx.dataValidation.errors.x14Sheet");
+
   const clear = () => {
-    if (blocked || !commands || range === null || sheetId === undefined || !unitId) return;
+    if (blocked || x14 || !commands || range === null || sheetId === undefined || !unitId) return;
     fireCommand(commands, XLSX_DV_CLEAR_COMMAND, clearDvParams(unitId, sheetId, range));
   };
 
@@ -58,8 +62,8 @@ export function XlsxDataValidationGroup({
             size="icon-sm"
             className={XLSX_ICON_BUTTON_CLASS}
             aria-label={t("office.xlsx.dataValidation.clear")}
-            title={t("office.xlsx.dataValidation.clear")}
-            aria-disabled={blocked || undefined}
+            title={x14 ? x14Reason : t("office.xlsx.dataValidation.clear")}
+            aria-disabled={blocked || x14 || undefined}
             data-testid="xlsx-dv-clear"
             onClick={clear}
           >
@@ -73,6 +77,7 @@ export function XlsxDataValidationGroup({
           unitId={unitId}
           subUnitId={sheetId}
           range={range}
+          blocked={x14}
           onClose={() => setOpen(false)}
         />
       ) : null}

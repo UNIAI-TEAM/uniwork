@@ -3,6 +3,8 @@
 // them in lockstep with it. The hex values below are DATA written into the
 // file (cell formats), not UI colours.
 
+import { parsePlainDecimal } from "../data-validation/dv-commands";
+
 export const XLSX_CF_ADD_COMMAND = "sheet.command.add-conditional-rule";
 export const XLSX_CF_CLEAR_RANGE_COMMAND = "sheet.command.clear-range-conditional-rule";
 export const XLSX_CF_CLEAR_SHEET_COMMAND = "sheet.command.clear-worksheet-conditional-rule";
@@ -58,10 +60,7 @@ type XlsxCfBuild =
   | { ok: false; error: XlsxCfValueError };
 
 function parseNumber(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (trimmed === "") return null;
-  const value = Number(trimmed);
-  return Number.isFinite(value) ? value : null;
+  return parsePlainDecimal(raw);
 }
 
 /** Builds the inner Univer highlight rule for a preset, or reports why the
