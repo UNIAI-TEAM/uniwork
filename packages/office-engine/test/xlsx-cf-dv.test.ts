@@ -122,6 +122,47 @@ describe("XLSX CF/DV ops in the session model", () => {
     expect(refusal(dvItem([{ ...yesNo, rule: { type: "list", formula1: "x".repeat(70_000) } }]))?.field).toBe("attributes.rules.rule");
     expect(refusal(cfItem([greaterThan(1)], "Missing"))).toBeInstanceOf(XlsxOpError);
   });
+
+  // Review m2: every shape the gateway's serializers throw on is refused at
+  // edit time, so an unsaveable snapshot never reaches the journal.
+  it("refuses inner rule shapes the gateway serializers cannot write", () => {
+    const cf = (rule: Record<string, unknown>) => refusal(cfItem([{ ...greaterThan(1), rule: { style: {}, ...rule } }]))?.field;
+    const dv = (rule: Record<string, unknown>) => refusal(dvItem([{ ...yesNo, rule }]))?.field;
+    const CF_FIELD = "attributes.rules.rule";
+    expect(cf({ type: "highlightCell", subType: "timePeriod", operator: "yesterday" })).toBe(CF_FIELD);
+    expect(cf({ type: "highlightCell", subType: "average", operator: "equal" })).toBe(CF_FIELD);
+    expect(cf({ type: "highlightCell", subType: "number", operator: "approximately", value: 1 })).toBe(CF_FIELD);
+    expect(cf({ type: "highlightCell", subType: "number", operator: 'greaterThan" x="1', value: 1 })).toBe(CF_FIELD);
+    expect(cf({ type: "highlightCell", subType: "number", operator: "between", value: [1, "2"] })).toBe(CF_FIELD);
+    expect(cf({ type: "highlightCell", subType: "number", operator: "greaterThan" })).toBe(CF_FIELD);
+    expect(cf({ type: "highlightCell", subType: "text", operator: "matchesRegex", value: "a" })).toBe(CF_FIELD);
+    expect(cf({ type: "highlightCell", subType: "rank", value: "ten" })).toBe(CF_FIELD);
+    expect(cf({ type: "highlightCell", subType: "formula", value: "" })).toBe(CF_FIELD);
+    expect(cf({ type: "highlightCell", subType: "sparkle" })).toBe(CF_FIELD);
+    expect(cf({ type: "colorScale", config: [{ index: 0 }] })).toBe(CF_FIELD);
+    expect(cf({ type: "dataBar" })).toBe(CF_FIELD);
+    expect(cf({ type: "iconSet", config: [] })).toBe(CF_FIELD);
+    expect(dv({ type: "whole", operator: "approximately", formula1: "1" })).toBe(CF_FIELD);
+    expect(dv({ type: "list", formula1: "a", errorStyle: 7 })).toBe(CF_FIELD);
+
+    // Everything the toolbar, undo and the file's own rules produce still parses.
+    expect(refusal(cfItem([
+      greaterThan(1),
+      { ...greaterThan(1), rule: { type: "highlightCell", subType: "number", operator: "between", value: [1, 5], style: {} } },
+      { ...greaterThan(1), rule: { type: "highlightCell", subType: "text", operator: "containsText", value: "x", style: {} } },
+      { ...greaterThan(1), rule: { type: "highlightCell", subType: "duplicateValues", style: {} } },
+      { ...greaterThan(1), rule: { type: "highlightCell", subType: "average", operator: "lessThanOrEqual", style: {} } },
+      { ...greaterThan(1), rule: { type: "highlightCell", subType: "rank", value: 10, style: {} } },
+      { ...greaterThan(1), rule: { type: "highlightCell", subType: "formula", value: "=A1>0", style: {} } },
+      { ...greaterThan(1), rule: { type: "colorScale", config: [{ index: 0 }, { index: 1 }] } },
+      { ...greaterThan(1), rule: { type: "dataBar", config: { min: { type: "min" }, max: { type: "max" } } } },
+    ]))).toBeUndefined();
+    expect(refusal(dvItem([
+      yesNo,
+      { ...yesNo, rule: { type: "whole", operator: "notBetween", formula1: "1", formula2: "9", errorStyle: 2 } },
+      { ...yesNo, rule: { type: "any", prompt: "Hi" } },
+    ]))).toBeUndefined();
+  });
 });
 
 describe("worksheet data-validation reader", () => {

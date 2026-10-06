@@ -42,6 +42,7 @@ import {
   pendingConditionalFormatStates,
   pendingDataValidationStates,
   withRuleSetOp,
+  withoutRuleSetFamily,
   type XlsxRuleSetEntry,
   type XlsxSheetConditionalFormatState,
   type XlsxSheetDataValidationState,
@@ -601,6 +602,15 @@ export class XlsxSessionModel {
   /** The gateway's dvStates argument (X01), same shape as the CF one. */
   pendingDataValidationStates(): XlsxSheetDataValidationState[] {
     return pendingDataValidationStates(this.ruleSets.values());
+  }
+
+  /** Drop one family's snapshot of a sheet after the save named it
+   *  unsaveable (adapter-rule-sets.ts), so later saves are not blocked. */
+  discardRuleSet(sheetName: string, family: "conditionalFormats" | "dataValidations"): void {
+    const entry = withoutRuleSetFamily(this.ruleSets.get(sheetName), family);
+    if (entry) this.ruleSets.set(sheetName, entry);
+    else this.ruleSets.delete(sheetName);
+    this.revision += 1;
   }
 
   /** Edits in insertion order (last write wins per cell already applied). */

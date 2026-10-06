@@ -38,6 +38,7 @@ import {
   type XlsxSheetFormulaValues,
   type XlsxWorkbookSnapshot,
 } from "./engine.ts";
+import { isolateRuleSetFailures } from "./adapter-rule-sets.ts";
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps } from "./ops.ts";
 import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
@@ -461,12 +462,14 @@ export class XlsxAdapter {
             ...(sheetProtections.length > 0 ? { sheetProtections } : {}),
             ...(definedNamesState === undefined ? {} : { definedNamesState }),
           };
-    let out = await this.assemble(
-      session.inputBytes,
-      edits,
-      formulaValues,
-      Object.keys(gatewayArguments).length > 0 ? gatewayArguments : undefined,
-    );
+    const assembleWith = (args: XlsxGatewayArguments | undefined) =>
+      this.assemble(session.inputBytes, edits, formulaValues, args && Object.keys(args).length > 0 ? args : undefined);
+    let out: Uint8Array;
+    try {
+      out = await assembleWith(gatewayArguments);
+    } catch (error) {
+      throw await this.ruleSetSaveFailure(session, gatewayArguments, assembleWith, error);
+    }
     // Rebase on the produced bytes: a saved package that does not re-parse is
     // an engine bug the caller must never inherit as the new base.
     let rebased = await this.reparse(out);
@@ -501,6 +504,31 @@ export class XlsxAdapter {
       });
     }
     return this.deps.recalc;
+  }
+
+  /** A failed assemble with pending CF/DV rule sets (X01 review M1): name the
+   *  whole-sheet states that fail on their own, drop them from the journal so
+   *  the next save goes through, and refuse this one naming them. Any other
+   *  failure keeps its original error. */
+  private async ruleSetSaveFailure(
+    session: XlsxSession,
+    args: XlsxGatewayArguments,
+    assembleWith: (args: XlsxGatewayArguments) => Promise<unknown>,
+    error: unknown,
+  ): Promise<unknown> {
+    const failures = await isolateRuleSetFailures(args, assembleWith);
+    if (failures.length === 0) return error;
+    const names = {
+      conditionalFormats: session.model.pendingConditionalFormatStates().map((state) => state.sheetName),
+      dataValidations: session.model.pendingDataValidationStates().map((state) => state.sheetName),
+    };
+    const ruleSets = failures.map(({ family, index }) => ({ family, sheet: names[family][index] ?? "" }));
+    for (const { family, sheet } of ruleSets) session.model.discardRuleSet(sheet, family);
+    return new EngineBoundaryError("unsupported_operation", {
+      detail: "these rule sets cannot be saved to xlsx and were dropped from the pending changes; save again to keep everything else: " +
+        ruleSets.map(({ family, sheet }) => `${family === "conditionalFormats" ? "conditional formatting" : "data validation"} on sheet "${sheet}"`).join(", "),
+      rule_sets: ruleSets,
+    });
   }
 
   /** One assemble pass + preservation assertion, output bounded. */

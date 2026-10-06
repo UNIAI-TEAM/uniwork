@@ -1,0 +1,46 @@
+// Derives the two x14 fixtures from docs/office/g0/fixtures/files/sheets/xlsx-compatibility-edit.xlsx.
+const JSZip = require(process.argv[2]);
+const fs = require("fs");
+const path = require("path");
+const [, , , source, outDir] = process.argv;
+const NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x14ac" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac"';
+const X14 = 'xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"';
+const XM = 'xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"';
+const inl = (ref, text) => `<c r="${ref}" t="inlineStr"><is><t>${text}</t></is></c>`;
+const num = (ref, v) => `<c r="${ref}"><v>${v}</v></c>`;
+const rows = [1, 2, 3, 4, 5, 6].map((r) => r === 1
+  ? `<row r="1">${inl("A1", "Khoản")}${inl("B1", "Tiến độ")}${inl("C1", "Loại")}${inl("D1", "Điểm")}</row>`
+  : `<row r="${r}">${inl(`A${r}`, `Mục ${r - 1}`)}${num(`B${r}`, r * 10)}${inl(`C${r}`, "A")}${num(`D${r}`, r * 3)}</row>`).join("");
+const tail = '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>';
+const GUID = "{6E1A5C21-8C4B-4F43-9C8B-1E0E44B2F6A1}";
+const dataBarSheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet ${NS}><dimension ref="A1:D6"/><sheetData>${rows}</sheetData>` +
+  `<conditionalFormatting sqref="B2:B6"><cfRule type="dataBar" priority="1"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF638EC6"/></dataBar><extLst><ext uri="{B025F937-C7B1-47D3-B67F-A62EFF666E3E}" ${X14}><x14:id>${GUID}</x14:id></ext></extLst></cfRule></conditionalFormatting>` +
+  tail +
+  `<extLst><ext uri="{78C0D931-6437-407d-A8EE-F0AAD7539E65}" ${X14}><x14:conditionalFormattings><x14:conditionalFormatting ${XM}><x14:cfRule type="dataBar" id="${GUID}"><x14:dataBar minLength="0" maxLength="100" border="1" negativeBarBorderColorSameAsPositive="0"><x14:cfvo type="autoMin"/><x14:cfvo type="autoMax"/><x14:borderColor rgb="FF638EC6"/><x14:negativeFillColor rgb="FFFF0000"/><x14:negativeBorderColor rgb="FFFF0000"/><x14:axisColor rgb="FF000000"/></x14:dataBar></x14:cfRule><xm:sqref>B2:B6</xm:sqref></x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst></worksheet>`;
+const dvSheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet ${NS}><dimension ref="A1:D6"/><sheetData>${rows}</sheetData>` +
+  tail +
+  `<extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}" ${X14}><x14:dataValidations count="1" ${XM}><x14:dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1"><x14:formula1><xm:f>Lists!$A$1:$A$3</xm:f></x14:formula1><xm:sqref>C2:C6</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst></worksheet>`;
+const listsSheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:A3"/><sheetData><row r="1">${inl("A1", "A")}</row><row r="2">${inl("A2", "B")}</row><row r="3">${inl("A3", "C")}</row></sheetData>${tail}</worksheet>`;
+
+async function make(name, sheet1, withLists) {
+  const zip = await JSZip.loadAsync(fs.readFileSync(source));
+  zip.file("xl/worksheets/sheet1.xml", sheet1);
+  if (withLists) {
+    zip.file("xl/worksheets/sheet2.xml", listsSheet);
+    const wb = await zip.file("xl/workbook.xml").async("string");
+    zip.file("xl/workbook.xml", wb.replace('<sheet name="Data" sheetId="1" r:id="rId1"/>', '<sheet name="Data" sheetId="1" r:id="rId1"/><sheet name="Lists" sheetId="2" r:id="rId9"/>'));
+    const rels = await zip.file("xl/_rels/workbook.xml.rels").async("string");
+    zip.file("xl/_rels/workbook.xml.rels", rels.replace("</Relationships>", '<Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>'));
+    const ct = await zip.file("[Content_Types].xml").async("string");
+    zip.file("[Content_Types].xml", ct.replace("</Types>", '<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'));
+  }
+  const bytes = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", date: new Date("2026-10-06T00:00:00Z") });
+  fs.writeFileSync(path.join(outDir, name), bytes);
+  console.log(name, bytes.length);
+}
+(async () => {
+  const rels = await (await JSZip.loadAsync(fs.readFileSync(source))).file("xl/_rels/workbook.xml.rels").async("string");
+  if (rels.includes('Id="rId9"')) throw new Error("rId9 taken");
+  await make("xlsx-x14-data-bar.xlsx", dataBarSheet, false);
+  await make("xlsx-x14-data-validation.xlsx", dvSheet, true);
+})();

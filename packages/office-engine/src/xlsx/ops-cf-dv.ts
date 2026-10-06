@@ -140,6 +140,79 @@ function parseRuleJson(raw: unknown, op: string, types: ReadonlySet<string>): Re
   return JSON.parse(text) as Record<string, unknown>;
 }
 
+// ── inner rule shapes (review m2) ──────────────────────────────────────────
+// Mirrors of the gateway serializers' fail-closed branches (xlsx-cf.ts
+// serializeCfRule / highlightRule, xlsx-dv.ts serializeRule), so a snapshot
+// the save would throw on is refused here, at edit time, instead of sitting
+// in the journal and failing every later save. Colours and cfvo details stay
+// the gateway's call: the toolbar writes fixed hex styles and loaded rules
+// come from the file's own XML.
+const CELL_IS_OPERATORS = new Set([
+  "between", "notBetween", "equal", "notEqual", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual",
+]);
+const CF_TEXT_OPERATORS = new Set([
+  "containsText", "notContainsText", "beginsWith", "endsWith", "equal", "notEqual",
+  "containsBlanks", "notContainsBlanks", "containsErrors", "notContainsErrors",
+]);
+const CF_AVERAGE_OPERATORS = new Set(["greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"]);
+/** Univer DataValidationErrorStyle values the gateway maps (INFO, STOP, WARNING). */
+const DV_ERROR_STYLES = new Set([0, 1, 2]);
+
+const finiteNumber = (value: unknown): boolean => typeof value === "number" && Number.isFinite(value);
+
+function highlightUnsaveable(rule: Record<string, unknown>): string | null {
+  const operator = rule.operator;
+  switch (rule.subType) {
+    case "number": {
+      if (typeof operator !== "string" || !CELL_IS_OPERATORS.has(operator)) return "number operator cannot be saved";
+      const values = Array.isArray(rule.value) ? rule.value : [rule.value];
+      return values.every(finiteNumber) ? null : "number rule needs finite values";
+    }
+    case "text":
+      return typeof operator === "string" && CF_TEXT_OPERATORS.has(operator) ? null : "text operator cannot be saved";
+    case "duplicateValues":
+    case "uniqueValues":
+      return null;
+    case "rank":
+      return finiteNumber(rule.value) ? null : "top/bottom rule needs a rank";
+    case "average":
+      return typeof operator === "string" && CF_AVERAGE_OPERATORS.has(operator) ? null : "average operator cannot be saved";
+    case "formula":
+      return typeof rule.value === "string" && rule.value.length > 0 ? null : "formula rule needs a formula";
+    default:
+      return "highlight rule cannot be saved";
+  }
+}
+
+function cfRuleUnsaveable(rule: Record<string, unknown>): string | null {
+  switch (rule.type) {
+    case "highlightCell":
+      return highlightUnsaveable(rule);
+    case "colorScale":
+      return Array.isArray(rule.config) && rule.config.length >= 2 ? null : "color scale needs two stops";
+    case "dataBar":
+      return isDict(rule.config) ? null : "data bar needs a configuration";
+    case "iconSet":
+      return Array.isArray(rule.config) && rule.config.length >= 2 ? null : "icon set needs two thresholds";
+  }
+  return "rule type cannot be saved to xlsx";
+}
+
+function dvRuleUnsaveable(rule: Record<string, unknown>): string | null {
+  const { operator, errorStyle } = rule;
+  if (operator !== undefined && operator !== "" && (typeof operator !== "string" || !CELL_IS_OPERATORS.has(operator))) {
+    return "validation operator cannot be saved";
+  }
+  if (errorStyle !== undefined && errorStyle !== null && !DV_ERROR_STYLES.has(Number(errorStyle))) {
+    return "validation error style cannot be saved";
+  }
+  return null;
+}
+
+function requireSaveable(op: string, reason: string | null): void {
+  if (reason !== null) throw new XlsxOpError(op, "attributes.rules.rule", reason);
+}
+
 function parseRules(item: Dict, op: string): unknown[] {
   const a = parseStructuralAttributes(item, op);
   if (!Array.isArray(a.rules) || a.rules.length > MAX_RULES) {
@@ -155,11 +228,9 @@ export function parseSetConditionalFormats(item: Dict, op: string, sheets: XlsxS
     if (raw.stopIfTrue !== undefined && typeof raw.stopIfTrue !== "boolean") {
       throw new XlsxOpError(op, "attributes.rules.stopIfTrue", "boolean required");
     }
-    return {
-      ranges: parseRuleAreas(raw.ranges, op),
-      stopIfTrue: raw.stopIfTrue === true,
-      rule: parseRuleJson(raw.rule, op, CF_RULE_TYPES),
-    };
+    const rule = parseRuleJson(raw.rule, op, CF_RULE_TYPES);
+    requireSaveable(op, cfRuleUnsaveable(rule));
+    return { ranges: parseRuleAreas(raw.ranges, op), stopIfTrue: raw.stopIfTrue === true, rule };
   });
   return [{ kind: CONDITIONAL_FORMATS_OP_KIND, sheetName, rules }];
 }
@@ -168,7 +239,9 @@ export function parseSetDataValidations(item: Dict, op: string, sheets: XlsxShee
   const sheetName = parseStructuralTarget(item, op, sheets);
   const rules = parseRules(item, op).map((raw): XlsxDataValidationRule => {
     if (!isDict(raw)) throw new XlsxOpError(op, "attributes.rules", "rule objects required");
-    return { ranges: parseRuleAreas(raw.ranges, op), rule: parseRuleJson(raw.rule, op, DV_RULE_TYPES) };
+    const rule = parseRuleJson(raw.rule, op, DV_RULE_TYPES);
+    requireSaveable(op, dvRuleUnsaveable(rule));
+    return { ranges: parseRuleAreas(raw.ranges, op), rule };
   });
   return [{ kind: DATA_VALIDATIONS_OP_KIND, sheetName, rules }];
 }
@@ -179,6 +252,17 @@ export function withRuleSetOp(entry: XlsxRuleSetEntry | undefined, op: XlsxRuleS
   return op.kind === CONDITIONAL_FORMATS_OP_KIND
     ? { ...entry, conditionalFormats: op }
     : { ...entry, dataValidations: op };
+}
+
+/** The entry without one family's snapshot; undefined once nothing is left. */
+export function withoutRuleSetFamily(
+  entry: XlsxRuleSetEntry | undefined,
+  family: "conditionalFormats" | "dataValidations",
+): XlsxRuleSetEntry | undefined {
+  const rest: XlsxRuleSetEntry = family === "conditionalFormats"
+    ? { ...(entry?.dataValidations ? { dataValidations: entry.dataValidations } : {}) }
+    : { ...(entry?.conditionalFormats ? { conditionalFormats: entry.conditionalFormats } : {}) };
+  return rest.conditionalFormats || rest.dataValidations ? rest : undefined;
 }
 
 /** The same entry re-addressed to another sheet name (rename / duplicate). */
