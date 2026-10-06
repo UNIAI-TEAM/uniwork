@@ -182,57 +182,62 @@ tests), package/inventory tests, `node scripts/office/check-boundaries.mjs`,
 The accepted artifacts are unsigned dev/beta evidence only and must not be
 described as a signed release or an enabled update channel.
 
-## Bộ cài từ CI và `OFFICE_INSTALLER_*_URLS` (UNI-944)
+## CI installers and `OFFICE_INSTALLER_*_URLS` (UNI-944)
 
-Workflow `.github/workflows/office-desktop-installers.yml` dựng bộ cài **chưa ký**
-cho kênh `dev` hoặc `beta`, tải lên workflow artifact và release asset, rồi in ra
-giá trị cho biến môi trường của server. Nó không chạy trên pull request hay push
-thường, chỉ chạy khi:
+`.github/workflows/office-desktop-installers.yml` builds the **unsigned** `dev` or
+`beta` installers, uploads them as workflow artifacts and release assets, and
+prints the value for the server's environment variable. It never runs on pull
+requests or ordinary pushes, only when:
 
-- bấm **Run workflow** (`workflow_dispatch`): chọn `channel` là `dev` hoặc `beta`;
-  `require_xlsx_sidecar` mặc định bật;
-- đẩy tag `office-desktop-v<phiên bản>-<dev|beta>.<số build>`, ví dụ
-  `office-desktop-v0.1.0-dev.7`. Phần phiên bản phải trùng `version` trong
-  `apps/office-desktop/package.json`. Build từ tag luôn bắt buộc sidecar.
+- **Run workflow** is used (`workflow_dispatch`): choose `channel` `dev` or `beta`;
+  `require_xlsx_sidecar` defaults to on;
+- a tag `office-desktop-v<version>-<dev|beta>.<build number>` is pushed, for
+  example `office-desktop-v0.1.0-dev.7`. The version part must equal `version` in
+  `apps/office-desktop/package.json`. Tag builds always require the sidecar.
 
-Ma trận hiện có **Windows x64** (`-setup.exe` và `.zip`) và **Linux x64**
-(`.deb` và `.AppImage`). **macOS bị bỏ qua**: `.dmg` cần runner macOS và chưa có.
-Khi có máy Mac, dựng bằng `package:macos` rồi đưa file vào cùng release; script
-`installer-urls.mjs` đã hiểu khoá `darwin-arm64` và `darwin-x64`. Không ký,
-không notarize, không có update feed (chứng chỉ đang để backlog); mọi tên file
-đều chứa `unsigned`, và kênh `stable` vẫn bị từ chối.
+The matrix is **Windows x64** (`-setup.exe` and `.zip`) and **Linux x64** (`.deb`
+and `.AppImage`). **macOS is omitted**: a `.dmg` needs a macOS runner and none is
+wired. Once a Mac exists, build with `package:macos` and add the file to the same
+release; `installer-urls.mjs` already knows the `darwin-arm64` and `darwin-x64`
+keys. There is no signing, notarization or update feed (certificates are parked
+backlog); every file name contains `unsigned`, and the `stable` channel is still
+refused.
 
-Mỗi nền tảng ghi thêm `SHA256SUMS-<nền tảng>.txt` cạnh bộ cài. Job còn chạy
-`apps/office-desktop/scripts/check-xlsx-assets.mjs` trên `dist/xlsx-assets` và trên
-`resources/xlsx-assets` trong gói đã dựng; job **fail** nếu thiếu gateway hoặc
-sidecar recalc. Chỉ khi chạy tay mới tắt được bằng `require_xlsx_sidecar:
-false`, và khi đó job không cài Rust, không build sidecar.
+Each platform also writes `SHA256SUMS-<platform>.txt` beside its installers. The
+job runs `apps/office-desktop/scripts/check-xlsx-assets.mjs` on `dist/xlsx-assets`
+and on `resources/xlsx-assets` inside the built package, and **fails** when the
+gateway or the recalculation sidecar is missing. Only a manual run can switch that
+off with `require_xlsx_sidecar: false`; the job then installs no Rust and builds
+no sidecar.
 
-### Đưa link vào server
+### Putting the links on the server
 
-Cuối job, bước `OFFICE_INSTALLER_<KÊNH>_URLS` ghi vào job summary (và step output
-`installer_urls`, artifact `installer-urls-<kênh>.json`) một dòng như:
+The last job step, `OFFICE_INSTALLER_<CHANNEL>_URLS`, writes a line like this to
+the job summary (and to the `installer_urls` step output and the
+`installer-urls-<channel>.json` artifact):
 
 ```text
 OFFICE_INSTALLER_DEV_URLS={"win32-x64":"https://github.com/<owner>/<repo>/releases/download/office-desktop-v0.1.0-dev.7/uniwork-office-test_0.1.0-dev.7_unsigned_win32_x64-setup.exe","win32-x64-zip":"…","linux-x64-deb":"…","linux-x64-appimage":"…"}
 ```
 
-1. Lấy phần sau dấu `=` (một dòng JSON). Kênh `dev` điền `OFFICE_INSTALLER_DEV_URLS`,
-   kênh `beta` điền `OFFICE_INSTALLER_BETA_URLS`. `OFFICE_INSTALLER_STABLE_URLS` để trống.
-2. Đặt giá trị vào nơi cấu hình server (Helm values hoặc secret của deploy; xem
-   `docs/office/g3g4/runbook.md`) rồi khởi động lại server. Biến đơn lẻ cũ
-   `OFFICE_INSTALLER_*_URL` chỉ còn là fallback cho Windows và sẽ bị gỡ.
-3. Kiểm tra: `GET /api/v1/config` trả `office_installers.<kênh>` với đúng các
-   `platform`, `url`, `version` và `unsigned: true`.
+1. Take everything after the `=` (one line of JSON). The `dev` channel fills
+   `OFFICE_INSTALLER_DEV_URLS`, `beta` fills `OFFICE_INSTALLER_BETA_URLS`;
+   `OFFICE_INSTALLER_STABLE_URLS` stays empty.
+2. Set it where the server is configured (Helm values or the deploy secret; see
+   `docs/office/g3g4/runbook.md`) and restart the server. The old single
+   `OFFICE_INSTALLER_*_URL` variables remain only as a Windows fallback and will be
+   removed.
+3. Check `GET /api/v1/config`: `office_installers.<channel>` lists the expected
+   `platform`, `url`, `version` and `unsigned: true`.
 
-Server chỉ chấp nhận HTTPS (HTTP chỉ cho localhost ở kênh dev), không có
-credential/query/fragment trong URL, và đuôi file phải khớp khoá nền tảng. Server
-tải bộ cài mà không gửi thông tin đăng nhập, nên release asset phải tải được công
-khai; nếu repo private, chép các file sang một host HTTPS công khai rồi tạo lại
-giá trị bằng:
+The server accepts HTTPS only (HTTP only for localhost on dev), no credentials,
+query or fragment in the URL, and a file extension that matches the platform key.
+It fetches the installer without user credentials, so the release assets must be
+publicly downloadable; for a private repository, copy the files to a public HTTPS
+host and regenerate the value with:
 
 ```bash
-node scripts/office/installer-urls.mjs --channel dev --base-url https://downloads.example/office/dev --dir <thư mục chứa bộ cài>
+node scripts/office/installer-urls.mjs --channel dev --base-url https://downloads.example/office/dev --dir <directory holding the installers>
 ```
 
 ## Update and rollback (G4-07b)
