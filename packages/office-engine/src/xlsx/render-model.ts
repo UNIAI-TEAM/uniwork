@@ -18,7 +18,7 @@ import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./r
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
 import { parseDataValidations, type XlsxRenderDataValidation } from "./render-model-validations.ts";
 import { parseWorksheetPageSetup, type XlsxRenderPageSetup } from "./render-model-page-setup.ts";
-export type { XlsxRenderPageMargins, XlsxRenderPageSetup } from "./render-model-page-setup.ts";
+export type { XlsxRenderHeaderFooter, XlsxRenderPageMargins, XlsxRenderPageSetup } from "./render-model-page-setup.ts";
 export { parseThemeXml } from "./render-model-styles.ts";
 
 import type { XlsxCellScalar, XlsxGatewayFunctions } from "./engine.ts";

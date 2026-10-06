@@ -2,9 +2,21 @@
 // carried no page setup, so a printed sheet could not honour the file's
 // orientation, paper, margins, scale / fit or manual breaks. This reader scans
 // the five worksheet parts that hold them (<sheetPr><pageSetUpPr>,
-// <printOptions>, <pageMargins>, <pageSetup>, <rowBreaks>/<colBreaks>); print
-// area and print titles stay where they live, in the workbook defined names.
-import { attribute, elements, sectionInner } from "./render-model-xml.ts";
+// <printOptions>, <pageMargins>, <pageSetup>, <rowBreaks>/<colBreaks>) and the
+// <headerFooter> text; print area and print titles stay where they live, in
+// the workbook defined names.
+import { attribute, decodeXml, elements, sectionInner } from "./render-model-xml.ts";
+
+/** The header/footer strings as the file stores them (Excel's `&L&C&R` codes
+ *  kept verbatim; the print copy interprets them). `first*` apply only when
+ *  `differentFirst` is set; even-page text is not read. */
+export interface XlsxRenderHeaderFooter {
+  readonly oddHeader?: string | undefined;
+  readonly oddFooter?: string | undefined;
+  readonly firstHeader?: string | undefined;
+  readonly firstFooter?: string | undefined;
+  readonly differentFirst?: boolean | undefined;
+}
 
 /** The file's page margins, in inches (OOXML <pageMargins> units). */
 export interface XlsxRenderPageMargins {
@@ -33,6 +45,7 @@ export interface XlsxRenderPageSetup {
   readonly verticalCentered?: boolean | undefined;
   readonly rowBreaks?: readonly number[] | undefined;
   readonly colBreaks?: readonly number[] | undefined;
+  readonly headerFooter?: XlsxRenderHeaderFooter | undefined;
 }
 
 const isTrue = (value: string | undefined): boolean => value === "1" || value === "true";
@@ -48,6 +61,21 @@ function breaksOf(xml: string, section: string): number[] {
     .map((entry) => finiteNumber(attribute(entry.tag, "id")))
     .filter((id): id is number => id !== undefined && Number.isInteger(id) && id > 0);
   return [...new Set(ids)].sort((left, right) => left - right);
+}
+
+/** Header/footer text are capped like Excel's own 255-character limit. */
+const MAX_HEADER_TEXT = 255;
+
+function headerFooterOf(xml: string): XlsxRenderHeaderFooter | undefined {
+  const section = elements(xml, "headerFooter")[0];
+  if (!section) return undefined;
+  const out: { -readonly [K in keyof XlsxRenderHeaderFooter]: XlsxRenderHeaderFooter[K] } = {};
+  for (const key of ["oddHeader", "oddFooter", "firstHeader", "firstFooter"] as const) {
+    const text = decodeXml(sectionInner(section.body, key)).slice(0, MAX_HEADER_TEXT);
+    if (text !== "") out[key] = text;
+  }
+  if (isTrue(attribute(section.tag, "differentFirst"))) out.differentFirst = true;
+  return Object.keys(out).length === 0 ? undefined : out;
 }
 
 /** The page layout of one worksheet XML, or undefined when it declares none. */
@@ -109,6 +137,8 @@ export function parseWorksheetPageSetup(xml: string): XlsxRenderPageSetup | unde
   if (rowBreaks.length > 0) out.rowBreaks = rowBreaks;
   const colBreaks = breaksOf(xml, "colBreaks");
   if (colBreaks.length > 0) out.colBreaks = colBreaks;
+  const headerFooter = headerFooterOf(xml);
+  if (headerFooter) out.headerFooter = headerFooter;
 
   return Object.keys(out).length === 0 ? undefined : out;
 }
