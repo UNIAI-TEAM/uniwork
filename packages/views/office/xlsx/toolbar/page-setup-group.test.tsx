@@ -60,6 +60,7 @@ describe("XlsxPageSetupGroup", () => {
     render(<XlsxPageSetupGroup {...groupProps({ onOpenPageSetup, onPrint, onExportCsv })} />);
     expect(screen.getByTestId("xlsx-page-setup-open")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.pageSetup.open"));
     expect(screen.getByTestId("xlsx-print")).toHaveAccessibleName(lookup(viLocale, "office.common.print"));
+    expect(screen.getByTestId("xlsx-export-csv")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.export.csv"));
     fireEvent.click(screen.getByTestId("xlsx-page-setup-open"));
     fireEvent.click(screen.getByTestId("xlsx-print"));
     fireEvent.click(screen.getByTestId("xlsx-export-csv"));
