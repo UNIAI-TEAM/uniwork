@@ -174,12 +174,14 @@ const userWideRevokeHelper = "revokeAllUserSessions"
 func userWideRevokeViolations(fset *token.FileSet, file *ast.File) []string {
 	var found []string
 	positions := map[string][]token.Pos{}
+	helperDefined := false
 	var inspect func(n ast.Node, inHelper bool)
 	inspect = func(n ast.Node, inHelper bool) {
 		ast.Inspect(n, func(node ast.Node) bool {
 			switch node := node.(type) {
 			case *ast.FuncDecl:
 				if node.Recv == nil && node.Name.Name == userWideRevokeHelper {
+					helperDefined = true
 					inspect(node.Body, true)
 					return false
 				}
@@ -199,7 +201,9 @@ func userWideRevokeViolations(fset *token.FileSet, file *ast.File) []string {
 		})
 	}
 	inspect(file, false)
-	if len(positions) > 0 {
+	// Keyed on the helper being defined here, not on a half being seen: a helper that
+	// references neither half is as broken as one that references only one.
+	if helperDefined {
 		for _, half := range userWideRevokeHalves {
 			if len(positions[half]) != 1 {
 				found = append(found, fmt.Sprintf("%s: %s referenced %d times in %s; want once", fset.Position(file.Pos()).Filename, half, len(positions[half]), userWideRevokeHelper))
@@ -267,13 +271,14 @@ func TestUserWideRevokeGuardSeesMethodValuesAndAliases(t *testing.T) {
 		t.Fatalf("the helper alone must pass, got %v", got)
 	}
 	for name, src := range map[string]string{
-		"call":               clean + `; func f(q *Q) { _ = q.RevokeAllRefreshTokensForUser() }`,
-		"method value":       clean + `; func f(q *Q) { g := q.RevokeAllDeviceSessions; _ = g }`,
-		"alias var":          clean + `; var alias = (*Q).RevokeAllRefreshTokensForUser`,
-		"passed as a value":  clean + `; func f(q *Q) { run(q.RevokeAllDeviceSessions) }`,
-		"helper order":       `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllRefreshTokensForUser(); _ = q.RevokeAllDeviceSessions() }`,
-		"helper twice":       `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllRefreshTokensForUser() }`,
-		"helper missing one": `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions() }`,
+		"call":                clean + `; func f(q *Q) { _ = q.RevokeAllRefreshTokensForUser() }`,
+		"method value":        clean + `; func f(q *Q) { g := q.RevokeAllDeviceSessions; _ = g }`,
+		"alias var":           clean + `; var alias = (*Q).RevokeAllRefreshTokensForUser`,
+		"passed as a value":   clean + `; func f(q *Q) { run(q.RevokeAllDeviceSessions) }`,
+		"helper order":        `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllRefreshTokensForUser(); _ = q.RevokeAllDeviceSessions() }`,
+		"helper twice":        `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllRefreshTokensForUser() }`,
+		"helper missing one":  `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions() }`,
+		"helper missing both": `func revokeAllUserSessions(q *Q) {}`,
 	} {
 		if got := check(src); len(got) == 0 {
 			t.Errorf("%s: the guard let it through", name)
