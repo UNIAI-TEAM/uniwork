@@ -52,8 +52,14 @@ export function gridPasteSteps(
       row[start.column + columnIndex] = pasteCellData(text, plan?.styles[rowIndex]?.[columnIndex] ?? null, plan?.numbers[rowIndex]?.[columnIndex] ?? null);
     });
   });
+  // The pasted rectangle: without it the pinned command reads the live
+  // selection, and refuses when there is none.
+  const range = {
+    startRow: start.row, endRow: start.row + plainRows.length - 1,
+    startColumn: start.column, endColumn: start.column + Math.max(0, ...plainRows.map((cells) => cells.length)) - 1,
+  };
   return [
-    { id: "sheet.command.set-range-values", params: { unitId, subUnitId, value } },
+    { id: "sheet.command.set-range-values", params: { unitId, subUnitId, range, value } },
     ...(plan?.merges ?? []).map((area) => ({
       id: "sheet.command.add-worksheet-merge",
       params: { unitId, subUnitId, selections: [area], defaultMerge: true },

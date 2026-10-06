@@ -60,7 +60,7 @@ describe("rich paste on the live grid", () => {
     expect(setCellText).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledTimes(1);
     expect(execute).toHaveBeenCalledWith("sheet.command.set-range-values", {
-      unitId: "file-sha", subUnitId: "s1", value: { 1: {
+      unitId: "file-sha", subUnitId: "s1", range: { startRow: 1, endRow: 1, startColumn: 1, endColumn: 2 }, value: { 1: {
         1: { ...S, v: "a", t: 1, s: { bl: 1 } },
         2: { ...S, v: 0.5, t: 2, s: { n: { pattern: "0.00%" } } },
       } },
@@ -77,7 +77,7 @@ describe("rich paste on the live grid", () => {
     expect(execute).not.toHaveBeenCalled();
     expect(batch).toHaveBeenCalledTimes(1);
     expect(batch).toHaveBeenCalledWith([
-      { id: "sheet.command.set-range-values", params: { unitId: "file-sha", subUnitId: "s1", value: { 1: {
+      { id: "sheet.command.set-range-values", params: { unitId: "file-sha", subUnitId: "s1", range: { startRow: 1, endRow: 1, startColumn: 1, endColumn: 3 }, value: { 1: {
         1: { ...S, v: "a", t: 1, s: { it: 1 } }, 2: { ...S, v: null }, 3: { ...S, v: "b", t: 1 },
       } } } },
       { id: "sheet.command.add-worksheet-merge", params: { unitId: "file-sha", subUnitId: "s1", selections: [{ startRow: 1, endRow: 1, startColumn: 1, endColumn: 2 }], defaultMerge: true } },
@@ -90,7 +90,7 @@ describe("rich paste on the live grid", () => {
     await act(async () => { await hook.result.current.paste(); });
     expect(readText).toHaveBeenCalledTimes(1);
     expect(execute).toHaveBeenCalledWith("sheet.command.set-range-values", {
-      unitId: "file-sha", subUnitId: "s1", value: { 1: { 1: { ...S, v: "a", t: 1 }, 2: { ...S, v: 0.5, t: 2 } } },
+      unitId: "file-sha", subUnitId: "s1", range: { startRow: 1, endRow: 1, startColumn: 1, endColumn: 2 }, value: { 1: { 1: { ...S, v: "a", t: 1 }, 2: { ...S, v: 0.5, t: 2 } } },
     });
     expect(hook.result.current.pasteNotice).toBeNull();
   });
