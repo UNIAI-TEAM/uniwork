@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"math"
@@ -199,7 +200,24 @@ func officeVisualImageOK(raw json.RawMessage) bool {
 		return false
 	}
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	return err == nil && len(decoded) <= maxOfficeVisualImageBytes
+	if err != nil || len(decoded) > maxOfficeVisualImageBytes {
+		return false
+	}
+	// The declared type must match the bytes: it names the xl/media part the
+	// gateway writes, and a mislabelled picture opens broken in Excel.
+	for _, signature := range officeVisualImageSignatures[mediaType] {
+		if bytes.HasPrefix(decoded, []byte(signature)) {
+			return true
+		}
+	}
+	return false
+}
+
+// officeVisualImageSignatures: the magic bytes each allowed picture type starts with.
+var officeVisualImageSignatures = map[string][]string{
+	"image/png":  {"\x89PNG\r\n\x1a\n"},
+	"image/jpeg": {"\xff\xd8\xff"},
+	"image/gif":  {"GIF87a", "GIF89a"},
 }
 
 // officeSetVisualValid: set_visual - a sheet-ref target, a visual id, a

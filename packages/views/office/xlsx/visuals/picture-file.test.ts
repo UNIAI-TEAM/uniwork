@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitPicture, pictureSize, readPictureFile } from "./picture-file";
+import { fitPicture, readPictureFile, sniffPicture } from "./picture-file";
 
 function png(width: number, height: number): Uint8Array {
   const bytes = new Uint8Array(32);
@@ -32,17 +32,17 @@ function jpeg(width: number, height: number): Uint8Array {
   return bytes;
 }
 
-describe("pictureSize", () => {
-  it("reads PNG, GIF and JPEG headers", () => {
-    expect(pictureSize(png(300, 200))).toEqual({ width: 300, height: 200 });
-    expect(pictureSize(gif(120, 80))).toEqual({ width: 120, height: 80 });
-    expect(pictureSize(jpeg(640, 480))).toEqual({ width: 640, height: 480 });
+describe("sniffPicture", () => {
+  it("reads the type and size from PNG, GIF and JPEG headers", () => {
+    expect(sniffPicture(png(300, 200))).toEqual({ mediaType: "image/png", width: 300, height: 200 });
+    expect(sniffPicture(gif(120, 80))).toEqual({ mediaType: "image/gif", width: 120, height: 80 });
+    expect(sniffPicture(jpeg(640, 480))).toEqual({ mediaType: "image/jpeg", width: 640, height: 480 });
   });
 
   it("returns null for unknown or truncated data", () => {
-    expect(pictureSize(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]))).toBeNull();
-    expect(pictureSize(new Uint8Array([0xff, 0xd8]))).toBeNull();
-    expect(pictureSize(new Uint8Array(0))).toBeNull();
+    expect(sniffPicture(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]))).toBeNull();
+    expect(sniffPicture(new Uint8Array([0xff, 0xd8]))).toBeNull();
+    expect(sniffPicture(new Uint8Array(0))).toBeNull();
   });
 });
 
@@ -60,7 +60,16 @@ describe("readPictureFile", () => {
   });
 
   it("refuses an unsupported media type", async () => {
-    expect(await readPictureFile(new File([png(1, 1)], "a.bmp", { type: "image/bmp" }))).toEqual({ ok: false, reason: "type" });
+    const bmp = new Uint8Array(64).fill(7);
+    bmp.set([0x42, 0x4d]);
+    expect(await readPictureFile(new File([bmp], "a.bmp", { type: "image/bmp" }))).toEqual({ ok: false, reason: "type" });
+  });
+
+  it("takes the type from the bytes, not the file name", async () => {
+    const renamed = await readPictureFile(new File([png(4, 2)], "a.jpg", { type: "image/jpeg" }));
+    expect(renamed).toMatchObject({ ok: true, mediaType: "image/png", width: 4, height: 2 });
+    const unlabelled = await readPictureFile(new File([gif(3, 3)], "a", { type: "" }));
+    expect(unlabelled).toMatchObject({ ok: true, mediaType: "image/gif" });
   });
 
   it("refuses a file above 512 KB", async () => {

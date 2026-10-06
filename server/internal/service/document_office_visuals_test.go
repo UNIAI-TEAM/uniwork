@@ -48,6 +48,10 @@ func TestValidateOfficeVisualEdits(t *testing.T) {
 		{"unknown shape", set(`"id":"s1",` + anchor + `,"shape":{"shapeType":"star99"}`), false},
 		{"bad fill colour", set(`"id":"s1",` + anchor + `,"shape":{"shapeType":"rect","fillColor":"red"}`), false},
 		{"unsupported picture type", set(`"id":"p1",` + anchor + `,"image":{"mediaType":"image/bmp","base64":"` + png + `"}`), false},
+		{"picture whose bytes are another type", set(`"id":"p1",` + anchor + `,"image":{"mediaType":"image/jpeg","base64":"` + png + `"}`), false},
+		{"picture with no image signature", set(`"id":"p1",` + anchor + `,"image":{"mediaType":"image/png","base64":"` + base64.StdEncoding.EncodeToString([]byte("<svg/>")) + `"}`), false},
+		{"jpeg picture", set(`"id":"p1",` + anchor + `,"image":{"mediaType":"image/jpeg","base64":"` + base64.StdEncoding.EncodeToString([]byte("\xff\xd8\xff\xe0rest")) + `"}`), true},
+		{"gif picture", set(`"id":"p1",` + anchor + `,"image":{"mediaType":"image/gif","base64":"` + base64.StdEncoding.EncodeToString([]byte("GIF89a....")) + `"}`), true},
 		{"picture not base64", set(`"id":"p1",` + anchor + `,"image":{"mediaType":"image/png","base64":"not base64!"}`), false},
 		{"picture over the size cap", set(`"id":"p1",` + anchor + `,"image":{"mediaType":"image/png","base64":"` + overImage + `"}`), false},
 		{"unknown attribute", set(`"id":"c1",` + anchor + `,` + chart + `,"rotation":45`), false},
@@ -71,7 +75,7 @@ func TestValidateOfficeVisualEdits(t *testing.T) {
 // A save carrying a picture at the cap plus ordinary cell edits stays inside
 // the edits size bound (and so inside the 8 MiB document JSON body).
 func TestOfficeVisualPictureAtTheCapFitsOneSave(t *testing.T) {
-	image := base64.StdEncoding.EncodeToString(make([]byte, maxOfficeVisualImageBytes))
+	image := officeVisualCapPNG()
 	edits := []office.EditOp{{
 		Op:         "set_visual",
 		Target:     json.RawMessage(`{"sheet":"S"}`),
@@ -88,7 +92,7 @@ func TestOfficeVisualPictureAtTheCapFitsOneSave(t *testing.T) {
 // B1: a move or resize is the anchor-only set_visual, so 100 nudges of a
 // picture at the cap cost about one picture, far below the edits bound.
 func TestOfficeVisualNudgedPictureFitsOneSave(t *testing.T) {
-	image := base64.StdEncoding.EncodeToString(make([]byte, maxOfficeVisualImageBytes))
+	image := officeVisualCapPNG()
 	at := func(row int) string {
 		return fmt.Sprintf(`"anchor":{"fromRow":%d,"fromColumn":0,"fromRowOffset":0,"fromColumnOffset":0,"toRow":%d,"toColumn":4,"toRowOffset":0,"toColumnOffset":0}`, row, row+4)
 	}
@@ -110,4 +114,12 @@ func TestOfficeVisualNudgedPictureFitsOneSave(t *testing.T) {
 	if err := validateOfficeJobEdits(office.OperationEdit, edits); err != nil {
 		t.Fatalf("a picture at the cap nudged 100 times must validate: %v", err)
 	}
+}
+
+// officeVisualCapPNG is a base64 picture of exactly the cap that carries the
+// PNG signature the validator sniffs.
+func officeVisualCapPNG() string {
+	picture := make([]byte, maxOfficeVisualImageBytes)
+	copy(picture, "\x89PNG\r\n\x1a\n")
+	return base64.StdEncoding.EncodeToString(picture)
 }
