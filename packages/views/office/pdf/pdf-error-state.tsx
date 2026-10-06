@@ -4,6 +4,8 @@ import { AlertTriangle, FileWarning, LockKeyhole, ShieldAlert } from "lucide-rea
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Notice } from "../../common/notice";
+import { isOfficeTooLarge } from "@uniwork/core/office";
+import { OfficeTooLargeNotice } from "../too-large-notice";
 import type { PdfOpenFailure } from "./types";
 
 const FAILURE_ICON = {
@@ -24,6 +26,7 @@ function failureKey(failureClass: string): keyof typeof FAILURE_ICON | null {
 
 export function PdfErrorState({ failure, onRetry }: { failure: PdfOpenFailure; onRetry?: () => void }) {
   const { t } = useTranslation();
+  if (isOfficeTooLarge(failure)) return <OfficeTooLargeNotice format="pdf" />;
   const Icon = FAILURE_ICON[failureKey(failure.failure_class) ?? "engine_error"] ?? AlertTriangle;
   const reason = failure.message ?? t(`office.pdf.errors.${failure.failure_class}`, {
     defaultValue: t("office.pdf.errors.unknown"),

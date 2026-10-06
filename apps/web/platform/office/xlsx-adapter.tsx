@@ -3,7 +3,7 @@
 import { createElement, type ReactNode } from "react";
 import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
-import { createSaveSettleGate, officeSaveReceiptSchema } from "@uniwork/core/office";
+import { createSaveSettleGate, isOfficeTooLarge, officeSaveReceiptSchema } from "@uniwork/core/office";
 import { bytesOf, cloneSnapshot, digestHex, fingerprint } from "./xlsx-adapter-data";
 import type {
   OfficeCapabilityEntry,
@@ -534,7 +534,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
           outcome: "failed",
           document_id: options.identity.documentId,
           format: "xlsx",
-          failure_class: typed.failureClass ?? "engine_error",
+          failure_class: typed.failureClass ?? (isOfficeTooLarge(error as { code?: string; kind?: string }) ? "too_large" : "engine_error"),
           ...(typed.engineError ? { engine_error: typed.engineError } : {}),
           message: error instanceof Error ? error.message : String(error),
         };

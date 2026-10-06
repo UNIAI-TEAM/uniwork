@@ -7831,6 +7831,12 @@
     }
   },
   "office": {
+    "too_large": {
+      "title": "Tệp quá lớn để chỉnh sửa trên web",
+      "description": "{{format}} này vượt giới hạn dung lượng của trình duyệt. Mở tệp trong ứng dụng UniWork Office trên máy tính để tiếp tục làm việc — ứng dụng không giới hạn dung lượng tệp.",
+      "download": "Tải xuống",
+      "download_failed": "Không thể tải tệp xuống. Hãy thử lại."
+    },
     "common": {
       "chrome": {
         "undo": "Hoàn tác",

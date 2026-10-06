@@ -7836,6 +7836,12 @@
     }
   },
   "office": {
+    "too_large": {
+      "title": "File is too large to edit on the web",
+      "description": "This {{format}} file exceeds the browser size limit. Open it in the UniWork Office desktop app to keep working — the app has no file size limit.",
+      "download": "Download",
+      "download_failed": "The file could not be downloaded. Try again."
+    },
     "common": {
       "chrome": {
         "undo": "Undo",

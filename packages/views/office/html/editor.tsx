@@ -21,6 +21,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { OfficeTooLargeNotice, openFailureClassOf } from "../too-large-notice";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -43,7 +44,7 @@ function failureFor(documentKey: string, error: unknown): Extract<HtmlOpenOutcom
     outcome: "failed",
     document_id: documentKey,
     format: "html",
-    failure_class: "engine_error",
+    failure_class: openFailureClassOf(error),
     message: error instanceof Error ? error.message : String(error),
   } as Extract<HtmlOpenOutcome, { outcome: "failed" }>;
 }
@@ -483,7 +484,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             {...visual}
           />
         </OfficeFrame>
-      ) : viewState === "error" && failure ? (
+      ) : viewState === "error" && failure ? failure.failure_class === "too_large" ? <OfficeTooLargeNotice format="html" /> : (
         <Alert className="m-3" variant="destructive" role="alert" data-testid="html-error-state">
           <AlertTitle>{t("errors.title")}</AlertTitle>
           <AlertDescription>{failure.message ?? t("errors.unknown")}</AlertDescription>

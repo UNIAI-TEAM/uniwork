@@ -812,6 +812,19 @@ describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
     expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(0);
   });
 
+  it("renders the shared too-large notice when the open is too_large (UNI-956)", async () => {
+    const editor: HtmlEditorHandle = {
+      format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { source: SOURCE } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => SOURCE, setText: () => undefined },
+    };
+    const outcome = { outcome: "failed", document_id: "doc", format: "html", failure_class: "too_large" } as HtmlOpenOutcome;
+    render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} />);
+    await waitFor(() => expect(screen.getByTestId("office-too-large")).toBeInTheDocument());
+    expect(screen.queryByTestId("html-error-state")).toBeNull();
+  });
+
   it("keeps the open and error states rendering outside the frame", async () => {
     const editor: HtmlEditorHandle = {
       format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,

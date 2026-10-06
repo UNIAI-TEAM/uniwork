@@ -284,6 +284,14 @@ describe("web XLSX format adapter", () => {
     await adapter.session.dispose();
   });
 
+  it("maps a thrown upload_bounds open error to too_large instead of engine_error (UNI-956)", async () => {
+    const engine = runtime();
+    engine.open = vi.fn(async () => { throw Object.assign(new Error("workbook too large"), { code: "upload_bounds", kind: "byte_bound" }); });
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: documents(), capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    await expect(adapter.open.open()).resolves.toMatchObject({ outcome: "failed", failure_class: "too_large" });
+    await adapter.session.dispose();
+  });
+
   it("releases a runtime model that finishes opening after dispose", async () => {
     const engine = runtime();
     type OpenResult = Awaited<ReturnType<XlsxSessionRuntime["open"]>>;

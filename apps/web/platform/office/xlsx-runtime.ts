@@ -1,7 +1,7 @@
 "use client";
 
 import { cancelOfficeJob, downloadOfficeJobOutput, getOfficeJob, startOfficeJob, type OfficeEditOp, type OfficeJobError } from "@uniwork/core/api/endpoints/office";
-import { dispatchOfficeError } from "@uniwork/core/office";
+import { dispatchOfficeError, isOfficeTooLarge } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
 import { cloneSnapshot, stableJson } from "./xlsx-adapter-data";
@@ -151,7 +151,7 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
           snapshot: cloneSnapshot(snapshot),
           ...(opened.renderModel === undefined ? {} : { renderModel: opened.renderModel }),
         };
-      } catch (error) { return { outcome: "failed", document_id: input.documentId, failure_class: "engine_error", message: error instanceof Error ? error.message : String(error) }; }
+      } catch (error) { return { outcome: "failed", document_id: input.documentId, failure_class: isOfficeTooLarge(error as { code?: string; kind?: string }) ? "too_large" : "engine_error", message: error instanceof Error ? error.message : String(error) }; }
     },
     async edit(_ref, operations) {
       if (!snapshot) throw new Error("xlsx_runtime_not_open");
