@@ -127,8 +127,9 @@ describeWithPatchedGateway("x14 conditional formatting and data validation", () 
     const failure = await doc.save().then(() => null, (error: unknown) => error);
     expect(failure).toBeInstanceOf(EngineBoundaryError);
     expect((failure as EngineBoundaryError).code).toBe("unsupported_operation");
-    expect((failure as EngineBoundaryError).fields).toMatchObject({ rule_sets: [{ family: "conditionalFormats", sheet: "Data" }] });
-    expect(String((failure as EngineBoundaryError).fields.detail)).toContain('conditional formatting on sheet "Data"');
+    expect((failure as EngineBoundaryError).fields).toMatchObject({ rule_sets: [{ family: "conditionalFormats", ops: [0] }] });
+    // r3 m-1: sheet names are document content and never ride an error field.
+    expect(JSON.stringify((failure as EngineBoundaryError).fields)).not.toContain("Data");
 
     const saved = await sheetXml(await doc.save());
     expect(saved).toContain(BASE_BLOCK.exec(original)?.[0] ?? "missing");
@@ -145,27 +146,45 @@ describeWithPatchedGateway("x14 conditional formatting and data validation", () 
     const failure = await applyXlsxEditBytes(engine, undefined, dataBar(), ops).then(() => null, (error: unknown) => error);
     expect(failure).toBeInstanceOf(XlsxTypedError);
     expect((failure as XlsxTypedError).code).toBe("unsupported_operation");
-    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["cf","Data"]]');
+    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["cf",[0]]]');
+    expect((failure as XlsxTypedError).message).not.toContain("Data");
     // The same op list fails again: a job keeps nothing between saves.
     await expect(applyXlsxEditBytes(engine, undefined, dataBar(), ops)).rejects.toBeInstanceOf(XlsxTypedError);
 
     // What the client runtime keeps after dropping the named set.
-    const trimmed = ops.filter((op) => !(op.op === "set_conditional_formats" && op.target.sheet === "Data"));
+    const trimmed = ops.filter((_op, index) => index !== 0);
     const saved = await sheetXml((await applyXlsxEditBytes(engine, undefined, dataBar(), trimmed)).bytes);
     expect(saved).toContain(BASE_BLOCK.exec(original)?.[0] ?? "missing");
     expect(saved).toContain(EXT_LST.exec(original)?.[0] ?? "missing");
     expect(saved).toMatch(/<c r="D2"[^>]*><v>7<\/v><\/c>/);
   });
 
-  it("trims the dropped-rule-set reason to whole entries that fit the job channel", () => {
-    expect(ruleSetDropReason([{ family: "dataValidations", sheet: "Sổ 1" }])).toBe('xlsx_rule_sets_dropped:[["dv","Sổ 1"]]');
-    const many = Array.from({ length: 20 }, (_, index) => ({ family: "conditionalFormats" as const, sheet: `Sheet with a long name ${index}` }));
+  // Review r3 MA-2: the reason names op positions, not sheet names, so a sheet
+  // renamed after its rule edit still matches the ops the client sent.
+  it("names every op folded into a refused state by position, across a rename, and the trimmed list then saves", async () => {
+    const renamed = { ...loaderSnapshot, target: { sheet: "Doanh thu" } };
+    const ops = [loaderSnapshot, { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Doanh thu" } }, renamed, { ...cellEdit("D2", 7), target: { sheet: "Doanh thu", cell: "D2" } }];
+    const failure = await applyXlsxEditBytes(engine, undefined, dataBar(), ops).then(() => null, (error: unknown) => error);
+    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["cf",[0,2]]]');
+    const saved = (await applyXlsxEditBytes(engine, undefined, dataBar(), [ops[1]!, ops[3]!])).bytes;
+    expect(await engine.readEntryText(saved, SHEET1)).toMatch(/<c r="D2"[^>]*><v>7<\/v><\/c>/);
+  });
+
+  it("trims the dropped-rule-set reason to whole entries and bounded positions that fit the job channel", () => {
+    expect(ruleSetDropReason([{ family: "dataValidations", ops: [3] }])).toBe('xlsx_rule_sets_dropped:[["dv",[3]]]');
+    const many = Array.from({ length: 40 }, (_, index) => ({ family: "conditionalFormats" as const, ops: [1000 + index, 2000 + index] }));
     const reason = ruleSetDropReason(many);
     expect(reason.length).toBeLessThanOrEqual(300);
-    const entries = JSON.parse(reason.slice("xlsx_rule_sets_dropped:".length)) as [string, string][];
+    const entries = JSON.parse(reason.slice("xlsx_rule_sets_dropped:".length)) as [string, number[]][];
     expect(entries.length).toBeGreaterThan(0);
-    expect(entries.length).toBeLessThan(20);
-    expect(entries[0]).toEqual(["cf", "Sheet with a long name 0"]);
+    expect(entries.length).toBeLessThan(40);
+    expect(entries[0]).toEqual(["cf", [1000, 2000]]);
+    // One state folded from more positions than fit keeps its latest ones; the
+    // next save names the rest.
+    const long = ruleSetDropReason([{ family: "conditionalFormats", ops: Array.from({ length: 200 }, (_, index) => 10000 + index) }]);
+    expect(long.length).toBeLessThanOrEqual(300);
+    const [[, kept]] = JSON.parse(long.slice("xlsx_rule_sets_dropped:".length)) as [string, number[]][];
+    expect(kept.at(-1)).toBe(10199);
   });
 
   it("names a DV snapshot on an x14-validation sheet, drops it, and the next save keeps the x14 rule", async () => {
@@ -173,7 +192,7 @@ describeWithPatchedGateway("x14 conditional formatting and data validation", () 
     const doc = await session(x14Validation());
     doc.edit([dvSnapshot]);
     const failure = await doc.save().then(() => null, (error: unknown) => error);
-    expect((failure as EngineBoundaryError).fields).toMatchObject({ rule_sets: [{ family: "dataValidations", sheet: "Data" }] });
+    expect((failure as EngineBoundaryError).fields).toMatchObject({ rule_sets: [{ family: "dataValidations", ops: [0] }] });
     const saved = await sheetXml(await doc.save());
     expect(saved).toContain(X14_DV.exec(original)?.[0] ?? "missing");
     expect(saved).not.toContain("<dataValidations");

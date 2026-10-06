@@ -69,12 +69,15 @@ export type XlsxConditionalFormatsOp = {
   readonly kind: "set_conditional_formats";
   readonly sheetName: string;
   readonly rules: readonly XlsxConditionalFormatRule[];
+  /** Positions of the wire ops folded into this state (r3 MA-2). */
+  readonly sources?: readonly number[];
 };
 
 export type XlsxDataValidationsOp = {
   readonly kind: "set_data_validations";
   readonly sheetName: string;
   readonly rules: readonly XlsxDataValidationRule[];
+  readonly sources?: readonly number[];
 };
 
 /** The gateway's SheetCfState: the sheet name plus its complete rule set. */
@@ -246,12 +249,19 @@ export function parseSetDataValidations(item: Dict, op: string, sheets: XlsxShee
   return [{ kind: DATA_VALIDATIONS_OP_KIND, sheetName, rules }];
 }
 
+/** The parsed op stamped with its wire position; other ops pass through. */
+export function withRuleSetSource(op: XlsxEditOp, position: number): XlsxEditOp {
+  return isXlsxRuleSetOp(op) ? { ...op, sources: [position] } : op;
+}
+
 /** Fold one rule-set op into its sheet's journal entry (last write per family
- *  wins). */
+ *  wins). The state keeps the positions of every op folded into it, so a
+ *  refused state names all of them (r3 MA-2). */
 export function withRuleSetOp(entry: XlsxRuleSetEntry | undefined, op: XlsxRuleSetOp): XlsxRuleSetEntry {
-  return op.kind === CONDITIONAL_FORMATS_OP_KIND
-    ? { ...entry, conditionalFormats: op }
-    : { ...entry, dataValidations: op };
+  if (op.kind === CONDITIONAL_FORMATS_OP_KIND) {
+    return { ...entry, conditionalFormats: { ...op, sources: [...(entry?.conditionalFormats?.sources ?? []), ...(op.sources ?? [])] } };
+  }
+  return { ...entry, dataValidations: { ...op, sources: [...(entry?.dataValidations?.sources ?? []), ...(op.sources ?? [])] } };
 }
 
 /** The entry without one family's snapshot; undefined once nothing is left. */

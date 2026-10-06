@@ -38,9 +38,10 @@ import {
   type XlsxSheetFormulaValues,
   type XlsxWorkbookSnapshot,
 } from "./engine.ts";
-import { isolateRuleSetFailures, ruleSetDropFields } from "./adapter-rule-sets.ts";
+import { ruleSetSaveFailure } from "./adapter-rule-sets.ts";
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps } from "./ops.ts";
+import { withRuleSetSource } from "./ops-cf-dv.ts";
 import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
 import { readSharedFollowers, type XlsxSharedFollowers } from "./shared-formulas.ts";
 
@@ -102,6 +103,8 @@ interface XlsxSession {
   model: XlsxSessionModel;
   sheetNamesById: Readonly<Record<string, string>>;
   preservedParts: readonly string[];
+  /** Wire ops accepted so far: a rule-set op records its position (r3 MA-2). */
+  wireOps: number;
 }
 
 let sessionCounter = 0;
@@ -229,6 +232,7 @@ export class XlsxAdapter {
       model: createXlsxSessionModel(parsed.snapshot, inputSha256),
       sheetNamesById: parsed.sheetNamesById,
       preservedParts,
+      wireOps: 0,
     });
     return { outcome: "opened", document_id, document_model_ref: ref, warnings: preservedWarnings(preservedParts) };
   }
@@ -258,11 +262,12 @@ export class XlsxAdapter {
     // leaving the valid prefix applied.
     const checkpoint = session.model.checkpoint();
     try {
-      parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op) => session.model.applyEdit(op));
+      parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op, index) => session.model.applyEdit(withRuleSetSource(op, session.wireOps + index)));
     } catch (error) {
       session.model.rollback(checkpoint);
       throw error;
     }
+    session.wireOps += ops.length;
     return { applied: true, revision: session.model.revision };
   }
 
@@ -468,7 +473,7 @@ export class XlsxAdapter {
     try {
       out = await assembleWith(gatewayArguments);
     } catch (error) {
-      throw await this.ruleSetSaveFailure(session, gatewayArguments, assembleWith, error);
+      throw await ruleSetSaveFailure(session.model, gatewayArguments, assembleWith, error);
     }
     // Rebase on the produced bytes: a saved package that does not re-parse is
     // an engine bug the caller must never inherit as the new base.
@@ -504,27 +509,6 @@ export class XlsxAdapter {
       });
     }
     return this.deps.recalc;
-  }
-
-  /** A failed assemble with pending CF/DV rule sets (X01 review M1): name the
-   *  whole-sheet states that fail on their own, drop them from the journal so
-   *  the next save goes through, and refuse this one naming them. Any other
-   *  failure keeps its original error. */
-  private async ruleSetSaveFailure(
-    session: XlsxSession,
-    args: XlsxGatewayArguments,
-    assembleWith: (args: XlsxGatewayArguments) => Promise<unknown>,
-    error: unknown,
-  ): Promise<unknown> {
-    const failures = await isolateRuleSetFailures(args, assembleWith);
-    if (failures.length === 0) return error;
-    const names = {
-      conditionalFormats: session.model.pendingConditionalFormatStates().map((state) => state.sheetName),
-      dataValidations: session.model.pendingDataValidationStates().map((state) => state.sheetName),
-    };
-    const ruleSets = failures.map(({ family, index }) => ({ family, sheet: names[family][index] ?? "" }));
-    for (const { family, sheet } of ruleSets) session.model.discardRuleSet(sheet, family);
-    return new EngineBoundaryError("unsupported_operation", ruleSetDropFields(ruleSets));
   }
 
   /** One assemble pass + preservation assertion, output bounded. */

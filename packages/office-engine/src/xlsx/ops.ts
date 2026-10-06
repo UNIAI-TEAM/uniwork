@@ -137,13 +137,13 @@ const OP_KIND_BY_NAME: ReadonlyMap<string, XlsxOpKind> = new Map(XLSX_OP_KINDS.m
 export function parseXlsxOps(
   edits: unknown[],
   sheets: XlsxSheetResolver,
-  onOp?: (op: XlsxEditOp) => void,
+  onOp?: (op: XlsxEditOp, index: number) => void,
 ): XlsxEditOp[] {
   if (edits.length > ENGINE_LIMITS.max_edit_ops) {
     throw new XlsxOpError("<edits>", "", `at most ${ENGINE_LIMITS.max_edit_ops} ops per job`);
   }
   const ops: XlsxEditOp[] = [];
-  for (const item of edits) {
+  for (const [index, item] of edits.entries()) {
     if (!isDict(item)) throw new XlsxOpError("<item>", "", "object required");
     const op = str(item.op, "<item>", "op");
     const kind = OP_KIND_BY_NAME.get(op);
@@ -153,7 +153,7 @@ export function parseXlsxOps(
     }
     for (const parsed of kind.parse(item, op, sheets)) {
       ops.push(parsed);
-      onOp?.(parsed);
+      onOp?.(parsed, index);
     }
   }
   return ops;
