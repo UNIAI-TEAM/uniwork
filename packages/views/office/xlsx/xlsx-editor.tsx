@@ -325,12 +325,19 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onFind: () => setFindOpen(true),
   });
 
+  // F1/F4: resolve the active sheet through the LIVE name before any action
+  // reads it. A session rename keeps the grid id but changes the name, so the
+  // raw activeSheet may already have fallen back to sheets[0]. Page setup,
+  // print, protect and name actions read this resolved value so they cannot
+  // aim at the wrong sheet.
+  const resolvedActiveSheet = (activeSheetId !== null ? liveSheets.find((sheet) => sheet.id === activeSheetId)?.name : undefined) ?? activeSheet;
+
   // Page Setup, Print and Export CSV (C2): the hook owns the dialog state,
   // the set_page_setup op and the two host actions; see page-setup/.
   const pageSetup = useXlsxPageSetup({
     host: rendererHost,
     selection,
-    activeSheet,
+    activeSheet: resolvedActiveSheet,
     readOnly,
     canEdit,
     edit: editor.edit,
@@ -339,13 +346,6 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onError: setRecalcError,
     printPort, title: effectiveTitle, getGrid: () => gridRef.current, resolveSheetId: gridSheetId,
   });
-
-  // F1/F4: resolve the active sheet through the LIVE name before any action
-  // reads it. A session rename keeps the grid id but changes the name, so the
-  // raw activeSheet may already have fallen back to sheets[0] - the hazard
-  // useXlsxPageSetup shields with selection?.sheet. Protect/name actions read
-  // this resolved value so they cannot aim at the wrong sheet.
-  const resolvedActiveSheet = (activeSheetId !== null ? liveSheets.find((sheet) => sheet.id === activeSheetId)?.name : undefined) ?? activeSheet;
 
   // Sheet protection + the name manager (B7): the hook owns the dialog state
   // and the two new ops; see protect/.
@@ -446,7 +446,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 onOpenAdvancedFilter={rendererHost ? () => setAdvancedFilterOpen(true) : undefined}
                 onOpenProtect={rendererHost ? protectNames.openProtect : undefined}
                 onOpenPageSetup={rendererHost ? pageSetup.openPageSetup : undefined}
-                onPrint={rendererHost ? pageSetup.print : undefined}
+                onPrint={rendererHost ? pageSetup.print : undefined} printBusy={pageSetup.printBusy}
                 onExportCsv={rendererHost ? pageSetup.exportCsv : undefined}
                 host={rendererHost}
                 unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null}

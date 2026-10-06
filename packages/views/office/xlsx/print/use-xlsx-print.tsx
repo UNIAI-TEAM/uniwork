@@ -6,7 +6,9 @@
 // the INJECTED port - never `window.print()` on the app window. Outcomes:
 // `cancelled` is silent, a busy dialog shows the neutral "already open"
 // status, any other failure the generic error. No automatic retry; a second
-// request while one is pending is ignored. No port means no entry at all.
+// request while one is pending is ignored (both entries show busy meanwhile).
+// No port means no entry at all. Ctrl/Cmd+P on the page runs the same print
+// (useOfficePrintShortcut, active document only).
 
 import { Printer } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -14,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import type { XlsxPageSetupFields, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { createBrowserPrintPort, isPrintBusy, type OfficePrintOutcome, type OfficePrintPort } from "../../print";
+import { useOfficePrintShortcut } from "../../print/shortcut";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import { collectXlsxPrintSheet } from "./collect";
 import type { XlsxPrintGrid } from "./collect-live";
@@ -23,7 +26,7 @@ const XLSX_PRINT_KEYS = {
   menuItem: "office.common.print",
   busy: "office.xlsx.print.busy",
   failed: "office.xlsx.print.failed",
-  tooLarge: "office.xlsx.print.tooLarge",
+  tooLarge: "office.common.printTooLarge",
 } as const;
 
 type XlsxPrintNotice = "busy" | "failed" | "tooLarge";
@@ -76,6 +79,8 @@ interface XlsxPrintWiring {
   print: (() => void) | undefined;
   /** The overflow-menu item (null without `print`). */
   menuItem: ReactNode;
+  /** A run is pending: both entries show busy and ignore clicks. */
+  busy: boolean;
   /** The polite outcome line; render it once inside the editor. */
   notice: ReactNode;
 }
@@ -84,6 +89,7 @@ export function useXlsxPrint(options: XlsxPrintOptions): XlsxPrintWiring {
   const { t, i18n } = useTranslation();
   const port = useMemo(() => (options.port === undefined ? createBrowserPrintPort() : options.port), [options.port]);
   const [notice, setNotice] = useState<XlsxPrintNotice | null>(null);
+  const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const latest = useRef(options);
   latest.current = options;
@@ -92,6 +98,7 @@ export function useXlsxPrint(options: XlsxPrintOptions): XlsxPrintWiring {
     const current = latest.current;
     if (!port || !current.host || !current.sheetName || pending.current) return;
     pending.current = true;
+    setBusy(true);
     setNotice(null);
     try {
       const sheetName = current.sheetName;
@@ -112,6 +119,7 @@ export function useXlsxPrint(options: XlsxPrintOptions): XlsxPrintWiring {
       }
     } finally {
       pending.current = false;
+      setBusy(false);
     }
   }, [i18n, port]);
 
@@ -123,13 +131,15 @@ export function useXlsxPrint(options: XlsxPrintOptions): XlsxPrintWiring {
 
   const available = Boolean(port && options.host);
   const print = useMemo(() => (available ? () => { void run(); } : undefined), [available, run]);
+  // Ctrl/Cmd+P anywhere on the page runs this same print.
+  useOfficePrintShortcut(print);
 
   const menuItem = useMemo(() => (print ? (
-    <DropdownMenuItem className="gap-2 px-2 py-2" data-testid="xlsx-header-print" onClick={print}>
+    <DropdownMenuItem className="gap-2 px-2 py-2" data-testid="xlsx-header-print" aria-busy={busy || undefined} disabled={busy} onClick={print}>
       <Printer aria-hidden className="size-3.5" />
       {t(XLSX_PRINT_KEYS.menuItem)}
     </DropdownMenuItem>
-  ) : null), [print, t]);
+  ) : null), [busy, print, t]);
 
   const noticeNode = (
     <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-12 z-50 flex justify-center px-4">
@@ -145,5 +155,5 @@ export function useXlsxPrint(options: XlsxPrintOptions): XlsxPrintWiring {
     </div>
   );
 
-  return { print, menuItem, notice: noticeNode };
+  return { print, menuItem, busy, notice: noticeNode };
 }

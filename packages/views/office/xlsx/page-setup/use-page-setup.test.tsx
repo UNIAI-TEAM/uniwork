@@ -105,6 +105,24 @@ describe("useXlsxPageSetup export/print", () => {
     expect(vi.mocked(port.print).mock.calls[0]![0].html).toContain("@page{size:11.69in 8.27in;");
   });
 
+  it("prints the editor's resolved live sheet when there is no selection after a rename (R7)", async () => {
+    let name = "Data";
+    const snapshot = (): XlsxWorkbookSnapshot => ({ revision: 1, sheets: [{ id: "sheet-1", name, cells: { A1: { value: "live" } } }] });
+    const port: OfficePrintPort = { print: vi.fn(() => ({ outcome: "printed" as const })) };
+    const props = { ...options(snapshot, port), resolveSheetId: (sheetName: string) => (sheetName === name ? "sheet-1" : undefined) };
+    const hook = renderHook((current: typeof props) => useXlsxPageSetup(current), { initialProps: props });
+    act(() => hook.result.current.applyPageSetup({ orientation: "landscape" }));
+    await waitFor(() => expect(props.onApplied).toHaveBeenCalledOnce());
+    name = "Renamed";
+    // xlsx-editor passes resolvedActiveSheet (the live name by grid id).
+    hook.rerender({ ...props, selection: null, activeSheet: "Renamed" } as unknown as typeof props);
+    act(() => hook.result.current.print?.());
+    await waitFor(() => expect(port.print).toHaveBeenCalledOnce());
+    const html = vi.mocked(port.print).mock.calls[0]![0].html;
+    expect(html).toContain("@page{size:11.69in 8.27in;");
+    expect(html).toContain(">live<");
+  });
+
   it("offers no print without a port (null) and never touches window.print", () => {
     const windowPrint = vi.spyOn(window, "print").mockImplementation(() => undefined);
     const hook = renderHook(() => useXlsxPageSetup(options(() => null, null)));

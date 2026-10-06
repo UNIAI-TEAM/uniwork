@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useRef, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import en from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { OfficePrintOutcome, OfficePrintPort } from "../../print";
+import { OfficePrintShortcutScope } from "../../print/shortcut";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import { runXlsxPrint, useXlsxPrint, type XlsxPrintOptions } from "./use-xlsx-print";
 
@@ -37,7 +39,7 @@ function Harness(props: XlsxPrintOptions) {
       <DropdownMenu open>
         <DropdownMenuContent>{wiring.menuItem}</DropdownMenuContent>
       </DropdownMenu>
-      <button type="button" data-testid="ribbon-print" disabled={!wiring.print} onClick={() => wiring.print?.()}>print</button>
+      <button type="button" data-testid="ribbon-print" disabled={!wiring.print} aria-busy={wiring.busy || undefined} onClick={() => wiring.print?.()}>print</button>
       {wiring.notice}
     </>
   );
@@ -98,6 +100,49 @@ describe("useXlsxPrint", () => {
     fireEvent.click(screen.getByTestId("ribbon-print"));
     resolve({ outcome: "printed" });
     await waitFor(() => expect(port.print).toHaveBeenCalledOnce());
+  });
+
+  it("shows both entries busy while a run is pending (R1)", async () => {
+    let resolve: (outcome: OfficePrintOutcome) => void = () => undefined;
+    const port: OfficePrintPort = { print: vi.fn(() => new Promise<OfficePrintOutcome>((done) => { resolve = done; })) };
+    render(<Harness {...base(port)} />);
+    expect(screen.getByTestId("xlsx-header-print")).not.toHaveAttribute("aria-busy");
+    fireEvent.click(screen.getByTestId("ribbon-print"));
+    await waitFor(() => expect(screen.getByTestId("ribbon-print")).toHaveAttribute("aria-busy", "true"));
+    expect(screen.getByTestId("xlsx-header-print")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("xlsx-header-print")).toHaveAttribute("aria-disabled", "true");
+    resolve({ outcome: "printed" });
+    await waitFor(() => expect(screen.getByTestId("ribbon-print")).not.toHaveAttribute("aria-busy"));
+  });
+
+  it("shows the shared too-large message", async () => {
+    render(<Harness {...base(portReturning({ outcome: "failed", reason: "print_too_large" }))} />);
+    fireEvent.click(screen.getByTestId("ribbon-print"));
+    const notice = await screen.findByTestId("xlsx-print-notice");
+    expect(notice).toHaveAttribute("data-print-notice", "tooLarge");
+    const shared = [en, viLocale].map((locale) => (locale as { office: { common: { printTooLarge: string } } }).office.common.printTooLarge);
+    expect(shared).toContain(notice.textContent);
+  });
+});
+
+function ShellScope({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  return <div ref={ref}><OfficePrintShortcutScope rootRef={ref}>{children}</OfficePrintShortcutScope></div>;
+}
+
+describe("useXlsxPrint Ctrl/Cmd+P", () => {
+  it("runs the same print on Ctrl/Cmd+P and blocks the app window print", async () => {
+    const port = portReturning({ outcome: "printed" });
+    render(<ShellScope><Harness {...base(port)} /></ShellScope>);
+    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(false);
+    await waitFor(() => expect(port.print).toHaveBeenCalledTimes(1));
+    expect(fireEvent.keyDown(document.body, { key: "p", metaKey: true })).toBe(false);
+    await waitFor(() => expect(port.print).toHaveBeenCalledTimes(2));
+  });
+
+  it("leaves Ctrl/Cmd+P alone when the host cannot print", () => {
+    render(<ShellScope><Harness {...base(null)} /></ShellScope>);
+    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(true);
   });
 });
 

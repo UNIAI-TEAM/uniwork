@@ -24,6 +24,7 @@ export function XlsxPageSetupGroup({
   readOnly = false,
   onOpenPageSetup,
   onPrint,
+  printBusy = false,
   onExportCsv,
 }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
@@ -51,7 +52,9 @@ export function XlsxPageSetupGroup({
               aria-label={t("office.common.print")}
               title={t("office.common.print")}
               data-testid="xlsx-print"
-              onClick={onPrint}
+              aria-busy={printBusy || undefined}
+              aria-disabled={printBusy || undefined}
+              onClick={() => { if (!printBusy) onPrint(); }}
             >
               <Printer aria-hidden />
             </Button>

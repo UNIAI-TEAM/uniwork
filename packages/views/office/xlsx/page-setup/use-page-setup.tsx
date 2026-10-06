@@ -47,6 +47,8 @@ export interface XlsxPageSetupWiring {
   applyPageSetup: (fields: XlsxPageSetupFields) => void;
   /** Absent when the host cannot print or no workbook is mounted. */
   print: (() => void) | undefined;
+  /** A print run is pending (the ribbon button shows busy). */
+  printBusy: boolean;
   /** The page header overflow-menu Print item (null without print). */
   printMenuItem: ReactNode;
   exportCsv: () => void;
@@ -115,6 +117,7 @@ export function useXlsxPageSetup(options: XlsxPageSetupOptions): XlsxPageSetupWi
     openPageSetup: () => setPageSetupOpen(true),
     applyPageSetup,
     print: printing.print,
+    printBusy: printing.busy,
     printMenuItem: printing.menuItem,
     exportCsv,
     dialog,

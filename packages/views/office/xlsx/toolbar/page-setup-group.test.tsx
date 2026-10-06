@@ -66,6 +66,18 @@ describe("XlsxPageSetupGroup", () => {
     expect(onOpenPageSetup).toHaveBeenCalledOnce();
     expect(onPrint).toHaveBeenCalledOnce();
     expect(onExportCsv).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("xlsx-print")).not.toHaveAttribute("aria-busy");
+  });
+
+  it("shows Print busy and inert, still focusable, while a run is pending (R1)", () => {
+    const onPrint = vi.fn();
+    render(<XlsxPageSetupGroup {...groupProps({ onPrint, printBusy: true })} />);
+    const button = screen.getByTestId("xlsx-print");
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    fireEvent.click(button);
+    expect(onPrint).not.toHaveBeenCalled();
   });
 
   it("stays in the tab order and inert when the host wires no handlers, and offers no Print without a port", () => {
