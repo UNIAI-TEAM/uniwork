@@ -129,10 +129,15 @@ describe("main print window", () => {
 });
 
 describe("stuck-busy guard", () => {
+  type OwnerEvent = "focus" | "blur";
   function fakeOwner() {
-    const listeners = new Set<() => void>();
-    const owner = { on: vi.fn((_event: "focus", listener: () => void) => { listeners.add(listener); }), removeListener: vi.fn((_event: "focus", listener: () => void) => { listeners.delete(listener); }) } satisfies PrintOwner;
-    return { owner, listeners, focus: () => [...listeners].forEach((listener) => listener()) };
+    const byEvent: Record<OwnerEvent, Set<() => void>> = { focus: new Set(), blur: new Set() };
+    const owner = {
+      on: vi.fn((event: OwnerEvent, listener: () => void) => { byEvent[event].add(listener); }),
+      removeListener: vi.fn((event: OwnerEvent, listener: () => void) => { byEvent[event].delete(listener); }),
+    } satisfies PrintOwner;
+    const emit = (event: OwnerEvent) => [...byEvent[event]].forEach((listener) => listener());
+    return { owner, count: () => byEvent.focus.size + byEvent.blur.size, blur: () => emit("blur"), focus: () => emit("focus"), blurThenFocus: () => { emit("blur"); emit("focus"); } };
   }
   it("stays busy while the owner has not regained focus, however long Electron takes", async () => {
     const { owner } = fakeOwner();
@@ -142,8 +147,16 @@ describe("stuck-busy guard", () => {
     expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_busy" });
     expect(window.close).not.toHaveBeenCalled();
   });
-  it("accepts a new print once the owner regained focus although Electron never called back, without closing the open dialog", async () => {
+  it("stays busy when the owner is focused without having lost focus first (a late focus as the dialog appears)", async () => {
     const { owner, focus } = fakeOwner();
+    const { handler, window } = harness(() => undefined, undefined, owner);
+    void handler(request);
+    await vi.waitFor(() => expect(window.webContents.print).toHaveBeenCalledTimes(1));
+    focus();
+    expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_busy" });
+  });
+  it("accepts a new print once the owner regained focus although Electron never called back, without closing the open dialog", async () => {
+    const { owner, blurThenFocus } = fakeOwner();
     const first = fakeWindow(() => undefined, async () => undefined);
     const second = fakeWindow((callback) => callback(true, ""), async () => undefined);
     const windows = [first.window, second.window];
@@ -152,18 +165,18 @@ describe("stuck-busy guard", () => {
     const handler = createPrintIpcHandler({ owner, writeFile, createWindow: () => windows.shift()! })["desktop:print-document"];
     void handler(request);
     await vi.waitFor(() => expect(first.window.webContents.print).toHaveBeenCalledTimes(1));
-    focus();
+    blurThenFocus();
     expect(await handler(request)).toEqual({ outcome: "printed" });
     expect(first.window.close).not.toHaveBeenCalled();
     expect(second.window.close).toHaveBeenCalledTimes(1);
   });
   it("does not let a superseded job's late callback free its successor", async () => {
-    const { owner, focus } = fakeOwner();
+    const { owner, blurThenFocus } = fakeOwner();
     const callbacks: PrintCallback[] = [];
     const { handler } = harness((callback) => { callbacks.push(callback); }, undefined, owner);
     const first = handler(request);
     await vi.waitFor(() => expect(callbacks).toHaveLength(1));
-    focus();
+    blurThenFocus();
     const second = handler(request);
     await vi.waitFor(() => expect(callbacks).toHaveLength(2));
     callbacks[0]!(false, "cancelled");
@@ -172,11 +185,44 @@ describe("stuck-busy guard", () => {
     callbacks[1]!(true, "");
     expect(await second).toEqual({ outcome: "printed" });
   });
-  it("detaches its focus listener when the job settles", async () => {
-    const { owner, listeners } = fakeOwner();
+  it("ignores the owner focus a superseded job causes by closing its own window", async () => {
+    const { owner, blur, focus, blurThenFocus } = fakeOwner();
+    const first = fakeWindow(() => undefined, async () => undefined);
+    const callbacks: PrintCallback[] = [];
+    const second = fakeWindow((callback) => { callbacks.push(callback); }, async () => undefined);
+    const windows = [first.window, second.window];
+    const cleanup = vi.fn(async () => undefined);
+    const writeFile = vi.fn(async (_html: string, fileName: string) => ({ path: `C:\\tmp\\${fileName}`, cleanup }));
+    const handler = createPrintIpcHandler({ owner, writeFile, createWindow: () => windows.shift()! })["desktop:print-document"];
+    const firstResult = handler(request);
+    await vi.waitFor(() => expect(first.window.webContents.print).toHaveBeenCalledTimes(1));
+    blurThenFocus();
+    const secondResult = handler(request);
+    await vi.waitFor(() => expect(callbacks).toHaveLength(1));
+    blur(); // the second dialog took focus from the app window
+    // The first dialog finally reports back; closing its window returns focus to the app window.
+    first.window.close.mockImplementation(() => focus());
+    const lateCallback = first.window.webContents.print.mock.calls[0]![1];
+    lateCallback(false, "cancelled");
+    expect(await firstResult).toEqual({ outcome: "cancelled" });
+    expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_busy" });
+    callbacks[0]!(true, "");
+    expect(await secondResult).toEqual({ outcome: "printed" });
+  });
+  it("detaches every owner listener when the job settles", async () => {
+    const { owner, count } = fakeOwner();
     const { handler } = harness((callback) => callback(true, ""), undefined, owner);
     await handler(request);
-    expect(listeners.size).toBe(0);
+    expect(count()).toBe(0);
+  });
+  it("detaches a superseded job's listeners at once, before its callback arrives", async () => {
+    const { owner, count, blurThenFocus } = fakeOwner();
+    const { handler, window } = harness(() => undefined, undefined, owner);
+    void handler(request);
+    await vi.waitFor(() => expect(window.webContents.print).toHaveBeenCalledTimes(1));
+    expect(count()).toBe(2);
+    blurThenFocus();
+    expect(count()).toBe(0);
   });
 });
 

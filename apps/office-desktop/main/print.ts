@@ -47,14 +47,16 @@ export type PrintWindow = {
 
 export type PrintFile = Readonly<{ path: string; cleanup(): Promise<void> }>;
 
-/** The app window that owns the print dialog. Its `focus` event is the only
- * signal that the user is back in the app while Electron has not (yet) called
- * back: a dialog Electron never reports as closed would otherwise leave the
- * busy flag set until restart. A timeout would be wrong - the OS dialog may stay
- * open for as long as the user likes - so the guard never closes anything. */
+/** The app window that owns the print dialog. A `blur` followed by a `focus`
+ * is the only signal that the user left for the dialog and is back in the app
+ * while Electron has not (yet) called back: a dialog Electron never reports as
+ * closed would otherwise leave the busy flag set until restart. A focus with no
+ * blur before it (the app window re-activating as the dialog appears) proves
+ * nothing. A timeout would be wrong - the OS dialog may stay open for as long as
+ * the user likes - so the guard never closes anything. */
 type PrintOwner = {
-  on(event: "focus", listener: () => void): unknown;
-  removeListener(event: "focus", listener: () => void): unknown;
+  on(event: "focus" | "blur", listener: () => void): unknown;
+  removeListener(event: "focus" | "blur", listener: () => void): unknown;
 };
 
 export interface PrintDocumentOptions {
@@ -99,19 +101,38 @@ function denyNavigation(window: PrintWindow): void {
 /** The print in flight. A job whose owner regained focus is superseded, not
  * cancelled: the next request may start while its callback is still pending,
  * and the old job then only cleans up after itself. */
-type PrintJob = { ownerRefocused: boolean };
+type PrintJob = { sawBlur: boolean; ownerRefocused: boolean };
 
 /** The main-side handler for `desktop:print-document`. The dispatcher has
  * already checked sender, frame, origin, session, payload type and size. One
  * print at a time; never throws - every failure is a typed outcome. */
 export function createPrintIpcHandler(options: PrintDocumentOptions) {
   let active: PrintJob | undefined;
+  // Closing a print window hands focus back to the owner; that focus belongs to
+  // no job and must not mark the one whose dialog is open.
+  let closing = 0;
+  const closeWindow = (window: PrintWindow) => {
+    closing += 1;
+    try { window.close(); } finally { closing -= 1; }
+    // A focus delivered after close() returns still follows no real blur.
+    if (active) active.sawBlur = false;
+  };
   return {
     "desktop:print-document": async (request: DesktopIpcRequest<"desktop:print-document">): Promise<DesktopPrintResponse> => {
       if (active && !active.ownerRefocused) return { outcome: "failed", reason: "print_busy" };
-      const job: PrintJob = { ownerRefocused: false };
+      const job: PrintJob = { sawBlur: false, ownerRefocused: false };
       active = job;
-      const onFocus = () => { job.ownerRefocused = true; };
+      const onBlur = () => { if (!closing) job.sawBlur = true; };
+      // Once superseded the job needs no listener: detach at once, not at settle.
+      const detach = () => {
+        options.owner?.removeListener("focus", onFocus);
+        options.owner?.removeListener("blur", onBlur);
+      };
+      function onFocus() {
+        if (closing || !job.sawBlur) return;
+        job.ownerRefocused = true;
+        detach();
+      }
       let file: PrintFile | undefined;
       let window: PrintWindow | undefined;
       try {
@@ -123,14 +144,15 @@ export function createPrintIpcHandler(options: PrintDocumentOptions) {
         return await new Promise<DesktopPrintResponse>((resolve) => {
           // Listen only once the dialog is about to open, so the focus that
           // returns to the app as the dialog appears does not count.
+          options.owner?.on("blur", onBlur);
           options.owner?.on("focus", onFocus);
           created.webContents.print({ silent: false, printBackground: true }, (success, failureReason) => resolve(printOutcome(success, failureReason)));
         });
       } catch {
         return { outcome: "failed", reason: "print_unavailable" };
       } finally {
-        options.owner?.removeListener("focus", onFocus);
-        if (window && !window.isDestroyed()) window.close();
+        detach();
+        if (window && !window.isDestroyed()) closeWindow(window);
         await file?.cleanup().catch(() => undefined);
         if (active === job) active = undefined;
       }
