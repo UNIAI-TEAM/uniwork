@@ -6,7 +6,8 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { cn } from "@uniwork/ui/lib/utils";
-import { getDocxZoomController, type DocxZoomController } from "./zoom-controller";
+import { requireDocxScope, useOptionalDocxDocumentScope } from "../editor-store";
+import type { DocxZoomController } from "./zoom-controller";
 import { docxZoomOptions, type DocxZoomState } from "./zoom-model";
 
 export interface DocxZoomControlProps {
@@ -45,7 +46,8 @@ export function useDocxEffectiveZoomPercent(controller: DocxZoomController): num
  *  action goes through the shared controller, which owns the surface. */
 export function DocxZoomControl({ controller, disabled = false, className }: DocxZoomControlProps) {
   const { t } = useTranslation();
-  const resolved = controller ?? getDocxZoomController();
+  const scope = useOptionalDocxDocumentScope();
+  const resolved = requireDocxScope(controller ?? scope?.zoom);
   const state = useDocxZoomState(resolved);
   const percentLabel = (percent: number) => t("office.docx.view.zoom.percent", { percent: String(percent) });
 

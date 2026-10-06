@@ -3,11 +3,23 @@
 // heading element the clicked item was extracted from.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useState, type ReactNode } from "react";
+import { createDocxDocumentScope, DocxDocumentScopeProvider } from "../editor-store";
 import { DocxNavigationHost } from "./navigation-host";
+
+/** The document root a DocxEditor provides (UNI-957): scope + its root element. */
+function ScopedRoot({ children, testId }: { children: ReactNode; testId?: string }) {
+  const [scope] = useState(createDocxDocumentScope);
+  return (
+    <DocxDocumentScopeProvider scope={scope}>
+      <div data-testid={testId} ref={(node) => { scope.root.current = node; }}>{children}</div>
+    </DocxDocumentScopeProvider>
+  );
+}
 
 function Fixture({ onClose }: { onClose?: () => void } = {}) {
   return (
-    <div data-testid="docx-editor">
+    <ScopedRoot testId="docx-editor">
       <div data-testid="docx-document-surface">
         <div className="doc-zoom">
           <div className="page-wrap">
@@ -21,7 +33,7 @@ function Fixture({ onClose }: { onClose?: () => void } = {}) {
         </div>
       </div>
       <DocxNavigationHost onClose={onClose} />
-    </div>
+    </ScopedRoot>
   );
 }
 
@@ -66,26 +78,26 @@ describe("DocxNavigationHost", () => {
 
   it("shows the empty state when the rendered document has no headings", () => {
     render(
-      <div>
+      <ScopedRoot>
         <div data-testid="docx-document-surface">
           <div className="doc-page" data-testid="plain-doc-page">
             <p>body</p>
           </div>
         </div>
         <DocxNavigationHost />
-      </div>,
+      </ScopedRoot>,
     );
     expect(screen.getByTestId("docx-navigation-empty")).toBeInTheDocument();
   });
 
   it("ignores a .doc-page outside the mounted surface", () => {
     render(
-      <div>
+      <ScopedRoot>
         <div className="doc-page">
           <h1>Other editor</h1>
         </div>
         <DocxNavigationHost />
-      </div>,
+      </ScopedRoot>,
     );
     expect(screen.getByTestId("docx-navigation-empty")).toBeInTheDocument();
   });

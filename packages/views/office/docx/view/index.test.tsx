@@ -9,7 +9,6 @@ import {
   createDocxZoomController,
   docxOutlineFromDoc,
   docxZoomFactorOf,
-  getDocxZoomController,
   installDocxZoomStyles,
   scrollDocxHeadingIntoView,
 } from "./index";
@@ -17,11 +16,10 @@ import {
 describe("DOCX view public surface", () => {
   it("exports the shared controller helpers", () => {
     expect(typeof createDocxZoomController).toBe("function");
-    expect(typeof getDocxZoomController).toBe("function");
     expect(typeof installDocxZoomStyles).toBe("function");
     expect(docxZoomFactorOf(null)).toBe(1);
-    // The singleton is stable, so every surface consumer shares one controller.
-    expect(getDocxZoomController()).toBe(getDocxZoomController());
+    // UNI-957: no page-wide controller; each document scope builds its own.
+    expect(createDocxZoomController()).not.toBe(createDocxZoomController());
     expect(typeof scrollDocxHeadingIntoView).toBe("function");
     expect(docxOutlineFromDoc(null)).toEqual([]);
   });

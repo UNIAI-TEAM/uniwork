@@ -7,6 +7,7 @@ import { useOfficeRibbonPreferencesStore } from "@uniwork/core/office/ribbon-pre
 import { createDocxCommandRuntime } from "../../commands";
 import { DocxToolbarShell } from "../toolbar";
 import type { DocxToolbarGroupContext } from "../types";
+import { createDocxDocumentScope } from "../../editor-store";
 
 function stubBodyWidth(width: number) {
   class FixedResizeObserver {
@@ -23,6 +24,7 @@ function stubBodyWidth(width: number) {
 function context(): DocxToolbarGroupContext {
   const runtime = createDocxCommandRuntime(() => null);
   return {
+    docScope: createDocxDocumentScope(),
     editor: { format: "docx" } as unknown as DocxToolbarGroupContext["editor"],
     coordinator: { getState: vi.fn(), subscribe: () => () => undefined, save: vi.fn() } as unknown as DocxToolbarGroupContext["coordinator"],
     format: runtime.getState(),

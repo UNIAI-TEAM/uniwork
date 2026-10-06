@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PptxDeckRenderer } from "./deck-renderer";
-import { clearPptxThumbnailCache, pptxThumbnailKey, usePptxThumbnails } from "./use-pptx-thumbnails";
+import { pptxThumbnailKey, usePptxThumbnails } from "./use-pptx-thumbnails";
 
 type ThumbnailBuilder = PptxDeckRenderer["buildThumbnail"];
 
@@ -14,10 +14,6 @@ function fakeRenderer(build: ThumbnailBuilder): PptxDeckRenderer {
     aspect: 0.5,
   };
 }
-
-afterEach(() => {
-  clearPptxThumbnailCache();
-});
 
 describe("usePptxThumbnails", () => {
   it("fills each slide's thumbnail incrementally and keys the cache by slide, revision and width", async () => {
@@ -34,27 +30,32 @@ describe("usePptxThumbnails", () => {
   it("serves a cached thumbnail without rebuilding, and rebuilds when the revision changes", async () => {
     const buildThumbnail = vi.fn((index: number) => `data:image/svg+xml;charset=utf-8,s${index}`);
     const renderer = fakeRenderer(buildThumbnail);
-    const first = renderHook(() => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision: 1 }));
-    await waitFor(() => expect(first.result.current.size).toBe(1));
-    first.unmount();
-    const second = renderHook(() => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision: 1 }));
-    await waitFor(() => expect(second.result.current.size).toBe(1));
-    expect(buildThumbnail).toHaveBeenCalledTimes(1);
-    second.unmount();
-    const third = renderHook(() => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision: 2 }));
-    await waitFor(() => expect(third.result.current.size).toBe(1));
+    const { result, rerender } = renderHook(({ revision }: { revision: number }) => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision }), { initialProps: { revision: 1 } });
+    await waitFor(() => expect(result.current.size).toBe(1));
+    rerender({ revision: 2 });
+    await waitFor(() => expect(buildThumbnail).toHaveBeenCalledTimes(2));
+    rerender({ revision: 1 });
+    await waitFor(() => expect(result.current.size).toBe(1));
     expect(buildThumbnail).toHaveBeenCalledTimes(2);
   });
 
   it("keys the cache by theme so a light/dark switch rebuilds the chips", async () => {
     const buildThumbnail = vi.fn((index: number) => `data:image/svg+xml;charset=utf-8,t${index}`);
     const renderer = fakeRenderer(buildThumbnail);
-    const first = renderHook(() => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision: 1, theme: "light" }));
-    await waitFor(() => expect(first.result.current.size).toBe(1));
-    first.unmount();
-    const second = renderHook(() => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision: 1, theme: "dark" }));
-    await waitFor(() => expect(second.result.current.size).toBe(1));
-    expect(buildThumbnail).toHaveBeenCalledTimes(2);
+    const { result, rerender } = renderHook(({ theme }: { theme: string }) => usePptxThumbnails({ renderer, slides: [{ id: "s1" }], revision: 1, theme }), { initialProps: { theme: "light" } });
+    await waitFor(() => expect(result.current.size).toBe(1));
+    rerender({ theme: "dark" });
+    await waitFor(() => expect(buildThumbnail).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not share thumbnails between two open decks that reuse slide ids (UNI-957)", async () => {
+    const deckA = fakeRenderer(vi.fn(() => "data:image/svg+xml;charset=utf-8,deck-A"));
+    const deckB = fakeRenderer(vi.fn(() => "data:image/svg+xml;charset=utf-8,deck-B"));
+    const a = renderHook(() => usePptxThumbnails({ renderer: deckA, slides: [{ id: "slide1" }], revision: 1 }));
+    await waitFor(() => expect(a.result.current.get("slide1")).toContain("deck-A"));
+    const b = renderHook(() => usePptxThumbnails({ renderer: deckB, slides: [{ id: "slide1" }], revision: 1 }));
+    await waitFor(() => expect(b.result.current.get("slide1")).toContain("deck-B"));
+    expect(a.result.current.get("slide1")).toContain("deck-A");
   });
 
   it("keeps the other slides when one thumbnail cannot be rendered", async () => {

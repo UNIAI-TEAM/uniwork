@@ -4,6 +4,7 @@ import { Paintbrush } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { useOfficeDocumentActiveRef } from "../../../common/document-active";
 import { useViewEcho } from "../view-echo";
 import type { XlsxToolbarGroupProps } from "../types";
 import { XLSX_ICON_BUTTON_CLASS } from "../group-layout";
@@ -42,6 +43,7 @@ export function XlsxFormatPainterButton({ readOnly = false, canFormat, commands,
   const { t } = useTranslation();
   const blocked = readOnly || !canFormat || !commands;
   const echo = useViewEcho(viewEcho);
+  const documentActive = useOfficeDocumentActiveRef();
   const armed = echo.painterArmed;
 
   // The selection the mount first saw. A remount after a ribbon tab switch
@@ -69,13 +71,14 @@ export function XlsxFormatPainterButton({ readOnly = false, canFormat, commands,
   useEffect(() => {
     if (!armed) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      // Escape disarms the painter of the visible document only (UNI-957).
+      if (event.key !== "Escape" || !documentActive.current) return;
       void Promise.resolve(commands?.execute(XLSX_FORMAT_PAINTER_OPERATION, { status: XLSX_FORMAT_PAINTER_OFF })).catch(() => false);
       echo.setPainterArmed(false);
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [armed, commands, echo]);
+  }, [armed, commands, documentActive, echo]);
 
   const toggle = () => {
     if (blocked) return;

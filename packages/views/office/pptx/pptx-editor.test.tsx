@@ -3,14 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { PptxRendererModule } from "./canvas/renderer-module";
-import { clearPptxThumbnailCache } from "./canvas/use-pptx-thumbnails";
 import { box, run, shapeNode, slide, tableNode, textLayout } from "./canvas/pptx-render-fixtures";
 import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 
 initI18n();
 beforeEach(async () => {
   await setLocale("en");
-  clearPptxThumbnailCache();
 });
 
 function makeHost(call: ReturnType<typeof vi.fn>): OfficeHost {

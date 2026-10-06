@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type RefObject } from "react";
+import { useOfficeDocumentActiveRef } from "../common/document-active";
 import { matchPptxShortcut } from "./shortcuts/pptx-shortcuts";
 
 /**
@@ -11,9 +12,12 @@ import { matchPptxShortcut } from "./shortcuts/pptx-shortcuts";
  * the keystroke away from the browser too but opens nothing.
  */
 export function usePptxFindShortcut(rootRef: RefObject<HTMLElement | null>, suspended: boolean, open: () => void, locked = false): void {
+  const activeRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     if (suspended) return;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      // UNI-957: a hidden desktop tab never answers (an idle target is not inside any root).
+      if (!activeRef.current) return;
       const root = rootRef.current;
       const target = event.target;
       const inside = target instanceof Node && root?.contains(target) === true;
@@ -28,5 +32,5 @@ export function usePptxFindShortcut(rootRef: RefObject<HTMLElement | null>, susp
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [locked, open, rootRef, suspended]);
+  }, [activeRef, locked, open, rootRef, suspended]);
 }

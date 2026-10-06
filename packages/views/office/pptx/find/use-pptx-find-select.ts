@@ -10,6 +10,7 @@
  * fired - a later canvas click is never overridden by a stale hit.
  */
 import { useCallback, useEffect, useState } from "react";
+import { useOfficeDocumentActiveRef } from "../../common/document-active";
 import type { PptxNodeBox } from "../canvas/render-tree";
 import type { PptxFindHit } from "./pptx-find-model";
 
@@ -25,6 +26,7 @@ interface PptxFindSelectInput {
 /** Returns the `onActiveHitChange` callback for the find panel. */
 export function usePptxFindSelect({ slideIndex, selectSlide, boxes, ready, select }: PptxFindSelectInput): (hit: PptxFindHit | null) => void {
   const [target, setTarget] = useState<PptxFindHit | null>(null);
+  const activeRef = useOfficeDocumentActiveRef();
   const onActiveHitChange = useCallback((hit: PptxFindHit | null) => setTarget(hit), []);
 
   // X4fix F9: a pointer press while the hit waits for its slide's rendition is
@@ -32,10 +34,11 @@ export function usePptxFindSelect({ slideIndex, selectSlide, boxes, ready, selec
   // (A press on the panel's own Next/Previous lands its new hit after this.)
   useEffect(() => {
     if (!target) return;
-    const drop = () => setTarget(null);
+    // UNI-957: only a press in the visible document is the user taking over.
+    const drop = () => { if (activeRef.current) setTarget(null); };
     document.addEventListener("pointerdown", drop, true);
     return () => document.removeEventListener("pointerdown", drop, true);
-  }, [target]);
+  }, [activeRef, target]);
 
   useEffect(() => {
     if (!target) return;

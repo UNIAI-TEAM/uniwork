@@ -4,7 +4,6 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { PptxRendererModule } from "./canvas/renderer-module";
 import type { PptxRenderNode } from "./canvas/render-tree";
-import { clearPptxThumbnailCache } from "./canvas/use-pptx-thumbnails";
 import { box, run, shapeNode, slide, textLayout } from "./canvas/pptx-render-fixtures";
 import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 
@@ -16,7 +15,6 @@ import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 initI18n();
 beforeEach(async () => {
   await setLocale("en");
-  clearPptxThumbnailCache();
 });
 
 const deck = { deck: { slides: [{ id: "s1" }], size: { cx: 12192000, cy: 6858000 } }, revision: 1 };
