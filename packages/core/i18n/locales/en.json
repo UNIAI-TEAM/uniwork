@@ -9326,6 +9326,7 @@
         },
         "errors": {
           "noChartData": "The selected range has no numbers to chart.",
+          "chartClipped": "The chart uses only the first 1,000 rows and 24 series of the selection.",
           "picture": {
             "type": "Only PNG, JPEG or GIF pictures can be inserted.",
             "size": "Pictures can be at most 512 KB.",

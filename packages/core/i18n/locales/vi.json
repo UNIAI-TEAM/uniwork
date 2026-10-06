@@ -9320,6 +9320,7 @@
         },
         "errors": {
           "noChartData": "Vùng đã chọn không có số liệu để vẽ biểu đồ.",
+          "chartClipped": "Biểu đồ chỉ dùng 1.000 hàng và 24 chuỗi dữ liệu đầu tiên của vùng chọn.",
           "picture": {
             "type": "Chỉ chèn được ảnh PNG, JPEG hoặc GIF.",
             "size": "Ảnh tối đa 512 KB.",
