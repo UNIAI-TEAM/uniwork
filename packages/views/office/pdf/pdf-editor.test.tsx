@@ -499,10 +499,15 @@ describe("PdfEditor", () => {
     fireEvent.click(toggle);
     expect(rail).toHaveClass("flex");
     expect(rail).not.toHaveClass("hidden");
+    // Open below sm the rail floats over the canvas, so the page is not squeezed (UIQ-3).
+    expect(rail).toHaveClass("absolute");
+    expect(screen.getByTestId("pdf-rail-slot")).toHaveClass("w-0");
     expect(toggle).toHaveAccessibleName("Ẩn ảnh thu nhỏ trang");
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTestId("pdf-thumbnail-1"));
     expect(rail).toHaveClass("hidden");
+    // Focus returns to the toggle, not BODY, once the rail closes (UIQ-3).
+    expect(toggle).toHaveFocus();
   });
 
   it("does not toggle Find on Ctrl+Shift+F - the shifted chord is out of scope", async () => {

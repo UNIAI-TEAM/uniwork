@@ -130,6 +130,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const [editErrorKey, setEditErrorKey] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [railOpen, setRailOpen] = useState(false);
+  const railToggleRef = useRef<HTMLButtonElement>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const initialFitDoneRef = useRef<string | null>(null);
@@ -482,7 +483,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           findOpen={findOpen}
           onFindClose={() => setFindOpen(false)}
           railOpen={railOpen}
-          onSelectPage={(page) => { selectPageNumber(page); setRailOpen(false); }}
+          onSelectPage={(page) => { selectPageNumber(page); if (railOpen) { setRailOpen(false); railToggleRef.current?.focus(); } }}
           onCanvasSelect={selectPage}
           fontReport={fontReport}
           errorKey={editErrorKey}
@@ -495,7 +496,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           ) : null}
           // The page readout already follows the selected page; object kinds
           // have no translated summary yet, so no raw kind string is shown.
-          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} railOpen={railOpen} onRailToggle={() => setRailOpen((open) => !open)} />}
+          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} railOpen={railOpen} railToggleRef={railToggleRef} onRailToggle={() => setRailOpen((open) => !open)} />}
         />
       ) : viewState === "error" && failure ? (
         promptMode ? (

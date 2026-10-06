@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode, type Ref } f
 import { AlertTriangle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../../common/notice";
 import { OfficeFrame } from "../frame";
 import { PdfCanvas, type PdfCanvasHighlight, type PdfCanvasHighlightQuad, type PdfCanvasPage, type PdfCanvasRegion, type PdfCanvasTool } from "./canvas";
@@ -303,7 +304,13 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, canvasRef, sel
       data-testid="pdf-canvas"
       ribbon={ribbon}
       subbar={findBar || notices ? <>{findBar}{notices}</> : undefined}
-      rail={<PdfThumbnailsRail className={railOpen ? "flex" : "hidden sm:flex"} pages={railPages} activePage={selectedPage ?? undefined} onSelect={navigate} renderThumbnail={renderer ? renderThumbnail : undefined} />}
+      rail={
+        // Below sm an open rail floats over the canvas instead of squeezing it: the
+        // fitted page keeps its width and is not clipped on the right (UIQ-3).
+        <div className={cn("relative z-10 w-0 shrink-0 sm:contents", !railOpen && "hidden")} data-testid="pdf-rail-slot">
+          <PdfThumbnailsRail className={railOpen ? "absolute inset-y-0 left-0 flex shadow-[var(--floating-shadow)] sm:static sm:shadow-none" : "hidden sm:flex"} pages={railPages} activePage={selectedPage ?? undefined} onSelect={navigate} renderThumbnail={renderer ? renderThumbnail : undefined} />
+        </div>
+      }
       aside={aside}
       bottom={objectEditor}
       statusBar={statusBar}
