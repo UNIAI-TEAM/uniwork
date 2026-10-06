@@ -127,10 +127,12 @@ Sidecar XLSX: không có biến riêng cần đặt.
 | Cờ | Mặc định | Làm gì |
 | --- | --- | --- |
 | `documents` | tắt | Tài liệu trong workspace |
-| `office_engine` | tắt | Bật trình soạn Office cho cả web và desktop host |
+| `office_engine` | tắt | Công tắc tổng: bật trình soạn Office cho cả web và desktop host |
+| `office_docx` `office_xlsx` `office_pptx` `office_pdf` `office_markdown` `office_html` | bật | Cho phép sửa riêng từng định dạng (cần `office_engine` bật) |
+| `office_html_visual_edit` | tắt | Sửa HTML trực quan (chưa có giao diện) |
 
 1. Bật `documents` rồi `office_engine`: đặt trong file YAML (`FEATURE_FLAGS_FILE`) hoặc `FF_OFFICE_ENGINE=true`.
-2. Tắt/bật **riêng từng định dạng** (DOCX/XLSX/PPTX/PDF/MD/HTML): Chưa có — chỉ có một cờ `office_engine` cho tất cả.
+2. Tắt/bật **riêng từng định dạng**: mỗi định dạng có cờ riêng, mặc định **bật** — `office_docx`, `office_xlsx`, `office_pptx`, `office_pdf`, `office_markdown`, `office_html`. Một định dạng chỉ sửa được khi `office_engine` **và** cờ của nó cùng bật. Để tắt một định dạng: `FF_OFFICE_DOCX=false` (đổi tên theo cờ) hoặc override trong file/org. Tệp định dạng đó mở ở màn xem/tải như khi tắt `office_engine`, không mở trình soạn; các định dạng khác không đổi. Desktop chưa đọc các cờ này: việc tắt riêng một định dạng hiện chỉ có hiệu lực trên web.
 3. Cờ chỉ ẩn tính năng, không cấp quyền.
 
 ## 4. Kiểm tra sau deploy
@@ -192,7 +194,7 @@ Chi tiết: `desktop-install-macos-ubuntu.md`.
 
 Nguyên tắc (plan §8.2):
 
-1. **Tắt sửa, giữ xem.** Tắt cờ `office_engine` (`FF_OFFICE_ENGINE=false` hoặc override trong file/org). Tài liệu đã lưu vẫn xem, tải, xem lịch sử theo quyền. Tắt riêng từng định dạng: Chưa có.
+1. **Tắt sửa, giữ xem.** Tắt cờ `office_engine` (`FF_OFFICE_ENGINE=false` hoặc override trong file/org). Tài liệu đã lưu vẫn xem, tải, xem lịch sử theo quyền. Tắt riêng một định dạng: đặt cờ của nó về `false` (ví dụ `FF_OFFICE_DOCX=false`), các định dạng còn lại vẫn sửa được (mục 3.6).
 2. **Không xóa nháp.** Giữ nguyên nháp mã hóa, khóa, và store. Rollback không được làm mất nháp.
 3. **Không down migration.** Không chạy `make migrate-down` trên production.
 4. **Không xóa blob.** FileService tự giữ staged/claim/GC. Không dọn tay kho file.

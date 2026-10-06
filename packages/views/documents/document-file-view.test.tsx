@@ -144,6 +144,26 @@ describe("DocumentFileView", () => {
     expect(screen.queryByText(t("documents.file.history_title"))).toBeNull();
   });
 
+  it("falls back to the file card when the format's own flag is off", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_pdf" ? false : key === "office_engine" ? true : fallback));
+    const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+    expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+    expect(screen.queryByTestId("office-host")).toBeNull();
+    expect(officeHost).not.toHaveBeenCalled();
+  });
+
+  it("keeps the editor when only another format's flag is off", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_docx" ? false : key === "office_engine" ? true : fallback));
+    const officeHost = () => <div data-testid="office-host">Office host</div>;
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+    expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+  });
+
   it("keeps download and upload reachable from the page menu while the editor is mounted", async () => {
     mockApi();
     featureFlagMock.useFlag.mockReturnValue(true);

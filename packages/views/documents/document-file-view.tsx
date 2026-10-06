@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
 import { useFlag } from "@uniwork/core/feature-flags";
+import { OFFICE_ENGINE_FLAG, officeFormatFlagKey } from "@uniwork/core/office";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
@@ -86,6 +87,18 @@ function officeFormat(doc: Document): string | null {
   return null;
 }
 
+/**
+ * The Office editor is allowed for this document: `office_engine` is on and
+ * so is the flag of the document's own format. A format switched off falls
+ * back to the file card (view, download, history), never the editor.
+ */
+export function useOfficeEditorEnabled(doc: Document): boolean {
+  const engine = useFlag(OFFICE_ENGINE_FLAG, false);
+  const formatKey = officeFormatFlagKey(officeFormat(doc));
+  const formatOn = useFlag(formatKey ?? OFFICE_ENGINE_FLAG, true);
+  return engine && formatOn;
+}
+
 /** True when the file opens in the Office editor instead of the file card. */
 export function usesOfficeEditor(doc: Document, officeEnabled: boolean, hasHost: boolean): boolean {
   return officeEnabled && hasHost && Boolean(doc.file) && officeFormat(doc) !== null;
@@ -97,7 +110,7 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
   const versions = useDocumentVersions(wsId, doc.id);
   const actions = useDocumentFileActions(wsId, doc);
   const { download, downloading } = actions;
-  const officeEnabled = useFlag("office_engine", false);
+  const officeEnabled = useOfficeEditorEnabled(doc);
 
   if (!file) {
     return (
