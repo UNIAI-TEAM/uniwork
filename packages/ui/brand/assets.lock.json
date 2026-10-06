@@ -44,6 +44,51 @@
       "size": "16/32/48",
       "sha": "80611b266107ae89"
     },
+    "apps/office-desktop/build/icon.ico": {
+      "source": "app-icon.svg",
+      "size": "16/24/32/48/64/128/256",
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/office-desktop/build/icons/16x16.png": {
+      "source": "app-icon.svg",
+      "size": 16,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/office-desktop/build/icons/32x32.png": {
+      "source": "app-icon.svg",
+      "size": 32,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/office-desktop/build/icons/48x48.png": {
+      "source": "app-icon.svg",
+      "size": 48,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/office-desktop/build/icons/64x64.png": {
+      "source": "app-icon.svg",
+      "size": 64,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/office-desktop/build/icons/128x128.png": {
+      "source": "app-icon.svg",
+      "size": 128,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/office-desktop/build/icons/256x256.png": {
+      "source": "app-icon.svg",
+      "size": 256,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/office-desktop/build/icons/512x512.png": {
+      "source": "app-icon.svg",
+      "size": 512,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/office-desktop/build/icon.png": {
+      "source": "app-icon.svg",
+      "size": 1024,
+      "sha": "343d12cf93da9b1a"
+    },
     "apps/web/app/opengraph-image.png": {
       "source": "lockup-horizontal.svg",
       "size": "1200x630",
