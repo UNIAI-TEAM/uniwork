@@ -102,6 +102,29 @@ describe("desktop local xlsx session (C1b)", () => {
     expect(bridge.call).not.toHaveBeenCalledWith("desktop:file-save", expect.anything());
   });
 
+  // Main answers a refused file with a typed code (a thrown code would not
+  // survive Electron's invoke); the session hands it to the save status.
+  it("carries a refused local file's code to the save error instead of office_unknown_error", async () => {
+    const bridge = makeLocalBridge();
+    const local = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation(async (channel, payload) => {
+      if (channel === "desktop:file-save") return { opened: false, code: "file_changed_on_disk" };
+      return local(channel, payload);
+    });
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await session.open.open();
+    await session.editor.edit?.([editOp]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    expect((await session.coordinator.save("button")).accepted).toBe(false);
+    expect(session.coordinator.getState().error).toMatchObject({ code: "file_changed_on_disk" });
+  });
+  it("types a failed local xlsx job by the code main answered", async () => {
+    const bridge = makeLocalBridge();
+    bridge.call.mockImplementation(async (channel) => channel === "desktop:file-xlsx" ? { state: "failed", code: "file_not_found" } : { drafts: [] });
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await expect(session.open.open()).resolves.toMatchObject({ outcome: "failed", message: "file_not_found" });
+  });
+
   it("keeps a protected draft through the desktop draft IPC (local:<device>)", async () => {
     const bridge = makeLocalBridge();
     const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });

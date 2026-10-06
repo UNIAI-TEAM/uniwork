@@ -5,6 +5,7 @@ import type { DesktopPptxSurface } from "./pptx-surface";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 import type { OpenedBytes } from "./session";
+import { throwIfLocalFileFailed } from "./local-file-failure";
 import type { PptxDeckSnapshot } from "./pptx-runtime";
 
 const SESSION_GENERATION = "desktop-dev-session";
@@ -169,6 +170,7 @@ export function createPptxDocumentSession(
       if (localHandle) {
         const useSaveAs = output.saveAs || openedBytes.localUntitled === true;
         const result = desktopFileResponseSchema.parse(await bridge.call(useSaveAs ? "desktop:file-save-as" : "desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localHandle, dataBase64: output.dataBase64 }));
+        throwIfLocalFileFailed(result);
         if (!result.opened && useSaveAs) { pickerCancelled = true; throw Object.assign(new Error("save_as_cancelled"), { code: "save_as_cancelled" }); }
         if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
         if (result.metadata.checksum !== output.checksum) throw Object.assign(new Error("local_save_checksum_mismatch"), { code: "local_save_checksum_mismatch" });
@@ -207,6 +209,7 @@ export function createPptxDocumentSession(
     if (localHandle) {
       const handle = localHandle;
       const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle }));
+      throwIfLocalFileFailed(result);
       if (disposed || !result.opened || result.metadata?.handle !== handle || localHandle !== handle) throw new Error("local_rebind_unconfirmed");
       return;
     }

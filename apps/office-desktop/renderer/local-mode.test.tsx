@@ -349,6 +349,17 @@ it("shows a dismissible unsupported alert for a .txt pick and opens no tab", asy
   expect(screen.queryByRole("alert")).toBeNull();
 });
 
+it.each([
+  ["file_locked", () => i18n.t("office.save.reason.file_locked")],
+  ["file_from_a_newer_main", () => i18n.t("officeDesktop.library.actionError")],
+])("names a refused pick by its code %s, or falls back to the generic copy", async (code, expected) => {
+  const h = harness({ localMode: true, pick: { opened: false, code } });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(expected());
+  expect(screen.queryAllByRole("tab")).toHaveLength(1);
+});
+
 it("rejects an opened file whose extension is outside the format table", async () => {
   const h = harness({ localMode: true, pick: { opened: true, metadata: fileMeta(`file_${"9".repeat(32)}`, "page.xhtml"), dataBase64: "AAAA" } });
   await enterLocal(h);

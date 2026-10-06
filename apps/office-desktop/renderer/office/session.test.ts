@@ -61,6 +61,15 @@ it("saves a local file even when the captured revision is not an integer", async
   expect(session.coordinator.getState().identity.baseRevision).toBe("1759322123456");
 });
 
+it("carries a refused local Save's code to the save error instead of office_unknown_error", async () => {
+  const handle = `file_${"z".repeat(40)}`;
+  const call = vi.fn(async () => ({ opened: false, code: "file_locked" }));
+  const session = await openSession({ call: call as never }, { ...identity, documentId: handle, baseRevision: "0" }, { ...opened, localHandle: handle });
+  session.coordinator.markDirty(1);
+  await expect(session.coordinator.save("menu")).resolves.toMatchObject({ accepted: false });
+  expect(session.coordinator.getState().error).toMatchObject({ code: "file_locked" });
+});
+
 const draft = { draftId: "doc:v2:2", identity: { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", base: { revision: "2", version: "v2" } }, generation: 3, checksum: `sha256:${"c".repeat(64)}`, byteLength: 5, updatedAt: 7 };
 
 function bridgeWith(handler: (channel: string, payload: unknown) => Promise<unknown>) {

@@ -163,6 +163,9 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       // outside the shared format table each get their own copy.
       if (result.missing) setActionError(t("officeDesktop.local.missing"));
       else if (result.unsupported) setActionError(t("officeDesktop.local.unsupported"));
+      // A refused file names why (office.save.reason.<code>); a missing or
+      // unknown code keeps the generic copy.
+      else if (result.code !== undefined) setActionError(t(`office.save.reason.${result.code}`, { defaultValue: t("officeDesktop.library.actionError") }));
       return;
     }
     // An empty Markdown file is a valid document; only an omitted payload is malformed.

@@ -65,10 +65,57 @@ describe("desktop IPC allowlist", () => {
   it("sanitizes file handler errors and validates handler responses", async () => {
     const registry = { openPath: async () => { throw new LocalFileError("symlink_refused", "C:\\secret.txt"); }, save: async () => { throw new LocalFileError("external_modification", "C:\\secret.txt"); } } as unknown as FileHandleRegistry;
     const handlers = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\secret.docx" });
-    await expect(handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).rejects.toMatchObject({ code: "symlink_refused", message: "local file operation refused" });
-    await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toMatchObject({ code: "external_modification" });
+    // A refusal answers with a stable wire code, never the internal reason, the
+    // message or the path (Electron would drop a thrown code anyway).
+    const refusedPick = await handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" });
+    expect(refusedPick).toEqual({ opened: false, code: "file_access_denied" });
+    expect(JSON.stringify(refusedPick)).not.toContain("secret");
+    await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).resolves.toEqual({ opened: false, code: "file_changed_on_disk" });
     const dispatcher = createIpcDispatcher({ "desktop:file-save": async () => ({ opened: true, path: "C:\\secret.txt" }) }, context);
     await expect(dispatcher("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toThrow(IpcValidationError);
+  });
+  it.each([
+    ["invalid_path", "file_invalid_path"],
+    ["not_found", "file_not_found"],
+    ["symlink_refused", "file_access_denied"],
+    ["locked", "file_locked"],
+    ["external_modification", "file_changed_on_disk"],
+    ["invalid_handle", "file_handle_invalid"],
+    ["session_revoked", "file_session_revoked"],
+    ["write_failed", "file_write_failed"],
+    ["replace_failed", "file_replace_failed"],
+    ["too_large", "file_too_large"],
+  ] as const)("answers a %s refusal on every file command with code %s", async (internal, wire) => {
+    const fail = async () => { throw new LocalFileError(internal, "C:\\secret\\path.docx"); };
+    const registry = { openPath: fail, openPathFromHandle: fail, read: fail, save: fail, saveAs: fail, createUntitled: fail } as unknown as FileHandleRegistry;
+    const handlers = createFileIpcHandlers({ registry, xlsx: {} as never, pickOpen: async () => "C:\\a.docx", pickSaveAs: async () => "C:\\a.docx", recents: { resolve: async () => ({ path: "C:\\a.docx" }) } as never });
+    const handle = "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL";
+    const session = { sessionGeneration: "session_1234" };
+    const answers = await Promise.all([
+      handlers["desktop:file-pick-open"](session),
+      handlers["desktop:file-create"]({ ...session, format: "docx" }),
+      handlers["desktop:file-open"]({ ...session, handle }),
+      handlers["desktop:file-save"]({ ...session, handle, dataBase64: "b2s=" }),
+      handlers["desktop:file-save-as"]({ ...session, handle, dataBase64: "b2s=" }),
+      handlers["desktop:recent-open"]({ ...session, id: `recent_${"a".repeat(16)}` }),
+    ]);
+    for (const answer of answers) {
+      const expected = internal === "not_found" && "missing" in answer ? { opened: false, missing: true } : { opened: false, code: wire };
+      expect(answer).toEqual(expected);
+      expect(desktopFileResponseSchema.parse(answer)).toEqual(expected);
+      expect(JSON.stringify(answer)).not.toMatch(/secret|path.docx|[A-Z]:/);
+    }
+    await expect(handlers["desktop:file-xlsx"]({ ...session, handle, operation: "open", baseRevision: "1" })).resolves.toEqual({ state: "failed", code: wire });
+  });
+  it("answers an unbound xlsx engine and an unknown refusal with typed codes, and rethrows engine faults", async () => {
+    const handle = "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL";
+    const request = { sessionGeneration: "session_1234", handle, operation: "open" as const, baseRevision: "1" };
+    const registry = { read: async () => new Uint8Array([1]) } as unknown as FileHandleRegistry;
+    await expect(createFileIpcHandlers({ registry })["desktop:file-xlsx"](request)).resolves.toEqual({ state: "failed", code: "file_engine_unavailable" });
+    await expect(createFileIpcHandlers({ registry, isOpened: () => false })["desktop:file-save"]({ sessionGeneration: "session_1234", handle, dataBase64: "b2s=" })).resolves.toEqual({ opened: false, code: "file_handle_invalid" });
+    const faulty = createFileIpcHandlers({ registry, xlsx: { open: async () => { throw new Error("xlsx_recalc_unavailable"); } } as never });
+    await expect(faulty["desktop:file-xlsx"](request)).rejects.toThrow("xlsx_recalc_unavailable");
+    expect(desktopFileResponseSchema.safeParse({ opened: false, code: "C:\\secret" }).success).toBe(false);
   });
   it("shares one non-queueing guard across local Save calls and releases it on failure", async () => {
     const guard = createOfficeSaveGuard();
@@ -79,7 +126,7 @@ describe("desktop IPC allowlist", () => {
     const handlers = createFileIpcHandlers({ registry, saveGuard: guard });
     const first = handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, dataBase64: "b2s=" });
     expect(guard.busy).toBe(true);
-    await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, dataBase64: "b2s=" })).rejects.toMatchObject({ code: "saving" });
+    await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, dataBase64: "b2s=" })).resolves.toEqual({ opened: false, code: "file_save_in_progress" });
     release();
     await expect(first).resolves.toEqual({ opened: true, metadata });
     expect(guard.busy).toBe(false);

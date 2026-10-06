@@ -5,6 +5,7 @@ import { desktopSurfaceFactory } from "./surface-registry";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
+import { throwIfLocalFileFailed } from "./local-file-failure";
 import type { DesktopTextFacets } from "./text-surface";
 import type { PdfCanvasPage, PdfEditOperation, PdfFormField, PdfNoteThread, PdfPageRenderService, PdfSearchHit, PdfSnapshot } from "@uniwork/views/office/pdf";
 
@@ -272,6 +273,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       if (localHandle) {
         const useSaveAs = output.saveAs || opened.localUntitled === true;
         const result = desktopFileResponseSchema.parse(await bridge.call(useSaveAs ? "desktop:file-save-as" : "desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localHandle, dataBase64: output.dataBase64 }));
+        throwIfLocalFileFailed(result);
         if (!result.opened && useSaveAs) { pickerCancelled = true; throw Object.assign(new Error("save_as_cancelled"), { code: "save_as_cancelled" }); }
         if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
         if (result.metadata.checksum !== output.checksum) throw Object.assign(new Error("local_save_checksum_mismatch"), { code: "local_save_checksum_mismatch" });
@@ -311,6 +313,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       if (localHandle) {
         const handle = localHandle;
         const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle }));
+        throwIfLocalFileFailed(result);
         if (disposed || !result.opened || result.metadata?.handle !== handle || localHandle !== handle) throw new Error("local_rebind_unconfirmed");
       } else {
         const target = currentIdentity();

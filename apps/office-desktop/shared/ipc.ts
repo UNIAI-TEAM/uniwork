@@ -94,7 +94,11 @@ export const desktopFileMetadataSchema = z.object({
   /** A new local document has no backing path until its first Save As. */
   untitled: z.boolean().optional(),
 }).strict();
-export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional() }).strict();
+/** Why a `desktop:file-*` command failed: a stable `[a-z0-9_]` code (never an OS
+ * message or a path). An unknown code is still valid; the renderer falls back to
+ * its generic copy for it. */
+const fileFailureCodeSchema = z.string().regex(/^[a-z0-9_]{1,64}$/);
+export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional(), missing: z.boolean().optional(), unsupported: z.boolean().optional(), code: fileFailureCodeSchema.optional() }).strict();
 const recentFileIdSchema = z.string().regex(/^recent_[A-Za-z0-9]{16,64}$/, "invalid recent file id");
 export const recentFileSchema = z.object({
   id: recentFileIdSchema,
@@ -251,6 +255,8 @@ export const desktopFileXlsxResponseSchema = z.object({
   /** The JSON snapshot (open) or the produced bytes (edit), base64. */
   outputBase64: base64BytesSchema.optional(),
   outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
+  /** Set on a `failed` answer that main can name (a refused file, not an engine fault). */
+  code: fileFailureCodeSchema.optional(),
 }).strict();
 export type DesktopFileXlsxResponse = z.infer<typeof desktopFileXlsxResponseSchema>;
 export const desktopLeaveResolvedResponseSchema = z.object({ resolved: z.boolean() }).strict();

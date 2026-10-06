@@ -9054,7 +9054,20 @@
       },
       "correlation": "Correlation id: {{id}}",
       "reason": {
-        "xlsx_recalc_unavailable": "This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept."
+        "xlsx_recalc_unavailable": "This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept.",
+        "file_invalid_path": "The location of this file is not valid. Open it again from your files.",
+        "file_not_found": "The file was not found. It may have been moved or deleted.",
+        "file_access_denied": "UniWork Office cannot use this file because it is a shortcut or link. Open the original file instead.",
+        "file_locked": "The file is in use by another program. Close it there, then try again.",
+        "file_changed_on_disk": "The file changed on this computer after you opened it. Your changes are kept: save under a new name or open the file again.",
+        "file_handle_invalid": "This file is no longer open in UniWork Office. Open it again.",
+        "file_session_revoked": "The session changed while the file was being handled. Try again.",
+        "file_write_failed": "The file could not be written. Check the free space and permissions, then try again. Your changes are kept.",
+        "file_replace_failed": "The file could not be replaced with the new version. Close it in other programs, then try again. Your changes are kept.",
+        "file_too_large": "The file is too large for UniWork Office to handle.",
+        "file_save_in_progress": "Another save is still running. Wait for it to finish, then try again.",
+        "file_engine_unavailable": "This UniWork Office build cannot process this file type on this computer yet.",
+        "file_failed": "The file could not be processed. Try again."
       },
       "short": {
         "checkpoint": "Draft on this device",

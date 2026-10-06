@@ -9048,7 +9048,20 @@
       },
       "correlation": "Mã tương quan: {{id}}",
       "reason": {
-        "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ."
+        "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ.",
+        "file_invalid_path": "Vị trí của tệp này không hợp lệ. Mở lại tệp từ danh sách tệp.",
+        "file_not_found": "Không tìm thấy tệp. Tệp có thể đã bị di chuyển hoặc xoá.",
+        "file_access_denied": "UniWork Office không dùng được tệp này vì đây là lối tắt hoặc liên kết. Hãy mở tệp gốc.",
+        "file_locked": "Tệp đang được chương trình khác sử dụng. Đóng tệp ở đó rồi thử lại.",
+        "file_changed_on_disk": "Tệp đã thay đổi trên máy sau khi bạn mở. Thay đổi của bạn vẫn được giữ: hãy lưu thành tên khác hoặc mở lại tệp.",
+        "file_handle_invalid": "Tệp này không còn mở trong UniWork Office. Hãy mở lại.",
+        "file_session_revoked": "Phiên làm việc đã thay đổi khi đang xử lý tệp. Thử lại.",
+        "file_write_failed": "Không ghi được tệp. Kiểm tra dung lượng trống và quyền truy cập rồi thử lại. Thay đổi của bạn vẫn được giữ.",
+        "file_replace_failed": "Không thay được tệp bằng bản mới. Đóng tệp trong các chương trình khác rồi thử lại. Thay đổi của bạn vẫn được giữ.",
+        "file_too_large": "Tệp quá lớn để UniWork Office xử lý.",
+        "file_save_in_progress": "Một lần lưu khác vẫn đang chạy. Chờ xong rồi thử lại.",
+        "file_engine_unavailable": "Bản UniWork Office này chưa xử lý được loại tệp này trên máy.",
+        "file_failed": "Không xử lý được tệp. Thử lại."
       },
       "short": {
         "checkpoint": "Nháp trên máy",
