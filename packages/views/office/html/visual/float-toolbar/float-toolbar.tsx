@@ -64,6 +64,11 @@ const TEXT_COLOURS = [
 
 type TextColourId = (typeof TEXT_COLOURS)[number]["id"];
 
+/** The document colour a palette id paints (`null` = inherit). */
+export function textColourValue(id: TextColourId): string | null {
+  return TEXT_COLOURS.find((colour) => colour.id === id)?.value ?? null;
+}
+
 /** Every action the toolbar can raise; all optional so a caller wires what it has. */
 export interface HtmlFloatToolbarCommands {
   onBold?: () => void;

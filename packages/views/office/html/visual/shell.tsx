@@ -47,7 +47,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { HtmlSourceEditor } from "../source";
 import type { AssetManifestLike } from "../../asset-manifest";
-import type { IsolatedPreviewPort, PreviewSession } from "../../source-editor-types";
+import type { IsolatedPreviewPort, PreviewMountOptions, PreviewSession } from "../../source-editor-types";
+import { createVisualEditNonce } from "./nonce";
 import { createPreviewEventSink, type HtmlSelection, type PreviewEventSink } from "./selection/model";
 import { HtmlSelectionOverlay } from "./selection/bridge";
 import { HtmlFloatToolbar, type HtmlFloatToolbarCommands } from "./float-toolbar";
@@ -86,6 +87,20 @@ export interface HtmlVisualShellProps {
   onPreviewSelection?(selection: HtmlSelection | null): void;
   /** The document title: the isolated preview iframe's accessible name. */
   title?: string;
+  /**
+   * The text the isolated preview renders when it differs from `text`: the
+   * sid-stamped copy the inspector and the H3 ops share. The source pane always
+   * shows `text`; this is never written back. Defaults to `text`.
+   */
+  previewText?: string;
+  /**
+   * Ask the preview port for the ADR 0027 visual-edit capability (a per-mount
+   * nonce; the port stays the only place the sandbox/CSP decisions live). The
+   * caller sets it only when the visual-edit flag is on and not presenting or
+   * read-only; absent/false mounts the plain script-free preview. A port that
+   * refuses it falls back to the plain mount.
+   */
+  visualEdit?: boolean;
   /** Zoom ladder value in percent; scales the preview pane and the overlay math. */
   zoom: number;
   /**
@@ -120,12 +135,14 @@ function PreviewPane({
   title,
   text,
   manifest,
+  visualEdit,
   onSession,
   onEvent,
 }: {
   preview?: IsolatedPreviewPort;
   title: string;
   text: string;
+  visualEdit: boolean;
   manifest: AssetManifestLike;
   onSession?: (session: PreviewSession | null) => void;
   onEvent?: (event: { type: string }) => void;
@@ -154,14 +171,23 @@ function PreviewPane({
     setState("idle");
     void (async () => {
       try {
-        const session = await preview.mount({
+        const options: PreviewMountOptions & { visualEdit?: { nonce: string } } = {
           container,
           format: "html",
           title,
           text: latestTextRef.current,
           manifest: latestManifestRef.current,
           onEvent: (event) => onEventRef.current?.(event),
-        });
+        };
+        let session: PreviewSession;
+        try {
+          session = await preview.mount(visualEdit ? { ...options, visualEdit: { nonce: createVisualEditNonce() } } : options);
+        } catch (error) {
+          // A port that does not grant the inspector capability (or a platform
+          // with no nonce source) still gets the plain, script-free preview.
+          if (!visualEdit || !active) throw error;
+          session = await preview.mount(options);
+        }
         if (!active) {
           session.dispose();
           return;
@@ -187,7 +213,7 @@ function PreviewPane({
       sessionRef.current = null;
       onSessionRef.current?.(null);
     };
-  }, [preview, title]);
+  }, [preview, title, visualEdit]);
 
   useEffect(() => {
     const session = sessionRef.current;
@@ -235,6 +261,8 @@ export function HtmlVisualShell({
   onPreviewEvent,
   onPreviewSelection,
   title,
+  previewText,
+  visualEdit = false,
   zoom,
   floatCommands,
   inlineEdit,
@@ -321,8 +349,9 @@ export function HtmlVisualShell({
         <PreviewPane
           preview={preview}
           title={previewTitle}
-          text={text}
+          text={previewText ?? text}
           manifest={safeManifest}
+          visualEdit={visualEdit}
           onSession={onPreviewSession}
           onEvent={handlePreviewEvent}
         />

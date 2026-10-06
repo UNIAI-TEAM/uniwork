@@ -42,7 +42,8 @@ export interface InlineEditInspector {
 
 export type InlineEditInspectorCommand =
   | { type: "begin-text-edit"; sid: number }
-  | { type: "cancel-text-edit" };
+  | { type: "cancel-text-edit" }
+  | { type: "select"; sid: number | null };
 
 /**
  * Everything H8 needs from its host. All three are synchronous and total: a
