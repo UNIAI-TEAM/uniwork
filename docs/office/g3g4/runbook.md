@@ -188,7 +188,10 @@ Chi tiết: `desktop-install-macos-ubuntu.md`.
 - Đăng xuất thiết bị: `POST /auth/desktop/logout`.
 - Dùng lại refresh token cũ: server trả 401 `refresh_reused` và tự thu hồi thiết bị đó.
 - Thu hồi thiết bị xong, lần gọi tiếp theo bị chặn ngay (`device_revoked`).
-- Thu hồi thay người dùng bằng công cụ vận hành (CLI/admin): Chưa có — chỉ chủ tài khoản thu hồi được.
+- Thu hồi thay người dùng bằng công cụ vận hành (chạy trên máy chủ, cần `DATABASE_URL`):
+  `uniwork-admin revoke-desktop-device --user-id <id người dùng> --device-id <id thiết bị> --reason "<lý do, ít nhất 10 ký tự>"`.
+  Lệnh thu hồi cả họ phiên của thiết bị đó, nên lần refresh tiếp theo bị chặn (`device_revoked`). Id thiết bị lấy từ `GET /auth/desktop/devices` của chủ tài khoản, hoặc từ bảng `device_sessions`.
+  Id không có, hoặc thiết bị không thuộc người dùng đó: lệnh báo lỗi, thoát mã khác 0, không ghi gì. Thiết bị đã thu hồi từ trước: lệnh báo "already revoked", không ghi thêm. Mỗi lần thu hồi thật ghi một dòng `admin_actions` (actor `cli`) và một dòng `audit_events` (`desktop_device.revoked`) cùng mã trace.
 
 ## 6. Khi có sự cố / rollback
 
