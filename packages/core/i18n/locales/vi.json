@@ -9761,13 +9761,11 @@
         }
       },
       "export": {
-        "print": "In",
         "csv": "Xuất CSV"
       },
       "print": {
         "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
-        "failed": "Không thể in trang tính.",
-        "tooLarge": "Trang tính quá lớn để in. Hãy đặt vùng in nhỏ hơn rồi thử lại."
+        "failed": "Không thể in trang tính."
       },
       "sheets": {
         "label": "Các trang tính trong sổ",
@@ -10786,9 +10784,7 @@
         "title": "In bản trình bày",
         "slide_label": "Trang chiếu {{index}}",
         "failed": "Không thể in bản trình bày.",
-        "blocked": "Trình duyệt đã chặn cửa sổ in. Cho phép cửa sổ bật lên rồi thử lại.",
-        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
-        "too_large": "Bản trình bày quá lớn để in. Hãy dùng hình ảnh nhỏ hơn rồi thử lại."
+        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước."
       },
       "charts": {
         "title": "Biểu đồ",
@@ -11818,7 +11814,7 @@
         "kind": { "text": "Văn bản", "checkbox": "Hộp kiểm", "radio": "Nút chọn", "choice": "Danh sách chọn" }
       },
       "print": {
-        "action": "In", "preparing": "Đang in…",
+        "preparing": "Đang in…",
         "failed": "Không thể in tài liệu.",
         "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước."
       },
@@ -11932,7 +11928,6 @@
       "emptySearchDescription": "Không có tài liệu nào khớp từ khóa tìm kiếm.",
       "fileOpenQueued": "Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.",
       "actionError": "Không thể thực hiện thao tác. Thử lại.",
-      "printBusy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
       "printPreviewHint": "Hộp thoại in của Windows có thể không hiện bản xem trước. Trang in ra vẫn đúng.",
       "back": "Về thư viện",
       "untitled": "Tài liệu mới.docx",

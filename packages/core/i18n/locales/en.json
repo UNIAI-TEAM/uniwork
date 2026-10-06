@@ -9767,13 +9767,11 @@
         }
       },
       "export": {
-        "print": "Print",
         "csv": "Export CSV"
       },
       "print": {
         "busy": "A print dialog is already open. Finish or close it first.",
-        "failed": "The sheet could not be printed.",
-        "tooLarge": "This sheet is too large to print. Set a smaller print area and try again."
+        "failed": "The sheet could not be printed."
       },
       "sheets": {
         "label": "Workbook sheets",
@@ -10792,9 +10790,7 @@
         "title": "Print presentation",
         "slide_label": "Slide {{index}}",
         "failed": "The presentation could not be printed.",
-        "blocked": "The browser blocked the print window. Allow pop-ups and try again.",
-        "busy": "A print dialog is already open. Finish or close it first.",
-        "too_large": "This presentation is too large to print. Use smaller pictures and try again."
+        "busy": "A print dialog is already open. Finish or close it first."
       },
       "charts": {
         "title": "Charts",
@@ -11842,7 +11838,7 @@
         "kind": { "text": "Text", "checkbox": "Checkbox", "radio": "Radio", "choice": "Choice" }
       },
       "print": {
-        "action": "Print", "preparing": "Printing…",
+        "preparing": "Printing…",
         "failed": "The document could not be printed.",
         "busy": "A print dialog is already open. Finish or close it first."
       },
@@ -11956,7 +11952,6 @@
       "emptySearchDescription": "No documents match your search.",
       "fileOpenQueued": "The file will open after you close the current document.",
       "actionError": "The action could not be completed. Try again.",
-      "printBusy": "A print dialog is already open. Finish or close it first.",
       "printPreviewHint": "The Windows print dialog may show no preview. The printed pages are still correct.",
       "back": "Back to library",
       "untitled": "Untitled.docx",
