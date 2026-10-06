@@ -52,7 +52,7 @@ export type PrintFile = Readonly<{ path: string; cleanup(): Promise<void> }>;
  * back: a dialog Electron never reports as closed would otherwise leave the
  * busy flag set until restart. A timeout would be wrong - the OS dialog may stay
  * open for as long as the user likes - so the guard never closes anything. */
-export type PrintOwner = {
+type PrintOwner = {
   on(event: "focus", listener: () => void): unknown;
   removeListener(event: "focus", listener: () => void): unknown;
 };

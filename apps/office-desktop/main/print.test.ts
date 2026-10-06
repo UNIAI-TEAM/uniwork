@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createIpcDispatcher, IpcValidationError, IPC_MAX_BYTES, PRINT_HTML_MAX_BYTES, validateIpcRequest } from "./ipc";
-import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printOutcome, type PrintOwner, type PrintWindow, type PrintWindowOptions } from "./print";
+import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printOutcome, type PrintDocumentOptions, type PrintWindow, type PrintWindowOptions } from "./print";
 
+type PrintOwner = NonNullable<PrintDocumentOptions["owner"]>;
 const context = { senderId: 7, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 7, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const request = { sessionGeneration: "session_1234", title: "Doc.md", html: `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="script-src 'none'"></head><body><p>x</p></body></html>` };
 
