@@ -9,15 +9,22 @@ export type LanguageSource = {
   commandLine?: { hasSwitch(name: string): boolean };
 };
 
-/** The OS language list, most preferred first. An explicit `--lang` switch
- * (Chromium's own override, used by smoke and visual runs) wins over the
- * system list; app.getLocale() closes it as the UI locale Chromium chose. */
+/** The language candidates, most preferred first:
+ * 1. an explicit `--lang` switch (Chromium's own override, used by smoke and
+ *    visual runs) is the whole list, so `--lang=fr` means "French", never
+ *    "whatever else the OS lists";
+ * 2. otherwise the OS preferred languages, in the user's order.
+ * app.getLocale() is not a fallback: Chromium falls back to en-US for a
+ * language it lacks, which would beat the Vietnamese default. The first
+ * supported tag wins, else vi (main/strings.ts resolveDesktopLocale, and
+ * renderer/appearance.ts pickDesktopLocale on the same list). */
 export function systemLanguages(app: LanguageSource): string[] {
-  const explicit = app.commandLine?.hasSwitch("lang") ? [app.getLocale()] : [];
-  const preferred = typeof app.getPreferredSystemLanguages === "function" ? app.getPreferredSystemLanguages() : [];
+  const candidates = app.commandLine?.hasSwitch("lang")
+    ? [app.getLocale()]
+    : typeof app.getPreferredSystemLanguages === "function" ? app.getPreferredSystemLanguages() : [];
   const seen = new Set<string>();
   const languages: string[] = [];
-  for (const tag of [...explicit, ...preferred, app.getLocale()]) {
+  for (const tag of candidates) {
     if (typeof tag !== "string" || !LANGUAGE_TAG.test(tag) || seen.has(tag.toLowerCase())) continue;
     seen.add(tag.toLowerCase());
     languages.push(tag);

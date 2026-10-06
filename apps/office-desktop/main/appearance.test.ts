@@ -3,11 +3,16 @@ import { createAppearanceIpcHandler, systemLanguages } from "./appearance";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./index";
 import { DESKTOP_TITLE_BAR_TOKENS, watchNativeTheme } from "./window";
 
-it("orders the OS languages, puts an explicit --lang first and drops junk", () => {
+it("keeps the OS order, lets an explicit --lang stand alone, never appends getLocale and drops junk", () => {
   expect(systemLanguages({ getLocale: () => "en-US", getPreferredSystemLanguages: () => ["vi-VN", "en-US", "fr"] })).toEqual(["vi-VN", "en-US", "fr"]);
-  expect(systemLanguages({ getLocale: () => "vi", getPreferredSystemLanguages: () => ["en-US"], commandLine: { hasSwitch: (name) => name === "lang" } })).toEqual(["vi", "en-US"]);
+  const lang = { hasSwitch: (name: string) => name === "lang" };
+  expect(systemLanguages({ getLocale: () => "vi", getPreferredSystemLanguages: () => ["en-US"], commandLine: lang })).toEqual(["vi"]);
+  // --lang=fr on an English OS: French alone, which the app does not carry, so Vietnamese.
+  expect(systemLanguages({ getLocale: () => "fr", getPreferredSystemLanguages: () => ["en-US"], commandLine: lang })).toEqual(["fr"]);
   expect(systemLanguages({ getLocale: () => "en-US", getPreferredSystemLanguages: () => ["../etc", "", "EN-us"] })).toEqual(["EN-us"]);
-  expect(systemLanguages({ getLocale: () => "vi" })).toEqual(["vi"]);
+  // Chromium's own UI locale (en-US fallback) is not a candidate.
+  expect(systemLanguages({ getLocale: () => "en-US", getPreferredSystemLanguages: () => ["fr-FR"] })).toEqual(["fr-FR"]);
+  expect(systemLanguages({ getLocale: () => "en-US" })).toEqual([]);
   const many = Array.from({ length: 40 }, (_, i) => `x${String.fromCharCode(97 + Math.floor(i / 26))}${String.fromCharCode(97 + (i % 26))}`);
   expect(systemLanguages({ getLocale: () => "en", getPreferredSystemLanguages: () => many })).toEqual(many.slice(0, 16));
 });
