@@ -21,6 +21,28 @@ describe("desktop IPC allowlist", () => {
     expect(() => validateIpcRequest("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "x".repeat(100_000) }, context)).not.toThrow();
     expect(IPC_FILE_MAX_BYTES).toBeGreaterThan(IPC_MAX_BYTES);
   });
+  it("accepts a working file well above the old 192 MiB wire cap and still refuses an impossible one", () => {
+    const dataBase64 = Buffer.alloc(160 * 1024 * 1024).toString("base64");
+    expect(() => validateIpcRequest("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64 }, context)).not.toThrow();
+    expect(IPC_FILE_MAX_BYTES).toBeGreaterThan(192 * 1024 * 1024);
+  }, 60_000);
+  it("answers file_insufficient_memory when the bytes cannot be encoded for the wire", async () => {
+    const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "Huge.docx", byteLength: 4, modifiedAtMs: 9, checksum: `sha256:${"a".repeat(64)}` };
+    const registry = { read: async () => new Uint8Array(4), openPathFromHandle: async () => metadata } as unknown as FileHandleRegistry;
+    const handlers = createFileIpcHandlers({ registry, isOpened: () => true });
+    const encode = vi.spyOn(Buffer.prototype, "toString").mockImplementationOnce(() => { throw Object.assign(new Error("Cannot create a string longer than 0x1fffffe8 characters"), { code: "ERR_STRING_TOO_LONG" }); });
+    try {
+      await expect(handlers["desktop:file-open"]({ sessionGeneration: "session_1234", handle: metadata.handle })).resolves.toEqual({ opened: false, code: "file_insufficient_memory" });
+    } finally { encode.mockRestore(); }
+  });
+  it("answers file_insufficient_memory when the local xlsx engine runs out of memory", async () => {
+    const handle = "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL";
+    const registry = { read: async () => new Uint8Array(4) } as unknown as FileHandleRegistry;
+    const xlsx = { open: async () => { throw new RangeError("Array buffer allocation failed"); }, edit: async () => { throw new RangeError("Invalid typed array length: 5000000000"); } };
+    const handlers = createFileIpcHandlers({ registry, xlsx, isOpened: () => true });
+    await expect(handlers["desktop:file-xlsx"]({ sessionGeneration: "session_1234", handle, operation: "open", baseRevision: "9" })).resolves.toMatchObject({ code: "file_insufficient_memory" });
+    await expect(handlers["desktop:file-xlsx"]({ sessionGeneration: "session_1234", handle, operation: "edit", baseRevision: "9", edits: [] })).resolves.toMatchObject({ code: "file_insufficient_memory" });
+  });
   it("accepts realistic documents without regex stack overflow", () => {
     const dataBase64 = Buffer.alloc(10 * 1024 * 1024).toString("base64");
     expect(() => validateIpcRequest("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64 }, context)).not.toThrow();
@@ -84,7 +106,7 @@ describe("desktop IPC allowlist", () => {
     ["session_revoked", "file_session_revoked"],
     ["write_failed", "file_write_failed"],
     ["replace_failed", "file_replace_failed"],
-    ["too_large", "file_too_large"],
+    ["insufficient_memory", "file_insufficient_memory"],
   ] as const)("answers a %s refusal on every file command with code %s", async (internal, wire) => {
     const fail = async () => { throw new LocalFileError(internal, "C:\\secret\\path.docx"); };
     const registry = { openPath: fail, openPathFromHandle: fail, read: fail, save: fail, saveAs: fail, createUntitled: fail } as unknown as FileHandleRegistry;

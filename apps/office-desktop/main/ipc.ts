@@ -6,6 +6,7 @@ import type { NativeLoginManager } from "./auth/manager";
 import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopPublicConfigResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeSaveResponseSchema, desktopOfficeJobResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopPublicConfigResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeContextResponse, type DesktopOfficeSaveResponse, type DesktopOfficeJobResponse, type DesktopLibraryCreateResponse, type DesktopFileXlsxResponse } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
+import { isAllocationFailure } from "./files/memory";
 import type { DesktopDraftStore } from "./drafts/store";
 import { DraftRecoveryError, type DraftIdentity, type DraftSession } from "../../../packages/core/office/draft-recovery";
 import { getDesktopDiagnostics } from "../shared/identity";
@@ -234,7 +235,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
       assertSession(session);
       options.onOpened?.(metadata);
-      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+      return { opened: true, metadata, dataBase64: encodeBytes(bytes) };
     },
     "desktop:file-create": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { format: DesktopDocumentFormat }>) => {
       const session = options.session?.();
@@ -242,7 +243,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const metadata = await safeFile(async () => options.registry.createUntitled(bytes, blankDocumentName(request.format)));
       assertSession(session);
       options.onOpened?.(metadata);
-      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+      return { opened: true, metadata, dataBase64: encodeBytes(bytes) };
     },
     "desktop:recent-open": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:recent-open">) => {
       if (!options.recents) throw new FileIpcError("invalid_path");
@@ -262,7 +263,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
       assertSession(session);
       options.onOpened?.(metadata);
-      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+      return { opened: true, metadata, dataBase64: encodeBytes(bytes) };
     },
     "desktop:file-open": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string }>) => {
       const session = options.session?.();
@@ -270,7 +271,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const bytes = await safeFile(() => options.registry.read(request.handle));
       assertSession(session);
       options.onOpened?.(metadata);
-      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+      return { opened: true, metadata, dataBase64: encodeBytes(bytes) };
     },
     "desktop:file-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => runGuardedSave(options.saveGuard, async () => {
       requireOpened(request.handle);
@@ -328,13 +329,13 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       // The local xlsx job answers the shared DesktopFileXlsxResponse contract
       // (the same schema the renderer parses), so main and renderer cannot drift.
       if (request.operation === "open") {
-        const opened = await options.xlsx.open(bytes);
+        const opened = await engineJob(() => options.xlsx!.open(bytes));
         assertSession(session);
-        return { state: "completed" as const, outputBase64: Buffer.from(JSON.stringify({ snapshot: opened.snapshot, render_model: opened.renderModel })).toString("base64") };
+        return { state: "completed" as const, outputBase64: encodeBytes(JSON.stringify({ snapshot: opened.snapshot, render_model: opened.renderModel })) };
       }
-      const result = await options.xlsx.edit(bytes, request.edits ?? []);
+      const result = await engineJob(() => options.xlsx!.edit(bytes, request.edits ?? []));
       assertSession(session);
-      return { state: "completed" as const, outputBase64: Buffer.from(result.bytes).toString("base64"), outputChecksum: result.checksum };
+      return { state: "completed" as const, outputBase64: encodeBytes(result.bytes), outputChecksum: result.checksum };
     },
   };
   // A refused file command answers with a typed code instead of throwing: only
@@ -524,10 +525,27 @@ class DraftIpcError extends Error {
 
 async function safeFile<T>(operation: () => Promise<T>): Promise<T> {
   try { return await operation(); }
-  catch (error) { if (error instanceof LocalFileError) throw new FileIpcError(error.code); throw new FileIpcError("write_failed"); }
+  catch (error) {
+    if (error instanceof LocalFileError) throw new FileIpcError(error.code);
+    throw new FileIpcError(isAllocationFailure(error) ? "insufficient_memory" : "write_failed");
+  }
+}
+
+/** Run a local engine job; an allocation failure inside it is the typed
+ * insufficient_memory, every other error keeps propagating unchanged. */
+async function engineJob<T>(job: () => Promise<T>): Promise<T> {
+  try { return await job(); }
+  catch (error) { if (isAllocationFailure(error)) throw new FileIpcError("insufficient_memory"); throw error; }
+}
+
+/** Base64 for the wire. A file past the engine's string limit (or a machine
+ * out of memory) answers the typed insufficient_memory instead of crashing. */
+function encodeBytes(bytes: Uint8Array | string): string {
+  try { return (typeof bytes === "string" ? Buffer.from(bytes, "utf8") : Buffer.from(bytes)).toString("base64"); }
+  catch (error) { throw new FileIpcError(isAllocationFailure(error) ? "insufficient_memory" : "write_failed"); }
 }
 
 function decodeBytes(value: string): Uint8Array {
-  try { return Uint8Array.from(Buffer.from(value, "base64")); }
-  catch { throw new FileIpcError("write_failed"); }
+  try { return Buffer.from(value, "base64"); }
+  catch (error) { throw new FileIpcError(isAllocationFailure(error) ? "insufficient_memory" : "write_failed"); }
 }

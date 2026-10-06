@@ -59,7 +59,12 @@ const attemptIdSchema = z.string().regex(/^attempt_[A-Za-z0-9_-]{32,160}$/, "inv
 const fileHandleSchema = z.string().regex(/^file_[A-Za-z0-9_-]{32,160}$/, "invalid file handle");
 export const fileOpenRequestedSchema = z.object({ handle: fileHandleSchema }).strict();
 const draftIdSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid draft id");
-const IPC_FILE_MAX_BYTES = 192 * 1024 * 1024;
+/** Wire ceiling for a byte payload (base64 characters). A local working file is
+ * not size-capped by policy, so this is the physical limit instead: the longest
+ * string V8 can hold (2^29 - 24 characters, about 384 MiB of file). Anything
+ * longer cannot be built on either side of the channel and is answered with
+ * the typed insufficient_memory code before it is sent. */
+const IPC_FILE_MAX_BYTES = 536_870_888;
 /**
  * Validate the base64 wire value with a bounded linear scan.  A large
  * Office document can contain hundreds of millions of base64 characters;
@@ -410,6 +415,20 @@ export { IPC_FILE_MAX_BYTES };
  * Electron's structured-clone transport can carry outside JSON. A bounded,
  * recursive walk rejects ArrayBuffer/Blob/Map/Set, class instances, cycles,
  * non-finite numbers and deeply nested values before schema parsing. */
+/** JSON bytes of a string. A short string is measured exactly; a payload-sized
+ * one (base64 file bytes) is counted without copying it twice, since quoting
+ * adds only the two quote characters for the base64 alphabet. */
+function stringBytes(value: string, maxBytes: number, encoder: TextEncoder): number {
+  if (value.length > maxBytes) return maxBytes + 1;
+  if (value.length <= 1 << 20) return encoder.encode(JSON.stringify(value)).byteLength;
+  let bytes = 2;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code >= 0xd800 && code <= 0xdfff ? 2 : 3;
+  }
+  return bytes;
+}
+
 function sizeInBytes(value: unknown, maxBytes = IPC_MAX_BYTES): number {
   const encoder = new TextEncoder();
   const seen = new Set<object>();
@@ -418,7 +437,7 @@ function sizeInBytes(value: unknown, maxBytes = IPC_MAX_BYTES): number {
     if (current === null) return 4;
     switch (typeof current) {
       case "boolean": return current ? 4 : 5;
-      case "string": return encoder.encode(JSON.stringify(current)).byteLength;
+      case "string": return stringBytes(current, maxBytes, encoder);
       case "number": return Number.isFinite(current) ? encoder.encode(String(current)).byteLength : maxBytes + 1;
       case "object": break;
       default: return maxBytes + 1;

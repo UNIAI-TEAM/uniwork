@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { promises as fs, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import { dirname, basename, isAbsolute, resolve } from "node:path";
+import { isAllocationFailure } from "./memory";
 
 export type LocalFileErrorCode =
   | "invalid_path"
@@ -13,7 +14,9 @@ export type LocalFileErrorCode =
   | "session_revoked"
   | "write_failed"
   | "replace_failed"
-  | "too_large";
+  /** The machine cannot hold the file in memory (never a size policy: a local
+   * working file has no size cap). */
+  | "insufficient_memory";
 
 /** Errors intentionally contain a typed reason only. Paths and byte content
  * never cross the main/renderer boundary or enter diagnostics. */
@@ -40,7 +43,7 @@ const nativeFs: FileSystemPort = {
   lstat: (path) => fs.lstat(path),
   stat: (path) => fs.stat(path),
   realpath: (path) => fs.realpath(path),
-  readFile: async (path) => new Uint8Array(await fs.readFile(path)),
+  readFile: readWholeFile,
   open: (path, flags) => fs.open(path, flags),
   rename: (from, to) => fs.rename(from, to),
   unlink: (path) => fs.unlink(path),
@@ -76,7 +79,6 @@ export interface FileHandleRegistryOptions {
   readonly windowId?: string;
   readonly fs?: FileSystemPort;
   readonly randomBytes?: (size: number) => Uint8Array;
-  readonly maxBytes?: number;
 }
 
 export interface SaveAsPicker {
@@ -88,7 +90,6 @@ export interface SaveAsPicker {
 export class FileHandleRegistry {
   private readonly fs: FileSystemPort;
   private readonly random: (size: number) => Uint8Array;
-  private readonly maxBytes: number;
   private readonly records = new Map<string, FileRecord>();
   private handleSequence = 0;
   private revoked = false;
@@ -97,7 +98,6 @@ export class FileHandleRegistry {
     if (!options.sessionId) throw new TypeError("session id is required");
     this.fs = options.fs ?? nativeFs;
     this.random = options.randomBytes ?? ((size) => randomBytes(size));
-    this.maxBytes = options.maxBytes ?? 128 * 1024 * 1024;
   }
 
   /** Validate a path received directly from an OS picker/open event. */
@@ -107,10 +107,7 @@ export class FileHandleRegistry {
     const absolute = resolve(path);
     if (!absolute) throw new LocalFileError("invalid_path");
     const signature = await this.validateTarget(absolute, false);
-    this.assertSize(signature.signature.size);
-    let bytes: Uint8Array;
-    try { bytes = await this.fs.readFile(absolute); } catch { throw new LocalFileError("not_found"); }
-    this.assertSize(bytes.byteLength);
+    const bytes = await this.readBytes(absolute);
     const canonicalPath = await this.fs.realpath(absolute).catch(() => { throw new LocalFileError("not_found"); });
     // Reopening the same local file selects its existing tab and preserves the
     // original external-change baseline until Save or an explicit close.
@@ -129,7 +126,6 @@ export class FileHandleRegistry {
    * document becomes writable only through the Save As picker. */
   createUntitled(bytes: Uint8Array, name: string, now = Date.now()): OpenFileMetadata {
     this.assertActive();
-    this.assertSize(bytes.byteLength);
     const handle = this.newHandle();
     const metadata = Object.freeze({ handle, name, byteLength: bytes.byteLength, modifiedAtMs: now, checksum: checksum(bytes), untitled: true });
     this.records.set(handle, { signature: { size: bytes.byteLength, modifiedNs: String(now * 1_000_000), ino: 0, dev: 0 }, metadata });
@@ -144,13 +140,17 @@ export class FileHandleRegistry {
     const record = this.getRecord(handle);
     if (!record.path) throw new LocalFileError("invalid_path");
     await this.validateCurrent(record, false);
-    try {
-      this.assertSize((await this.fs.stat(record.path)).size);
-      const bytes = await this.fs.readFile(record.path);
-      this.assertSize(bytes.byteLength);
-      return new Uint8Array(bytes);
+    return new Uint8Array(await this.readBytes(record.path));
+  }
+
+  /** Read a whole file. An allocation failure is a typed insufficient_memory,
+   * anything else keeps the "file is gone" answer. */
+  private async readBytes(path: string): Promise<Uint8Array> {
+    try { return await this.fs.readFile(path); }
+    catch (error) {
+      if (error instanceof LocalFileError) throw error;
+      throw new LocalFileError(isAllocationFailure(error) ? "insufficient_memory" : "not_found");
     }
-    catch (error) { if (error instanceof LocalFileError) throw error; throw new LocalFileError("not_found"); }
   }
 
   /** Validate an already-issued handle for an open command without exposing
@@ -166,9 +166,8 @@ export class FileHandleRegistry {
   async save(handle: string, bytes: Uint8Array): Promise<OpenFileMetadata> {
     const record = this.getRecord(handle);
     if (!record.path) throw new LocalFileError("invalid_path");
-    this.assertSize(bytes.byteLength);
     await this.validateCurrent(record, true);
-    await atomicReplace(record.path, bytes, this.fs, this.maxBytes);
+    await atomicReplace(record.path, bytes, this.fs);
     const updated = await this.refreshRecord(handle, record.path);
     return updated;
   }
@@ -176,14 +175,13 @@ export class FileHandleRegistry {
   /** Save As obtains its destination from a main-process picker, never IPC. */
   async saveAs(handle: string, bytes: Uint8Array, picker: SaveAsPicker): Promise<OpenFileMetadata | undefined> {
     this.getRecord(handle);
-    this.assertSize(bytes.byteLength);
     this.assertActive();
     const selected = await picker.pick();
     if (!selected) return undefined;
     if (!isAbsolute(selected)) throw new LocalFileError("invalid_path");
     const destination = resolve(selected);
     await this.validateTarget(destination, true, true);
-    await atomicReplace(destination, bytes, this.fs, this.maxBytes);
+    await atomicReplace(destination, bytes, this.fs);
     return this.registerNew(destination);
   }
 
@@ -205,9 +203,7 @@ export class FileHandleRegistry {
 
   private async registerNew(path: string): Promise<OpenFileMetadata> {
     const signature = await this.validateTarget(path, false);
-    this.assertSize(signature.signature.size);
-    const bytes = await this.fs.readFile(path);
-    this.assertSize(bytes.byteLength);
+    const bytes = await this.readBytes(path);
     const handle = this.newHandle();
     const canonicalPath = await this.fs.realpath(path).catch(() => { throw new LocalFileError("not_found"); });
     const metadata = Object.freeze({ handle, name: basename(path), byteLength: bytes.byteLength, modifiedAtMs: signature.modifiedAtMs, checksum: checksum(bytes) });
@@ -234,7 +230,6 @@ export class FileHandleRegistry {
   }
 
   private assertActive(): void { if (this.revoked) throw new LocalFileError("session_revoked"); }
-  private assertSize(size: number): void { if (!Number.isSafeInteger(size) || size > this.maxBytes) throw new LocalFileError("too_large"); }
 
   private newHandle(): string {
     const base = `file_${Buffer.from(this.random(32)).toString("base64url")}`;
@@ -270,21 +265,15 @@ export class FileHandleRegistry {
     const current = await this.validateTarget(record.path, false, forWrite);
     if (forWrite && !sameSignature(record.signature, current.signature)) throw new LocalFileError("external_modification");
     if (forWrite) {
-      try {
-        const bytes = await this.fs.readFile(record.path);
-        if (checksum(bytes) !== record.metadata.checksum) throw new LocalFileError("external_modification");
-      } catch (error) {
-        if (error instanceof LocalFileError) throw error;
-        throw new LocalFileError("not_found");
-      }
+      const bytes = await this.readBytes(record.path);
+      if (checksum(bytes) !== record.metadata.checksum) throw new LocalFileError("external_modification");
     }
     const canonical = await this.fs.realpath(record.path).catch(() => { throw new LocalFileError("not_found"); });
     if (canonical !== record.canonicalPath) throw new LocalFileError("symlink_refused");
   }
 }
 
-export async function atomicReplace(path: string, bytes: Uint8Array, fileSystem: FileSystemPort = nativeFs, maxBytes = 128 * 1024 * 1024): Promise<void> {
-  if (bytes.byteLength > maxBytes) throw new LocalFileError("too_large");
+export async function atomicReplace(path: string, bytes: Uint8Array, fileSystem: FileSystemPort = nativeFs): Promise<void> {
   const temp = `${path}.uniwork-${Buffer.from(randomBytes(16)).toString("hex")}.tmp`;
   let opened: FileHandle | undefined;
   try {
@@ -298,10 +287,32 @@ export async function atomicReplace(path: string, bytes: Uint8Array, fileSystem:
     try { await opened?.close(); } catch { /* best effort cleanup */ }
     try { await fileSystem.unlink(temp); } catch { /* temp may not exist */ }
     if (error instanceof LocalFileError) throw error;
+    if (isAllocationFailure(error)) throw new LocalFileError("insufficient_memory");
     const message = error instanceof Error ? error.message.toLowerCase() : "";
     throw new LocalFileError(message.includes("rename") || message.includes("replace") ? "replace_failed" : "write_failed");
   }
 }
+
+/** Read the whole file through a handle into one buffer sized from fstat.
+ * `fs.readFile` refuses files above 2 GiB (ERR_FS_FILE_TOO_LARGE); reading by
+ * handle lets any file the machine can hold in memory open. */
+async function readWholeFile(path: string): Promise<Uint8Array> {
+  const handle = await fs.open(path, "r");
+  try {
+    const { size } = await handle.stat();
+    const buffer = Buffer.allocUnsafeSlow(size);
+    let offset = 0;
+    while (offset < size) {
+      const { bytesRead } = await handle.read(buffer, offset, Math.min(size - offset, READ_CHUNK_BYTES), offset);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    return new Uint8Array(buffer.buffer, buffer.byteOffset, offset);
+  } finally {
+    await handle.close();
+  }
+}
+const READ_CHUNK_BYTES = 256 * 1024 * 1024;
 
 function statModifiedNs(stat: Stats): string {
   const value = (stat as Stats & { mtimeNs?: bigint }).mtimeNs;

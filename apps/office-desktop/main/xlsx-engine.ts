@@ -14,6 +14,7 @@ import {
   applyXlsxEditBytes,
   bindXlsxGateway,
   openXlsxModel,
+  type XlsxByteBounds,
   type XlsxGatewayFunctions,
   type XlsxRecalcPort,
 } from "@uniwork/office-engine/xlsx";
@@ -82,6 +83,10 @@ function recalcUnavailable(): Error {
   return Object.assign(new Error(LOCAL_XLSX_RECALC_UNAVAILABLE), { name: "LocalXlsxEngineError", code: LOCAL_XLSX_RECALC_UNAVAILABLE });
 }
 
+/** A local file is not size-capped: lift the server contract bounds (64 MiB in,
+ *  128 MiB out) that the shared adapter defaults to. */
+const LOCAL_UNBOUNDED: XlsxByteBounds = { maxInputBytes: Number.POSITIVE_INFINITY, maxOutputBytes: Number.POSITIVE_INFINITY };
+
 function sha256Hex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -113,14 +118,14 @@ export function createLocalXlsxEngine(options: LocalXlsxEngineOptions): LocalXls
   };
   return {
     async open(bytes) {
-      const opened = await openXlsxModel(await loadGateway(), bytes);
+      const opened = await openXlsxModel(await loadGateway(), bytes, { bounds: LOCAL_UNBOUNDED });
       return { snapshot: opened.snapshot, renderModel: opened.renderModel };
     },
     async edit(bytes, edits) {
       const gatewayFunctions = await loadGateway();
       const recalc = openRecalc();
       try {
-        const output = await applyXlsxEditBytes(gatewayFunctions, recalc, bytes, [...edits]);
+        const output = await applyXlsxEditBytes(gatewayFunctions, recalc, bytes, [...edits], undefined, LOCAL_UNBOUNDED);
         return { bytes: output.bytes, checksum: `sha256:${sha256Hex(output.bytes)}` };
       } catch (error) {
         // Without a port the adapter refuses a formula-bearing serialize with

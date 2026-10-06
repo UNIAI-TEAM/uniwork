@@ -13,7 +13,7 @@ const FILE_FAILURE_CODES: Readonly<Record<string, string>> = {
   session_revoked: "file_session_revoked",
   write_failed: "file_write_failed",
   replace_failed: "file_replace_failed",
-  too_large: "file_too_large",
+  insufficient_memory: "file_insufficient_memory",
   saving: "file_save_in_progress",
   engine_unavailable: "file_engine_unavailable",
 };
