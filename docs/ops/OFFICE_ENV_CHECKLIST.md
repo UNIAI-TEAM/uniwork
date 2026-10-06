@@ -17,7 +17,7 @@ installer. Nothing here is a secret value; secrets are created out of band and r
 | 5 | Engine image built from the repo root (`docker build -f apps/office-engine/Dockerfile ...`), pushed, digest recorded. The chart requires a digest | registry | [ ] |
 | 6 | Kubelet `podPidsLimit: 256` on every node that can schedule the engine (a pod spec has no per-pod pids field; compose uses `pids_limit: 256`). Node-level `KubeletConfiguration`, ops action; check with `kubectl get --raw /api/v1/nodes/<node>/proxy/configz` | node pool | [ ] |
 | 7 | The CNI enforces NetworkPolicy (otherwise the engine's ingress and egress restrictions do nothing) | cluster | [ ] |
-| 8 | Rollout through `ci/scripts/rollout-uniwork.sh` with `OFFICE_ENGINE_ENABLED=1`, `OFFICE_ENGINE_DIGEST`, `OFFICE_ENGINE_OUTPUT_ORIGINS` and, for the CIDRs, `OFFICE_ENGINE_VALUES_FILE`. Every later rollout must pass the same, or the engine is removed | CI | [ ] |
+| 8 | Rollout through `ci/scripts/rollout-uniwork.sh` with `OFFICE_ENGINE_ENABLED=1`, `OFFICE_ENGINE_DIGEST`, `OFFICE_ENGINE_OUTPUT_ORIGINS` and, for the CIDRs, `OFFICE_ENGINE_VALUES_FILE`. Every later rollout must pass the same: when `OFFICE_ENGINE_ENABLED` is unset or empty the script reads the live release (`helm get values`, needs `jq`) and **refuses** (exit 2, nothing applied) if it runs the engine, or if it cannot read the release, instead of dropping it. To remove the engine on purpose, set `OFFICE_ENGINE_ENABLED=0` explicitly; a first install (no release yet) needs no flag | CI | [ ] |
 
 Example values file for `OFFICE_ENGINE_VALUES_FILE`:
 
