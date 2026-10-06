@@ -46,7 +46,7 @@ function CellsMenu({
   const [open, setOpen] = useState(false);
   const label = t(labelKey);
   const closePopover = useCallback(() => setOpen(false), []);
-  useCloseOnOutsidePointerDown(open, closePopover);
+  const finalFocus = useCloseOnOutsidePointerDown(open, closePopover);
   return (
     <Popover open={open} onOpenChange={(next) => setOpen(blocked ? false : next)}>
       <PopoverTrigger
@@ -67,7 +67,7 @@ function CellsMenu({
         <span className="flex-1 text-left">{label}</span>
         <ChevronDown aria-hidden className="size-3" />
       </PopoverTrigger>
-      <PopoverContent
+      <PopoverContent finalFocus={finalFocus}
         role="dialog"
         aria-label={label}
         align="start"

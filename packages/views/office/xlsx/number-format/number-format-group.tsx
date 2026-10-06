@@ -130,7 +130,7 @@ function XlsxNumberFormatPicker(context: XlsxToolbarGroupProps) {
   const filePattern = useFileNumberFormat(context);
   const applied = sessionPattern ?? filePattern;
   const closePopover = useCallback(() => setOpen(false), []);
-  useCloseOnOutsidePointerDown(open, closePopover);
+  const finalFocus = useCloseOnOutsidePointerDown(open, closePopover);
 
   const applyPattern = (pattern: string) => {
     if (blocked) return;
@@ -189,7 +189,7 @@ function XlsxNumberFormatPicker(context: XlsxToolbarGroupProps) {
           <ChevronDown aria-hidden className="shrink-0" />
         </span>
       </PopoverTrigger>
-      <PopoverContent
+      <PopoverContent finalFocus={finalFocus}
         role="dialog"
         aria-label={t("office.xlsx.toolbar.groups.numberFormat.gallery")}
         align="start"

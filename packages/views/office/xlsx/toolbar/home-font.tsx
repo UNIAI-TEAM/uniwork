@@ -152,7 +152,7 @@ function ColorButton({ context, kind }: { context: XlsxToolbarGroupProps; kind: 
   const [open, setOpen] = useState(false);
   const blocked = isBlocked(context);
   const closePopover = useCallback(() => setOpen(false), []);
-  useCloseOnOutsidePointerDown(open, closePopover);
+  const finalFocus = useCloseOnOutsidePointerDown(open, closePopover);
   const run = runner(context);
   const { Icon, labelKey, resetKey, setCommand, resetCommand } = COLOR_KINDS[kind];
   const current = (kind === "text" ? context.formatState?.textColor : context.formatState?.fillColor) ?? null;
@@ -176,7 +176,7 @@ function ColorButton({ context, kind }: { context: XlsxToolbarGroupProps; kind: 
           {current ? <span aria-hidden className="h-0.5 w-3.5 rounded-sm" style={{ backgroundColor: current }} /> : null}
         </span>
       </PopoverTrigger>
-      <PopoverContent role="dialog" aria-label={t(labelKey)} align="start" className="w-auto max-w-56 flex-col gap-2 p-2">
+      <PopoverContent finalFocus={finalFocus} role="dialog" aria-label={t(labelKey)} align="start" className="w-auto max-w-56 flex-col gap-2 p-2">
         <ColorPicker
           label={t(labelKey)}
           currentColor={current}
