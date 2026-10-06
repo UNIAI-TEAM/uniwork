@@ -10411,6 +10411,7 @@
         "edit_text_select": "Chọn một hộp văn bản hoặc hình để sửa văn bản",
         "export_pdf_unbound": "Ứng dụng này chưa hỗ trợ xuất PDF",
         "print_unbound": "Ứng dụng này chưa hỗ trợ in",
+        "print_preparing": "Đang chuẩn bị bản in…",
         "edit_unbound": "Không thể chỉnh sửa bản trình bày này tại đây",
         "layouts_pending": "Chưa hỗ trợ trang chiếu cái và bố cục",
         "embedded_fonts_pending": "Chưa hỗ trợ phông chữ nhúng",

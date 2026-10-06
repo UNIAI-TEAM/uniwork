@@ -10417,6 +10417,7 @@
         "edit_text_select": "Select a text box or shape to edit its text",
         "export_pdf_unbound": "PDF export is not available in this app",
         "print_unbound": "Printing is not available in this app",
+        "print_preparing": "Preparing the print copy…",
         "edit_unbound": "This presentation cannot be edited here",
         "layouts_pending": "Masters and layouts are not supported yet",
         "embedded_fonts_pending": "Embedded fonts are not supported yet",
