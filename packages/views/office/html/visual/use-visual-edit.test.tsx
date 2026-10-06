@@ -159,13 +159,24 @@ describe("edits land as ops in the engine", () => {
     expect(onApplied).toHaveBeenCalledTimes(1);
   });
 
-  it("the inline-edit port exposes the live inspector of the preview session", async () => {
+  it("the inline-edit port reaches the inspector the session has NOW, not the one at mount", async () => {
     const f = await openFixture(SOURCE);
     const { hook } = setup(f);
     expect(hook.result.current.inlineEdit!.inspector).toBeNull();
-    const inspector = { command: vi.fn(() => true) };
-    act(() => hook.result.current.onPreviewSession?.({ dispose: vi.fn(), inspector } as never));
-    expect(hook.result.current.inlineEdit!.inspector).toBe(inspector);
+    // The real session mounts with no inspector (the frame has not loaded) and
+    // swaps it on every reload.
+    const session: { dispose: () => void; inspector: { command: ReturnType<typeof vi.fn> } | null } = { dispose: vi.fn(), inspector: null };
+    act(() => hook.result.current.onPreviewSession?.(session as never));
+    const port = hook.result.current.inlineEdit!;
+    expect(port.inspector!.command({ type: "begin-text-edit", sid: 1 })).toBe(false);
+    const first = { command: vi.fn(() => true) };
+    session.inspector = first;
+    expect(port.inspector!.command({ type: "begin-text-edit", sid: 1 })).toBe(true);
+    const second = { command: vi.fn(() => true) };
+    session.inspector = second;
+    port.inspector!.command({ type: "cancel-text-edit" });
+    expect(first.command).toHaveBeenCalledTimes(1);
+    expect(second.command).toHaveBeenCalledWith({ type: "cancel-text-edit" });
     act(() => hook.result.current.onPreviewSession?.(null));
     expect(hook.result.current.inlineEdit!.inspector).toBeNull();
   });

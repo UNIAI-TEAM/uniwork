@@ -90,7 +90,16 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
   readTextRef.current = readText;
   const onAppliedRef = useRef(onApplied);
   onAppliedRef.current = onApplied;
-  const inspectorRef = useRef<InlineEditInspector | null>(null);
+  // The session, not its inspector: the real preview creates the inspector only
+  // after the frame loads and replaces it on every reload, so a value copied at
+  // mount time is null or already retired. Read it at command time.
+  const sessionRef = useRef<PreviewSession | null>(null);
+  const liveInspector = useMemo<InlineEditInspector>(() => ({
+    command: (command) => {
+      const inspector = (sessionRef.current as { inspector?: InlineEditInspector | null } | null)?.inspector;
+      return inspector ? inspector.command(command) : false;
+    },
+  }), []);
   const [selection, setSelection] = useState<HtmlSelection | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [aspectLocked, setAspectLocked] = useState(false);
@@ -164,12 +173,12 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
 
   const inlineEdit = useMemo<HtmlInlineEditPort>(() => ({
     get inspector() {
-      return inspectorRef.current;
+      return sessionRef.current === null ? null : liveInspector;
     },
     context,
     apply,
     refused: markRefused,
-  }), [apply, context, markRefused]);
+  }), [apply, context, markRefused, liveInspector]);
 
   const sid = selection?.sid ?? null;
   const floatCommands = useMemo<HtmlFloatToolbarCommands>(() => {
@@ -190,16 +199,16 @@ export function useHtmlVisualEdit({ host, text, readOnly, presenting, readText, 
             onDelete: () => {
               if (run([deleteEdit(sid)])) {
                 setPanelOpen(false);
-                inspectorRef.current?.command({ type: "select", sid: null });
+                liveInspector.command({ type: "select", sid: null });
               }
             },
           }),
       onOpenStylePanel: () => setPanelOpen((open) => !open),
     };
-  }, [context, run, sid]);
+  }, [context, run, sid, liveInspector]);
 
   const onPreviewSession = useCallback((session: PreviewSession | null) => {
-    inspectorRef.current = (session as { inspector?: InlineEditInspector | null } | null)?.inspector ?? null;
+    sessionRef.current = session;
   }, []);
   const onPreviewSelection = useCallback((next: HtmlSelection | null) => {
     setSelection(next);
