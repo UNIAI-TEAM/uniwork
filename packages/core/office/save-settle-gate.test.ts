@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSaveSettleGate } from "./save-settle-gate";
 
 function deferred<T = void>() {
@@ -129,5 +129,80 @@ describe("save settle gate", () => {
   it("propagates a capture error to the caller", async () => {
     const gate = createSaveSettleGate();
     await expect(gate.capture(async () => { throw new Error("disposed"); }, () => undefined)).rejects.toThrow("disposed");
+  });
+});
+
+describe("save settle gate: bounded wait (a Save that never settles)", () => {
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("writes under the base bound at enqueue once the wait runs out", async () => {
+    vi.useFakeTimers();
+    const gate = createSaveSettleGate({ maxWaitMs: 10_000 });
+    const doc = journal();
+    doc.edit();
+    // The Save's request never answers: no settle, no rebase.
+    void gate.run(() => new Promise<void>(() => undefined));
+    doc.edit();
+    let written: { snapshot: { base: number; edits: number }; base: number } | undefined;
+    const checkpoint = gate.capture(async () => doc.read(), (snapshot) => { written = { snapshot, base: doc.base }; return written; });
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(written).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(checkpoint).resolves.toEqual({ snapshot: { base: 1, edits: 2 }, base: 1 });
+  });
+
+  it("re-captures a timed-out capture that straddles the Save's rebase", async () => {
+    vi.useFakeTimers();
+    const gate = createSaveSettleGate({ maxWaitMs: 10 });
+    const doc = journal();
+    doc.edit(); doc.edit();
+    const network = deferred();
+    const finish = deferred();
+    const saving = gate.run(async () => {
+      await network.promise;
+      // The write is confirmed: the editor and the identity move from here.
+      gate.markRebase();
+      doc.rebase();
+      await finish.promise;
+    });
+    doc.edit();
+    const digest = deferred();
+    let captures = 0;
+    const checkpoint = gate.capture(async () => {
+      captures += 1;
+      const read = doc.read();
+      if (captures === 1) await digest.promise;
+      return read;
+    }, (snapshot) => ({ snapshot, base: doc.base }));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(captures).toBe(1);
+    // The rebase lands while the first (pre-rebase) capture is still digesting.
+    network.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    digest.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    // Mid-rebase the capture waits for the Save to settle; it never writes the
+    // pre-rebase journal under the moved base.
+    expect(captures).toBe(1);
+    doc.edit();
+    finish.resolve();
+    await saving;
+    await expect(checkpoint).resolves.toEqual({ snapshot: { base: 2, edits: 1 }, base: 2 });
+    expect(captures).toBe(2);
+  });
+
+  it("does not wait out the bound while a rebase is under way", async () => {
+    vi.useFakeTimers();
+    const gate = createSaveSettleGate({ maxWaitMs: 10 });
+    const finish = deferred();
+    const saving = gate.run(async () => { gate.markRebase(); await finish.promise; });
+    let written = false;
+    const checkpoint = gate.capture(async () => 1, () => { written = true; });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(written).toBe(false);
+    finish.resolve();
+    await saving;
+    await checkpoint;
+    expect(written).toBe(true);
   });
 });

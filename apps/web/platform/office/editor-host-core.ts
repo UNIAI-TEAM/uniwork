@@ -241,18 +241,37 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
 export interface OfficeEditorSessionOptions<TSnapshot> extends BrowserOfficeDraftOptions<TSnapshot> {
   editor: EditorHandle<TSnapshot>;
   transport: OfficeSaveTransport<TSnapshot>;
+  /** How long a checkpoint waits for a Save in flight before it writes under
+   *  the pre-rebase base (default 10 s). */
+  saveSettleMaxWaitMs?: number;
 }
 
 export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessionOptions<TSnapshot>): OfficeEditorSession<TSnapshot> {
   const draft = createBrowserOfficeDraftAdapter<TSnapshot>(options);
-  const coordinator = createOfficeSaveCoordinator({ identity: options.identity, editor: options.editor, draft, transport: options.transport });
+  // A Save rebases the editor (pptx/xlsx journals, inside commit or reconcile)
+  // and then the draft identity; a checkpoint captured across that window would
+  // land a pre-rebase snapshot under the new base. Saves run inside the gate,
+  // and a returned commit or reconcile marks the rebase window, which lasts
+  // until the Save settles. A Save that never answers holds checkpoints back
+  // only for the gate's bound; they then write under the pre-rebase base.
+  const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
+  // Every other step delegates to the caller's transport as it is at call time.
+  const transport: OfficeSaveTransport<TSnapshot> = Object.assign(Object.create(options.transport) as OfficeSaveTransport<TSnapshot>, {
+    commit: async (input: Parameters<OfficeSaveTransport<TSnapshot>["commit"]>[0]) => {
+      const receipt = await options.transport.commit(input);
+      gate.markRebase();
+      return receipt;
+    },
+    reconcile: async (input: Parameters<OfficeSaveTransport<TSnapshot>["reconcile"]>[0]) => {
+      const answer = await options.transport.reconcile(input);
+      gate.markRebase();
+      return answer;
+    },
+  });
+  const coordinator = createOfficeSaveCoordinator({ identity: options.identity, editor: options.editor, draft, transport });
+  let disposed = false;
   const identity = toDraftIdentity(options.identity);
   const { base: _base, ...lookupScope } = identity;
-  // A Save rebases the editor (pptx/xlsx journals) and then the draft
-  // identity; a checkpoint captured across that window would land a
-  // pre-rebase snapshot under the new base. Saves run inside the gate, and
-  // checkpoints capture only when no Save overlapped the capture.
-  const gate = createSaveSettleGate();
   const rebaseDraft = async () => {
     const state = coordinator.getState();
     const snapshot = await options.editor.captureSnapshot();
@@ -269,10 +288,12 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
     return result;
   });
   // `checkpointDurable` enqueues on the draft lane synchronously, so the
-  // write is ordered before any later Save's rebase of the draft identity.
+  // write is ordered before any later Save's rebase of the draft identity. A
+  // capture parked behind a held Save resumes after dispose; it writes nothing.
   const checkpointSettled = (markDirty: boolean) => gate.capture(
     () => options.editor.captureSnapshot(),
     (snapshot) => {
+      if (disposed) throw new Error("office_editor_disposed");
       if (markDirty) coordinator.markDirty(snapshot.generation);
       return draft.checkpointDurable(snapshot);
     },
@@ -332,6 +353,6 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
     },
     discardDraft: () => draft.discardDurable(),
     clearMemory: draft.clearMemory,
-    dispose: async () => { await draft.dispose(); await Promise.resolve(options.editor.dispose()); },
+    dispose: async () => { disposed = true; await draft.dispose(); await Promise.resolve(options.editor.dispose()); },
   };
 }
