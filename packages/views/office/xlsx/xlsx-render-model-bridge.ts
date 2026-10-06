@@ -317,9 +317,11 @@ export function readRangeFromModel(model: XlsxRenderModel, sheetIdOrName: string
     // An absent errorStyle is OOXML's "stop" (the save writes Univer's STOP
     // that way); the loader would install it as undefined, which Univer
     // treats as allow-invalid, so a reopened rule would stop rejecting.
+    // Without showErrorMessage Excel accepts invalid input silently: those
+    // keep the absent style.
     dataValidations: (sheet.dataValidations ?? []).map((rule) => ({ ...rule,
       ranges: rule.ranges.map((area) => ({ ...area })), formulas: [...rule.formulas],
-      errorStyle: rule.errorStyle ?? "stop",
+      ...(rule.errorStyle === undefined && rule.showErrorMessage ? { errorStyle: "stop" } : {}),
     })),
     sheetProtection: null,
     protectedRanges: [],

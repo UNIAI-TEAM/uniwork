@@ -201,10 +201,13 @@ describe("render model bridge", () => {
       formulas: ['"Có,Không"'], allowBlank: true, suppressDropdown: false, showInputMessage: false, showErrorMessage: true,
       error: "Chỉ Có/Không" };
     const warning = { ...saved, errorStyle: "warning" };
-    const model = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!, dataValidations: [saved, warning] }] };
-    const [stop, kept] = readRangeFromModel(model, "Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 }).dataValidations;
+    // No alert: Excel accepts invalid input silently, so nothing is added.
+    const silent = { ...saved, showErrorMessage: false };
+    const model = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!, dataValidations: [saved, warning, silent] }] };
+    const [stop, kept, quiet] = readRangeFromModel(model, "Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 }).dataValidations;
     expect(stop?.errorStyle).toBe("stop");
     expect(kept?.errorStyle).toBe("warning");
+    expect(quiet).not.toHaveProperty("errorStyle");
     expect(saved).not.toHaveProperty("errorStyle");
   });
 
