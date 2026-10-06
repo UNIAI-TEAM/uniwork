@@ -9,7 +9,7 @@ const renderer = path.join(REPO_ROOT, 'packages/office-upstream/shims/xlsx-rende
 const upstream = path.join(REPO_ROOT, 'packages/office-upstream/upstream');
 const bundled = await build({
   stdin: {
-    contents: `export * from './edits'; export * from './command-policy'; export * from './cell-input';
+    contents: `export * from './edits'; export * from './command-policy'; export * from './cell-input'; export * from './undo-step';
       export {createEditJournal, recordSetRangeValues} from '../../upstream/apps/sheets/src/renderer/edit-journal';`,
     resolveDir: renderer, loader: 'ts',
   },
@@ -19,7 +19,7 @@ const bundled = await build({
     setup(builder) {
       builder.onResolve({ filter: /^@univerjs\/core$/ }, () => ({ path: 'core', namespace: 'test' }));
       builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
-        contents: 'export const CellValueType={STRING:1,NUMBER:2,BOOLEAN:3}; export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2};',
+        contents: 'export const CellValueType={STRING:1,NUMBER:2,BOOLEAN:3}; export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2}; export const IUndoRedoService="undo-redo";',
       }));
       // The shim's locale seam resolves to the host i18next at build time; the
       // test bundle returns the key itself so assertions can pin message ids.
@@ -35,7 +35,8 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, ingestCellMutation, canExecuteCommand } = module.exports;
+const { createEditJournal, ingestCellMutation, ingestStructuralMutation, canExecuteCommand,
+  applyOutlineAction, outlineLevels, outlineHistoryItem, executeAsOneUndoStep } = module.exports;
 
 // Design review X1/X3 Data tools (UNI-953): the toolbar rewrites a range with
 // ONE sheet.command.set-range-values inside one undo step. These payloads are
@@ -72,6 +73,7 @@ async function withSheet(cellData, run) {
   const api = FUniver.newAPI(univer);
   const model = state();
   const edits = [];
+  const structural = [];
   const refused = [];
   const workbook = api.createWorkbook({ id: 'file-sha', sheetOrder: ['s1'], sheets: {
     s1: { id: 's1', name: 'Data', rowCount: 20, columnCount: 10, cellData },
@@ -88,10 +90,11 @@ async function withSheet(cellData, run) {
     api.addEvent(api.Event.CommandExecuted, (event) => {
       edits.push(...ingestCellMutation(model, event, false, undefined,
         (row, column) => workbook.getWorkbook().getStyles().getStyleByCell(worksheet.getSheet().getCellRaw(row, column))));
+      structural.push(...ingestStructuralMutation(model, event, false));
     }),
   ];
   try {
-    await run({ api, worksheet, edits, refused });
+    await run({ api, univer, model, worksheet, edits, structural, refused });
   } finally {
     subscriptions.forEach((subscription) => subscription.dispose());
     univer.dispose();
@@ -160,5 +163,83 @@ test('Text to Columns: typed pieces land right of the source, an empty {} hole k
     assert.equal(edits.find((edit) => edit.row === 0 && edit.column === 1).value, 12);
     await api.undo();
     assert.deepEqual([valueAt(worksheet, 0, 0), valueAt(worksheet, 0, 1), valueAt(worksheet, 1, 2)], ['a,12', null, null]);
+  });
+});
+
+test('Subtotal: inserts, one sparse write and the outline run as ONE undo step that lands, journals and undoes as planned', async () => {
+  await withSheet({
+    0: { 0: { v: 'Ten' }, 1: { v: 'SL' } },
+    1: { 0: { v: 'An' }, 1: { v: 1 } },
+    2: { 0: { v: 'an' }, 1: { v: 2 } },
+    3: { 0: { v: 'Binh' }, 1: { v: 3 } },
+    5: { 0: { v: 'below' } },
+  }, async ({ api, univer, model, worksheet, edits, structural, refused }) => {
+    const require = createRequire(path.join(REPO_ROOT, 'packages/office-upstream/package.json'));
+    const { ICommandService, IUndoRedoService } = require('@univerjs/core');
+    const injector = univer.__getInjector();
+    const undoRedo = injector.get(IUndoRedoService);
+    // The controller's runOutline (controller.ts) over the same edits.ts helpers.
+    const outlineEdits = [];
+    const registration = injector.get(ICommandService).registerCommand({
+      id: 'uniwork.command.set-rows-outline', type: 0,
+      handler: (_accessor, p) => {
+        const before = outlineLevels(model, p.subUnitId, 'rows', p.start, p.end);
+        const applied = applyOutlineAction(model, p.subUnitId, 'rows', p.start, p.end, p.action);
+        outlineEdits.push(...applied);
+        if (applied.length > 0 && p.history !== false) {
+          undoRedo.pushUndoRedo(outlineHistoryItem('file-sha', p.subUnitId, 'rows', p.start, p.end, p.action, before));
+        }
+        return applied.length > 0;
+      },
+    });
+    // The planSubtotal payloads (data-tools/subtotal.test.tsx) for A1:B4 summed
+    // into B: grand total, Binh, An inserted bottom-up with Direction.DOWN (2)
+    // and rangeType ROW (1), one sparse write, then the two outline levels.
+    const insert = (row) => ({ id: 'sheet.command.insert-row', params: {
+      unitId: 'file-sha', subUnitId: 's1', direction: 2,
+      range: { startRow: row, endRow: row, startColumn: 0, endColumn: 1, rangeType: 1 },
+    } });
+    const outline = (start, end) => ({ id: 'uniwork.command.set-rows-outline', params: { subUnitId: 's1', start, end, action: 'group' } });
+    const formula = (f) => ({ f, v: null, p: null, si: null });
+    const steps = [insert(4), insert(4), insert(3), { id: 'sheet.command.set-range-values', params: {
+      unitId: 'file-sha', subUnitId: 's1',
+      range: { startRow: 3, endRow: 6, startColumn: 0, endColumn: 1 },
+      value: {
+        3: { 0: text('Sum An'), 1: formula('=SUBTOTAL(9,B2:B3)') },
+        5: { 0: text('Sum Binh'), 1: formula('=SUBTOTAL(9,B5:B5)') },
+        6: { 0: text('Grand Sum'), 1: formula('=SUBTOTAL(9,B2:B6)') },
+      },
+    } }, outline(1, 5), outline(1, 2), outline(4, 4)];
+    try {
+      // The controller's executeCommandsAsOneStep path (undo-step.ts).
+      const ran = await executeAsOneUndoStep({ get: () => undoRedo }, 'file-sha', steps,
+        (step) => api.executeCommand(step.id, step.params));
+      assert.equal(ran, steps.length, JSON.stringify(refused));
+      assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7, 8].map((row) => valueAt(worksheet, row, 0)),
+        ['Ten', 'An', 'an', 'Sum An', 'Binh', 'Sum Binh', 'Grand Sum', null, 'below']);
+      assert.deepEqual([1, 2, 4].map((row) => valueAt(worksheet, row, 1)), [1, 2, 3]);
+      assert.deepEqual([3, 5, 6].map((row) => worksheet.getRange(row, 1).getFormula()),
+        ['=SUBTOTAL(9,B2:B3)', '=SUBTOTAL(9,B5:B5)', '=SUBTOTAL(9,B2:B6)']);
+      assert.deepEqual(structural.map((edit) => edit.structural),
+        [{ kind: 'insert-rows', index: 4, count: 1 }, { kind: 'insert-rows', index: 4, count: 1 }, { kind: 'insert-rows', index: 3, count: 1 }]);
+      const byCell = new Map(edits.map((edit) => [`${edit.row}:${edit.column}`, edit]));
+      assert.equal(byCell.get('3:1')?.formula, '=SUBTOTAL(9,B2:B3)', JSON.stringify(edits));
+      assert.equal(byCell.get('6:1')?.formula, '=SUBTOTAL(9,B2:B6)');
+      assert.equal(byCell.get('5:0')?.value, 'Sum Binh');
+      // Detail rows at level 2, subtotal rows at 1, header and grand total at 0.
+      assert.deepEqual(outlineLevels(model, 's1', 'rows', 0, 6), [0, 2, 2, 1, 2, 1, 0]);
+      assert.ok(model.editJournal.structuralOps.get('s1').some((op) => op.kind === 'set-rows-outline' && op.level === 2));
+      // One Ctrl+Z takes back the outline, the write and the inserts, newest first.
+      outlineEdits.length = 0;
+      await api.undo();
+      assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map((row) => valueAt(worksheet, row, 0)), ['Ten', 'An', 'an', 'Binh', null, 'below', null]);
+      assert.deepEqual([1, 2, 3].map((row) => valueAt(worksheet, row, 1)), [1, 2, 3]);
+      assert.deepEqual(outlineLevels(model, 's1', 'rows', 0, 6), [0, 0, 0, 0, 0, 0, 0]);
+      assert.ok(outlineEdits.length > 0 && outlineEdits.every((edit) => edit.structural.kind === 'set-rows-outline'));
+      assert.deepEqual(structural.slice(3).map((edit) => edit.structural.kind), ['remove-rows', 'remove-rows', 'remove-rows']);
+      assert.deepEqual(refused, []);
+    } finally {
+      registration.dispose();
+    }
   });
 });

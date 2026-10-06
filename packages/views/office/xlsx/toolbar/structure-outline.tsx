@@ -14,6 +14,7 @@ import {
 import { selectionSpan, type XlsxSelectionSpan } from "./structure-insert";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
+import { XlsxSubtotalButton } from "./data-tools/subtotal-dialog";
 import { XLSX_RANGE_TYPE } from "../selection-mapping";
 import {
   XLSX_SMALL_BUTTON_CLASS,
@@ -48,9 +49,10 @@ const BASE = "office.xlsx.structure";
 
 /** Data tab "Outline" group (Excel layout): Group / Ungroup dropdowns for the
  *  selection's rows and columns, plus Show / Hide Detail, which hide or show
- *  the selection's lines (columns for a whole-column selection). Subtotal is
- *  deliberately absent: the engine has no command for it. */
-export function XlsxStructureOutlineGroup({ readOnly = false, selection, commands }: XlsxToolbarGroupProps) {
+ *  the selection's lines (columns for a whole-column selection). Subtotal
+ *  follows Ungroup, as in Excel (./data-tools/subtotal-dialog.tsx). */
+export function XlsxStructureOutlineGroup(props: XlsxToolbarGroupProps) {
+  const { readOnly = false, selection, commands } = props;
   const { t } = useTranslation();
   const [menu, setMenu] = useState<"group" | "ungroup" | null>(null);
   const span = selectionSpan(selection);
@@ -134,6 +136,7 @@ export function XlsxStructureOutlineGroup({ readOnly = false, selection, command
           },
         },
       ])}
+      <XlsxSubtotalButton {...props} />
       <XlsxGroupRows>
         <XlsxGroupRow>
           <Button

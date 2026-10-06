@@ -303,6 +303,14 @@ describe("XlsxStructureOutlineGroup", () => {
     }
   });
 
+  it("mounts Subtotal after Ungroup, as in Excel", () => {
+    render(<XlsxStructureOutlineGroup {...groupProps()} />);
+    const subtotal = screen.getByTestId("xlsx-subtotal");
+    expect(subtotal).toHaveTextContent(viText("office.xlsx.dataTools.subtotal"));
+    expect(screen.getByTestId("xlsx-outline-ungroup").compareDocumentPosition(subtotal) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(subtotal.compareDocumentPosition(screen.getByTestId("xlsx-outline-show-detail")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("fires the registered outline commands from the Group and Ungroup menus", () => {
     const props = groupProps();
     render(<XlsxStructureOutlineGroup {...props} />);
@@ -355,7 +363,8 @@ describe("XlsxStructureOutlineGroup", () => {
       const props = groupProps(overrides);
       const view = render(<XlsxStructureOutlineGroup {...props} />);
       const buttons = screen.getAllByRole("button");
-      expect(buttons).toHaveLength(4);
+      // Group, Ungroup, Subtotal, Show Detail, Hide Detail.
+      expect(buttons).toHaveLength(5);
       for (const button of buttons) {
         expect(button).not.toBeDisabled();
         expect(button).toHaveAttribute("aria-disabled", "true");
