@@ -88,6 +88,16 @@ function columnLetter(column: number): string {
   return toA1Address(0, column).replace(/[0-9]+$/, "");
 }
 
+/** Univer WrapStrategy.OVERFLOW: a label longer than its column spills into the
+ *  empty neighbour (or clips) instead of wrapping, which would grow the row. */
+const WRAP_OVERFLOW = 1;
+
+/** A label cell: its text plus an explicit no-wrap style, written in the same
+ *  set-range-values batch (one undo step). */
+function labelCell(label: string): Record<string, unknown> {
+  return { ...scalarCellData(label), s: { tb: WRAP_OVERFLOW } };
+}
+
 function formulaCell(fn: XlsxSubtotalFunction, column: number, firstRow: number, lastRow: number): Record<string, unknown> {
   const letter = columnLetter(column);
   return { f: `=SUBTOTAL(${SUBTOTAL_FUNCTIONS[fn]},${letter}${firstRow + 1}:${letter}${lastRow + 1})`, v: null, p: null, si: null };
@@ -149,7 +159,7 @@ export function planSubtotal(
   const value: Record<string, Record<string, Record<string, unknown>>> = {};
   const writeRow = (row: number, label: string, firstRow: number, lastRow: number) => {
     const cellsOfRow: Record<string, Record<string, unknown>> = {};
-    if (labelled) cellsOfRow[String(span.startColumn + options.changeColumn)] = scalarCellData(label);
+    if (labelled) cellsOfRow[String(span.startColumn + options.changeColumn)] = labelCell(label);
     for (const column of options.columns) {
       const sheetColumn = span.startColumn + column;
       cellsOfRow[String(sheetColumn)] = formulaCell(options.fn, sheetColumn, firstRow, lastRow);

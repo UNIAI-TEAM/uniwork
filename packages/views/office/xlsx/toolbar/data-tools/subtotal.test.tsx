@@ -4,6 +4,9 @@ import type { XlsxCellState, XlsxWorkbookSnapshot } from "@uniwork/office-engine
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { XlsxToolbarGroupProps } from "../types";
 import { scalarCellData } from "./range-values";
+
+/** A label cell as the plan writes it: text plus the no-wrap style. */
+const labelCell = (label: string) => ({ ...scalarCellData(label), s: { tb: 1 } });
 import { planSubtotal, SUBTOTAL_FUNCTIONS } from "./subtotal";
 import { XlsxSubtotalButton } from "./subtotal-dialog";
 
@@ -42,10 +45,10 @@ const EXPECTED_STEPS = [
       subUnitId: "sheet-1",
       range: { startRow: 3, endRow: 8, startColumn: 0, endColumn: 1 },
       value: {
-        "3": { "0": scalarCellData("Tổng An"), "1": formula("=SUBTOTAL(9,B2:B3)") },
-        "5": { "0": scalarCellData("Tổng Bình"), "1": formula("=SUBTOTAL(9,B5:B5)") },
-        "7": { "0": scalarCellData("Tổng Chi"), "1": formula("=SUBTOTAL(9,B7:B7)") },
-        "8": { "0": scalarCellData("Tổng chung"), "1": formula("=SUBTOTAL(9,B2:B8)") },
+        "3": { "0": labelCell("Tổng An"), "1": formula("=SUBTOTAL(9,B2:B3)") },
+        "5": { "0": labelCell("Tổng Bình"), "1": formula("=SUBTOTAL(9,B5:B5)") },
+        "7": { "0": labelCell("Tổng Chi"), "1": formula("=SUBTOTAL(9,B7:B7)") },
+        "8": { "0": labelCell("Tổng chung"), "1": formula("=SUBTOTAL(9,B2:B8)") },
       },
     },
   },
@@ -176,8 +179,8 @@ describe("XlsxSubtotalButton", () => {
     const step = props.commands!.executeAsOneStep as ReturnType<typeof vi.fn>;
     await waitFor(() => expect(step).toHaveBeenCalledTimes(1));
     const write = (step.mock.calls[0]![0] as { id: string; params: { value: Record<string, Record<string, unknown>> } }[])[4]!;
-    expect(write.params.value["3"]).toEqual({ "0": scalarCellData("Lớn nhất An"), "1": formula("=SUBTOTAL(4,B2:B3)") });
-    expect(write.params.value["8"]!["0"]).toEqual(scalarCellData("Lớn nhất chung"));
+    expect(write.params.value["3"]).toEqual({ "0": labelCell("Lớn nhất An"), "1": formula("=SUBTOTAL(4,B2:B3)") });
+    expect(write.params.value["8"]!["0"]).toEqual(labelCell("Lớn nhất chung"));
   });
 
   it("refuses a header-only list and no subtotal column, and reports a refused batch", async () => {
