@@ -15,6 +15,46 @@ function targetSheet(op: Record<string, unknown>): string | null {
   return isRecord(target) && typeof target.sheet === "string" ? target.sheet : null;
 }
 
+/** A file visual's pending edit in a raw stream (UNI-953): its last anchor or its delete. */
+export interface RecoveredFileEdit {
+  readonly sheetName: string;
+  readonly file: number;
+  readonly anchor?: XlsxEditorVisual["anchor"] | undefined;
+  readonly remove?: true | undefined;
+}
+
+/** The moves and deletes of visuals already in the file that a raw op
+ *  stream carries, folded per (sheet, index) and keyed by the sheet's final
+ *  name. A delete is final, like in the engine. */
+export function fileEditsFromStream(stream: readonly unknown[]): RecoveredFileEdit[] {
+  let edits: RecoveredFileEdit[] = [];
+  for (const op of stream) {
+    if (!isRecord(op)) continue;
+    const sheet = targetSheet(op);
+    if (sheet === null) continue;
+    const attributes = isRecord(op.attributes) ? op.attributes : {};
+    if (op.op === "rename_sheet" && typeof attributes.newName === "string") {
+      const newName = attributes.newName;
+      edits = edits.map((edit) => (edit.sheetName === sheet ? { ...edit, sheetName: newName } : edit));
+      continue;
+    }
+    if (op.op === "remove_sheet") {
+      edits = edits.filter((edit) => edit.sheetName !== sheet);
+      continue;
+    }
+    const file = attributes.file;
+    if ((op.op !== "set_visual" && op.op !== "remove_visual") || typeof file !== "number" || !Number.isInteger(file) || file < 0) continue;
+    const index = edits.findIndex((edit) => edit.sheetName === sheet && edit.file === file);
+    if (index >= 0 && edits[index]?.remove) continue;
+    let next: RecoveredFileEdit;
+    if (op.op === "remove_visual") next = { sheetName: sheet, file, remove: true };
+    else if (isRecord(attributes.anchor)) next = { sheetName: sheet, file, anchor: attributes.anchor as unknown as XlsxEditorVisual["anchor"] };
+    else continue;
+    edits = index >= 0 ? edits.map((edit, at) => (at === index ? next : edit)) : [...edits, next];
+  }
+  return edits;
+}
+
 /** The session visuals a raw op stream leaves pending, in first-insert order,
  *  keyed by their sheet's final name (renames in the stream are followed). */
 export function visualsFromStream(stream: readonly unknown[]): RecoveredVisual[] {

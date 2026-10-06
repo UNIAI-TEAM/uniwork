@@ -22,6 +22,8 @@ export interface XlsxGridHostPort {
     sheetId: string;
     range: { startRow: number; endRow: number; startColumn: number; endColumn: number };
   }): Promise<RendererRangeResult>;
+  /** The opened file's own charts, pictures and shapes per sheet id (UNI-953). */
+  fileVisuals?: Readonly<Record<string, readonly import("@uniwork/office-engine/xlsx").XlsxRenderVisual[]>> | undefined;
 }
 
 export interface XlsxGridSelection {

@@ -6,7 +6,8 @@
 // can be selected, dragged, resized from its corners and deleted (Delete or
 // its delete button). Keyboard: Tab reaches each item, arrows move it,
 // Shift+arrows resize it, Delete removes it, Escape returns focus to the grid.
-// A visual a save already wrote is locked (no edit path for file visuals).
+// Visuals already in the file are edited the same way; only one whose anchor
+// the save path cannot move (oneCell / absolute) stays fixed (UNI-953).
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -75,8 +76,19 @@ function gridCanvas(layer: HTMLElement | null): HTMLCanvasElement | null {
   return best;
 }
 
+function VisualPlaceholder({ title, text }: { title?: string | undefined; text: string }) {
+  return (
+    <div className="flex size-full flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-border bg-muted p-2 text-center text-caption text-muted-foreground">
+      {title ? <span className="font-medium text-foreground">{title}</span> : null}
+      <span>{text}</span>
+    </div>
+  );
+}
+
 function VisualBody({ visual, box, label }: { visual: XlsxEditorVisual; box: XlsxVisualBox; label: string }) {
+  const { t } = useTranslation();
   if (visual.chart) return <XlsxVisualChartSvg chart={visual.chart} width={box.width} height={box.height} label={label} />;
+  if (visual.kind === "chart") return <VisualPlaceholder title={visual.title} text={t("office.xlsx.visuals.placeholder.chart")} />;
   if (visual.shape) return <XlsxVisualShapeSvg shape={visual.shape} width={box.width} height={box.height} />;
   if (visual.image) {
     return (
@@ -88,6 +100,7 @@ function VisualBody({ visual, box, label }: { visual: XlsxEditorVisual; box: Xls
       />
     );
   }
+  if (visual.kind === "picture") return <VisualPlaceholder text={t("office.xlsx.visuals.placeholder.picture")} />;
   return null;
 }
 
@@ -114,12 +127,15 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
 
   const labelOf = (visual: XlsxEditorVisual): string => {
     const kind = visualKind(visual);
+    if (kind === "chart" && !visual.chart) return t("office.xlsx.visuals.item.fileChart", { title: visual.title ?? "" });
     if (kind === "chart") return t("office.xlsx.visuals.item.chart", { type: t(`office.xlsx.visuals.chartTypesInline.${visual.chart!.chartType}`), title: visual.chart!.title });
     if (kind === "shape") return t("office.xlsx.visuals.item.shape", { type: t(`office.xlsx.visuals.shapeTypes.${visual.shape!.shapeType}`) });
     return t("office.xlsx.visuals.item.picture");
   };
 
-  const editable = (visual: XlsxEditorVisual) => !readOnly && !visual.saved;
+  const editable = (visual: XlsxEditorVisual) => !readOnly && !visual.fixed;
+  const lockText = (visual: XlsxEditorVisual) =>
+    visual.fixed ? t("office.xlsx.visuals.item.fileReadOnly") : readOnly ? t("office.xlsx.visuals.item.unavailable") : undefined;
 
   const startDrag = (event: ReactPointerEvent, item: XlsxVisualLayerItem, handle: XlsxVisualHandle | null) => {
     if (event.button !== 0 || !item.box) return;
@@ -208,13 +224,13 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
               data-testid={`xlsx-visual-item-${visualKind(visual)}`}
               data-visual-id={visual.id}
               data-selected={selected || undefined}
-              title={locked ? t("office.xlsx.visuals.item.locked") : undefined}
+              title={lockText(visual)}
               className={cn(
                 "pointer-events-auto absolute touch-none bg-background",
                 locked ? "cursor-default" : "cursor-move",
                 selected && "ring-2 ring-primary",
-                visual.chart && "rounded-sm border border-border text-muted-foreground",
-                visual.shape && "bg-transparent text-foreground",
+                visualKind(visual) === "chart" && "rounded-sm border border-border text-muted-foreground",
+                visualKind(visual) === "shape" && "bg-transparent text-foreground",
               )}
               style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
               onFocus={() => onSelect(visual.id)}
@@ -226,7 +242,7 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
               onWheel={forwardWheel}
             >
               <span id={`xlsx-visual-help-${visual.id}`} className="sr-only">
-                {locked ? t("office.xlsx.visuals.item.locked") : t("office.xlsx.visuals.item.keyboardHelp")}
+                {lockText(visual) ?? t("office.xlsx.visuals.item.keyboardHelp")}
               </span>
               <VisualBody visual={visual} box={box} label={label} />
               {selected && !locked ? (

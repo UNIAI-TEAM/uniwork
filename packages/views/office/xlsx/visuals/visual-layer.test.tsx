@@ -15,7 +15,7 @@ function visual(kind: "chart" | "shape" | "picture", overrides: Partial<XlsxEdit
       : kind === "shape"
         ? { shape: { shapeType: "rect" as const } }
         : { image: { mediaType: "image/png" as const, base64: "AAAA" } };
-  return { id: `v-${kind}`, sheetId: "s1", anchor: ANCHOR, generation: 1, saved: false, ...body, ...overrides };
+  return { id: `v-${kind}`, sheetId: "s1", anchor: ANCHOR, generation: 1, ...body, ...overrides };
 }
 
 function setup(items: readonly XlsxVisualLayerItem[], overrides: Partial<XlsxVisualLayerProps> = {}) {
@@ -29,6 +29,15 @@ beforeEach(async () => {
 });
 
 describe("XlsxVisualLayer", () => {
+  it("draws a file chart of an unpreviewed type and an oversized file picture as named placeholders", () => {
+    setup([
+      { visual: { id: "f0", sheetId: "s1", anchor: ANCHOR, generation: 0, file: 0, kind: "chart", title: "Radar 2026" }, box: BOX },
+      { visual: { id: "f1", sheetId: "s1", anchor: ANCHOR, generation: 0, file: 1, kind: "picture" }, box: BOX },
+    ]);
+    expect(screen.getByRole("button", { name: "Chart Radar 2026" })).toHaveTextContent("This chart type has no preview here yet.");
+    expect(screen.getByRole("button", { name: "Picture" })).toHaveTextContent("This picture is too large to preview here.");
+  });
+
   it("renders one named button per visual", () => {
     setup([
       { visual: visual("chart"), box: BOX },
@@ -83,9 +92,9 @@ describe("XlsxVisualLayer", () => {
   });
 
   it.each([
-    ["saved", { saved: true }, false],
-    ["read-only", {}, true],
-  ])("locks a %s visual", (_name, overrides, readOnly) => {
+    ["fixed file", { file: 2, fixed: true as const }, false, "anchored in a way the editor cannot move yet"],
+    ["read-only", {}, true, "the document is read-only or a save is in progress"],
+  ])("locks a %s visual", (_name, overrides, readOnly, why) => {
     const item = { visual: visual("shape", overrides), box: BOX };
     const { props } = setup([item], { selectedId: "v-shape", readOnly });
     const el = screen.getByTestId(SHAPE_ID);
@@ -96,7 +105,8 @@ describe("XlsxVisualLayer", () => {
     expect(props.onRemove).not.toHaveBeenCalled();
     expect(props.onMove).not.toHaveBeenCalled();
     const help = document.getElementById(el.getAttribute("aria-describedby")!);
-    expect(help).toHaveTextContent("Saved to the file. Saved drawings cannot be edited yet.");
+    expect(help).toHaveTextContent(why);
+    expect(el).toHaveAttribute("title", expect.stringContaining(why));
     fireEvent.pointerDown(el, { clientX: 100, clientY: 100, pointerId: 1, button: 0 });
     fireEvent.pointerMove(el, { clientX: 130, clientY: 110, pointerId: 1 });
     fireEvent.pointerUp(el, { clientX: 130, clientY: 110, pointerId: 1 });

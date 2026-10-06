@@ -3,7 +3,7 @@
 // consumes (WorkbookFile + WorkbookRangeResult). The vendored code is not
 // edited: this module is the boundary that lets it run unchanged in UniWork.
 import { seedFittedColumnWidths } from "./xlsx-column-autofit";
-import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle, XlsxRenderTable } from "@uniwork/office-engine/xlsx";
+import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderSheet, XlsxRenderStyle, XlsxRenderTable, XlsxRenderVisual } from "@uniwork/office-engine/xlsx";
 
 /** One file-native table in the genoffice `WorkbookFile` sheet shape (the
  *  subset the vendored loader and the ribbon read). `styleName` is left out on
@@ -343,6 +343,9 @@ export interface XlsxModelHost {
     sheetId: string;
     range: XlsxModelRange;
   }): Promise<RendererRangeResult>;
+  /** Charts, pictures and shapes the opened file ships, per sheet id
+   *  (UNI-953); the visual overlay draws and edits them. */
+  fileVisuals?: Readonly<Record<string, readonly XlsxRenderVisual[]>>;
 }
 
 export function createXlsxModelHost(model: XlsxRenderModel, meta: RenderModelMeta): XlsxModelHost {
@@ -352,5 +355,6 @@ export function createXlsxModelHost(model: XlsxRenderModel, meta: RenderModelMet
     async readRange(input) {
       return readRangeFromModel(model, input.sheetId, input.range);
     },
+    fileVisuals: Object.fromEntries(model.sheets.flatMap((sheet) => (sheet.visuals?.length ? [[sheet.id, sheet.visuals]] : []))),
   };
 }

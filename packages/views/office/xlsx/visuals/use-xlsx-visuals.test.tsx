@@ -63,6 +63,18 @@ function setup(overrides: Partial<XlsxVisualsOptions> & { grid?: XlsxVisualsGrid
   return { edit, onApplied, onError, view, editor, rerender: (next: Partial<XlsxVisualsOptions>) => view.rerender(<Harness grid={fakeGrid()} editor={editor} onApplied={onApplied} onError={onError} {...next} />) };
 }
 
+const ANCHOR = { fromRow: 1, fromColumn: 1, fromRowOffset: 0, fromColumnOffset: 0, toRow: 5, toColumn: 4, toRowOffset: 0, toColumnOffset: 0 };
+/** Sheet s1's drawing: a chart, a picture past the preview cap, a fixed
+ *  oneCellAnchor picture (100 x 50 px) and an undrawable group. */
+const FILE_VISUALS: NonNullable<XlsxVisualsOptions["fileVisuals"]> = {
+  s1: [
+    { index: 0, kind: "chart", editable: true, anchor: ANCHOR, chart: { chartType: "column", title: "Sales", series: [{ name: "Q1", categories: ["N"], values: [1] }] }, chartTitle: "Sales" },
+    { index: 1, kind: "picture", editable: true, anchor: { ...ANCHOR, fromRow: 8, toRow: 12 } },
+    { index: 2, kind: "picture", editable: false, anchor: { ...ANCHOR, fromColumn: 3, toColumn: 3 }, extent: { cx: 952500, cy: 476250 }, image: { mediaType: "image/png", base64: "AAAA" } },
+    { index: 3, kind: "other", editable: false, anchor: ANCHOR },
+  ],
+};
+
 const lastOp = (edit: ReturnType<typeof vi.fn>) => (edit.mock.calls.at(-1)?.[0] as Record<string, unknown>[])[0] as {
   op: string;
   target: { sheet: string };
@@ -143,19 +155,23 @@ describe("useXlsxVisuals", () => {
     expect(screen.queryByTestId("xlsx-visual-item-shape")).not.toBeInTheDocument();
   });
 
-  it("locks a visual once a save covers its last op", async () => {
+  it("keeps a visual editable once a save wrote it, addressing it by its file index", async () => {
     const { edit, rerender } = setup();
     act(() => commandsRef?.insertShape("rect"));
     await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
     rerender({ savedGeneration: 1 });
     const item = await screen.findByTestId("xlsx-visual-item-shape");
-    expect(item).toHaveAccessibleDescription("Saved to the file. Saved drawings cannot be edited yet.");
-    fireEvent.keyDown(item, { key: "Delete" });
+    expect(item).toHaveAccessibleDescription(/Arrow keys move it/);
     fireEvent.keyDown(item, { key: "ArrowDown" });
-    expect(edit).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+    expect(lastOp(edit)).toMatchObject({ op: "set_visual", attributes: { file: 0 } });
+    expect(Object.keys(lastOp(edit).attributes).sort()).toEqual(["anchor", "file"]);
+    fireEvent.keyDown(screen.getByTestId("xlsx-visual-item-shape"), { key: "Delete" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(3));
+    expect(lastOp(edit)).toEqual({ op: "remove_visual", target: { sheet: "Data" }, attributes: { file: 0 } });
   });
 
-  it.each(["ArrowDown", "Delete"])("does not %s a visual while a save is in flight, then locks it once the save lands", async (key) => {
+  it.each(["ArrowDown", "Delete"])("does not %s a visual while a save is in flight, then edits it by file index once the save lands", async (key) => {
     const { edit, rerender } = setup();
     act(() => commandsRef?.insertShape("rect"));
     await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
@@ -164,10 +180,73 @@ describe("useXlsxVisuals", () => {
     fireEvent.keyDown(item, { key });
     expect(edit).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("xlsx-visual-handle-se")).not.toBeInTheDocument();
+    expect(item).toHaveAccessibleDescription(/a save is in progress/);
     rerender({ saving: false, savedGeneration: 1 });
-    expect(await screen.findByTestId("xlsx-visual-item-shape")).toHaveAccessibleDescription("Saved to the file. Saved drawings cannot be edited yet.");
-    fireEvent.keyDown(screen.getByTestId("xlsx-visual-item-shape"), { key });
-    expect(edit).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(await screen.findByTestId("xlsx-visual-item-shape"), { key });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+    expect(lastOp(edit).attributes.file).toBe(0);
+  });
+
+  it("draws the file's own visuals, edits them by index and leaves fixed and undrawable ones alone", async () => {
+    const { edit } = setup({ fileVisuals: FILE_VISUALS });
+    expect(await screen.findByTestId("xlsx-visual-item-chart")).toHaveAccessibleName("Column chart Sales");
+    expect(screen.getAllByTestId("xlsx-visual-item-picture")).toHaveLength(2);
+    const pictures = screen.getAllByTestId("xlsx-visual-item-picture");
+    // index 2: oneCellAnchor, drawn from its start cell plus its EMU extent.
+    const fixed = pictures.find((item) => item.getAttribute("data-visual-id") === "file-s1-2")!;
+    expect(fixed.style.left).toBe(`${40 + 3 * COL}px`);
+    expect(fixed.style.width).toBe("100px");
+    expect(fixed).toHaveAccessibleDescription(/cannot move yet/);
+    fireEvent.keyDown(fixed, { key: "ArrowRight" });
+    fireEvent.keyDown(fixed, { key: "Delete" });
+    expect(edit).not.toHaveBeenCalled();
+    // index 1: a picture past the preview cap is a placeholder, still movable.
+    expect(screen.getByText("This picture is too large to preview here.")).toBeInTheDocument();
+    // index 3 ("other") is never drawn.
+    expect(document.querySelector('[data-visual-id="file-s1-3"]')).toBeNull();
+    fireEvent.keyDown(screen.getByTestId("xlsx-visual-item-chart"), { key: "ArrowDown" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    expect(lastOp(edit)).toMatchObject({ op: "set_visual", target: { sheet: "Data" }, attributes: { file: 0, anchor: { fromRow: 1 } } });
+  });
+
+  it("renumbers after a save: a deleted file visual's later anchors move up, then the visuals it wrote append", async () => {
+    const { edit, rerender } = setup({ fileVisuals: FILE_VISUALS });
+    fireEvent.keyDown(await screen.findByTestId("xlsx-visual-item-chart"), { key: "Delete" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    expect(lastOp(edit)).toEqual({ op: "remove_visual", target: { sheet: "Data" }, attributes: { file: 0 } });
+    act(() => commandsRef?.insertShape("ellipse"));
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+    rerender({ fileVisuals: FILE_VISUALS, savedGeneration: 2 });
+    // File 0 left: the pictures (1, 2) and the hidden "other" (3) move up to
+    // 0..2, and the saved ellipse takes index 3.
+    const shape = await screen.findByTestId("xlsx-visual-item-shape");
+    fireEvent.keyDown(shape, { key: "ArrowDown" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(3));
+    expect(lastOp(edit).attributes.file).toBe(3);
+    const big = screen.getAllByTestId("xlsx-visual-item-picture").find((item) => item.getAttribute("data-visual-id") === "file-s1-1")!;
+    fireEvent.keyDown(big, { key: "Delete" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(4));
+    expect(lastOp(edit).attributes).toEqual({ file: 0 });
+  });
+
+  it("applies the file edits a recovered draft carries once, and its saved delete renumbers the rest", async () => {
+    const stream = [
+      { op: "set_visual", target: { sheet: "Data" }, attributes: { file: 0, anchor: { ...ANCHOR, fromRow: 6, toRow: 9 } } },
+      { op: "remove_visual", target: { sheet: "Data" }, attributes: { file: 1 } },
+    ];
+    const { edit, rerender } = setup({ fileVisuals: FILE_VISUALS, snapshot: { pendingOps: stream } });
+    const chart = await screen.findByTestId("xlsx-visual-item-chart");
+    expect(chart.style.top).toBe(`${24 + 6 * ROW}px`);
+    expect(document.querySelector('[data-visual-id="file-s1-1"]')).toBeNull();
+    // Save 1 carried the recovered delete of file 1: the fixed picture and
+    // the hidden group move up to 1 and 2.
+    rerender({ fileVisuals: FILE_VISUALS, snapshot: { pendingOps: [] }, savedGeneration: 1 });
+    act(() => commandsRef?.insertShape("rect"));
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    rerender({ fileVisuals: FILE_VISUALS, snapshot: { pendingOps: [] }, savedGeneration: 2 });
+    fireEvent.keyDown(await screen.findByTestId("xlsx-visual-item-shape"), { key: "ArrowDown" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+    expect(lastOp(edit).attributes.file).toBe(3);
   });
 
   it("still inserts while a save is in flight; the new visual moves only once that save lands, and stays editable", async () => {
