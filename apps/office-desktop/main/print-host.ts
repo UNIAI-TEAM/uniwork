@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { brandIconPath, printWindowTitle } from "./branding";
 import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, type PrintOwner, type PrintWindow, type PrintWindowOptions } from "./print";
 
 /**
@@ -27,7 +28,11 @@ export interface PrintHostOptions<Owner extends PrintHostOwner> {
    * (`BrowserWindow.fromWebContents`), or undefined when it is gone. */
   senderWindow(): Owner | null | undefined;
   /** `new BrowserWindow(options)`: options are applied verbatim. */
-  createWindow(options: PrintWindowOptions & { parent?: Owner }): PrintWindow;
+  createWindow(options: PrintWindowOptions & { parent?: Owner; icon?: string }): PrintWindow;
+  /** The built bundle directory (`dist`) the product icon is read from. */
+  distDirectory: string;
+  /** Overrides `process.platform` (tests). */
+  platform?: NodeJS.Platform;
 }
 
 /** Guard the print partition, sweep jobs a previous process left behind, and
@@ -42,7 +47,12 @@ export async function createPrintHost<Owner extends PrintHostOwner>(options: Pri
       const sender = options.senderWindow();
       return sender && !sender.isDestroyed() ? sender : undefined;
     },
-    createWindow: (windowOptions, owner) => options.createWindow(owner ? { ...windowOptions, parent: owner } : windowOptions),
+    // The print window is hidden, but Chromium still names the job and the
+    // suggested PDF after its title: the document, else the product, never "Electron".
+    createWindow: (windowOptions, owner) => {
+      const branded = { ...windowOptions, title: printWindowTitle(windowOptions.title), icon: brandIconPath(options.platform ?? process.platform, options.distDirectory) };
+      return options.createWindow(owner ? { ...branded, parent: owner } : branded);
+    },
     writeFile: createPrintFileWriter(printRoot),
   });
 }
