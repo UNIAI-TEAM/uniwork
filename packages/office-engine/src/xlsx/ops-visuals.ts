@@ -5,10 +5,14 @@
 //
 // Wire shape:
 //   { op: "set_visual", target: { sheet }, attributes: { id, anchor, chart | shape | image } }
+//   { op: "set_visual", target: { sheet }, attributes: { id, anchor } }   (move)
 //   { op: "remove_visual", target: { sheet }, attributes: { id } }
-// `id` is the editor's handle for one session visual. A set_visual with an id
-// already pending REPLACES it in place (a move or resize re-sends the whole
-// visual with its new anchor); remove_visual cancels it. Like remove_table,
+// `id` is the editor's handle for one session visual. The insert carries the
+// body once; a move or resize is the anchor-only form, which keeps the pending
+// visual's body and only replaces its anchor, so nudging a large picture never
+// re-sends its bytes. An anchor-only set_visual with no pending visual of that
+// id is refused (a media-less insert). A set_visual with a body and a pending
+// id replaces it in place; remove_visual cancels it. Like remove_table,
 // both reach only visuals created EARLIER IN THE SAME SESSION: the gateway's
 // edit path for visuals already in the file (visualEdits) is not bound, so a
 // visual a save already wrote is never addressed by id again.
@@ -21,6 +25,8 @@ import { XlsxOpError, isDict, int, str, parseStructuralTarget, parseStructuralAt
 
 export const VISUAL_SET_OP_KIND = "set_visual";
 export const VISUAL_REMOVE_OP_KIND = "remove_visual";
+/** The parsed anchor-only form of set_visual (no wire name of its own). */
+const VISUAL_MOVE_OP_KIND = "move_visual";
 
 /** Chart kinds the editor inserts; all are written by the vendored buildChartXml. */
 export const XLSX_VISUAL_CHART_TYPES = ["column", "bar", "line", "pie", "area", "doughnut"] as const;
@@ -33,8 +39,9 @@ export type XlsxVisualShapeType = (typeof XLSX_VISUAL_SHAPE_TYPES)[number];
 export const XLSX_VISUAL_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif"] as const;
 export type XlsxVisualImageType = (typeof XLSX_VISUAL_IMAGE_TYPES)[number];
 
-/** Decoded picture ceiling. An edit rides a JSON body capped at 1 MiB on the
- *  server path, so the base64 text (4/3 of this) must leave room for the rest. */
+/** Decoded picture ceiling. The server bounds one save's edits at 8 MiB; the
+ *  picture rides only its insert op (moves are anchor-only), so the base64
+ *  text (4/3 of this) leaves room for many pictures and the rest of the save. */
 export const XLSX_VISUAL_MAX_IMAGE_BYTES = 512 * 1024;
 const MAX_SERIES = 24;
 const MAX_POINTS = 1_000;
@@ -97,6 +104,14 @@ export interface XlsxVisualSetOp {
   readonly image?: XlsxVisualImage | undefined;
 }
 
+/** A move or resize: the anchor-only set_visual. */
+export interface XlsxVisualMoveOp {
+  readonly kind: "move_visual";
+  readonly sheetName: string;
+  readonly id: string;
+  readonly anchor: XlsxVisualAnchor;
+}
+
 export interface XlsxVisualRemoveOp {
   readonly kind: "remove_visual";
   readonly sheetName: string;
@@ -112,12 +127,10 @@ export interface XlsxSheetVisualAddition {
   readonly image?: XlsxVisualImage | undefined;
 }
 
-export function isXlsxVisualSetOp(op: XlsxEditOp): op is XlsxVisualSetOp {
-  return op.kind === VISUAL_SET_OP_KIND;
-}
+type XlsxVisualOp = XlsxVisualSetOp | XlsxVisualMoveOp | XlsxVisualRemoveOp;
 
-export function isXlsxVisualOp(op: XlsxEditOp): op is XlsxVisualSetOp | XlsxVisualRemoveOp {
-  return op.kind === VISUAL_SET_OP_KIND || op.kind === VISUAL_REMOVE_OP_KIND;
+export function isXlsxVisualOp(op: XlsxEditOp): op is XlsxVisualOp {
+  return op.kind === VISUAL_SET_OP_KIND || op.kind === VISUAL_MOVE_OP_KIND || op.kind === VISUAL_REMOVE_OP_KIND;
 }
 
 function onlyKeys(raw: Dict, allowed: readonly string[], op: string, field: string): void {
@@ -234,7 +247,8 @@ export function parseSetVisual(item: Dict, op: string, sheets: XlsxSheetResolver
   const id = parseId(a.id, op);
   const anchor = parseAnchor(a.anchor, op);
   const bodies = (["chart", "shape", "image"] as const).filter((key) => a[key] !== undefined);
-  if (bodies.length !== 1) throw new XlsxOpError(op, "attributes", "exactly one of chart, shape or image required");
+  if (bodies.length === 0) return [{ kind: VISUAL_MOVE_OP_KIND, sheetName, id, anchor }];
+  if (bodies.length !== 1) throw new XlsxOpError(op, "attributes", "at most one of chart, shape or image");
   const [body] = bodies;
   const raw = a[body as string];
   if (!isDict(raw)) throw new XlsxOpError(op, "attributes." + String(body), "object required");
@@ -251,14 +265,16 @@ export function parseRemoveVisual(item: Dict, op: string, sheets: XlsxSheetResol
 }
 
 /** Apply one visual op to the pending list (the model's journal): a set
- *  replaces the entry with the same sheet + id in place or appends it, a
- *  remove drops it. Returns the next list; the input is never mutated. */
-export function foldXlsxVisualOp(
-  visuals: readonly XlsxVisualSetOp[],
-  op: XlsxVisualSetOp | XlsxVisualRemoveOp,
-): XlsxVisualSetOp[] {
+ *  replaces the entry with the same sheet + id in place or appends it, a move
+ *  replaces only its anchor, a remove drops it. Returns the next list; the
+ *  input is never mutated. */
+export function foldXlsxVisualOp(visuals: readonly XlsxVisualSetOp[], op: XlsxVisualOp): XlsxVisualSetOp[] {
   const index = visuals.findIndex((visual) => visual.sheetName === op.sheetName && visual.id === op.id);
   if (op.kind === VISUAL_REMOVE_OP_KIND) return index < 0 ? [...visuals] : visuals.filter((_, at) => at !== index);
+  if (op.kind === VISUAL_MOVE_OP_KIND) {
+    if (index < 0) throw new XlsxOpError(VISUAL_SET_OP_KIND, "attributes", "an anchor-only set_visual needs the visual's insert earlier in this session");
+    return visuals.map((visual, at) => (at === index ? { ...visual, anchor: op.anchor } : visual));
+  }
   if (index < 0) return [...visuals, op];
   return visuals.map((visual, at) => (at === index ? op : visual));
 }

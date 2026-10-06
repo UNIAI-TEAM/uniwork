@@ -41,6 +41,9 @@ const chart = {
 const setVisual = (id: string, body: Record<string, unknown>, sheet = "Data", at = anchor()) => ({
   op: "set_visual", target: { sheet }, attributes: { id, anchor: at, ...body },
 });
+const moveVisual = (id: string, at: ReturnType<typeof anchor>, sheet = "Data") => ({
+  op: "set_visual", target: { sheet }, attributes: { id, anchor: at },
+});
 const removeVisual = (id: string, sheet = "Data") => ({ op: "remove_visual", target: { sheet }, attributes: { id } });
 
 const baseSnapshot = (): XlsxWorkbookSnapshot => ({
@@ -81,9 +84,12 @@ describe("XLSX visual ops: wire parser", () => {
     expect(ops[2]).toMatchObject({ image: { mediaType: "image/png" } });
   });
 
-  it("refuses a visual with no body or two bodies", () => {
-    expect(parseError(setVisual("x", {})).field).toBe("attributes");
+  it("refuses a visual with two bodies and parses an anchor-only set_visual as a move", () => {
     expect(parseError(setVisual("x", { chart, shape: { shapeType: "rect" } })).field).toBe("attributes");
+    expect(parseXlsxOps([moveVisual("x", anchor(2, 2, 4, 4))], sheets)).toEqual([
+      { kind: "move_visual", sheetName: "Data", id: "x", anchor: anchor(2, 2, 4, 4) },
+    ]);
+    expect(parseError(moveVisual("x", anchor(4, 4, 2, 2))).field).toBe("attributes.anchor");
   });
 
   it("refuses a reversed or empty anchor and unknown anchor keys", () => {
@@ -131,6 +137,37 @@ describe("XLSX visual ops in the session model", () => {
     expect(additions.map((visual) => (visual.chart ? "chart" : visual.shape ? "shape" : "image"))).toEqual(["chart", "image"]);
     expect(additions[0]?.anchor).toEqual(moved);
     expect(model.isDirty).toBe(true);
+  });
+
+  it("moves a pending visual by id keeping its body, and refuses a move with no insert before it", () => {
+    const model = modelWith([
+      setVisual("p1", { image: { mediaType: "image/png", base64: PNG_BASE64 } }),
+      setVisual("s1", { shape: { shapeType: "rect" } }),
+      moveVisual("p1", anchor(8, 8, 9, 9)),
+    ]);
+    expect(model.pendingVisualAdditions()).toEqual([
+      { sheetName: "Data", anchor: anchor(8, 8, 9, 9), image: { mediaType: "image/png", base64: PNG_BASE64 } },
+      { sheetName: "Data", anchor: anchor(), shape: { shapeType: "rect" } },
+    ]);
+    // A media-less insert: no pending visual carries the body to keep.
+    expect(() => modelWith([moveVisual("ghost", anchor())])).toThrow(XlsxOpError);
+    expect(() => modelWith([setVisual("p1", { chart }), removeVisual("p1"), moveVisual("p1", anchor())])).toThrow(/insert/);
+  });
+
+  it("keeps 100 nudges of a picture at the cap far below the edits bound", () => {
+    // Base64 of exactly XLSX_VISUAL_MAX_IMAGE_BYTES (zero bytes decode from "A").
+    const capped = "A".repeat(Math.ceil((512 * 1024) / 3) * 4);
+    const edits: unknown[] = [setVisual("p1", { image: { mediaType: "image/png", base64: capped } })];
+    for (let step = 1; step <= 100; step += 1) edits.push(moveVisual("p1", anchor(1 + step, 1, 6 + step, 5)));
+    const size = JSON.stringify(edits).length;
+    // The server's edits bound is 8 MiB; one picture plus 100 moves stays near one picture.
+    expect(size).toBeLessThan(capped.length + 100 * 400);
+    expect(size).toBeLessThan(1024 * 1024);
+    const model = modelWith(edits);
+    const [only, ...rest] = model.pendingVisualAdditions();
+    expect(rest).toEqual([]);
+    expect(only?.anchor).toEqual(anchor(101, 1, 106, 5));
+    expect(only?.image?.base64).toHaveLength(capped.length);
   });
 
   it("follows a sheet rename, drops with a removed sheet and comes back with its undo", () => {
@@ -202,7 +239,25 @@ function answeringRecalc(engine: Gateway): XlsxRecalcPort {
   };
 }
 
-describe.skipIf(!existsSync(ARTIFACT))("xlsx visuals over the real gateway artifact", () => {
+// The round-trip needs the built gateway bundle. Locally a missing bundle
+// skips with a warning; a run that sets REQUIRE_XLSX_GATEWAY=1 (the cloud
+// test round, after building it) fails instead, so the acceptance evidence
+// can never report green by skipping.
+const HAS_ARTIFACT = existsSync(ARTIFACT);
+const BUILD_HINT = "run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs";
+if (!HAS_ARTIFACT) {
+  if (process.env.REQUIRE_XLSX_GATEWAY === "1") {
+    describe("xlsx visuals gateway artifact", () => {
+      it("is built when REQUIRE_XLSX_GATEWAY=1", () => {
+        throw new Error(`REQUIRE_XLSX_GATEWAY=1 but the xlsx gateway bundle is missing: ${BUILD_HINT}`);
+      });
+    });
+  } else {
+    console.warn(`xlsx-visuals: skipping the real-gateway round-trip (${BUILD_HINT}; set REQUIRE_XLSX_GATEWAY=1 to fail instead)`);
+  }
+}
+
+describe.skipIf(!HAS_ARTIFACT)("xlsx visuals over the real gateway artifact", () => {
   it("writes chart, picture and shape parts a re-read of the saved bytes finds", async () => {
     const engine = await load();
     const source = fixture(COMPAT_EDIT);
@@ -238,6 +293,27 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx visuals over the real gateway artif
     // The saved package re-opens through the engine like any other file.
     const reopened = await createXlsxAdapter({ engine }).open({ bytes: saved.bytes, format: "xlsx", document_id: "visuals-2" });
     expect(reopened.outcome).toBe("opened");
+  });
+
+  it("saves a picture nudged 100 times as one anchor at its last position, its bytes written once", async () => {
+    const engine = await load();
+    const source = fixture(COMPAT_EDIT);
+    const adapter = createXlsxAdapter({ engine });
+    const opened = await adapter.open({ bytes: source, format: "xlsx", document_id: "visuals-nudged" });
+    if (opened.outcome !== "opened") throw new Error("fixture_open_failed");
+    const sheet = (await engine.readWorkbook(source)).snapshot.sheets[0]!.name;
+    const edits: unknown[] = [setVisual("p1", { image: { mediaType: "image/png", base64: PNG_BASE64 } }, sheet, anchor(2, 1, 4, 3))];
+    for (let step = 1; step <= 100; step += 1) edits.push(moveVisual("p1", anchor(2 + step, 1, 4 + step, 3), sheet));
+    adapter.edit(opened.document_model_ref, edits);
+    const saved = await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    adapter.release(opened.document_model_ref);
+
+    const paths = (await engine.inventory(saved.bytes)).map((entry) => entry.path);
+    expect(paths.filter((path) => /^xl\/media\/image\d+\.png$/.test(path))).toHaveLength(1);
+    const drawingPath = paths.find((path) => /^xl\/drawings\/drawing\d+\.xml$/.test(path))!;
+    const drawing = (await engine.readEntryText(saved.bytes, drawingPath)) ?? "";
+    expect(drawing.match(/<xdr:twoCellAnchor/g)).toHaveLength(1);
+    expect(drawing).toMatch(/<xdr:from><xdr:col>1<\/xdr:col>.*?<xdr:row>102<\/xdr:row>/s);
   });
 
   it("keeps formulas and refreshes their cached values in a save that also carries a chart", async () => {
