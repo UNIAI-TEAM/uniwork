@@ -67,8 +67,8 @@ export type {
   PdfNoteThread,
   PdfNotesPanelProps,
 } from "./notes";
-export { createBrowserPdfPrintPort, markPdfPrintSurface, PdfPrintButton, PdfPrintError } from "./print";
-export type { BrowserPdfPrintEnvironment, PdfPrintButtonProps, PdfPrintFailureCode, PdfPrintPort } from "./print";
+export { buildPdfPrintCopy, PDF_PRINT_DPI, PDF_PRINT_MIN_DPI, PdfPrintError, printPdfDocument } from "./print";
+export type { PdfPrintCopyInput, PdfPrintDocumentRequest, PdfPrintFailureCode, PdfPrintImageInliner, PdfPrintPage } from "./print";
 export {
   DEFAULT_PDF_EXPORT_SCALE,
   downloadPdfBytes,

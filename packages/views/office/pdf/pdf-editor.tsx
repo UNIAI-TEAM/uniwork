@@ -10,6 +10,8 @@ import { PdfErrorState } from "./pdf-error-state";
 import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
 import { PdfRibbonBar, PdfStatusBar } from "./chrome";
 import { PdfEditorSurface, type PdfSurfacePanelId } from "./pdf-editor-surface";
+import { HeaderActionsFill } from "../../layout/header-actions-slot";
+import { PdfPrintButton, PdfPrintMenuItem, PdfPrintNotice, usePdfPrint } from "./print";
 import { pdfEditErrorKey } from "./pdf-edit-error";
 import { PDF_MAX_ZOOM, PDF_MIN_ZOOM, clampPdfZoom, fitPdfZoom } from "./fit-zoom";
 import { PDF_COMMANDS, PDF_BROWSER_UNSUPPORTED_REASON_KEY, PDF_COMMAND_CAPABILITIES, pdfCommandDisabledReason, type PdfCommandId } from "./pdf-command-map";
@@ -114,7 +116,7 @@ function isEditableTarget(target: EventTarget): boolean {
   return editable !== null && editable.getAttribute("contenteditable") !== "false";
 }
 
-export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
+export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange, printPort }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<PdfViewState>("opening");
   const [failure, setFailure] = useState<PdfOpenFailure | null>(null);
@@ -426,6 +428,17 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const canRunBrowserUnsupported = canEditText && !browserLane;
   const browserUnsupportedHint = browserLane && viewState === "ready" && (activeTab === "edit" || activeTab === "pages");
   const promptMode = failure ? passwordMode(failure) : null;
+  // UNI-952: Print renders the original pages into a copy the injected port
+  // prints; the toolbar button and the header menu item share this controller.
+  const getPrintPages = useCallback(() => editorRef.current.getCanvasPages?.() ?? [], []);
+  const printer = usePdfPrint({ port: printPort, renderer: editor.renderer, getPages: editor.getCanvasPages ? getPrintPages : undefined, title: effectiveTitle });
+  const browserHint = browserUnsupportedHint ? (
+    <p className="text-caption text-muted-foreground" role="note" data-testid="pdf-browser-unsupported">
+      {t(activeTab === "pages" ? "office.pdf.errors.unsupportedPagesInBrowser" : PDF_BROWSER_UNSUPPORTED_REASON_KEY)}
+    </p>
+  ) : null;
+  const printNotice = printer?.status ? <PdfPrintNotice controller={printer} /> : null;
+  const printMenu = useMemo(() => (printer ? <PdfPrintMenuItem controller={printer} /> : null), [printer]);
 
   // One row per command the ribbon can render; the chrome decides which rows a
   // tab shows and falls back to the catalogue label for each id.
@@ -468,6 +481,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   // status bar) is the only chrome; the page header owns the title and Save.
   return (
     <div ref={rootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
+      {viewState === "ready" && printMenu ? <HeaderActionsFill menuItems={printMenu} /> : null}
       {viewState === "ready" ? (
         <PdfEditorSurface
           editor={editor}
@@ -488,12 +502,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           fontReport={fontReport}
           errorKey={editErrorKey}
           run={runEdit}
-          ribbon={<PdfRibbonBar activeTab={activeTab} onTabChange={setActiveTab} commands={commands} findOpen={findOpen} onFindToggle={toggleFind} />}
-          banner={browserUnsupportedHint ? (
-            <p className="text-caption text-muted-foreground" role="note" data-testid="pdf-browser-unsupported">
-              {t(activeTab === "pages" ? "office.pdf.errors.unsupportedPagesInBrowser" : PDF_BROWSER_UNSUPPORTED_REASON_KEY)}
-            </p>
-          ) : null}
+          ribbon={<PdfRibbonBar activeTab={activeTab} onTabChange={setActiveTab} commands={commands} findOpen={findOpen} onFindToggle={toggleFind} printAction={printer ? <PdfPrintButton controller={printer} /> : undefined} />}
+          banner={browserHint || printNotice ? <>{browserHint}{printNotice}</> : null}
           // The page readout already follows the selected page; object kinds
           // have no translated summary yet, so no raw kind string is shown.
           statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} onFitWidth={fitWidth} onFitPage={fitPage} railOpen={railOpen} railToggleRef={railToggleRef} onRailToggle={() => setRailOpen((open) => !open)} />}
