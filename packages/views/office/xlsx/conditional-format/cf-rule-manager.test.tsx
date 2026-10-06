@@ -64,6 +64,14 @@ describe("XlsxCfRuleManager", () => {
     expect(within(rowOf("cf-d")).getByText(rules("rules.uniqueValues"))).toBeInTheDocument();
   });
 
+  it("previews a data bar with a gradient from the rule's own colour", () => {
+    setup(true, [{ id: "cf-bar", ranges: [SELECTION], rule: { type: "dataBar", config: { positiveColor: "#00AA55" } } }]);
+    const swatch = within(rowOf("cf-bar")).getByTestId("xlsx-cf-rule-databar");
+    expect(swatch.getAttribute("style")).toContain("linear-gradient");
+    expect(swatch.getAttribute("style")).toMatch(/#00AA55|rgb(0, 170, 85)/i);
+    expect(within(rowOf("cf-bar")).queryByTestId("xlsx-cf-rule-chip")).not.toBeInTheDocument();
+  });
+
   it("shows the empty state", () => {
     setup(true, []);
     expect(screen.getByTestId("xlsx-cf-manager-empty")).toHaveTextContent(rules("empty.selection"));

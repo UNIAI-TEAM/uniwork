@@ -104,6 +104,14 @@ describe("XlsxConditionalFormatGroup", () => {
     expect(screen.getByTestId("xlsx-cf-menu")).toBeInTheDocument();
   });
 
+  it("gives every menu item an icon", async () => {
+    render(<XlsxConditionalFormatGroup {...groupProps({ commands: { execute: vi.fn(() => true), readRuleSets: vi.fn(() => []) } })} />);
+    openMenu();
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.length).toBeGreaterThanOrEqual(9);
+    for (const item of items) expect(item.querySelector("svg")).not.toBeNull();
+  });
+
   it("offers Unique Values after Duplicate Values and adds the rule", async () => {
     const execute = vi.fn((_id: string, _params?: unknown) => true);
     render(<XlsxConditionalFormatGroup {...groupProps({ commands: { execute } })} />);

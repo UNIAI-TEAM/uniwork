@@ -6,7 +6,7 @@
 // group's), so the editor shell is untouched.
 
 import { useState } from "react";
-import { Highlighter } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, ArrowLeftRight, Copy, Eraser, Fingerprint, Highlighter, ListChecks, Trash2, Type, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
@@ -32,6 +32,15 @@ import type { RibbonItem } from "../../ribbon";
 
 const BASE = "office.xlsx.conditionalFormat";
 const PRESET_ITEMS: readonly XlsxCfPreset[] = ["greaterThan", "lessThan", "between", "containsText", "duplicateValues", "uniqueValues"];
+
+const PRESET_ICONS: Record<XlsxCfPreset, LucideIcon> = {
+  greaterThan: ArrowUpWideNarrow,
+  lessThan: ArrowDownWideNarrow,
+  between: ArrowLeftRight,
+  containsText: Type,
+  duplicateValues: Copy,
+  uniqueValues: Fingerprint,
+};
 
 export function XlsxConditionalFormatGroup({
   readOnly = false,
@@ -82,16 +91,22 @@ export function XlsxConditionalFormatGroup({
           <XlsxLargeLabel>{t(`${BASE}.menu.label`)}</XlsxLargeLabel>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-56">
-          {PRESET_ITEMS.map((item) => (
+          {PRESET_ITEMS.map((item) => {
+            const Icon = PRESET_ICONS[item];
+            return (
             <DropdownMenuItem key={item} data-testid={`xlsx-cf-${item}`} onClick={() => setPreset(item)}>
+              <Icon aria-hidden />
               {t(`${BASE}.menu.${item}`)}
             </DropdownMenuItem>
-          ))}
+            );
+          })}
           <DropdownMenuSeparator />
           <DropdownMenuItem data-testid="xlsx-cf-clear-selection" onClick={clearSelection}>
+            <Eraser aria-hidden />
             {t(`${BASE}.menu.clearSelection`)}
           </DropdownMenuItem>
           <DropdownMenuItem data-testid="xlsx-cf-clear-sheet" onClick={clearSheet}>
+            <Trash2 aria-hidden />
             {t(`${BASE}.menu.clearSheet`)}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -103,6 +118,7 @@ export function XlsxConditionalFormatGroup({
               if (canManage) setManaging(true);
             }}
           >
+            <ListChecks aria-hidden />
             {t(`${BASE}.menu.manage`)}
           </DropdownMenuItem>
         </DropdownMenuContent>

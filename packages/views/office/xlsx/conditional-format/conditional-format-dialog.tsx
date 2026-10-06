@@ -182,8 +182,8 @@ export function XlsxConditionalFormatDialog({
             </div>
           ) : null}
           {preset === "duplicateValues" || preset === "uniqueValues" ? (
-            <p className="text-caption font-medium" data-testid="xlsx-cf-duplicate-kind">
-              {t(`${BASE}.dialog.${preset === "uniqueValues" ? "unique" : "duplicate"}`)}
+            <p className="text-caption text-muted-foreground" data-testid="xlsx-cf-duplicate-kind">
+              {t(`${BASE}.dialog.${preset === "uniqueValues" ? "uniqueHint" : "duplicateHint"}`)}
             </p>
           ) : null}
           <div className="grid gap-1">

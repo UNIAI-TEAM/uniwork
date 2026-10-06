@@ -184,4 +184,13 @@ describe("XlsxConditionalFormatDialog", () => {
     });
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
+
+  it("does not repeat the Unique Values title as a field label", () => {
+    renderDialog("uniqueValues");
+    const title = screen.getByRole("heading", { name: "Giá trị duy nhất" });
+    expect(title).toBeInTheDocument();
+    const kind = screen.getByTestId("xlsx-cf-duplicate-kind");
+    expect(kind.textContent).not.toBe("Giá trị duy nhất");
+    expect(kind.textContent).toBe(lookup(viLocale, "office.xlsx.conditionalFormat.dialog.uniqueHint"));
+  });
 });

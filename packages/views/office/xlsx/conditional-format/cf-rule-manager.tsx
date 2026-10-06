@@ -44,6 +44,14 @@ function chipStyle(rule: XlsxLiveRule): { backgroundColor?: string; color?: stri
   return { backgroundColor: bg, color: cl };
 }
 
+/** The data bar's fill as a CSS gradient, from the rule's own colour (stored in the file, not a theme token). */
+function dataBarGradient(rule: XlsxLiveRule): string | null {
+  if (rule.rule.type !== "dataBar") return null;
+  const config = (rule.rule as { config?: { positiveColor?: unknown; isGradient?: unknown } }).config;
+  const colour = typeof config?.positiveColor === "string" && config.positiveColor ? config.positiveColor : "#638EC6";
+  return config?.isGradient === false ? colour : `linear-gradient(to right, ${colour}, transparent)`;
+}
+
 export function XlsxCfRuleManager({ unitId, subUnitId, commands, selection, onClose }: XlsxCfRuleManagerProps) {
   const { t } = useTranslation();
   const { scope, setScope, rules, refresh } = useLiveRules(commands, subUnitId, "conditionalFormats", selection);
@@ -97,6 +105,7 @@ export function XlsxCfRuleManager({ unitId, subUnitId, commands, selection, onCl
               {rules.map((rule, index) => {
                 const label = describe(rule);
                 const chip = chipStyle(rule);
+                const bar = dataBarGradient(rule);
                 // A linked Excel (x14) rule is kept verbatim at save while it
                 // stays over its areas, so an in-place edit would be lost.
                 const canEdit = !rule.linked && editableCfRule(rule.rule) !== null && rule.ranges.length > 0;
@@ -113,6 +122,14 @@ export function XlsxCfRuleManager({ unitId, subUnitId, commands, selection, onCl
                         {t(`${BASE}.manager.appliesTo`, { areas: rangesLabel(rule.ranges) })}
                       </span>
                     </div>
+                    {bar ? (
+                      <span
+                        aria-hidden
+                        data-testid="xlsx-cf-rule-databar"
+                        className="h-4 w-14 shrink-0 rounded-sm border border-border"
+                        style={{ background: bar }}
+                      />
+                    ) : null}
                     {chip ? (
                       // Previews the cell format stored in the file, not a theme colour.
                       <span
