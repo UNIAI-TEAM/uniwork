@@ -29,6 +29,8 @@ export interface SaveStatusProps {
   className?: string;
   /** Keep destructive status chrome compact when it is rendered in header actions. */
   compact?: boolean;
+  /** One-line strip for a failed save instead of the card, so the editor below does not jump. */
+  inline?: boolean;
 }
 
 const COORDINATOR_STATUS: Record<OfficeState, OfficeSaveStatusKind> = {
@@ -79,6 +81,7 @@ export function SaveStatus({
   onAction,
   className,
   compact = false,
+  inline = false,
 }: SaveStatusProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.save" });
   const { t: tRoot } = useTranslation();
@@ -96,11 +99,11 @@ export function SaveStatus({
   // so the reader (and a tester) can see why the save was not confirmed.
   const saveFailureReason = normalized === "error" && coordinatorState?.error
     // A code with a written explanation (office.save.reason.<code>) reads as
-    // words; any other code stays as-is so a tester can still quote it.
-    ? [t(`reason.${coordinatorState.error.code}`, { defaultValue: coordinatorState.error.code }), coordinatorState.error.errorClass !== "unknown" ? coordinatorState.error.errorClass : null]
-      .filter((part): part is string => Boolean(part))
-      .join(" · ")
+    // words; any other code reads as a generic sentence. The raw code stays in
+    // data-error-code for a tester, never in the visible text.
+    ? t(`reason.${coordinatorState.error.code}`, { defaultValue: t("reason.unknown") })
     : null;
+  const errorCodeAttr = normalized === "error" ? coordinatorState?.error?.code : undefined;
   const alertRef = useRef<HTMLDivElement>(null);
   const descriptionId = useId();
   useEffect(() => {
@@ -110,7 +113,31 @@ export function SaveStatus({
   const title = t(`status.${normalized}`);
   const body = unfixable ? t(`fix.${unfixable}`) : t(`description.${normalized}`);
   const destructive = normalized === "permission" || normalized === "conflict" || normalized === "error";
-  const element = destructive && compact ? (
+  const element = normalized === "error" && inline && !compact ? (
+    <div
+      ref={alertRef}
+      tabIndex={-1}
+      role="alert"
+      aria-describedby={descriptionId}
+      title={[body, saveFailureReason].filter(Boolean).join(" ")}
+      className={cn("flex min-w-0 max-w-full items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive", className)}
+      data-testid="office-save-error"
+      data-error-code={errorCodeAttr}
+    >
+      <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+      <span className="shrink-0 font-medium">{title}</span>
+      <span id={descriptionId} className="min-w-0 truncate" data-testid="office-save-error-reason">
+        {body}
+        {saveFailureReason ? ` ${tRoot("office.xlsx.errors.saveReason", { reason: saveFailureReason })}` : ""}
+        {resolvedCorrelation ? ` ${t("correlation", { id: resolvedCorrelation })}` : ""}
+      </span>
+      {action && onAction ? (
+        <Button size="xs" variant="ghost" className="ml-auto shrink-0 text-destructive" onClick={onAction}>
+          {t(`action.${action}`)}
+        </Button>
+      ) : null}
+    </div>
+  ) : destructive && compact ? (
     <div
       ref={alertRef}
       tabIndex={-1}
@@ -139,6 +166,7 @@ export function SaveStatus({
       variant="destructive"
       className={cn("min-w-0 max-w-full break-words", className)}
       data-testid={`office-save-${normalized}`}
+      data-error-code={errorCodeAttr}
     >
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>

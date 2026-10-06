@@ -69,7 +69,35 @@ describe("SaveStatus", () => {
       />,
     );
     const reason = screen.getByTestId("office-save-error-reason");
-    expect(reason).toHaveTextContent("Reason: engine_result_invalid \u00b7 engine");
+    expect(reason).toHaveTextContent("Reason: The save result was not valid. Try again.");
+    expect(reason).not.toHaveTextContent("engine_result_invalid");
+  });
+
+  it("never shows a raw code: an unmapped one reads as a generic sentence, the code stays in data-error-code", () => {
+    render(
+      <SaveStatus
+        coordinatorState={{ state: "error", error: { state: "error", code: "office_brand_new_code", errorClass: "unknown", correlationId: null, retryable: true, ambiguous: false, action: "retry", message: "" } }}
+      />,
+    );
+    const alert = screen.getByTestId("office-save-error");
+    expect(alert).not.toHaveTextContent("office_brand_new_code");
+    expect(screen.getByTestId("office-save-error-reason")).toHaveTextContent("Reason: Something went wrong while saving.");
+    expect(alert).toHaveAttribute("data-error-code", "office_brand_new_code");
+  });
+
+  it("renders the failed save as a one-line strip when inline", () => {
+    render(
+      <SaveStatus
+        inline
+        coordinatorState={{ state: "error", error: { state: "error", code: "office_unknown_error", errorClass: "unknown", correlationId: null, retryable: true, ambiguous: false, action: "retry", message: "" } }}
+        onAction={vi.fn()}
+      />,
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Save could not be confirmed");
+    expect(alert).not.toHaveTextContent("office_unknown_error");
+    expect(alert.querySelector("[class*=truncate]")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 
   it("explains a known engine refusal in words instead of the bare code", () => {
@@ -81,7 +109,7 @@ describe("SaveStatus", () => {
         }}
       />,
     );
-    expect(screen.getByTestId("office-save-error-reason")).toHaveTextContent("Reason: This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept. · engine");
+    expect(screen.getByTestId("office-save-error-reason")).toHaveTextContent("Reason: This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept.");
   });
 
   it("offers no retry for a missing formula engine and says what to do instead (UNI-940 X06)", () => {

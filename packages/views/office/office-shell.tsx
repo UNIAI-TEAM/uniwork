@@ -273,7 +273,8 @@ export function OfficeShell({
           status={saveStatus}
           coordinatorState={coordinatorState}
           destination={saveDestination}
-          className="mx-4 my-2 w-auto"
+          className={saveStatusValue === "error" ? "w-auto" : "mx-4 my-2 w-auto"}
+          inline
         />
       ) : null}
       {toolbar ? <div className={cn(PAGE_TOOLBAR, "border-b border-border bg-muted/20")}>
