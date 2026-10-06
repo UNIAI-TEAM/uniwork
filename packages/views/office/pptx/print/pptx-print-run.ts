@@ -10,7 +10,7 @@
  * resolutions down to `PPTX_PRINT_RASTER_FLOOR_PX`, and past the floor the run fails with the
  * typed `print_too_large` instead of sending a copy the host would refuse.
  */
-import type { OfficePrintOutcome, OfficePrintPort } from "../../print";
+import { printPageFromCopy, type OfficePrintOutcome, type OfficePrintPort } from "../../print";
 import type { PptxCommandCapability } from "../command-map";
 import { buildPptxPrintHtml, type PptxPrintSlide } from "./pptx-print";
 import { svgDataUrl } from "../canvas/svg-node";
@@ -72,7 +72,7 @@ export async function printPptxDeck(options: PptxPrintRunOptions): Promise<Offic
   try {
     const copy = await buildPptxPrintCopy(options);
     if ("failed" in copy) return { outcome: "failed", reason: copy.failed };
-    return await options.port.print({ html: copy.html, title: options.title });
+    return await options.port.print({ html: copy.html, title: options.title, page: printPageFromCopy(copy.html) });
   } catch (error) {
     return { outcome: "failed", reason: error instanceof Error ? error.message : String(error) };
   }

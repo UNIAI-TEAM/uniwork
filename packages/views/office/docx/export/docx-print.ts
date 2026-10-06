@@ -27,7 +27,7 @@
 
 import type { JSONContent } from "@tiptap/core";
 import { sanitizePrintCopy } from "../../markdown/wysiwyg/print";
-import type { OfficePrintOutcome, OfficePrintPort } from "../../print";
+import { printPageFromCopy, type OfficePrintOutcome, type OfficePrintPort } from "../../print";
 import { sectionIndexAtDocxIndex, type DocxPageSetupSection } from "../page-setup/docx-page-setup";
 import { escapeDocxHtmlText, serializeBlockNodes } from "./docx-html-export";
 import {
@@ -331,7 +331,7 @@ export async function printDocxDocument(options: DocxPrintActionOptions): Promis
   try {
     const html = options.buildCopy();
     if (html === null) return { outcome: "failed", reason: "no_document" };
-    return await options.port.print({ html, title: options.title });
+    return await options.port.print({ html, title: options.title, page: printPageFromCopy(html) });
   } catch (error) {
     return { outcome: "failed", reason: error instanceof Error ? error.message : String(error) };
   }

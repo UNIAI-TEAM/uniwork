@@ -153,6 +153,19 @@ describe("useXlsxPrint Ctrl/Cmd+P", () => {
 });
 
 describe("runXlsxPrint", () => {
+  it("tells the port the sheet's paper as printed, the size its @page lays out", async () => {
+    const port = portReturning({ outcome: "printed" });
+    await runXlsxPrint({ port, host: host(), sheetName: "Data", snapshot: null, title: "Book" });
+    const portrait = vi.mocked(port.print).mock.calls[0]![0].page!;
+    expect(portrait.landscape).toBe(false);
+    expect(portrait.widthMm).toBeCloseTo(210, 0);
+    await runXlsxPrint({ port, host: host(), sheetName: "Data", snapshot: null, title: "Book", session: { orientation: "landscape" } });
+    const landscape = vi.mocked(port.print).mock.calls[1]![0].page!;
+    expect(landscape.landscape).toBe(true);
+    expect(landscape.widthMm).toBeCloseTo(297, 0);
+    expect(landscape.heightMm).toBeCloseTo(210, 0);
+  });
+
   it("turns a too-large sheet and a throwing port into typed failures", async () => {
     const huge = host();
     (huge.file as { definedNames: unknown[] }).definedNames = [{ name: "_xlnm.Print_Area", formula: "Data!$A$1:$Z$100000", sheetIndex: 0 }];

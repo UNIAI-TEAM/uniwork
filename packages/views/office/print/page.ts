@@ -1,0 +1,88 @@
+/**
+ * Page geometry read back from a print copy (UNI-952). Every Office copy
+ * states its first sheet in an unnamed `@page { size: ... }` rule (DOCX: the
+ * first section; XLSX: the sheet's setup; PPTX: the slide box; PDF: page 1;
+ * Markdown/HTML: A4 or the file's own rule). Reading it back is how a request
+ * carries the SAME geometry the copy lays out, so the desktop dialog never
+ * opens portrait for a landscape copy.
+ */
+import type { OfficePrintPage } from "./index";
+
+const MM_PER_UNIT: Readonly<Record<string, number>> = {
+  mm: 1,
+  cm: 10,
+  q: 0.25,
+  in: 25.4,
+  pt: 25.4 / 72,
+  pc: 25.4 / 6,
+  px: 25.4 / 96,
+};
+
+/** CSS named page sizes, portrait, in millimetres (CSS Paged Media 3). */
+const NAMED_SIZES_MM: Readonly<Record<string, readonly [number, number]>> = {
+  a5: [148, 210],
+  a4: [210, 297],
+  a3: [297, 420],
+  b5: [176, 250],
+  b4: [250, 353],
+  "jis-b5": [182, 257],
+  "jis-b4": [257, 364],
+  letter: [215.9, 279.4],
+  legal: [215.9, 355.6],
+  ledger: [279.4, 431.8],
+};
+
+/** CSS comments and quoted strings: an `@page` inside one is not a rule. */
+const CSS_COMMENT_OR_STRING = /\/\*[\s\S]*?\*\/|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g;
+/** The first unnamed, pseudo-less `@page` rule's body. */
+const UNNAMED_PAGE_RULE = /@page\s*\{([^{}]*)\}/i;
+const SIZE_DECLARATION = /(?:^|;)\s*size\s*:\s*([^;!]+)/i;
+const LENGTH = /^(\d+(?:\.\d+)?|\.\d+)(mm|cm|q|in|pt|pc|px)$/i;
+
+function lengthMm(token: string): number | undefined {
+  const match = LENGTH.exec(token);
+  if (!match) return undefined;
+  const value = Number(match[1]) * MM_PER_UNIT[match[2]!.toLowerCase()]!;
+  return value > 0 && Number.isFinite(value) ? value : undefined;
+}
+
+/** The page a CSS `size` value describes (an orientation alone reads as A4
+ * in that orientation), or undefined for `auto` or anything unknown. */
+function pageFromCssSize(value: string): OfficePrintPage | undefined {
+  const tokens = value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const orientation = tokens.find((token) => token === "landscape" || token === "portrait");
+  const rest = tokens.filter((token) => token !== orientation);
+  let width: number | undefined;
+  let height: number | undefined;
+  if (rest.length === 0 && orientation) {
+    // An orientation alone leaves the paper to the host; A4 is the host default.
+    [width, height] = NAMED_SIZES_MM.a4!;
+  } else if (rest.length === 1 && NAMED_SIZES_MM[rest[0]!]) {
+    [width, height] = NAMED_SIZES_MM[rest[0]!]!;
+  } else if (!orientation && (rest.length === 1 || rest.length === 2)) {
+    width = lengthMm(rest[0]!);
+    height = rest.length === 2 ? lengthMm(rest[1]!) : width;
+  }
+  if (width === undefined || height === undefined) return undefined;
+  if (orientation === "landscape" && width < height) [width, height] = [height, width];
+  if (orientation === "portrait" && width > height) [width, height] = [height, width];
+  return { widthMm: width, heightMm: height, landscape: width > height };
+}
+
+/**
+ * The first sheet of a print copy, from its first unnamed `@page` rule.
+ * Undefined when the copy has none or states no usable size: the host then
+ * keeps its own default (A4 portrait on desktop).
+ */
+export function printPageFromCopy(html: string): OfficePrintPage | undefined {
+  if (typeof DOMParser === "undefined") return undefined;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  for (const style of Array.from(doc.querySelectorAll("style"))) {
+    const css = (style.textContent ?? "").replace(CSS_COMMENT_OR_STRING, "");
+    const rule = UNNAMED_PAGE_RULE.exec(css);
+    if (!rule) continue;
+    const size = SIZE_DECLARATION.exec(rule[1]!);
+    return size ? pageFromCssSize(size[1]!) : undefined;
+  }
+  return undefined;
+}

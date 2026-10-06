@@ -1,4 +1,4 @@
-import type { OfficePrintOutcome, OfficePrintPort } from "../../print";
+import { printPageFromCopy, type OfficePrintOutcome, type OfficePrintPort } from "../../print";
 import { buildPdfPrintCopy } from "./print-copy";
 import { renderPdfPrintPages } from "./render-pages";
 import { PdfPrintError, type PdfPrintRenderRequest } from "./types";
@@ -27,7 +27,7 @@ export async function printPdfDocument(request: PdfPrintDocumentRequest): Promis
   }
   if (request.signal?.aborted) return { outcome: "failed", reason: "cancelled" };
   try {
-    return await request.port.print({ html, title: request.title });
+    return await request.port.print({ html, title: request.title, page: printPageFromCopy(html) });
   } catch (error) {
     return { outcome: "failed", reason: error instanceof Error ? error.message : String(error) };
   }

@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslation } from "react-i18next";
 import type { XlsxPageSetupFields, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
-import { createBrowserPrintPort, isPrintBusy, type OfficePrintOutcome, type OfficePrintPort } from "../../print";
+import { createBrowserPrintPort, isPrintBusy, printPageFromCopy, type OfficePrintOutcome, type OfficePrintPort } from "../../print";
 import { useOfficePrintShortcut } from "../../print/shortcut";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import { collectXlsxPrintSheet } from "./collect";
@@ -55,7 +55,7 @@ export async function runXlsxPrint(input: XlsxPrintRunInput): Promise<OfficePrin
     if (!collected.ok) return { outcome: "failed", reason: collected.reason };
     const copy = buildXlsxPrintCopy(collected.sheet);
     if (!copy.ok) return { outcome: "failed", reason: copy.reason };
-    return await input.port.print({ html: copy.html, title: input.title });
+    return await input.port.print({ html: copy.html, title: input.title, page: printPageFromCopy(copy.html) });
   } catch (error) {
     return { outcome: "failed", reason: error instanceof Error ? error.message : String(error) };
   }

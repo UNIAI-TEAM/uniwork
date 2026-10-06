@@ -1,6 +1,7 @@
 import type { JSONContent } from "@tiptap/core";
 import { describe, expect, it, vi } from "vitest";
 import type { DocxPageSetupSection } from "../page-setup/docx-page-setup";
+import type { OfficePrintRequest } from "../../print";
 import { buildDocxPrintHtml, docxPrintCopy, printDocxDocument } from "./docx-print";
 import type { DocxPrintHeaderFooter, DocxPrintSectionHf } from "./docx-print-header-footer";
 
@@ -361,6 +362,19 @@ describe("printDocxDocument", () => {
     const outcome = await printDocxDocument({ port: { print }, title: "Doc", buildCopy: () => "<html></html>" });
     expect(outcome).toEqual({ outcome: "printed" });
     expect(print).toHaveBeenCalledWith({ html: "<html></html>", title: "Doc" });
+  });
+
+  it("tells the port the first section's page as printed, the size its @page lays out", async () => {
+    const print = vi.fn(async (_request: OfficePrintRequest) => ({ outcome: "printed" as const }));
+    const landscape = section({ orientation: "landscape", pageWidth: 16838, pageHeight: 11906 });
+    await printDocxDocument({ port: { print }, title: "Doc", buildCopy: () => docxPrintCopy({ doc: doc(para("a", 0)), title: "Doc", sections: [landscape] }) });
+    const page = print.mock.calls[0]![0].page!;
+    expect(page.landscape).toBe(true);
+    expect(page.widthMm).toBeCloseTo(297, 0);
+    expect(page.heightMm).toBeCloseTo(210, 0);
+    await printDocxDocument({ port: { print }, title: "Doc", buildCopy: () => docxPrintCopy({ doc: doc(para("a", 0)), title: "Doc" }) });
+    expect(print.mock.calls[1]![0].page).toMatchObject({ landscape: false });
+    expect(print.mock.calls[1]![0].page!.widthMm).toBeCloseTo(210, 0);
   });
 
   it("fails typed when no document is open, without calling the port", async () => {

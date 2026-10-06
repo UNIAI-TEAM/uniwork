@@ -115,6 +115,16 @@ it("opens the system dialog in the document's orientation and paper, not portrai
 });
 
 it.each([
+  ["the copy's own @page when the request has no page (an HTML file)", "@page { size: A4 landscape; margin: 1cm }", { landscape: true, pageSize: { width: 210_000, height: 297_000 } }],
+  ["Markdown's A4 default", "@page{size:A4;margin:18mm}", { landscape: false, pageSize: { width: 210_000, height: 297_000 } }],
+  ["A4 portrait for a copy without @page", "p{margin:0}", { landscape: false, pageSize: { width: 210_000, height: 297_000 } }],
+])("prints %s", async (_label, css, expected) => {
+  const bridge = stubBridge(async () => ({ outcome: "printed" }));
+  await createDesktopPrintPort(bridge).print({ html: `<!DOCTYPE html><html><head>${CSP}<style>${css}</style></head><body><p>x</p></body></html>`, title: "Notes.md" });
+  expect(bridge.call.mock.calls[0]![1].options).toEqual(expected);
+});
+
+it.each([
   ["A4 portrait when the view gave no page", undefined, { landscape: false, pageSize: { width: 210_000, height: 297_000 } }],
   ["Letter landscape", { widthMm: 279.4, heightMm: 215.9, landscape: true }, { landscape: true, pageSize: { width: 215_900, height: 279_400 } }],
   ["A3 portrait", { widthMm: 297, heightMm: 420, landscape: false }, { landscape: false, pageSize: { width: 297_000, height: 420_000 } }],

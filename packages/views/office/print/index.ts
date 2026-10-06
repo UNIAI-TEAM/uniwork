@@ -95,3 +95,5 @@ export function createBrowserPrintPort(): OfficePrintPort {
     },
   };
 }
+
+export { printPageFromCopy } from "./page";

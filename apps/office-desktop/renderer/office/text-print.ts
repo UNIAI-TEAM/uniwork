@@ -1,4 +1,4 @@
-import { A4_PORTRAIT_PAGE, type OfficePrintOutcome, type OfficePrintPage, type OfficePrintPort } from "@uniwork/views/office/print";
+import { A4_PORTRAIT_PAGE, printPageFromCopy, type OfficePrintOutcome, type OfficePrintPage, type OfficePrintPort } from "@uniwork/views/office/print";
 import { desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES, type DesktopIpcRequest, type DesktopPrintOptions } from "../../shared/ipc";
 
 /**
@@ -72,7 +72,8 @@ function utf8Bytes(text: string): number {
  * The desktop `OfficePrintPort`: stamp the document title on the sanitized
  * copy a view produced and send it to main with the page geometry as print
  * options (the system dialog opens in the document's orientation and paper,
- * not portrait), and main prints it. Never throws - a
+ * not portrait), and main prints it. A request without a page (Markdown,
+ * HTML) takes the copy's own first `@page` size, else A4 portrait. Never throws - a
  * refused call, a malformed answer, an oversized copy or a missing bridge is a
  * typed failure, never a silent success.
  */
@@ -88,7 +89,7 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): 
       const copy = withDocumentTitle(html, jobName);
       if (utf8Bytes(copy) > PRINT_HTML_MAX_BYTES) return tooLarge;
       try {
-        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy, options: desktopPrintOptions(page) }));
+        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy, options: desktopPrintOptions(page ?? printPageFromCopy(html)) }));
         return parsed.success ? parsed.data : { outcome: "failed", reason: "print_response_invalid" };
       } catch {
         // A refused call (sender check, closed bridge): a code, never the raw Electron message.

@@ -21,6 +21,17 @@ describe("printPptxDeck (UNI-952)", () => {
     expect(request.html.match(/class="page"/g)).toHaveLength(2);
   });
 
+  it("tells the port the slide box, landscape, the size its @page lays out", async () => {
+    const target = port();
+    await printPptxDeck({ port: target, slides: [slide], title: "Deck" });
+    const page = target.print.mock.calls[0]![0].page!;
+    expect(page.landscape).toBe(true);
+    expect(page.widthMm).toBeCloseTo(338.67, 1);
+    expect(page.heightMm).toBeCloseTo(190.5, 1);
+    await printPptxDeck({ port: target, slides: [{ ...slide, widthPx: 720, heightPx: 1280 }], title: "Tall" });
+    expect(target.print.mock.calls[1]![0].page).toMatchObject({ landscape: false, heightMm: 190.5 });
+  });
+
   it("caps the copy at the desktop IPC limit (16 MiB)", () => {
     expect(PPTX_PRINT_MAX_BYTES).toBe(16 * 1024 * 1024);
   });

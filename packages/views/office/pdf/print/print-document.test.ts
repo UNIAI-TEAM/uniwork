@@ -21,6 +21,16 @@ describe("printPdfDocument", () => {
     expect(doc.querySelectorAll(".pdf-print-page")).toHaveLength(2);
   });
 
+  it("tells the port page 1's size and orientation, the size its first @page lays out", async () => {
+    const print = vi.fn<OfficePrintPort["print"]>(() => ({ outcome: "printed" }));
+    await printPdfDocument({ port: { print }, renderer, pages, title: "x" });
+    expect(print.mock.calls[0]![0].page).toMatchObject({ landscape: false });
+    expect(print.mock.calls[0]![0].page!.widthMm).toBeCloseTo(209.9, 0);
+    await printPdfDocument({ port: { print }, renderer, pages: [...pages].reverse(), title: "x" });
+    expect(print.mock.calls[1]![0].page).toMatchObject({ landscape: true });
+    expect(print.mock.calls[1]![0].page!.heightMm).toBeCloseTo(209.9, 0);
+  });
+
   it("passes a cancelled dialog and a busy host through unchanged", async () => {
     await expect(printPdfDocument({ port: { print: () => ({ outcome: "cancelled" }) }, renderer, pages, title: "x" })).resolves.toEqual({ outcome: "cancelled" });
     await expect(printPdfDocument({ port: { print: async () => ({ outcome: "failed", reason: "print_busy" }) }, renderer, pages, title: "x" }))
