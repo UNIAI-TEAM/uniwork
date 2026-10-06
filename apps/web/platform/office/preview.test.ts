@@ -349,7 +349,9 @@ describe("mountHtmlPreview", () => {
       proxy,
     });
     expect(opened[0]!.ttl_ms).toBe(10 * 60 * 1000);
-    expect(session.iframe.srcdoc).toContain(`src="about:blank#blocked"`);
+    expect(session.iframe.srcdoc).not.toContain("about:blank#blocked");
+    expect(session.iframe.srcdoc).not.toContain("a%20b.png");
+    expect(session.iframe.srcdoc).not.toContain("a b.png");
     session.dispose();
     const before = session.iframe.srcdoc;
     await session.update("<p>after</p>");
@@ -401,7 +403,9 @@ describe("mountHtmlPreview", () => {
       },
     };
     const { session } = await mount(`<img src="img/a%20b.png">`, { proxy });
-    expect(session.iframe.srcdoc).toContain(`src="about:blank#blocked"`);
+    expect(session.iframe.srcdoc).not.toContain("about:blank#blocked");
+    expect(session.iframe.srcdoc).not.toContain("a%20b.png");
+    expect(session.iframe.srcdoc).not.toContain("a b.png");
   });
 
   it("shows an empty document and raises refused when the final gate cannot prove the copy", async () => {
@@ -451,7 +455,22 @@ describe("mountHtmlPreview", () => {
     const { session } = await mount(`<img src="img/a%20b.png">`, { proxy });
     expect(session.iframe.srcdoc).not.toContain("evil.example");
     await session.update(`<img src="img/a%20b.png">`, { ...MANIFEST, entries: [] });
-    expect(session.iframe.srcdoc).toContain("about:blank#blocked");
+    expect(session.iframe.srcdoc).not.toContain("about:blank#blocked");
+    expect(session.iframe.srcdoc).not.toContain("a%20b.png");
+    expect(session.iframe.srcdoc).not.toContain("a b.png");
+  });
+
+  it("renders a blocked image as its alt text so the frame makes no request the CSP must refuse", async () => {
+    const { session } = await mount(`<img src="pic.png" alt="Fixture"><img src="https://evil.example/a.png" srcset="pic.png 2x" alt="Remote"><img src="data:image/png;base64,iVBORw0KGgo=" alt="Inline">`);
+    const doc = new DOMParser().parseFromString(session.iframe.srcdoc, "text/html");
+    const images = Array.from(doc.querySelectorAll("img"));
+    expect(images.map((image) => image.getAttribute("alt"))).toEqual(["Inline"]);
+    expect(images[0]!.getAttribute("src")).toMatch(/^data:image\/png/);
+    const blocked = Array.from(doc.querySelectorAll("span[data-blocked-image]"));
+    expect(blocked.map((span) => span.textContent)).toEqual(["Fixture", "Remote"]);
+    expect(blocked.every((span) => !span.hasAttribute("src") && !span.hasAttribute("srcset"))).toBe(true);
+    expect(session.iframe.srcdoc).not.toContain("about:blank#blocked");
+    expect(session.iframe.srcdoc).not.toContain("evil.example");
   });
 });
 

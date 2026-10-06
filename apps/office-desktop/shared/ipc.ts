@@ -249,6 +249,8 @@ export const desktopOfficeJobResponseSchema = z.object({
   /** The JSON snapshot (open) or the produced bytes (edit), base64. */
   outputBase64: base64BytesSchema.optional(),
   outputChecksum: z.string().regex(/^sha256:[0-9a-f]{64}$/).optional(),
+  /** Only the engine's `xlsx_rule_sets_dropped:` refusal (op positions, no document text). */
+  errorReason: z.string().max(600).optional(),
 }).strict();
 export type DesktopOfficeJobResponse = z.infer<typeof desktopOfficeJobResponseSchema>;
 /** The local xlsx engine job (C1b): the SAME shape as the cloud office-job

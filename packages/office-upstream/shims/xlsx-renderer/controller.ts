@@ -7,38 +7,33 @@ import {
   BooleanNumber,
   CommandType,
   ICommandService,
-  LocaleType,
   ThemeService,
   WrapStrategy,
-  mergeLocales,
 } from "@univerjs/core";
 import { UniverSheetsConditionalFormattingPreset } from "@univerjs/preset-sheets-conditional-formatting";
-import UniverPresetSheetsConditionalFormattingEnUS from "@univerjs/preset-sheets-conditional-formatting/locales/en-US";
 import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
-import UniverPresetSheetsCoreEnUS from "@univerjs/preset-sheets-core/locales/en-US";
 import { UniverSheetsDataValidationPreset } from "@univerjs/preset-sheets-data-validation";
-import UniverPresetSheetsDataValidationEnUS from "@univerjs/preset-sheets-data-validation/locales/en-US";
 import { UniverSheetsDrawingPreset } from "@univerjs/preset-sheets-drawing";
 import { UniverSheetsFilterPreset } from "@univerjs/preset-sheets-filter";
-import UniverPresetSheetsFilterEnUS from "@univerjs/preset-sheets-filter/locales/en-US";
 import { UniverSheetsFindReplacePreset } from "@univerjs/preset-sheets-find-replace";
-import UniverPresetSheetsFindReplaceEnUS from "@univerjs/preset-sheets-find-replace/locales/en-US";
 import { UniverSheetsNotePreset } from "@univerjs/preset-sheets-note";
-import UniverPresetSheetsNoteEnUS from "@univerjs/preset-sheets-note/locales/en-US";
 import { UniverSheetsSortPreset } from "@univerjs/preset-sheets-sort";
-import UniverPresetSheetsSortEnUS from "@univerjs/preset-sheets-sort/locales/en-US";
 import { UniverSheetsTablePreset, UniverSheetsTableUIPlugin } from "@univerjs/preset-sheets-table";
-import UniverPresetSheetsTableEnUS from "@univerjs/preset-sheets-table/locales/en-US";
 import type { WorkbookFile, WorkbookRangeResult } from "../../upstream/apps/sheets/src/shared/desktop-api";
 import type { IRange, IStyleData } from "@univerjs/core";
 import { SheetInterceptorService } from "@univerjs/sheets";
 import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
+import { ingestRuleSetMutation, restoreRuleSetFamily, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
+import { ruleSetRestoreAllowed } from "./rule-set-policy";
+import { installDvRejectDialogTitle, installValidatedWriteVerdict, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
+import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
+  createValidatedWriteGate,
   ingestCellMutation,
   ingestFilterMutation,
   ingestMergeMutation,
@@ -119,6 +114,9 @@ export interface XlsxRendererOptions {
   onDirty?: () => void;
   onEdits?: (edits: XlsxRendererEdit[]) => void;
   onSelectionChange?: (selection: { sheetId: string; range: IRange } | null) => void;
+  /** UNI-940 X02: the grid moved under a visual overlay (scroll, zoom,
+   *  sheet switch or any executed command); re-read the cell boxes. */
+  onViewportChange?: () => void;
 }
 
 type DesktopApi = Record<string, unknown>;
@@ -189,12 +187,22 @@ export interface XlsxRendererHandle {
   /** The live sheet list in tab order (rename/insert/remove/reorder as they
    *  happen); read-only mounts still report it. */
   getSheets(): readonly XlsxRendererSheetInfo[];
+  /** After a save dropped a CF/DV family of a sheet (r3 MA-3): refuse it for
+   *  the session and show the rules the file holds (null: as opened).
+   *  Refused on a read-only mount or by the rule-set policy. */
+  restoreRuleSet(sheetId: string, kind: XlsxRendererRuleSetKind, rules: readonly XlsxRendererRuleSetRule[] | null): boolean;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): EditJournal;
+  /** UNI-940 X02 geometry seam: a cell's box in container pixels on the
+   *  active sheet (null for any other sheet), and the cell under a point. */
+  getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
+  cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
+  /** Live values of a range on the active sheet (null for another sheet). */
+  readRangeValues(sheetId: string, range: IRange): XlsxRendererRangeValues | null;
   dispose(): void;
 }
 
@@ -320,19 +328,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   const runtime: UniverRuntime = createUniver({
     darkMode: options.dark ?? false,
-    locale: LocaleType.EN_US,
-    locales: {
-      [LocaleType.EN_US]: mergeLocales(
-        UniverPresetSheetsCoreEnUS,
-        UniverPresetSheetsConditionalFormattingEnUS,
-        UniverPresetSheetsFilterEnUS,
-        UniverPresetSheetsDataValidationEnUS,
-        UniverPresetSheetsNoteEnUS,
-        UniverPresetSheetsFindReplaceEnUS,
-        UniverPresetSheetsSortEnUS,
-        UniverPresetSheetsTableEnUS,
-      ),
-    },
+    // The app language, with the app's copy for the DV surfaces (X01 vfix-dv).
+    ...rendererLocaleOptions(),
     presets: [
       UniverSheetsCorePreset({
         container: univerHost.id,
@@ -363,6 +360,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   installInjectorResolutionGuard(runtime);
   let findRevealDispose: (() => void) | undefined;
   let numberFormatDispose: { dispose(): void } | undefined;
+  let dvRejectDialogDispose: { dispose(): void } | undefined;
+  let validatedWriteVerdictDispose: { dispose(): void } | undefined;
   const wrapMeasureDisposable = installWrapMeasureLifecycle(runtime);
   installJournalSuppressionUndoFilter();
   installLoadAutoHeightGate();
@@ -382,6 +381,13 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   const lazyWorkbookRef: { current: LazyWorkbookState | null } = { current: null };
   let dirtyGeneration = 0;
+  // A refused data-validation commit is held back until its verdict and then
+  // journals nothing (edits.ts). Accepted edits are emitted from here.
+  const validatedWrites = createValidatedWriteGate((held) => {
+    dirtyGeneration += 1;
+    options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, held));
+    options.onDirty?.();
+  });
   let fontMappings: XlsxRendererFontMapping[] = [];
   let disposed = false;
   let commitInProgress = false;
@@ -415,6 +421,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   });
 
   const themeService = runtime.univer.__getInjector().get(ThemeService);
+  const geometry = createGridGeometry(runtime, container);
+  const notifyViewport = () => options.onViewportChange?.();
 
   const refreshViewport = () => {
     const state = lazyWorkbookRef.current;
@@ -577,6 +585,15 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     }
     rememberMergeRemoval(event);
     rememberSheetCommand(event);
+    // The editor commit is the only set-range-values carrying a redo/undo id;
+    // it validates after it writes, so its edits wait for the verdict.
+    const write = event.id === "sheet.command.set-range-values"
+      ? event.params as { unitId?: string; subUnitId?: string; redoUndoId?: unknown } | undefined
+      : undefined;
+    if (write && typeof write.redoUndoId === "string" && write.unitId && write.subUnitId &&
+        sheetHasDataValidation(runtime, write.unitId, write.subUnitId)) {
+      validatedWrites.begin(lazyWorkbookRef.current, write.subUnitId);
+    }
   }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeSheetEditStart, (event) => {
     if (options.readOnly || !canEditRange(lazyWorkbookRef.current, event.worksheet.getSheetId(), {
@@ -591,10 +608,11 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeClipboardPaste, (event) => {
     if (options.readOnly || event.html) event.cancel = true;
   }));
-  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, () => refreshViewport()));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, () => { refreshViewport(); notifyViewport(); }));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, notifyViewport));
   disposables.push(
     runtime.univerAPI.addEvent(runtime.univerAPI.Event.ActiveSheetChanged, () =>
-      window.setTimeout(() => { refreshViewport(); notifySelection(); }, 0),
+      window.setTimeout(() => { refreshViewport(); notifySelection(); notifyViewport(); }, 0),
     ),
   );
   disposables.push(
@@ -612,14 +630,15 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       const sheetId = (event.params as { subUnitId?: string } | undefined)?.subUnitId;
       const workbook = runtime.univerAPI.getActiveWorkbook();
       const sheet = sheetId ? workbook?.getSheetBySheetId(sheetId) : undefined;
-      const edits = ingestCellMutation(
-        lazyWorkbookRef.current, event, journalSuppression.active,
+      const edits = validatedWrites.capture(ingestCellMutation(
+        // The rollback of a refused commit is not an edit either.
+        lazyWorkbookRef.current, event, journalSuppression.active || (sheetId !== undefined && validatedWrites.isRollback(sheetId)),
         sheetId ? sharedFormulaResolverFor(runtime, sheetId) : undefined,
         (row, column) => {
           const style = workbook?.getWorkbook().getStyles().getStyleByCell(sheet?.getSheet().getCellRaw(row, column));
           return style ? { ...style } : undefined;
         },
-      );
+      ));
       // Row/column structure rides the same channel: insert/remove, sizes,
       // hidden flags and auto-height resets journal here (outline levels are
       // recorded by the two commands above, outside Univer's mutation set).
@@ -675,9 +694,16 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         (state, sheetId, range, order) => journalRangeSnapshot(runtime, state, sheetId, range, order),
         journalSuppression.active,
       );
-      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0 && noteEdits.length === 0 && sortEdits.length === 0) return;
+      // Conditional formatting + data validation (X01): every rule mutation
+      // snapshots its sheet's live rule model as a whole-sheet state.
+      const ruleSetEdits = ingestRuleSetMutation(
+        lazyWorkbookRef.current, event,
+        (sheetId) => workbook?.getSheetBySheetId(sheetId) ?? null,
+        journalSuppression.active,
+      );
+      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0 && noteEdits.length === 0 && sortEdits.length === 0 && ruleSetEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits, ...noteEdits, ...sortEdits]));
+      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits, ...noteEdits, ...sortEdits, ...ruleSetEdits]));
       options.onDirty?.();
     }),
   );
@@ -697,6 +723,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         installForceStringMarkGate(runtime.univer.__getInjector().get(SheetInterceptorService));
         findRevealDispose ??= installFindRevealFix(runtime);
         numberFormatDispose ??= installNumberFormatFix(runtime, () => lazyWorkbookRef.current?.file.date1904 ?? false);
+        dvRejectDialogDispose ??= installDvRejectDialogTitle(runtime, container.ownerDocument, RENDERER_ROOT_CLASS);
+        validatedWriteVerdictDispose ??= installValidatedWriteVerdict(runtime, validatedWrites);
       } finally {
         loadAutoHeightSuppression.active = false;
         journalSuppression.active = false;
@@ -791,6 +819,22 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         hidden: sheet.isSheetHidden() === true,
       }));
     },
+    restoreRuleSet(sheetId, kind, rules) {
+      const state = lazyWorkbookRef.current;
+      if (options.readOnly || !state || !ruleSetRestoreAllowed(state, sheetId, kind, rules)) return false;
+      const worksheet = runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId);
+      if (!worksheet) return false;
+      journalSuppression.active = true;
+      try {
+        restoreRuleSetFamily(state, sheetId, kind, rules, {
+          worksheet,
+          execute: (id, params) => { runtime.univerAPI.syncExecuteCommand(id, params); },
+        });
+      } finally {
+        journalSuppression.active = false;
+      }
+      return true;
+    },
     setDarkMode: (dark) => themeService.setDarkMode(dark),
     undo() {
       if (!options.readOnly) void runtime.univerAPI.undo();
@@ -805,12 +849,17 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       if (!state) throw new Error("xlsx renderer has no workbook loaded");
       return state.editJournal;
     },
+    getCellBox: geometry.getCellBox,
+    cellAtPoint: geometry.cellAtPoint,
+    readRangeValues: geometry.readRangeValues,
     dispose() {
       disposed = true;
       removeShiftedNavigation();
       for (const disposable of disposables) disposable.dispose();
       findRevealDispose?.();
       numberFormatDispose?.dispose();
+      dvRejectDialogDispose?.dispose();
+      validatedWriteVerdictDispose?.dispose();
       wrapMeasureDisposable?.dispose();
       lazyWorkbookRef.current = null;
       try {

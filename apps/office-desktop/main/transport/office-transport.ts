@@ -177,7 +177,12 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
         job = next && typeof next === "object" ? next as Record<string, unknown> : {};
       }
       const state = typeof job.state === "string" ? job.state : "failed";
-      if (state !== "completed") return { jobId, documentId: input.documentId, state: state as DesktopOfficeJobResponse["state"] };
+      if (state !== "completed") {
+        // Only the rule-set refusal (op positions, no document text) crosses to the renderer.
+        const reason = job.error && typeof job.error === "object" ? (job.error as { reason?: unknown }).reason : undefined;
+        const errorReason = typeof reason === "string" && reason.startsWith("xlsx_rule_sets_dropped:") ? reason.slice(0, 600) : undefined;
+        return { jobId, documentId: input.documentId, state: state as DesktopOfficeJobResponse["state"], ...(errorReason === undefined ? {} : { errorReason }) };
+      }
       const output = await authRequest(`${base}/${encodeURIComponent(jobId)}/output`, { headers: { Accept: "*/*" } });
       const data = new Uint8Array(await output.arrayBuffer());
       return { jobId, documentId: input.documentId, state: "completed", outputBase64: Buffer.from(data).toString("base64"), outputChecksum: `sha256:${createHash("sha256").update(data).digest("hex")}` };

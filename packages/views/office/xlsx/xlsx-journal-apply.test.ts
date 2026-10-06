@@ -50,4 +50,13 @@ describe("diffXlsxSnapshotsToOperations", () => {
     expect(operations).toContainEqual({ op: "clear_cell", target: { sheet: "Data", cell: "B1" } });
     expect(applyXlsxJournalToSnapshot(base(), operations).sheets).toEqual(next.sheets);
   });
+
+  it("ignores rule-set ops: they do not throw and leave the cells unchanged", () => {
+    const area = { startRow: 1, endRow: 9, startColumn: 0, endColumn: 0 };
+    const next = applyXlsxJournalToSnapshot(base(), [
+      { op: "set_conditional_formats", target: { sheet: "Data" }, attributes: { rules: [{ ranges: [area], stopIfTrue: false, rule: { type: "highlightCell", subType: "number", operator: "greaterThan", value: 10, style: { bg: { rgb: "#FFC7CE" } } } }] } },
+      { op: "set_data_validations", target: { sheet: "Data" }, attributes: { rules: [{ ranges: [area], rule: { uid: "dv-1", type: "list", formula1: "Yes,No", allowBlank: true } }] } },
+    ]);
+    expect(next.sheets).toEqual(base().sheets);
+  });
 });

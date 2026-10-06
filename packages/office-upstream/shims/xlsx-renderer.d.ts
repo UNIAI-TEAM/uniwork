@@ -89,6 +89,9 @@ export interface XlsxRendererOptions {
   onDirty?: () => void;
   onEdits?: (edits: XlsxRendererEdit[]) => void;
   onSelectionChange?: (selection: XlsxRendererSelection | null) => void;
+  /** UNI-940 X02: the grid moved under a visual overlay (scroll, zoom,
+   *  sheet switch or any executed command); re-read the cell boxes. */
+  onViewportChange?: () => void;
 }
 
 export interface XlsxRendererCellEdit {
@@ -247,13 +250,52 @@ export interface XlsxRendererHandle {
   /** The live sheet list in tab order (rename/insert/remove/reorder as they
    *  happen). */
   getSheets(): readonly XlsxRendererSheetInfo[];
+  /** r3 MA-3: refuse a dropped CF/DV family of a sheet for the session and
+   *  show the rules the file holds (null: as opened). */
+  restoreRuleSet(
+    sheetId: string,
+    kind: "conditionalFormats" | "dataValidations",
+    rules: readonly { ranges: readonly { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; stopIfTrue?: boolean; rule: Record<string, unknown> }[] | null,
+  ): boolean;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): XlsxRendererJournal;
+  /** UNI-940 X02 geometry seam: a cell's box in container pixels on the
+   *  active sheet (null for any other sheet), and the cell under a point. */
+  getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
+  cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
+  /** Live values of a range on the active sheet (null for another sheet). */
+  readRangeValues(
+    sheetId: string,
+    range: { startRow: number; endRow: number; startColumn: number; endColumn: number },
+  ): XlsxRendererRangeValues | null;
   dispose(): void;
+}
+
+/** A cell's box in container pixels (zoom and scroll applied) plus the zoom. */
+export interface XlsxRendererCellBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly zoom: number;
+}
+
+/** Live values of a range (session edits included): raw and displayed. */
+export interface XlsxRendererRangeValues {
+  readonly values: readonly (readonly (string | number | boolean | null)[])[];
+  readonly display: readonly (readonly string[])[];
+}
+
+/** The cell under a container point; offsets are UNZOOMED sheet pixels. */
+export interface XlsxRendererCellHit {
+  readonly row: number;
+  readonly column: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
 }
 
 export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHandle;

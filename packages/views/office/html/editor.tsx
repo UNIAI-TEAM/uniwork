@@ -33,6 +33,7 @@ import { HtmlFind, type HtmlFindHandle } from "./find";
 import { HtmlRibbon } from "./ribbon";
 import { HtmlStatusBar } from "./status-bar";
 import { HtmlVisualShell } from "./visual/shell";
+import { useHtmlVisualEdit } from "./visual/use-visual-edit";
 import type { HtmlSourceSelection } from "./source";
 import { HTML_ZOOM_DEFAULT, nextViewMode, type HtmlViewMode } from "./visual/shell-model";
 import type { HtmlEditorProps, HtmlOpenOutcome } from "./types";
@@ -110,6 +111,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   title,
   className,
   printPort,
+  visualEdit,
   onOpen,
 }: HtmlEditorProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
@@ -253,6 +255,15 @@ export function HtmlEditor<TSnapshot = unknown>({
     markDirty();
     checkpoint();
   }, [checkpoint, markDirty]);
+  // The visual editor (H5-H8) is behind the office_html_visual_edit flag AND an
+  // injected host; an applied op re-reads the source the way an undo does.
+  const readEngineText = useCallback(() => sourceText(editorRef.current, ""), []);
+  const onVisualApplied = useCallback(() => {
+    setText(readEngineText());
+    markDirty();
+    checkpoint();
+  }, [checkpoint, markDirty, readEngineText]);
+  const visual = useHtmlVisualEdit({ host: visualEdit, text, readOnly, presenting: viewMode === "present", readText: readEngineText, onApplied: onVisualApplied });
   const cycleView = useCallback(() => {
     // A mode change can unmount the pane that held focus, and the preview
     // iframe or a click on the canvas can leave focus outside the landmark
@@ -267,7 +278,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   // UNI-928 print parity: the source IS HTML, so the "render" step is the
   // source itself - `sanitizePrintCopy` (scripts: false) then builds the
   // script-free preview copy. Only reached when the host injected a port.
-  const renderPrintHtml = useCallback(() => sourceText(editorRef.current, ""), []);
+  const renderPrintHtml = readEngineText;
   // After the mode settles, return focus to the landmark when the pane that
   // held it is gone, so one press moves one mode from every mode (C11).
   useEffect(() => {
@@ -469,6 +480,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             title={effectiveTitle}
             zoom={zoom}
             className="min-h-0 flex-1"
+            {...visual}
           />
         </OfficeFrame>
       ) : viewState === "error" && failure ? (

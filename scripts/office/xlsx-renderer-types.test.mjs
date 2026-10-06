@@ -19,7 +19,7 @@ test('authored XLSX controller and journal helpers typecheck against pinned Univ
   });
   // Vendored modules are compiled by esbuild; their pre-existing diagnostics
   // are outside the authored shim boundary checked by this focused test.
-  const owned = new Set(['controller.ts', 'edits.ts', 'command-policy.ts', 'cell-input.ts', 'fonts.ts', 'locale.ts', '../xlsx-renderer.d.ts'].map(
+  const owned = new Set(['controller.ts', 'edits.ts', 'command-policy.ts', 'cell-input.ts', 'fonts.ts', 'locale.ts', 'rule-set-capture.ts', 'rule-set-policy.ts', '../xlsx-renderer.d.ts'].map(
     (name) => path.join(directory, name).replaceAll('\\', '/'),
   ));
   const authored = program.getSourceFiles().filter((source) => owned.has(source.fileName.replaceAll('\\', '/')));

@@ -9,7 +9,7 @@ import { createByteTestEditor } from "../../test/byte-editor";
 
 const printTextDocument = vi.hoisted(() => vi.fn());
 const createDesktopPrintPort = vi.hoisted(() => vi.fn(() => ({ print: vi.fn() })));
-vi.mock("./text-print", () => ({ printTextDocument, createDesktopPrintPort }));
+vi.mock("./text-print", async (importOriginal) => ({ ...(await importOriginal<typeof import("./text-print")>()), printTextDocument, createDesktopPrintPort }));
 
 const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", generation: 1, baseRevision: "2", baseVersionId: "v2" };
 const checksum = `sha256:${"b".repeat(64)}`;
@@ -60,6 +60,36 @@ it("shows the action error when printing fails", async () => {
   openMenu();
   fireEvent.click(await screen.findByRole("menuitem", { name: printLabel() }));
   expect(await screen.findByRole("alert")).toBeInTheDocument();
+});
+
+it("says a print is already open instead of the generic action error", async () => {
+  printTextDocument.mockResolvedValue({ outcome: "failed", reason: "print_busy" });
+  mount("md", "x");
+  await screen.findByTestId("md-editor", {}, { timeout: 15000 });
+  openMenu();
+  fireEvent.click(await screen.findByRole("menuitem", { name: printLabel() }));
+  const notice = await screen.findByText(i18n.t("officeDesktop.library.printBusy"));
+  // Same Alert primitive and tokens as the recovery notices, announced politely, not a bare line.
+  const frame = notice.closest("[data-slot=\"alert\"]");
+  expect(frame).not.toBeNull();
+  expect(frame).toHaveAttribute("role", "status");
+  expect(frame).toHaveAttribute("data-testid", "print-busy-notice");
+  expect(frame).not.toHaveClass("text-destructive");
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("clears the print-busy notice when the next print settles", async () => {
+  printTextDocument.mockClear();
+  printTextDocument.mockResolvedValueOnce({ outcome: "failed", reason: "print_busy" }).mockResolvedValueOnce({ outcome: "printed" });
+  mount("md", "x");
+  await screen.findByTestId("md-editor", {}, { timeout: 15000 });
+  openMenu();
+  fireEvent.click(await screen.findByRole("menuitem", { name: printLabel() }));
+  await screen.findByText(i18n.t("officeDesktop.library.printBusy"));
+  openMenu();
+  fireEvent.click(await screen.findByRole("menuitem", { name: printLabel() }));
+  await waitFor(() => expect(printTextDocument).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.queryByText(i18n.t("officeDesktop.library.printBusy"))).toBeNull());
 });
 
 it("offers no print item for a docx session", async () => {

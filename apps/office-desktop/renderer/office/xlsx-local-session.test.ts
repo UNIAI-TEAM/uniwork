@@ -10,6 +10,10 @@ const renderModel = { revision: 1, activeTab: 0, date1904: false, styles: [], dx
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64");
 const editOp = { op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } };
 
+const ruleArea = { startRow: 1, endRow: 9, startColumn: 0, endColumn: 0 };
+const cfRuleOp = { op: "set_conditional_formats", target: { sheet: "Data" }, attributes: { rules: [{ ranges: [ruleArea], stopIfTrue: false, rule: { type: "highlightCell", subType: "number", operator: "greaterThan", value: 10, style: { bg: { rgb: "#FFC7CE" } } } }] } };
+const dvRuleOp = { op: "set_data_validations", target: { sheet: "Data" }, attributes: { rules: [{ ranges: [ruleArea], rule: { uid: "dv-1", type: "list", formula1: "Yes,No", allowBlank: true } }] } };
+
 /** A local-file bridge that mirrors main: the engine job rides
  *  desktop:file-xlsx, the Save writes the opaque handle through
  *  desktop:file-save, and no cloud channel is ever reached. */
@@ -32,6 +36,16 @@ function makeLocalBridge() {
 }
 
 describe("desktop local xlsx session (C1b)", () => {
+  it("accepts a CF op and a DV op through edit() and sends both unchanged in the save job", async () => {
+    const bridge = makeLocalBridge();
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await session.open.open();
+    await session.editor.edit?.([cfRuleOp, dvRuleOp]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    expect(await session.coordinator.save("button")).toMatchObject({ accepted: true });
+    expect(bridge.call).toHaveBeenCalledWith("desktop:file-xlsx", expect.objectContaining({ operation: "edit", edits: [cfRuleOp, dvRuleOp] }));
+  });
+
   it("opens a local .xlsx through the main-owned engine job and exposes the workbook", async () => {
     const bridge = makeLocalBridge();
     const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
@@ -133,6 +147,35 @@ describe("desktop local xlsx session (C1b)", () => {
     session.coordinator.markDirty(session.editor.getDirtyGeneration());
     expect(await session.keepDraft()).toBe(true);
     expect(bridge.call).toHaveBeenCalledWith("desktop:draft-checkpoint", expect.objectContaining({ documentId: HANDLE }));
+  });
+
+  it("drops refused rule sets from the save, keeps the cell edit and commits on the next explicit Save", async () => {
+    const bridge = makeLocalBridge();
+    const cfOp = { op: "set_conditional_formats", target: { sheet: "Data" }, attributes: { rules: [] } };
+    const base = bridge.call.getMockImplementation()!;
+    let refuse = true;
+    bridge.call.mockImplementation(async (channel, payload) => {
+      if (refuse && channel === "desktop:file-xlsx" && payload.operation === "edit") {
+        refuse = false;
+        throw new Error(`Error invoking remote method 'desktop:file-xlsx': XlsxTypedError: xlsx_rule_sets_dropped:[["cf",[1]]]`);
+      }
+      return base(channel, payload);
+    });
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await session.open.open();
+    await session.editor.edit?.([editOp, cfOp]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    expect(await session.coordinator.save("button")).toEqual({ accepted: false, reason: "error" });
+    expect(session.coordinator.getState()).toMatchObject({ state: "error", error: { code: "xlsx_rule_sets_dropped", action: "retry", retryable: false } });
+    expect(session.editor.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null }]);
+    // Review m-2: the live draft stream loses the dropped op too.
+    expect(((await session.editor.captureSnapshot()).value as { pendingOps?: unknown[] }).pendingOps).toEqual([editOp]);
+    const edits = () => bridge.call.mock.calls.filter(([channel, payload]) => channel === "desktop:file-xlsx" && payload.operation === "edit").map(([, payload]) => payload.edits);
+    expect(edits()).toEqual([[editOp, cfOp]]);
+    expect(await session.coordinator.save("button")).toMatchObject({ accepted: true });
+    expect(edits()).toEqual([[editOp, cfOp], [editOp]]);
+    expect(session.editor.droppedRuleSets?.()).toEqual([]);
+    expect(bridge.saved).toHaveLength(1);
   });
 });
 

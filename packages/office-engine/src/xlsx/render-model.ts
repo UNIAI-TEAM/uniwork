@@ -16,6 +16,7 @@ export type { XlsxRenderTable };
 import { attribute, decodeXml, elements, parseDefinedNamesXml, sectionInner, type XlsxParsedDefinedName } from "./render-model-xml.ts";
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
+import { parseDataValidations, type XlsxRenderDataValidation } from "./render-model-validations.ts";
 export { parseThemeXml } from "./render-model-styles.ts";
 
 import type { XlsxCellScalar, XlsxGatewayFunctions } from "./engine.ts";
@@ -85,6 +86,22 @@ export interface XlsxRenderSheet {
   readonly hyperlinks: readonly XlsxRenderHyperlink[];
   readonly cells: Readonly<Record<string, XlsxRenderCell>>;
   readonly conditionalRules?: readonly XlsxRenderConditionalRule[] | undefined;
+  /** Classic data-validation rules the sheet ships (X01). Additive: an absent
+   *  value reads as no rules. */
+  readonly dataValidations?: readonly XlsxRenderDataValidation[] | undefined;
+  /** True when a <conditionalFormatting> block carries an extLst: the base
+   *  half of an Excel x14 rule (data bars, extended icon sets). The gateway's
+   *  declarative CF save refuses to rewrite such a sheet unless the snapshot
+   *  reproduces the block byte for byte, so CF editing is refused there. */
+  readonly x14ConditionalFormats?: true | undefined;
+  /** True when the worksheet holds x14 data validation (extLst), which the
+   *  gateway's declarative DV save refuses to rewrite. */
+  readonly x14DataValidations?: true | undefined;
+  /** The raw classic <cfRule> / <dataValidation> element counts (X01 review
+   *  r2 M-B), present when either is non-zero. The parsed lists skip rules
+   *  they cannot read; the renderer refuses a family whose installed rules
+   *  fall short, so a whole-sheet save never deletes a rule the grid lacks. */
+  readonly ruleCounts?: { readonly conditionalFormats: number; readonly dataValidations: number } | undefined;
   /** Tables the file ships (xl/tables/tableN.xml). Additive: an absent value
    *  reads as no tables. Read-only; the write path is the table ops. */
   readonly tables?: readonly XlsxRenderTable[] | undefined;
@@ -335,7 +352,26 @@ function parseWorksheetXml(
     hyperlinks,
     cells,
     conditionalRules: parseConditionalRules(xml, parseRefRange, palette),
+    dataValidations: parseDataValidations(xml, parseRefRange),
+    // The same tests the gateway's applyCfRules / applyDvRules fail closed on.
+    ...(hasLinkedX14ConditionalFormat(xml) ? { x14ConditionalFormats: true as const } : {}),
+    ...(/<x14:dataValidation\b/.test(xml) ? { x14DataValidations: true as const } : {}),
+    ...rawRuleCounts(xml),
   };
+}
+
+/** Classic elements only: x14 rules are <x14:cfRule> / <x14:dataValidation>. */
+function rawRuleCounts(xml: string): { ruleCounts?: { conditionalFormats: number; dataValidations: number } } {
+  const conditionalFormats = xml.match(/<cfRule[\s>/]/g)?.length ?? 0;
+  const dataValidations = xml.match(/<dataValidation[\s>/]/g)?.length ?? 0;
+  return conditionalFormats + dataValidations === 0 ? {} : { ruleCounts: { conditionalFormats, dataValidations } };
+}
+
+function hasLinkedX14ConditionalFormat(xml: string): boolean {
+  for (const block of xml.matchAll(/<conditionalFormatting\b[^>]*>[\s\S]*?<\/conditionalFormatting>/g)) {
+    if (/<extLst\b/.test(block[0])) return true;
+  }
+  return false;
 }
 
 // ── reader ─────────────────────────────────────────────────────────────────

@@ -13,12 +13,14 @@
  */
 
 /**
- * The flag key gating this surface. Default OFF: the flag is read with
- * `useFlag(HTML_SELECTION_FLAG, false)`, so with no registration the surface
- * renders nothing and changes no behaviour. The server registry entry is added
- * by the lead, not here (the flag registry is outside this lane's write scope).
+ * The ONE flag key gating the whole visual-edit surface (selection bridge,
+ * float toolbar, style panel, inline edit, the inspector mount). Default OFF:
+ * every reader calls `useFlag(OFFICE_HTML_VISUAL_EDIT_FLAG, false)`, so an
+ * undeclared key reads as off and the surface renders and listens to nothing.
+ * The server declaration (featureflags/keys.go) is task P02; when it lands this
+ * constant is the only line that has to match it.
  */
-export const HTML_SELECTION_FLAG = "office_html_visual_selection";
+export const OFFICE_HTML_VISUAL_EDIT_FLAG = "office_html_visual_edit";
 
 /** Mirrors the inspector's own bounds (preview-inspector.ts): a frame cannot
  * make the parent store an unbounded id or rect. Module-private: nothing

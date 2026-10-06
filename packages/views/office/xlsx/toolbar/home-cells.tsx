@@ -13,7 +13,10 @@ import type { XlsxToolbarGroupProps } from "./types";
 
 // min-w-22 is the spacing-scale spelling of the 88px floor the Cells menus
 // opened with (22 * 0.25rem = 5.5rem), so the rendered width is unchanged.
-const MENU_BUTTON_CLASS = "h-6 w-auto min-w-22 justify-start gap-1 px-1.5 text-caption font-normal whitespace-nowrap";
+// h-5, not h-6: the three stacked rows plus the group caption must fit the
+// 96px ribbon body with room to spare (visual R4B-6: the caption sat flush
+// under the Format row at h-6).
+const MENU_BUTTON_CLASS = "h-5 w-auto min-w-22 justify-start gap-1 px-1.5 text-caption font-normal whitespace-nowrap";
 
 interface CellsMenuEntry {
   readonly id: string;
@@ -102,9 +105,9 @@ function InsertMenu(context: XlsxToolbarGroupProps) {
   const counts = span === null ? null : insertCounts(span, selection?.rangeType);
   const entries: readonly CellsMenuEntry[] = counts === null ? [] : [
     { id: "rows-above", label: t("office.xlsx.structure.insertRowsAbove", { count: counts.rows }), onSelect: run("sheet.command.insert-row-before", { value: counts.rows }) },
-    { id: "rows-below", label: t("office.xlsx.structure.insertRowsBelow"), onSelect: run("sheet.command.insert-row-after") },
+    { id: "rows-below", label: t("office.xlsx.structure.insertRowsBelow"), onSelect: run("sheet.command.insert-multi-rows-after", { value: counts.rows }) },
     { id: "cols-left", label: t("office.xlsx.structure.insertColsLeft", { count: counts.columns }), onSelect: run("sheet.command.insert-col-before", { value: counts.columns }) },
-    { id: "cols-right", label: t("office.xlsx.structure.insertColsRight"), onSelect: run("sheet.command.insert-col-after") },
+    { id: "cols-right", label: t("office.xlsx.structure.insertColsRight"), onSelect: run("sheet.command.insert-multi-cols-right", { value: counts.columns }) },
   ];
   return <CellsMenu id="cells-insert" labelKey="office.xlsx.toolbar.groups.cellsItems.insert" icon={SquarePlus} blocked={blocked} entries={entries} />;
 }

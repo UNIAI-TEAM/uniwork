@@ -84,6 +84,38 @@ describe("SaveStatus", () => {
     expect(screen.getByTestId("office-save-error-reason")).toHaveTextContent("Reason: This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept. · engine");
   });
 
+  it("offers no retry for a missing formula engine and says what to do instead (UNI-940 X06)", () => {
+    const onAction = vi.fn();
+    const recalcUnavailable = {
+      state: "error" as const,
+      error: { state: "error" as const, code: "xlsx_recalc_unavailable", errorClass: "engine" as const, correlationId: null, retryable: false, ambiguous: false, action: "stop" as const, message: "Office save could not be confirmed" },
+    };
+    const { rerender } = render(<SaveStatus coordinatorState={recalcUnavailable} onAction={onAction} />);
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Install the latest UniWork Office, which includes the formula engine, or upload the workbook to UniWork and save it there.");
+    expect(alert).not.toHaveTextContent("Try again");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+
+    rerender(<SaveStatus coordinatorState={recalcUnavailable} onAction={onAction} compact />);
+    expect(screen.getByTestId("office-save-error-compact")).toHaveTextContent("Install the latest UniWork Office");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("still offers retry for a save failure a retry can fix", () => {
+    const onAction = vi.fn();
+    render(
+      <SaveStatus
+        coordinatorState={{
+          state: "error",
+          error: { state: "error", code: "engine_result_invalid", errorClass: "engine", correlationId: null, retryable: true, ambiguous: false, action: "retry", message: "" },
+        }}
+        onAction={onAction}
+      />,
+    );
+    screen.getByRole("button", { name: "Try again" }).click();
+    expect(onAction).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the generic headline when a save failure carries no code (F4)", () => {
     render(<SaveStatus status="error" />);
     expect(screen.getByRole("alert")).toHaveTextContent("Save could not be confirmed");

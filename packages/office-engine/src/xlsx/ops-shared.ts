@@ -11,6 +11,8 @@ import type { XlsxNotesOp } from "./ops-notes.ts";
 import type { XlsxTableAddOp, XlsxTableRemoveOp } from "./tables.ts";
 import type { XlsxSheetProtectionOp } from "./ops-protection.ts";
 import type { XlsxDefinedNamesOp } from "./ops-names.ts";
+import type { XlsxRuleSetOp } from "./ops-cf-dv.ts";
+import type { XlsxVisualMoveOp, XlsxVisualRemoveOp, XlsxVisualSetOp } from "./ops-visuals.ts";
 export class XlsxOpError extends Error {
   readonly opName: string;
   readonly field: string;
@@ -329,6 +331,10 @@ export type XlsxEditOp =
   | XlsxNotesOp
   | XlsxSheetProtectionOp
   | XlsxDefinedNamesOp
+  | XlsxRuleSetOp
+  | XlsxVisualSetOp
+  | XlsxVisualMoveOp
+  | XlsxVisualRemoveOp
   | XlsxSheetOp;
 
 /** The gateway argument slot an op kind feeds. `cellEdits` is

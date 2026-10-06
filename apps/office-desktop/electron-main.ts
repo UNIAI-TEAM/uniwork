@@ -468,7 +468,7 @@ async function startElectronHost(): Promise<void> {
   installPrintSessionGuard(session.fromPartition(PRINT_PARTITION), pathToFileURL(printRoot).href);
   // A process that quit with a print dialog open never ran its cleanup.
   await clearPrintRoot(printRoot);
-  const printHandlers = createPrintIpcHandler({ createWindow: (options) => new BrowserWindow(options), writeFile: createPrintFileWriter(printRoot) });
+  const printHandlers = createPrintIpcHandler({ owner: window, createWindow: (options) => new BrowserWindow({ ...options, parent: window }), writeFile: createPrintFileWriter(printRoot) });
   const host = createDesktopHost({
     handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });

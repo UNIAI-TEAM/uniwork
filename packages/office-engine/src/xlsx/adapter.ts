@@ -38,8 +38,10 @@ import {
   type XlsxSheetFormulaValues,
   type XlsxWorkbookSnapshot,
 } from "./engine.ts";
+import { ruleSetSaveFailure } from "./adapter-rule-sets.ts";
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps } from "./ops.ts";
+import { withRuleSetSource } from "./ops-cf-dv.ts";
 import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
 import { readSharedFollowers, type XlsxSharedFollowers } from "./shared-formulas.ts";
 
@@ -101,6 +103,8 @@ interface XlsxSession {
   model: XlsxSessionModel;
   sheetNamesById: Readonly<Record<string, string>>;
   preservedParts: readonly string[];
+  /** Wire ops accepted so far: a rule-set op records its position (r3 MA-2). */
+  wireOps: number;
 }
 
 let sessionCounter = 0;
@@ -228,6 +232,7 @@ export class XlsxAdapter {
       model: createXlsxSessionModel(parsed.snapshot, inputSha256),
       sheetNamesById: parsed.sheetNamesById,
       preservedParts,
+      wireOps: 0,
     });
     return { outcome: "opened", document_id, document_model_ref: ref, warnings: preservedWarnings(preservedParts) };
   }
@@ -257,11 +262,12 @@ export class XlsxAdapter {
     // leaving the valid prefix applied.
     const checkpoint = session.model.checkpoint();
     try {
-      parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op) => session.model.applyEdit(op));
+      parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op, index) => session.model.applyEdit(withRuleSetSource(op, session.wireOps + index)));
     } catch (error) {
       session.model.rollback(checkpoint);
       throw error;
     }
+    session.wireOps += ops.length;
     return { applied: true, revision: session.model.revision };
   }
 
@@ -359,6 +365,13 @@ export class XlsxAdapter {
       .model
       .pendingTableAdditions()
       .map((table) => ({ ...table, sheetName: gatewayName(table.sheetName) }));
+    // Visual additions (B8): new drawing/chart/media parts anchored at final
+    // coordinates; the gateway writes them after the worksheet flush, so they
+    // never move cells and the recalc pass is unaffected.
+    const visualAdditions = session
+      .model
+      .pendingVisualAdditions()
+      .map((visual) => ({ ...visual, sheetName: gatewayName(visual.sheetName) }));
     // Hyperlink edits carry final per-cell coordinates, so the gateway applies
     // them after structural replay; a hyperlink change never moves cells, so
     // the recalc pass is unaffected. Each op is a per-cell last-write link
@@ -383,6 +396,16 @@ export class XlsxAdapter {
     const noteStates = session
       .model
       .pendingNoteStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // CF/DV rule sets (X01) are declarative whole-sheet snapshots the gateway
+    // rewrites after the worksheet flush; like notes they never move cells.
+    const cfStates = session
+      .model
+      .pendingConditionalFormatStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    const dvStates = session
+      .model
+      .pendingDataValidationStates()
       .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
     // The pre-assemble recalc runs against the ORIGINAL bytes plus the cell
     // edits, so it is only sound when the save keeps every coordinate and the
@@ -428,7 +451,7 @@ export class XlsxAdapter {
       keptWarning(mapped.kept);
     }
     const gatewayArguments: XlsxGatewayArguments =
-      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
+      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && visualAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && cfStates.length === 0 && dvStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
         ? {}
         : {
             ...(structuralOps.length > 0 ? { structuralOps } : {}),
@@ -436,17 +459,22 @@ export class XlsxAdapter {
             ...(filterStates.length > 0 ? { filterStates } : {}),
             ...(pageSetupStates.length > 0 ? { pageSetupStates } : {}),
             ...(tableAdditions.length > 0 ? { tableAdditions } : {}),
+            ...(visualAdditions.length > 0 ? { visualAdditions } : {}),
             ...(hyperlinkEdits.length > 0 ? { hyperlinkEdits } : {}),
             ...(noteStates.length > 0 ? { noteStates } : {}),
+            ...(cfStates.length > 0 ? { cfStates } : {}),
+            ...(dvStates.length > 0 ? { dvStates } : {}),
             ...(sheetProtections.length > 0 ? { sheetProtections } : {}),
             ...(definedNamesState === undefined ? {} : { definedNamesState }),
           };
-    let out = await this.assemble(
-      session.inputBytes,
-      edits,
-      formulaValues,
-      Object.keys(gatewayArguments).length > 0 ? gatewayArguments : undefined,
-    );
+    const assembleWith = (args: XlsxGatewayArguments | undefined) =>
+      this.assemble(session.inputBytes, edits, formulaValues, args && Object.keys(args).length > 0 ? args : undefined);
+    let out: Uint8Array;
+    try {
+      out = await assembleWith(gatewayArguments);
+    } catch (error) {
+      throw await ruleSetSaveFailure(session.model, gatewayArguments, assembleWith, error);
+    }
     // Rebase on the produced bytes: a saved package that does not re-parse is
     // an engine bug the caller must never inherit as the new base.
     let rebased = await this.reparse(out);

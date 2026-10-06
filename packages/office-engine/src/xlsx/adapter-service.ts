@@ -13,6 +13,7 @@ import { EngineBoundaryError, HostCapabilityRefusal } from "@uniwork/office-cont
 import { isXlsxWorkbookSnapshot, type XlsxGatewayFunctions, type XlsxRecalcPort, type XlsxWorkbookSnapshot } from "./engine.ts";
 import { XlsxAdapter, XlsxProbe, preservedPartsOf, type XlsxAdapterDeps } from "./adapter.ts";
 import { XlsxOpError } from "./ops.ts";
+import { XLSX_RULE_SETS_DROPPED_PREFIX } from "./adapter-rule-sets.ts";
 import { readXlsxRenderModel, type XlsxRenderModel } from "./render-model.ts";
 // ── service seam (G2-02 job handlers) ──────────────────────────────────────
 //
@@ -56,6 +57,10 @@ function toXlsxFailure(error: unknown): XlsxTypedError {
       code === "unsupported_operation" || code === "engine_crashed" || code === "engine_incompatible"
         ? code
         : "engine_result_invalid";
+    // A dropped CF/DV rule set (X01 review r2) names its sets in the reason,
+    // the only field a one-shot job hands back to the client runtime.
+    const reason = error instanceof EngineBoundaryError ? error.fields.reason : undefined;
+    if (typeof reason === "string" && reason.startsWith(XLSX_RULE_SETS_DROPPED_PREFIX)) return new XlsxTypedError(mapped, reason.slice(0, 300));
     return new XlsxTypedError(mapped, error.message.slice(0, 300));
   }
   return new XlsxTypedError("engine_crashed", String((error as Error)?.message ?? error).slice(0, 300));

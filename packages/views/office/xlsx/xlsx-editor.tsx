@@ -11,7 +11,8 @@ import { XlsxFindPanel } from "./find/find-panel";
 import { XlsxAdvancedFilterDialog } from "./filter/advanced-filter-dialog";
 import { XlsxFunctionLibraryMount } from "./formulas/function-library";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
-import { useXlsxProtectNames } from "./protect/use-protect-names";
+import { useEditorProtectNames } from "./protect/use-protect-names";
+import { XlsxVisualsProvider, useXlsxVisuals } from "./visuals/use-xlsx-visuals";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { xlsxSelectionFromGrid } from "./selection-mapping";
 import { useXlsxContextMenu } from "./context-menu/use-context-menu";
@@ -347,18 +348,15 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // Sheet protection + the name manager (B7): the hook owns the dialog state
   // and the two new ops; see protect/.
-  const protectNames = useXlsxProtectNames({
-    activeSheet: resolvedActiveSheet,
-    readOnly,
-    canEdit,
-    // F1/F5: the file's own names seed the manager; the live sheet order bounds
-    // the scope dropdown. Both come from the open render model / mounted grid.
-    definedNames: rendererHost?.file.definedNames,
-    sheetNames: (liveSheets.length > 0 ? liveSheets.map((sheet) => sheet.name) : (snapshot?.sheets ?? []).map((sheet) => sheet.name)),
-    edit: editor.edit,
-    onApplied: () => { markDirty(); refreshSnapshot(); },
-    onError: setRecalcError,
+  const protectNames = useEditorProtectNames({
+    activeSheet: resolvedActiveSheet, readOnly, canEdit, rendererHost, liveSheets, snapshot, edit: editor.edit,
+    onApplied: () => { markDirty(); refreshSnapshot(); }, onError: setRecalcError,
   });
+
+  // Charts, pictures and shapes (UNI-940 X02): the hook owns the overlay and
+  // the set_visual / remove_visual ops; see visuals/.
+  const visuals = useXlsxVisuals({ gridRef, gridReady, selection, canEdit, editor, savedGeneration: coordinatorState.lastSavedGeneration, saving: coordinatorState.state === "saving", snapshot, onApplied: markDirty,
+    onError: setRecalcError, activeSheetId, activeSheetName: resolvedActiveSheet, sheets: liveSheets.length > 0 ? liveSheets : rendererHost?.file.sheets ?? [] });
 
   // FIX-EDITOR-SPLIT (UNI-926): the JSX key handler and the capture-phase
   // Ctrl/Cmd+S shortcut live in ./use-xlsx-editor-keyboard.
@@ -413,6 +411,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       </header> : <span className="sr-only" data-testid="xlsx-open-state" role="status">{visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? saveStateLabel : t("office.xlsx.state.error")}</span>}
       {viewState === "ready" ? (
         <>
+          <XlsxVisualsProvider visuals={visuals}>
           <OfficeFrame
             data-testid="xlsx-frame"
             canvasClassName="overflow-hidden"
@@ -471,7 +470,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   <XlsxFindPanel documentKey={documentKey} host={rendererHost} commands={gridCommands} selection={selection}
                     sheetName={selection?.sheet ?? activeSheet} dirtyGeneration={coordinatorState.dirtyGeneration} readOnly={readOnly} onClose={() => setFindOpen(false)} />
                 ) : null}
-                <XlsxFrameNotices recalcProgress={recalcProgress} recalcError={recalcError} editFailed={Boolean(gridEdits.error)} onCancelRecalculate={cancelRecalculate} />
+                <XlsxFrameNotices recalcProgress={recalcProgress} recalcError={recalcError} editFailed={Boolean(gridEdits.error)} onCancelRecalculate={cancelRecalculate} saveErrorCode={coordinatorState.error?.code} editor={editor} grid={gridRef} />
               </>
             }
             bottom={
@@ -506,6 +505,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   dark={dark}
                   readOnly={readOnly || !canEdit}
                   onContextMenu={contextMenu.open}
+                  overlay={visuals.overlay} onViewportChange={visuals.onViewportChange}
                   onEdits={(edits) => { gridEdits.onEdits(edits); onTableEdits(edits); refreshFormatState(); refreshSheets(); }}
                   onReady={() => { setGridReady(true); refreshFormatState(); refreshSheets(); }}
                   onFailure={(message) => {
@@ -544,6 +544,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
               )}
             </div>
           </OfficeFrame>
+          </XlsxVisualsProvider>
           {rendererHost && advancedFilterOpen ? (
             <XlsxAdvancedFilterDialog
               documentKey={documentKey}

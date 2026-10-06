@@ -52,6 +52,7 @@ describe("rendererEditsToOperations", () => {
     expect(XLSX_JOURNAL_OP_MAPPINGS.map((entry) => entry.op)).toEqual([
       "set_hyperlink", "set_notes",
       "set_page_setup",
+      "set_conditional_formats", "set_data_validations",
       "set_filter", "clear_filter",
       "clear_cell", "set_cell",
       "insert_rows", "remove_rows", "insert_cols", "remove_cols",

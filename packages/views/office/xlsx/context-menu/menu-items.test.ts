@@ -53,9 +53,9 @@ describe("buildXlsxContextMenu", () => {
     expect(find(entries, "clear-content").action).toEqual({ kind: "command", id: "sheet.command.clear-selection-content" });
     expect(find(entries, "clear-format").action).toEqual({ kind: "command", id: "sheet.command.clear-selection-format" });
     expect(find(entries, "insert-row-above").action).toEqual({ kind: "command", id: "sheet.command.insert-row-before", params: { value: 2 } });
-    expect(find(entries, "insert-row-below").action).toEqual({ kind: "command", id: "sheet.command.insert-row-after" });
+    expect(find(entries, "insert-row-below").action).toEqual({ kind: "command", id: "sheet.command.insert-multi-rows-after", params: { value: 2 } });
     expect(find(entries, "insert-col-left").action).toEqual({ kind: "command", id: "sheet.command.insert-col-before", params: { value: 2 } });
-    expect(find(entries, "insert-col-right").action).toEqual({ kind: "command", id: "sheet.command.insert-col-after" });
+    expect(find(entries, "insert-col-right").action).toEqual({ kind: "command", id: "sheet.command.insert-multi-cols-right", params: { value: 2 } });
     const range = { startRow: 1, endRow: 2, startColumn: 1, endColumn: 2 };
     expect(find(entries, "delete-rows").action).toEqual({ kind: "command", id: "sheet.command.remove-row", params: { range } });
     expect(find(entries, "delete-cols").action).toEqual({ kind: "command", id: "sheet.command.remove-col", params: { range } });
@@ -66,7 +66,7 @@ describe("buildXlsxContextMenu", () => {
     expect(find(entries, "filter-clear").action).toEqual({ kind: "command", id: "sheet.command.clear-filter-criteria" });
   });
 
-  it("applies the ribbon insert-count policy to the before items", () => {
+  it("applies the ribbon insert-count policy to the before and after items", () => {
     const params = (selection: XlsxContextMenuState["selection"], id: string) => {
       const action = find(buildXlsxContextMenu(state({ selection })), id).action;
       return action?.kind === "command" ? action.params : undefined;
@@ -86,9 +86,12 @@ describe("buildXlsxContextMenu", () => {
     // An explicit wide range keeps its span.
     const wide = { sheet: "Data", address: "A1", endAddress: "Z5", rangeType: XLSX_RANGE_TYPE.NORMAL };
     expect(params(wide, "insert-col-left")).toEqual({ value: 26 });
-    // The after items carry no count: Univer derives it from the selection.
-    expect(params(columns, "insert-row-below")).toBeUndefined();
-    expect(params(columns, "insert-col-right")).toBeUndefined();
+    // The after items follow the same counts (the multi-after commands read them).
+    expect(params(columns, "insert-row-below")).toEqual({ value: 1 });
+    expect(params(columns, "insert-col-right")).toEqual({ value: 2 });
+    expect(params(rows, "insert-row-below")).toEqual({ value: 2 });
+    expect(params(rows, "insert-col-right")).toEqual({ value: 1 });
+    expect(params(wide, "insert-col-right")).toEqual({ value: 26 });
   });
 
   it("maps cut/copy/paste/find to editor callbacks, never a command", () => {

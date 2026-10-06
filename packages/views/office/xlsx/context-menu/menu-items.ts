@@ -34,9 +34,9 @@ export const XLSX_CONTEXT_CLEAR_FORMAT_COMMAND = "sheet.command.clear-selection-
 
 /** Structure commands, mirroring the Insert-tab group. */
 export const XLSX_CONTEXT_INSERT_ROW_BEFORE_COMMAND = "sheet.command.insert-row-before";
-export const XLSX_CONTEXT_INSERT_ROW_AFTER_COMMAND = "sheet.command.insert-row-after";
+export const XLSX_CONTEXT_INSERT_ROW_AFTER_COMMAND = "sheet.command.insert-multi-rows-after";
 export const XLSX_CONTEXT_INSERT_COL_BEFORE_COMMAND = "sheet.command.insert-col-before";
-export const XLSX_CONTEXT_INSERT_COL_AFTER_COMMAND = "sheet.command.insert-col-after";
+export const XLSX_CONTEXT_INSERT_COL_AFTER_COMMAND = "sheet.command.insert-multi-cols-right";
 export const XLSX_CONTEXT_REMOVE_ROW_COMMAND = "sheet.command.remove-row";
 export const XLSX_CONTEXT_REMOVE_COL_COMMAND = "sheet.command.remove-col";
 
@@ -121,8 +121,9 @@ export function buildXlsxContextMenu(state: XlsxContextMenuState): readonly Xlsx
     : { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn };
   const noCommands = state.commands === undefined;
   // Same counts as the ribbon: a whole-axis selection inserts one line on the
-  // other axis. The after items stay count-less: Univer's insert-row-after /
-  // insert-col-after ignore params and insert the selection's own span.
+  // other axis. The after items ride the multi-after commands:
+  // Univer's insert-row-after / insert-col-after ignore params and insert the
+  // selection's own span, so only the multi variants honour the count.
   const counts = span === null ? null : insertCounts(span, state.selection?.rangeType);
   const structureBlocked = state.readOnly || noCommands || span === null;
   const mergeBlocked = state.readOnly || noCommands || span === null || (span.rows === 1 && span.columns === 1);
@@ -185,7 +186,7 @@ export function buildXlsxContextMenu(state: XlsxContextMenuState): readonly Xlsx
       id: "insert-row-below",
       labelKey: "office.xlsx.contextMenu.items.insertRowBelow",
       disabled: structureBlocked,
-      action: { kind: "command", id: XLSX_CONTEXT_INSERT_ROW_AFTER_COMMAND },
+      action: { kind: "command", id: XLSX_CONTEXT_INSERT_ROW_AFTER_COMMAND, params: counts === null ? undefined : { value: counts.rows } },
     },
     {
       id: "insert-col-left",
@@ -197,7 +198,7 @@ export function buildXlsxContextMenu(state: XlsxContextMenuState): readonly Xlsx
       id: "insert-col-right",
       labelKey: "office.xlsx.contextMenu.items.insertColRight",
       disabled: structureBlocked,
-      action: { kind: "command", id: XLSX_CONTEXT_INSERT_COL_AFTER_COMMAND },
+      action: { kind: "command", id: XLSX_CONTEXT_INSERT_COL_AFTER_COMMAND, params: counts === null ? undefined : { value: counts.columns } },
     },
     {
       id: "delete-rows",

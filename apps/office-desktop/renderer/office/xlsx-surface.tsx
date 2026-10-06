@@ -4,6 +4,7 @@ import { OfficeShell } from "@uniwork/views/office/office-shell";
 import { XlsxEditor, type XlsxModelHost } from "@uniwork/views/office/xlsx";
 import { DraftRecoveryPrompt } from "@uniwork/views/office/leave-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { RecoveryNotice, type DesktopRecoveryState } from "../recovery-status";
 import { LockedAiEntry } from "../ai-entry";
 import { FeatureOffNotice } from "./feature-off-notice";
@@ -11,6 +12,12 @@ import { useFeatureOffFormatName } from "./feature-off-shell";
 import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
 import type { DesktopXlsxSession } from "./xlsx-session";
+
+/** The header overflow control, same glyph as the other formats' document menu
+ *  (open-document.tsx keeps its copy module-private). */
+function MoreIcon() {
+  return <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></svg>;
+}
 
 /** The desktop XLSX document surface. It mounts the SAME shared XlsxEditor the
  *  web host uses, through the host-adapter seams the session binds: open/save
@@ -30,6 +37,8 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
+  const { t: tOffice } = useTranslation(undefined, { keyPrefix: "office" });
+  const { t: tAi } = useTranslation(undefined, { keyPrefix: "officeDesktop.ai" });
   const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
   const [notice, setNotice] = useState<DesktopRecoveryState | null>(null);
   const [recovered, setRecovered] = useState(false);
@@ -75,7 +84,14 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
       onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null}
     <OfficeShell title={title} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={saveCoordinator} saveStatus={featureOff ? "ready" : undefined} editorReady={active && session.canSave}
       saveDestination={kind === "local" ? "local" : "cloud"}
-      actions={<>{kind === "local" ? <LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /> : null}<Button type="button" variant="outline" disabled={saveState === "saving"} onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</Button></>}
+      actions={<>{kind === "local" ? <DropdownMenu>
+        <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={tOffice("ribbon.more")} title={tOffice("ribbon.more")} data-office-document-menu />}>
+          <MoreIcon />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-56">
+          <DropdownMenuGroup aria-label={tAi("entry")} className="p-1 [&>button]:w-full [&>button]:justify-start"><LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /></DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu> : null}<Button type="button" variant="outline" disabled={saveState === "saving"} onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</Button></>}
       editor={<>
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}

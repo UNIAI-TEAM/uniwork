@@ -137,3 +137,16 @@ it("does not load remote or relative images (local mode has no network)", async 
   const sources = Array.from(doc.querySelectorAll("img"), (image) => image.getAttribute("src") ?? "");
   expect(sources.filter((source) => /^https?:|^pic\.png$/.test(source))).toEqual([]);
 });
+
+it("renders a blocked image as its alt text so the frame makes no request the CSP must refuse", async () => {
+  const { copy } = await mountCopy("html", '<img src="pic.png" alt="Fixture"><img src="https://evil.example/a.png" srcset="pic.png 2x" alt="Remote"><img src="data:image/png;base64,iVBORw0KGgo=" alt="Inline">');
+  const doc = new DOMParser().parseFromString(copy(), "text/html");
+  const images = Array.from(doc.querySelectorAll("img"));
+  expect(images.map((image) => image.getAttribute("alt"))).toEqual(["Inline"]);
+  expect(images[0]!.getAttribute("src")).toMatch(/^data:image\/png/);
+  const blocked = Array.from(doc.querySelectorAll("span[data-blocked-image]"));
+  expect(blocked.map((span) => span.textContent)).toEqual(["Fixture", "Remote"]);
+  expect(blocked.every((span) => !span.hasAttribute("src") && !span.hasAttribute("srcset"))).toBe(true);
+  expect(copy()).not.toContain("about:blank#blocked");
+  expect(copy()).not.toContain("evil.example");
+});

@@ -5,12 +5,14 @@
 // documents first load must not carry it), mounted into a scoped container
 // and disposed with the editor. The loader is injectable so component tests
 // do not pull the 14 MB Univer bundle into jsdom.
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { RendererRangeResult, RendererWorkbookFile } from "./xlsx-render-model-bridge";
 import type { XlsxGridEdit } from "./xlsx-edit-bridge";
 import type { XlsxGridRange } from "./selection-mapping";
+import type { XlsxVisualsGrid } from "./visuals/use-xlsx-visuals";
+import type { XlsxDroppedRuleSet } from "./conditional-format/rule-set-drops";
 
 export interface XlsxGridHostPort {
   file: RendererWorkbookFile;
@@ -52,8 +54,9 @@ export interface XlsxGridSheetInfo {
   readonly hidden: boolean;
 }
 
-/** The subset of the artifact handle the surface uses. */
-export interface XlsxGridHandle {
+/** The subset of the artifact handle the surface uses. The visuals members
+ *  (getCellBox / cellAtPoint / readRangeValues, UNI-940) are optional. */
+export interface XlsxGridHandle extends XlsxVisualsGrid {
   loadWorkbook(file: RendererWorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
   refreshViewport(): void;
   revealCell(sheetId: string, row: number, column: number): Promise<void>;
@@ -69,6 +72,9 @@ export interface XlsxGridHandle {
   /** The live sheet list in tab order; optional so test doubles that only
    *  exercise the cell ports stay valid. */
   getSheets?(): readonly XlsxGridSheetInfo[];
+  /** r3 MA-3: after a save dropped a CF/DV family of a sheet, refuse it for
+   *  the session and show the rules the file holds (null: as opened). */
+  restoreRuleSet?(sheetId: string, family: XlsxDroppedRuleSet["family"], rules: XlsxDroppedRuleSet["savedRules"]): boolean;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -86,6 +92,7 @@ export interface XlsxRendererModule {
     onDirty?: () => void;
     onEdits?: (edits: XlsxGridEdit[]) => void;
     onSelectionChange?: (selection: XlsxGridSelection | null) => void;
+    onViewportChange?: () => void;
   }): XlsxGridHandle;
   installXlsxRendererStyles(doc?: Document): void;
 }
@@ -110,6 +117,10 @@ export interface XlsxGridSurfaceProps {
   /** Right-click on the grid: the editor opens its context menu at the point
    *  and returns focus to `container` when the menu closes. Absent = no menu. */
   onContextMenu?: (point: { x: number; y: number }, container: HTMLElement) => void;
+  /** UNI-940: the visual overlay drawn above the canvas, and the renderer's
+   *  signal that the grid moved under it (scroll, zoom, sheet switch). */
+  overlay?: ReactNode;
+  onViewportChange?: () => void;
   /** Test seam: resolves the artifact without the real chunk. */
   loadModule?: () => Promise<XlsxRendererModule>;
   ref?: Ref<XlsxGridHandle>;
@@ -133,6 +144,8 @@ export function XlsxGridSurface({
   onReady,
   onFailure,
   onContextMenu,
+  overlay,
+  onViewportChange,
   loadModule = loadXlsxRendererModule,
   ref,
 }: XlsxGridSurfaceProps) {
@@ -141,8 +154,8 @@ export function XlsxGridSurface({
   const handleRef = useRef<XlsxGridHandle | null>(null);
   const darkRef = useRef(dark);
   darkRef.current = dark;
-  const callbacksRef = useRef({ onDirty, onEdits, onMessage, onSelectionChange, onReady, onFailure, loadModule });
-  callbacksRef.current = { onDirty, onEdits, onMessage, onSelectionChange, onReady, onFailure, loadModule };
+  const callbacksRef = useRef({ onDirty, onEdits, onMessage, onSelectionChange, onViewportChange, onReady, onFailure, loadModule });
+  callbacksRef.current = { onDirty, onEdits, onMessage, onSelectionChange, onViewportChange, onReady, onFailure, loadModule };
   const [failed, setFailed] = useState(false);
   const contextMenuRef = useRef(onContextMenu);
   contextMenuRef.current = onContextMenu;
@@ -160,10 +173,14 @@ export function XlsxGridSurface({
       executeCommand: (id, params) => handleRef.current?.executeCommand(id, params) ?? false,
       getActiveFormatState: () => handleRef.current?.getActiveFormatState() ?? null,
       getSheets: () => handleRef.current?.getSheets?.() ?? [],
+      restoreRuleSet: (sheetId, family, rules) => handleRef.current?.restoreRuleSet?.(sheetId, family, rules) ?? false,
       setDarkMode: (nextDark) => handleRef.current?.setDarkMode(nextDark),
       undo: () => handleRef.current?.undo(),
       redo: () => handleRef.current?.redo(),
       getDirtyGeneration: () => handleRef.current?.getDirtyGeneration() ?? 0,
+      getCellBox: (sheetId, row, column) => handleRef.current?.getCellBox?.(sheetId, row, column) ?? null,
+      cellAtPoint: (sheetId, x, y) => handleRef.current?.cellAtPoint?.(sheetId, x, y) ?? null,
+      readRangeValues: (sheetId, range) => handleRef.current?.readRangeValues?.(sheetId, range) ?? null,
       dispose: () => {
         handleRef.current?.dispose();
         handleRef.current = null;
@@ -191,6 +208,7 @@ export function XlsxGridSurface({
           onDirty: () => callbacksRef.current.onDirty?.(),
           onEdits: (edits) => callbacksRef.current.onEdits?.(edits),
           onSelectionChange: (selection) => callbacksRef.current.onSelectionChange?.(selection),
+          onViewportChange: () => callbacksRef.current.onViewportChange?.(),
         });
         if (disposed) {
           handle.dispose();
@@ -251,6 +269,7 @@ export function XlsxGridSurface({
           {t("office.xlsx.errors.rendererFailed")}
         </p>
       ) : null}
+      {failed ? null : overlay}
     </div>
   );
 }

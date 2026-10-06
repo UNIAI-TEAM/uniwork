@@ -161,8 +161,16 @@ export function createOfficePreviewPort(options: OfficePreviewPortOptions): Isol
         onEvent: input.onEvent,
       });
       const update = session.update.bind(session);
+      // No spread: `inspector` is a getter that only has a value after the
+      // frame loads and changes on every reload. A spread would freeze it at
+      // mount time (null), and no command would ever reach the frame.
       return {
-        ...session,
+        iframe: session.iframe,
+        nonce: session.nonce,
+        get inspector() {
+          return session.inspector;
+        },
+        dispose: () => session.dispose(),
         async update(nextText: string, nextManifest?: AssetManifest) {
           const normalized = nextManifest === undefined ? undefined : previewManifest(nextManifest, input.format);
           return update(nextText, normalized);

@@ -13,6 +13,8 @@ import {
 } from "./preview-inspector";
 
 const NONCE = "0".repeat(31) + "1";
+/** The attribute the stamp writes: the name carries the session nonce, so a document cannot guess it. */
+const SID = `data-sid-${NONCE}`;
 
 describe("inspector nonce", () => {
   it("accepts only 32 lowercase hex characters", () => {
@@ -193,7 +195,7 @@ const INIT = { type: "uniwork-preview:init", nonce: NONCE };
 
 describe("inspector script runtime (frame side)", () => {
   it("ignores an init from anything but the parent, or with a bad nonce or type", () => {
-    const frame = runInspector('<p data-sid="1">x</p>');
+    const frame = runInspector(`<p ${SID}="1">x</p>`);
     frame.emit("message", { data: INIT, source: { not: "parent" }, ports: [frame.port] });
     frame.emit("message", { data: { type: "uniwork-preview:init", nonce: "bad" }, source: frame.parent, ports: [frame.port] });
     frame.emit("message", { data: { type: "other", nonce: NONCE }, source: frame.parent, ports: [frame.port] });
@@ -203,7 +205,7 @@ describe("inspector script runtime (frame side)", () => {
   });
 
   it("takes the port once, reports ready and resize, and ignores a second init", () => {
-    const frame = runInspector('<p data-sid="1">x</p>');
+    const frame = runInspector(`<p ${SID}="1">x</p>`);
     frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
     frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
     expect(frame.sent).toEqual([
@@ -214,7 +216,7 @@ describe("inspector script runtime (frame side)", () => {
   });
 
   it("answers a select command with select + rect, and refuses a wrong nonce or type", () => {
-    const frame = runInspector('<p data-sid="7">x</p>');
+    const frame = runInspector(`<p ${SID}="7">x</p>`);
     frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
     frame.sent.length = 0;
     frame.command({ type: "select", nonce: "wrong", sid: 7 });
@@ -231,7 +233,7 @@ describe("inspector script runtime (frame side)", () => {
   });
 
   it("maps a click to the nearest data-sid", () => {
-    const frame = runInspector('<div data-sid="3"><span id="s1-inner">t</span></div>');
+    const frame = runInspector(`<div ${SID}="3"><span id="s1-inner">t</span></div>`);
     frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
     frame.sent.length = 0;
     const inner = frame.root.querySelector("#s1-inner")!;
@@ -245,25 +247,61 @@ describe("inspector script runtime (frame side)", () => {
   });
 
   it("reports hover and commits a text edit with the element's text", () => {
-    const frame = runInspector('<p data-sid="9">hello world</p>');
+    const frame = runInspector(`<p ${SID}="9">hello world</p>`);
     frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
     frame.sent.length = 0;
-    frame.emit("mouseover", { target: frame.root.querySelector('[data-sid="9"]') });
+    frame.emit("mouseover", { target: frame.root.querySelector(`[${SID}="9"]`) });
     expect(frame.sent).toEqual([{ nonce: NONCE, type: "hover", sid: 9 }]);
     frame.sent.length = 0;
     frame.command({ type: "begin-text-edit", nonce: NONCE, sid: 9 });
     expect(frame.sent).toEqual([]);
-    frame.emit("focusout", { target: frame.root.querySelector('[data-sid="9"]') });
+    frame.emit("focusout", { target: frame.root.querySelector(`[${SID}="9"]`) });
     expect(frame.sent).toHaveLength(1);
     expect(frame.sent[0]).toMatchObject({ nonce: NONCE, type: "text-edit-commit", sid: 9, text: "hello world" });
   });
 
+  it("begin-text-edit makes the element editable, takes frame focus and puts the caret in it", () => {
+    document.body.innerHTML = "";
+    const frame = runInspector(`<p ${SID}="9">hello</p>`);
+    document.body.appendChild(frame.root);
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    const p = frame.root.querySelector<HTMLElement>(`[${SID}="9"]`)!;
+    const windowFocus = vi.spyOn(globalThis, "focus").mockImplementation(() => undefined);
+    frame.command({ type: "begin-text-edit", nonce: NONCE, sid: 9 });
+    expect(p.getAttribute("contenteditable")).toBe("true");
+    expect(windowFocus).toHaveBeenCalled();
+    expect(document.activeElement).toBe(p);
+    expect(window.getSelection()?.anchorNode && p.contains(window.getSelection()!.anchorNode)).toBe(true);
+    windowFocus.mockRestore();
+  });
+
+  it("a double-click selects the element and starts the edit; a click inside the edit does not re-select", () => {
+    const frame = runInspector(`<div ${SID}="3"><span ${SID.replace("1", "1")}-x="1">t</span></div><p ${SID}="4">hi</p>`);
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    frame.sent.length = 0;
+    const p = frame.root.querySelector<HTMLElement>(`[${SID}="4"]`)!;
+    frame.emit("dblclick", { target: p, preventDefault: () => undefined });
+    expect(frame.sent.map((m) => m.type)).toEqual(["select", "rect"]);
+    expect(p.getAttribute("contenteditable")).toBe("true");
+    frame.sent.length = 0;
+    frame.emit("click", { target: p, preventDefault: () => undefined });
+    expect(frame.sent).toEqual([]);
+  });
+
+  it("never makes html, head or body editable", () => {
+    const frame = runInspector(`<body ${SID}="2">x</body>`);
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    const el = frame.root.querySelector<HTMLElement>(`[${SID}="2"]`) ?? frame.root;
+    frame.command({ type: "begin-text-edit", nonce: NONCE, sid: 2 });
+    expect(el.getAttribute("contenteditable")).toBeNull();
+  });
+
   it("sends a hover only when the resolved sid changes (FE-M4)", () => {
-    const frame = runInspector('<div data-sid="3"><span id="in">t</span></div>');
+    const frame = runInspector(`<div ${SID}="3"><span id="in">t</span></div>`);
     frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
     frame.sent.length = 0;
     const inner = frame.root.querySelector("#in")!;
-    const outer = frame.root.querySelector('[data-sid="3"]')!;
+    const outer = frame.root.querySelector(`[${SID}="3"]`)!;
     // Two mouseovers that resolve to the same sid emit one message, not two.
     frame.emit("mouseover", { target: inner });
     frame.emit("mouseover", { target: outer });
@@ -280,15 +318,46 @@ describe("inspector script runtime (frame side)", () => {
   });
 
   it("clamps data-sid to the parent schema's bound (SEC F8)", () => {
-    const frame = runInspector('<p data-sid="2147483647">max</p><p data-sid="2147483648">over</p>');
+    const frame = runInspector(`<p ${SID}="2147483647">max</p><p ${SID}="2147483648">over</p>`);
     frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
     frame.sent.length = 0;
-    frame.emit("click", { target: frame.root.querySelector('[data-sid="2147483647"]'), preventDefault: () => undefined });
+    frame.emit("click", { target: frame.root.querySelector(`[${SID}="2147483647"]`), preventDefault: () => undefined });
     expect(frame.sent[0]).toMatchObject({ nonce: NONCE, type: "select", sid: 2147483647 });
     frame.sent.length = 0;
     // One past the cap is treated as no sid, so nothing is reported - matching
     // the parent schema, which would drop such a message anyway.
-    frame.emit("click", { target: frame.root.querySelector('[data-sid="2147483648"]'), preventDefault: () => undefined });
+    frame.emit("click", { target: frame.root.querySelector(`[${SID}="2147483648"]`), preventDefault: () => undefined });
     expect(frame.sent).toEqual([]);
+  });
+
+  it("reads only the nonce-named attribute: a document's own data-sid, or another nonce's, names nothing", () => {
+    const other = "data-sid-" + "f".repeat(32);
+    const frame = runInspector(`<p data-sid="1" id="plain">a</p><p ${other}="2" id="other">b</p><p ${SID}="3" id="mine">c</p>`);
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    frame.sent.length = 0;
+    frame.emit("click", { target: frame.root.querySelector("#plain"), preventDefault: () => undefined });
+    frame.emit("click", { target: frame.root.querySelector("#other"), preventDefault: () => undefined });
+    expect(frame.sent).toEqual([]);
+    // A command naming the forged sid finds no element either.
+    frame.command({ type: "select", nonce: NONCE, sid: 1 });
+    expect(frame.sent).toEqual([{ nonce: NONCE, type: "select", sid: null }]);
+    frame.sent.length = 0;
+    frame.emit("click", { target: frame.root.querySelector("#mine"), preventDefault: () => undefined });
+    expect(frame.sent[0]).toMatchObject({ type: "select", sid: 3 });
+  });
+
+  it("leaves the element's markup exactly as it was after an unchanged text edit or a cancel", () => {
+    const frame = runInspector(`<p ${SID}="4" id="p">Intro <b>bold</b> and <a href="/x">link</a></p>`);
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    const p = frame.root.querySelector("#p")!;
+    const before = p.innerHTML;
+    frame.command({ type: "begin-text-edit", nonce: NONCE, sid: 4 });
+    frame.emit("focusout", { target: p });
+    expect(frame.sent.at(-1)).toMatchObject({ type: "text-edit-commit", sid: 4, text: "Intro bold and link" });
+    expect(p.innerHTML).toBe(before);
+    expect(p.hasAttribute("contenteditable")).toBe(false);
+    frame.command({ type: "begin-text-edit", nonce: NONCE, sid: 4 });
+    frame.emit("keydown", { key: "Escape", preventDefault: () => undefined });
+    expect(p.innerHTML).toBe(before);
   });
 });

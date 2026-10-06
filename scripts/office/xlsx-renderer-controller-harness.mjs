@@ -5,7 +5,22 @@ import { REPO_ROOT } from '../office-g0/paths.mjs';
 
 const renderer = path.join(REPO_ROOT, 'packages/office-upstream/shims/xlsx-renderer');
 const upstream = path.join(REPO_ROOT, 'packages/office-upstream/upstream');
-const source = ['controller.ts', 'shifted-navigation.ts'].map(name=>fs.readFileSync(path.join(renderer,name),'utf8')).join('\n');
+// Every shim file the controller bundle reaches through a relative import
+// contributes to the stub export list (dv-reject-dialog.ts, fonts.ts, ... as
+// well as controller.ts), so a new shim file cannot fail esbuild with
+// "No matching export in stub".
+const shimFiles = new Set();
+const pending = ['controller.ts'];
+while (pending.length > 0) {
+  const name = pending.pop();
+  if (shimFiles.has(name)) continue;
+  shimFiles.add(name);
+  const text = fs.readFileSync(path.join(renderer, name), 'utf8');
+  for (const match of text.matchAll(/from\s+"\.\/([\w-]+)"/g)) {
+    if (fs.existsSync(path.join(renderer, `${match[1]}.ts`))) pending.push(`${match[1]}.ts`);
+  }
+}
+const source = [...shimFiles].map((name) => fs.readFileSync(path.join(renderer, name), 'utf8')).join('\n');
 const names = new Map();
 for (const match of source.matchAll(/import\s+(?:type\s+)?(\{[\s\S]*?\}|\w+)\s+from\s+"([^"]+)"/g)) {
   const members = match[1].replace(/[{}]/g, '').split(',').map((name) => name.trim().replace(/^type\s+/, '')).filter(Boolean);
@@ -34,19 +49,25 @@ const result = await build({
       const lines = ['const h=()=>globalThis.__xlsxControllerTest;'];
       if (args.path === 'indent') lines.push('export const INDENT_STEP_PX=9;');
       if (args.path === 'font') lines.push('export default "data:font/ttf;base64,AA==";');
-      if (args.path === 'locale') lines.push('export const t=(key)=>key;');
+      if (args.path === 'locale') lines.push('export const t=(key)=>key;', 'export const getLang=()=>"en";');
+      // Hardcoded definitions win: a scanned import of the same name
+      // (cell-input.ts imports CellValueType) must not declare it twice.
+      const declared = new Set();
       if (args.path === '@univerjs/core') {
         lines.push('export const CellValueType={STRING:1,NUMBER:2,BOOLEAN:3};');
+        declared.add('CellValueType');
       }
       for (const name of exports) {
+        if (declared.has(name)) continue;
+        declared.add(name);
         if (name === 'Direction') lines.push('export const Direction={UP:0,RIGHT:1,DOWN:2,LEFT:3};');
         else if (name === 'KeyCode') lines.push('export const KeyCode={TAB:9,ENTER:13};');
         else if (name === 'BooleanNumber') lines.push('export const BooleanNumber={TRUE:1,FALSE:0};');
         else if (name === 'WrapStrategy') lines.push('export const WrapStrategy={UNSPECIFIED:0,OVERFLOW:1,CLIP:2,WRAP:3};');
-        else if (name === 'LocaleType') lines.push('export const LocaleType={EN_US:"enUS"};');
+        else if (name === 'LocaleType') lines.push('export const LocaleType={EN_US:"enUS",VI_VN:"viVN"};');
         else if (name === 'CommandType') lines.push('export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2};');
         else if (name === 'ICommandService') lines.push('export const ICommandService="ICommandService";');
-        else if (name === 'ThemeService' || name === 'SheetInterceptorService') lines.push(`export const ${name}='${name}';`);
+        else if (name === 'ThemeService' || name === 'SheetInterceptorService' || name === 'IDialogService') lines.push(`export const ${name}='${name}';`);
         else if (name === 'createUniver') lines.push('export function createUniver(options){h().factoryOptions=options;return h().runtime;}');
         else if (name === 'journalSuppression' || name === 'loadAutoHeightSuppression') lines.push(`export const ${name}={active:false};`);
         else if (name === 'loadWorkbookSkeleton') lines.push('export function loadWorkbookSkeleton(runtime,file){h().load(file);}');
@@ -158,10 +179,14 @@ export function mountController(options = {}, environment = {}) {
         if (token === 'SheetInterceptorService') {
           if (environment.requireWorkbookServices && !file) throw new Error('sheet services require a workbook unit');
           h.sheetInterceptorLookups = (h.sheetInterceptorLookups ?? 0) + 1;
+          return { writeCellInterceptor: { intercept: () => () => {} } };
         }
         if (token === 'ICommandService') {
           return { registerCommand: (command) => { h.commands.set(command.id, command); return { dispose: () => h.commands.delete(command.id) }; } };
         }
+        // The data-validation rejection dialog taps the write interceptor and
+        // the dialog list once per renderer; neither has anything to report here.
+        if (token === 'IDialogService') return { getDialogs$: () => ({ subscribe: () => ({ unsubscribe() {} }) }) };
         return token === 'ThemeService' ? { setDarkMode: (dark) => h.dark.push(dark) } : {};
       } }),
       dispose: () => { h.disposed = true; },

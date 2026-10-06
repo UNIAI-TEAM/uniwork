@@ -1,6 +1,7 @@
 import type { TextCapability, TextEditorHandle, TextOpenFailure, TextOpenSuccess, TextSaveCoordinator, IsolatedPreviewPort } from "../source-editor-types";
 import type { AssetManifestLike, AssetStatus } from "../asset-manifest";
 import type { MarkdownPrintPort } from "../markdown/wysiwyg/print";
+import type { HtmlVisualEditHost } from "./visual/use-visual-edit";
 
 export type HtmlEditorHandle<TSnapshot = unknown> = TextEditorHandle<TSnapshot>;
 export type HtmlOpenOutcome = TextOpenSuccess | (TextOpenFailure & { format: "html" });
@@ -22,6 +23,13 @@ export interface HtmlEditorProps<TSnapshot = unknown> {
    * all, so the web host and its tests are unchanged; a host that injects
    * one gets the same sanitized-copy entry the Markdown surface has. */
   printPort?: MarkdownPrintPort;
+  /**
+   * The visual editor host (browser parse map + engine `applyPatchSet`). With
+   * none, or with the `office_html_visual_edit` flag off, the editor is exactly
+   * the source / split / preview / present surface: no inspector mount, no
+   * float toolbar, no style panel. Desktop injects none today.
+   */
+  visualEdit?: HtmlVisualEditHost;
   title?: string;
   className?: string;
   onOpen?: (outcome: HtmlOpenOutcome) => void;

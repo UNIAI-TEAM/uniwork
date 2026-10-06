@@ -4,13 +4,26 @@ import type { XlsxToolbarCommands } from "./toolbar/types";
  *  synchronous execution meets a promise-returning handler. */
 const ASYNC_HANDLER_ERROR = "[CommandService]: Command handler should not return a promise.";
 
+/** Row/column insert and delete: a refusal here changes nothing on the grid,
+ *  so the person is told instead of seeing a silent no-op. */
+const STRUCTURAL_COMMAND = /^sheet\.command\.(insert-(row|col|multi-rows|multi-cols)|remove-(row|col))/;
+
+const refusalListeners = new Set<(commandId: string) => void>();
+
+/** Subscribes to refused structural commands (the frame notice); returns the unsubscribe. */
+export function subscribeCommandRefusals(listener: (commandId: string) => void): () => void {
+  refusalListeners.add(listener);
+  return () => { refusalListeners.delete(listener); };
+}
+
 /** Fires one toolbar command-port dispatch and marks the returned promise
  *  explicitly ignored, so a deliberate fire-and-forget is never a floating
  *  promise. The command is dispatched exactly once: a synchronous refusal (or
  *  the pinned async-handler TypeError) is absorbed, and an async rejection or a
  *  resolved `false` - a refused command, never silence - is reported through
- *  `onError` (a console warning by default). A refused command must never
- *  unmount the toolbar, so nothing is rethrown. */
+ *  `onError` (a console warning by default; a refused structural command also
+ *  reaches the frame notice). A refused command must never unmount the
+ *  toolbar, so nothing is rethrown. */
 export function fireCommand(
   commands: XlsxToolbarCommands | undefined,
   id: string,
@@ -18,7 +31,11 @@ export function fireCommand(
   onError?: (message: string) => void,
 ): void {
   if (!commands) return;
-  const report = onError ?? ((message: string) => console.warn(`[xlsx-command] ${message}`));
+  const warn = onError ?? ((message: string) => console.warn(`[xlsx-command] ${message}`));
+  const report = (message: string) => {
+    warn(message);
+    if (STRUCTURAL_COMMAND.test(id)) refusalListeners.forEach((listener) => listener(id));
+  };
   try {
     // Preserve the caller's original call arity: a no-params command must be
     // dispatched as execute(id), not execute(id, undefined), so the

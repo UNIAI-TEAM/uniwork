@@ -237,6 +237,9 @@ catalogs:
     numfmt:
       specifier: 3.2.6
       version: 3.2.6
+    parse5:
+      specifier: 7.3.0
+      version: 7.3.0
     pdf-lib:
       specifier: 1.17.1
       version: 1.17.1
@@ -563,6 +566,9 @@ importers:
       next:
         specifier: ^16.3.8
         version: 16.3.8(@playwright/test@1.62.1)(@types/node@25.9.5)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      parse5:
+        specifier: 'catalog:'
+        version: 7.3.0
       react:
         specifier: 'catalog:'
         version: 19.2.3
@@ -810,6 +816,9 @@ importers:
       eslint:
         specifier: ^9.32.0
         version: 9.39.5(jiti@2.7.0)
+      jsdom:
+        specifier: 'catalog:'
+        version: 26.1.0
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

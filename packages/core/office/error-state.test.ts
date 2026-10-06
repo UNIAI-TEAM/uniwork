@@ -89,6 +89,10 @@ describe("office error dispatch", () => {
     expect(dispatchOfficeError({ code: "stale_generation" })).toMatchObject({ state: "error", action: "keep_draft" });
   });
 
+  it("keeps a dropped-rule-set save refusal non-terminal and not automatically retried", () => {
+    expect(dispatchOfficeError({ code: "xlsx_rule_sets_dropped", errorClass: "engine" })).toMatchObject({ state: "error", action: "retry", retryable: false, ambiguous: false });
+  });
+
   it.each([
     ["file_locked", "retry", true],
     ["file_write_failed", "retry", true],

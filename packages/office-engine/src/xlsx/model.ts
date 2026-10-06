@@ -34,8 +34,19 @@ import {
 } from "./ops.ts";
 import { groupXlsxPageSetupStates, isXlsxPageSetupOp, type XlsxPageSetupFields, type XlsxPageSetupOp, type XlsxSheetPageSetupState } from "./page-setup.ts";
 import { groupXlsxTableAdditions, isXlsxTableOp, type XlsxTableAddOp } from "./tables.ts";
+import { foldXlsxVisualOp, groupXlsxVisualAdditions, isXlsxVisualOp, type XlsxSheetVisualAddition, type XlsxVisualSetOp } from "./ops-visuals.ts";
 import { groupXlsxSheetProtectionStates, isXlsxSheetProtectionOp, type XlsxSheetProtectionOp, type XlsxSheetProtectionState } from "./ops-protection.ts";
 import { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, type XlsxDefinedNamesOp, type XlsxDefinedNamesState } from "./ops-names.ts";
+import {
+  isXlsxRuleSetOp,
+  pendingConditionalFormatStates,
+  pendingDataValidationStates,
+  withRuleSetOp,
+  withoutRuleSetFamily,
+  type XlsxRuleSetEntry,
+  type XlsxSheetConditionalFormatState,
+  type XlsxSheetDataValidationState,
+} from "./ops-cf-dv.ts";
 
 import { overlayCells, type ModelCheckpoint, type ModelSheetState, type PendingCell, type RemovedSheetState, type XlsxSheetEditPlan } from "./model-state.ts";
 import { XlsxSheetOps } from "./model-sheet-ops.ts";
@@ -57,9 +68,12 @@ function sheetOpsFor(model: XlsxSessionModel): XlsxSheetOps {
     pageSetups: model.pageSetups,
     get tables() { return model.tables; },
     set tables(value) { model.tables = value; },
+    get visuals() { return model.visuals; },
+    set visuals(value) { model.visuals = value; },
     sheetProtections: model.sheetProtections,
     hyperlinks: model.hyperlinks,
     notes: model.notes,
+    ruleSets: model.ruleSets,
     get sheetOrderChanged() { return model.sheetOrderChanged; },
     set sheetOrderChanged(value) { model.sheetOrderChanged = value; },
     get sheetOpsApplied() { return model.sheetOpsApplied; },
@@ -101,6 +115,10 @@ export class XlsxSessionModel {
    *  The key is the sheet's CURRENT name; a rename rewrites it, a removal
    *  drops the sheet's tables (nothing may reach a deleted part). */
   tables: XlsxTableAddOp[] = [];
+  /** Visual additions (B8): charts, pictures and shapes inserted this session,
+   *  in first-insert order; a set_visual with a pending id replaces it in
+   *  place, remove_visual drops it. Keyed by CURRENT sheet name like tables. */
+  visuals: XlsxVisualSetOp[] = [];
   /** Declarative sheet-protection journal: the LAST protection op per sheet,
    *  in first-touch order (whole-sheet, like filters). Keyed by CURRENT name. */
   sheetProtections = new Map<string, XlsxSheetProtectionOp>();
@@ -115,6 +133,11 @@ export class XlsxSessionModel {
    *  in first-touch order (like filters). The map key is the sheet's CURRENT
    *  name; a rename rewrites it. */
   notes = new Map<string, XlsxNotesOp>();
+  /** Declarative CF/DV journal (X01): per sheet, the LAST whole-sheet
+   *  conditional-format and data-validation snapshots, in first-touch order
+   *  (like notes). The map key is the sheet's CURRENT name; a rename
+   *  rewrites it. */
+  ruleSets = new Map<string, XlsxRuleSetEntry>();
   /** Ordered sheet registry: file sheets in tab order, plus additions. Ops
    *  are applied in emission order, so every entry's `name` is current. */
   /** Non-private so the FIX-926-D sheet-op module (model-sheet-ops.ts) can
@@ -167,10 +190,12 @@ export class XlsxSessionModel {
       filters: this.filters,
       pageSetups: this.pageSetups,
       tables: this.tables,
+      visuals: this.visuals,
       sheetProtections: this.sheetProtections,
       definedNames: this.definedNames,
       hyperlinks: this.hyperlinks,
       notes: this.notes,
+      ruleSets: this.ruleSets,
       sheetStates: this.sheetStates,
       removedOriginals: this.removedOriginals,
       removedStates: this.removedStates,
@@ -189,10 +214,12 @@ export class XlsxSessionModel {
     this.filters = new Map(checkpoint.filters);
     this.pageSetups = new Map(checkpoint.pageSetups);
     this.tables = checkpoint.tables;
+    this.visuals = checkpoint.visuals;
     this.sheetProtections = new Map(checkpoint.sheetProtections);
     this.definedNames = checkpoint.definedNames;
     this.hyperlinks = new Map(checkpoint.hyperlinks);
     this.notes = new Map(checkpoint.notes);
+    this.ruleSets = new Map(checkpoint.ruleSets);
     this.sheetStates = checkpoint.sheetStates;
     this.removedOriginals = checkpoint.removedOriginals;
     this.removedStates = new Map(checkpoint.removedStates);
@@ -264,12 +291,26 @@ export class XlsxSessionModel {
       this.applyTableOp(op);
       return;
     }
+    if (isXlsxVisualOp(op)) {
+      this.visuals = foldXlsxVisualOp(this.visuals, op);
+      this.touched = true;
+      this.revision += 1;
+      return;
+    }
     if (isXlsxHyperlinkOp(op)) {
       this.applyHyperlinkOp(op);
       return;
     }
     if (isXlsxNotesOp(op)) {
       this.applyNotesOp(op);
+      return;
+    }
+    if (isXlsxRuleSetOp(op)) {
+      // CF/DV snapshots are whole-sheet and final at emission: last write per
+      // family wins, nothing shifts (the renderer re-snapshots after a shift).
+      this.ruleSets.set(op.sheetName, withRuleSetOp(this.ruleSets.get(op.sheetName), op));
+      this.touched = true;
+      this.revision += 1;
       return;
     }
     if (isXlsxStructuralOp(op)) {
@@ -519,6 +560,12 @@ export class XlsxSessionModel {
     return groupXlsxTableAdditions(this.tables);
   }
 
+  /** The visual additions for the gateway visualAdditions argument (patch
+   *  0010), in first-insert order. Empty when the session inserted none. */
+  pendingVisualAdditions(): XlsxSheetVisualAddition[] {
+    return groupXlsxVisualAdditions(this.visuals);
+  }
+
   /** The protection plan for the gateway sheetProtections argument: one
    *  declarative flag per touched sheet, last write per sheet, first-touch
    *  order. Empty when the session has no protection edits. */
@@ -544,6 +591,26 @@ export class XlsxSessionModel {
    *  Empty when the session has no note edits. */
   pendingNoteStates(): XlsxSheetNoteState[] {
     return groupXlsxNoteStates([...this.notes.values()]);
+  }
+
+  /** The gateway's cfStates argument (X01): one whole-sheet rule set per
+   *  touched sheet, in first-touch order. Empty without CF edits. */
+  pendingConditionalFormatStates(): XlsxSheetConditionalFormatState[] {
+    return pendingConditionalFormatStates(this.ruleSets.values());
+  }
+
+  /** The gateway's dvStates argument (X01), same shape as the CF one. */
+  pendingDataValidationStates(): XlsxSheetDataValidationState[] {
+    return pendingDataValidationStates(this.ruleSets.values());
+  }
+
+  /** Drop one family's snapshot of a sheet after the save named it
+   *  unsaveable (adapter-rule-sets.ts), so later saves are not blocked. */
+  discardRuleSet(sheetName: string, family: "conditionalFormats" | "dataValidations"): void {
+    const entry = withoutRuleSetFamily(this.ruleSets.get(sheetName), family);
+    if (entry) this.ruleSets.set(sheetName, entry);
+    else this.ruleSets.delete(sheetName);
+    this.revision += 1;
   }
 
   /** Edits in insertion order (last write wins per cell already applied). */
@@ -613,7 +680,9 @@ export class XlsxSessionModel {
     this.filters.clear();
     this.pageSetups.clear();
     this.tables = [];
+    this.visuals = [];
     this.sheetProtections.clear();
+    this.ruleSets.clear();
     this.definedNames = undefined;
     this.sheetStates = newSnapshot.sheets.map((sheet) => ({
       key: sheet.name,

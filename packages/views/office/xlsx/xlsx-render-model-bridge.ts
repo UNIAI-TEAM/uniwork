@@ -84,6 +84,23 @@ export interface RendererWorkbookSheet {
   tables: RendererWorkbookTable[];
   comments: never[];
   pivotRanges: never[];
+  /** X01: per family, whether the file ships no rules, classic rules, or
+   *  Excel extended (x14) rules the declarative save cannot rewrite. The
+   *  loader ignores it; the renderer's rule-set policy and the DV/CF ribbon
+   *  groups read it. */
+  ruleSets?: { conditionalFormats: XlsxRuleSetFileState; dataValidations: XlsxRuleSetFileState };
+  /** The file's raw classic rule element counts per family (review r2 M-B):
+   *  the policy refuses a family whose installed rules fall short of it. */
+  ruleCounts?: { conditionalFormats: number; dataValidations: number };
+}
+
+type XlsxRuleSetFileState = "none" | "classic" | "x14";
+
+/** A rule the parser skipped (no priority, an unreadable sqref) still counts:
+ *  the raw element count makes the family classic (review r2 m-4). */
+function ruleSetFileState(x14: boolean | undefined, rules: readonly unknown[] | undefined, raw: number | undefined): XlsxRuleSetFileState {
+  if (x14) return "x14";
+  return (rules && rules.length > 0) || (raw ?? 0) > 0 ? "classic" : "none";
 }
 
 type RendererWorkbookStyle = XlsxRenderStyle;
@@ -112,7 +129,7 @@ export interface RendererRangeResult {
   conditionalRules: NonNullable<XlsxRenderSheet["conditionalRules"]>[number][];
   autoFilter: null;
   autoFilterColumns: never[];
-  dataValidations: never[];
+  dataValidations: NonNullable<XlsxRenderSheet["dataValidations"]>[number][];
   sheetProtection: null;
   protectedRanges: never[];
   pageSetup: null;
@@ -214,6 +231,11 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet, styles: readonly XlsxRe
     tables: (sheet.tables ?? []).map((table) => toRendererWorkbookTable(table)),
     comments: [],
     pivotRanges: [],
+    ruleSets: {
+      conditionalFormats: ruleSetFileState(sheet.x14ConditionalFormats, sheet.conditionalRules, sheet.ruleCounts?.conditionalFormats),
+      dataValidations: ruleSetFileState(sheet.x14DataValidations, sheet.dataValidations, sheet.ruleCounts?.dataValidations),
+    },
+    ...(sheet.ruleCounts ? { ruleCounts: { ...sheet.ruleCounts } } : {}),
   };
 }
 
@@ -290,7 +312,17 @@ export function readRangeFromModel(model: XlsxRenderModel, sheetIdOrName: string
     })),
     autoFilter: null,
     autoFilterColumns: [],
-    dataValidations: [],
+    // X01: sheet-wide like CF - the pinned loader installs them once (it
+    // marks the sheet even without rules, which unlocks DV/CF editing).
+    // An absent errorStyle is OOXML's "stop" (the save writes Univer's STOP
+    // that way); the loader would install it as undefined, which Univer
+    // treats as allow-invalid, so a reopened rule would stop rejecting.
+    // Without showErrorMessage Excel accepts invalid input silently: those
+    // keep the absent style.
+    dataValidations: (sheet.dataValidations ?? []).map((rule) => ({ ...rule,
+      ranges: rule.ranges.map((area) => ({ ...area })), formulas: [...rule.formulas],
+      ...(rule.errorStyle === undefined && rule.showErrorMessage ? { errorStyle: "stop" } : {}),
+    })),
     sheetProtection: null,
     protectedRanges: [],
     pageSetup: null,

@@ -9071,6 +9071,9 @@
         "file_engine_unavailable": "Bản UniWork Office này chưa xử lý được loại tệp này trên máy.",
         "file_failed": "Không xử lý được tệp. Thử lại."
       },
+      "fix": {
+        "xlsx_recalc_unavailable": "Cài bản UniWork Office mới nhất (có kèm bộ tính lại công thức), hoặc tải sổ tính lên UniWork rồi lưu ở đó."
+      },
       "short": {
         "checkpoint": "Nháp trên máy",
         "saved-local": "Đã lưu trên máy",
@@ -9311,6 +9314,47 @@
         "none": "Chưa chọn ô",
         "range": "{{sheet}}!{{address}}"
       },
+      "visuals": {
+        "groups": { "illustrations": "Minh họa" },
+        "chartTypes": {
+          "column": "Cột",
+          "bar": "Thanh",
+          "line": "Đường",
+          "area": "Vùng",
+          "pie": "Tròn",
+          "doughnut": "Vành khuyên"
+        },
+        "shapeTypes": {
+          "rect": "Hình chữ nhật",
+          "roundRect": "Hình chữ nhật bo góc",
+          "ellipse": "Hình elip",
+          "triangle": "Tam giác",
+          "rightArrow": "Mũi tên phải",
+          "leftArrow": "Mũi tên trái",
+          "line": "Đường thẳng"
+        },
+        "chart": { "needsRange": "Chọn vùng có ít nhất hai ô để chèn biểu đồ." },
+        "picture": { "insert": "Hình ảnh", "label": "Chọn hình ảnh từ máy" },
+        "shape": { "insert": "Hình dạng" },
+        "item": {
+          "chart": "Biểu đồ {{type}} {{title}}",
+          "shape": "Hình: {{type}}",
+          "picture": "Hình ảnh",
+          "roleDescription": "đối tượng vẽ",
+          "keyboardHelp": "Phím mũi tên để di chuyển, Shift + mũi tên để đổi kích thước, Delete để xóa, Esc để quay lại trang tính.",
+          "locked": "Đã lưu vào tệp. Chưa sửa được hình đã lưu.",
+          "delete": "Xóa {{name}}"
+        },
+        "errors": {
+          "noChartData": "Vùng đã chọn không có số liệu để vẽ biểu đồ.",
+          "chartClipped": "Biểu đồ chỉ dùng 1.000 hàng và 24 chuỗi dữ liệu đầu tiên của vùng chọn.",
+          "picture": {
+            "type": "Chỉ chèn được ảnh PNG, JPEG hoặc GIF.",
+            "size": "Ảnh tối đa 512 KB.",
+            "unreadable": "Không đọc được ảnh này."
+          }
+        }
+      },
       "capabilityPending": "Tính năng này chưa được hỗ trợ.",
       "clipboardUnavailable": "Trình duyệt này chưa cho phép truy cập bảng nhớ tạm.",
       "state": {
@@ -9354,33 +9398,33 @@
       },
       "structure": {
         "groups": {
-          "insert": "Chèn dòng và cột",
-          "size": "Kích thước dòng, cột",
+          "insert": "Chèn hàng và cột",
+          "size": "Kích thước hàng, cột",
           "outline": "Nhóm theo cấp",
           "merge": "Gộp ô"
         },
-        "rowCount": "Số dòng",
+        "rowCount": "Số hàng",
         "colCount": "Số cột",
-        "insertRowsAbove": "Chèn dòng phía trên",
-        "insertRowsAbove_one": "Chèn {{count}} dòng phía trên",
-        "insertRowsAbove_other": "Chèn {{count}} dòng phía trên",
-        "insertRowsBelow": "Chèn dòng phía dưới",
-        "deleteRows": "Xóa các dòng đã chọn",
+        "insertRowsAbove": "Chèn hàng phía trên",
+        "insertRowsAbove_one": "Chèn {{count}} hàng phía trên",
+        "insertRowsAbove_other": "Chèn {{count}} hàng phía trên",
+        "insertRowsBelow": "Chèn hàng phía dưới",
+        "deleteRows": "Xóa các hàng đã chọn",
         "insertColsLeft": "Chèn cột bên trái",
         "insertColsLeft_one": "Chèn {{count}} cột bên trái",
         "insertColsLeft_other": "Chèn {{count}} cột bên trái",
         "insertColsRight": "Chèn cột bên phải",
         "deleteCols": "Xóa các cột đã chọn",
-        "rowHeight": "Chiều cao dòng (điểm)",
-        "resetRowHeight": "Dùng chiều cao dòng tự động",
-        "hideRows": "Ẩn các dòng đã chọn",
-        "showRows": "Hiện các dòng đã chọn",
+        "rowHeight": "Chiều cao hàng (điểm)",
+        "resetRowHeight": "Dùng chiều cao hàng tự động",
+        "hideRows": "Ẩn các hàng đã chọn",
+        "showRows": "Hiện các hàng đã chọn",
         "colWidth": "Chiều rộng cột (ký tự)",
         "resetColWidth": "Dùng chiều rộng cột mặc định",
         "hideCols": "Ẩn các cột đã chọn",
         "showCols": "Hiện các cột đã chọn",
-        "groupRows": "Nhóm dòng",
-        "ungroupRows": "Bỏ nhóm dòng",
+        "groupRows": "Nhóm hàng",
+        "ungroupRows": "Bỏ nhóm hàng",
         "groupCols": "Nhóm cột",
         "ungroupCols": "Bỏ nhóm cột",
         "clearOutline": "Xóa phân cấp nhóm",
@@ -9425,6 +9469,60 @@
           "lessThanOrEqual": "Nhỏ hơn hoặc bằng"
         }
       },
+      "dataValidation": {
+        "groups": {
+          "data": "Công cụ dữ liệu"
+        },
+        "open": "Xác thực dữ liệu…",
+        "clear": "Xóa xác thực",
+        "dialog": {
+          "title": "Xác thực dữ liệu",
+          "close": "Đóng xác thực dữ liệu",
+          "range": "Áp dụng cho",
+          "allow": "Cho phép",
+          "source": "Nguồn",
+          "sourceHint": "Phân tách các mục bằng dấu phẩy",
+          "operator": "Dữ liệu",
+          "value": "Giá trị",
+          "minimum": "Nhỏ nhất",
+          "maximum": "Lớn nhất",
+          "errorSection": "Thông báo lỗi",
+          "errorTitle": "Tiêu đề (không bắt buộc)",
+          "errorMessage": "Nội dung (không bắt buộc)",
+          "apply": "Áp dụng",
+          "cancel": "Hủy"
+        },
+        "types": {
+          "list": "Danh sách",
+          "whole": "Số nguyên",
+          "decimal": "Số thập phân",
+          "date": "Ngày"
+        },
+        "operators": {
+          "between": "giữa",
+          "notBetween": "không nằm giữa",
+          "equal": "bằng",
+          "notEqual": "khác",
+          "greaterThan": "lớn hơn",
+          "greaterThanOrEqual": "lớn hơn hoặc bằng",
+          "lessThan": "nhỏ hơn",
+          "lessThanOrEqual": "nhỏ hơn hoặc bằng"
+        },
+        "errors": {
+          "listEmpty": "Nhập ít nhất một mục.",
+          "listEmptyItem": "Mục không được để trống. Hãy xóa dấu phẩy thừa.",
+          "listBadChar": "Mục không được chứa dấu ngoặc kép.",
+          "listTooLong": "Danh sách chứa tối đa 255 ký tự.",
+          "numberRequired": "Nhập một số.",
+          "wholeRequired": "Nhập một số nguyên.",
+          "dateRequired": "Nhập một ngày hợp lệ.",
+          "rangeOrder": "Giá trị lớn nhất không được nhỏ hơn giá trị nhỏ nhất.",
+          "titleTooLong": "Tiêu đề chứa tối đa 32 ký tự.",
+          "messageTooLong": "Nội dung chứa tối đa 255 ký tự.",
+          "x14Sheet": "Trang tính này có xác thực dữ liệu mở rộng của Excel mà chưa thể chỉnh sửa tại đây. Hãy chỉnh xác thực dữ liệu của trang tính trong Excel.",
+          "refused": "Chưa áp dụng được quy tắc. Trang tính này có quy tắc mà trình soạn thảo chưa lưu được, hoặc các quy tắc hiện có vẫn đang tải: hãy mở trang tính rồi thử lại. Nếu vẫn không được, trang tính giữ nguyên các quy tắc như trong tệp; hãy lưu và mở lại tệp để thử lại."
+        }
+      },
       "sort": {
         "groups": {
           "data": "Sắp xếp"
@@ -9445,6 +9543,71 @@
           "note": "Sắp xếp một cấp. Sắp xếp nhiều cấp chưa được hỗ trợ.",
           "apply": "Áp dụng",
           "cancel": "Hủy"
+        }
+      },
+      "conditionalFormat": {
+        "dropped": {
+          "title": "Một số quy tắc chưa lưu được nên đã được bỏ qua.",
+          "item": "{{family}}: trang tính {{sheet}}",
+          "familyConditionalFormats": "Định dạng có điều kiện",
+          "familyDataValidations": "Xác thực dữ liệu",
+          "more": "và {{count}} mục khác",
+          "saveAgain": "Hãy bấm Lưu lần nữa để lưu các thay đổi còn lại. Các quy tắc vẫn giữ nguyên trong tệp."
+        },
+        "groups": {
+          "home": "Kiểu"
+        },
+        "menu": {
+          "label": "Định dạng có điều kiện",
+          "greaterThan": "Lớn hơn…",
+          "lessThan": "Nhỏ hơn…",
+          "between": "Nằm giữa…",
+          "containsText": "Văn bản chứa…",
+          "duplicateValues": "Giá trị trùng lặp…",
+          "clearSelection": "Xóa quy tắc khỏi ô đã chọn",
+          "clearSheet": "Xóa quy tắc khỏi toàn bộ trang tính"
+        },
+        "titles": {
+          "greaterThan": "Lớn hơn",
+          "lessThan": "Nhỏ hơn",
+          "between": "Nằm giữa",
+          "containsText": "Văn bản chứa",
+          "duplicateValues": "Giá trị trùng lặp"
+        },
+        "descriptions": {
+          "greaterThan": "Định dạng các ô LỚN HƠN:",
+          "lessThan": "Định dạng các ô NHỎ HƠN:",
+          "between": "Định dạng các ô NẰM GIỮA:",
+          "containsText": "Định dạng các ô chứa văn bản:",
+          "duplicateValues": "Định dạng các ô chứa:"
+        },
+        "dialog": {
+          "close": "Đóng",
+          "cancel": "Hủy",
+          "ok": "OK",
+          "value": "Giá trị",
+          "minimum": "Nhỏ nhất",
+          "maximum": "Lớn nhất",
+          "and": "và",
+          "text": "Văn bản",
+          "duplicate": "Giá trị trùng lặp",
+          "with": "với",
+          "sample": "AaBbCc"
+        },
+        "styles": {
+          "lightRedDarkRed": "Tô nền đỏ nhạt, chữ đỏ đậm",
+          "yellowDarkYellow": "Tô nền vàng, chữ vàng đậm",
+          "greenDarkGreen": "Tô nền xanh lá, chữ xanh lá đậm",
+          "lightRedFill": "Tô nền đỏ nhạt",
+          "redText": "Chữ đỏ"
+        },
+        "errors": {
+          "invalidNumber": "Nhập một số hợp lệ.",
+          "invalidRange": "Giá trị nhỏ nhất không được lớn hơn giá trị lớn nhất.",
+          "emptyText": "Nhập văn bản cần tìm.",
+          "textTooLong": "Văn bản tối đa 255 ký tự.",
+          "x14Sheet": "Trang tính này có định dạng có điều kiện mở rộng của Excel (như thanh dữ liệu) mà chưa thể chỉnh sửa tại đây. Hãy chỉnh các quy tắc của trang tính trong Excel.",
+          "refused": "Chưa áp dụng được quy tắc. Trang tính này có quy tắc mà trình soạn thảo chưa lưu được, hoặc các quy tắc hiện có vẫn đang tải: hãy mở trang tính rồi thử lại. Nếu vẫn không được, trang tính giữ nguyên các quy tắc như trong tệp; hãy lưu và mở lại tệp để thử lại."
         }
       },
       "table": {
@@ -9731,7 +9894,10 @@
         "capabilityUnavailable": "Chưa thể chỉnh sửa sổ tính XLSX này.",
         "rendererFailed": "Không thể hiển thị sổ tính. Thử mở lại.",
         "editFailed": "Không thể áp dụng thay đổi này. Mở lại sổ tính trước khi lưu.",
-        "clipboardFailed": "Không thể truy cập bảng tạm. Kiểm tra quyền của trình duyệt rồi thử lại."
+        "commandRefused": "Không thể áp dụng thay đổi hàng hoặc cột. Kiểm tra vùng chọn rồi thử lại.",
+        "dismiss": "Đóng",
+        "clipboardFailed": "Không thể truy cập bảng tạm. Kiểm tra quyền của trình duyệt rồi thử lại.",
+        "richPasteValuesOnly": "Không giữ được định dạng khi dán nên chỉ dán giá trị."
       },
       "find": {
         "title": "Tìm và thay thế",
@@ -9850,7 +10016,14 @@
         "appRecalcPartial": "Đã tính lại công thức từ các sửa đổi — {{count}} ô giữ giá trị đã lưu (hàm mà công cụ dự phòng không hỗ trợ).",
         "appSheetStillIndexing": "Trang tính vẫn đang lập chỉ mục — thử lại sau giây lát.",
         "appAreaStreaming": "Khu vực này của trang tính vẫn đang tải — thử lại sau giây lát.",
-        "appStreamingRows": "Đang truyền {{name}}: {{rows}} hàng khả dụng."
+        "appStreamingRows": "Đang truyền {{name}}: {{rows}} hàng khả dụng.",
+        "dvRejectTitle": "Giá trị không hợp lệ",
+        "dvRejectOk": "Đã hiểu",
+        "dvRejectClose": "Đóng",
+        "dvInvalidHint": "Giá trị không hợp lệ:",
+        "dvListError": "Chọn một giá trị trong danh sách.",
+        "dvListDropdown": "Chọn một giá trị",
+        "dvListEdit": "Sửa"
       }
     },
     "markdown": {
@@ -10095,6 +10268,9 @@
         "imageUrlRefused": "Không thể chèn URL ảnh này",
         "imageUrlInsert": "Chèn",
         "hr": "Đường kẻ ngang"
+      },
+      "visual": {
+        "refused": "Không thể áp dụng thay đổi này cho phần tử này."
       },
       "float": {
         "label": "Sửa nhanh",
@@ -11717,6 +11893,7 @@
       "emptySearchDescription": "Không có tài liệu nào khớp từ khóa tìm kiếm.",
       "fileOpenQueued": "Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.",
       "actionError": "Không thể thực hiện thao tác. Thử lại.",
+      "printBusy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
       "back": "Về thư viện",
       "untitled": "Tài liệu mới.docx",
       "saveLocal": "Lưu tệp",

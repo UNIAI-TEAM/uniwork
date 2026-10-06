@@ -34,6 +34,7 @@ export {
   setAttr,
   setInnerHtml,
   setStyle,
+  setStyleDeclarations,
   setTag,
   setText,
   setTextNode,

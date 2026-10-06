@@ -4,13 +4,13 @@ import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { HtmlFloatToolbar, type HtmlFloatToolbarCommands, type HtmlFloatToolbarState } from "./float-toolbar";
-import { HTML_SELECTION_FLAG, type HtmlSelection } from "../selection/model";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection } from "../selection/model";
 
 /** A mutable flag mock, the pattern bridge.test.tsx uses: the suite flips the
  * key and the toolbar re-reads it on the next render. */
 const flagMock = vi.hoisted(() => ({ value: false }));
 vi.mock("@uniwork/core/feature-flags", () => ({
-  useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_selection" ? flagMock.value : fallback),
+  useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_edit" ? flagMock.value : fallback),
 }));
 
 initI18n();
@@ -262,6 +262,6 @@ describe("HtmlFloatToolbar callbacks", () => {
 
 describe("the flag key", () => {
   it("is the same key H5 uses (one hidden surface, not two)", () => {
-    expect(HTML_SELECTION_FLAG).toBe("office_html_visual_selection");
+    expect(OFFICE_HTML_VISUAL_EDIT_FLAG).toBe("office_html_visual_edit");
   });
 });

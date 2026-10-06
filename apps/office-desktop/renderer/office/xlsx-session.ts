@@ -2,7 +2,7 @@
 import { createSaveSettleGate } from "@uniwork/core/office";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
-import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, stableJson, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
+import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, parseRuleSetDrops, planRuleSetDrops, ruleSetDropMessage, ruleSetsDroppedError, stableJson, withoutOperationsAt, withoutPendingOps, withPendingOps, type XlsxDroppedRuleSet, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopOfficeJobResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata, type DesktopOfficeJobRequest } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
@@ -83,6 +83,9 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
   let opening: Promise<void> | null = null;
   let pending: { revision: number; operation: Record<string, unknown> }[] = [];
   let baseRevision = options.baseRevision;
+  let dropped: XlsxDroppedRuleSet[] = [];
+  // Every op this session already committed, oldest first (rule-set restore).
+  let committedOps: unknown[] = [];
   let lastCommit: { intentId: string; revision: string } | null = null;
   const candidates = new Map<string, { baseRevision: string; snapshot: XlsxWorkbookSnapshot; operations: Record<string, unknown>[]; output?: { bytes: Uint8Array; checksum: string } }>();
   const rendererHostRef: DesktopRenderModelRef = { current: null, listeners: new Set() };
@@ -100,7 +103,10 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
   };
   const callJob = async (body: Omit<DesktopOfficeJobRequest, "sessionGeneration" | "workspaceId" | "documentId" | "format">) => {
     const response = desktopOfficeJobResponseSchema.parse(await options.bridge.call("desktop:office-job", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId, format: "xlsx", ...body }));
-    if (response.state !== "completed" || response.outputBase64 === undefined) throw new Error(`office_job_${response.state}`);
+    if (response.state !== "completed" || response.outputBase64 === undefined) {
+      // The engine's rule-set refusal rides as the error message; no other reason crosses.
+      throw new Error(response.errorReason ?? `office_job_${response.state}`);
+    }
     return response;
   };
   const runOpenJob = async (): Promise<{ snapshot: XlsxWorkbookSnapshot; renderModel: XlsxRenderModel }> => {
@@ -132,6 +138,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
       })().catch((error: unknown) => { opening = null; throw error; });
       try { await opening; } finally { opening = null; }
     },
+    droppedRuleSets: () => dropped.map((entry) => ({ ...entry })),
     getDirtyGeneration: () => generation,
     async captureSnapshot() {
       if (!snapshot) throw new Error("xlsx_snapshot_unavailable");
@@ -153,6 +160,7 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
       disposed = true;
       snapshot = null;
       committed = null;
+      committedOps = [];
       pending = [];
       candidates.clear();
       publishRenderModel(null);
@@ -184,7 +192,28 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
       if (candidate.baseRevision !== baseRevision) throw new Error("xlsx_save_base_changed");
       const captured = candidate;
       if (!captured.output) {
-        const response = await callJob({ operation: "edit", baseRevision: captured.baseRevision, edits: captured.operations });
+        let response: Awaited<ReturnType<typeof callJob>>;
+        try {
+          response = await callJob({ operation: "edit", baseRevision: captured.baseRevision, edits: captured.operations });
+        } catch (error) {
+          // The engine refused journalled CF/DV rule sets: drop exactly the
+          // planned ops (candidate, pending list, live op stream); the next
+          // explicit Save re-runs without them.
+          const refusals = parseRuleSetDrops(ruleSetDropMessage(error));
+          if (!refusals) throw error;
+          const later = pending.filter((entry) => entry.revision > captured.snapshot.revision).map((entry) => entry.operation);
+          const plan = planRuleSetDrops(refusals, captured.operations, committedOps, later);
+          dropped = plan.drops;
+          captured.operations = withoutOperationsAt(captured.operations, plan.indexes);
+          pending = withoutOperationsAt(pending, plan.indexes);
+          const live = (snapshot as { pendingOps?: readonly unknown[] } | null)?.pendingOps;
+          if (snapshot && Array.isArray(live)) {
+            const kept = withoutOperationsAt(live, plan.indexes);
+            snapshot = kept.length ? withPendingOps(withoutPendingOps(snapshot), kept) : withoutPendingOps(snapshot);
+          }
+          throw ruleSetsDroppedError();
+        }
+        dropped = [];
         const bytes = decode(response.outputBase64!);
         captured.output = { bytes, checksum: response.outputChecksum ?? `sha256:${await fingerprint(captured.snapshot)}` };
       }
@@ -202,7 +231,11 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
       gate.markRebase();
       outputs.delete(intent.intentId);
       const candidate = candidates.get(intent.intentId);
-      if (candidate) { committed = structuredClone(candidate.snapshot); pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision); baseRevision = result.revision; lastCommit = { intentId: intent.intentId, revision: result.revision }; candidates.clear(); }
+      if (candidate) { committedOps.push(...candidate.operations); committed = structuredClone(candidate.snapshot); pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision); baseRevision = result.revision; lastCommit = { intentId: intent.intentId, revision: result.revision }; candidates.clear(); }
+      // F4: the live stream keeps exactly the edits the committed file lacks (typed
+      // during the in-flight save or after), so a draft taken now recovers them and
+      // never replays what the save already wrote.
+      if (candidate && snapshot) { const kept = pending.map((entry) => entry.operation); snapshot = kept.length ? withPendingOps(withoutPendingOps(snapshot), kept) : withoutPendingOps(snapshot); }
       return { intentId: result.intentId, idempotencyKey: result.idempotencyKey, documentId: result.documentId, versionId: result.versionId, revision: result.revision, checksumSha256: result.checksum, sizeBytes: output.sizeBytes, engineName: "genoffice", engineVersion: ENGINE_BUILD, contractVersion: CONTRACT_REVISION, protocolVersion: "1" };
     },
     // Settled without a commit: drop the retained bytes and the frozen candidate.

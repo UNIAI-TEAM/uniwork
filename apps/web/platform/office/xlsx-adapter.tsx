@@ -15,7 +15,7 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import { createOfficeEditorSession, type OfficeEditorSession, type BrowserOfficeDraftOptions } from "./editor-host-core";
-import { createXlsxModelHost, type XlsxModelHost } from "@uniwork/views/office/xlsx";
+import { createXlsxModelHost, type XlsxDroppedRuleSet, type XlsxModelHost } from "@uniwork/views/office/xlsx";
 import { XlsxEditorView, type XlsxRenderModelRef } from "./xlsx-editor-view";
 import type {
   XlsxEditorHandle,
@@ -52,6 +52,8 @@ export interface XlsxSessionRuntime {
   cancelRecalculate?(documentModelRef: string): Promise<void> | void;
   /** Advance the server base after the coordinator commits a version. */
   setBaseRevision?(revision: string, intentId: string): void;
+  /** The CF/DV rule sets the last failed save dropped; empty once a save succeeds. */
+  droppedRuleSets?(): readonly XlsxDroppedRuleSet[];
   /** The Save settled without committing: drop its frozen candidate. */
   releaseSave?(intentId: string): void;
   release(documentModelRef: string): Promise<void> | void;
@@ -399,6 +401,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       try { await opening; } finally { opening = null; }
     },
     getDirtyGeneration: () => generation,
+    droppedRuleSets: () => options.runtime.droppedRuleSets?.() ?? [],
     async captureSnapshot() {
       if (!currentSnapshot) throw new Error("xlsx_snapshot_unavailable");
       const value = cloneSnapshot(currentSnapshot);
@@ -485,9 +488,18 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       return out;
     },
   });
+  // A commit (or reconcile) moves the runtime's base and trims its op stream to
+  // the edits the saved file lacks; re-read it so a draft checkpoint taken
+  // before the next edit never carries ops the save already wrote.
+  const afterBaseMove = <T,>(receipt: T): T => {
+    if (!disposed && modelRef && receipt) currentSnapshot = cloneSnapshot(options.runtime.snapshot(modelRef));
+    return receipt;
+  };
   const boundTransport: OfficeSaveTransport<XlsxWorkbookSnapshot> = {
     ...transport,
     serialize: transport.serialize,
+    commit: async (input) => afterBaseMove(await transport.commit(input)),
+    reconcile: async (input) => afterBaseMove(await transport.reconcile(input)),
   };
   const session = createOfficeEditorSession({ ...options, editor, transport: boundTransport, gate });
   // A StrictMode replay of the OfficeEditorHost mount is absorbed by the host

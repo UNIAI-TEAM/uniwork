@@ -182,6 +182,60 @@ describe("render model bridge", () => {
     expect(rule.ranges[0]!.startRow).toBe(20);
   });
 
+  it("returns the sheet's complete data validations so the loader installs the file's own rules (X01)", () => {
+    const rule = { ranges: [{ startRow: 40, endRow: 60, startColumn: 2, endColumn: 2 }], ruleType: "list",
+      formulas: ['"Yes,No"'], allowBlank: true, suppressDropdown: false, showInputMessage: false, showErrorMessage: true,
+      error: "Pick one" };
+    const model = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!, dataValidations: [rule] }] };
+    const result = readRangeFromModel(model, "Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 });
+    expect(result.dataValidations).toEqual([{ ...rule, errorStyle: "stop" }]);
+    expect(result.dataValidations[0]!.ranges[0]).not.toBe(rule.ranges[0]);
+    expect(readRangeFromModel(MODEL, "Data", { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 }).dataValidations).toEqual([]);
+  });
+
+  it("hands the loader OOXML's default stop style for a rule without errorStyle, so a reopened list still rejects (X01 vfix-dv)", () => {
+    // The save writes Univer's STOP (1) as the attribute-less OOXML default;
+    // the pinned loader maps an absent style to undefined, which Univer treats
+    // as allow-invalid, so a saved list DV stopped rejecting after reopen.
+    const saved = { ranges: [{ startRow: 1, endRow: 4, startColumn: 3, endColumn: 3 }], ruleType: "list",
+      formulas: ['"Có,Không"'], allowBlank: true, suppressDropdown: false, showInputMessage: false, showErrorMessage: true,
+      error: "Chỉ Có/Không" };
+    const warning = { ...saved, errorStyle: "warning" };
+    // No alert: Excel accepts invalid input silently, so nothing is added.
+    const silent = { ...saved, showErrorMessage: false };
+    const model = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!, dataValidations: [saved, warning, silent] }] };
+    const [stop, kept, quiet] = readRangeFromModel(model, "Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 }).dataValidations;
+    expect(stop?.errorStyle).toBe("stop");
+    expect(kept?.errorStyle).toBe("warning");
+    expect(quiet).not.toHaveProperty("errorStyle");
+    expect(saved).not.toHaveProperty("errorStyle");
+  });
+
+  it("stamps each sheet with what its file ships per rule family, x14 first (X01 review M1/M2)", () => {
+    const rule = { ranges: [{ startRow: 1, endRow: 4, startColumn: 1, endColumn: 1 }], ruleType: "list",
+      formulas: ['"A,B"'], allowBlank: true, suppressDropdown: false, showInputMessage: false, showErrorMessage: false };
+    const model = { ...MODEL, sheets: [
+      { ...MODEL.sheets[0]!, dataValidations: [rule], x14ConditionalFormats: true as const },
+      { ...MODEL.sheets[1]!, x14DataValidations: true as const },
+    ] };
+    const file = toRendererWorkbookFile(model, { sessionId: "s", name: "n.xlsx", sha256: "x" });
+    expect(file.sheets[0]!.ruleSets).toEqual({ conditionalFormats: "x14", dataValidations: "classic" });
+    expect(file.sheets[1]!.ruleSets).toEqual({ conditionalFormats: "none", dataValidations: "x14" });
+    expect(toRendererWorkbookFile(MODEL, { sessionId: "s", name: "n.xlsx", sha256: "x" }).sheets[1]!.ruleSets)
+      .toEqual({ conditionalFormats: "none", dataValidations: "none" });
+  });
+
+  it("counts a family the parser skipped every rule of as classic and stamps the raw counts (review r2 M-B, m-4)", () => {
+    const model = { ...MODEL, sheets: [
+      { ...MODEL.sheets[0]!, ruleCounts: { conditionalFormats: 2, dataValidations: 0 } },
+      MODEL.sheets[1]!,
+    ] };
+    const file = toRendererWorkbookFile(model, { sessionId: "s", name: "n.xlsx", sha256: "x" });
+    expect(file.sheets[0]!.ruleSets).toEqual({ conditionalFormats: "classic", dataValidations: "none" });
+    expect(file.sheets[0]!.ruleCounts).toEqual({ conditionalFormats: 2, dataValidations: 0 });
+    expect(file.sheets[1]!.ruleCounts).toBeUndefined();
+  });
+
   it("builds a host whose readRange speaks the vendored loader contract", async () => {
     const host = createXlsxModelHost(MODEL, { sessionId: "s-1", name: "book.xlsx", sha256: "b".repeat(64) });
     const result = await host.readRange({ sessionId: "s-1", sheetId: "sheet-2", range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 } });

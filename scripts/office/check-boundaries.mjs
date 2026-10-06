@@ -44,6 +44,10 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   // UNI-931 ribbon collapse preference: persist/createJSONStorage are plain JS
   // and write through the StorageAdapter, never a Node API.
   "zustand/middleware",
+  // UNI-940 HTML visual editor: the web host's parse map (source offsets for
+  // H3 ops). parse5 and its `entities` dependency are pure JS - no node:
+  // builtin and no Electron import in the entry they resolve to.
+  "parse5",
   // G3 web host: the platform shell is browser code and consumes the shared
   // core/view/ui contracts. Their package exports keep Node-only code out of
   // this graph; the checker treats the package boundary as the seam.

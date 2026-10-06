@@ -22,6 +22,12 @@ afterEach(() => {
 });
 
 describe("XlsxErrorState", () => {
+  it("offers only Retry, like the other formats: the desktop AI header button is not part of this screen", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<XlsxErrorState failure={failure()} onRetry={() => {}} />);
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([viLocale.office.xlsx.actions.retryOpen]);
+  });
+
   it("logs the real engine_error cause and shows a sanitized detail outside the alert", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<XlsxErrorState failure={failure({ message: "engine crashed while parsing sheet 3" })} />);

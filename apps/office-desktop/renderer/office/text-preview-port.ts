@@ -1,4 +1,4 @@
-import { buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
+import { buildHtmlPreviewCopy, dropBlockedResourceUrls } from "@uniwork/office-engine/html";
 import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
 import { emptyAssetManifest } from "@uniwork/office-engine/assets";
 
@@ -48,7 +48,8 @@ function markdownDocument(text: string, title: string, dark: boolean): string {
  * still execute or navigate, working on an inert parsed document (DOMParser never
  * runs scripts), then pins the CSP as the first head child. */
 function hardenCopy(copy: string): string {
-  const doc = new DOMParser().parseFromString(copy, "text/html");
+  // Local mode has no asset broker: a blocked image keeps no src (no request, no CSP violation).
+  const doc = new DOMParser().parseFromString(dropBlockedResourceUrls(copy), "text/html");
   doc.querySelectorAll(REMOVED_ELEMENTS).forEach((element) => element.remove());
   doc.querySelectorAll("meta[http-equiv]").forEach((element) => element.remove());
   for (const element of Array.from(doc.querySelectorAll("*"))) {

@@ -1,6 +1,7 @@
 import type { IRange } from "@univerjs/core";
 import { FILTER_MUTATIONS } from "../../upstream/apps/sheets/src/renderer/app-constants";
 import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
+import { isRuleSetCommand, isRuleSetMutation, ruleSetCommandAllowed, ruleSetMutationAllowed } from "./rule-set-policy";
 import {
   CELL_MUTATIONS,
   isSheetMutation,
@@ -87,6 +88,19 @@ const STRUCTURAL_COMMANDS = new Set([
   "sheet.command.insert-row-after",
   "sheet.command.insert-col-before",
   "sheet.command.insert-col-after",
+  // The after/right commands above ignore params and insert the selection's
+  // own span; the multi variants honour `value` like the before commands, so
+  // a whole-axis selection can still insert a bounded count below/right.
+  "sheet.command.insert-multi-rows-after",
+  "sheet.command.insert-multi-cols-right",
+  // Every insert command above delegates to these inner commands through
+  // ICommandService.executeCommand, which fires BeforeCommandExecute again;
+  // default deny would cancel the inner command and the outer one would
+  // resolve false (X04: the insert was a silent no-op).
+  "sheet.command.insert-row",
+  "sheet.command.insert-col",
+  "sheet.command.insert-row-by-range",
+  "sheet.command.insert-col-by-range",
   "sheet.command.remove-row",
   "sheet.command.remove-col",
   "sheet.command.set-row-height",
@@ -208,6 +222,21 @@ function structuralCommandAllowed(
   if (event.id === "sheet.command.insert-row-before" || event.id === "sheet.command.insert-col-before") {
     const value = params?.value;
     return value === undefined || (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 10_000);
+  }
+  if (event.id === "sheet.command.insert-multi-rows-after" || event.id === "sheet.command.insert-multi-cols-right") {
+    // The multi commands read `value` unguarded (`params.value || 0`), so the
+    // count is required here, unlike the selection-driven before commands.
+    const value = params?.value;
+    return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 10_000;
+  }
+  if (/^sheet\.command\.insert-(row|col)(-by-range)?$/.test(event.id)) {
+    // Inner insert commands: an in-grid span on the axis (the span bound is the
+    // 100_000 wire ceiling) and, when present, a live sheet of this workbook.
+    const inner = event.params as { unitId?: unknown; subUnitId?: unknown; range?: unknown } | undefined;
+    const axis = event.id.includes("-col") ? "column" : "row";
+    return structuralSpanOK(inner?.range, axis) &&
+      (inner?.unitId === undefined || inner.unitId === `file-${state.file.sha256}`) &&
+      (inner?.subUnitId === undefined || (typeof inner.subUnitId === "string" && liveSheetIds(state).has(inner.subUnitId)));
   }
   if (event.id === "sheet.command.set-row-height" || event.id === "sheet.command.set-worksheet-col-width") {
     return typeof params?.value === "number" && Number.isFinite(params.value) && params.value > 0 && params.value <= 4096;
@@ -912,6 +941,9 @@ export function canExecuteCommand(
     if (NOTE_COMMANDS.has(event.id)) return noteCommandAllowed(event, state);
     if (NOTE_MUTATIONS.has(event.id)) return noteMutationAllowed(event, state);
     if (HYPERLINK_COMMANDS.has(event.id)) return hyperlinkCommandAllowed(event, state);
+    // X01: conditional formatting + data validation (rule-set-policy.ts).
+    if (isRuleSetCommand(event.id)) return ruleSetCommandAllowed(event, state);
+    if (isRuleSetMutation(event.id)) return ruleSetMutationAllowed(event, state);
     return EDIT_COMMANDS.has(event.id);
   }
   const params = event.params as {

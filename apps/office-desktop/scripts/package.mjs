@@ -7,7 +7,7 @@ import process from "node:process";
 import { createRequire } from "node:module";
 import identity from "../identity.json" with { type: "json" };
 import { generateReleaseInventory } from "./release-inventory.mjs";
-import { XLSX_ASSETS_DIRECTORY, stageXlsxAssets } from "./xlsx-assets.mjs";
+import { XLSX_ASSETS_DIRECTORY, prepareXlsxAssets } from "./xlsx-assets.mjs";
 import { deriveBuildMetadata, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 
 const appDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -378,8 +378,10 @@ export async function packageDesktop({ platform = process.platform, arch, output
     // Stage the bundled xlsx engine assets into dist/ so electron-builder can
     // copy them into the payload (extraResources above). A missing gateway
     // fails here with the build command to run, instead of shipping a package
-    // whose local .xlsx open dies with engine_incompatible.
-    await stageXlsxAssets({ repositoryRoot, distDirectory, platform });
+    // whose local .xlsx open dies with engine_incompatible. build.mjs above
+    // already built anything missing (when cargo is available), so this only
+    // re-applies the OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR gate and stages.
+    await prepareXlsxAssets({ repositoryRoot, distDirectory, platform, build: false });
     for (const targetArch of arches) {
       const config = createPackagerConfig({
         platform,

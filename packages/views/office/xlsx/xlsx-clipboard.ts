@@ -8,10 +8,15 @@ export const XLSX_CLIENT_MAX_EDIT_OPS = 10_000;
 /** Copying is local-only and does not become a server edit request. */
 export const XLSX_CLIENT_MAX_COPY_CELLS = 20_000;
 
+/** The clipboard text as a tab/newline grid. */
+export function clipboardRows(text: string): string[][] {
+  return text.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n").map((row) => row.split("\t"));
+}
+
 export function clipboardCells(selection: XlsxSelection, text: string) {
   const start = addressParts(selection.address);
   if (!start) throw new Error("xlsx_clipboard_invalid_selection");
-  const rows = text.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n").map((row) => row.split("\t"));
+  const rows = clipboardRows(text);
   const cells = rows.flatMap((values, row) => values.map((value, column) => ({ row: start.row + row, column: start.column + column, text: value })));
   if (cells.length > XLSX_CLIENT_MAX_EDIT_OPS || cells.some((cell) => cell.row >= 1_048_576 || cell.column >= 16_384)) throw new Error("xlsx_clipboard_outside_bounds");
   return cells;
