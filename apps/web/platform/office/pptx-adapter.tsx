@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
+import { createSaveSettleGate } from "@uniwork/core/office";
 import { isPptxSessionDiverged, type PptxEdit, type PptxParagraphLike, type PptxSlideAnimationRead, type PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
@@ -444,6 +445,9 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
   const masterElements = (partPath: string): readonly MasterElementView[] =>
     (modelRef && !disposed ? options.runtime.masterElements?.(modelRef, partPath) ?? [] : []);
 
+  // The runtime rebases the journal inside commit, before the receipt returns:
+  // mark it on the session's gate first, so no checkpoint capture straddles it.
+  const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   const transport = createPptxSaveTransport({
     documentId: options.identity.documentId,
     documents: options.documents,
@@ -452,13 +456,14 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
       return options.runtime.serialize(modelRef, { snapshot, intentId });
     },
     setBaseRevision: async (revision, intentId) => {
+      gate.markRebase();
       if (modelRef) await options.runtime.setBaseRevision?.(modelRef, revision, intentId);
     },
     releaseSave: async (intentId) => {
       if (modelRef) await options.runtime.releaseSave?.(modelRef, intentId);
     },
   });
-  const session = createOfficeEditorSession({ ...options, editor, transport });
+  const session = createOfficeEditorSession({ ...options, editor, transport, gate });
   session.coordinator.setCapability(options.capability);
   const originalDispose = session.dispose;
   let disposal: Promise<void> | null = null;

@@ -541,3 +541,57 @@ describe("web PPTX format adapter", () => {
     await adapter.session.dispose();
   });
 });
+
+describe("web PPTX adapter: the commit's journal rebase is a marked rebase window (T09 r2)", () => {
+  it("retakes a timed-out capture that reads the journal after setBaseRevision rebased it, before commit returns", async () => {
+    const engine = runtime();
+    // A base-relative journal: setBaseRevision drops the prefix the Save holds.
+    let journal: PptxEdit[] = [];
+    let saved = 0;
+    vi.mocked(engine.edit).mockImplementation(async (_ref, batch) => { journal.push(...batch); return { revision: journal.length }; });
+    vi.mocked(engine.snapshot).mockImplementation(() => ({ revision: journal.length, edits: [...journal] as never }));
+    vi.mocked(engine.serialize).mockImplementation(async () => { saved = journal.length; return { bytes: new Uint8Array([80, 75, 3, 4]), checksum: "sha256-output", warnings: [] }; });
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
+    engine.setBaseRevision = vi.fn(async () => {
+      journal = journal.slice(saved);
+      // A capture parked on the read resumes now and settles before commit returns.
+      releaseRead();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const files = documents();
+    let finishCommit!: () => void;
+    const commitHeld = new Promise<void>((resolve) => { finishCommit = resolve; });
+    const commit = files.commit;
+    files.commit = vi.fn(async (...args: Parameters<typeof commit>) => { await commitHeld; return commit(...args); });
+    const store = draftStore();
+    const rows: Array<{ base: string; edits: number }> = [];
+    vi.mocked(store.checkpointEncrypted).mockImplementation(async (request) => {
+      rows.push({ base: request.snapshot.identity.base.revision, edits: (JSON.parse(new TextDecoder().decode(request.snapshot.ciphertext)) as { value: { edits: unknown[] } }).value.edits.length });
+      return { status: "stored", metadata: {} } as never;
+    });
+    const keys = keyProvider();
+    vi.mocked(keys.encrypt).mockImplementation(async ({ plaintext }) => ({ ciphertext: plaintext, wrappedKey: new Uint8Array([1]), checksum: "sha256:1" }));
+    const opts = { ...options(engine, files), draftStore: store, keyProvider: keys, saveSettleMaxWaitMs: 5 };
+    const adapter = createPptxFormatAdapter(opts);
+    await adapter.open.open();
+    await adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }]);
+    const saving = adapter.session.coordinator.save("button");
+    await vi.waitFor(() => expect(files.commit).toHaveBeenCalledOnce());
+    await adapter.editor.edit([{ op: "set_slide_hidden", slideIndex: 0, hidden: true }]);
+    // The checkpoint's capture starts once the bound runs out, then reads only
+    // after the commit's rebase.
+    const capture = adapter.session.editor.captureSnapshot.bind(adapter.session.editor);
+    let reads = 0;
+    adapter.session.editor.captureSnapshot = async () => { reads += 1; if (reads === 1) await readGate; return capture(); };
+    const checkpointing = adapter.session.checkpoint();
+    await vi.waitFor(() => expect(reads).toBe(1));
+    finishCommit();
+    await expect(saving).resolves.toMatchObject({ accepted: true });
+    await checkpointing;
+    // The post-rebase journal (one edit) never lands under the pre-save base.
+    expect(rows.filter((row) => row.base === "1")).toEqual([]);
+    expect(rows.at(-1)).toEqual({ base: "2", edits: 1 });
+    await adapter.session.dispose();
+  });
+});

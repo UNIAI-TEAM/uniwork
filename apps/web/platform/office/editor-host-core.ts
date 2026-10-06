@@ -11,6 +11,7 @@ import type {
   OfficeIdentity,
   OfficeSaveIntent,
   OfficeSaveTransport,
+  SaveSettleGate,
   StableSnapshot,
 } from "@uniwork/core/office";
 import { createSaveSettleGate, DraftRecoveryError as DraftRecoveryErrorClass } from "@uniwork/core/office";
@@ -27,6 +28,9 @@ export interface BrowserOfficeDraftOptions<TSnapshot> {
   /** The draft id is stable per document; it is not used as an auth scope. */
   draftId?: string;
   liveAccess?: "edit" | "none";
+  /** How long a checkpoint waits for a Save in flight before it writes under
+   *  the pre-rebase base (default 10 s). */
+  saveSettleMaxWaitMs?: number;
 }
 
 export interface BrowserOfficeDraftAdapter<TSnapshot> extends DraftAdapter<TSnapshot> {
@@ -241,9 +245,9 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
 export interface OfficeEditorSessionOptions<TSnapshot> extends BrowserOfficeDraftOptions<TSnapshot> {
   editor: EditorHandle<TSnapshot>;
   transport: OfficeSaveTransport<TSnapshot>;
-  /** How long a checkpoint waits for a Save in flight before it writes under
-   *  the pre-rebase base (default 10 s). */
-  saveSettleMaxWaitMs?: number;
+  /** The adapter's gate, when its transport rebases the editor before commit
+   *  returns and marks that rebase itself. */
+  gate?: SaveSettleGate;
 }
 
 export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessionOptions<TSnapshot>): OfficeEditorSession<TSnapshot> {
@@ -252,9 +256,10 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
   // and then the draft identity; a checkpoint captured across that window would
   // land a pre-rebase snapshot under the new base. Saves run inside the gate,
   // and a returned commit or reconcile marks the rebase window, which lasts
-  // until the Save settles. A Save that never answers holds checkpoints back
+  // until the Save settles. An adapter whose runtime rebases inside commit
+  // (pptx, xlsx) passes its gate and marks before that rebase. A Save that never answers holds checkpoints back
   // only for the gate's bound; they then write under the pre-rebase base.
-  const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
+  const gate = options.gate ?? createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   // Every other step delegates to the caller's transport as it is at call time.
   const transport: OfficeSaveTransport<TSnapshot> = Object.assign(Object.create(options.transport) as OfficeSaveTransport<TSnapshot>, {
     commit: async (input: Parameters<OfficeSaveTransport<TSnapshot>["commit"]>[0]) => {

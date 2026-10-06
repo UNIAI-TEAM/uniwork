@@ -448,3 +448,24 @@ describe("web XLSX format adapter", () => {
     expect(engine.released).toEqual(["model-1"]);
   });
 });
+
+describe("web XLSX save transport: the commit's rebase is a marked rebase window (T09 r2)", () => {
+  const intent = { intentId: "intent-r2", idempotencyKey: "office-key-r2", identity, snapshotGeneration: 2, snapshotFingerprint: "fp", snapshot: workbook(), operation: "manual_save" as const, createdAt: 1 };
+  const receipt = { intentId: "intent-r2", idempotencyKey: "office-key-r2", documentId: "doc", versionId: "version-2", revision: "2", checksumSha256: "sha256-output", sizeBytes: 4, engineName: "genoffice", engineVersion: "1", contractVersion: "1", protocolVersion: "1" };
+
+  it("marks the rebase before the runtime moves its base, on commit and on a found reconcile", async () => {
+    const engine = runtime();
+    engine.setBaseRevision = vi.fn();
+    const markRebase = vi.fn();
+    const files = { ...documents(), reconcile: vi.fn(async () => receipt) };
+    const transport = createXlsxSaveTransport({ documents: files, documentId: "doc", runtime: engine, markRebase, serialize: async () => ({ bytes: new Uint8Array([80, 75, 3, 4]), checksum: "sha256-output" }) });
+    const output = await transport.serialize({ intent, snapshot: { generation: 2, fingerprint: "fp", value: workbook() } }) as OfficeSerializedOutput;
+    const upload = await transport.upload({ intent, output }) as OfficeUploadReceipt;
+    await transport.commit({ intent, upload });
+    expect(markRebase).toHaveBeenCalledTimes(1);
+    expect(markRebase.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(engine.setBaseRevision).mock.invocationCallOrder[0]!);
+    await expect(transport.reconcile({ intent })).resolves.toMatchObject({ revision: "2" });
+    expect(markRebase).toHaveBeenCalledTimes(2);
+    expect(markRebase.mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(engine.setBaseRevision).mock.invocationCallOrder[1]!);
+  });
+});

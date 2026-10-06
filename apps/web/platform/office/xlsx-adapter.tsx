@@ -3,7 +3,7 @@
 import { createElement, type ReactNode } from "react";
 import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
-import { officeSaveReceiptSchema } from "@uniwork/core/office";
+import { createSaveSettleGate, officeSaveReceiptSchema } from "@uniwork/core/office";
 import { bytesOf, cloneSnapshot, digestHex, fingerprint } from "./xlsx-adapter-data";
 import type {
   OfficeCapabilityEntry,
@@ -152,6 +152,9 @@ export interface XlsxSaveTransportOptions {
   contractVersion?: string;
   protocolVersion?: string;
   runtime?: XlsxSessionRuntime;
+  /** Called once the write is confirmed, before the runtime moves its base
+   *  (the session gate's rebase mark). */
+  markRebase?(): void;
 }
 
 function toBlob(bytes: Uint8Array): Blob {
@@ -243,6 +246,7 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
         contractVersion: version.contract_version ?? contractVersion,
         protocolVersion: version.protocol_version ?? protocolVersion,
       } satisfies OfficeSaveReceipt);
+      options.markRebase?.();
       options.runtime?.setBaseRevision?.(receipt.revision, intent.intentId);
       outputs.delete(intent.intentId);
       return receipt;
@@ -254,6 +258,7 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
       if (receipt.intentId !== intent.intentId || receipt.idempotencyKey !== intent.idempotencyKey || receipt.documentId !== options.documentId || BigInt(receipt.revision) <= BigInt(intent.identity.baseRevision)) return null;
       const output = outputs.get(intent.intentId);
       if (output && (receipt.checksumSha256 !== output.checksumSha256 || receipt.sizeBytes !== output.sizeBytes)) throw new Error("commit_checksum_mismatch");
+      options.markRebase?.();
       options.runtime?.setBaseRevision?.(receipt.revision, intent.intentId);
       outputs.delete(intent.intentId);
       return receipt;
@@ -462,6 +467,9 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       }
     : undefined;
 
+  // The runtime moves its base inside commit and reconcile, before they return:
+  // the transport marks that on the session's gate first.
+  const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   const transport = createXlsxSaveTransport({
     documents: options.documents,
     documentId: options.identity.documentId,
@@ -469,6 +477,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     contractVersion: options.capability.contractRevision,
     protocolVersion: "1",
     runtime: options.runtime,
+    markRebase: () => gate.markRebase(),
     serialize: async (input) => {
       if (!modelRef) throw new Error("xlsx_editor_not_open");
       const out = await options.runtime.serialize(modelRef, input);
@@ -480,7 +489,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     ...transport,
     serialize: transport.serialize,
   };
-  const session = createOfficeEditorSession({ ...options, editor, transport: boundTransport });
+  const session = createOfficeEditorSession({ ...options, editor, transport: boundTransport, gate });
   // A StrictMode replay of the OfficeEditorHost mount is absorbed by the host
   // (editor-host.tsx defers its dispose past the replayed mount), so the
   // session disposes once, when it is asked to.
