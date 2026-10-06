@@ -90,6 +90,11 @@ func officeHighlightBodyOK(body map[string]json.RawMessage) bool {
 // errorStyle allowlists; the gateway owns formula shapes.
 func officeDvRuleBodyOK(_ string, body map[string]json.RawMessage) bool {
 	if raw, present := body["operator"]; present {
+		// officeJSONString reads JSON null as ""; the engine refuses null
+		// (only absent, "" or an allowed string pass), so the gate does too.
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			return false
+		}
 		operator, ok := officeJSONString(raw)
 		if !ok || (operator != "" && !officeCellIsOperators[operator]) {
 			return false
