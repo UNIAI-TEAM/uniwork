@@ -59,7 +59,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   onViewStateChange,
   onSelectionChange,
   registerSavePreparation,
-  saveDestination = "cloud",
+  saveDestination = "cloud", printPort,
 }: XlsxEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<XlsxViewState>("opening");
@@ -337,6 +337,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     getSnapshot: editor.getWorkbookSnapshot,
     onApplied: () => { markDirty(); refreshSnapshot(); },
     onError: setRecalcError,
+    printPort, title: effectiveTitle, getGrid: () => gridRef.current, resolveSheetId: gridSheetId,
   });
 
   // F1/F4: resolve the active sheet through the LIVE name before any action

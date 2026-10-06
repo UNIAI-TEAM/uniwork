@@ -59,6 +59,7 @@ describe("XlsxPageSetupGroup", () => {
     const onExportCsv = vi.fn();
     render(<XlsxPageSetupGroup {...groupProps({ onOpenPageSetup, onPrint, onExportCsv })} />);
     expect(screen.getByTestId("xlsx-page-setup-open")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.pageSetup.open"));
+    expect(screen.getByTestId("xlsx-print")).toHaveAccessibleName(lookup(viLocale, "office.common.print"));
     fireEvent.click(screen.getByTestId("xlsx-page-setup-open"));
     fireEvent.click(screen.getByTestId("xlsx-print"));
     fireEvent.click(screen.getByTestId("xlsx-export-csv"));
@@ -67,12 +68,14 @@ describe("XlsxPageSetupGroup", () => {
     expect(onExportCsv).toHaveBeenCalledOnce();
   });
 
-  it("stays in the tab order and inert when the host wires no handlers", () => {
-    // No handlers at all: every control is inert (and still in the tab order).
+  it("stays in the tab order and inert when the host wires no handlers, and offers no Print without a port", () => {
+    // No handlers at all: Page Setup and CSV are inert (and still in the tab
+    // order); Print is not rendered (UNI-952: a host that cannot print).
     const view = render(
       <XlsxPageSetupGroup {...groupProps({ onOpenPageSetup: undefined, onPrint: undefined, onExportCsv: undefined })} />,
     );
-    for (const testId of ["xlsx-page-setup-open", "xlsx-print", "xlsx-export-csv"]) {
+    expect(screen.queryByTestId("xlsx-print")).toBeNull();
+    for (const testId of ["xlsx-page-setup-open", "xlsx-export-csv"]) {
       const button = screen.getByTestId(testId);
       expect(button).toHaveAttribute("aria-disabled", "true");
       expect(button).not.toBeDisabled();
@@ -119,7 +122,7 @@ describe("xlsx page-setup registry entry", () => {
   });
 
   it("keeps the page-setup and export subtrees in vi/en key parity", () => {
-    for (const subtree of ["office.xlsx.pageSetup", "office.xlsx.export"]) {
+    for (const subtree of ["office.xlsx.pageSetup", "office.xlsx.export", "office.xlsx.print"]) {
       const paths = (dictionary: unknown) => stringPaths(lookup(dictionary, subtree));
       expect(paths(viLocale).length).toBeGreaterThan(0);
       expect(paths(viLocale)).toEqual(paths(en));
