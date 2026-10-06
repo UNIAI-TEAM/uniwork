@@ -26,6 +26,7 @@ function memoryFileSystem() {
       },
       writeFileSync: (path: string, data: string) => { files.set(path, data); },
       mkdirSync: (path: string) => { directories.push(path); },
+      copyFileSync: (source: string, destination: string) => { files.set(destination, `copy:${source}`); },
     },
   };
 }
@@ -76,5 +77,28 @@ describe("AppImage first-run scheme registration", () => {
       expect(readFileSync(result.desktopFilePath, "utf8")).toContain("x-scheme-handler/uniwork-office-dev;");
       expect(result.registered).toBe(false);
     } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("installs the brand icon and ties the window to the entry", () => {
+    const memory = memoryFileSystem();
+    const result = registerAppImageScheme({ ...options, iconPath: "/app.asar/dist/icons/icon.png", wmClass: "uniwork-office-dev", fileSystem: memory.fileSystem, run: () => true });
+    const entry = memory.files.get(result.desktopFilePath);
+    expect(entry).toContain("Name=UniWork Office (test)");
+    expect(entry).toContain("Icon=uniwork-office-test\n");
+    expect(entry).toContain("StartupWMClass=uniwork-office-dev\n");
+    expect(memory.files.get(join(options.dataHomeDirectory, "icons", "hicolor", "512x512", "apps", "uniwork-office-test.png"))).toBe("copy:/app.asar/dist/icons/icon.png");
+  });
+
+  it("keeps the entry when the icon cannot be copied", () => {
+    const memory = memoryFileSystem();
+    const fileSystem = { ...memory.fileSystem, copyFileSync: () => { throw new Error("EACCES"); } };
+    const result = registerAppImageScheme({ ...options, iconPath: "/missing.png", fileSystem, run: () => true });
+    expect(result.written).toBe(true);
+    expect(memory.files.get(result.desktopFilePath)).toContain("Icon=uniwork-office-test");
+  });
+
+  it("writes no Icon line without an icon", () => {
+    expect(desktopEntryForAppImage(options)).not.toContain("Icon=");
+    expect(desktopEntryForAppImage(options)).not.toContain("StartupWMClass=");
   });
 });

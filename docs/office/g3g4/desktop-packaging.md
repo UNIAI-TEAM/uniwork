@@ -50,7 +50,8 @@ G4-D3 permits explicitly labelled unsigned dev/beta artifacts only. The
 Windows x64 targets are a ZIP and an NSIS setup, for example
 `uniwork-office-test_0.1.0-dev.42_unsigned_win32_x64.zip` and
 `uniwork-office-test_0.1.0-dev.42_unsigned_win32_x64-setup.exe`.
-`win.signAndEditExecutable: false`, `forceCodeSigning: false`, `publish: null`,
+`win.signExecutable: false` (the exe still gets the UniWork Office icon and
+version strings from `build/icon.ico`), `forceCodeSigning: false`, `publish: null`,
 and no publisher/feed keep signing and auto-update disabled. The NSIS setup is
 one-click, per-user (`perMachine: false`, no elevation), installs below
 `%LOCALAPPDATA%\Programs\<userDataNamespace>` (the channel-derived manifest

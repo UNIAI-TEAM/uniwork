@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -16,6 +16,7 @@ export type LinuxDesktopFileSystem = Readonly<{
   readFileSync(path: string, encoding: "utf8"): string;
   writeFileSync(path: string, data: string, options: { mode: number }): void;
   mkdirSync(path: string, options: { recursive: true }): void;
+  copyFileSync?(source: string, destination: string): void;
 }>;
 
 export type LinuxSchemeRegistrationOptions = Readonly<{
@@ -24,18 +25,31 @@ export type LinuxSchemeRegistrationOptions = Readonly<{
   productName: string;
   scheme: string;
   dataHomeDirectory: string;
+  /** The brand png (main/branding.ts brandIconPath). Installed into the
+   * user's hicolor theme under the desktop file's name, so the launcher and
+   * the taskbar show UniWork Office instead of a generic icon. */
+  iconPath?: string;
+  /** app.getName() of the running process: Electron sets the window's
+   * WM_CLASS from it, and StartupWMClass ties the window to this entry. */
+  wmClass?: string;
   /** Test seams: the real defaults write to the OS and run xdg-mime. */
   fileSystem?: LinuxDesktopFileSystem;
   run?: (command: string, args: readonly string[]) => boolean;
 }>;
 
-const nodeFileSystem: LinuxDesktopFileSystem = { readFileSync, writeFileSync, mkdirSync };
+const nodeFileSystem: LinuxDesktopFileSystem = { readFileSync, writeFileSync, mkdirSync, copyFileSync };
 
-export function desktopEntryForAppImage(options: Pick<LinuxSchemeRegistrationOptions, "appImagePath" | "productName" | "scheme">): string {
+function iconNameFor(desktopFileName: string): string {
+  return desktopFileName.replace(/.desktop$/, "");
+}
+
+export function desktopEntryForAppImage(options: Pick<LinuxSchemeRegistrationOptions, "appImagePath" | "productName" | "scheme" | "wmClass"> & { iconName?: string }): string {
   return [
     "[Desktop Entry]",
     `Name=${options.productName}`,
     `Exec="${options.appImagePath}" %U`,
+    ...(options.iconName ? [`Icon=${options.iconName}`] : []),
+    ...(options.wmClass ? [`StartupWMClass=${options.wmClass}`] : []),
     "Type=Application",
     "Terminal=false",
     `MimeType=x-scheme-handler/${options.scheme};`,
@@ -55,7 +69,8 @@ export function registerAppImageScheme(options: LinuxSchemeRegistrationOptions):
   const fileSystem = options.fileSystem ?? nodeFileSystem;
   const applicationsDirectory = join(options.dataHomeDirectory, "applications");
   const desktopFilePath = join(applicationsDirectory, options.desktopFileName);
-  const content = desktopEntryForAppImage(options);
+  const iconName = options.iconPath && fileSystem.copyFileSync ? iconNameFor(options.desktopFileName) : undefined;
+  const content = desktopEntryForAppImage({ ...options, iconName });
   let existing: string | undefined;
   try { existing = fileSystem.readFileSync(desktopFilePath, "utf8"); } catch { /* no previous entry */ }
   let written = false;
@@ -63,6 +78,13 @@ export function registerAppImageScheme(options: LinuxSchemeRegistrationOptions):
     fileSystem.mkdirSync(applicationsDirectory, { recursive: true });
     fileSystem.writeFileSync(desktopFilePath, content, { mode: 0o644 });
     written = true;
+  }
+  if (written && iconName && options.iconPath && fileSystem.copyFileSync) {
+    const iconDirectory = join(options.dataHomeDirectory, "icons", "hicolor", "512x512", "apps");
+    try {
+      fileSystem.mkdirSync(iconDirectory, { recursive: true });
+      fileSystem.copyFileSync(options.iconPath, join(iconDirectory, `${iconName}.png`));
+    } catch { /* the entry still launches; the theme shows a generic icon */ }
   }
   // First run only: once the entry exists, a deliberate user choice of another
   // handler must survive the next launch.
