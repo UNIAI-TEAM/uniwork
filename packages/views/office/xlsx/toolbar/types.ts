@@ -20,6 +20,23 @@ export interface XlsxToolbarTabDefinition {
  *  `false` means the renderer did not run the command. */
 export interface XlsxToolbarCommands {
   execute(id: string, params?: unknown): boolean | Promise<boolean>;
+  /** The sheet's live CF / DV rules for the rule managers (UNI-953); null
+   *  without a mounted grid. Absent on hosts and doubles that only run
+   *  commands. */
+  readRuleSets?(sheetId: string, family: XlsxRuleFamily): readonly XlsxLiveRule[] | null;
+}
+
+export type XlsxRuleFamily = "conditionalFormats" | "dataValidations";
+
+/** One live rule as the renderer's model holds it: its model id (CF `cfId`,
+ *  DV `uid`), its 0-based areas and the Univer rule object (CF: the inner
+ *  rule; DV: the rule without ranges and id). CF rules come in priority
+ *  order, the first applies first. */
+export interface XlsxLiveRule {
+  readonly id: string;
+  readonly ranges: readonly XlsxToolbarTableRange[];
+  readonly stopIfTrue?: boolean;
+  readonly rule: Readonly<Record<string, unknown>>;
 }
 
 /** A 0-based inclusive rectangle (a table's area or a selection's span). */

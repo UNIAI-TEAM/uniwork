@@ -38,6 +38,7 @@ export function useXlsxGridFormat(gridRef: RefObject<XlsxGridHandle | null>): {
       });
       return result;
     },
+    readRuleSets: (sheetId, family) => gridRef.current?.readRuleSets?.(sheetId, family) ?? null,
   }), [gridRef, refreshFormatState]);
   return { formatState, refreshFormatState, commands };
 }

@@ -25,7 +25,7 @@ import { SheetInterceptorService } from "@univerjs/sheets";
 import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
-import { ingestRuleSetMutation, restoreRuleSetFamily, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
+import { ingestRuleSetMutation, readLiveRuleSet, restoreRuleSetFamily, type XlsxRendererLiveRule, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
 import { ruleSetRestoreAllowed } from "./rule-set-policy";
 import { installDvRejectDialogTitle, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
@@ -195,6 +195,9 @@ export interface XlsxRendererHandle {
    *  the session and show the rules the file holds (null: as opened).
    *  Refused on a read-only mount or by the rule-set policy. */
   restoreRuleSet(sheetId: string, kind: XlsxRendererRuleSetKind, rules: readonly XlsxRendererRuleSetRule[] | null): boolean;
+  /** UNI-953 rule manager: a sheet's live CF / DV rules with their model ids
+   *  (null before a workbook loads or for an unknown sheet). */
+  readRuleSets(sheetId: string, kind: XlsxRendererRuleSetKind): XlsxRendererLiveRule[] | null;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -845,6 +848,12 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         journalSuppression.active = false;
       }
       return true;
+    },
+    readRuleSets(sheetId, kind) {
+      const state = lazyWorkbookRef.current;
+      if (!state || (kind !== "conditionalFormats" && kind !== "dataValidations")) return null;
+      const worksheet = runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId);
+      return worksheet ? readLiveRuleSet(worksheet, kind) : null;
     },
     setDarkMode: (dark) => themeService.setDarkMode(dark),
     undo() {

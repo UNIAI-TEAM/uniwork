@@ -260,6 +260,13 @@ export interface XlsxRendererHandle {
     kind: "conditionalFormats" | "dataValidations",
     rules: readonly { ranges: readonly { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; stopIfTrue?: boolean; rule: Record<string, unknown> }[] | null,
   ): boolean;
+  /** UNI-953 rule manager: a sheet's live CF / DV rules with their model ids
+   *  (CF `cfId`, DV `uid`; CF in priority order). Null before a workbook
+   *  loads or for an unknown sheet. */
+  readRuleSets(
+    sheetId: string,
+    kind: "conditionalFormats" | "dataValidations",
+  ): { id: string; ranges: { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; stopIfTrue?: boolean; rule: Record<string, unknown> }[] | null;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;

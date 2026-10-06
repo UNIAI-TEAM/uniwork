@@ -47,8 +47,8 @@ export const RULE_SET_COMMANDS = new Set([
 ]);
 
 interface RuleSetWorksheet {
-  getConditionalFormattingRules?: () => { ranges: AxisRange[]; stopIfTrue?: boolean; rule: Record<string, unknown> }[];
-  getDataValidations?: () => { rule: Record<string, unknown> & { ranges?: AxisRange[] } }[];
+  getConditionalFormattingRules?: () => { cfId?: unknown; ranges: AxisRange[]; stopIfTrue?: boolean; rule: Record<string, unknown> }[];
+  getDataValidations?: () => { rule: Record<string, unknown> & { ranges?: AxisRange[]; uid?: unknown } }[];
 }
 
 function area(range: AxisRange): AxisRange {
@@ -73,6 +73,26 @@ export function snapshotSheetRules(worksheet: UniverWorksheet, kind: XlsxRendere
   return (facade.getDataValidations?.() ?? []).map(({ rule }) => {
     const { ranges, ...rest } = rule;
     return { ranges: (ranges ?? []).map(area), rule: plain(rest) };
+  });
+}
+
+/** One live rule as the rule manager reads it (UNI-953): the snapshot shape
+ *  plus the model id the edit/move/delete commands address (CF `cfId`, DV
+ *  `uid`). CF rules come in priority order, the first applies first. */
+export interface XlsxRendererLiveRule extends XlsxRendererRuleSetRule {
+  id: string;
+}
+
+export function readLiveRuleSet(worksheet: UniverWorksheet, kind: XlsxRendererRuleSetKind): XlsxRendererLiveRule[] {
+  const facade = worksheet as unknown as RuleSetWorksheet;
+  if (kind === "conditionalFormats") {
+    return (facade.getConditionalFormattingRules?.() ?? []).flatMap((rule) => typeof rule.cfId === "string"
+      ? [{ id: rule.cfId, ranges: rule.ranges.map(area), stopIfTrue: rule.stopIfTrue === true, rule: plain(rule.rule) }]
+      : []);
+  }
+  return (facade.getDataValidations?.() ?? []).flatMap(({ rule }) => {
+    const { ranges, uid, ...rest } = rule;
+    return typeof uid === "string" ? [{ id: uid, ranges: (ranges ?? []).map(area), rule: plain(rest) }] : [];
   });
 }
 

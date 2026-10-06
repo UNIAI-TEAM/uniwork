@@ -13,6 +13,7 @@ import type { XlsxGridEdit } from "./xlsx-edit-bridge";
 import type { XlsxGridRange } from "./selection-mapping";
 import type { XlsxVisualsGrid } from "./visuals/use-xlsx-visuals";
 import type { XlsxDroppedRuleSet } from "./conditional-format/rule-set-drops";
+import type { XlsxLiveRule, XlsxRuleFamily } from "./toolbar/types";
 
 export interface XlsxGridHostPort {
   file: RendererWorkbookFile;
@@ -78,6 +79,8 @@ export interface XlsxGridHandle extends XlsxVisualsGrid {
   /** r3 MA-3: after a save dropped a CF/DV family of a sheet, refuse it for
    *  the session and show the rules the file holds (null: as opened). */
   restoreRuleSet?(sheetId: string, family: XlsxDroppedRuleSet["family"], rules: XlsxDroppedRuleSet["savedRules"]): boolean;
+  /** UNI-953: a sheet's live CF / DV rules for the rule managers. */
+  readRuleSets?(sheetId: string, family: XlsxRuleFamily): readonly XlsxLiveRule[] | null;
   setDarkMode(dark: boolean): void;
   undo(): void;
   redo(): void;
@@ -178,6 +181,7 @@ export function XlsxGridSurface({
       getActiveFormatState: () => handleRef.current?.getActiveFormatState() ?? null,
       getSheets: () => handleRef.current?.getSheets?.() ?? [],
       restoreRuleSet: (sheetId, family, rules) => handleRef.current?.restoreRuleSet?.(sheetId, family, rules) ?? false,
+      readRuleSets: (sheetId, family) => handleRef.current?.readRuleSets?.(sheetId, family) ?? null,
       setDarkMode: (nextDark) => handleRef.current?.setDarkMode(nextDark),
       undo: () => handleRef.current?.undo(),
       redo: () => handleRef.current?.redo(),
