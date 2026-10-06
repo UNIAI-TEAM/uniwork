@@ -229,7 +229,7 @@ Nói gì với người dùng:
 | `failed` `output_limit` | Kết quả lớn hơn mức cho phép | Kiểm `max_bytes` của FileService (trần 50 MiB) |
 | `file_purpose_disabled` | Mục đích `document_file` chưa mở | Cập nhật bản server có mục này |
 | `501 unsupported_operation` | Thao tác chưa gắn (convert luôn thế) | Bình thường |
-| Office job báo chưa cấu hình | `OFFICE_ENGINE_URL` trống | Đặt địa chỉ engine |
+| Office job báo chưa cấu hình | `OFFICE_ENGINE_URL` trống | Compose: đặt địa chỉ engine. Helm: bật `officeEngine.enabled: true` (chart tự đặt URL; giữ `OFFICE_ENGINE_URL` trống trong `uniwork-be.env`) và tạo Secret `uniwork-office-engine` |
 | Có tiến trình worker khi không có job | Tiến trình kẹt | Lấy `/metrics` + log, restart container |
 | Server không lên, nhắc `PREVIEW_*` | Thiếu/sai biến xem trước | Sửa theo bảng ở `preview-origin.md` |
 | Xem trước lỗi sau reverse proxy | Redirect hoặc alias origin app | Bỏ redirect; dùng host riêng |
