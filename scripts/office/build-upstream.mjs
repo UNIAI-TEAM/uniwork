@@ -402,6 +402,8 @@ export async function run({ out, skipInstall, withNative, keep }) {
       const versionMatch = fs.existsSync(protocolSrc) ? /PROTOCOL_VERSION(?::\s*u8)?\s*=\s*(\d+)/.exec(fs.readFileSync(protocolSrc, 'utf8')) : null;
       record.native = {
         status: 'pass',
+        // The sidecar is built for the host CPU; packaging for another one must refuse it.
+        arch: process.arch,
         cargo: cargo.stdout.trim(),
         crate: {
           manifest: 'apps/sheets/native/xlsx-engine/Cargo.toml',

@@ -105,7 +105,7 @@ export function missingGatewayError({ buildDirectory, gatewayCandidates }) {
  * evidence while silently skipping the comparison is the drift this check
  * exists to stop.
  */
-async function recordedSidecarSha256(buildRecord) {
+async function recordedSidecar(buildRecord) {
   let record;
   try {
     record = JSON.parse(await readFile(buildRecord, "utf8"));
@@ -113,7 +113,21 @@ async function recordedSidecarSha256(buildRecord) {
     throw new Error(`xlsx build record ${buildRecord} could not be read: ${error.message}`);
   }
   const recorded = record?.native?.binary?.sha256;
-  return typeof recorded === "string" && recorded.trim() ? recorded.trim().toLowerCase() : null;
+  const arch = record?.native?.arch;
+  return {
+    sha256: typeof recorded === "string" && recorded.trim() ? recorded.trim().toLowerCase() : null,
+    // Absent in records written before the arch was recorded: nothing to compare.
+    arch: typeof arch === "string" && arch.trim() ? arch.trim() : null,
+  };
+}
+
+/** The loud failure for a sidecar built for another CPU architecture than an artifact being packaged. */
+function sidecarArchitectureError({ sidecar, recordedArch, targetArches }) {
+  return new Error(
+    `the xlsx sidecar ${sidecar} was built for ${recordedArch} but the package targets ${targetArches.join(", ")}: a binary of the wrong architecture would ship and every formula save would fail. ` +
+      "The native build only produces the architecture of the host that ran it - build on a host of the target architecture (node scripts/office/build-upstream.mjs --with-native) " +
+      "and package one architecture at a time (--arch), or point OFFICE_DESKTOP_XLSX_ASSETS at a directory holding that architecture's sidecar.",
+  );
 }
 
 /** The loud failure for a sidecar no successful native build step of the record attests. */
@@ -147,14 +161,23 @@ function sidecarProvenanceError({ buildRecord, sidecar, recorded, actual }) {
  * shared CARGO_TARGET_DIR cannot stage silently next to a record that
  * describes a different build. A candidate the record does not attest at all
  * (no record, or a failed/absent native step) is refused under
- * OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1 and warned about otherwise.
+ * OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1 and warned about otherwise. The record
+ * also names the architecture the native step ran on (`native.arch`); staging
+ * for any other `arches` entry gets the same refuse/warn treatment.
  */
-export async function stageXlsxAssets({ repositoryRoot, distDirectory, platform = process.platform, environment = process.env, log = (line) => process.stderr.write(`${line}\n`) } = {}) {
+export async function stageXlsxAssets({ repositoryRoot, distDirectory, platform = process.platform, arches = [process.arch], environment = process.env, log = (line) => process.stderr.write(`${line}\n`) } = {}) {
   const sources = resolveXlsxAssetSources({ repositoryRoot, platform, environment });
   if (!sources.gateway) throw missingGatewayError(sources);
   const sidecarName = xlsxSidecarFile(platform);
   if (sources.sidecar) {
-    const recorded = sources.buildRecord ? await recordedSidecarSha256(sources.buildRecord) : null;
+    const { sha256: recorded, arch: recordedArch } = sources.buildRecord ? await recordedSidecar(sources.buildRecord) : { sha256: null, arch: null };
+    // The native step builds for the architecture of the host that ran it; a
+    // package for another one would ship a binary its CPU cannot run.
+    if (recordedArch && arches.some((arch) => arch !== recordedArch)) {
+      const error = sidecarArchitectureError({ sidecar: sources.sidecar, recordedArch, targetArches: arches });
+      if (sidecarRequired(environment)) throw error;
+      log(`office-desktop: ${error.message}`);
+    }
     // The sidecar's provenance is the build record's successful native step.
     // Required: no attestation, no staging. Otherwise staging stays legal
     // (a dev build may use a hand-built binary) but the operator is told.
@@ -324,6 +347,7 @@ export async function prepareXlsxAssets({
   repositoryRoot,
   distDirectory,
   platform = process.platform,
+  arches = [process.arch],
   environment = process.env,
   build = true,
   requireGateway = true,
@@ -336,5 +360,5 @@ export async function prepareXlsxAssets({
   // a shared CARGO_TARGET_DIR still resolves.
   if (sidecarRequired(environment) && ((attempt.attempted && !attempt.ok) || !attempt.sources.sidecar)) throw missingRequiredSidecarError({ platform, attempt });
   if (!attempt.sources.gateway && !requireGateway && !sidecarRequired(environment)) return { attempt, staged: null };
-  return { attempt, staged: await stageXlsxAssets({ repositoryRoot, distDirectory, platform, environment }) };
+  return { attempt, staged: await stageXlsxAssets({ repositoryRoot, distDirectory, platform, arches, environment }) };
 }

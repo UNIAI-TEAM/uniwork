@@ -704,6 +704,33 @@ test("REQUIRE_XLSX_SIDECAR=1 stages a sidecar only when this build's native step
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("a sidecar built for another CPU architecture is refused under REQUIRE and warned about otherwise (UNI-953 N2)", async () => {
+  const { createHash } = await import("node:crypto");
+  const { root, buildDir, dist } = xlsxScratch("uniwork-xlsx-arch-");
+  const body = "MZ-x64-sidecar";
+  const sha = createHash("sha256").update(body).digest("hex");
+  writeFileSync(join(buildDir, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+  mkdirSync(join(buildDir, "native"), { recursive: true });
+  writeFileSync(join(buildDir, "native", xlsxSidecarFile("win32")), body);
+  const record = (native) => writeFileSync(join(buildDir, "build-record.json"), JSON.stringify({ kind: "uniwork-office-upstream-build-record", native }));
+  const stage = (arches, environment = {}, log = () => {}) => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", arches, environment, log });
+  try {
+    record({ status: "pass", arch: "x64", binary: { sha256: sha } });
+    assert.equal((await stage(["x64"], { [REQUIRE_SIDECAR_ENV]: "1" })).sidecar.sha256, sha, "the matching architecture stages");
+    await assert.rejects(
+      () => stage(["x64", "arm64"], { [REQUIRE_SIDECAR_ENV]: "1" }),
+      (error) => /built for x64/.test(error.message) && /arm64/.test(error.message) && /--arch/.test(error.message),
+    );
+    // Without the flag the wrong-architecture sidecar still stages, with a warning.
+    const lines = [];
+    assert.ok((await stage(["arm64"], {}, (line) => lines.push(line))).sidecar);
+    assert.ok(lines.some((line) => /built for x64/.test(line)), `warns about the architecture: ${lines.join(" | ")}`);
+    // A record from before the architecture was recorded has nothing to compare.
+    record({ status: "pass", binary: { sha256: sha } });
+    assert.ok((await stage(["arm64"], { [REQUIRE_SIDECAR_ENV]: "1" })).sidecar);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("OFFICE_DESKTOP_SKIP_NATIVE_BUILD=1 stops the auto-build; the REQUIRE message names why and how", async () => {
   assert.equal(SKIP_NATIVE_BUILD_ENV, "OFFICE_DESKTOP_SKIP_NATIVE_BUILD");
   const { root, buildDir, dist } = xlsxScratch("uniwork-xlsx-skip-native-");
