@@ -1,16 +1,17 @@
 "use client";
 
-import { type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { Download, FileText, History, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
-import { useOfficeEnabled } from "@uniwork/core/documents/office-enabled";
+import { useOfficeEnabled, type OfficeEnabledState } from "@uniwork/core/documents/office-enabled";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
 import { useOfficeFormatName } from "../office/editor-slot";
 import { HeaderActionsFill } from "../layout/header-actions-slot";
+import { leaveGuardAllows } from "../navigation";
 import { DocumentFileMenuItems, useDocumentFileActions } from "./document-file-actions";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 
@@ -94,7 +95,26 @@ function officeFormat(doc: Document): string | null {
  * falls back to the file card (view, download, history), never the editor.
  */
 export function useOfficeEditorEnabled(doc: Document): boolean {
-  return useOfficeEnabled(doc.organization_id, officeFormat(doc));
+  return useOfficeEnabled(doc.organization_id, officeFormat(doc)).state === "on";
+}
+
+/**
+ * F7: a mounted editor closes only on a settled "off" answer, never while the
+ * answer is loading, refetching or failed. Closing runs the registered leave
+ * guards first, so a dirty editor offers Save / keep draft / discard; when the
+ * reader cancels, the editor stays until they leave the page.
+ */
+function useLiveEditorGate(state: OfficeEnabledState, answeredAt: number): boolean {
+  const [open, setOpen] = useState(state === "on");
+  useEffect(() => {
+    if (state === "on") { setOpen(true); return undefined; }
+    if (state !== "off" || !open) return undefined;
+    let active = true;
+    void leaveGuardAllows("office:feature-off").then((allowed) => { if (active && allowed) setOpen(false); });
+    return () => { active = false; };
+  // `answeredAt` re-asks after a refused close when the next answer is off again.
+  }, [state, open, answeredAt]);
+  return open;
 }
 
 /** True when the file opens in the Office editor instead of the file card. */
@@ -108,7 +128,9 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
   const versions = useDocumentVersions(wsId, doc.id);
   const actions = useDocumentFileActions(wsId, doc);
   const { download, downloading } = actions;
-  const officeEnabled = useOfficeEditorEnabled(doc);
+  const officeFormatId = officeFormat(doc);
+  const office = useOfficeEnabled(doc.organization_id, officeFormatId);
+  const editorOpen = useLiveEditorGate(office.state, office.answeredAt);
   const formatName = useOfficeFormatName();
 
   if (!file) {
@@ -119,7 +141,7 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
     );
   }
 
-  if (usesOfficeEditor(doc, officeEnabled, Boolean(OfficeEditorHost)) && OfficeEditorHost) {
+  if (usesOfficeEditor(doc, editorOpen, Boolean(OfficeEditorHost)) && OfficeEditorHost) {
     // The editor replaces this view, so its file commands move to the page
     // overflow menu (version history is already one of its entries).
     return (
@@ -132,8 +154,10 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
   }
 
   const rows = versions.data?.pages.flatMap((page) => page.versions) ?? [];
-  const officeFormatId = officeFormat(doc);
-  const officeFormatOff = Boolean(OfficeEditorHost) && officeFormatId !== null && !officeEnabled;
+  // A host is mounted and the format is an Office one, so the card stands in for
+  // the editor and says why: checking, could not check, or turned off.
+  const officeCardState = Boolean(OfficeEditorHost) && officeFormatId !== null ? office.state : null;
+  const format = formatName(officeFormatId ?? "");
 
   return (
     <div className="flex flex-col gap-4">
@@ -174,13 +198,33 @@ export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: Office
           <Fact label={t("documents.file.mime")} value={file.mime_type} />
           <Fact label={t("documents.file.checksum")} value={file.checksum_sha256} mono />
         </dl>
+        {/* The permission reason, kept apart from the format/editor reason below. */}
+        {readonly ? (
+          <p className="border-t border-border px-4 py-2 text-caption text-muted-foreground" data-testid="document-file-readonly">
+            {t("documents.file.readonly_hint")}
+          </p>
+        ) : null}
       </div>
 
-      {/* A host is mounted and the format is an Office one, so the editor is missing only because its flag is off. */}
-      {officeFormatOff ? (
+      {officeCardState === "off" ? (
         <Notice tone="info" icon={FileText} layout="inline">
-          <span className="font-medium text-foreground">{t("documents.file.office_off_title", { format: formatName(officeFormatId ?? "") })}</span>{" "}
-          {t("documents.file.office_off_description", { format: formatName(officeFormatId ?? "") })}
+          <span className="font-medium text-foreground">{t("documents.file.office_off_title", { format })}</span>{" "}
+          {t("documents.file.office_off_description", { format })}
+        </Notice>
+      ) : officeCardState === "unknown" ? (
+        <Notice
+          tone="warning"
+          icon={FileText}
+          layout="inline"
+          action={<Button type="button" variant="outline" size="sm" onClick={office.retry}>{t("documents.file.office_unknown_retry")}</Button>}
+        >
+          <span className="font-medium text-foreground">{t("documents.file.office_unknown_title", { format })}</span>{" "}
+          {t("documents.file.office_unknown_description")}
+        </Notice>
+      ) : officeCardState !== null ? (
+        // Loading (or an "on" answer whose editor mounts on the next render): no cause is claimed yet.
+        <Notice tone="muted" icon={FileText} layout="inline">
+          {t("documents.file.office_checking", { format })}
         </Notice>
       ) : (
         <Notice tone="info" icon={FileText} layout="inline">
