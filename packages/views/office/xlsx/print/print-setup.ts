@@ -3,7 +3,10 @@
 // then the file's own page layout (render model), then the defaults below.
 // Print area and print titles come from the same layers: a session edit, then
 // the sheet-scoped `_xlnm.Print_Area` / `_xlnm.Print_Titles` defined names.
-import type { XlsxPageSetupFields, XlsxRenderPageMargins, XlsxRenderPageSetup } from "@uniwork/office-engine/xlsx";
+// A print area may hold several areas ("A1:B5,D1:E5"); each prints on pages
+// of its own, in order. Print titles may name rows ("$1:$2"), columns
+// ("$A:$A") or both. Header/footer text comes from the file only.
+import type { XlsxPageSetupFields, XlsxRenderHeaderFooter, XlsxRenderPageMargins, XlsxRenderPageSetup } from "@uniwork/office-engine/xlsx";
 
 /** A 0-based, inclusive cell range. */
 export interface XlsxPrintRange {
@@ -27,9 +30,13 @@ export interface XlsxResolvedPrintSetup {
   readonly headings: boolean;
   readonly horizontalCentered: boolean;
   readonly verticalCentered: boolean;
-  readonly printArea: XlsxPrintRange | null;
+  /** The print area's areas in print order; null = the used range. */
+  readonly printAreas: readonly XlsxPrintRange[] | null;
   /** 0-based inclusive rows repeated at the top of every page. */
   readonly titleRows: { readonly start: number; readonly end: number } | null;
+  /** 0-based inclusive columns repeated at the left of every page. */
+  readonly titleColumns: { readonly start: number; readonly end: number } | null;
+  readonly headerFooter: XlsxRenderHeaderFooter | null;
   readonly rowBreaks: readonly number[];
   readonly colBreaks: readonly number[];
 }
@@ -72,9 +79,16 @@ function bareReference(text: string): string {
   return (bang === -1 ? trimmed : trimmed.slice(bang + 1)).replace(/\$/g, "");
 }
 
+/** Every area of a print area ("A1:B5,'My sheet'!$D$1:$E$5"), in order;
+ *  areas that do not parse are skipped. Null when none parses. */
+function parsePrintAreas(text: string, used: XlsxPrintRange): XlsxPrintRange[] | null {
+  const areas = text.split(",").map((part) => parsePrintRange(part, used)).filter((area): area is XlsxPrintRange => area !== null);
+  return areas.length === 0 ? null : areas;
+}
+
 /** "A1:D20" / "B3" / "A:C" / "2:9" (optionally sheet-qualified, absolute) to a
- *  range; whole columns/rows extend to the given used bounds. The first area
- *  of a multi-area reference wins (a second area is not printed). */
+ *  range; whole columns/rows extend to the given used bounds. Only the first
+ *  area of a multi-area reference is read (parsePrintAreas reads them all). */
 export function parsePrintRange(text: string, used: XlsxPrintRange): XlsxPrintRange | null {
   const first = bareReference(text.split(",")[0] ?? "");
   const cells = /^([A-Za-z]{1,3})(\d{1,7})(?::([A-Za-z]{1,3})(\d{1,7}))?$/.exec(first);
@@ -110,6 +124,19 @@ export function parseTitleRows(text: string): { start: number; end: number } | n
     const start = Number(match[1]) - 1;
     const end = Number(match[2]) - 1;
     if (start >= 0 && end >= start) return { start, end };
+  }
+  return null;
+}
+
+/** "$A:$B" (optionally sheet-qualified, maybe beside a row span) to 0-based
+ *  inclusive columns; null when no column span is present. */
+function parseTitleColumns(text: string): { start: number; end: number } | null {
+  for (const part of text.split(",")) {
+    const match = /^([A-Za-z]{1,3}):([A-Za-z]{1,3})$/.exec(bareReference(part));
+    if (!match) continue;
+    const start = columnIndex(match[1]!);
+    const end = columnIndex(match[2]!);
+    return { start: Math.min(start, end), end: Math.max(start, end) };
   }
   return null;
 }
@@ -160,8 +187,10 @@ export function resolvePrintSetup(input: XlsxPrintSetupInput): XlsxResolvedPrint
     headings: pick(session.printHeadings, file.printHeadings) ?? false,
     horizontalCentered: file.horizontalCentered ?? false,
     verticalCentered: file.verticalCentered ?? false,
-    printArea: areaText ? parsePrintRange(areaText, input.used) : null,
+    printAreas: areaText ? parsePrintAreas(areaText, input.used) : null,
     titleRows: titleText ? parseTitleRows(titleText) : null,
+    titleColumns: titleText ? parseTitleColumns(titleText) : null,
+    headerFooter: file.headerFooter ?? null,
     rowBreaks: pick(session.rowBreaks, file.rowBreaks) ?? [],
     colBreaks: pick(session.colBreaks, file.colBreaks) ?? [],
   };

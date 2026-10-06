@@ -14,9 +14,9 @@ import { useTranslation } from "react-i18next";
 import type { XlsxPageSetupFields, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { createBrowserPrintPort, isPrintBusy, type OfficePrintOutcome, type OfficePrintPort } from "../../print";
-import type { XlsxVisualsGrid } from "../visuals/use-xlsx-visuals";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import { collectXlsxPrintSheet } from "./collect";
+import type { XlsxPrintGrid } from "./collect-live";
 import { buildXlsxPrintCopy } from "./print-copy";
 
 const XLSX_PRINT_KEYS = {
@@ -37,9 +37,10 @@ interface XlsxPrintRunInput {
   readonly sheetName: string;
   readonly sheetId?: string | undefined;
   readonly snapshot: XlsxWorkbookSnapshot | null;
-  readonly grid?: XlsxVisualsGrid | null | undefined;
+  readonly grid?: XlsxPrintGrid | null | undefined;
   readonly session?: XlsxPageSetupFields | undefined;
   readonly title: string;
+  readonly locale?: string | undefined;
 }
 
 /** Collect, build and print one sheet. A throwing step becomes a typed failure. */
@@ -63,9 +64,10 @@ export interface XlsxPrintOptions {
   readonly sheetName: string | null;
   readonly resolveSheetId?: ((sheetName: string) => string | undefined) | undefined;
   readonly getSnapshot?: (() => XlsxWorkbookSnapshot | null) | undefined;
-  readonly getGrid?: (() => XlsxVisualsGrid | null) | undefined;
-  /** The unsaved Page Setup edits applied to a sheet this session. */
-  readonly getSession?: ((sheetName: string) => XlsxPageSetupFields | undefined) | undefined;
+  readonly getGrid?: (() => XlsxPrintGrid | null) | undefined;
+  /** The unsaved Page Setup edits applied to a sheet this session, by the
+   *  sheet's grid id (its live name when the grid has no id for it). */
+  readonly getSession?: ((sheetKey: string) => XlsxPageSetupFields | undefined) | undefined;
   readonly title: string;
 }
 
@@ -79,7 +81,7 @@ interface XlsxPrintWiring {
 }
 
 export function useXlsxPrint(options: XlsxPrintOptions): XlsxPrintWiring {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const port = useMemo(() => (options.port === undefined ? createBrowserPrintPort() : options.port), [options.port]);
   const [notice, setNotice] = useState<XlsxPrintNotice | null>(null);
   const pending = useRef(false);
@@ -93,15 +95,17 @@ export function useXlsxPrint(options: XlsxPrintOptions): XlsxPrintWiring {
     setNotice(null);
     try {
       const sheetName = current.sheetName;
+      const sheetId = current.resolveSheetId?.(sheetName);
       const outcome = await runXlsxPrint({
         port,
         host: current.host,
         sheetName,
-        sheetId: current.resolveSheetId?.(sheetName),
+        sheetId,
         snapshot: current.getSnapshot?.() ?? null,
         grid: current.getGrid?.() ?? null,
-        session: current.getSession?.(sheetName),
+        session: current.getSession?.(sheetId ?? sheetName),
         title: current.title,
+        locale: i18n.language,
       });
       if (outcome.outcome === "failed") {
         setNotice(isPrintBusy(outcome) ? "busy" : outcome.reason === "print_too_large" ? "tooLarge" : "failed");
@@ -109,7 +113,7 @@ export function useXlsxPrint(options: XlsxPrintOptions): XlsxPrintWiring {
     } finally {
       pending.current = false;
     }
-  }, [port]);
+  }, [i18n, port]);
 
   useEffect(() => {
     if (!notice) return undefined;

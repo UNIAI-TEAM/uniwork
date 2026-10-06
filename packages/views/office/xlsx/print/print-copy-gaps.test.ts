@@ -1,0 +1,183 @@
+// UNI-952 D2: the XLSX print gaps - multi-area print areas, repeated title
+// columns, header/footer, overflow and ####, rotation, pictures.
+import { describe, expect, it } from "vitest";
+import type { XlsxRenderPageSetup, XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
+import { buildXlsxPrintCopy, type XlsxPrintCell, type XlsxPrintPicture, type XlsxPrintSheet } from "./print-copy";
+import { parseHeaderFooter } from "./print-header-footer";
+import { resolvePrintSetup, type XlsxPrintDefinedName, type XlsxPrintRange } from "./print-setup";
+
+const PLAIN: XlsxRenderStyle = { bold: false, italic: false, underline: false, strikethrough: false, wrapText: false, diagonalUp: false, diagonalDown: false };
+const CONTEXT = { sheetName: "Data", fileName: "Book.xlsx", date: "06/10/2026", time: "19:30" };
+
+interface Options {
+  cells?: Record<string, XlsxPrintCell>;
+  used?: XlsxPrintRange;
+  file?: XlsxRenderPageSetup;
+  names?: XlsxPrintDefinedName[];
+  styles?: XlsxRenderStyle[];
+  pictures?: XlsxPrintPicture[];
+}
+
+function sheet(options: Options = {}): XlsxPrintSheet {
+  const used = options.used ?? { startRow: 0, endRow: 3, startColumn: 0, endColumn: 3 };
+  const setup = resolvePrintSetup({ file: options.file, definedNames: options.names, sheetIndex: 0, used });
+  return {
+    title: "Book - Data",
+    setup,
+    areas: setup.printAreas ?? [used],
+    cells: new Map(Object.entries(options.cells ?? {})),
+    styles: options.styles ?? [PLAIN],
+    columns: new Map(),
+    rows: new Map(),
+    defaultColumnWidth: 48,
+    defaultRowHeight: 15,
+    merges: [],
+    headerContext: CONTEXT,
+    pictures: options.pictures,
+  };
+}
+
+function build(input: XlsxPrintSheet): { html: string; pages: number; doc: Document } {
+  const result = buildXlsxPrintCopy(input);
+  if (!result.ok) throw new Error(result.reason);
+  return { html: result.html, pages: result.pages, doc: new DOMParser().parseFromString(result.html, "text/html") };
+}
+
+const text = (value: string, styleIndex?: number): XlsxPrintCell => ({ text: value, kind: "text", ...(styleIndex === undefined ? {} : { styleIndex }) });
+const number = (value: string, styleIndex?: number): XlsxPrintCell => ({ text: value, kind: "number", ...(styleIndex === undefined ? {} : { styleIndex }) });
+const pageTexts = (doc: Document): string[][] =>
+  Array.from(doc.querySelectorAll("section.page")).map((page) => Array.from(page.querySelectorAll("td")).map((cell) => cell.textContent ?? ""));
+
+describe("multi-area print areas", () => {
+  it("prints each area on pages of its own, in the order the name lists them", () => {
+    const { doc, pages } = build(sheet({
+      cells: { "0:0": text("a1"), "2:3": text("d3"), "3:3": text("d4") },
+      names: [{ name: "_xlnm.Print_Area", formula: "Data!$D$3:$D$4,Data!$A$1", sheetIndex: 0 }],
+    }));
+    expect(pages).toBe(2);
+    expect(pageTexts(doc)).toEqual([["d3", "d4"], ["a1"]]);
+  });
+});
+
+describe("print titles", () => {
+  it("repeats title columns at the left of every later page, beside title rows", () => {
+    const cells: Record<string, XlsxPrintCell> = { "0:0": text("Key") };
+    for (let column = 1; column < 30; column += 1) cells[`0:${column}`] = text(`h${column}`);
+    const { doc } = build(sheet({
+      cells,
+      used: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 29 },
+      names: [{ name: "_xlnm.Print_Titles", formula: "Data!$A:$A,Data!$1:$1", sheetIndex: 0 }],
+    }));
+    const pages = Array.from(doc.querySelectorAll("section.page"));
+    expect(pages.length).toBeGreaterThan(1);
+    expect(pages[0]!.querySelector("td")?.textContent).toBe("Key");
+    for (const page of pages.slice(1)) {
+      // Each later page starts with column A, and the title row stays row 1.
+      expect(page.querySelector("tbody td")?.textContent).toBe("Key");
+      expect(page.querySelectorAll("colgroup col").length).toBeGreaterThan(1);
+    }
+  });
+});
+
+describe("header and footer", () => {
+  it("splits Excel's sections and resolves its field codes", () => {
+    expect(parseHeaderFooter("&L&A&C&\"Arial,Bold\"&14Page &P of &N&R&D && &F&KFF0000x&Z&G", CONTEXT)).toEqual({
+      left: [{ text: "Data" }],
+      center: [{ text: "Page " }, { counter: "page" }, { text: " of " }, { counter: "pages" }],
+      right: [{ text: "06/10/2026 & Book.xlsxx" }],
+    });
+  });
+
+  it("prints odd and first-page text in the margin boxes with page counters", () => {
+    const { html } = build(sheet({
+      file: {
+        margins: { left: 0.7, right: 0.7, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.4 },
+        headerFooter: { oddHeader: "&CBudget &A", oddFooter: "&RPage &P / &N", firstFooter: "&CCover", differentFirst: true },
+      },
+    }));
+    expect(html).toContain("@top-center{content:\"Budget Data\";");
+    expect(html).toContain("padding-top:0.3in");
+    expect(html).toContain("@bottom-right{content:\"Page \" counter(page) \" / \" counter(pages);");
+    expect(html).toContain("padding-bottom:0.4in");
+    expect(html).toMatch(/@page:first\{@top-left\{content:none;.*@bottom-center\{content:"Cover";/);
+  });
+
+  it("keeps header text inside its CSS string and its <style> element", () => {
+    const { doc, html } = build(sheet({ file: { headerFooter: { oddHeader: "&C\"};</style><script>x</script>\\" } } }));
+    expect(html).not.toContain("</style><script>");
+    expect(doc.querySelectorAll("script")).toHaveLength(0);
+    expect(html).toContain("content:\"\\22 };\\3c /style\\3e \\3c script\\3e x\\3c /script\\3e \\5c \"");
+  });
+
+  it("adds nothing when the file has no header or footer", () => {
+    expect(build(sheet()).html).not.toContain("@top-");
+  });
+});
+
+describe("overflow and ####", () => {
+  const right: XlsxRenderStyle = { ...PLAIN, horizontalAlignment: "right" };
+  const center: XlsxRenderStyle = { ...PLAIN, horizontalAlignment: "center", verticalAlignment: "top" };
+
+  it("spills right-aligned text to the left and centred text to both sides, only into empty cells", () => {
+    const { doc } = build(sheet({
+      styles: [PLAIN, right, center],
+      cells: {
+        "0:2": text("A rather long right text", 1),
+        "1:1": text("Centred long heading", 2),
+        "2:0": text("stop"), "2:1": text("A very long left text"), "2:3": text("x"),
+      },
+    }));
+    const rows = Array.from(doc.querySelectorAll("tbody tr"));
+    const spill = (row: number, column: number) => rows[row]!.querySelectorAll("td")[column]!.querySelector(".ox")?.getAttribute("style");
+    expect(spill(0, 2)).toBe("left:-96pt;right:0pt;justify-content:flex-end;align-items:flex-end");
+    expect(spill(1, 1)).toBe("left:-48pt;right:-48pt;justify-content:center;align-items:flex-start");
+    // C3 is empty but D3 holds "x": the spill stops after one column.
+    expect(spill(2, 1)).toBe("left:0pt;right:-48pt;justify-content:flex-start;align-items:flex-end");
+  });
+
+  it("clips text with no empty neighbour and leaves short text alone", () => {
+    const { doc } = build(sheet({ cells: { "0:0": text("Too long to fit here"), "0:1": text("b"), "1:0": text("ok") } }));
+    expect(doc.querySelectorAll(".ox")).toHaveLength(0);
+  });
+
+  it("shows #### for a formatted number too wide and rounds a General decimal first", () => {
+    const formatted: XlsxRenderStyle = { ...PLAIN, numberFormat: "#,##0.00" };
+    const { doc } = build(sheet({
+      styles: [PLAIN, formatted],
+      cells: { "0:0": number("1,234,567,890.00", 1), "1:0": number("3.14159265358979"), "2:0": number("12") },
+    }));
+    const texts = pageTexts(doc)[0]!.filter((value) => value !== "");
+    expect(texts[0]).toMatch(/^#{6,}$/);
+    expect(texts[1]).toBe("3.141593");
+    expect(texts[2]).toBe("12");
+  });
+});
+
+describe("text rotation", () => {
+  it("turns rotated text inside its cell, counterclockwise, clockwise or stacked", () => {
+    const styles = [PLAIN, { ...PLAIN, textRotation: 45 }, { ...PLAIN, textRotation: 135 }, { ...PLAIN, textRotation: 255 }];
+    const { doc, html } = build(sheet({ styles, cells: { "0:0": text("up", 1), "0:1": text("down", 2), "0:2": text("stack", 3) } }));
+    expect(doc.querySelectorAll("td > span.rt")).toHaveLength(3);
+    expect(html).toContain("td.s1>.rt{display:inline-block;white-space:nowrap;transform:rotate(-45deg)}");
+    expect(html).toContain("td.s2>.rt{display:inline-block;white-space:nowrap;transform:rotate(45deg)}");
+    expect(html).toContain("td.s3>.rt{display:inline-block;writing-mode:vertical-rl;text-orientation:upright}");
+  });
+});
+
+describe("pictures", () => {
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+
+  it("places a data: picture absolutely by its anchor cell on the page that prints it", () => {
+    const { doc } = build(sheet({
+      pictures: [
+        { row: 1, column: 2, offsetX: 4, offsetY: 2, width: 100, height: 50, src: png },
+        { row: 0, column: 0, offsetX: 0, offsetY: 0, width: 10, height: 10, src: "https://example.com/x.png" },
+        { row: 99, column: 0, offsetX: 0, offsetY: 0, width: 10, height: 10, src: png },
+      ],
+    }));
+    const images = Array.from(doc.querySelectorAll("section.page img.pic"));
+    expect(images).toHaveLength(1);
+    expect(images[0]!.getAttribute("src")).toBe(png);
+    expect(images[0]!.getAttribute("style")).toBe("left:100pt;top:17pt;width:100pt;height:50pt");
+  });
+});

@@ -90,6 +90,21 @@ describe("useXlsxPageSetup export/print", () => {
     expect(request.html).toContain("@page{size:11.69in 8.27in;");
   });
 
+  it("keeps this session's dialog edits for a sheet renamed after them (keyed by sheet id)", async () => {
+    let name = "Data";
+    const snapshot = (): XlsxWorkbookSnapshot => ({ revision: 1, sheets: [{ id: "sheet-1", name, cells: { A1: { value: "x" } } }] });
+    const port: OfficePrintPort = { print: vi.fn(() => ({ outcome: "printed" as const })) };
+    const props = { ...options(snapshot, port), resolveSheetId: (sheetName: string) => (sheetName === name ? "sheet-1" : undefined) };
+    const hook = renderHook((current: typeof props) => useXlsxPageSetup(current), { initialProps: props });
+    act(() => hook.result.current.applyPageSetup({ orientation: "landscape" }));
+    await waitFor(() => expect(props.onApplied).toHaveBeenCalledOnce());
+    name = "Renamed";
+    hook.rerender({ ...props, selection: { sheet: "Renamed", address: "A1" }, activeSheet: "Renamed" });
+    act(() => hook.result.current.print?.());
+    await waitFor(() => expect(port.print).toHaveBeenCalledOnce());
+    expect(vi.mocked(port.print).mock.calls[0]![0].html).toContain("@page{size:11.69in 8.27in;");
+  });
+
   it("offers no print without a port (null) and never touches window.print", () => {
     const windowPrint = vi.spyOn(window, "print").mockImplementation(() => undefined);
     const hook = renderHook(() => useXlsxPageSetup(options(() => null, null)));

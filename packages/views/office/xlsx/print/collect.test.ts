@@ -43,8 +43,8 @@ describe("collectXlsxPrintSheet", () => {
     if (!result.ok) throw new Error(result.reason);
     const { sheet } = result;
     // The used range grows to the live cell C5 beyond the file's dimension.
-    expect(sheet.range).toEqual({ startRow: 0, endRow: 4, startColumn: 0, endColumn: 2 });
-    expect(port.readRange).toHaveBeenCalledWith({ sessionId: "s-1", sheetId: "sheet-1", range: sheet.range });
+    expect(sheet.areas).toEqual([{ startRow: 0, endRow: 4, startColumn: 0, endColumn: 2 }]);
+    expect(port.readRange).toHaveBeenCalledWith({ sessionId: "s-1", sheetId: "sheet-1", range: sheet.areas[0] });
     expect(sheet.cells.get("0:0")).toEqual({ text: "Grid A1", kind: "text", styleIndex: 0 });
     expect(sheet.cells.get("1:1")).toEqual({ text: "1,234.50 ₫", kind: "number", styleIndex: 1 });
     expect(sheet.setup.orientation).toBe("landscape");
@@ -69,9 +69,60 @@ describe("collectXlsxPrintSheet", () => {
     ] });
     const result = await collectXlsxPrintSheet({ host: port, sheetName: "Data", snapshot: null, title: "Book" });
     if (!result.ok) throw new Error(result.reason);
-    expect(result.sheet.range).toEqual({ startRow: 9, endRow: 11, startColumn: 1, endColumn: 1 });
+    expect(result.sheet.areas).toEqual([{ startRow: 9, endRow: 11, startColumn: 1, endColumn: 1 }]);
     expect(port.readRange).toHaveBeenCalledWith({ sessionId: "s-1", sheetId: "sheet-1", range: { startRow: 0, endRow: 11, startColumn: 1, endColumn: 1 } });
     expect(result.sheet.setup.titleRows).toEqual({ start: 0, end: 0 });
+  });
+
+  it("prints the styles, sizes and merges the grid paints (session edits, conditional-format fills)", async () => {
+    const port = host();
+    const painted = { bold: true, fillColor: "#FFC7CE", fontColor: "#9C0006", borderTop: { style: "thin" }, borderLeft: null };
+    const grid = {
+      readRangeValues: vi.fn(() => ({ values: [], display: [["Grid A1", ""], ["", "1,234.50"], ["", ""]] })),
+      readPrintRange: vi.fn(() => ({
+        styles: [[painted, null], [painted, { textRotation: 90 }], [null, null]],
+        rows: [{ height: 40, hidden: false }, { height: 20, hidden: true }, { height: 20, hidden: false }],
+        columns: [{ width: 100, hidden: false }, { width: 64, hidden: false }],
+        merges: [{ startRow: 1, endRow: 2, startColumn: 0, endColumn: 0 }],
+      })),
+    };
+    const result = await collectXlsxPrintSheet({ host: port, sheetName: "Data", sheetId: "sheet-1", snapshot: null, grid, title: "Book" });
+    if (!result.ok) throw new Error(result.reason);
+    const { sheet } = result;
+    expect(grid.readPrintRange).toHaveBeenCalledWith("sheet-1", { startRow: 0, endRow: 2, startColumn: 0, endColumn: 1 });
+    // Live styles are appended after the file's two and shared by equal cells.
+    const a1 = sheet.cells.get("0:0")!;
+    expect(a1.styleIndex).toBe(2);
+    expect(sheet.cells.get("1:0")?.styleIndex).toBe(2);
+    expect(sheet.styles[2]).toEqual({ bold: true, italic: false, underline: false, strikethrough: false, wrapText: false, diagonalUp: false, diagonalDown: false, fillColor: "#FFC7CE", fontColor: "#9C0006", borderTop: { style: "thin" } });
+    expect(sheet.styles[3]?.textRotation).toBe(90);
+    // A cell the grid paints without a style drops the model's style.
+    expect(sheet.cells.get("1:1")?.styleIndex).toBe(3);
+    expect(sheet.cells.get("0:1")).toBeUndefined();
+    expect(sheet.rows.get(0)).toEqual({ height: 30 });
+    expect(sheet.rows.get(1)).toEqual({ height: 15, hidden: true });
+    expect(sheet.columns.get(0)).toEqual({ width: 75 });
+    expect(sheet.merges).toEqual([{ startRow: 1, endRow: 2, startColumn: 0, endColumn: 0 }]);
+  });
+
+  it("reads every area of a multi-area print area with the title rows and columns beside it", async () => {
+    const port = host({ definedNames: [
+      { name: "_xlnm.Print_Area", formula: "Data!$C$5:$D$6,Data!$F$9", sheetIndex: 0 },
+      { name: "_xlnm.Print_Titles", formula: "Data!$A:$A,Data!$1:$1", sheetIndex: 0 },
+    ] });
+    const now = new Date(2026, 9, 6, 19, 30);
+    const result = await collectXlsxPrintSheet({ host: port, sheetName: "Data", snapshot: null, title: "Book", now, locale: "en-GB" });
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.sheet.areas).toEqual([
+      { startRow: 4, endRow: 5, startColumn: 2, endColumn: 3 },
+      { startRow: 8, endRow: 8, startColumn: 5, endColumn: 5 },
+    ]);
+    expect(vi.mocked(port.readRange).mock.calls.map(([call]) => call.range)).toEqual([
+      { startRow: 0, endRow: 5, startColumn: 0, endColumn: 3 },
+      { startRow: 0, endRow: 8, startColumn: 0, endColumn: 5 },
+    ]);
+    expect(result.sheet.setup.titleColumns).toEqual({ start: 0, end: 0 });
+    expect(result.sheet.headerContext).toEqual({ sheetName: "Data", fileName: "Book.xlsx", date: "06/10/2026", time: "19:30" });
   });
 
   it("refuses an unknown sheet and a range too large to print", async () => {
@@ -104,7 +155,7 @@ describe("print setup references", () => {
       sheetIndex: 0,
       used,
     });
-    expect(setup.printArea).toBeNull();
+    expect(setup.printAreas).toBeNull();
     expect(setup.margins).toEqual({ left: 0.25, right: 0.25, top: 0.75, bottom: 0.75 });
     // An unknown paper code prints on A4.
     expect(setup.paper.width).toBeCloseTo(8.27, 2);

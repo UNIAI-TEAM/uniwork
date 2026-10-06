@@ -2,7 +2,8 @@
 // columns and rows land on which page, at which scale. Excel's rules, kept:
 // fit-to-page shrinks (never grows) to fit N pages wide / M tall and ignores
 // manual breaks; a fixed scale honours them; pages run down, then over; title
-// rows repeat on every page that does not already start with them.
+// rows repeat on every page that does not already start with them, title
+// columns on every page that does not already start with them.
 import type { XlsxResolvedPrintSetup } from "./print-setup";
 
 /** Lengths are points (1/72 in) at 100%. */
@@ -13,6 +14,8 @@ export interface XlsxPrintGeometry {
   readonly rows: readonly { readonly index: number; readonly height: number }[];
   /** Visible title rows (repeated at the top), in order. */
   readonly titleRows: readonly { readonly index: number; readonly height: number }[];
+  /** Visible title columns (repeated at the left), in order. */
+  readonly titleColumns: readonly { readonly index: number; readonly width: number }[];
   /** Row-heading column width and column-heading row height (0 when off). */
   readonly headingWidth: number;
   readonly headingHeight: number;
@@ -23,6 +26,8 @@ export interface XlsxPrintPage {
   readonly rows: readonly number[];
   /** Title rows prepended to this page (empty when it starts with them). */
   readonly titleRows: readonly number[];
+  /** Title columns prepended to this page (empty when it starts with them). */
+  readonly titleColumns: readonly number[];
 }
 
 interface XlsxPrintLayout {
@@ -45,7 +50,8 @@ export function printableArea(setup: XlsxResolvedPrintSetup): { width: number; h
   };
 }
 
-function effectiveScale(setup: XlsxResolvedPrintSetup, geometry: XlsxPrintGeometry): number {
+/** The scale one area prints at (1 = 100%). */
+export function effectiveScale(setup: XlsxResolvedPrintSetup, geometry: XlsxPrintGeometry): number {
   if (!setup.fit) return Math.min(4, Math.max(MIN_SCALE, setup.scale / 100));
   const area = printableArea(setup);
   const totalWidth = sum(geometry.columns, "width") + geometry.headingWidth;
@@ -57,70 +63,64 @@ function effectiveScale(setup: XlsxResolvedPrintSetup, geometry: XlsxPrintGeomet
 }
 
 /** Split sized items into runs that fit `limit`, breaking before any index in
- *  `breaks`. An item larger than the limit gets a run of its own. */
-function runs<T extends { readonly index: number }>(
-  items: readonly T[],
-  size: (item: T) => number,
+ *  `breaks`. A run that starts after the last title item reserves room for
+ *  the titles (unless they could never fit) and carries them. An item larger
+ *  than the room gets a run of its own. */
+function runs(
+  items: readonly { readonly index: number; readonly size: number }[],
   limit: number,
   breaks: ReadonlySet<number>,
-): number[][] {
-  const out: number[][] = [];
-  let current: number[] = [];
-  let used = 0;
-  for (const item of items) {
-    const extent = size(item);
-    const forced = breaks.has(item.index);
-    if (current.length > 0 && (forced || used + extent > limit + 0.01)) {
-      out.push(current);
-      current = [];
-      used = 0;
-    }
-    current.push(item.index);
-    used += extent;
-  }
-  if (current.length > 0) out.push(current);
-  return out;
-}
-
-/** Lay one sheet out into pages. */
-export function layoutPrintPages(setup: XlsxResolvedPrintSetup, geometry: XlsxPrintGeometry): XlsxPrintLayout {
-  const scale = effectiveScale(setup, geometry);
-  const area = printableArea(setup);
-  // Work in sheet points: the page holds area / scale of them.
-  const width = area.width / scale - geometry.headingWidth;
-  const height = area.height / scale - geometry.headingHeight;
-  const titleHeight = sum(geometry.titleRows, "height");
-  const titleIndexes = geometry.titleRows.map((row) => row.index);
-  const manual = setup.fit === null;
-  const columnRuns = runs(geometry.columns, (column) => column.width, width, new Set(manual ? setup.colBreaks : []));
-
-  // Rows: a page that starts below the title rows reserves room for them
-  // (unless they could never fit), and gets them in its header.
-  const rowBreaks = new Set(manual ? setup.rowBreaks : []);
+  titles: readonly { readonly index: number; readonly size: number }[],
+): { items: number[]; titles: readonly number[] }[] {
+  const titleSize = titles.reduce((total, title) => total + title.size, 0);
+  const titleIndexes = titles.map((title) => title.index);
   const lastTitle = titleIndexes[titleIndexes.length - 1];
-  const needsTitles = (first: number): boolean => lastTitle !== undefined && first > lastTitle && titleHeight < height;
-  const rowRuns: { rows: number[]; titles: readonly number[] }[] = [];
+  const needsTitles = (first: number): boolean => lastTitle !== undefined && first > lastTitle && titleSize < limit;
+  const out: { items: number[]; titles: readonly number[] }[] = [];
   let current: number[] = [];
   let used = 0;
   let reserve = 0;
   const close = (): void => {
     if (current.length === 0) return;
-    rowRuns.push({ rows: current, titles: needsTitles(current[0]!) ? titleIndexes : [] });
+    out.push({ items: current, titles: needsTitles(current[0]!) ? titleIndexes : [] });
     current = [];
     used = 0;
   };
-  for (const row of geometry.rows) {
-    if (current.length > 0 && (rowBreaks.has(row.index) || used + row.height > height - reserve + 0.01)) close();
-    if (current.length === 0) reserve = needsTitles(row.index) ? titleHeight : 0;
-    current.push(row.index);
-    used += row.height;
+  for (const item of items) {
+    if (current.length > 0 && (breaks.has(item.index) || used + item.size > limit - reserve + 0.01)) close();
+    if (current.length === 0) reserve = needsTitles(item.index) ? titleSize : 0;
+    current.push(item.index);
+    used += item.size;
   }
   close();
+  return out;
+}
+
+/** Lay one area out into pages, at `scale` when given (a multi-area print
+ *  shares the smallest scale of its areas), else its own. */
+export function layoutPrintPages(setup: XlsxResolvedPrintSetup, geometry: XlsxPrintGeometry, scale = effectiveScale(setup, geometry)): XlsxPrintLayout {
+  const area = printableArea(setup);
+  // Work in sheet points: the page holds area / scale of them.
+  const width = area.width / scale - geometry.headingWidth;
+  const height = area.height / scale - geometry.headingHeight;
+  const manual = setup.fit === null;
+  const columnRuns = runs(
+    geometry.columns.map((column) => ({ index: column.index, size: column.width })),
+    width,
+    new Set(manual ? setup.colBreaks : []),
+    geometry.titleColumns.map((column) => ({ index: column.index, size: column.width })),
+  );
+  const rowRuns = runs(
+    geometry.rows.map((row) => ({ index: row.index, size: row.height })),
+    height,
+    new Set(manual ? setup.rowBreaks : []),
+    geometry.titleRows.map((row) => ({ index: row.index, size: row.height })),
+  );
 
   const pages: XlsxPrintPage[] = [];
-  for (const columns of columnRuns.length > 0 ? columnRuns : [[]]) {
-    for (const run of rowRuns.length > 0 ? rowRuns : [{ rows: [], titles: [] }]) {
-      pages.push({ columns, rows: run.rows, titleRows: run.titles });
+  for (const columns of columnRuns.length > 0 ? columnRuns : [{ items: [], titles: [] }]) {
+    for (const rows of rowRuns.length > 0 ? rowRuns : [{ items: [], titles: [] }]) {
+      pages.push({ columns: columns.items, rows: rows.items, titleRows: rows.titles, titleColumns: columns.titles });
     }
   }
   return { scale, pages };

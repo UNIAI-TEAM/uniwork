@@ -118,6 +118,18 @@ export function styleDeclarations(style: XlsxRenderStyle, scale: number): string
   return out;
 }
 
+/** The declarations that turn a cell's text (its `.rt` wrapper) by the
+ *  style's OOXML rotation: 1-90 counterclockwise, 91-180 clockwise by
+ *  value-90, 255 stacked top to bottom. Empty without a rotation. */
+export function rotationDeclarations(style: XlsxRenderStyle): string[] {
+  const rotation = style.textRotation;
+  if (rotation === undefined || !Number.isFinite(rotation) || rotation === 0) return [];
+  if (rotation === 255) return ["display:inline-block", "writing-mode:vertical-rl", "text-orientation:upright"];
+  if (rotation < 0 || rotation > 180) return [];
+  const degrees = rotation <= 90 ? -rotation : rotation - 90;
+  return ["display:inline-block", "white-space:nowrap", `transform:rotate(${Math.round(degrees)}deg)`];
+}
+
 /** Two decimals, no trailing noise. */
 export function round(value: number): number {
   return Math.round(value * 100) / 100;

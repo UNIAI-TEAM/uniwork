@@ -24,7 +24,7 @@ function sheet(options: SheetOptions = {}): XlsxPrintSheet {
   return {
     title: options.title ?? "Book - Data",
     setup,
-    range: setup.printArea ?? used,
+    areas: setup.printAreas ?? [used],
     cells: new Map(Object.entries(options.cells ?? {})),
     styles: options.styles ?? [PLAIN],
     columns: options.columns ?? new Map(),
@@ -170,7 +170,8 @@ describe("buildXlsxPrintCopy", () => {
   it("aligns General numbers right and lets text spill into empty neighbours", () => {
     const { doc } = build(sheet({ cells: { "0:0": text("A long title"), "1:0": { text: "1,250", kind: "number" }, "1:1": text("x") } }));
     const [title] = Array.from(doc.querySelectorAll("tbody td"));
-    expect(title!.className).toBe("sp");
+    expect(title!.className).toBe("ov");
+    expect(title!.querySelector(".ox")?.getAttribute("style")).toBe("left:0pt;right:-144pt;justify-content:flex-start;align-items:flex-end");
     expect(doc.querySelectorAll("tbody tr")[1]!.querySelector("td")!.className).toBe("n");
   });
 

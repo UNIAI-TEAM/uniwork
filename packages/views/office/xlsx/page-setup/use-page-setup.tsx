@@ -14,7 +14,7 @@ import type { XlsxPageSetupFields, XlsxWorkbookSnapshot } from "@uniwork/office-
 import type { OfficePrintPort } from "../../print";
 import { HeaderActionsFill } from "../../../layout/header-actions-slot";
 import { useXlsxPrint } from "../print/use-xlsx-print";
-import type { XlsxVisualsGrid } from "../visuals/use-xlsx-visuals";
+import type { XlsxPrintGrid } from "../print/collect-live";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import type { XlsxSelection } from "../types";
 import { csvSheetFromSnapshot, serializeSheetToCsv } from "../export/csv";
@@ -38,7 +38,7 @@ export interface XlsxPageSetupOptions {
   printPort?: OfficePrintPort | null | undefined;
   /** Printed document title. */
   title?: string | undefined;
-  getGrid?: (() => XlsxVisualsGrid | null) | undefined;
+  getGrid?: (() => XlsxPrintGrid | null) | undefined;
   resolveSheetId?: ((sheetName: string) => string | undefined) | undefined;
 }
 
@@ -60,7 +60,8 @@ export function useXlsxPageSetup(options: XlsxPageSetupOptions): XlsxPageSetupWi
   const [pageSetupOpen, setPageSetupOpen] = useState(false);
   const sheetName = selection?.sheet ?? activeSheet;
   // Dialog edits applied this session, folded field-wise per sheet (last
-  // write wins), like the session model folds the ops it saves.
+  // write wins), like the session model folds the ops it saves. Keyed by the
+  // sheet's grid id, so a later rename in the session keeps them.
   const sessionSetups = useRef(new Map<string, XlsxPageSetupFields>());
 
   // One set_page_setup op the session model folds; the gateway merges each
@@ -69,11 +70,12 @@ export function useXlsxPageSetup(options: XlsxPageSetupOptions): XlsxPageSetupWi
     if (!canEdit || !edit || !sheetName) return;
     void Promise.resolve(edit([{ op: "set_page_setup", target: { sheet: sheetName }, attributes: fields }]))
       .then(() => {
-        sessionSetups.current.set(sheetName, { ...sessionSetups.current.get(sheetName), ...fields });
+        const sheetKey = resolveSheetId?.(sheetName) ?? sheetName;
+        sessionSetups.current.set(sheetKey, { ...sessionSetups.current.get(sheetKey), ...fields });
         onApplied();
       })
       .catch((error: unknown) => onError(error instanceof Error ? error.message : String(error)));
-  }, [canEdit, edit, onApplied, onError, sheetName]);
+  }, [canEdit, edit, onApplied, onError, resolveSheetId, sheetName]);
 
   // Export CSV: the active sheet read from the LIVE session snapshot (kept
   // current by every edit), serialized by the pure serializer and downloaded
@@ -95,7 +97,7 @@ export function useXlsxPageSetup(options: XlsxPageSetupOptions): XlsxPageSetupWi
     resolveSheetId,
     getSnapshot,
     getGrid,
-    getSession: (name) => sessionSetups.current.get(name),
+    getSession: (sheetKey) => sessionSetups.current.get(sheetKey),
     title: title ?? host?.file.name ?? "",
   });
 
