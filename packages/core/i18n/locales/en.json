@@ -8174,6 +8174,8 @@
       "export": {
         "menuLabel": "Export and print",
         "print": "Print",
+        "printBusy": "A print dialog is already open. Finish or close it first.",
+        "printFailed": "Could not print the document. Try again.",
         "html": "Export HTML",
         "fileName": "document",
         "documentTitle": "Document",

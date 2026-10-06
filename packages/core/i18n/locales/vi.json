@@ -8169,6 +8169,8 @@
       "export": {
         "menuLabel": "Xuất và in",
         "print": "In",
+        "printBusy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
+        "printFailed": "Không in được tài liệu. Thử lại.",
         "html": "Xuất HTML",
         "fileName": "tài liệu",
         "documentTitle": "Tài liệu",
