@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,6 +56,10 @@ func TestLoadConfigRefusesUnsafeKeyRoot(t *testing.T) {
 		"/develop", "//develop", "develop//x", "\\develop", "develop\\x", "C:/develop", "C:\\develop",
 		"https://minio:9000/uniwork/develop", "s3://uniwork/develop", "develop?x", "develop#x",
 		"dev elop", "develop\t/", "dev%2Fprod", "develop/\x00",
+		// Windows strips trailing dots from a segment, so "develop." names "develop".
+		"develop.", "develop./x", "x/develop.", "...", "develop/...",
+		// v1/ is the FileService boundary, never the first folder of a root.
+		"v1", "v1/", "V1/x/", "v1/develop",
 	} {
 		t.Run(raw, func(t *testing.T) {
 			env := validMinIOEnv()
@@ -119,9 +124,18 @@ func TestServeFileRefusesFileServiceObjectsUnderTheKeyRoot(t *testing.T) {
 		"v1/" + tail,
 		"V1/" + tail,
 		"./v1/" + tail,
+		// Windows drops trailing dots and spaces from a segment, so these open
+		// the same objects there.
+		"develop./v1/" + tail,
+		"develop/v1./" + tail,
+		"develop /v1/" + tail,
+		"develop/v1 /" + tail,
+		"v1./" + tail,
+		"v1 /" + tail,
+		"develop.../v1/" + tail,
 	} {
 		rec := httptest.NewRecorder()
-		legacy.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/"+key, nil), key)
+		legacy.ServeFile(rec, httptest.NewRequest(http.MethodGet, (&url.URL{Path: "/uploads/" + key}).String(), nil), key)
 		if rec.Code != http.StatusNotFound || rec.Body.String() == "secret" {
 			t.Errorf("ServeFile(%q) = %d %q, want 404", key, rec.Code, rec.Body.String())
 		}
@@ -130,6 +144,27 @@ func TestServeFileRefusesFileServiceObjectsUnderTheKeyRoot(t *testing.T) {
 	legacy.ServeFile(rec, httptest.NewRequest(http.MethodGet, "/uploads/chat/files/legacy.pdf", nil), "chat/files/legacy.pdf")
 	if rec.Code != http.StatusOK {
 		t.Errorf("legacy object = %d, want 200", rec.Code)
+	}
+}
+
+// The guard decides on the path text alone, so it is pinned directly: on Linux
+// "develop./v1/x" is another (missing) folder and ServeFile answers 404 either
+// way, which would hide a guard that only works where the volume agrees.
+func TestIsFileServiceKeyIgnoresTrailingDotsAndSpaces(t *testing.T) {
+	s := &LocalStorage{keyRoot: "develop/"}
+	for _, rel := range []string{
+		"develop/v1/x", "Develop/V1/x", "v1/x", "develop/v1",
+		"develop./v1/x", "develop/v1./x", "develop /v1/x", "develop/v1 /x",
+		"v1./x", "v1 /x", "develop.../v1/x", "develop/. ./v1/x",
+	} {
+		if !s.isFileServiceKey(rel) {
+			t.Errorf("isFileServiceKey(%q) = false, want true", rel)
+		}
+	}
+	for _, rel := range []string{"chat/files/a.pdf", "avatars/a.png", "develop/chat/v1/x", "v10/x", "develop/v10/x"} {
+		if s.isFileServiceKey(rel) {
+			t.Errorf("isFileServiceKey(%q) = true, want false", rel)
+		}
 	}
 }
 

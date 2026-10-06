@@ -36,9 +36,11 @@ func normalizeKeyRoot(raw string) string {
 
 // ValidKeyRoot reports whether root is "" or the stored form of a path-safe
 // root: one or more segments of letters, digits, '.', '_' or '-', each ending
-// in exactly one '/', none of them "." or "..". Leading slashes, backslashes,
-// empty segments, URLs, drive letters, whitespace and escapes are refused
-// rather than cleaned into some other folder.
+// in exactly one '/', none of them "." or "..", none ending in '.' (Windows
+// strips it, so "develop." would name "develop"), and the first one not "v1"
+// (the FileService boundary, compared case-insensitively). Leading slashes,
+// backslashes, empty segments, URLs, drive letters, whitespace and escapes are
+// refused rather than cleaned into some other folder.
 func ValidKeyRoot(root string) bool {
 	if root == "" {
 		return true
@@ -46,8 +48,11 @@ func ValidKeyRoot(root string) bool {
 	if !strings.HasSuffix(root, "/") {
 		return false
 	}
-	for _, seg := range strings.Split(strings.TrimSuffix(root, "/"), "/") {
-		if seg == "" || seg == "." || seg == ".." {
+	for i, seg := range strings.Split(strings.TrimSuffix(root, "/"), "/") {
+		if seg == "" || strings.HasSuffix(seg, ".") {
+			return false
+		}
+		if i == 0 && strings.EqualFold(seg, strings.TrimSuffix(FileServiceKeyPrefix, "/")) {
 			return false
 		}
 		for _, r := range seg {

@@ -372,8 +372,19 @@ func (s *LocalStorage) UploadFromReader(ctx context.Context, key string, reader 
 
 // isFileServiceKey reports whether a path relative to uploadDir names a
 // FileService object: v1/… or <keyRoot>v1/…, compared case-insensitively.
+// Windows drops trailing dots and spaces from every path segment, so
+// "develop./v1./x" opens the same object as "develop/v1/x"; the segments are
+// stripped the same way before comparing (a segment that is only dots and
+// spaces vanishes).
 func (s *LocalStorage) isFileServiceKey(rel string) bool {
-	key := strings.ToLower(filepath.ToSlash(rel)) + "/"
+	segs := strings.Split(strings.ToLower(filepath.ToSlash(rel)), "/")
+	kept := segs[:0]
+	for _, seg := range segs {
+		if seg = strings.TrimRight(seg, ". "); seg != "" {
+			kept = append(kept, seg)
+		}
+	}
+	key := strings.Join(kept, "/") + "/"
 	if strings.HasPrefix(key, FileServiceKeyPrefix) {
 		return true
 	}
