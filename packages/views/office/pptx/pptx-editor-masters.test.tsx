@@ -53,6 +53,11 @@ describe("PptxEditor slide master view (T01)", () => {
     fireEvent.click(toggle());
     expect(mastersPanel()).not.toBeNull();
     expect(toggle()).toHaveAttribute("aria-pressed", "true");
+    // MAJOR-2: the canvas shows the active part (the master opens first), not deck slide 1.
+    const canvas = () => document.querySelector("[data-slide-canvas]") as HTMLElement;
+    await waitFor(() => expect(canvas().querySelector("[data-pptx-master-preview]")).not.toBeNull());
+    expect(canvas().querySelector('[data-master-element-id="e_2"]')).not.toBeNull();
+    expect(canvas().querySelector("[data-pptx-master-preview-label]")).toHaveTextContent("Master: Office Theme (preview)");
 
     // The handle's readers feed the view; a rename leaves through the handle's edit port.
     fireEvent.click(screen.getByText("Office Theme"));
@@ -63,7 +68,9 @@ describe("PptxEditor slide master view (T01)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close master view" }));
     expect(mastersPanel()).toBeNull();
     expect(toggle()).toHaveAttribute("aria-pressed", "false");
-    // The canvas stayed mounted under the view the whole time.
+    expect(document.querySelector("[data-pptx-master-preview]")).toBeNull();
+    expect(document.querySelector("[data-pptx-master-preview-label]")).toBeNull();
+    // Close master brings the deck slide back on the same canvas.
     expect(screen.getByText("Title")).toBeInTheDocument();
   });
 });

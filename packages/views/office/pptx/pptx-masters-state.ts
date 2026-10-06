@@ -11,12 +11,15 @@
  * generic edit channel every other panel uses. Without the read functions the
  * panel is honestly "unbound"; nothing is invented.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import type { EditorHandle } from "@uniwork/core/office";
 import type { PptxEdit } from "@uniwork/office-engine/pptx";
+import type { PptxCanvasContent } from "./canvas/pptx-canvas-surface";
 import type { PptxCommandId } from "./command-map";
 import type { MasterElementView, MasterPanelEdit, MasterPanelProps, MasterPartView } from "./masters";
 import { toMasterEdit } from "./masters/masters-edit-map";
+import { buildMasterPreview, MASTER_BOX_SPACE_WIDTH_PX } from "./masters/masters-preview";
 import { buildPptxPanel, resolvePanelApplyEdit, type PptxPanelEdit } from "./pptx-panel-host";
 
 export interface PptxMastersOptions {
@@ -68,9 +71,14 @@ export function usePptxMasters({ masterParts, masterElements, applyEdit, refresh
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `version`/`refreshKey` are the re-read triggers
   }, [open, activePart, activeKnown, version, refreshKey]);
 
+  // A stale part drops; with none active the first part (the master) opens, so the
+  // canvas preview always has a part to show (visual fix MAJOR-2).
+  const firstPart = parts[0]?.partPath ?? null;
   useEffect(() => {
-    if (open && activePart && !activeKnown) setActivePart(null);
-  }, [activeKnown, activePart, open]);
+    if (!open) return;
+    if (activePart && !activeKnown) setActivePart(null);
+    else if (!activePart && firstPart) setActivePart(firstPart);
+  }, [activeKnown, activePart, firstPart, open]);
   useEffect(() => {
     if (selectedElementId !== null && !elements.some((element) => element.id === selectedElementId)) setSelectedElementId(null);
   }, [elements, selectedElementId]);
@@ -84,6 +92,8 @@ export function usePptxMasters({ masterParts, masterElements, applyEdit, refresh
       await applyEdit(toMasterEdit(edit));
     } catch (error) {
       reads.current.onError?.(error);
+      // Rethrown so the panel confirms only an applied edit; the panel swallows it.
+      throw error;
     } finally {
       setPending(false);
       setVersion((value) => value + 1);
@@ -137,4 +147,29 @@ export function usePptxEditorMasters({ masterParts, masterElements, editorHandle
     ...(onError ? { onError } : {}),
   });
   return { ...state, aside: state.open ? buildPptxPanel({ panelKind: "masters", masters: state.panel }) : null };
+}
+
+const FALLBACK_PAGE = { widthPx: MASTER_BOX_SPACE_WIDTH_PX, heightPx: (MASTER_BOX_SPACE_WIDTH_PX * 9) / 16 };
+
+/** While the master view is open the canvas shows the active part, not a deck
+ *  slide (visual fix MAJOR-2): a read-only preview on the current page size plus
+ *  a tag naming the part. Null when the view is closed or no part is active. */
+export function usePptxMasterCanvas(state: PptxMastersState, page: { widthPx: number; heightPx: number } | null): { content: PptxCanvasContent; overlay: ReactNode } | null {
+  const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
+  const { open, panel } = state;
+  const { parts, activePart, elements, selectedElementId } = panel;
+  const widthPx = page?.widthPx ?? FALLBACK_PAGE.widthPx;
+  const heightPx = page?.heightPx ?? FALLBACK_PAGE.heightPx;
+  return useMemo(() => {
+    const part = open ? parts.find((candidate) => candidate.partPath === activePart) : undefined;
+    if (!part) return null;
+    const content = buildMasterPreview({ elements, selectedId: selectedElementId, page: { widthPx, heightPx }, t: (key) => t(key) });
+    const kind = part.kind === "master" ? t("masters.kind_master") : t("masters.kind_layout");
+    const overlay = createElement(
+      "span",
+      { className: "pointer-events-none absolute left-1 top-1 max-w-[80%] truncate rounded-sm border border-border bg-muted px-1 text-caption text-muted-foreground", "data-pptx-master-preview-label": true },
+      t("masters.preview_label", { kind, name: part.name }),
+    );
+    return { content, overlay };
+  }, [activePart, elements, heightPx, open, parts, selectedElementId, t, widthPx]);
 }

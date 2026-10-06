@@ -23,7 +23,7 @@ import { pptxEditorCapabilities } from "./pptx-editor-capabilities";
 import { pptxInsertElements } from "./insert/insert-elements";
 import { pptxContextualSelection, readPptxPanelMotion, type PptxPanelData, type PptxPanelEdit, type PptxPanelKind } from "./pptx-panel-host";
 import type { MasterElementView, MasterPartView } from "./masters";
-import { usePptxEditorMasters } from "./pptx-masters-state";
+import { usePptxEditorMasters, usePptxMasterCanvas } from "./pptx-masters-state";
 import type { PptxTabId } from "./pptx-ribbon";
 import { PptxFindReplacePanel, flattenDeckRuns, usePptxFindSelect, type PptxFindReplaceEdit } from "./find";
 import { collectPptxPrintSlides, createPptxPrintPort, type PptxPrintPort } from "./print";
@@ -539,6 +539,8 @@ export function PptxEditor({
     editorHandle == null && slides.length > 0 ? <Alert key="handle" className="rounded-none border-x-0 border-t-0" data-testid="pptx-editor-handle-warning"><AlertTitle>{t("session_missing")}</AlertTitle><AlertDescription>{t("session_missing_hint")}</AlertDescription></Alert> : null,
   ];
   const page = rendition ? { widthPx: rendition.widthPx, heightPx: rendition.heightPx } : null;
+  // Visual fix MAJOR-2: the open master view owns the canvas (read-only part preview); Close brings the deck back.
+  const masterCanvas = usePptxMasterCanvas(masters, page);
 
   return (
     <section ref={editorRootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)} data-pptx-editor data-gesture-pending={gesturePending}>
@@ -586,14 +588,14 @@ export function PptxEditor({
             onAction={onContextMenuAction}
           >
             <PptxCanvasSurface
-              content={svgDocument ? { root: svgDocument.root, widthPx: svgDocument.widthPx, heightPx: svgDocument.heightPx, ...(rendition?.hidden ? { hidden: true } : {}) } : null}
+              content={masterCanvas ? masterCanvas.content : svgDocument ? { root: svgDocument.root, widthPx: svgDocument.widthPx, heightPx: svgDocument.heightPx, ...(rendition?.hidden ? { hidden: true } : {}) } : null}
               slideIndex={selectedIndex}
               slideCount={slides.length}
               building={building}
               zoom={zoom}
               onFitWidthChange={setFitWidthPx}
-              onKeyDown={onCanvasKeyDown}
-              overlay={page ? (
+              onKeyDown={masterCanvas ? undefined : onCanvasKeyDown}
+              overlay={masterCanvas ? masterCanvas.overlay : page ? (
                 <>
                   <PptxSelectionOverlay page={page} displayWidthPx={displaySize.widthPx} displayHeightPx={displaySize.heightPx} controller={selection} />
                   {/* A1ui: contextual in-place text editing inside the slide box (C9). */}

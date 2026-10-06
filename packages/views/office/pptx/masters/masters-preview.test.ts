@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import type { SvgNode } from "../canvas/svg-node";
+import { buildMasterPreview, MASTER_BOX_SPACE_WIDTH_PX } from "./masters-preview";
+import type { MasterElementView } from "./masters-model";
+
+const t = (key: string) => "[" + key + "]";
+const page = { widthPx: MASTER_BOX_SPACE_WIDTH_PX * 2, heightPx: 1080 };
+const ELEMENTS: MasterElementView[] = [
+  { id: "e_2", type: "shape", label: "title", placeholder: "title", box: { x: 48, y: 24, w: 384, h: 96 }, fill: null },
+  { id: "e_3", type: "shape", label: "shape: Brand", box: { x: 0, y: 500, w: 960, h: 40 }, fill: "#1F4E79", text: "Brand\nline two" },
+];
+
+const texts = (node: SvgNode): string[] => [...(node.text !== undefined ? [node.text] : []), ...(node.children ?? []).flatMap(texts)];
+const groups = (root: SvgNode) => root.children ?? [];
+const rect = (group: SvgNode) => group.children?.find((child) => child.tag === "rect");
+
+describe("buildMasterPreview (MAJOR-2)", () => {
+  it("draws every element of the part, scaled from the engine box space onto the page", () => {
+    const content = buildMasterPreview({ elements: ELEMENTS, selectedId: null, page, t });
+    expect(content.widthPx).toBe(page.widthPx);
+    expect(content.heightPx).toBe(page.heightPx);
+    expect(content.root.attrs?.["data-pptx-master-preview"]).toBe("true");
+    const [title, band] = groups(content.root);
+    expect(title?.attrs?.["data-master-element-id"]).toBe("e_2");
+    expect(title?.attrs?.transform).toBe("translate(96 48)");
+    expect(rect(title!)?.attrs).toMatchObject({ width: 768, height: 192, fill: "none", "stroke-dasharray": "6 4" });
+    expect(band?.attrs?.transform).toBe("translate(0 1000)");
+    expect(rect(band!)?.attrs).toMatchObject({ fill: "#1F4E79" });
+    expect(rect(band!)?.attrs?.["stroke-dasharray"]).toBeUndefined();
+  });
+
+  it("labels a placeholder by its localized slot and a text element by its text", () => {
+    const content = buildMasterPreview({ elements: ELEMENTS, selectedId: null, page, t });
+    const [title, band] = groups(content.root);
+    expect(texts(title!)).toEqual(["[masters.placeholder_title]"]);
+    expect(texts(band!)).toEqual(["Brand line two"]);
+  });
+
+  it("names the slot under a placeholder that shows its own text", () => {
+    const withText: MasterElementView = { ...ELEMENTS[0]!, text: "Click to edit Master title style" };
+    const [title] = groups(buildMasterPreview({ elements: [withText], selectedId: null, page, t }).root);
+    expect(texts(title!)).toEqual(["Click to edit Master title style", "[masters.placeholder_title]"]);
+  });
+
+  it("marks the selected element", () => {
+    const [title, band] = groups(buildMasterPreview({ elements: ELEMENTS, selectedId: "e_2", page, t }).root);
+    expect(title?.attrs?.["data-selected"]).toBe("true");
+    expect(rect(title!)?.attrs).toMatchObject({ class: "stroke-primary", "stroke-width": 2 });
+    expect(band?.attrs?.["data-selected"]).toBeUndefined();
+  });
+
+  it("says so when the part has no elements", () => {
+    const content = buildMasterPreview({ elements: [], selectedId: null, page, t });
+    expect(texts(content.root)).toEqual(["[masters.elements_empty]"]);
+  });
+});
