@@ -1,3 +1,4 @@
+import { themeChangedEventSchema } from "../shared/ipc";
 import { WINDOW_WEB_PREFERENCES } from "./index";
 
 export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
@@ -38,4 +39,23 @@ export function createMainWindow(BrowserWindow: BrowserWindowConstructor, option
   });
   if (options.platform !== "darwin") window.setMenuBarVisibility(false);
   return window;
+}
+
+type ThemeSource = Pick<Electron.NativeTheme, "shouldUseDarkColors"> & {
+  on(event: "updated", listener: () => void): unknown;
+  removeListener(event: "updated", listener: () => void): unknown;
+};
+type ThemedWindow = Pick<Electron.BrowserWindow, "setTitleBarOverlay" | "isDestroyed"> & { webContents: { send(channel: string, payload: unknown): void } };
+
+/** Follow the OS light/dark switch: repaint the native caption controls and
+ * tell the renderer, which toggles the `.dark` token class. */
+export function watchNativeTheme(nativeTheme: ThemeSource, window: ThemedWindow, platform: NodeJS.Platform): () => void {
+  const onUpdated = () => {
+    if (window.isDestroyed()) return;
+    const dark = nativeTheme.shouldUseDarkColors;
+    applyTitleBarTheme(window, platform, dark);
+    window.webContents.send("desktop:theme-changed", themeChangedEventSchema.parse({ dark }));
+  };
+  nativeTheme.on("updated", onUpdated);
+  return () => { nativeTheme.removeListener("updated", onUpdated); };
 }

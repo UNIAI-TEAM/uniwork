@@ -11,6 +11,7 @@ import { createDesktopLifecycleCoordinator, type DesktopLifecycleOptions } from 
 import { createLeaveIpcHandler, type DesktopLeaveCoordinator } from "./leave";
 import { DesktopUpdateClient, type DesktopUpdateClientOptions } from "./updates/client";
 import type { DesktopDraftStore, DraftKeyStore } from "./drafts/store";
+import { createAppearanceIpcHandler, type AppearanceOptions } from "./appearance";
 
 export { assertRecoveryActionAllowed, recoverDraft } from "./lifecycle";
 
@@ -62,6 +63,8 @@ export type DesktopHostOptions = {
   activeDocumentId?: () => string | undefined;
   /** Main-only installed release policy. No renderer or feed can supply trust. */
   updates?: DesktopUpdateClientOptions;
+  /** OS theme and language the renderer starts from. */
+  appearance?: AppearanceOptions;
 };
 
 function authCallbackFromArgv(argv: readonly unknown[]): string | undefined {
@@ -99,6 +102,7 @@ export function createDesktopHost(options: DesktopHostOptions) {
     ...(options.local ? createLocalIpcHandlers(options.local) : {}),
     ...(options.office ? createOfficeIpcHandlers(options.office) : {}),
     ...(options.leave ? createLeaveIpcHandler(options.leave) : {}),
+    ...(options.appearance ? createAppearanceIpcHandler(options.appearance) : {}),
   };
   if (options.leave && options.authManager && authHandlers) {
     // Logout is a leave action like close and update: the ONE dialog decides

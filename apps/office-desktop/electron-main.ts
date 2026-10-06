@@ -29,7 +29,8 @@ import { resolveLocalDevice } from "./main/local/device";
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
 import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION } from "./main/print";
-import { createMainWindow, DESKTOP_TITLE_BAR_TOKENS } from "./main/window";
+import { createMainWindow, DESKTOP_TITLE_BAR_TOKENS, watchNativeTheme } from "./main/window";
+import { systemLanguages } from "./main/appearance";
 import { createNativeMenuTemplate } from "./main/native-menu";
 import { installRendererProtocol, registerRendererScheme } from "./main/renderer-protocol";
 import { captureEarlyLaunchEvents, createNoopLaunchBridge } from "./main/launch-events";
@@ -117,6 +118,7 @@ async function startElectronHost(): Promise<void> {
   installRendererProtocol(protocol, net, RENDERER_DIRECTORY);
 
   const window = createMainWindow(BrowserWindow, { show: !SMOKE_MODE, preload: PRELOAD_PATH, platform: process.platform, dark: nativeTheme.shouldUseDarkColors });
+  watchNativeTheme(nativeTheme, window, process.platform);
   let nativeSaveListener: (() => void) | undefined;
   const officeTransport = deploymentProfile && credentials ? createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
     const session = await authManager?.refreshSession();
@@ -211,6 +213,7 @@ async function startElectronHost(): Promise<void> {
       },
     },
     deploymentProfile,
+    appearance: { snapshot: () => ({ dark: nativeTheme.shouldUseDarkColors, languages: systemLanguages(app) }) },
     userDataDirectory: app.getPath("userData"),
     draftKeyStore,
     drafts: {

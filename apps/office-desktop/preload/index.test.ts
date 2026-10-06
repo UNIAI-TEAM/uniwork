@@ -96,3 +96,25 @@ it("delivers every buffered native file and launch in channel order after subscr
   expect(files).toHaveLength(5);
   expect(launches).toHaveLength(4);
 });
+
+it("forwards only a well-formed theme change and unsubscribes", () => {
+  const listeners = new Map<string, (...args: unknown[]) => void>();
+  const removeListener = vi.fn();
+  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (channel, next) => { listeners.set(channel, next); }, removeListener });
+  const received: unknown[] = [];
+  const unsubscribe = bridge.onThemeChanged((event) => received.push(event));
+  const listener = listeners.get("desktop:theme-changed");
+  listener?.({}, { dark: true });
+  listener?.({}, { dark: "yes" });
+  listener?.({}, { dark: false, path: "/secret" });
+  expect(received).toEqual([{ dark: true }]);
+  unsubscribe();
+  expect(removeListener).toHaveBeenCalledWith("desktop:theme-changed", listener);
+});
+
+it("allowlists the appearance read", async () => {
+  const invoke = vi.fn().mockResolvedValue({ dark: false, languages: ["vi-VN"] });
+  const bridge = createPreloadBridge({ invoke });
+  await expect(bridge.call("desktop:appearance", { sessionGeneration: "session_1234" })).resolves.toEqual({ dark: false, languages: ["vi-VN"] });
+  expect(invoke).toHaveBeenCalledWith("desktop:appearance", { sessionGeneration: "session_1234" });
+});

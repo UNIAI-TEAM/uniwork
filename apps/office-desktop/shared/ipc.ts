@@ -15,6 +15,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-logout",
   "desktop:diagnostics",
   "desktop:window-theme",
+  "desktop:appearance",
   "desktop:tabs-update",
   "desktop:file-pick-open",
   "desktop:file-create",
@@ -48,7 +49,7 @@ export const DESKTOP_IPC_CHANNELS = [
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
  * payloads are parsed in main before send and again in preload. */
-export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested", "desktop:leave-expired", "desktop:login-requested"] as const;
+export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested", "desktop:leave-expired", "desktop:login-requested", "desktop:theme-changed"] as const;
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
 const operationSchema = z.enum(["capability", "open", "edit", "render", "text", "serialize", "cancel"]);
@@ -304,6 +305,13 @@ export const desktopPrintResponseSchema = z.discriminatedUnion("outcome", [
 ]);
 export type DesktopPrintResponse = z.infer<typeof desktopPrintResponseSchema>;
 export const desktopTabsUpdateResponseSchema = z.object({ updated: z.boolean() }).strict();
+/** BCP 47 tags as the OS reports them ("vi-VN", "en-US"); the renderer picks
+ * the first one the shared i18n dictionaries support. */
+const languageTagSchema = z.string().regex(/^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8}){0,4}$/);
+export const desktopAppearanceResponseSchema = z.object({ dark: z.boolean(), languages: z.array(languageTagSchema).max(16) }).strict();
+export type DesktopAppearance = z.infer<typeof desktopAppearanceResponseSchema>;
+export const themeChangedEventSchema = z.object({ dark: z.boolean() }).strict();
+export type ThemeChangedEvent = z.infer<typeof themeChangedEventSchema>;
 const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-pick-open": desktopFileResponseSchema,
   "desktop:file-create": desktopFileResponseSchema,
@@ -321,6 +329,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:recent-remove": recentRemoveResponseSchema,
   "desktop:diagnostics": desktopDiagnosticsResponseSchema,
   "desktop:window-theme": z.object({ applied: z.boolean() }).strict(),
+  "desktop:appearance": desktopAppearanceResponseSchema,
   "desktop:tabs-update": desktopTabsUpdateResponseSchema,
   "desktop:library-list": desktopLibraryResponseSchema,
   "desktop:library-context": desktopLibraryContextResponseSchema,
@@ -367,6 +376,7 @@ const requestSchemas = {
   "desktop:auth-logout": z.object({ sessionGeneration: sessionGenerationSchema, scope: z.enum(["device", "family"]).default("device") }).strict(),
   "desktop:diagnostics": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:window-theme": z.object({ sessionGeneration: sessionGenerationSchema, dark: z.boolean() }).strict(),
+  "desktop:appearance": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:tabs-update": z.object({ sessionGeneration: sessionGenerationSchema, documentIds: z.array(opaqueHandleSchema).max(8), activeDocumentId: opaqueHandleSchema.nullable() }).strict().refine((value) => new Set(value.documentIds).size === value.documentIds.length && (value.activeDocumentId === null || value.documentIds.includes(value.activeDocumentId)), "invalid tab membership"),
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-create": z.object({ sessionGeneration: sessionGenerationSchema, format: documentFormatSchema.default(DEFAULT_DESKTOP_DOCUMENT_FORMAT) }).strict(),

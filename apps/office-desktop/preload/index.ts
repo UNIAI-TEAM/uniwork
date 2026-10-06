@@ -3,7 +3,7 @@
 // packaged runtime.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { fileOpenRequestedSchema, leaveExpiredEventSchema, loginRequestedEventSchema, type LeaveExpiredEvent } from "../shared/ipc";
+import { fileOpenRequestedSchema, leaveExpiredEventSchema, loginRequestedEventSchema, themeChangedEventSchema, type LeaveExpiredEvent, type ThemeChangedEvent } from "../shared/ipc";
 import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, launchRequestedEventSchema, leaveRequestedEventSchema, officeSaveRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata, type LaunchRequestedEvent, type LeaveRequestedEvent, type LoginRequestedEvent, type OfficeSaveRequestedEvent } from "../shared/ipc";
 
 export type IpcRendererAdapter = {
@@ -24,6 +24,8 @@ export type DesktopRendererBridge = {
   openDroppedFile(file: File): Promise<unknown>;
   onFileOpenRequested(listener: (event: { handle: string }) => void): () => void;
   onLoginRequested(listener: (event: LoginRequestedEvent) => void): () => void;
+  /** The OS switched between light and dark (main nativeTheme "updated"). */
+  onThemeChanged(listener: (event: ThemeChangedEvent) => void): () => void;
 };
 
 export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRendererBridge {
@@ -111,6 +113,17 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
       loginListener = listener;
       if (pendingLogin) { const event = pendingLogin; pendingLogin = undefined; listener(event); }
       return () => { if (loginListener === listener) loginListener = undefined; };
+    },
+    onThemeChanged(listener) {
+      if (!ipcRenderer.on) return () => undefined;
+      const handler = (...args: unknown[]) => {
+        const parsed = themeChangedEventSchema.safeParse(args.at(-1));
+        if (parsed.success) listener(parsed.data);
+      };
+      const eventChannel = "desktop:theme-changed";
+      if (!(DESKTOP_EVENTS as readonly string[]).includes(eventChannel)) return () => undefined;
+      ipcRenderer.on(eventChannel, handler);
+      return () => ipcRenderer.removeListener?.(eventChannel, handler);
     },
     onOfficeSaveRequested(listener) {
       if (!ipcRenderer.on) return () => undefined;
