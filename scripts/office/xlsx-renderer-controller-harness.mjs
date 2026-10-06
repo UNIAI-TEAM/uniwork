@@ -50,10 +50,16 @@ const result = await build({
       if (args.path === 'indent') lines.push('export const INDENT_STEP_PX=9;');
       if (args.path === 'font') lines.push('export default "data:font/ttf;base64,AA==";');
       if (args.path === 'locale') lines.push('export const t=(key)=>key;', 'export const getLang=()=>"en";');
+      // Hardcoded definitions win: a scanned import of the same name
+      // (cell-input.ts imports CellValueType) must not declare it twice.
+      const declared = new Set();
       if (args.path === '@univerjs/core') {
         lines.push('export const CellValueType={STRING:1,NUMBER:2,BOOLEAN:3};');
+        declared.add('CellValueType');
       }
       for (const name of exports) {
+        if (declared.has(name)) continue;
+        declared.add(name);
         if (name === 'Direction') lines.push('export const Direction={UP:0,RIGHT:1,DOWN:2,LEFT:3};');
         else if (name === 'KeyCode') lines.push('export const KeyCode={TAB:9,ENTER:13};');
         else if (name === 'BooleanNumber') lines.push('export const BooleanNumber={TRUE:1,FALSE:0};');
