@@ -14,9 +14,10 @@ the generation still match the intent. `baseVersionId` is opaque and
 `baseRevision` is always a decimal string; clients never convert a revision to a
 JavaScript number.
 
-`OfficeSessionState` contains tab, selection, identity references, dirty
-generation, and Save state only. Document and version payloads stay in TanStack
-Query. The Zustand store has no persistence side effect and no document bytes.
+Per-document session state (selection, dirty generation, Save state) lives
+with each editor session, never in an app-wide store: the desktop keeps several
+documents mounted in one renderer (UNI-957), so a page-wide tab or Save slot
+would leak between them. Document and version payloads stay in TanStack Query.
 
 The engine seam is the existing `OfficeHostAdapter` from
 `@uniwork/office-contracts`; core does not define another host port or registry.

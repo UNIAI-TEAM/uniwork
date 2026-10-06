@@ -3,7 +3,6 @@ export * from "./host-contract";
 export * from "./desktop-handoff";
 export * from "./save-coordinator";
 export * from "./save-settle-gate";
-export * from "./store";
 export * from "./draft-recovery";
 export * from "./draft-key-port";
 export * from "./desktop-platform";
