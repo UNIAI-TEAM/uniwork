@@ -71,6 +71,8 @@ function toXlsxFailure(error: unknown): XlsxTypedError {
 export interface XlsxByteBounds {
   readonly maxInputBytes?: number;
   readonly maxOutputBytes?: number;
+  /** See XlsxAdapterDeps.zipGuard: "proportional" refuses a zip bomb before parsing. */
+  readonly zipGuard?: "proportional";
 }
 
 /**

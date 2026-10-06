@@ -29,6 +29,7 @@ import {
   type OpenFailureClass,
   type OpenOutcome,
 } from "@uniwork/office-contracts";
+import { scanZipBomb } from "../shared/zip-central.ts";
 import {
   XLSX_SIDECAR_PROTOCOL_VERSION,
   type XlsxGatewayArguments,
@@ -86,6 +87,10 @@ export interface XlsxAdapterDeps {
   maxInputBytes?: number;
   /** Output bound in bytes; same default and same unbounded convention. */
   maxOutputBytes?: number;
+  /** "proportional" pre-scans the package central directory (no inflation)
+   *  and refuses a zip bomb as corrupted before the upstream parser runs. For a
+   *  host that does not cap local files; omitted = no pre-scan (web, server). */
+  zipGuard?: "proportional";
   /** Build identity bound into the session (input hash + engine version +
    *  protocol + model revision is the binding the task pins). The service
    *  passes the gateway artifact's sha256; a drift between open and
@@ -204,6 +209,8 @@ export class XlsxAdapter {
       }
       return this.failed(document_id, "not_office_file", "bytes are not a ZIP/OOXML container");
     }
+    const bomb = this.deps.zipGuard === "proportional" ? scanZipBomb(bytes) : null;
+    if (bomb !== null) return this.failed(document_id, "corrupted", "zip_bomb: " + bomb);
     let parsed: { snapshot: XlsxWorkbookSnapshot; sheetNamesById: Readonly<Record<string, string>> };
     let entries: readonly XlsxPackageEntry[];
     try {

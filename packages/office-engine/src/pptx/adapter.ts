@@ -19,6 +19,7 @@ import {
   type OpenOutcome,
   type RenderSlide,
 } from "@uniwork/office-contracts";
+import { scanZipBomb } from "../shared/zip-central";
 import type {
   OpenedPptxLike,
   PptxEngineFunctions,
@@ -55,6 +56,10 @@ export interface PptxAdapterDeps {
   maxInputBytes?: number;
   /** Output bound in bytes; same default and same unbounded convention. */
   maxOutputBytes?: number;
+  /** "proportional" pre-scans the package central directory (no inflation)
+   *  and refuses a zip bomb as corrupted before the upstream parser runs. For a
+   *  host that does not cap local files; omitted = no pre-scan (web, server). */
+  zipGuard?: "proportional";
 }
 
 interface PptxSession {
@@ -134,6 +139,8 @@ export class PptxAdapter {
     if (!isZipPackage(bytes)) {
       return this.failed(document_id, "not_office_file", "bytes are not a ZIP/OOXML container");
     }
+    const bomb = this.deps.zipGuard === "proportional" ? scanZipBomb(bytes) : null;
+    if (bomb !== null) return this.failed(document_id, "corrupted", "zip_bomb: " + bomb);
     let opened: OpenedPptxLike;
     try {
       opened = await this.deps.engine.openPptx(bytes);
