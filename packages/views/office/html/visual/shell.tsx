@@ -322,10 +322,20 @@ export function HtmlVisualShell({
   // text-edit-commit into H3 ops applied through the caller's port. Flag-gated
   // inside the hook (the same H5 flag), so a flag-off build sends nothing.
   const inlineEditController = useHtmlInlineEdit({ sink: previewEvents, selection: previewSelection, port: inlineEdit });
-  const mergedFloatCommands = useMemo<HtmlFloatToolbarCommands>(
-    () => ({ ...inlineEditController.commands, ...floatCommands }),
-    [inlineEditController.commands, floatCommands],
-  );
+  const mergedFloatCommands = useMemo<HtmlFloatToolbarCommands>(() => {
+    const merged: HtmlFloatToolbarCommands = { ...inlineEditController.commands, ...floatCommands };
+    const editText = merged.onEditText;
+    if (!editText) return merged;
+    // The toolbar click leaves focus in the host page; typing only reaches the
+    // contenteditable once the preview frame itself holds focus.
+    return {
+      ...merged,
+      onEditText: () => {
+        canvasRef.current?.querySelector<HTMLIFrameElement>("[data-html-preview-frame] iframe")?.focus();
+        editText();
+      },
+    };
+  }, [inlineEditController.commands, floatCommands]);
 
   // Escape leaves present mode. Bound only while presenting.
   const onViewModeChangeRef = useRef(onViewModeChange);

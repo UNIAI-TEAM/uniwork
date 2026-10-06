@@ -260,6 +260,42 @@ describe("inspector script runtime (frame side)", () => {
     expect(frame.sent[0]).toMatchObject({ nonce: NONCE, type: "text-edit-commit", sid: 9, text: "hello world" });
   });
 
+  it("begin-text-edit makes the element editable, takes frame focus and puts the caret in it", () => {
+    document.body.innerHTML = "";
+    const frame = runInspector(`<p ${SID}="9">hello</p>`);
+    document.body.appendChild(frame.root);
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    const p = frame.root.querySelector<HTMLElement>(`[${SID}="9"]`)!;
+    const windowFocus = vi.spyOn(globalThis, "focus").mockImplementation(() => undefined);
+    frame.command({ type: "begin-text-edit", nonce: NONCE, sid: 9 });
+    expect(p.getAttribute("contenteditable")).toBe("true");
+    expect(windowFocus).toHaveBeenCalled();
+    expect(document.activeElement).toBe(p);
+    expect(window.getSelection()?.anchorNode && p.contains(window.getSelection()!.anchorNode)).toBe(true);
+    windowFocus.mockRestore();
+  });
+
+  it("a double-click selects the element and starts the edit; a click inside the edit does not re-select", () => {
+    const frame = runInspector(`<div ${SID}="3"><span ${SID.replace("1", "1")}-x="1">t</span></div><p ${SID}="4">hi</p>`);
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    frame.sent.length = 0;
+    const p = frame.root.querySelector<HTMLElement>(`[${SID}="4"]`)!;
+    frame.emit("dblclick", { target: p, preventDefault: () => undefined });
+    expect(frame.sent.map((m) => m.type)).toEqual(["select", "rect"]);
+    expect(p.getAttribute("contenteditable")).toBe("true");
+    frame.sent.length = 0;
+    frame.emit("click", { target: p, preventDefault: () => undefined });
+    expect(frame.sent).toEqual([]);
+  });
+
+  it("never makes html, head or body editable", () => {
+    const frame = runInspector(`<body ${SID}="2">x</body>`);
+    frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
+    const el = frame.root.querySelector<HTMLElement>(`[${SID}="2"]`) ?? frame.root;
+    frame.command({ type: "begin-text-edit", nonce: NONCE, sid: 2 });
+    expect(el.getAttribute("contenteditable")).toBeNull();
+  });
+
   it("sends a hover only when the resolved sid changes (FE-M4)", () => {
     const frame = runInspector(`<div ${SID}="3"><span id="in">t</span></div>`);
     frame.emit("message", { data: INIT, source: frame.parent, ports: [frame.port] });
