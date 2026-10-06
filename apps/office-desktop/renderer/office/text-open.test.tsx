@@ -69,9 +69,12 @@ it("says a print is already open instead of the generic action error", async () 
   openMenu();
   fireEvent.click(await screen.findByRole("menuitem", { name: printLabel() }));
   const notice = await screen.findByText(i18n.t("officeDesktop.library.printBusy"));
-  expect(notice).toHaveAttribute("role", "status");
-  expect(notice).toHaveClass("text-muted-foreground");
-  expect(notice).not.toHaveClass("text-destructive");
+  // Same Alert primitive and tokens as the recovery notices, announced politely, not a bare line.
+  const frame = notice.closest("[data-slot=\"alert\"]");
+  expect(frame).not.toBeNull();
+  expect(frame).toHaveAttribute("role", "status");
+  expect(frame).toHaveAttribute("data-testid", "print-busy-notice");
+  expect(frame).not.toHaveClass("text-destructive");
   expect(screen.queryByRole("alert")).toBeNull();
 });
 

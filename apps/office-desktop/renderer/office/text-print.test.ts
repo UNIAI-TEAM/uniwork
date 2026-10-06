@@ -79,10 +79,24 @@ it("hands the sanitized copy to main over the typed print channel, never the sou
   expect(bridge.call).toHaveBeenCalledTimes(1);
   const [channel, payload] = bridge.call.mock.calls[0]!;
   expect(channel).toBe("desktop:print-document");
-  expect(payload).toEqual({ sessionGeneration: "desktop-dev-session", title: "Doc.md", html: buildDesktopPrintCopy("md", hostileMd) });
+  expect(payload).toEqual({ sessionGeneration: "desktop-dev-session", title: "Doc.md", html: expect.any(String) });
+  // The only difference from the plain sanitized copy is the document title, which Chromium names the OS print job after.
+  const sent = new DOMParser().parseFromString(payload.html, "text/html");
+  expect(sent.title).toBe("Doc.md");
+  sent.querySelector("title")?.remove();
+  expect(sent.documentElement.outerHTML).toBe(new DOMParser().parseFromString(buildDesktopPrintCopy("md", hostileMd), "text/html").documentElement.outerHTML);
   expect(payload.html).not.toContain("# Title");
   expect(append).not.toHaveBeenCalled();
   expect(document.querySelector("iframe")).toBeNull();
+});
+
+it("names the copy after the document so the OS print dialog does not fall back to the app name", async () => {
+  const bridge = stubBridge(async () => ({ outcome: "printed" }));
+  await printTextDocument(bridge, "html", "<html><head><title>Old</title></head><body><p>x</p></body></html>", "Báo cáo <Q3>.html");
+  const doc = new DOMParser().parseFromString(bridge.call.mock.calls[0]![1].html, "text/html");
+  expect(doc.querySelectorAll("title")).toHaveLength(1);
+  expect(doc.title).toBe("Báo cáo <Q3>.html");
+  expect(doc.head.firstElementChild?.getAttribute("http-equiv")?.toLowerCase()).toBe("content-security-policy");
 });
 
 it("routes the desktop path through the shared printMarkdownDocument flow", async () => {
