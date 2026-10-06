@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { bindDocxEngine, createDocxAdapter } from "@uniwork/office-engine/docx";
 import { parseDocx, saveDocx } from "@uniwork/office-upstream/docs-renderer-editor";
 import { createDocxTiptapHandle, DocxEditor, type DocxOpenError, type DocxOpenOutcome, type DocxTiptapSnapshot } from "@uniwork/views/office/docx";
-import type { OfficeCapabilityEntry } from "@uniwork/core/office";
+import { isOfficeTooLarge, type OfficeCapabilityEntry } from "@uniwork/core/office";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions } from "./editor-host-core";
 import { createDocxSaveTransport, type DocxDocumentsTransport } from "./docx-save-transport";
 
@@ -38,7 +38,7 @@ export function createDocxFormatAdapter(options: DocxFormatAdapterOptions) {
       } catch (error) {
         const failure = error as DocxOpenError;
         return {
-          outcome: "failed", document_id: options.identity.documentId, format: "docx", failure_class: "engine_error",
+          outcome: "failed", document_id: options.identity.documentId, format: "docx", failure_class: isOfficeTooLarge(failure) ? "too_large" : "engine_error",
           message: failure.message,
         };
       }

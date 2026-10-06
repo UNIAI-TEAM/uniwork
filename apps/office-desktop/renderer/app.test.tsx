@@ -160,8 +160,8 @@ it("opens an OS file in a new tab while another document remains mounted", async
     if (channel === "desktop:auth-session") return { status: "signed-in", accountId: "account-1", deploymentId: "lane" };
     if (channel === "desktop:library-context") return { deployments: [{ id: "default", name: "Default" }], accounts: [{ id: "account-1", name: "Me" }], organizations: [{ id: "org-1", name: "Acme" }], workspaces: [{ id: "ws-1", name: "Team" }] };
     if (channel === "desktop:library-list") return { documents: [document], nextCursor: null, engineAvailable: true };
-    if (channel === "desktop:office-open") return { dataBase64: fixtureBase64, checksum: bytesChecksum(docxSource), filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", document };
-    if (channel === "desktop:file-open") return { opened: true, metadata: { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF", name: "Local plan.docx", byteLength: docxSource.length, modifiedAtMs: 1, checksum: bytesChecksum(docxSource) }, dataBase64: fixtureBase64 };
+    if (channel === "desktop:office-open") return { data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")), checksum: bytesChecksum(docxSource), filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", document };
+    if (channel === "desktop:file-open") return { opened: true, metadata: { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF", name: "Local plan.docx", byteLength: docxSource.length, modifiedAtMs: 1, checksum: bytesChecksum(docxSource) }, data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
     return {};
   }) as RendererBridge["call"]);
   const liveBridge: RendererBridge = { ...bridge, onFileOpenRequested: (listener) => { fileOpen = listener; return () => { fileOpen = undefined; }; } };
@@ -199,7 +199,7 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
     if (channel === "desktop:library-context") return { deployments: [{ id: "default", name: "Default" }], accounts: [{ id: "account-1", name: "me" }], organizations: [{ id: "org-1", name: "Acme" }], workspaces: [{ id: "ws-1", name: "Team" }] };
     if (channel === "desktop:public-config") return { flags: { office_engine: true } };
     if (channel === "desktop:library-list") return { documents: [document], nextCursor: null, engineAvailable: true };
-    const bytes = { dataBase64: Buffer.from(docxSource).toString("base64"), checksum: bytesChecksum(docxSource), filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    const bytes = { data: Uint8Array.from(Buffer.from(docxSource)), checksum: bytesChecksum(docxSource), filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:library-download") return { ...bytes, documentId: document.id, version: 1 };
     if (channel === "desktop:office-open") return { ...bytes, document };
     if (channel === "desktop:office-save") { const request = payload as { intentId: string; idempotencyKey: string; checksum: string }; return { intentId: request.intentId, idempotencyKey: request.idempotencyKey, documentId: document.id, versionId: "v2", revision: "2", checksum: request.checksum }; }
@@ -228,9 +228,9 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
   expect(container.querySelector("#desktop-panel-library")).toHaveAttribute("hidden");
   act(() => nativeSave?.({ documentId: document.id }));
   await waitFor(() => expect(calls.filter((call) => call.channel === "desktop:office-save")).toHaveLength(1));
-  const saved = calls.find((call) => call.channel === "desktop:office-save")!.payload as { dataBase64: string; checksum: string };
-  expect(saved.dataBase64).not.toBe(Buffer.from(docxSource).toString("base64"));
-  expect(saved.checksum).toBe(bytesChecksum(Buffer.from(saved.dataBase64, "base64")));
+  const saved = calls.find((call) => call.channel === "desktop:office-save")!.payload as { data: Uint8Array; checksum: string };
+  expect(Buffer.from(saved.data).equals(Buffer.from(docxSource))).toBe(false);
+  expect(saved.checksum).toBe(bytesChecksum(Buffer.from(saved.data)));
 
   fireEvent.click(screen.getByRole("button", { name: /Tài khoản:/ }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Đăng xuất" }));

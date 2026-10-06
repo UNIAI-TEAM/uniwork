@@ -22,7 +22,7 @@ async function harness() {
   documents.update({ documentIds: ["a", "b"], activeDocumentId: "b" });
   const access = vi.fn(async (_id: string) => "edit" as const);
   const handlers = createDraftIpcHandlers({ store, context: documents.context, accountSession: () => session, liveAccess: access, beginCheckpoint: documents.beginCheckpoint });
-  const checkpoint = (documentId: string, dataBase64: string) => handlers["desktop:draft-checkpoint"]({ sessionGeneration, documentId, draftId: `draft-${documentId}`, generation: 1, dataBase64 });
+  const checkpoint = (documentId: string, base64: string) => handlers["desktop:draft-checkpoint"]({ sessionGeneration, documentId, draftId: `draft-${documentId}`, generation: 1, data: Uint8Array.from(Buffer.from(base64, "base64")) });
   const recover = (documentId: string) => handlers["desktop:draft-recover"]({ sessionGeneration, documentId, draftId: `draft-${documentId}`, currentBase: base });
   return { store, documents, handlers, checkpoint, recover, access, changeAccount: () => { session = { ...session, accountId: "account-b", generation: 2 }; } };
 }
@@ -32,8 +32,8 @@ it("checkpoints and recovers A independently while B is selected, with document-
   await h.checkpoint("a", "YQ==");
   await h.checkpoint("b", "Yg==");
   expect(h.documents.activeDocumentId()).toBe("b");
-  await expect(h.recover("a")).resolves.toMatchObject({ status: "recovered", dataBase64: "YQ==" });
-  await expect(h.recover("b")).resolves.toMatchObject({ status: "recovered", dataBase64: "Yg==" });
+  await expect(h.recover("a")).resolves.toMatchObject({ status: "recovered", data: Uint8Array.from(Buffer.from("YQ==", "base64")) });
+  await expect(h.recover("b")).resolves.toMatchObject({ status: "recovered", data: Uint8Array.from(Buffer.from("Yg==", "base64")) });
   expect(h.access.mock.calls.map(([id]) => id)).toEqual(["a", "b"]);
   await expect(h.handlers["desktop:draft-list"]({ sessionGeneration, documentId: "a" })).resolves.toMatchObject({ drafts: [{ draftId: "draft-a" }] });
   await expect(h.handlers["desktop:draft-list"]({ sessionGeneration })).resolves.toMatchObject({ drafts: expect.any(Array) });
@@ -132,7 +132,7 @@ it("does not use a Save N receipt to confirm a newer checkpoint N+1", async () =
   await h.checkpoint("a", "YQ==");
   const issuedAt = Date.now();
   const confirmSaveN = h.documents.beginSave("a");
-  await h.handlers["desktop:draft-checkpoint"]({ sessionGeneration, documentId: "a", draftId: "draft-a", generation: 2, dataBase64: "Yg==" });
+  await h.handlers["desktop:draft-checkpoint"]({ sessionGeneration, documentId: "a", draftId: "draft-a", generation: 2, data: Uint8Array.from(Buffer.from("Yg==", "base64")) });
   confirmSaveN();
   const evidence = createDocumentLeaveEvidence({ documents: h.documents, store: h.store, saveBusy: () => false });
   await expect(evidence.confirmSave(issuedAt)).resolves.toBe(false);
@@ -141,7 +141,7 @@ it("does not use a Save N receipt to confirm a newer checkpoint N+1", async () =
 });
 
 it("registers created DOCX documents and rejects late cloud opens from the previous account", async () => {
-  const response = { document: { id: "a", workspaceId: "ws", title: "A.docx", kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-02T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }, filename: "A.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", dataBase64: "YQ==", checksum: `sha256:${"a".repeat(64)}` };
+  const response = { document: { id: "a", workspaceId: "ws", title: "A.docx", kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-02T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }, filename: "A.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", data: Uint8Array.from(Buffer.from("YQ==", "base64")), checksum: `sha256:${"a".repeat(64)}` };
   let session = { sessionId: sessionGeneration, deploymentId: "dep", accountId: "account-a", generation: 1 };
   const onDocumentOpened = vi.fn();
   const handlers = createOfficeIpcHandlers({ session: () => session, onDocumentOpened, transport: { create: async () => response, open: async () => { session = { ...session, accountId: "account-b" }; return response; } } as never });

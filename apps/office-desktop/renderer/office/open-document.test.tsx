@@ -21,7 +21,7 @@ function mount(handler: (channel: string, payload: unknown) => Promise<unknown>,
     call: (async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return handler(channel, payload); }) as RendererBridge["call"],
     onSessionChanged: () => () => undefined,
   } as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { format: "docx", dataBase64: "aGVsbG8=", checksum }, { createEditor: createByteTestEditor });
+  const session = createByteDocumentSession(bridge, identity, { format: "docx", data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")), checksum }, { createEditor: createByteTestEditor });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" active={active} kind="cloud" signedIn onBack={() => undefined} />);
   return { calls, session };
 }
@@ -29,7 +29,7 @@ function mount(handler: (channel: string, payload: unknown) => Promise<unknown>,
 it("offers a matching draft on the document screen and restores it", async () => {
   const { calls, session } = mount(async (channel) => {
     if (channel === "desktop:draft-list") return { drafts: [draft] };
-    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: draft, dataBase64: "d29ybGQ=" };
+    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: draft, data: Uint8Array.from(Buffer.from("d29ybGQ=", "base64")) };
     return {};
   });
   expect(await screen.findByText(i18n.t("office.recovery.title"))).toBeInTheDocument();
@@ -173,7 +173,7 @@ it("binds every desktop pptx edit port and advances the revision on a committed 
   const session = createPptxDocumentSession(
     bridge,
     identity,
-    { format: "pptx", dataBase64: "UEsDBA==", checksum },
+    { format: "pptx", data: Uint8Array.from(Buffer.from("UEsDBA==", "base64")), checksum },
     (onDirty) => {
       created = createPptxTestSurface(onDirty);
       return {
@@ -212,7 +212,7 @@ it("exposes the local-mode AI entry as a labelled group and keeps it locked", as
     call: (async (channel: string) => channel === "desktop:draft-list" ? { drafts: [] } : {}) as RendererBridge["call"],
     onSessionChanged: () => () => undefined,
   } as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { format: "docx", dataBase64: "aGVsbG8=", checksum }, { createEditor: createByteTestEditor });
+  const session = createByteDocumentSession(bridge, identity, { format: "docx", data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")), checksum }, { createEditor: createByteTestEditor });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" kind="local" signedIn={false} onSignIn={() => undefined} onBack={() => undefined} />);
 
   // The AI entry is reachable as a labelled group inside the document menu, not

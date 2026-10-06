@@ -42,7 +42,7 @@ async function openLocalSession(answer: (channel: string, payload: Record<string
   const calls: string[] = [];
   const bridge = { call: (async (channel: string, payload: Record<string, unknown>) => { calls.push(channel); return answer(channel, payload ?? {}); }) as LibraryBridge["call"] } as LibraryBridge;
   const checksum = `sha256:${"a".repeat(64)}`;
-  const session = createPptxDocumentSession(bridge, identity, { format: "pptx", dataBase64: Buffer.from(bytes).toString("base64"), checksum, localHandle: handle }, (onDirty) =>
+  const session = createPptxDocumentSession(bridge, identity, { format: "pptx", data: Uint8Array.from(bytes), checksum, localHandle: handle }, (onDirty) =>
     createDesktopPptxAdapter({ identity, runtime: createWebPptxSessionRuntime({ documentId: handle }), readBytes: async () => bytes, capability, onDirty }));
   await session.openEditor();
   await session.editor.edit([box(1)]);
@@ -78,6 +78,6 @@ describe("local pptx session refusal codes", () => {
 
 /** The pptx save echoes the checksum of the bytes it sent, as main would. */
 function lastChecksum(payload: Record<string, unknown>): string {
-  const data = String(payload.dataBase64 ?? "");
-  return `sha256:${createHash("sha256").update(Buffer.from(data, "base64")).digest("hex")}`;
+  const data = payload.data instanceof Uint8Array ? payload.data : new Uint8Array(0);
+  return `sha256:${createHash("sha256").update(data).digest("hex")}`;
 }

@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
+import i18n from "i18next";
 import { OpenByteDocument } from "./open-document";
 import { createByteDocumentSession } from "./session";
 import type { RendererBridge } from "../app";
@@ -17,12 +18,12 @@ function mount() {
     if (channel === "desktop:engine-call") {
       const request = payload as { operation: string };
       if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 2 } };
-      return { ok: true, operation: "edit", dataBase64: pdfBytes };
+      return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(pdfBytes, "base64")) };
     }
     return {};
   });
   const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { format: "pdf", dataBase64: pdfBytes, checksum });
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", data: Uint8Array.from(Buffer.from(pdfBytes, "base64")), checksum });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
   return { session, call };
 }
@@ -57,7 +58,7 @@ it("finds text on the desktop host through the engine text layer and paints the 
     return {};
   });
   const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { format: "pdf", dataBase64: pdfBytes, checksum });
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", data: Uint8Array.from(Buffer.from(pdfBytes, "base64")), checksum });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
   await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
 
@@ -81,7 +82,7 @@ it("lets the Forms panel leave its loading state on the desktop host (R18-2)", a
     return {};
   });
   const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { format: "pdf", dataBase64: pdfBytes, checksum });
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", data: Uint8Array.from(Buffer.from(pdfBytes, "base64")), checksum });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
   await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
 
@@ -100,15 +101,15 @@ it("steps the desktop byte history from the quick-access buttons and Ctrl+Z / Ct
   const call = vi.fn(async (channel: string, payload: unknown) => {
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:engine-call") {
-      const request = payload as { operation: string; args: { dataBase64: string } };
-      if (request.operation === "open") { probes.push(request.args.dataBase64); return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] }; }
-      if (request.operation === "edit") return { ok: true, operation: "edit", dataBase64: editedBytes };
+      const request = payload as { operation: string; args: { data: Uint8Array } };
+      if (request.operation === "open") { probes.push(Buffer.from(request.args.data).toString("base64")); return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] }; }
+      if (request.operation === "edit") return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(editedBytes, "base64")) };
       return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 100, height: 100 };
     }
     return {};
   });
   const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { format: "pdf", dataBase64: pdfBytes, checksum });
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", data: Uint8Array.from(Buffer.from(pdfBytes, "base64")), checksum });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
   const editor = await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
   const undo = await screen.findByTestId("pdf-chrome-undo");
@@ -150,15 +151,15 @@ it("keeps an Undo pressed while a rotate awaits the engine, and undoes that rota
   const call = vi.fn(async (channel: string, payload: unknown) => {
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:engine-call") {
-      const request = payload as { operation: string; args: { dataBase64: string } };
-      if (request.operation === "open") { probes.push(request.args.dataBase64); return { ok: true, operation: "open", probe: { pageCount: 2 }, pageSizes: [{ width: 100, height: 100 }, { width: 100, height: 100 }] }; }
-      if (request.operation === "edit") { await new Promise<void>((resolve) => { releaseEdit = resolve; }); return { ok: true, operation: "edit", dataBase64: editedBytes }; }
+      const request = payload as { operation: string; args: { data: Uint8Array } };
+      if (request.operation === "open") { probes.push(Buffer.from(request.args.data).toString("base64")); return { ok: true, operation: "open", probe: { pageCount: 2 }, pageSizes: [{ width: 100, height: 100 }, { width: 100, height: 100 }] }; }
+      if (request.operation === "edit") { await new Promise<void>((resolve) => { releaseEdit = resolve; }); return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(editedBytes, "base64")) }; }
       return { ok: true, operation: "render", pngBase64: "iVBORw0KGgo=", width: 100, height: 100 };
     }
     return {};
   });
   const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { format: "pdf", dataBase64: pdfBytes, checksum });
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", data: Uint8Array.from(Buffer.from(pdfBytes, "base64")), checksum });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
   await screen.findByTestId("pdf-editor", {}, { timeout: 10000 });
   const undo = await screen.findByTestId("pdf-chrome-undo");
@@ -178,4 +179,18 @@ it("keeps an Undo pressed while a rotate awaits the engine, and undoes that rota
   expect(session.editor.canUndo?.()).toBe(false);
   expect(session.editor.canRedo?.()).toBe(true);
   expect(session.coordinator.getState().dirtyGeneration).toBe(session.editor.getDirtyGeneration());
+});
+
+it("shows the typed memory copy when the engine host dies while opening a PDF (UNI-956)", async () => {
+  const call = vi.fn(async (channel: string) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:engine-call") throw new Error("Error invoking remote method 'desktop:engine-call': EngineHostExitError: insufficient_memory");
+    return {};
+  });
+  const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
+  const session = createByteDocumentSession(bridge, identity, { format: "pdf", data: Uint8Array.from(Buffer.from(pdfBytes, "base64")), checksum });
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Report.pdf" onBack={() => undefined} />);
+  const failure = await screen.findByTestId("office-open-error", {}, { timeout: 10000 });
+  expect(failure).toHaveTextContent(i18n.t("office.save.reason.file_insufficient_memory"));
+  expect(failure).not.toHaveTextContent("insufficient_memory");
 });

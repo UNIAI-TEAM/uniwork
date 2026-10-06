@@ -25,13 +25,14 @@ import type {
   DocxViewState,
 } from "./types";
 import { DocxViewChrome } from "./view";
+import { openFailureClassOf } from "../too-large-notice";
 
 function unexpectedFailure(documentId: string, error: unknown): DocxOpenFailure {
   return {
     outcome: "failed",
     document_id: documentId,
     format: "docx",
-    failure_class: "engine_error",
+    failure_class: openFailureClassOf(error),
     message: error instanceof Error ? error.message : String(error),
   };
 }

@@ -5,7 +5,7 @@ import type { ComponentType } from "react";
 import type { Document } from "@uniwork/core/types/document";
 import { detectDesktopPlatform, DESKTOP_PLATFORMS, type DesktopPlatformHints, type OfficeInstallerOption, type OfficeCapabilityEntry, type OfficeHost, type SaveCoordinatorState, type StableSnapshot } from "@uniwork/core/office";
 import { registerLeaveGuard } from "@uniwork/views/navigation";
-import { DesktopOpenAction, OfficeShell, type OfficeChannel } from "@uniwork/views/office";
+import { DesktopOpenAction, OfficeShell, OfficeTooLargeProvider, type OfficeChannel } from "@uniwork/views/office";
 import { useOfficeFormatName } from "@uniwork/views/office/editor-slot";
 import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
@@ -13,6 +13,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
+import { downloadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
 import { launchOfficeDeepLink } from "./desktop-handoff";
 export * from "./editor-host-core";
@@ -268,7 +269,62 @@ export function OfficeEditorHost<TSnapshot = unknown>({
     return true;
   };
 
+  // The header split button and the inline too-large notice are two mounts of
+  // the same launch-ticket action, so both get one prop set.
+  const renderDesktopAction = (placement: "header" | "inline") => activeSession && !readonly ? (
+    <DesktopOpenAction
+      placement={placement}
+      documentId={document.id}
+      deploymentId={officeDeploymentId}
+      savedVersion={document.current_version}
+      dirty={dirty}
+      saveCoordinator={activeSession.coordinator}
+      versionAfterSave={async (outcome) => {
+        const versionId = outcome.receipt?.versionId;
+        if (!versionId) return null;
+        try {
+          const page = await listDocumentVersions(document.id, { limit: 100 });
+          const committed = page.versions.find((version) => version.id === versionId);
+          return committed?.version ?? null;
+        } catch {
+          return null;
+        }
+      }}
+      channel={officeChannel}
+      installers={installers}
+      loadInstallers={async () => {
+        const profile = await getOfficeDesktopDownload(document.organization_id, officeChannel);
+        return { installers: profile?.installers ?? [], supportedPlatforms: profile?.supported_platforms ?? DESKTOP_PLATFORMS };
+      }}
+      loadPlatformHint={async () => {
+        const data = (navigator as Navigator & { userAgentData?: DesktopPlatformHints["userAgentData"] & { getHighEntropyValues?: (keys: string[]) => Promise<{ architecture?: string; bitness?: string }> } }).userAgentData;
+        let entropy: { architecture?: string; bitness?: string } = {};
+        try { entropy = await data?.getHighEntropyValues?.(["architecture", "bitness"]) ?? {}; } catch { /* Reduced UA remains a safe uncertain hint. */ }
+        return detectDesktopPlatform({ userAgent: navigator.userAgent, userAgentData: data ? { platform: data.platform, mobile: data.mobile, ...entropy } : undefined });
+      }}
+      downloadInstaller={async (platform) => {
+        const blob = await downloadOfficeDesktopBundle(document.organization_id, officeChannel, platform);
+        const url = URL.createObjectURL(blob);
+        const link = window.document.createElement("a");
+        link.href = url; link.download = "UniWork-Office.zip";
+        window.document.body.append(link); link.click(); link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }}
+      launch={launchOfficeDeepLink}
+    />
+  ) : null;
+  const downloadDocument = async () => {
+    const blob = await downloadDocumentFile(document.id);
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement("a");
+    link.href = url; link.download = document.file?.filename ?? document.title;
+    window.document.body.append(link); link.click(); link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const tooLarge = { desktopAction: renderDesktopAction("inline"), onDownload: downloadDocument };
+
   return (
+    <OfficeTooLargeProvider value={tooLarge}>
 <div
       className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", className)}
       data-office-editor-host
@@ -295,47 +351,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         // Lane additive (UNI-928 md/html END): only the text formats quiet the
         // Save when clean; every other format keeps the primary button.
         saveQuietWhenClean={effectiveCapability.format === "md" || effectiveCapability.format === "html"}
-        desktopAction={activeSession && !readonly ? (
-          <DesktopOpenAction
-            documentId={document.id}
-            deploymentId={officeDeploymentId}
-            savedVersion={document.current_version}
-            dirty={dirty}
-            saveCoordinator={activeSession.coordinator}
-            versionAfterSave={async (outcome) => {
-              const versionId = outcome.receipt?.versionId;
-              if (!versionId) return null;
-              try {
-                const page = await listDocumentVersions(document.id, { limit: 100 });
-                const committed = page.versions.find((version) => version.id === versionId);
-                return committed?.version ?? null;
-              } catch {
-                return null;
-              }
-            }}
-            channel={officeChannel}
-            installers={installers}
-            loadInstallers={async () => {
-              const profile = await getOfficeDesktopDownload(document.organization_id, officeChannel);
-              return { installers: profile?.installers ?? [], supportedPlatforms: profile?.supported_platforms ?? DESKTOP_PLATFORMS };
-            }}
-            loadPlatformHint={async () => {
-              const data = (navigator as Navigator & { userAgentData?: DesktopPlatformHints["userAgentData"] & { getHighEntropyValues?: (keys: string[]) => Promise<{ architecture?: string; bitness?: string }> } }).userAgentData;
-              let entropy: { architecture?: string; bitness?: string } = {};
-              try { entropy = await data?.getHighEntropyValues?.(["architecture", "bitness"]) ?? {}; } catch { /* Reduced UA remains a safe uncertain hint. */ }
-              return detectDesktopPlatform({ userAgent: navigator.userAgent, userAgentData: data ? { platform: data.platform, mobile: data.mobile, ...entropy } : undefined });
-            }}
-            downloadInstaller={async (platform) => {
-              const blob = await downloadOfficeDesktopBundle(document.organization_id, officeChannel, platform);
-              const url = URL.createObjectURL(blob);
-              const link = window.document.createElement("a");
-              link.href = url; link.download = "UniWork-Office.zip";
-              window.document.body.append(link); link.click(); link.remove();
-              window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-            }}
-            launch={launchOfficeDeepLink}
-          />
-        ) : null}
+        desktopAction={renderDesktopAction("header")}
         className="h-full min-h-0"
       />
       {activeSession && !readonly && recovery && recovery.status !== "missing" ? (
@@ -360,6 +376,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         onDiscard={async () => { const ok = await discardAndLeave(); if (ok) finishLeave(true); return ok; }}
       />
     </div>
+    </OfficeTooLargeProvider>
   );
 }
 

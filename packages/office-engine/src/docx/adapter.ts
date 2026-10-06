@@ -19,6 +19,7 @@ import {
   type OpenFailureClass,
   type OpenOutcome,
 } from "@uniwork/office-contracts";
+import { scanZipBomb } from "../shared/zip-central";
 import type { OoxmlCrypto } from "./engine";
 import type { DocxBlock, DocxEngineFunctions, DocxNumberingDef, DocxParsed } from "./engine";
 import { DocxSessionModel, editableIndexes, visibleIndexes, type DocxEdit } from "./model";
@@ -57,7 +58,15 @@ export interface DocxAdapterDeps {
    * intent state rides to the service through the grant). */
   crypto?: OoxmlCrypto;
   sha256?: (bytes: Uint8Array) => Promise<string>;
+  /** Input bound in bytes; defaults to the server contract. A host that does
+   *  not cap local files (the desktop app) passes Number.POSITIVE_INFINITY. */
   maxInputBytes?: number;
+  /** Output bound in bytes; same default and same unbounded convention. */
+  maxOutputBytes?: number;
+  /** "proportional" pre-scans the package central directory (no inflation)
+   *  and refuses a zip bomb as corrupted before the upstream parser runs. For a
+   *  host that does not cap local files; omitted = no pre-scan (web, server). */
+  zipGuard?: "proportional";
   /** Enumerate package part names for the asset oracle (seam may supply). */
   listPackageParts?: (parsed: DocxParsed) => string[];
 }
@@ -201,6 +210,8 @@ export class DocxAdapter {
     plainBytes: Uint8Array,
     opts: { encryptedSource?: boolean } = {},
   ): Promise<OpenOutcome> {
+    const bomb = this.deps.zipGuard === "proportional" ? scanZipBomb(plainBytes) : null;
+    if (bomb !== null) return this.failed(documentId, "corrupted", "zip_bomb: " + bomb);
     let parsed: DocxParsed;
     try {
       parsed = await this.deps.engine.parseDocx(plainBytes);
@@ -271,7 +282,7 @@ export class DocxAdapter {
     if (!out || out.length === 0) {
       throw new EngineBoundaryError("engine_result_invalid", { detail: "saveDocx returned empty bytes" });
     }
-    if (out.length > ENGINE_LIMITS.max_output_bytes) {
+    if (out.length > (this.deps.maxOutputBytes ?? ENGINE_LIMITS.max_output_bytes)) {
       throw new EngineBoundaryError("upload_bounds", { detail: "output exceeds byte bound" });
     }
 

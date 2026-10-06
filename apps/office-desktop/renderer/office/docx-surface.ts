@@ -3,6 +3,7 @@ import { parseDocx, saveDocx } from "@uniwork/office-upstream/docs-renderer-edit
 import { createDocxTiptapHandle, type DocxEditorHandle, type DocxOpenSuccess } from "@uniwork/views/office/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { desktopEngineBuild } from "../../shared/document-formats";
+import { LOCAL_ENGINE_BOUNDS } from "../../shared/local-engine-bounds";
 
 export const DOCX_DESKTOP_ENGINE_BUILD = desktopEngineBuild("docx");
 
@@ -20,7 +21,7 @@ export function createDesktopDocxSurface(options: {
   readOnly?: boolean;
 }): DesktopDocxSurface {
   const tiptap = createDocxTiptapHandle({
-    adapter: createDocxAdapter({ engine: bindDocxEngine({ parseDocx, saveDocx }) }),
+    adapter: createDocxAdapter({ engine: bindDocxEngine({ parseDocx, saveDocx }), ...LOCAL_ENGINE_BOUNDS }),
     documentId: options.documentId,
     readBytes: options.readBytes,
     readOnly: options.readOnly,

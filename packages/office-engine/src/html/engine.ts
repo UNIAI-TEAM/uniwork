@@ -41,7 +41,7 @@ export interface HtmlEngine extends TextDocumentEngine {
   isEmpty(ref: string): boolean;
 }
 
-export function createHtmlEngine(options: { upstream: HtmlUpstream; hash?: Sha256HexFn }): HtmlEngine {
+export function createHtmlEngine(options: { upstream: HtmlUpstream; hash?: Sha256HexFn; maxInputBytes?: number }): HtmlEngine {
   const { upstream } = options;
   const scanReferences = (text: string): string[] => {
     const ours = extractHtmlAssetReferences(text);
@@ -59,7 +59,7 @@ export function createHtmlEngine(options: { upstream: HtmlUpstream; hash?: Sha25
       rewriteReferences: rewriteHtmlAssetReferences,
       capabilities: HTML_CAPABILITIES,
     },
-    { hash: options.hash },
+    { hash: options.hash, ...(options.maxInputBytes === undefined ? {} : { maxInputBytes: options.maxInputBytes }) },
   );
   const maps = new Map<string, UpstreamParseMap>();
   return {

@@ -17,7 +17,7 @@ const checksum = `sha256:${"b".repeat(64)}`;
 function mount(format: "md" | "html" | "docx", source: string, canSave = true) {
   const call = vi.fn(async (channel: string) => channel === "desktop:draft-list" ? { drafts: [] } : {});
   const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { format, dataBase64: Buffer.from(source).toString("base64"), checksum, canSave }, format === "docx" ? { createEditor: createByteTestEditor } : undefined);
+  const session = createByteDocumentSession(bridge, identity, { format, data: Uint8Array.from(Buffer.from(source)), checksum, canSave }, format === "docx" ? { createEditor: createByteTestEditor } : undefined);
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title={`Doc.${format}`} kind="local" onBack={() => undefined} />);
   return { session, call };
 }

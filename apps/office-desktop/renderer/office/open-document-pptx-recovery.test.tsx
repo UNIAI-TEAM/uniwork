@@ -64,7 +64,7 @@ function mount(handler: (channel: string, payload: unknown) => Promise<unknown>)
     serialize: async () => ({ bytes: new Uint8Array([1]), checksum }),
     edit: async () => ({ revision: 0 }),
   } as unknown as DesktopPptxEditorHandle;
-  const session = createPptxDocumentSession(bridge, identity, { format: "pptx", dataBase64: "UEsDBA==", checksum, localHandle: identity.documentId }, (dirty) => {
+  const session = createPptxDocumentSession(bridge, identity, { format: "pptx", data: Uint8Array.from(Buffer.from("UEsDBA==", "base64")), checksum, localHandle: identity.documentId }, (dirty) => {
     onDirty = dirty;
     return { editor: surface } as unknown as DesktopPptxAdapter;
   });
@@ -75,7 +75,7 @@ function mount(handler: (channel: string, payload: unknown) => Promise<unknown>)
 it("offers the relaunched local deck's draft and recovers exactly the pre-kill snapshot", async () => {
   const { calls, restored, session } = mount(async (channel) => {
     if (channel === "desktop:draft-list") return { drafts: [draft] };
-    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: draft, dataBase64: snapshotBase64 };
+    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: draft, data: Uint8Array.from(Buffer.from(snapshotBase64, "base64")) };
     return {};
   });
   expect(await screen.findByText(i18n.t("office.recovery.title"))).toBeInTheDocument();

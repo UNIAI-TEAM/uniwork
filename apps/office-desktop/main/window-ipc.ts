@@ -31,8 +31,8 @@ export function registerWindowIpc(options: WindowIpcOptions): void {
     });
   }
   // A refused drop answers a typed code like a pick does (a thrown message is all
-  // Electron would carry), so a locked, oversized or linked file says why instead
-  // of the generic open error. The code follows the same rule as pick and
+  // Electron would carry), so a locked or linked file, or one too big for this
+  // machine's memory, says why instead of the generic open error. The code follows the same rule as pick and
   // recent open (openRefusalCode); no path or OS message is copied into the answer.
   const openDropped = answerRefusal(async (path: string) => {
     const session = deviceScope();
@@ -40,7 +40,7 @@ export function registerWindowIpc(options: WindowIpcOptions): void {
     const bytes = await fileRegistry.read(metadata.handle);
     if (!sameDocumentSession(session, deviceScope())) throw new LocalFileError("session_revoked");
     localOpenContext(metadata);
-    return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
+    return desktopFileResponseSchema.parse({ opened: true, metadata, data: bytes });
   }, openRefusalCode, (code) => desktopFileResponseSchema.parse({ opened: false, code }));
   ipcMain.handle("desktop:native-drop-open", async (event, payload: unknown) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error("invalid_sender");
