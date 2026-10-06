@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isPrintBusy, type OfficePrintPort } from "../../print";
+import { useOfficePrintShortcut } from "../../print/shortcut";
 import type { PdfCanvasPage, PdfPageRenderService } from "../canvas";
 import { printPdfDocument } from "./print-document";
 import type { PdfPrintImageInliner } from "./types";
@@ -76,5 +77,11 @@ export function usePdfPrint({ port, renderer, getPages, title, lang, inlineImage
   }, []);
 
   const available = Boolean(port && renderer && getPages);
+  // Ctrl/Cmd+P anywhere on the page runs this same print (the Office shell's
+  // listener); before any page is laid out it is swallowed, never a blank copy.
+  const printFromShortcut = useCallback(() => {
+    if (latest.current.getPages?.().length) print();
+  }, [print]);
+  useOfficePrintShortcut(available ? printFromShortcut : null);
   return useMemo(() => (available ? { printing, status, print } : null), [available, print, printing, status]);
 }

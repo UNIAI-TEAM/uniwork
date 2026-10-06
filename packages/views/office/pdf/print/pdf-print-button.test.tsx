@@ -1,6 +1,8 @@
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { useRef, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { OfficePrintOutcome, OfficePrintPort } from "../../print";
+import { OfficePrintShortcutScope } from "../../print/shortcut";
 import type { PdfCanvasPage } from "../canvas";
 import { PdfPrintButton, PdfPrintNotice } from "./pdf-print-button";
 import { usePdfPrint, type PdfPrintController, type UsePdfPrintOptions } from "./use-pdf-print";
@@ -41,6 +43,33 @@ describe("usePdfPrint", () => {
 
     await waitFor(() => expect(result.current?.printing).toBe(false));
     expect(print).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** Stands in for the Office shell, which owns the Ctrl/Cmd+P listener. */
+function ShellScope({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  return <div ref={ref}><OfficePrintShortcutScope rootRef={ref}>{children}</OfficePrintShortcutScope></div>;
+}
+
+describe("PDF print on Ctrl/Cmd+P", () => {
+  it("runs the same print as the entries and blocks the app window's print", async () => {
+    const print = vi.fn(async (): Promise<OfficePrintOutcome> => ({ outcome: "printed" }));
+    renderHook(() => usePdfPrint(options({ print })), { wrapper: ShellScope });
+    expect(fireEvent.keyDown(document.body, { key: "p", metaKey: true })).toBe(false);
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+  });
+
+  it("never prints a blank copy before any page is laid out", () => {
+    const print = vi.fn();
+    renderHook(() => usePdfPrint({ ...options({ print }), getPages: () => [] }), { wrapper: ShellScope });
+    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(false);
+    expect(print).not.toHaveBeenCalled();
+  });
+
+  it("leaves Ctrl/Cmd+P to the platform without a port", () => {
+    renderHook(() => usePdfPrint(options()), { wrapper: ShellScope });
+    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(true);
   });
 });
 
