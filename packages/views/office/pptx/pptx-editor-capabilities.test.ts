@@ -55,6 +55,12 @@ describe("pptxEditorCapabilities - commands the host can never run are hidden (R
     expect(caps["export-pdf"]).toEqual({ status: "unavailable", reason: "office.pptx.reasons.export_pdf_unbound", hidden: true });
   });
 
+  it("disables (not hides) both print commands while a run is in flight", () => {
+    const printPort = { print: async () => ({ outcome: "printed" as const }) };
+    const caps = pptxEditorCapabilities(undefined, { ...none, printPort, printPending: true });
+    for (const id of ["export-pdf", "print"] as const) expect(caps[id], id).toEqual({ status: "unavailable", reason: "office.pptx.reasons.print_preparing" });
+  });
+
   it("gives print its own reason key, not the PDF export one (X4fix F10)", () => {
     const caps = pptxEditorCapabilities(undefined, none);
     expect(caps.print).toEqual(expect.objectContaining({ reason: "office.pptx.reasons.print_unbound" }));

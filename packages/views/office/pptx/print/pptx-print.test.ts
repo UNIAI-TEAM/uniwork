@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { PRINT_COPY_CSP } from "../../markdown/wysiwyg/print";
+import { createPptxDeckRenderer } from "../canvas/deck-renderer";
+import { shapeNode, slide } from "../canvas/pptx-render-fixtures";
+import type { PptxRendererModule } from "../canvas/renderer-module";
 import { buildPptxPrintHtml, collectPptxPrintSlides, pptxPrintPageId, pptxPrintPageSize, pptxPrintStyles, PPTX_PRINT_HEIGHT_IN } from "./pptx-print";
 
 const slide16x9 = { markup: "<svg viewBox=\"0 0 1280 720\"><rect width=\"10\" height=\"10\"/></svg>", widthPx: 1280, heightPx: 720 };
@@ -118,21 +121,39 @@ describe("pptx print copy safety (UNI-952)", () => {
 });
 
 describe("collectPptxPrintSlides", () => {
-  const palette = {} as never;
-  const renderer = (built: (index: number) => unknown) => ({
+  const renderer = (built: (index: number, widthPx: number, title?: string) => unknown) => ({
     slideCount: 3,
     aspect: 9 / 16,
     viewport: () => ({ widthPx: 1280, heightPx: 720, scale: 1 }),
-    buildSlide: (index: number) => built(index) as never,
+    buildSlide: () => null,
+    buildSlideMarkup: (index: number, widthPx: number, title?: string) => built(index, widthPx, title) as never,
     buildThumbnail: () => null,
   });
 
   it("skips the slides the caller leaves out and the ones that cannot be built", () => {
-    const slides = collectPptxPrintSlides(renderer(() => null), { palette, skip: () => false });
+    const slides = collectPptxPrintSlides(renderer(() => null), { skip: () => false });
     expect(slides).toEqual([]);
     const skipped = vi.fn(() => null);
-    collectPptxPrintSlides(renderer(skipped), { palette, skip: (index) => index !== 1 });
+    collectPptxPrintSlides(renderer(skipped), { skip: (index) => index !== 1 });
     expect(skipped).toHaveBeenCalledTimes(1);
-    expect(skipped).toHaveBeenCalledWith(1);
+    expect(skipped).toHaveBeenCalledWith(1, 1280, "Slide 2");
+  });
+
+  it("prints what the canvas draws: a pattern fill reaches the copy as a pattern, not its background colour", () => {
+    const module: PptxRendererModule = {
+      makeViewport: (size, fitWidthPx) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx * (size.cy / size.cx), scale: 1 }),
+      buildRenderSlide: () => slide([shapeNode({ fill: { kind: "pattern", preset: "pct50", fg: "#111111", bg: "#eeeeee", cellPx: 8 } })]),
+      patternGrid: () => [[true]],
+    };
+    const palette = { pageFill: "#ffffff", chipFill: "#f4f4f5", chipStroke: "#e4e4e7", chipText: "#646464" };
+    const deckRenderer = createPptxDeckRenderer(module, { deck: { slides: [{ id: "s1" }] } }, { idPrefix: "p", palette });
+    const printed = collectPptxPrintSlides(deckRenderer, { title: () => "Trang 1" });
+    expect(printed).toHaveLength(1);
+    expect(printed[0]).toMatchObject({ label: "Trang 1" });
+    const html = buildPptxPrintHtml({ slides: printed });
+    const src = /src="(data:image\/svg\+xml;charset=utf-8,[^"]*)"/.exec(html)![1]!;
+    const svg = decodeURIComponent(src.slice(src.indexOf(",") + 1).replace(/&amp;/g, "&"));
+    expect(svg).toContain("<pattern");
+    expect(svg).toContain("<title>Trang 1</title>");
   });
 });

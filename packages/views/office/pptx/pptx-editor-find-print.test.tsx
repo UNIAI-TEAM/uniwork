@@ -235,6 +235,28 @@ describe("PptxEditor print commands (UNI-952)", () => {
     expect(onCommandError).not.toHaveBeenCalled();
   });
 
+  it("shows Print, Export PDF and the menu item busy while a run is in flight, and ignores a second click", async () => {
+    let release: (outcome: OfficePrintOutcome) => void = () => undefined;
+    const print = vi.fn((_request: OfficePrintRequest) => new Promise<OfficePrintOutcome>((resolve) => { release = resolve; }));
+    renderWithPageMenu({ printPort: { print } });
+    await ready();
+    const off = (element: HTMLElement) => element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true";
+    const item = await within(await screen.findByRole("menu")).findByRole("menuitem", { name: "Print" });
+    expect(item).not.toHaveAttribute("aria-busy");
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    expect(off(screen.getByRole("button", { name: "Print" }))).toBe(true);
+    expect(off(screen.getByRole("button", { name: "Export PDF" }))).toBe(true);
+    expect(item).toHaveAttribute("aria-busy", "true");
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(item);
+    await act(async () => { await Promise.resolve(); });
+    expect(print).toHaveBeenCalledTimes(1);
+    await act(async () => { release({ outcome: "printed" }); await Promise.resolve(); });
+    await waitFor(() => expect(off(screen.getByRole("button", { name: "Print" }))).toBe(false));
+    expect(item).not.toHaveAttribute("aria-busy");
+  });
+
   function renderWithPageMenu(props: Partial<PptxEditorProps>) {
     return render(
       <HeaderActionsSlotProvider>

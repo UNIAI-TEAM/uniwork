@@ -184,7 +184,7 @@ export function PptxEditor({
     suspended: presenterOpen || showOpen || shortcutsOpen,
   });
   const railIdPrefix = `pptx-${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
-  const { palette, rendererState, deckRenderer, rendition, svgBuild, presenterContent, presenterNext, building } = usePptxEditorRender({
+  const { rendererState, deckRenderer, rendition, svgBuild, presenterContent, presenterNext, building } = usePptxEditorRender({
     deck, loadRendererModule, idPrefix: railIdPrefix, selectedIndex, fitWidthPx, presenterOpen,
   });
   const svgDocument = svgBuild.document;
@@ -375,8 +375,8 @@ export function PptxEditor({
   const canEditText = Boolean(onTextEdit) || (Boolean(onCommitText) && selectionHasText);
   // UNI-952: one print run behind the ribbon and the header menu; a deck-less editor, or one
   // whose renderer has not loaded, has nothing to print, so every entry drops out.
-  const { port: printPort, run: runPrint, notice: printNotice, menuItems: printMenuItems } = usePptxPrint({
-    port: deckBound ? printPortProp : null, renderer: deckRenderer, slides, palette, ...(printTitle !== undefined ? { title: printTitle } : {}), flush: flushTextEdit, onFailed: reportCommandError,
+  const { port: printPort, run: runPrint, pending: printPending, notice: printNotice, menuItems: printMenuItems } = usePptxPrint({
+    port: deckBound ? printPortProp : null, renderer: deckRenderer, slides, ...(printTitle !== undefined ? { title: printTitle } : {}), flush: flushTextEdit, onFailed: reportCommandError,
   });
   const effectiveCapabilities = useMemo(() => pptxEditorCapabilities(capabilities, {
     open: Boolean(onOpen),
@@ -386,8 +386,8 @@ export function PptxEditor({
     textSelected: selectionHasText,
     transform: Boolean(transformRequest),
     edit: Boolean(onApplyEdit ?? handleEdit),
-    printPort,
-  }), [capabilities, handleEdit, onApplyEdit, onCommitText, onOpen, onTextEdit, printPort, selectionHasText, transformRequest]);
+    printPort, printPending,
+  }), [capabilities, handleEdit, onApplyEdit, onCommitText, onOpen, onTextEdit, printPending, printPort, selectionHasText, transformRequest]);
   // B6: View > Slide master (open toggle, part/element reads, edits on the one channel).
   const masters = usePptxEditorMasters({ ...(masterParts ? { masterParts } : {}), ...(masterElements ? { masterElements } : {}), editorHandle, ...(onApplyEdit ? { onApplyEdit } : {}), ...(handleEdit ? { handleEdit } : {}), refreshKey: deck?.revision, onError: reportCommandError });
   const baseCommands = useMemo(() => createPptxCommandMap({ host, capabilities: effectiveCapabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [effectiveCapabilities, host, includeSave, saveCoordinator]);

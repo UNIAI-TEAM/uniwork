@@ -14,10 +14,8 @@
  * exported PDF agree on their page geometry - landscape for every landscape deck.
  */
 import { PRINT_COPY_CSP } from "../../markdown/wysiwyg/print";
-import { buildSlideSvg } from "../canvas/build-slide-svg";
 import type { PptxDeckRenderer } from "../canvas/deck-renderer";
-import type { PptxCanvasPalette, PptxImageSize } from "../canvas/paint";
-import { slideSvgMarkup, svgDataUrl } from "../canvas/svg-node";
+import { svgDataUrl } from "../canvas/svg-node";
 
 /** Fixed page height in inches, mirrored from the genoffice slides PDF export. */
 export const PPTX_PRINT_HEIGHT_IN = 7.5;
@@ -123,12 +121,8 @@ export function buildPptxPrintHtml(input: PptxPrintDocument): string {
 }
 
 export interface CollectPptxPrintSlidesOptions {
-  /** Canvas palette the on-screen rendition uses, so print colours match the editor. */
-  palette: PptxCanvasPalette;
   /** Build width; defaults to `PPTX_PRINT_WIDTH`. */
   widthPx?: number;
-  /** Natural pixel size of a data URL (tiled picture/image fills). */
-  imageSize?(dataUrl: string): PptxImageSize | undefined;
   /** Accessible name per slide; falls back to `Slide N`. */
   title?(index: number): string | undefined;
   /** Slides left out of the run. The editor skips hidden slides, as PowerPoint does by default. */
@@ -136,27 +130,19 @@ export interface CollectPptxPrintSlidesOptions {
 }
 
 /**
- * Render every printed slide of a deck. A slide the artifact cannot build is skipped (its page
- * is omitted) rather than failing the whole run, matching the rail thumbnail path.
+ * Render every printed slide of a deck through the renderer's own SVG path (the one the canvas
+ * and the rail use), so pattern fills, tiled pictures and preset geometry print as drawn. A
+ * slide the artifact cannot build is skipped (its page is omitted) rather than failing the
+ * whole run, matching the rail thumbnail path.
  */
-export function collectPptxPrintSlides(renderer: PptxDeckRenderer, options: CollectPptxPrintSlidesOptions): PptxPrintSlide[] {
+export function collectPptxPrintSlides(renderer: PptxDeckRenderer, options: CollectPptxPrintSlidesOptions = {}): PptxPrintSlide[] {
   const widthPx = options.widthPx ?? PPTX_PRINT_WIDTH;
   const out: PptxPrintSlide[] = [];
   for (let index = 0; index < renderer.slideCount; index += 1) {
     if (options.skip?.(index)) continue;
-    const slide = renderer.buildSlide(index, widthPx);
-    if (!slide) continue;
-    try {
-      const doc = buildSlideSvg(slide, {
-        idPrefix: `pptx-print-${index}`,
-        palette: options.palette,
-        ...(options.imageSize ? { imageSize: options.imageSize } : {}),
-      });
-      const label = options.title?.(index) ?? `Slide ${index + 1}`;
-      out.push({ markup: slideSvgMarkup(doc.root, doc, { title: label }), widthPx: doc.widthPx, heightPx: doc.heightPx, label });
-    } catch {
-      // One unrenderable slide must not lose the rest of the print run.
-    }
+    const label = options.title?.(index) ?? `Slide ${index + 1}`;
+    const built = renderer.buildSlideMarkup(index, widthPx, label);
+    if (built) out.push({ ...built, label });
   }
   return out;
 }

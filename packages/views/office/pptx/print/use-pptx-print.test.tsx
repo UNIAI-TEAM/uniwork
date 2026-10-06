@@ -1,0 +1,41 @@
+// UNI-952 fix-C-pptx F4 - a print run whose text commit fails reports the print message.
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import type { PptxDeckRenderer } from "../canvas/deck-renderer";
+import { usePptxPrint } from "./use-pptx-print";
+
+initI18n();
+beforeEach(async () => {
+  await setLocale("en");
+});
+
+const renderer: PptxDeckRenderer = {
+  slideCount: 1,
+  aspect: 9 / 16,
+  viewport: () => ({ widthPx: 1280, heightPx: 720, scale: 1 }),
+  buildSlide: () => null,
+  buildSlideMarkup: () => ({ markup: "<svg xmlns=\"http://www.w3.org/2000/svg\"/>", widthPx: 1280, heightPx: 720 }),
+  buildThumbnail: () => null,
+};
+
+describe("usePptxPrint", () => {
+  it("reports a failed text commit as the print failure, not the raw commit error, and never prints", async () => {
+    const print = vi.fn(async () => ({ outcome: "printed" as const }));
+    const onFailed = vi.fn();
+    const { result } = renderHook(() => usePptxPrint({
+      port: { print },
+      renderer,
+      slides: [{}],
+      flush: () => Promise.reject(new Error("text_commit_conflict")),
+      onFailed,
+      rasterize: null,
+    }));
+    act(() => result.current.run());
+    expect(result.current.pending).toBe(true);
+    await waitFor(() => expect(onFailed).toHaveBeenCalledTimes(1));
+    expect(onFailed.mock.calls[0]![0]).toEqual(expect.objectContaining({ message: "The presentation could not be printed." }));
+    expect(print).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.pending).toBe(false));
+  });
+});

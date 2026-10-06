@@ -26,6 +26,8 @@ export interface PptxEditorChannels {
   /** A generic edit channel (host onApplyEdit or the handle's edit port). */
   edit: boolean;
   printPort: OfficePrintPort | null;
+  /** A print run is in flight: Print and Export PDF show disabled until it settles. */
+  printPending?: boolean;
 }
 
 /** Commands whose ribbon item opens a panel bound to the generic edit channel. */
@@ -69,7 +71,7 @@ export function pptxEditorCapabilities(
       : { status: "unavailable", reason: "office.pptx.reasons.transform_unbound", hidden: true },
     // C1: the print/PDF commands report what the bound port can actually do; with
     // no surface to print from they are hidden (R2-6), not shown dead.
-    "export-pdf": capabilities?.["export-pdf"] ?? pptxPrintCapability(channels.printPort, "office.pptx.reasons.export_pdf_unbound"),
-    print: capabilities?.print ?? pptxPrintCapability(channels.printPort, "office.pptx.reasons.print_unbound"),
+    "export-pdf": capabilities?.["export-pdf"] ?? pptxPrintCapability(channels.printPort, "office.pptx.reasons.export_pdf_unbound", channels.printPending),
+    print: capabilities?.print ?? pptxPrintCapability(channels.printPort, "office.pptx.reasons.print_unbound", channels.printPending),
   };
 }

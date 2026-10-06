@@ -78,7 +78,9 @@ export async function printPptxDeck(options: PptxPrintRunOptions): Promise<Offic
   }
 }
 
-/** The print/export-pdf capability: no bound port -> hidden with a reason, never a dead control. */
-export function pptxPrintCapability(port: OfficePrintPort | null | undefined, reasonKey: string): PptxCommandCapability {
-  return port ? { status: "available" } : { status: "unavailable", reason: reasonKey, hidden: true };
+/** The print/export-pdf capability: no bound port -> hidden with a reason, never a dead control;
+ *  while a run builds or prints its copy -> disabled with the "preparing" reason. */
+export function pptxPrintCapability(port: OfficePrintPort | null | undefined, reasonKey: string, pending = false): PptxCommandCapability {
+  if (!port) return { status: "unavailable", reason: reasonKey, hidden: true };
+  return pending ? { status: "unavailable", reason: "office.pptx.reasons.print_preparing" } : { status: "available" };
 }

@@ -15,7 +15,6 @@ import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { isPrintBusy, type OfficePrintPort } from "../../print";
 import type { PptxDeckRenderer } from "../canvas/deck-renderer";
-import type { PptxCanvasPalette } from "../canvas/paint";
 import { collectPptxPrintSlides } from "./pptx-print";
 import { createCanvasSlideRasterizer } from "./pptx-print-raster";
 import { printPptxDeck, type PptxSlideRasterizer } from "./pptx-print-run";
@@ -30,7 +29,6 @@ interface UsePptxPrintOptions {
   renderer: PptxDeckRenderer | null;
   /** Slide views in deck order; a `hidden` slide is not printed (PowerPoint's default). */
   slides: readonly { hidden?: boolean }[];
-  palette: PptxCanvasPalette;
   /** Document title for the print job and the default PDF file name. */
   title?: string;
   /** Commits an open in-place text edit before the copy is built. */
@@ -45,6 +43,8 @@ interface PptxPrintController {
   /** The port when printing is possible now, else null (commands hidden). */
   port: OfficePrintPort | null;
   run(): void;
+  /** A run is building or printing its copy; the entries show busy and refuse a second click. */
+  pending: boolean;
   /** The neutral "already open" status, while it applies. */
   notice: ReactElement | null;
   /** The overflow-menu Print item, or null with no port. */
@@ -53,10 +53,12 @@ interface PptxPrintController {
 
 export function usePptxPrint(options: UsePptxPrintOptions): PptxPrintController {
   const { t } = useTranslation();
-  const { port: hostPort, renderer, slides, palette, title, flush, onFailed, rasterize } = options;
+  const { port: hostPort, renderer, slides, title, flush, onFailed, rasterize } = options;
   const port = hostPort && renderer ? hostPort : null;
   const [busy, setBusy] = useState(false);
+  // The ref guards a double click within one render; the state drives the busy UI.
   const running = useRef(false);
+  const [pending, setPending] = useState(false);
   // The latest slide views, read at run time so a fresh `slides` array does not rebuild the menu item.
   const slidesRef = useRef(slides);
   useEffect(() => { slidesRef.current = slides; }, [slides]);
@@ -65,10 +67,10 @@ export function usePptxPrint(options: UsePptxPrintOptions): PptxPrintController 
   const run = useCallback(() => {
     if (!port || !renderer || running.current) return;
     running.current = true;
+    setPending(true);
     setBusy(false);
     const print = async () => {
       const printed = collectPptxPrintSlides(renderer, {
-        palette,
         skip: (index) => slidesRef.current[index]?.hidden === true,
         title: (index) => t("office.pptx.print.slide_label", { index: index + 1 }),
       });
@@ -78,11 +80,12 @@ export function usePptxPrint(options: UsePptxPrintOptions): PptxPrintController 
       if (isPrintBusy(outcome)) setBusy(true);
       else onFailed(new Error(t(outcome.reason === "print_too_large" ? "office.pptx.print.too_large" : "office.pptx.print.failed")));
     };
+    // A failed text commit is reported like any other failed run: the user asked to print.
     const commit = flush();
     void (commit ? commit.then(print) : print())
-      .catch((error: unknown) => onFailed(error instanceof Error ? error : new Error(String(error))))
-      .finally(() => { running.current = false; });
-  }, [flush, onFailed, palette, port, rasterizer, renderer, t, title]);
+      .catch(() => onFailed(new Error(t("office.pptx.print.failed"))))
+      .finally(() => { running.current = false; setPending(false); });
+  }, [flush, onFailed, port, rasterizer, renderer, t, title]);
 
   const notice = busy ? (
     <Alert key="print-busy" className="rounded-none border-x-0 border-t-0" role="status" data-testid="pptx-print-busy">
@@ -91,11 +94,11 @@ export function usePptxPrint(options: UsePptxPrintOptions): PptxPrintController 
   ) : null;
 
   const menuItems = useMemo(() => (port ? (
-    <DropdownMenuItem className="gap-2 px-2 py-2" data-pptx-print onClick={run}>
+    <DropdownMenuItem className="gap-2 px-2 py-2" data-pptx-print aria-disabled={pending || undefined} aria-busy={pending || undefined} onClick={run}>
       <Printer aria-hidden className="size-3.5" />
       {t(PRINT_MENU_LABEL_KEY)}
     </DropdownMenuItem>
-  ) : null), [port, run, t]);
+  ) : null), [pending, port, run, t]);
 
-  return { port, run, notice, menuItems };
+  return { port, run, pending, notice, menuItems };
 }
