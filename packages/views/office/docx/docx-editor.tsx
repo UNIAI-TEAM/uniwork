@@ -87,6 +87,8 @@ export function DocxEditor<TSnapshot = unknown>({
   // The context menu needs a TipTap Editor, not the host handle: the command
   // runtime this handle drives reads it, and the scope publishes it to the rest
   // of the chrome. Read on every render: open/dispose swap it under the handle.
+  // The handle builds its TipTap editor inside open(), before viewState turns
+  // "ready", so the ready render already sees it (review r1 n1).
   const liveEditor = viewState === "ready" ? ((editor.commands as DocxCommandRuntime | undefined)?.liveEditor?.() ?? null) : null;
   useLayoutEffect(() => {
     scope.publishEditor(liveEditor);
