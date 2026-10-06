@@ -54,6 +54,31 @@ function cargoTargetDir(crateDir, env = process.env) {
   return configured ? path.resolve(REPO_ROOT, configured) : path.join(crateDir, 'target');
 }
 
+/** The Rust target triple a cargo build produces: CARGO_BUILD_TARGET when set
+ *  (a cross build), else the host line of `rustc -vV`; null when neither says. */
+export function rustTargetTriple(env = process.env, rustcVersionOutput = () => spawnSync('rustc', ['-vV'], { encoding: 'utf8' }).stdout) {
+  const configured = env.CARGO_BUILD_TARGET?.trim();
+  if (configured) return configured;
+  return /^host:\s*(\S+)/m.exec(rustcVersionOutput() ?? '')?.[1] ?? null;
+}
+
+/** A triple's CPU as Node names it (`process.arch` values, what packaging
+ *  compares); null for one this script does not know. */
+function nodeArchOfTriple(triple) {
+  const cpu = triple?.split('-')[0];
+  if (cpu === 'x86_64') return 'x64';
+  if (cpu === 'aarch64' || cpu === 'arm64') return 'arm64';
+  if (cpu === 'i686' || cpu === 'i586') return 'ia32';
+  if (cpu?.startsWith('armv7')) return 'arm';
+  return null;
+}
+
+/** The target the native record attests: the triple and its Node arch. */
+export function nativeTarget(env = process.env, rustcVersionOutput) {
+  const triple = rustTargetTriple(env, rustcVersionOutput);
+  return { triple, arch: nodeArchOfTriple(triple) };
+}
+
 // Heavy/native/browser-host deps stay external to the engine bundles: they are
 // resolved by the adapter lanes (G2-03..06) from the real install, and bundling
 // binaries or wasm payloads would fabricate functionality this lane must not
@@ -401,7 +426,9 @@ export async function run({ out, skipInstall, withNative, keep }) {
       // link.exe hits MAX_PATH under a deep worktree); copy the binary to a
       // fixed place in the scratch tree so staging finds it without that env.
       const sidecarName = process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar';
-      const builtPath = path.join(cargoTargetDir(engineDir), 'release', sidecarName);
+      // A cross build (CARGO_BUILD_TARGET) lands under <target>/<triple>/release.
+      const { triple, arch } = nativeTarget();
+      const builtPath = path.join(cargoTargetDir(engineDir), ...(process.env.CARGO_BUILD_TARGET?.trim() ? [triple] : []), 'release', sidecarName);
       const binaryPath = path.join(nativeOut, sidecarName);
       fs.mkdirSync(nativeOut, { recursive: true });
       fs.copyFileSync(builtPath, binaryPath);
@@ -409,8 +436,12 @@ export async function run({ out, skipInstall, withNative, keep }) {
       const versionMatch = fs.existsSync(protocolSrc) ? /PROTOCOL_VERSION(?::\s*u8)?\s*=\s*(\d+)/.exec(fs.readFileSync(protocolSrc, 'utf8')) : null;
       record.native = {
         status: 'pass',
-        // The sidecar is built for the host CPU; packaging for another one must refuse it.
-        arch: process.arch,
+        // The sidecar's CPU is the cargo target's (CARGO_BUILD_TARGET, else
+        // rustc's host), not Node's: x64 Node on Windows-on-ARM still builds
+        // for the toolchain's host. null when the triple is unknown, which
+        // packaging reads as "no architecture recorded".
+        arch,
+        triple,
         cargo: cargo.stdout.trim(),
         crate: {
           manifest: 'apps/sheets/native/xlsx-engine/Cargo.toml',

@@ -131,6 +131,18 @@ describe("SaveStatus", () => {
     expect(screen.getByRole("alert")).not.toHaveTextContent("Install the latest UniWork Office");
   });
 
+  it("drops the retry for a code that only gains fix copy later, with no component change (F-X3)", () => {
+    const error = { state: "error" as const, errorClass: "engine" as const, correlationId: null, ambiguous: false, message: "", retryable: false, action: "stop" as const };
+    const state = { state: "error" as const, error: { ...error, code: "xlsx_future_refusal" } };
+    const { rerender } = render(<SaveStatus coordinatorState={state} onAction={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    // The advice lands as a locale key only; i18n.exists picks it up.
+    initI18n().addResourceBundle("en", "translation", { office: { save: { fix: { xlsx_future_refusal: "Ask an admin to enable the engine." } } } }, true, true);
+    rerender(<SaveStatus coordinatorState={{ ...state }} onAction={vi.fn()} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Ask an admin to enable the engine.");
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+  });
+
   it("keeps the generic headline when a save failure carries no code (F4)", () => {
     render(<SaveStatus status="error" />);
     expect(screen.getByRole("alert")).toHaveTextContent("Save could not be confirmed");
