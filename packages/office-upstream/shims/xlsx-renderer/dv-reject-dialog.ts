@@ -20,9 +20,8 @@ import { SheetInterceptorService, VALIDATE_CELL } from "@univerjs/sheets";
 import { IDialogService } from "@univerjs/ui";
 import type { CreateUniverOptions } from "../../upstream/apps/sheets/src/renderer/create-univer";
 import type { UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
-import type { ValidatedWriteGate } from "./edits";
 import { getLang, t } from "./locale";
-import { ensureDvHintStyle, settleDvErrorStyle, type DvErrorStyleCell, type DvErrorStylePort } from "./dv-error-style";
+import { askOnValidateCell, ensureDvHintStyle, type DvErrorStylePort, type DvValidateCellSource } from "./dv-error-style";
 
 // ── Univer locale + data-validation rejection dialog (X01 vfix-dv) ─────────
 //
@@ -167,9 +166,9 @@ export function installDvRejectDialogTitle(runtime: UniverRuntime, doc: Document
   };
 }
 
-/** Between the DV plugin's handler (priority 0) and the write-gate verdict
- *  reader (-0.5): a warning / information rule asks the user before the
- *  verdict settles (dv-error-style.ts). */
+/** A warning / information rule asks the user before the editor's verdict
+ *  settles (dv-error-style.ts). Installed before the write gate wraps
+ *  onValidateCell (controller loadWorkbook), so the gate reads the answer. */
 function installDvErrorStyles(runtime: UniverRuntime, doc: Document, scopeClass: string): IDisposable {
   const injector = runtime.univer.__getInjector();
   const port: DvErrorStylePort = {
@@ -192,19 +191,7 @@ function installDvErrorStyles(runtime: UniverRuntime, doc: Document, scopeClass:
       return answer;
     },
   };
-  return {
-    dispose: injector.get(SheetInterceptorService).writeCellInterceptor.intercept(VALIDATE_CELL, {
-      priority: -0.25,
-      handler: (value, context, next) => {
-        const { unitId, subUnitId, row, col } = context as DvErrorStyleCell;
-        const settled = Promise.resolve(value).then(
-          (accepted) => settleDvErrorStyle(accepted !== false, { unitId, subUnitId, row, col }, port),
-          () => false,
-        );
-        return next(settled);
-      },
-    }),
-  };
+  return askOnValidateCell(injector.get(SheetInterceptorService) as unknown as DvValidateCellSource, port);
 }
 
 /** Whether the sheet carries any data-validation rule: only then can a commit
@@ -214,21 +201,4 @@ export function sheetHasDataValidation(runtime: UniverRuntime, unitId: string, s
     getWorkbook(id: string): { getSheetBySheetId(id: string): { getDataValidations?: () => unknown[] } | null } | null;
   };
   return (api.getWorkbook(unitId)?.getSheetBySheetId(subUnitId)?.getDataValidations?.().length ?? 0) > 0;
-}
-
-/** Between the DV plugin's handler (priority 0) and the pinned pass-through
- *  (-1): reads the verdict the DV plugin produced and hands it to the write
- *  gate before the editor acts on it (its await was registered later, so this
- *  continuation runs first and the gate is settled before the rollback). */
-export function installValidatedWriteVerdict(runtime: UniverRuntime, gate: ValidatedWriteGate): IDisposable {
-  const injector = runtime.univer.__getInjector();
-  const intercept = injector.get(SheetInterceptorService).writeCellInterceptor.intercept(VALIDATE_CELL, {
-    priority: -0.5,
-    handler: (value, _context, next) => {
-      const settle = gate.awaitVerdict();
-      if (settle) Promise.resolve(value).then((accepted) => settle(accepted !== false), () => settle(true));
-      return next(value);
-    },
-  });
-  return { dispose: intercept };
 }

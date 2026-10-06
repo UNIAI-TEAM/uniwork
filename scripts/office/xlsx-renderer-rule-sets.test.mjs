@@ -34,7 +34,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed, readLiveRuleSet, settleDvErrorStyle, ensureDvHintStyle } = module.exports;
+const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed, readLiveRuleSet, settleDvErrorStyle, ensureDvHintStyle, askOnValidateCell } = module.exports;
 
 const area = (startRow, endRow, startColumn, endColumn) => ({ startRow, endRow, startColumn, endColumn });
 function state({ applied = ['s1'], ruleSets, ruleCounts } = {}) {
@@ -471,4 +471,26 @@ test('the invalid-cell hint grows to its title instead of wrapping it into the m
   assert.equal(appended.length, 1);
   assert.match(appended[0].textContent, /\[class~='univer-w-\[156px\]'\][^{]*\{width:max-content;min-width:156px;max-width:min\(320px,80vw\)\}/);
   assert.match(appended[0].textContent, /\[class~='univer-h-5'\]\{height:auto/);
+});
+
+test('askOnValidateCell settles the question on the verdict the editor awaits, ahead of an outer wrapper', async () => {
+  const source = { onValidateCell: (_workbook, _worksheet, _row, _col) => Promise.resolve(true) };
+  const original = source.onValidateCell;
+  const probe = errorStylePort({ errorStyle: 2, error: 'Only 1-5' }, false, false);
+  const ask = askOnValidateCell(source, probe.port);
+  // The write gate wraps after it (controller loadWorkbook) and must read the answer.
+  const inner = source.onValidateCell;
+  let gateSaw;
+  source.onValidateCell = (...args) => { const verdict = inner(...args); Promise.resolve(verdict).then((v) => { gateSaw = v; }); return verdict; };
+  const workbook = { getUnitId: () => 'file-sha' };
+  const sheet = { getSheetId: () => 's1' };
+  assert.equal(await source.onValidateCell(workbook, sheet, 1, 2), false);
+  await Promise.resolve();
+  assert.equal(gateSaw, false);
+  assert.equal(probe.asked.length, 1);
+  // Without a usable cell the plugin's verdict passes through untouched.
+  assert.equal(await inner({}, sheet, 1, 2), true);
+  source.onValidateCell = inner;
+  ask.dispose();
+  assert.equal(source.onValidateCell, original);
 });

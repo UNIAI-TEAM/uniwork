@@ -81,6 +81,40 @@ export async function settleDvErrorStyle(accepted: boolean, cell: DvErrorStyleCe
     });
 }
 
+/** SheetInterceptorService.onValidateCell(workbook, worksheet, row, col): the
+ *  verdict promise the editor awaits before it commits or rolls back. */
+export interface DvValidateCellSource {
+  onValidateCell(...args: unknown[]): unknown;
+}
+
+/** Univer composes VALIDATE_CELL interceptors in a loop that stops at the DV
+ *  plugin's async handler, so nothing ordered after it sees its verdict (see
+ *  observeValidationVerdicts in edits.ts). The verdict is the promise
+ *  onValidateCell hands the editor: this wraps that method and settles the
+ *  warning / information question on it. Installed before the write gate's
+ *  own wrapper, so the gate reads the user's answer, not the plugin's. */
+export function askOnValidateCell(source: DvValidateCellSource, port: DvErrorStylePort): { dispose(): void } {
+  const original = source.onValidateCell;
+  const wrapped = function (this: unknown, ...args: unknown[]): unknown {
+    const verdict = original.apply(this ?? source, args);
+    const [workbook, worksheet, row, col] = args as [
+      { getUnitId?: () => unknown } | undefined, { getSheetId?: () => unknown } | undefined, unknown, unknown,
+    ];
+    const unitId = workbook?.getUnitId?.();
+    const subUnitId = worksheet?.getSheetId?.();
+    if (typeof unitId !== "string" || typeof subUnitId !== "string" || typeof row !== "number" || typeof col !== "number") {
+      return verdict;
+    }
+    return Promise.resolve(verdict).then((accepted) => settleDvErrorStyle(accepted !== false, { unitId, subUnitId, row, col }, port));
+  };
+  source.onValidateCell = wrapped;
+  return {
+    dispose() {
+      if (source.onValidateCell === wrapped) source.onValidateCell = original;
+    },
+  };
+}
+
 const HINT_STYLE_ID = "uniwork-xlsx-dv-hint";
 
 /** The pinned invalid-cell hint (the cell alert) is a fixed 156px box whose
