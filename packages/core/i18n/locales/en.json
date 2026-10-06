@@ -10100,9 +10100,7 @@
         "partialHint": "Part of the selection is outside the read window, so the totals cover only the cells that were read.",
         "sum": "Sum: {{value}}",
         "average": "Average: {{value}}",
-        "count": "Count: {{value}}",
-        "min": "Min: {{value}}",
-        "max": "Max: {{value}}"
+        "count": "Count: {{value}}"
       },
       "recalc": {
         "progress": "Recalculating ({{progress}}%)",

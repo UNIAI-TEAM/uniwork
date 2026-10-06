@@ -10094,9 +10094,7 @@
         "partialHint": "Một phần vùng chọn nằm ngoài cửa sổ đọc, nên tổng chỉ tính trên các ô đã đọc.",
         "sum": "Tổng: {{value}}",
         "average": "Trung bình: {{value}}",
-        "count": "Số lượng: {{value}}",
-        "min": "Nhỏ nhất: {{value}}",
-        "max": "Lớn nhất: {{value}}"
+        "count": "Số đếm: {{value}}"
       },
       "recalc": {
         "progress": "Đang tính lại ({{progress}}%)",
