@@ -42,7 +42,10 @@ Secret `uniwork-office-engine` (keys `OFFICE_ENGINE_SERVICE_TOKEN`,
 engine:
 
 ```bash
-kubectl -n uniwork create secret generic uniwork-office-engine \n  --from-literal=OFFICE_ENGINE_SERVICE_TOKEN="$(openssl rand -hex 32)" \n  --from-literal=OFFICE_ENGINE_GRANT_KEY="$(openssl rand -hex 32)" \n  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n uniwork create secret generic uniwork-office-engine \
+  --from-literal=OFFICE_ENGINE_SERVICE_TOKEN="$(openssl rand -hex 32)" \
+  --from-literal=OFFICE_ENGINE_GRANT_KEY="$(openssl rand -hex 32)" \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 `DESKTOP_AUTH_*` (public PKCE client for the Office desktop app) are non-secret
