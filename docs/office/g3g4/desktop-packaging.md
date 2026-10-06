@@ -182,6 +182,59 @@ tests), package/inventory tests, `node scripts/office/check-boundaries.mjs`,
 The accepted artifacts are unsigned dev/beta evidence only and must not be
 described as a signed release or an enabled update channel.
 
+## Bộ cài từ CI và `OFFICE_INSTALLER_*_URLS` (UNI-944)
+
+Workflow `.github/workflows/office-desktop-installers.yml` dựng bộ cài **chưa ký**
+cho kênh `dev` hoặc `beta`, tải lên workflow artifact và release asset, rồi in ra
+giá trị cho biến môi trường của server. Nó không chạy trên pull request hay push
+thường, chỉ chạy khi:
+
+- bấm **Run workflow** (`workflow_dispatch`): chọn `channel` là `dev` hoặc `beta`;
+  `require_xlsx_sidecar` mặc định bật;
+- đẩy tag `office-desktop-v<phiên bản>-<dev|beta>.<số build>`, ví dụ
+  `office-desktop-v0.1.0-dev.7`. Phần phiên bản phải trùng `version` trong
+  `apps/office-desktop/package.json`. Build từ tag luôn bắt buộc sidecar.
+
+Ma trận hiện có **Windows x64** (`-setup.exe` và `.zip`) và **Linux x64**
+(`.deb` và `.AppImage`). **macOS bị bỏ qua**: `.dmg` cần runner macOS và chưa có.
+Khi có máy Mac, dựng bằng `package:macos` rồi đưa file vào cùng release; script
+`installer-urls.mjs` đã hiểu khoá `darwin-arm64` và `darwin-x64`. Không ký,
+không notarize, không có update feed (chứng chỉ đang để backlog); mọi tên file
+đều chứa `unsigned`, và kênh `stable` vẫn bị từ chối.
+
+Mỗi nền tảng ghi thêm `SHA256SUMS-<nền tảng>.txt` cạnh bộ cài. Job còn chạy
+`apps/office-desktop/scripts/check-xlsx-assets.mjs` trên `dist/xlsx-assets` và trên
+`resources/xlsx-assets` trong gói đã dựng; job **fail** nếu thiếu gateway hoặc
+sidecar recalc. Chỉ khi chạy tay mới tắt được bằng `require_xlsx_sidecar:
+false`, và khi đó job không cài Rust, không build sidecar.
+
+### Đưa link vào server
+
+Cuối job, bước `OFFICE_INSTALLER_<KÊNH>_URLS` ghi vào job summary (và step output
+`installer_urls`, artifact `installer-urls-<kênh>.json`) một dòng như:
+
+```text
+OFFICE_INSTALLER_DEV_URLS={"win32-x64":"https://github.com/<owner>/<repo>/releases/download/office-desktop-v0.1.0-dev.7/uniwork-office-test_0.1.0-dev.7_unsigned_win32_x64-setup.exe","win32-x64-zip":"…","linux-x64-deb":"…","linux-x64-appimage":"…"}
+```
+
+1. Lấy phần sau dấu `=` (một dòng JSON). Kênh `dev` điền `OFFICE_INSTALLER_DEV_URLS`,
+   kênh `beta` điền `OFFICE_INSTALLER_BETA_URLS`. `OFFICE_INSTALLER_STABLE_URLS` để trống.
+2. Đặt giá trị vào nơi cấu hình server (Helm values hoặc secret của deploy; xem
+   `docs/office/g3g4/runbook.md`) rồi khởi động lại server. Biến đơn lẻ cũ
+   `OFFICE_INSTALLER_*_URL` chỉ còn là fallback cho Windows và sẽ bị gỡ.
+3. Kiểm tra: `GET /api/v1/config` trả `office_installers.<kênh>` với đúng các
+   `platform`, `url`, `version` và `unsigned: true`.
+
+Server chỉ chấp nhận HTTPS (HTTP chỉ cho localhost ở kênh dev), không có
+credential/query/fragment trong URL, và đuôi file phải khớp khoá nền tảng. Server
+tải bộ cài mà không gửi thông tin đăng nhập, nên release asset phải tải được công
+khai; nếu repo private, chép các file sang một host HTTPS công khai rồi tạo lại
+giá trị bằng:
+
+```bash
+node scripts/office/installer-urls.mjs --channel dev --base-url https://downloads.example/office/dev --dir <thư mục chứa bộ cài>
+```
+
 ## Update and rollback (G4-07b)
 
 Configure `OFFICE_INSTALLER_DEV_URL`, `OFFICE_INSTALLER_BETA_URL`, and `OFFICE_INSTALLER_STABLE_URL` for the three deployment channels. The authenticated `GET /api/v1/office/desktop/download?organization_id=...&channel=...` route requires organization membership, returns the selected installer with the public API origin, channel, client id, and deployment id, and writes an audit row. The response contains no credentials, signing keys, or storage secrets. The web editor reuses the existing not-installed install prompt and fails closed when the selected channel has no installer.
