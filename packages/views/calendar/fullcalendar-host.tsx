@@ -39,6 +39,8 @@ import "./fullcalendar-theme.css";
 export type { CalendarSlot };
 
 const FC_PLUGINS = [dayGridPlugin, timeGridPlugin, interactionPlugin];
+// When events exceed the cap, FullCalendar uses the last row for its "+n more" link.
+const MONTH_EVENT_ROW_LIMIT = 3;
 const dayCellKeyHandlers = new WeakMap<
   HTMLElement,
   { target: HTMLElement; handler: EventListener }
@@ -331,7 +333,9 @@ export function FullCalendarHost(props: {
         slotMaxTime="24:00:00"
         scrollTime="00:00:00"
         hiddenDays={hiddenDays}
-        dayMaxEventRows={isTimeGrid ? (allDayExpanded ? false : 1) : 1}
+        dayMaxEventRows={isTimeGrid
+          ? (allDayExpanded ? false : 1)
+          : MONTH_EVENT_ROW_LIMIT}
         allDayText={isTimeGrid ? "" : undefined}
         headerToolbar={false}
         height="100%"
