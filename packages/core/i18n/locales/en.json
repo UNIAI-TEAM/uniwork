@@ -9119,7 +9119,15 @@
         "file_checkpoint_failed": "Your changes could not be protected on this computer first, so the file was not saved. Try again.",
         "file_save_in_progress": "Another save is still running. Wait for it to finish, then try again.",
         "file_engine_unavailable": "This UniWork Office build cannot process this file type on this computer yet.",
-        "file_failed": "The file could not be processed. Try again."
+        "file_failed": "The file could not be processed. Try again.",
+        "unknown": "Something went wrong while saving. Try again in a few minutes.",
+        "office_unknown_error": "Something went wrong while saving. Try again in a few minutes.",
+        "engine_result_invalid": "The save result was not valid. Try again.",
+        "engine_crashed": "The file processor stopped midway. Try again.",
+        "engine_overloaded": "The system is busy. Try again in a few minutes.",
+        "engine_checksum_mismatch": "The saved data did not match. Try again.",
+        "request_aborted": "The save was interrupted. Try again.",
+        "stale_generation": "A newer version of this change exists. Save again."
       },
       "fix": {
         "xlsx_recalc_unavailable": "Install the latest UniWork Office, which includes the formula engine, or upload the workbook to UniWork and save it there."
@@ -9732,6 +9740,7 @@
           "space": "Space",
           "other": "Other",
           "otherInput": "Other delimiter",
+          "otherPlaceholder": "Char",
           "consecutive": "Treat consecutive delimiters as one",
           "preview": "Data preview",
           "overwrite": "Cells to the right already hold data and will be replaced.",
@@ -9792,6 +9801,8 @@
           "text": "Text",
           "duplicate": "Duplicate values",
           "unique": "Unique values",
+          "duplicateHint": "Cells whose value appears more than once in the selection",
+          "uniqueHint": "Cells whose value appears only once in the selection",
           "with": "with",
           "sample": "AaBbCc"
         },

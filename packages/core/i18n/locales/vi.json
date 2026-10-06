@@ -9113,7 +9113,15 @@
         "file_checkpoint_failed": "Chưa bảo vệ được thay đổi trên máy nên tệp chưa được lưu. Thử lại.",
         "file_save_in_progress": "Một lần lưu khác vẫn đang chạy. Chờ xong rồi thử lại.",
         "file_engine_unavailable": "Bản UniWork Office này chưa xử lý được loại tệp này trên máy.",
-        "file_failed": "Không xử lý được tệp. Thử lại."
+        "file_failed": "Không xử lý được tệp. Thử lại.",
+        "unknown": "Có sự cố khi lưu. Thử lại sau ít phút.",
+        "office_unknown_error": "Có sự cố khi lưu. Thử lại sau ít phút.",
+        "engine_result_invalid": "Kết quả lưu chưa hợp lệ. Thử lại.",
+        "engine_crashed": "Bộ xử lý tệp dừng giữa chừng. Thử lại.",
+        "engine_overloaded": "Hệ thống đang bận. Thử lại sau ít phút.",
+        "engine_checksum_mismatch": "Dữ liệu lưu không khớp. Thử lại.",
+        "request_aborted": "Việc lưu đã bị ngắt. Thử lại.",
+        "stale_generation": "Có bản mới hơn của thay đổi này. Lưu lại."
       },
       "fix": {
         "xlsx_recalc_unavailable": "Cài bản UniWork Office mới nhất (có kèm bộ tính lại công thức), hoặc tải sổ tính lên UniWork rồi lưu ở đó."
@@ -9726,6 +9734,7 @@
           "space": "Dấu cách",
           "other": "Khác",
           "otherInput": "Dấu phân cách khác",
+          "otherPlaceholder": "Ký tự",
           "consecutive": "Coi các dấu phân cách liền nhau là một",
           "preview": "Xem trước dữ liệu",
           "overwrite": "Các ô bên phải đã có dữ liệu và sẽ bị thay thế.",
@@ -9786,6 +9795,8 @@
           "text": "Văn bản",
           "duplicate": "Giá trị trùng lặp",
           "unique": "Giá trị duy nhất",
+          "duplicateHint": "Ô có giá trị xuất hiện nhiều lần trong vùng chọn",
+          "uniqueHint": "Ô có giá trị chỉ xuất hiện một lần trong vùng chọn",
           "with": "với",
           "sample": "AaBbCc"
         },
