@@ -192,8 +192,11 @@ it("binds every desktop pptx edit port and advances the revision on a committed 
   for (const port of ["onCommitText", "onTransform", "onApplyEdit", "onDeleteElements"]) {
     expect(typeof props[port], port).toBe("function");
   }
-  // X4fix F2: no main-owned print path yet, so the desktop binds none (Print/Export PDF hidden).
-  expect(props.printPort).toBeNull();
+  // UNI-952: the deck prints through main (desktop:print-document), and the shell
+  // hands the view a document menu where its contributed Print entry shows.
+  const printPort = props.printPort as { print(request: { html: string; title: string }): Promise<unknown> };
+  expect(typeof printPort?.print).toBe("function");
+  expect(props.actions).toBeTruthy();
   expect(props).not.toHaveProperty("onFind");
   expect(props.deck).toMatchObject({ revision: 0 });
 
