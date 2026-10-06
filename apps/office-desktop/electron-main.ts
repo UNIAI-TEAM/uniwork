@@ -2,7 +2,7 @@
 // a devDependency; this is the only privileged entry module that imports it.
 // main/* modules receive the Electron objects they need as arguments.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, screen, session, shell } from "electron";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
@@ -117,7 +117,7 @@ async function startElectronHost(): Promise<void> {
   await authManager?.restore();
   installRendererProtocol(protocol, net, RENDERER_DIRECTORY);
 
-  const window = createMainWindow(BrowserWindow, { show: !SMOKE_MODE, preload: PRELOAD_PATH, platform: process.platform, dark: nativeTheme.shouldUseDarkColors });
+  const window = createMainWindow(BrowserWindow, { show: !SMOKE_MODE, preload: PRELOAD_PATH, platform: process.platform, dark: nativeTheme.shouldUseDarkColors, workAreaHeight: screen.getPrimaryDisplay().workAreaSize.height });
   watchNativeTheme(nativeTheme, window, process.platform);
   let nativeSaveListener: (() => void) | undefined;
   const officeTransport = deploymentProfile && credentials ? createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {

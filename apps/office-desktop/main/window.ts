@@ -8,9 +8,22 @@ export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
   dark: { color: "#262626", symbolColor: "#f8f9fa" },
 });
 
-/** Smallest window the shell lays out without overlap: below it the tab strip
- * collides with its new-tab and overflow controls and the ribbon scrolls. */
-export const DESKTOP_WINDOW_MIN_SIZE = { minWidth: 640, minHeight: 480 } as const;
+/** Smallest window the shell lays out without overlap: below 640 wide the tab
+ * strip collides with its new-tab and overflow controls and the ribbon scrolls.
+ * The height keeps the document the larger part of the window: the fixed chrome
+ * (tab strip 40, document header 48, ribbon 132, status bar 27, about 247px)
+ * took half of a 480px window, and leaves about 59% of 600 to the page. */
+export const DESKTOP_WINDOW_MIN_SIZE = { minWidth: 640, minHeight: 600 } as const;
+/** The floor a short screen may push the minimum down to. */
+const SHORT_SCREEN_MIN_HEIGHT = 480;
+
+/** Never demand more height than the screen offers (a 1366x768 panel at 125%
+ * leaves about 574px of work area): there the minimum is the work area, down
+ * to the old 480 floor, so the window still fits and maximizes cleanly. */
+export function desktopWindowMinSize(workAreaHeight?: number): { minWidth: number; minHeight: number } {
+  if (workAreaHeight === undefined || !Number.isFinite(workAreaHeight)) return { ...DESKTOP_WINDOW_MIN_SIZE };
+  return { minWidth: DESKTOP_WINDOW_MIN_SIZE.minWidth, minHeight: Math.max(SHORT_SCREEN_MIN_HEIGHT, Math.min(DESKTOP_WINDOW_MIN_SIZE.minHeight, Math.floor(workAreaHeight))) };
+}
 
 export function nativeWindowOptions(platform: NodeJS.Platform, dark = false): Pick<Electron.BrowserWindowConstructorOptions, "titleBarStyle" | "titleBarOverlay"> {
   if (platform === "darwin") return {};
@@ -27,10 +40,10 @@ type BrowserWindowConstructor = new (options: Electron.BrowserWindowConstructorO
 
 /** The one document window. Electron is injected so the entry module stays
  * the only file that imports it. */
-export function createMainWindow(BrowserWindow: BrowserWindowConstructor, options: { show: boolean; preload: string; platform: NodeJS.Platform; dark: boolean }): Electron.BrowserWindow {
+export function createMainWindow(BrowserWindow: BrowserWindowConstructor, options: { show: boolean; preload: string; platform: NodeJS.Platform; dark: boolean; workAreaHeight?: number }): Electron.BrowserWindow {
   const window = new BrowserWindow({
     show: options.show,
-    ...DESKTOP_WINDOW_MIN_SIZE,
+    ...desktopWindowMinSize(options.workAreaHeight),
     webPreferences: {
       ...WINDOW_WEB_PREFERENCES,
       preload: options.preload,
