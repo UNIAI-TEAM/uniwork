@@ -53,7 +53,7 @@ export function OfficeTooLargeNotice({ format }: { format: string }) {
               </Button>
             ) : null}
           </div>
-          {failed ? <p role="alert" className="text-caption text-destructive">{t("download_failed")}</p> : null}
+          {failed ? <p className="text-caption text-destructive">{t("download_failed")}</p> : null}
         </div>
       </Notice>
     </section>
