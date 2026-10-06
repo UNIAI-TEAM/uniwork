@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOfficeDocumentActive } from "../common/document-active";
 import { EngineBoundaryError } from "@uniwork/office-contracts";
 import { PdfErrorState } from "./pdf-error-state";
 import { PdfPasswordPrompt, type PdfPasswordMode } from "./password";
@@ -116,6 +117,8 @@ function isEditableTarget(target: EventTarget): boolean {
 
 export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, coordinator, capability, title, className, onOpen, onSelectionChange }: PdfEditorProps<TSnapshot>) {
   const { t } = useTranslation();
+  // UNI-957: the desktop keeps inactive tabs mounted; window-level resize and focus must only act for the visible document.
+  const documentActive = useOfficeDocumentActive();
   const [viewState, setViewState] = useState<PdfViewState>("opening");
   const [failure, setFailure] = useState<PdfOpenFailure | null>(null);
   const [snapshot, setSnapshot] = useState<PdfSnapshot | null>(null);
@@ -232,7 +235,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   }, [documentKey, retryToken, capabilityOperation, capabilityStatus]);
 
   useEffect(() => {
-    if (viewState !== "ready") return undefined;
+    if (viewState !== "ready" || !documentActive) return undefined;
     const apply = () => {
       if (initialFitDoneRef.current === documentKey) return;
       const pane = canvasRef.current;
@@ -247,16 +250,16 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     // to measure it in a real host (and the only signal jsdom offers).
     window.addEventListener("resize", apply);
     return () => window.removeEventListener("resize", apply);
-  }, [documentKey, viewState]);
+  }, [documentKey, viewState, documentActive]);
 
   // The key handler lives on the editor landmark, so a shortcut pressed right
   // after load (focus still on body) would reach the browser instead: take focus
   // once the document is ready unless something else already holds it.
   useEffect(() => {
-    if (viewState !== "ready") return;
+    if (viewState !== "ready" || !documentActive) return;
     const active = document.activeElement;
     if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true });
-  }, [documentKey, viewState]);
+  }, [documentKey, viewState, documentActive]);
 
   const submitPassword = useCallback(async (password: string) => {
     const activeOpen = openRef.current;
