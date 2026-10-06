@@ -31,20 +31,28 @@ interface OfficeFixture {
   documentUrl: string;
   flagOffUrl: string;
   email: string;
+  organizationId: string | null;
 }
 
 let officeFixture: OfficeFixture | null = null;
 
-async function setOfficeFlag(enabled: boolean): Promise<void> {
+/**
+ * Turns office_engine on for one organization (the seeded one), so the CI
+ * suite's other Documents specs keep the default file card; a supplied
+ * OFFICE_DOCUMENT_URL has no known organization and gets a global row.
+ */
+async function setOfficeFlag(enabled: boolean, organizationId: string | null): Promise<void> {
+  const scopeType = organizationId ? "organization" : "global";
+  const scopeId = organizationId ?? "";
   const url = process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL ?? "postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable";
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
     await client.query(
       `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
-       VALUES ('e2e-office-shell-global', 'office_engine', 'global', '', $1, 'e2e: office shell', 'e2e', 'system')
+       VALUES ($2, 'office_engine', $3, $4, $1, 'e2e: office shell', 'e2e', 'system')
        ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = $1`,
-      [enabled],
+      [enabled, `e2e-office-shell-${organizationId ?? "global"}`, scopeType, scopeId],
     );
   } finally {
     await client.end();
@@ -54,7 +62,8 @@ async function setOfficeFlag(enabled: boolean): Promise<void> {
   // answers the new value; otherwise the first page renders the file card
   // (this was the "360px does not mount" failure: it ran first).
   await expect.poll(async () => {
-    const response = await fetch(`${apiUrl}/api/v1/config`);
+    const query = organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : "";
+    const response = await fetch(`${apiUrl}/api/v1/config${query}`);
     if (!response.ok) return null;
     const body = (await response.json()) as { flags?: Record<string, boolean> };
     return body.flags?.office_engine ?? null;
@@ -81,13 +90,15 @@ async function seedOfficeFixture(browser: Browser): Promise<OfficeFixture> {
       },
     });
     expect(response.ok(), `seed Office file: HTTP ${response.status()} ${await response.text()}`).toBeTruthy();
-    const payload = (await response.json()) as { document?: { id: string } };
+    const payload = (await response.json()) as { document?: { id: string; organization_id?: string } };
     expect(payload.document?.id, "seed Office file returned no document id").toBeTruthy();
+    expect(payload.document?.organization_id, "seed Office file returned no organization id").toBeTruthy();
     const documentUrl = `${baseUrl}/${account.orgSlug}/${account.wsSlug}/documents/${payload.document!.id}`;
     return {
       documentUrl,
       flagOffUrl: `${documentUrl}?office_flag=off`,
       email: account.email,
+      organizationId: payload.document!.organization_id ?? null,
     };
   } finally {
     await context.close();
@@ -130,10 +141,10 @@ async function expectDocxEditor(page: Page): Promise<void> {
 
 test.beforeAll(async ({ browser }) => {
   test.skip(!enabled, "Set OFFICE_SHELL_E2E=1 to run the Office shell browser contract.");
-  await setOfficeFlag(true);
   officeFixture = suppliedDocumentUrl
-    ? { documentUrl: suppliedDocumentUrl, flagOffUrl: suppliedFlagOffUrl ?? suppliedDocumentUrl, email: "" }
+    ? { documentUrl: suppliedDocumentUrl, flagOffUrl: suppliedFlagOffUrl ?? suppliedDocumentUrl, email: "", organizationId: null }
     : await seedOfficeFixture(browser);
+  await setOfficeFlag(true, officeFixture.organizationId);
 });
 
 test.beforeEach(async ({ page }) => {
