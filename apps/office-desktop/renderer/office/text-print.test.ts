@@ -81,13 +81,15 @@ it("caps the title at the channel limit", async () => {
 
 it("tells the observer when a print starts and settles, and passes the outcome through", async () => {
   const events: string[] = [];
+  const settledWith: unknown[] = [];
   let finish: ((value: { outcome: "cancelled" }) => void) | undefined;
-  const port = observePrintPort({ print: () => new Promise((resolve) => { finish = resolve; }) }, { onStart: () => events.push("start"), onSettled: () => events.push("settled") });
+  const port = observePrintPort({ print: () => new Promise((resolve) => { finish = resolve; }) }, { onStart: () => events.push("start"), onSettled: (outcome) => { events.push("settled"); settledWith.push(outcome); } });
   const result = port.print({ html: "<p>x</p>", title: "t" });
   expect(events).toEqual(["start"]);
   finish!({ outcome: "cancelled" });
   expect(await result).toEqual({ outcome: "cancelled" });
   expect(events).toEqual(["start", "settled"]);
+  expect(settledWith).toEqual([{ outcome: "cancelled" }]);
 });
 
 it("settles the observer even when the port throws", async () => {

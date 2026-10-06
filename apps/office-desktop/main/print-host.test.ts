@@ -61,4 +61,12 @@ describe("print host wiring", () => {
       expect(h.createWindow.mock.calls[0]![0]).not.toHaveProperty("parent");
     }
   });
+  it("fails closed with a typed reason when the sender window cannot be read", async () => {
+    for (const broken of [() => { throw new Error("Object has been destroyed"); }, () => ({ on: vi.fn(), removeListener: vi.fn(), isDestroyed: () => { throw new Error("Object has been destroyed"); } })]) {
+      const h = await setup(broken);
+      const handler = (await createPrintHost({ tempDirectory: h.temp, partitionSession: h.partitionSession, senderWindow: h.sender, createWindow: h.createWindow }))["desktop:print-document"];
+      expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_owner_unavailable" });
+      expect(h.createWindow).not.toHaveBeenCalled();
+    }
+  });
 });

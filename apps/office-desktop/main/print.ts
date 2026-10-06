@@ -135,7 +135,9 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
       if (active && !active.ownerRefocused) return { outcome: "failed", reason: "print_busy" };
       const job: PrintJob = { sawBlur: false, ownerRefocused: false };
       active = job;
-      const owner = options.owner?.();
+      // Resolved under its own guard below: the sender can be destroyed between
+      // the dispatcher admitting it and this line, and resolving it may throw.
+      let owner: Owner | undefined;
       const onBlur = () => { if (!closing) job.sawBlur = true; };
       // Once superseded the job needs no listener: detach at once, not at settle.
       const detach = () => {
@@ -157,6 +159,14 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
         await file?.cleanup().catch(() => undefined);
         if (active === job) active = undefined;
       };
+      // Fail closed: a sender that cannot be resolved prints nothing (a merely
+      // missing or destroyed one answers undefined and prints unparented).
+      try {
+        owner = options.owner?.();
+      } catch {
+        await release();
+        return { outcome: "failed", reason: "print_owner_unavailable" };
+      }
       let printing: Promise<DesktopPrintResponse>;
       try {
         file = await options.writeFile(request.html, printFileName(request.title));

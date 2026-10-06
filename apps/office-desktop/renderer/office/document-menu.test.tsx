@@ -60,6 +60,52 @@ it("shows the Windows preview hint while a print is in flight, then clears it", 
   expect(screen.queryByTestId("print-preview-hint")).toBeNull();
 });
 
+function pendingBridge(answers: Array<() => Promise<unknown>>) {
+  return { call: vi.fn(() => answers.shift()!()) };
+}
+const printArgs = { html: "<p>x</p>", title: "Doc.docx" };
+
+it("keeps the hint while the first dialog is open after a second Print is answered print_busy", async () => {
+  let finish: ((value: unknown) => void) | undefined;
+  const bridge = pendingBridge([() => new Promise((resolve) => { finish = resolve; }), async () => ({ outcome: "failed", reason: "print_busy" })]);
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let first!: Promise<unknown>;
+  act(() => { first = hook.port.print(printArgs); });
+  await screen.findByTestId("print-preview-hint");
+  await act(async () => { expect(await hook.port.print(printArgs)).toEqual({ outcome: "failed", reason: "print_busy" }); });
+  expect(screen.getByTestId("print-preview-hint")).toBeInTheDocument();
+  await act(async () => { finish!({ outcome: "printed" }); await first; });
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+});
+
+it("keeps the hint after a print_timeout until the window regains focus after the dialog", async () => {
+  vi.spyOn(document, "hasFocus").mockReturnValue(false);
+  const bridge = pendingBridge([async () => ({ outcome: "failed", reason: "print_timeout" })]);
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  await act(async () => { await hook.port.print(printArgs); });
+  expect(screen.getByTestId("print-preview-hint")).toBeInTheDocument();
+  // The app window was already blurred by the dialog: its next focus means the dialog closed.
+  act(() => { window.dispatchEvent(new Event("focus")); });
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+});
+
+it("clears a lingering hint when a later print settles with a real outcome, but not on print_busy", async () => {
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  const bridge = pendingBridge([async () => ({ outcome: "failed", reason: "print_timeout" }), async () => ({ outcome: "failed", reason: "print_busy" }), async () => ({ outcome: "cancelled" })]);
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  await act(async () => { await hook.port.print(printArgs); });
+  await act(async () => { await hook.port.print(printArgs); });
+  expect(screen.getByTestId("print-preview-hint")).toBeInTheDocument();
+  // A focus without a prior blur is not the dialog closing.
+  act(() => { window.dispatchEvent(new Event("focus")); });
+  expect(screen.getByTestId("print-preview-hint")).toBeInTheDocument();
+  await act(async () => { await hook.port.print(printArgs); });
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+});
+
 it("shows no hint off Windows", async () => {
   const bridge = { call: vi.fn(async () => ({ outcome: "printed" })) };
   let hook!: Hook;

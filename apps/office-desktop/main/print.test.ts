@@ -250,6 +250,23 @@ describe("print owner and callback timeout", () => {
     expect(await handler(request)).toEqual({ outcome: "printed" });
     expect(createWindow.mock.calls[0]![1]).toBeUndefined();
   });
+  it("fails closed with a typed reason when resolving the owner throws, and stays usable", async () => {
+    const fake = fakeWindow((callback) => callback(true, ""), async () => undefined);
+    const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
+    const writeFile = vi.fn(async (_html: string, name: string) => ({ path: name, cleanup: async () => undefined }));
+    let destroyed = true;
+    const resolve = vi.fn((): PrintOwner | undefined => {
+      if (destroyed) throw new Error("Object has been destroyed");
+      return undefined;
+    });
+    const handler = createPrintIpcHandler({ owner: resolve, createWindow, writeFile })["desktop:print-document"];
+    await expect(handler(request)).resolves.toEqual({ outcome: "failed", reason: "print_owner_unavailable" });
+    expect(createWindow).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+    // The failed attempt freed busy: the next print is accepted.
+    destroyed = false;
+    await expect(handler(request)).resolves.toEqual({ outcome: "printed" });
+  });
   it("answers print_timeout when Electron never calls back, without closing the dialog or freeing busy", async () => {
     vi.useFakeTimers();
     try {

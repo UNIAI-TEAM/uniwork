@@ -1,4 +1,4 @@
-import { Children, useMemo, useState, type ReactNode } from "react";
+import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -45,13 +45,38 @@ function isWindowsHost(): boolean {
 
 /**
  * The desktop print port a shell hands every format view, plus the Windows
- * preview hint it shows while that print's dialog is up. The view still owns
- * every outcome notice (busy, failed); the hint is the only host line.
+ * preview hint it shows while a print dialog is up. The view still owns every
+ * outcome notice (busy, failed); the hint is the only host line.
+ *
+ * Prints are counted, not flagged: a second Print answered `print_busy` at once
+ * must not hide the hint of the dialog that is still open. A `print_timeout`
+ * means the same dialog outlived the callback wait, so the hint lingers until
+ * a print settles with any other outcome or the app window regains focus after
+ * the dialog (the rule main's own busy guard uses).
  */
 export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows: boolean = isWindowsHost()): { port: OfficePrintPort; hint: ReactNode } {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
-  const [shown, setShown] = useState(false);
-  const port = useMemo(() => observePrintPort(createDesktopPrintPort(bridge), { onStart: () => setShown(windows), onSettled: () => setShown(false) }), [bridge, windows]);
+  const [inFlight, setInFlight] = useState(0);
+  const [lingering, setLingering] = useState(false);
+  const port = useMemo(() => observePrintPort(createDesktopPrintPort(bridge), {
+    onStart: () => setInFlight((count) => count + 1),
+    onSettled: (outcome) => {
+      setInFlight((count) => Math.max(0, count - 1));
+      const reason = outcome?.outcome === "failed" ? outcome.reason : undefined;
+      if (reason === "print_timeout") setLingering(true);
+      else if (reason !== "print_busy") setLingering(false);
+    },
+  }), [bridge]);
+  useEffect(() => {
+    if (!lingering) return undefined;
+    let sawBlur = !document.hasFocus();
+    const onBlur = () => { sawBlur = true; };
+    const onFocus = () => { if (sawBlur) setLingering(false); };
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
+    return () => { window.removeEventListener("blur", onBlur); window.removeEventListener("focus", onFocus); };
+  }, [lingering]);
+  const shown = windows && (inFlight > 0 || lingering);
   const hint = shown ? <p role="status" className="px-4 py-2 text-caption text-muted-foreground" data-testid="print-preview-hint">{t("printPreviewHint")}</p> : null;
   return { port, hint };
 }

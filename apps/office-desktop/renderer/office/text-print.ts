@@ -67,15 +67,19 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): 
 
 /** Wrap a port so the host learns when a print is in flight (the shell
  * shows its Windows preview hint while the dialog is up). The outcome passes
- * through untouched: every view shows its own busy/failed notice. */
-export function observePrintPort(port: OfficePrintPort, observer: { onStart(): void; onSettled(): void }): OfficePrintPort {
+ * through untouched - every view shows its own busy/failed notice - and is
+ * also handed to `onSettled` (undefined when the port threw). `print_busy` and
+ * `print_timeout` mean a dialog from an earlier print may still be open. */
+export function observePrintPort(port: OfficePrintPort, observer: { onStart(): void; onSettled(outcome?: OfficePrintOutcome): void }): OfficePrintPort {
   return {
     async print(request) {
       observer.onStart();
+      let outcome: OfficePrintOutcome | undefined;
       try {
-        return await port.print(request);
+        outcome = await port.print(request);
+        return outcome;
       } finally {
-        observer.onSettled();
+        observer.onSettled(outcome);
       }
     },
   };
