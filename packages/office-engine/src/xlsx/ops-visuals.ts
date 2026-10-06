@@ -406,3 +406,47 @@ export function groupXlsxVisualAdditions(visuals: readonly XlsxVisualEntry[]): X
     ...(visual.image === undefined ? {} : { image: { ...visual.image } }),
   }));
 }
+
+/** A row/column insert or delete as the visual journal sees it. */
+export interface XlsxVisualStructuralShift {
+  readonly kind: "insert_rows" | "remove_rows" | "insert_cols" | "remove_cols";
+  readonly index: number;
+  readonly count: number;
+}
+
+/** One anchor mark after a shift: the gateway's moveAnchorMark
+ *  (xlsx-structure.ts shiftDrawingAnchors). A mark inside a deleted band
+ *  clamps to the band's start and loses its offset. */
+function shiftMark(cell: number, offset: number, shift: XlsxVisualStructuralShift): { cell: number; offset: number } {
+  if (shift.kind === "insert_rows" || shift.kind === "insert_cols") {
+    return { cell: cell >= shift.index ? cell + shift.count : cell, offset };
+  }
+  const end = shift.index + shift.count - 1;
+  if (cell > end) return { cell: cell - shift.count, offset };
+  if (cell >= shift.index) return { cell: shift.index, offset: 0 };
+  return { cell, offset };
+}
+
+/** An anchor after a row/column insert or delete on its sheet, exactly as
+ *  the gateway rewrites a drawing anchor already in the file. */
+export function shiftXlsxVisualAnchor(anchor: XlsxVisualAnchor, shift: XlsxVisualStructuralShift): XlsxVisualAnchor {
+  if (shift.kind === "insert_rows" || shift.kind === "remove_rows") {
+    const from = shiftMark(anchor.fromRow, anchor.fromRowOffset, shift);
+    const to = shiftMark(anchor.toRow, anchor.toRowOffset, shift);
+    return { ...anchor, fromRow: from.cell, fromRowOffset: from.offset, toRow: to.cell, toRowOffset: to.offset };
+  }
+  const from = shiftMark(anchor.fromColumn, anchor.fromColumnOffset, shift);
+  const to = shiftMark(anchor.toColumn, anchor.toColumnOffset, shift);
+  return { ...anchor, fromColumn: from.cell, fromColumnOffset: from.offset, toColumn: to.cell, toColumnOffset: to.offset };
+}
+
+/** The visual journal after a row/column insert or delete on `sheetName`:
+ *  pending session visuals and file-visual moves keep FINAL coordinates, so
+ *  a later structural op shifts them like the gateway shifts the file's own
+ *  anchors (which it does before writing additions and edits). */
+export function shiftXlsxVisualEntries(visuals: readonly XlsxVisualEntry[], sheetName: string, shift: XlsxVisualStructuralShift): XlsxVisualEntry[] {
+  return visuals.map((visual) => {
+    if (visual.sheetName !== sheetName || visual.anchor === undefined) return visual;
+    return { ...visual, anchor: shiftXlsxVisualAnchor(visual.anchor, shift) };
+  });
+}

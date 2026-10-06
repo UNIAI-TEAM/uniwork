@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createXlsxAdapter, createXlsxSessionModel, parseXlsxOps, readXlsxRenderModel, XlsxOpError, type XlsxWorkbookSnapshot } from "../src/xlsx";
-import { groupXlsxFileVisualEdits, renameXlsxVisualSheet, type XlsxVisualEntry } from "../src/xlsx/ops-visuals";
+import { groupXlsxFileVisualEdits, renameXlsxVisualSheet, shiftXlsxVisualAnchor, type XlsxVisualEntry } from "../src/xlsx/ops-visuals";
 import { parseChartXml, parseDrawingXml, readDrawingPathsBySheet, readSheetVisuals } from "../src/xlsx/render-model-visuals";
 import { describeWithPatchedGateway, loadPatchedGateway } from "./xlsx-patched-gateway";
 
@@ -224,5 +224,96 @@ describeWithPatchedGateway("file visuals over the real gateway artifact", () => 
     // Deleting the chart took its part with it.
     const paths = (await engine.inventory(savedTwice.bytes)).map((entry) => entry.path);
     expect(paths.some((path) => path.startsWith("xl/charts/"))).toBe(false);
+  });
+});
+
+// r2: structural edits shift visual anchors exactly as the gateway shifts
+// the file's own drawing anchors (xlsx-structure.ts shiftDrawingAnchors).
+const rows = (op: "insert_rows" | "remove_rows" | "insert_cols" | "remove_cols", index: number, count: number, sheet = "Data") => ({ op, target: { sheet }, attributes: { index, count } });
+
+describe("visual anchors follow row and column inserts and deletes", () => {
+  const at = { fromRow: 4, fromColumn: 2, fromRowOffset: 100, fromColumnOffset: 200, toRow: 8, toColumn: 5, toRowOffset: 300, toColumnOffset: 400 };
+
+  it("shifts marks at or after an insert and clamps marks inside a deleted band to its start with no offset", () => {
+    expect(shiftXlsxVisualAnchor(at, { kind: "insert_rows", index: 4, count: 2 })).toEqual({ ...at, fromRow: 6, toRow: 10 });
+    expect(shiftXlsxVisualAnchor(at, { kind: "insert_rows", index: 9, count: 2 })).toEqual(at);
+    expect(shiftXlsxVisualAnchor(at, { kind: "insert_cols", index: 3, count: 1 })).toEqual({ ...at, toColumn: 6 });
+    expect(shiftXlsxVisualAnchor(at, { kind: "remove_rows", index: 0, count: 2 })).toEqual({ ...at, fromRow: 2, toRow: 6 });
+    expect(shiftXlsxVisualAnchor(at, { kind: "remove_rows", index: 3, count: 3 })).toEqual({ ...at, fromRow: 3, fromRowOffset: 0, toRow: 5 });
+    expect(shiftXlsxVisualAnchor(at, { kind: "remove_cols", index: 5, count: 4 })).toEqual({ ...at, toColumn: 5, toColumnOffset: 0 });
+  });
+
+  it("shifts pending session visuals and file-visual moves on that sheet only, not visuals inserted after the op", () => {
+    const model = modelWith([
+      { op: "set_visual", target: { sheet: "Data" }, attributes: { id: "s1", anchor: anchor(10, 1, 12, 3), shape: { shapeType: "rect" } } },
+      moveFile(0, anchor(5, 1, 7, 3)),
+      { op: "set_visual", target: { sheet: "Report" }, attributes: { id: "r1", anchor: anchor(10, 1, 12, 3), shape: { shapeType: "rect" } } },
+      rows("insert_rows", 0, 3),
+      { op: "set_visual", target: { sheet: "Data" }, attributes: { id: "s2", anchor: anchor(1, 1, 2, 2), shape: { shapeType: "rect" } } },
+    ]);
+    const byKey = Object.fromEntries(model.visuals.map((visual) => [visual.kind === "file_visual" ? `file${visual.file}` : visual.id, visual.anchor]));
+    expect(byKey).toEqual({ s1: anchor(13, 1, 15, 3), file0: anchor(8, 1, 10, 3), r1: anchor(10, 1, 12, 3), s2: anchor(1, 1, 2, 2) });
+  });
+});
+
+const EXCEL_FIXTURE = join(HERE, "fixtures", "xlsx-visuals", "xlsx-excel-visuals.xlsx");
+
+describeWithPatchedGateway("Excel-saved file visuals over the real gateway artifact", () => {
+  const source = () => new Uint8Array(readFileSync(EXCEL_FIXTURE));
+  const visualsOf = async (bytes: Uint8Array) => (await readXlsxRenderModel(await loadPatchedGateway(), bytes)).sheets[0]?.visuals ?? [];
+  const save = async (bytes: Uint8Array, edits: unknown[]) => {
+    const adapter = createXlsxAdapter({ engine: await loadPatchedGateway() });
+    const opened = await adapter.open({ bytes, format: "xlsx", document_id: `excel-${Math.random()}` });
+    if (opened.outcome !== "opened") throw new Error("open_failed");
+    adapter.edit(opened.document_model_ref, edits);
+    const saved = await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    adapter.release(opened.document_model_ref);
+    return saved.bytes;
+  };
+
+  it("reads the chart, picture and shape Excel wrote", async () => {
+    const visuals = await visualsOf(source());
+    expect(visuals.map((visual) => [visual.index, visual.kind, visual.editable])).toEqual([[0, "chart", true], [1, "picture", true], [2, "shape", true]]);
+    expect(visuals[0]).toMatchObject({
+      anchor: { fromRow: 1, fromColumn: 4, toRow: 15, toColumn: 11 },
+      chartTitle: "Doanh thu",
+      chart: { chartType: "column", series: [{ name: "Q1", categories: ["North", "South", "East"], values: [12.5, 9, 15.7], valuesRef: "Data!$B$2:$B$4" }, { name: "Q2", values: [7.8, 3, 8.6] }] },
+    });
+    expect(visuals[1]).toMatchObject({ anchor: { fromRow: 6, fromColumn: 0 }, image: { mediaType: "image/png" } });
+    expect(visuals[2]).toMatchObject({ anchor: { fromRow: 13, fromColumn: 0 }, shape: { shapeType: "roundRect", fillColor: "#70AD47", text: "Ghi chu" } });
+  });
+
+  it("moves, deletes and inserts on Excel's drawing, then edits the visual that save wrote", async () => {
+    const once = await save(source(), [
+      moveFile(0, anchor(20, 1, 30, 6)),
+      removeFile(1),
+      { op: "set_visual", target: { sheet: "Data" }, attributes: { id: "s1", anchor: anchor(1, 1, 3, 3), shape: { shapeType: "ellipse", fillColor: "#4472C4" } } },
+    ]);
+    expect((await visualsOf(once)).map((visual) => [visual.index, visual.kind, visual.anchor?.fromRow])).toEqual([[0, "chart", 20], [1, "shape", 13], [2, "shape", 1]]);
+    const twice = await save(once, [moveFile(2, anchor(8, 8, 12, 12)), removeFile(0)]);
+    const final = await visualsOf(twice);
+    expect(final.map((visual) => [visual.kind, visual.anchor?.fromRow])).toEqual([["shape", 13], ["shape", 8]]);
+    expect((await (await loadPatchedGateway()).inventory(twice)).some((entry) => entry.path.startsWith("xl/charts/chart"))).toBe(false);
+  });
+
+  it("rows inserted above the chart move it in the saved file, and so do pending moves and inserts", async () => {
+    const saved = await save(source(), [
+      moveFile(2, anchor(20, 0, 24, 2)),
+      { op: "set_visual", target: { sheet: "Data" }, attributes: { id: "s1", anchor: anchor(30, 1, 32, 3), shape: { shapeType: "rect" } } },
+      rows("insert_rows", 0, 3),
+      rows("remove_cols", 3, 1), // column D: the chart refs (A:C) stay whole
+    ]);
+    const visuals = await visualsOf(saved);
+    expect(visuals.map((visual) => [visual.kind, visual.anchor?.fromRow, visual.anchor?.fromColumn, visual.anchor?.toRow, visual.anchor?.toColumn])).toEqual([
+      ["chart", 4, 3, 18, 10], // gateway shift of a file anchor
+      ["picture", 9, 0, 14, 2], // left of the deleted column
+      ["shape", 23, 0, 27, 2], // pending file move, shifted by the engine
+      ["shape", 33, 1, 35, 3], // pending session insert: its right edge sat in column D, clamped
+    ]);
+    // The overlay's own shift (the same helper) predicts every saved anchor.
+    const before = await visualsOf(source());
+    const predicted = before.map((visual) => [{ kind: "insert_rows", index: 0, count: 3 }, { kind: "remove_cols", index: 3, count: 1 }].reduce((current, shift) => shiftXlsxVisualAnchor(current, shift as never), visual.anchor!));
+    expect(predicted[0]).toEqual(visuals[0]?.anchor);
+    expect(predicted[1]).toEqual(visuals[1]?.anchor);
   });
 });

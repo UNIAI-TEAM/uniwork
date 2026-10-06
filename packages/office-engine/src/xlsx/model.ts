@@ -34,7 +34,7 @@ import {
 } from "./ops.ts";
 import { groupXlsxPageSetupStates, isXlsxPageSetupOp, type XlsxPageSetupFields, type XlsxPageSetupOp, type XlsxSheetPageSetupState } from "./page-setup.ts";
 import { groupXlsxTableAdditions, isXlsxTableOp, type XlsxTableAddOp } from "./tables.ts";
-import { foldXlsxVisualOp, groupXlsxVisualAdditions, isXlsxVisualOp, type XlsxSheetVisualAddition, type XlsxVisualEntry } from "./ops-visuals.ts";
+import { foldXlsxVisualOp, groupXlsxVisualAdditions, isXlsxVisualOp, shiftXlsxVisualEntries, type XlsxSheetVisualAddition, type XlsxVisualEntry } from "./ops-visuals.ts";
 import { groupXlsxSheetProtectionStates, isXlsxSheetProtectionOp, type XlsxSheetProtectionOp, type XlsxSheetProtectionState } from "./ops-protection.ts";
 import { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, type XlsxDefinedNamesOp, type XlsxDefinedNamesState } from "./ops-names.ts";
 import {
@@ -363,6 +363,7 @@ export class XlsxSessionModel {
     if ("index" in op) {
       this.shiftPendingCells(op);
       this.shiftLinkAndNoteJournals(op);
+      this.visuals = shiftXlsxVisualEntries(this.visuals, op.sheetName, op);
     }
     this.touched = true;
     this.revision += 1;
