@@ -4,7 +4,8 @@
 // at its intrinsic pixel size, and `image-set(url(...) Nx)` scales it (checked
 // against headless Chromium's PDF output). The part's display size
 // (widthPx/heightPx) is therefore turned into a resolution: the decoded
-// picture's natural width divided by the width the part asks for. Only raster
+// picture's natural width divided by the width the part asks for; a picture
+// taller than its margin box is scaled down to the box. Only raster
 // base64 data: URLs are accepted, so the copy's CSP (img-src data:) holds and
 // nothing in the URL can leave the CSS string it is written into.
 
@@ -100,14 +101,58 @@ export function printableHfImages(images: readonly unknown[] | null | undefined)
   return out;
 }
 
-/** The CSS `content` value for one picture: `image-set(...)` at the part's width, else the plain URL. */
-export function hfImageContent(image: DocxPrintHfImage): string {
+/**
+ * The pictures of one print copy, each defined once. A margin box refers to a
+ * picture through a custom property declared on `:root` (Chromium resolves
+ * `var(--x)` and `image-set(var(--x) Nx)` inside @page margin boxes, checked
+ * against its PDF output; a property declared inside `@page` itself and a
+ * page-selector list are not honoured), so a logo used by several named pages,
+ * their `:left` and `:first` rules is carried in the copy once.
+ */
+export class DocxPrintHfImageDefs {
+  private readonly names = new Map<string, string>();
+
+  /** The `var(--docx-hf-img-N)` reference of a picture, defining it on first use. */
+  refOf(dataUrl: string): string {
+    let name = this.names.get(dataUrl);
+    if (name === undefined) {
+      name = `--docx-hf-img-${this.names.size}`;
+      this.names.set(dataUrl, name);
+    }
+    return `var(${name})`;
+  }
+
+  /** The `:root` rule that defines every picture used so far; null when none is. */
+  rootRule(): string | null {
+    if (this.names.size === 0) return null;
+    const declarations = Array.from(this.names, ([dataUrl, name]) => `  ${name}: url("${dataUrl}");`);
+    return `:root {\n${declarations.join("\n")}\n}`;
+  }
+}
+
+/** Where a picture prints: the shared definitions and the margin box's height, which a picture never exceeds. */
+interface DocxPrintHfImageContext {
+  defs: DocxPrintHfImageDefs;
+  /** Height of the top (header) or bottom (footer) margin in CSS px. */
+  boxHeightPx: number;
+}
+
+/**
+ * The CSS `content` value for one picture: its variable reference, inside
+ * `image-set(... Nx)` when the part's display width (or height) differs from the
+ * picture's natural size, or when the picture is taller than the margin box and
+ * is scaled down to fit it (Word grows the header instead, which a print copy's
+ * fixed margin cannot do).
+ */
+export function hfImageContent(image: DocxPrintHfImage, context: DocxPrintHfImageContext): string {
   const match = RASTER_DATA_URL.exec(image.dataUrl);
   if (!match) return "";
-  const url = `url("${image.dataUrl}")`;
+  const ref = context.defs.refOf(image.dataUrl);
   const natural = naturalSize((match[1] ?? "").toLowerCase(), match[2] ?? "");
-  const scale = natural && image.widthPx ? natural.width / image.widthPx : natural && image.heightPx ? natural.height / image.heightPx : null;
-  if (scale === null || !Number.isFinite(scale) || scale <= 0) return url;
+  if (!natural) return ref;
+  let scale = image.widthPx ? natural.width / image.widthPx : image.heightPx ? natural.height / image.heightPx : 1;
+  if (context.boxHeightPx > 0 && natural.height / scale > context.boxHeightPx) scale = natural.height / context.boxHeightPx;
+  if (!Number.isFinite(scale) || scale <= 0) return ref;
   const resolution = Math.min(100, Math.max(0.01, Number(scale.toFixed(4))));
-  return resolution === 1 ? url : `image-set(${url} ${resolution}x)`;
+  return resolution === 1 ? ref : `image-set(${ref} ${resolution}x)`;
 }

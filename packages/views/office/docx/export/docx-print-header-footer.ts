@@ -6,30 +6,35 @@
 // resolves them the way the editor canvas does (docx-frame `resolvePageHf`):
 // the section's variant reference, else its default reference, else, for the
 // final section only, the document-level part. Pending header/footer edits
-// from the dialog overlay the final section, the section the document-level
-// slots save into.
+// from the dialog overlay the parts the engine's save would rewrite (see
+// `resolveDocxPrintHeaderFooter`).
 //
 // Printing goes through @page margin boxes, the only per-page area Chromium
 // lets a print copy paint into: text as CSS strings, pictures as data: URLs
-// (./docx-print-hf-image). Chromium has no page groups, so `@page name:first`
-// matches the document's first page only: the first-page variant prints for
-// the first section, and a later section with its own titlePg prints its
-// default part on its first page too.
+// defined once on :root (./docx-print-hf-image). Chromium has no page groups, so
+// `@page name:first` matches the document's first page only: the first-page
+// variant prints for the first section, and a later section with its own
+// titlePg prints its default part on its first page too.
 
 import { effectiveHfRefs, readSections, type RendererHfPart, type RendererParsed } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { DocxEdit, DocxHfSlot } from "@uniwork/office-engine/docx";
 import type { DocxHeaderFooterState } from "../header-footer/header-footer-state";
-import { hfImageContent, printableHfImages, type DocxPrintHfImage } from "./docx-print-hf-image";
+import { hfImageContent, printableHfImages, type DocxPrintHfImage, type DocxPrintHfImageDefs } from "./docx-print-hf-image";
 
 /** PAGE / NUMPAGES field placeholders in a parsed part's text (docx-engine PAGE_MARK, TOTAL_PAGES_MARK). */
-const PAGE_MARK = "";
-const TOTAL_PAGES_MARK = "";
+const PAGE_MARK = "\u{E001}";
+const TOTAL_PAGES_MARK = "\u{E000}";
+const PAGE_FIELD_SPLIT = /([\u{E000}\u{E001}])/u;
 
 type HfKind = "header" | "footer";
 type HfVariant = "default" | "first" | "even";
+const HF_VARIANTS: readonly HfVariant[] = ["default", "first", "even"];
 
-export interface DocxPrintHfPart {
-  /** Identity of the part's content source (a relationship id, `doc:` or `edit:`); equal ids print the same. */
+/** A relationship id per kind and variant. */
+type HfRefIds = Record<HfKind, Partial<Record<HfVariant, string>>>;
+
+interface DocxPrintHfPart {
+  /** Where the part came from (a relationship id, `doc:` or `edit:`); informational, page names are keyed by content. */
   id: string;
   text: string;
   pageNumber: boolean;
@@ -42,12 +47,16 @@ export interface DocxPrintSectionHf {
   titlePg: boolean;
   header: Record<HfVariant, DocxPrintHfPart | null>;
   footer: Record<HfVariant, DocxPrintHfPart | null>;
+  /** The relationship id each variant resolved to, empty parts included (parse source only). */
+  refs?: HfRefIds;
 }
 
 /** The headers and footers the print copy prints, per section. */
 export interface DocxPrintHeaderFooter {
   evenAndOddHeaders: boolean;
   sections: DocxPrintSectionHf[];
+  /** The references of the final section's own sectPr: the parts the engine's save writes header/footer edits into. */
+  finalOwnRefs?: HfRefIds;
 }
 
 /** What the open parse contributes; the same shape before the pending edits are applied. */
@@ -86,9 +95,12 @@ export function readDocxPrintHeaderFooter(parsed: unknown): DocxPrintHfSource | 
     header: partOf("doc:header", doc.headerText, doc.headerHasPageNumber, doc.headerImages),
     footer: partOf("doc:footer", doc.footerText, doc.footerHasPageNumber, doc.footerImages),
   };
-  const resolve = (at: number, kind: HfKind, variant: HfVariant): DocxPrintHfPart | null => {
+  const refIdOf = (at: number, kind: HfKind, variant: HfVariant): string | undefined => {
     const set = refs[at]?.[kind];
-    const rId = set?.[variant] ?? set?.default;
+    return set?.[variant] ?? set?.default;
+  };
+  const resolve = (at: number, kind: HfKind, variant: HfVariant): DocxPrintHfPart | null => {
+    const rId = refIdOf(at, kind, variant);
     const part = rId ? doc.hfParts?.[rId] : undefined;
     const resolved = rId && part ? partOf(rId, part.text, part.hasPageNumber, part.images) : null;
     if (resolved) return resolved;
@@ -99,6 +111,17 @@ export function readDocxPrintHeaderFooter(parsed: unknown): DocxPrintHfSource | 
     first: resolve(at, kind, "first"),
     even: resolve(at, kind, "even"),
   });
+  const refIds = (at: number): HfRefIds => {
+    const out: HfRefIds = { header: {}, footer: {} };
+    for (const kind of ["header", "footer"] as const) {
+      for (const variant of HF_VARIANTS) {
+        const rId = refIdOf(at, kind, variant);
+        if (rId) out[kind][variant] = rId;
+      }
+    }
+    return out;
+  };
+  const last = sections[sections.length - 1];
   return {
     evenAndOddHeaders: doc.evenAndOddHeaders === true,
     sections: sections.map((section, at) => ({
@@ -106,7 +129,9 @@ export function readDocxPrintHeaderFooter(parsed: unknown): DocxPrintHfSource | 
       titlePg: section.titlePg === true,
       header: variants(at, "header"),
       footer: variants(at, "footer"),
+      refs: refIds(at),
     })),
+    finalOwnRefs: { header: { ...last?.headerRefs }, footer: { ...last?.footerRefs } },
   };
 }
 
@@ -138,11 +163,22 @@ function fromStateOnly(state: DocxHeaderFooterState): DocxPrintHeaderFooter {
   };
 }
 
+/** An edited slot's value in place of a part: the text and page number are replaced, the part's pictures stay. */
+function editedPart(slot: DocxHfSlot, current: DocxPrintHfPart | null, value: { text?: string; pageNumber?: boolean } | null | undefined): DocxPrintHfPart | null {
+  const images = current?.images ?? [];
+  const part = partOf(`edit:${slot}`, value?.text, value?.pageNumber, null);
+  if (part) return { ...part, images };
+  return images.length > 0 ? { id: `edit:${slot}`, text: "", pageNumber: false, images } : null;
+}
+
 /**
- * The parse's parts with the dialog's pending edits applied: an edited slot
- * replaces the final section's part (its pictures stay, text edits never touch
- * them), a titlePg edit sets the final section's flag, and the document-wide
- * odd/even flag comes from the state.
+ * The parse's parts with the dialog's pending edits applied the way the
+ * engine's save writes them: a slot edit rewrites the part the final section's
+ * own reference names, IN PLACE, so every section whose variant resolves to
+ * that same part shows the edit too; with no own reference the save writes a
+ * new part for the final section alone. A text edit keeps the part's pictures,
+ * a titlePg edit sets the final section's flag, and the document-wide odd/even
+ * flag comes from the state.
  */
 export function resolveDocxPrintHeaderFooter(
   source: DocxPrintHfSource | null,
@@ -162,12 +198,16 @@ export function resolveDocxPrintHeaderFooter(
       if (edit.op !== "set_header_footer") continue;
       const [kind, variant] = SLOT_TARGET[edit.slot];
       const value = state.slots[edit.slot]?.value;
-      const images = final[kind][variant]?.images ?? [];
-      const part = partOf(`edit:${edit.slot}`, value?.text, value?.pageNumber, null);
-      final[kind][variant] = part ? { ...part, images } : images.length > 0 ? { id: `edit:${edit.slot}`, text: "", pageNumber: false, images } : null;
+      const ownId = source.finalOwnRefs?.[kind][variant];
+      for (const section of sections) {
+        for (const at of HF_VARIANTS) {
+          const sharesPart = ownId !== undefined && section.refs?.[kind][at] === ownId;
+          if (sharesPart || (section === final && at === variant)) section[kind][at] = editedPart(edit.slot, section[kind][at], value);
+        }
+      }
     }
   }
-  return { evenAndOddHeaders: state?.evenAndOddHeaders ?? source.evenAndOddHeaders, sections };
+  return { ...source, evenAndOddHeaders: state?.evenAndOddHeaders ?? source.evenAndOddHeaders, sections };
 }
 
 /** The entry for a section; a document-level entry (index 0 only) covers every section. */
@@ -176,18 +216,24 @@ export function sectionHeaderFooter(hf: DocxPrintHeaderFooter | null | undefined
   return hf.sections.find((section) => section.index === index) ?? (hf.sections.length === 1 ? (hf.sections[0] ?? null) : null);
 }
 
+/** A part by what it prints, so equal parts under different relationship ids are one. */
+function partKey(part: DocxPrintHfPart | null): string {
+  if (!part) return "-";
+  const images = part.images.map((image) => `${image.align}|${image.widthPx ?? ""}|${image.heightPx ?? ""}|${image.dataUrl}`);
+  return [part.text, part.pageNumber ? "1" : "0", ...images].join("\u0001");
+}
+
 /**
  * What a named page prints on every page (default and, under odd/even, the
- * even parts). Sections whose key and geometry match share a page name, so a
- * continuous section flows on; the first-page parts are left out because
- * `:first` can only ever match the document's first page.
+ * even parts), by content. Sections whose key and geometry match share a page
+ * name; the first-page parts are left out because `:first` can only ever match
+ * the document's first page.
  */
 export function printedHfKey(section: DocxPrintSectionHf | null, evenAndOddHeaders: boolean): string {
   if (!section) return "";
-  const id = (part: DocxPrintHfPart | null): string => part?.id ?? "-";
   const parts = [section.header.default, section.footer.default];
   if (evenAndOddHeaders) parts.push(section.header.even, section.footer.even);
-  return parts.map(id).join(",");
+  return parts.map(partKey).join("\u0002");
 }
 
 /** A CSS string literal for a margin box: quotes, backslashes and `<` escaped, newlines kept. */
@@ -208,7 +254,7 @@ function textContent(part: DocxPrintHfPart): string[] {
   const out: string[] = [];
   const text = part.text.trim();
   let hasPageField = false;
-  for (const piece of text.split(/([])/u)) {
+  for (const piece of text.split(PAGE_FIELD_SPLIT)) {
     if (piece === PAGE_MARK) {
       hasPageField = true;
       out.push("counter(page)");
@@ -222,25 +268,33 @@ function textContent(part: DocxPrintHfPart): string[] {
   return out;
 }
 
+/** What the margin boxes of one named page need beyond the parts: the shared picture definitions and the margin heights. */
+interface DocxPrintHfPageContext {
+  images: DocxPrintHfImageDefs;
+  /** Top and bottom page margins in CSS px: a header or footer picture is scaled to fit its margin. */
+  marginTopPx: number;
+  marginBottomPx: number;
+}
+
 type BoxPosition = "left" | "center" | "right";
 const BOX_POSITIONS: readonly BoxPosition[] = ["left", "center", "right"];
 
 /** One part's content per box: pictures by alignment, the text in the centre box after the centred pictures. */
-function boxContents(part: DocxPrintHfPart | null): Record<BoxPosition, string[]> {
+function boxContents(part: DocxPrintHfPart | null, context: DocxPrintHfPageContext, boxHeightPx: number): Record<BoxPosition, string[]> {
   const boxes: Record<BoxPosition, string[]> = { left: [], center: [], right: [] };
   if (!part) return boxes;
   for (const image of part.images) {
-    const content = hfImageContent(image);
+    const content = hfImageContent(image, { defs: context.images, boxHeightPx });
     if (content) boxes[image.align].push(content);
   }
   boxes.center.push(...textContent(part));
   return boxes;
 }
 
-function marginBoxes(header: DocxPrintHfPart | null, footer: DocxPrintHfPart | null, blankEmpty: boolean): string[] {
+function marginBoxes(header: DocxPrintHfPart | null, footer: DocxPrintHfPart | null, blankEmpty: boolean, context: DocxPrintHfPageContext): string[] {
   const out: string[] = [];
-  for (const [edge, part] of [["top", header], ["bottom", footer]] as const) {
-    const contents = boxContents(part);
+  for (const [edge, part, boxHeightPx] of [["top", header, context.marginTopPx], ["bottom", footer, context.marginBottomPx]] as const) {
+    const contents = boxContents(part, context, boxHeightPx);
     for (const position of BOX_POSITIONS) {
       const content = contents[position];
       const box = `@${edge}-${position}`;
@@ -262,14 +316,17 @@ export function headerFooterPageRules(
   section: DocxPrintSectionHf | null,
   evenAndOddHeaders: boolean,
   opensDocument: boolean,
+  context: DocxPrintHfPageContext,
 ): string[] {
   if (!section) return [];
   const rules: string[] = [];
-  const base = marginBoxes(section.header.default, section.footer.default, false);
+  const base = marginBoxes(section.header.default, section.footer.default, false, context);
   if (base.length > 0) rules.push(`@page ${name} {\n${base.join("\n")}\n}`);
-  if (evenAndOddHeaders) rules.push(`@page ${name}:left {\n${marginBoxes(section.header.even, section.footer.even, true).join("\n")}\n}`);
+  if (evenAndOddHeaders) {
+    rules.push(`@page ${name}:left {\n${marginBoxes(section.header.even, section.footer.even, true, context).join("\n")}\n}`);
+  }
   if (opensDocument && section.titlePg) {
-    rules.push(`@page ${name}:first {\n${marginBoxes(section.header.first, section.footer.first, true).join("\n")}\n}`);
+    rules.push(`@page ${name}:first {\n${marginBoxes(section.header.first, section.footer.first, true, context).join("\n")}\n}`);
   }
   return rules;
 }

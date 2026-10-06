@@ -2,7 +2,7 @@ import type { JSONContent } from "@tiptap/core";
 import { describe, expect, it, vi } from "vitest";
 import type { DocxPageSetupSection } from "../page-setup/docx-page-setup";
 import { buildDocxPrintHtml, docxPrintCopy, printDocxDocument } from "./docx-print";
-import type { DocxPrintHeaderFooter, DocxPrintHfPart, DocxPrintSectionHf } from "./docx-print-header-footer";
+import type { DocxPrintHeaderFooter, DocxPrintSectionHf } from "./docx-print-header-footer";
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
@@ -41,7 +41,9 @@ function styleText(html: string): string {
   return parse(html).querySelector("style")?.textContent ?? "";
 }
 
-function hfPart(id: string, overrides: Partial<DocxPrintHfPart> = {}): DocxPrintHfPart {
+type HfPart = NonNullable<DocxPrintSectionHf["header"]["default"]>;
+
+function hfPart(id: string, overrides: Partial<HfPart> = {}): HfPart {
   return { id, text: id, pageNumber: false, images: [], ...overrides };
 }
 
@@ -204,11 +206,11 @@ describe("buildDocxPrintHtml", () => {
     expect(css).not.toContain(":left");
   });
 
-  it("gives a section with its own header a new page name, and only the first page name a :first rule", () => {
+  it("gives a section that starts a sheet with its own header a new page name, and only the first page name a :first rule", () => {
     const sections = [
       section({ index: 0, firstBlockIndex: 0, lastBlockIndex: 0 }),
       section({ index: 1, firstBlockIndex: 1, lastBlockIndex: 1, startType: "continuous" }),
-      section({ index: 2, firstBlockIndex: 2, lastBlockIndex: 2, startType: "continuous" }),
+      section({ index: 2, firstBlockIndex: 2, lastBlockIndex: 2 }),
       section({ index: 3, firstBlockIndex: 3, lastBlockIndex: 3 }),
     ];
     const chapter = (text: string) => ({ default: hfPart(text), first: hfPart(`${text}-first`), even: null });
@@ -218,9 +220,10 @@ describe("buildDocxPrintHtml", () => {
         sectionHf(0, { titlePg: true, header: chapter("Chương 1") }),
         // Same printed parts (the first-page part cannot print past page 1): flows on.
         sectionHf(1, { header: { default: hfPart("Chương 1"), first: null, even: null } }),
-        // A continuous section with another header: its own page name, so it starts a new sheet.
+        // A next-page section with another header: its own page name.
         sectionHf(2, { titlePg: true, header: chapter("Chương 2") }),
-        sectionHf(3, { header: { default: hfPart("Chương 1"), first: null, even: null } }),
+        // The same parts as section 0 under another relationship id: the same page name again.
+        sectionHf(3, { header: { default: hfPart("rId-other", { text: "Chương 1" }), first: null, even: null } }),
       ],
     };
     const html = buildDocxPrintHtml({ doc: doc(para("a", 0), para("b", 1), para("c", 2), para("d", 3)), title: "x", sections, headerFooter });
@@ -229,6 +232,34 @@ describe("buildDocxPrintHtml", () => {
     expect(css).toContain('@page docx-s1 {\n  @top-center { content: "Chương 2";');
     expect(css.match(/@page [\w-]+:first/g)).toEqual(["@page docx-s0:first"]);
     expect(css).toContain('@page docx-s0:first {\n  @top-left { content: none; }\n  @top-center { content: "Chương 1-first";');
+  });
+
+  it("lets a continuous section with another header flow on without a sheet break, as Word does", () => {
+    const sections = [
+      section({ index: 0, firstBlockIndex: 0, lastBlockIndex: 0 }),
+      section({ index: 1, firstBlockIndex: 1, lastBlockIndex: 1, startType: "continuous" }),
+      section({ index: 2, firstBlockIndex: 2, lastBlockIndex: 2, startType: "continuous", pageWidth: 16838, pageHeight: 11906 }),
+      section({ index: 3, firstBlockIndex: 3, lastBlockIndex: 3, startType: "continuous", pageWidth: 16838, pageHeight: 11906 }),
+    ];
+    const header = (text: string) => ({ default: hfPart(text), first: null, even: null });
+    const headerFooter: DocxPrintHeaderFooter = {
+      evenAndOddHeaders: false,
+      sections: [
+        sectionHf(0, { header: header("Chương 1") }),
+        sectionHf(1, { header: header("Chương 2") }),
+        sectionHf(2, { header: header("Chương 3") }),
+        sectionHf(3, { header: header("Chương 4") }),
+      ],
+    };
+    const html = buildDocxPrintHtml({ doc: doc(para("a", 0), para("b", 1), para("c", 2), para("d", 3)), title: "x", sections, headerFooter });
+    // Section 1 keeps the previous sheet and its header. Section 2 changes the paper, which does break; section 3 flows on with it.
+    expect(pageNames(html)).toEqual(["docx-s0", "docx-s0", "docx-s1", "docx-s1"]);
+    const css = styleText(html);
+    expect(css.match(/@page docx-s\d+ \{\n {2}@top-center/g)).toEqual(["@page docx-s0 {\n  @top-center", "@page docx-s1 {\n  @top-center"]);
+    expect(css).toContain('@top-center { content: "Chương 1";');
+    expect(css).toContain('@top-center { content: "Chương 3";');
+    expect(css).not.toContain("Chương 2");
+    expect(css).not.toContain("Chương 4");
   });
 
   it("prints each section's even parts on its own :left pages", () => {
@@ -283,7 +314,44 @@ describe("docxPrintCopy", () => {
       sections: [sectionHf(0, { header: { default: hfPart("logo", { text: "", images: [{ dataUrl: PNG, align: "center" }] }), first: null, even: null } })],
     };
     const copy = docxPrintCopy({ doc: doc(para("Text", 0)), title: "x", sections: [section()], headerFooter });
-    expect(styleText(copy)).toContain(`@top-center { content: url("${PNG}");`);
+    // The picture is defined once on :root and the margin box names it.
+    expect(styleText(copy)).toContain(`:root {\n  --docx-hf-img-0: url("${PNG}");\n}`);
+    expect(styleText(copy)).toContain("@top-center { content: var(--docx-hf-img-0);");
+  });
+
+  it("carries a header picture once however many named pages and variants print it", () => {
+    const sections = [
+      section({ index: 0, firstBlockIndex: 0, lastBlockIndex: 0 }),
+      section({ index: 1, firstBlockIndex: 1, lastBlockIndex: 1, pageWidth: 16838, pageHeight: 11906 }),
+    ];
+    const logo = hfPart("logo", { text: "", images: [{ dataUrl: PNG, align: "left" }] });
+    const headerFooter: DocxPrintHeaderFooter = {
+      evenAndOddHeaders: true,
+      sections: [
+        sectionHf(0, { titlePg: true, header: { default: logo, first: logo, even: logo }, footer: { default: logo, first: null, even: null } }),
+        sectionHf(1, { header: { default: logo, first: null, even: logo }, footer: { default: null, first: null, even: null } }),
+      ],
+    };
+    const copy = docxPrintCopy({ doc: doc(para("a", 0), para("b", 1)), title: "x", sections, headerFooter });
+    expect(copy.split(PNG)).toHaveLength(2);
+    expect(styleText(copy).match(/var\(--docx-hf-img-0\)/g)?.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("scales a header picture to the section's own top margin", () => {
+    const png = (height: number): string => {
+      const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+      const bytes = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, ...be32(300), ...be32(height), 8, 2, 0, 0, 0];
+      return `data:image/png;base64,${btoa(String.fromCharCode(...bytes))}`;
+    };
+    // A 0.5 inch (48 px) top margin and a 192 px tall logo shown at its natural size: a quarter size.
+    const headerFooter: DocxPrintHeaderFooter = {
+      evenAndOddHeaders: false,
+      sections: [sectionHf(0, { header: { default: hfPart("logo", { text: "", images: [{ dataUrl: png(192), align: "left" }] }), first: null, even: null } })],
+    };
+    const css = styleText(buildDocxPrintHtml({ doc: doc(para("a", 0)), title: "x", sections: [section({ marginTop: 720 })], headerFooter }));
+    expect(css).toContain("@top-left { content: image-set(var(--docx-hf-img-0) 4x);");
+    const roomy = styleText(buildDocxPrintHtml({ doc: doc(para("a", 0)), title: "x", sections: [section({ marginTop: 2880 })], headerFooter }));
+    expect(roomy).toContain("@top-left { content: var(--docx-hf-img-0);");
   });
 });
 

@@ -7,10 +7,9 @@ import {
   readDocxPrintHeaderFooter,
   resolveDocxPrintHeaderFooter,
   sectionHeaderFooter,
-  type DocxPrintHfPart,
   type DocxPrintSectionHf,
 } from "./docx-print-header-footer";
-import { hfImageContent, printableHfImages } from "./docx-print-hf-image";
+import { DocxPrintHfImageDefs, hfImageContent, printableHfImages } from "./docx-print-hf-image";
 
 function base64(bytes: number[]): string {
   return btoa(String.fromCharCode(...bytes));
@@ -51,7 +50,7 @@ function parsed() {
     hfParts: {
       rIdH1: { text: "Chương 1", hasPageNumber: false, paras: [] },
       rIdH1F: { text: "", hasPageNumber: false, paras: [], images: [{ dataUrl: LOGO, widthPx: 100, heightPx: 25, align: "right" }] },
-      rIdF1: { text: "Trang  / ", hasPageNumber: true, paras: [] },
+      rIdF1: { text: "Trang \u{E001} / \u{E000}", hasPageNumber: true, paras: [] },
       rIdH2: { text: "  ", hasPageNumber: false, paras: [], images: [{ dataUrl: LOGO, widthPx: 200 }] },
     },
     headerText: "Tài liệu",
@@ -61,7 +60,9 @@ function parsed() {
   };
 }
 
-function part(id: string, overrides: Partial<DocxPrintHfPart> = {}): DocxPrintHfPart {
+type HfPart = NonNullable<DocxPrintSectionHf["header"]["default"]>;
+
+function part(id: string, overrides: Partial<HfPart> = {}): HfPart {
   return { id, text: id, pageNumber: false, images: [], ...overrides };
 }
 
@@ -73,6 +74,13 @@ function sectionHf(overrides: Partial<DocxPrintSectionHf> = {}): DocxPrintSectio
     footer: { default: null, first: null, even: null },
     ...overrides,
   };
+}
+
+/** A page context with a 96 px (2.54 cm) margin above and below. */
+type PageContext = Parameters<typeof headerFooterPageRules>[4];
+
+function context(overrides: Partial<PageContext> = {}): PageContext {
+  return { images: new DocxPrintHfImageDefs(), marginTopPx: 96, marginBottomPx: 96, ...overrides };
 }
 
 describe("readDocxPrintHeaderFooter", () => {
@@ -142,6 +150,48 @@ describe("resolveDocxPrintHeaderFooter", () => {
     expect(hf?.sections[2]?.footer.default).toBeNull();
   });
 
+  describe("a header part referenced by several sections", () => {
+    /** Two sections that both name rIdH; the final one either repeats the reference (own) or inherits it. */
+    function twoSections(finalRefs: string) {
+      return {
+        blocks: [
+          { docxIndex: 0, type: "paragraph", originalXml: `<w:p><w:pPr>${SECT(REF("header", "default", "rIdH"))}</w:pPr></w:p>` },
+          { docxIndex: 1, type: "sectPr", hidden: true, originalXml: SECT(finalRefs) },
+        ],
+        hfParts: { rIdH: { text: "Chung", hasPageNumber: false, paras: [], images: [{ dataUrl: LOGO, widthPx: 100 }] } },
+        evenAndOddHeaders: false,
+      };
+    }
+    const editHeader = (parse: unknown) => {
+      const state = emptyHeaderFooterState();
+      state.slots.header = { value: { text: "Mới" }, hasImages: true };
+      const edits: DocxEdit[] = [{ op: "set_header_footer", slot: "header", hf: { text: "Mới" } }];
+      return resolveDocxPrintHeaderFooter(readDocxPrintHeaderFooter(parse), state, edits);
+    };
+
+    it("edits every section that shares the part the final section's own reference names, as the save does", () => {
+      // The save rewrites that part in place, so the earlier section prints the edit too, pictures kept.
+      const hf = editHeader(twoSections(REF("header", "default", "rIdH")));
+      expect(hf?.sections.map((section) => section.header.default?.text)).toEqual(["Mới", "Mới"]);
+      expect(hf?.sections.map((section) => section.header.default?.images.length)).toEqual([1, 1]);
+      // The even variant falls back to the same part, so it changed too.
+      expect(hf?.sections[0]?.header.even?.text).toBe("Mới");
+    });
+
+    it("edits the final section alone when it only inherits the reference", () => {
+      // No own reference: the save writes a new part for the final section and leaves the earlier one.
+      const hf = editHeader(twoSections(""));
+      expect(hf?.sections.map((section) => section.header.default?.text)).toEqual(["Chung", "Mới"]);
+      expect(hf?.sections[0]?.header.even?.text).toBe("Chung");
+    });
+
+    it("keeps the source's own references so the edit can find the shared part", () => {
+      const source = readDocxPrintHeaderFooter(twoSections(REF("header", "default", "rIdH")));
+      expect(source?.finalOwnRefs).toEqual({ header: { default: "rIdH" }, footer: {} });
+      expect(source?.sections.map((section) => section.refs?.header.default)).toEqual(["rIdH", "rIdH"]);
+    });
+  });
+
   it("uses the document-level state alone when the parse gave nothing", () => {
     const state = emptyHeaderFooterState();
     state.slots.footer = { value: { text: "Chân trang", pageNumber: true }, hasImages: false };
@@ -155,6 +205,16 @@ describe("resolveDocxPrintHeaderFooter", () => {
 });
 
 describe("printedHfKey", () => {
+  it("keys parts by what they print, so equal parts under different ids are one", () => {
+    const logo = { dataUrl: LOGO, widthPx: 100, align: "left" as const };
+    const a = sectionHf({ header: { default: part("rId1", { text: "Chương", images: [logo] }), first: null, even: null } });
+    const same = sectionHf({ header: { default: part("edit:header", { text: "Chương", images: [{ ...logo }] }), first: null, even: null } });
+    const other = sectionHf({ header: { default: part("rId1", { text: "Chương", images: [{ ...logo, widthPx: 50 }] }), first: null, even: null } });
+    expect(printedHfKey(a, false)).toBe(printedHfKey(same, false));
+    expect(printedHfKey(a, false)).not.toBe(printedHfKey(other, false));
+    expect(printedHfKey(a, false)).not.toBe(printedHfKey(sectionHf(), false));
+  });
+
   it("keys the parts a page prints on every page, not the first-page ones", () => {
     const a = sectionHf({ header: { default: part("h"), first: part("f1"), even: part("e") } });
     const b = sectionHf({ header: { default: part("h"), first: null, even: part("e2") } });
@@ -168,14 +228,47 @@ describe("headerFooterPageRules", () => {
   it("prints text, page fields and pictures in the named page's margin boxes", () => {
     const hf = readDocxPrintHeaderFooter(parsed());
     const [s0, s1] = hf?.sections ?? [];
-    const first = headerFooterPageRules("docx-s0", s0 ?? null, false, true).join("\n");
+    const shared = context();
+    const first = headerFooterPageRules("docx-s0", s0 ?? null, false, true, shared).join("\n");
     expect(first).toContain('@page docx-s0 {\n  @top-center { content: "Chương 1"; white-space: pre-wrap; font-size: 9pt; }');
     expect(first).toContain('@bottom-center { content: "Trang " counter(page) " / " counter(pages);');
     // The image-only first-page header: the logo at its display width (200px natural / 100px = 2x), right box; the default text is blanked.
-    expect(first).toContain(`@page docx-s0:first {\n  @top-left { content: none; }\n  @top-center { content: none; }\n  @top-right { content: image-set(url("${LOGO}") 2x);`);
-    const later = headerFooterPageRules("docx-s1", s1 ?? null, false, false).join("\n");
-    expect(later).toContain(`@top-left { content: url("${LOGO}");`);
+    expect(first).toContain(`@page docx-s0:first {\n  @top-left { content: none; }\n  @top-center { content: none; }\n  @top-right { content: image-set(var(--docx-hf-img-0) 2x);`);
+    const later = headerFooterPageRules("docx-s1", s1 ?? null, false, false, shared).join("\n");
+    expect(later).toContain("@top-left { content: var(--docx-hf-img-0);");
     expect(later).not.toContain(":first");
+  });
+
+  it("defines a picture once for every rule that prints it", () => {
+    const shared = context();
+    const logo = { dataUrl: LOGO, widthPx: 100, align: "left" as const };
+    const section = sectionHf({
+      titlePg: true,
+      header: { default: part("h", { images: [logo] }), first: part("f", { images: [logo] }), even: part("e", { images: [{ ...logo, align: "right" }] }) },
+    });
+    const rules = [
+      ...headerFooterPageRules("docx-s0", section, true, true, shared),
+      ...headerFooterPageRules("docx-s1", section, true, false, shared),
+    ].join("\n");
+    // The rules carry no picture bytes: they all name the one custom property.
+    expect(rules).not.toContain("data:image");
+    expect(rules.match(/var\(--docx-hf-img-0\)/g)).toHaveLength(5);
+    expect(rules).not.toContain("--docx-hf-img-1");
+    const root = shared.images.rootRule();
+    expect(root).toBe(`:root {\n  --docx-hf-img-0: url("${LOGO}");\n}`);
+    expect(new DocxPrintHfImageDefs().rootRule()).toBeNull();
+  });
+
+  it("scales a header picture taller than the top margin to the margin box", () => {
+    const tall = { dataUrl: pngDataUrl(300, 200), widthPx: 300, align: "left" as const };
+    const section = sectionHf({
+      header: { default: part("h", { images: [tall] }), first: null, even: null },
+      footer: { default: part("f", { images: [tall] }), first: null, even: null },
+    });
+    const rules = headerFooterPageRules("p", section, false, false, context({ marginTopPx: 100, marginBottomPx: 400 })).join("\n");
+    // 200 px tall in a 100 px margin: half size. The footer margin is tall enough: unscaled.
+    expect(rules).toContain("@top-left { content: image-set(var(--docx-hf-img-0) 2x);");
+    expect(rules).toContain("@bottom-left { content: var(--docx-hf-img-0);");
   });
 
   it("prints the even parts on :left pages and blanks what they leave empty", () => {
@@ -183,17 +276,17 @@ describe("headerFooterPageRules", () => {
       header: { default: part("Odd"), first: null, even: part("Even") },
       footer: { default: part("Foot"), first: null, even: null },
     });
-    const rules = headerFooterPageRules("docx-s1", section, true, false).join("\n");
+    const rules = headerFooterPageRules("docx-s1", section, true, false, context()).join("\n");
     expect(rules).toContain('@page docx-s1:left {\n  @top-left { content: none; }\n  @top-center { content: "Even";');
     expect(rules).toContain("  @bottom-center { content: none; }");
-    expect(headerFooterPageRules("docx-s1", null, true, true)).toEqual([]);
+    expect(headerFooterPageRules("docx-s1", null, true, true, context())).toEqual([]);
     // A section without parts prints no base rule.
-    expect(headerFooterPageRules("docx-s1", sectionHf(), false, false)).toEqual([]);
+    expect(headerFooterPageRules("docx-s1", sectionHf(), false, false, context())).toEqual([]);
   });
 
   it("appends the page number after the text when the part has no PAGE field", () => {
     const section = sectionHf({ footer: { default: part("x", { text: "Trang", pageNumber: true }), first: null, even: null } });
-    expect(headerFooterPageRules("p", section, false, false).join("\n")).toContain('@bottom-center { content: "Trang" " " counter(page);');
+    expect(headerFooterPageRules("p", section, false, false, context()).join("\n")).toContain('@bottom-center { content: "Trang" " " counter(page);');
   });
 });
 
@@ -217,11 +310,22 @@ describe("header/footer pictures", () => {
   });
 
   it("scales a picture to its display size from the decoded natural size", () => {
-    expect(hfImageContent({ dataUrl: jpegDataUrl(300, 90), widthPx: 100, align: "left" })).toBe(`image-set(url("${jpegDataUrl(300, 90)}") 3x)`);
-    expect(hfImageContent({ dataUrl: LOGO, heightPx: 100, align: "left" })).toBe(`image-set(url("${LOGO}") 0.5x)`);
-    expect(hfImageContent({ dataUrl: LOGO, widthPx: 200, align: "left" })).toBe(`url("${LOGO}")`);
+    const at = (image: Parameters<typeof hfImageContent>[0], boxHeightPx = 1000): string => {
+      const defs = new DocxPrintHfImageDefs();
+      const content = hfImageContent(image, { defs, boxHeightPx });
+      // Every picture is carried through the one definition, never inline.
+      expect(content).not.toContain("data:");
+      return content;
+    };
+    expect(at({ dataUrl: jpegDataUrl(300, 90), widthPx: 100, align: "left" })).toBe("image-set(var(--docx-hf-img-0) 3x)");
+    expect(at({ dataUrl: LOGO, heightPx: 100, align: "left" })).toBe("image-set(var(--docx-hf-img-0) 0.5x)");
+    expect(at({ dataUrl: LOGO, widthPx: 200, align: "left" })).toBe("var(--docx-hf-img-0)");
+    // A picture taller than the margin box is scaled down to it, whatever size the part asks for.
+    expect(at({ dataUrl: LOGO, widthPx: 200, align: "left" }, 25)).toBe("image-set(var(--docx-hf-img-0) 2x)");
+    expect(at({ dataUrl: LOGO, align: "left" }, 10)).toBe("image-set(var(--docx-hf-img-0) 5x)");
+    expect(at({ dataUrl: LOGO, widthPx: 100, align: "left" }, 25)).toBe("image-set(var(--docx-hf-img-0) 2x)");
     // An unreadable header keeps the intrinsic size.
-    expect(hfImageContent({ dataUrl: "data:image/webp;base64,UklGRg==", widthPx: 10, align: "left" })).toBe('url("data:image/webp;base64,UklGRg==")');
-    expect(hfImageContent({ dataUrl: "javascript:x", align: "left" })).toBe("");
+    expect(at({ dataUrl: "data:image/webp;base64,UklGRg==", widthPx: 10, align: "left" }, 5)).toBe("var(--docx-hf-img-0)");
+    expect(at({ dataUrl: "javascript:x", align: "left" })).toBe("");
   });
 });

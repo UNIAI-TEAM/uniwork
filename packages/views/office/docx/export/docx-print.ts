@@ -20,9 +20,10 @@
 // because a changed `page` value forces a sheet break by itself. Word page breaks and
 // "page break before" paragraphs force breaks. Headers and footers are resolved
 // per section (./docx-print-header-footer) and print through each named page's
-// margin boxes, pictures included; the page name is keyed by the printed
-// header/footer as well as the paper, so a section with other parts gets its
-// own page while an identical continuous section still flows on.
+// margin boxes, pictures included (each picture defined once on :root); the
+// page name is keyed by the printed header/footer as well as the paper, so a
+// section that starts a sheet with other parts gets its own page, while a
+// continuous section on the same paper always flows on, as in Word.
 
 import type { JSONContent } from "@tiptap/core";
 import { sanitizePrintCopy } from "../../markdown/wysiwyg/print";
@@ -36,6 +37,7 @@ import {
   type DocxPrintHeaderFooter,
   type DocxPrintSectionHf,
 } from "./docx-print-header-footer";
+import { DocxPrintHfImageDefs } from "./docx-print-hf-image";
 
 /** The page setup the copy uses when the document reports no section: A4, 2.54 cm margins. */
 const DEFAULT_SECTION: DocxPageSetupSection = {
@@ -73,6 +75,9 @@ export interface DocxPrintCopyInput {
   textColor?: string;
 }
 
+/** 1440 twips per inch over 96 CSS px per inch. */
+const TWIPS_PER_PX = 15;
+
 function pt(twips: number): string {
   const value = Math.max(0, twips) / 20;
   return `${Number.isInteger(value) ? value : Number(value.toFixed(2))}pt`;
@@ -93,14 +98,27 @@ interface NamedPages {
 /**
  * CSS Paged Media starts a new sheet whenever the `page` value changes between
  * siblings, so a continuous section can only flow on when it keeps the name of
- * the section before it. Names are therefore keyed by what the page prints
- * (geometry and header/footer parts), not by section.
+ * the section before it. A continuous section on the same paper therefore
+ * always keeps the previous name, even when its header/footer differs: Word
+ * applies a continuous section's own header and footer from the NEXT page and
+ * never breaks the sheet for it, and the editor's paginator does not break
+ * either (upstream sectionGeoms). A named page cannot change header mid-flow,
+ * so that section's own parts print from the next section that starts a sheet.
+ * Every other section is named by what its page prints (geometry plus the
+ * header/footer parts by content), not by section.
  */
 function namePages(runs: readonly SectionRun[], headerFooter: DocxPrintHeaderFooter | null | undefined): NamedPages {
   const byKey = new Map<string, string>();
   const pages: NamedPages["pages"] = [];
   const evenAndOdd = headerFooter?.evenAndOddHeaders === true;
-  const names = runs.map((run) => {
+  const names: string[] = [];
+  runs.forEach((run, ordinal) => {
+    const previous = ordinal > 0 ? runs[ordinal - 1] : undefined;
+    const carried = names[ordinal - 1];
+    if (previous && carried !== undefined && breakBefore(run.section) === "auto" && pageGeometryKey(run.section) === pageGeometryKey(previous.section)) {
+      names.push(carried);
+      return;
+    }
     const hf = sectionHeaderFooter(headerFooter, run.section.index);
     const key = `${pageGeometryKey(run.section)}|${printedHfKey(hf, evenAndOdd)}`;
     let name = byKey.get(key);
@@ -109,7 +127,7 @@ function namePages(runs: readonly SectionRun[], headerFooter: DocxPrintHeaderFoo
       byKey.set(key, name);
       pages.push({ name, section: run.section, hf });
     }
-    return name;
+    names.push(name);
   });
   return { names, pages };
 }
@@ -247,11 +265,16 @@ export function buildDocxPrintHtml(input: DocxPrintCopyInput): string {
   const first = runs[0]?.section ?? DEFAULT_SECTION;
   const named = namePages(runs, input.headerFooter);
   const evenAndOdd = input.headerFooter?.evenAndOddHeaders === true;
+  const images = new DocxPrintHfImageDefs();
   const pages = [
     pageRule("", first),
     ...named.pages.flatMap((page) => [
       pageRule(page.name, page.section),
-      ...headerFooterPageRules(page.name, page.hf, evenAndOdd, page.name === named.names[0]),
+      ...headerFooterPageRules(page.name, page.hf, evenAndOdd, page.name === named.names[0], {
+        images,
+        marginTopPx: page.section.marginTop / TWIPS_PER_PX,
+        marginBottomPx: page.section.marginBottom / TWIPS_PER_PX,
+      }),
     ]),
   ];
   const font = safeFont(input.fontFamily);
@@ -260,6 +283,7 @@ export function buildDocxPrintHtml(input: DocxPrintCopyInput): string {
     PRINT_BASE_CSS,
     font ? `body{font-family:${font}}` : null,
     color ? `body{color:${color}}` : null,
+    images.rootRule(),
     ...pages,
   ].filter((part): part is string => part !== null);
   const body = runs
