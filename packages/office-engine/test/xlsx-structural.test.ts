@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { applyXlsxEditBytes, bindXlsxGateway, createXlsxAdapter, type XlsxRecalcPort, type XlsxWorkbookSnapshot } from "../src/xlsx";
+import { applyXlsxEditBytes, bindXlsxGateway, createXlsxAdapter, readXlsxRenderModel, type XlsxRecalcPort, type XlsxWorkbookSnapshot } from "../src/xlsx";
 import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -199,5 +199,26 @@ describeWithPatchedGateway("xlsx structural ops on the real gateway", () => {
     await expect(
       applyXlsxEditBytes(engine, undefined, fixture(COMPAT_EDIT), ops, "test-build"),
     ).rejects.toMatchObject({ code: "engine_result_invalid" });
+  });
+});
+
+describeWithPatchedGateway("xlsx row outline levels across inserted rows", () => {
+  it("an outline set before and after insert_rows survives save and reopen at the final rows", async () => {
+    const engine = await load();
+    // The Subtotal shape: a group, a row inserted inside it, then levels on
+    // rows below the inserted one (journal order = final coordinates).
+    const saved = await savedWith(engine, COMPAT_EDIT, [
+      { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 1, end: 3, level: 1 } },
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 2, count: 1 } },
+      { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 5, end: 6, level: 2 } },
+    ]);
+    const reopened = await readXlsxRenderModel(engine, saved.bytes);
+    const data = reopened.sheets.find((sheet) => sheet.name === "Data");
+    if (!data) throw new Error("Data sheet missing");
+    const level = (row: number) => data.rowsMeta.find((meta) => meta.row === row)?.outlineLevel ?? 0;
+    // Rows 1-3 were grouped; the inserted row 2 has no level, the old rows 2-3
+    // moved to 3-4 with theirs; rows 5-6 carry the level set after the insert.
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map(level)).toEqual([0, 1, 0, 1, 1, 2, 2, 0]);
+    expect(await sheetXml(engine, saved.bytes)).toContain('outlineLevelRow="2"');
   });
 });
