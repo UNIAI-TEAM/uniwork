@@ -1,0 +1,4 @@
+$ set -a && . ./.env && set +a && bash scripts/test-go.sh --race --shard=service --skip-static --skip-floor
+ok  	github.com/unicomhub/uniwork/server/internal/service	717.633s	coverage: 70.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	40.759s	coverage: 77.2% of statements
+?   	github.com/unicomhub/uniwork/server/internal/service/templates	[no test files]
