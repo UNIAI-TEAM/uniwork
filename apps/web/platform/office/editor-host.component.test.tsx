@@ -8,6 +8,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { OfficeCapabilityEntry, SaveCoordinatorState } from "@uniwork/core/office";
 import { leaveGuardAllows } from "@uniwork/views/navigation";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "@uniwork/views/layout/header-actions-slot";
+import { OfficeTooLargeNotice } from "@uniwork/views/office";
 import { OfficeEditorHost, type OfficeEditorHostProps } from "./editor-host";
 import type { OfficeEditorSession } from "./editor-host-core";
 
@@ -137,6 +138,17 @@ async function settle(): Promise<void> {
 }
 
 describe("OfficeEditorHost composition", () => {
+  it("shows the too-large notice with the inline desktop launch and a document Download (UNI-956)", async () => {
+    const { session } = makeSession();
+    const { container, root } = renderHost(session, { editorView: React.createElement(OfficeTooLargeNotice, { format: "xlsx" }) });
+    await settle();
+    const notice = container.querySelector("[data-testid=office-too-large]")!;
+    expect(notice).not.toBeNull();
+    expect(notice.querySelector("[data-office-desktop-action]")).not.toBeNull();
+    expect(Array.from(notice.querySelectorAll("button")).some((b) => b.textContent?.trim() === "Download")).toBe(true);
+    act(() => root.unmount());
+  });
+
   it("keeps the session alive across a StrictMode mount-unmount-mount and disposes once on a real unmount", async () => {
     const { session } = makeSession();
     const container = document.createElement("div");

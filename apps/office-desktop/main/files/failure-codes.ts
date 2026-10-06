@@ -14,11 +14,10 @@ const FILE_FAILURE_CODES: Readonly<Record<string, string>> = {
   read_failed: "file_read_failed",
   write_failed: "file_write_failed",
   replace_failed: "file_replace_failed",
-  too_large: "file_too_large",
-  // Save-side only: the draft checkpoint that precedes a local Save failed, and
-  // a Save that grew past the limit (the open-side too_large keeps its own copy).
+  insufficient_memory: "file_insufficient_memory",
+  // Save-side only: the draft checkpoint that precedes a local Save failed.
+  // There is no size code: a local working file has no size cap (UNI-956).
   checkpoint_failed: "file_checkpoint_failed",
-  save_too_large: "file_save_too_large",
   saving: "file_save_in_progress",
   engine_unavailable: "file_engine_unavailable",
 };

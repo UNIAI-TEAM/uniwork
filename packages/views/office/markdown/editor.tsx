@@ -28,6 +28,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CompositionEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { OfficeTooLargeNotice, openFailureClassOf } from "../too-large-notice";
 import { Clipboard, Copy, Redo2, Undo2 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
@@ -37,6 +38,7 @@ import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import { OfficeFrame } from "../frame";
 import { MarkdownStatusBar } from "./status-bar";
+import { AssetManifestPanel } from "./asset-manifest-panel";
 import { useMarkdownCaret } from "./use-caret-position";
 import type { PreviewSession } from "../source-editor-types";
 import { canStepHistory, stepHistory } from "../common/history-step";
@@ -60,7 +62,7 @@ type MarkdownViewMode = "visual" | "source";
 
 function failureFor(documentKey: string, error: unknown): Extract<MarkdownOpenOutcome, { outcome: "failed" }> {
   return {
-    outcome: "failed", document_id: documentKey, format: "md", failure_class: "engine_error",
+    outcome: "failed", document_id: documentKey, format: "md", failure_class: openFailureClassOf(error),
     message: error instanceof Error ? error.message : String(error),
   } as Extract<MarkdownOpenOutcome, { outcome: "failed" }>;
 }
@@ -82,39 +84,6 @@ function canWrite<TSnapshot>(editor: MarkdownEditorProps<TSnapshot>["editor"]): 
 /** The web host's print path (M8): the shared isolated-frame port, so app
  * chrome never reaches the job. */
 const browserPrintPort = createBrowserPrintPort();
-
-function statusLabel(status: AssetStatus, t: (key: string) => string): string {
-  if (status === "ready") return t("asset.ready");
-  if (status === "missing") return t("asset.missing");
-  if (status === "unauthorised") return t("asset.unauthorised");
-  return t("asset.failed");
-}
-
-function AssetManifestPanel({ manifest, failures }: { manifest: AssetManifestLike; failures?: Readonly<Record<string, AssetStatus | boolean>> }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.markdown" });
-  const rows = assetManifestRows(manifest);
-  const extra = Object.entries(failures ?? {}).map(([path, status]) => ({
-    path,
-    assetId: null,
-    status: status === true || status === false ? "failed" as const : status,
-    reason: null,
-  }));
-  if (rows.length === 0 && extra.length === 0) {
-    return <p className="p-3 text-caption text-muted-foreground" data-testid="asset-manifest-empty">{t("asset.empty")}</p>;
-  }
-  return (
-    <ul className="divide-y divide-border" data-testid="asset-manifest">
-      {[...rows, ...extra].map((row, index) => (
-        <li className="flex min-w-0 items-center justify-between gap-2 px-3 py-2 text-caption" key={`${row.path}-${index}`}>
-          <span className="min-w-0 truncate font-mono" title={row.path}>{row.path}</span>
-          <span className={cn("shrink-0", row.status === "ready" ? "text-muted-foreground" : "text-destructive")}>
-            {row.assetId ?? statusLabel(row.status, t)}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 /** The Markdown document surface: lifecycle + the visual / source canvases. */
 export function MarkdownEditor<TSnapshot = unknown>({
@@ -593,7 +562,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
             </div>
           </div>
         </OfficeFrame>
-      ) : viewState === "error" && failure ? (
+      ) : viewState === "error" && failure ? failure.failure_class === "too_large" ? <OfficeTooLargeNotice format="md" /> : (
         <Alert className="m-3" variant="destructive" role="alert" data-testid="md-error-state">
           <AlertTitle>{t("errors.title")}</AlertTitle>
           <AlertDescription>{failure.message ?? t("errors.unknown")}</AlertDescription>

@@ -2,15 +2,15 @@
 // a devDependency; this is the only privileged entry module that imports it.
 // main/* modules receive the Electron objects they need as arguments.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, screen, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, screen, session, shell, utilityProcess } from "electron";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { desktopSessionMetadataSchema } from "./shared/ipc";
 import { desktopDialogFilters } from "./shared/document-formats";
-import { handleDesktopEngineCall, releaseRetainedPdfs, type DesktopEngineCall } from "@uniwork/office-engine/desktop";
 import { WINDOW_WEB_PREFERENCES } from "./main/index";
-import { createLocalXlsxEngine, resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
+import { resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
+import { createLocalEngineHost } from "./main/engine-host/remote";
 import { createHttpExchangePort, createLaunchBridge } from "./main/deep-links";
 import { resolveDeploymentProfile } from "./shared/deployment";
 import { createSecureCredentialStore } from "./main/credentials/secure-store";
@@ -123,7 +123,6 @@ async function startElectronHost(): Promise<void> {
 
   const { window, t, createHost, menuTemplate } = desktopShell.openWindow({ show: !SMOKE_MODE, preload: PRELOAD_PATH, workAreaHeight: screen.getPrimaryDisplay().workAreaSize.height });
   installPrintShortcut(window.webContents);
-  window.webContents.on("did-navigate", () => releaseRetainedPdfs()).on("render-process-gone", () => releaseRetainedPdfs()).on("destroyed", () => releaseRetainedPdfs());
   let nativeSaveListener: (() => void) | undefined;
   const officeTransport = deploymentProfile && credentials ? createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
     const session = await authManager?.refreshSession();
@@ -178,8 +177,14 @@ async function startElectronHost(): Promise<void> {
     });
   });
   const printHandlers = await createPrintHost({ tempDirectory: app.getPath("temp"), partitionSession: (partition) => session.fromPartition(partition), senderWindow: () => BrowserWindow.fromWebContents(window.webContents), createWindow: (options) => new BrowserWindow(options), distDirectory: dirname(DIST_MAIN_DIRECTORY) });
+  // The unbounded local engines (xlsx, pdfium) run in a utilityProcess with a
+  // machine-sized heap: a heap OOM there kills only the child, and every request
+  // in flight answers insufficient_memory (see main/engine-host).
+  const engineHost = createLocalEngineHost({ fork: (script, args, options) => utilityProcess.fork(script, args, options), script: join(DIST_MAIN_DIRECTORY, "engine-host.mjs"), assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) });
+  app.once("will-quit", () => engineHost.dispose());
+  window.webContents.on("did-navigate", () => engineHost.releasePdfs()).on("render-process-gone", () => engineHost.releasePdfs()).on("destroyed", () => engineHost.releasePdfs());
   const host = createHost({
-    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, sessionGeneration: request.sessionGeneration, args: { dataBase64: request.args.dataBase64, retain: request.args.retain, pdfHandle: request.args.pdfHandle, surface: request.args.surface, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
+    handlers: { "desktop:engine-call": (request) => engineHost.pdfCall({ operation: request.operation, handle: request.handle, sessionGeneration: request.sessionGeneration, args: { data: request.args.data, retain: request.args.retain, pdfHandle: request.args.pdfHandle, surface: request.args.surface, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } }), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
     }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }), ...printHandlers },
@@ -203,7 +208,7 @@ async function startElectronHost(): Promise<void> {
     deepLinks: { system: launchEvents.createDeepLinkSystem(), bridge: launchBridge },
     authManager,
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
-    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: createLocalXlsxEngine({ assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) }), ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: documentSession.localOpenContext, checkpoint: documentSession.localCheckpoint, onSaveConfirmed: documentSession.noteConfirmedLocalSave, onSaveAsConfirmed: documentSession.noteConfirmedLocalRebind,
+    localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: engineHost.xlsx, ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: documentSession.localOpenContext, checkpoint: documentSession.localCheckpoint, onSaveConfirmed: documentSession.noteConfirmedLocalSave, onSaveAsConfirmed: documentSession.noteConfirmedLocalRebind,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [...desktopDialogFilters(), { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];

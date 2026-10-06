@@ -1,5 +1,5 @@
-// @uniwork/office-engine/desktop — the PDF host lane. The desktop main process
-// owns pdfium/pdf-lib (Node only); the renderer reaches it through the typed
+// @uniwork/office-engine/desktop — the PDF host lane. The desktop engine host
+// (a utilityProcess Electron main supervises) owns pdfium/pdf-lib (Node only); the renderer reaches it through the typed
 // `desktop:engine-call` payload and never imports this module (ADR 0021). The
 // entries below are the whole lane: `open` probes the bytes into a view-safe
 // page summary plus per-page sizes, `edit` applies one batch and returns the
@@ -29,14 +29,14 @@ export interface DesktopEngineCall {
     /** `open`: keep the document in this process and answer a `pdfHandle`. */
     readonly retain?: unknown;
     /** `render` / `text` / `close`: the retained document, in place of
-     * `dataBase64`. A retained `open` naming the caller's live handle replaces
+     * `data`. A retained `open` naming the caller's live handle replaces
      * it and reuses the password that handle was opened with. */
     readonly pdfHandle?: unknown;
     /** The surface instance the call came from: two surfaces of one document
      * (draft recovery builds the new one before disposing the old) each keep
      * their own retained document. */
     readonly surface?: unknown;
-    readonly dataBase64?: unknown;
+    readonly data?: unknown;
     readonly edits?: unknown;
     readonly password?: unknown;
     readonly pageIndex?: unknown;
@@ -70,7 +70,7 @@ export interface DesktopEngineCloseResult {
 export interface DesktopEngineEditResult {
   readonly ok: true;
   readonly operation: "edit";
-  readonly dataBase64: string;
+  readonly data: Uint8Array;
   readonly warnings: PdfEditOutcome["warnings"];
   readonly report: PdfEditOutcome["report"];
 }
@@ -128,11 +128,12 @@ export class DesktopEngineCallError extends Error {
 const MAX_TEXT_PAGE_LIMIT = 32;
 
 function decode(input: unknown): Uint8Array {
-  if (typeof input !== "string") throw new DesktopEngineCallError("engine_input_missing");
-  return Uint8Array.from(Buffer.from(input, "base64"));
+  // The document arrives as binary through the typed IPC seam (never base64).
+  if (!(input instanceof Uint8Array)) throw new DesktopEngineCallError("engine_input_missing");
+  return input;
 }
 
-/** One retained document. The password lives only here, in main-process
+/** One retained document. The password lives only here, in engine-host
  * memory: it is never logged or answered, and leaves with the entry. */
 interface RetainedPdf {
   readonly owner: string;
@@ -146,7 +147,7 @@ interface RetainedPdfBudget {
 }
 
 /** Open documents across every window: a handful of tabs, and a total that a
- * desktop main process can hold beside the pdfium heap. */
+ * desktop engine host can hold beside the pdfium heap. */
 const DEFAULT_RETAINED_BUDGET: RetainedPdfBudget = { maxDocuments: 8, maxBytes: 512 * 1024 * 1024 };
 let retainedBudget = DEFAULT_RETAINED_BUDGET;
 /** Retained documents by handle; Map order is the LRU order (oldest first). */
@@ -214,15 +215,15 @@ function retain(owner: string, bytes: Uint8Array, password: string | undefined):
 }
 
 /** The bytes and password a call reads: the retained document its `pdfHandle`
- * names (touched as most recently used), else the inline `dataBase64`. A handle
+ * names (touched as most recently used), else the inline `data`. A handle
  * that is not a live one of this caller is stale, never another caller's. */
 function documentOf(call: DesktopEngineCall): { bytes: Uint8Array; password: string | undefined; pdfHandle?: string } {
   const pdfHandle = call.args.pdfHandle;
   if (pdfHandle === undefined) {
-    return { bytes: decode(call.args.dataBase64), password: typeof call.args.password === "string" ? call.args.password : undefined };
+    return { bytes: decode(call.args.data), password: typeof call.args.password === "string" ? call.args.password : undefined };
   }
   // A handle names the whole document: bytes beside it would be ambiguous.
-  if (typeof pdfHandle !== "string" || call.args.dataBase64 !== undefined) throw new DesktopEngineCallError("engine_input_missing");
+  if (typeof pdfHandle !== "string" || call.args.data !== undefined) throw new DesktopEngineCallError("engine_input_missing");
   const entry = retained.get(pdfHandle);
   if (!entry || entry.owner !== ownerOf(call)) throw new StaleHandleError();
   retained.delete(pdfHandle);
@@ -263,7 +264,7 @@ export function setRetainedPdfBudgetForTests(budget: RetainedPdfBudget): () => v
 
 async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResult> {
   if (call.operation === "open") {
-    const bytes = decode(call.args.dataBase64);
+    const bytes = decode(call.args.data);
     // The owner is fixed before the first await: an open that a renderer
     // reload overtakes still belongs to the load that sent it.
     const owner = ownerOf(call);
@@ -289,11 +290,11 @@ async function dispatch(call: DesktopEngineCall): Promise<DesktopEngineCallResul
     return { ok: true, operation: "close" };
   }
   if (call.operation === "edit") {
-    const bytes = decode(call.args.dataBase64);
+    const bytes = decode(call.args.data);
     void releaseLoadedPdf();
     if (!Array.isArray(call.args.edits)) throw new DesktopEngineCallError("engine_input_missing");
     const result = await applyPdfEditBytes(bytes, call.args.edits);
-    return { ok: true, operation: "edit", dataBase64: Buffer.from(result.bytes).toString("base64"), warnings: result.warnings, report: result.report };
+    return { ok: true, operation: "edit", data: result.bytes, warnings: result.warnings, report: result.report };
   }
   if (call.operation === "text") {
     const { bytes, password, pdfHandle } = documentOf(call);

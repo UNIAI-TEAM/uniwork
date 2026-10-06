@@ -31,6 +31,10 @@ const buildMetafiles = [];
 // shim sees a defined `require`.
 const mainRequireBanner = 'import { createRequire as __uniworkCreateRequire } from "node:module";\nconst require = __uniworkCreateRequire(import.meta.url);';
 buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtension: { ".js": ".mjs" }, platform: "node", banner: { js: mainRequireBanner }, entryPoints: { "main/index": join(app, "electron-main.ts") }, outdir: dist })).metafile);
+// The engine host utilityProcess (xlsx gateway + pdfium run here, not in main,
+// so a heap OOM cannot take the window host down). Same ESM + require shim as
+// main; dist/main/pdf-assets sits beside it, which is where pdfium looks.
+buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtension: { ".js": ".mjs" }, platform: "node", banner: { js: mainRequireBanner }, entryPoints: { "main/engine-host": join(app, "main/engine-host/child.ts") }, outdir: dist })).metafile);
 // Electron sandboxed preloads run as plain CommonJS. Keep this artifact
 // loadable under the pinned sandbox contract; native wiring may still inject
 // Electron through the adapter seam without exposing it to the renderer.

@@ -67,6 +67,9 @@ export interface DesktopOpenActionProps {
   loadPlatformHint?: () => Promise<DesktopPlatformGuess>;
   downloadInstaller?: (platform: DesktopPlatform) => Promise<void>;
   className?: string;
+  /** `header` (default) fills the page header slot and its compact menu;
+   * `inline` renders in place, always visible, with no header-slot behaviour. */
+  placement?: "header" | "inline";
 }
 
 function isAccepted(outcome: unknown): outcome is OfficeSaveOutcome & { accepted: true } {
@@ -105,6 +108,7 @@ export function DesktopOpenAction({
   loadPlatformHint,
   downloadInstaller,
   className,
+  placement = "header",
 }: DesktopOpenActionProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.desktop" });
   const [coordinatorState, setCoordinatorState] = useState(() => saveCoordinator?.getState() ?? null);
@@ -117,7 +121,9 @@ export function DesktopOpenAction({
   const [resolvedPlatforms, setResolvedPlatforms] = useState(supportedPlatforms);
   const [resolvedHint, setResolvedHint] = useState(platformHint);
   const [hintRequested, setHintRequested] = useState(false);
-  const inPageHeader = useHeaderActionsSlotAvailable();
+  const headerSlot = useHeaderActionsSlotAvailable();
+  const inline = placement === "inline";
+  const inPageHeader = headerSlot && !inline;
   const currentlyDirty = dirty || stateDirty(coordinatorState);
   const canOpenSaved = savedVersion !== null && Number.isSafeInteger(savedVersion) && savedVersion > 0;
   const label = t("action");
@@ -229,9 +235,9 @@ export function DesktopOpenAction({
     <>
       {compactMenuItems ? <HeaderActionsFill menuItems={compactMenuItems} /> : null}
       <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>
-        <Button type="button" variant="outline" size="sm" onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
+        <Button type="button" variant={inline ? "default" : "outline"} size="sm" onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
           <MonitorUp aria-hidden />
-          <span className="sr-only lg:not-sr-only">{working ? t("working") : label}</span>
+          <span className={inline ? undefined : "sr-only lg:not-sr-only"}>{working ? t("working") : label}</span>
         </Button>
         <DropdownMenu onOpenChange={requestHint}>
           <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon-sm" aria-label={t("menu")} title={t("menu")} />}>

@@ -17,6 +17,7 @@ import {
   type XlsxGatewayFunctions,
   type XlsxRecalcPort,
 } from "@uniwork/office-engine/xlsx";
+import { LOCAL_ENGINE_BOUNDS } from "../shared/local-engine-bounds";
 import { createXlsxSidecar, xlsxGatewayArtifactPath, xlsxSidecarPath } from "@uniwork/office-engine/xlsx/native";
 
 export interface LocalXlsxOpenResult {
@@ -29,7 +30,9 @@ export interface LocalXlsxEditResult {
   readonly checksum: string;
 }
 
-/** The main-owned local xlsx engine. Open and edit take the caller's bytes and
+/** The local xlsx engine. It runs unbounded inside the engine host child
+ *  (main/engine-host), never in the Electron main process, which holds the
+ *  remote twin of this interface (engine-host/remote.ts). Open and edit take the caller's bytes and
  *  return only a bounded snapshot/byte answer; no path, handle or engine
  *  identity ever crosses back to the renderer. */
 export interface LocalXlsxEngine {
@@ -113,14 +116,14 @@ export function createLocalXlsxEngine(options: LocalXlsxEngineOptions): LocalXls
   };
   return {
     async open(bytes) {
-      const opened = await openXlsxModel(await loadGateway(), bytes);
+      const opened = await openXlsxModel(await loadGateway(), bytes, { bounds: LOCAL_ENGINE_BOUNDS });
       return { snapshot: opened.snapshot, renderModel: opened.renderModel };
     },
     async edit(bytes, edits) {
       const gatewayFunctions = await loadGateway();
       const recalc = openRecalc();
       try {
-        const output = await applyXlsxEditBytes(gatewayFunctions, recalc, bytes, [...edits]);
+        const output = await applyXlsxEditBytes(gatewayFunctions, recalc, bytes, [...edits], undefined, LOCAL_ENGINE_BOUNDS);
         return { bytes: output.bytes, checksum: `sha256:${sha256Hex(output.bytes)}` };
       } catch (error) {
         // Without a port the adapter refuses a formula-bearing serialize with

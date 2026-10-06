@@ -66,6 +66,15 @@ function toXlsxFailure(error: unknown): XlsxTypedError {
   return new XlsxTypedError("engine_crashed", String((error as Error)?.message ?? error).slice(0, 300));
 }
 
+/** Byte bounds a host may lift: omitted = the server contract; the desktop
+ *  app passes Number.POSITIVE_INFINITY for a local file it does not cap. */
+export interface XlsxByteBounds {
+  readonly maxInputBytes?: number;
+  readonly maxOutputBytes?: number;
+  /** See XlsxAdapterDeps.zipGuard: "proportional" refuses a zip bomb before parsing. */
+  readonly zipGuard?: "proportional";
+}
+
 /**
  * open:xlsx — probe bytes into a document-model summary the service stores as
  * probe.json. The output is the probe artifact, not the input.
@@ -86,9 +95,9 @@ export interface XlsxOpenModel {
 export async function openXlsxModel(
   engine: XlsxGatewayFunctions,
   bytes: Uint8Array,
-  options: { renderModel?: boolean } = {},
+  options: { renderModel?: boolean; bounds?: XlsxByteBounds } = {},
 ): Promise<XlsxOpenModel> {
-  const adapter = new XlsxAdapter({ engine });
+  const adapter = new XlsxAdapter({ engine, ...options.bounds });
   const outcome = await adapter.open({ bytes, format: "xlsx", document_id: "job" });
   if (outcome.outcome !== "opened") {
     throw new XlsxTypedError("engine_result_invalid", outcome.failure_class + ": " + (outcome.message ?? ""));
@@ -147,8 +156,9 @@ export async function applyXlsxEditBytes(
   bytes: Uint8Array,
   ops: unknown[],
   engineVersion?: string,
+  bounds?: XlsxByteBounds,
 ): Promise<{ bytes: Uint8Array; warnings: { code: string; detail: string }[] }> {
-  const adapter = new XlsxAdapter({ engine, recalc, ...(engineVersion !== undefined ? { engineVersion } : {}) });
+  const adapter = new XlsxAdapter({ engine, recalc, ...(engineVersion !== undefined ? { engineVersion } : {}), ...bounds });
   const outcome = await adapter.open({ bytes, format: "xlsx", document_id: "job" });
   if (outcome.outcome !== "opened") {
     throw new XlsxTypedError("engine_result_invalid", outcome.failure_class + ": " + (outcome.message ?? ""));

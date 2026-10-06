@@ -6,7 +6,7 @@ import { DesktopEngineCallError, handleDesktopEngineCall, releaseRetainedPdfs, r
 import { assertRotationAware } from "../src/desktop/pdf-render";
 
 const FIXTURES = fileURLToPath(new URL("../../../docs/office/g0/fixtures/files/pdf/", import.meta.url));
-const b64 = (name: string) => Buffer.from(readFileSync(FIXTURES + name)).toString("base64");
+const b64 = (name: string) => new Uint8Array(readFileSync(FIXTURES + name));
 
 /** A 100x200 portrait page with one text line near the top-left, optionally carrying a /Rotate. */
 async function rotatedTextPdf(rotation: number): Promise<Uint8Array> {
@@ -20,7 +20,7 @@ async function rotatedTextPdf(rotation: number): Promise<Uint8Array> {
 
 describe("desktop PDF engine host", () => {
   it("probes a real PDF into a view-safe page summary", async () => {
-    const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf") } });
+    const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", args: { data: b64("pdf-text-editable.pdf") } });
     expect(result).toMatchObject({ ok: true, operation: "open" });
     if (!result.ok || result.operation !== "open") throw new Error("unreachable");
     expect(result.probe.pageCount).toBeGreaterThan(0);
@@ -28,7 +28,7 @@ describe("desktop PDF engine host", () => {
   });
 
   it("reports per-page sizes in points so the renderer can lay out the right page box", async () => {
-    const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf") } });
+    const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", args: { data: b64("pdf-text-editable.pdf") } });
     if (!result.ok || result.operation !== "open") throw new Error("unreachable");
     expect(result.pageSizes).toHaveLength(result.probe.pageCount);
     for (const size of result.pageSizes) {
@@ -40,7 +40,7 @@ describe("desktop PDF engine host", () => {
   });
 
   it("rasterises one page to a non-empty PNG at the requested scale", async () => {
-    const result = await handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), pageIndex: 0, scale: 1 } });
+    const result = await handleDesktopEngineCall({ operation: "render", handle: "doc", args: { data: b64("pdf-text-editable.pdf"), pageIndex: 0, scale: 1 } });
     if (!result.ok || result.operation !== "render") throw new Error("unreachable");
     expect(result.width).toBeGreaterThan(0);
     expect(result.height).toBeGreaterThan(result.width);
@@ -50,25 +50,25 @@ describe("desktop PDF engine host", () => {
   });
 
   it("refuses a render for an out-of-range page or a malformed request", async () => {
-    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), pageIndex: 9, scale: 1 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_render_unavailable" });
-    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), pageIndex: 0 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
-    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), pageIndex: 0, scale: 0 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { data: b64("pdf-text-editable.pdf"), pageIndex: 9, scale: 1 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_render_unavailable" });
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { data: b64("pdf-text-editable.pdf"), pageIndex: 0 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { data: b64("pdf-text-editable.pdf"), pageIndex: 0, scale: 0 } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
   });
 
   it("renders an encrypted page with the supplied password and answers a wall as typed data", async () => {
-    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), pageIndex: 0, scale: 1 } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
-    const opened = await handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), pageIndex: 0, scale: 1, password: "    " } });
+    await expect(handleDesktopEngineCall({ operation: "render", handle: "doc", args: { data: b64("pdf-password-4spaces.pdf"), pageIndex: 0, scale: 1 } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
+    const opened = await handleDesktopEngineCall({ operation: "render", handle: "doc", args: { data: b64("pdf-password-4spaces.pdf"), pageIndex: 0, scale: 1, password: "    " } });
     expect(opened).toMatchObject({ ok: true, operation: "render" });
   });
 
   it("answers a password wall as typed data so it survives the IPC hop", async () => {
-    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf") } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { data: b64("pdf-password-4spaces.pdf") } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
   });
 
   it("opens an encrypted file with the supplied password and answers wrong as typed data", async () => {
-    const opened = await handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), password: "    " } });
+    const opened = await handleDesktopEngineCall({ operation: "open", handle: "doc", args: { data: b64("pdf-password-4spaces.pdf"), password: "    " } });
     expect(opened).toMatchObject({ ok: true, operation: "open" });
-    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), password: "nope" } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "wrong" } });
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { data: b64("pdf-password-4spaces.pdf"), password: "nope" } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "wrong" } });
   });
 
   it("refuses an unbound operation by name before reading the payload", async () => {
@@ -76,15 +76,20 @@ describe("desktop PDF engine host", () => {
     await expect(handleDesktopEngineCall({ operation: "cancel", handle: "doc", args: {} })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_operation_unsupported" });
   });
 
+  it("refuses a document that is not binary (a base64 string is no longer a wire form)", async () => {
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { data: "JVBERi0=" } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", args: { dataBase64: "JVBERi0=" } as unknown as Parameters<typeof handleDesktopEngineCall>[0]["args"] })).rejects.toMatchObject({ code: "engine_input_missing" });
+  });
+
   it("refuses a malformed edit payload instead of fabricating an empty batch", async () => {
-    await expect(handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), edits: "not-an-array" } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
+    await expect(handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { data: b64("pdf-text-editable.pdf"), edits: "not-an-array" } })).rejects.toMatchObject({ name: "DesktopEngineCallError", code: "engine_input_missing" });
   });
 
   it("applies one edit batch and returns the verified output bytes", async () => {
-    const result = await handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), edits: [{ op: "deletePage", attributes: { pageIndex: 0 } }] } });
+    const result = await handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { data: b64("pdf-text-editable.pdf"), edits: [{ op: "deletePage", attributes: { pageIndex: 0 } }] } });
     if (!result.ok || result.operation !== "edit") throw new Error("unreachable");
     expect(result.report.pageOps.deletions).toBe(1);
-    const reopened = await PDFDocument.load(Buffer.from(result.dataBase64, "base64"));
+    const reopened = await PDFDocument.load(Buffer.from(result.data));
     expect(reopened.getPageCount()).toBe(1);
   });
 
@@ -93,9 +98,9 @@ describe("desktop PDF engine host", () => {
   });
 
   it("keeps the original bytes when an edit is refused", async () => {
-    await expect(handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), edits: [] } })).rejects.toMatchObject({ name: "PdfTypedError", reason: "encrypted_pdf" });
+    await expect(handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { data: b64("pdf-password-4spaces.pdf"), edits: [] } })).rejects.toMatchObject({ name: "PdfTypedError", reason: "encrypted_pdf" });
   });
-  const textCall = (name: string, extra: Record<string, unknown>) => handleDesktopEngineCall({ operation: "text", handle: "doc", args: { dataBase64: b64(name), ...extra } });
+  const textCall = (name: string, extra: Record<string, unknown>) => handleDesktopEngineCall({ operation: "text", handle: "doc", args: { data: b64(name), ...extra } });
 
   it("reads a single page of text by default and skips char boxes unless geometry is asked for", async () => {
     const result = await textCall("pdf-table.pdf", { pageIndex: 0 });
@@ -137,9 +142,9 @@ describe("desktop PDF engine host", () => {
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);
     for (let n = 1; n <= 5; n += 1) doc.addPage([100, 100]).drawText(`Page number ${n}`, { x: 5, y: 50, size: 10, font });
-    const data = Buffer.from(await doc.save()).toString("base64");
+    const data = new Uint8Array(await doc.save());
     const read = async (args: Record<string, unknown>) => {
-      const result = await handleDesktopEngineCall({ operation: "text", handle: "doc", args: { dataBase64: data, ...args } });
+      const result = await handleDesktopEngineCall({ operation: "text", handle: "doc", args: { data, ...args } });
       if (!result.ok || result.operation !== "text") throw new Error("unreachable");
       return result;
     };
@@ -165,8 +170,8 @@ describe("desktop PDF engine host", () => {
     [90, "right"],
     [270, "left"],
   ] as const)("maps char boxes into display space on a /Rotate %i page", async (rotation, side) => {
-    const bytes = Buffer.from(await rotatedTextPdf(rotation)).toString("base64");
-    const result = await handleDesktopEngineCall({ operation: "text", handle: "doc", args: { dataBase64: bytes, pageIndex: 0, geometry: true } });
+    const bytes = new Uint8Array(await rotatedTextPdf(rotation));
+    const result = await handleDesktopEngineCall({ operation: "text", handle: "doc", args: { data: bytes, pageIndex: 0, geometry: true } });
     if (!result.ok || result.operation !== "text") throw new Error("unreachable");
     expect(result.pages).toHaveLength(1);
     const page = result.pages[0]!;
@@ -194,7 +199,7 @@ describe("desktop PDF engine host", () => {
   });
 
   it("answers a password wall on the text channel as typed data", async () => {
-    await expect(handleDesktopEngineCall({ operation: "text", handle: "doc", args: { dataBase64: b64("pdf-password-4spaces.pdf"), pageIndex: 0 } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
+    await expect(handleDesktopEngineCall({ operation: "text", handle: "doc", args: { data: b64("pdf-password-4spaces.pdf"), pageIndex: 0 } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
   });
 });
 
@@ -209,13 +214,13 @@ describe("desktop PDF engine host: retained documents", () => {
   });
 
   const openRetained = async (handle: string, name = "pdf-text-editable.pdf", extra: Record<string, unknown> = {}, sessionGeneration = SESSION): Promise<string> => {
-    const result = await handleDesktopEngineCall({ operation: "open", handle, sessionGeneration, args: { dataBase64: b64(name), retain: true, ...extra } });
+    const result = await handleDesktopEngineCall({ operation: "open", handle, sessionGeneration, args: { data: b64(name), retain: true, ...extra } });
     if (!result.ok || result.operation !== "open" || !result.pdfHandle) throw new Error("open did not retain");
     return result.pdfHandle;
   };
 
   it("does not retain an open that did not ask for it", async () => {
-    const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { dataBase64: b64("pdf-text-editable.pdf") } });
+    const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { data: b64("pdf-text-editable.pdf") } });
     expect(result).not.toHaveProperty("pdfHandle");
     expect(retainedPdfStatsForTests().documents).toBe(0);
   });
@@ -236,7 +241,7 @@ describe("desktop PDF engine host: retained documents", () => {
   });
 
   it("never retains a document whose open hit the password wall", async () => {
-    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { dataBase64: b64("pdf-password-4spaces.pdf"), retain: true } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { data: b64("pdf-password-4spaces.pdf"), retain: true } })).resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
     expect(retainedPdfStatsForTests().documents).toBe(0);
   });
 
@@ -285,7 +290,7 @@ describe("desktop PDF engine host: retained documents", () => {
   });
 
   it("evicts past the byte budget but always keeps the newest document", async () => {
-    const size = Buffer.from(b64("pdf-text-editable.pdf"), "base64").byteLength;
+    const size = b64("pdf-text-editable.pdf").byteLength;
     restoreBudget = setRetainedPdfBudgetForTests({ maxDocuments: 10, maxBytes: size + 1 });
     const first = await openRetained("doc-0");
     await openRetained("doc-1");

@@ -3,7 +3,7 @@
 import { createElement, lazy, Suspense, type ReactNode } from "react";
 import { sha256Hex } from "@uniwork/office-contracts";
 import { applyPdfOpsInBrowser, readPdfFormFields, readPdfNotes } from "@uniwork/office-engine/browser";
-import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, StableSnapshot } from "@uniwork/core/office";
+import { isOfficeTooLarge, type EditorHandle, type OfficeCapabilityEntry, type OfficeHost, type StableSnapshot } from "@uniwork/core/office";
 import {
   bridgePdfOperations,
   createPdfEditorLoader,
@@ -38,7 +38,7 @@ export interface PdfFormatAdapterOptions extends BrowserOfficeDraftOptions<PdfSn
 }
 
 type SearchHits = Awaited<ReturnType<NonNullable<PdfEditorHandle["searchText"]>>>;
-type FailureClass = "password_required" | "wrong_password" | "engine_error";
+type FailureClass = "password_required" | "wrong_password" | "too_large" | "engine_error";
 
 interface PdfEditorSurface extends PdfEditorHandle<PdfSnapshot> {
   /** The web lane opens with an optional password (C3) and threads the
@@ -68,7 +68,8 @@ function pushBounded(stack: Uint8Array[], bytes: Uint8Array, budget: number): vo
 
 function failureClassOf(error: unknown): FailureClass {
   const code = (error as { code?: unknown } | null)?.code;
-  return code === "password_required" || code === "wrong_password" ? code : "engine_error";
+  if (code === "password_required" || code === "wrong_password") return code;
+  return isOfficeTooLarge(error as { code?: string; kind?: string; failureClass?: string }) ? "too_large" : "engine_error";
 }
 
 /**

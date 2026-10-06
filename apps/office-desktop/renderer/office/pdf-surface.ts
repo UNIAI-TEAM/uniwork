@@ -4,6 +4,7 @@ import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopIpcRequest } from "../../shared/ipc";
 import { createPdfEngineSession } from "./pdf-engine-session";
 import type { DesktopSurfaceSettings } from "./surface";
+import { incomingBytes, typedMemoryFailure } from "./bytes";
 
 /** One page's size in PDF points, in page order; zero when pdfium could not
  * read it. */
@@ -38,7 +39,7 @@ type EngineResponse = {
   pngBase64?: string;
   width?: number;
   height?: number;
-  dataBase64?: string;
+  data?: Uint8Array;
   /** Text layers of the requested page range (text read); `charBoxes` is empty unless
    * the request asked for geometry. */
   pageCount?: number;
@@ -48,17 +49,6 @@ type EngineResponse = {
   warnings?: readonly { code: string; detail?: string }[];
   error?: { kind?: string; status?: string };
 };
-
-function decodeBase64(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
-function encodeBase64(value: Uint8Array): string {
-  let binary = "";
-  for (let offset = 0; offset < value.length; offset += 0x8000) binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
 
 /** Pages one text-only read covers; the engine caps a range at 32. */
 const TEXT_CHUNK_PAGES = 16;
@@ -195,7 +185,10 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
   const surfaceId = newSurfaceId();
   const callEngine = async (operation: "open" | "edit" | "render" | "text" | "close", args: Record<string, unknown>): Promise<EngineResponse> => {
     const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args: { ...args, surface: surfaceId } };
-    return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse;
+    // A crashed engine host (heap OOM) reaches here as a bare invoke rejection;
+    // it leaves as the typed file_insufficient_memory error.
+    try { return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse; }
+    catch (error) { throw typedMemoryFailure(error); }
   };
 
   /** The engine keeps the opened bytes: open and every byte swap send the
@@ -214,7 +207,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
    * this one transfer and stays engine-side for the handle's renders and for
    * every re-probe that names the handle. */
   function retainedOpenArgs(withPassword: string | undefined): Record<string, unknown> {
-    const args: Record<string, unknown> = { dataBase64: bytesBase64(), retain: true };
+    const args: Record<string, unknown> = { data: bytes, retain: true };
     if (withPassword !== undefined) args.password = withPassword;
     return args;
   }
@@ -225,13 +218,6 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
    * request (print) reads an entry the view holds but never adds one. */
   let cache = new Map<string, Promise<PdfRenderResult>>();
   const clearCache = (): void => { cache = new Map(); };
-
-  /** The document's base64, memoized per generation so a search or a render burst
-   * does not re-encode the whole file for every engine call. Every place that
-   * swaps `bytes` (open, edit, dispose) drops it. */
-  let encoded: string | null = null;
-  const bytesBase64 = (): string => { encoded ??= encodeBase64(bytes); return encoded; };
-  const clearEncoded = (): void => { encoded = null; };
 
   /** The engine's text reads within one generation: text-only chunks of
    * `TEXT_CHUNK_PAGES` pages keyed by chunk start, and one-page geometry reads
@@ -316,7 +302,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
       // Name the live handle: the engine re-keys the new bytes to the password
       // it already holds, so a byte swap never sends the password again.
       const live = engineSession.current();
-      const result = await callEngine("open", live ? { dataBase64: bytesBase64(), retain: true, pdfHandle: live } : retainedOpenArgs(password));
+      const result = await callEngine("open", live ? { data: bytes, retain: true, pdfHandle: live } : retainedOpenArgs(password));
       // The engine now holds the new bytes; without a handle the next render
       // re-sends them instead of drawing the pre-edit document.
       engineSession.adopt(result.ok ? result.pdfHandle : undefined);
@@ -336,7 +322,6 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
   const swapBytes = async (next: Uint8Array, commit: () => void): Promise<boolean> => {
     if (disposed) return false;
     bytes = next;
-    clearEncoded();
     await refreshGeometry();
     if (disposed) return false;
     generation += 1;
@@ -356,9 +341,9 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
   const applyEngineEdits = (edits: readonly unknown[]): Promise<{ skipped: { op: string; reason: string }[] }> => enqueue(async () => {
     if (settings.readOnly) throw new Error("pdf_readonly");
     const before = bytes;
-    const result = await callEngine("edit", { dataBase64: bytesBase64(), edits: [...edits] });
-    if (!result.ok || !result.dataBase64) throw new Error("pdf_edit_failed");
-    const applied = await swapBytes(Uint8Array.from(decodeBase64(result.dataBase64)), () => {
+    const result = await callEngine("edit", { data: bytes, edits: [...edits] });
+    if (!result.ok || !result.data) throw new Error("pdf_edit_failed");
+    const applied = await swapBytes(incomingBytes(result.data), () => {
       pushBounded(undoStack, before, undoByteBudget);
       redoStack = [];
     });
@@ -388,7 +373,6 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     async open(_signal?: AbortSignal, nextPassword?: string) {
       if (disposed) throw new Error("pdf_surface_disposed");
       bytes = Uint8Array.from(await settings.readBytes());
-      clearEncoded();
       const result = await callEngine("open", retainedOpenArgs(nextPassword));
       engineSession.adopt(result.ok ? result.pdfHandle : undefined);
       if (result.ok && result.probe) {
@@ -488,7 +472,7 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     redo: () => step(() => redoStack, () => undoStack),
     canUndo: () => !settings.readOnly && undoStack.length > 0,
     canRedo: () => !settings.readOnly && redoStack.length > 0,
-    dispose: () => { disposed = true; engineSession.close(); listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = []; clearCache(); clearTextCache(); bytes = Uint8Array.from([]); clearEncoded(); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
+    dispose: () => { disposed = true; engineSession.close(); listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = []; clearCache(); clearTextCache(); bytes = Uint8Array.from([]); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
   };
   return surface;
 }

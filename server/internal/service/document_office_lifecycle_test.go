@@ -435,6 +435,28 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("an xlsx open model over the bound settles as a non-retryable byte_bound failure", func(t *testing.T) {
+		f := newOfficeFixture(t, "too-large\n")
+		eng := newScriptedEngine()
+		svc := f.service(eng)
+		docID, verID, rev := f.seedDocument(t, "big workbook\n")
+		in := f.input("k-xlsx-too-large")
+		in.DocumentID, in.BaseVersionID, in.BaseRevision = docID, verID, rev
+		row, err := svc.StartOfficeJob(ctx, f.actor, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		eng.fail(row.ID, office.JobFailed, "upload_bounds", "xlsx_open_model_too_large")
+		got, err := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, row.ID)
+		if err != nil || got.State != "failed" || got.ErrorCode.String != "upload_bounds" || got.ErrorReason.String != "xlsx_open_model_too_large" {
+			t.Fatalf("settled row: %+v %v", got, err)
+		}
+		kind, retryable, ok := OfficeErrorClassification(got.ErrorCode.String)
+		if !ok || kind != "byte_bound" || retryable {
+			t.Fatalf("classification: kind=%q retryable=%v ok=%v", kind, retryable, ok)
+		}
+	})
+
 	t.Run("an engine that lost the job settles from the provider-output intent", func(t *testing.T) {
 		f := newOfficeFixture(t, "lost\n")
 		eng := newScriptedEngine()

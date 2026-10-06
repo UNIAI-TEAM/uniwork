@@ -69,6 +69,15 @@ describe("desktop PPTX session runtime", () => {
     expect(await runtime.edit(ref, [hide(false)])).toEqual({ revision: 5 });
   });
 
+  it("opens a deck above the 64 MiB server input bound (a local file is not size-capped)", async () => {
+    const runtime = createWebPptxSessionRuntime({ documentId: "doc" });
+    const base = makeFakePptxBytes();
+    const big = new Uint8Array(65 * 1024 * 1024);
+    big.set(base);
+    const result = await runtime.open({ bytes: big, documentId: "doc" });
+    expect(result.failure_class).not.toBe("too_large");
+  });
+
   it("reads the live package's slide layouts and refuses after release", async () => {
     const { runtime, ref } = await opened();
     expect(runtime.slideLayouts!(ref)).toEqual([{ name: "Title Slide", path: "ppt/slideLayouts/slideLayout1.xml" }]);

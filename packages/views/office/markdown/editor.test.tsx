@@ -172,6 +172,14 @@ describe("MarkdownEditor (production surface)", () => {
     expect(open).toHaveBeenCalledTimes(1);
   });
 
+  it("renders the shared too-large notice, not the generic error, when the open is too_large (UNI-956)", async () => {
+    const handle = { format: "md", open: vi.fn(async () => undefined), getDirtyGeneration: () => 0, captureSnapshot: vi.fn(), undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), source: { getText: () => "", setText: vi.fn() } } as unknown as MarkdownEditorHandle;
+    const outcome = { outcome: "failed", document_id: "doc", format: "md", failure_class: "too_large" } as MarkdownOpenOutcome;
+    render(<MarkdownEditor documentKey="doc" editor={handle} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator()} capability={CAPABILITY} />);
+    await waitFor(() => expect(screen.getByTestId("office-too-large")).toBeInTheDocument());
+    expect(screen.queryByTestId("md-error-state")).toBeNull();
+  });
+
   it("gates editing on the capability: an unavailable build renders the error state", async () => {
     const onOpen = vi.fn();
     const handle = { format: "md", open: vi.fn(async () => undefined), getDirtyGeneration: () => 0, captureSnapshot: vi.fn(), undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), source: { getText: () => "", setText: vi.fn() } } as unknown as MarkdownEditorHandle;

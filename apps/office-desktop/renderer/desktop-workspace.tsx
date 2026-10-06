@@ -1,3 +1,4 @@
+import { isMemoryFailure } from "./office/bytes";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DraftRecoveryPrompt, LeaveDialog, type LeaveChoice } from "@uniwork/views/office/leave-dialog";
@@ -32,7 +33,7 @@ function readCloudOpen(raw: unknown): { document: DesktopLibraryDocument; bytes:
   const opened = desktopOfficeOpenResponseSchema.safeParse(raw);
   if (opened.success) return { document: opened.data.document, bytes: { ...opened.data, format: opened.data.document.format } };
   const context = desktopOfficeContextResponseSchema.safeParse(raw);
-  return context.success ? { document: context.data.document, bytes: { dataBase64: "", checksum: "", format: context.data.document.format } } : null;
+  return context.success ? { document: context.data.document, bytes: { data: new Uint8Array(0), checksum: "", format: context.data.document.format } } : null;
 }
 type OpenTabBytes = CloudReopen["bytes"];
 export type SignedInMetadata = DesktopSessionMetadata & { status: "signed-in"; accountId: string; deploymentId: string };
@@ -218,13 +219,13 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       return;
     }
     // An empty Markdown file is a valid document; only an omitted payload is malformed.
-    if (!result.metadata || result.dataBase64 === undefined) throw new Error("invalid_file");
+    if (!result.metadata || result.data === undefined) throw new Error("invalid_file");
     const file = result.metadata;
     const format = desktopDocumentFormatForName(file.name);
     if (!format) { setActionError(t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) })); return; }
     const spec = desktopDocumentFormatSpec(format);
     const title = file.untitled ? (spec.untitledLocaleKey ? t(spec.untitledLocaleKey) : spec.untitledName) : file.name;
-    if (tabs.open({ kind: "local", title, format, bytes: { format, dataBase64: result.dataBase64, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
+    if (tabs.open({ kind: "local", title, format, bytes: { format, data: result.data, checksum: file.checksum, localHandle: file.handle, localUntitled: file.untitled === true }, identity: { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: file.handle, generation: lifetime.current + 1, baseRevision: String(Math.trunc(file.modifiedAtMs)), baseVersionId: file.checksum } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
     if (modeRef.current === "local") recents.reload();
   };
   // A cloud open waits (briefly) for the in-flight flags fetch so a fast open does not lose to a slow config.
@@ -241,7 +242,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       });
       syncQueue.current = opened.catch(() => undefined);
       await opened;
-    } catch { if (mounted.current && epoch === lifetime.current) setActionError(t("officeDesktop.library.actionError")); }
+    } catch (error) { if (mounted.current && epoch === lifetime.current) setActionError(isMemoryFailure(error) ? t("office.save.reason.file_insufficient_memory") : t("officeDesktop.library.actionError")); }
     finally { actionBusy.current = false; if (mounted.current) setBusy(false); }
   };
   const openCloud = (document: Pick<DesktopLibraryDocument, "id" | "version" | "format">, allowSave = true) => {

@@ -7847,6 +7847,12 @@
     }
   },
   "office": {
+    "too_large": {
+      "title": "File is too large to edit on the web",
+      "description": "This {{format}} file exceeds the browser size limit. Open it in the UniWork Office desktop app to keep working — the app has no file size limit.",
+      "download": "Download",
+      "download_failed": "The file could not be downloaded. Try again."
+    },
     "common": {
       "print": "Print",
       "printTooLarge": "This document is too large to print.",
@@ -9111,8 +9117,8 @@
         "file_session_revoked": "The session changed while the file was being handled. Check whether the file was saved, then try again.",
         "file_write_failed": "The file could not be written. Check the free space and permissions, then try again. Your changes are kept.",
         "file_replace_failed": "The file could not be replaced with the new version. Close it in other programs, then try again. Your changes are kept.",
-        "file_too_large": "The file is too large for UniWork Office to open.",
-        "file_save_too_large": "The document is now larger than UniWork Office can save. Your changes are kept: remove some content, then save again.",
+        "file_too_large": "The file is too large for UniWork Office to handle.",
+        "file_insufficient_memory": "This computer does not have enough memory to open this file. Close other apps, then try again.",
         "file_read_failed": "The file could not be read. Check that you have permission to open it, then try again.",
         "file_checkpoint_failed": "Your changes could not be protected on this computer first, so the file was not saved. Try again.",
         "file_save_in_progress": "Another save is still running. Wait for it to finish, then try again.",

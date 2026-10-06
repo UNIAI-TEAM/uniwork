@@ -5,7 +5,7 @@ import { handleDesktopEngineCall, releaseRetainedPdfs, retainedPdfStatsForTests 
 import { loadedPdfKeyForTests, releaseLoadedPdf } from "../src/desktop/pdf-render";
 
 const FIXTURES = fileURLToPath(new URL("../../../docs/office/g0/fixtures/files/pdf/", import.meta.url));
-const b64 = (name: string) => Buffer.from(readFileSync(FIXTURES + name)).toString("base64");
+const b64 = (name: string) => new Uint8Array(readFileSync(FIXTURES + name));
 const SESSION = "session_1234";
 const STALE = { ok: false, error: { kind: "handle", status: "unknown" } };
 
@@ -13,7 +13,7 @@ const STALE = { ok: false, error: { kind: "handle", status: "unknown" } };
 const settlePdfium = (): Promise<void> => releaseLoadedPdf("pdf_settle_only");
 
 const openRetained = async (extra: Record<string, unknown> = {}, name = "pdf-text-editable.pdf"): Promise<string> => {
-  const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { dataBase64: b64(name), retain: true, ...extra } });
+  const result = await handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { data: b64(name), retain: true, ...extra } });
   if (!result.ok || result.operation !== "open" || !result.pdfHandle) throw new Error("open did not retain");
   return result.pdfHandle;
 };
@@ -39,7 +39,7 @@ describe("retained PDFs belong to one renderer load", () => {
   });
 
   it("keeps nothing for an open that was still in flight when the load ended", async () => {
-    const pending = handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { dataBase64: b64("pdf-text-editable.pdf"), retain: true } });
+    const pending = handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { data: b64("pdf-text-editable.pdf"), retain: true } });
     releaseRetainedPdfs();
     await expect(pending).resolves.toEqual(STALE);
     expect(retainedPdfStatsForTests().documents).toBe(0);
@@ -74,7 +74,7 @@ describe("closing and reading a retained PDF", () => {
 
   it("refuses a read that carries both a handle and bytes", async () => {
     const pdfHandle = await openRetained();
-    await expect(render(pdfHandle, { dataBase64: b64("pdf-text-editable.pdf") })).rejects.toMatchObject({ code: "engine_input_missing" });
+    await expect(render(pdfHandle, { data: b64("pdf-text-editable.pdf") })).rejects.toMatchObject({ code: "engine_input_missing" });
   });
 });
 
@@ -90,9 +90,9 @@ describe("re-opening a retained PDF by handle", () => {
 
   it("lends no password from a handle the caller does not own", async () => {
     const owned = await openRetained({ surface: "surface-a", password: "    " }, "pdf-password-4spaces.pdf");
-    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { dataBase64: b64("pdf-password-4spaces.pdf"), retain: true, pdfHandle: owned, surface: "surface-b" } }))
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { data: b64("pdf-password-4spaces.pdf"), retain: true, pdfHandle: owned, surface: "surface-b" } }))
       .resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
-    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { dataBase64: b64("pdf-password-4spaces.pdf"), retain: true, pdfHandle: "pdf_unknown" } }))
+    await expect(handleDesktopEngineCall({ operation: "open", handle: "doc", sessionGeneration: SESSION, args: { data: b64("pdf-password-4spaces.pdf"), retain: true, pdfHandle: "pdf_unknown" } }))
       .resolves.toEqual({ ok: false, error: { kind: "password", status: "required" } });
   });
 });
@@ -100,7 +100,7 @@ describe("re-opening a retained PDF by handle", () => {
 describe("one loaded pdfium document per retained handle", () => {
   it("keeps the rendered handle's document loaded and draws the same pixels as an inline render", async () => {
     const pdfHandle = await openRetained();
-    const inline = await handleDesktopEngineCall({ operation: "render", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), pageIndex: 0, scale: 0.2 } });
+    const inline = await handleDesktopEngineCall({ operation: "render", handle: "doc", args: { data: b64("pdf-text-editable.pdf"), pageIndex: 0, scale: 0.2 } });
     expect(loadedPdfKeyForTests()).toBeNull();
     const first = await render(pdfHandle);
     expect(loadedPdfKeyForTests()).toBe(pdfHandle);
@@ -134,13 +134,13 @@ describe("one loaded pdfium document per retained handle", () => {
   it("frees the loaded document before an edit turn and before an open turn", async () => {
     const pdfHandle = await openRetained();
     await render(pdfHandle);
-    const edit = handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { dataBase64: b64("pdf-text-editable.pdf"), edits: [] } });
+    const edit = handleDesktopEngineCall({ operation: "edit", handle: "doc", args: { data: b64("pdf-text-editable.pdf"), edits: [] } });
     await settlePdfium();
     expect(loadedPdfKeyForTests()).toBeNull();
     await edit;
     await render(pdfHandle);
     expect(loadedPdfKeyForTests()).toBe(pdfHandle);
-    const open = handleDesktopEngineCall({ operation: "open", handle: "doc-other", args: { dataBase64: b64("pdf-text-editable.pdf") } });
+    const open = handleDesktopEngineCall({ operation: "open", handle: "doc-other", args: { data: b64("pdf-text-editable.pdf") } });
     await settlePdfium();
     expect(loadedPdfKeyForTests()).toBeNull();
     await open;
