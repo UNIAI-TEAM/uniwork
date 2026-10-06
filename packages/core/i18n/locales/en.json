@@ -9879,6 +9879,8 @@
         "capabilityUnavailable": "XLSX editing is not available here.",
         "rendererFailed": "This workbook could not be displayed. Try opening it again.",
         "editFailed": "This edit could not be applied. Reopen the workbook before saving.",
+        "commandRefused": "The row or column change could not be applied. Check the selection and try again.",
+        "dismiss": "Dismiss",
         "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again.",
         "richPasteValuesOnly": "Formatting could not be kept for this paste, so only the values were pasted."
       },
