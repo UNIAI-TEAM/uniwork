@@ -4,6 +4,9 @@ import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import { collectXlsxPrintSheet } from "./collect";
 import { parsePrintRange, parseTitleRows, resolvePrintSetup } from "./print-setup";
 
+// The print collector reads only cells, rows and merges of a range.
+type RangeResult = Awaited<ReturnType<XlsxGridHostPort["readRange"]>>;
+
 const PLAIN: XlsxRenderStyle = { bold: false, italic: false, underline: false, strikethrough: false, wrapText: false, diagonalUp: false, diagonalDown: false };
 
 function host(overrides: Record<string, unknown> = {}): XlsxGridHostPort {
@@ -62,7 +65,7 @@ describe("collectXlsxPrintSheet", () => {
     vi.mocked(port.readRange).mockResolvedValue({
       cells: [{ row: 1, column: 0, value: 740, styleIndex: 0 }, { row: 1, column: 1, value: 480, styleIndex: 0 }],
       rows: [], merges: [],
-    });
+    } as unknown as RangeResult);
     const formulas: XlsxWorkbookSnapshot = { revision: 1, sheets: [{ id: "sheet-1", name: "Data", cells: {
       A2: { value: 740 }, B2: { value: null, formula: "=A2-260" },
     } }] };
