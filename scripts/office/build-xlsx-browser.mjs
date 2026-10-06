@@ -51,6 +51,7 @@ export const PATCHED_SYMBOLS = [
   { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export const UNIWORK_XLSX_VISUAL_EDITS = true' },
   { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export async function readEntriesBase64(' },
   { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export const UNIWORK_XLSX_VISUAL_READ_BUDGET = true' },
+  { patch: '0015', file: 'apps/sheets/src/renderer/numfmt-fix.ts', symbol: 'export function applyHostNumfmtLocale(' },
 ];
 
 const FORBIDDEN_EXTERNAL = /^(?!react(?:\/|$)|react-dom(?:\/|$)|i18next$).+$/;

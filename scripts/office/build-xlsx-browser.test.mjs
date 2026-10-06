@@ -42,6 +42,14 @@ test('every pinned patch symbol is absent from the unpatched upstream source', (
   }
 });
 
+test('every patch that adds a symbol the host calls is pinned', () => {
+  // review-design F7: gateway patch 0015 (applyHostNumfmtLocale) must be pinned too.
+  assert.ok(
+    PATCHED_SYMBOLS.some((s) => s.patch === '0015' && s.symbol === 'export function applyHostNumfmtLocale('),
+    'patch 0015 has no pinned symbol',
+  );
+});
+
 test('the built xlsx artifact carries its contract symbols', () => {
   const record = JSON.parse(fs.readFileSync(path.join(PACKAGE_DIR, 'dist', 'xlsx-renderer-build.json'), 'utf8'));
   assert.deepEqual(
@@ -56,6 +64,7 @@ test('the built xlsx artifact carries its contract symbols', () => {
       'export const UNIWORK_XLSX_VISUAL_EDITS = true',
       'export async function readEntriesBase64(',
       'export const UNIWORK_XLSX_VISUAL_READ_BUDGET = true',
+      'export function applyHostNumfmtLocale(',
     ],
     'the build records the enforced patched symbols',
   );
