@@ -11,7 +11,8 @@ import { useTranslation } from "react-i18next";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { toA1Address } from "./xlsx-render-model-bridge";
 import type { XlsxGridHandle, XlsxGridHostPort } from "./xlsx-grid-surface";
-import { clipboardCells, selectionClipboardText } from "./xlsx-clipboard";
+import { clipboardCells, clipboardRows, selectionClipboardText } from "./xlsx-clipboard";
+import { applyRichPaste, parseClipboardHtmlTable, planRichPaste, readClipboardHtml } from "./xlsx-clipboard-rich";
 import { XLSX_CONTEXT_CLEAR_CONTENT_COMMAND } from "./context-menu/menu-items";
 import { foldClipboardPermissions } from "./context-menu/use-context-menu";
 import type { XlsxToolbarCommands } from "./toolbar/types";
@@ -85,14 +86,24 @@ export function useXlsxEditorClipboard<TSnapshot = XlsxWorkbookSnapshot>(
     const gridSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === selection.sheet);
     const position = addressParts(selection.address);
     if (gridReady && gridSheet && position) {
+      // Rich paste rides the live grid only: the formats are command writes.
+      const html = await readClipboardHtml();
+      if (disposedRef.current || mountRef.current !== session) return;
+      const table = parseClipboardHtmlTable(html);
+      const plan = table ? planRichPaste(position, table, clipboardRows(text)) : null;
       for (const cell of cells) gridRef.current?.setCellText(gridSheet.id, cell.row, cell.column, cell.text);
       await gridEdits.flush();
+      if (plan === "over-limit") setRecalcError(t("office.xlsx.errors.richPasteValuesOnly"));
+      else if (plan && rendererHost) {
+        const applied = await applyRichPaste(gridCommands, `file-${rendererHost.file.sha256}`, gridSheet.id, plan);
+        if (!applied && !disposedRef.current) setRecalcError(t("office.xlsx.errors.richPasteValuesOnly"));
+      }
       return;
     }
     await editor.edit?.(cells.map((cell) => cellEditOperation(selection.sheet, toA1Address(cell.row, cell.column), cell.text)));
     markDirty();
     refreshSnapshot();
-  }, [canEdit, disposedRef, editor, gridEdits, gridReady, gridRef, markDirty, mountRef, permissions.canPaste, refreshSnapshot, rendererHost, selection, setFormulaDraft]);
+  }, [canEdit, disposedRef, editor, gridCommands, gridEdits, gridReady, gridRef, markDirty, mountRef, permissions.canPaste, refreshSnapshot, rendererHost, selection, setFormulaDraft, setRecalcError, t]);
   const clipboardFailure = useCallback(() => {
     if (!disposedRef.current) setRecalcError(t("office.xlsx.errors.clipboardFailed"));
   }, [disposedRef, setRecalcError, t]);
