@@ -1,7 +1,8 @@
 import { CF_MUTATIONS, DV_MUTATIONS } from "../../upstream/apps/sheets/src/renderer/app-constants";
+import { cfRuleUnsaveableReason } from "../../upstream/packages/xlsx-gateway/src/gateway/xlsx-cf";
 import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import { liveSessionSheets, type RendererCommand } from "./edits";
-import { RULE_SET_COMMANDS, ruleSetSheetReady } from "./rule-set-capture";
+import { RULE_SET_COMMANDS, ruleSetSheetReady, type XlsxRendererRuleSetKind } from "./rule-set-capture";
 
 // ── conditional formatting + data validation (X01) ─────────────────────────
 //
@@ -10,14 +11,27 @@ import { RULE_SET_COMMANDS, ruleSetSheetReady } from "./rule-set-capture";
 // commands, undo/redo and the plugins' ref-range handlers dispatch. Every
 // rule-set change is saved as a whole-sheet snapshot (rule-set-capture.ts),
 // so a command is refused until the sheet's file rules are installed in the
-// live model, and a new rule must be one the gateway can write: bounded,
-// ordered in-grid areas and a rule type xlsx-cf.ts / xlsx-dv.ts serialize.
+// live model (never on a sheet whose family carries Excel x14 rules the save
+// cannot rewrite), and a new rule must be one the gateway can write: bounded,
+// ordered in-grid areas; a CF rule the gateway's own serializer dry-run
+// accepts (cfRuleUnsaveableReason, zero drift); a DV type, operator and error
+// style xlsx-dv.ts maps.
 
 const MAX_RULE_AREAS = 1_000;
 /** The rule families the gateway serializer writes (xlsx-cf.ts / xlsx-dv.ts);
  *  `listMultiple` is Univer-only and fails the save, so it is refused here. */
 const CF_RULE_TYPES = new Set(["highlightCell", "colorScale", "dataBar", "iconSet"]);
 const DV_RULE_TYPES = new Set(["any", "whole", "decimal", "list", "date", "time", "textLength", "custom", "checkbox"]);
+/** xlsx-dv.ts DV_OPERATORS and DV_ERROR_STYLE_NAMES (no dry-run export there). */
+const DV_OPERATORS = new Set(["between", "notBetween", "equal", "notEqual", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"]);
+const DV_ERROR_STYLES = new Set([0, 1, 2]);
+
+function dvRuleOK(rule: { type?: unknown; operator?: unknown; errorStyle?: unknown }): boolean {
+  if (typeof rule.type !== "string" || !DV_RULE_TYPES.has(rule.type)) return false;
+  const { operator, errorStyle } = rule;
+  if (operator !== undefined && operator !== "" && (typeof operator !== "string" || !DV_OPERATORS.has(operator))) return false;
+  return errorStyle === undefined || errorStyle === null || DV_ERROR_STYLES.has(Number(errorStyle));
+}
 
 function areaOK(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -43,22 +57,27 @@ interface RuleSetParams {
 /** The commands are sheet-scoped: an explicit unit must be this workbook, and
  *  the sheet (required - the toolbar always names it) must be live and have
  *  its file rules installed. */
-function ruleSetScopeOK(params: RuleSetParams | undefined, state: LazyWorkbookState): params is RuleSetParams & { subUnitId: string } {
+function ruleSetScopeOK(
+  params: RuleSetParams | undefined,
+  state: LazyWorkbookState,
+  kind: XlsxRendererRuleSetKind,
+): params is RuleSetParams & { subUnitId: string } {
   if (!params || typeof params !== "object") return false;
   if (params.unitId !== undefined && params.unitId !== `file-${state.file.sha256}`) return false;
   return typeof params.subUnitId === "string" &&
     liveSessionSheets(state).some((sheet) => sheet.id === params.subUnitId) &&
-    ruleSetSheetReady(state, params.subUnitId);
+    ruleSetSheetReady(state, params.subUnitId, kind);
 }
 
 function newRuleOK(rule: unknown, family: "cf" | "dv"): boolean {
   if (!rule || typeof rule !== "object") return false;
   const shape = rule as { ranges?: unknown; rule?: unknown; type?: unknown; stopIfTrue?: unknown };
   if (!areasOK(shape.ranges)) return false;
-  if (family === "dv") return typeof shape.type === "string" && DV_RULE_TYPES.has(shape.type);
+  if (family === "dv") return dvRuleOK(shape);
   if (shape.stopIfTrue !== undefined && typeof shape.stopIfTrue !== "boolean") return false;
   const inner = shape.rule as { type?: unknown } | undefined;
-  return !!inner && typeof inner === "object" && typeof inner.type === "string" && CF_RULE_TYPES.has(inner.type);
+  return !!inner && typeof inner === "object" && typeof inner.type === "string" && CF_RULE_TYPES.has(inner.type) &&
+    cfRuleUnsaveableReason(inner as Record<string, unknown>) === null;
 }
 
 export function isRuleSetCommand(id: string): boolean {
@@ -71,7 +90,8 @@ export function isRuleSetMutation(id: string): boolean {
 
 export function ruleSetCommandAllowed(event: RendererCommand, state: LazyWorkbookState): boolean {
   const params = event.params as RuleSetParams | undefined;
-  if (!ruleSetScopeOK(params, state)) return false;
+  const kind: XlsxRendererRuleSetKind = event.id.includes("conditional") ? "conditionalFormats" : "dataValidations";
+  if (!ruleSetScopeOK(params, state, kind)) return false;
   switch (event.id) {
     case "sheet.command.add-conditional-rule":
       return newRuleOK(params.rule, "cf");

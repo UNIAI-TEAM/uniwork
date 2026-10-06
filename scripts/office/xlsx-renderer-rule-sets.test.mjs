@@ -37,9 +37,9 @@ new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.ex
 const { createEditJournal, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand } = module.exports;
 
 const area = (startRow, endRow, startColumn, endColumn) => ({ startRow, endRow, startColumn, endColumn });
-function state({ applied = ['s1'] } = {}) {
+function state({ applied = ['s1'], ruleSets } = {}) {
   return {
-    file: { sessionId: 'book', sha256: 'sha', sheets: [{ id: 's1', name: 'Data', hidden: false, rowCount: 20, columnCount: 10, pivotRanges: [] }] },
+    file: { sessionId: 'book', sha256: 'sha', sheets: [{ id: 's1', name: 'Data', hidden: false, rowCount: 20, columnCount: 10, pivotRanges: [], ...(ruleSets ? { ruleSets } : {}) }] },
     editJournal: createEditJournal(),
     loadedRanges: new Map([['s1', area(0, 9, 0, 4)]]),
     flags: { preloadComplete: false },
@@ -134,4 +134,54 @@ test('the policy refuses unsaveable rules, bad areas, foreign scopes, unloaded s
   // Commands this slice does not bind stay default-deny.
   refuse(command('sheet.command.remove-all-data-validation', scope));
   refuse(command('sheet.command.move-conditional-rule', scope));
+});
+
+// Review M1/M2/m2 (dv-cf-fix).
+const x14 = (conditionalFormats, dataValidations) => ({ conditionalFormats, dataValidations });
+
+test('an x14 family is refused on its sheet and never snapshotted; the other family still works', () => {
+  const bar = state({ ruleSets: x14('x14', 'classic') });
+  assert.equal(canExecuteCommand(command('sheet.command.add-conditional-rule', { ...scope, rule: cfRule }), bar, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.clear-range-conditional-rule', { ...scope, ranges: [area(0, 3, 0, 0)] }), bar, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.clear-worksheet-conditional-rule', scope), bar, false), false);
+  assert.equal(canExecuteCommand(command('sheet.command.addDataValidation', { ...scope, rule: dvRule }), bar, false), true);
+  // A row insert re-emits the data bar through the CF ref-range handler: the
+  // mutation runs (the grid must move it) but no snapshot is journalled; the
+  // gateway shifts the file block itself.
+  assert.equal(canExecuteCommand(mutation('sheet.mutation.set-conditional-rule'), bar, false), true);
+  assert.deepEqual(ingestRuleSetMutation(bar, mutation('sheet.mutation.set-conditional-rule'), () => worksheet()), []);
+  assert.equal(bar.editJournal.cfDirty.size, 0);
+  assert.equal(ingestRuleSetMutation(bar, mutation('data-validation.mutation.addRule'), () => worksheet()).length, 1);
+
+  const dv = state({ ruleSets: x14('none', 'x14') });
+  assert.equal(canExecuteCommand(command('sheet.command.addDataValidation', { ...scope, rule: dvRule }), dv, false), false);
+  assert.equal(canExecuteCommand(command('sheets.command.clear-range-data-validation', { ...scope, ranges: [area(0, 3, 0, 0)] }), dv, false), false);
+  assert.deepEqual(ingestRuleSetMutation(dv, mutation('data-validation.mutation.removeRule'), () => worksheet()), []);
+  assert.equal(canExecuteCommand(command('sheet.command.add-conditional-rule', { ...scope, rule: cfRule }), dv, false), true);
+  assert.equal(ruleSetSheetReady(dv, 's1', 'dataValidations'), false);
+});
+
+test('a family the file ships no rules for is ready before the loader marks the sheet', () => {
+  const fresh = state({ applied: [], ruleSets: x14('none', 'classic') });
+  assert.equal(ruleSetSheetReady(fresh, 's1', 'conditionalFormats'), true);
+  assert.equal(ruleSetSheetReady(fresh, 's1', 'dataValidations'), false);
+  assert.equal(canExecuteCommand(command('sheet.command.add-conditional-rule', { ...scope, rule: cfRule }), fresh, false), true);
+  assert.equal(canExecuteCommand(command('sheet.command.addDataValidation', { ...scope, rule: dvRule }), fresh, false), false);
+  // Not locked for the session: once the loader installs the sheet, it is ready.
+  fresh.appliedDvSheets.add('s1');
+  assert.equal(canExecuteCommand(command('sheet.command.addDataValidation', { ...scope, rule: dvRule }), fresh, false), true);
+});
+
+test('the policy refuses CF rules the gateway serializer throws on and DV operators or error styles it cannot write', () => {
+  const book = state();
+  const cf = (rule) => canExecuteCommand(command('sheet.command.add-conditional-rule', { ...scope, rule: { ...cfRule, rule } }), book, false);
+  const dv = (rule) => canExecuteCommand(command('sheet.command.addDataValidation', { ...scope, rule: { ...dvRule, ...rule } }), book, false);
+  assert.equal(cf({ type: 'highlightCell', subType: 'timePeriod', operator: 'yesterday', style: {} }), false);
+  assert.equal(cf({ type: 'highlightCell', subType: 'average', operator: 'equal', style: {} }), false);
+  assert.equal(cf({ type: 'highlightCell', subType: 'number', operator: 'greaterThan', value: 'ten', style: {} }), false);
+  assert.equal(cf({ type: 'iconSet', config: [{ iconType: '3Triangles', iconId: '0' }, { iconType: '3Triangles', iconId: '1' }] }), false);
+  assert.equal(cf({ type: 'highlightCell', subType: 'text', operator: 'containsText', value: 'x', style: {} }), true);
+  assert.equal(dv({ type: 'whole', operator: 'approximately', formula1: '1' }), false);
+  assert.equal(dv({ errorStyle: 7 }), false);
+  assert.equal(dv({ type: 'whole', operator: 'notBetween', formula1: '1', formula2: '9', errorStyle: 2 }), true);
 });

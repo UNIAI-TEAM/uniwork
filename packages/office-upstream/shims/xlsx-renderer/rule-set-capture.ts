@@ -92,6 +92,7 @@ export function ingestRuleSetMutation(
   const sheetId = params?.subUnitId;
   if (!params || params.unitId !== `file-${state.file.sha256}` || !sheetId ||
       !liveSessionSheets(state).some((sheet) => sheet.id === sheetId)) return [];
+  if (ruleSetFamilyX14(state, sheetId, kind)) return [];
   const worksheet = worksheetFor(sheetId);
   if (!worksheet) return [];
   if (kind === "conditionalFormats") recordCfChange(state.editJournal, sheetId);
@@ -99,12 +100,38 @@ export function ingestRuleSetMutation(
   return [{ sheetId, ruleSet: kind, rules: snapshotSheetRules(worksheet, kind) }];
 }
 
+/** What the file ships for one family on a sheet, as the views render-model
+ *  bridge stamps it on the loader's sheet (`ruleSets`, absent on an older
+ *  host = unknown): no rules, classic rules, or Excel extended (x14) rules
+ *  the gateway's declarative save refuses to rewrite. */
+type RuleSetFileState = "none" | "classic" | "x14" | "unknown";
+
+function ruleSetFileState(state: LazyWorkbookState, sheetId: string, kind: XlsxRendererRuleSetKind): RuleSetFileState {
+  const sheet = state.file.sheets.find((candidate) => candidate.id === sheetId) as
+    { ruleSets?: Partial<Record<XlsxRendererRuleSetKind, unknown>> } | undefined;
+  const value = sheet?.ruleSets?.[kind];
+  return value === "none" || value === "classic" || value === "x14" ? value : "unknown";
+}
+
+/** An Excel x14 family on a file sheet: its edits are refused and its
+ *  mutations (a row insert moving a data bar) are never snapshotted - the
+ *  gateway shifts the file's blocks itself and keeps the x14 parts. */
+function ruleSetFamilyX14(state: LazyWorkbookState, sheetId: string, kind: XlsxRendererRuleSetKind): boolean {
+  return ruleSetFileState(state, sheetId, kind) === "x14";
+}
+
 /** A rule-set edit may only start once the sheet's file rules are installed
  *  in the live model; otherwise the declarative snapshot would drop them. The
  *  loader installs CF then DV in one pass and marks the sheet in
  *  `appliedDvSheets` even when it has no rules, so that set is the marker. A
- *  session-added sheet has no file rules to lose. */
-export function ruleSetSheetReady(state: LazyWorkbookState, sheetId: string): boolean {
+ *  session-added sheet, or a family the file ships no rules for, has nothing
+ *  to lose (review M2: a sheet the loader never installs - one structurally
+ *  edited before its first render - is not locked for families it lacks).
+ *  An x14 family is never ready. Readiness is re-read on every command, so a
+ *  sheet that becomes ready later accepts the retry. */
+export function ruleSetSheetReady(state: LazyWorkbookState, sheetId: string, kind: XlsxRendererRuleSetKind): boolean {
   if (!state.file.sheets.some((sheet) => sheet.id === sheetId)) return true;
-  return state.appliedDvSheets.has(sheetId);
+  const fileState = ruleSetFileState(state, sheetId, kind);
+  if (fileState === "x14") return false;
+  return fileState === "none" || state.appliedDvSheets.has(sheetId);
 }
