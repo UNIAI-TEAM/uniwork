@@ -32,6 +32,7 @@ import { isRuleSetCommand, liveRuleIdsReader, ruleSetRestoreAllowed, ruleSetTarg
 import { installStacked } from "./dv-error-style";
 import { watchRendererHistory, type XlsxRendererHistoryState } from "./history";
 import { installDvRejectDialogTitle, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
+import { installDvDropdownSearchGuard } from "./dv-dropdown-search";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
 import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
 import {
@@ -834,6 +835,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         applyHostNumfmtLocale(runtime, getLang() === "vi" ? "vi" : "en");
         validateCellWrappersDispose ??= installStacked([
           () => installDvRejectDialogTitle(runtime, container.ownerDocument, RENDERER_ROOT_CLASS),
+          () => installDvDropdownSearchGuard(runtime.univer.__getInjector()),
           () => observeValidationVerdicts(runtime.univer.__getInjector().get(SheetInterceptorService), validatedWrites),
         ]);
       } finally {
