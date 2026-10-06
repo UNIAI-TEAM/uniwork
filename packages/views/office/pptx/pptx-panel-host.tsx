@@ -37,6 +37,7 @@ import { PptxDesignPanel } from "./design";
 import { PptxFormatPanel } from "./format";
 import { PptxInsertPanel } from "./insert";
 import type { PptxInsertConnectorRequest, PptxInsertElementRef } from "./insert/insert-model";
+import { connectorInsertEdit } from "./insert/connector-model";
 import { PptxTextFormatPanel, type PptxTextFormatPanelProps } from "./text/pptx-text-format-panel";
 import { PptxLinkEditor } from "./links";
 import { PptxSorterPanel } from "./sorter";
@@ -274,7 +275,7 @@ export function PptxPanelHost({
                 // The connector request rides the registered add_connector edit (vendored addConnector,
                 // glued to both shapes); the picker already validated the pair.
                 onInsertConnector: (request: PptxInsertConnectorRequest) =>
-                  onApplyEdit({ op: "add_connector", slideIndex: request.slideIndex, elementIds: [request.from, request.to], kind: request.kind, arrow: request.arrow }),
+                  onApplyEdit(connectorInsertEdit(request)),
               }
             : {})}
           className={className}
