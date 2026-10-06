@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { promises as fs, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import { dirname, basename, isAbsolute, resolve } from "node:path";
-import { isAllocationFailure } from "./memory";
+import { isAllocationFailure } from "../../shared/memory";
 
 export type LocalFileErrorCode =
   | "invalid_path"

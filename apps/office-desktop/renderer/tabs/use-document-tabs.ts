@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { copyBytes, incomingBytes } from "../office/bytes";
 import type { OfficeIdentity } from "@uniwork/core/office";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { RendererBridge } from "../app";
@@ -19,10 +20,10 @@ export type TabSession = ByteDocumentSession | PptxDocumentSession | DesktopXlsx
 /** The desktop pptx surface for one tab: the opened bytes are already in the
  * renderer (main read them behind IPC), so readBytes replays them. */
 function createPptxTabSurface(input: OpenTabInput, bytes: OpenedBytes, onDirty: (generation: number) => void) {
-  const decoded = Uint8Array.from(atob(bytes.dataBase64), (character) => character.charCodeAt(0));
+  const decoded = incomingBytes(bytes.data);
   return createDesktopPptxSurface({
     documentId: input.identity.documentId,
-    readBytes: async () => decoded.slice(),
+    readBytes: async () => copyBytes(decoded),
     identity: input.identity,
     capability: {
       format: "pptx",

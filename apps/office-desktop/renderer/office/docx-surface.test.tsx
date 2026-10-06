@@ -12,7 +12,7 @@ const checksum = bytesChecksum(source);
 function mount() {
   const call = vi.fn(async (channel: string) => channel === "desktop:draft-list" ? { drafts: [] } : {});
   const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
-  const session = createByteDocumentSession(bridge, identity, { format: "docx", dataBase64: Buffer.from(source).toString("base64"), checksum });
+  const session = createByteDocumentSession(bridge, identity, { format: "docx", data: Uint8Array.from(Buffer.from(source)), checksum });
   render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Fixture.docx" onBack={() => undefined} />);
   return { session, call };
 }

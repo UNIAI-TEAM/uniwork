@@ -5,7 +5,7 @@ import { createDesktopPdfSurface } from "./pdf-surface";
 
 const identity = { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", generation: 1, baseRevision: "2", baseVersionId: "v2" };
 const checksum = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-const opened = { format: "docx" as const, dataBase64: "aGVsbG8=", checksum };
+const opened = { format: "docx" as const, data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")), checksum };
 
 async function openSession(...args: Parameters<typeof createByteDocumentSession>) {
   const session = createByteDocumentSession(args[0], args[1], args[2], { createEditor: createByteTestEditor });
@@ -31,9 +31,9 @@ it("sends the opened snapshot once through coordinator save and blocks a concurr
   const first = session.coordinator.save("button");
   await vi.waitFor(() => expect(call).toHaveBeenCalledOnce());
   await expect(session.coordinator.save("menu")).resolves.toMatchObject({ accepted: false, reason: "saving" });
-  const request = call.mock.calls[0] as unknown as [string, { intentId: string; idempotencyKey: string; dataBase64: string }];
+  const request = call.mock.calls[0] as unknown as [string, { intentId: string; idempotencyKey: string; data: Uint8Array }];
   expect(request[0]).toBe("desktop:office-save");
-  expect(request[1].dataBase64).toBe(opened.dataBase64);
+  expect(request[1].data).toEqual(opened.data);
   complete({ documentId: "doc", intentId: request[1].intentId, idempotencyKey: request[1].idempotencyKey, revision: "3", versionId: "v3", checksum });
   await expect(first).resolves.toMatchObject({ accepted: true, receipt: { revision: "3", versionId: "v3" } });
   expect(session.coordinator.getState().identity).toMatchObject({ baseRevision: "3", baseVersionId: "v3" });
@@ -47,7 +47,7 @@ it("routes local Save to the original opaque handle and records a confirmed save
   const session = await openSession({ call: call as never }, { ...identity, documentId: handle, baseRevision: "0" }, { ...opened, localHandle: handle });
   session.coordinator.markDirty(1);
   await expect(session.coordinator.save("menu")).resolves.toMatchObject({ accepted: true });
-  expect(call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle, dataBase64: "aGVsbG8=" }));
+  expect(call).toHaveBeenCalledWith("desktop:file-save", expect.objectContaining({ handle, data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")) }));
   expect(session.coordinator.getState().lastSavedGeneration).toBe(session.coordinator.getState().dirtyGeneration);
 });
 
@@ -86,7 +86,7 @@ it("keeps a draft through the typed checkpoint and raises the generation floor",
   const session = await openSession(bridge, identity, opened);
   session.coordinator.markDirty(2);
   await expect(session.keepDraft()).resolves.toBe(true);
-  expect(calls.find((call) => call.channel === "desktop:draft-checkpoint")?.payload).toMatchObject({ documentId: identity.documentId, draftId: "doc:v2:2", generation: 4, dataBase64: "aGVsbG8=" });
+  expect(calls.find((call) => call.channel === "desktop:draft-checkpoint")?.payload).toMatchObject({ documentId: identity.documentId, draftId: "doc:v2:2", generation: 4, data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")) });
   expect(calls.find((call) => call.channel === "desktop:draft-list")?.payload).toMatchObject({ documentId: identity.documentId });
 });
 
@@ -136,7 +136,7 @@ it("reports a locked store as its own recover outcome instead of a generic failu
 it("recovers the chosen draft into the editor bytes and discards only that row", async () => {
   const { bridge, calls } = bridgeWith(async (channel) => {
     if (channel === "desktop:draft-list") return { drafts: [draft] };
-    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: draft, dataBase64: "d29ybGQ=" };
+    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: draft, data: Uint8Array.from(Buffer.from("d29ybGQ=", "base64")) };
     if (channel === "desktop:draft-discard") return { discarded: true };
     return {};
   });
@@ -155,7 +155,7 @@ it("checkpoints unsaved local work before Save and recovers it in a new session"
   const { bridge, calls } = bridgeWith(async (channel) => {
     if (channel === "desktop:draft-list") return { drafts: [localRow] };
     if (channel === "desktop:draft-checkpoint") return { stored: true, generation: 2 };
-    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: localRow, dataBase64: "d29ybGQ=" };
+    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: localRow, data: Uint8Array.from(Buffer.from("d29ybGQ=", "base64")) };
     return {};
   });
   const session = await openSession(bridge, localIdentity, { ...opened, localHandle: handle });
@@ -163,7 +163,7 @@ it("checkpoints unsaved local work before Save and recovers it in a new session"
   expect(session.canSave).toBe(true);
   session.coordinator.markDirty(1);
   await expect(session.keepDraft()).resolves.toBe(true);
-  expect(calls.find((call) => call.channel === "desktop:draft-checkpoint")?.payload).toMatchObject({ dataBase64: opened.dataBase64 });
+  expect(calls.find((call) => call.channel === "desktop:draft-checkpoint")?.payload).toMatchObject({ data: opened.data });
   expect(calls.some((call) => /file-save|office-save/.test(call.channel))).toBe(false);
   const restarted = await openSession(bridge, localIdentity, { ...opened, localHandle: handle });
   await expect(restarted.recoverDraft(localRow)).resolves.toBe("recovered");
@@ -196,7 +196,7 @@ it("forwards the pdf lane edit and snapshot facets through the session facade", 
   const call = vi.fn(async (_channel: string, payload: unknown) => {
     const request = payload as { operation: string };
     if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 3 } };
-    return { ok: true, operation: "edit", dataBase64: opened.dataBase64 };
+    return { ok: true, operation: "edit", data: opened.data };
   });
   const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
   await session.openEditor();
@@ -215,7 +215,7 @@ it("forwards the pdf engine-operation facet so the note panel gets a provider (F
   const call = vi.fn(async (_channel: string, payload: unknown) => {
     const request = payload as { operation: string };
     if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
-    return { ok: true, operation: "edit", dataBase64: opened.dataBase64, warnings: [] };
+    return { ok: true, operation: "edit", data: opened.data, warnings: [] };
   });
   const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
   await session.openEditor();
@@ -258,7 +258,7 @@ it("forwards the pdf byte-change notify so undo/redo refresh the shared editor (
   let edited = false;
   const call = vi.fn(async (_channel: string, payload: unknown) => {
     const request = payload as { operation: string };
-    if (request.operation === "edit") { edited = true; return { ok: true, operation: "edit", dataBase64: "JVBERi0y" }; }
+    if (request.operation === "edit") { edited = true; return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from("JVBERi0y", "base64")) }; }
     return { ok: true, operation: "open", probe: { pageCount: edited ? 2 : 1 }, pageSizes: [] };
   });
   const session = createByteDocumentSession({ call: call as never }, identity, { ...opened, format: "pdf" }, { createEditor: async (settings) => createDesktopPdfSurface(settings) });
@@ -301,8 +301,8 @@ it("re-captures a checkpoint whose capture resolved after the Save, so the row u
   const rows = new Map<string, string>();
   const call = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
     if (channel === "desktop:draft-list") return { drafts: [] };
-    if (channel === "desktop:draft-checkpoint") { rows.set(payload.draftId as string, payload.dataBase64 as string); return { stored: true, generation: payload.generation }; }
-    if (channel === "desktop:office-open") return { dataBase64: opened.dataBase64, checksum: savedChecksum, document: { id: "doc", workspaceId: "ws", title: "Cloud.docx", kind: "file", format: "docx", version: 3, revision: "3", updatedAt: new Date(0).toISOString(), ownerKind: null, canEdit: true, downloadAvailable: true }, filename: "Cloud.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    if (channel === "desktop:draft-checkpoint") { rows.set(payload.draftId as string, payload.data as string); return { stored: true, generation: payload.generation }; }
+    if (channel === "desktop:office-open") return { data: opened.data, checksum: savedChecksum, document: { id: "doc", workspaceId: "ws", title: "Cloud.docx", kind: "file", format: "docx", version: 3, revision: "3", updatedAt: new Date(0).toISOString(), ownerKind: null, canEdit: true, downloadAvailable: true }, filename: "Cloud.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:office-save") {
       saveEntered = true;
       savedChecksum = payload.checksum as string;
@@ -339,7 +339,7 @@ it("re-captures a checkpoint whose capture resolved after the Save, so the row u
   live.bytes = text("C");
   releaseCapture();
   await checkpointing;
-  expect(rows.get("doc:3:3")).toBe(btoa("C"));
+  expect(rows.get("doc:3:3")).toEqual(new TextEncoder().encode("C"));
 });
 
 it("releases a blocked Save at once and retries it as a fresh intent (T09)", async () => {
@@ -375,7 +375,7 @@ it("writes a checkpoint under the saved base once the bound runs out while the p
   const call = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:draft-discard") return { discarded: true };
-    if (channel === "desktop:draft-checkpoint") { rows.set(payload.draftId as string, payload.dataBase64 as string); return { stored: true, generation: payload.generation }; }
+    if (channel === "desktop:draft-checkpoint") { rows.set(payload.draftId as string, payload.data as string); return { stored: true, generation: payload.generation }; }
     // main's read-only context refresh never answers.
     if (channel === "desktop:office-open") { openAsked = true; return new Promise(() => undefined); }
     if (channel === "desktop:office-save") return { documentId: "doc", intentId: payload.intentId, idempotencyKey: payload.idempotencyKey, revision: "3", versionId: "v3", checksum: payload.checksum };
@@ -398,5 +398,5 @@ it("writes a checkpoint under the saved base once the bound runs out while the p
   live.bytes = text("B");
   session.coordinator.markDirty(2);
   await session.coordinator.checkpoint();
-  expect(rows.get("doc:v3:3")).toBe(btoa("B"));
+  expect(rows.get("doc:v3:3")).toEqual(new TextEncoder().encode("B"));
 });

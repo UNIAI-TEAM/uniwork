@@ -6,6 +6,7 @@ describe("isAllocationFailure", () => {
     new RangeError("Array buffer allocation failed"),
     new RangeError("Invalid typed array length: 5000000000"),
     new RangeError("Invalid string length"),
+    new RangeError("Invalid array buffer length"),
     Object.assign(new RangeError("File size is greater than 2 GiB"), { code: "ERR_FS_FILE_TOO_LARGE" }),
     Object.assign(new Error("Cannot create a string longer than 0x1fffffe8 characters"), { code: "ERR_STRING_TOO_LONG" }),
     Object.assign(new Error("spawn ENOMEM"), { code: "ENOMEM" }),

@@ -10,7 +10,7 @@ const MEMORY_CODES: ReadonlySet<string> = new Set([
   "ENOMEM",
 ]);
 
-const MEMORY_MESSAGE = /array buffer allocation failed|invalid typed array length|invalid (array|string) length|cannot create a string longer|allocation failed|out of memory|buffer size/i;
+const MEMORY_MESSAGE = /array buffer allocation failed|invalid typed array length|invalid (array( buffer)?|string) length|cannot create a string longer|allocation failed|out of memory|buffer size/i;
 
 export function isAllocationFailure(error: unknown): boolean {
   if (error === null || typeof error !== "object") return false;

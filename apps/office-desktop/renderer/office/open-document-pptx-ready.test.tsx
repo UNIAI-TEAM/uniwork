@@ -67,7 +67,7 @@ it("shows the real slides and deck on first open without any edit", async () => 
     onSessionChanged: () => () => undefined,
   } as RendererBridge;
   let created!: ReturnType<typeof createLateOpenSurface>;
-  const session = createPptxDocumentSession(bridge, identity, { format: "pptx", dataBase64: "UEsDBA==", checksum }, () => {
+  const session = createPptxDocumentSession(bridge, identity, { format: "pptx", data: Uint8Array.from(Buffer.from("UEsDBA==", "base64")), checksum }, () => {
     created = createLateOpenSurface();
     return {
       editor: created.surface,
@@ -93,7 +93,7 @@ it("shows the real slides and deck on first open without any edit", async () => 
 });
 
 function readOnlyPptxSession(bridge: RendererBridge) {
-  return createPptxDocumentSession(bridge, identity, { format: "pptx", dataBase64: "UEsDBA==", checksum, canSave: false }, () => ({
+  return createPptxDocumentSession(bridge, identity, { format: "pptx", data: Uint8Array.from(Buffer.from("UEsDBA==", "base64")), checksum, canSave: false }, () => ({
     editor: createLateOpenSurface().surface,
     capability: { format: "pptx", operation: "serialize", host: "desktop", engineBuild: "test", contractRevision: "office-editor-host/1", status: "readonly", fidelityWarnings: [] },
     open: async () => ({ outcome: "opened", document_id: identity.documentId, format: "pptx" }),

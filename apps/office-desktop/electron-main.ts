@@ -470,7 +470,7 @@ async function startElectronHost(): Promise<void> {
   await clearPrintRoot(printRoot);
   const printHandlers = createPrintIpcHandler({ owner: window, createWindow: (options) => new BrowserWindow({ ...options, parent: window }), writeFile: createPrintFileWriter(printRoot) });
   const host = createDesktopHost({
-    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
+    handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { data: request.args.data, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
     }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }), ...printHandlers },
@@ -572,7 +572,7 @@ async function startElectronHost(): Promise<void> {
     const bytes = await fileRegistry.read(metadata.handle);
     if (!sameDocumentSession(session, deviceScope())) throw new Error("session_revoked");
     localOpenContext(metadata);
-    return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
+    return desktopFileResponseSchema.parse({ opened: true, metadata, data: bytes });
   });
   const announceFile = async (path: string) => {
     if (!isAbsolute(path) || !desktopDocumentFormatForName(path)) return;

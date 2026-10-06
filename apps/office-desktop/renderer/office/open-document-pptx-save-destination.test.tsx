@@ -46,7 +46,7 @@ function mount(local: boolean) {
     serialize: async () => ({ bytes: new Uint8Array([1]), checksum: "sha256:x" }),
     edit: async () => ({ revision: 0 }),
   } as unknown as DesktopPptxEditorHandle;
-  const opened = { format: "pptx" as const, dataBase64: "UEsDBA==", checksum, ...(local ? { localHandle: "local:pathhash" } : {}) };
+  const opened = { format: "pptx" as const, data: Uint8Array.from(Buffer.from("UEsDBA==", "base64")), checksum, ...(local ? { localHandle: "local:pathhash" } : {}) };
   const session = createPptxDocumentSession(bridge, identity, opened, () => ({
     editor: surface,
     capability: { format: "pptx", operation: "serialize", host: "desktop", engineBuild: "test", contractRevision: "office-editor-host/1", status: "available", fidelityWarnings: [] },

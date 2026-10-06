@@ -30,7 +30,7 @@ describe("desktop office HTTP transport", () => {
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
     const result = await transport.create({ workspaceId: "ws", title: "Blank.docx", format: "docx" });
     expect(result.document).toMatchObject({ id: "new-doc", version: 1, canEdit: true });
-    expect(Buffer.from(result.dataBase64, "base64")).toEqual(Buffer.from(bytes));
+    expect(Buffer.from(result.data)).toEqual(Buffer.from(bytes));
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
   it("refreshes once across concurrent expired requests and replays with the rotated token", async () => {
@@ -170,7 +170,7 @@ describe("desktop office HTTP transport", () => {
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
     const result = await transport.officeJob({ workspaceId: "ws-1", documentId: "doc-x", format: "xlsx", operation: "edit", baseRevision: "2", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }] });
     expect(result.state).toBe("completed");
-    expect(Buffer.from(result.outputBase64 ?? "", "base64")).toEqual(Buffer.from(output));
+    expect(Buffer.from(result.output!)).toEqual(Buffer.from(output));
     expect(result.outputChecksum).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(polls).toBe(2);
   }, 20_000);

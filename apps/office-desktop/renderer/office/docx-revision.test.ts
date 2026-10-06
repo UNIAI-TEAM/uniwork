@@ -15,19 +15,19 @@ it("counts cp:revision 8 -> 9 -> 10 across two changed cloud Saves in one sessio
   const saved: Uint8Array[] = [];
   let revision = 1;
   let lastChecksum = "";
-  const call = vi.fn(async (channel: string, payload: { dataBase64: string; documentId: string; intentId: string; idempotencyKey: string; checksum: string }) => {
+  const call = vi.fn(async (channel: string, payload: { data: Uint8Array; documentId: string; intentId: string; idempotencyKey: string; checksum: string }) => {
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:draft-discard") return { discarded: true };
     if (channel === "desktop:office-save") {
-      saved.push(Uint8Array.from(Buffer.from(payload.dataBase64, "base64")));
+      saved.push(Uint8Array.from(Buffer.from(payload.data)));
       revision += 1;
       lastChecksum = payload.checksum;
       return { documentId: payload.documentId, intentId: payload.intentId, idempotencyKey: payload.idempotencyKey, checksum: payload.checksum, versionId: `v${revision}`, revision: String(revision) };
     }
-    if (channel === "desktop:office-open") return { dataBase64: "", checksum: lastChecksum, document: { id: "doc", workspaceId: "ws", title: "Spec.docx", kind: "file", format: "docx", version: revision, revision: String(revision), updatedAt: new Date(0).toISOString(), ownerKind: null, canEdit: true, downloadAvailable: true }, filename: "Spec.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    if (channel === "desktop:office-open") return { data: Uint8Array.from(Buffer.from("", "base64")), checksum: lastChecksum, document: { id: "doc", workspaceId: "ws", title: "Spec.docx", kind: "file", format: "docx", version: revision, revision: String(revision), updatedAt: new Date(0).toISOString(), ownerKind: null, canEdit: true, downloadAvailable: true }, filename: "Spec.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     throw new Error(`unexpected ${channel}`);
   });
-  const session = createByteDocumentSession({ call: call as never }, docxIdentity, { format: "docx", dataBase64: Buffer.from(source).toString("base64"), checksum: bytesChecksum(source) });
+  const session = createByteDocumentSession({ call: call as never }, docxIdentity, { format: "docx", data: Uint8Array.from(Buffer.from(source)), checksum: bytesChecksum(source) });
   try {
     await session.openEditor();
     session.editor.commands?.setHeading(2);

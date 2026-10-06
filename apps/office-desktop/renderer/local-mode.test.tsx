@@ -43,9 +43,9 @@ const MISSING_ID = `recent_${"d".repeat(32)}`;
 const BLANK_HTML_TEXT = "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title></title>\n</head>\n<body>\n</body>\n</html>\n";
 function created(format: string) {
   const handle = `file_${"1".repeat(32)}`;
-  if (format === "docx") return { opened: true, metadata: fileMeta(handle, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: fixtureBase64 };
+  if (format === "docx") return { opened: true, metadata: fileMeta(handle, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
   const bytes = format === "md" ? new Uint8Array(0) : new TextEncoder().encode(BLANK_HTML_TEXT);
-  return { opened: true, metadata: { handle, name: format === "md" ? "Untitled.md" : "Untitled.html", byteLength: bytes.byteLength, modifiedAtMs: 0, checksum: bytesChecksum(bytes), untitled: true }, dataBase64: Buffer.from(bytes).toString("base64") };
+  return { opened: true, metadata: { handle, name: format === "md" ? "Untitled.md" : "Untitled.html", byteLength: bytes.byteLength, modifiedAtMs: 0, checksum: bytesChecksum(bytes), untitled: true }, data: Uint8Array.from(Buffer.from(bytes)) };
 }
 
 function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean; recentMissing?: boolean; pick?: unknown; openName?: string; failCheckpoint?: boolean } = {}) {
@@ -65,9 +65,9 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
       case "desktop:library-list": return { documents: [], nextCursor: null, engineAvailable: true };
       case "desktop:recent-list": return { files: options.files ?? [] };
       case "desktop:recent-remove": return { removed: true };
-      case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: fixtureBase64 };
-      case "desktop:file-pick-open": return options.pick ?? { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: fixtureBase64 };
-      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), options.openName ?? "Opened.docx"), dataBase64: fixtureBase64 };
+      case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
+      case "desktop:file-pick-open": return options.pick ?? { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
+      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), options.openName ?? "Opened.docx"), data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
       case "desktop:file-create": return created(String(payload.format ?? "docx"));
       case "desktop:file-save": return { opened: true, metadata: fileMeta(String(payload.handle)) };
       case "desktop:file-save-as": return { opened: true, metadata: fileMeta(`file_${"2".repeat(32)}`, "copy.docx") };
@@ -333,7 +333,7 @@ it.each([
 
 it("opens an existing empty Markdown file without treating its payload as missing", async () => {
   const handle = `file_${"e".repeat(32)}`;
-  const h = harness({ localMode: true, pick: { opened: true, metadata: { handle, name: "Empty.md", byteLength: 0, modifiedAtMs: 1, checksum: bytesChecksum(new Uint8Array(0)) }, dataBase64: "" } });
+  const h = harness({ localMode: true, pick: { opened: true, metadata: { handle, name: "Empty.md", byteLength: 0, modifiedAtMs: 1, checksum: bytesChecksum(new Uint8Array(0)) }, data: Uint8Array.from(Buffer.from("", "base64")) } });
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   await screen.findByRole("tab", { name: /Empty\.md/ });
@@ -363,7 +363,7 @@ it.each([
 });
 
 it("rejects an opened file whose extension is outside the format table", async () => {
-  const h = harness({ localMode: true, pick: { opened: true, metadata: fileMeta(`file_${"9".repeat(32)}`, "page.xhtml"), dataBase64: "AAAA" } });
+  const h = harness({ localMode: true, pick: { opened: true, metadata: fileMeta(`file_${"9".repeat(32)}`, "page.xhtml"), data: Uint8Array.from(Buffer.from("AAAA", "base64")) } });
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("officeDesktop.local.unsupported"));

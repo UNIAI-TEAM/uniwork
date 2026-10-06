@@ -10,20 +10,13 @@ import { throwIfLocalFileFailed } from "./local-file-failure";
 import type { DesktopTextFacets } from "./text-surface";
 import type { PdfCanvasPage, PdfEditOperation, PdfFormField, PdfNoteThread, PdfPageRenderService, PdfSearchHit, PdfSnapshot } from "@uniwork/views/office/pdf";
 
-export type OpenedBytes = { format: DesktopDocumentFormat; dataBase64: string; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
+export type OpenedBytes = { format: DesktopDocumentFormat; data: Uint8Array; checksum: string; localHandle?: string; localUntitled?: boolean; canSave?: boolean };
+
+import { bytesToText, incomingBytes, textToBytes } from "./bytes";
 
 const SESSION_GENERATION = "desktop-dev-session";
 
-function decode(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
 
-function encode(value: Uint8Array): string {
-  let binary = "";
-  for (let offset = 0; offset < value.length; offset += 0x8000) binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
 
 export type DraftRecoveryView =
   | { readonly status: "none" }
@@ -85,7 +78,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
   const identity = { ...inputIdentity };
   const opened = { ...openedBytes };
   let generation = 0;
-  let bytes = decode(opened.dataBase64);
+  let bytes = incomingBytes(opened.data);
   let surface: (DesktopEditorSurface & LaneEditorFacets) | null = null;
   let surfaceOffset = 0;
   let opening: Promise<DesktopEditorSurface> | null = null;
@@ -229,7 +222,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     const rows = await listRows();
     generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
     const next = Math.max(1, generationFloor + 1, snapshot.generation);
-    const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: next, dataBase64: encode(snapshot.value) }));
+    const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: next, data: snapshot.value }));
     checkpoint = snapshot;
     generationFloor = Math.max(generationFloor, result.generation);
     durableRows.set(draftId, result.generation);
@@ -276,11 +269,11 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
     loadIntent: async () => pendingIntent,
     clearIntent: async () => { pendingIntent = null; },
   };
-  const outputs = new Map<string, { dataBase64: string; sizeBytes: number; checksum: string; saveAs: boolean; localBase?: { versionId: string; revision: string }; rebound?: { handle: string; name: string } }>();
+  const outputs = new Map<string, { data: Uint8Array; sizeBytes: number; checksum: string; saveAs: boolean; localBase?: { versionId: string; revision: string }; rebound?: { handle: string; name: string } }>();
   const transport: OfficeSaveTransport<Uint8Array> = {
     serialize: async ({ intent, snapshot }) => {
       const checksum = `sha256:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(snapshot.value))), (value) => value.toString(16).padStart(2, "0")).join("")}`;
-      outputs.set(intent.intentId, { dataBase64: encode(snapshot.value), sizeBytes: snapshot.value.length, checksum, saveAs: outputs.get(intent.intentId)?.saveAs ?? saveAsRequested });
+      outputs.set(intent.intentId, { data: snapshot.value, sizeBytes: snapshot.value.length, checksum, saveAs: outputs.get(intent.intentId)?.saveAs ?? saveAsRequested });
       return { data: snapshot.value, sizeBytes: snapshot.value.length, checksumSha256: checksum, format: opened.format };
     },
     upload: async ({ intent, output }) => ({ uploadId: intent.intentId, sizeBytes: output.sizeBytes, checksumSha256: output.checksumSha256, claimExpiresAt: new Date(Date.now() + 60_000).toISOString() }),
@@ -290,7 +283,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       let versionId: string, revision: string, checksum: string;
       if (localHandle) {
         const useSaveAs = output.saveAs || opened.localUntitled === true;
-        const result = desktopFileResponseSchema.parse(await bridge.call(useSaveAs ? "desktop:file-save-as" : "desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localHandle, dataBase64: output.dataBase64 }));
+        const result = desktopFileResponseSchema.parse(await bridge.call(useSaveAs ? "desktop:file-save-as" : "desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localHandle, data: output.data }));
         throwIfLocalFileFailed(result);
         if (!result.opened && useSaveAs) { pickerCancelled = true; throw Object.assign(new Error("save_as_cancelled"), { code: "save_as_cancelled" }); }
         if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
@@ -305,7 +298,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
         revision = String(BigInt(output.localBase.revision) > BigInt(intent.identity.baseRevision) ? BigInt(output.localBase.revision) : BigInt(intent.identity.baseRevision) + 1n);
         if (useSaveAs && result.metadata.handle !== localHandle) output.rebound = { handle: result.metadata.handle, name: result.metadata.name };
       } else {
-        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, format: opened.format, intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
+        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, format: opened.format, intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, data: output.data, checksum: output.checksum }));
         if (result.documentId !== intent.identity.documentId || result.intentId !== intent.intentId || result.idempotencyKey !== intent.idempotencyKey || result.checksum !== output.checksum) throw Object.assign(new Error("office_receipt_mismatch"), { code: "office_receipt_mismatch" });
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;
       }
@@ -466,7 +459,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
         if (result.status === "locked") return "locked";
         if (result.status !== "recovered") return "failed";
         await openEditor();
-        const recovered = decode(result.dataBase64);
+        const recovered = incomingBytes(result.data);
         const next = await createSurface(recovered, generation + 1);
         const previous = surface;
         attachSurface(next); bytes = recovered;

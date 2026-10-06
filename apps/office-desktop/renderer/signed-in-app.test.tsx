@@ -44,9 +44,9 @@ function harness(options: { flags?: Record<string, boolean>; config?: (payload: 
     if (channel === "desktop:auth-session") return { status: "signed-in", deploymentId: "lane", accountId: account };
     if (channel === "desktop:library-context") return { deployments: [{ id: "lane", name: "Server" }], accounts: [{ id: account, name: account }], organizations: [{ id: "org", name: "Org" }], workspaces: [{ id: "ws", name: "Workspace" }] };
     if (channel === "desktop:public-config") return options.config ? options.config(payload) : { flags: options.flags ?? { office_engine: true } };
-    if (channel === "desktop:file-pick-open" && options.localFile) return { opened: true, metadata: { handle: `file_${"f".repeat(32)}`, name: "Local.docx", byteLength: docxSource.length, modifiedAtMs: 1_000, checksum }, dataBase64: fixtureBase64 };
+    if (channel === "desktop:file-pick-open" && options.localFile) return { opened: true, metadata: { handle: `file_${"f".repeat(32)}`, name: "Local.docx", byteLength: docxSource.length, modifiedAtMs: 1_000, checksum }, data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
-    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), version: savedVersion, revision: savedRevision, canEdit: !options.readOnly }, dataBase64: fixtureBase64, checksum: savedChecksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), version: savedVersion, revision: savedRevision, canEdit: !options.readOnly }, data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")), checksum: savedChecksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:tabs-update") { await options.beforeTabsUpdate?.(); return { updated: true }; }
     if (channel === "desktop:draft-list") return { drafts: [...drafts.values()].filter((row) => row.identity.accountId === account && (!request.documentId || row.identity.documentId === request.documentId)) };
     if (channel === "desktop:draft-checkpoint") {

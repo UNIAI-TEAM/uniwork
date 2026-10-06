@@ -7,6 +7,8 @@ import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desk
 import type { LibraryBridge } from "../library/model";
 import { throwIfLocalFileFailed } from "./local-file-failure";
 
+import { bytesToText, incomingBytes, textToBytes } from "./bytes";
+
 const SESSION_GENERATION = "desktop-dev-session";
 const ENGINE_BUILD = "xlsx-desktop-local-1";
 const CONTRACT_REVISION = "office-editor-host/1";
@@ -17,27 +19,12 @@ const RECALC_UNAVAILABLE = "xlsx_recalc_unavailable";
 /** The web-compatible render-model reference the shared XlsxEditor reads. */
 export type DesktopRenderModelRef = { current: XlsxModelHost | null; listeners: Set<(host: XlsxModelHost | null) => void> };
 
-function decode(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
 
-function encode(value: Uint8Array): string {
-  let binary = "";
-  for (let offset = 0; offset < value.length; offset += 0x8000) binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
 
-function encodeText(value: string): string {
-  return encode(new TextEncoder().encode(value));
-}
 
-function decodeText(value: string): string {
-  return new TextDecoder().decode(decode(value));
-}
 
 async function fingerprint(value: XlsxWorkbookSnapshot): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const bytes = textToBytes(JSON.stringify(value));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -96,7 +83,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
   const candidates = new Map<string, { baseRevision: string; snapshot: XlsxWorkbookSnapshot; operations: Record<string, unknown>[]; output?: { bytes: Uint8Array; checksum: string } }>();
   const rendererHostRef: DesktopRenderModelRef = { current: null, listeners: new Set() };
   const snapshotListeners = new Set<(snapshot: XlsxWorkbookSnapshot) => void>();
-  const outputs = new Map<string, { dataBase64: string; sizeBytes: number; checksum: string }>();
+  const outputs = new Map<string, { data: Uint8Array; sizeBytes: number; checksum: string }>();
 
   const publishRenderModel = (host: XlsxModelHost | null) => {
     rendererHostRef.current = host;
@@ -120,13 +107,13 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     }
     const response = desktopFileXlsxResponseSchema.parse(raw);
     throwIfLocalFileFailed(response);
-    if (response.state !== "completed" || response.outputBase64 === undefined) throw new Error(`local_xlsx_job_${response.state}`);
+    if (response.state !== "completed" || response.output === undefined) throw new Error(`local_xlsx_job_${response.state}`);
     return response;
   };
   const runOpenJob = async (): Promise<{ snapshot: XlsxWorkbookSnapshot; renderModel: XlsxRenderModel }> => {
     const response = await callJob({ operation: "open", baseRevision });
     let parsed: unknown;
-    try { parsed = JSON.parse(decodeText(response.outputBase64!)); } catch { throw new Error("office_open_snapshot_invalid"); }
+    try { parsed = JSON.parse(bytesToText(incomingBytes(response.output))); } catch { throw new Error("office_open_snapshot_invalid"); }
     const value = parsed && typeof parsed === "object" ? parsed as { snapshot?: unknown; render_model?: unknown } : {};
     if (!isXlsxWorkbookSnapshot(value.snapshot)) throw new Error("office_open_snapshot_invalid");
     if (!isRenderModel(value.render_model)) throw new Error("office_open_render_model_invalid");
@@ -224,11 +211,11 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
           throw ruleSetsDroppedError();
         }
         dropped = [];
-        const bytes = decode(response.outputBase64!);
+        const bytes = incomingBytes(response.output);
         captured.output = { bytes, checksum: response.outputChecksum ?? `sha256:${await fingerprint(captured.snapshot)}` };
       }
       const output = captured.output;
-      outputs.set(intent.intentId, { dataBase64: encode(output.bytes), sizeBytes: output.bytes.byteLength, checksum: output.checksum });
+      outputs.set(intent.intentId, { data: output.bytes, sizeBytes: output.bytes.byteLength, checksum: output.checksum });
       return { data: output.bytes.slice(), checksumSha256: output.checksum, sizeBytes: output.bytes.byteLength, format: "xlsx" };
     },
     async upload({ intent, output }) {
@@ -237,7 +224,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     async commit({ intent }) {
       const output = outputs.get(intent.intentId);
       if (!output) throw new Error("desktop save output missing");
-      const result = desktopFileResponseSchema.parse(await options.bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: options.localHandle, dataBase64: output.dataBase64 }));
+      const result = desktopFileResponseSchema.parse(await options.bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: options.localHandle, data: output.data }));
       throwIfLocalFileFailed(result);
       if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
       if (result.metadata.checksum !== output.checksum) throw new Error("local_save_checksum_mismatch");
@@ -283,7 +270,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     const rows = await listRows();
     generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
     const next = Math.max(1, generationFloor + 1, stable.generation);
-    const result = desktopDraftResponseSchema.parse(await options.bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId, draftId, generation: next, dataBase64: encodeText(JSON.stringify(stable)) }));
+    const result = desktopDraftResponseSchema.parse(await options.bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId, draftId, generation: next, data: textToBytes(JSON.stringify(stable)) }));
     lastCheckpoint = stable;
     generationFloor = Math.max(generationFloor, result.generation);
     durableRows.set(draftId, result.generation);
@@ -377,7 +364,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
         if (result.status !== "recovered") return "failed";
         await editor.open();
         let recovered: XlsxWorkbookSnapshot;
-        try { recovered = (JSON.parse(decodeText(result.dataBase64)) as StableSnapshot<XlsxWorkbookSnapshot>).value; } catch { return "failed"; }
+        try { recovered = (JSON.parse(bytesToText(incomingBytes(result.data))) as StableSnapshot<XlsxWorkbookSnapshot>).value; } catch { return "failed"; }
         if (!isXlsxWorkbookSnapshot(recovered)) return "failed";
         const operations = diffXlsxSnapshotsToOperations(snapshot ?? recovered, recovered);
         if (operations.length) await editor.edit?.(operations);

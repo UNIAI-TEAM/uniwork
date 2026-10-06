@@ -46,7 +46,7 @@ async function harness() {
     currentBase: () => live.identity.base,
   });
   const checkpoint = async (value: Uint8Array, draftId: string, generation = 1) => {
-    await handlers["desktop:draft-checkpoint"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId, generation, dataBase64: encoded(value) });
+    await handlers["desktop:draft-checkpoint"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId, generation, data: Uint8Array.from(Buffer.from(encoded(value), "base64")) });
   };
   const list = () => handlers["desktop:draft-list"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT });
   const recover = (draftId: string, base = BASE) => handlers["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId, currentBase: base });
@@ -73,7 +73,7 @@ it("Q8 logout keeps the ciphertext and its key while every draft command fails c
 
   // Logout: no live session and no live account scope remain in main.
   const detached = createDraftIpcHandlers({ store: q8.store, context: () => undefined, accountSession: () => undefined, currentBase: () => BASE });
-  await expect(detached["desktop:draft-checkpoint"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId: "draft-a", generation: 2, dataBase64: encoded(bytes(9)) })).rejects.toMatchObject({ code: "token_expired" });
+  await expect(detached["desktop:draft-checkpoint"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId: "draft-a", generation: 2, data: Uint8Array.from(Buffer.from(encoded(bytes(9)), "base64")) })).rejects.toMatchObject({ code: "token_expired" });
   await expect(detached["desktop:draft-list"]({ sessionGeneration: SESSION_GENERATION })).rejects.toMatchObject({ code: "token_expired" });
   await expect(detached["desktop:draft-recover"]({ sessionGeneration: SESSION_GENERATION, documentId: DOCUMENT, draftId: "draft-a", currentBase: BASE })).rejects.toMatchObject({ code: "token_expired" });
 
@@ -97,13 +97,13 @@ it("Q8 account B sees neither account A payload nor metadata", async () => {
   q8.live.session = session("account-a");
   q8.live.identity = identity("account-a");
   await expect(q8.list()).resolves.toMatchObject({ drafts: [{ draftId: "draft-a" }] });
-  await expect(q8.recover("draft-a")).resolves.toMatchObject({ status: "recovered", dataBase64: encoded(bytes(1, 2, 3)) });
+  await expect(q8.recover("draft-a")).resolves.toMatchObject({ status: "recovered", data: Uint8Array.from(Buffer.from(encoded(bytes(1, 2, 3)), "base64")) });
 });
 
 it("Q8 login A recovers only with a live session, a live edit ACL and the matching base pair", async () => {
   const q8 = await harness();
   await q8.checkpoint(bytes(4, 5, 6), "draft-a");
-  await expect(q8.recover("draft-a")).resolves.toMatchObject({ status: "recovered", metadata: { draftId: "draft-a" }, dataBase64: encoded(bytes(4, 5, 6)) });
+  await expect(q8.recover("draft-a")).resolves.toMatchObject({ status: "recovered", metadata: { draftId: "draft-a" }, data: Uint8Array.from(Buffer.from(encoded(bytes(4, 5, 6)), "base64")) });
 
   // Live ACL revoked -> blocked, bytes withheld, draft kept.
   q8.live.acl = "none";
