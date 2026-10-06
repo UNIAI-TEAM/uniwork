@@ -13,7 +13,7 @@ import type {
   OfficeSaveTransport,
   StableSnapshot,
 } from "@uniwork/core/office";
-import { DraftRecoveryError as DraftRecoveryErrorClass } from "@uniwork/core/office";
+import { createSaveSettleGate, DraftRecoveryError as DraftRecoveryErrorClass } from "@uniwork/core/office";
 import { registerOfficeDraftMemoryCleanup } from "@uniwork/core/drafts/cleanup-registry";
 import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
 import { createDraftKeyProvider, type DraftKeyProvider } from "./draft-key-provider";
@@ -248,34 +248,47 @@ export function createOfficeEditorSession<TSnapshot>(options: OfficeEditorSessio
   const coordinator = createOfficeSaveCoordinator({ identity: options.identity, editor: options.editor, draft, transport: options.transport });
   const identity = toDraftIdentity(options.identity);
   const { base: _base, ...lookupScope } = identity;
+  // A Save rebases the editor (pptx/xlsx journals) and then the draft
+  // identity; a checkpoint captured across that window would land a
+  // pre-rebase snapshot under the new base. Saves run inside the gate, and
+  // checkpoints capture only when no Save overlapped the capture.
+  const gate = createSaveSettleGate();
   const rebaseDraft = async () => {
     const state = coordinator.getState();
     const snapshot = await options.editor.captureSnapshot();
     await draft.rebaseDurable(state.identity, snapshot, state.lastSavedGeneration);
   };
-  const save: typeof coordinator.save = async (entryPoint) => {
+  const save: typeof coordinator.save = (entryPoint) => gate.run(async () => {
     const result = await coordinator.save(entryPoint);
     if (result.accepted) await rebaseDraft();
     return result;
-  };
+  });
+  // `checkpointDurable` enqueues on the draft lane synchronously, so the
+  // write is ordered before any later Save's rebase of the draft identity.
+  const checkpointSettled = (markDirty: boolean) => gate.capture(
+    () => options.editor.captureSnapshot(),
+    (snapshot) => {
+      if (markDirty) coordinator.markDirty(snapshot.generation);
+      return draft.checkpointDurable(snapshot);
+    },
+  );
   const sessionCoordinator = {
     ...coordinator,
     save,
     retry: () => save("retry"),
-    reconcile: async () => {
+    checkpoint: () => checkpointSettled(false),
+    reconcile: () => gate.run(async () => {
       const receipt = await coordinator.reconcile();
       if (receipt) await rebaseDraft();
       return receipt;
-    },
+    }),
   };
   return {
     editor: options.editor,
     coordinator: sessionCoordinator,
     draft,
     async checkpoint() {
-      const snapshot = await options.editor.captureSnapshot();
-      coordinator.markDirty(snapshot.generation);
-      await draft.checkpointDurable(snapshot);
+      await checkpointSettled(true);
       return true;
     },
     async recoverDraft() {
