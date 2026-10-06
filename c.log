@@ -1,0 +1,152 @@
+$ set -a && . ./.env && set +a && NEXT_PUBLIC_API_URL=http://localhost:8080 NEXT_PUBLIC_WS_URL=ws://localhost:8080 NEXT_PUBLIC_APP_URL=http://localhost:3000 pnpm --filter @uniwork/web build
+
+> @uniwork/web@0.0.0 build /workspace/apps/web
+> node scripts/copy-pdfium-wasm.mjs && next build
+
+▲ Next.js 16.3.8 (Turbopack)
+✓ Running next.config.mjs took 11ms
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+  Creating an optimized production build ...
+Found 2 warnings while optimizing generated CSS:
+
+Issue #1:
+[2m│   }[22m
+[2m│ }[22m
+[2m│[22m ::highlight(task-find) {
+[2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+[2m┆[22m
+[2m│   background-color: var(--selection);[22m
+[2m│   color: var(--selection-foreground);[22m
+
+Issue #2:
+[2m│   color: var(--selection-foreground);[22m
+[2m│ }[22m
+[2m│[22m ::highlight(task-find-active) {
+[2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+[2m┆[22m
+[2m│   background-color: var(--brand);[22m
+[2m│   color: var(--brand-foreground);[22m
+
+✓ Compiled successfully in 29.8s
+  Running TypeScript ...
+  Finished TypeScript in 35.8s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/51) ...
+  Generating static pages using 3 workers (12/51) 
+  Generating static pages using 3 workers (25/51) 
+  Generating static pages using 3 workers (38/51) 
+✓ Generating static pages using 3 workers (51/51) in 364ms
+Turbopack build encountered 2 warnings:
+./apps/web/app/globals.css:2:301685
+Warning: Parsing CSS source code failed
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:2:301685
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+./apps/web/app/globals.css:2:301776
+Warning: Parsing CSS source code failed
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+
+Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+./apps/web/app/globals.css:2:301776
+  [90m1 |[0m ...
+[33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+  [90m  |[0m                                                [33m[1m^[0m
+  [90m3 |[0m ...
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /[orgSlug]/[workspaceSlug]
+├ ƒ /[orgSlug]/[workspaceSlug]/calendar
+├ ƒ /[orgSlug]/[workspaceSlug]/chat
+├ ƒ /[orgSlug]/[workspaceSlug]/documents
+├ ƒ /[orgSlug]/[workspaceSlug]/documents/[documentId]
+├ ƒ /[orgSlug]/[workspaceSlug]/email
+├ ƒ /[orgSlug]/[workspaceSlug]/inbox
+├ ƒ /[orgSlug]/[workspaceSlug]/meetings
+├ ƒ /[orgSlug]/[workspaceSlug]/meetings/[meetingId]
+├ ƒ /[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room
+├ ƒ /[orgSlug]/[workspaceSlug]/members
+├ ƒ /[orgSlug]/[workspaceSlug]/my-tasks
+├ ƒ /[orgSlug]/[workspaceSlug]/people
+├ ƒ /[orgSlug]/[workspaceSlug]/people/[userId]
+├ ƒ /[orgSlug]/[workspaceSlug]/projects
+├ ƒ /[orgSlug]/[workspaceSlug]/projects/[projectId]
+├ ƒ /[orgSlug]/[workspaceSlug]/settings
+├ ƒ /[orgSlug]/[workspaceSlug]/tasks
+├ ƒ /[orgSlug]/[workspaceSlug]/tasks/[taskId]
+├ ƒ /admin
+├ ƒ /admin/flags
+├ ƒ /admin/organizations
+├ ƒ /admin/organizations/[id]
+├ ƒ /admin/quota
+├ ƒ /admin/system
+├ ƒ /admin/trace
+├ ○ /apple-icon.png
+├ ƒ /auth/callback
+├ ƒ /auth/desktop/authorize
+├ ƒ /enterprise
+├ ƒ /features
+├ ƒ /features/[slug]
+├ ƒ /forgot-password
+├ ○ /icon.svg
+├ ƒ /invitations
+├ ƒ /invite/[token]
+├ ƒ /invite/meeting/[linkId]
+├ ƒ /invite/meeting/[linkId]/room
+├ ƒ /learn
+├ ƒ /login
+├ ○ /manifest.webmanifest
+├ ƒ /onboarding
+├ ○ /opengraph-image.png
+├ ƒ /pricing
+├ ƒ /register
+├ ƒ /reset-password
+├ ƒ /share/[token]
+├ ƒ /solutions
+├ ƒ /solutions/operations
+├ ƒ /solutions/product
+├ ƒ /verify
+├ ƒ /why-uniwork
+├ ƒ /workspaces
+└ ƒ /workspaces/new
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

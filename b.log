@@ -1,0 +1,2 @@
+$ set -a && . ./.env && set +a && cd server && go run ./cmd/migrate up && go build -o bin/server ./cmd/server && (LIVEKIT_URL= LIVEKIT_API_KEY= LIVEKIT_API_SECRET= PORT=8080 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:8080 nohup bin/server > /tmp/server.log 2>&1 &)
+10:05:00.031 INF migrate done component=server dir=up
