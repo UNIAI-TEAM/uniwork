@@ -42,6 +42,9 @@ export function XlsxTextToColumnsButton({ readOnly = false, commands, selection,
   const [options, setOptions] = useState<TextToColumnsOptions>(DEFAULT_OPTIONS);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** The options an OK-time overwrite warning was shown for: that warning is
+   *  acknowledged by pressing OK again with the same options. */
+  const [warnedFor, setWarnedFor] = useState<string | null>(null);
 
   const span = selectionSpan(selection);
   const liveSheet = selection?.sheet ?? sheetName ?? null;
@@ -54,6 +57,7 @@ export function XlsxTextToColumnsButton({ readOnly = false, commands, selection,
     if (!source) return;
     setOptions(DEFAULT_OPTIONS);
     setFailed(false);
+    setWarnedFor(null);
     setSession({ span, sheetId, sheetName: liveSheet, unitId, source });
   };
 
@@ -86,6 +90,14 @@ export function XlsxTextToColumnsButton({ readOnly = false, commands, selection,
     const live = await settledSnapshot(readLiveSnapshot, snapshot);
     const source = readSpanCells(live, session.sheetName, session.span);
     const settled = source ? planOver(session, source, live) : null;
+    // A grid edit typed into the destination just before OK is not in the
+    // preview: warn now and write on the next OK, like the preview's own warning.
+    const optionsKey = JSON.stringify(options);
+    if (settled?.overwrite && !plan.overwrite && warnedFor !== optionsKey) {
+      setWarnedFor(optionsKey);
+      setBusy(false);
+      return;
+    }
     const fits = settled !== null && settled.rows.length * settled.width <= XLSX_DATA_TOOLS_MAX_CELLS;
     const done = fits && settled.rows.length > 0 && settled.width > 0 &&
       await runDataToolSteps(commands, [textToColumnsStep(session.unitId, session.sheetId, session.span, settled.rows, settled.width)]);
@@ -166,7 +178,7 @@ export function XlsxTextToColumnsButton({ readOnly = false, commands, selection,
                 </div>
               </div>
               {noDelimiter ? <p role="alert" className="text-caption text-destructive">{t("office.xlsx.dataTools.textToColumnsDialog.noDelimiter")}</p> : null}
-              {plan?.overwrite ? <p role="alert" className="text-caption text-destructive">{t("office.xlsx.dataTools.textToColumnsDialog.overwrite")}</p> : null}
+              {plan?.overwrite || warnedFor === JSON.stringify(options) ? <p role="alert" className="text-caption text-destructive">{t("office.xlsx.dataTools.textToColumnsDialog.overwrite")}</p> : null}
               {overLimit ? (
                 <p role="alert" className="text-caption text-destructive">{t("office.xlsx.dataTools.common.limitExceeded", { limit: XLSX_DATA_TOOLS_MAX_CELLS })}</p>
               ) : null}

@@ -73,6 +73,43 @@ describe("XlsxTextToColumnsButton", () => {
     expect(steps[0]?.params.value["1"]?.["1"]).toMatchObject({ v: "y" });
   });
 
+  it("warns at OK when a just-typed value now sits in the destination, and writes on the second OK (review-delta-r2 X3)", async () => {
+    // The preview saw an empty B column; a grid edit typed B1 just before OK.
+    const readLiveSnapshot = vi.fn(async () => snapshot({ B1: { value: "keep" } }));
+    const { executeAsOneStep } = setup({ readLiveSnapshot });
+    fireEvent.click(screen.getByTestId("xlsx-text-to-columns"));
+    pickComma();
+    expect(screen.queryByText(lookup(`${D}.overwrite`))).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: lookup(OK) }));
+    expect(await screen.findByText(lookup(`${D}.overwrite`))).toBeInTheDocument();
+    expect(executeAsOneStep).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: lookup(OK) }));
+    await waitFor(() => expect(executeAsOneStep).toHaveBeenCalledTimes(1));
+  });
+
+  it("asks again after the options changed since the OK-time overwrite warning (review-delta-r2 X3)", async () => {
+    const readLiveSnapshot = vi.fn(async () => snapshot({ B1: { value: "keep" } }));
+    const { executeAsOneStep } = setup({ readLiveSnapshot });
+    fireEvent.click(screen.getByTestId("xlsx-text-to-columns"));
+    pickComma();
+    fireEvent.click(screen.getByRole("button", { name: lookup(OK) }));
+    await screen.findByText(lookup(`${D}.overwrite`));
+    fireEvent.click(screen.getByRole("checkbox", { name: lookup(`${D}.consecutive`) }));
+    fireEvent.click(screen.getByRole("button", { name: lookup(OK) }));
+    await waitFor(() => expect(readLiveSnapshot).toHaveBeenCalledTimes(2));
+    expect(executeAsOneStep).not.toHaveBeenCalled();
+  });
+
+  it("writes on the first OK when the preview already warned of the overwrite (review-delta-r2 X3)", async () => {
+    const withB = snapshot({ B1: { value: "keep" } });
+    const { executeAsOneStep } = setup({ snapshot: withB, readLiveSnapshot: vi.fn(async () => withB) });
+    fireEvent.click(screen.getByTestId("xlsx-text-to-columns"));
+    pickComma();
+    expect(screen.getByRole("alert")).toHaveTextContent(lookup(`${D}.overwrite`));
+    fireEvent.click(screen.getByRole("button", { name: lookup(OK) }));
+    await waitFor(() => expect(executeAsOneStep).toHaveBeenCalledTimes(1));
+  });
+
   it("shows the failure when a queued grid edit failed (F3)", async () => {
     const { executeAsOneStep } = setup({ readLiveSnapshot: vi.fn(async () => { throw new Error("edit failed"); }) });
     fireEvent.click(screen.getByTestId("xlsx-text-to-columns"));
