@@ -1,6 +1,6 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { useRef, type ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OfficePrintShortcutScope, useOfficePrintShortcut } from "./shortcut";
 
 function Scope({ children, hidden = false }: { children: ReactNode; hidden?: boolean }) {
@@ -27,7 +27,15 @@ function pressCtrlP(target: EventTarget = document.body, init: KeyboardEventInit
   return event;
 }
 
-afterEach(cleanup);
+function platformUserAgent(userAgent: string) {
+  vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(userAgent);
+}
+
+beforeEach(() => platformUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"));
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("Office print shortcut", () => {
   it("runs the registered print and prevents the native print, from focus outside the editor", () => {
@@ -39,17 +47,30 @@ describe("Office print shortcut", () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
-  it("accepts Cmd+P and an upper-case key, ignores Shift/Alt chords and IME composition", () => {
+  it("accepts Ctrl+P with an upper-case key, ignores Shift/Alt chords, IME composition and Meta on Windows/Linux", () => {
     const run = vi.fn();
     render(<Scope><View run={run} /></Scope>);
-    pressCtrlP(document.body, { ctrlKey: false, metaKey: true });
     pressCtrlP(document.body, { key: "P" });
-    expect(run).toHaveBeenCalledTimes(2);
+    expect(run).toHaveBeenCalledTimes(1);
     expect(pressCtrlP(document.body, { shiftKey: true }).defaultPrevented).toBe(false);
     expect(pressCtrlP(document.body, { altKey: true }).defaultPrevented).toBe(false);
     expect(pressCtrlP(document.body, { isComposing: true }).defaultPrevented).toBe(false);
     expect(pressCtrlP(document.body, { ctrlKey: false }).defaultPrevented).toBe(false);
-    expect(run).toHaveBeenCalledTimes(2);
+    expect(pressCtrlP(document.body, { ctrlKey: false, metaKey: true }).defaultPrevented).toBe(false);
+    expect(pressCtrlP(document.body, { metaKey: true }).defaultPrevented).toBe(false);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes Cmd+P on macOS and leaves Ctrl+P to the text field", () => {
+    platformUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15");
+    const run = vi.fn();
+    render(<Scope><View run={run} /></Scope>);
+    const cmd = pressCtrlP(document.body, { ctrlKey: false, metaKey: true });
+    expect(cmd.defaultPrevented).toBe(true);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(pressCtrlP().defaultPrevented).toBe(false);
+    expect(pressCtrlP(document.body, { metaKey: true }).defaultPrevented).toBe(false);
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("blocks a held key's repeats without starting another run", () => {

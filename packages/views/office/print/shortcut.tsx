@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Ctrl/Cmd+P for an open Office document (UNI-952 G-ctrlp). The format view
+ * Cmd+P (macOS) / Ctrl+P (elsewhere) for an open Office document (UNI-952 G-ctrlp). The format view
  * registers the SAME run function its Print menu entry calls; the Office shell
  * around it owns one keydown listener, so the shortcut works wherever focus is
  * on the page (the page header, a sidebar, a ribbon popover), not only inside
@@ -27,8 +27,14 @@ interface PrintShortcutRegistry {
 
 const PrintShortcutContext = createContext<PrintShortcutRegistry | null>(null);
 
+function isMacPlatform(): boolean {
+  return typeof navigator !== "undefined" && /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+/** Cmd on macOS (Ctrl+P is a cursor-up edit in a text field there), Ctrl elsewhere. */
 function isPrintShortcut(event: KeyboardEvent): boolean {
-  return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && !event.isComposing && event.key.toLowerCase() === "p";
+  const primary = isMacPlatform() ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+  return primary && !event.altKey && !event.shiftKey && !event.isComposing && event.key.toLowerCase() === "p";
 }
 
 function isInactive(root: HTMLElement | null): boolean {
@@ -38,7 +44,7 @@ function isInactive(root: HTMLElement | null): boolean {
 /**
  * The shell's scope: views below it register their print run, and one window
  * keydown listener (capture phase, so an editor that stops propagation cannot
- * swallow it) routes Ctrl/Cmd+P to the latest registered run. `rootRef` is the
+ * swallow it) routes the platform's print chord to the latest registered run. `rootRef` is the
  * shell element, used to tell whether this document is the visible one.
  */
 export function OfficePrintShortcutScope({ rootRef, children }: { rootRef: RefObject<HTMLElement | null>; children: ReactNode }) {
@@ -67,7 +73,7 @@ export function OfficePrintShortcutScope({ rootRef, children }: { rootRef: RefOb
 }
 
 /**
- * Binds Ctrl/Cmd+P to `run` while it is set and this view is mounted. Pass
+ * Binds the print chord to `run` while it is set and this view is mounted. Pass
  * the function the view's Print entry calls, or null/undefined when the view
  * cannot print now (no port, document not ready). Outside a shell scope it
  * does nothing.

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render } from "@testing-library/react";
 import { useRef } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { OfficePrintShortcutScope, useOfficePrintShortcut } from "@uniwork/views/office/print/shortcut";
 import { relayNativePrintShortcut } from "./print-shortcut-relay";
 
@@ -22,7 +22,22 @@ function bridgeWithEmit() {
   return { bridge: { onOfficePrintRequested: (next: () => void) => { listener = next; return off; } }, emit: () => listener?.(), off };
 }
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("relayNativePrintShortcut", () => {
+  it("relays Cmd+P on macOS, so the shell's platform rule accepts it", () => {
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)");
+    const run = vi.fn();
+    const { bridge, emit } = bridgeWithEmit();
+    render(<Document run={run} />);
+    relayNativePrintShortcut(bridge);
+    const seen = vi.fn();
+    window.addEventListener("keydown", (event) => seen({ meta: event.metaKey, ctrl: event.ctrlKey }), { once: true });
+    emit();
+    expect(seen).toHaveBeenCalledWith({ meta: true, ctrl: false });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
   it("runs the open document's print when main reports the chord (a key pressed inside a preview frame)", () => {
     const run = vi.fn();
     const { bridge, emit } = bridgeWithEmit();
