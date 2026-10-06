@@ -27,6 +27,7 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
     getSlideNotes: () => "",
     buildRenderSlide: () => ({ nodes: [] }),
     HeuristicMetrics: class HeuristicMetrics {},
+    parseMasterPart: () => null,
   };
 });
 
@@ -76,12 +77,19 @@ function fakeMain() {
 }
 
 function openSession(bridge: LibraryBridge, bytes: Uint8Array, base: Pick<OfficeIdentity, "baseRevision" | "baseVersionId">) {
-  const captures = { count: 0 };
+  const captures: { count: number; hold: Promise<void> | null; held: boolean } = { count: 0, hold: null, held: false };
   let adapter!: DesktopPptxAdapter;
   const session = createPptxDocumentSession(bridge, { ...identity, ...base }, { format: "pptx", dataBase64: toBase64(bytes), checksum: CHECKSUM }, (onDirty) => {
     adapter = createDesktopPptxAdapter({ identity, runtime: createWebPptxSessionRuntime({ documentId: "doc" }), readBytes: async () => bytes, capability, onDirty });
     const capture = adapter.editor.captureSnapshot.bind(adapter.editor);
-    adapter.editor.captureSnapshot = async () => { const value = await capture(); captures.count += 1; return value; };
+    adapter.editor.captureSnapshot = async () => {
+      const value = await capture();
+      captures.count += 1;
+      // One-shot: the snapshot is read now but resolves only when released.
+      const hold = captures.hold;
+      if (hold) { captures.hold = null; captures.held = true; await hold; }
+      return value;
+    };
     return adapter;
   });
   return { session, captures };
@@ -101,12 +109,11 @@ describe("desktop pptx session - mid-save checkpoint (W14 review F1)", () => {
     main.gate.hold = true;
     const saving = session.coordinator.save("button");
     await vi.waitFor(() => expect(main.gate.entered).toBe(true));
-    // Typing after the save intent's snapshot, then a checkpoint whose snapshot
-    // (the full journal, three entries) is captured BEFORE the commit lands.
+    // Typing after the save intent's snapshot, then a checkpoint requested
+    // while the commit is still in flight.
     await session.editor.edit([box(3)]);
-    const capturesBefore = captures.count;
+    // The checkpoint queues behind the Save; no capture runs while it commits.
     const waiting = entry === "checkpoint" ? session.coordinator.checkpoint() : session.keepDraft();
-    await vi.waitFor(() => expect(captures.count).toBe(capturesBefore + 1));
     main.gate.release();
     await expect(saving).resolves.toMatchObject({ accepted: true, receipt: { revision: "3" } });
     await waiting;
@@ -134,5 +141,35 @@ describe("desktop pptx session - mid-save checkpoint (W14 review F1)", () => {
     expect(elementCount(reopened.session)).toBe(baseCount + 3);
     expect(elementCount(reopened.session)).toBe(elementCount(session));
     expect(reopened.session.editor.snapshot()).toEqual(tail);
+  });
+});
+
+describe("desktop pptx session - capture that resolves after the Save (T09 settle gate)", () => {
+  it("a checkpoint capture read before the rebase but resolved after the Save is captured again, never stored pre-rebase", async () => {
+    const main = fakeMain();
+    const { session, captures } = openSession(main.bridge, makeFakePptxBytes(), { baseRevision: "2", baseVersionId: "v2" });
+    await session.openEditor();
+    await session.editor.edit([box(1)]);
+    await session.editor.edit([box(2)]);
+    main.gate.hold = true;
+    const saving = session.coordinator.save("button");
+    await vi.waitFor(() => expect(main.gate.entered).toBe(true));
+    await session.editor.edit([box(3)]);
+    // The coordinator's own capture reads the full pre-rebase journal and is
+    // held until after the Save settled (a digest yields to the event loop).
+    let releaseCapture!: () => void;
+    captures.hold = new Promise<void>((resolve) => { releaseCapture = resolve; });
+    const checkpointing = session.coordinator.checkpoint();
+    await vi.waitFor(() => expect(captures.held).toBe(true));
+    main.gate.release();
+    await expect(saving).resolves.toMatchObject({ accepted: true, receipt: { revision: "3" } });
+    releaseCapture();
+    await checkpointing;
+
+    const tail = session.editor.snapshot();
+    expect(tail?.edits).toHaveLength(1);
+    const stored = main.drafts.get("doc:v3:3");
+    expect(stored).toBeDefined();
+    expect(JSON.parse(Buffer.from(stored!.dataBase64, "base64").toString("utf8"))).toEqual(tail);
   });
 });

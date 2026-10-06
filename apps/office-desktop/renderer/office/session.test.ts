@@ -259,3 +259,80 @@ it("forwards the pdf renderer and real page sizes so the shared canvas draws pag
   const rendered = await session.editor.renderer!.renderPage({ pageNumber: 1, width: 595.28, height: 841.89, scale: 1 });
   expect(rendered.src).toBe("data:image/png;base64,iVBORw0KGgo=");
 });
+
+it("re-captures a checkpoint whose capture resolved after the Save, so the row under the new base is post-save (T09 settle gate)", async () => {
+  const text = (value: string) => new TextEncoder().encode(value);
+  const live = { bytes: text("A") };
+  let holdNext: Promise<void> | null = null;
+  let held = false;
+  let releaseSave!: () => void;
+  let saveEntered = false;
+  let savedChecksum = opened.checksum;
+  const rows = new Map<string, string>();
+  const call = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:draft-checkpoint") { rows.set(payload.draftId as string, payload.dataBase64 as string); return { stored: true, generation: payload.generation }; }
+    if (channel === "desktop:office-open") return { dataBase64: opened.dataBase64, checksum: savedChecksum, document: { id: "doc", workspaceId: "ws", title: "Cloud.docx", kind: "file", format: "docx", version: 3, revision: "3", updatedAt: new Date(0).toISOString(), ownerKind: null, canEdit: true, downloadAvailable: true }, filename: "Cloud.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    if (channel === "desktop:office-save") {
+      saveEntered = true;
+      savedChecksum = payload.checksum as string;
+      await new Promise<void>((resolve) => { releaseSave = resolve; });
+      return { documentId: "doc", intentId: payload.intentId, idempotencyKey: payload.idempotencyKey, revision: "3", versionId: "v3", checksum: payload.checksum };
+    }
+    throw new Error(`unexpected ${channel}`);
+  });
+  const session = createByteDocumentSession({ call: call as never }, identity, opened, {
+    createEditor: async () => ({
+      ...(await createByteTestEditor({ documentId: "doc", readBytes: async () => text("A"), generation: 0 })),
+      // Reads the live bytes now; the one-shot hold resolves them later.
+      captureSnapshot: async () => {
+        const value = live.bytes.slice();
+        const hold = holdNext;
+        if (hold) { holdNext = null; held = true; await hold; }
+        return { value, generation: 0, fingerprint: "f", checksumSha256: "sha256:f", sizeBytes: value.length };
+      },
+    }),
+  });
+  await session.openEditor();
+  session.coordinator.markDirty(1);
+  const saving = session.coordinator.save("button");
+  await vi.waitFor(() => expect(saveEntered).toBe(true));
+  live.bytes = text("B");
+  session.coordinator.markDirty(2);
+  let releaseCapture!: () => void;
+  holdNext = new Promise<void>((resolve) => { releaseCapture = resolve; });
+  const checkpointing = session.coordinator.checkpoint();
+  await vi.waitFor(() => expect(held).toBe(true));
+  releaseSave();
+  await expect(saving).resolves.toMatchObject({ accepted: true });
+  // Typing continues after the held read: only a re-capture can see it.
+  live.bytes = text("C");
+  releaseCapture();
+  await checkpointing;
+  expect(rows.get("doc:3:3")).toBe(btoa("C"));
+});
+
+it("releases a blocked Save at once and retries it as a fresh intent (T09)", async () => {
+  let refuse = true;
+  const call = vi.fn(async (channel: string, payload: { intentId?: string; idempotencyKey?: string }) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:draft-discard") return { discarded: true };
+    if (channel === "desktop:office-open") return {
+      ...opened,
+      document: { id: "doc", workspaceId: "ws", title: "Cloud.docx", kind: "file", format: "docx", version: 3, revision: "3", updatedAt: new Date(0).toISOString(), ownerKind: null, canEdit: true, downloadAvailable: true },
+      filename: "Cloud.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    };
+    if (channel === "desktop:office-save") {
+      if (refuse) { refuse = false; throw Object.assign(new Error("quota_exceeded"), { code: "quota_exceeded" }); }
+      return { documentId: "doc", intentId: payload.intentId, idempotencyKey: payload.idempotencyKey, revision: "3", versionId: "v3", checksum };
+    }
+    throw new Error(`unexpected ${channel}`);
+  });
+  const session = await openSession({ call: call as never }, identity, opened);
+  session.coordinator.markDirty(1);
+  await expect(session.coordinator.save("button")).resolves.toEqual({ accepted: false, reason: "blocked" });
+  await expect(session.coordinator.save("retry")).resolves.toMatchObject({ accepted: true });
+  const saves = call.mock.calls.filter(([channel]) => channel === "desktop:office-save").map(([, payload]) => payload);
+  expect(saves).toHaveLength(2);
+  expect(saves[1]?.idempotencyKey).not.toBe(saves[0]?.idempotencyKey);
+});

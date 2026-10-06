@@ -1,4 +1,5 @@
 ﻿import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
+import { createSaveSettleGate } from "@uniwork/core/office";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, stableJson, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
@@ -202,6 +203,8 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       const receiptRevision = BigInt(nextRevision) > BigInt(intent.identity.baseRevision) ? nextRevision : String(BigInt(intent.identity.baseRevision) + 1n);
       return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId, versionId, revision: receiptRevision, checksumSha256: result.metadata.checksum, sizeBytes: output.sizeBytes, engineName: "genoffice", engineVersion: ENGINE_BUILD, contractVersion: CONTRACT_REVISION, protocolVersion: "1" };
     },
+    // Settled without a commit: drop the retained bytes and the frozen candidate.
+    async release({ intent }) { outputs.delete(intent.intentId); candidates.delete(intent.intentId); },
     async reconcile() { return null; },
   };
 
@@ -223,19 +226,24 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       return true;
     } catch { return false; }
   };
+  const writeRow = async (stable: StableSnapshot<XlsxWorkbookSnapshot>, draftId: string): Promise<void> => {
+    const rows = await listRows();
+    generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
+    const next = Math.max(1, generationFloor + 1, stable.generation);
+    const result = desktopDraftResponseSchema.parse(await options.bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId, draftId, generation: next, dataBase64: encodeText(JSON.stringify(stable)) }));
+    lastCheckpoint = stable;
+    generationFloor = Math.max(generationFloor, result.generation);
+    durableRows.set(draftId, result.generation);
+  };
+  // The draft id binds synchronously inside the gate's write; a snapshot read
+  // across a Save (which filters the pending journal) is captured again.
+  const gate = createSaveSettleGate();
   const draft: DraftAdapter<XlsxWorkbookSnapshot> = {
-    checkpoint: async (stable) => {
+    checkpoint: () => gate.capture(() => editor.captureSnapshot(), (stable) => {
       if (disposed) throw new Error("xlsx_editor_disposed");
-      if (stable.generation <= coordinator.getState().lastSavedGeneration) return;
-      const draftId = draftIdFor(coordinator.getState().identity);
-      const rows = await listRows();
-      generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
-      const next = Math.max(1, generationFloor + 1, stable.generation);
-      const result = desktopDraftResponseSchema.parse(await options.bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId, draftId, generation: next, dataBase64: encodeText(JSON.stringify(stable)) }));
-      lastCheckpoint = stable;
-      generationFloor = Math.max(generationFloor, result.generation);
-      durableRows.set(draftId, result.generation);
-    },
+      if (stable.generation <= coordinator.getState().lastSavedGeneration) return undefined;
+      return writeRow(stable, draftIdFor(coordinator.getState().identity));
+    }),
     recover: async () => lastCheckpoint,
     discard: async (target, savedGeneration) => {
       if (savedGeneration !== undefined && lastCheckpoint && lastCheckpoint.generation > savedGeneration) return;
@@ -251,6 +259,9 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
   };
 
   const coordinator = createOfficeSaveCoordinator({ identity, editor, draft, transport });
+  // Saves and reconciles run inside the gate so no checkpoint lands across their rebase.
+  const save: typeof coordinator.save = (entryPoint) => gate.run(() => coordinator.save(entryPoint));
+  const gatedCoordinator = { ...coordinator, save, retry: () => save("retry"), reconcile: () => gate.run(() => coordinator.reconcile()) };
   if (!options.canSave) coordinator.setCapability({ format: "xlsx", operation: "edit", host: "desktop", engineBuild: ENGINE_BUILD, contractRevision: CONTRACT_REVISION, status: "readonly", fidelityWarnings: [] });
 
   const open = {
@@ -287,7 +298,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     format: "xlsx",
     kind: "local",
     editor,
-    coordinator,
+    coordinator: gatedCoordinator,
     open,
     rendererHostRef,
     documentKey: documentId,

@@ -1,4 +1,5 @@
 import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
+import { createSaveSettleGate } from "@uniwork/core/office";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot, SaveAttemptResult } from "@uniwork/core/office";
 import type { DesktopEditorSurface, DesktopSurfaceSettings } from "./surface";
 import { desktopSurfaceFactory } from "./surface-registry";
@@ -90,7 +91,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
   let pickerCancelled = false;
   let contextError: unknown;
   let contextRefresh: Promise<void> | undefined;
-  let saveSettled: Promise<void> | undefined;
+  // Saves run inside the gate; checkpoints capture only when no Save overlapped.
+  const gate = createSaveSettleGate();
   let confirmedCloudBase: { revision: string; checksum: string } | undefined;
   let saveInProgress = false;
   let rebindingGeneration: number | null = null;
@@ -216,25 +218,35 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
   }
   // Intent memory is session-scoped; durable checkpoints cross the same typed
   // seam for cloud and local work. Main also protects local pre-write bytes.
+  const writeRow = async (snapshot: StableSnapshot<Uint8Array>, draftId: string): Promise<void> => {
+    const rows = await listRows();
+    generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
+    const next = Math.max(1, generationFloor + 1, snapshot.generation);
+    const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: next, dataBase64: encode(snapshot.value) }));
+    checkpoint = snapshot;
+    generationFloor = Math.max(generationFloor, result.generation);
+    durableRows.set(draftId, result.generation);
+    checkpointRows.set(draftId, { dirtyGeneration: snapshot.generation, durableGeneration: result.generation });
+  };
+  // A receipt advances the draft base and a snapshot read across that rebase
+  // would land under the new base. The gate re-captures across any Save and
+  // runs `write` in the same turn, so the draft id binds synchronously. A
+  // failed read-only context refresh is retried between captures, never inside one.
+  const checkpointNow = async (): Promise<void> => {
+    for (;;) {
+      const outcome = await gate.capture(() => editor.captureSnapshot(), (snapshot) => {
+        if (disposed) throw new Error("docx_editor_disposed");
+        // A snapshot that the completed Save already persisted needs no draft.
+        if (snapshot.generation <= rawCoordinator.getState().lastSavedGeneration) return undefined;
+        if (contextError) return "rebind" as const;
+        return writeRow(snapshot, draftIdFor(currentIdentity()));
+      });
+      if (outcome !== "rebind") return;
+      await bindDraftContext();
+    }
+  };
   const draft: DraftAdapter<Uint8Array> = {
-    checkpoint: async (snapshot) => {
-      // A receipt advances the draft base. Wait through the write and
-      // read-only context refresh before assigning N+1 to that new base.
-      if (saveSettled) await saveSettled;
-      if (disposed) throw new Error("docx_editor_disposed");
-      // A snapshot that the completed Save already persisted needs no draft.
-      if (snapshot.generation <= rawCoordinator.getState().lastSavedGeneration) return;
-      if (contextError) await bindDraftContext();
-      const draftId = draftIdFor(currentIdentity());
-      const rows = await listRows();
-      generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
-      const next = Math.max(1, generationFloor + 1, snapshot.generation);
-      const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: next, dataBase64: encode(snapshot.value) }));
-      checkpoint = snapshot;
-      generationFloor = Math.max(generationFloor, result.generation);
-      durableRows.set(draftId, result.generation);
-      checkpointRows.set(draftId, { dirtyGeneration: snapshot.generation, durableGeneration: result.generation });
-    },
+    checkpoint: () => checkpointNow(),
     recover: async () => checkpoint,
     // Commit/discard consume only the committed draft: the row for the base the
     // save landed on is deleted, every other base and the N+1 draft are kept.
@@ -291,6 +303,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       }
       return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: intent.identity.documentId, versionId, revision, checksumSha256: checksum, sizeBytes: output.sizeBytes, engineName: opened.format, engineVersion: desktopEngineBuild(opened.format), contractVersion: "office-editor-host/1", protocolVersion: "1" };
     },
+    // Settled without a commit: the retained serialized bytes end here.
+    release: async ({ intent }) => { outputs.delete(intent.intentId); },
     reconcile: async () => null,
   };
   const publish = () => { for (const listener of listeners) listener(rawCoordinator.getState()); };
@@ -336,9 +350,8 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
       if (saveInProgress) return { accepted: false, reason: "saving" };
       if (!surface || disposed) return { accepted: false, reason: "readonly" };
       saveInProgress = true;
-      let releaseSave!: () => void;
-      saveSettled = new Promise<void>((resolve) => { releaseSave = resolve; });
       try {
+      return await gate.run(async () => {
       if (contextError) await bindDraftContext();
       const result = await rawCoordinator.save(entryPoint);
       if (result.accepted) {
@@ -372,10 +385,11 @@ export function createByteDocumentSession(bridge: LibraryBridge, inputIdentity: 
         outputs.delete(result.intentId);
       }
       return result;
+      });
       } catch (error) {
         if (disposed) return { accepted: false, reason: "stale" };
         throw error;
-      } finally { saveInProgress = false; releaseSave(); saveSettled = undefined; }
+      } finally { saveInProgress = false; }
     },
   };
   if (opened.canSave === false) coordinator.setCapability({ format: opened.format, operation: "serialize", host: "desktop", engineBuild: desktopEngineBuild(opened.format), contractRevision: "office-editor-host/1", status: "readonly", fidelityWarnings: [] });
