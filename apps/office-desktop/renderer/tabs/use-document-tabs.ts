@@ -105,6 +105,36 @@ export function useDocumentTabs(bridge: RendererBridge) {
     return () => window.clearInterval(timer);
   }, []);
 
+  /** The ONE place a tab's session is built, for a first open and for an upgrade. */
+  const buildSession = (input: OpenTabInput): TabSession => {
+    // Save As moves the document to a new handle: main rebinds its context
+    // and the tab follows, so later saves and draft lookups use the new id.
+    const onLocalRebind = (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: OpenedBytes }) => {
+      const live = current.current;
+      if (!live.tabs.some((tab) => tab.id === next.previousId)) return;
+      commit({
+        tabs: live.tabs.map((tab) => tab.id === next.previousId ? { ...tab, id: next.documentId, title: next.title, data: { ...tab.data, identity: next.identity, bytes: next.bytes } } : tab),
+        activeTabId: live.activeTabId === next.previousId ? next.documentId : live.activeTabId,
+      });
+    };
+    // The ONE format->editor mapping: cloud xlsx mounts the shared editor
+    // through the server job seams; pptx owns the deck-journal session; every
+    // other format (and every local non-xlsx file) stays the byte/docx path.
+    // All expose the same coordinator surface the tab layer uses, and the
+    // surface dispatches on tab.data.format.
+    return input.format === "xlsx" && input.kind === "cloud"
+      ? createDesktopXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId })
+      // C1b: a local .xlsx uses the SAME main-owned local file path docx
+      // uses; its engine job rides desktop:file-xlsx and its Save writes the
+      // opaque local handle through desktop:file-save (no network).
+      : input.format === "xlsx" && input.kind === "local" && input.bytes.localHandle
+      ? createDesktopLocalXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId, localHandle: input.bytes.localHandle })
+      : input.format === "pptx"
+      ? createPptxDocumentSession(bridge, input.identity, input.bytes, (onDirty) => createPptxTabSurface(input, input.bytes, onDirty), { onLocalRebind })
+      : createByteDocumentSession(bridge, input.identity, input.bytes, { onLocalRebind });
+
+  };
+
   const summaries = state.tabs.map((tab) => ({ id: tab.id, title: tab.title, format: tab.format, dirty: isDocumentDirty(tab.data.session), saving: tab.data.session.coordinator.getState().state === "saving" }));
   return {
     ...state,
@@ -116,34 +146,26 @@ export function useDocumentTabs(bridge: RendererBridge) {
       const existing = current.current.tabs.find((tab) => tab.id === input.identity.documentId);
       if (existing) { commit(selectDocumentTab(current.current, existing.id)); return "focused"; }
       if (current.current.tabs.length >= 8) return "limit";
-      // Save As moves the document to a new handle: main rebinds its context
-      // and the tab follows, so later saves and draft lookups use the new id.
-      const onLocalRebind = (next: { previousId: string; documentId: string; title: string; identity: OfficeIdentity; bytes: OpenedBytes }) => {
-        const live = current.current;
-        if (!live.tabs.some((tab) => tab.id === next.previousId)) return;
-        commit({
-          tabs: live.tabs.map((tab) => tab.id === next.previousId ? { ...tab, id: next.documentId, title: next.title, data: { ...tab.data, identity: next.identity, bytes: next.bytes } } : tab),
-          activeTabId: live.activeTabId === next.previousId ? next.documentId : live.activeTabId,
-        });
-      };
-      // The ONE format->editor mapping: cloud xlsx mounts the shared editor
-      // through the server job seams; pptx owns the deck-journal session; every
-      // other format (and every local non-xlsx file) stays the byte/docx path.
-      // All expose the same coordinator surface the tab layer uses, and the
-      // surface dispatches on tab.data.format.
-      const session: TabSession = input.format === "xlsx" && input.kind === "cloud"
-        ? createDesktopXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId })
-        // C1b: a local .xlsx uses the SAME main-owned local file path docx
-        // uses; its engine job rides desktop:file-xlsx and its Save writes the
-        // opaque local handle through desktop:file-save (no network).
-        : input.format === "xlsx" && input.kind === "local" && input.bytes.localHandle
-        ? createDesktopLocalXlsxSession({ bridge, identity: input.identity, title: input.title, canSave: input.bytes.canSave !== false, baseRevision: input.identity.baseRevision, baseVersionId: input.identity.baseVersionId, localHandle: input.bytes.localHandle })
-        : input.format === "pptx"
-        ? createPptxDocumentSession(bridge, input.identity, input.bytes, (onDirty) => createPptxTabSurface(input, input.bytes, onDirty), { onLocalRebind })
-        : createByteDocumentSession(bridge, input.identity, input.bytes, { onLocalRebind });
+      const session = buildSession(input);
       const result = openDocumentTab(current.current, { id: input.identity.documentId, title: input.title, format: input.format, data: { ...input, session } });
       commit(result.state);
       return result.outcome;
+    },
+    /**
+     * A cloud tab that opened read-only is rebuilt editable in place (same tab,
+     * same position). Refused when the tab is not a read-only cloud tab or its
+     * session went dirty; the old session is disposed only after the new one exists.
+     */
+    upgradeCloud(id: string): boolean {
+      const live = current.current;
+      const tab = live.tabs.find((entry) => entry.id === id);
+      if (!tab || tab.data.kind !== "cloud" || tab.data.bytes.canSave !== false || isDocumentDirty(tab.data.session)) return false;
+      const { session: previous, ...rest } = tab.data;
+      const next: OpenTabInput = { ...rest, bytes: { ...rest.bytes, canSave: true } };
+      const session = buildSession(next);
+      commit({ ...live, tabs: live.tabs.map((entry) => entry.id === id ? { ...entry, data: { ...next, session } } : entry) });
+      previous.dispose();
+      return true;
     },
     select(id: string | null) { commit(selectDocumentTab(current.current, id)); },
     cycle(direction: 1 | -1) { commit(cycleDocumentTab(current.current, direction)); },
