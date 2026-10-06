@@ -88,4 +88,4 @@ export function createBrowserPrintPort(): OfficePrintPort {
   };
 }
 
-export { printPageFromCopy } from "./page";
+export { printOrientationFromCopy, printPageFromCopy } from "./page";

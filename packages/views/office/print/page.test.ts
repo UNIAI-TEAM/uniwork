@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { printPageFromCopy } from "./page";
+import { printOrientationFromCopy, printPageFromCopy } from "./page";
 
 const copy = (css: string) => `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'"><style>${css}</style></head><body><p>@page { size: 1in 9in }</p></body></html>`;
 
@@ -57,5 +57,49 @@ describe("printPageFromCopy", () => {
   it("reads a size on a later <style> when an earlier one has no rule", () => {
     const html = `<html><head><style>body{margin:0}</style><style>@page{size:A3 landscape}</style></head></html>`;
     expect(printPageFromCopy(html)).toMatchObject({ widthMm: 420, heightMm: 297, landscape: true });
+  });
+});
+
+describe("printOrientationFromCopy", () => {
+  it.each([
+    ["a DOCX with a portrait then a landscape section", "@page { size: 612pt 792pt; margin: 72pt }\n@page docx-s0 { size: 612pt 792pt; margin: 72pt }\n@page docx-s1 { size: 792pt 612pt; margin: 72pt }", "mixed"],
+    ["a DOCX with a landscape then a portrait section", "@page { size: 792pt 612pt }\n@page docx-s0 { size: 792pt 612pt }\n@page docx-s1 { size: 612pt 792pt }", "mixed"],
+    ["a PDF with mixed page sizes", "@page { size: 612pt 792pt; margin: 0; }\n@page pdf-size-0 { size: 612pt 792pt; margin: 0; }\n@page pdf-size-1 { size: 792pt 612pt; margin: 0; }", "mixed"],
+    ["an all-landscape DOCX", "@page { size: 841.9pt 595.3pt }\n@page docx-s0 { size: 841.9pt 595.3pt }\n@page docx-s1 { size: 841.9pt 595.3pt }", "landscape"],
+    ["a PPTX slide box", "@page { size: 13.333in 7.5in; margin: 0; }", "landscape"],
+    ["an all-portrait PDF", "@page { size: 612pt 792pt; margin: 0; }\n@page pdf-size-0 { size: 612pt 792pt; margin: 0; }", "portrait"],
+    ["a square page", "@page { size: 20cm }", "portrait"],
+    ["a landscape section after an unnamed A4 default", "@page{size:A4;margin:18mm}@page wide{size:A4 landscape}", "mixed"],
+  ])("reads %s", (_label, css, expected) => {
+    expect(printOrientationFromCopy(copy(css))).toBe(expected);
+  });
+
+  it("skips margin-box rules, pseudo-class rules and commented-out rules", () => {
+    const css = "@page { size: 612pt 792pt }\n@page docx-s0 { margin: 0; @top-left { content: 'x' } }\n@page docx-s0:first { size: 792pt 612pt }\n/* @page late { size: 792pt 612pt } */";
+    expect(printOrientationFromCopy(copy(css))).toBe("portrait");
+  });
+
+  it.each([
+    ["no rule", "body{margin:0}"],
+    ["size auto", "@page { size: auto }"],
+    ["a relative unit", "@page { size: 10em 20em }"],
+  ])("gives nothing for %s", (_label, css) => {
+    expect(printOrientationFromCopy(copy(css))).toBeUndefined();
+  });
+
+  it("reads rules across several <style> elements and never document text", () => {
+    const html = `<html><head><style>@page { size: A4 }</style><style>@page wide { size: A4 landscape }</style></head><body><p>@page x { size: 1in 9in }</p></body></html>`;
+    expect(printOrientationFromCopy(html)).toBe("mixed");
+  });
+
+  it("never parses the copy into a DOM", () => {
+    const parser = vi.fn();
+    vi.stubGlobal("DOMParser", parser);
+    try {
+      expect(printOrientationFromCopy(copy("@page { size: 13.333in 7.5in }") + "x".repeat(2_000_000))).toBe("landscape");
+      expect(parser).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

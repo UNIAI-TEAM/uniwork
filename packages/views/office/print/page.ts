@@ -75,6 +75,38 @@ function pageFromCssSize(value: string): OfficePrintPage | undefined {
   return { widthMm: width, heightMm: height, landscape: width > height };
 }
 
+/** Every plain `@page` rule, named or not (a pseudo-class such as `:first` never
+ * matches: those rules carry margin boxes, not a size). */
+const ANY_PAGE_RULE = /@page(?:\s+[\w-]+)?\s*\{([^{}]*)\}/gi;
+
+/** What a copy lays out: every page it states is portrait, every one is
+ * landscape, or the copy mixes both. */
+export type OfficePrintOrientation = "portrait" | "landscape" | "mixed";
+
+/**
+ * The orientations the copy prints across ALL its page rules (unnamed and
+ * named: a DOCX with a portrait and a landscape section, a PDF with mixed page
+ * sizes). Read in place like {@link printPageFromCopy}, never parsed into a DOM.
+ * Undefined when no rule states a usable size.
+ */
+export function printOrientationFromCopy(html: string): OfficePrintOrientation | undefined {
+  let landscape = false;
+  let portrait = false;
+  for (const match of html.matchAll(COMMENT_OR_STYLE)) {
+    if (match[1] === undefined) continue;
+    const css = match[1].replace(CSS_COMMENT_OR_STRING, "");
+    for (const rule of css.matchAll(ANY_PAGE_RULE)) {
+      const size = SIZE_DECLARATION.exec(rule[1]);
+      const page = size ? pageFromCssSize(size[1]) : undefined;
+      if (!page) continue;
+      if (page.landscape) landscape = true;
+      else portrait = true;
+    }
+  }
+  if (landscape && portrait) return "mixed";
+  return landscape ? "landscape" : portrait ? "portrait" : undefined;
+}
+
 /**
  * The first sheet of a print copy, from its first unnamed `@page` rule.
  * Undefined when the copy has none or states no usable size: the host then
