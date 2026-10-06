@@ -9,6 +9,7 @@
  *  Filter dialog drives. */
 export const XLSX_FILTER_TOGGLE_COMMAND = "sheet.command.smart-toggle-filter";
 export const XLSX_FILTER_CLEAR_COMMAND = "sheet.command.clear-filter-criteria";
+export const XLSX_FILTER_REAPPLY_COMMAND = "sheet.command.re-calc-filter";
 export const XLSX_FILTER_SET_RANGE_COMMAND = "sheet.command.set-filter-range";
 export const XLSX_FILTER_SET_CRITERIA_COMMAND = "sheet.command.set-filter-criteria";
 

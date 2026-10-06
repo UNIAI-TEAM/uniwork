@@ -51,6 +51,27 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
 }
 
 describe("XlsxFilterGroup", () => {
+  it("labels the small commands with visible text that is their accessible name, the tooltip saying more", () => {
+    render(<XlsxFilterGroup {...groupProps()} />);
+    for (const [id, short, full] of [
+      ["xlsx-filter-clear", "clearShort", "clear"],
+      ["xlsx-filter-reapply", "reapply", "reapply"],
+      ["xlsx-filter-advanced", "advancedShort", "advanced"],
+    ]) {
+      const button = screen.getByTestId(id);
+      expect(button).toHaveTextContent(lookup(viLocale, `office.xlsx.filter.${short}`) as string);
+      expect(button).toHaveAccessibleName(lookup(viLocale, `office.xlsx.filter.${short}`) as string);
+      expect(button).toHaveAttribute("title", lookup(viLocale, `office.xlsx.filter.${full}`) as string);
+    }
+  });
+
+  it("re-applies the filter without params", () => {
+    const execute = vi.fn(() => true);
+    render(<XlsxFilterGroup {...groupProps({ commands: { execute } })} />);
+    fireEvent.click(screen.getByTestId("xlsx-filter-reapply"));
+    expect(execute).toHaveBeenCalledWith("sheet.command.re-calc-filter");
+  });
+
   it("runs the pinned filter commands through the port", () => {
     const execute = vi.fn(() => true);
     render(<XlsxFilterGroup {...groupProps({ commands: { execute } })} />);
@@ -75,13 +96,13 @@ describe("XlsxFilterGroup", () => {
     // advanced entry alone also needs the editor's dialog handler. Each control
     // is asserted against its own gate and stays focusable (never `disabled`).
     for (const [overrides, disabledIds] of [
-      [{ commands: undefined }, ["xlsx-filter-toggle", "xlsx-filter-clear", "xlsx-filter-advanced"]],
+      [{ commands: undefined }, ["xlsx-filter-toggle", "xlsx-filter-clear", "xlsx-filter-reapply", "xlsx-filter-advanced"]],
       [{ onOpenAdvancedFilter: undefined }, ["xlsx-filter-advanced"]],
-      [{ readOnly: true }, ["xlsx-filter-toggle", "xlsx-filter-clear", "xlsx-filter-advanced"]],
+      [{ readOnly: true }, ["xlsx-filter-toggle", "xlsx-filter-clear", "xlsx-filter-reapply", "xlsx-filter-advanced"]],
     ] as [Partial<XlsxToolbarGroupProps>, string[]][]) {
       const onOpenAdvancedFilter = vi.fn();
       const view = render(<XlsxFilterGroup {...groupProps({ onOpenAdvancedFilter, ...overrides })} />);
-      for (const testId of ["xlsx-filter-toggle", "xlsx-filter-clear", "xlsx-filter-advanced"]) {
+      for (const testId of ["xlsx-filter-toggle", "xlsx-filter-clear", "xlsx-filter-reapply", "xlsx-filter-advanced"]) {
         const button = screen.getByTestId(testId);
         expect(button).not.toBeDisabled();
         if (disabledIds.includes(testId)) {

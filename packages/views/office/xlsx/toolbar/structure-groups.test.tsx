@@ -121,10 +121,6 @@ describe("XlsxStructureInsertGroup", () => {
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 4 });
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.insertRowsBelow") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-multi-rows-after", { value: 4 });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.deleteRows") }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.remove-row", {
-      range: { startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 },
-    });
     // Each input keeps its own draft: the row edit above must not leak.
     expect(colCount).toHaveValue("2");
     fireEvent.change(colCount, { target: { value: "5" } });
@@ -132,10 +128,17 @@ describe("XlsxStructureInsertGroup", () => {
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-col-before", { value: 5 });
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.insertColsRight") }));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-multi-cols-right", { value: 5 });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.deleteCols") }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.remove-col", {
-      range: { startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 },
-    });
+    // Deleting lives in Home > Cells > Delete, not in the insert form.
+    expect(screen.queryByRole("button", { name: viText("office.xlsx.structure.deleteRows") })).toBeNull();
+  });
+
+  it("labels every insert command with visible text (design review X2)", () => {
+    const props = groupProps();
+    render(<XlsxStructureInsertGroup {...props} />);
+    for (const button of screen.getAllByRole("button")) {
+      expect((button.textContent ?? "").trim()).not.toBe("");
+      expect(button).toHaveAttribute("title", (button.textContent ?? "").trim());
+    }
   });
 
   it("keeps an unparsable count at the last good value", () => {
@@ -193,7 +196,7 @@ describe("XlsxStructureInsertGroup", () => {
   it("refuses clicks in a read-only mount", () => {
     const props = groupProps({ readOnly: true });
     render(<XlsxStructureInsertGroup {...props} />);
-    const button = screen.getByRole("button", { name: viText("office.xlsx.structure.deleteRows") });
+    const button = screen.getByRole("button", { name: viText("office.xlsx.structure.insertRowsBelow") });
     expect(button).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(button);
     expect(executeMock(props)).not.toHaveBeenCalled();
@@ -287,32 +290,82 @@ describe("XlsxStructureSizeGroup", () => {
 });
 
 describe("XlsxStructureOutlineGroup", () => {
-  it("fires the registered outline commands for each axis and action", () => {
+  const openMenu = (testId: string) => fireEvent.click(screen.getByTestId(testId));
+  const pick = (testId: string) => fireEvent.click(screen.getByTestId(testId));
+
+  it("labels every primary control with visible text and a matching name", () => {
+    render(<XlsxStructureOutlineGroup {...groupProps()} />);
+    for (const key of ["group", "ungroup", "showDetail", "hideDetail"]) {
+      const name = viText(`office.xlsx.structure.${key}`);
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveTextContent(name);
+      expect(button).toHaveAttribute("title", name);
+    }
+  });
+
+  it("fires the registered outline commands from the Group and Ungroup menus", () => {
     const props = groupProps();
     render(<XlsxStructureOutlineGroup {...props} />);
     const execute = executeMock(props);
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.groupRows") }));
+    openMenu("xlsx-outline-group");
+    pick("xlsx-outline-group-rows");
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-rows-outline", { start: 1, end: 3, action: "group" });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.ungroupRows") }));
-    expect(execute).toHaveBeenCalledWith("uniwork.command.set-rows-outline", { start: 1, end: 3, action: "ungroup" });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.groupCols") }));
+    openMenu("xlsx-outline-group");
+    pick("xlsx-outline-group-cols");
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-outline", { start: 1, end: 2, action: "group" });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.ungroupCols") }));
+    openMenu("xlsx-outline-ungroup");
+    pick("xlsx-outline-ungroup-rows");
+    expect(execute).toHaveBeenCalledWith("uniwork.command.set-rows-outline", { start: 1, end: 3, action: "ungroup" });
+    openMenu("xlsx-outline-ungroup");
+    pick("xlsx-outline-ungroup-cols");
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-outline", { start: 1, end: 2, action: "ungroup" });
-    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.clearOutline") }));
+    openMenu("xlsx-outline-ungroup");
+    expect(screen.getByTestId("xlsx-outline-clear-outline")).toHaveTextContent(viText("office.xlsx.structure.clearOutline"));
+    pick("xlsx-outline-clear-outline");
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-rows-outline", { start: 1, end: 3, action: "clear" });
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-outline", { start: 1, end: 2, action: "clear" });
   });
 
-  it("keeps outline controls disabled without read/write access", () => {
-    const props = groupProps({ readOnly: true });
+  it("hides and shows the selection's rows from Hide / Show Detail", () => {
+    const props = groupProps();
     render(<XlsxStructureOutlineGroup {...props} />);
-    const button = screen.getByRole("button", { name: viText("office.xlsx.structure.groupRows") });
-    expect(button).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(button);
-    expect(executeMock(props)).not.toHaveBeenCalled();
-    render(<XlsxStructureOutlineGroup {...groupProps({ selection: null })} />);
-    expect(screen.getAllByRole("button").every((candidate) => candidate.getAttribute("aria-disabled") === "true")).toBe(true);
+    const execute = executeMock(props);
+    const ranges = [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 }];
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.hideDetail") }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-rows-hidden", { ranges });
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.showDetail") }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-specific-rows-visible", { ranges });
+  });
+
+  it("uses the column commands for a whole-column selection", () => {
+    const props = groupProps({
+      selection: { sheet: "Data", address: "B1", endAddress: "C1000", rangeType: XLSX_RANGE_TYPE.COLUMN },
+    });
+    render(<XlsxStructureOutlineGroup {...props} />);
+    const execute = executeMock(props);
+    const ranges = [{ startRow: 0, endRow: 999, startColumn: 1, endColumn: 2 }];
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.hideDetail") }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-col-hidden", { ranges });
+    fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.showDetail") }));
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-col-visible-on-cols", { ranges });
+  });
+
+  it("stays focusable but inert without edit rights or a selection", () => {
+    for (const overrides of [{ readOnly: true }, { selection: null }] as Partial<XlsxToolbarGroupProps>[]) {
+      const props = groupProps(overrides);
+      const view = render(<XlsxStructureOutlineGroup {...props} />);
+      const buttons = screen.getAllByRole("button");
+      expect(buttons).toHaveLength(4);
+      for (const button of buttons) {
+        expect(button).not.toBeDisabled();
+        expect(button).toHaveAttribute("aria-disabled", "true");
+        fireEvent.click(button);
+      }
+      expect(screen.queryByTestId("xlsx-outline-group-rows")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("xlsx-outline-ungroup-rows")).not.toBeInTheDocument();
+      expect(executeMock(props)).not.toHaveBeenCalled();
+      view.unmount();
+    }
   });
 });
 

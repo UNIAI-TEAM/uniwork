@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { xlsxCellsRibbonItems } from "./home-cells";
 import type { XlsxToolbarGroupProps } from "./types";
@@ -36,5 +36,23 @@ describe("Home > Cells layout (visual r4 R4B-6)", () => {
     fireEvent.click(screen.getByTestId("xlsx-cells-insert-trigger"));
     fireEvent.click(screen.getByTestId("xlsx-cells-insert-cols-right"));
     expect(execute).toHaveBeenCalledWith("sheet.command.insert-multi-cols-right", { value: 3 });
+  });
+
+  it("labels the menu Insert rows/columns and holds the counts in its dropdown (design review X2)", () => {
+    const execute = vi.fn(() => true);
+    const items = xlsxCellsRibbonItems({ ...props, selection: { sheet: "Data", address: "A1", endAddress: "C2" }, commands: { execute } });
+    const insert = items[0]!;
+    if (insert.kind !== "custom") throw new Error("expected a custom item");
+    expect(insert.labelKey).toBe("office.xlsx.toolbar.groups.cellsItems.insertRowsCols");
+    render(<div>{insert.render({ size: "icon", inPanel: false })}</div>);
+    const trigger = screen.getByTestId("xlsx-cells-insert-trigger");
+    expect(trigger).toHaveTextContent("Chèn hàng/cột");
+    fireEvent.click(trigger);
+    const menu = screen.getByTestId("xlsx-cells-insert-menu");
+    fireEvent.change(within(menu).getByLabelText("Số hàng"), { target: { value: "5" } });
+    fireEvent.click(screen.getByTestId("xlsx-cells-insert-rows-above"));
+    expect(execute).toHaveBeenCalledWith("sheet.command.insert-row-before", { value: 5 });
+    // A command closes the menu.
+    expect(screen.queryByTestId("xlsx-cells-insert-menu")).toBeNull();
   });
 });

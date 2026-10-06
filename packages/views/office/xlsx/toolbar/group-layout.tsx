@@ -40,7 +40,7 @@ export const XLSX_SMALL_BUTTON_CLASS = "h-6 justify-start gap-1.5 px-1.5 text-ca
 
 /** Class for the LARGE primary button (matches ribbon `large`). */
 export const XLSX_LARGE_BUTTON_CLASS =
-  "h-auto min-w-12 max-w-20 flex-col justify-start gap-0.5 self-stretch px-1.5 py-1 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-8";
+  "h-auto min-w-12 max-w-24 flex-col justify-start gap-0.5 self-stretch px-1.5 py-1 text-caption font-normal whitespace-normal [&_svg:not([class*='size-'])]:size-8";
 
 /** The LARGE primary command of a group: 32px icon over a 2-line label. Pass
  *  the icon and the visible label as children; aria/testid props flow through

@@ -57,9 +57,9 @@ describe("Home tab ribbon layout (Excel order)", () => {
     const paste = clipboard!.items[0]!;
     expect(paste.labelKey).toBe("office.xlsx.toolbar.groups.clipboardItems.paste");
     expect(paste.tooltipKey).toBe("office.xlsx.actions.paste");
-    // Only Paste and the Conditional formatting menu are large anywhere on Home.
+    // Only Paste and the three Styles commands (design review X1) are large on Home.
     const large = homeGroups().flatMap((group) => group.items).filter((item) => item.size === "large");
-    expect(large.map((item) => item.id)).toEqual(["clipboard-paste", "conditional-format"]);
+    expect(large.map((item) => item.id)).toEqual(["clipboard-paste", "conditional-format", "format-as-table", "cell-styles"]);
   });
 
   it("gives Number a format box on row 1 and Currency, Percent, Comma and the decimal steppers on row 2", () => {

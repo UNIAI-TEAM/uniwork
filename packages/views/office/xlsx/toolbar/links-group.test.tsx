@@ -72,6 +72,15 @@ describe("XlsxLinksGroup", () => {
     expect(execute).toHaveBeenCalledWith("sheet.command.update-note", { unitId: "file-sha", subUnitId: "sheet-1", row: 1, col: 1, note: { id: "1:1", note: "Xem lai" } });
   });
 
+  it("labels the note command with visible text (design review X2)", () => {
+    render(<XlsxLinksGroup {...groupProps()} />);
+    const note = screen.getByTestId("xlsx-note-insert");
+    expect(note).toHaveTextContent(lookup(viLocale, "office.xlsx.links.noteShort") as string);
+    // Label in name: the accessible name is the visible text; the tooltip says more.
+    expect(note).toHaveAccessibleName(lookup(viLocale, "office.xlsx.links.noteShort") as string);
+    expect(note).toHaveAttribute("title", lookup(viLocale, "office.xlsx.links.note") as string);
+  });
+
   it("stays inert under read-only", () => {
     const execute = vi.fn(() => true);
     render(<XlsxLinksGroup {...groupProps({ readOnly: true, commands: { execute } })} />);
