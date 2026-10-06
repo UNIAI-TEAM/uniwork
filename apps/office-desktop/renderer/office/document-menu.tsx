@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, useHeaderActionsMenuFilled } from "@uniwork/views/layout/header-actions-slot";
-import type { OfficePrintPort } from "@uniwork/views/office/print";
+import { printOrientationFromCopy, type OfficePrintPort, type OfficePrintRequest } from "@uniwork/views/office/print";
 import { createDesktopPrintPort, observePrintPort, printRequestPage, type DesktopPrintBridge } from "./text-print";
 
 /** The header overflow control. Inline rather than a lucide import: the
@@ -48,6 +48,16 @@ function isWindowsHost(): boolean {
   return typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 }
 
+type DialogOrientation = "portrait" | "landscape" | "mixed";
+
+/** The orientation line a print needs: a copy that holds both portrait and
+ * landscape pages is mixed whatever its first page is (one job cannot be right
+ * for both), else the page the print lays out decides. */
+function dialogOrientation(request: OfficePrintRequest): DialogOrientation {
+  if (printOrientationFromCopy(request.html) === "mixed") return "mixed";
+  return printRequestPage(request)?.landscape === true ? "landscape" : "portrait";
+}
+
 /**
  * The desktop print port a shell hands every format view, plus the Windows
  * preview hint it shows while a print dialog is up. The view still owns every
@@ -62,14 +72,15 @@ function isWindowsHost(): boolean {
  *
  * The dialog opens on the printer's default orientation whatever the print
  * options say (Electron passes them to Chromium's silent path only), so a
- * landscape page adds a line asking for Landscape. The print that opened the
+ * landscape page adds a line asking for Landscape, and a copy that mixes
+ * portrait and landscape pages adds the line saying which pages get turned. The print that opened the
  * dialog decides it; one answered print_busy while it is up does not.
  */
 export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows: boolean = isWindowsHost()): { port: OfficePrintPort; hint: ReactNode } {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [inFlight, setInFlight] = useState(0);
   const [lingering, setLingering] = useState(false);
-  const [landscape, setLandscape] = useState(false);
+  const [orientation, setOrientation] = useState<DialogOrientation>("portrait");
   // "Is a dialog up" lives in refs updated synchronously by the same callbacks
   // that set the state: a print that fails in the tick it started (too large, no
   // bridge) is batched into one render with open false -> false, so an effect
@@ -79,7 +90,7 @@ export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows:
   const changeLingering = useCallback((next: boolean) => { lingerRef.current = next; setLingering(next); }, []);
   const port = useMemo(() => observePrintPort(createDesktopPrintPort(bridge), {
     onStart: (request) => {
-      if (pending.current === 0 && !lingerRef.current) setLandscape(printRequestPage(request)?.landscape === true);
+      if (pending.current === 0 && !lingerRef.current) setOrientation(dialogOrientation(request));
       pending.current += 1;
       setInFlight((count) => count + 1);
     },
@@ -102,6 +113,6 @@ export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows:
     return () => { clearTimeout(grace); window.removeEventListener("blur", onBlur); window.removeEventListener("focus", onFocus); };
   }, [lingering, changeLingering]);
   const shown = windows && (inFlight > 0 || lingering);
-  const hint = shown ? <p role="status" className="pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md ring-1 ring-foreground/10" data-testid="print-preview-hint">{t("printPreviewHint")}{landscape ? <span className="mt-1 block">{t("printLandscapeHint")}</span> : null}</p> : null;
+  const hint = shown ? <p role="status" className="pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md ring-1 ring-foreground/10" data-testid="print-preview-hint">{t("printPreviewHint")}{orientation === "portrait" ? null : <span className="mt-1 block">{t(orientation === "mixed" ? "printMixedOrientationHint" : "printLandscapeHint")}</span>}</p> : null;
   return { port, hint };
 }

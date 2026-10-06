@@ -230,3 +230,46 @@ it("recomputes the landscape line after a print that failed in the same tick as 
   expect(await screen.findByTestId("print-preview-hint")).toHaveTextContent(i18n.t("officeDesktop.library.printLandscapeHint"));
   await act(async () => { finish!({ outcome: "printed" }); await pending; });
 });
+
+it("shows the mixed-orientation line, not the all-landscape one, when the copy holds portrait and landscape pages", async () => {
+  const mixed = "<style>@page { size: 612pt 792pt }\n@page docx-s1 { size: 792pt 612pt }</style><p>x</p>";
+  let finish: ((value: unknown) => void) | undefined;
+  const bridge = { call: vi.fn(() => new Promise((resolve) => { finish = resolve; })) };
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let pending!: Promise<unknown>;
+  // The view gave the FIRST section (portrait): only the copy shows the landscape one.
+  act(() => { pending = Promise.resolve(hook.port.print({ html: mixed, title: "Report.docx", page: { widthMm: 215.9, heightMm: 279.4, landscape: false } })); });
+  const hint = await screen.findByTestId("print-preview-hint");
+  expect(hint).toHaveTextContent(i18n.t("officeDesktop.library.printMixedOrientationHint"));
+  expect(hint).not.toHaveTextContent(i18n.t("officeDesktop.library.printLandscapeHint"));
+  await act(async () => { finish!({ outcome: "printed" }); await pending; });
+});
+
+it("keeps the all-landscape line for a document whose every page is landscape", async () => {
+  const wide = "<style>@page { size: 842pt 595pt }\n@page docx-s0 { size: 842pt 595pt }\n@page docx-s1 { size: 842pt 595pt }</style><p>x</p>";
+  let finish: ((value: unknown) => void) | undefined;
+  const bridge = { call: vi.fn(() => new Promise((resolve) => { finish = resolve; })) };
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let pending!: Promise<unknown>;
+  act(() => { pending = Promise.resolve(hook.port.print({ html: wide, title: "Wide.docx", page: LANDSCAPE_SLIDE })); });
+  const hint = await screen.findByTestId("print-preview-hint");
+  expect(hint).toHaveTextContent(i18n.t("officeDesktop.library.printLandscapeHint"));
+  expect(hint).not.toHaveTextContent(i18n.t("officeDesktop.library.printMixedOrientationHint"));
+  await act(async () => { finish!({ outcome: "printed" }); await pending; });
+});
+
+it("keeps the open dialog's mixed line when a portrait print is answered print_busy", async () => {
+  const mixed = "<style>@page { size: 612pt 792pt }\n@page pdf-size-1 { size: 792pt 612pt }</style><p>x</p>";
+  let finish: ((value: unknown) => void) | undefined;
+  const bridge = pendingBridge([() => new Promise((resolve) => { finish = resolve; }), async () => ({ outcome: "failed", reason: "print_busy" })]);
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let first!: Promise<unknown>;
+  act(() => { first = Promise.resolve(hook.port.print({ html: mixed, title: "Scan.pdf" })); });
+  await screen.findByTestId("print-preview-hint");
+  await act(async () => { await hook.port.print(printArgs); });
+  expect(screen.getByTestId("print-preview-hint")).toHaveTextContent(i18n.t("officeDesktop.library.printMixedOrientationHint"));
+  await act(async () => { finish!({ outcome: "printed" }); await first; });
+});
