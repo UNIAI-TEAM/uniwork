@@ -210,3 +210,23 @@ it("keeps waiting for the next focus when the window blurs during the grace", as
     vi.useRealTimers();
   }
 });
+
+it("recomputes the landscape line after a print that failed in the same tick as it started", async () => {
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  let finish: ((value: unknown) => void) | undefined;
+  // A too-large copy (or no bridge) settles synchronously: start and settle share one React batch.
+  const bridge = pendingBridge([async () => ({ outcome: "failed", reason: "print_too_large" }), () => new Promise((resolve) => { finish = resolve; }), async () => ({ outcome: "failed", reason: "print_too_large" }), () => new Promise((resolve) => { finish = resolve; })]);
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  await act(async () => { await hook.port.print({ ...printArgs, page: LANDSCAPE_SLIDE }); });
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+  let pending!: Promise<unknown>;
+  act(() => { pending = Promise.resolve(hook.port.print(printArgs)); });
+  // The failed landscape attempt must not decide this portrait dialog's line.
+  expect(await screen.findByTestId("print-preview-hint")).not.toHaveTextContent(i18n.t("officeDesktop.library.printLandscapeHint"));
+  await act(async () => { finish!({ outcome: "printed" }); await pending; });
+  await act(async () => { await hook.port.print(printArgs); });
+  act(() => { pending = Promise.resolve(hook.port.print({ ...printArgs, page: LANDSCAPE_SLIDE })); });
+  expect(await screen.findByTestId("print-preview-hint")).toHaveTextContent(i18n.t("officeDesktop.library.printLandscapeHint"));
+  await act(async () => { finish!({ outcome: "printed" }); await pending; });
+});

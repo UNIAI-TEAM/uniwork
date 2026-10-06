@@ -1,4 +1,4 @@
-import { Children, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Children, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -70,33 +70,38 @@ export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows:
   const [inFlight, setInFlight] = useState(0);
   const [lingering, setLingering] = useState(false);
   const [landscape, setLandscape] = useState(false);
-  const dialogUp = useRef(false);
+  // "Is a dialog up" lives in refs updated synchronously by the same callbacks
+  // that set the state: a print that fails in the tick it started (too large, no
+  // bridge) is batched into one render with open false -> false, so an effect
+  // keyed on `open` would never see it and the next print would keep a stale line.
+  const pending = useRef(0);
+  const lingerRef = useRef(false);
+  const changeLingering = useCallback((next: boolean) => { lingerRef.current = next; setLingering(next); }, []);
   const port = useMemo(() => observePrintPort(createDesktopPrintPort(bridge), {
     onStart: (request) => {
-      if (!dialogUp.current) setLandscape(printRequestPage(request)?.landscape === true);
-      dialogUp.current = true;
+      if (pending.current === 0 && !lingerRef.current) setLandscape(printRequestPage(request)?.landscape === true);
+      pending.current += 1;
       setInFlight((count) => count + 1);
     },
     onSettled: (outcome) => {
+      pending.current = Math.max(0, pending.current - 1);
       setInFlight((count) => Math.max(0, count - 1));
       const reason = outcome?.outcome === "failed" ? outcome.reason : undefined;
-      if (reason === "print_timeout") setLingering(true);
-      else if (reason !== "print_busy") setLingering(false);
+      if (reason === "print_timeout") changeLingering(true);
+      else if (reason !== "print_busy") changeLingering(false);
     },
-  }), [bridge]);
+  }), [bridge, changeLingering]);
   useEffect(() => {
     if (!lingering) return undefined;
     let sawBlur = !document.hasFocus();
-    let grace = sawBlur ? undefined : setTimeout(() => setLingering(false), LINGER_FOCUSED_GRACE_MS);
+    let grace = sawBlur ? undefined : setTimeout(() => changeLingering(false), LINGER_FOCUSED_GRACE_MS);
     const onBlur = () => { sawBlur = true; clearTimeout(grace); grace = undefined; };
-    const onFocus = () => { if (sawBlur) setLingering(false); };
+    const onFocus = () => { if (sawBlur) changeLingering(false); };
     window.addEventListener("blur", onBlur);
     window.addEventListener("focus", onFocus);
     return () => { clearTimeout(grace); window.removeEventListener("blur", onBlur); window.removeEventListener("focus", onFocus); };
-  }, [lingering]);
-  const open = inFlight > 0 || lingering;
-  useEffect(() => { dialogUp.current = open; }, [open]);
-  const shown = windows && open;
+  }, [lingering, changeLingering]);
+  const shown = windows && (inFlight > 0 || lingering);
   const hint = shown ? <p role="status" className="pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md ring-1 ring-foreground/10" data-testid="print-preview-hint">{t("printPreviewHint")}{landscape ? <span className="mt-1 block">{t("printLandscapeHint")}</span> : null}</p> : null;
   return { port, hint };
 }
