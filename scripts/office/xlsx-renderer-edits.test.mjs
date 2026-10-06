@@ -217,6 +217,22 @@ test('row/column structure commands and mutations pass only with a bounded span'
     assert.equal(canExecuteCommand({ id, params: { value: 1.5 } }, model, false), false, `${id} fraction`);
     assert.equal(canExecuteCommand({ id, params: { value: 2 } }, model, true), false, `${id} readOnly`);
   }
+  // X04: the insert commands above delegate to these inner commands, which
+  // fire the same gate again; a refusal here made every insert a silent no-op.
+  for (const [id, axis] of [['sheet.command.insert-row', 'row'], ['sheet.command.insert-row-by-range', 'row'],
+    ['sheet.command.insert-col', 'column'], ['sheet.command.insert-col-by-range', 'column']]) {
+    const span = (start, end) => (axis === 'row' ? range(start, end) : range(0, 0, start, end));
+    const inner = (params) => ({ id, params: { unitId: 'file-sha', subUnitId: 's1', direction: 0, ...params } });
+    assert.equal(canExecuteCommand(inner({ range: span(2, 4) }), model, false), true, `${id} span`);
+    assert.equal(canExecuteCommand({ id, params: { range: span(2, 4) } }, model, false), true, `${id} no unit/sheet`);
+    assert.equal(canExecuteCommand(inner({ range: span(2, 4) }), model, true), false, `${id} readOnly`);
+    assert.equal(canExecuteCommand({ id }, model, false), false, `${id} no params`);
+    assert.equal(canExecuteCommand(inner({ range: span(4, 2) }), model, false), false, `${id} reversed`);
+    assert.equal(canExecuteCommand(inner({ range: span(0, 100_000) }), model, false), false, `${id} over ceiling`);
+    assert.equal(canExecuteCommand(inner({ range: 'x' }), model, false), false, `${id} bad range`);
+    assert.equal(canExecuteCommand(inner({ range: span(2, 4), unitId: 'other' }), model, false), false, `${id} other unit`);
+    assert.equal(canExecuteCommand(inner({ range: span(2, 4), subUnitId: 'ghost' }), model, false), false, `${id} ghost sheet`);
+  }
   assert.equal(canExecuteCommand({ id: 'sheet.command.remove-row', params: { range: range(1, 2) } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'sheet.command.remove-row', params: { range: range(2, 1) } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'sheet.command.remove-col' }, model, false), true);
