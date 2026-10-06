@@ -12,6 +12,8 @@ import { PdfRibbonBar, PdfStatusBar } from "./chrome";
 import { PdfEditorSurface, type PdfSurfacePanelId } from "./pdf-editor-surface";
 import { pdfEditErrorKey } from "./pdf-edit-error";
 import { canStepHistory, stepHistory } from "../common/history-step";
+import { usePdfRail } from "./use-pdf-rail";
+import { usePdfFindFromBody } from "./use-pdf-find-shortcut";
 import { PDF_MAX_ZOOM, PDF_MIN_ZOOM, clampPdfZoom, fitPdfZoom } from "./fit-zoom";
 import { PDF_COMMANDS, PDF_BROWSER_UNSUPPORTED_REASON_KEY, PDF_COMMAND_CAPABILITIES, pdfCommandDisabledReason, type PdfCommandId } from "./pdf-command-map";
 import type { PdfToolbarCommand, PdfToolbarTab } from "./toolbar";
@@ -130,10 +132,9 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const [revision, setRevision] = useState(0);
   const [editErrorKey, setEditErrorKey] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
-  const [railOpen, setRailOpen] = useState(false);
-  const railToggleRef = useRef<HTMLButtonElement>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const { railOpen, railRef, railToggleRef, toggleRail, closeRail } = usePdfRail({ rootRef, canvasRef });
   const initialFitDoneRef = useRef<string | null>(null);
   const disposedRef = useRef(false);
   const passwordControllerRef = useRef<AbortController | null>(null);
@@ -256,7 +257,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   useEffect(() => {
     if (viewState !== "ready") return;
     const active = document.activeElement;
-    if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true });
+    // r3 F1: a focus the user did not ask for draws no focus ring where supported.
+    if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
   }, [documentKey, viewState]);
 
   const submitPassword = useCallback(async (password: string) => {
@@ -373,6 +375,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const undo = useCallback(() => { if (!readOnly && stepHistory(editor, "undo")) markDirty(); }, [editor, markDirty, readOnly]);
   const redo = useCallback(() => { if (!readOnly && stepHistory(editor, "redo")) markDirty(); }, [editor, markDirty, readOnly]);
   const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
+  const openFind = useCallback(() => setFindOpen(true), []);
+  usePdfFindFromBody(rootRef, viewState === "ready", openFind);
   const zoomOut = useCallback(() => setZoom((value) => clampPdfZoom(value - ZOOM_STEP)), []);
   const zoomIn = useCallback(() => setZoom((value) => clampPdfZoom(value + ZOOM_STEP)), []);
   /** F-12: fit the page into the measured canvas pane instead of resetting to
@@ -472,7 +476,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   // F1: once ready, the shared Office frame (ribbon, sub-bars, rail, canvas,
   // status bar) is the only chrome; the page header owns the title and Save.
   return (
-    <div ref={rootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
+    <div ref={rootRef} className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background focus-visible:-outline-offset-2", className)} data-testid="pdf-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {viewState === "ready" ? (
         <PdfEditorSurface
           editor={editor}
@@ -488,7 +492,8 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           findOpen={findOpen}
           onFindClose={() => setFindOpen(false)}
           railOpen={railOpen}
-          onSelectPage={(page) => { selectPageNumber(page); if (railOpen) { setRailOpen(false); railToggleRef.current?.focus(); } }}
+          railRef={railRef}
+          onSelectPage={(page) => { selectPageNumber(page); if (railOpen) closeRail(true); }}
           onCanvasSelect={selectPage}
           fontReport={fontReport}
           errorKey={editErrorKey}
@@ -501,7 +506,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           ) : null}
           // The page readout already follows the selected page; object kinds
           // have no translated summary yet, so no raw kind string is shown.
-          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} onFitWidth={fitWidth} onFitPage={fitPage} railOpen={railOpen} railToggleRef={railToggleRef} onRailToggle={() => setRailOpen((open) => !open)} />}
+          statusBar={<PdfStatusBar page={selectedPage ?? 1} pageCount={pages.length} zoom={zoom} onZoomChange={setZoom} onFitWidth={fitWidth} onFitPage={fitPage} railOpen={railOpen} railToggleRef={railToggleRef} onRailToggle={toggleRail} />}
         />
       ) : viewState === "error" && failure ? (
         promptMode ? (

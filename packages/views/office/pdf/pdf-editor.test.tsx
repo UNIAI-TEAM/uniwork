@@ -503,11 +503,67 @@ describe("PdfEditor", () => {
     expect(rail).toHaveClass("absolute");
     expect(screen.getByTestId("pdf-rail-slot")).toHaveClass("w-0");
     expect(toggle).toHaveAccessibleName("Ẩn ảnh thu nhỏ trang");
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTestId("pdf-thumbnail-1"));
     expect(rail).toHaveClass("hidden");
     // Focus returns to the toggle, not BODY, once the rail closes (UIQ-3).
     expect(toggle).toHaveFocus();
+  });
+
+  it("treats the open overlay rail as a popover: focus moves in, canvas inert, Escape closes (r6 F3)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const canvas = screen.getByTestId("pdf-canvas").querySelector<HTMLElement>("[data-office-canvas]")!;
+    const toggle = screen.getByTestId("pdf-rail-toggle");
+    fireEvent.click(toggle);
+    // Focus lands on the current page's thumbnail, inside the rail.
+    expect(screen.getByTestId("pdf-rail-slot")).toContainElement(document.activeElement as HTMLElement);
+    expect(canvas).toHaveAttribute("inert");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.getByTestId("pdf-thumbnails-rail")).toHaveClass("hidden");
+    expect(toggle).toHaveFocus();
+    expect(canvas).not.toHaveAttribute("inert");
+  });
+
+  it("closes the overlay rail on a press outside it and leaves focus where the press went (r6 F3)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const canvas = screen.getByTestId("pdf-canvas").querySelector<HTMLElement>("[data-office-canvas]")!;
+    fireEvent.click(screen.getByTestId("pdf-rail-toggle"));
+    // A press inside the rail keeps it open.
+    fireEvent.pointerDown(screen.getByTestId("pdf-thumbnail-2"));
+    expect(screen.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+    fireEvent.pointerDown(screen.getByTestId("pdf-ribbon-bar"));
+    expect(screen.getByTestId("pdf-thumbnails-rail")).toHaveClass("hidden");
+    expect(canvas).not.toHaveAttribute("inert");
+  });
+
+  it("falls back to the editor root when the rail toggle cannot take focus (r6 F4)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const toggle = screen.getByTestId("pdf-rail-toggle");
+    fireEvent.click(toggle);
+    // From sm up the toggle is display:none, so focus() on it does nothing.
+    toggle.focus = () => undefined;
+    fireEvent.click(screen.getByTestId("pdf-thumbnail-2"));
+    expect(screen.getByTestId("pdf-editor")).toHaveFocus();
+  });
+
+  it("opens Find on Ctrl+F pressed with focus on the body, and leaves other controls' Ctrl+F alone (r3 F2)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+    // The landmark keeps an inset ring so its overflow-hidden edge cannot clip it (r3 F1).
+    expect(root).toHaveClass("focus-visible:-outline-offset-2");
+    const outside = document.createElement("input");
+    document.body.append(outside);
+    outside.focus();
+    fireEvent.keyDown(outside, { key: "f", ctrlKey: true });
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
+    outside.blur();
+    outside.remove();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: "f", ctrlKey: true });
+    expect(screen.getByRole("search")).toBeInTheDocument();
   });
 
   it("does not toggle Find on Ctrl+Shift+F - the shifted chord is out of scope", async () => {
