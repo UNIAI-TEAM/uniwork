@@ -90,6 +90,12 @@ export function summarizeCells(cells: readonly Pick<RendererRangeCell, "value">[
   return { kind: "numeric", nonEmptyCount, numericCount, sum, average: sum / numericCount, min, max };
 }
 
+/** Excel shows no statistics for one selected cell: a lone address, or a
+ *  selection the grid reports as exactly one merged cell. */
+export function isSingleCellSelection(selection: XlsxSelection | null): boolean {
+  return !selection?.endAddress || selection.endAddress === selection.address || selection.merged === true;
+}
+
 function rangeFromSelection(selection: XlsxSelection): XlsxSummaryRange | null {
   const start = addressParts(selection.address);
   if (!start) return null;

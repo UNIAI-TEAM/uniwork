@@ -193,7 +193,7 @@ describe("XlsxStatusBar", () => {
 
   it("reports a failed read without inventing values", async () => {
     const readRange = vi.fn().mockRejectedValueOnce(new Error("sidecar down"));
-    render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={host(readRange)} />);
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A2")} host={host(readRange)} />);
     expect(await screen.findByTestId("xlsx-status-bar-error")).toBeInTheDocument();
     expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
   });
@@ -237,6 +237,29 @@ describe("XlsxStatusBar", () => {
     // null and the bar shows the honest empty state, not a summary verdict.
     expect(screen.getByTestId("xlsx-status-bar-empty")).toBeInTheDocument();
     expect(readRange).not.toHaveBeenCalled();
+  });
+
+  it("does not read the host for a single cell, since its summary is never shown (review-delta-r2 X4)", async () => {
+    const readRange = vi.fn(async () => result([cell(42)]));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("B3", "B3")} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-single-value");
+    expect(readRange).not.toHaveBeenCalled();
+  });
+
+  it("treats one merged cell as a single cell, like Excel (review-delta-r2 X4)", async () => {
+    const readRange = vi.fn(async () => result([cell(7, 0, 0)]));
+    render(<XlsxStatusBar documentKey="doc" selection={{ ...selection("A1", "B2"), merged: true }} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-single-value");
+    expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-status-bar-count")).not.toBeInTheDocument();
+    expect(readRange).not.toHaveBeenCalled();
+  });
+
+  it("still summarizes the same rectangle when it is not one merged cell", async () => {
+    const readRange = vi.fn(async () => result([cell(7, 0, 0)]));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "B2")} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-sum");
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(7)}`);
   });
 
   it("localizes the summary with the active locale", async () => {

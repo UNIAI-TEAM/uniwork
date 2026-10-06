@@ -66,6 +66,26 @@ test('selection commands publish authoritative ranges before the late UI facade 
   } finally {mounted.close();}
 });
 
+test('a selection spanning exactly one merge is published as a merged cell (review-delta-r2 X4)', async () => {
+  const selections = [];
+  const mounted = mountController({ onSelectionChange: selection => selections.push(selection) });
+  try {
+    await mounted.handle.loadWorkbook(file);
+    const sheet = mounted.workbook.getActiveSheet();
+    sheet.getSheet = () => ({ getMergeData: () => [{ startRow: 1, endRow: 2, startColumn: 1, endColumn: 2 }] });
+    const select = (startRow, endRow, startColumn, endColumn) => {
+      const range = sheet.getRange(startRow, startColumn);
+      Object.assign(range.getRange(), { endRow, endColumn });
+      mounted.workbook.setActiveRange(range);
+      return selections.at(-1).range;
+    };
+    assert.equal(select(1, 2, 1, 2).merged, true, 'the merge itself');
+    assert.equal(select(1, 3, 1, 2).merged, undefined, 'a rectangle larger than the merge');
+    assert.equal(select(0, 1, 0, 1).merged, undefined, 'an unrelated rectangle');
+    assert.equal(select(1, 1, 1, 1).merged, undefined, 'a plain cell');
+  } finally { mounted.close(); }
+});
+
 test('pending edit commit awaits the actual workbook facade and refuses failed/unfinished commits', async () => {
   const mounted = mountController();
   try {

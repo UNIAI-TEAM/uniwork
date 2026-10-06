@@ -55,6 +55,7 @@ import {
   ingestNoteMutation,
   hyperlinkEdit,
   intersectMergeRanges,
+  selectsOneMergedCell,
   isSheetMutation,
   liveSessionSheets,
   seedColumnOutline,
@@ -125,7 +126,7 @@ export interface XlsxRendererOptions {
   onMessage?: (message: string) => void;
   onDirty?: () => void;
   onEdits?: (edits: XlsxRendererEdit[]) => void;
-  onSelectionChange?: (selection: { sheetId: string; range: IRange } | null) => void;
+  onSelectionChange?: (selection: { sheetId: string; range: IRange & { merged?: true } } | null) => void;
   /** UNI-940 X02: the grid moved under a visual overlay (scroll, zoom,
    *  sheet switch or any executed command); re-read the cell boxes. */
   onViewportChange?: () => void;
@@ -465,9 +466,14 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     const workbook = runtime.univerAPI.getActiveWorkbook();
     const sheet = workbook?.getActiveSheet();
     const range = workbook?.getActiveRange()?.getRange();
-    const selection = sheet && range ? { sheetId: sheet.getSheetId(), range: { ...range } } : null;
+    // One merged cell reads as a single cell (Excel's status bar shows no
+    // statistics for it): the selection spans exactly one live merge.
+    const merged = sheet && range && selectsOneMergedCell(sheet.getSheet?.()?.getMergeData?.(), range);
+    const selection = sheet && range
+      ? { sheetId: sheet.getSheetId(), range: { ...range, ...(merged ? { merged: true } : {}) } }
+      : null;
     const key = selection ? JSON.stringify([selection.sheetId, selection.range.startRow, selection.range.endRow,
-      selection.range.startColumn, selection.range.endColumn, selection.range.rangeType]) : "null";
+      selection.range.startColumn, selection.range.endColumn, selection.range.rangeType, merged === true]) : "null";
     const state = lazyWorkbookRef.current;
     if (selection && state) lastSelection = { state, sheetId: selection.sheetId, range: { ...selection.range } };
     else if (!selection) lastSelection = null;

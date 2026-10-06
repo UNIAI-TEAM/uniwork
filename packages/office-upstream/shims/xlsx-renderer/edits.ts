@@ -531,6 +531,15 @@ const MERGE_MUTATIONS: Readonly<Record<string, "merge-cells" | "unmerge-cells">>
   "sheet.mutation.remove-worksheet-merge": "unmerge-cells",
 };
 
+/** True when the selection spans exactly one live merge: Excel treats that as a
+ *  single cell. Tolerates a missing or malformed merge list (older facades). */
+export function selectsOneMergedCell(merges: unknown, selection: AxisRange): boolean {
+  if (!Array.isArray(merges)) return false;
+  return merges.some((merge: Partial<AxisRange> | null) =>
+    merge?.startRow === selection.startRow && merge.endRow === selection.endRow &&
+    merge.startColumn === selection.startColumn && merge.endColumn === selection.endColumn);
+}
+
 /** The file merges an unmerge selection removes: every merge rectangle the
  *  selection intersects, the same rule the mutation applies. */
 export function intersectMergeRanges(

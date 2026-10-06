@@ -6,6 +6,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import type { XlsxSelection } from "../types";
+import { isSingleCellSelection } from "./selection-summary";
 import { useXlsxSelectionSummary, type XlsxSummaryState } from "./use-selection-summary";
 
 interface XlsxStatusBarProps {
@@ -69,7 +70,7 @@ export function XlsxStatusBar({ documentKey, selection, host, dirtyGeneration, s
       content = <span data-testid="xlsx-status-bar-calculating">{t("office.xlsx.statusBar.calculating")}</span>;
       break;
     case "ready":
-      content = summaryContent(state, !selection?.endAddress || selection.endAddress === selection.address, i18n.language, t);
+      content = summaryContent(state, isSingleCellSelection(selection), i18n.language, t);
       break;
   }
 
