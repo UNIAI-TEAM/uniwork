@@ -114,6 +114,15 @@ jobs:
       UNIWORK_OFFICE_BUILD_NUMBER: ${{ needs.meta.outputs.build_number }}
       OFFICE_DESKTOP_OUTPUT: ${{ github.workspace }}/.office-out
       REQUIRE_SIDECAR: ${{ needs.meta.outputs.require_sidecar }}
+      # X06 contract (UNI-940): REQUIRE=1 makes build/package fail when the sidecar
+      # is missing or the build record does not attest it (native.binary.sha256).
+      OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR: ${{ needs.meta.outputs.require_sidecar == 'true' && '1' || '' }}
+      # The explicit build-upstream step below already builds the native sidecar
+      # (and writes the attestation), so build/package must not run cargo again.
+      OFFICE_DESKTOP_SKIP_NATIVE_BUILD: "1"
+      # Short, per-job cargo target dir: MSVC MAX_PATH on Windows. Never a drive
+      # root; an explicit value wins over the contract's default.
+      CARGO_TARGET_DIR: ${{ runner.temp }}/uniwork-cargo-target
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -132,14 +141,20 @@ jobs:
           rustup default "$RUST_VERSION"
           cargo --version
       - run: pnpm install --frozen-lockfile
-      # package.mjs stages dist/xlsx-assets from this build directory (UNI-940 X06
-      # makes `package` do it unaided; the step then only repeats cached work).
+      # package.mjs stages dist/xlsx-assets (xlsx-gateway.mjs, the sidecar,
+      # build-record.json, staged-assets.json) from this build directory and copies
+      # it into the installer as resources/xlsx-assets. With
+      # OFFICE_DESKTOP_SKIP_NATIVE_BUILD=1 this step is the only native build; it
+      # records the sidecar sha256 that staging then verifies under REQUIRE=1.
       - name: Build the xlsx gateway and sidecar
         env:
           NATIVE_FLAG: ${{ needs.meta.outputs.require_sidecar == 'true' && '--with-native' || '' }}
         run: node scripts/office/build-upstream.mjs ${NATIVE_FLAG:+"$NATIVE_FLAG"} --out .go-tmp/office-upstream-build
       - name: Package the unsigned desktop installers
         run: pnpm --filter @uniwork/office-desktop package
+      - name: Staged manifest attests the gateway and the sidecar
+        if: needs.meta.outputs.require_sidecar == 'true'
+        run: jq -e '.gateway and .sidecar' apps/office-desktop/dist/xlsx-assets/staged-assets.json
       - name: Staged xlsx assets are present in the build and in the installer payload
         run: |
           node apps/office-desktop/scripts/check-xlsx-assets.mjs --require-sidecar "$REQUIRE_SIDECAR" \
