@@ -67,6 +67,9 @@ export interface XlsxGridHandle extends XlsxVisualsGrid {
   /** Run an allowlisted Univer command on the active selection (false when
    *  the renderer refuses it: read-only, no active range, or policy). */
   executeCommand(id: string, params?: unknown): boolean | Promise<boolean>;
+  /** UNI-953: several commands as ONE undo entry (a rich paste); optional so
+   *  test doubles that only exercise the cell ports stay valid. */
+  executeCommandsAsOneStep?(steps: readonly { id: string; params?: unknown }[]): Promise<boolean>;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxGridFormatState | null;
   /** The live sheet list in tab order; optional so test doubles that only
@@ -171,6 +174,7 @@ export function XlsxGridSurface({
       selectSheet: (sheetId) => handleRef.current?.selectSheet(sheetId),
       setNumberFormat: (pattern) => handleRef.current?.setNumberFormat(pattern),
       executeCommand: (id, params) => handleRef.current?.executeCommand(id, params) ?? false,
+      executeCommandsAsOneStep: (steps) => handleRef.current?.executeCommandsAsOneStep(steps) ?? Promise.resolve(false),
       getActiveFormatState: () => handleRef.current?.getActiveFormatState() ?? null,
       getSheets: () => handleRef.current?.getSheets?.() ?? [],
       restoreRuleSet: (sheetId, family, rules) => handleRef.current?.restoreRuleSet?.(sheetId, family, rules) ?? false,

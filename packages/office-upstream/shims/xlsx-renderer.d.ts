@@ -245,6 +245,9 @@ export interface XlsxRendererHandle {
    *  when the mount is read-only, there is no active range, or the command
    *  policy cancels the command. */
   executeCommand(id: string, params?: unknown): Promise<boolean>;
+  /** UNI-953: several commands as ONE undo entry (a rich paste); false at the
+   *  first refusal. */
+  executeCommandsAsOneStep(steps: readonly { id: string; params?: unknown }[]): Promise<boolean>;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxRendererFormatState | null;
   /** The live sheet list in tab order (rename/insert/remove/reorder as they

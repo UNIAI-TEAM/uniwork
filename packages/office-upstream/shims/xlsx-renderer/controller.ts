@@ -84,6 +84,7 @@ import {
   normalizeLinkTarget,
 } from "../../upstream/apps/sheets/src/renderer/univer-sync";
 import { parseAddress } from "../../upstream/packages/xlsx-gateway/src/domain/cell-address";
+import { executeAsOneUndoStep, type XlsxRendererCommandStep } from "./undo-step";
 import {
   installJournalSuppressionUndoFilter,
   installLoadAutoHeightGate,
@@ -181,6 +182,8 @@ export interface XlsxRendererHandle {
    *  command policy cancels (the policy stays the single savability gate).
    *  Returns whether the command actually ran. */
   executeCommand(id: string, params?: unknown): Promise<boolean>;
+  /** UNI-953: several commands as ONE undo entry (a rich paste). */
+  executeCommandsAsOneStep(steps: readonly XlsxRendererCommandStep[]): Promise<boolean>;
   /** The active range's composed style, or null without an active range.
    *  Read-only mounts still report state; only writes are refused. */
   getActiveFormatState(): XlsxRendererFormatState | null;
@@ -806,6 +809,11 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       const resolved = sessionTableId === undefined ? {} : { tableId: sessionTableId };
       const commandParams = { unitId: workbook.getId(), subUnitId: sheet.getSheetId(), ...base, ...resolved };
       return (await runtime.univerAPI.executeCommand(id, commandParams)) === true;
+    },
+    executeCommandsAsOneStep(steps) {
+      const unitId = runtime.univerAPI.getActiveWorkbook()?.getId();
+      if (options.readOnly || !unitId) return Promise.resolve(false);
+      return executeAsOneUndoStep(runtime.univer.__getInjector(), unitId, steps, (step) => this.executeCommand(step.id, step.params));
     },
     getActiveFormatState() {
       const range = runtime.univerAPI.getActiveWorkbook()?.getActiveRange();
