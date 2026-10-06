@@ -325,6 +325,11 @@ export function createTextFormatAdapter(options: TextFormatAdapterOptions): Text
   const engine = createEngine(options.format);
   const editor = createTextHandle({ engine, format: options.format, documentId: options.identity.documentId, readBytes: options.documents.read });
   if (options.clipboard) editor.clipboard = options.clipboard;
+  // The session (OfficeEditorHost unmount -> session.dispose) owns the real
+  // editor's disposal. The views dispose the handle they are given in their
+  // open-effect cleanup, which StrictMode replays and Retry re-runs, so they
+  // get a handle whose dispose is inert (same as the PPTX adapter).
+  const viewEditor: typeof editor = { ...editor, dispose: async () => undefined };
   const transport = createTextSaveTransport({ documentId: options.identity.documentId, format: options.format, documents: options.documents, serialize: (snapshot) => editor.serializeSnapshot(snapshot) });
   const session = createOfficeEditorSession({ ...options, editor, transport });
   session.coordinator.setCapability(options.capability);
@@ -353,7 +358,7 @@ export function createTextFormatAdapter(options: TextFormatAdapterOptions): Text
   const capability = options.capability;
   const viewProps = {
     documentKey: options.identity.documentId,
-    editor,
+    editor: viewEditor,
     open: open as { open(signal?: AbortSignal): Promise<TextOpenOutcome> },
     coordinator: session.coordinator,
     title: options.title,
@@ -422,6 +427,7 @@ function TextOfficeEditorHost({ format, ...props }: OfficeEditorHostProps & { fo
       } catch {
         // A capability fetch failure is not an editor failure: no warnings.
       }
+      if (!active) return;
       if (readonly) {
         if (active) setLoaded({ key, capability });
         return;

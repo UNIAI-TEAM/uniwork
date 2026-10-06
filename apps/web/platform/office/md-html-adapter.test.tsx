@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
-import { isValidElement } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, createElement, isValidElement, StrictMode, useEffect, useRef, type ReactElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { OfficeCapabilityEntry, OfficeIdentity, OfficeSerializedOutput } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
@@ -41,6 +43,10 @@ const KITCHEN_SINK = [
   "<!-- comment: keep -->",
   "",
 ].join("\n");
+
+initI18n();
+class TestResizeObserver { observe() {} unobserve() {} disconnect() {} }
+vi.stubGlobal("ResizeObserver", TestResizeObserver);
 
 const identity: OfficeIdentity = {
   deploymentId: "dep", accountId: "acct", organizationId: "org", workspaceId: "ws",
@@ -221,7 +227,8 @@ describe("web Markdown/HTML format adapter", () => {
     const { adapter: created } = adapter("md");
     expect(isValidElement(created.editorView)).toBe(true);
     const props = (created.editorView as { props: Record<string, unknown> }).props;
-    expect(props.editor).toBe(created.editor);
+    expect((props.editor as { getText?(): string }).getText?.()).toBe(created.editor.getText?.());
+    expect(props.editor).not.toBe(created.editor);
     expect(props.documentKey).toBe("doc");
     expect(typeof (props.open as { open: unknown }).open).toBe("function");
     expect(props.capability).toMatchObject({ format: "md", status: "available" });
@@ -265,5 +272,60 @@ describe("web Markdown/HTML format adapter", () => {
     const { adapter: created } = adapter("md", new Uint8Array([0xc3, 0x28]));
     expect(await created.open.open()).toMatchObject({ outcome: "failed", failure_class: "corrupted", format: "md" });
     await created.session.dispose();
+  });
+
+  // UNI-928 regression: the views used to dispose the handle in their open
+  // effect cleanup, so a StrictMode replay (or a Retry) reopened a dead handle
+  // ("text_editor_disposed"). The session owns disposal.
+  async function mountStrict(created: ReturnType<typeof adapter>["adapter"]) {
+    const container = document.createElement("div");
+    document.body.append(container);
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    function Host(): ReactElement {
+      // Mirrors OfficeEditorHost: dispose is deferred a microtask so the
+      // StrictMode replay re-arms the flag and only a real unmount releases.
+      const mounted = useRef(false);
+      useEffect(() => {
+        mounted.current = true;
+        return () => { mounted.current = false; queueMicrotask(() => { if (!mounted.current) void created.session.dispose(); }); };
+      }, []);
+      return created.editorView as ReactElement;
+    }
+    let root!: Root;
+    await act(async () => { root = createRoot(container); root.render(createElement(StrictMode, null, createElement(Host))); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    return { container, root };
+  }
+
+  it.each(["md", "html"] as const)("survives a StrictMode double mount and releases the engine once on unmount (%s)", async (format) => {
+    await setLocale("en");
+    const { adapter: created } = adapter(format);
+    const dispose = vi.spyOn(created.editor, "dispose");
+    const { container, root } = await mountStrict(created);
+    expect(container.querySelector(`[data-testid="${format}-error-state"]`)).toBeNull();
+    expect(container.querySelector(`[data-testid="${format}-opening"]`)).toBeNull();
+    expect(container.querySelector(`[data-testid="${format}-editor"]`)).not.toBeNull();
+    expect(dispose).not.toHaveBeenCalled();
+    await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(dispose).toHaveBeenCalledTimes(1);
+    container.remove();
+  });
+
+  it.each(["md", "html"] as const)("retries a failed read on the same adapter (%s)", async (format) => {
+    await setLocale("en");
+    const { adapter: created, files } = adapter(format);
+    const read = vi.mocked(files.read);
+    const succeed = read.getMockImplementation()!;
+    read.mockImplementationOnce(() => Promise.reject(new Error("transient")));
+    const { container, root } = await mountStrict(created);
+    const errorState = container.querySelector(`[data-testid="${format}-error-state"]`);
+    expect(errorState).not.toBeNull();
+    expect(errorState?.textContent).not.toContain("text_editor_disposed");
+    read.mockImplementation(succeed);
+    await act(async () => { (errorState!.querySelector("button") as HTMLButtonElement).click(); await new Promise((resolve) => setTimeout(resolve, 50)); });
+    expect(container.querySelector(`[data-testid="${format}-opening"]`)).toBeNull();
+    expect(container.querySelector(`[data-testid="${format}-editor"]`)).not.toBeNull();
+    await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    container.remove();
   });
 });
