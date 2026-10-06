@@ -113,4 +113,38 @@ describe("desktop PPTX adapter handle", () => {
     await vi.waitFor(() => expect(adapter.editor.getDirtyGeneration()).toBe(2));
     await adapter.editor.dispose();
   });
+
+  // review-fe-r1 R17: an empty journal (the runtime answers false) is not a change.
+  it("leaves the deck clean and the view unmoved when undo/redo resolve false, and moves both when they apply", async () => {
+    const engine = runtime();
+    const onDirty = vi.fn();
+    const adapter = createDesktopPptxAdapter({ identity, runtime: engine, readBytes: async () => new Uint8Array([80, 75, 3, 4]), capability, onDirty });
+    await adapter.open();
+    const viewBefore = adapter.editor.revision();
+
+    vi.mocked(engine.undo).mockResolvedValueOnce(false);
+    vi.mocked(engine.redo).mockResolvedValueOnce(false);
+    adapter.editor.undo();
+    adapter.editor.redo();
+    await vi.waitFor(() => expect(engine.redo).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(engine.undo).toHaveBeenCalledTimes(1);
+    expect(adapter.editor.getDirtyGeneration()).toBe(0);
+    expect(adapter.editor.revision()).toBe(viewBefore);
+    expect(onDirty).not.toHaveBeenCalled();
+
+    // An applied step is a change: dirty and the canvas revision both advance.
+    adapter.editor.undo();
+    await vi.waitFor(() => expect(adapter.editor.getDirtyGeneration()).toBe(1));
+    expect(onDirty).toHaveBeenCalledWith(1);
+    expect(adapter.editor.revision()).toBe(viewBefore + 1);
+
+    // After dispose neither reaches the runtime.
+    await adapter.editor.dispose();
+    adapter.editor.undo();
+    adapter.editor.redo();
+    expect(engine.undo).toHaveBeenCalledTimes(2);
+    expect(engine.redo).toHaveBeenCalledTimes(1);
+  });
 });

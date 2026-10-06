@@ -198,6 +198,40 @@ describe("web PDF format adapter", () => {
     await adapter.session.dispose();
   });
 
+  it("rejects an edit overtaken by dispose, committing nothing: pdf_editor_disposed mid-swap, not-open before it (review-fe-r1 R17)", async () => {
+    // Disposed while the render session swaps the edited bytes.
+    const swapping = setup();
+    await swapping.adapter.open.open();
+    let releaseSwap: (() => void) | null = null;
+    swapping.sessions[0]!.replaceBytes.mockImplementationOnce(() => new Promise<void>((resolve) => { releaseSwap = resolve; }));
+    const listener = vi.fn();
+    swapping.editor.subscribe?.(listener);
+    const edit = swapping.editor.submitEngineOperations!([{ op: "a" }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(releaseSwap).not.toBeNull();
+    void swapping.editor.dispose();
+    releaseSwap!();
+    await expect(edit).rejects.toThrow("pdf_editor_disposed");
+    expect(listener).not.toHaveBeenCalled();
+    expect(swapping.editor.getDirtyGeneration()).toBe(0);
+    expect(swapping.editor.canUndo?.()).toBe(false);
+    await swapping.adapter.session.dispose();
+
+    // Disposed while the engine still computes: the swap never starts.
+    let releaseOps: (() => void) | null = null;
+    const applyOps = vi.fn(async () => { await new Promise<void>((resolve) => { releaseOps = resolve; }); return { bytes: new Uint8Array([37, 80, 68, 70, 1, 9]), skipped: [] }; });
+    const computing = setup({ applyOps });
+    await computing.adapter.open.open();
+    const late = computing.editor.submitEngineOperations!([{ op: "a" }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    void computing.editor.dispose();
+    releaseOps!();
+    await expect(late).rejects.toThrow("pdf_editor_not_open");
+    expect(computing.sessions[0]!.replaceBytes).not.toHaveBeenCalled();
+    expect(computing.editor.getDirtyGeneration()).toBe(0);
+    await computing.adapter.session.dispose();
+  });
+
   it("a step overtaken by dispose commits nothing (r5 F4 parity)", async () => {
     const { adapter, editor, sessions } = setup();
     await adapter.open.open();

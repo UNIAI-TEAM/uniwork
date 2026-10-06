@@ -557,6 +557,30 @@ describe("desktop PDF surface", () => {
       expect(surface.canRedo()).toBe(false);
     });
 
+    it("rejects an edit whose engine answer lands after dispose with pdf_surface_disposed, committing nothing (review-fe-r1 R17)", async () => {
+      let releaseEdit: (() => void) | null = null;
+      const call = vi.fn(async (_channel: string, payload: unknown) => {
+        const request = payload as { operation: string };
+        if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+        await new Promise<void>((resolve) => { releaseEdit = resolve; });
+        return { ok: true, operation: "edit", dataBase64: Buffer.from(versions[1]!).toString("base64") };
+      });
+      const surface = createDesktopPdfSurface(settings(call, { readBytes: async () => versions[0]! }));
+      await surface.open();
+      const changes = vi.fn();
+      surface.subscribe(changes);
+      const generation = surface.getDirtyGeneration();
+      const edit = surface.submitEngineOperations([{ op: "a" }]);
+      await settle();
+      expect(releaseEdit).not.toBeNull();
+      await surface.dispose();
+      releaseEdit!();
+      await expect(edit).rejects.toThrow("pdf_surface_disposed");
+      expect(changes).not.toHaveBeenCalled();
+      expect(surface.getDirtyGeneration()).toBe(generation);
+      expect(surface.canUndo()).toBe(false);
+    });
+
     it("resets the history on a re-open and on dispose", async () => {
       const { surface } = historySurface();
       await surface.open();
