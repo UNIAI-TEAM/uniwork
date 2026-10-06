@@ -41,7 +41,7 @@
 // nosniff`, no cookies (none are sent: opaque origin + credentialless frame),
 // and must stop answering when the scope expires or is revoked.
 
-import { BLOCKED_URL, buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
+import { BLOCKED_URL, buildHtmlPreviewCopy, dropBlockedResourceUrls } from "@uniwork/office-engine/html";
 import type { AssetManifest } from "@uniwork/office-engine/assets";
 import { gatePreviewCopy } from "./preview-gate";
 import {
@@ -421,8 +421,10 @@ interface AssetManifestEntryWithID {
   // Visual-edit never lets a document script through the engine policy: the
   // gate strips them below, and the engine is told scripts are off, so the
   // frame's only script is the inspector injected after the gate.
+  // A blocked image keeps no src: the CSP would refuse the load and log a
+  // violation per render. The gate below still proves the resulting copy.
   const render = (text: string): string =>
-    buildHtmlPreviewCopy({
+    dropBlockedResourceUrls(buildHtmlPreviewCopy({
       text,
       manifest,
       assetUrl,
@@ -430,7 +432,7 @@ interface AssetManifestEntryWithID {
       csp,
       color_scheme: options.color_scheme,
       head_injection: !visual && capability?.scripts === true ? BRIDGE_BOOTSTRAP : undefined,
-    });
+    }));
 
   const iframe = document.createElement("iframe");
   iframe.setAttribute("sandbox", previewSandbox(capability));
