@@ -6,7 +6,17 @@ metadata:
   labels:
     allow-from-reap-edge: "true"
 spec:
+  {{- if .Values.officeEngine.enabled }}
+  # The office engine has its own tighter policy below; this one (egress: all)
+  # would otherwise union with it and reopen the engine's egress.
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: [uniwork-office-engine]
+  {{- else }}
   podSelector: {}
+  {{- end }}
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
@@ -35,3 +45,43 @@ spec:
     {{- end }}
   egress:
     - {}
+{{- if .Values.officeEngine.enabled }}
+---
+# Office engine: only uniwork-be calls it; it reaches only the file store and DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: uniwork-office-engine
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: uniwork-office-engine
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: uniwork-be
+      ports:
+        - protocol: TCP
+          port: {{ .Values.officeEngine.port }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- range .Values.networkPolicy.officeEngineFileStore }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .port | default 443 }}
+    {{- end }}
+{{- end }}

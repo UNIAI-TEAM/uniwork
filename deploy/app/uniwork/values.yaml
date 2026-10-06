@@ -54,6 +54,10 @@ be:
     emailHub: { name: uniwork-email-hub, key: EMAIL_HUB_CREDENTIAL_KEY }
     # OpenRouter / OpenAI-compatible key (Email Hub AI, Ask UNI, meeting summary).
     openAPIKey: { name: uniwork-open-api-key, key: OPENAI_API_KEY }
+    # Office engine credentials (same Secret as officeEngine.secrets). Optional:
+    # without them the BE has no engine and refuses office jobs.
+    officeEngineServiceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }
+    officeEngineGrantKey: { name: uniwork-office-engine, key: OFFICE_ENGINE_GRANT_KEY }
 
 fe:
   # The Next app keeps no per-pod state (no route handlers, middleware, ISR or
@@ -84,6 +88,10 @@ networkPolicy:
   # Namespace of the in-cluster Prometheus allowed to scrape be.metricsPort.
   # Empty renders no rule: the port stays closed to every other pod.
   metricsScrapeNamespace: ""
+  # Egress of the office engine to the file store (used only when
+  # officeEngine.enabled). A NetworkPolicy matches IPs, not names: list the
+  # object store's CIDR(s) as {cidr: "x.x.x.x/32", port: 443}. Empty = DNS only.
+  officeEngineFileStore: []
 
 # Office engine (apps/office-engine, G2-02): private conversion/render service
 # the BE calls over the cluster network. Off by default; with it off nothing
