@@ -85,6 +85,7 @@ describe("gates", () => {
     const { hook, options } = setup(f);
     expect(hook.result.current.visualEdit).toBe(true);
     const { previewText, visualEditNonce } = hook.result.current;
+    if (previewText === undefined) throw new Error("expected a stamped preview copy");
     expect(visualEditNonce).toMatch(/^[0-9a-f]{32}$/);
     expect(previewText).toMatch(new RegExp(`<p data-sid-${visualEditNonce}="\\d+"`));
     expect(previewText.replace(/ data-sid-[0-9a-f]{32}="\d+"/g, "")).toBe(f.text);

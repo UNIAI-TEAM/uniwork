@@ -35,8 +35,8 @@ function shape(group: RibbonGroup | undefined) {
 }
 
 describe("Home tab ribbon layout (Excel order)", () => {
-  it("orders the groups Clipboard, Font, Alignment, Number, Cells, Editing", () => {
-    expect(homeGroups().map((group) => group.id)).toEqual(["clipboard", "font", "alignment", "number", "cells", "editing"]);
+  it("orders the groups Clipboard, Font, Alignment, Number, Conditional format, Cells, Editing", () => {
+    expect(homeGroups().map((group) => group.id)).toEqual(["clipboard", "font", "alignment", "number", "conditional-format", "cells", "editing"]);
   });
 
   it("leaves no pre-ribbon folded group on Home", () => {
@@ -57,9 +57,9 @@ describe("Home tab ribbon layout (Excel order)", () => {
     const paste = clipboard!.items[0]!;
     expect(paste.labelKey).toBe("office.xlsx.toolbar.groups.clipboardItems.paste");
     expect(paste.tooltipKey).toBe("office.xlsx.actions.paste");
-    // Only Paste is large anywhere on Home.
+    // Only Paste and the Conditional formatting menu are large anywhere on Home.
     const large = homeGroups().flatMap((group) => group.items).filter((item) => item.size === "large");
-    expect(large.map((item) => item.id)).toEqual(["clipboard-paste"]);
+    expect(large.map((item) => item.id)).toEqual(["clipboard-paste", "conditional-format"]);
   });
 
   it("gives Number a format box on row 1 and Currency, Percent, Comma and the decimal steppers on row 2", () => {

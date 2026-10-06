@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fitPicture, readPictureFile, sniffPicture } from "./picture-file";
 
-function png(width: number, height: number): Uint8Array {
+function png(width: number, height: number): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(32);
   bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const view = new DataView(bytes.buffer);
@@ -10,7 +10,7 @@ function png(width: number, height: number): Uint8Array {
   return bytes;
 }
 
-function gif(width: number, height: number): Uint8Array {
+function gif(width: number, height: number): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(16);
   bytes.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
   const view = new DataView(bytes.buffer);
@@ -19,7 +19,7 @@ function gif(width: number, height: number): Uint8Array {
   return bytes;
 }
 
-function jpeg(width: number, height: number): Uint8Array {
+function jpeg(width: number, height: number): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(40);
   bytes.set([0xff, 0xd8]);
   // APP0 segment: marker, length 16 (covers the length bytes + 14 payload).

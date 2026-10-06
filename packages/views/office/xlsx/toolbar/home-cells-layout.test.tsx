@@ -16,7 +16,7 @@ describe("Home > Cells layout (visual r4 R4B-6)", () => {
   it("keeps the three stacked menu rows short enough to leave the group caption room", () => {
     const items = xlsxCellsRibbonItems(props);
     expect(items.map((item) => item.id)).toEqual(["cells-insert", "cells-delete", "cells-format"]);
-    render(<>{items.map((item) => (item.kind === "custom" ? <div key={item.id}>{item.render()}</div> : null))}</>);
+    render(<>{items.map((item) => (item.kind === "custom" ? <div key={item.id}>{item.render({ size: "icon", inPanel: false })}</div> : null))}</>);
     for (const id of ["cells-insert", "cells-delete", "cells-format"]) {
       const trigger = screen.getByTestId(`xlsx-${id}-trigger`);
       expect(trigger.className).toContain("h-5");

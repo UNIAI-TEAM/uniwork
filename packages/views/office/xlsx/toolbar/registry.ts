@@ -46,7 +46,7 @@ import type { XlsxToolbarGroupDefinition } from "./types";
  *  This file is shared by every Wave A worker: edit it LAST, re-read it right
  *  before editing, and append only - never reorder or edit another task's row. */
 export const XLSX_TOOLBAR_GROUPS: readonly XlsxToolbarGroupDefinition[] = [
-  // Home, in Excel order: Clipboard | Font | Alignment | Number | Cells | Editing.
+  // Home, in Excel order: Clipboard | Font | Alignment | Number | Conditional format | Cells | Editing.
   // Each is typed ribbon items so the shared ribbon shrinks it item by item.
   { id: "clipboard", tab: "home", order: 30, labelKey: "office.xlsx.toolbar.groups.clipboard", ribbonItems: xlsxClipboardRibbonItems },
   { id: "font", tab: "home", order: 50, labelKey: "office.xlsx.toolbar.groups.font.label", ribbonItems: xlsxFontRibbonItems },
