@@ -12,6 +12,7 @@
 // Each page's table and visuals sit in one .sheet box, which is what the
 // centring options move, so visuals stay on their cells (R8).
 import type { XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
+import { DocxPrintHfImageDefs } from "../../docx/export/docx-print-hf-image";
 import { PRINT_COPY_CSP } from "../../markdown/wysiwyg/print";
 import { columnLabel } from "../xlsx-editor-model";
 import { CELL_PADDING, renderRows } from "./print-cells";
@@ -144,16 +145,22 @@ function stylesheet(sheet: XlsxPrintSheet, scale: number, usedStyles: ReadonlySe
   const margins = setup.margins;
   const fontSize = round((sheet.defaultFont?.size ?? DEFAULT_FONT_SIZE) * scale);
   const family = cssFontFamily(sheet.defaultFont?.family) ?? "Calibri, Arial, sans-serif";
+  // Header/footer pictures are defined once on :root and referenced from the margin boxes.
+  const images = new DocxPrintHfImageDefs();
+  const headerFooter = headerFooterRules(setup.headerFooter, sheet.headerContext ?? { sheetName: "", fileName: sheet.title, date: "", time: "" }, {
+    header: margins.header ?? 0.3,
+    footer: margins.footer ?? 0.3,
+    marginTop: margins.top,
+    marginBottom: margins.bottom,
+    scale,
+    fontFamily: family,
+    images,
+  });
+  const imageRule = images.rootRule();
   const rules = [
     `@page{size:${round(setup.paper.width)}in ${round(setup.paper.height)}in;margin:${round(margins.top)}in ${round(margins.right)}in ${round(margins.bottom)}in ${round(margins.left)}in}`,
-    ...headerFooterRules(setup.headerFooter, sheet.headerContext ?? { sheetName: "", fileName: sheet.title, date: "", time: "" }, {
-      header: margins.header ?? 0.3,
-      footer: margins.footer ?? 0.3,
-      marginTop: margins.top,
-      marginBottom: margins.bottom,
-      scale,
-      fontFamily: family,
-    }),
+    ...headerFooter,
+    ...(imageRule === null ? [] : [imageRule]),
     "html,body{margin:0;padding:0;background:#ffffff}",
     "*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
     ".page{position:relative;break-after:page}",

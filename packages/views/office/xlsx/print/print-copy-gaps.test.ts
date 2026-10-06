@@ -85,8 +85,8 @@ describe("header and footer", () => {
         parts: [{ text: "Page " }, { counter: "page" }, { text: " of " }, { counter: "pages" }],
         font: { bold: true, italic: false, underline: "none", strike: false, family: "Arial", size: 14 },
       },
-      // &Z prints nothing here: the string already prints the file name.
-      right: { parts: [{ text: "06/10/2026 & Book.xlsxx" }], font: { bold: false, italic: false, underline: "none", strike: false } },
+      // &Z prints nothing here: the string already prints the file name; &G is a picture part.
+      right: { parts: [{ text: "06/10/2026 & Book.xlsxx" }, { picture: true }], font: { bold: false, italic: false, underline: "none", strike: false } },
     });
   });
 

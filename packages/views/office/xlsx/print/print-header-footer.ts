@@ -15,10 +15,14 @@
 // first page when `differentFirst` is set (declared last, so it wins).
 // The header/footer distance is clamped so one line still fits inside the
 // page margin (a distance at or past the margin would push the text out).
-// `&G` (picture) prints nothing. Every literal reaches CSS as an escaped
+// `&G` prints the section's picture (the file's header/footer drawing, read by
+// the engine as a data: URL) in the margin box, sized like the DOCX pictures
+// (docx-print-hf-image: image-set + one :root definition per picture); with no
+// picture it prints nothing. Every literal reaches CSS as an escaped
 // string, and every font value passes print-styles' whitelists, so header
 // text can neither end the declaration nor the <style> element.
 import type { XlsxRenderHeaderFooter } from "@uniwork/office-engine/xlsx";
+import { hfImageContent, printableHfImages, type DocxPrintHfImageDefs } from "../../docx/export/docx-print-hf-image";
 import { cssColor, cssFontFamily, round } from "./print-styles";
 
 /** The values the field codes print. */
@@ -32,7 +36,7 @@ export interface XlsxPrintHeaderContext {
   readonly location?: string | undefined;
 }
 
-type Part = { readonly text: string } | { readonly counter: "page" | "pages" };
+type Part = { readonly text: string } | { readonly counter: "page" | "pages" } | { readonly picture: true };
 
 /** The font one section prints in (absent = the sheet's default). */
 interface HeaderFont {
@@ -105,6 +109,7 @@ export function parseHeaderFooter(source: string, context: XlsxPrintHeaderContex
       case "T": push({ text: context.time }); break;
       case "A": push({ text: context.sheetName }); break;
       case "F": push({ text: context.fileName }); break;
+      case "G": state[section].parts.push({ picture: true }); break;
       case "Z": if (location !== "") push({ text: location }); break;
       case "B": setFont((font) => ({ ...font, bold: !font.bold })); break;
       case "I": setFont((font) => ({ ...font, italic: !font.italic })); break;
@@ -132,7 +137,7 @@ export function parseHeaderFooter(source: string, context: XlsxPrintHeaderContex
           const size = Number(digits);
           if (size > 0 && size <= 409) setFont((font) => ({ ...font, size }));
         }
-        // Every other letter (`&G`, `&X`, `&Y`, ...) prints nothing.
+        // Every other letter (`&X`, `&Y`, ...) prints nothing.
         break;
       }
     }
@@ -153,9 +158,14 @@ function cssString(text: string): string {
   return `"${out}"`;
 }
 
-function content(parts: readonly Part[]): string {
-  if (parts.length === 0) return "none";
-  return parts.map((part) => ("text" in part ? cssString(part.text) : `counter(${part.counter})`)).join(" ");
+/** `pictureContent` is the CSS value of the section's picture, "" when the file has none. */
+function content(parts: readonly Part[], pictureContent: string): string {
+  const values = parts.map((part) => {
+    if ("text" in part) return cssString(part.text);
+    if ("counter" in part) return `counter(${part.counter})`;
+    return pictureContent;
+  }).filter((value) => value !== "");
+  return values.length === 0 ? "none" : values.join(" ");
 }
 
 /** The declarations a section's font adds to its margin box. */
@@ -173,6 +183,7 @@ function fontDeclarations(font: HeaderFont, scale: number): string {
   return out.map((declaration) => `;${declaration}`).join("");
 }
 
+const CSS_PX_PER_INCH = 96;
 const SECTIONS = ["left", "center", "right"] as const;
 
 /** Excel's header/footer font size when the string names none. */
@@ -188,14 +199,20 @@ function distance(edge: "top" | "bottom", sections: Sections | null, geometry: X
   return Math.max(0, Math.min(wanted, margin - line));
 }
 
-function boxes(edge: "top" | "bottom", sections: Sections | null, common: string, geometry: XlsxHeaderGeometry): string {
+/** The CSS value of a section's picture, given the margin box's usable height in CSS px. */
+type PictureOf = (section: keyof Sections, boxHeightPx: number) => string;
+
+function boxes(edge: "top" | "bottom", sections: Sections | null, common: string, geometry: XlsxHeaderGeometry, pictureOf: PictureOf): string {
+  const gap = distance(edge, sections, geometry);
   const style = edge === "top"
-    ? `${common};vertical-align:top;padding-top:${round(distance(edge, sections, geometry))}in`
-    : `${common};vertical-align:bottom;padding-bottom:${round(distance(edge, sections, geometry))}in`;
+    ? `${common};vertical-align:top;padding-top:${round(gap)}in`
+    : `${common};vertical-align:bottom;padding-bottom:${round(gap)}in`;
+  const boxHeightPx = Math.max(0, ((edge === "top" ? geometry.marginTop : geometry.marginBottom) - gap) * CSS_PX_PER_INCH);
   return SECTIONS
     .map((key) => {
       const section = sections?.[key];
-      return `@${edge}-${key}{content:${section ? content(section.parts) : "none"};${style}${section ? fontDeclarations(section.font, geometry.scale) : ""}}`;
+      const picture = section?.parts.some((part) => "picture" in part) ? pictureOf(key, boxHeightPx) : "";
+      return `@${edge}-${key}{content:${section ? content(section.parts, picture) : "none"};${style}${section ? fontDeclarations(section.font, geometry.scale) : ""}}`;
     })
     .join("");
 }
@@ -210,6 +227,25 @@ interface XlsxHeaderGeometry {
   /** The print scale (fonts scale with the sheet, Excel's default). */
   readonly scale: number;
   readonly fontFamily: string;
+  /** Where the copy's header/footer pictures are defined once; the caller
+   *  writes `images.rootRule()` into the stylesheet after the rules. */
+  readonly images?: DocxPrintHfImageDefs | undefined;
+}
+
+/** The picture the file's drawing holds for one section, as a margin-box
+ *  content value ("" when absent or not printable). Points scale with the sheet. */
+function pictureContent(
+  headerFooter: XlsxRenderHeaderFooter,
+  key: string,
+  geometry: XlsxHeaderGeometry,
+  boxHeightPx: number,
+): string {
+  const picture = headerFooter.pictures?.[key];
+  if (!picture || !("dataUrl" in picture) || !geometry.images) return "";
+  const widthPx = picture.widthPt === undefined ? undefined : (picture.widthPt / 0.75) * geometry.scale;
+  const heightPx = picture.heightPt === undefined ? undefined : (picture.heightPt / 0.75) * geometry.scale;
+  const [image] = printableHfImages([{ dataUrl: picture.dataUrl, widthPx, heightPx }]);
+  return image ? hfImageContent(image, { defs: geometry.images, boxHeightPx }) : "";
 }
 
 /** The @page margin-box rules for the sheet's header and footer (empty when
@@ -222,11 +258,14 @@ export function headerFooterRules(
   if (!headerFooter) return [];
   const parse = (text: string | undefined): Sections | null => (text ? parseHeaderFooter(text, context) : null);
   const common = `font-family:${geometry.fontFamily};font-size:${round(DEFAULT_SIZE * geometry.scale)}pt;color:#000000;white-space:pre`;
-  const rule = (selector: string, header: string | undefined, footer: string | undefined): string =>
-    `@page${selector}{${boxes("top", parse(header), common, geometry)}${boxes("bottom", parse(footer), common, geometry)}}`;
+  const rule = (selector: string, header: string | undefined, footer: string | undefined, variant: "" | "EVEN" | "FIRST"): string => {
+    const pictureOf = (edge: "H" | "F"): PictureOf => (section, boxHeightPx) =>
+      pictureContent(headerFooter, `${section === "left" ? "L" : section === "center" ? "C" : "R"}${edge}${variant}`, geometry, boxHeightPx);
+    return `@page${selector}{${boxes("top", parse(header), common, geometry, pictureOf("H"))}${boxes("bottom", parse(footer), common, geometry, pictureOf("F"))}}`;
+  };
   const rules: string[] = [];
-  if (headerFooter.oddHeader || headerFooter.oddFooter) rules.push(rule("", headerFooter.oddHeader, headerFooter.oddFooter));
-  if (headerFooter.differentOddEven) rules.push(rule(":left", headerFooter.evenHeader, headerFooter.evenFooter));
-  if (headerFooter.differentFirst) rules.push(rule(":first", headerFooter.firstHeader, headerFooter.firstFooter));
+  if (headerFooter.oddHeader || headerFooter.oddFooter) rules.push(rule("", headerFooter.oddHeader, headerFooter.oddFooter, ""));
+  if (headerFooter.differentOddEven) rules.push(rule(":left", headerFooter.evenHeader, headerFooter.evenFooter, "EVEN"));
+  if (headerFooter.differentFirst) rules.push(rule(":first", headerFooter.firstHeader, headerFooter.firstFooter, "FIRST"));
   return rules;
 }
