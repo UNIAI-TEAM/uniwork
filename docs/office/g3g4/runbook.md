@@ -199,6 +199,13 @@ Chi tiết: `desktop-install-macos-ubuntu.md`.
   Lệnh thu hồi cả họ phiên của thiết bị đó, nên lần refresh tiếp theo bị chặn (`device_revoked`). Id thiết bị lấy từ `GET /auth/desktop/devices` của chủ tài khoản, hoặc từ bảng `device_sessions`.
   Id không có, hoặc thiết bị không thuộc người dùng đó: lệnh báo lỗi, thoát mã khác 0, không ghi gì. Thiết bị đã thu hồi từ trước: lệnh báo "already revoked", không ghi thêm. Mỗi lần thu hồi thật ghi một dòng `admin_actions` (actor `cli`) và một dòng `audit_events` (`desktop_device.revoked`) cùng mã trace.
 
+### 5.5 Giới hạn dung lượng tệp (UNI-956)
+
+- **Web giữ giới hạn.** Engine dùng chung trên server giữ `ENGINE_LIMITS` (đầu vào 64 MiB, đầu ra 128 MiB) và giới hạn model mở XLSX 16 MiB. Vượt giới hạn nào thì job trả lỗi có kiểu `upload_bounds` (413, `byte_bound`), kể cả giới hạn model XLSX (`reason: xlsx_open_model_too_large`), engine trong trình duyệt trả `failure_class: too_large`. Web không báo lỗi engine chung chung nữa: cả sáu định dạng (DOCX, XLSX, PPTX, PDF, MD, HTML) hiện cùng một thông báo "tệp quá lớn để chỉnh sửa trên web", nút chính là **Mở trong UniWork Office** (đúng luồng launch ticket ở header), nút phụ là **Tải xuống**.
+- **App desktop không giới hạn dung lượng tệp làm việc.** Tệp cục bộ mở, lưu, ghi đè nguyên tử không có trần dung lượng; các đường engine cục bộ chạy không có `max_input_bytes` và không có giới hạn model 16 MiB. Giá trị trong `packages/office-contracts/src/limits.ts` không đổi vì đó là hợp đồng với server (Go cũng dùng).
+- **Vẫn chặn tệp độc hại.** Bộ kiểm tra zip vẫn giới hạn số entry và tỉ lệ giải nén, nhưng tính theo kích thước tệp đầu vào chứ không dùng một trần cố định nhỏ.
+- **Hết bộ nhớ** khi mở tệp trên desktop thì app báo lỗi có kiểu `insufficient_memory` ("Máy không đủ bộ nhớ để mở tệp này."), app không bị crash.
+
 ## 6. Khi có sự cố / rollback
 
 Nguyên tắc (plan §8.2):

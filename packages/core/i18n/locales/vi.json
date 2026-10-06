@@ -9097,6 +9097,7 @@
         "file_write_failed": "Không ghi được tệp. Kiểm tra dung lượng trống và quyền truy cập rồi thử lại. Thay đổi của bạn vẫn được giữ.",
         "file_replace_failed": "Không thay được tệp bằng bản mới. Đóng tệp trong các chương trình khác rồi thử lại. Thay đổi của bạn vẫn được giữ.",
         "file_too_large": "Tệp quá lớn để UniWork Office xử lý.",
+        "file_insufficient_memory": "Máy không đủ bộ nhớ để mở tệp này. Đóng bớt ứng dụng khác rồi thử lại.",
         "file_save_in_progress": "Một lần lưu khác vẫn đang chạy. Chờ xong rồi thử lại.",
         "file_engine_unavailable": "Bản UniWork Office này chưa xử lý được loại tệp này trên máy.",
         "file_failed": "Không xử lý được tệp. Thử lại."

@@ -9103,6 +9103,7 @@
         "file_write_failed": "The file could not be written. Check the free space and permissions, then try again. Your changes are kept.",
         "file_replace_failed": "The file could not be replaced with the new version. Close it in other programs, then try again. Your changes are kept.",
         "file_too_large": "The file is too large for UniWork Office to handle.",
+        "file_insufficient_memory": "This computer does not have enough memory to open this file. Close other apps, then try again.",
         "file_save_in_progress": "Another save is still running. Wait for it to finish, then try again.",
         "file_engine_unavailable": "This UniWork Office build cannot process this file type on this computer yet.",
         "file_failed": "The file could not be processed. Try again."

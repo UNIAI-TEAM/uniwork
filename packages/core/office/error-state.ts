@@ -94,6 +94,10 @@ const ERROR_RULES: Record<string, ErrorRule> = {
   file_changed_on_disk: { state: "error", action: "keep_draft", retryable: false },
   file_not_found: { state: "error", action: "keep_draft", retryable: false },
   file_session_revoked: { state: "error", action: "keep_draft", retryable: false },
+  // UNI-956: the desktop has no size cap, so a file past this machine's memory
+  // answers this instead of crashing; changes stay, a retry after freeing
+  // memory may succeed, nothing re-runs by itself.
+  file_insufficient_memory: { state: "error", action: "keep_draft", retryable: false },
   // Pipeline guard codes the coordinator raises itself when the transport
   // answers outside the seam schemas. The commit step is ambiguous: the
   // server may have committed before its answer was lost or garbled.
