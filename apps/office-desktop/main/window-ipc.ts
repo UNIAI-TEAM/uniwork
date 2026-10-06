@@ -5,6 +5,7 @@ import { DESKTOP_IPC_CHANNELS, desktopFileResponseSchema, type DesktopIpcChannel
 import { answerRefusal } from "./files/failure-codes";
 import { LocalFileError, type FileHandleRegistry, type OpenFileMetadata } from "./files/registry";
 import { sameDocumentSession } from "./opened-documents";
+import { openRefusalCode } from "./ipc";
 
 export type WindowIpcOptions = {
   ipcMain: Pick<Electron.IpcMain, "handle">;
@@ -31,8 +32,8 @@ export function registerWindowIpc(options: WindowIpcOptions): void {
   }
   // A refused drop answers a typed code like a pick does (a thrown message is all
   // Electron would carry), so a locked, oversized or linked file says why instead
-  // of the generic open error. A fault that is not a LocalFileError reads as a
-  // failed read; no path or OS message is copied into the answer.
+  // of the generic open error. The code follows the same rule as pick and
+  // recent open (openRefusalCode); no path or OS message is copied into the answer.
   const openDropped = answerRefusal(async (path: string) => {
     const session = deviceScope();
     const metadata = await fileRegistry.openEvent(path);
@@ -40,7 +41,7 @@ export function registerWindowIpc(options: WindowIpcOptions): void {
     if (!sameDocumentSession(session, deviceScope())) throw new LocalFileError("session_revoked");
     localOpenContext(metadata);
     return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
-  }, (error) => (error instanceof LocalFileError ? error.code : "read_failed"), (code) => desktopFileResponseSchema.parse({ opened: false, code }));
+  }, openRefusalCode, (code) => desktopFileResponseSchema.parse({ opened: false, code }));
   ipcMain.handle("desktop:native-drop-open", async (event, payload: unknown) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error("invalid_sender");
     if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string" || !isAbsolute(payload.path)) throw new Error("invalid_file");

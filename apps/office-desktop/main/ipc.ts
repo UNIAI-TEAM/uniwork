@@ -344,14 +344,15 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
   // be lost. Faults that are not file refusals (the xlsx engine) still throw.
   const refused = (code: string) => ({ opened: false as const, code });
   const refuse = <Q, R>(handler: (request: Q) => Promise<R>) => answerRefusal(handler, fileRefusalCode, refused);
+  const refuseOpen = <Q, R>(handler: (request: Q) => Promise<R>) => answerRefusal(handler, openRefusalCode, refused);
   // A Save refused for size keeps its own code: the open-side copy ("too large to
   // open") would mislead, and error-state keeps the draft for it.
   const refuseSave = <Q, R>(handler: (request: Q) => Promise<R>) => answerRefusal(handler, (error) => { const code = fileRefusalCode(error); return code === "too_large" ? "save_too_large" : code; }, refused);
   return {
-    "desktop:file-pick-open": refuse(commands["desktop:file-pick-open"]),
+    "desktop:file-pick-open": refuseOpen(commands["desktop:file-pick-open"]),
     "desktop:file-create": refuse(commands["desktop:file-create"]),
-    "desktop:recent-open": refuse(commands["desktop:recent-open"]),
-    "desktop:file-open": refuse(commands["desktop:file-open"]),
+    "desktop:recent-open": refuseOpen(commands["desktop:recent-open"]),
+    "desktop:file-open": refuseOpen(commands["desktop:file-open"]),
     "desktop:file-save": refuseSave(commands["desktop:file-save"]),
     "desktop:file-save-as": refuseSave(commands["desktop:file-save-as"]),
     "desktop:file-xlsx": answerRefusal(commands["desktop:file-xlsx"], fileRefusalCode, (code): DesktopFileXlsxResponse => ({ state: "failed", code })),
@@ -359,6 +360,13 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
 }
 
 const fileRefusalCode = (error: unknown): string | undefined => (error instanceof FileIpcError ? error.code : undefined);
+
+/** Every open path (pick, recent, handle open and the window's drop) answers
+ * one way: a refusal keeps its code, and any other fault (local mode
+ * unavailable, a refused document context, a recents store fault, a picker
+ * that threw) reads as read_failed. It never throws on one path and maps on
+ * another, so one condition always shows one message. */
+export const openRefusalCode = (error: unknown): string => fileRefusalCode(error) ?? (error instanceof LocalFileError ? error.code : "read_failed");
 
 async function runGuardedSave<T>(guard: OfficeSaveGuard | undefined, operation: () => Promise<T>): Promise<T> {
   const release = guard?.tryAcquire();
