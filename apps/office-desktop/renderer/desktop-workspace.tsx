@@ -12,7 +12,7 @@ import { LocalHomeView } from "./local-home";
 import { OpenByteDocument } from "./office/open-document";
 import { OpenXlsxDocument } from "./office/xlsx-surface";
 import { DOCUMENT_TAB_LIMIT } from "./tabs/tab-model";
-import { isDocumentDirty, isXlsxTabSession, useDocumentTabs } from "./tabs/use-document-tabs";
+import { isDocumentDirty, isXlsxTabSession, useDocumentTabs, type CloudReopen, type ReadOnlyReason, type TabDocument } from "./tabs/use-document-tabs";
 import { RecoveryNotice } from "./recovery-status";
 import { WorkspaceAlerts } from "./workspace-alert";
 import { DesktopShell } from "./desktop-shell";
@@ -22,6 +22,16 @@ import { useLocalRecents } from "./use-local-recents";
 import { useFlagGatedTabs, useOfficeFlags } from "./use-office-flags";
 
 const SESSION_GENERATION = "desktop-dev-session";
+
+/** F5: a format whose editor opens through the server job (xlsx) answers a
+ * metadata-only context; every other format answers the byte open. */
+function readCloudOpen(raw: unknown): { document: DesktopLibraryDocument; bytes: OpenTabBytes } | null {
+  const opened = desktopOfficeOpenResponseSchema.safeParse(raw);
+  if (opened.success) return { document: opened.data.document, bytes: { ...opened.data, format: opened.data.document.format } };
+  const context = desktopOfficeContextResponseSchema.safeParse(raw);
+  return context.success ? { document: context.data.document, bytes: { dataBase64: "", checksum: "", format: context.data.document.format } } : null;
+}
+type OpenTabBytes = CloudReopen["bytes"];
 export type SignedInMetadata = DesktopSessionMetadata & { status: "signed-in"; accountId: string; deploymentId: string };
 type HostLeave = { requestId: string; reason: "close" | "logout" | "update" };
 type PendingLeave = { ids: readonly string[]; host?: HostLeave; switchWorkspace?: boolean };
@@ -133,7 +143,21 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   }, [accountKey]);
 
   const officeFlags = useOfficeFlags(bridge, { enabled: mode === "signed-in", sessionGeneration: SESSION_GENERATION, accountKey, organizationId: scope?.organizationId, reload: contextReload });
-  const markFlagGated = useFlagGatedTabs(tabs, officeFlags);
+  // An upgrade re-reads the document (latest version) so the editable session starts from current bytes and base.
+  const reopenForUpgrade = async (tab: TabDocument): Promise<CloudReopen | null> => {
+    const { identity } = tab;
+    const channel = tab.format === "xlsx" ? "desktop:office-context" : "desktop:office-open";
+    const read = readCloudOpen(await bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId }));
+    if (!read || read.document.id !== identity.documentId || read.document.workspaceId !== identity.workspaceId || !read.document.canEdit) return null;
+    return { bytes: read.bytes, baseRevision: read.document.revision, baseVersionId: String(read.document.version) };
+  };
+  const markFlagGated = useFlagGatedTabs(tabs, officeFlags, reopenForUpgrade);
+  /** The notice follows the newest answer: a tab that opened before the flags loaded says "off" once they say off. */
+  const liveReadOnlyReason = (tab: TabDocument): ReadOnlyReason | undefined => {
+    if (!tab.readOnlyReason) return undefined;
+    const flag = officeFlags.status(tab.format, tab.identity.organizationId);
+    return flag === "off" ? "feature_off" : flag === "unknown" ? "flags_unknown" : tab.readOnlyReason;
+  };
 
   const canOpen = (documentId?: string) => {
     if (documentId && tabs.current.current.tabs.some((tab) => tab.id === documentId)) { tabs.select(documentId); return false; }
@@ -144,22 +168,20 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   const acceptCloud = (raw: unknown, selected: LibraryPickerSelection, allowSave = true) => {
     const current = scopeRef.current;
     if (!current || current.workspaceId !== selected.workspaceId || current.accountId !== selected.accountId || current.deploymentId !== selected.deploymentId) return;
-    // F5: a format whose editor opens through the server job (xlsx) answers a
-    // metadata-only context; every other format answers the byte open.
-    const opened = desktopOfficeOpenResponseSchema.safeParse(raw);
-    const context = opened.success ? null : desktopOfficeContextResponseSchema.safeParse(raw);
-    const document = opened.success ? opened.data.document : context?.success ? context.data.document : undefined;
-    if (!document) throw new Error("office_open_invalid");
+    const read = readCloudOpen(raw);
+    if (!read) throw new Error("office_open_invalid");
+    const { document } = read;
     if (document.workspaceId !== selected.workspaceId) throw new Error("workspace_mismatch");
-    // A format the server's flags switch off (or that has no answer yet) opens
-    // read-only, never in the editor; such a tab is upgraded if a later answer allows it.
-    const editable = officeFlags.allows(document.format);
-    const featureOff = allowSave && document.canEdit && !editable;
-    if (featureOff) markFlagGated(document.id);
-    const bytes = opened.success
-      ? { ...opened.data, format: document.format, canSave: allowSave && document.canEdit && editable }
-      : { dataBase64: "", checksum: "", format: document.format, canSave: allowSave && document.canEdit && editable };
-    if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, ...(featureOff ? { readOnlyReason: "feature_off" as const } : {}), identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
+    // A format the server's flags switch off for the document's organization (or
+    // that has no answer yet) opens read-only, never in the editor, and says which
+    // of the two it is; such a tab is upgraded if a later answer allows it.
+    const flag = officeFlags.status(document.format, selected.organizationId);
+    const editable = flag === "on";
+    const gatedByFlags = allowSave && document.canEdit && !editable;
+    if (gatedByFlags) markFlagGated(document.id);
+    const bytes = { ...read.bytes, canSave: allowSave && document.canEdit && editable };
+    const readOnlyReason: ReadOnlyReason | undefined = gatedByFlags ? (flag === "off" ? "feature_off" : "flags_unknown") : undefined;
+    if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, ...(readOnlyReason ? { readOnlyReason } : {}), identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));
   };
   const acceptLocal = (raw: unknown) => {
     const result = desktopFileResponseSchema.parse(raw);
@@ -372,8 +394,8 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       </div>
       {tabs.tabs.map((tab) => <div key={tab.id} role="tabpanel" id={`desktop-panel-${tab.id}`} aria-labelledby={`desktop-tab-${tab.id}`} hidden={tabs.activeTabId !== tab.id} inert={tabs.activeTabId !== tab.id} className="min-h-0 flex-1 flex-col data-[active=true]:flex" data-active={tabs.activeTabId === tab.id}>
         {isXlsxTabSession(tab.data.session)
-          ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} readOnlyReason={tab.data.readOnlyReason} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
-          : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} readOnlyReason={tab.data.readOnlyReason} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}
+          ? <OpenXlsxDocument bridge={bridge} session={tab.data.session} readOnlyReason={liveReadOnlyReason(tab.data)} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />
+          : <OpenByteDocument bridge={bridge} identity={tab.data.identity} session={tab.data.session} readOnlyReason={liveReadOnlyReason(tab.data)} title={tab.title} active={mode !== "login" && tabs.activeTabId === tab.id} kind={tab.data.kind} signedIn={mode === "signed-in"} onSignIn={onSignIn} onBack={() => tabs.select(null)} />}
       </div>)}
     </div>
     {accountDrafts.blocked ? <RecoveryNotice state={accountDrafts.blocked} className="p-4" /> : null}

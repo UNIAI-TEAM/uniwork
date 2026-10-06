@@ -167,6 +167,8 @@ it("opens a cloud document read-only when its format flag or the engine flag is 
     expect(h.container.querySelector("[data-testid^='office-save-permission']")).toBeNull();
     expect(h.container.querySelector("[data-testid='office-capability-readonly']")).toBeNull();
     expect(h.container.querySelectorAll("[data-testid='office-feature-off']")).toHaveLength(1);
+    // A settled answer said off: the copy names the switch, not a missing answer.
+    expect(h.container.querySelector("[data-testid='office-feature-off']")?.getAttribute("data-reason")).toBe("feature_off");
     cleanup();
   }
   const control = harness({ flags: { office_engine: true } });
@@ -185,15 +187,22 @@ it("keeps the permission state and the capability box for a document the reader 
   expect(h.container.querySelector("[data-testid='office-feature-off']")).toBeNull();
 });
 
-it("fails closed, after one retry, when the config call is rejected or malformed", async () => {
+const featureOffReason = (container: HTMLElement) => container.querySelector("[data-testid='office-feature-off']")?.getAttribute("data-reason");
+
+it("fails closed, saying the settings did not load, when the config call is rejected or malformed", async () => {
   const rejected = harness({ config: () => { throw new Error("offline"); } });
   await open(0);
   await waitFor(() => expect(readonlySurface(rejected.container)).not.toBeNull());
-  expect(rejected.call.mock.calls.filter(([channel]) => channel === "desktop:public-config")).toHaveLength(2);
+  // The read and its one retry at sign-in, and the same pair again before the open (nothing was answered).
+  expect(rejected.call.mock.calls.filter(([channel]) => channel === "desktop:public-config")).toHaveLength(4);
+  expect(featureOffReason(rejected.container)).toBe("flags_unknown");
+  expect(screen.queryByText(i18n.t("officeDesktop.library.flagsUnknownTitle", { format: "DOCX" }))).not.toBeNull();
+  expect(screen.queryByText(i18n.t("officeDesktop.library.featureOffTitle", { format: "DOCX" }))).toBeNull();
   cleanup();
   const malformed = harness({ config: () => ({ flags: { office_engine: "yes" } }) });
   await open(0);
   await waitFor(() => expect(readonlySurface(malformed.container)).not.toBeNull());
+  expect(featureOffReason(malformed.container)).toBe("flags_unknown");
 });
 
 it("waits for a config that is still in flight so a fast open does not lose to a slow config", async () => {
@@ -213,17 +222,33 @@ it("waits for a config that is still in flight so a fast open does not lose to a
   expect(readonlySurface(h.container)).toBeNull();
 });
 
-it("upgrades a tab that opened read-only before the config arrived, once the answer allows its format", async () => {
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  const h = harness({ config: async () => { await gate; return { flags: { office_engine: true } }; } });
-  // The open gives up waiting after a few seconds and fails closed.
-  await open(0);
-  await waitFor(() => expect(readonlySurface(h.container)).not.toBeNull(), { timeout: 10_000 });
-  await act(async () => { release(); await gate; });
-  await waitFor(() => expect(readonlySurface(h.container)).toBeNull(), { timeout: 10_000 });
-  expect(h.container.querySelector("#desktop-panel-doc-0")).not.toBeNull();
-}, 30_000);
+it("upgrades a tab that opened read-only before the config arrived, from a fresh read, once the answer allows its format", async () => {
+  // Fake setTimeout only (the docx reader parses on setImmediate ticks, and real time still flows):
+  // the 3 s open wait is skipped, not waited out.
+  vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const h = harness({ config: async () => { await gate; return { flags: { office_engine: true } }; } });
+    fireEvent.click(await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") }));
+    const library = screen.getByRole("tabpanel");
+    await within(library).findByText("Plan0.docx");
+    fireEvent.click(within(library).getAllByRole("button", { name: i18n.t("officeDesktop.library.open") })[0]!);
+    // The open gives up waiting for the config and fails closed.
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_100); });
+    await waitFor(() => expect(readonlySurface(h.container)).not.toBeNull());
+    expect(featureOffReason(h.container)).toBe("flags_unknown");
+    const opens = () => h.call.mock.calls.filter(([channel]) => channel === "desktop:office-open").length;
+    expect(opens()).toBe(1);
+    await act(async () => { release(); await gate; });
+    await waitFor(() => expect(readonlySurface(h.container)).toBeNull());
+    // The editable session is built from a second read of the document, not the bytes of the first open.
+    expect(opens()).toBe(2);
+    expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:office-open").at(-1)?.[1]).not.toHaveProperty("version");
+    expect(h.container.querySelector("#desktop-panel-doc-0")).not.toBeNull();
+    expect(h.container.querySelector("[data-testid='office-feature-off']")).toBeNull();
+  } finally { vi.useRealTimers(); }
+});
 
 it("leaves a local file editable whatever the server flags say", async () => {
   const h = harness({ flags: {}, localFile: true });
