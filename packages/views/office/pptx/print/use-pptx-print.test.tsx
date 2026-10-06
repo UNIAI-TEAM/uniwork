@@ -35,6 +35,17 @@ describe("usePptxPrint", () => {
     await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
   });
 
+  it("reports a copy past the print cap with the shared too-large message", async () => {
+    const onFailed = vi.fn();
+    const { result } = renderHook(() => usePptxPrint({
+      port: { print: async () => ({ outcome: "failed" as const, reason: "print_too_large" }) },
+      renderer, slides: [{}], flush: () => null, onFailed, rasterize: null,
+    }));
+    act(() => result.current.run());
+    await waitFor(() => expect(onFailed).toHaveBeenCalledTimes(1));
+    expect(onFailed.mock.calls[0]![0]).toEqual(expect.objectContaining({ message: "This document is too large to print." }));
+  });
+
   it("leaves Ctrl/Cmd+P to the platform without a port", () => {
     renderHook(() => usePptxPrint({ port: null, renderer, slides: [{}], flush: () => null, onFailed: vi.fn(), rasterize: null }), { wrapper: ShellScope });
     expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(true);

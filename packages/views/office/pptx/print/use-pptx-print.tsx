@@ -79,7 +79,7 @@ export function usePptxPrint(options: UsePptxPrintOptions): PptxPrintController 
       const outcome = await printPptxDeck({ port, slides: printed, title: name, rasterize: rasterizer });
       if (outcome.outcome !== "failed") return;
       if (isPrintBusy(outcome)) setBusy(true);
-      else onFailed(new Error(t(outcome.reason === "print_too_large" ? "office.pptx.print.too_large" : "office.pptx.print.failed")));
+      else onFailed(new Error(t(outcome.reason === "print_too_large" ? "office.common.printTooLarge" : "office.pptx.print.failed")));
     };
     // A failed text commit is reported like any other failed run: the user asked to print.
     const commit = flush();
