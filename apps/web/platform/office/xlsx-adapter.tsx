@@ -1,9 +1,10 @@
 "use client";
 
 import { createElement, type ReactNode } from "react";
-import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
+import { uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
+import { readDocumentBytesWithinBound } from "./download-bound";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
-import { createSaveSettleGate, officeSaveReceiptSchema } from "@uniwork/core/office";
+import { createSaveSettleGate, isOfficeTooLarge, officeSaveReceiptSchema } from "@uniwork/core/office";
 import { bytesOf, cloneSnapshot, digestHex, fingerprint } from "./xlsx-adapter-data";
 import type {
   OfficeCapabilityEntry,
@@ -114,8 +115,7 @@ export interface XlsxDocumentsTransport {
 export function createXlsxDocumentsTransport(options: { documentId: string; version?: number }): XlsxDocumentsTransport {
   return {
     async read() {
-      const blob = await downloadDocumentFile(options.documentId, options.version);
-      return new Uint8Array(await blob.arrayBuffer());
+      return readDocumentBytesWithinBound(options.documentId, options.version);
     },
     async upload({ file, idempotencyKey }) {
       const receipt = await uploadDocumentFile(options.documentId, file, { idempotencyKey });
@@ -534,7 +534,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
           outcome: "failed",
           document_id: options.identity.documentId,
           format: "xlsx",
-          failure_class: typed.failureClass ?? "engine_error",
+          failure_class: typed.failureClass ?? (isOfficeTooLarge(error as { code?: string; kind?: string }) ? "too_large" : "engine_error"),
           ...(typed.engineError ? { engine_error: typed.engineError } : {}),
           message: error instanceof Error ? error.message : String(error),
         };

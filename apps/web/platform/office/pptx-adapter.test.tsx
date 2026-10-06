@@ -193,6 +193,17 @@ describe("web PPTX format adapter", () => {
     await adapter.session.dispose();
   });
 
+  it("keeps the engine's too_large class and maps a server upload_bounds error to it (UNI-956)", async () => {
+    const engine = runtime();
+    vi.mocked(engine.open).mockResolvedValueOnce({ outcome: "failed", document_id: "doc", failure_class: "too_large", message: "input exceeds the byte bound" });
+    const first = createPptxFormatAdapter(options(engine, documents()));
+    expect(await first.open.open()).toMatchObject({ outcome: "failed", failure_class: "too_large" });
+    const second = runtime();
+    vi.mocked(second.open).mockRejectedValueOnce(Object.assign(new Error("payload"), { code: "upload_bounds", kind: "byte_bound" }));
+    const adapter = createPptxFormatAdapter(options(second, documents()));
+    expect(await adapter.open.open()).toMatchObject({ outcome: "failed", failure_class: "too_large" });
+  });
+
   it("preserves the native failure class and engine detail on open", async () => {
     const engine = runtime();
     vi.mocked(engine.open).mockResolvedValueOnce({ outcome: "failed", document_id: "doc", failure_class: "corrupted", message: "invalid central directory" });
@@ -444,6 +455,17 @@ describe("web PPTX format adapter", () => {
     open.mockImplementation(succeed);
     await act(async () => { retry!.click(); await new Promise((resolve) => setTimeout(resolve, 20)); });
     expect(container.querySelector("[data-pptx-canvas]")).not.toBeNull();
+    await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    container.remove();
+  });
+
+  it("renders the shared too-large notice when the open is too_large (UNI-956)", async () => {
+    const engine = runtime();
+    vi.mocked(engine.open).mockResolvedValue({ outcome: "failed", document_id: "doc", failure_class: "too_large", message: "input exceeds the byte bound" });
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    const { container, root } = await mountStrict(adapter);
+    expect(container.querySelector("[data-testid=office-too-large]")).not.toBeNull();
+    expect(container.querySelector("[data-pptx-open-state=error]")).toBeNull();
     await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
     container.remove();
   });

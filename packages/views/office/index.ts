@@ -16,6 +16,7 @@ export * from "./frame";
 export { OfficeDocumentActiveProvider } from "./common/document-active";
 export { SaveStatus, type OfficeSaveStatusKind, type SaveStatusProps } from "./save-status";
 export { DesktopOpenAction, type DesktopOpenActionProps, type OfficeLaunchSessionFactory, type OfficeSaveOutcome } from "./desktop-open-action";
+export { OfficeTooLargeNotice, OfficeTooLargeProvider } from "./too-large-notice";
 export { OfficeInstallPrompt, type OfficeInstallPromptProps, type OfficeInstallChannel } from "./install-prompt";
 export type { OfficeChannel } from "@uniwork/core/office";
 export {

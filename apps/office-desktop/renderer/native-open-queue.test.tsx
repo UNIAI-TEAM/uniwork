@@ -20,9 +20,9 @@ function harness() {
     if (channel === "desktop:library-list") return { documents: [doc("doc-a")], nextCursor: null, engineAvailable: true };
     if (channel === "desktop:office-open") {
       if (request.documentId === "doc-a") await gate;
-      return { document: doc(request.documentId!), dataBase64: "aGVsbG8=", checksum, filename: `${request.documentId}.docx`, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+      return { document: doc(request.documentId!), data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")), checksum, filename: `${request.documentId}.docx`, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     }
-    if (channel === "desktop:file-open") return { opened: true, metadata: { handle: request.handle, name: `${request.handle}.docx`, byteLength: 5, modifiedAtMs: 1, checksum }, dataBase64: "aGVsbG8=" };
+    if (channel === "desktop:file-open") return { opened: true, metadata: { handle: request.handle, name: `${request.handle}.docx`, byteLength: 5, modifiedAtMs: 1, checksum }, data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")) };
     if (channel === "desktop:draft-list") return { drafts: [] };
     if (channel === "desktop:tabs-update") return { updated: true };
     return {};

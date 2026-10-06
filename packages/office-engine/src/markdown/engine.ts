@@ -50,7 +50,7 @@ export function findFrontmatter(text: string): FrontmatterRange | null {
   return { start: 0, end: match.index + match[0].length };
 }
 
-export function createMarkdownEngine(options: { upstream: MarkdownUpstream; hash?: Sha256HexFn }): MarkdownEngine {
+export function createMarkdownEngine(options: { upstream: MarkdownUpstream; hash?: Sha256HexFn; maxInputBytes?: number }): MarkdownEngine {
   const { upstream } = options;
   const core = createTextDocumentEngine(
     {
@@ -61,7 +61,7 @@ export function createMarkdownEngine(options: { upstream: MarkdownUpstream; hash
         rewrites.size === 0 ? text : upstream.rewriteMarkdownImageSources(text, rewrites),
       capabilities: MARKDOWN_CAPABILITIES,
     },
-    { hash: options.hash },
+    { hash: options.hash, ...(options.maxInputBytes === undefined ? {} : { maxInputBytes: options.maxInputBytes }) },
   );
   return {
     ...core,

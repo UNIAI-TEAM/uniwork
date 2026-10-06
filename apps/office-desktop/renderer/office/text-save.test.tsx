@@ -18,7 +18,7 @@ const BOM = [0xef, 0xbb, 0xbf];
 const mdBytes = new Uint8Array([...BOM, ...utf8("# Xin chào\r\nTiếng Việt: đ ệ ơ ư\r\n")]);
 const htmlBytes = utf8("<!doctype html><html><body><p>Đây là trang</p></body></html>\r\n");
 
-type Payload = { dataBase64?: string; handle?: string; draftId?: string; generation?: number };
+type Payload = { data?: Uint8Array; handle?: string; draftId?: string; generation?: number };
 
 /** A local-file bridge: file-save lands the bytes, drafts live in a map. No
  * network channel exists on it, so any office-save/engine call fails the test. */
@@ -31,17 +31,17 @@ function localHarness(format: "md" | "html", original: Uint8Array, over: Partial
   const call = vi.fn(async (channel: string, payload: Payload) => {
     channels.push(channel);
     switch (channel) {
-      case "desktop:file-save": { const bytes = fromB64(payload.dataBase64!); files.saved.push(bytes); return { opened: true, metadata: meta(bytes) }; }
+      case "desktop:file-save": { const bytes = payload.data!; files.saved.push(bytes); return { opened: true, metadata: meta(bytes) }; }
       case "desktop:file-open": return { opened: true, metadata: meta(original) };
       case "desktop:draft-list": return { drafts: [...drafts.keys()].map(row) };
-      case "desktop:draft-checkpoint": { const generation = payload.generation!; drafts.set(payload.draftId!, { bytes: fromB64(payload.dataBase64!), generation }); return { stored: true, generation }; }
-      case "desktop:draft-recover": { const draft = drafts.get(payload.draftId!)!; return { status: "recovered", metadata: row(payload.draftId!), dataBase64: b64(draft.bytes) }; }
+      case "desktop:draft-checkpoint": { const generation = payload.generation!; drafts.set(payload.draftId!, { bytes: payload.data!, generation }); return { stored: true, generation }; }
+      case "desktop:draft-recover": { const draft = drafts.get(payload.draftId!)!; return { status: "recovered", metadata: row(payload.draftId!), data: draft.bytes }; }
       case "desktop:draft-discard": drafts.delete(payload.draftId!); return { discarded: true };
       default: throw new Error(`Unexpected IPC: ${channel}`);
     }
   });
   const bridge = { call, onSessionChanged: () => () => undefined } as unknown as RendererBridge;
-  const open = (opened: Partial<OpenedBytes> = {}) => createByteDocumentSession(bridge, identity, { format, dataBase64: b64(original), checksum: sha(original), localHandle: handle, ...over, ...opened });
+  const open = (opened: Partial<OpenedBytes> = {}) => createByteDocumentSession(bridge, identity, { format, data: Uint8Array.from(Buffer.from(b64(original), "base64")), checksum: sha(original), localHandle: handle, ...over, ...opened });
   return { bridge, call, files, drafts, channels, open };
 }
 

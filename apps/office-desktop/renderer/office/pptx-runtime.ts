@@ -40,6 +40,7 @@ import {
 import * as pptxUpstream from "@uniwork/office-upstream/pptx-renderer";
 import type { StableSnapshot } from "@uniwork/core/office";
 import type { PptxDeckModel } from "@uniwork/views/office/pptx";
+import { LOCAL_ENGINE_BOUNDS } from "../../shared/local-engine-bounds";
 
 /** The generated artifact's optional speaker-notes read. Undefined until the
  * artifact exports getSlideNotes; the adapter then refuses with a typed
@@ -301,6 +302,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
       ops: bindPptxOps({ runTxn }),
       render: bindPptxRender({ buildRenderSlide, HeuristicMetrics }),
       sha256: sha256Hex,
+      ...LOCAL_ENGINE_BOUNDS,
     });
     return adapter;
   }

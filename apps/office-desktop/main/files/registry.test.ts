@@ -94,3 +94,50 @@ describe("desktop local file handles", () => {
     await expect(fresh.openPath(path)).rejects.toMatchObject({ code: expected });
   });
 });
+
+// A local working file is never size-capped: the desktop host must open, save
+// and atomically replace a file above the old 128 MiB ceiling. The fixture is
+// generated here (sparse where the filesystem allows) and removed afterEach.
+describe("desktop local files are not size-capped", () => {
+  const ABOVE_OLD_CAP = 130 * 1024 * 1024;
+  async function sparse(path: string, size: number): Promise<void> {
+    const handle = await fs.open(path, "w");
+    try { await handle.truncate(size); } finally { await handle.close(); }
+  }
+
+  it("opens, saves and atomically replaces a file above 128 MiB", async () => {
+    const root = await tempRoot(); const path = join(root, "big.docx"); await sparse(path, ABOVE_OLD_CAP);
+    const registry = new FileHandleRegistry({ sessionId: "s" });
+    const metadata = await registry.openPath(path);
+    expect(metadata.byteLength).toBe(ABOVE_OLD_CAP);
+    expect((await registry.read(metadata.handle)).byteLength).toBe(ABOVE_OLD_CAP);
+    const replacement = new Uint8Array(ABOVE_OLD_CAP + 1); replacement[ABOVE_OLD_CAP] = 7;
+    const saved = await registry.save(metadata.handle, replacement);
+    expect(saved.byteLength).toBe(ABOVE_OLD_CAP + 1);
+    await atomicReplace(path, new Uint8Array(ABOVE_OLD_CAP + 2));
+    expect((await fs.stat(path)).size).toBe(ABOVE_OLD_CAP + 2);
+    await sparse(join(root, "second.docx"), 1);
+    const second = await registry.openPath(join(root, "second.docx"));
+    expect((await registry.saveAs(second.handle, new Uint8Array(ABOVE_OLD_CAP + 3), { pick: async () => join(root, "copy.docx") }))?.byteLength).toBe(ABOVE_OLD_CAP + 3);
+  }, 60_000);
+
+  it.each([
+    ["a RangeError from an allocation", Object.assign(new RangeError("Array buffer allocation failed"), {})],
+    ["an invalid typed array length", new RangeError("Invalid typed array length: 4294967297")],
+    ["Node's 2 GiB readFile refusal", Object.assign(new RangeError("File size is greater than 2 GiB"), { code: "ERR_FS_FILE_TOO_LARGE" })],
+    ["a string that is too long", Object.assign(new Error("Cannot create a string longer than 0x1fffffe8 characters"), { code: "ERR_STRING_TOO_LONG" })],
+  ])("answers %s while reading as insufficient_memory, not not_found", async (_label, failure) => {
+    const root = await tempRoot(); const path = join(root, "huge.pptx"); await fs.writeFile(path, "x");
+    const native = { lstat: (p: string) => fs.lstat(p), stat: (p: string) => fs.stat(p), realpath: (p: string) => fs.realpath(p), open: (p: string, f: string | number) => fs.open(p, f), rename: (a: string, b: string) => fs.rename(a, b), unlink: (p: string) => fs.unlink(p) };
+    const failing = { ...native, readFile: async () => { throw failure; } } satisfies FileSystemPort;
+    await expect(new FileHandleRegistry({ sessionId: "s", fs: failing }).openPath(path)).rejects.toMatchObject({ code: "insufficient_memory" });
+    const missing = { ...native, readFile: async () => { throw Object.assign(new Error("gone"), { code: "ENOENT" }); } } satisfies FileSystemPort;
+    await expect(new FileHandleRegistry({ sessionId: "s", fs: missing }).openPath(path)).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("answers an allocation failure while writing as insufficient_memory", async () => {
+    const root = await tempRoot(); const path = join(root, "out.docx");
+    const failing = { lstat: (p: string) => fs.lstat(p), stat: (p: string) => fs.stat(p), realpath: (p: string) => fs.realpath(p), readFile: async (p: string) => new Uint8Array(await fs.readFile(p)), rename: (a: string, b: string) => fs.rename(a, b), unlink: (p: string) => fs.unlink(p), open: async () => { throw new RangeError("Array buffer allocation failed"); } } satisfies FileSystemPort;
+    await expect(atomicReplace(path, new Uint8Array(1), failing)).rejects.toMatchObject({ code: "insufficient_memory" });
+  });
+});

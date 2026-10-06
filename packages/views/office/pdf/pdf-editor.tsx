@@ -18,13 +18,14 @@ import { usePdfFindFromBody } from "./use-pdf-find-shortcut";
 import { PDF_MAX_ZOOM, PDF_MIN_ZOOM, clampPdfZoom, fitPdfZoom } from "./fit-zoom";
 import { PDF_COMMANDS, PDF_BROWSER_UNSUPPORTED_REASON_KEY, PDF_COMMAND_CAPABILITIES, pdfCommandDisabledReason, type PdfCommandId } from "./pdf-command-map";
 import type { PdfToolbarCommand, PdfToolbarTab } from "./toolbar";
+import { openFailureClassOf } from "../too-large-notice";
 import type { PdfEditorProps, PdfOpenFailure, PdfOpenOutcome, PdfPage, PdfSelection, PdfSnapshot, PdfViewState } from "./types";
 
 function unexpectedFailure(documentId: string, error: unknown): PdfOpenFailure {
   if (error instanceof EngineBoundaryError) {
     return { outcome: "failed", document_id: documentId, format: "pdf", failure_class: "engine_error", engine_error: error.code };
   }
-  return { outcome: "failed", document_id: documentId, format: "pdf", failure_class: "engine_error" };
+  return { outcome: "failed", document_id: documentId, format: "pdf", failure_class: openFailureClassOf(error) };
 }
 
 function isFailure(outcome: PdfOpenOutcome): outcome is PdfOpenFailure {

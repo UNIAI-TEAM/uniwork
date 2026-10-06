@@ -8,7 +8,7 @@ import { App, type RendererBridge } from "./app";
 import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
 
 installDocxGeometry();
-const fixtureBase64 = Buffer.from(docxSource).toString("base64");
+const fixtureBytes = (): Uint8Array => Uint8Array.from(Buffer.from(docxSource));
 const HANDLES = ["file_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "file_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"] as const;
 
 it("keeps Find on the visible DOCX tab while another DOCX tab stays mounted", async () => {
@@ -22,7 +22,7 @@ it("keeps Find on the visible DOCX tab while another DOCX tab stays mounted", as
     if (channel === "desktop:file-open") {
       const handle = (payload as { handle: string }).handle;
       const name = handle === HANDLES[0] ? "First.docx" : "Second.docx";
-      return { opened: true, metadata: { handle, name, byteLength: docxSource.length, modifiedAtMs: 1, checksum: bytesChecksum(docxSource) }, dataBase64: fixtureBase64 };
+      return { opened: true, metadata: { handle, name, byteLength: docxSource.length, modifiedAtMs: 1, checksum: bytesChecksum(docxSource) }, data: fixtureBytes() };
     }
     return {};
   });

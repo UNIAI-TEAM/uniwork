@@ -99,7 +99,7 @@ describe("office error dispatch", () => {
     ["file_replace_failed", "retry", true],
     ["file_save_in_progress", "retry", true],
     ["file_checkpoint_failed", "retry", true],
-    ["file_save_too_large", "keep_draft", false],
+    ["file_insufficient_memory", "keep_draft", false],
     ["file_changed_on_disk", "keep_draft", false],
     ["file_not_found", "keep_draft", false],
     ["file_session_revoked", "keep_draft", false],

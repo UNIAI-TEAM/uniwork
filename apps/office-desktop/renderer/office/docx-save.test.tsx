@@ -11,10 +11,10 @@ import { bytesChecksum, docxSource, docxIdentity, zipParts, installDocxGeometry 
 import type { DesktopDraftMetadata } from "../../shared/ipc";
 
 installDocxGeometry();
-const original = { format: "docx" as const, dataBase64: Buffer.from(docxSource).toString("base64"), checksum: bytesChecksum(docxSource) };
+const original = { format: "docx" as const, data: Uint8Array.from(Buffer.from(docxSource)), checksum: bytesChecksum(docxSource) };
 const handle = `file_${"x".repeat(40)}`;
 const newHandle = `file_${"y".repeat(40)}`;
-type SavePayload = { dataBase64: string; documentId: string; intentId: string; idempotencyKey: string; checksum: string; handle: string };
+type SavePayload = { data: Uint8Array; documentId: string; intentId: string; idempotencyKey: string; checksum: string; handle: string };
 
 function harness(handler: (channel: string, payload: SavePayload) => Promise<unknown>, opened: OpenedBytes = original) {
   let nativeSave: ((event: { documentId: string }) => void) | undefined;
@@ -28,7 +28,7 @@ function harness(handler: (channel: string, payload: SavePayload) => Promise<unk
 }
 
 const cloudReceipt = (payload: SavePayload) => ({ documentId: payload.documentId, intentId: payload.intentId, idempotencyKey: payload.idempotencyKey, checksum: payload.checksum, versionId: "v2", revision: "2" });
-const localReceipt = (payload: SavePayload, target = handle) => ({ opened: true, metadata: { handle: target, name: target === newHandle ? "Copy.docx" : "Original.docx", checksum: bytesChecksum(Buffer.from(payload.dataBase64, "base64")), byteLength: Buffer.from(payload.dataBase64, "base64").length, modifiedAtMs: 20.75 } });
+const localReceipt = (payload: SavePayload, target = handle) => ({ opened: true, metadata: { handle: target, name: target === newHandle ? "Copy.docx" : "Original.docx", checksum: bytesChecksum(Buffer.from(payload.data)), byteLength: Buffer.from(payload.data).length, modifiedAtMs: 20.75 } });
 
 it("commits real edited bytes once through native Save and preserves every untouched OOXML part", async () => {
   const { session, call, nativeSave } = harness(async (channel, payload) => channel === "desktop:office-save" ? cloudReceipt(payload) : {});
@@ -39,14 +39,14 @@ it("commits real edited bytes once through native Save and preserves every untou
   expect(session.coordinator.getState().state).toBe("saved");
   const saves = call.mock.calls.filter(([channel]) => channel === "desktop:office-save");
   expect(saves).toHaveLength(1);
-  const saved = Uint8Array.from(Buffer.from(saves[0]![1].dataBase64, "base64"));
+  const saved = Uint8Array.from(Buffer.from(saves[0]![1].data));
   expect(saves[0]![1].checksum).toBe(bytesChecksum(saved));
   expect((await parseDocx(saved)).blocks[0]).toMatchObject({ type: "heading", level: 2 });
   const before = zipParts(docxSource), after = zipParts(saved);
   expect([...after.keys()].sort()).toEqual([...before.keys()].sort());
   expect(after.get("word/document.xml")).not.toEqual(before.get("word/document.xml"));
   for (const [name, value] of before) if (name !== "word/document.xml") expect(after.get(name), name).toEqual(value);
-  const reopened = createByteDocumentSession({ call: call as never }, { ...docxIdentity, baseVersionId: "v2", baseRevision: "2" }, { format: "docx", dataBase64: Buffer.from(saved).toString("base64"), checksum: bytesChecksum(saved) });
+  const reopened = createByteDocumentSession({ call: call as never }, { ...docxIdentity, baseVersionId: "v2", baseRevision: "2" }, { format: "docx", data: Uint8Array.from(Buffer.from(saved)), checksum: bytesChecksum(saved) });
   await reopened.openEditor();
   expect(reopened.editor.commands?.getState().headingLevel).toBe(2);
   expect(reopened.coordinator.getState().dirtyGeneration).toBe(0);
@@ -66,14 +66,14 @@ it("keeps N+1 dirty while Save N is in flight and refuses a second Save", async 
   await act(async () => { complete(); await first; });
   expect(session.coordinator.getState()).toMatchObject({ state: "dirty", lastSavedGeneration: 1, dirtyGeneration: 2 });
   const request = call.mock.calls.find(([channel]) => channel === "desktop:office-save")![1];
-  expect((await parseDocx(Buffer.from(request.dataBase64, "base64"))).blocks[0]).toMatchObject({ type: "heading", level: 2 });
+  expect((await parseDocx(Buffer.from(request.data))).blocks[0]).toMatchObject({ type: "heading", level: 2 });
   expect(session.editor.commands?.getState().headingLevel).toBe(3);
 });
 
 it("rebinds Save As to the confirmed new file and routes later Save and drafts to it", async () => {
   const { session, call, rebound, nativeSave } = harness(async (channel, payload) => {
     if (channel === "desktop:file-save-as") return localReceipt(payload, newHandle);
-    if (channel === "desktop:file-open") return { ...localReceipt({ ...payload, dataBase64: original.dataBase64 }, newHandle), dataBase64: original.dataBase64 };
+    if (channel === "desktop:file-open") return { ...localReceipt({ ...payload, data: original.data }, newHandle), data: original.data };
     if (channel === "desktop:file-save") return localReceipt(payload, newHandle);
     if (channel === "desktop:draft-checkpoint") return { stored: true, generation: 3 };
     return {};
@@ -107,7 +107,7 @@ it("cancels a clean Save As without rebinding, leaving the document clean and wr
 });
 
 it("shows a reasoned corrupt-file error with no Save", async () => {
-  const broken = harness(async () => ({}), { format: "docx", dataBase64: "AQID", checksum: bytesChecksum(new Uint8Array([1, 2, 3])) });
+  const broken = harness(async () => ({}), { format: "docx", data: Uint8Array.from(Buffer.from("AQID", "base64")), checksum: bytesChecksum(new Uint8Array([1, 2, 3])) });
   expect(await screen.findByTestId("office-open-error")).toHaveTextContent(/.+/);
   expect(document.querySelector(".ProseMirror")).toBeNull();
   expect(screen.queryByRole("button", { name: i18n.t("office.save.save") })).toBeNull();
@@ -128,7 +128,7 @@ it("retains edits made during Save As after rebinding the new file", async () =>
   let complete!: () => void;
   const { session } = harness(async (channel, payload) => {
     if (channel === "desktop:file-save-as") return new Promise((resolve) => { complete = () => resolve(localReceipt(payload, newHandle)); });
-    if (channel === "desktop:file-open") return localReceipt({ ...payload, dataBase64: original.dataBase64 }, newHandle);
+    if (channel === "desktop:file-open") return localReceipt({ ...payload, data: original.data }, newHandle);
     return {};
   }, { ...original, localHandle: handle });
   await screen.findByTestId("docx-document-surface");
@@ -143,12 +143,12 @@ it("retains edits made during Save As after rebinding the new file", async () =>
 });
 
 it("restores a real protected draft into a fresh editor and leaves it unsaved", async () => {
-  let checkpointBytes = "";
+  let checkpointBytes: Uint8Array = new Uint8Array(0);
   const draft = { draftId: "doc:v1:1", identity: { deploymentId: "lane", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc", base: { revision: "1", version: "v1" } }, generation: 3, checksum: original.checksum, byteLength: docxSource.length, updatedAt: 10 };
-  const call = vi.fn(async (channel: string, payload: { dataBase64: string }) => {
+  const call = vi.fn(async (channel: string, payload: { data: Uint8Array }) => {
     if (channel === "desktop:draft-list") return { drafts: [] };
-    if (channel === "desktop:draft-checkpoint") { checkpointBytes = payload.dataBase64; return { stored: true, generation: 3 }; }
-    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: draft, dataBase64: checkpointBytes };
+    if (channel === "desktop:draft-checkpoint") { checkpointBytes = payload.data; return { stored: true, generation: 3 }; }
+    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: draft, data: Uint8Array.from(checkpointBytes) };
     return {};
   });
   const session = createByteDocumentSession({ call: call as never }, docxIdentity, original);
@@ -176,18 +176,18 @@ it("refuses a receipt for another document without clearing dirty work", async (
 
 it("creates the first local checkpoint through Keep, then recovers the edit after leaving", async () => {
   const rows: DesktopDraftMetadata[] = [];
-  let checkpointBytes = "";
+  let checkpointBytes: Uint8Array = new Uint8Array(0);
   const identity = { ...docxIdentity, documentId: handle, baseVersionId: original.checksum, baseRevision: "10" };
-  const call = vi.fn(async (channel: string, payload: { draftId: string; generation: number; dataBase64: string }) => {
+  const call = vi.fn(async (channel: string, payload: { draftId: string; generation: number; data: Uint8Array }) => {
     if (channel === "desktop:draft-list") return { drafts: rows };
     if (channel === "desktop:draft-checkpoint") {
-      checkpointBytes = payload.dataBase64;
-      const bytes = Buffer.from(checkpointBytes, "base64");
+      checkpointBytes = payload.data;
+      const bytes = Buffer.from(checkpointBytes);
       rows.push({ draftId: payload.draftId, generation: payload.generation, checksum: bytesChecksum(bytes), byteLength: bytes.length, updatedAt: 10,
         identity: { deploymentId: identity.deploymentId, accountId: identity.accountId, organizationId: identity.organizationId, workspaceId: identity.workspaceId, documentId: handle, base: { revision: "10", version: original.checksum } } });
       return { stored: true, generation: payload.generation };
     }
-    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: rows[0], dataBase64: checkpointBytes };
+    if (channel === "desktop:draft-recover") return { status: "recovered", metadata: rows[0], data: Uint8Array.from(checkpointBytes) };
     throw new Error(`Unexpected write or IPC: ${channel}`);
   });
   const opened = { ...original, localHandle: handle };
@@ -204,7 +204,7 @@ it("creates the first local checkpoint through Keep, then recovers the edit afte
   expect(screen.queryByRole("alert")).toBeNull();
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ draftId: `${handle}:${original.checksum}:10`, generation: 1 });
-  expect((await parseDocx(Buffer.from(checkpointBytes, "base64"))).blocks[0]).toMatchObject({ type: "heading", level: 2 });
+  expect((await parseDocx(Buffer.from(checkpointBytes))).blocks[0]).toMatchObject({ type: "heading", level: 2 });
   dialog.unmount(); session.dispose();
   const restarted = createByteDocumentSession({ call: call as never }, identity, opened);
   try {
@@ -212,8 +212,32 @@ it("creates the first local checkpoint through Keep, then recovers the edit afte
     expect(await restarted.recoverDraft(rows[0]!)).toBe("recovered");
     expect(restarted.editor.commands!.getState().headingLevel).toBe(2);
     expect(restarted.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 1, lastSavedGeneration: 0 });
-    expect((await restarted.editor.captureSnapshot()).value).toEqual(Uint8Array.from(Buffer.from(checkpointBytes, "base64")));
+    expect((await restarted.editor.captureSnapshot()).value).toEqual(Uint8Array.from(checkpointBytes));
     expect(call.mock.calls.filter(([channel]) => channel === "desktop:draft-checkpoint")).toHaveLength(1);
     expect(call.mock.calls.some(([channel]) => /office-save|file-save/.test(channel))).toBe(false);
   } finally { restarted.dispose(); }
 });
+
+it("tells a checkpoint overtaken by a newer edit (superseded) from a refused draft write (UNI-956)", async () => {
+  let refuse = false;
+  const call = vi.fn(async (channel: string, payload: { generation: number }) => {
+    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:draft-checkpoint") { if (refuse) throw new Error("draft store unavailable"); return { stored: true, generation: payload.generation }; }
+    throw new Error(`Unexpected IPC: ${channel}`);
+  });
+  const identity = { ...docxIdentity, documentId: handle, baseVersionId: original.checksum, baseRevision: "10" };
+  const session = createByteDocumentSession({ call: call as never }, identity, { ...original, localHandle: handle });
+  await session.openEditor();
+  session.editor.commands!.setHeading(2);
+  expect(await session.protectDraft()).toBe("stored");
+  // An edit lands while the slow DOCX snapshot is still being serialized.
+  session.editor.commands!.setHeading(3);
+  const racing = session.protectDraft();
+  session.editor.commands!.setHeading(1);
+  expect(await racing).toBe("superseded");
+  expect(await session.keepDraft()).toBe(true);
+  refuse = true;
+  session.editor.commands!.setHeading(2);
+  expect(await session.protectDraft()).toBe("refused");
+  expect(await session.keepDraft()).toBe(false);
+}, 60_000);

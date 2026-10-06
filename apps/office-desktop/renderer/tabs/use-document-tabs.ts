@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { copyBytes, incomingBytes } from "../office/bytes";
 import type { OfficeIdentity } from "@uniwork/core/office";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { RendererBridge } from "../app";
-import { createByteDocumentSession, type ByteDocumentSession, type OpenedBytes } from "../office/session";
+import { createByteDocumentSession, type ByteDocumentSession, type DraftProtection, type OpenedBytes } from "../office/session";
 import { createPptxDocumentSession, type PptxDocumentSession } from "../office/pptx-session";
 import { createDesktopPptxSurface } from "../office/pptx-surface";
 import { PPTX_DESKTOP_ENGINE_BUILD } from "../office/pptx-surface";
@@ -19,10 +20,10 @@ export type TabSession = ByteDocumentSession | PptxDocumentSession | DesktopXlsx
 /** The desktop pptx surface for one tab: the opened bytes are already in the
  * renderer (main read them behind IPC), so readBytes replays them. */
 function createPptxTabSurface(input: OpenTabInput, bytes: OpenedBytes, onDirty: (generation: number) => void) {
-  const decoded = Uint8Array.from(atob(bytes.dataBase64), (character) => character.charCodeAt(0));
+  const decoded = incomingBytes(bytes.data);
   return createDesktopPptxSurface({
     documentId: input.identity.documentId,
-    readBytes: async () => decoded.slice(),
+    readBytes: async () => copyBytes(decoded),
     identity: input.identity,
     capability: {
       format: "pptx",
@@ -74,6 +75,14 @@ export function isXlsxTabSession(session: TabSession): session is DesktopXlsxSes
   return (session as { format?: unknown }).format === "xlsx";
 }
 
+/** The byte session (DOCX, PDF, Markdown, HTML) can tell a capture overtaken
+ * by a newer edit from a refusal; PPTX and XLSX write the latest snapshot, so
+ * their boolean Keep is already exact. */
+function protectTabDraft(session: TabSession): Promise<DraftProtection> {
+  if ("protectDraft" in session) return session.protectDraft();
+  return session.keepDraft().then((stored) => stored ? "stored" : "refused");
+}
+
 export function isDocumentDirty(session: TabSession): boolean {
   const state = session.coordinator.getState();
   return state.dirtyGeneration > state.lastSavedGeneration || state.state === "saving";
@@ -113,9 +122,10 @@ export function useDocumentTabs(bridge: RendererBridge) {
           setCheckpointFailures((previous) => previous.includes(tab.id) ? previous.filter((id) => id !== tab.id) : previous);
           continue;
         }
-        void tab.data.session.keepDraft().then((stored) => {
-          if (!alive.current || !current.current.tabs.some((entry) => entry.id === tab.id)) return;
-          setCheckpointFailures((previous) => stored ? previous.filter((id) => id !== tab.id) : previous.includes(tab.id) ? previous : [...previous, tab.id]);
+        void protectTabDraft(tab.data.session).then((outcome) => {
+          // A superseded capture is retried by the next tick; it changes nothing.
+          if (outcome === "superseded" || !alive.current || !current.current.tabs.some((entry) => entry.id === tab.id)) return;
+          setCheckpointFailures((previous) => outcome === "stored" ? previous.filter((id) => id !== tab.id) : previous.includes(tab.id) ? previous : [...previous, tab.id]);
         });
       }
     }, 2_000);

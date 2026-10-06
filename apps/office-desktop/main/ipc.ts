@@ -6,6 +6,7 @@ import type { NativeLoginManager } from "./auth/manager";
 import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopPublicConfigResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeSaveResponseSchema, desktopOfficeJobResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopPublicConfigResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeContextResponse, type DesktopOfficeSaveResponse, type DesktopOfficeJobResponse, type DesktopLibraryCreateResponse, type DesktopFileXlsxResponse } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
+import { isAllocationFailure } from "../shared/memory";
 import type { DesktopDraftStore } from "./drafts/store";
 import { DraftRecoveryError, type DraftIdentity, type DraftSession } from "../../../packages/core/office/draft-recovery";
 import { getDesktopDiagnostics } from "../shared/identity";
@@ -40,7 +41,7 @@ export type DesktopOfficeTransport = Readonly<{
    *  bounded output bytes that then ride the ordinary desktop:office-save
    *  command. */
   officeJob(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; operation: "open" | "edit"; baseRevision: string; edits?: readonly unknown[] }): Promise<DesktopOfficeJobResponse>;
-  save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse>;
+  save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; data: Uint8Array; checksum: string }): Promise<DesktopOfficeSaveResponse>;
 }>;
 
 export interface OfficeIpcOptions {
@@ -138,7 +139,7 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       assertSession(session);
       return response;
     },
-    "desktop:office-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }>) => {
+    "desktop:office-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; data: Uint8Array; checksum: string }>) => {
       requireSession();
       const session = options.session?.();
       if (options.isOpened && !options.isOpened(request.documentId, request.workspaceId)) throw new OfficeIpcError("document_context_refused");
@@ -234,7 +235,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const bytes = await safeRead(() => options.registry.read(metadata.handle));
       assertSession(session);
       options.onOpened?.(metadata);
-      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+      return { opened: true, metadata, data: bytes };
     },
     "desktop:file-create": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { format: DesktopDocumentFormat }>) => {
       const session = options.session?.();
@@ -242,7 +243,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const metadata = await safeFile(async () => options.registry.createUntitled(bytes, blankDocumentName(request.format)));
       assertSession(session);
       options.onOpened?.(metadata);
-      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+      return { opened: true, metadata, data: bytes };
     },
     "desktop:recent-open": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:recent-open">) => {
       if (!options.recents) throw new FileIpcError("invalid_path");
@@ -262,7 +263,7 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const bytes = await safeRead(() => options.registry.read(metadata.handle));
       assertSession(session);
       options.onOpened?.(metadata);
-      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+      return { opened: true, metadata, data: bytes };
     },
     "desktop:file-open": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string }>) => {
       const session = options.session?.();
@@ -270,14 +271,14 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       const bytes = await safeRead(() => options.registry.read(request.handle));
       assertSession(session);
       options.onOpened?.(metadata);
-      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+      return { opened: true, metadata, data: bytes };
     },
-    "desktop:file-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => runGuardedSave(options.saveGuard, async () => {
+    "desktop:file-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; data: Uint8Array }>) => runGuardedSave(options.saveGuard, async () => {
       requireOpened(request.handle);
       const session = options.session?.();
       const confirmSave = options.beginSave?.(request.handle);
       try {
-        const bytes = decodeBytes(request.dataBase64);
+        const bytes = request.data;
         if (options.checkpoint) {
           const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
           // A draft-store fault is named (file_checkpoint_failed), not left to
@@ -294,14 +295,14 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       }
       finally { confirmSave?.(false); }
     }),
-    "desktop:file-save-as": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => {
+    "desktop:file-save-as": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; data: Uint8Array }>) => {
       if (!options.pickSaveAs) throw new FileIpcError("invalid_path");
       requireOpened(request.handle);
       const session = options.session?.();
       return runGuardedSave(options.saveGuard, async () => {
         const confirmSave = options.beginSave?.(request.handle);
         try {
-          const metadata = await safeFile(() => options.registry.saveAs(request.handle, decodeBytes(request.dataBase64), { pick: async () => {
+          const metadata = await safeFile(() => options.registry.saveAs(request.handle, request.data, { pick: async () => {
             const path = await options.pickSaveAs!();
             assertSession(session);
             requireOpened(request.handle);
@@ -330,13 +331,13 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       // The local xlsx job answers the shared DesktopFileXlsxResponse contract
       // (the same schema the renderer parses), so main and renderer cannot drift.
       if (request.operation === "open") {
-        const opened = await options.xlsx.open(bytes);
+        const opened = await engineJob(() => options.xlsx!.open(bytes));
         assertSession(session);
-        return { state: "completed" as const, outputBase64: Buffer.from(JSON.stringify({ snapshot: opened.snapshot, render_model: opened.renderModel })).toString("base64") };
+        return { state: "completed" as const, output: jsonBytes({ snapshot: opened.snapshot, render_model: opened.renderModel }) };
       }
-      const result = await options.xlsx.edit(bytes, request.edits ?? []);
+      const result = await engineJob(() => options.xlsx!.edit(bytes, request.edits ?? []));
       assertSession(session);
-      return { state: "completed" as const, outputBase64: Buffer.from(result.bytes).toString("base64"), outputChecksum: result.checksum };
+      return { state: "completed" as const, output: result.bytes, outputChecksum: result.checksum };
     },
   };
   // A refused file command answers with a typed code instead of throwing: only
@@ -345,16 +346,13 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
   const refused = (code: string) => ({ opened: false as const, code });
   const refuse = <Q, R>(handler: (request: Q) => Promise<R>) => answerRefusal(handler, fileRefusalCode, refused);
   const refuseOpen = <Q, R>(handler: (request: Q) => Promise<R>) => answerRefusal(handler, openRefusalCode, refused);
-  // A Save refused for size keeps its own code: the open-side copy ("too large to
-  // open") would mislead, and error-state keeps the draft for it.
-  const refuseSave = <Q, R>(handler: (request: Q) => Promise<R>) => answerRefusal(handler, (error) => { const code = fileRefusalCode(error); return code === "too_large" ? "save_too_large" : code; }, refused);
   return {
     "desktop:file-pick-open": refuseOpen(commands["desktop:file-pick-open"]),
     "desktop:file-create": refuse(commands["desktop:file-create"]),
     "desktop:recent-open": refuseOpen(commands["desktop:recent-open"]),
     "desktop:file-open": refuseOpen(commands["desktop:file-open"]),
-    "desktop:file-save": refuseSave(commands["desktop:file-save"]),
-    "desktop:file-save-as": refuseSave(commands["desktop:file-save-as"]),
+    "desktop:file-save": refuse(commands["desktop:file-save"]),
+    "desktop:file-save-as": refuse(commands["desktop:file-save-as"]),
     "desktop:file-xlsx": answerRefusal(commands["desktop:file-xlsx"], fileRefusalCode, (code): DesktopFileXlsxResponse => ({ state: "failed", code })),
   };
 }
@@ -417,12 +415,12 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
     throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable");
   };
   return {
-    "desktop:draft-checkpoint": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; generation: number; dataBase64: string }>) => {
+    "desktop:draft-checkpoint": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; generation: number; data: Uint8Array }>) => {
       let finish: ((stored: boolean) => void) | undefined;
       try {
         const current = context(request.documentId);
         finish = options.beginCheckpoint?.(request.documentId);
-        const metadata = await options.store.checkpointPlaintext({ session: current.session, identity: current.identity, draftId: request.draftId, generation: request.generation, plaintext: decodeBytes(request.dataBase64) });
+        const metadata = await options.store.checkpointPlaintext({ session: current.session, identity: current.identity, draftId: request.draftId, generation: request.generation, plaintext: request.data });
         assertCurrent(request.documentId, current);
         finish?.(true);
         return { stored: true, generation: metadata.generation };
@@ -476,7 +474,7 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
           liveAccess,
         });
         assertCurrent(request.documentId, current);
-        return result.status === "recovered" ? { status: result.status, metadata: result.metadata, dataBase64: Buffer.from(result.plaintext).toString("base64") } : result;
+        return result.status === "recovered" ? { status: result.status, metadata: result.metadata, data: result.plaintext } : result;
       } catch (error) { translateDraftError(error); }
     },
     "desktop:draft-discard": async (request: import("../shared/ipc").DesktopIpcRequest<"desktop:draft-discard">) => {
@@ -539,11 +537,23 @@ class DraftIpcError extends Error {
  * unreadable file is never reported as a write problem (or as "not found"). */
 async function safeFile<T>(operation: () => Promise<T>, fallback: "read_failed" | "write_failed" = "write_failed"): Promise<T> {
   try { return await operation(); }
-  catch (error) { if (error instanceof LocalFileError) throw new FileIpcError(error.code); throw new FileIpcError(fallback); }
+  catch (error) {
+    if (error instanceof LocalFileError) throw new FileIpcError(error.code);
+    throw new FileIpcError(isAllocationFailure(error) ? "insufficient_memory" : fallback);
+  }
 }
 const safeRead = <T>(operation: () => Promise<T>): Promise<T> => safeFile(operation, "read_failed");
 
-function decodeBytes(value: string): Uint8Array {
-  try { return Uint8Array.from(Buffer.from(value, "base64")); }
-  catch { throw new FileIpcError("write_failed"); }
+/** Run a local engine job; an allocation failure inside it is the typed
+ * insufficient_memory, every other error keeps propagating unchanged. */
+async function engineJob<T>(job: () => Promise<T>): Promise<T> {
+  try { return await job(); }
+  catch (error) { if (isAllocationFailure(error)) throw new FileIpcError("insufficient_memory"); throw error; }
+}
+
+/** UTF-8 bytes of a JSON value for the wire. A snapshot past the engine's string
+ * limit answers the typed insufficient_memory instead of crashing. */
+function jsonBytes(value: unknown): Uint8Array {
+  try { return new Uint8Array(Buffer.from(JSON.stringify(value), "utf8")); }
+  catch (error) { throw new FileIpcError(isAllocationFailure(error) ? "insufficient_memory" : "write_failed"); }
 }

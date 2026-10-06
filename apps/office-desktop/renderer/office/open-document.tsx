@@ -23,6 +23,7 @@ import type { FormatEdit, PptxEdit, PptxParagraphLike } from "@uniwork/office-en
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopEditorLoader } from "./editor-registry";
+import { isMemoryFailure } from "./bytes";
 import { isPrintBusy, printTextDocument } from "./text-print";
 
 /** The header overflow control. Inline rather than a lucide import: the
@@ -72,7 +73,7 @@ export function OpenByteDocument(props: {
 }
 
 function OpenByteSessionDocument({ bridge, identity, session, title, onBack, active = true, kind = "cloud", signedIn = false, onSignIn, onLocalFileRebound, readOnlyReason }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void; active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void; readOnlyReason?: ReadOnlyReason }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const { t: tOffice } = useTranslation(undefined, { keyPrefix: "office" });
   const { t: tAi } = useTranslation(undefined, { keyPrefix: "officeDesktop.ai" });
@@ -96,10 +97,10 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
   useEffect(() => {
     let active = true;
     void session.openEditor().then(() => { if (active) setLoaded({ session }); }).catch((error: unknown) => {
-      if (active) setLoaded({ session, failure: { outcome: "failed", document_id: identity.documentId, format, failure_class: (error as { failureClass?: string })?.failureClass ?? "engine_error", message: error instanceof Error ? error.message : String(error) } as DocxOpenFailure | PdfOpenFailure });
+      if (active) setLoaded({ session, failure: { outcome: "failed", document_id: identity.documentId, format, failure_class: (error as { failureClass?: string })?.failureClass ?? "engine_error", message: isMemoryFailure(error) ? i18n.t("office.save.reason.file_insufficient_memory") : error instanceof Error ? error.message : String(error) } as DocxOpenFailure | PdfOpenFailure });
     });
     return () => { active = false; };
-  }, [format, identity.documentId, session, openAttempt]);
+  }, [format, i18n, identity.documentId, session, openAttempt]);
   const capability = useMemo(() => ({ format,operation: "serialize", host: "desktop", engineBuild: desktopEngineBuild(format as DesktopDocumentFormat), contractRevision: "office-editor-host/1", status: session.canSave ? "available" as const : "readonly" as const, fidelityWarnings: [] }), [format, session]);
   const host = useMemo<OfficeHost>(() => ({
     read: { readDocument: async () => (await session.editor.captureSnapshot()).value, openDocument: async () => ({ outcome: "opened", document_id: identity.documentId, document_model_ref: identity.documentId, warnings: [] }) },

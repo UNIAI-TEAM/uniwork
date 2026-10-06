@@ -186,6 +186,8 @@ async function convertLegacy(message: RunMessage): Promise<HandlerOutcome> {
   }
 }
 
+const XLSX_OPEN_MODEL_MAX_BYTES = 16 * 1024 * 1024;
+
 /** open:xlsx — probe bytes into a document-model summary JSON. */
 async function openXlsx(message: RunMessage): Promise<HandlerOutcome> {
   if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
@@ -200,8 +202,10 @@ async function openXlsx(message: RunMessage): Promise<HandlerOutcome> {
     // hard bound prevents a pathological workbook from turning a probe job
     // into an unbounded JSON response; the engine's normal output limit still
     // applies at the supervisor boundary.
-    if (Buffer.byteLength(encoded, "utf8") > 16 * 1024 * 1024) {
-      return { ok: false, code: "engine_result_invalid", reason: "xlsx_open_model_too_large" };
+    if (Buffer.byteLength(encoded, "utf8") > XLSX_OPEN_MODEL_MAX_BYTES) {
+      // Typed as the contract byte bound (413, non-retryable) so the web can
+      // offer the desktop app instead of retrying (UNI-956).
+      return { ok: false, code: "upload_bounds", reason: "xlsx_open_model_too_large" };
     }
     await writeOutput(message.outputPath, encoded);
     return { ok: true, warnings: [] };

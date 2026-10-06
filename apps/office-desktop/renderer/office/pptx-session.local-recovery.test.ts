@@ -110,7 +110,7 @@ async function harness() {
       const metadata = opened.metadata;
       const bytes = await registry.read(metadata.handle);
       const identity: OfficeIdentity = { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: metadata.handle, generation: 1, baseRevision: String(Math.trunc(metadata.modifiedAtMs)), baseVersionId: metadata.checksum };
-      const session = createPptxDocumentSession(bridge, identity, { format: "pptx", dataBase64: Buffer.from(bytes).toString("base64"), checksum: metadata.checksum, localHandle: metadata.handle }, (onDirty) => createDesktopPptxAdapter({ identity, runtime: createWebPptxSessionRuntime({ documentId: metadata.handle }), readBytes: async () => bytes, capability, onDirty }));
+      const session = createPptxDocumentSession(bridge, identity, { format: "pptx", data: Uint8Array.from(Buffer.from(bytes)), checksum: metadata.checksum, localHandle: metadata.handle }, (onDirty) => createDesktopPptxAdapter({ identity, runtime: createWebPptxSessionRuntime({ documentId: metadata.handle }), readBytes: async () => bytes, capability, onDirty }));
       await session.openEditor();
       return { session, metadata, store };
     };

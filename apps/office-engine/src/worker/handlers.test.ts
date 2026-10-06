@@ -5,10 +5,19 @@
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BOUND_OPERATIONS, findHandler } from "./handlers.ts";
 import { FAULT_PREFIX, runFault } from "./faults.ts";
 import type { RunMessage } from "./protocol.ts";
+
+// The open:xlsx bound is about the encoded model, not the workbook: stub the
+// engine so the test needs neither the staged gateway nor a 16 MiB fixture.
+const modelSize = vi.hoisted(() => ({ bytes: 0 }));
+vi.mock("@uniwork/office-engine/xlsx", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/office-engine/xlsx")>()),
+  bindXlsxGateway: () => ({}),
+  openXlsxModel: async () => ({ probe: {}, snapshot: {}, renderModel: "x".repeat(modelSize.bytes) }),
+}));
 
 let dir: string;
 let message: RunMessage;
@@ -80,6 +89,28 @@ describe("handler table", () => {
     await writeFile(message.inputPath!, Buffer.from([0xc3, 0x28]));
     expect(await handler(message)).toMatchObject({ ok: false, code: "engine_result_invalid", reason: "invalid_utf8" });
     expect(await handler({ ...message, inputPath: null })).toMatchObject({ ok: false, reason: "input_required" });
+  });
+});
+
+describe("open:xlsx model bound", () => {
+  const openMessage = async (): Promise<RunMessage> => {
+    await writeFile(join(dir, "input.bin"), "stub");
+    await writeFile(join(dir, "xlsx-gateway.mjs"), "export {};");
+    return { ...message, operation: "open", format: "xlsx", xlsxAssetsDir: dir };
+  };
+
+  it("fails typed as upload_bounds when the encoded model passes 16 MiB", async () => {
+    modelSize.bytes = 16 * 1024 * 1024 + 1;
+    expect(await findHandler("open", "xlsx")!(await openMessage())).toEqual({
+      ok: false,
+      code: "upload_bounds",
+      reason: "xlsx_open_model_too_large",
+    });
+  });
+
+  it("writes the model when it fits", async () => {
+    modelSize.bytes = 1024;
+    expect(await findHandler("open", "xlsx")!(await openMessage())).toEqual({ ok: true, warnings: [] });
   });
 });
 

@@ -40,7 +40,7 @@ describe("desktop:native-drop-open", () => {
     const metadata = meta("Dropped.docx");
     const { drop, localOpenContext } = setup({ openEvent: async () => metadata, read: async () => new Uint8Array([1, 2, 3]) });
     const answer = await drop(abs("Docs", "Dropped.docx"));
-    expect(desktopFileResponseSchema.parse(answer)).toEqual({ opened: true, metadata, dataBase64: "AQID" });
+    expect(desktopFileResponseSchema.parse(answer)).toEqual({ opened: true, metadata, data: new Uint8Array([1, 2, 3]) });
     expect(localOpenContext).toHaveBeenCalledWith(metadata);
   });
 
@@ -50,7 +50,7 @@ describe("desktop:native-drop-open", () => {
     ["symlink_refused", "file_access_denied"],
     ["locked", "file_locked"],
     ["read_failed", "file_read_failed"],
-    ["too_large", "file_too_large"],
+    ["insufficient_memory", "file_insufficient_memory"],
   ] as const)("answers a %s refusal at open with code %s, never the message or the path", async (internal, wire) => {
     const { drop, localOpenContext } = setup({ openEvent: async () => { throw new LocalFileError(internal, abs("secret", "Dropped.docx")); }, read: async () => new Uint8Array() });
     const answer = await drop(abs("secret", "Dropped.docx"));
@@ -60,8 +60,8 @@ describe("desktop:native-drop-open", () => {
   });
 
   it("answers a refused read after a successful open the same way", async () => {
-    const { drop, localOpenContext } = setup({ openEvent: async () => meta("Dropped.docx"), read: async () => { throw new LocalFileError("too_large"); } });
-    await expect(drop(abs("Dropped.docx"))).resolves.toEqual({ opened: false, code: "file_too_large" });
+    const { drop, localOpenContext } = setup({ openEvent: async () => meta("Dropped.docx"), read: async () => { throw new LocalFileError("insufficient_memory"); } });
+    await expect(drop(abs("Dropped.docx"))).resolves.toEqual({ opened: false, code: "file_insufficient_memory" });
     expect(localOpenContext).not.toHaveBeenCalled();
   });
 

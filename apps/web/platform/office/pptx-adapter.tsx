@@ -11,10 +11,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
-import { createSaveSettleGate } from "@uniwork/core/office";
+import { createSaveSettleGate, isOfficeTooLarge } from "@uniwork/core/office";
 import { isPptxSessionDiverged, type PptxEdit, type PptxParagraphLike, type PptxSlideAnimationRead, type PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
+import { OfficeTooLargeNotice } from "@uniwork/views/office";
 import { PptxEditor } from "@uniwork/views/office/pptx/editor-view";
 import type { MasterElementView, MasterPartView, PptxDeckModel } from "@uniwork/views/office/pptx";
 import type { PptxSlideView } from "@uniwork/views/office/pptx/slide-rail";
@@ -179,6 +180,7 @@ function PptxEditorSurface(props: {
   const [selected, setSelected] = useState(0);
   const [phase, setPhase] = useState<PptxOpenPhase>("loading");
   const [failure, setFailure] = useState<string | null>(null);
+  const [tooLarge, setTooLarge] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -186,6 +188,7 @@ function PptxEditorSurface(props: {
     const controller = new AbortController();
     setPhase("loading");
     setFailure(null);
+    setTooLarge(false);
     void open(controller.signal).then((outcome) => {
       if (!active) return;
       if (outcome.outcome === "opened") {
@@ -193,10 +196,12 @@ function PptxEditorSurface(props: {
         return;
       }
       setPhase("error");
+      setTooLarge(isOfficeTooLarge(outcome));
       setFailure(outcome.message ?? outcome.failure_class ?? tRef.current("office.editor.open_error_hint"));
     }).catch((error: unknown) => {
       if (!active) return;
       setPhase("error");
+      setTooLarge(isOfficeTooLarge(error as { code?: string; kind?: string; failureClass?: string }));
       setFailure(error instanceof Error ? error.message : String(error));
     });
     return () => { active = false; controller.abort(); };
@@ -259,6 +264,7 @@ function PptxEditorSurface(props: {
   // in-place layer opens over a document whose commit would be refused.
   // Find runs inside the shared editor over the bound deck (R2-6): no host port.
 
+  if (phase === "error" && tooLarge) return <OfficeTooLargeNotice format="pptx" />;
   if (phase !== "ready") {
     return (
       <div className="flex min-h-64 flex-col gap-3 rounded-panel border border-border bg-background p-4" role="status" aria-live="polite" aria-busy={phase === "loading"} data-pptx-open-state={phase}>
@@ -491,7 +497,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
           outcome: "failed",
           document_id: options.identity.documentId,
           format: "pptx",
-          failure_class: typed.failureClass ?? "engine_error",
+          failure_class: typed.failureClass ?? (isOfficeTooLarge(error as { code?: string; kind?: string }) ? "too_large" : "engine_error"),
           ...(typed.engineError ? { engine_error: typed.engineError } : {}),
           message: error instanceof Error ? error.message : String(error),
         };

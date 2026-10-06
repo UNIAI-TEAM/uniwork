@@ -9,17 +9,10 @@ import type { OpenedBytes } from "./session";
 import { throwIfLocalFileFailed } from "./local-file-failure";
 import type { PptxDeckSnapshot } from "./pptx-runtime";
 
+import { bytesToText, incomingBytes, textToBytes } from "./bytes";
+
 const SESSION_GENERATION = "desktop-dev-session";
 
-function encode(value: Uint8Array): string {
-  let binary = "";
-  for (let offset = 0; offset < value.length; offset += 0x8000) binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
-function decode(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
 
 export type PptxDraftRecoveryView =
   | { readonly status: "none" }
@@ -54,7 +47,7 @@ export function createPptxDocumentSession(
   const checkpointRows = new Map<string, { dirtyGeneration: number; durableGeneration: number }>();
   let recoveredRow: { draftId: string; generation: number } | undefined;
   let checkpoint: StableSnapshot<PptxDeckSnapshot> | null = null;
-  const outputs = new Map<string, { dataBase64: string; sizeBytes: number; checksum: string; saveAs: boolean; localBase?: { versionId: string; revision: string }; rebound?: { handle: string; name: string } }>();
+  const outputs = new Map<string, { data: Uint8Array; sizeBytes: number; checksum: string; saveAs: boolean; localBase?: { versionId: string; revision: string }; rebound?: { handle: string; name: string } }>();
   let saveAsRequested = false;
   let pickerCancelled = false;
 
@@ -118,8 +111,8 @@ export function createPptxDocumentSession(
     const rows = await listRows();
     generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
     const next = Math.max(1, generationFloor + 1, snapshot.generation);
-    const payload = encode(new TextEncoder().encode(JSON.stringify(snapshot.value)));
-    const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: next, dataBase64: payload }));
+    const payload = textToBytes(JSON.stringify(snapshot.value));
+    const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId, generation: next, data: payload }));
     checkpoint = snapshot;
     generationFloor = Math.max(generationFloor, result.generation);
     durableRows.set(draftId, result.generation);
@@ -160,7 +153,7 @@ export function createPptxDocumentSession(
     serialize: async ({ intent, snapshot }) => {
       const result = await surface.serialize(snapshot, intent.intentId);
       const checksum = result.checksum.startsWith("sha256:") ? result.checksum : `sha256:${result.checksum}`;
-      outputs.set(intent.intentId, { dataBase64: encode(result.bytes), sizeBytes: result.bytes.length, checksum, saveAs: outputs.get(intent.intentId)?.saveAs ?? saveAsRequested });
+      outputs.set(intent.intentId, { data: result.bytes, sizeBytes: result.bytes.length, checksum, saveAs: outputs.get(intent.intentId)?.saveAs ?? saveAsRequested });
       return { data: result.bytes, sizeBytes: result.bytes.length, checksumSha256: checksum, format: "pptx" };
     },
     upload: async ({ intent, output }) => ({ uploadId: intent.intentId, sizeBytes: output.sizeBytes, checksumSha256: output.checksumSha256, claimExpiresAt: new Date(Date.now() + 60_000).toISOString() }),
@@ -170,7 +163,7 @@ export function createPptxDocumentSession(
       let versionId: string, revision: string, checksum: string;
       if (localHandle) {
         const useSaveAs = output.saveAs || openedBytes.localUntitled === true;
-        const result = desktopFileResponseSchema.parse(await bridge.call(useSaveAs ? "desktop:file-save-as" : "desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localHandle, dataBase64: output.dataBase64 }));
+        const result = desktopFileResponseSchema.parse(await bridge.call(useSaveAs ? "desktop:file-save-as" : "desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localHandle, data: output.data }));
         throwIfLocalFileFailed(result);
         if (!result.opened && useSaveAs) { pickerCancelled = true; throw Object.assign(new Error("save_as_cancelled"), { code: "save_as_cancelled" }); }
         if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
@@ -180,7 +173,7 @@ export function createPptxDocumentSession(
         revision = String(BigInt(output.localBase.revision) > BigInt(intent.identity.baseRevision) ? BigInt(output.localBase.revision) : BigInt(intent.identity.baseRevision) + 1n);
         if (useSaveAs && result.metadata.handle !== localHandle) output.rebound = { handle: result.metadata.handle, name: result.metadata.name };
       } else {
-        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, format: "pptx", intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
+        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, format: "pptx", intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, data: output.data, checksum: output.checksum }));
         if (result.documentId !== intent.identity.documentId || result.intentId !== intent.intentId || result.idempotencyKey !== intent.idempotencyKey || result.checksum !== output.checksum) throw Object.assign(new Error("office_receipt_mismatch"), { code: "office_receipt_mismatch" });
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;
       }
@@ -313,7 +306,7 @@ export function createPptxDocumentSession(
         const result = desktopDraftRecoveryResponseSchema.parse(await bridge.call("desktop:draft-recover", { sessionGeneration: SESSION_GENERATION, documentId: identity.documentId, draftId: metadata.draftId, currentBase: { revision: current.baseRevision, version: current.baseVersionId } }));
         if (result.status === "locked") return "locked";
         if (result.status !== "recovered") return "failed";
-        const snapshot = JSON.parse(new TextDecoder().decode(decode(result.dataBase64))) as PptxDeckSnapshot;
+        const snapshot = JSON.parse(bytesToText(incomingBytes(result.data))) as PptxDeckSnapshot;
         await surface.restore(snapshot);
         generationFloor = Math.max(generationFloor, result.metadata.generation);
         durableRows.set(result.metadata.draftId, result.metadata.generation);

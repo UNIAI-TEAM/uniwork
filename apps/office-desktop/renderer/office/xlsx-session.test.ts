@@ -12,8 +12,8 @@ function makeBridge(openOutput: unknown = { snapshot, render_model: renderModel 
   return {
     call: vi.fn(async (channel: string, payload: Record<string, unknown>) => {
       if (channel === "desktop:office-job") {
-        if (payload.operation === "open") return { jobId: "job-open", documentId: "doc-x", state: "completed", outputBase64: encode(openOutput) };
-        return { jobId: "job-edit", documentId: "doc-x", state: "completed", outputBase64: Buffer.from([1, 2, 3]).toString("base64"), outputChecksum: `sha256:${"a".repeat(64)}` };
+        if (payload.operation === "open") return { jobId: "job-open", documentId: "doc-x", state: "completed", output: Uint8Array.from(Buffer.from(encode(openOutput), "base64")) };
+        return { jobId: "job-edit", documentId: "doc-x", state: "completed", output: Uint8Array.from(Buffer.from([1, 2, 3])), outputChecksum: `sha256:${"a".repeat(64)}` };
       }
       if (channel === "desktop:office-save") return { documentId: "doc-x", intentId: payload.intentId, idempotencyKey: payload.idempotencyKey, versionId: "version-2", revision: "3", checksum: payload.checksum };
       if (channel === "desktop:draft-list") return { drafts: [] };
@@ -99,7 +99,7 @@ describe("desktop xlsx session", () => {
     await checkpointing;
     const rows = bridge.call.mock.calls.filter(([channel, payload]) => channel === "desktop:draft-checkpoint" && (payload as { draftId: string }).draftId === "doc-x:version-2:3");
     expect(rows).toHaveLength(1);
-    const stored = JSON.parse(Buffer.from((rows[0]![1] as { dataBase64: string }).dataBase64, "base64").toString("utf8")) as { value: { sheets: Array<{ cells: { A1: unknown } }> } };
+    const stored = JSON.parse(Buffer.from((rows[0]![1] as { data: Uint8Array }).data).toString("utf8")) as { value: { sheets: Array<{ cells: { A1: unknown } }> } };
     expect(stored.value.sheets[0]?.cells.A1).toEqual({ value: 9 });
   });
 

@@ -10,6 +10,7 @@ import {
   getOfficeJob,
   startOfficeJob,
 } from "./office";
+import { isOfficeTooLarge } from "../../office";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -153,6 +154,19 @@ describe("office endpoints", () => {
     const cancelled = await cancelOfficeJob("d1", "j1");
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/documents/d1/office/jobs/j1/cancel");
     expect(cancelled?.state).toBe("cancelled");
+  });
+
+  it("narrows the typed xlsx too-large error and degrades a malformed one", async () => {
+    const error = { code: "upload_bounds", reason: "xlsx_open_model_too_large", kind: "byte_bound", retryable: false };
+    vi.mocked(fetch).mockResolvedValueOnce(json(jobBody({ state: "failed", output_file_id: null, error })));
+    const failed = await getOfficeJob("d1", "j1");
+    expect(failed?.error).toEqual(error);
+    expect(isOfficeTooLarge(failed?.error)).toBe(true);
+
+    for (const bad of [{ ...error, code: 413 }, { ...error, kind: { byte: true } }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(jobBody({ state: "failed", output_file_id: null, error: bad })));
+      await expect(getOfficeJob("d1", "j1")).resolves.toBeNull();
+    }
   });
 
   it("keeps the Q7 target and result change list", async () => {

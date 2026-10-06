@@ -1,4 +1,5 @@
-import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
+import { uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
+import { readDocumentBytesWithinBound } from "./download-bound";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
 import type { OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import type { PdfSnapshot } from "@uniwork/views/office/pdf";
@@ -15,8 +16,7 @@ export interface PdfDocumentsTransport {
 export function createPdfDocumentsTransport(documentId: string): PdfDocumentsTransport {
   return {
     async read() {
-      const blob = await downloadDocumentFile(documentId);
-      return new Uint8Array(await blob.arrayBuffer());
+      return readDocumentBytesWithinBound(documentId);
     },
     upload: (file: Blob, idempotencyKey: string) => uploadDocumentFile(documentId, file, { idempotencyKey }),
     commit: (uploadId: string, baseRevision: string, idempotencyKey: string) => commitDocumentVersion(documentId, { upload_id: uploadId, base_revision: baseRevision }, { idempotencyKey }),
