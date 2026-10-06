@@ -60,8 +60,13 @@ export function createEngineHostClient(spawn: EngineHostSpawner): EngineHostClie
           ensureChild().postMessage({ id, kind, payload });
         } catch (error) {
           pending.delete(id);
-          // A child that cannot even be reached counts as a dead one.
+          // A child that cannot be reached counts as a dead one: kill it, so it
+          // cannot linger with its own requests orphaned, and fail every request
+          // still waiting on it. The next call spawns a fresh child.
+          const dead = child;
           child = null;
+          failAll();
+          dead?.kill();
           reject(error instanceof Error && (error as { code?: unknown }).code === ENGINE_HOST_INSUFFICIENT_MEMORY ? error : memoryError());
         }
       });

@@ -113,6 +113,18 @@ describe("engine host supervisor", () => {
     await expect(client.call("pdf-call", {})).rejects.toMatchObject({ code: "insufficient_memory" });
   });
 
+  it("kills an unreachable child, fails what it still owed, and respawns on the next call", async () => {
+    const { client, children } = setup({ "pdf-call": async () => ({ ok: true }) });
+    const waiting = client.call("xlsx-open", {});
+    const first = children[0]!;
+    first.postMessage = () => { throw new DOMException("could not be cloned", "DataCloneError"); };
+    await expect(client.call("pdf-call", {})).rejects.toMatchObject({ code: "insufficient_memory" });
+    await expect(waiting).rejects.toMatchObject({ code: "insufficient_memory" });
+    expect(first.killed).toBe(true);
+    await expect(client.call("pdf-call", {})).resolves.toEqual({ ok: true });
+    expect(children).toHaveLength(2);
+  });
+
   it("dispose kills the child and fails what is pending", async () => {
     const { client, children } = setup();
     const pending = client.call("xlsx-open", {});
@@ -123,8 +135,9 @@ describe("engine host supervisor", () => {
 });
 
 describe("engineHostHeapMegabytes", () => {
-  it("gives the child three quarters of physical memory, never under 2 GiB", () => {
-    expect(engineHostHeapMegabytes(16 * 1024 ** 3)).toBe(12288);
+  it("gives a small machine three quarters of its memory, never under 2 GiB, never past the V8 pointer-compression cage", () => {
+    expect(engineHostHeapMegabytes(4 * 1024 ** 3)).toBe(3072);
     expect(engineHostHeapMegabytes(1024 ** 3)).toBe(2048);
+    expect(engineHostHeapMegabytes(16 * 1024 ** 3)).toBe(4096);
   });
 });
