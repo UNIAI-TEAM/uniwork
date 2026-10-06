@@ -11944,6 +11944,7 @@
       "fileOpenQueued": "Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.",
       "actionError": "Không thể thực hiện thao tác. Thử lại.",
       "printPreviewHint": "Hộp thoại in của Windows có thể không hiện bản xem trước. Trang in ra vẫn đúng.",
+      "printLandscapeHint": "Tài liệu này nằm ngang: hãy chọn Hướng là Ngang trong hộp thoại in để trang không bị xoay.",
       "back": "Về thư viện",
       "untitled": "Tài liệu mới.docx",
       "saveLocal": "Lưu tệp",
