@@ -1,15 +1,13 @@
 // Conditional formatting + data validation (X01). The parser/model half runs
-// anywhere; the round-trips save through the vendored gateway (built from the
-// upstream source like xlsx-render-model.test.ts) and re-read the saved bytes
+// anywhere; the round-trips save through the patched gateway artifact
+// (xlsx-patched-gateway.ts) and re-read the saved bytes
 // through the render model the editor opens, so "open -> apply -> save ->
 // reopen shows the rules" is proven on real OOXML.
 import { beforeAll, describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { build } from "esbuild";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import {
-  bindXlsxGateway,
   createXlsxAdapter,
   createXlsxSessionModel,
   parseXlsxOps,
@@ -19,13 +17,11 @@ import {
   type XlsxWorkbookSnapshot,
 } from "../src/xlsx";
 import { parseDataValidations } from "../src/xlsx/render-model-validations";
+import { describeWithPatchedGateway, loadPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
 const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets");
-const UPSTREAM = join(REPO, "packages", "office-upstream", "upstream");
-const GATEWAY_ENTRY = join(UPSTREAM, "packages", "xlsx-gateway", "src", "gateway", "xlsx-gateway.ts");
-const TEST_DIST = join(REPO, ".go-tmp", "xlsx-gateway-test", "dist", "xlsx-gateway.mjs");
 const COMPAT_EDIT = "xlsx-compatibility-edit.xlsx";
 
 const area = (startRow: number, endRow: number, startColumn: number, endColumn: number) => ({ startRow, endRow, startColumn, endColumn });
@@ -199,25 +195,11 @@ describe("worksheet data-validation reader", () => {
   });
 });
 
-describe("CF/DV round-trip on the vendored gateway", () => {
+describeWithPatchedGateway("CF/DV round-trip on the vendored gateway", () => {
   let engine: XlsxGatewayFunctions;
 
   beforeAll(async () => {
-    if (!existsSync(TEST_DIST)) {
-      mkdirSync(dirname(TEST_DIST), { recursive: true });
-      await build({
-        absWorkingDir: UPSTREAM,
-        entryPoints: [GATEWAY_ENTRY],
-        bundle: true,
-        format: "esm",
-        platform: "node",
-        target: "node22",
-        outfile: TEST_DIST,
-        nodePaths: [join(REPO, "packages", "office-upstream", "node_modules")],
-        logLevel: "silent",
-      });
-    }
-    engine = bindXlsxGateway((await import(pathToFileURL(TEST_DIST).href)) as never);
+    engine = await loadPatchedGateway();
   });
 
   async function saveOps(source: Uint8Array, ops: readonly Record<string, unknown>[]) {

@@ -11,21 +11,19 @@
 // xlsx-compatibility-edit.xlsx by swapping in worksheet XML in the exact shape
 // Excel 365 writes for a data bar (base cfRule + linked x14 extension) and for
 // a list validation that points at another sheet (x14:dataValidation).
-import { beforeAll, describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { build } from "esbuild";
+import { beforeAll, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { EngineBoundaryError } from "@uniwork/office-contracts";
-import { bindXlsxGateway, createXlsxAdapter, readXlsxRenderModel, type XlsxGatewayFunctions } from "../src/xlsx";
+import { applyXlsxEditBytes, createXlsxAdapter, readXlsxRenderModel, XlsxTypedError, type XlsxGatewayFunctions } from "../src/xlsx";
+import { describeWithPatchedGateway, loadPatchedGateway } from "./xlsx-patched-gateway";
+import { ruleSetDropReason } from "../src/xlsx/adapter-rule-sets";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
 const X14 = join(HERE, "fixtures", "x14");
 const COMPAT_EDIT = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets", "xlsx-compatibility-edit.xlsx");
-const UPSTREAM = join(REPO, "packages", "office-upstream", "upstream");
-const GATEWAY_ENTRY = join(UPSTREAM, "packages", "xlsx-gateway", "src", "gateway", "xlsx-gateway.ts");
-const TEST_DIST = join(REPO, ".go-tmp", "xlsx-gateway-test", "dist", "xlsx-gateway.mjs");
 
 const bytesOf = (path: string) => new Uint8Array(readFileSync(path));
 const dataBar = () => bytesOf(join(X14, "xlsx-x14-data-bar.xlsx"));
@@ -55,25 +53,11 @@ const dvSnapshot = {
 };
 const cellEdit = (cell: string, value: number) => ({ op: "set_cell", target: { sheet: "Data", cell }, attributes: { value } });
 
-describe("x14 conditional formatting and data validation", () => {
+describeWithPatchedGateway("x14 conditional formatting and data validation", () => {
   let engine: XlsxGatewayFunctions;
 
   beforeAll(async () => {
-    if (!existsSync(TEST_DIST)) {
-      mkdirSync(dirname(TEST_DIST), { recursive: true });
-      await build({
-        absWorkingDir: UPSTREAM,
-        entryPoints: [GATEWAY_ENTRY],
-        bundle: true,
-        format: "esm",
-        platform: "node",
-        target: "node22",
-        outfile: TEST_DIST,
-        nodePaths: [join(REPO, "packages", "office-upstream", "node_modules")],
-        logLevel: "silent",
-      });
-    }
-    engine = bindXlsxGateway((await import(pathToFileURL(TEST_DIST).href)) as never);
+    engine = await loadPatchedGateway();
   });
 
   async function session(source: Uint8Array) {
@@ -87,6 +71,19 @@ describe("x14 conditional formatting and data validation", () => {
     };
   }
   const sheetXml = async (bytes: Uint8Array) => (await engine.readEntryText(bytes, SHEET1)) ?? "";
+
+  // Review r2 M-B / m-4: the parsed lists skip rules (no priority) and the
+  // renderer loader skips more (timePeriod); the raw element count is what a
+  // whole-sheet snapshot must match, so the renderer can refuse the family.
+  it("counts every classic rule element, including the ones the parser and the loader skip", async () => {
+    const classic = (await readXlsxRenderModel(engine, bytesOf(join(X14, "xlsx-classic-unsupported-cf.xlsx")))).sheets[0];
+    expect(classic?.ruleCounts).toEqual({ conditionalFormats: 3, dataValidations: 1 });
+    expect(classic?.conditionalRules?.length ?? 0).toBeLessThan(3);
+    expect(classic?.x14ConditionalFormats).toBeUndefined();
+    // x14 halves are not classic elements: only the data bar's base rule counts.
+    expect((await readXlsxRenderModel(engine, dataBar())).sheets[0]?.ruleCounts).toEqual({ conditionalFormats: 1, dataValidations: 0 });
+    expect((await readXlsxRenderModel(engine, x14Validation())).sheets[0]?.ruleCounts).toBeUndefined();
+  });
 
   it("flags the sheets whose CF or DV the declarative save cannot rewrite", async () => {
     const bar = (await readXlsxRenderModel(engine, dataBar())).sheets[0];
@@ -137,6 +134,38 @@ describe("x14 conditional formatting and data validation", () => {
     expect(saved).toContain(BASE_BLOCK.exec(original)?.[0] ?? "missing");
     expect(saved).toContain(EXT_LST.exec(original)?.[0] ?? "missing");
     expect(saved).toMatch(/<c r="D2"[^>]*><v>7<\/v><\/c>/);
+  });
+
+  // Review r2 M-A: the real hosts save through one-shot jobs (a fresh adapter
+  // per save), so the discard must ride the job's reason to the client, which
+  // drops the named ops and saves again. Two consecutive jobs prove it.
+  it("names the dropped rule sets in the one-shot job reason, and the trimmed op list then saves", async () => {
+    const original = await sheetXml(dataBar());
+    const ops = [loaderSnapshot, cellEdit("D2", 7)];
+    const failure = await applyXlsxEditBytes(engine, undefined, dataBar(), ops).then(() => null, (error: unknown) => error);
+    expect(failure).toBeInstanceOf(XlsxTypedError);
+    expect((failure as XlsxTypedError).code).toBe("unsupported_operation");
+    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["cf","Data"]]');
+    // The same op list fails again: a job keeps nothing between saves.
+    await expect(applyXlsxEditBytes(engine, undefined, dataBar(), ops)).rejects.toBeInstanceOf(XlsxTypedError);
+
+    // What the client runtime keeps after dropping the named set.
+    const trimmed = ops.filter((op) => !(op.op === "set_conditional_formats" && op.target.sheet === "Data"));
+    const saved = await sheetXml((await applyXlsxEditBytes(engine, undefined, dataBar(), trimmed)).bytes);
+    expect(saved).toContain(BASE_BLOCK.exec(original)?.[0] ?? "missing");
+    expect(saved).toContain(EXT_LST.exec(original)?.[0] ?? "missing");
+    expect(saved).toMatch(/<c r="D2"[^>]*><v>7<\/v><\/c>/);
+  });
+
+  it("trims the dropped-rule-set reason to whole entries that fit the job channel", () => {
+    expect(ruleSetDropReason([{ family: "dataValidations", sheet: "Sổ 1" }])).toBe('xlsx_rule_sets_dropped:[["dv","Sổ 1"]]');
+    const many = Array.from({ length: 20 }, (_, index) => ({ family: "conditionalFormats" as const, sheet: `Sheet with a long name ${index}` }));
+    const reason = ruleSetDropReason(many);
+    expect(reason.length).toBeLessThanOrEqual(300);
+    const entries = JSON.parse(reason.slice("xlsx_rule_sets_dropped:".length)) as [string, string][];
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries.length).toBeLessThan(20);
+    expect(entries[0]).toEqual(["cf", "Sheet with a long name 0"]);
   });
 
   it("names a DV snapshot on an x14-validation sheet, drops it, and the next save keeps the x14 rule", async () => {

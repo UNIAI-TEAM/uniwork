@@ -49,3 +49,33 @@ export async function isolateRuleSetFailures(
   }
   return failures;
 }
+
+/** The one-shot job refusal's reason (X01 review r2, M-A): the prefix plus a
+ *  JSON list of [family, sheet] pairs, trimmed to whole entries so it fits
+ *  the job error channel (toXlsxFailure keeps 300 characters). Sets left out
+ *  are named by the next save, so a client that drops the named ones always
+ *  converges. The client half is packages/views/office/xlsx/conditional-format/rule-set-drops.ts. */
+export const XLSX_RULE_SETS_DROPPED_PREFIX = "xlsx_rule_sets_dropped:";
+const MAX_REASON = 300;
+
+export function ruleSetDropReason(ruleSets: readonly { family: XlsxRuleSetFamily; sheet: string }[]): string {
+  const entries: [string, string][] = [];
+  for (const { family, sheet } of ruleSets) {
+    const next: [string, string][] = [...entries, [family === "conditionalFormats" ? "cf" : "dv", sheet]];
+    if (XLSX_RULE_SETS_DROPPED_PREFIX.length + JSON.stringify(next).length > MAX_REASON) break;
+    entries.splice(0, entries.length, ...next);
+  }
+  return XLSX_RULE_SETS_DROPPED_PREFIX + JSON.stringify(entries);
+}
+
+/** The save refusal's fields: a human detail, the typed list (an in-process
+ *  caller reads it) and the reason, which is all a one-shot job hands back
+ *  (adapter-service toXlsxFailure). */
+export function ruleSetDropFields(ruleSets: readonly { family: XlsxRuleSetFamily; sheet: string }[]): Record<string, unknown> {
+  return {
+    detail: "these rule sets cannot be saved to xlsx and were dropped from the pending changes; save again to keep everything else: " +
+      ruleSets.map(({ family, sheet }) => `${family === "conditionalFormats" ? "conditional formatting" : "data validation"} on sheet "${sheet}"`).join(", "),
+    rule_sets: ruleSets,
+    reason: ruleSetDropReason(ruleSets),
+  };
+}

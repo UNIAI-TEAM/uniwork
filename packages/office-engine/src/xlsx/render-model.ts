@@ -97,6 +97,11 @@ export interface XlsxRenderSheet {
   /** True when the worksheet holds x14 data validation (extLst), which the
    *  gateway's declarative DV save refuses to rewrite. */
   readonly x14DataValidations?: true | undefined;
+  /** The raw classic <cfRule> / <dataValidation> element counts (X01 review
+   *  r2 M-B), present when either is non-zero. The parsed lists skip rules
+   *  they cannot read; the renderer refuses a family whose installed rules
+   *  fall short, so a whole-sheet save never deletes a rule the grid lacks. */
+  readonly ruleCounts?: { readonly conditionalFormats: number; readonly dataValidations: number } | undefined;
   /** Tables the file ships (xl/tables/tableN.xml). Additive: an absent value
    *  reads as no tables. Read-only; the write path is the table ops. */
   readonly tables?: readonly XlsxRenderTable[] | undefined;
@@ -351,7 +356,15 @@ function parseWorksheetXml(
     // The same tests the gateway's applyCfRules / applyDvRules fail closed on.
     ...(hasLinkedX14ConditionalFormat(xml) ? { x14ConditionalFormats: true as const } : {}),
     ...(/<x14:dataValidation\b/.test(xml) ? { x14DataValidations: true as const } : {}),
+    ...rawRuleCounts(xml),
   };
+}
+
+/** Classic elements only: x14 rules are <x14:cfRule> / <x14:dataValidation>. */
+function rawRuleCounts(xml: string): { ruleCounts?: { conditionalFormats: number; dataValidations: number } } {
+  const conditionalFormats = xml.match(/<cfRule[\s>/]/g)?.length ?? 0;
+  const dataValidations = xml.match(/<dataValidation[\s>/]/g)?.length ?? 0;
+  return conditionalFormats + dataValidations === 0 ? {} : { ruleCounts: { conditionalFormats, dataValidations } };
 }
 
 function hasLinkedX14ConditionalFormat(xml: string): boolean {

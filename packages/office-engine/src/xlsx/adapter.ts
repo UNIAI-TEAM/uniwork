@@ -38,7 +38,7 @@ import {
   type XlsxSheetFormulaValues,
   type XlsxWorkbookSnapshot,
 } from "./engine.ts";
-import { isolateRuleSetFailures } from "./adapter-rule-sets.ts";
+import { isolateRuleSetFailures, ruleSetDropFields } from "./adapter-rule-sets.ts";
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps } from "./ops.ts";
 import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
@@ -524,11 +524,7 @@ export class XlsxAdapter {
     };
     const ruleSets = failures.map(({ family, index }) => ({ family, sheet: names[family][index] ?? "" }));
     for (const { family, sheet } of ruleSets) session.model.discardRuleSet(sheet, family);
-    return new EngineBoundaryError("unsupported_operation", {
-      detail: "these rule sets cannot be saved to xlsx and were dropped from the pending changes; save again to keep everything else: " +
-        ruleSets.map(({ family, sheet }) => `${family === "conditionalFormats" ? "conditional formatting" : "data validation"} on sheet "${sheet}"`).join(", "),
-      rule_sets: ruleSets,
-    });
+    return new EngineBoundaryError("unsupported_operation", ruleSetDropFields(ruleSets));
   }
 
   /** One assemble pass + preservation assertion, output bounded. */

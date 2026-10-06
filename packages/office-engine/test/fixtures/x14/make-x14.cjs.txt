@@ -22,6 +22,17 @@ const dvSheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<works
   `<extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}" ${X14}><x14:dataValidations count="1" ${XM}><x14:dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1"><x14:formula1><xm:f>Lists!$A$1:$A$3</xm:f></x14:formula1><xm:sqref>C2:C6</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst></worksheet>`;
 const listsSheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:A3"/><sheetData><row r="1">${inl("A1", "A")}</row><row r="2">${inl("A2", "B")}</row><row r="3">${inl("A3", "C")}</row></sheetData>${tail}</worksheet>`;
 
+// Review r2 M-B: classic rules the renderer loader never installs - a "Dates
+// occurring" (timePeriod) rule and a cfRule without a priority - next to one it
+// does, plus one classic validation.
+const classicSheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet ${NS}><dimension ref="A1:D6"/><sheetData>${rows}</sheetData>` +
+  `<conditionalFormatting sqref="D2:D6"><cfRule type="cellIs" priority="1" operator="greaterThan"><formula>9</formula></cfRule></conditionalFormatting>` +
+  `<conditionalFormatting sqref="A2:A6"><cfRule type="timePeriod" priority="2" timePeriod="yesterday"><formula>FLOOR(A2,1)=TODAY()-1</formula></cfRule></conditionalFormatting>` +
+  `<conditionalFormatting sqref="B2:B6"><cfRule type="cellIs" operator="lessThan"><formula>5</formula></cfRule></conditionalFormatting>` +
+  `<dataValidations count="1"><dataValidation type="whole" operator="greaterThan" allowBlank="1" sqref="D2:D6"><formula1>0</formula1></dataValidation></dataValidations>` +
+  tail + "</worksheet>";
+
 async function make(name, sheet1, withLists) {
   const zip = await JSZip.loadAsync(fs.readFileSync(source));
   zip.file("xl/worksheets/sheet1.xml", sheet1);
@@ -43,4 +54,5 @@ async function make(name, sheet1, withLists) {
   if (rels.includes('Id="rId9"')) throw new Error("rId9 taken");
   await make("xlsx-x14-data-bar.xlsx", dataBarSheet, false);
   await make("xlsx-x14-data-validation.xlsx", dvSheet, true);
+  await make("xlsx-classic-unsupported-cf.xlsx", classicSheet, false);
 })();
