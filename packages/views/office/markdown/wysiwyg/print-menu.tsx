@@ -21,6 +21,7 @@ import { FileDown, FileText, Printer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { AssetManifest } from "@uniwork/office-engine/assets";
+import { useOfficePrintShortcut } from "../../print/shortcut";
 import { printMarkdownDocument, type MarkdownPrintOutcome, type MarkdownPrintPort } from "./print";
 
 /** i18next keys this module reads. All exist in `en.json` / `vi.json`. */
@@ -62,25 +63,9 @@ const DISABLED_EXPORTS = [
   { id: "docx", icon: FileText, labelKey: MARKDOWN_PRINT_KEYS.exportDocx },
 ] as const;
 
-/**
- * The ⋯-menu entries. A disabled export keeps its reason on the item's
- * `title` and in an `sr-only` note wired with `aria-describedby`, so the
- * reason is reachable by pointer and by screen reader.
- */
-export function MarkdownPrintMenuItems({
-  port,
-  renderHtml,
-  title,
-  manifest,
-  assetUrl,
-  csp,
-  onStart,
-  onOutcome,
-}: MarkdownPrintMenuItemsProps) {
-  const { t } = useTranslation();
+/** One print run: render, sanitize, hand to the port, report the outcome. */
+function useMarkdownPrint({ port, renderHtml, title, manifest, assetUrl, csp, onStart, onOutcome }: MarkdownPrintMenuItemsProps) {
   const [printing, setPrinting] = useState(false);
-  const reasonId = useId();
-
   const print = useCallback(async () => {
     if (!port || printing) return;
     setPrinting(true);
@@ -92,6 +77,30 @@ export function MarkdownPrintMenuItems({
       setPrinting(false);
     }
   }, [assetUrl, csp, manifest, onOutcome, onStart, port, printing, renderHtml, title]);
+  return { print, printing };
+}
+
+/**
+ * Binds Ctrl/Cmd+P (the Office shell's listener, UNI-952) to the same print
+ * the menu entry runs. Mount it beside the menu contribution with the same
+ * props: the menu items only exist while the menu is open. Renders nothing.
+ */
+export function MarkdownPrintShortcut(props: MarkdownPrintMenuItemsProps) {
+  const { print } = useMarkdownPrint(props);
+  useOfficePrintShortcut(props.port ? () => { void print(); } : null);
+  return null;
+}
+
+/**
+ * The ⋯-menu entries. A disabled export keeps its reason on the item's
+ * `title` and in an `sr-only` note wired with `aria-describedby`, so the
+ * reason is reachable by pointer and by screen reader.
+ */
+export function MarkdownPrintMenuItems(props: MarkdownPrintMenuItemsProps) {
+  const { port } = props;
+  const { t } = useTranslation();
+  const { print, printing } = useMarkdownPrint(props);
+  const reasonId = useId();
 
   return (
     <>

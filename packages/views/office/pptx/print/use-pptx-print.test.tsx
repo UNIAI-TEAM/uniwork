@@ -1,8 +1,10 @@
 // UNI-952 fix-C-pptx F4 - a print run whose text commit fails reports the print message.
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
+import { useRef, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { PptxDeckRenderer } from "../canvas/deck-renderer";
+import { OfficePrintShortcutScope } from "../../print/shortcut";
 import { usePptxPrint } from "./use-pptx-print";
 
 initI18n();
@@ -19,7 +21,25 @@ const renderer: PptxDeckRenderer = {
   buildThumbnail: () => null,
 };
 
+/** Stands in for the Office shell, which owns the Ctrl/Cmd+P listener. */
+function ShellScope({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  return <div ref={ref}><OfficePrintShortcutScope rootRef={ref}>{children}</OfficePrintShortcutScope></div>;
+}
+
 describe("usePptxPrint", () => {
+  it("runs the same print on Ctrl/Cmd+P and blocks the app window's print", async () => {
+    const print = vi.fn(async () => ({ outcome: "printed" as const }));
+    renderHook(() => usePptxPrint({ port: { print }, renderer, slides: [{}], flush: () => null, onFailed: vi.fn(), rasterize: null }), { wrapper: ShellScope });
+    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(false);
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+  });
+
+  it("leaves Ctrl/Cmd+P to the platform without a port", () => {
+    renderHook(() => usePptxPrint({ port: null, renderer, slides: [{}], flush: () => null, onFailed: vi.fn(), rasterize: null }), { wrapper: ShellScope });
+    expect(fireEvent.keyDown(document.body, { key: "p", ctrlKey: true })).toBe(true);
+  });
+
   it("reports a failed text commit as the print failure, not the raw commit error, and never prints", async () => {
     const print = vi.fn(async () => ({ outcome: "printed" as const }));
     const onFailed = vi.fn();

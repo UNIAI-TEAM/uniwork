@@ -12,6 +12,7 @@ import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
 import { OfficeFrame } from "../frame/office-frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { createBrowserPrintPort } from "../print";
+import { useOfficePrintShortcut } from "../print/shortcut";
 import { DocxErrorState } from "./docx-error-state";
 import { DocxToolbar } from "./docx-toolbar";
 import { DocxFindPanel } from "./find/docx-find-panel";
@@ -218,11 +219,6 @@ export function DocxEditor<TSnapshot = unknown>({
       event.preventDefault();
       save("shortcut");
     }
-    // UNI-952: Ctrl/Cmd+P prints the document copy, never the app window.
-    if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "p" && printContextRef.current) {
-      event.preventDefault();
-      void runDocxPrint(printContextRef.current);
-    }
   }, [save]);
 
   const canUndo = useMemo(() => typeof editor.undo === "function", [editor.undo]);
@@ -250,6 +246,12 @@ export function DocxEditor<TSnapshot = unknown>({
     print,
   };
   printContextRef.current = viewState === "ready" ? sharedContext : null;
+  // UNI-952: Ctrl/Cmd+P anywhere on the page (the Office shell's one listener)
+  // runs the same print as the menu entries, never the app window's print.
+  const printFromShortcut = useCallback(() => {
+    if (printContextRef.current) void runDocxPrint(printContextRef.current);
+  }, []);
+  useOfficePrintShortcut(viewState === "ready" ? printFromShortcut : null);
   // Memoized on the ready flag, not the whole format state, so typing does not
   // re-publish the header menu entry on every transaction.
   const printCommands = sharedContext.commands;

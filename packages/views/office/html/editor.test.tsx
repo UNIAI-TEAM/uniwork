@@ -3,6 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { HtmlEditor } from "./editor";
+import { OfficeShell } from "../office-shell";
 import { HtmlVisualShell } from "./visual/shell";
 import { HeaderActionsMenuItems, HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -885,7 +886,7 @@ describe("HtmlEditor find (UNI-928)", () => {
  * shared isolated-frame browser port is used, exactly like Markdown.
  */
 describe("HtmlEditor print entry (UNI-928 parity)", () => {
-  function renderWithMenu(printPort?: MarkdownPrintPort) {
+  function renderWithMenu(printPort?: MarkdownPrintPort, shell = false) {
     let source = SOURCE;
     const editor: HtmlEditorHandle = {
       format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
@@ -895,10 +896,11 @@ describe("HtmlEditor print entry (UNI-928 parity)", () => {
       getAssetManifest: () => ({ entries: [] }),
     };
     const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
+    const view = <HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} printPort={printPort} />;
     return render(
       <HeaderActionsSlotProvider>
         <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu>
-        <HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} printPort={printPort} />
+        {shell ? <OfficeShell embedded title="Doc" editor={view} /> : view}
       </HeaderActionsSlotProvider>,
     );
   }
@@ -964,6 +966,23 @@ describe("HtmlEditor print entry (UNI-928 parity)", () => {
       expect(windowPrint).not.toHaveBeenCalled();
     } finally {
       window.print = original;
+    }
+  });
+
+  it("prints the same copy on Ctrl/Cmd+P from the page menu (outside the editor), never the app window", async () => {
+    const windowPrint = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    const calls: string[] = [];
+    try {
+      renderWithMenu({ print(request) { calls.push(request.html); return { outcome: "printed" }; } }, true);
+      await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+      const menu = await screen.findByRole("menu");
+      expect(fireEvent.keyDown(menu, { key: "p", metaKey: true })).toBe(false);
+      await waitFor(() => expect(calls).toHaveLength(1));
+      expect(calls[0]).toContain("Keep");
+      expect(calls[0]).not.toMatch(/<script/i);
+      expect(windowPrint).not.toHaveBeenCalled();
+    } finally {
+      windowPrint.mockRestore();
     }
   });
 

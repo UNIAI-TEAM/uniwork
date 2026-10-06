@@ -48,7 +48,7 @@ import { MarkdownTableMenu } from "./wysiwyg/table-menu";
 import { MarkdownFind, type MarkdownFindHandle } from "./wysiwyg/find";
 import { MarkdownOutlinePane } from "./wysiwyg/outline";
 import { MarkdownFrontmatterPanel } from "./wysiwyg/frontmatter";
-import { MarkdownPrintMenuItems } from "./wysiwyg/print-menu";
+import { MarkdownPrintMenuItems, MarkdownPrintShortcut } from "./wysiwyg/print-menu";
 import { PrintNotice, usePrintNotice } from "./wysiwyg/print-notice";
 import { createBrowserPrintPort } from "../print";
 import type { MarkdownEditorProps, MarkdownOpenOutcome } from "./types";
@@ -519,6 +519,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
           {/* M-6/C4: print + export ride the page overflow menu, not a
               floating button over the canvas (C9). Renders nothing itself. */}
           <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />} />
+          <MarkdownPrintShortcut port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />
           <PrintNotice notice={printNotice.notice} />
           {/*
             M7 find/replace owns the panel, Ctrl+F (find-only), Ctrl+H (with

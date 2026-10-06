@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Editor } from "@tiptap/core";
+import { useRef, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import type { OfficePrintPort } from "../print";
+import { OfficePrintShortcutScope } from "../print/shortcut";
 import { createDocxCommandRuntime } from "./commands";
 import { DocxEditor } from "./docx-editor";
 import { docxExtensions } from "./docx-schema";
@@ -47,8 +49,15 @@ function handle(): DocxEditorHandle {
   } as unknown as DocxEditorHandle;
 }
 
+/** Stands in for the Office shell, which owns the Ctrl/Cmd+P listener. */
+function ShellScope({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  return <div ref={ref}><OfficePrintShortcutScope rootRef={ref}>{children}</OfficePrintShortcutScope></div>;
+}
+
 function renderEditor(printPort?: OfficePrintPort) {
   render(
+    <ShellScope>
     <HeaderActionsSlotProvider>
       <DropdownMenu>
         <DropdownMenuTrigger data-testid="page-menu">⋯</DropdownMenuTrigger>
@@ -65,7 +74,8 @@ function renderEditor(printPort?: OfficePrintPort) {
         printPort={printPort}
         capability={{ format: "docx", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }}
       />
-    </HeaderActionsSlotProvider>,
+    </HeaderActionsSlotProvider>
+    </ShellScope>,
   );
 }
 
@@ -100,8 +110,13 @@ describe("DocxEditor print entry", () => {
     const windowPrint = vi.spyOn(window, "print").mockImplementation(() => undefined);
     renderEditor({ print });
     await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
-    fireEvent.keyDown(screen.getByTestId("docx-editor"), { key: "p", ctrlKey: true });
+    // Focus outside the editor (the page header's menu trigger) still prints the document.
+    const outside = fireEvent.keyDown(screen.getByTestId("page-menu"), { key: "p", ctrlKey: true });
+    expect(outside).toBe(false);
     await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    expect(print.mock.calls[0]?.[0].html).toContain("<p>Điều 1</p>");
+    fireEvent.keyDown(screen.getByTestId("docx-editor"), { key: "p", metaKey: true });
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(2));
     expect(windowPrint).not.toHaveBeenCalled();
     windowPrint.mockRestore();
   });

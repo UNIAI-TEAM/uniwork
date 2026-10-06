@@ -28,7 +28,7 @@ import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetSt
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
 import { OfficeFrame } from "../frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
-import { MarkdownPrintMenuItems } from "../markdown/wysiwyg/print-menu";
+import { MarkdownPrintMenuItems, MarkdownPrintShortcut } from "../markdown/wysiwyg/print-menu";
 import { PrintNotice, usePrintNotice } from "../markdown/wysiwyg/print-notice";
 import { createBrowserPrintPort } from "../print";
 import { HtmlFind, type HtmlFindHandle } from "./find";
@@ -469,6 +469,7 @@ export function HtmlEditor<TSnapshot = unknown>({
           {/* UNI-928: print rides the page overflow menu (C4), like Markdown;
               with no injected port the shared browser port prints. */}
           <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />} />
+          <MarkdownPrintShortcut port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />
           <PrintNotice notice={printNotice.notice} />
           <HtmlVisualShell
             documentKey={documentKey}

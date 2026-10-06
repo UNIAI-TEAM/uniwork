@@ -2,7 +2,7 @@
 
 /**
  * The PPTX Print entry point (UNI-952): one function behind the ribbon Print / Export PDF
- * commands AND the page header's overflow-menu item, so both places run the same print.
+ * commands, the page header's overflow-menu item and Ctrl/Cmd+P, so every place runs the same print.
  *
  * Outcomes follow the shared Office print contract: `printed` and `cancelled` are silent,
  * `print_busy` (a dialog is already open) shows a neutral status, and any other failure is
@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { isPrintBusy, type OfficePrintPort } from "../../print";
+import { useOfficePrintShortcut } from "../../print/shortcut";
 import type { PptxDeckRenderer } from "../canvas/deck-renderer";
 import { collectPptxPrintSlides } from "./pptx-print";
 import { createCanvasSlideRasterizer } from "./pptx-print-raster";
@@ -86,6 +87,9 @@ export function usePptxPrint(options: UsePptxPrintOptions): PptxPrintController 
       .catch(() => onFailed(new Error(t("office.pptx.print.failed"))))
       .finally(() => { running.current = false; setPending(false); });
   }, [flush, onFailed, port, rasterizer, renderer, t, title]);
+
+  // Ctrl/Cmd+P anywhere on the page runs this same print (the Office shell's listener).
+  useOfficePrintShortcut(port ? run : null);
 
   const notice = busy ? (
     <Alert key="print-busy" className="rounded-none border-x-0 border-t-0" role="status" data-testid="pptx-print-busy">
