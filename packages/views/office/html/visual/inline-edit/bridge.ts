@@ -108,12 +108,24 @@ export function useHtmlInlineEdit({ sink, selection, port }: UseHtmlInlineEditOp
   const portRef = useRef(port);
   portRef.current = port;
   const sid = enabled ? selection?.sid ?? null : null;
+  const sidRef = useRef(sid);
+  sidRef.current = sid;
 
   // The frame reports a committed edit on the same sink H5 listens to. The
   // payload is untrusted: it is validated, then mapped to an H3 op and applied.
   useEffect(() => {
     if (!enabled) return undefined;
     return sink.subscribe((event) => {
+      if (event.type === "ready") {
+        // Every applied edit re-renders the frame, and the new inspector starts
+        // with nothing selected: ask it to pick the selection again so it
+        // reports a fresh rect (a width change would otherwise leave the
+        // outline at the old size). A sid that no longer exists comes back as
+        // "select null" and clears the selection.
+        const current = sidRef.current;
+        if (current !== null) portRef.current?.inspector?.command({ type: "select", sid: current });
+        return;
+      }
       const commit = parseTextEditCommit(event);
       if (commit === null) return;
       buildAndApply(portRef.current, (context) => textEditOp(context, commit));

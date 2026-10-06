@@ -174,3 +174,30 @@ describe("useHtmlInlineEdit — flag ON", () => {
     expect(apply.mock.calls[0]![0].patches[0]!.text).toContain("width:201px");
   });
 });
+
+describe("useHtmlInlineEdit — a re-rendered frame keeps the selection", () => {
+  beforeEach(() => {
+    flagMock.value = true;
+  });
+
+  it("re-selects the selected sid when a new frame reports ready, so its rect is re-measured", async () => {
+    // An edit (e.g. a width change in the style panel) re-renders the preview;
+    // the new inspector starts with nothing selected and reports no rect, so
+    // the outline kept the old width (M01 r2). Its `ready` asks it to re-pick.
+    const f = await openFixture(SOURCE);
+    const sink = createPreviewEventSink();
+    const { port, command } = fakePort(f);
+    renderHook(() => useHtmlInlineEdit({ sink, selection: { sid: sid(f, P1), rect: null, nodeName: null }, port }));
+    act(() => sink.emit({ type: "ready" }));
+    expect(command).toHaveBeenCalledWith({ type: "select", sid: sid(f, P1) });
+  });
+
+  it("sends nothing on ready without a selection", async () => {
+    const f = await openFixture(SOURCE);
+    const sink = createPreviewEventSink();
+    const { port, command } = fakePort(f);
+    renderHook(() => useHtmlInlineEdit({ sink, selection: null, port }));
+    act(() => sink.emit({ type: "ready" }));
+    expect(command).not.toHaveBeenCalled();
+  });
+});
