@@ -95,6 +95,27 @@ describe("desktop local xlsx session (C1b)", () => {
     expect(reopened.editor.getWorkbookSnapshot?.()?.sheets[0]?.name).toBe("Data");
   });
 
+  // A build that staged the gateway but not the recalc sidecar refuses a
+  // formula-bearing save in main. Electron's invoke rejection keeps only the
+  // message, so the coordinator filed it as office_unknown_error; the session
+  // now re-types it so the save banner can name the missing engine part.
+  it("types a refused formula save as xlsx_recalc_unavailable instead of office_unknown_error", async () => {
+    const bridge = makeLocalBridge();
+    const local = bridge.call.getMockImplementation()!;
+    bridge.call.mockImplementation(async (channel, payload) => {
+      if (channel === "desktop:file-xlsx" && payload.operation === "edit") throw new Error("Error invoking remote method 'desktop:file-xlsx': Error: xlsx_recalc_unavailable");
+      return local(channel, payload);
+    });
+    const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });
+    await session.open.open();
+    await session.editor.edit?.([editOp]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+
+    expect((await session.coordinator.save("button")).accepted).toBe(false);
+    expect(session.coordinator.getState().error).toMatchObject({ code: "xlsx_recalc_unavailable", errorClass: "engine", state: "error", retryable: false });
+    expect(bridge.call).not.toHaveBeenCalledWith("desktop:file-save", expect.anything());
+  });
+
   it("keeps a protected draft through the desktop draft IPC (local:<device>)", async () => {
     const bridge = makeLocalBridge();
     const session = createDesktopLocalXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "100", baseVersionId: identity.baseVersionId, localHandle: HANDLE });

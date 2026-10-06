@@ -193,7 +193,9 @@ func (s *PreviewAssetService) verify(token string) (previewClaims, error) {
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return previewClaims{}, ErrPreviewCapability
 	}
-	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	// Strict: the last base64 character of a 32-byte MAC carries two padding
+	// bits; a lenient decoder would accept 4 spellings of the same token.
+	signature, err := base64.RawURLEncoding.Strict().DecodeString(parts[1])
 	if err != nil {
 		return previewClaims{}, ErrPreviewCapability
 	}
@@ -202,7 +204,7 @@ func (s *PreviewAssetService) verify(token string) (previewClaims, error) {
 	if !hmac.Equal(signature, h.Sum(nil)) {
 		return previewClaims{}, ErrPreviewCapability
 	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	payload, err := base64.RawURLEncoding.Strict().DecodeString(parts[0])
 	if err != nil || len(payload) > 64*1024 {
 		return previewClaims{}, ErrPreviewCapability
 	}

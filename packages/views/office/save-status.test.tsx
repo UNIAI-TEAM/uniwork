@@ -72,6 +72,18 @@ describe("SaveStatus", () => {
     expect(reason).toHaveTextContent("Reason: engine_result_invalid \u00b7 engine");
   });
 
+  it("explains a known engine refusal in words instead of the bare code", () => {
+    render(
+      <SaveStatus
+        coordinatorState={{
+          state: "error",
+          error: { state: "error", code: "xlsx_recalc_unavailable", errorClass: "engine", correlationId: null, retryable: false, ambiguous: false, action: "stop", message: "Office save could not be confirmed" },
+        }}
+      />,
+    );
+    expect(screen.getByTestId("office-save-error-reason")).toHaveTextContent("Reason: This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept. · engine");
+  });
+
   it("keeps the generic headline when a save failure carries no code (F4)", () => {
     render(<SaveStatus status="error" />);
     expect(screen.getByRole("alert")).toHaveTextContent("Save could not be confirmed");
