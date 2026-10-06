@@ -115,6 +115,10 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
   // A pending intent whose transport hold was already released: a blocked
   // refusal proved it never committed, so a Retry mints a fresh intent.
   let releasedIntentId: string | null = null;
+  // A pending intent whose outcome may be unknown: one of its attempts failed
+  // ambiguously, or after the commit step without a refusal. Only such an
+  // intent is replayed with its own key once newer content exists.
+  let unsureIntentId: string | null = null;
   let terminalGeneration: number | null = null;
   let capabilityStatus: OfficeCapabilityStatus | null = null;
   let capabilityReason: string | null = null;
@@ -311,6 +315,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
         return await complete(intent, receipt);
       } catch (error) {
         const dispatch = dispatchOfficeError(error);
+        if (dispatch.ambiguous || (committing && !isOfficeRefusal(dispatch))) unsureIntentId = intent.intentId;
         if (dispatch.ambiguous) {
           const answer = await answerReconcile(intent);
           if (answer.status === "found") return await complete(intent, answer.receipt);
@@ -378,6 +383,15 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       });
     }
     if (sameIdentity(intent.identity, identity)) {
+      // Every failure of this intent was an answer that nothing was written
+      // (a refusal, a step before the commit), and the editor holds newer
+      // content: settle it and save everything in ONE new intent, instead of
+      // replaying the old bytes and leaving the newer edits for a second Save.
+      // An intent whose outcome may be unknown keeps its key (replay above).
+      if (unsureIntentId !== intent.intentId && snapshot.generation > intent.snapshotGeneration) {
+        await settlePending(intent, "released");
+        return await startNewIntent(snapshot);
+      }
       return await runIntent(intent);
     }
     // The session moved on while the outcome was unknown and the reconcile
