@@ -43,10 +43,15 @@ export const BUILD_RECORD_KIND = 'uniwork-office-upstream-build-record';
 // The native step copies the release sidecar here (<out>/native/xlsx-sidecar[.exe]).
 const NATIVE_OUT_DIR = 'native';
 
-/** The dir cargo writes to for a crate: CARGO_TARGET_DIR when set, else <crate>/target. */
+/**
+ * The dir cargo writes to for a crate: CARGO_TARGET_DIR when set, else
+ * <crate>/target. A relative CARGO_TARGET_DIR resolves against the repo root
+ * (the desktop build's rule); the resolved value is also handed to cargo so
+ * both agree, whatever cwd cargo runs in.
+ */
 function cargoTargetDir(crateDir, env = process.env) {
   const configured = env.CARGO_TARGET_DIR?.trim();
-  return configured ? path.resolve(configured) : path.join(crateDir, 'target');
+  return configured ? path.resolve(REPO_ROOT, configured) : path.join(crateDir, 'target');
 }
 
 // Heavy/native/browser-host deps stay external to the engine bundles: they are
@@ -376,9 +381,13 @@ export async function run({ out, skipInstall, withNative, keep }) {
   const cargo = spawnSync('cargo', ['--version'], { encoding: 'utf8' });
   if (withNative && cargo.status === 0) {
     const engineDir = path.join(scratchUpstream, 'apps', 'sheets', 'native', 'xlsx-engine');
-    const rs = spawnSync('cargo', ['build', '--release'], { cwd: engineDir, encoding: 'utf8', timeout: 20 * 60 * 1000 });
+    const cargoEnv = process.env.CARGO_TARGET_DIR?.trim() ? { ...process.env, CARGO_TARGET_DIR: cargoTargetDir(engineDir) } : process.env;
+    const rs = spawnSync('cargo', ['build', '--release'], { cwd: engineDir, env: cargoEnv, encoding: 'utf8', timeout: 20 * 60 * 1000 });
     record.steps.push({ step: 'native', status: rs.status === 0 ? 'pass' : 'fail', detail: rs.status === 0 ? cargo.stdout.trim() : (rs.stderr || 'cargo build failed').slice(-500) });
     if (rs.status !== 0) {
+      // Recorded so a consumer can tell "this build's native step failed" from
+      // "no native step ran": a failed build has no binary to attest.
+      record.native = { status: 'fail' };
       record.verdict = 'fail';
     } else {
       // Cargo honours CARGO_TARGET_DIR (a short dir on Windows, where MSVC's
@@ -392,6 +401,7 @@ export async function run({ out, skipInstall, withNative, keep }) {
       const protocolSrc = path.join(engineDir, 'src', 'main.rs');
       const versionMatch = fs.existsSync(protocolSrc) ? /PROTOCOL_VERSION(?::\s*u8)?\s*=\s*(\d+)/.exec(fs.readFileSync(protocolSrc, 'utf8')) : null;
       record.native = {
+        status: 'pass',
         cargo: cargo.stdout.trim(),
         crate: {
           manifest: 'apps/sheets/native/xlsx-engine/Cargo.toml',
@@ -405,6 +415,7 @@ export async function run({ out, skipInstall, withNative, keep }) {
     }
   } else {
     record.steps.push({ step: 'native', status: 'not-attempted', detail: withNative ? 'cargo not on PATH' : 'requires --with-native (rust toolchain)' });
+    record.native = { status: 'not-attempted' };
   }
   return { record, scratch, distDir };
 }

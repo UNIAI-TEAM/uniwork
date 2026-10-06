@@ -6,7 +6,7 @@ import { mkdir, copyFile, writeFile, rm, readFile } from "node:fs/promises";
 import { dirname as pathDirname, join as pathJoin } from "node:path";
 import { deriveBuildMetadata, readDeploymentProfileFromEnv, writeDeploymentProfile } from "./deployment-profile.mjs";
 import { compileRendererStyles } from "./compile-styles.mjs";
-import { missingGatewayError, prepareXlsxAssets } from "./xlsx-assets.mjs";
+import { missingGatewayError, missingSidecarWarning, prepareXlsxAssets } from "./xlsx-assets.mjs";
 
 const app = join(dirname(fileURLToPath(import.meta.url)), "..");
 const identity = JSON.parse(await readFile(join(app, "identity.json"), "utf8"));
@@ -61,14 +61,14 @@ for (const font of ["NotoSans-Regular.ttf", "NotoSans-Bold.ttf"]) {
 // dist/xlsx-assets dir, so stage it here too. When the gateway or the recalc
 // sidecar is missing and cargo is available, scripts/office/build-upstream.mjs
 // --with-native builds them first; without cargo a dev build still builds and
-// says so. OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1 turns a missing sidecar into
-// a failure (the installer CI job sets it).
+// says so. OFFICE_DESKTOP_SKIP_NATIVE_BUILD=1 skips that automatic build.
+// OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1 turns a missing sidecar (or a failed
+// native build) into a failure (the installer CI job sets it).
 const repositoryRoot = join(app, "..", "..");
 const { attempt, staged } = await prepareXlsxAssets({ repositoryRoot, distDirectory: dist, requireGateway: false });
 // Without the sidecar a local .xlsx opens and formula-free saves work, but
 // every save of a workbook with formulas is refused (xlsx_recalc_unavailable).
-if (staged && !staged.sidecar) process.stderr.write(`office-desktop: no xlsx recalc sidecar staged (${attempt.reason}) - saving a local .xlsx that contains formulas will be refused. Install the Rust toolchain (rustup 1.88.0) so the build can run node scripts/office/build-upstream.mjs --with-native, or point OFFICE_DESKTOP_XLSX_ASSETS at a dir holding xlsx-gateway.mjs + the sidecar.
-`);
+if (staged && !staged.sidecar) process.stderr.write(`${missingSidecarWarning({ attempt })}\n`);
 if (!staged) process.stderr.write(`office-desktop: local .xlsx open is unavailable in this build - ${missingGatewayError(attempt.sources).message}
 `);
 await writeFile(join(dist, "BUILD-METADATA.json"), JSON.stringify({
