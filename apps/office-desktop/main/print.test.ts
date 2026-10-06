@@ -4,9 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createIpcDispatcher, IpcValidationError, IPC_MAX_BYTES, PRINT_HTML_MAX_BYTES, validateIpcRequest } from "./ipc";
-import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printOutcome, type PrintDocumentOptions, type PrintWindow, type PrintWindowOptions } from "./print";
+import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_CALLBACK_TIMEOUT_MS, PRINT_PARTITION, PRINT_WINDOW_WEB_PREFERENCES, printFileName, printOutcome, type PrintOwner, type PrintWindow, type PrintWindowOptions } from "./print";
 
-type PrintOwner = NonNullable<PrintDocumentOptions["owner"]>;
 const context = { senderId: 7, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 7, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const request = { sessionGeneration: "session_1234", title: "Doc.md", html: `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="script-src 'none'"></head><body><p>x</p></body></html>` };
 
@@ -33,8 +32,8 @@ function harness(answer: (callback: PrintCallback) => void, load: () => Promise<
   const fake = fakeWindow(answer, load);
   const cleanup = vi.fn(async () => undefined);
   const writeFile = vi.fn(async (_html: string, fileName: string) => ({ path: `C:\\tmp\\uniwork-print\\job-1\\${fileName}`, cleanup }));
-  const createWindow = vi.fn((_options: PrintWindowOptions) => fake.window);
-  const handler = createPrintIpcHandler({ createWindow, writeFile, ...(owner ? { owner } : {}) })["desktop:print-document"];
+  const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
+  const handler = createPrintIpcHandler({ createWindow, writeFile, ...(owner ? { owner: () => owner } : {}) })["desktop:print-document"];
   return { ...fake, cleanup, writeFile, createWindow, handler };
 }
 
@@ -162,7 +161,7 @@ describe("stuck-busy guard", () => {
     const windows = [first.window, second.window];
     const cleanup = vi.fn(async () => undefined);
     const writeFile = vi.fn(async (_html: string, fileName: string) => ({ path: `C:\\tmp\\uniwork-print\\job-1\\${fileName}`, cleanup }));
-    const handler = createPrintIpcHandler({ owner, writeFile, createWindow: () => windows.shift()! })["desktop:print-document"];
+    const handler = createPrintIpcHandler({ owner: () => owner, writeFile, createWindow: () => windows.shift()! })["desktop:print-document"];
     void handler(request);
     await vi.waitFor(() => expect(first.window.webContents.print).toHaveBeenCalledTimes(1));
     blurThenFocus();
@@ -193,7 +192,7 @@ describe("stuck-busy guard", () => {
     const windows = [first.window, second.window];
     const cleanup = vi.fn(async () => undefined);
     const writeFile = vi.fn(async (_html: string, fileName: string) => ({ path: `C:\\tmp\\${fileName}`, cleanup }));
-    const handler = createPrintIpcHandler({ owner, writeFile, createWindow: () => windows.shift()! })["desktop:print-document"];
+    const handler = createPrintIpcHandler({ owner: () => owner, writeFile, createWindow: () => windows.shift()! })["desktop:print-document"];
     const firstResult = handler(request);
     await vi.waitFor(() => expect(first.window.webContents.print).toHaveBeenCalledTimes(1));
     blurThenFocus();
@@ -226,6 +225,69 @@ describe("stuck-busy guard", () => {
   });
 });
 
+describe("print owner and callback timeout", () => {
+  function owner() {
+    return { on: vi.fn(), removeListener: vi.fn() } satisfies PrintOwner;
+  }
+  it("parents the print window to the owner resolved for this request, not one captured earlier", async () => {
+    const owners = [owner(), owner()];
+    const resolve = vi.fn(() => owners.shift());
+    const fake = fakeWindow((callback) => callback(true, ""), async () => undefined);
+    const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
+    const handler = createPrintIpcHandler({ owner: resolve, createWindow, writeFile: async (_html, name) => ({ path: name, cleanup: async () => undefined }) })["desktop:print-document"];
+    const first = owners[0];
+    await handler(request);
+    expect(createWindow.mock.calls[0]![1]).toBe(first);
+    const second = owners[0];
+    await handler(request);
+    expect(createWindow.mock.calls[1]![1]).toBe(second);
+    expect(resolve).toHaveBeenCalledTimes(2);
+  });
+  it("prints without a parent when the sending window is gone", async () => {
+    const fake = fakeWindow((callback) => callback(true, ""), async () => undefined);
+    const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
+    const handler = createPrintIpcHandler({ owner: () => undefined, createWindow, writeFile: async (_html, name) => ({ path: name, cleanup: async () => undefined }) })["desktop:print-document"];
+    expect(await handler(request)).toEqual({ outcome: "printed" });
+    expect(createWindow.mock.calls[0]![1]).toBeUndefined();
+  });
+  it("answers print_timeout when Electron never calls back, without closing the dialog or freeing busy", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish: PrintCallback | undefined;
+      const { handler, window, cleanup } = harness((callback) => { finish = callback; });
+      const first = handler(request);
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      await vi.advanceTimersByTimeAsync(PRINT_CALLBACK_TIMEOUT_MS);
+      expect(await first).toEqual({ outcome: "failed", reason: "print_timeout" });
+      expect(window.close).not.toHaveBeenCalled();
+      expect(cleanup).not.toHaveBeenCalled();
+      expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_busy" });
+      // The late callback releases the job; the next print is accepted.
+      finish!(true, "");
+      await vi.waitFor(() => expect(window.close).toHaveBeenCalledTimes(1));
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      finish = undefined;
+      const again = handler(request);
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      finish!(false, "cancelled");
+      expect(await again).toEqual({ outcome: "cancelled" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("uses a bounded default wait", () => {
+    expect(PRINT_CALLBACK_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+    expect(PRINT_CALLBACK_TIMEOUT_MS).toBeLessThanOrEqual(600_000);
+  });
+  it("turns a print() that throws into a typed failure and releases the job", async () => {
+    const { handler, window, cleanup } = harness(() => { throw new Error("boom"); });
+    expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_unavailable" });
+    expect(window.close).toHaveBeenCalledTimes(1);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_unavailable" });
+  });
+});
+
 describe("print helpers", () => {
   it("only reports printed for a successful callback", () => {
     expect(printOutcome(true, "cancelled")).toEqual({ outcome: "printed" });
@@ -235,6 +297,8 @@ describe("print helpers", () => {
     expect(printFileName("Báo cáo quý.md")).toBe("Báo cáo quý.html");
     expect(printFileName("..\\..\\evil<>:|?*.html")).toBe("evil.html");
     expect(printFileName("")).toBe("document.html");
+    expect(printFileName("Báo cáo.docx")).toBe("Báo cáo.html");
+    expect(printFileName("Sheet.XLSX")).toBe("Sheet.html");
   });
   it("limits the print partition to the print root and inline data", () => {
     let filter: ((details: { url: string }, callback: (response: { cancel: boolean }) => void) => void) | undefined;

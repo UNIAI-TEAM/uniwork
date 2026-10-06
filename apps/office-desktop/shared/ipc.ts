@@ -293,8 +293,8 @@ export const desktopDiagnosticsResponseSchema = z.object({
   originHost: z.string().min(1).max(255).optional(),
 }).strict();
 export const desktopAuthConfigResponseSchema = z.object({ clientId: clientIdSchema, deploymentId: deploymentSchema }).strict();
-/** Desktop print of an already-sanitized Markdown/HTML copy. The renderer
- * sends only the shared sanitizer's output; main prints it from a separate
+/** Desktop print of an already-sanitized copy of any Office format. The renderer
+ * sends only a sanitized, script-free copy; main prints it from a separate
  * hidden window with JavaScript off, so the cap only bounds memory. */
 export const PRINT_HTML_MAX_BYTES = 16 * 1024 * 1024;
 export const desktopPrintResponseSchema = z.discriminatedUnion("outcome", [

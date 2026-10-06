@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { DesktopIpcRequest, DesktopPrintResponse } from "../shared/ipc";
 
 /**
- * Desktop Markdown/HTML print (UNI-928). A print started from a sandboxed
+ * Desktop print for every Office format (UNI-928, UNI-952). A print started from a sandboxed
  * iframe inside the app window never reaches Chromium's print surface under
  * Electron, so the renderer hands the SHARED sanitizer's copy to main over the
  * one typed `desktop:print-document` channel and main prints it from its own
@@ -52,22 +52,34 @@ export type PrintFile = Readonly<{ path: string; cleanup(): Promise<void> }>;
  * while Electron has not (yet) called back: a dialog Electron never reports as
  * closed would otherwise leave the busy flag set until restart. A focus with no
  * blur before it (the app window re-activating as the dialog appears) proves
- * nothing. A timeout would be wrong - the OS dialog may stay open for as long as
- * the user likes - so the guard never closes anything. */
-type PrintOwner = {
+ * nothing. Closing on a timeout would be wrong - the OS dialog may stay open
+ * for as long as the user likes - so the guard never closes anything; see
+ * {@link PRINT_CALLBACK_TIMEOUT_MS} for the bounded answer the renderer gets. */
+export type PrintOwner = {
   on(event: "focus" | "blur", listener: () => void): unknown;
   removeListener(event: "focus" | "blur", listener: () => void): unknown;
 };
 
-export interface PrintDocumentOptions {
-  /** Optional owner window; see {@link PrintOwner}. */
-  owner?: PrintOwner;
-  /** Builds the hidden print window. It must apply the options verbatim and
-   * never attach a preload; the Electron entry passes them to BrowserWindow. */
-  createWindow(options: PrintWindowOptions): PrintWindow;
+/** How long the renderer waits for Electron's print callback. Past it the
+ * request answers `print_timeout`, but the job is NOT released: its window,
+ * file and busy flag stay until the callback finally arrives or the owner
+ * regains focus (blur then focus), so an OS dialog that is still open is never
+ * closed and a second dialog never opens over it. */
+export const PRINT_CALLBACK_TIMEOUT_MS = 120_000;
+
+export interface PrintDocumentOptions<Owner extends PrintOwner = PrintOwner> {
+  /** The window that sent the request, resolved per request (never a window
+   * captured at startup); see {@link PrintOwner}. Undefined when it is gone. */
+  owner?(): Owner | undefined;
+  /** Builds the hidden print window, parented to the job's owner when there is
+   * one. It must apply the options verbatim and never attach a preload; the
+   * print host passes them to BrowserWindow. */
+  createWindow(options: PrintWindowOptions, owner: Owner | undefined): PrintWindow;
   /** Writes the copy to a private temporary file named after `fileName`.
    * Chromium names the print job after it when the copy carries no title. */
   writeFile(html: string, fileName: string): Promise<PrintFile>;
+  /** Overrides {@link PRINT_CALLBACK_TIMEOUT_MS} (tests). */
+  callbackTimeoutMs?: number;
 }
 
 /** Map Electron's print callback onto the shared port outcomes. Electron
@@ -87,7 +99,7 @@ export function printOutcome(success: boolean, failureReason: string | undefined
 
 /** A file-system-safe job name derived from the document title. */
 export function printFileName(title: string): string {
-  const stem = title.replace(/\.(md|markdown|html?)$/i, "").replace(/[^\p{L}\p{N} ._-]+/gu, " ").replace(/\s+/g, " ").trim().slice(0, 80).replace(/^[ .]+|[ .]+$/g, "");
+  const stem = title.replace(/\.(md|markdown|html?|docx|xlsx|pptx|pdf)$/i, "").replace(/[^\p{L}\p{N} ._-]+/gu, " ").replace(/\s+/g, " ").trim().slice(0, 80).replace(/^[ .]+|[ .]+$/g, "");
   return `${stem || "document"}.html`;
 }
 
@@ -106,7 +118,7 @@ type PrintJob = { sawBlur: boolean; ownerRefocused: boolean };
 /** The main-side handler for `desktop:print-document`. The dispatcher has
  * already checked sender, frame, origin, session, payload type and size. One
  * print at a time; never throws - every failure is a typed outcome. */
-export function createPrintIpcHandler(options: PrintDocumentOptions) {
+export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDocumentOptions<Owner>) {
   let active: PrintJob | undefined;
   // Closing a print window hands focus back to the owner; that focus belongs to
   // no job and must not mark the one whose dialog is open.
@@ -117,16 +129,18 @@ export function createPrintIpcHandler(options: PrintDocumentOptions) {
     // A focus delivered after close() returns still follows no real blur.
     if (active) active.sawBlur = false;
   };
+  const timeoutMs = options.callbackTimeoutMs ?? PRINT_CALLBACK_TIMEOUT_MS;
   return {
     "desktop:print-document": async (request: DesktopIpcRequest<"desktop:print-document">): Promise<DesktopPrintResponse> => {
       if (active && !active.ownerRefocused) return { outcome: "failed", reason: "print_busy" };
       const job: PrintJob = { sawBlur: false, ownerRefocused: false };
       active = job;
+      const owner = options.owner?.();
       const onBlur = () => { if (!closing) job.sawBlur = true; };
       // Once superseded the job needs no listener: detach at once, not at settle.
       const detach = () => {
-        options.owner?.removeListener("focus", onFocus);
-        options.owner?.removeListener("blur", onBlur);
+        owner?.removeListener("focus", onFocus);
+        owner?.removeListener("blur", onBlur);
       };
       function onFocus() {
         if (closing || !job.sawBlur) return;
@@ -135,26 +149,40 @@ export function createPrintIpcHandler(options: PrintDocumentOptions) {
       }
       let file: PrintFile | undefined;
       let window: PrintWindow | undefined;
-      try {
-        file = await options.writeFile(request.html, printFileName(request.title));
-        const created = options.createWindow({ show: false, title: request.title, webPreferences: PRINT_WINDOW_WEB_PREFERENCES });
-        window = created;
-        denyNavigation(created);
-        await created.loadFile(file.path);
-        return await new Promise<DesktopPrintResponse>((resolve) => {
-          // Listen only once the dialog is about to open, so the focus that
-          // returns to the app as the dialog appears does not count.
-          options.owner?.on("blur", onBlur);
-          options.owner?.on("focus", onFocus);
-          created.webContents.print({ silent: false, printBackground: true }, (success, failureReason) => resolve(printOutcome(success, failureReason)));
-        });
-      } catch {
-        return { outcome: "failed", reason: "print_unavailable" };
-      } finally {
+      // Runs once, when Electron answers (or the job never reached the dialog):
+      // never on the timeout, which leaves an open dialog alone.
+      const release = async () => {
         detach();
         if (window && !window.isDestroyed()) closeWindow(window);
         await file?.cleanup().catch(() => undefined);
         if (active === job) active = undefined;
+      };
+      let printing: Promise<DesktopPrintResponse>;
+      try {
+        file = await options.writeFile(request.html, printFileName(request.title));
+        const created = options.createWindow({ show: false, title: request.title, webPreferences: PRINT_WINDOW_WEB_PREFERENCES }, owner);
+        window = created;
+        denyNavigation(created);
+        await created.loadFile(file.path);
+        printing = new Promise<DesktopPrintResponse>((resolve) => {
+          // Listen only once the dialog is about to open, so the focus that
+          // returns to the app as the dialog appears does not count.
+          owner?.on("blur", onBlur);
+          owner?.on("focus", onFocus);
+          created.webContents.print({ silent: false, printBackground: true }, (success, failureReason) => resolve(printOutcome(success, failureReason)));
+        });
+      } catch {
+        await release();
+        return { outcome: "failed", reason: "print_unavailable" };
+      }
+      // A print() that throws never opened a dialog: release and answer typed.
+      const settled = printing.catch((): DesktopPrintResponse => ({ outcome: "failed", reason: "print_unavailable" })).then(async (outcome) => { await release(); return outcome; });
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timedOut = new Promise<DesktopPrintResponse>((resolve) => { timer = setTimeout(() => resolve({ outcome: "failed", reason: "print_timeout" }), timeoutMs); });
+      try {
+        return await Promise.race([settled, timedOut]);
+      } finally {
+        clearTimeout(timer);
       }
     },
   };

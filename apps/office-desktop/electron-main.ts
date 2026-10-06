@@ -35,7 +35,7 @@ import { createDocumentLeaveEvidence } from "./main/document-leave";
 import { deviceScopeAccountId, resolveLocalDevice, LocalDeviceError } from "./main/local/device";
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
-import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION } from "./main/print";
+import { createPrintHost } from "./main/print-host";
 import type { DraftIdentity, DraftSession } from "../../packages/core/office/draft-recovery";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
@@ -464,11 +464,7 @@ async function startElectronHost(): Promise<void> {
       window.close();
     });
   });
-  const printRoot = join(app.getPath("temp"), "uniwork-print");
-  installPrintSessionGuard(session.fromPartition(PRINT_PARTITION), pathToFileURL(printRoot).href);
-  // A process that quit with a print dialog open never ran its cleanup.
-  await clearPrintRoot(printRoot);
-  const printHandlers = createPrintIpcHandler({ owner: window, createWindow: (options) => new BrowserWindow({ ...options, parent: window }), writeFile: createPrintFileWriter(printRoot) });
+  const printHandlers = await createPrintHost({ tempDirectory: app.getPath("temp"), partitionSession: (partition) => session.fromPartition(partition), senderWindow: () => BrowserWindow.fromWebContents(window.webContents), createWindow: (options) => new BrowserWindow(options) });
   const host = createDesktopHost({
     handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
