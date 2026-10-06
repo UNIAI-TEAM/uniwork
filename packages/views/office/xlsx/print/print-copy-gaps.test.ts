@@ -2,7 +2,8 @@
 // columns, header/footer, overflow and ####, rotation (pictures: print-visuals.test).
 import { describe, expect, it } from "vitest";
 import type { XlsxRenderPageSetup, XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
-import { buildXlsxPrintCopy, type XlsxPrintCell, type XlsxPrintSheet } from "./print-copy";
+import { printPageFromCopy } from "../../print/page";
+import { buildXlsxPrintCopy,type XlsxPrintCell, type XlsxPrintSheet } from "./print-copy";
 import { parseHeaderFooter } from "./print-header-footer";
 import { resolvePrintSetup, type XlsxPrintDefinedName, type XlsxPrintRange } from "./print-setup";
 
@@ -167,6 +168,26 @@ describe("header and footer", () => {
     expect(html).toContain("padding-top:0.57in");
     // A 20pt line (0.33in) does not fit a 0.25in margin: no padding at all.
     expect(html).toContain("padding-bottom:0in");
+  });
+
+  it("still reads a landscape sheet's page when header, footer and first/even margin boxes follow the size rule", () => {
+    const { html } = build(sheet({
+      file: {
+        orientation: "landscape",
+        paperSize: 1,
+        headerFooter: {
+          oddHeader: "&CBudget", oddFooter: "&RPage &P", evenFooter: "&Ceven", firstFooter: "&Cfirst",
+          differentOddEven: true, differentFirst: true,
+        },
+      },
+    }));
+    // The margin-box rules nest braces, so the reader can only see the size
+    // rule if it comes first and stands alone.
+    expect(html.indexOf("@page{size:")).toBeLessThan(html.indexOf("@top-center"));
+    const page = printPageFromCopy(html);
+    expect(page?.landscape).toBe(true);
+    expect(page?.widthMm).toBeCloseTo(279.4, 1);
+    expect(page?.heightMm).toBeCloseTo(215.9, 1);
   });
 
   it("adds nothing when the file has no header or footer", () => {
