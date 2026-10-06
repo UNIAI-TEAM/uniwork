@@ -200,3 +200,19 @@ describe("Manage Rules entry point", () => {
     expect(screen.queryByTestId("xlsx-cf-manage")).not.toBeInTheDocument();
   });
 });
+
+describe("XlsxCfRuleManager linked x14 rules (review dvcf B2)", () => {
+  it("offers no Edit for a linked rule, says why, and keeps reorder and delete", () => {
+    const linked: XlsxLiveRule = { ...RULES[0]!, id: "cf-linked", linked: true };
+    const { execute } = setup(true, [linked, RULES[3]!]);
+    const edit = within(rowOf("cf-linked")).getByTestId("xlsx-cf-rule-edit");
+    expect(edit).toHaveAttribute("aria-disabled", "true");
+    expect(edit).toHaveAttribute("title", rules("editLinked"));
+    fireEvent.click(edit);
+    expect(screen.queryByTestId("xlsx-cf-dialog")).not.toBeInTheDocument();
+    expect(within(rowOf("cf-linked")).getByTestId("xlsx-cf-rule-delete")).not.toHaveAttribute("aria-disabled");
+    // The same preset without the flag stays editable.
+    expect(within(rowOf("cf-d")).getByTestId("xlsx-cf-rule-edit")).not.toHaveAttribute("aria-disabled");
+    expect(execute).not.toHaveBeenCalled();
+  });
+});

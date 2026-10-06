@@ -89,13 +89,22 @@ export function snapshotSheetRules(worksheet: UniverWorksheet, kind: XlsxRendere
  *  `uid`). CF rules come in priority order, the first applies first. */
 export interface XlsxRendererLiveRule extends XlsxRendererRuleSetRule {
   id: string;
+  /** A CF rule installed from an Excel linked x14 rule (linkedRuleIds). */
+  linked?: true;
 }
 
-export function readLiveRuleSet(worksheet: UniverWorksheet, kind: XlsxRendererRuleSetKind): XlsxRendererLiveRule[] {
+export function readLiveRuleSet(
+  worksheet: UniverWorksheet,
+  kind: XlsxRendererRuleSetKind,
+  linked: ReadonlySet<string> = new Set(),
+): XlsxRendererLiveRule[] {
   const facade = worksheet as unknown as RuleSetWorksheet;
   if (kind === "conditionalFormats") {
     return (facade.getConditionalFormattingRules?.() ?? []).flatMap((rule) => typeof rule.cfId === "string"
-      ? [{ id: rule.cfId, ranges: rule.ranges.map(area), stopIfTrue: rule.stopIfTrue === true, rule: plain(rule.rule) }]
+      ? [{
+        id: rule.cfId, ranges: rule.ranges.map(area), stopIfTrue: rule.stopIfTrue === true, rule: plain(rule.rule),
+        ...(linked.has(rule.cfId) ? { linked: true as const } : {}),
+      }]
       : []);
   }
   return (facade.getDataValidations?.() ?? []).flatMap(({ rule }) => {
@@ -183,6 +192,11 @@ interface RuleSetTrack {
   baseline: Map<string, Partial<Record<XlsxRendererRuleSetKind, Record<string, unknown>[]>>>;
   /** Per sheet: families the host refused after a save dropped them (r3 MA-3). */
   hostRefused: Map<string, Set<XlsxRendererRuleSetKind>>;
+  /** Per file sheet: the family + areas keys of the file's linked x14 CF
+   *  rules (review dvcf B2), noted from the range results the loader reads. */
+  linkedOnFile: Map<string, Set<string>>;
+  /** Per sheet: the live cfIds the loader installed from those rules. */
+  linkedIds: Map<string, Set<string>>;
 }
 
 const tracks = new WeakMap<LazyWorkbookState, RuleSetTrack>();
@@ -199,10 +213,65 @@ const INSTALL_MUTATIONS: Readonly<Record<string, XlsxRendererRuleSetKind>> = {
 function trackOf(state: LazyWorkbookState): RuleSetTrack {
   let track = tracks.get(state);
   if (!track) {
-    track = { watched: new Set(), installed: new Map(), unsaveable: new Map(), inherited: new Map(), baseline: new Map(), hostRefused: new Map() };
+    track = {
+      watched: new Set(), installed: new Map(), unsaveable: new Map(), inherited: new Map(), baseline: new Map(), hostRefused: new Map(),
+      linkedOnFile: new Map(), linkedIds: new Map(),
+    };
     tracks.set(state, track);
   }
   return track;
+}
+
+// ── linked x14 CF rules (review dvcf B2) ──────────────────────────────────
+//
+// Gateway patch 0011 keeps an Excel linked rule (a classic cfRule whose
+// extLst names an x14 rule, e.g. a data bar) verbatim while the snapshot
+// still holds a rule of the same family over the same areas, so an in-place
+// edit of it would be dropped at save. The rule manager offers no Edit for
+// such a rule. The engine flags them (render-model-conditional `linked`); the
+// loader's range results carry the flag, and the cfId is tagged when the
+// loader installs the rule, so it survives later row/column shifts.
+
+const LINKED_FAMILIES = new Set(["dataBar", "colorScale", "iconSet"]);
+
+/** Univer's CF family for an OOXML cfRule type, as patch 0011 matches it. */
+const cfFamily = (type: unknown): string => (typeof type === "string" && LINKED_FAMILIES.has(type) ? type : "highlightCell");
+
+function linkedKey(family: string, ranges: unknown): string | null {
+  if (!Array.isArray(ranges) || ranges.length === 0) return null;
+  const areas = ranges.map((range: Partial<AxisRange> | null) =>
+    [range?.startRow, range?.endRow, range?.startColumn, range?.endColumn].join(":"));
+  return `${family}|${areas.sort().join(" ")}`;
+}
+
+/** Notes the linked rules a range result carries for a sheet (the loader
+ *  installs the sheet's rules from it right after). */
+export function noteLinkedConditionalRules(state: LazyWorkbookState | null, sheetId: string, rules: unknown): void {
+  if (!state || !Array.isArray(rules)) return;
+  const keys = new Set<string>();
+  for (const rule of rules as { linked?: unknown; ruleType?: unknown; ranges?: unknown }[]) {
+    if (rule?.linked !== true) continue;
+    const key = linkedKey(cfFamily(rule.ruleType), rule.ranges);
+    if (key) keys.add(key);
+  }
+  const track = trackOf(state);
+  if (keys.size > 0) track.linkedOnFile.set(sheetId, keys);
+}
+
+function tagLinkedInstall(track: RuleSetTrack, sheetId: string, rule: unknown): void {
+  const keys = track.linkedOnFile.get(sheetId);
+  if (!keys || !rule || typeof rule !== "object") return;
+  const { cfId, ranges, rule: inner } = rule as { cfId?: unknown; ranges?: unknown; rule?: { type?: unknown } };
+  const key = linkedKey(cfFamily(inner?.type), ranges);
+  if (typeof cfId !== "string" || !key || !keys.has(key)) return;
+  const ids = track.linkedIds.get(sheetId) ?? new Set<string>();
+  ids.add(cfId);
+  track.linkedIds.set(sheetId, ids);
+}
+
+/** The live cfIds of a sheet's linked x14 rules. */
+export function linkedRuleIds(state: LazyWorkbookState | null, sheetId: string): ReadonlySet<string> {
+  return (state && tracks.get(state)?.linkedIds.get(sheetId)) || new Set<string>();
 }
 
 function installedRuleSaveable(kind: XlsxRendererRuleSetKind, rule: unknown): boolean {
@@ -234,6 +303,7 @@ function observeRuleSetEvent(state: LazyWorkbookState, event: RendererCommand, s
       rules[kind] = list;
       track.baseline.set(sheetId, rules);
     }
+    if (kind === "conditionalFormats") tagLinkedInstall(track, sheetId, params.rule);
     if (installedRuleSaveable(kind, params.rule)) {
       const counts = track.installed.get(sheetId) ?? {};
       counts[kind] = (counts[kind] ?? 0) + 1;

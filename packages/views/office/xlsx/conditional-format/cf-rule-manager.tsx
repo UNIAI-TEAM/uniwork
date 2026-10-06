@@ -97,7 +97,10 @@ export function XlsxCfRuleManager({ unitId, subUnitId, commands, selection, onCl
               {rules.map((rule, index) => {
                 const label = describe(rule);
                 const chip = chipStyle(rule);
-                const canEdit = editableCfRule(rule.rule) !== null && rule.ranges.length > 0;
+                // A linked Excel (x14) rule is kept verbatim at save while it
+                // stays over its areas, so an in-place edit would be lost.
+                const canEdit = !rule.linked && editableCfRule(rule.rule) !== null && rule.ranges.length > 0;
+                const editReason = rule.linked ? t(`${BASE}.manager.editLinked`) : t(`${BASE}.manager.editUnsupported`);
                 return (
                   <li
                     key={rule.id}
@@ -127,7 +130,7 @@ export function XlsxCfRuleManager({ unitId, subUnitId, commands, selection, onCl
                       size="icon-sm"
                       className={ICON_BUTTON}
                       aria-label={t(`${BASE}.manager.edit`, { rule: label })}
-                      title={canEdit ? t(`${BASE}.manager.editTitle`) : t(`${BASE}.manager.editUnsupported`)}
+                      title={canEdit ? t(`${BASE}.manager.editTitle`) : editReason}
                       aria-disabled={!canEdit || pending || undefined}
                       data-testid="xlsx-cf-rule-edit"
                       onClick={() => {

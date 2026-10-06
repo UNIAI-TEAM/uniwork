@@ -50,6 +50,9 @@ export interface XlsxLiveRule {
   readonly ranges: readonly XlsxToolbarTableRange[];
   readonly stopIfTrue?: boolean;
   readonly rule: Readonly<Record<string, unknown>>;
+  /** A CF rule installed from an Excel linked x14 rule (a data bar and its
+   *  extras): the save keeps it verbatim, so it cannot be edited in place. */
+  readonly linked?: boolean;
 }
 
 /** A 0-based inclusive rectangle (a table's area or a selection's span). */

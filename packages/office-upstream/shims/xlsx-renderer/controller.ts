@@ -26,7 +26,7 @@ import { SheetInterceptorService } from "@univerjs/sheets";
 import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
-import { ingestRuleSetMutation, readLiveRuleSet, restoreRuleSetFamily, type XlsxRendererLiveRule, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
+import { ingestRuleSetMutation, linkedRuleIds, noteLinkedConditionalRules, readLiveRuleSet, restoreRuleSetFamily, type XlsxRendererLiveRule, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
 import { isRuleSetCommand, ruleSetRestoreAllowed, ruleSetTargetsLive } from "./rule-set-policy";
 import { installStacked } from "./dv-error-style";
 import { watchRendererHistory, type XlsxRendererHistoryState } from "./history";
@@ -250,11 +250,14 @@ function withLiveSheetNames(state: LazyWorkbookState | null, edits: XlsxRenderer
  * while the renderer is mounted and restores whatever existed before on
  * dispose (the desktop shell owns its own global and must not lose it).
  */
-function installDesktopApiBridge(host: XlsxRendererHost): () => void {
+function installDesktopApiBridge(host: XlsxRendererHost, onRange: (sheetId: string, result: WorkbookRangeResult) => void): () => void {
   const globalObject = globalThis as unknown as { desktopApi?: unknown };
   const previous = globalObject.desktopApi;
   const api: DesktopApi = {
-    readWorkbookRange: (input: { sessionId: string; sheetId: string; range: IRange }) => host.readRange(input),
+    readWorkbookRange: (input: { sessionId: string; sheetId: string; range: IRange }) => host.readRange(input).then((result) => {
+      onRange(input.sheetId, result);
+      return result;
+    }),
     readWorkbookFormulas: (input: { sessionId: string; sheetId: string }) => host.readFormulas?.(input) ?? Promise.resolve({ cells: [] }),
     recalcWorkbook: (input: unknown) => host.recalcWorkbook?.(input) ?? Promise.resolve({ cells: [], cached: false }),
     // Visuals are outside this slice's render scope; the vendored callers get
@@ -340,7 +343,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   container.appendChild(univerHost);
   univerHost.id = `${containerId}-canvas`;
 
-  const restoreDesktopApi = installDesktopApiBridge(options.host);
+  const restoreDesktopApi = installDesktopApiBridge(options.host, (sheetId, result) => {
+    // Linked x14 CF rules (review dvcf B2), noted before the loader installs them.
+    noteLinkedConditionalRules(lazyWorkbookRef.current, sheetId, (result as { conditionalRules?: unknown }).conditionalRules);
+  });
   const setMessage = (message: string) => options.onMessage?.(message);
 
   const runtime: UniverRuntime = createUniver({
@@ -888,7 +894,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       const state = lazyWorkbookRef.current;
       if (!state || (kind !== "conditionalFormats" && kind !== "dataValidations")) return null;
       const worksheet = runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId);
-      return worksheet ? readLiveRuleSet(worksheet, kind) : null;
+      return worksheet ? readLiveRuleSet(worksheet, kind, linkedRuleIds(state, sheetId)) : null;
     },
     setDarkMode: (dark) => themeService.setDarkMode(dark),
     undo() {

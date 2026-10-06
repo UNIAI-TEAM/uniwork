@@ -34,7 +34,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
-const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed, readLiveRuleSet, settleDvErrorStyle, ensureDvHintStyle, askOnValidateCell, ruleSetTargetsLive, installStacked } = module.exports;
+const { createEditJournal, recordSheetDuplicate, recordSheetInsert, ingestRuleSetMutation, snapshotSheetRules, ruleSetSheetReady, canExecuteCommand, restoreRuleSetFamily, ruleSetRestoreAllowed, readLiveRuleSet, settleDvErrorStyle, ensureDvHintStyle, askOnValidateCell, ruleSetTargetsLive, installStacked, noteLinkedConditionalRules, linkedRuleIds } = module.exports;
 
 const area = (startRow, endRow, startColumn, endColumn) => ({ startRow, endRow, startColumn, endColumn });
 function state({ applied = ['s1'], ruleSets, ruleCounts } = {}) {
@@ -574,4 +574,30 @@ test('stacked onValidateCell wrappers come off in reverse, so the original is re
   assert.notEqual(source.onValidateCell, original);
   stack.dispose();
   assert.equal(source.onValidateCell, original);
+});
+
+// review dvcf B2: a CF rule the loader installs from an Excel linked x14 rule
+// is flagged, by cfId, so the manager offers no Edit for it.
+test('a CF rule installed from a linked x14 rule reads back linked, by id, through later shifts', () => {
+  const book = state();
+  const bar = { cfId: 'cf-bar', ranges: [area(4, 5, 2, 2), area(1, 2, 2, 2)], stopIfTrue: false, rule: { type: 'dataBar', config: {} } };
+  const plainBar = { cfId: 'cf-plain', ranges: [area(1, 9, 3, 3)], stopIfTrue: false, rule: { type: 'dataBar', config: {} } };
+  const cellIs = { ...cfRule, cfId: 'cf-cell', ranges: [area(1, 2, 2, 2), area(4, 5, 2, 2)] };
+  // The range result the loader reads: OOXML types, areas in file order.
+  noteLinkedConditionalRules(book, 's1', [
+    { ruleType: 'dataBar', linked: true, ranges: [area(1, 2, 2, 2), area(4, 5, 2, 2)] },
+    { ruleType: 'dataBar', ranges: [area(1, 9, 3, 3)] },
+    { ruleType: 'cellIs', ranges: [area(1, 2, 2, 2), area(4, 5, 2, 2)] },
+  ]);
+  const install = (rule) => ingestRuleSetMutation(book, mutation('sheet.mutation.add-conditional-rule', { unitId: 'file-sha', subUnitId: 's1', rule }), () => null, true);
+  for (const rule of [bar, plainBar, cellIs]) install(rule);
+  assert.deepEqual([...linkedRuleIds(book, 's1')], ['cf-bar']);
+  // A row insert moves the live areas; the id still names the linked rule.
+  const shifted = { ...bar, ranges: [area(5, 6, 2, 2), area(2, 3, 2, 2)] };
+  const live = readLiveRuleSet(worksheet([shifted, plainBar, cellIs]), 'conditionalFormats', linkedRuleIds(book, 's1'));
+  assert.deepEqual(live.map((rule) => [rule.id, rule.linked ?? false]), [['cf-bar', true], ['cf-plain', false], ['cf-cell', false]]);
+  // Without the id set nothing is linked; another sheet holds none.
+  assert.equal(readLiveRuleSet(worksheet([bar]), 'conditionalFormats')[0].linked, undefined);
+  assert.equal(linkedRuleIds(book, 's2').size, 0);
+  assert.equal(linkedRuleIds(null, 's1').size, 0);
 });
