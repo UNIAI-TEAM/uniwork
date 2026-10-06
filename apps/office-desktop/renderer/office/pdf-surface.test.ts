@@ -585,7 +585,7 @@ describe("desktop PDF surface", () => {
       const renders = engine.ofOperation("render");
       expect(renders).toHaveLength(5);
       for (const [index, render] of renders.entries()) {
-        expect(render.args).toEqual({ pageIndex: index, scale: 2, pdfHandle: "pdf_1" });
+        expect(render.args).toEqual({ pageIndex: index, scale: 2, pdfHandle: "pdf_1", surface: expect.stringMatching(/^pdfs_[0-9a-f]{32}$/) });
       }
     });
 
@@ -640,7 +640,7 @@ describe("desktop PDF surface", () => {
       const surface = createDesktopPdfSurface(settings(engine.call));
       await surface.open();
       await surface.dispose();
-      expect(engine.ofOperation("close").map((request) => request.args)).toEqual([{ pdfHandle: "pdf_1" }]);
+      expect(engine.ofOperation("close").map((request) => request.args)).toEqual([{ pdfHandle: "pdf_1", surface: expect.any(String) }]);
       expect(engine.live.size).toBe(0);
       const before = engine.call.mock.calls.length;
       await expect(surface.renderer!.renderPage(page(1))).rejects.toThrow("pdf_surface_disposed");
@@ -652,7 +652,7 @@ describe("desktop PDF surface", () => {
       const surface = createDesktopPdfSurface(settings(engine.call));
       await surface.open();
       await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
-      expect(engine.ofOperation("close").map((request) => request.args)).toEqual([{ pdfHandle: "pdf_1" }]);
+      expect(engine.ofOperation("close").map((request) => request.args)).toEqual([{ pdfHandle: "pdf_1", surface: expect.any(String) }]);
       await surface.renderer!.renderPage(page(1));
       expect(engine.ofOperation("render").at(-1)!.args.pdfHandle).toBe("pdf_2");
     });
@@ -667,7 +667,55 @@ describe("desktop PDF surface", () => {
       // The old handle was dropped with the failed re-probe: the render re-opens the edited bytes.
       await surface.renderer!.renderPage(page(1));
       expect(engine.ofOperation("render").map((request) => request.args.pdfHandle)).toEqual(["pdf_2"]);
-      expect(engine.ofOperation("close").map((request) => request.args)).toEqual([{ pdfHandle: "pdf_1" }]);
+      expect(engine.ofOperation("close").map((request) => request.args)).toEqual([{ pdfHandle: "pdf_1", surface: expect.any(String) }]);
+    });
+
+    it("names its own surface instance on every call, so two surfaces of one document keep apart", async () => {
+      const engine = handleEngine(1);
+      const seen = { older: new Set<unknown>(), newer: new Set<unknown>() };
+      const via = (name: keyof typeof seen) => async (channel: string, payload: unknown) => {
+        seen[name].add((payload as Request).args.surface);
+        return await engine.call(channel, payload);
+      };
+      const older = createDesktopPdfSurface(settings(via("older")));
+      const newer = createDesktopPdfSurface(settings(via("newer")));
+      await older.open();
+      await newer.open();
+      await older.renderer!.renderPage(page(1));
+      await newer.renderer!.renderPage(page(1));
+      await older.dispose();
+      expect(seen.older.size).toBe(1);
+      expect(seen.newer.size).toBe(1);
+      expect([...seen.older][0]).not.toBe([...seen.newer][0]);
+    });
+
+    it("re-probes an edit by the live handle and never sends the password again for it", async () => {
+      const engine = handleEngine(1);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open(undefined, "    ");
+      await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
+      surface.undo();
+      await vi.waitFor(() => expect(engine.ofOperation("open")).toHaveLength(3));
+      const [first, ...reprobes] = engine.ofOperation("open");
+      expect(first!.args).toMatchObject({ retain: true, password: "    " });
+      expect(reprobes.map((request) => request.args.pdfHandle)).toEqual(["pdf_1", "pdf_2"]);
+      for (const request of reprobes) {
+        expect(request.args).toMatchObject({ retain: true, dataBase64: expect.any(String) });
+        expect(request.args).not.toHaveProperty("password");
+      }
+      for (const request of engine.ofOperation("edit")) expect(request.args).not.toHaveProperty("password");
+    });
+
+    it("hands the password over again only for a re-open after the engine dropped the handle", async () => {
+      const engine = handleEngine(1);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open(undefined, "    ");
+      engine.live.clear();
+      await surface.renderer!.renderPage(page(1));
+      const opens = engine.ofOperation("open");
+      expect(opens).toHaveLength(2);
+      expect(opens[1]!.args).toMatchObject({ retain: true, password: "    " });
+      expect(opens[1]!.args).not.toHaveProperty("pdfHandle");
     });
   });
 });

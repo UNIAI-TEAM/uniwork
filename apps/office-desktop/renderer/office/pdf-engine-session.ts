@@ -19,6 +19,8 @@ export interface PdfEngineSession {
   /** Run one engine call against the current document. A stale handle re-opens
    * the document once and retries; a second stale answer is returned as is. */
   run<R extends EngineAnswer>(call: (pdfHandle: string) => Promise<R>): Promise<R>;
+  /** The handle of the current document, if one is held. */
+  current(): string | null;
   /** Free the current document; later runs refuse. */
   close(): void;
 }
@@ -80,6 +82,7 @@ export function createPdfEngineSession(ports: PdfEngineSessionPorts): PdfEngineS
       if (!isStaleHandle(answer) || closed) return answer;
       return await call(await handleAfter(first));
     },
+    current: () => current,
     close() {
       closed = true;
       epoch += 1;

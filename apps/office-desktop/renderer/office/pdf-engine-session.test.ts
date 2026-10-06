@@ -21,6 +21,18 @@ describe("pdf engine session", () => {
     expect(reopen).not.toHaveBeenCalled();
   });
 
+  it("reports the current handle, none after a failed open or a close", () => {
+    const session = createPdfEngineSession({ reopen: async () => "pdf_x", close: vi.fn(async () => undefined) });
+    expect(session.current()).toBeNull();
+    session.adopt("pdf_1");
+    expect(session.current()).toBe("pdf_1");
+    session.adopt(undefined);
+    expect(session.current()).toBeNull();
+    session.adopt("pdf_2");
+    session.close();
+    expect(session.current()).toBeNull();
+  });
+
   it("does not install a re-open that an adopt overtook, and closes its handle", async () => {
     const pending = deferred<string>();
     const close = vi.fn(async () => undefined);

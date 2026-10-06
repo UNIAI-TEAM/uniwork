@@ -141,6 +141,14 @@ function pushBounded(stack: Uint8Array[], entry: Uint8Array, budget: number): vo
   }
 }
 
+/** A random id for one surface instance, so two surfaces of one document
+ * (draft recovery builds the new one before disposing the old) never replace
+ * each other's retained engine document. */
+function newSurfaceId(): string {
+  const random = crypto.getRandomValues(new Uint8Array(16));
+  return `pdfs_${Array.from(random, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** `undoByteBudget` is a test seam; production uses UNDO_BYTE_BUDGET. */
 export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoByteBudget = UNDO_BYTE_BUDGET): PdfEditorHandle<Uint8Array> & {
   format: DesktopDocumentFormat;
@@ -184,14 +192,16 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     setSelection: (next) => { selected = next ?? null; },
     subscribe: (listener) => { listener(selected); return () => undefined; },
   };
+  const surfaceId = newSurfaceId();
   const callEngine = async (operation: "open" | "edit" | "render" | "text" | "close", args: Record<string, unknown>): Promise<EngineResponse> => {
-    const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args };
+    const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args: { ...args, surface: surfaceId } };
     return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse;
   };
 
   /** The engine keeps the opened bytes: open and every byte swap send the
    * document once, and a render or text read sends only its request. A stale
-   * handle (the engine dropped it) re-sends the current bytes once. */
+   * handle (the engine evicted it) re-sends the current bytes once, and only
+   * then does the surface hand over the password again. */
   const engineSession = createPdfEngineSession({
     reopen: async () => {
       const result = await callEngine("open", retainedOpenArgs(password));
@@ -201,7 +211,8 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
     close: (pdfHandle) => callEngine("close", { pdfHandle }),
   });
   /** An open of the current bytes the engine keeps; the password goes with
-   * this one transfer and stays engine-side for the handle's renders. */
+   * this one transfer and stays engine-side for the handle's renders and for
+   * every re-probe that names the handle. */
   function retainedOpenArgs(withPassword: string | undefined): Record<string, unknown> {
     const args: Record<string, unknown> = { dataBase64: bytesBase64(), retain: true };
     if (withPassword !== undefined) args.password = withPassword;
@@ -302,7 +313,10 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoBy
    * A failed re-probe keeps the previous geometry and never fails the edit. */
   const refreshGeometry = async (): Promise<void> => {
     try {
-      const result = await callEngine("open", retainedOpenArgs(password));
+      // Name the live handle: the engine re-keys the new bytes to the password
+      // it already holds, so a byte swap never sends the password again.
+      const live = engineSession.current();
+      const result = await callEngine("open", live ? { dataBase64: bytesBase64(), retain: true, pdfHandle: live } : retainedOpenArgs(password));
       // The engine now holds the new bytes; without a handle the next render
       // re-sends them instead of drawing the pre-edit document.
       engineSession.adopt(result.ok ? result.pdfHandle : undefined);
