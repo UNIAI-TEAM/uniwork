@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, parse, resolve } from "node:path";
+import { dirname, join, parse, resolve, win32 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
@@ -502,36 +502,50 @@ function fakeUpstreamBuild(calls, { status = 0, sidecar = true } = {}) {
 }
 
 test("cargo is found on PATH first, then in the rustup home a --no-modify-path install leaves off PATH", () => {
-  const onPath = join("C:", "tools", "rust", "bin");
-  const home = join("C:", "Users", "dev");
-  const both = new Set([join(onPath, "cargo.exe"), join(home, ".cargo", "bin", "cargo.exe")]);
-  assert.equal(locateCargo({ platform: "win32", environment: { Path: onPath, USERPROFILE: home }, exists: (file) => both.has(file) }), join(onPath, "cargo.exe"));
-  const homeOnly = new Set([join(home, ".cargo", "bin", "cargo.exe")]);
-  assert.equal(locateCargo({ platform: "win32", environment: { Path: onPath, USERPROFILE: home }, exists: (file) => homeOnly.has(file) }), join(home, ".cargo", "bin", "cargo.exe"));
-  assert.equal(locateCargo({ platform: "linux", environment: { PATH: "", HOME: "/home/dev", CARGO_HOME: "/opt/cargo" }, exists: (file) => file === join("/opt/cargo", "bin", "cargo") }), join("/opt/cargo", "bin", "cargo"));
+  // Windows-flavoured paths, spelled with win32 explicitly so the answer is the same on a POSIX host (the cloud runner) and on Windows.
+  const onPath = win32.normalize("C:/tools/rust/bin");
+  const home = win32.normalize("C:/Users/dev");
+  const both = new Set([win32.join(onPath, "cargo.exe"), win32.join(home, ".cargo", "bin", "cargo.exe")]);
+  assert.equal(locateCargo({ platform: "win32", environment: { Path: onPath, USERPROFILE: home }, exists: (file) => both.has(file) }), win32.join(onPath, "cargo.exe"));
+  const homeOnly = new Set([win32.join(home, ".cargo", "bin", "cargo.exe")]);
+  assert.equal(locateCargo({ platform: "win32", environment: { Path: onPath, USERPROFILE: home }, exists: (file) => homeOnly.has(file) }), win32.join(home, ".cargo", "bin", "cargo.exe"));
+  assert.equal(locateCargo({ platform: "linux", environment: { PATH: "", HOME: "/home/dev", CARGO_HOME: "/opt/cargo" }, exists: (file) => file === "/opt/cargo/bin/cargo" }), "/opt/cargo/bin/cargo");
   assert.equal(locateCargo({ platform: "win32", environment: { Path: onPath, USERPROFILE: home }, exists: () => false }), null);
 });
 
+test("locateCargo splits PATH with the delimiter of the target platform, not of the host", () => {
+  // A drive letter's colon must not split a win32 PATH (the host delimiter on POSIX is ':'), and a POSIX PATH must not split on ';' or keep its colons joined (the host delimiter on Windows is ';').
+  const winPath = `${win32.normalize("C:/tools/rust/bin")};${win32.normalize("D:/other/bin")}`;
+  const second = win32.join(win32.normalize("D:/other/bin"), "cargo.exe");
+  assert.equal(locateCargo({ platform: "win32", environment: { Path: winPath, USERPROFILE: win32.normalize("C:/Users/dev") }, exists: (file) => file === second }), second);
+  const posixPath = "/usr/local/bin:/opt/rust/bin";
+  assert.equal(locateCargo({ platform: "linux", environment: { PATH: posixPath, HOME: "/home/dev" }, exists: (file) => file === "/opt/rust/bin/cargo" }), "/opt/rust/bin/cargo");
+  assert.equal(locateCargo({ platform: "darwin", environment: { PATH: posixPath, HOME: "/Users/dev" }, exists: (file) => file === "/Users/dev/.cargo/bin/cargo" }), "/Users/dev/.cargo/bin/cargo");
+});
+
 test("the Windows native build gets a short per-worktree CARGO_TARGET_DIR inside the workspace unless one is set", () => {
-  const workspace = resolve("/ws/.uniwork-dev");
-  const first = join(workspace, "worktrees", "dev-uniwork", "feature-UNI-940-office-parity-fu-xlsx-mdhtml");
-  const second = join(workspace, "worktrees", "dev-uniwork", "feature-UNI-941-other");
+  // Windows paths on purpose (win32.*), so the case runs the same on a POSIX host.
+  const workspace = win32.normalize("C:/ws/.uniwork-dev");
+  const first = win32.join(workspace, "worktrees", "dev-uniwork", "feature-UNI-940-office-parity-fu-xlsx-mdhtml");
+  const second = win32.join(workspace, "worktrees", "dev-uniwork", "feature-UNI-941-other");
   const target = nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: {} });
   // Inside the workspace (next to worktrees/), never a drive-root dir, short enough for MSVC MAX_PATH.
-  assert.equal(dirname(target), workspace);
+  assert.equal(win32.dirname(target), workspace);
   assert.match(target.slice(workspace.length + 1), /^ct-[0-9a-f]{8}$/);
-  assert.notEqual(dirname(target), parse(target).root);
-  assert.ok(target.length - parse(target).root.length < 40, `short target dir: ${target}`);
+  assert.notEqual(win32.dirname(target), win32.parse(target).root);
+  assert.ok(target.length - win32.parse(target).root.length < 40, `short target dir: ${target}`);
   // Stable per checkout, different per worktree.
   assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: {} }), target);
   assert.notEqual(nativeTargetDirectory({ repositoryRoot: second, platform: "win32", environment: {} }), target);
   // A checkout outside a .uniwork-dev workspace keeps it under its own .go-tmp (still no drive root).
-  const plain = resolve("/src/uniwork");
-  assert.equal(nativeTargetDirectory({ repositoryRoot: plain, platform: "win32", environment: {} }), join(plain, ".go-tmp", "ct"));
+  const plain = win32.normalize("C:/src/uniwork");
+  assert.equal(nativeTargetDirectory({ repositoryRoot: plain, platform: "win32", environment: {} }), win32.join(plain, ".go-tmp", "ct"));
   // An explicit CARGO_TARGET_DIR wins; a relative one resolves against the repo root.
-  assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: { CARGO_TARGET_DIR: "/t940" } }), resolve("/t940"));
-  assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: { CARGO_TARGET_DIR: "tgt" } }), join(first, "tgt"));
+  assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: { CARGO_TARGET_DIR: "D:/t940" } }), win32.normalize("D:/t940"));
+  assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: { CARGO_TARGET_DIR: "tgt" } }), win32.join(first, "tgt"));
   assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "linux", environment: {} }), null);
+  // A POSIX target with an explicit dir resolves with POSIX rules even when the host is Windows.
+  assert.equal(nativeTargetDirectory({ repositoryRoot: "/src/uniwork", platform: "linux", environment: { CARGO_TARGET_DIR: "tgt" } }), "/src/uniwork/tgt");
 });
 
 test("staging resolves a relative CARGO_TARGET_DIR against the repo root, like the native build", () => {

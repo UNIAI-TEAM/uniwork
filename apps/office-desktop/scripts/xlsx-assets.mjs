@@ -15,7 +15,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, delimiter, dirname, join, resolve } from "node:path";
+import { join, posix, resolve, win32 } from "node:path";
 import process from "node:process";
 
 /** The staged directory name; matches the main-process resolution and the
@@ -31,6 +31,11 @@ export const XLSX_BUILD_RECORD_FILE = "build-record.json";
 /** The sidecar binary name for a platform (the engine resolves the same name). */
 export function xlsxSidecarFile(platform = process.platform) {
   return platform === "win32" ? "xlsx-sidecar.exe" : "xlsx-sidecar";
+}
+
+/** The path flavour of a target platform: a win32 build computed on a POSIX host (or the reverse) splits and joins like the target. */
+function pathFor(platform) {
+  return platform === "win32" ? win32 : posix;
 }
 
 function firstExisting(candidates) {
@@ -200,18 +205,19 @@ function pathKey(environment) {
  * install leaves off PATH (--no-modify-path). Null when there is none.
  */
 export function locateCargo({ environment = process.env, platform = process.platform, exists = existsSync } = {}) {
+  const flavour = pathFor(platform);
   const executable = platform === "win32" ? "cargo.exe" : "cargo";
-  const directories = (environment[pathKey(environment)] ?? "").split(delimiter).filter(Boolean);
+  const directories = (environment[pathKey(environment)] ?? "").split(flavour.delimiter).filter(Boolean);
   const home = environment.USERPROFILE || environment.HOME || homedir();
-  directories.push(join(environment.CARGO_HOME?.trim() || join(home, ".cargo"), "bin"));
-  return directories.map((directory) => join(directory, executable)).find((candidate) => exists(candidate)) ?? null;
+  directories.push(flavour.join(environment.CARGO_HOME?.trim() || flavour.join(home, ".cargo"), "bin"));
+  return directories.map((directory) => flavour.join(directory, executable)).find((candidate) => exists(candidate)) ?? null;
 }
 
 /** The nearest ancestor directory named .uniwork-dev (the workspace scratch root), or null. */
-function uniworkDevRoot(directory) {
-  for (let current = directory; ; current = dirname(current)) {
-    if (basename(current) === ".uniwork-dev") return current;
-    if (dirname(current) === current) return null;
+function uniworkDevRoot(directory, flavour) {
+  for (let current = directory; ; current = flavour.dirname(current)) {
+    if (flavour.basename(current) === ".uniwork-dev") return current;
+    if (flavour.dirname(current) === current) return null;
   }
 }
 
@@ -225,13 +231,14 @@ function uniworkDevRoot(directory) {
  * Elsewhere cargo's own <crate>/target is fine (null).
  */
 export function nativeTargetDirectory({ repositoryRoot, platform = process.platform, environment = process.env } = {}) {
+  const flavour = pathFor(platform);
   const configured = environment.CARGO_TARGET_DIR?.trim();
-  if (configured) return resolve(repositoryRoot, configured);
+  if (configured) return flavour.resolve(repositoryRoot, configured);
   if (platform !== "win32") return null;
-  const root = resolve(repositoryRoot);
-  const workspace = uniworkDevRoot(root);
-  if (!workspace) return join(root, ".go-tmp", "ct");
-  return join(workspace, `ct-${createHash("sha256").update(root.toLowerCase()).digest("hex").slice(0, 8)}`);
+  const root = flavour.resolve(repositoryRoot);
+  const workspace = uniworkDevRoot(root, flavour);
+  if (!workspace) return flavour.join(root, ".go-tmp", "ct");
+  return flavour.join(workspace, `ct-${createHash("sha256").update(root.toLowerCase()).digest("hex").slice(0, 8)}`);
 }
 
 /**
@@ -261,7 +268,7 @@ export function ensureXlsxAssets({
   const args = [join(repositoryRoot, "scripts", "office", "build-upstream.mjs"), "--with-native", "--out", before.buildDirectory];
   if (existsSync(join(before.buildDirectory, "upstream", "node_modules"))) args.push("--skip-install");
   const key = pathKey(environment);
-  const childEnvironment = { ...environment, [key]: [dirname(cargo), environment[key] ?? ""].join(delimiter) };
+  const childEnvironment = { ...environment, [key]: [pathFor(platform).dirname(cargo), environment[key] ?? ""].join(pathFor(platform).delimiter) };
   const targetDirectory = nativeTargetDirectory({ repositoryRoot, platform, environment });
   if (targetDirectory) childEnvironment.CARGO_TARGET_DIR = targetDirectory;
   log(`office-desktop: building the xlsx gateway + recalc sidecar with ${cargo}${targetDirectory ? ` (CARGO_TARGET_DIR=${targetDirectory})` : ""}`);
