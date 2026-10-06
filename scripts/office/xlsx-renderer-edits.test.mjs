@@ -36,7 +36,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
-  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, outlineLevels, outlineHistoryItem, seedColumnOutline, liveSessionSheets,
+  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, outlineLevels, outlineHistoryItem, outlineDetailSpan, seedColumnOutline, liveSessionSheets,
   sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
   sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate, observeValidationVerdicts } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
@@ -399,6 +399,22 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 99999, action: 'group' } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 100000, action: 'group' } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 2, action: 'group', subUnitId: 'ghost' } }, model, false), false);
+  // Show / Hide Detail: axis enum, boolean hide, an in-grid span, a known sheet.
+  const detail = (params) => canExecuteCommand({ id: 'uniwork.command.set-outline-detail', params }, model, false);
+  assert.equal(detail({ axis: 'rows', start: 2, end: 2, hide: true }), true);
+  assert.equal(detail({ axis: 'cols', start: 1, end: 3, hide: false, subUnitId: 's1' }), true);
+  assert.equal(detail({ axis: 'sheet', start: 2, end: 2, hide: true }), false);
+  assert.equal(detail({ start: 2, end: 2, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 2, end: 2, hide: 'yes' }), false);
+  assert.equal(detail({ axis: 'rows', start: 2, end: 2 }), false);
+  assert.equal(detail({ axis: 'rows', start: -1, end: 2, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 1.5, end: 2, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 3, end: 2, hide: true }), false);
+  assert.equal(detail({ axis: 'cols', start: 0, end: 16384, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 0, end: 1_048_576, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 2, end: 2, hide: true, subUnitId: 'ghost' }), false);
+  assert.equal(detail(undefined), false);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-outline-detail', params: { axis: 'rows', start: 2, end: 2, hide: true } }, model, true), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2 } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2, subUnitId: 's1' } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 2, end: 1 } }, model, false), false);
@@ -687,6 +703,29 @@ test('outline actions shift runs of levels, clamp at the bounds and clear', () =
   assert.deepEqual(applyOutlineAction(model, 's1', 'rows', 3, 2, 'group'), []);
   assert.deepEqual(applyOutlineAction(model, 'ghost', 'rows', 0, 1, 'group'), []);
   assert.deepEqual(applyOutlineAction(null, 's1', 'rows', 0, 1, 'group'), []);
+});
+
+test('Show / Hide Detail targets the outline group of a line or the group a summary line closes', () => {
+  const model = state();
+  // Rows 1-3 at level 1 with rows 2-3 at level 2; row 4 is the level-1 summary
+  // (level 0 below a group); row 6 is a lone level-1 line.
+  applyOutlineAction(model, 's1', 'rows', 1, 3, 'group');
+  applyOutlineAction(model, 's1', 'rows', 2, 3, 'group');
+  applyOutlineAction(model, 's1', 'rows', 6, 6, 'group');
+  // A detail line: the run around it at or below its own level.
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 1), { start: 1, end: 3 });
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 3), { start: 2, end: 3 });
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 6), { start: 6, end: 6 });
+  // A summary line (summary below detail, the Excel default) closes the group above it.
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 4), { start: 1, end: 3 });
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 7), { start: 6, end: 6 });
+  // Not grouped at all, an unknown sheet, an axis without levels: no group.
+  assert.equal(outlineDetailSpan(model, 's1', 'rows', 0), null);
+  assert.equal(outlineDetailSpan(model, 's1', 'rows', 9), null);
+  assert.equal(outlineDetailSpan(model, 'ghost', 'rows', 1), null);
+  assert.equal(outlineDetailSpan(model, 's1', 'cols', 1), null);
+  assert.equal(outlineDetailSpan(model, 's1', 'rows', -1), null);
+  assert.equal(outlineDetailSpan(null, 's1', 'rows', 1), null);
 });
 
 test('outline levels follow their rows and columns through inserts and removals', () => {

@@ -36,8 +36,10 @@ import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type X
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
+  outlineDetailSpan,
   outlineHistoryItem,
   outlineLevels,
+  validOutlineSpan,
   createValidatedWriteGate,
   observeValidationVerdicts,
   ingestCellMutation,
@@ -512,7 +514,32 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       runtime.univer.__getInjector().get(IUndoRedoService)
         .pushUndoRedo(outlineHistoryItem(unitId, sheetId, axis, p.start, p.end, p.action, before));
     }
-    return ran;
+    // A valid span the action leaves as it is (ungroup at level 0, group at
+    // level 7) succeeds with no edit: inside a batch (Subtotal) it must not
+    // read as a refused step.
+    return ran || validOutlineSpan(lazyWorkbookRef.current, sheetId, p.start, p.end);
+  };
+  // Show / Hide Detail (Excel): hide or show the outline group the selection's
+  // first line belongs to (or the group a summary line closes) through the
+  // allowlisted hidden/visible command, so the step journals and undoes like
+  // any hide. No group: nothing runs, nothing is marked dirty.
+  const runOutlineDetail = (params: unknown): boolean => {
+    const p = params as { subUnitId?: string; axis?: string; start?: number; hide?: boolean } | undefined;
+    if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.hide !== "boolean") return false;
+    if (p.axis !== "rows" && p.axis !== "cols") return false;
+    const workbook = runtime.univerAPI.getActiveWorkbook();
+    const sheetId = p.subUnitId ?? workbook?.getActiveSheet()?.getSheetId();
+    if (!sheetId || !workbook) return false;
+    const span = outlineDetailSpan(lazyWorkbookRef.current, sheetId, p.axis, p.start);
+    if (!span) return true;
+    const rows = p.axis === "rows";
+    const range = rows
+      ? { startRow: span.start, endRow: span.end, startColumn: 0, endColumn: 0, rangeType: 1 }
+      : { startRow: 0, endRow: 0, startColumn: span.start, endColumn: span.end, rangeType: 2 };
+    const id = rows
+      ? p.hide ? "sheet.command.set-rows-hidden" : "sheet.command.set-specific-rows-visible"
+      : p.hide ? "sheet.command.set-col-hidden" : "sheet.command.set-col-visible-on-cols";
+    return runtime.univerAPI.syncExecuteCommand(id, { unitId: workbook.getId(), subUnitId: sheetId, ranges: [range] }) === true;
   };
   const runColumnDefaultWidth = (params: unknown): boolean => {
     const p = params as { subUnitId?: string; start?: number; end?: number } | undefined;
@@ -531,6 +558,11 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       handler: (_accessor, params) => runOutline(axis, params),
     }));
   }
+  disposables.push(commandService.registerCommand({
+    id: "uniwork.command.set-outline-detail",
+    type: CommandType.COMMAND,
+    handler: (_accessor, params) => runOutlineDetail(params),
+  }));
   disposables.push(commandService.registerCommand({
     id: "uniwork.command.set-cols-default-width",
     type: CommandType.COMMAND,

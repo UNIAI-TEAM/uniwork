@@ -47,9 +47,14 @@ export function outlineCommandParams(
 
 const BASE = "office.xlsx.structure";
 
+/** Show / Hide Detail: the controller finds the outline group and runs the
+ *  hidden/visible command on it. */
+export const OUTLINE_DETAIL_COMMAND = "uniwork.command.set-outline-detail";
+
 /** Data tab "Outline" group (Excel layout): Group / Ungroup dropdowns for the
- *  selection's rows and columns, plus Show / Hide Detail, which hide or show
- *  the selection's lines (columns for a whole-column selection). Subtotal
+ *  selection's rows and columns, plus Show / Hide Detail, which collapse or
+ *  expand the outline group holding the selection's first line (or the group
+ *  a summary line closes; columns for a whole-column selection). Subtotal
  *  follows Ungroup, as in Excel (./data-tools/subtotal-dialog.tsx). */
 export function XlsxStructureOutlineGroup(props: XlsxToolbarGroupProps) {
   const { readOnly = false, selection, commands } = props;
@@ -66,16 +71,24 @@ export function XlsxStructureOutlineGroup(props: XlsxToolbarGroupProps) {
     if (span === null) return;
     run(outlineCommandId(axis), outlineCommandParams(span, axis, action));
   };
+  // Clear Outline is one user action: both axes go in one undo step.
+  const clearOutline = () => {
+    if (blocked || !commands || span === null) return;
+    const steps = (["rows", "cols"] as const).map((axis) =>
+      ({ id: outlineCommandId(axis), params: outlineCommandParams(span, axis, "clear") }));
+    if (!commands.executeAsOneStep) {
+      for (const step of steps) run(step.id, step.params);
+      return;
+    }
+    void commands.executeAsOneStep(steps).then((ran) => {
+      if (!ran) console.warn("[xlsx-command] clear outline was refused");
+    }, (error: unknown) => console.warn(`[xlsx-command] ${error instanceof Error ? error.message : String(error)}`));
+  };
   const detail = (hide: boolean) => {
     if (span === null) return;
-    const ranges = [
-      { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn },
-    ];
-    const byColumn = selection?.rangeType === XLSX_RANGE_TYPE.COLUMN;
-    const id = byColumn
-      ? hide ? "sheet.command.set-col-hidden" : "sheet.command.set-col-visible-on-cols"
-      : hide ? "sheet.command.set-rows-hidden" : "sheet.command.set-specific-rows-visible";
-    run(id, { ranges });
+    const axis = selection?.rangeType === XLSX_RANGE_TYPE.COLUMN ? "cols" : "rows";
+    const { start, end } = outlineCommandParams(span, axis, "group");
+    run(OUTLINE_DETAIL_COMMAND, { axis, start, end, hide });
   };
 
   const dropdown = (
@@ -130,10 +143,7 @@ export function XlsxStructureOutlineGroup(props: XlsxToolbarGroupProps) {
           key: "clear-outline",
           label: t(`${BASE}.clearOutline`),
           separatorBefore: true,
-          onSelect: () => {
-            outline("rows", "clear");
-            outline("cols", "clear");
-          },
+          onSelect: clearOutline,
         },
       ])}
       <XlsxSubtotalButton {...props} />

@@ -779,6 +779,15 @@ export function applyColumnDefaultWidth(
   return [{ sheetId, structural }];
 }
 
+/** Whether an outline action can address this span: a known sheet and an
+ *  ordered, non-negative integer span. A valid span can still change nothing
+ *  (ungroup at level 0, group at level 7); callers tell that apart from a
+ *  refused one with this. */
+export function validOutlineSpan(state: LazyWorkbookState | null, sheetId: string, start: number, end: number): boolean {
+  if (!state || !state.file.sheets.some((sheet) => sheet.id === sheetId)) return false;
+  return Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end >= start;
+}
+
 /** Group/ungroup/clear for a selection span. Outline levels have no Univer
  *  model (and no command to undo — genoffice parity), so the controller's
  *  outline commands journal directly here; contiguous runs of equal levels
@@ -791,8 +800,7 @@ export function applyOutlineAction(
   end: number,
   action: XlsxOutlineAction,
 ): XlsxRendererStructuralEdit[] {
-  if (!state || !state.file.sheets.some((sheet) => sheet.id === sheetId)) return [];
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) return [];
+  if (!state || !validOutlineSpan(state, sheetId, start, end)) return [];
   const outline = state.outline.get(sheetId) ?? { rows: new Map(), cols: new Map() };
   state.outline.set(sheetId, outline);
   const kind = axis === "rows" ? ("set-rows-outline" as const) : ("set-cols-outline" as const);
@@ -833,6 +841,37 @@ export function applyOutlineAction(
   }
   closeRun(end);
   return touched ? edits : [];
+}
+
+/** The outline group Show / Hide Detail acts on (Excel): when the line
+ *  before `line` sits deeper, `line` is the summary of the group above it and
+ *  that group is the target (summary rows below their detail, Excel's
+ *  default); otherwise a grouped line targets the run around it at or below
+ *  its own level. Null when the line is in no group. */
+export function outlineDetailSpan(
+  state: LazyWorkbookState | null,
+  sheetId: string,
+  axis: "rows" | "cols",
+  line: number,
+): { start: number; end: number } | null {
+  if (!Number.isInteger(line) || line < 0) return null;
+  const outline = state?.outline.get(sheetId);
+  const entries = axis === "rows" ? outline?.rows : outline?.cols;
+  if (!entries) return null;
+  const level = (at: number): number => entries.get(at)?.level ?? 0;
+  const own = level(line);
+  if (line > 0 && level(line - 1) > own) {
+    let start = line - 1;
+    while (start > 0 && level(start - 1) > own) start -= 1;
+    return { start, end: line - 1 };
+  }
+  if (own === 0) return null;
+  let start = line;
+  let end = line;
+  while (start > 0 && level(start - 1) >= own) start -= 1;
+  // Ends at the first shallower line; unseeded lines read level 0 < own.
+  while (level(end + 1) >= own) end += 1;
+  return { start, end };
 }
 
 /** Outline levels follow their lines through a row/column insert or removal

@@ -327,6 +327,7 @@ describe("XlsxStructureOutlineGroup", () => {
     openMenu("xlsx-outline-ungroup");
     pick("xlsx-outline-ungroup-cols");
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-outline", { start: 1, end: 2, action: "ungroup" });
+    // A port without the batch runs both clears one by one.
     openMenu("xlsx-outline-ungroup");
     expect(screen.getByTestId("xlsx-outline-clear-outline")).toHaveTextContent(viText("office.xlsx.structure.clearOutline"));
     pick("xlsx-outline-clear-outline");
@@ -334,28 +335,43 @@ describe("XlsxStructureOutlineGroup", () => {
     expect(execute).toHaveBeenCalledWith("uniwork.command.set-cols-outline", { start: 1, end: 2, action: "clear" });
   });
 
-  it("hides and shows the selection's rows from Hide / Show Detail", () => {
+  it("clears the row and column outline as ONE undo step", () => {
+    const props = groupProps();
+    const executeAsOneStep = vi.fn(async () => true);
+    const commands = { ...props.commands!, executeAsOneStep };
+    render(<XlsxStructureOutlineGroup {...props} commands={commands} />);
+    openMenu("xlsx-outline-ungroup");
+    pick("xlsx-outline-clear-outline");
+    expect(executeAsOneStep).toHaveBeenCalledTimes(1);
+    expect(executeAsOneStep).toHaveBeenCalledWith([
+      { id: "uniwork.command.set-rows-outline", params: { start: 1, end: 3, action: "clear" } },
+      { id: "uniwork.command.set-cols-outline", params: { start: 1, end: 2, action: "clear" } },
+    ]);
+    expect(executeMock(props)).not.toHaveBeenCalled();
+  });
+
+  it("collapses and expands the outline group holding the selection from Hide / Show Detail", () => {
     const props = groupProps();
     render(<XlsxStructureOutlineGroup {...props} />);
     const execute = executeMock(props);
-    const ranges = [{ startRow: 1, endRow: 3, startColumn: 1, endColumn: 2 }];
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.hideDetail") }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.set-rows-hidden", { ranges });
+    expect(execute).toHaveBeenCalledWith("uniwork.command.set-outline-detail", { axis: "rows", start: 1, end: 3, hide: true });
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.showDetail") }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.set-specific-rows-visible", { ranges });
+    expect(execute).toHaveBeenCalledWith("uniwork.command.set-outline-detail", { axis: "rows", start: 1, end: 3, hide: false });
+    // Never the selection's own lines: that would hide a summary row itself.
+    expect(execute).not.toHaveBeenCalledWith("sheet.command.set-rows-hidden", expect.anything());
   });
 
-  it("uses the column commands for a whole-column selection", () => {
+  it("uses the column axis for a whole-column selection", () => {
     const props = groupProps({
       selection: { sheet: "Data", address: "B1", endAddress: "C1000", rangeType: XLSX_RANGE_TYPE.COLUMN },
     });
     render(<XlsxStructureOutlineGroup {...props} />);
     const execute = executeMock(props);
-    const ranges = [{ startRow: 0, endRow: 999, startColumn: 1, endColumn: 2 }];
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.hideDetail") }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.set-col-hidden", { ranges });
+    expect(execute).toHaveBeenCalledWith("uniwork.command.set-outline-detail", { axis: "cols", start: 1, end: 2, hide: true });
     fireEvent.click(screen.getByRole("button", { name: viText("office.xlsx.structure.showDetail") }));
-    expect(execute).toHaveBeenCalledWith("sheet.command.set-col-visible-on-cols", { ranges });
+    expect(execute).toHaveBeenCalledWith("uniwork.command.set-outline-detail", { axis: "cols", start: 1, end: 2, hide: false });
   });
 
   it("stays focusable but inert without edit rights or a selection", () => {

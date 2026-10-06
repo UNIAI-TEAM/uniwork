@@ -394,8 +394,11 @@ test('outline commands run through the registered command service and journal le
     assert.deepEqual(edits.at(-1), { sheetId: 's1', structural: { kind: 'set-rows-outline', start: 1, end: 3, level: 1 } });
     assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 1, end: 3, action: 'group' }), true);
     assert.deepEqual(edits.at(-1).structural, { kind: 'set-rows-outline', start: 1, end: 3, level: 2 });
-    // A run already at the boundary is a no-op; malformed params never run.
-    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 2, end: 2, action: 'ungroup' }), false);
+    // A run already at the boundary changes nothing and still succeeds (a
+    // Subtotal batch must not read it as a refused step); malformed params never run.
+    const before = edits.length;
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 2, end: 2, action: 'ungroup' }), true);
+    assert.equal(edits.length, before);
     assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 3, end: 1, action: 'group' }), false);
     assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 0, end: 1, action: 'nope' }), false);
     assert.deepEqual(mounted.handle.getJournal().structuralOps.get('s1'), [
@@ -409,6 +412,40 @@ test('outline commands run through the registered command service and journal le
     await readonly.handle.loadWorkbook(file);
     assert.equal(await readonly.handle.executeCommand('uniwork.command.set-rows-outline', { start: 0, end: 1, action: 'group' }), false);
     assert.equal(readonly.handle.getJournal().structuralOps.size, 0);
+  } finally { readonly.close(); }
+});
+
+test('Show / Hide Detail hides or shows the outline group through the allowlisted row/column commands', async () => {
+  const edits = [];
+  let dirty = 0;
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch), onDirty: () => dirty++ });
+  try {
+    await mounted.handle.loadWorkbook(file);
+    const detail = (params) => mounted.handle.executeCommand('uniwork.command.set-outline-detail', params);
+    const ran = () => mounted.events.filter((event) => event.id.startsWith('sheet.command.set-'));
+    // No group under the line: succeeds, runs nothing, marks nothing dirty.
+    assert.equal(await detail({ axis: 'rows', start: 1, end: 1, hide: true }), true);
+    assert.deepEqual(ran(), []);
+    assert.equal(dirty, 0);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 2, end: 4, action: 'group' }), true);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-cols-outline', { start: 1, end: 2, action: 'group' }), true);
+    // A detail row hides its whole group; the summary row below shows it again.
+    assert.equal(await detail({ axis: 'rows', start: 3, end: 3, hide: true }), true);
+    assert.equal(await detail({ axis: 'rows', start: 5, end: 5, hide: false }), true);
+    assert.equal(await detail({ axis: 'cols', start: 1, end: 1, hide: true }), true);
+    assert.deepEqual(ran().map(({ id, params }) => [id, params.subUnitId, params.ranges]), [
+      ['sheet.command.set-rows-hidden', 's1', [{ startRow: 2, endRow: 4, startColumn: 0, endColumn: 0, rangeType: 1 }]],
+      ['sheet.command.set-specific-rows-visible', 's1', [{ startRow: 2, endRow: 4, startColumn: 0, endColumn: 0, rangeType: 1 }]],
+      ['sheet.command.set-col-hidden', 's1', [{ startRow: 0, endRow: 0, startColumn: 1, endColumn: 2, rangeType: 2 }]],
+    ]);
+    // Malformed params never run.
+    assert.equal(await detail({ axis: 'rows', start: 3, end: 3 }), false);
+    assert.equal(await detail({ axis: 'diag', start: 3, end: 3, hide: true }), false);
+  } finally { mounted.close(); }
+  const readonly = mountController({ readOnly: true });
+  try {
+    await readonly.handle.loadWorkbook(file);
+    assert.equal(await readonly.handle.executeCommand('uniwork.command.set-outline-detail', { axis: 'rows', start: 0, end: 0, hide: true }), false);
   } finally { readonly.close(); }
 });
 
