@@ -6,7 +6,7 @@
 
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { isAlive } from "./process-tree.ts";
 import type { ServiceGrant } from "./grants.ts";
 import { call, jobDirs, makeJob, startHarness, submit, waitTerminal, type Harness } from "../test/harness.ts";
@@ -245,7 +245,9 @@ describe("failed jobs release their worker slot (F3)", () => {
       expect((await waitTerminal(h, ok)).body.state).toBe("completed");
       // No slot was permanently withheld by a corpse holding the uid.
       expect(h.service.jobs.sandboxQuarantined).toBe(0);
-      expect(h.service.jobs.runningCount).toBe(0);
+      // A job settles its state before its finally releases the slot and
+      // decrements the running count, so wait for the release, not the state.
+      await vi.waitFor(() => expect(h.service.jobs.runningCount).toBe(0), { timeout: 5_000 });
     } finally {
       await h.close();
     }
