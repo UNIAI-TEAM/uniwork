@@ -1,9 +1,10 @@
 "use client";
 
 import { Fragment, type ReactNode } from "react";
+import { Maximize, MoveHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
-import { OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
+import { OfficeStatusActions, OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
 
 /** Counts the PDF chrome can show on the left of the status bar (C10). */
 export interface PdfStatusCounts {
@@ -34,6 +35,9 @@ export interface PdfStatusBarProps {
   /** Zoom as a fraction (1 = 100%). */
   zoom: number;
   onZoomChange?: (zoom: number) => void;
+  /** Fit buttons: each shows only when the host can measure the pane. */
+  onFitWidth?: () => void;
+  onFitPage?: () => void;
   /** The shortcuts-help trigger; always the last item of the row (F9). */
   help?: ReactNode;
   className?: string;
@@ -54,6 +58,8 @@ export function PdfStatusBar({
   selection,
   zoom,
   onZoomChange,
+  onFitWidth,
+  onFitPage,
   help,
   className,
   minZoom = 0.25,
@@ -106,6 +112,13 @@ export function PdfStatusBar({
                 {selection}
               </span>
             ) : null}
+            <OfficeStatusActions
+              label={t("office.status.viewLabel")}
+              actions={[
+                ...(onFitWidth ? [{ id: "fit-width", label: t("office.status.fitWidth"), icon: <MoveHorizontal aria-hidden />, onClick: onFitWidth }] : []),
+                ...(onFitPage ? [{ id: "fit-page", label: t("office.status.fitPage"), icon: <Maximize aria-hidden />, onClick: onFitPage }] : []),
+              ]}
+            />
             <div data-testid="pdf-status-zoom">
               <OfficeStatusZoom
                 value={Math.round(zoom * 100)}

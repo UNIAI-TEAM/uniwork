@@ -129,6 +129,20 @@ describe("DocxStatusBar", () => {
     expect(onZoomIn).toHaveBeenCalledTimes(1);
   });
 
+  it("offers page-width and whole-page view buttons only when the wiring supplies them (T12)", () => {
+    const onFitWidth = vi.fn();
+    const onFitPage = vi.fn();
+    const { unmount } = renderBar({ zoom: 100 });
+    expect(screen.queryByRole("group", { name: "View" })).toBeNull();
+    unmount();
+    renderBar({ zoom: 100, onFitWidth, onFitPage });
+    expect(screen.getByRole("group", { name: "View" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fit to width" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fit to page" }));
+    expect(onFitWidth).toHaveBeenCalledTimes(1);
+    expect(onFitPage).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the zoom step buttons inert when no controller is wired", () => {
     renderBar({ zoom: 100 });
     expect(screen.getByRole("button", { name: "Zoom out" })).toHaveAttribute("aria-disabled", "true");
