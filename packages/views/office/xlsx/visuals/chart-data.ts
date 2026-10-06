@@ -119,3 +119,38 @@ export function buildChartFromRange(input: BuildChartInput): XlsxVisualChart | n
 
   return { chartType, title: series.length === 1 ? (series[0]?.name ?? "") : "", series };
 }
+
+type ChartRange = BuildChartInput["range"];
+
+/** The most of a selection Insert Chart reads: a header row plus the point
+ *  cap, a category column plus the series cap. A whole-column or whole-sheet
+ *  selection never materialises more than this from the grid. */
+export function clampChartRange(range: ChartRange): ChartRange {
+  return {
+    startRow: range.startRow,
+    startColumn: range.startColumn,
+    endRow: Math.min(range.endRow, range.startRow + MAX_POINTS),
+    endColumn: Math.min(range.endColumn, range.startColumn + MAX_SERIES),
+  };
+}
+
+/** Drops the blank rows and columns trailing a read (the empty tail of a
+ *  whole-column selection), and says whether data reached the read's last
+ *  row or column, i.e. whether clamping may have cut data off. */
+export function trimBlankEdges(
+  values: readonly (readonly RawCell[])[],
+  display: readonly (readonly string[])[],
+): { values: RawCell[][]; display: string[][]; lastRowFilled: boolean; lastColumnFilled: boolean } {
+  const columnCount = values.reduce((max, row) => Math.max(max, row.length), 0);
+  let rows = values.length;
+  while (rows > 0 && (values[rows - 1] ?? []).every((cell) => isBlank(cell))) rows -= 1;
+  let columns = columnCount;
+  while (columns > 0 && values.slice(0, rows).every((row) => isBlank(row[columns - 1]))) columns -= 1;
+  return {
+    values: values.slice(0, rows).map((row) => Array.from({ length: columns }, (_, column) => row[column] ?? null)),
+    display: display.slice(0, rows).map((row) => Array.from({ length: columns }, (_, column) => row[column] ?? "")),
+    lastRowFilled: rows > 0 && rows === values.length,
+    lastColumnFilled: columns > 0 && columns === columnCount,
+  };
+}
+

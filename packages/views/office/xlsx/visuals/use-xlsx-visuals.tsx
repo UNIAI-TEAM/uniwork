@@ -2,22 +2,25 @@
 
 // UNI-940 X02 (B8): the editor wiring for charts, pictures and shapes. Like
 // protect/use-protect-names it owns its state and rides the editor's edit
-// channel: every insert, move, resize and delete sends one set_visual /
-// remove_visual op the engine folds by id and writes as new drawing parts on
-// save. The overlay is positioned through the renderer's geometry seam
+// channel: an insert sends set_visual with its body once, a move or resize
+// the anchor-only set_visual, a delete remove_visual; the engine folds them by
+// id and writes new drawing parts on save. While a save is in flight visuals
+// are frozen (no move or delete): an op typed after the save's snapshot would
+// otherwise address a visual the next base already holds in the file. The overlay is positioned through the renderer's geometry seam
 // (getCellBox / cellAtPoint) and re-measured on every viewport change.
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { XlsxVisualChartType, XlsxVisualShapeType } from "@uniwork/office-engine/xlsx";
 import type { XlsxSelection } from "../types";
 import { selectionSpan } from "../toolbar/structure-insert";
-import { buildChartFromRange } from "./chart-data";
+import { buildChartFromRange, clampChartRange, trimBlankEdges } from "./chart-data";
 import { fitPicture, readPictureFile } from "./picture-file";
 import { XlsxVisualLayer } from "./visual-layer";
 import {
   anchorFromBox,
   boxFromAnchor,
   insertBoxAt,
+  moveVisualOp,
   removeVisualOp,
   setVisualOp,
   type XlsxEditorVisual,
@@ -58,6 +61,8 @@ export interface XlsxVisualsOptions {
   editor: { edit?: ((ops: readonly unknown[]) => Promise<void> | void) | undefined; getDirtyGeneration(): number };
   /** The coordinator's last saved generation. */
   savedGeneration: number;
+  /** A save is in flight: visuals may be inserted but not moved or deleted. */
+  saving?: boolean;
   onApplied: () => void;
   onError: (message: string) => void;
 }
@@ -77,6 +82,7 @@ const nextVisualId = () => `v${Date.now().toString(36)}${(visualSequence += 1).t
 
 export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
   const { gridRef, gridReady, selection, sheets, canEdit, editor, savedGeneration, onApplied, onError } = options;
+  const saving = options.saving === true;
   const { edit } = editor;
   const activeSheetId = options.activeSheetId ?? sheets.find((sheet) => sheet.name === options.activeSheetName)?.id ?? null;
   const sheetName = useCallback((sheetId: string) => sheets.find((sheet) => sheet.id === sheetId)?.name, [sheets]);
@@ -118,7 +124,8 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
       : current));
   }, [savedGeneration]);
 
-  /** Apply `next` locally, send `op`, and restore `previous` if it fails. */
+  /** Apply `next` locally, send `op`, and restore this visual's entry from
+   *  `previous` if it fails (other visuals keep any later change). */
   const commit = useCallback((previous: readonly XlsxEditorVisual[], next: readonly XlsxEditorVisual[], op: Record<string, unknown>, id: string) => {
     if (!edit) return;
     setVisuals(next);
@@ -129,7 +136,11 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
         onApplied();
       })
       .catch((error: unknown) => {
-        setVisuals(previous);
+        const before = previous.find((visual) => visual.id === id);
+        setVisuals((current) => {
+          if (!before) return current.filter((visual) => visual.id !== id);
+          return current.some((visual) => visual.id === id) ? current.map((visual) => (visual.id === id ? before : visual)) : [...current, before];
+        });
         onError(error instanceof Error ? error.message : String(error));
       });
   }, [edit, generation, onApplied, onError]);
@@ -152,13 +163,21 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
     const measure = geometry();
     const name = activeSheetId === null ? undefined : sheetName(activeSheetId);
     if (!measure || !span || activeSheetId === null || !name) return;
-    const read = gridRef.current?.readRangeValues?.(activeSheetId, span) ?? null;
-    const chart = read ? buildChartFromRange({ values: read.values, display: read.display, range: span, sheetName: name, chartType }) : null;
-    if (!chart) {
+    // Read a bounded slice (a whole column or sheet would freeze the tab),
+    // then drop its empty tail.
+    const range = clampChartRange(span);
+    const raw = gridRef.current?.readRangeValues?.(activeSheetId, range) ?? null;
+    const read = raw ? trimBlankEdges(raw.values, raw.display) : null;
+    const chart = read ? buildChartFromRange({ values: read.values, display: read.display, range, sheetName: name, chartType }) : null;
+    if (!chart || !read) {
       onError(t("office.xlsx.visuals.errors.noChartData"));
       return;
     }
-    insert({ chart }, insertBoxAt(measure, activeSheetId, { row: span.startRow, column: span.endColumn + 1 }, CHART_SIZE));
+    const width = read.values.reduce((max, row) => Math.max(max, row.length), 0);
+    insert({ chart }, insertBoxAt(measure, activeSheetId, { row: span.startRow, column: range.startColumn + width }, CHART_SIZE));
+    if ((span.endRow > range.endRow && read.lastRowFilled) || (span.endColumn > range.endColumn && read.lastColumnFilled)) {
+      onError(t("office.xlsx.visuals.errors.chartClipped"));
+    }
   }, [activeSheetId, geometry, gridRef, insert, onError, sheetName, span, t]);
 
   const insertShape = useCallback((shapeType: XlsxVisualShapeType) => {
@@ -182,19 +201,19 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
   const move = useCallback((visual: XlsxEditorVisual, box: XlsxVisualBox) => {
     const measure = geometry();
     const name = sheetName(visual.sheetId);
-    if (!measure || !name || visual.saved) return;
+    if (!measure || !name || visual.saved || saving) return;
     const anchor = anchorFromBox(measure, visual.sheetId, box);
     if (!anchor) return;
     const moved = { ...visual, anchor };
-    commit(visuals, visuals.map((candidate) => (candidate.id === visual.id ? moved : candidate)), setVisualOp(moved, name), visual.id);
-  }, [commit, geometry, sheetName, visuals]);
+    commit(visuals, visuals.map((candidate) => (candidate.id === visual.id ? moved : candidate)), moveVisualOp(moved, name), visual.id);
+  }, [commit, geometry, saving, sheetName, visuals]);
 
   const remove = useCallback((visual: XlsxEditorVisual) => {
     const name = sheetName(visual.sheetId);
-    if (!name || visual.saved) return;
+    if (!name || visual.saved || saving) return;
     if (selectedId === visual.id) setSelectedId(null);
     commit(visuals, visuals.filter((candidate) => candidate.id !== visual.id), removeVisualOp(visual, name), visual.id);
-  }, [commit, selectedId, sheetName, visuals]);
+  }, [commit, saving, selectedId, sheetName, visuals]);
 
   const measure = geometry();
   const items = activeSheetId === null || !measure
@@ -212,7 +231,7 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
   }), [available, insertChart, insertShape, span]);
 
   const overlay = items.length > 0
-    ? <XlsxVisualLayer items={items} selectedId={selectedId} readOnly={!canEdit} onSelect={setSelectedId} onMove={move} onRemove={remove} />
+    ? <XlsxVisualLayer items={items} selectedId={selectedId} readOnly={!canEdit || saving} onSelect={setSelectedId} onMove={move} onRemove={remove} />
     : null;
 
   const dialog = (

@@ -120,6 +120,12 @@ export function setVisualOp(visual: XlsxEditorVisual, sheetName: string): Record
   return { op: "set_visual", target: { sheet: sheetName }, attributes: { id: visual.id, anchor: visual.anchor, ...body } };
 }
 
+/** A move or resize: the anchor-only set_visual. The engine keeps the body
+ *  the insert carried, so a nudge never re-sends a picture's bytes. */
+export function moveVisualOp(visual: XlsxEditorVisual, sheetName: string): Record<string, unknown> {
+  return { op: "set_visual", target: { sheet: sheetName }, attributes: { id: visual.id, anchor: visual.anchor } };
+}
+
 export function removeVisualOp(visual: XlsxEditorVisual, sheetName: string): Record<string, unknown> {
   return { op: "remove_visual", target: { sheet: sheetName }, attributes: { id: visual.id } };
 }

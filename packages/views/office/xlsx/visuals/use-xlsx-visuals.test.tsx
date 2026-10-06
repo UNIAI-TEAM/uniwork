@@ -126,6 +126,8 @@ describe("useXlsxVisuals", () => {
     fireEvent.keyDown(item, { key: "ArrowRight" });
     await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
     expect(lastOp(edit)).toMatchObject({ op: "set_visual", attributes: { id, anchor: { fromColumn: 0, fromColumnOffset: 8 * 9525 } } });
+    // A move is anchor-only: the body rode the insert once.
+    expect(Object.keys(lastOp(edit).attributes).sort()).toEqual(["anchor", "id"]);
     fireEvent.keyDown(item, { key: "Delete" });
     await waitFor(() => expect(edit).toHaveBeenCalledTimes(3));
     expect(lastOp(edit)).toEqual({ op: "remove_visual", target: { sheet: "Data" }, attributes: { id } });
@@ -151,6 +153,57 @@ describe("useXlsxVisuals", () => {
     fireEvent.keyDown(item, { key: "Delete" });
     fireEvent.keyDown(item, { key: "ArrowDown" });
     expect(edit).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["ArrowDown", "Delete"])("does not %s a visual while a save is in flight, then locks it once the save lands", async (key) => {
+    const { edit, rerender } = setup();
+    act(() => commandsRef?.insertShape("rect"));
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    rerender({ saving: true });
+    const item = await screen.findByTestId("xlsx-visual-item-shape");
+    fireEvent.keyDown(item, { key });
+    expect(edit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("xlsx-visual-handle-se")).not.toBeInTheDocument();
+    rerender({ saving: false, savedGeneration: 1 });
+    expect(await screen.findByTestId("xlsx-visual-item-shape")).toHaveAccessibleDescription("Saved to the file. Saved drawings cannot be edited yet.");
+    fireEvent.keyDown(screen.getByTestId("xlsx-visual-item-shape"), { key });
+    expect(edit).toHaveBeenCalledTimes(1);
+  });
+
+  it("still inserts while a save is in flight; the new visual stays editable after that save", async () => {
+    const { edit, rerender } = setup({ saving: true });
+    act(() => commandsRef?.insertShape("rect"));
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    // The save covered generation 0, before this insert (generation 1).
+    rerender({ saving: false, savedGeneration: 0 });
+    fireEvent.keyDown(await screen.findByTestId("xlsx-visual-item-shape"), { key: "ArrowDown" });
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(2));
+  });
+
+  it("reads a bounded slice of a whole-column selection and trims its empty tail", async () => {
+    const values = [["", "Q1"], ["North", 10], ["South", 20]];
+    const readRangeValues = vi.fn((_sheetId: string, range: { startRow: number; endRow: number; startColumn: number; endColumn: number }) => {
+      const rows = Array.from({ length: range.endRow - range.startRow + 1 }, (_, row) =>
+        Array.from({ length: range.endColumn - range.startColumn + 1 }, (_, column) => values[row]?.[column] ?? null));
+      return { values: rows, display: rows.map((row) => row.map((cell) => (cell === null ? "" : String(cell)))) };
+    });
+    const { edit, onError } = setup({ grid: { ...fakeGrid(), readRangeValues }, selection: selection("A1", "B1048576") });
+    act(() => commandsRef?.insertChart("column"));
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    expect(readRangeValues).toHaveBeenCalledWith("s1", expect.objectContaining({ startRow: 0, endRow: 1_000, startColumn: 0, endColumn: 1 }));
+    expect(lastOp(edit).attributes.chart).toMatchObject({ series: [{ values: [10, 20], valuesRef: "'Data'!$B$2:$B$3" }] });
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("says so when the chart had to leave part of a large selection out", async () => {
+    const readRangeValues = vi.fn((_sheetId: string, range: { startRow: number; endRow: number; startColumn: number; endColumn: number }) => {
+      const rows = Array.from({ length: range.endRow - range.startRow + 1 }, (_, row) => [row === 0 ? "Q1" : row]);
+      return { values: rows, display: rows.map((row) => row.map(String)) };
+    });
+    const { edit, onError } = setup({ grid: { ...fakeGrid(), readRangeValues }, selection: selection("A1", "A5000") });
+    act(() => commandsRef?.insertChart("line"));
+    await waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+    expect(onError).toHaveBeenCalledWith("The chart uses only the first 1,000 rows and 24 series of the selection.");
   });
 
   it("inserts a picked picture keeping its aspect ratio and refuses other files", async () => {

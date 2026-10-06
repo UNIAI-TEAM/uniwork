@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  moveVisualOp,
   EMU_PER_PX,
   MIN_VISUAL_PX,
   anchorFromBox,
@@ -149,6 +150,10 @@ describe("wire ops", () => {
     expect(setVisualOp(chartVisual, "Data")).toEqual({ op: "set_visual", target: { sheet: "Data" }, attributes: { id: "v1", anchor, chart } });
     expect(setVisualOp(shapeVisual, "Data")).toEqual({ op: "set_visual", target: { sheet: "Data" }, attributes: { id: "v1", anchor, shape } });
     expect(setVisualOp(imageVisual, "Data")).toEqual({ op: "set_visual", target: { sheet: "Data" }, attributes: { id: "v1", anchor, image } });
+  });
+
+  it("emits a move as the anchor-only set_visual, never re-sending the body", () => {
+    expect(moveVisualOp({ ...base, image }, "Data")).toEqual({ op: "set_visual", target: { sheet: "Data" }, attributes: { id: "v1", anchor } });
   });
 
   it("emits remove_visual with the id only", () => {

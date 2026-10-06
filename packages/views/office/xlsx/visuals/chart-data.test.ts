@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChartFromRange } from "./chart-data";
+import { buildChartFromRange, clampChartRange, trimBlankEdges } from "./chart-data";
 
 const range = (rows: number, cols: number, startRow = 0, startColumn = 0) => ({
   startRow,
@@ -84,5 +84,28 @@ describe("buildChartFromRange", () => {
     ];
     expect(buildChartFromRange({ values: g, display: text(g), range: range(2, 2), sheetName: "S", chartType: "pie" })).toBeNull();
     expect(buildChartFromRange({ values: [], display: [], range: range(1, 1), sheetName: "S", chartType: "pie" })).toBeNull();
+  });
+});
+
+describe("clampChartRange", () => {
+  it("reads at most a header row plus the point cap and a category column plus the series cap", () => {
+    expect(clampChartRange({ startRow: 0, startColumn: 1, endRow: 1_048_575, endColumn: 16_383 })).toEqual({ startRow: 0, startColumn: 1, endRow: 1_000, endColumn: 25 });
+    expect(clampChartRange({ startRow: 4, startColumn: 2, endRow: 9, endColumn: 3 })).toEqual({ startRow: 4, startColumn: 2, endRow: 9, endColumn: 3 });
+  });
+});
+
+describe("trimBlankEdges", () => {
+  it("drops trailing blank rows and columns, keeping inner blanks", () => {
+    const values: Raw[][] = [["", "Q1", null], ["North", 10, ""], [null, null, null], ["South", 20, null], ["", null, ""], [null, "", null]];
+    const trimmed = trimBlankEdges(values, text(values));
+    expect(trimmed.values).toEqual([["", "Q1"], ["North", 10], [null, null], ["South", 20]]);
+    expect(trimmed.display).toEqual([["", "Q1"], ["North", "10"], ["", ""], ["South", "20"]]);
+    expect(trimmed.lastRowFilled).toBe(false);
+    expect(trimmed.lastColumnFilled).toBe(false);
+  });
+
+  it("reports when data reaches the last row or column it was given", () => {
+    const values: Raw[][] = [["a", 1], ["b", 2]];
+    expect(trimBlankEdges(values, text(values))).toMatchObject({ lastRowFilled: true, lastColumnFilled: true });
   });
 });
