@@ -46,7 +46,8 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
           continue;
         } catch { throw new Error("login_required"); }
       }
-      throw new Error(response.status === 401 ? "login_required" : response.status === 403 ? "forbidden" : "office_request_failed");
+      // A 404 is its own code: the document was deleted or moved, which no retry fixes (the flag-gated upgrade stops on it).
+      throw new Error(response.status === 401 ? "login_required" : response.status === 403 ? "forbidden" : response.status === 404 ? "office_document_gone" : "office_request_failed");
     }
     throw new Error("office_request_failed");
   }

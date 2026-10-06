@@ -41,9 +41,11 @@ function createPptxTabSurface(input: OpenTabInput, bytes: OpenedBytes, onDirty: 
 /**
  * Why a cloud tab is view-only when that is not the reader's permission: the
  * organization switched the format's Office flag off, or its flags answer has
- * not loaded (or failed), so the tab fails closed until one arrives.
+ * not loaded (or failed), so the tab fails closed until one arrives. Two more
+ * are permanent answers of the upgrade re-read, which is then not retried: the
+ * reader lost edit access (`view_only`), or the document was deleted or moved (`gone`).
  */
-export type ReadOnlyReason = "feature_off" | "flags_unknown";
+export type ReadOnlyReason = "feature_off" | "flags_unknown" | "view_only" | "gone";
 
 export interface OpenTabInput {
   readonly kind: "local" | "cloud";

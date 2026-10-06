@@ -19,7 +19,7 @@ import { DesktopShell } from "./desktop-shell";
 import { DesktopTabStrip } from "./tab-strip";
 import { useAccountDrafts } from "./use-account-drafts";
 import { useLocalRecents } from "./use-local-recents";
-import { useFlagGatedTabs, useOfficeFlags } from "./use-office-flags";
+import { useFlagGatedTabs, useOfficeFlags, type PermanentReopenReason, type ReopenRefused } from "./use-office-flags";
 
 const SESSION_GENERATION = "desktop-dev-session";
 
@@ -144,19 +144,32 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
 
   const officeFlags = useOfficeFlags(bridge, { enabled: mode === "signed-in", sessionGeneration: SESSION_GENERATION, accountKey, organizationId: scope?.organizationId, reload: contextReload });
   // An upgrade re-reads the document (latest version) so the editable session starts from current bytes and base.
-  const reopenForUpgrade = async (tab: TabDocument): Promise<CloudReopen | null> => {
+  // Permanent answers (access dropped to view, document gone) end the retry and name the notice; a malformed or failed read stays transient (null).
+  const [permanentReasons, setPermanentReasons] = useState<ReadonlyMap<string, PermanentReopenReason>>(new Map());
+  const reopenForUpgrade = async (tab: TabDocument): Promise<CloudReopen | ReopenRefused | null> => {
     const { identity } = tab;
     const channel = tab.format === "xlsx" ? "desktop:office-context" : "desktop:office-open";
-    const read = readCloudOpen(await bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId }));
-    if (!read || read.document.id !== identity.documentId || read.document.workspaceId !== identity.workspaceId || !read.document.canEdit) return null;
+    let raw: unknown;
+    try { raw = await bridge.call(channel, { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId }); } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("office_document_gone")) return { permanent: "gone" };
+      if (message.includes("forbidden")) return { permanent: "view_only" };
+      throw error;
+    }
+    const read = readCloudOpen(raw);
+    if (!read) return null;
+    if (read.document.id !== identity.documentId || read.document.workspaceId !== identity.workspaceId) return { permanent: "gone" };
+    if (!read.document.canEdit) return { permanent: "view_only" };
     return { bytes: read.bytes, baseRevision: read.document.revision, baseVersionId: String(read.document.version) };
   };
-  const markFlagGated = useFlagGatedTabs(tabs, officeFlags, reopenForUpgrade);
+  const markFlagGated = useFlagGatedTabs(tabs, officeFlags, reopenForUpgrade, (documentId, reason) => setPermanentReasons((previous) => new Map(previous).set(documentId, reason)));
   /** The notice follows the newest answer: a tab that opened before the flags loaded says "off" once they say off.
    * An "on" answer whose upgrade is still pending (or its fresh read failed and is retried) claims neither
    * "off" nor a failed check: it takes the neutral not-yet notice (review-fe-r1 R4). */
   const liveReadOnlyReason = (tab: TabDocument): ReadOnlyReason | undefined => {
     if (!tab.readOnlyReason) return undefined;
+    const permanent = permanentReasons.get(tab.identity.documentId);
+    if (permanent) return permanent;
     return officeFlags.status(tab.format, tab.identity.organizationId) === "off" ? "feature_off" : "flags_unknown";
   };
 
@@ -179,7 +192,11 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     const flag = officeFlags.status(document.format, selected.organizationId);
     const editable = flag === "on";
     const gatedByFlags = allowSave && document.canEdit && !editable;
-    if (gatedByFlags) markFlagGated(document.id);
+    if (gatedByFlags) {
+      // A tab opened again for a document that was once answered permanently starts from a clean slate.
+      setPermanentReasons((previous) => { if (!previous.has(document.id)) return previous; const next = new Map(previous); next.delete(document.id); return next; });
+      markFlagGated(document.id);
+    }
     const bytes = { ...read.bytes, canSave: allowSave && document.canEdit && editable };
     const readOnlyReason: ReadOnlyReason | undefined = gatedByFlags ? (flag === "off" ? "feature_off" : "flags_unknown") : undefined;
     if (tabs.open({ kind: "cloud", title: document.title, format: document.format, bytes, ...(readOnlyReason ? { readOnlyReason } : {}), identity: { ...selected, documentId: document.id, generation: lifetime.current + 1, baseRevision: document.revision, baseVersionId: String(document.version) } }) === "limit") setActionError(t("officeDesktop.tabs.limit"));

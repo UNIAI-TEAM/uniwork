@@ -69,6 +69,14 @@ describe("desktop office HTTP transport", () => {
     expect(refreshSession).toHaveBeenCalledTimes(1);
   });
 
+  it("answers a 404 with its own code, keeps 403 as forbidden, and leaves every other status transient", async () => {
+    for (const [status, code] of [[404, "office_document_gone"], [403, "forbidden"], [500, "office_request_failed"], [429, "office_request_failed"]] as const) {
+      const fetchImpl = vi.fn(async () => new Response(null, { status }));
+      const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+      await expect(transport.open({ workspaceId: "ws", documentId: "doc-1" })).rejects.toThrow(code);
+    }
+  });
+
   it("does not replay a request into a different account after refresh", async () => {
     let session = credentials.get();
     const fetchImpl = vi.fn(async () => new Response(null, { status: 401 }));

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { officeFlagsAllow } from "@uniwork/core/office";
 import { desktopPublicConfigResponseSchema } from "../shared/ipc";
 import type { RendererBridge } from "./app";
-import type { CloudReopen, TabDocument, useDocumentTabs } from "./tabs/use-document-tabs";
+import type { CloudReopen, ReadOnlyReason, TabDocument, useDocumentTabs } from "./tabs/use-document-tabs";
 
 type Flags = Readonly<Record<string, boolean>>;
 interface Answer { readonly scopeKey: string; readonly flags: Flags }
@@ -10,6 +10,10 @@ interface Target { readonly scopeKey: string; readonly organizationId: string; r
 
 /** Where a cloud format stands for one organization: allowed, switched off, or not known (no answer yet / failed). */
 export type OfficeFlagStatus = "on" | "off" | "unknown";
+
+/** A re-read that will never succeed for this tab: the reader lost edit access, or the document is gone. */
+export type PermanentReopenReason = Extract<ReadOnlyReason, "view_only" | "gone">;
+export interface ReopenRefused { readonly permanent: PermanentReopenReason }
 
 /** How long a cloud open waits for an in-flight flags fetch before it fails closed. */
 const FLAGS_WAIT_MS = 3_000;
@@ -140,13 +144,24 @@ export function useOfficeFlags(bridge: RendererBridge, input: { enabled: boolean
  * read-only and gated, and is tried again like an unanswered scope: with
  * backoff, at once on window focus / back online, and on the next answer
  * (review-fe-r1 R4), so an answered "on" never strands a tab until a reload.
+ * Only a transient failure (null or a throw) is retried: a permanent answer
+ * (`ReopenRefused`: the reader lost `canEdit`, or the document is gone) drops
+ * the tab from the gate, reports the reason through `onPermanent`, and is never
+ * asked again (UNI-954 review-fe-r2 N1).
  */
-export function useFlagGatedTabs(tabs: ReturnType<typeof useDocumentTabs>, officeFlags: ReturnType<typeof useOfficeFlags>, reopen: (tab: TabDocument) => Promise<CloudReopen | null>) {
+export function useFlagGatedTabs(
+  tabs: ReturnType<typeof useDocumentTabs>,
+  officeFlags: ReturnType<typeof useOfficeFlags>,
+  reopen: (tab: TabDocument) => Promise<CloudReopen | ReopenRefused | null>,
+  onPermanent: (documentId: string, reason: PermanentReopenReason) => void = () => undefined,
+) {
   const gated = useRef(new Set<string>());
   const upgrading = useRef(new Set<string>());
   const failures = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const { flags, status } = officeFlags;
+  const onPermanentRef = useRef(onPermanent);
+  onPermanentRef.current = onPermanent;
   // Rebuilt every render so a retry reads the newest tabs, status and reopen.
   const attempt = useRef<() => void>(() => undefined);
   attempt.current = () => {
@@ -161,6 +176,12 @@ export function useFlagGatedTabs(tabs: ReturnType<typeof useDocumentTabs>, offic
         // Re-check after the read: the tab may have closed, or the answer turned it off again.
         const live = tabs.current.current.tabs.find((entry) => entry.id === id);
         if (!live || status(live.format, live.data.identity.organizationId) !== "on") return;
+        if (fresh && "permanent" in fresh) {
+          gated.current.delete(id);
+          onPermanentRef.current(id, fresh.permanent);
+          if (gated.current.size === 0) { failures.current = 0; clearTimeout(retryTimer.current); }
+          return;
+        }
         if (fresh) {
           if (tabs.upgradeCloud(id, fresh)) { gated.current.delete(id); failures.current = 0; }
           return;

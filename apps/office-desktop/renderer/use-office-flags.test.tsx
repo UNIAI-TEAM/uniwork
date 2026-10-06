@@ -2,7 +2,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { RendererBridge } from "./app";
-import { useFlagGatedTabs, useOfficeFlags } from "./use-office-flags";
+import { useFlagGatedTabs, useOfficeFlags, type ReopenRefused } from "./use-office-flags";
 import type { CloudReopen, TabDocument, useDocumentTabs } from "./tabs/use-document-tabs";
 
 const base = { enabled: true, sessionGeneration: "session_1234", accountKey: "a", organizationId: "org-1", reload: 0 };
@@ -170,4 +170,26 @@ it("retries a gated tab whose fresh read failed under an answered 'on': with bac
   // Upgraded: nothing is asked again.
   await act(async () => { window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(10 * 60_000); });
   expect(reopen).toHaveBeenCalledTimes(3);
+});
+
+it("drops a gated tab from the retry on a permanent answer, reports it once, and keeps backing off for the others (N1)", async () => {
+  vi.useFakeTimers();
+  const { bridge } = bridgeWith(() => Promise.resolve({ flags: { office_engine: true } }));
+  const tab = (id: string) => ({ id, format: "pptx", data: { kind: "cloud", format: "pptx", identity: { organizationId: "org-1", documentId: id } } as unknown as TabDocument });
+  const upgradeCloud = vi.fn((_id: string, _fresh: CloudReopen) => true);
+  const tabs = { current: { current: { tabs: [tab("moved"), tab("flaky")] } }, upgradeCloud } as unknown as ReturnType<typeof useDocumentTabs>;
+  const reopen = vi.fn(async (doc: TabDocument): Promise<CloudReopen | ReopenRefused | null> => (doc.identity.documentId === "moved" ? { permanent: "gone" } : null));
+  const onPermanent = vi.fn();
+  const { result } = renderHook(() => useFlagGatedTabs(tabs, useOfficeFlags(bridge, base), reopen, onPermanent));
+  act(() => { result.current("moved"); result.current("flaky"); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(onPermanent).toHaveBeenCalledExactlyOnceWith("moved", "gone");
+  expect(reopen.mock.calls.map(([doc]) => doc.identity.documentId)).toEqual(["moved", "flaky"]);
+
+  // Only the transient tab is asked again (10 s, then 20 s), at once on focus too.
+  await act(async () => { await vi.advanceTimersByTimeAsync(10_100); });
+  await act(async () => { window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(0); });
+  expect(reopen.mock.calls.map(([doc]) => doc.identity.documentId)).toEqual(["moved", "flaky", "flaky", "flaky"]);
+  expect(onPermanent).toHaveBeenCalledTimes(1);
+  expect(upgradeCloud).not.toHaveBeenCalled();
 });

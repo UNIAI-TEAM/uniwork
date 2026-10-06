@@ -27,10 +27,11 @@ vi.mock("./office/session", async (importOriginal) => {
 beforeEach(() => sessions.clear());
 afterEach(() => settleDocxSessions(sessions));
 
-function harness(options: { flags?: Record<string, boolean>; config?: (payload: unknown) => unknown; localFile?: boolean; failSave?: boolean; failLogout?: boolean; readOnly?: boolean; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
+function harness(options: { flags?: Record<string, boolean>; config?: (payload: unknown) => unknown; localFile?: boolean; failSave?: boolean; failLogout?: boolean; readOnly?: boolean; secondRead?: "view_only" | "gone" | "transient"; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = fixtureChecksum;
   const documents = Array.from({ length: 10 }, (_, index) => ({ id: `doc-${index}`, workspaceId: "ws", title: `Plan${index}.docx`, kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-01T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }));
   let account = "account";
+  let opens = 0;
   let savedChecksum = checksum;
   let savedVersion = 1;
   let savedRevision = "1";
@@ -46,7 +47,11 @@ function harness(options: { flags?: Record<string, boolean>; config?: (payload: 
     if (channel === "desktop:public-config") return options.config ? options.config(payload) : { flags: options.flags ?? { office_engine: true } };
     if (channel === "desktop:file-pick-open" && options.localFile) return { opened: true, metadata: { handle: `file_${"f".repeat(32)}`, name: "Local.docx", byteLength: docxSource.length, modifiedAtMs: 1_000, checksum }, dataBase64: fixtureBase64 };
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
-    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), version: savedVersion, revision: savedRevision, canEdit: !options.readOnly }, dataBase64: fixtureBase64, checksum: savedChecksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    if (channel === "desktop:office-open" && options.secondRead && ++opens > 1) {
+      if (options.secondRead === "gone") throw new Error("Error invoking remote method 'desktop:office-open': Error: office_document_gone");
+      if (options.secondRead === "transient") throw new Error("office_request_failed");
+    }
+    if (channel === "desktop:office-open") return { document: { ...documents.find((entry) => entry.id === request.documentId), version: savedVersion, revision: savedRevision, canEdit: !options.readOnly && !(options.secondRead === "view_only" && opens > 1) }, dataBase64: fixtureBase64, checksum: savedChecksum, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:tabs-update") { await options.beforeTabsUpdate?.(); return { updated: true }; }
     if (channel === "desktop:draft-list") return { drafts: [...drafts.values()].filter((row) => row.identity.accountId === account && (!request.documentId || row.identity.documentId === request.documentId)) };
     if (channel === "desktop:draft-checkpoint") {
@@ -247,6 +252,47 @@ it("upgrades a tab that opened read-only before the config arrived, from a fresh
     expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:office-open").at(-1)?.[1]).not.toHaveProperty("version");
     expect(h.container.querySelector("#desktop-panel-doc-0")).not.toBeNull();
     expect(h.container.querySelector("[data-testid='office-feature-off']")).toBeNull();
+  } finally { vi.useRealTimers(); }
+});
+
+/** A tab that opened read-only before the config arrived, whose upgrade re-read then answers `secondRead`. */
+async function openThenUpgradeRead(secondRead: "view_only" | "gone" | "transient") {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const h = harness({ secondRead, config: async () => { await gate; return { flags: { office_engine: true } }; } });
+  fireEvent.click(await screen.findByRole("tab", { name: i18n.t("officeDesktop.tabs.library") }));
+  const library = screen.getByRole("tabpanel");
+  await within(library).findByText("Plan0.docx");
+  fireEvent.click(within(library).getAllByRole("button", { name: i18n.t("officeDesktop.library.open") })[0]!);
+  await act(async () => { await vi.advanceTimersByTimeAsync(3_100); });
+  await waitFor(() => expect(featureOffReason(h.container)).toBe("flags_unknown"));
+  await act(async () => { release(); await gate; });
+  const opens = () => h.call.mock.calls.filter(([channel]) => channel === "desktop:office-open").length;
+  await waitFor(() => expect(opens()).toBe(2));
+  return { h, opens };
+}
+
+it.each([["view_only"], ["gone"]] as const)("stops retrying the upgrade read for a permanent %s answer and says so instead of promising an upgrade", async (reason) => {
+  vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const { h, opens } = await openThenUpgradeRead(reason);
+    await waitFor(() => expect(featureOffReason(h.container)).toBe(reason));
+    expect(readonlySurface(h.container)).not.toBeNull();
+    expect(screen.queryByText(i18n.t("officeDesktop.library.flagsUnknownDescription", { format: "DOCX" }))).toBeNull();
+    // Neither the backoff nor a focus / online wake asks again.
+    await act(async () => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new Event("online")); await vi.advanceTimersByTimeAsync(10 * 60_000); });
+    expect(opens()).toBe(2);
+    expect(featureOffReason(h.container)).toBe(reason);
+  } finally { vi.useRealTimers(); }
+});
+
+it("keeps retrying the upgrade read with backoff when the failure is transient", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const { h, opens } = await openThenUpgradeRead("transient");
+    expect(featureOffReason(h.container)).toBe("flags_unknown");
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_100); });
+    await waitFor(() => expect(opens()).toBe(3));
   } finally { vi.useRealTimers(); }
 });
 
