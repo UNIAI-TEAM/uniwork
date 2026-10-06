@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "../commands";
 import { docxExtensions } from "../docx-schema";
+import { createDocxDocumentScope, DocxDocumentScopeProvider } from "../editor-store";
 import { HomeFontGroup } from "../toolbar/groups/home-font";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import type { DocxEditorHandle, DocxSelection } from "../types";
@@ -89,6 +90,12 @@ function Harness({ editor, readOnly = false }: { editor: Editor; readOnly?: bool
   const runtime: DocxCommandRuntime = useMemo(() => createDocxCommandRuntime(() => editor), [editor]);
   const handle = useMemo(() => makeHandle(editor), [editor]);
   const [format, setFormat] = useState(() => runtime.getState());
+  // The document scope DocxEditor provides in the app (UNI-957); it carries the live editor.
+  const [scope] = useState(() => {
+    const created = createDocxDocumentScope();
+    created.publishEditor(editor);
+    return created;
+  });
 
   useEffect(() => runtime.subscribe(setFormat), [runtime]);
   useEffect(() => {
@@ -112,8 +119,9 @@ function Harness({ editor, readOnly = false }: { editor: Editor; readOnly?: bool
     canRedo: true,
     onUndo: vi.fn(),
     onRedo: vi.fn(),
+    docScope: scope,
   };
-  return <HomeFontGroup {...context} />;
+  return <DocxDocumentScopeProvider scope={scope}><HomeFontGroup {...context} /></DocxDocumentScopeProvider>;
 }
 
 function attrs(editor: Editor): Record<string, unknown> {

@@ -44,11 +44,13 @@ test('the built xlsx artifact carries its contract symbols', () => {
       'tableAdditions: readonly SheetTableAddition[] = [],',
       'visualAdditions: readonly SheetVisualAddition[] = [],',
       'export const UNIWORK_XLSX_VISUAL_ADDITIONS = true',
+      'export function noteFormulaStreamChunk(runtime: UniverRuntime): void',
     ],
     'the build records the enforced patched symbols',
   );
   const artifact = fs.readFileSync(path.join(PACKAGE_DIR, 'dist', 'xlsx-renderer.mjs'), 'utf8');
-  for (const symbol of ['createXlsxRenderer', 'installXlsxRendererStyles', 'XLSX_RENDERER_STYLE_ELEMENT_ID']) {
+  // UNI-957: the window.desktopApi bridge routes by session (no last-mount-wins).
+  for (const symbol of ['createXlsxRenderer', 'installXlsxRendererStyles', 'XLSX_RENDERER_STYLE_ELEMENT_ID', 'xlsx_renderer_session_unbound']) {
     assert.ok(artifact.includes(symbol), `artifact carries ${symbol}`);
   }
 });

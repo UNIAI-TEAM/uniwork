@@ -4,7 +4,7 @@ import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocxEditor } from "./docx-editor";
 import { docxExtensions } from "./docx-schema";
-import { publishDocxEditor } from "./editor-store";
+import { createDocxCommandRuntime } from "./commands";
 import type { DocxEditorHandle, DocxOpenFailure, DocxOpenOutcome, DocxSaveCoordinator } from "./types";
 
 function coordinator(overrides: Partial<DocxSaveCoordinator> = {}): DocxSaveCoordinator {
@@ -78,7 +78,6 @@ const liveEditors: Editor[] = [];
 
 afterEach(() => {
   for (const live of liveEditors.splice(0)) live.destroy();
-  publishDocxEditor(null);
 });
 
 describe("DocxEditor", () => {
@@ -301,8 +300,9 @@ describe("DocxEditor", () => {
       content: { type: "doc", content: [{ type: "docParagraph", content: [{ type: "text", text: "Body" }] }] },
     });
     liveEditors.push(live);
-    publishDocxEditor(live);
     const handle = editor();
+    // The handle's command runtime drives the live editor; DocxEditor reads it from there.
+    handle.commands = createDocxCommandRuntime(() => live);
     handle.renderSurface = () => <div data-testid="surface-child">Body</div>;
     render(
       <DocxEditor

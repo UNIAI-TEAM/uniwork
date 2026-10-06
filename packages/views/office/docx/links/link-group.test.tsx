@@ -4,6 +4,7 @@ import type { DocxCommandRuntime } from "../commands";
 import { InsertLinksGroup } from "../toolbar/groups/insert-links";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import type { DocxLinkSeed, DocxLinkTarget } from "./index";
+import { createDocxDocumentScope } from "../editor-store";
 
 const ACTIVE: DocxLinkTarget = { from: 1, to: 6, href: "https://uniwork.vn", rId: null, text: "UniWork", tooltip: null };
 
@@ -21,6 +22,7 @@ function renderGroup(
   const seed = options.seed ?? { link: null, selectionText: "UniWork" };
   const commands = "commands" in options ? options.commands : runtime(seed);
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as unknown as DocxToolbarGroupContext["editor"],
     coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
     format: options.activeLink ? ({ activeLink: options.activeLink } as unknown as DocxToolbarGroupContext["format"]) : null,

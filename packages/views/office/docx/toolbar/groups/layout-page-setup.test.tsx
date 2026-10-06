@@ -4,6 +4,7 @@ import type { DocxCommandRuntime } from "../../commands";
 import type { DocxToolbarGroupContext } from "../types";
 import type { DocxPageSetupSection, DocxPageSetupState } from "../../page-setup/docx-page-setup";
 import { LayoutPageSetupGroup } from "./layout-page-setup";
+import { createDocxDocumentScope } from "../../editor-store";
 
 const SECTION: DocxPageSetupSection = {
   index: 0,
@@ -30,6 +31,7 @@ function runtime(): DocxCommandRuntime {
 function renderGroup(options: { commands?: DocxCommandRuntime; state?: DocxPageSetupState | null; readOnly?: boolean } = {}) {
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as DocxToolbarGroupContext["editor"],
     coordinator: {} as DocxToolbarGroupContext["coordinator"],
     format: { docxPageSetup: "state" in options ? options.state : STATE } as unknown as DocxToolbarGroupContext["format"],

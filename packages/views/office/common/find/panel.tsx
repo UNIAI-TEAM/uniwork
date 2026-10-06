@@ -9,6 +9,7 @@ import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOfficeDocumentActiveRef } from "../document-active";
 import { findMatches, type FindMatch, type FindQuery, type FindReplaceEdit, type FindResult } from "./matcher";
 
 export interface FindReplacePanelHandle {
@@ -155,10 +156,13 @@ export function FindReplacePanel({
   // the host does not re-bind the listener on every render.
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  // UNI-957: Escape in the visible document never closes the panel of one kept
+  // mounted in a hidden desktop tab.
+  const activeRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     if (!open) return undefined;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (isImeComposing(event)) return;
+      if (isImeComposing(event) || !activeRef.current) return;
       if (event.key !== "Escape") return;
       if (!closeRef.current) return;
       event.preventDefault();
@@ -166,7 +170,7 @@ export function FindReplacePanel({
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [open, activeRef]);
   // In the find field Enter steps (Shift+Enter steps back); in the replace field
   // Enter replaces the current match once, as every editor does.
   const onFindKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {

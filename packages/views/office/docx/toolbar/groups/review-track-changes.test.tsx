@@ -8,6 +8,7 @@ import type { DocxCommandRuntime } from "../../commands";
 import type { DocxReviewChange } from "../../review/revision-model";
 import type { DocxToolbarGroupContext } from "../types";
 import { ReviewTrackChangesGroup } from "./review-track-changes";
+import { createDocxDocumentScope } from "../../editor-store";
 
 const popoverState = vi.hoisted(() => ({
   open: false,
@@ -53,6 +54,7 @@ function renderGroup(options: { commands?: DocxCommandRuntime; format?: DocxTool
   popoverState.open = false;
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as unknown as DocxToolbarGroupContext["editor"],
     coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
     format: "format" in options ? options.format ?? null : ({ reviewChanges: CHANGES } as unknown as DocxToolbarGroupContext["format"]),

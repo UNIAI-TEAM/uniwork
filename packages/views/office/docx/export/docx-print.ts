@@ -14,6 +14,10 @@
 export const DOCX_PRINT_ATTRIBUTE = "data-docx-printing";
 export const DOCX_PRINT_STYLE_ID = "uniwork-docx-print-styles";
 export const DOCX_PRINT_SURFACE_SELECTOR = '[data-testid="docx-document-surface"]';
+/** UNI-957: the one surface that prints; other DOCX documents mounted in the
+ *  same page (hidden desktop tabs) stay out of the job. */
+export const DOCX_PRINT_TARGET_ATTRIBUTE = "data-docx-print-target";
+const DOCX_PRINT_TARGET_SELECTOR = `${DOCX_PRINT_SURFACE_SELECTOR}[${DOCX_PRINT_TARGET_ATTRIBUTE}]`;
 
 const DOCX_PRINT_HIDE_SELECTORS = [
   '[data-testid="docx-toolbar"]',
@@ -57,7 +61,7 @@ export function docxPrintStyleSheet(): string {
     "    flex: none !important;",
     "    background: none !important;",
     "  }",
-    `  ${marker} ${DOCX_PRINT_SURFACE_SELECTOR} {`,
+    `  ${marker} ${DOCX_PRINT_TARGET_SELECTOR} {`,
     "    position: absolute !important;",
     "    inset: 0 auto auto 0 !important;",
     "    width: 100% !important;",
@@ -66,8 +70,8 @@ export function docxPrintStyleSheet(): string {
     `  ${marker} * {`,
     "    visibility: hidden !important;",
     "  }",
-    `  ${marker} ${DOCX_PRINT_SURFACE_SELECTOR},`,
-    `  ${marker} ${DOCX_PRINT_SURFACE_SELECTOR} * {`,
+    `  ${marker} ${DOCX_PRINT_TARGET_SELECTOR},`,
+    `  ${marker} ${DOCX_PRINT_TARGET_SELECTOR} * {`,
     "    visibility: visible !important;",
     "  }",
     "}",
@@ -77,13 +81,22 @@ export function docxPrintStyleSheet(): string {
 
 const DOCUMENTS_WITH_PRINT_LISTENERS = new WeakSet<Document>();
 
-function stampPrintMarker(target: Document): void {
-  if (!target.body || !target.querySelector(DOCX_PRINT_SURFACE_SELECTOR)) return;
+/** The surface a native Ctrl+P prints: the first one not inside a hidden
+ *  ancestor, so a DOCX kept mounted in a hidden desktop tab never blanks the
+ *  visible document's print. */
+function visibleSurface(target: Document): Element | null {
+  return [...target.querySelectorAll(DOCX_PRINT_SURFACE_SELECTOR)].find((surface) => !surface.closest("[hidden]")) ?? null;
+}
+
+function stampPrintMarker(target: Document, surface: Element | null = visibleSurface(target)): void {
+  if (!target.body || !surface) return;
+  surface.setAttribute(DOCX_PRINT_TARGET_ATTRIBUTE, "");
   target.body.setAttribute(DOCX_PRINT_ATTRIBUTE, "");
 }
 
 function clearPrintMarker(target: Document): void {
   target.body?.removeAttribute(DOCX_PRINT_ATTRIBUTE);
+  for (const surface of target.querySelectorAll(`[${DOCX_PRINT_TARGET_ATTRIBUTE}]`)) surface.removeAttribute(DOCX_PRINT_TARGET_ATTRIBUTE);
 }
 
 /**
@@ -115,11 +128,14 @@ export function installDocxPrintStyles(target?: Document): void {
  * never fire it; the print snapshot is taken synchronously by print(), so the
  * fallback cannot leak chrome into the job.
  */
-export function printDocxDocument(view: Window = window): boolean {
+export function printDocxDocument(view: Window = window, scope: ParentNode = view.document): boolean {
   const target = view.document;
-  if (!target.querySelector(DOCX_PRINT_SURFACE_SELECTOR)) return false;
+  // The caller's own document (UNI-957); without one, the visible surface a
+  // native print would pick.
+  const surface = scope === target ? visibleSurface(target) : scope.querySelector(DOCX_PRINT_SURFACE_SELECTOR);
+  if (!surface) return false;
   installDocxPrintStyles(target);
-  stampPrintMarker(target);
+  stampPrintMarker(target, surface);
   const cleanup = () => clearPrintMarker(target);
   view.addEventListener("afterprint", cleanup, { once: true });
   try {
