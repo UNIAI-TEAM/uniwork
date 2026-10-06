@@ -12,6 +12,10 @@ export interface PdfRenderPageRequest {
   width: number;
   height: number;
   scale: number;
+  /** Device-pixel multiplier a host applies on top of `scale`. Omitted = the
+   * host's own display density (the on-screen canvas wants crisp pixels). Print
+   * passes 1: its `scale` is already dpi / 72, so the raster must not grow again. */
+  pixelRatio?: number;
   signal?: AbortSignal;
 }
 

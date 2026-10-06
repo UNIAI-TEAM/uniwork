@@ -67,6 +67,8 @@ async function renderOne(request: PdfPrintRenderRequest, page: PdfCanvasPage, dp
       width: page.width,
       height: page.height,
       scale: dpi / POINTS_PER_INCH,
+      // The scale is already in print dpi: a HiDPI screen must not multiply it.
+      pixelRatio: 1,
       signal: request.signal,
     });
     const src = await inline(result.src, request.signal);

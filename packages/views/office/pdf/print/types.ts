@@ -9,7 +9,8 @@ export type PdfPrintFailureCode =
   | "render_failed"
   /** Even at the lowest print resolution the copy would exceed the print cap. */
   | "print_too_large"
-  /** The run was aborted (the editor unmounted or the document changed). */
+  /** The run was aborted (the editor unmounted). An edit mid-run does not abort it:
+   * a changed page count surfaces as `render_failed`. */
   | "cancelled";
 
 export class PdfPrintError extends Error {

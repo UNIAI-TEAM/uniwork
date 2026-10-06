@@ -72,6 +72,24 @@ describe("createPdfRenderSession", () => {
     }
   });
 
+  it("honours an explicit pixelRatio of 1 on a HiDPI display and keys the cache by it", async () => {
+    const s = setup();
+    vi.stubGlobal("devicePixelRatio", 3);
+    try {
+      const session = await createPdfRenderSession(new Uint8Array(1), s.deps);
+      await session.renderPage({ ...request, scale: 2, pixelRatio: 1 });
+      expect(s.docs[0].renderPage).toHaveBeenLastCalledWith(0, { scale: 2 });
+      await session.renderPage({ ...request, scale: 2, pixelRatio: 1 });
+      expect(s.docs[0].renderPage).toHaveBeenCalledTimes(1);
+      // The on-screen request (no ratio) still renders at display density, in its own entry.
+      await session.renderPage({ ...request, scale: 2 });
+      expect(s.docs[0].renderPage).toHaveBeenCalledTimes(2);
+      expect(s.docs[0].renderPage).toHaveBeenLastCalledWith(0, { scale: 6 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("keys the cache by device pixel ratio so a density change re-renders", async () => {
     const s = setup();
     vi.stubGlobal("devicePixelRatio", 1);

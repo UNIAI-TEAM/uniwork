@@ -61,9 +61,15 @@ async function canvasImageUrl(page: BrowserPdfRenderedPage): Promise<string> {
   return URL.createObjectURL(blob);
 }
 
-function pixelRatio(): number {
+function displayPixelRatio(): number {
   const ratio = globalThis.devicePixelRatio;
   return Math.min(MAX_PIXEL_RATIO, ratio && ratio > 0 ? ratio : 1);
+}
+
+/** An explicit request ratio (print asks for 1) wins over the display density. */
+function requestPixelRatio(request: PdfRenderPageRequest): number {
+  const ratio = request.pixelRatio;
+  return ratio !== undefined && Number.isFinite(ratio) && ratio > 0 ? Math.min(MAX_PIXEL_RATIO, ratio) : displayPixelRatio();
 }
 
 export async function createPdfRenderSession(
@@ -111,10 +117,11 @@ export async function createPdfRenderSession(
     const size = document.pageSize(index);
     // dpr is part of the key: moving between 1x/2x displays must not reuse a
     // stale-density bitmap until the next version bump.
-    const key = `${request.pageNumber}@${request.scale}@${pixelRatio()}@${version}`;
+    const ratio = requestPixelRatio(request);
+    const key = `${request.pageNumber}@${request.scale}@${ratio}@${version}`;
     let pending = cache.get(key);
     if (!pending) {
-      const rendered = document.renderPage(index, { scale: request.scale * pixelRatio() });
+      const rendered = document.renderPage(index, { scale: request.scale * ratio });
       const created = toImageUrl(rendered);
       pending = created;
       cache.set(key, created);

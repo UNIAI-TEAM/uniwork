@@ -36,6 +36,25 @@ describe("renderPdfPrintPages", () => {
     expect(onProgress).toHaveBeenLastCalledWith({ page: 2, total: 2 });
   });
 
+  it("asks for device-independent pixels so a HiDPI renderer prints at dpi / 72 times the page size", async () => {
+    // A renderer that applies the display density the way the web session does.
+    const devicePixelRatio = 3;
+    const service = {
+      renderPage: vi.fn(async (request: PdfRenderPageRequest) => {
+        const ratio = request.pixelRatio ?? devicePixelRatio;
+        return { src: "data:image/png;base64,AAAA", width: Math.round(request.width * request.scale * ratio), height: Math.round(request.height * request.scale * ratio) };
+      }),
+    };
+    const inlineImage = vi.fn(async (src: string) => src);
+    await renderPdfPrintPages({ renderer: service, pages: [A4], inlineImage });
+
+    const request = service.renderPage.mock.calls[0]?.[0];
+    expect(request?.pixelRatio).toBe(1);
+    const raster = await service.renderPage.mock.results[0]?.value;
+    expect(raster.width).toBe(Math.round((595 * PDF_PRINT_DPI) / 72));
+    expect(raster.height).toBe(Math.round((842 * PDF_PRINT_DPI) / 72));
+  });
+
   it("inlines a host URL through the inliner before it reaches the copy", async () => {
     const service = { renderPage: vi.fn(async () => ({ src: "blob:https://app.test/1", width: 1, height: 1 })) };
     const inlineImage = vi.fn(async () => "data:image/png;base64,AAAA");
