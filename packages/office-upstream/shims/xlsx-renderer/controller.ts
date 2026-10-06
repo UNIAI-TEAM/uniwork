@@ -56,6 +56,7 @@ import {
   isSheetMutation,
   liveSessionSheets,
   seedColumnOutline,
+  seedRowOutline,
   type AxisRange,
   type RendererCommand,
   type XlsxRendererEdit,
@@ -813,7 +814,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       lazyWorkbookRef.current = state;
       // Column outline metadata rides the sheet metadata (not a streamed
       // chunk), so seed it now, before any session group edit can own an entry.
+      // Row levels come whole from the host too (UNI-953 F2), not only as
+      // their rows stream.
       seedColumnOutline(state);
+      seedRowOutline(state);
       dirtyGeneration = 0;
       const workbook = runtime.univerAPI.getActiveWorkbook();
       // Native workbook permissions also block the vendored viewport loader's

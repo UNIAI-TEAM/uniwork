@@ -36,7 +36,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
-  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, outlineLevels, outlineHistoryItem, outlineDetailSpan, seedColumnOutline, liveSessionSheets,
+  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, outlineLevels, outlineHistoryItem, outlineDetailSpan, seedColumnOutline, seedRowOutline, liveSessionSheets,
   sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
   sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate, observeValidationVerdicts } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
@@ -851,6 +851,24 @@ test('default column width journals one null set-col-size op for the span', () =
   assert.deepEqual(applyColumnDefaultWidth(model, 'ghost', 0, 1), []);
   assert.deepEqual(applyColumnDefaultWidth(null, 's1', 0, 1), []);
   assert.equal(model.editJournal.structuralOps.get('s1').length, 1);
+});
+
+test('file row outline levels seed the outline map, clamp and stay below session edits', () => {
+  const model = state();
+  model.file.sheets[0].rowOutline = [
+    { row: 2, outlineLevel: 1 }, { row: 3, outlineLevel: 9, collapsed: true }, { row: 5, collapsed: true },
+    { row: 6, outlineLevel: 0 }, { row: -1, outlineLevel: 1 }, { row: 1.5, outlineLevel: 1 }, null,
+  ];
+  applyOutlineAction(model, 's1', 'rows', 2, 2, 'group');
+  seedRowOutline(model);
+  const rows = model.outline.get('s1').rows;
+  // The session group on row 2 owns its entry; the file never overrides it.
+  assert.deepEqual([...rows.entries()].sort(([a], [b]) => a - b), [
+    [2, { level: 1, collapsed: false }],
+    [3, { level: 7, collapsed: true }],
+    [5, { level: 0, collapsed: true }],
+  ]);
+  seedRowOutline(null);
 });
 
 test('file column outline levels seed the outline map and stay below session edits', () => {

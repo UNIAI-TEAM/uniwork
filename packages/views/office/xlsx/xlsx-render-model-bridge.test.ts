@@ -35,7 +35,12 @@ const MODEL: XlsxRenderModel = {
       freeze: { frozenRows: 2, frozenColumns: 1 },
       merges: [{ startRow: 0, endRow: 1, startColumn: 0, endColumn: 2 }],
       columnWidths: [{ startColumn: 1, endColumn: 1, width: 18, customWidth: true }],
-      rowsMeta: [{ row: 0, height: 22, customHeight: true }, { row: 4, hidden: true }],
+      rowsMeta: [
+        { row: 0, height: 22, customHeight: true },
+        { row: 4, hidden: true },
+        { row: 60, outlineLevel: 2, collapsed: true },
+        { row: 61, outlineLevel: 1 },
+      ],
       hyperlinks: [{ row: 2, column: 0, target: "https://example.com" }],
       cells: {
         A1: { v: "Title", s: 1 },
@@ -72,6 +77,10 @@ describe("render model bridge", () => {
     expect(file.sheets[0]!.freeze).toEqual({ frozenRows: 2, frozenColumns: 1 });
     expect(file.sheets[0]!.columnWidths).toEqual([{ startColumn: 1, endColumn: 1, width: 18, customWidth: true }]);
     expect(file.sheets[0]!.showGridLines).toBe(true);
+    // UNI-953 F2: every grouped row of the file rides the sheet, not only the
+    // rows a viewport streams.
+    expect(file.sheets[0]!.rowOutline).toEqual([{ row: 60, outlineLevel: 2, collapsed: true }, { row: 61, outlineLevel: 1 }]);
+    expect(file.sheets[1]!.rowOutline).toEqual([]);
     expect(file.sheets[0]!.defaultRowHeight).toBeNull();
     expect(file.styles).toHaveLength(2);
     expect(file.themeColors).toHaveLength(12);

@@ -61,6 +61,8 @@ export interface RendererWorkbookFile {
     columnCount: number;
     hidden?: boolean;
     showFormulas?: boolean;
+    /** UNI-953: the file's grouped rows, seeded into the outline map at open. */
+    rowOutline?: Array<{ row: number; outlineLevel?: number; collapsed?: boolean }>;
   }>;
   styles: unknown[];
 }

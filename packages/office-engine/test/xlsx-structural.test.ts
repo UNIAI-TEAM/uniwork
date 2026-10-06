@@ -222,3 +222,38 @@ describeWithPatchedGateway("xlsx row outline levels across inserted rows", () =>
     expect(await sheetXml(engine, saved.bytes)).toContain('outlineLevelRow="2"');
   });
 });
+
+describeWithPatchedGateway("xlsx file row groups through a session outline action", () => {
+  async function savedFrom(engine: Gateway, bytes: Uint8Array, ops: readonly Record<string, unknown>[]) {
+    const adapter = createXlsxAdapter({ engine });
+    const opened = await adapter.open({ bytes, format: "xlsx", document_id: "outline-roundtrip" });
+    if (opened.outcome !== "opened") throw new Error("reopen_failed");
+    adapter.edit(opened.document_model_ref, ops);
+    const saved = await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    adapter.release(opened.document_model_ref);
+    return saved.bytes;
+  }
+  const levels = async (engine: Gateway, bytes: Uint8Array) => {
+    const data = (await readXlsxRenderModel(engine, bytes)).sheets.find((sheet) => sheet.name === "Data");
+    if (!data) throw new Error("Data sheet missing");
+    return Array.from({ length: 10 }, (_, row) => data.rowsMeta.find((meta) => meta.row === row)?.outlineLevel ?? 0);
+  };
+  const outline = (start: number, end: number, level: number) =>
+    ({ op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start, end, level } });
+
+  it("Nhóm over a file's row group, then its undo, keeps the file's groups through save and reopen (review-design F2)", async () => {
+    const engine = await load();
+    // The file: rows 2-4 and row 8 grouped at level 1.
+    const file = (await savedWith(engine, COMPAT_EDIT, [outline(2, 4, 1), outline(8, 8, 1)])).bytes;
+    expect(await levels(engine, file)).toEqual([0, 0, 1, 1, 1, 0, 0, 0, 1, 0]);
+    // Group rows 1-5 as the renderer journals it once the file levels are
+    // seeded (edits.ts applyOutlineAction): one op per run, raised from the
+    // file's level. Row 8, outside the span, is never written.
+    const grouped = await savedFrom(engine, file, [outline(1, 1, 1), outline(2, 4, 2), outline(5, 5, 1)]);
+    expect(await levels(engine, grouped)).toEqual([0, 1, 2, 2, 2, 1, 0, 0, 1, 0]);
+    // Ctrl+Z replays outlineHistoryItem(before = the file's levels): clear the
+    // span, then group rows 2-4 back to level 1.
+    const undone = await savedFrom(engine, grouped, [outline(1, 5, 0), outline(2, 4, 1)]);
+    expect(await levels(engine, undone)).toEqual([0, 0, 1, 1, 1, 0, 0, 0, 1, 0]);
+  });
+});

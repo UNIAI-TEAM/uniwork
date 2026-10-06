@@ -475,6 +475,30 @@ test('column default-width command journals a null size and file outline levels 
   } finally { mounted.close(); }
 });
 
+test('file row outline levels seed at open, so a group over unstreamed rows raises from them (UNI-953 F2)', async () => {
+  const edits = [];
+  const mounted = mountController({ onEdits: (batch) => edits.push(...batch) });
+  try {
+    // Rows 2-4 and 8 are grouped in the file; no range has streamed them.
+    const seeded = { ...file, sheets: [
+      { ...file.sheets[0], rowOutline: [{ row: 2, outlineLevel: 1 }, { row: 3, outlineLevel: 1 }, { row: 4, outlineLevel: 1 }, { row: 8, outlineLevel: 1, collapsed: true }] },
+      file.sheets[1],
+    ] };
+    await mounted.handle.loadWorkbook(seeded);
+    assert.equal(mounted.handle.getDirtyGeneration(), 0);
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-rows-outline', { start: 1, end: 5, action: 'group' }), true);
+    // Without the seed this journalled rows 1-5 at level 1, flattening the file's group.
+    assert.deepEqual(edits.map((edit) => edit.structural), [
+      { kind: 'set-rows-outline', start: 1, end: 1, level: 1 },
+      { kind: 'set-rows-outline', start: 2, end: 4, level: 2 },
+      { kind: 'set-rows-outline', start: 5, end: 5, level: 1 },
+    ]);
+    // Show / Hide Detail on the untouched file group finds it too.
+    assert.equal(await mounted.handle.executeCommand('uniwork.command.set-outline-detail', { axis: 'rows', start: 9, end: 9, hide: true }), true);
+    assert.deepEqual(mounted.events.findLast((event) => event.id === 'sheet.command.set-rows-hidden').params.ranges, [{ startRow: 8, endRow: 8, startColumn: 0, endColumn: 0, rangeType: 1 }]);
+  } finally { mounted.close(); }
+});
+
 test('disposing during font preparation prevents a late workbook installation', async () => {
   const previous = globalThis.FontFace;
   let resolveProbe;

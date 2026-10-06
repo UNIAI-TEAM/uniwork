@@ -760,6 +760,31 @@ export function seedColumnOutline(state: LazyWorkbookState | null): void {
   }
 }
 
+/** Row outline levels from the file (the host's `rowOutline` on each sheet,
+ *  UNI-953 F2). The vendored loader seeds a row only when its range streams,
+ *  so an outline action, or its undo, over rows not yet on screen read level
+ *  0 and flattened the file's groups; seeding every grouped row at open, as
+ *  the columns are, makes the action raise from the file's level. Session
+ *  entries are never overridden, and the loader's later per-row seed skips
+ *  the rows this already holds. */
+export function seedRowOutline(state: LazyWorkbookState | null): void {
+  if (!state) return;
+  for (const sheet of state.file.sheets) {
+    const rows = (sheet as { rowOutline?: unknown }).rowOutline;
+    if (!Array.isArray(rows)) continue;
+    for (const entry of rows as Array<{ row?: unknown; outlineLevel?: unknown; collapsed?: unknown }>) {
+      if (typeof entry?.row !== "number" || !Number.isInteger(entry.row) || entry.row < 0) continue;
+      const level = typeof entry.outlineLevel === "number" && Number.isInteger(entry.outlineLevel)
+        ? Math.min(7, Math.max(0, entry.outlineLevel)) : 0;
+      const collapsed = entry.collapsed === true;
+      if (level === 0 && !collapsed) continue;
+      const outline = state.outline.get(sheet.id) ?? { rows: new Map(), cols: new Map() };
+      state.outline.set(sheet.id, outline);
+      if (!outline.rows.has(entry.row)) outline.rows.set(entry.row, { level, collapsed });
+    }
+  }
+}
+
 /** The pinned build's `sheet.command.set-col-is-auto-width` handler emits no
  *  mutation (no interceptor in any bundled package serves its id), so the
  *  toolbar's "use default column width" reset journals the sheet-default

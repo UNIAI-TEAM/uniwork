@@ -80,6 +80,10 @@ export interface RendererWorkbookSheet {
     collapsed?: boolean;
     styleIndex?: number;
   }[];
+  /** UNI-953: the file's row outline levels, seeded at open like the column
+   *  levels so an outline action over rows not yet streamed raises from the
+   *  file's level instead of flattening it. */
+  rowOutline?: { row: number; outlineLevel?: number; collapsed?: boolean }[];
   pivotTables: never[];
   tables: RendererWorkbookTable[];
   comments: never[];
@@ -229,6 +233,13 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet, styles: readonly XlsxRe
     // Renderer-only: unsized columns get a content-fitted width (never a
     // customWidth); the model the save path reads is not touched.
     columnWidths: seedFittedColumnWidths(sheet, styles),
+    rowOutline: sheet.rowsMeta
+      .filter((row) => row.outlineLevel !== undefined || row.collapsed !== undefined)
+      .map((row) => ({
+        row: row.row,
+        ...(row.outlineLevel === undefined ? {} : { outlineLevel: row.outlineLevel }),
+        ...(row.collapsed === undefined ? {} : { collapsed: row.collapsed }),
+      })),
     pivotTables: [],
     tables: (sheet.tables ?? []).map((table) => toRendererWorkbookTable(table)),
     comments: [],
