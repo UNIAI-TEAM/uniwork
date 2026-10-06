@@ -9499,7 +9499,7 @@
           "titleTooLong": "The title can hold at most 32 characters.",
           "messageTooLong": "The message can hold at most 255 characters.",
           "x14Sheet": "This sheet has Excel extended data validation that can't be edited here yet. Edit its validation in Excel.",
-          "refused": "The rule wasn't applied. This sheet's existing rules may still be loading: open the sheet and try again. If rows or columns were inserted before the sheet was first shown, save and reopen the file first."
+          "refused": "The rule wasn't applied. This sheet has rules this editor can't save, or its existing rules are still loading: open the sheet and try again. If it still fails, the sheet keeps its rules as they are in the file; save and reopen the file to try again."
         }
       },
       "sort": {
@@ -9525,6 +9525,14 @@
         }
       },
       "conditionalFormat": {
+        "dropped": {
+          "title": "Some rules could not be saved and were left out.",
+          "item": "{{family}}: sheet {{sheet}}",
+          "familyConditionalFormats": "Conditional formatting",
+          "familyDataValidations": "Data validation",
+          "more": "+{{count}} more",
+          "saveAgain": "Press Save again to save your other changes. The rules stay in the file as they were."
+        },
         "groups": {
           "home": "Styles"
         },
@@ -9578,7 +9586,7 @@
           "emptyText": "Enter the text to look for.",
           "textTooLong": "The text can be at most 255 characters.",
           "x14Sheet": "This sheet has Excel extended conditional formatting (such as data bars) that can't be edited here yet. Edit its rules in Excel.",
-          "refused": "The rule wasn't applied. This sheet's existing rules may still be loading: open the sheet and try again. If rows or columns were inserted before the sheet was first shown, save and reopen the file first."
+          "refused": "The rule wasn't applied. This sheet has rules this editor can't save, or its existing rules are still loading: open the sheet and try again. If it still fails, the sheet keeps its rules as they are in the file; save and reopen the file to try again."
         }
       },
       "table": {

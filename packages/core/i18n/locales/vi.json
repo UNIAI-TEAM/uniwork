@@ -9493,7 +9493,7 @@
           "titleTooLong": "Tiêu đề chứa tối đa 32 ký tự.",
           "messageTooLong": "Nội dung chứa tối đa 255 ký tự.",
           "x14Sheet": "Trang tính này có xác thực dữ liệu mở rộng của Excel mà chưa thể chỉnh sửa tại đây. Hãy chỉnh xác thực dữ liệu của trang tính trong Excel.",
-          "refused": "Chưa áp dụng được quy tắc. Các quy tắc hiện có của trang tính có thể vẫn đang tải: hãy mở trang tính rồi thử lại. Nếu đã chèn dòng hoặc cột trước khi trang tính được hiển thị lần đầu, hãy lưu và mở lại tệp trước."
+          "refused": "Chưa áp dụng được quy tắc. Trang tính này có quy tắc mà trình soạn thảo chưa lưu được, hoặc các quy tắc hiện có vẫn đang tải: hãy mở trang tính rồi thử lại. Nếu vẫn không được, trang tính giữ nguyên các quy tắc như trong tệp; hãy lưu và mở lại tệp để thử lại."
         }
       },
       "sort": {
@@ -9519,6 +9519,14 @@
         }
       },
       "conditionalFormat": {
+        "dropped": {
+          "title": "Một số quy tắc chưa lưu được nên đã được bỏ qua.",
+          "item": "{{family}}: trang tính {{sheet}}",
+          "familyConditionalFormats": "Định dạng có điều kiện",
+          "familyDataValidations": "Xác thực dữ liệu",
+          "more": "và {{count}} mục khác",
+          "saveAgain": "Hãy bấm Lưu lần nữa để lưu các thay đổi còn lại. Các quy tắc vẫn giữ nguyên trong tệp."
+        },
         "groups": {
           "home": "Kiểu"
         },
@@ -9572,7 +9580,7 @@
           "emptyText": "Nhập văn bản cần tìm.",
           "textTooLong": "Văn bản tối đa 255 ký tự.",
           "x14Sheet": "Trang tính này có định dạng có điều kiện mở rộng của Excel (như thanh dữ liệu) mà chưa thể chỉnh sửa tại đây. Hãy chỉnh các quy tắc của trang tính trong Excel.",
-          "refused": "Chưa áp dụng được quy tắc. Các quy tắc hiện có của trang tính có thể vẫn đang tải: hãy mở trang tính rồi thử lại. Nếu đã chèn dòng hoặc cột trước khi trang tính được hiển thị lần đầu, hãy lưu và mở lại tệp trước."
+          "refused": "Chưa áp dụng được quy tắc. Trang tính này có quy tắc mà trình soạn thảo chưa lưu được, hoặc các quy tắc hiện có vẫn đang tải: hãy mở trang tính rồi thử lại. Nếu vẫn không được, trang tính giữ nguyên các quy tắc như trong tệp; hãy lưu và mở lại tệp để thử lại."
         }
       },
       "table": {
