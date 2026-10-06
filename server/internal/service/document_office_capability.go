@@ -651,6 +651,9 @@ func validateOfficeJobEdits(operation office.Operation, edits []office.EditOp) e
 			return ErrOfficeJobInvalid
 		}
 	}
+	if !officeVisualEditsOrdered(edits) {
+		return ErrOfficeJobInvalid
+	}
 	return nil
 }
 

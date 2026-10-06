@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -29,7 +30,11 @@ func TestValidateOfficeVisualEdits(t *testing.T) {
 		{"shape with fill and text", set(`"id":"s-1",` + anchor + `,"shape":{"shapeType":"rightArrow","fillColor":"#ED7D31","text":"Go"}`), true},
 		{"picture", set(`"id":"p_1",` + anchor + `,"image":{"mediaType":"image/png","base64":"` + png + `"}`), true},
 		{"remove by id", remove(`{"id":"c1"}`), true},
-		{"no body", set(`"id":"c1",` + anchor), false},
+		{"anchor-only move with no insert before it", set(`"id":"c1",` + anchor), false},
+		{"anchor-only move after its insert", append(set(`"id":"c1",`+anchor+`,`+chart), set(`"id":"c1",`+anchor)...), true},
+		{"anchor-only move after a remove", append(append(set(`"id":"c1",`+anchor+`,`+chart), remove(`{"id":"c1"}`)...), set(`"id":"c1",`+anchor)...), false},
+		{"anchor-only move of another id", append(set(`"id":"c1",`+anchor+`,`+chart), set(`"id":"c2",`+anchor)...), false},
+		{"anchor-only move with a bad anchor", append(set(`"id":"c1",`+anchor+`,`+chart), set(`"id":"c1","anchor":{"fromRow":1}`)...), false},
 		{"two bodies", set(`"id":"c1",` + anchor + `,` + chart + `,"shape":{"shapeType":"rect"}`), false},
 		{"bad id", set(`"id":"c 1",` + anchor + `,` + chart), false},
 		{"missing anchor", set(`"id":"c1",` + chart), false},
@@ -77,5 +82,32 @@ func TestOfficeVisualPictureAtTheCapFitsOneSave(t *testing.T) {
 	}
 	if err := validateOfficeJobEdits(office.OperationEdit, edits); err != nil {
 		t.Fatalf("a picture at the cap plus cell edits must validate: %v", err)
+	}
+}
+
+// B1: a move or resize is the anchor-only set_visual, so 100 nudges of a
+// picture at the cap cost about one picture, far below the edits bound.
+func TestOfficeVisualNudgedPictureFitsOneSave(t *testing.T) {
+	image := base64.StdEncoding.EncodeToString(make([]byte, maxOfficeVisualImageBytes))
+	at := func(row int) string {
+		return fmt.Sprintf(`"anchor":{"fromRow":%d,"fromColumn":0,"fromRowOffset":0,"fromColumnOffset":0,"toRow":%d,"toColumn":4,"toRowOffset":0,"toColumnOffset":0}`, row, row+4)
+	}
+	edits := []office.EditOp{{
+		Op:         "set_visual",
+		Target:     json.RawMessage(`{"sheet":"S"}`),
+		Attributes: json.RawMessage(`{"id":"p1",` + at(0) + `,"image":{"mediaType":"image/png","base64":"` + image + `"}}`),
+	}}
+	for i := 1; i <= 100; i++ {
+		edits = append(edits, office.EditOp{Op: "set_visual", Target: json.RawMessage(`{"sheet":"S"}`), Attributes: json.RawMessage(`{"id":"p1",` + at(i) + `}`)})
+	}
+	raw, err := json.Marshal(edits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) > len(image)+100*400 {
+		t.Fatalf("100 nudges cost %d bytes, want about one picture (%d)", len(raw), len(image))
+	}
+	if err := validateOfficeJobEdits(office.OperationEdit, edits); err != nil {
+		t.Fatalf("a picture at the cap nudged 100 times must validate: %v", err)
 	}
 }

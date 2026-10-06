@@ -12,7 +12,10 @@ import (
 // Visuals (B8, UNI-940 X02). set_visual carries one chart, picture or shape
 // the editor inserted this session: an id, a two-cell anchor (0-based cells
 // plus EMU offsets, ending below and right of where it starts) and exactly
-// one body. remove_visual cancels a session visual by id. Bounds mirror the
+// one body. A move or resize is the anchor-only set_visual (id + anchor, no
+// body), so a picture's bytes ride only its insert; officeVisualEditsOrdered
+// refuses an anchor-only set_visual whose insert is not earlier in the same
+// job (a media-less insert). remove_visual cancels a session visual by id. Bounds mirror the
 // engine parser (packages/office-engine/src/xlsx/ops-visuals.ts) and the
 // vendored ChartAdd/ShapeAdd/ImageAdd shapes the gateway writes.
 const (
@@ -200,7 +203,7 @@ func officeVisualImageOK(raw json.RawMessage) bool {
 }
 
 // officeSetVisualValid: set_visual - a sheet-ref target, a visual id, a
-// two-cell anchor and exactly one of chart, shape or image.
+// two-cell anchor and at most one of chart, shape or image (none is a move).
 func officeSetVisualValid(edit office.EditOp) bool {
 	if !officeRangeTargetOK(edit.Target) {
 		return false
@@ -223,7 +226,45 @@ func officeSetVisualValid(edit office.EditOp) bool {
 		bodies++
 		valid = valid && officeVisualImageOK(raw)
 	}
-	return bodies == 1 && valid
+	return bodies <= 1 && valid
+}
+
+// officeVisualEditsOrdered is the job-level half of the set_visual gate: an
+// anchor-only set_visual (a move) must follow a set_visual with a body for the
+// same id earlier in the job, with no remove_visual of that id between them.
+// The engine folds the move into that pending visual and refuses a move with
+// none; the editor locks a visual once a save wrote it, so a later job never
+// moves a visual it did not insert. Ids are matched without the sheet: the
+// editor's ids are unique per session and a sheet rename changes the target.
+// Every edit has already passed its per-op validator.
+func officeVisualEditsOrdered(edits []office.EditOp) bool {
+	live := map[string]bool{}
+	for _, edit := range edits {
+		if edit.Op != "set_visual" && edit.Op != "remove_visual" {
+			continue
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok {
+			return false
+		}
+		id, ok := officeVisualString(attributes["id"], 64)
+		if !ok {
+			return false
+		}
+		if edit.Op == "remove_visual" {
+			delete(live, id)
+			continue
+		}
+		_, chart := attributes["chart"]
+		_, shape := attributes["shape"]
+		_, image := attributes["image"]
+		if chart || shape || image {
+			live[id] = true
+		} else if !live[id] {
+			return false
+		}
+	}
+	return true
 }
 
 // officeRemoveVisualValid: remove_visual - a sheet-ref target plus an id.
