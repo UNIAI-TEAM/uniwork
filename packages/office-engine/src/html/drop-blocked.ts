@@ -1,7 +1,14 @@
 import { BLOCKED_URL } from "./preview-copy";
 
-/** Attributes that load a resource. */
-const RESOURCE_ATTRIBUTES = ["src", "srcset", "poster"];
+/** Attributes that load a resource: every slot the engine sweep can point at
+ * BLOCKED_URL and a frame would fetch (`href` is handled apart, see below).
+ * `action`, `formaction` and `ping` only matter on a navigation the user
+ * starts, so they stay. */
+const RESOURCE_ATTRIBUTES = ["src", "srcset", "poster", "data", "background", "xlink:href"];
+
+/** Elements whose `href` only navigates when followed; every other `href`
+ * (a stylesheet `<link>`, an svg `<image>` or `<use>`) is fetched on render. */
+const NAVIGATION_ONLY_HREF = new Set(["a", "area"]);
 
 /** Attributes that only make sense on an image that loads. */
 const IMAGE_ONLY_ATTRIBUTES = new Set(["alt", "sizes", "loading", "decoding", "width", "height", "usemap", "ismap"]);
@@ -33,6 +40,13 @@ export function dropBlockedResourceUrls(copy: string): string {
   for (const element of Array.from(doc.querySelectorAll("*"))) {
     for (const name of RESOURCE_ATTRIBUTES) {
       if (element.getAttribute(name)?.includes(BLOCKED_URL)) element.removeAttribute(name);
+    }
+    if (!NAVIGATION_ONLY_HREF.has(element.localName) && element.getAttribute("href")?.includes(BLOCKED_URL)) {
+      if (element.localName === "link") {
+        element.remove();
+        continue;
+      }
+      element.removeAttribute("href");
     }
     if (element.localName === "img" && !element.hasAttribute("src") && !element.hasAttribute("srcset")) showAltOnly(doc, element);
   }
