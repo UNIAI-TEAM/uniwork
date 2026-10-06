@@ -20,6 +20,7 @@ import {
 } from "./catalog";
 import { appliedFormatKey, readAppliedPattern, recordAppliedFormat, useAppliedPattern } from "./applied-format";
 import { autoFitColumnsAfterFormat, moreDecimals } from "./auto-fit-width";
+import { useFileNumberFormat } from "./file-format";
 import { fireCommand } from "../fire-command";
 
 const CUSTOM_ERROR_KEYS: Record<XlsxCustomFormatError, string> = {
@@ -124,7 +125,9 @@ function XlsxNumberFormatPicker(context: XlsxToolbarGroupProps) {
   const [customError, setCustomError] = useState<XlsxCustomFormatError | null>(null);
   const { selection, unitId } = context;
   const blocked = isBlocked(context);
-  const applied = useAppliedPattern(appliedFormatKey(unitId, selection));
+  const sessionPattern = useAppliedPattern(appliedFormatKey(unitId, selection));
+  const filePattern = useFileNumberFormat(context);
+  const applied = sessionPattern ?? filePattern;
 
   const applyPattern = (pattern: string) => {
     if (blocked) return;
