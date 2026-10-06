@@ -9,6 +9,7 @@
 // viewport only).
 import type { IRange } from "@univerjs/core";
 import { IRenderManagerService, SHEET_VIEWPORT_KEY } from "@univerjs/engine-render";
+import { toNeutralStyle } from "../../upstream/apps/sheets/src/renderer/edit-journal";
 import type { UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
 
 /** A cell's box in container pixels (zoom and scroll applied) plus the zoom
@@ -37,10 +38,23 @@ export interface XlsxRendererRangeValues {
   readonly display: readonly (readonly string[])[];
 }
 
+/** A cell's composed style in the renderer-neutral wire shape. */
+export type XlsxRendererCellStyle = NonNullable<ReturnType<typeof toNeutralStyle>>;
+
+/** What the grid shows for a range of the active sheet, for print. Sizes are
+ *  unzoomed sheet pixels; a hidden row/column includes filtered-out rows. */
+export interface XlsxRendererPrintRange {
+  readonly styles: readonly (readonly (XlsxRendererCellStyle | null)[])[];
+  readonly rows: readonly { readonly height: number; readonly hidden: boolean }[];
+  readonly columns: readonly { readonly width: number; readonly hidden: boolean }[];
+  readonly merges: readonly IRange[];
+}
+
 export interface XlsxRendererGeometry {
   getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
   cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
   readRangeValues(sheetId: string, range: IRange): XlsxRendererRangeValues | null;
+  readPrintRange(sheetId: string, range: IRange): XlsxRendererPrintRange | null;
 }
 
 /** OOXML grid bounds; a walk never leaves them. */
@@ -138,5 +152,35 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
     }
   };
 
-  return { getCellBox, cellAtPoint, readRangeValues };
+  const readPrintRange: XlsxRendererGeometry["readPrintRange"] = (sheetId, range) => {
+    const active = activeSheet(sheetId);
+    if (!active) return null;
+    try {
+      const sheet = active.worksheet.getSheet();
+      const styles: (XlsxRendererCellStyle | null)[][] = [];
+      const rows: { height: number; hidden: boolean }[] = [];
+      for (let row = range.startRow; row <= range.endRow; row += 1) {
+        rows.push({ height: sheet.getRowHeight(row), hidden: !sheet.getRowVisible(row) || sheet.getRowFiltered(row) });
+        const line: (XlsxRendererCellStyle | null)[] = [];
+        for (let column = range.startColumn; column <= range.endColumn; column += 1) {
+          // getCell runs the view-model interceptors (conditional formatting
+          // among them), so the composed style is what the canvas paints.
+          const composed = sheet.getComposedCellStyleByCellData(row, column, sheet.getCell(row, column));
+          line.push(toNeutralStyle(composed as Record<string, unknown>) ?? null);
+        }
+        styles.push(line);
+      }
+      const columns: { width: number; hidden: boolean }[] = [];
+      for (let column = range.startColumn; column <= range.endColumn; column += 1) {
+        columns.push({ width: sheet.getColumnWidth(column), hidden: !sheet.getColVisible(column) });
+      }
+      const merges = sheet.getMergeData().filter((merge) =>
+        merge.startRow <= range.endRow && merge.endRow >= range.startRow && merge.startColumn <= range.endColumn && merge.endColumn >= range.startColumn);
+      return { styles, rows, columns, merges: merges.map((merge) => ({ ...merge })) };
+    } catch {
+      return null;
+    }
+  };
+
+  return { getCellBox, cellAtPoint, readRangeValues, readPrintRange };
 }
