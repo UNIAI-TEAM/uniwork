@@ -71,6 +71,12 @@ export function createPdfEngineSession(ports: PdfEngineSessionPorts): PdfEngineS
 
   return {
     adopt(pdfHandle) {
+      // An open that answered after close (a byte swap overtaken by dispose)
+      // has nobody left to free it: free it now instead of holding it.
+      if (closed) {
+        free(pdfHandle ?? null);
+        return;
+      }
       epoch += 1;
       if (current !== (pdfHandle ?? null)) free(current);
       current = pdfHandle ?? null;

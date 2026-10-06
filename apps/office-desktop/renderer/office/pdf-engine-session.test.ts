@@ -55,6 +55,19 @@ describe("pdf engine session", () => {
     expect(reopen).toHaveBeenCalledTimes(1);
   });
 
+  it("frees a handle adopted after close instead of holding it", () => {
+    const close = vi.fn(async () => undefined);
+    const session = createPdfEngineSession({ reopen: async () => "pdf_x", close });
+    session.adopt("pdf_1");
+    session.close();
+    // A byte swap whose open answered after the surface was disposed.
+    session.adopt("pdf_late");
+    expect(session.current()).toBeNull();
+    expect(close.mock.calls).toEqual([["pdf_1"], ["pdf_late"]]);
+    session.adopt(undefined);
+    expect(close).toHaveBeenCalledTimes(2);
+  });
+
   it("refuses runs after close and frees a re-open that lands afterwards", async () => {
     const pending = deferred<string>();
     const close = vi.fn(async () => undefined);
