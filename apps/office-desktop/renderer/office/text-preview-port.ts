@@ -1,4 +1,4 @@
-import { buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
+import { BLOCKED_URL, buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
 import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
 import { emptyAssetManifest } from "@uniwork/office-engine/assets";
 
@@ -23,6 +23,12 @@ export interface DesktopTextPreviewPort {
  * relative images simply do not load; only inline data: images and fonts do. */
 const PREVIEW_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:";
 const DOCUMENT_PATH = { md: "document.md", html: "document.html" } as const;
+/** Attributes that load a resource. The engine points a reference it will not
+ * serve (relative or remote: local mode has no asset broker) at BLOCKED_URL; the
+ * CSP then refuses that load and logs a violation per attempt, which floods the
+ * console on every re-render. Dropping the attribute makes no request at all and
+ * leaves the element's alt text in place of a broken-image icon. */
+const RESOURCE_ATTRIBUTES = ["src", "srcset", "poster"];
 const URL_ATTRIBUTES = ["href", "src", "action", "formaction", "xlink:href", "data", "poster", "background", "ping"];
 const REMOVED_ELEMENTS = "script, iframe, frame, frameset, object, embed, applet, base, form, link, noscript";
 
@@ -56,7 +62,8 @@ function hardenCopy(copy: string): string {
       const name = attribute.name.toLowerCase();
       // Strip control characters and whitespace the URL parser would ignore.
       const value = Array.from(attribute.value).filter((char) => char.charCodeAt(0) > 0x20).join("").toLowerCase();
-      if (name.startsWith("on") || name === "srcdoc" || (URL_ATTRIBUTES.includes(name) && value.startsWith("javascript:"))) element.removeAttribute(attribute.name);
+      if (RESOURCE_ATTRIBUTES.includes(name) && attribute.value.includes(BLOCKED_URL)) element.removeAttribute(attribute.name);
+      else if (name.startsWith("on") || name === "srcdoc" || (URL_ATTRIBUTES.includes(name) && value.startsWith("javascript:"))) element.removeAttribute(attribute.name);
     }
   }
   const csp = doc.createElement("meta");
