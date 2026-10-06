@@ -46,7 +46,7 @@ export type MasterPartEdit =
   | ({ op: "master_set_text_style"; part: string; placeholder: string; idx?: number } & MasterTextStylePatch);
 
 /** What a part edit needs from the session model. */
-export interface MasterPartModel {
+interface MasterPartModel {
   opened: OpenedPptxLike;
   fitWidthPx: number;
   dirty: boolean;

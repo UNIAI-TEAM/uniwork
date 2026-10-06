@@ -111,7 +111,7 @@ interface MasterReadHandle {
   masterElements?(partPath: string): readonly MasterElementView[];
 }
 
-export interface PptxEditorMastersOptions {
+interface PptxEditorMastersOptions {
   masterParts?: PptxMastersOptions["masterParts"];
   masterElements?: PptxMastersOptions["masterElements"];
   editorHandle: EditorHandle | null;
