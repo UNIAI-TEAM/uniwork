@@ -366,10 +366,12 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
   // while the sign-in card is shown too (close/update, deep-link prompt).
   const affected = tabs.tabs.filter((tab) => leave?.ids.includes(tab.id));
   const deviceLeaveSet = affected.length > 0 && affected.every((tab) => tab.data.kind === "local");
+  // The warning names the documents whose changes are not protected, not just "changes".
+  const unprotected = tabs.tabs.filter((tab) => tabs.checkpointFailures.includes(tab.id)).map((tab) => tab.title);
   const alerts = <WorkspaceAlerts items={[
     ...(actionError ? [{ id: "action", message: actionError, onDismiss: () => setActionError(null) }] : []),
     ...(syncError ? [{ id: "session", message: t("officeDesktop.tabs.sessionError") }] : []),
-    ...(tabs.checkpointFailures.length > 0 ? [{ id: "checkpoint", message: t("officeDesktop.tabs.checkpointFailed") }] : []),
+    ...(tabs.checkpointFailures.length > 0 ? [{ id: "checkpoint", message: unprotected.length > 0 ? t("officeDesktop.tabs.checkpointFailedNamed", { titles: unprotected.join(", ") }) : t("officeDesktop.tabs.checkpointFailed") }] : []),
   ]} />;
   const leaveDialog = <LeaveDialog key={leave?.host?.requestId ?? "tab-leave"} open={leave !== null} dirty={affected.some((tab) => isDocumentDirty(tab.data.session))} saving={affected.some((tab) => tab.data.session.coordinator.getState().state === "saving")}
     saveLabel={deviceLeaveSet ? t("officeDesktop.local.leaveSave") : undefined}

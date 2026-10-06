@@ -2,7 +2,8 @@ import { isAbsolute } from "node:path";
 import type { DraftSession } from "../../../packages/core/office/draft-recovery";
 import { desktopDocumentFormatForName } from "../shared/document-formats";
 import { DESKTOP_IPC_CHANNELS, desktopFileResponseSchema, type DesktopIpcChannel } from "../shared/ipc";
-import type { FileHandleRegistry, OpenFileMetadata } from "./files/registry";
+import { answerRefusal } from "./files/failure-codes";
+import { LocalFileError, type FileHandleRegistry, type OpenFileMetadata } from "./files/registry";
 import { sameDocumentSession } from "./opened-documents";
 
 export type WindowIpcOptions = {
@@ -28,18 +29,25 @@ export function registerWindowIpc(options: WindowIpcOptions): void {
       return options.dispatch(channel, payload);
     });
   }
+  // A refused drop answers a typed code like a pick does (a thrown message is all
+  // Electron would carry), so a locked, oversized or linked file says why instead
+  // of the generic open error. A fault that is not a LocalFileError reads as a
+  // failed read; no path or OS message is copied into the answer.
+  const openDropped = answerRefusal(async (path: string) => {
+    const session = deviceScope();
+    const metadata = await fileRegistry.openEvent(path);
+    const bytes = await fileRegistry.read(metadata.handle);
+    if (!sameDocumentSession(session, deviceScope())) throw new LocalFileError("session_revoked");
+    localOpenContext(metadata);
+    return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
+  }, (error) => (error instanceof LocalFileError ? error.code : "read_failed"), (code) => desktopFileResponseSchema.parse({ opened: false, code }));
   ipcMain.handle("desktop:native-drop-open", async (event, payload: unknown) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error("invalid_sender");
     if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string" || !isAbsolute(payload.path)) throw new Error("invalid_file");
     // A dropped file outside the shared format table never reaches the handle
     // registry: the renderer receives the same typed unsupported answer as a pick.
     if (!desktopDocumentFormatForName(payload.path)) return desktopFileResponseSchema.parse({ opened: false, unsupported: true });
-    const session = deviceScope();
-    const metadata = await fileRegistry.openEvent(payload.path);
-    const bytes = await fileRegistry.read(metadata.handle);
-    if (!sameDocumentSession(session, deviceScope())) throw new Error("session_revoked");
-    localOpenContext(metadata);
-    return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
+    return openDropped(payload.path);
   });
   const announceFile = async (path: string) => {
     if (!isAbsolute(path) || !desktopDocumentFormatForName(path)) return;
