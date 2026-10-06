@@ -344,6 +344,12 @@ export async function run({ out, skipInstall, withNative, keep }) {
       record.artifacts.push({ package: name, entry: entryRel, status: 'fail', detail: String(e.message || e).split('\n').slice(0, 3).join(' | ') });
     }
   }
+  // Patch 0010's capability marker must survive bundling: hosts refuse an
+  // xlsx gateway bundle without it (packages/office-engine/src/xlsx/vendor.ts).
+  const xlsxGateway = record.artifacts.find((a) => a.status === 'built' && a.out === 'dist/xlsx-gateway.mjs');
+  if (xlsxGateway && !/\bUNIWORK_XLSX_VISUAL_ADDITIONS\b/.test(fs.readFileSync(path.join(distDir, 'xlsx-gateway.mjs'), 'utf8'))) {
+    Object.assign(xlsxGateway, { status: 'fail', detail: 'patch 0010 marker UNIWORK_XLSX_VISUAL_ADDITIONS missing from the bundle' });
+  }
   const built = record.artifacts.filter((a) => a.status === 'built').length;
   const failed = record.artifacts.filter((a) => a.status === 'fail');
   record.steps.push({ step: 'bundle', status: failed.length ? 'fail' : 'pass', detail: `${built}/${order.length} built` + (failed.length ? ' - ' + failed.map((f) => f.package).join(', ') : '') });

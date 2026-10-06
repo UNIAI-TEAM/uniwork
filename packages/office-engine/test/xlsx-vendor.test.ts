@@ -3,6 +3,7 @@
 // empty) argument reproduces the exact call this lane made before the slots
 // existed.
 import { describe, expect, it } from "vitest";
+import { EngineBoundaryError } from "@uniwork/office-contracts";
 import type { XlsxCellEdit, XlsxMutation } from "../src/xlsx/engine";
 import { bindXlsxGateway } from "../src/xlsx/vendor";
 
@@ -30,12 +31,33 @@ function fakeGateway() {
       return mutation();
     },
     assertOnlyTouchedEntriesChanged: () => undefined,
+    UNIWORK_XLSX_VISUAL_ADDITIONS: true as const,
   };
   return { mod, calls };
 }
 
 const source = new Uint8Array([80, 75, 3, 4]);
 const edits: XlsxCellEdit[] = [{ sheetName: "Data", row: 0, column: 0, writeValue: true, cell: { value: 1 } }];
+
+describe("bindXlsxGateway capability marker (patch 0010)", () => {
+  it("refuses a bundle built without patch 0010 instead of shifting formulaValues", () => {
+    const { mod } = fakeGateway();
+    const { UNIWORK_XLSX_VISUAL_ADDITIONS: _marker, ...old } = mod;
+    expect(() => bindXlsxGateway(old)).toThrow(EngineBoundaryError);
+    let refused: unknown;
+    try {
+      bindXlsxGateway(old);
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toMatchObject({ code: "engine_incompatible", fields: { detail: expect.stringMatching(/patch 0010.*build-upstream.mjs/) } });
+    expect(() => bindXlsxGateway({ ...old, UNIWORK_XLSX_VISUAL_ADDITIONS: "yes" } as never)).toThrow(EngineBoundaryError);
+  });
+
+  it("binds a bundle that exports the marker", () => {
+    expect(() => bindXlsxGateway(fakeGateway().mod)).not.toThrow();
+  });
+});
 
 describe("bindXlsxGateway applyCellEdits arguments", () => {
   it("passes an absent XlsxGatewayArguments exactly as the pre-slot call", async () => {
