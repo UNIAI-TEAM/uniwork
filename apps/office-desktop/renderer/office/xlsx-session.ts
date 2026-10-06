@@ -1,7 +1,7 @@
 ﻿import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
-import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, stableJson, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
+import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, stableJson, withoutPendingOps, withPendingOps, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopOfficeJobResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata, type DesktopOfficeJobRequest } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
@@ -196,6 +196,10 @@ export function createDesktopXlsxSession(options: DesktopXlsxSessionOptions): De
       outputs.delete(intent.intentId);
       const candidate = candidates.get(intent.intentId);
       if (candidate) { committed = structuredClone(candidate.snapshot); pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision); baseRevision = result.revision; lastCommit = { intentId: intent.intentId, revision: result.revision }; candidates.clear(); }
+      // F4: the live stream keeps exactly the edits the committed file lacks (typed
+      // during the in-flight save or after), so a draft taken now recovers them and
+      // never replays what the save already wrote.
+      if (candidate && snapshot) { const kept = pending.map((entry) => entry.operation); snapshot = kept.length ? withPendingOps(withoutPendingOps(snapshot), kept) : withoutPendingOps(snapshot); }
       return { intentId: result.intentId, idempotencyKey: result.idempotencyKey, documentId: result.documentId, versionId: result.versionId, revision: result.revision, checksumSha256: result.checksum, sizeBytes: output.sizeBytes, engineName: "genoffice", engineVersion: ENGINE_BUILD, contractVersion: CONTRACT_REVISION, protocolVersion: "1" };
     },
     async reconcile() { return null; },
