@@ -724,6 +724,10 @@ var officeEditValidators = map[string]func(office.EditOp) bool{
 	// section from the editor model. Names follow Excel's grammar;
 	// preserveNames lists names the editor cannot model and keeps verbatim.
 	"set_defined_names": officeSetDefinedNamesValid,
+	// Visuals (B8): set_visual adds or replaces one session chart, picture or
+	// shape (document_office_visuals.go); remove_visual cancels it by id.
+	"set_visual":    officeSetVisualValid,
+	"remove_visual": officeRemoveVisualValid,
 }
 
 // OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
