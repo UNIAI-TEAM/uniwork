@@ -29,14 +29,6 @@ export interface OfficePrintPage {
  * the desktop port assumes for a request that carries no page. */
 export const A4_PORTRAIT_PAGE: OfficePrintPage = Object.freeze({ widthMm: 210, heightMm: 297, landscape: false });
 
-/** The geometry of a `widthMm` x `heightMm` page as printed: landscape when
- * wider than tall. Undefined for a size that is not positive and finite, so a
- * request never carries a page the host would have to refuse. */
-export function officePrintPage(widthMm: number, heightMm: number): OfficePrintPage | undefined {
-  if (!(Number.isFinite(widthMm) && Number.isFinite(heightMm) && widthMm > 0 && heightMm > 0)) return undefined;
-  return { widthMm, heightMm, landscape: widthMm > heightMm };
-}
-
 /** What a print port receives: the sanitized copy, the document title and,
  * when the view knows it, the page geometry ({@link OfficePrintPage}). */
 export interface OfficePrintRequest extends MarkdownPrintRequest {

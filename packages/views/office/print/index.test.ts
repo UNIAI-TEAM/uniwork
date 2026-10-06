@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { A4_PORTRAIT_PAGE, createBrowserPrintPort, isPrintBusy, officePrintPage } from "./index";
+import { A4_PORTRAIT_PAGE, createBrowserPrintPort, isPrintBusy } from "./index";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -57,15 +57,7 @@ describe("createBrowserPrintPort", () => {
   });
 });
 
-describe("officePrintPage", () => {
-  it("reads the orientation off the page as printed", () => {
-    expect(officePrintPage(338.667, 190.5)).toEqual({ widthMm: 338.667, heightMm: 190.5, landscape: true });
-    expect(officePrintPage(210, 297)).toEqual({ widthMm: 210, heightMm: 297, landscape: false });
-    expect(officePrintPage(200, 200)).toEqual({ widthMm: 200, heightMm: 200, landscape: false });
-  });
-  it.each([[0, 297], [210, -1], [Number.NaN, 297], [210, Number.POSITIVE_INFINITY]])("gives no page for %s x %s", (width, height) => {
-    expect(officePrintPage(width, height)).toBeUndefined();
-  });
+describe("A4_PORTRAIT_PAGE", () => {
   it("defaults Markdown and HTML to A4 portrait", () => {
     expect(A4_PORTRAIT_PAGE).toEqual({ widthMm: 210, heightMm: 297, landscape: false });
   });
