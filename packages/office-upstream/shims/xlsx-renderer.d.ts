@@ -89,6 +89,9 @@ export interface XlsxRendererOptions {
   onDirty?: () => void;
   onEdits?: (edits: XlsxRendererEdit[]) => void;
   onSelectionChange?: (selection: XlsxRendererSelection | null) => void;
+  /** UNI-940 X02: the grid moved under a visual overlay (scroll, zoom,
+   *  sheet switch or any executed command); re-read the cell boxes. */
+  onViewportChange?: () => void;
 }
 
 export interface XlsxRendererCellEdit {
@@ -253,7 +256,28 @@ export interface XlsxRendererHandle {
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): XlsxRendererJournal;
+  /** UNI-940 X02 geometry seam: a cell's box in container pixels on the
+   *  active sheet (null for any other sheet), and the cell under a point. */
+  getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
+  cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
   dispose(): void;
+}
+
+/** A cell's box in container pixels (zoom and scroll applied) plus the zoom. */
+export interface XlsxRendererCellBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly zoom: number;
+}
+
+/** The cell under a container point; offsets are UNZOOMED sheet pixels. */
+export interface XlsxRendererCellHit {
+  readonly row: number;
+  readonly column: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
 }
 
 export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHandle;

@@ -36,6 +36,7 @@ import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
+import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit } from "./geometry";
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
@@ -119,6 +120,9 @@ export interface XlsxRendererOptions {
   onDirty?: () => void;
   onEdits?: (edits: XlsxRendererEdit[]) => void;
   onSelectionChange?: (selection: { sheetId: string; range: IRange } | null) => void;
+  /** UNI-940 X02: the grid moved under a visual overlay (scroll, zoom,
+   *  sheet switch or any executed command); re-read the cell boxes. */
+  onViewportChange?: () => void;
 }
 
 type DesktopApi = Record<string, unknown>;
@@ -195,6 +199,10 @@ export interface XlsxRendererHandle {
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): EditJournal;
+  /** UNI-940 X02 geometry seam: a cell's box in container pixels on the
+   *  active sheet (null for any other sheet), and the cell under a point. */
+  getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
+  cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
   dispose(): void;
 }
 
@@ -415,6 +423,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   });
 
   const themeService = runtime.univer.__getInjector().get(ThemeService);
+  const geometry = createGridGeometry(runtime, container);
+  const notifyViewport = () => options.onViewportChange?.();
 
   const refreshViewport = () => {
     const state = lazyWorkbookRef.current;
@@ -591,10 +601,11 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeClipboardPaste, (event) => {
     if (options.readOnly || event.html) event.cancel = true;
   }));
-  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, () => refreshViewport()));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, () => { refreshViewport(); notifyViewport(); }));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, notifyViewport));
   disposables.push(
     runtime.univerAPI.addEvent(runtime.univerAPI.Event.ActiveSheetChanged, () =>
-      window.setTimeout(() => { refreshViewport(); notifySelection(); }, 0),
+      window.setTimeout(() => { refreshViewport(); notifySelection(); notifyViewport(); }, 0),
     ),
   );
   disposables.push(
@@ -805,6 +816,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       if (!state) throw new Error("xlsx renderer has no workbook loaded");
       return state.editJournal;
     },
+    getCellBox: geometry.getCellBox,
+    cellAtPoint: geometry.cellAtPoint,
     dispose() {
       disposed = true;
       removeShiftedNavigation();
