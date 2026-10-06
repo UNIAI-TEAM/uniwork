@@ -47,7 +47,19 @@ export type PrintWindow = {
 
 export type PrintFile = Readonly<{ path: string; cleanup(): Promise<void> }>;
 
+/** The app window that owns the print dialog. Its `focus` event is the only
+ * signal that the user is back in the app while Electron has not (yet) called
+ * back: a dialog Electron never reports as closed would otherwise leave the
+ * busy flag set until restart. A timeout would be wrong - the OS dialog may stay
+ * open for as long as the user likes - so the guard never closes anything. */
+export type PrintOwner = {
+  on(event: "focus", listener: () => void): unknown;
+  removeListener(event: "focus", listener: () => void): unknown;
+};
+
 export interface PrintDocumentOptions {
+  /** Optional owner window; see {@link PrintOwner}. */
+  owner?: PrintOwner;
   /** Builds the hidden print window. It must apply the options verbatim and
    * never attach a preload; the Electron entry passes them to BrowserWindow. */
   createWindow(options: PrintWindowOptions): PrintWindow;
@@ -78,15 +90,22 @@ function denyNavigation(window: PrintWindow): void {
   }
 }
 
+/** The print in flight. A job whose owner regained focus is superseded, not
+ * cancelled: the next request may start while its callback is still pending,
+ * and the old job then only cleans up after itself. */
+type PrintJob = { ownerRefocused: boolean };
+
 /** The main-side handler for `desktop:print-document`. The dispatcher has
  * already checked sender, frame, origin, session, payload type and size. One
  * print at a time; never throws - every failure is a typed outcome. */
 export function createPrintIpcHandler(options: PrintDocumentOptions) {
-  let busy = false;
+  let active: PrintJob | undefined;
   return {
     "desktop:print-document": async (request: DesktopIpcRequest<"desktop:print-document">): Promise<DesktopPrintResponse> => {
-      if (busy) return { outcome: "failed", reason: "print_busy" };
-      busy = true;
+      if (active && !active.ownerRefocused) return { outcome: "failed", reason: "print_busy" };
+      const job: PrintJob = { ownerRefocused: false };
+      active = job;
+      const onFocus = () => { job.ownerRefocused = true; };
       let file: PrintFile | undefined;
       let window: PrintWindow | undefined;
       try {
@@ -96,14 +115,18 @@ export function createPrintIpcHandler(options: PrintDocumentOptions) {
         denyNavigation(created);
         await created.loadFile(file.path);
         return await new Promise<DesktopPrintResponse>((resolve) => {
+          // Listen only once the dialog is about to open, so the focus that
+          // returns to the app as the dialog appears does not count.
+          options.owner?.on("focus", onFocus);
           created.webContents.print({ silent: false, printBackground: true }, (success, failureReason) => resolve(printOutcome(success, failureReason)));
         });
       } catch {
         return { outcome: "failed", reason: "print_unavailable" };
       } finally {
+        options.owner?.removeListener("focus", onFocus);
         if (window && !window.isDestroyed()) window.close();
         await file?.cleanup().catch(() => undefined);
-        busy = false;
+        if (active === job) active = undefined;
       }
     },
   };
