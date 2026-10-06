@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { PptxRendererModule } from "./canvas/renderer-module";
-import { run, shapeNode, slide, textLayout } from "./canvas/pptx-render-fixtures";
+import { box, run, shapeNode, slide, textLayout } from "./canvas/pptx-render-fixtures";
 import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 
 /**
@@ -34,10 +34,18 @@ const module: PptxRendererModule = {
   buildRenderSlide: () => slide([shapeNode({ text: textLayout({ lines: [{ runs: [run({ text: "Title" })], top: 0, height: 24 }] }) })]),
 };
 
-async function renderEditor(count: number, props: Partial<PptxEditorProps> = {}) {
+const twoShapes: PptxRendererModule = {
+  ...module,
+  buildRenderSlide: () => slide([
+    shapeNode({ text: textLayout({ lines: [{ runs: [run({ text: "Title" })], top: 0, height: 24 }] }) }),
+    shapeNode({ id: "r_shape-2", sourceId: "shape-2", box: box({ x: 40, y: 300, w: 200, h: 120 }), text: textLayout({ lines: [{ runs: [run({ text: "Body" })], top: 0, height: 24 }] }) }),
+  ]),
+};
+
+async function renderEditor(count: number, props: Partial<PptxEditorProps> = {}, renderer: PptxRendererModule = module) {
   const editorHandle = props.editorHandle ?? makeHandle();
   const element = (extra: Partial<PptxEditorProps> = {}) => (
-    <PptxEditor host={makeHost()} editorHandle={editorHandle} loadRendererModule={async () => module} slides={slidesOf(count)} deck={deckOf(count, 1)} {...props} {...extra} />
+    <PptxEditor host={makeHost()} editorHandle={editorHandle} loadRendererModule={async () => renderer} slides={slidesOf(count)} deck={deckOf(count, 1)} {...props} {...extra} />
   );
   const view = render(element());
   await waitFor(() => expect(screen.getByText("Title")).toBeInTheDocument());
@@ -104,6 +112,67 @@ describe("PptxEditor slide edits (UNI-958)", () => {
     selectTitle();
     fireEvent.keyDown(canvas(), { key: "a", ctrlKey: true });
     fireEvent.keyDown(canvas(), { key: "Shift", shiftKey: true });
+    expect(canvas().querySelector("[data-pptx-text-editor]")).toBeNull();
+  });
+
+  it("clears the canvas selection on a rail Delete, so the next slide's same-id title is not selected (r2 M1)", async () => {
+    const onCommitText = vi.fn();
+    const { editorHandle } = await renderEditor(2, { onCommitText });
+    selectTitle();
+    fireEvent.keyDown(railButton(0), { key: "Delete" });
+    await waitFor(() => expect(editorHandle.edit).toHaveBeenCalledWith([{ op: "delete_slide", slideIndex: 0 }]));
+    // Slide 2 (now at index 0) has its own "shape-1": a stale selection would let this key replace its text.
+    fireEvent.keyDown(canvas(), { key: "X" });
+    expect(canvas().querySelector("[data-pptx-text-editor]")).toBeNull();
+  });
+
+  it("Backspace on a thumbnail deletes too; the last slide is refused with a visible reason (r2 L2)", async () => {
+    const { editorHandle } = await renderEditor(2);
+    fireEvent.keyDown(railButton(1), { key: "Backspace" });
+    await waitFor(() => expect(editorHandle.edit).toHaveBeenCalledWith([{ op: "delete_slide", slideIndex: 1 }]));
+    const single = await renderEditor(1);
+    fireEvent.keyDown(document.querySelectorAll("[data-pptx-slide-rail] [data-slide-index='0']")[1] as HTMLElement, { key: "Delete" });
+    expect(single.editorHandle.edit).not.toHaveBeenCalled();
+    expect(await screen.findByText(/The last slide cannot be deleted/)).toBeInTheDocument();
+  });
+
+  it("a slide picked meanwhile wins over the pending New slide selection (r2 L3)", async () => {
+    const onSlideSelect = vi.fn();
+    const { editorHandle, rerender } = await renderEditor(3, { selectedIndex: 1, onSlideSelect });
+    fireEvent.click(newSlide());
+    await waitFor(() => expect(editorHandle.edit).toHaveBeenCalled());
+    rerender({ selectedIndex: 0, onSlideSelect });
+    rerender({ selectedIndex: 0, onSlideSelect, slides: slidesOf(4), deck: deckOf(4, 2) });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(onSlideSelect).not.toHaveBeenCalledWith(2);
+  });
+
+  it("Ctrl+Z after New slide runs the handle's undo (one journal step)", async () => {
+    const { editorHandle } = await renderEditor(2);
+    fireEvent.click(newSlide());
+    await waitFor(() => expect(editorHandle.edit).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(canvas(), { key: "z", ctrlKey: true });
+    await waitFor(() => expect(editorHandle.undo).toHaveBeenCalledTimes(1));
+  });
+
+  it("puts the caret after the typed text, so the next key appends (r2 L5)", async () => {
+    await renderEditor(1, { onCommitText: vi.fn() });
+    selectTitle();
+    fireEvent.keyDown(canvas(), { key: "X" });
+    const editor = await waitFor(() => canvas().querySelector("[data-pptx-text-editor]") as HTMLElement);
+    const range = window.getSelection()!;
+    expect(range.isCollapsed).toBe(true);
+    expect(editor.contains(range.anchorNode)).toBe(true);
+    expect(range.anchorOffset).toBe(range.anchorNode === editor ? editor.childNodes.length : 1);
+  });
+
+  it("does not start editing with two elements selected or inside an IME composition (r2 L1/L5)", async () => {
+    await renderEditor(1, { onCommitText: vi.fn() }, twoShapes);
+    selectTitle();
+    fireEvent.keyDown(canvas(), { key: "x", isComposing: true });
+    expect(canvas().querySelector("[data-pptx-text-editor]")).toBeNull();
+    fireEvent.keyDown(canvas(), { key: "a", ctrlKey: true });
+    fireEvent.keyDown(canvas(), { key: "X" });
     expect(canvas().querySelector("[data-pptx-text-editor]")).toBeNull();
   });
 });

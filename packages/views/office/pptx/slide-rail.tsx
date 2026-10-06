@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -15,8 +15,8 @@ export interface PptxSlideRailProps {
   slides: readonly PptxSlideView[];
   selectedIndex: number;
   onSelect: (index: number) => void;
-  /** Delete/Backspace on a focused thumbnail deletes that slide (UNI-958). The
-   *  rail never offers it on a one-slide deck: the engine refuses that delete. */
+  /** Delete/Backspace on a focused thumbnail deletes that slide (UNI-958). The caller
+   *  refuses a one-slide deck with its reason; absent leaves the key inert. */
   onDelete?: (index: number) => void;
   className?: string;
 }
@@ -26,6 +26,14 @@ export interface PptxSlideRailProps {
 export function PptxSlideRail({ slides, selectedIndex, onSelect, onDelete, className }: PptxSlideRailProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const buttonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  // r2 M2: the deleted thumbnail unmounts with its focus; once the deck is shorter,
+  // focus the thumbnail now at the selected index so Delete and arrows keep working.
+  const refocusBelow = useRef<number | null>(null);
+  useEffect(() => {
+    if (refocusBelow.current === null || slides.length >= refocusBelow.current) return;
+    refocusBelow.current = null;
+    buttonRefs.current[Math.min(selectedIndex, slides.length - 1)]?.focus();
+  }, [selectedIndex, slides.length]);
   const moveSelection = (index: number) => {
     const bounded = Math.min(Math.max(index, 0), Math.max(slides.length - 1, 0));
     onSelect(bounded);
@@ -43,6 +51,7 @@ export function PptxSlideRail({ slides, selectedIndex, onSelect, onDelete, class
             aria-label={t("slide_label", { index: index + 1, label: slide.label ?? "" })}
             aria-current={selected ? "page" : undefined}
             aria-disabled={slide.hidden ? "true" : undefined}
+            aria-keyshortcuts={onDelete ? "Delete" : undefined}
             data-slide-index={index}
             data-selected={selected}
             tabIndex={selected || (selectedIndex < 0 && index === 0) ? 0 : -1}
@@ -62,7 +71,9 @@ export function PptxSlideRail({ slides, selectedIndex, onSelect, onDelete, class
                 // The canvas Delete removes the selected shape; a slide's Delete stays here.
                 event.preventDefault();
                 event.stopPropagation();
-                if (onDelete && slides.length > 1) onDelete(index);
+                if (!onDelete) return;
+                refocusBelow.current = slides.length;
+                onDelete(index);
               }
             }}
           >

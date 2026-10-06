@@ -7,9 +7,16 @@
  * history and the dirty flag see one kind of slide edit whichever surface sent it.
  *
  * A new slide is selected once the host re-reads the longer deck: the edit result
- * does not carry the slide list, so the wanted index waits for `slideCount` to reach it.
+ * does not carry the slide list, so the wanted index waits for the deck to grow past
+ * the length it had when the edit was sent.
+ * The wait is dropped when the user picks another slide meanwhile, or when the deck
+ * changes length without reaching it (r2 L3), so it never fires on a later edit.
+ *
+ * A slide delete clears the canvas selection first (r2 M1): element ids repeat across
+ * slides, so a selection kept by id would land on the next slide's same-id shape.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import type { PptxEdit } from "@uniwork/office-engine/pptx";
 import type { RibbonItem } from "../ribbon";
@@ -21,29 +28,50 @@ interface PptxSlideCommandsInput {
   slideIndex: number;
   slideCount: number;
   selectSlide: (index: number) => void;
+  clearSelection: () => void;
   onError: (error: unknown) => void;
 }
 
-export function usePptxSlideCommands({ edit, slideIndex, slideCount, selectSlide, onError }: PptxSlideCommandsInput) {
-  const [pendingSelect, setPendingSelect] = useState<number | null>(null);
+interface PendingSelect {
+  index: number;
+  /** The slide selected and the deck length when the edit was SENT. */
+  from: number;
+  count: number;
+}
+
+export function usePptxSlideCommands({ edit, slideIndex, slideCount, selectSlide, clearSelection, onError }: PptxSlideCommandsInput) {
+  const { t } = useTranslation();
+  const latest = useRef({ slideIndex });
+  useEffect(() => { latest.current = { slideIndex }; }, [slideIndex]);
+  const [pendingSelect, setPendingSelect] = useState<PendingSelect | null>(null);
   useEffect(() => {
-    if (pendingSelect === null || slideCount <= pendingSelect) return;
-    setPendingSelect(null);
-    selectSlide(pendingSelect);
-  }, [pendingSelect, selectSlide, slideCount]);
+    if (!pendingSelect) return;
+    if (slideIndex !== pendingSelect.from) { setPendingSelect(null); return; }
+    if (slideCount > pendingSelect.count) {
+      setPendingSelect(null);
+      selectSlide(pendingSelect.index);
+    } else if (slideCount < pendingSelect.count) setPendingSelect(null);
+  }, [pendingSelect, selectSlide, slideCount, slideIndex]);
 
   const addSlide = useCallback(() => {
     const next = addBlankSlideEdit(slideIndex);
     if (!edit || !next) return;
-    void edit([next]).then(() => setPendingSelect(slideIndex + 1), onError);
-  }, [edit, onError, slideIndex]);
+    const from = slideIndex;
+    const count = slideCount;
+    void edit([next]).then(() => {
+      if (latest.current.slideIndex !== from) return;
+      setPendingSelect({ index: from + 1, from, count });
+    }, onError);
+  }, [edit, onError, slideCount, slideIndex]);
 
-  // The engine refuses to delete the last slide; the rail never offers it.
+  // The engine refuses to delete the last slide; say so instead of a silent key (r2 L2).
   const deleteSlide = useCallback((index: number) => {
     const next = deleteSlideEdit(index);
-    if (!edit || !next || slideCount < 2) return;
+    if (!edit || !next) return;
+    if (slideCount < 2) { onError(new Error(t("office.pptx.sorter.disabled_last_slide"))); return; }
+    clearSelection();
     void edit([next]).catch(onError);
-  }, [edit, onError, slideCount]);
+  }, [clearSelection, edit, onError, slideCount, t]);
 
   /** The Slides group's New slide button (Home and Insert tabs). */
   const slideItems = useMemo<readonly RibbonItem[]>(() => [{

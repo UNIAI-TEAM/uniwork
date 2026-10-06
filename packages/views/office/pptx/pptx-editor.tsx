@@ -411,7 +411,7 @@ export function PptxEditor({
   }, [reorderElements, runCommand, selectedIndex]);
   // F-01: every built panel is reachable from a ribbon item, a launcher, a
   // panel command or the active (contextual) tab, bound to ONE edit channel.
-  const slideCommands = usePptxSlideCommands({ ...(handleEdit ? { edit: handleEdit } : {}), slideIndex: selectedIndex, slideCount: slides.length, selectSlide, onError: reportCommandError });
+  const slideCommands = usePptxSlideCommands({ ...(handleEdit ? { edit: handleEdit } : {}), slideIndex: selectedIndex, slideCount: slides.length, selectSlide, clearSelection: selection.clear, onError: reportCommandError });
   const panels = usePptxPanels({
     activeTab,
     contextual,
@@ -489,7 +489,7 @@ export function PptxEditor({
     const binding = matchPptxShortcut(event);
     if (!binding) {
       // UNI-958: a printable key over a selected text element starts editing it, as in PowerPoint.
-      if (isPptxTypedKey(event) && openTextEditorForSelection(event.key)) event.preventDefault();
+      if (isPptxTypedKey(event.nativeEvent) && openTextEditorForSelection(event.key)) event.preventDefault();
       return;
     }
     switch (binding.action) {

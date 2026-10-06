@@ -25,7 +25,10 @@ export type PptxShortcutAction =
   | "next-slide"
   | "previous-slide"
   | "dismiss"
-  | "shortcuts-help";
+  | "shortcuts-help"
+  // Help rows only (UNI-958): answered by the slide rail and the type-over path, not the canvas map.
+  | "delete-slide"
+  | "type-to-edit";
 
 export type PptxShortcutGroup = "editing" | "view" | "navigation";
 
@@ -91,6 +94,17 @@ export const PPTX_SHORTCUTS: readonly PptxShortcutBinding[] = [
   { id: "shortcuts-help-f1", action: "shortcuts-help", chord: { key: "F1" }, labelKey: "office.pptx.shortcuts.help", group: "view", help: false },
 ];
 
+/**
+ * Keys answered OUTSIDE the canvas chord map (UNI-958), listed so the help dialog
+ * still shows every key that runs: Delete on a focused slide-rail thumbnail, and a
+ * typed character over one selected text element (`isPptxTypedKey`). The canvas
+ * matcher never reads this table, so the canvas Delete stays delete-selection.
+ */
+const PPTX_SURFACE_SHORTCUTS: readonly PptxShortcutBinding[] = [
+  { id: "delete-slide", action: "delete-slide", chord: { key: "Delete" }, labelKey: "office.pptx.shortcuts.delete_slide", group: "editing" },
+  { id: "type-to-edit", action: "type-to-edit", chord: { key: "A–Z" }, labelKey: "office.pptx.shortcuts.type_to_edit", group: "editing" },
+];
+
 /** Help-dialog group order, with the i18next key of each heading. */
 export const PPTX_SHORTCUT_GROUPS: readonly { id: PptxShortcutGroup; labelKey: string }[] = [
   { id: "editing", labelKey: "office.pptx.shortcuts.group_editing" },
@@ -129,7 +143,7 @@ export function pptxShortcutForAction(action: PptxShortcutAction): PptxShortcutB
 
 /** Bindings the help dialog shows, in table order. */
 export function pptxShortcutsForHelp(): readonly PptxShortcutBinding[] {
-  return PPTX_SHORTCUTS.filter((binding) => binding.help !== false);
+  return [...PPTX_SHORTCUTS, ...PPTX_SURFACE_SHORTCUTS].filter((binding) => binding.help !== false);
 }
 
 /** Keycap labels for one chord, e.g. ["Ctrl", "Shift", "Z"] or ["Cmd", "Z"]. */
@@ -143,8 +157,13 @@ export function pptxShortcutKeys(binding: PptxShortcutBinding, platform: string 
   return keys;
 }
 
-/** A key that types a character (no Ctrl/Cmd/Alt chord): over a selected text element
- *  it starts editing that element (UNI-958). Checked only after the chords above. */
-export function isPptxTypedKey(event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }): boolean {
-  return event.key.length === 1 && event.ctrlKey !== true && event.metaKey !== true && event.altKey !== true;
+/** A key that types a character: over a selected text element it starts editing that
+ *  element (UNI-958). Checked only after the chords above. A key inside an IME
+ *  composition (or the IME's own `Process` key) is not one: the Windows Telex text
+ *  service composes there, so double-click or F2 opens the editor instead. */
+export function isPptxTypedKey(event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; isComposing?: boolean }): boolean {
+  if (event.key.length !== 1 || event.isComposing === true || event.metaKey === true) return false;
+  // Windows reports AltGr as Ctrl+Alt, and that chord types a character (€, @ on some layouts).
+  const altGr = event.ctrlKey === true && event.altKey === true;
+  return altGr || (event.ctrlKey !== true && event.altKey !== true);
 }
