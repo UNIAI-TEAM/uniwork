@@ -8,10 +8,10 @@ import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPr
  * electron-main.ts, which stays the only module that imports Electron and
  * injects the pieces below).
  *
- * The print window is parented to the window that SENT the request, resolved
- * per request from the sender's webContents - the dispatcher admits only that
- * one sender - and never to a window captured at startup: a re-created or
- * destroyed app window then prints unparented instead of throwing.
+ * The window that SENT the request is resolved per request from the sender's
+ * webContents - the dispatcher admits only that one sender - and never
+ * captured at startup: it only feeds the busy guard's focus signal. The print
+ * window itself is never parented to it; see PrintDocumentOptions.createWindow.
  */
 
 /** The slice of Electron's BrowserWindow the host needs from the sender. */
@@ -28,7 +28,7 @@ export interface PrintHostOptions<Owner extends PrintHostOwner> {
    * (`BrowserWindow.fromWebContents`), or undefined when it is gone. */
   senderWindow(): Owner | null | undefined;
   /** `new BrowserWindow(options)`: options are applied verbatim. */
-  createWindow(options: PrintWindowOptions & { parent?: Owner; icon?: string }): PrintWindow;
+  createWindow(options: PrintWindowOptions & { icon?: string }): PrintWindow;
   /** The built bundle directory (`dist`) the product icon is read from. */
   distDirectory: string;
   /** Overrides `process.platform` (tests). */
@@ -49,10 +49,7 @@ export async function createPrintHost<Owner extends PrintHostOwner>(options: Pri
     },
     // The print window is hidden, but Chromium still names the job and the
     // suggested PDF after its title: the document, else the product, never "Electron".
-    createWindow: (windowOptions, owner) => {
-      const branded = { ...windowOptions, title: printWindowTitle(windowOptions.title), icon: brandIconPath(options.platform ?? process.platform, options.distDirectory) };
-      return options.createWindow(owner ? { ...branded, parent: owner } : branded);
-    },
+    createWindow: (windowOptions) => options.createWindow({ ...windowOptions, title: printWindowTitle(windowOptions.title), icon: brandIconPath(options.platform ?? process.platform, options.distDirectory) }),
     writeFile: createPrintFileWriter(printRoot),
   });
 }

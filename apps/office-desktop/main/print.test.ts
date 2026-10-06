@@ -32,7 +32,7 @@ function harness(answer: (callback: PrintCallback) => void, load: () => Promise<
   const fake = fakeWindow(answer, load);
   const cleanup = vi.fn(async () => undefined);
   const writeFile = vi.fn(async (_html: string, fileName: string) => ({ path: `C:\\tmp\\uniwork-print\\job-1\\${fileName}`, cleanup }));
-  const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
+  const createWindow = vi.fn((_options: PrintWindowOptions) => fake.window);
   const handler = createPrintIpcHandler({ createWindow, writeFile, ...(owner ? { owner: () => owner } : {}) })["desktop:print-document"];
   return { ...fake, cleanup, writeFile, createWindow, handler };
 }
@@ -270,30 +270,36 @@ describe("print owner and callback timeout", () => {
   function owner() {
     return { on: vi.fn(), removeListener: vi.fn() } satisfies PrintOwner;
   }
-  it("parents the print window to the owner resolved for this request, not one captured earlier", async () => {
+  it("guards with the owner resolved for this request, not one captured earlier, and never hands it to the print window", async () => {
     const owners = [owner(), owner()];
+    const [first, second] = owners;
     const resolve = vi.fn(() => owners.shift());
     const fake = fakeWindow((callback) => callback(true, ""), async () => undefined);
-    const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
+    // Rest args so a stray second argument (the old owner) would show up in the calls.
+    const createWindow = vi.fn((..._args: unknown[]) => fake.window);
     const handler = createPrintIpcHandler({ owner: resolve, createWindow, writeFile: async (_html, name) => ({ path: name, cleanup: async () => undefined }) })["desktop:print-document"];
-    const first = owners[0];
     await handler(request);
-    expect(createWindow.mock.calls[0]![1]).toBe(first);
-    const second = owners[0];
+    expect(first!.on).toHaveBeenCalledWith("blur", expect.any(Function));
+    expect(second!.on).not.toHaveBeenCalled();
     await handler(request);
-    expect(createWindow.mock.calls[1]![1]).toBe(second);
+    expect(second!.on).toHaveBeenCalledWith("blur", expect.any(Function));
     expect(resolve).toHaveBeenCalledTimes(2);
+    // Windows cancels a job whose print window is owned by the app window.
+    for (const call of createWindow.mock.calls) {
+      expect(call).toHaveLength(1);
+      expect(call[0]).not.toHaveProperty("parent");
+    }
   });
-  it("prints without a parent when the sending window is gone", async () => {
+  it("prints when the sending window is gone", async () => {
     const fake = fakeWindow((callback) => callback(true, ""), async () => undefined);
-    const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
+    const createWindow = vi.fn((_options: PrintWindowOptions) => fake.window);
     const handler = createPrintIpcHandler({ owner: () => undefined, createWindow, writeFile: async (_html, name) => ({ path: name, cleanup: async () => undefined }) })["desktop:print-document"];
     expect(await handler(request)).toEqual({ outcome: "printed" });
-    expect(createWindow.mock.calls[0]![1]).toBeUndefined();
+    expect(createWindow).toHaveBeenCalledTimes(1);
   });
   it("fails closed with a typed reason when resolving the owner throws, and stays usable", async () => {
     const fake = fakeWindow((callback) => callback(true, ""), async () => undefined);
-    const createWindow = vi.fn((_options: PrintWindowOptions, _owner: PrintOwner | undefined) => fake.window);
+    const createWindow = vi.fn((_options: PrintWindowOptions) => fake.window);
     const writeFile = vi.fn(async (_html: string, name: string) => ({ path: name, cleanup: async () => undefined }));
     let destroyed = true;
     const resolve = vi.fn((): PrintOwner | undefined => {

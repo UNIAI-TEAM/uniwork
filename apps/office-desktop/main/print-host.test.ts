@@ -43,7 +43,7 @@ describe("print host wiring", () => {
     expect(h.verdict(`${pathToFileURL(join(h.temp, "uniwork-print")).href}/job-1/Doc.html`)).toBe(false);
     expect(h.verdict("https://evil.test/x.png")).toBe(true);
   });
-  it("parents each print window to the window that sent that request", async () => {
+  it("never parents a print window, not even to the live window that sent the request", async () => {
     const senders = [owner(), owner()];
     let current = senders[0]!;
     const h = await setup(() => current);
@@ -51,8 +51,11 @@ describe("print host wiring", () => {
     expect(await handler(request)).toEqual({ outcome: "printed" });
     current = senders[1]!;
     expect(await handler(request)).toEqual({ outcome: "printed" });
-    expect(h.createWindow.mock.calls[0]![0]).toEqual({ show: false, skipTaskbar: true, title: "Report.docx", icon: join(DIST, "icons", "icon.ico"), webPreferences: PRINT_WINDOW_WEB_PREFERENCES, parent: senders[0] });
-    expect(h.createWindow.mock.calls[1]![0]).toMatchObject({ parent: senders[1] });
+    expect(h.createWindow.mock.calls[0]![0]).toEqual({ show: false, skipTaskbar: true, title: "Report.docx", icon: join(DIST, "icons", "icon.ico"), webPreferences: PRINT_WINDOW_WEB_PREFERENCES });
+    expect(h.createWindow.mock.calls[1]![0]).not.toHaveProperty("parent");
+    // Each request still resolves its own sender, for the busy guard's focus signal.
+    expect(senders[0]!.on).toHaveBeenCalledWith("focus", expect.any(Function));
+    expect(senders[1]!.on).toHaveBeenCalledWith("focus", expect.any(Function));
   });
   it("titles a print window whose document has no title after the document, never the app, and gives it the platform icon", async () => {
     for (const [platform, icon] of [["win32", "icon.ico"], ["linux", "icon.png"]] as const) {

@@ -64,7 +64,8 @@ export function electronPrintOptions(options: DesktopPrintOptions | undefined): 
 
 export type PrintFile = Readonly<{ path: string; cleanup(): Promise<void> }>;
 
-/** The app window that owns the print dialog. A `blur` followed by a `focus`
+/** The app window that asked for the print (not the dialog owner, see
+ * {@link PrintDocumentOptions.createWindow}). A `blur` followed by a `focus`
  * is the only signal that the user left for the dialog and is back in the app
  * while Electron has not (yet) called back: a dialog Electron never reports as
  * closed would otherwise leave the busy flag set until restart. A focus with no
@@ -88,10 +89,12 @@ export interface PrintDocumentOptions<Owner extends PrintOwner = PrintOwner> {
   /** The window that sent the request, resolved per request (never a window
    * captured at startup); see {@link PrintOwner}. Undefined when it is gone. */
   owner?(): Owner | undefined;
-  /** Builds the hidden print window, parented to the job's owner when there is
-   * one. It must apply the options verbatim and never attach a preload; the
-   * print host passes them to BrowserWindow. */
-  createWindow(options: PrintWindowOptions, owner: Owner | undefined): PrintWindow;
+  /** Builds the hidden print window. It must apply the options verbatim, never
+   * attach a preload and never parent the window: on Windows a print window
+   * owned by the app window gets "Print job canceled" back from the dialog's
+   * Print button, before the driver ever starts the job (no "Save Print Output
+   * As" for Microsoft Print to PDF). The print host passes them to BrowserWindow. */
+  createWindow(options: PrintWindowOptions): PrintWindow;
   /** Writes the copy to a private temporary file named after `fileName`.
    * Chromium names the print job after it when the copy carries no title. */
   writeFile(html: string, fileName: string): Promise<PrintFile>;
@@ -184,7 +187,7 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
         if (active === job) active = undefined;
       };
       // Fail closed: a sender that cannot be resolved prints nothing (a merely
-      // missing or destroyed one answers undefined and prints unparented).
+      // missing or destroyed one answers undefined and prints with no focus guard).
       try {
         owner = options.owner?.();
       } catch {
@@ -194,7 +197,7 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
       let printing: Promise<DesktopPrintResponse>;
       try {
         file = await options.writeFile(request.html, printFileName(request.title));
-        const created = options.createWindow({ show: false, skipTaskbar: true, title: printJobTitle(request.title), webPreferences: PRINT_WINDOW_WEB_PREFERENCES }, owner);
+        const created = options.createWindow({ show: false, skipTaskbar: true, title: printJobTitle(request.title), webPreferences: PRINT_WINDOW_WEB_PREFERENCES });
         window = created;
         denyNavigation(created);
         await created.loadFile(file.path);
