@@ -67,7 +67,7 @@ const result = await build({
         else if (name === 'LocaleType') lines.push('export const LocaleType={EN_US:"enUS",VI_VN:"viVN"};');
         else if (name === 'CommandType') lines.push('export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2};');
         else if (name === 'ICommandService') lines.push('export const ICommandService="ICommandService";');
-        else if (name === 'ThemeService' || name === 'SheetInterceptorService' || name === 'IDialogService') lines.push(`export const ${name}='${name}';`);
+        else if (name === 'ThemeService' || name === 'SheetInterceptorService' || name === 'IDialogService' || name === 'IUndoRedoService') lines.push(`export const ${name}='${name}';`);
         else if (name === 'createUniver') lines.push('export function createUniver(options){h().factoryOptions=options;return h().runtime;}');
         else if (name === 'journalSuppression' || name === 'loadAutoHeightSuppression') lines.push(`export const ${name}={active:false};`);
         else if (name === 'loadWorkbookSkeleton') lines.push('export function loadWorkbookSkeleton(runtime,file){h().load(file);}');
@@ -187,6 +187,10 @@ export function mountController(options = {}, environment = {}) {
         // The data-validation rejection dialog taps the write interceptor and
         // the dialog list once per renderer; neither has anything to report here.
         if (token === 'IDialogService') return { getDialogs$: () => ({ subscribe: () => ({ unsubscribe() {} }) }) };
+        // Outline actions push their own undo entry (edits.ts outlineHistoryItem).
+        if (token === 'IUndoRedoService') {
+          return { pushUndoRedo: (item) => { (h.undoItems ??= []).push(item); }, undoRedoStatus$: { subscribe: () => ({ unsubscribe() {} }) } };
+        }
         return token === 'ThemeService' ? { setDarkMode: (dark) => h.dark.push(dark) } : {};
       } }),
       dispose: () => { h.disposed = true; },
@@ -215,7 +219,9 @@ export function mountController(options = {}, environment = {}) {
     addEventListener: (type, handler) => listeners.set(type,handler),
     removeEventListener: (type) => listeners.delete(type), contains: (element) => element === h.target,
     classList: { add: (value) => classes.add(value), remove: (value) => classes.delete(value) },
-    ownerDocument: { createElement: element, fonts: environment.fonts }, appendChild() {} };
+    // The DV hint stylesheet and the dialog relabel look the document up.
+    ownerDocument: { createElement: element, fonts: environment.fonts, getElementById: () => null,
+      head: { appendChild() {} }, querySelectorAll: () => [] }, appendChild() {} };
   const handle = createXlsxRenderer({ container, host: { async readRange() { return {}; } }, ...options });
   return {
     handle, h, workbook, events, container,
