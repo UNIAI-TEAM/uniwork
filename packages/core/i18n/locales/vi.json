@@ -9401,6 +9401,58 @@
           "lessThanOrEqual": "Nhỏ hơn hoặc bằng"
         }
       },
+      "dataValidation": {
+        "groups": {
+          "data": "Công cụ dữ liệu"
+        },
+        "open": "Xác thực dữ liệu…",
+        "clear": "Xóa xác thực",
+        "dialog": {
+          "title": "Xác thực dữ liệu",
+          "close": "Đóng xác thực dữ liệu",
+          "range": "Áp dụng cho",
+          "allow": "Cho phép",
+          "source": "Nguồn",
+          "sourceHint": "Phân tách các mục bằng dấu phẩy",
+          "operator": "Dữ liệu",
+          "value": "Giá trị",
+          "minimum": "Nhỏ nhất",
+          "maximum": "Lớn nhất",
+          "errorSection": "Thông báo lỗi",
+          "errorTitle": "Tiêu đề (không bắt buộc)",
+          "errorMessage": "Nội dung (không bắt buộc)",
+          "apply": "Áp dụng",
+          "cancel": "Hủy"
+        },
+        "types": {
+          "list": "Danh sách",
+          "whole": "Số nguyên",
+          "decimal": "Số thập phân",
+          "date": "Ngày"
+        },
+        "operators": {
+          "between": "giữa",
+          "notBetween": "không giữa",
+          "equal": "bằng",
+          "notEqual": "khác",
+          "greaterThan": "lớn hơn",
+          "greaterThanOrEqual": "lớn hơn hoặc bằng",
+          "lessThan": "nhỏ hơn",
+          "lessThanOrEqual": "nhỏ hơn hoặc bằng"
+        },
+        "errors": {
+          "listEmpty": "Nhập ít nhất một mục.",
+          "listEmptyItem": "Mục không được để trống. Hãy xóa dấu phẩy thừa.",
+          "listBadChar": "Mục không được chứa dấu ngoặc kép.",
+          "listTooLong": "Danh sách chứa tối đa 255 ký tự.",
+          "numberRequired": "Nhập một số.",
+          "wholeRequired": "Nhập một số nguyên.",
+          "dateRequired": "Nhập một ngày hợp lệ.",
+          "rangeOrder": "Giá trị lớn nhất không được nhỏ hơn giá trị nhỏ nhất.",
+          "titleTooLong": "Tiêu đề chứa tối đa 32 ký tự.",
+          "messageTooLong": "Nội dung chứa tối đa 255 ký tự."
+        }
+      },
       "sort": {
         "groups": {
           "data": "Sắp xếp"
@@ -9421,6 +9473,61 @@
           "note": "Sắp xếp một cấp. Sắp xếp nhiều cấp chưa được hỗ trợ.",
           "apply": "Áp dụng",
           "cancel": "Hủy"
+        }
+      },
+      "conditionalFormat": {
+        "groups": {
+          "home": "Kiểu"
+        },
+        "menu": {
+          "label": "Định dạng có điều kiện",
+          "greaterThan": "Lớn hơn…",
+          "lessThan": "Nhỏ hơn…",
+          "between": "Nằm giữa…",
+          "containsText": "Văn bản chứa…",
+          "duplicateValues": "Giá trị trùng lặp…",
+          "clearSelection": "Xóa quy tắc khỏi ô đã chọn",
+          "clearSheet": "Xóa quy tắc khỏi toàn bộ trang tính"
+        },
+        "titles": {
+          "greaterThan": "Lớn hơn",
+          "lessThan": "Nhỏ hơn",
+          "between": "Nằm giữa",
+          "containsText": "Văn bản chứa",
+          "duplicateValues": "Giá trị trùng lặp"
+        },
+        "descriptions": {
+          "greaterThan": "Định dạng các ô LỚN HƠN:",
+          "lessThan": "Định dạng các ô NHỎ HƠN:",
+          "between": "Định dạng các ô NẰM GIỮA:",
+          "containsText": "Định dạng các ô chứa văn bản:",
+          "duplicateValues": "Định dạng các ô chứa:"
+        },
+        "dialog": {
+          "close": "Đóng",
+          "cancel": "Hủy",
+          "ok": "OK",
+          "value": "Giá trị",
+          "minimum": "Nhỏ nhất",
+          "maximum": "Lớn nhất",
+          "and": "và",
+          "text": "Văn bản",
+          "duplicate": "Giá trị trùng lặp",
+          "with": "với",
+          "sample": "AaBbCc"
+        },
+        "styles": {
+          "lightRedDarkRed": "Tô nền đỏ nhạt, chữ đỏ đậm",
+          "yellowDarkYellow": "Tô nền vàng, chữ vàng đậm",
+          "greenDarkGreen": "Tô nền xanh lá, chữ xanh lá đậm",
+          "lightRedFill": "Tô nền đỏ nhạt",
+          "redText": "Chữ đỏ"
+        },
+        "errors": {
+          "invalidNumber": "Nhập một số hợp lệ.",
+          "invalidRange": "Giá trị nhỏ nhất không được lớn hơn giá trị lớn nhất.",
+          "emptyText": "Nhập văn bản cần tìm.",
+          "textTooLong": "Văn bản tối đa 255 ký tự."
         }
       },
       "table": {

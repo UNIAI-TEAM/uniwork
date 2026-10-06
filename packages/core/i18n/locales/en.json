@@ -9407,6 +9407,58 @@
           "lessThanOrEqual": "Less than or equal"
         }
       },
+      "dataValidation": {
+        "groups": {
+          "data": "Data Tools"
+        },
+        "open": "Data Validation…",
+        "clear": "Clear validation",
+        "dialog": {
+          "title": "Data Validation",
+          "close": "Close data validation",
+          "range": "Applies to",
+          "allow": "Allow",
+          "source": "Source",
+          "sourceHint": "Separate items with commas",
+          "operator": "Data",
+          "value": "Value",
+          "minimum": "Minimum",
+          "maximum": "Maximum",
+          "errorSection": "Error message",
+          "errorTitle": "Title (optional)",
+          "errorMessage": "Message (optional)",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        },
+        "types": {
+          "list": "List",
+          "whole": "Whole number",
+          "decimal": "Decimal",
+          "date": "Date"
+        },
+        "operators": {
+          "between": "between",
+          "notBetween": "not between",
+          "equal": "equal to",
+          "notEqual": "not equal to",
+          "greaterThan": "greater than",
+          "greaterThanOrEqual": "greater than or equal to",
+          "lessThan": "less than",
+          "lessThanOrEqual": "less than or equal to"
+        },
+        "errors": {
+          "listEmpty": "Enter at least one item.",
+          "listEmptyItem": "Items cannot be empty. Remove the extra comma.",
+          "listBadChar": "Items cannot contain double quotes.",
+          "listTooLong": "The list can hold at most 255 characters.",
+          "numberRequired": "Enter a number.",
+          "wholeRequired": "Enter a whole number.",
+          "dateRequired": "Enter a valid date.",
+          "rangeOrder": "The maximum must not be less than the minimum.",
+          "titleTooLong": "The title can hold at most 32 characters.",
+          "messageTooLong": "The message can hold at most 255 characters."
+        }
+      },
       "sort": {
         "groups": {
           "data": "Sort"
@@ -9427,6 +9479,61 @@
           "note": "Single-level sort. Multi-level sort is not available yet.",
           "apply": "Apply",
           "cancel": "Cancel"
+        }
+      },
+      "conditionalFormat": {
+        "groups": {
+          "home": "Styles"
+        },
+        "menu": {
+          "label": "Conditional Formatting",
+          "greaterThan": "Greater Than…",
+          "lessThan": "Less Than…",
+          "between": "Between…",
+          "containsText": "Text that Contains…",
+          "duplicateValues": "Duplicate Values…",
+          "clearSelection": "Clear Rules from Selected Cells",
+          "clearSheet": "Clear Rules from Entire Sheet"
+        },
+        "titles": {
+          "greaterThan": "Greater Than",
+          "lessThan": "Less Than",
+          "between": "Between",
+          "containsText": "Text that Contains",
+          "duplicateValues": "Duplicate Values"
+        },
+        "descriptions": {
+          "greaterThan": "Format cells that are GREATER THAN:",
+          "lessThan": "Format cells that are LESS THAN:",
+          "between": "Format cells that are BETWEEN:",
+          "containsText": "Format cells that contain the text:",
+          "duplicateValues": "Format cells that contain:"
+        },
+        "dialog": {
+          "close": "Close",
+          "cancel": "Cancel",
+          "ok": "OK",
+          "value": "Value",
+          "minimum": "Minimum",
+          "maximum": "Maximum",
+          "and": "and",
+          "text": "Text",
+          "duplicate": "Duplicate values",
+          "with": "with",
+          "sample": "AaBbCc"
+        },
+        "styles": {
+          "lightRedDarkRed": "Light red fill with dark red text",
+          "yellowDarkYellow": "Yellow fill with dark yellow text",
+          "greenDarkGreen": "Green fill with dark green text",
+          "lightRedFill": "Light red fill",
+          "redText": "Red text"
+        },
+        "errors": {
+          "invalidNumber": "Enter a valid number.",
+          "invalidRange": "The minimum must not be greater than the maximum.",
+          "emptyText": "Enter the text to look for.",
+          "textTooLong": "The text can be at most 255 characters."
         }
       },
       "table": {
