@@ -7838,6 +7838,7 @@
   "office": {
     "common": {
       "print": "Print",
+      "printTooLarge": "This document is too large to print.",
       "chrome": {
         "undo": "Undo",
         "redo": "Redo",

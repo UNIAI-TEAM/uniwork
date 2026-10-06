@@ -7833,6 +7833,7 @@
   "office": {
     "common": {
       "print": "In",
+      "printTooLarge": "Tài liệu quá lớn để in.",
       "chrome": {
         "undo": "Hoàn tác",
         "redo": "Làm lại",
