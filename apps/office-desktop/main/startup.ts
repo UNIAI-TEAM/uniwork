@@ -2,7 +2,9 @@ import { release as osRelease } from "node:os";
 import { join } from "node:path";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../shared/identity";
 import type { DeploymentProfile } from "../shared/deployment";
-import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease } from "./platform-gate";
+import { evaluatePlatformGate, forcedPlatformGate, readLinuxOsRelease, type PlatformGateFailure } from "./platform-gate";
+import { systemLanguages, type LanguageSource } from "./appearance";
+import { resolveDesktopLocale, type DesktopLocale } from "./strings";
 import { registerAppImageScheme } from "./linux-desktop-integration";
 import { BRAND_PRODUCT_NAME } from "./branding";
 
@@ -19,11 +21,16 @@ export function runtimeGlibcVersion(): string | undefined {
   }
 }
 
+/** The gate's message in the app language (the same rule as the menu). */
+function platformGateMessage(failure: Pick<PlatformGateFailure, "messageVi" | "messageEn">, locale: DesktopLocale): string {
+  return locale === "en" ? failure.messageEn : failure.messageVi;
+}
+
 /** Minimum OS/architecture check before anything else: a wrong-machine install
  * shows one native error box and exits before a user-data path is created or
  * any file is written. The forced flag is a dev/smoke-only test seam. Returns
  * false once the process is exiting. */
-export async function passPlatformGate(app: Pick<Electron.App, "isPackaged" | "whenReady" | "exit">, dialog: Pick<Electron.Dialog, "showErrorBox">, smokeMode: boolean): Promise<boolean> {
+export async function passPlatformGate(app: Pick<Electron.App, "isPackaged" | "whenReady" | "exit"> & LanguageSource, dialog: Pick<Electron.Dialog, "showErrorBox">, smokeMode: boolean): Promise<boolean> {
   const gate = evaluatePlatformGate({
     platform: process.platform,
     arch: process.arch,
@@ -39,7 +46,7 @@ export async function passPlatformGate(app: Pick<Electron.App, "isPackaged" | "w
   // only writes to stderr). Nothing is created or written here: the user-data
   // path is never set and no window is made.
   await app.whenReady();
-  dialog.showErrorBox(BRAND_PRODUCT_NAME, `${failure.messageVi}\n\n${failure.messageEn}`);
+  dialog.showErrorBox(BRAND_PRODUCT_NAME, platformGateMessage(failure, resolveDesktopLocale(systemLanguages(app))));
   app.exit(1);
   return false;
 }

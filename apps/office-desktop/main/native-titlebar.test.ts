@@ -31,8 +31,9 @@ it("builds the one window with the minimum size, the secure preferences and the 
   expect(built[1]).not.toHaveProperty("icon");
   expect(built[1]).toMatchObject(DESKTOP_WINDOW_MIN_SIZE);
   expect(setMenuBarVisibility).toHaveBeenCalledTimes(1);
-  // The entry module builds its window through this helper, not by hand.
-  expect(readFileSync(new URL("../electron-main.ts", import.meta.url), "utf8")).toContain("createMainWindow(BrowserWindow,");
+  // The entry builds its window through main/shell.ts (which calls this
+  // helper), not by hand: main/shell.test.ts proves the wiring.
+  expect(readFileSync(new URL("./shell.ts", import.meta.url), "utf8")).toContain("createMainWindow(deps.BrowserWindow,");
 });
 
 it("matches the 40px strip and semantic muted/foreground colors in both themes", () => {

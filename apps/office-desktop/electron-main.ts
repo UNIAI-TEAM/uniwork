@@ -9,7 +9,7 @@ import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from 
 import { desktopSessionMetadataSchema } from "./shared/ipc";
 import { desktopDialogFilters } from "./shared/document-formats";
 import { handleDesktopEngineCall, type DesktopEngineCall } from "@uniwork/office-engine/desktop";
-import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
+import { WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createLocalXlsxEngine, resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
 import { createHttpExchangePort, createLaunchBridge } from "./main/deep-links";
 import { resolveDeploymentProfile } from "./shared/deployment";
@@ -29,10 +29,9 @@ import { resolveLocalDevice } from "./main/local/device";
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
 import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION } from "./main/print";
-import { createMainWindow, DESKTOP_TITLE_BAR_TOKENS, watchNativeTheme } from "./main/window";
-import { systemLanguages } from "./main/appearance";
-import { createNativeMenuTemplate } from "./main/native-menu";
-import { applyAppBranding, brandIconPath, formatWindowTitle } from "./main/branding";
+import { DESKTOP_TITLE_BAR_TOKENS } from "./main/window";
+import { brandIconPath, formatWindowTitle } from "./main/branding";
+import { startDesktopShell } from "./main/shell";
 import { installRendererProtocol, registerRendererScheme } from "./main/renderer-protocol";
 import { captureEarlyLaunchEvents, createNoopLaunchBridge } from "./main/launch-events";
 import { passPlatformGate, registerAppImageOnFirstRun, runSmokeDiagnostics } from "./main/startup";
@@ -67,8 +66,9 @@ async function startElectronHost(): Promise<void> {
   // root is ~/.config/<userDataNamespace>.
   const defaultUserData = join(app.getPath("appData"), DESKTOP_IDENTITY.userDataNamespace);
   app.setPath("userData", configuredUserData ? resolve(configuredUserData) : defaultUserData);
-  // Name, AppUserModelId (the installer shortcut's), About panel, dev dock icon.
-  applyAppBranding(app, process.platform, BRAND_ICON_PATH);
+  // Name, AppUserModelId (the installer shortcut's), About panel, dev dock icon;
+  // after ready the same seam opens the window and owns theme and language.
+  const desktopShell = startDesktopShell({ app, nativeTheme, BrowserWindow, platform: process.platform, iconPath: BRAND_ICON_PATH });
   const deploymentResolution = resolveDeploymentProfile({
     installedProfilePath: app.isPackaged ? join(process.resourcesPath, "deployment-profile.json") : undefined,
     userDataDirectory: app.getPath("userData"),
@@ -120,8 +120,7 @@ async function startElectronHost(): Promise<void> {
   await authManager?.restore();
   installRendererProtocol(protocol, net, RENDERER_DIRECTORY);
 
-  const window = createMainWindow(BrowserWindow, { show: !SMOKE_MODE, preload: PRELOAD_PATH, platform: process.platform, dark: nativeTheme.shouldUseDarkColors, workAreaHeight: screen.getPrimaryDisplay().workAreaSize.height, icon: BRAND_ICON_PATH });
-  watchNativeTheme(nativeTheme, window, process.platform);
+  const { window, t, createHost, menuTemplate } = desktopShell.openWindow({ show: !SMOKE_MODE, preload: PRELOAD_PATH, workAreaHeight: screen.getPrimaryDisplay().workAreaSize.height });
   let nativeSaveListener: (() => void) | undefined;
   const officeTransport = deploymentProfile && credentials ? createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
     const session = await authManager?.refreshSession();
@@ -180,7 +179,7 @@ async function startElectronHost(): Promise<void> {
   // A process that quit with a print dialog open never ran its cleanup.
   await clearPrintRoot(printRoot);
   const printHandlers = createPrintIpcHandler({ owner: window, createWindow: (options) => new BrowserWindow({ ...options, parent: window }), writeFile: createPrintFileWriter(printRoot) });
-  const host = createDesktopHost({
+  const host = createHost({
     handlers: { "desktop:engine-call": (request) => handleDesktopEngineCall({ operation: request.operation, handle: request.handle, args: { dataBase64: request.args.dataBase64, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } } satisfies DesktopEngineCall), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
@@ -216,7 +215,6 @@ async function startElectronHost(): Promise<void> {
       },
     },
     deploymentProfile,
-    appearance: { snapshot: () => ({ dark: nativeTheme.shouldUseDarkColors, languages: systemLanguages(app) }) },
     userDataDirectory: app.getPath("userData"),
     draftKeyStore,
     drafts: {
@@ -254,15 +252,15 @@ async function startElectronHost(): Promise<void> {
     report: async (code) => {
       await dialog.showMessageBox(window, {
         type: code === "auto_update_disabled" ? "info" : "error",
-        title: formatWindowTitle("dialog", "Cập nhật"),
-        message: code === "auto_update_disabled" ? "Bản dựng này chưa hỗ trợ cập nhật tự động." : "Không thể cập nhật. Ứng dụng vẫn đang mở.",
-        detail: `Mã: ${code}`, buttons: ["Đóng"],
+        title: formatWindowTitle("dialog", t("officeDesktop.native.update.title")),
+        message: t(code === "auto_update_disabled" ? "officeDesktop.native.update.disabled" : "officeDesktop.native.update.failed"),
+        detail: t("officeDesktop.native.update.code", { code }), buttons: [t("officeDesktop.native.update.close")],
       });
     },
   });
   // Keep the platform editing roles available (especially Cmd/C/X/V on
   // macOS) while adding the desktop Save and update actions owned by the host.
-  Menu.setApplicationMenu(Menu.buildFromTemplate(createNativeMenuTemplate(DESKTOP_IDENTITY_MANIFEST.build.channel, () => nativeSaveListener?.(), process.platform === "darwin", () => { void update(); })));
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate(DESKTOP_IDENTITY_MANIFEST.build.channel, () => nativeSaveListener?.(), () => { void update(); })));
   registerWindowIpc({ ipcMain, app, window, dispatch: host.dispatch, fileRegistry, deviceScope, localOpenContext: documentSession.localOpenContext, nativeFiles: launchEvents.nativeFiles, argv: process.argv });
 
   window.once("ready-to-show", () => {

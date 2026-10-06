@@ -37,7 +37,7 @@ export function applyTitleBarTheme(window: Pick<Electron.BrowserWindow, "setTitl
   if (platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[dark ? "dark" : "light"], height: 40 });
 }
 
-type BrowserWindowConstructor = new (options: Electron.BrowserWindowConstructorOptions) => Electron.BrowserWindow;
+export type BrowserWindowConstructor = new (options: Electron.BrowserWindowConstructorOptions) => Electron.BrowserWindow;
 
 /** The one document window. Electron is injected so the entry module stays
  * the only file that imports it. */
@@ -60,7 +60,7 @@ export function createMainWindow(BrowserWindow: BrowserWindowConstructor, option
   return window;
 }
 
-type ThemeSource = Pick<Electron.NativeTheme, "shouldUseDarkColors"> & {
+export type ThemeSource = Pick<Electron.NativeTheme, "shouldUseDarkColors"> & {
   on(event: "updated", listener: () => void): unknown;
   removeListener(event: "updated", listener: () => void): unknown;
 };

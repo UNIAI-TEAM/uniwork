@@ -1,20 +1,20 @@
 import { BRAND_PRODUCT_NAME } from "./branding";
+import { mainStrings, type MainStrings } from "./strings";
 
-export function createNativeMenuTemplate(channel: "dev" | "beta" | "stable", onSave: () => void, isMac = process.platform === "darwin", onCheckUpdates?: () => void) {
-  const fileLabel = isMac ? "Tệp" : "File";
-  const editLabel = isMac ? "Sửa" : "Edit";
-  const viewLabel = isMac ? "Xem" : "View";
-  const helpLabel = isMac ? "Trợ giúp" : "Help";
-  const about: Electron.MenuItemConstructorOptions = { role: "about", label: `Giới thiệu ${BRAND_PRODUCT_NAME}` };
+/** The application menu in the app language (`t` from main/strings.ts). */
+export function createNativeMenuTemplate(channel: "dev" | "beta" | "stable", onSave: () => void, isMac = process.platform === "darwin", onCheckUpdates?: () => void, t: MainStrings = mainStrings("vi")) {
+  const product = { product: BRAND_PRODUCT_NAME };
+  const about: Electron.MenuItemConstructorOptions = { role: "about", label: t("officeDesktop.native.menu.about", product) };
   const template: Electron.MenuItemConstructorOptions[] = [
     // macOS turns the first menu into the app menu; give it the product's
-    // own items so File is not swallowed under Electron's name.
-    ...(isMac ? [{ label: BRAND_PRODUCT_NAME, submenu: [about, { type: "separator" }, { role: "hide", label: `Ẩn ${BRAND_PRODUCT_NAME}` }, { role: "hideOthers", label: "Ẩn ứng dụng khác" }, { role: "unhide", label: "Hiện tất cả" }, { type: "separator" }, { role: "quit", label: `Thoát ${BRAND_PRODUCT_NAME}` }] } satisfies Electron.MenuItemConstructorOptions] : []),
-    { label: fileLabel, submenu: [{ label: "Lưu", accelerator: "CmdOrCtrl+S", click: onSave }, { role: "quit", label: "Thoát" }] },
-    { label: editLabel, submenu: [{ role: "undo", label: "Hoàn tác" }, { role: "redo", label: "Làm lại" }, { type: "separator" }, { role: "cut", label: "Cắt" }, { role: "copy", label: "Sao chép" }, { role: "paste", label: "Dán" }, { role: "selectAll", label: "Chọn tất cả" }] },
+    // own items so File is not swallowed under Electron's name. Quit lives
+    // there only, so File carries no second Quit on macOS.
+    ...(isMac ? [{ label: BRAND_PRODUCT_NAME, submenu: [about, { type: "separator" }, { role: "hide", label: t("officeDesktop.native.menu.hide", product) }, { role: "hideOthers", label: t("officeDesktop.native.menu.hideOthers") }, { role: "unhide", label: t("officeDesktop.native.menu.showAll") }, { type: "separator" }, { role: "quit", label: t("officeDesktop.native.menu.quitApp", product) }] } satisfies Electron.MenuItemConstructorOptions] : []),
+    { label: t("officeDesktop.native.menu.file"), submenu: [{ label: t("officeDesktop.native.menu.save"), accelerator: "CmdOrCtrl+S", click: onSave }, ...(isMac ? [] : [{ role: "quit", label: t("officeDesktop.native.menu.quit") } satisfies Electron.MenuItemConstructorOptions])] },
+    { label: t("officeDesktop.native.menu.edit"), submenu: [{ role: "undo", label: t("officeDesktop.native.menu.undo") }, { role: "redo", label: t("officeDesktop.native.menu.redo") }, { type: "separator" }, { role: "cut", label: t("officeDesktop.native.menu.cut") }, { role: "copy", label: t("officeDesktop.native.menu.copy") }, { role: "paste", label: t("officeDesktop.native.menu.paste") }, { role: "selectAll", label: t("officeDesktop.native.menu.selectAll") }] },
   ];
-  if (channel === "dev") template.push({ label: viewLabel, submenu: [{ role: "reload", label: "Tải lại" }, { role: "toggleDevTools", label: "Công cụ phát triển" }] });
-  const help: Electron.MenuItemConstructorOptions[] = [...(onCheckUpdates ? [{ label: "Kiểm tra cập nhật…", click: onCheckUpdates }] : []), ...(isMac ? [] : [about])];
-  if (help.length > 0) template.push({ label: helpLabel, submenu: help });
+  if (channel === "dev") template.push({ label: t("officeDesktop.native.menu.view"), submenu: [{ role: "reload", label: t("officeDesktop.native.menu.reload") }, { role: "toggleDevTools", label: t("officeDesktop.native.menu.devTools") }] });
+  const help: Electron.MenuItemConstructorOptions[] = [...(onCheckUpdates ? [{ label: t("officeDesktop.native.menu.checkUpdates"), click: onCheckUpdates }] : []), ...(isMac ? [] : [about])];
+  if (help.length > 0) template.push({ label: t("officeDesktop.native.menu.help"), submenu: help });
   return template;
 }
