@@ -27,7 +27,7 @@ export type DesktopPrintBridge = Readonly<{ call(channel: "desktop:print-documen
 
 /** Main reports the shared outcomes: `printed`, `cancelled` (the OS dialog
  * was dismissed) or a typed `failed`. */
-export type DesktopPrintOutcome = MarkdownPrintOutcome;
+type DesktopPrintOutcome = MarkdownPrintOutcome;
 
 /** Render the CURRENT text to the HTML the sanitizer receives: Markdown goes
  * through the engine preview fragment (never the raw source); HTML is already
