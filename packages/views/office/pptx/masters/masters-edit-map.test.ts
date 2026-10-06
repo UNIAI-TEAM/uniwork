@@ -62,4 +62,13 @@ describe("toMasterEdit", () => {
     expect(edits.map((edit) => toMasterEdit(edit).op)).toEqual(edits.map((edit) => edit.op));
     expect(toMasterEdit({ op: "master_delete_element", part: PART, elementId: "a" })).toEqual({ op: "master_delete_element", part: PART, elementId: "a" });
   });
+
+  it("maps the T01 part edits: rename and text style pass through, a new placeholder flattens its box", () => {
+    expect(toMasterEdit({ op: "master_rename", part: PART, name: "Brand" })).toEqual({ op: "master_rename", part: PART, name: "Brand" });
+    expect(toMasterEdit({ op: "master_add_placeholder", part: PART, placeholder: "pic", box: { x: 1, y: 2, w: 3, h: 4 } })).toEqual({
+      op: "master_add_placeholder", part: PART, placeholder: "pic", xPx: 1, yPx: 2, wPx: 3, hPx: 4,
+    });
+    const style: MasterPanelEdit = { op: "master_set_text_style", part: PART, placeholder: "title", sizePt: 40, bold: true };
+    expect(toMasterEdit(style)).toEqual(style);
+  });
 });

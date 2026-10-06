@@ -79,6 +79,28 @@ export const PPTX_MASTERS_I18N: Readonly<Record<string, PptxMastersI18nEntry>> =
     vi: "Nhập màu dạng #4472C4.",
   },
   "office.pptx.masters.delete": { en: "Delete element", vi: "Xoá phần tử" },
+  // T01: rename, add placeholder, placeholder text style.
+  "office.pptx.masters.rename_layout": { en: "Layout name", vi: "Tên bố cục" },
+  "office.pptx.masters.rename_master": { en: "Master name", vi: "Tên bản cái" },
+  "office.pptx.masters.rename_apply": { en: "Rename", vi: "Đổi tên" },
+  "office.pptx.masters.add_placeholder_label": { en: "Add placeholder", vi: "Thêm chỗ dành sẵn" },
+  "office.pptx.masters.add_placeholder": { en: "Add", vi: "Thêm" },
+  "office.pptx.masters.placeholder_title": { en: "Title", vi: "Tiêu đề" },
+  "office.pptx.masters.placeholder_body": { en: "Content", vi: "Nội dung" },
+  "office.pptx.masters.placeholder_pic": { en: "Picture", vi: "Hình ảnh" },
+  "office.pptx.masters.placeholder_chart": { en: "Chart", vi: "Biểu đồ" },
+  "office.pptx.masters.placeholder_tbl": { en: "Table", vi: "Bảng" },
+  "office.pptx.masters.placeholder_dt": { en: "Date", vi: "Ngày" },
+  "office.pptx.masters.placeholder_ftr": { en: "Footer", vi: "Chân trang" },
+  "office.pptx.masters.placeholder_sldnum": { en: "Slide number", vi: "Số trang chiếu" },
+  "office.pptx.masters.text_style_label": { en: "Placeholder text style", vi: "Kiểu chữ của chỗ dành sẵn" },
+  "office.pptx.masters.font_size": { en: "Size (pt)", vi: "Cỡ chữ (pt)" },
+  "office.pptx.masters.font_color": { en: "Text colour", vi: "Màu chữ" },
+  "office.pptx.masters.font_name": { en: "Font", vi: "Phông chữ" },
+  "office.pptx.masters.bold": { en: "Bold", vi: "Đậm" },
+  "office.pptx.masters.italic": { en: "Italic", vi: "Nghiêng" },
+  "office.pptx.masters.text_style_invalid": { en: "Enter a size from 1 to 400 and a colour like #1F4E79.", vi: "Nhập cỡ chữ từ 1 đến 400 và màu dạng #1F4E79." },
+  "office.pptx.masters.text_style_apply": { en: "Apply text style", vi: "Áp dụng kiểu chữ" },
 };
 
 export type PptxMastersLocale = "en" | "vi";

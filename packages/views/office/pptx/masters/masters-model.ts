@@ -41,7 +41,35 @@ export type MasterPanelEdit =
   | { op: "master_set_transform"; part: string; elementId: string; box: MasterBox }
   | { op: "master_set_fill"; part: string; elementId: string; color: string | null }
   | { op: "master_set_stroke"; part: string; elementId: string; color: string | null; widthPt?: number }
-  | { op: "master_delete_element"; part: string; elementId: string };
+  | { op: "master_delete_element"; part: string; elementId: string }
+  // T01: part-level edits, addressed by part path and placeholder slot.
+  | { op: "master_rename"; part: string; name: string }
+  | { op: "master_add_placeholder"; part: string; placeholder: MasterPlaceholderChoice; box: MasterBox }
+  | ({ op: "master_set_text_style"; part: string; placeholder: string } & MasterTextStyleDraft);
+
+/** Placeholder types the panel offers to add (a subset of ST_PlaceholderType). */
+export const MASTER_PLACEHOLDER_CHOICES = ["title", "body", "pic", "chart", "tbl", "dt", "ftr", "sldNum"] as const;
+export type MasterPlaceholderChoice = (typeof MASTER_PLACEHOLDER_CHOICES)[number];
+
+/** Where a new placeholder lands (px at the fit width); the user moves it with the box fields. */
+export const MASTER_NEW_PLACEHOLDER_BOX: MasterBox = { x: 48, y: 48, w: 384, h: 96 };
+
+/** A text style change; only the set fields are written. */
+export interface MasterTextStyleDraft {
+  sizePt?: number;
+  bold?: boolean;
+  italic?: boolean;
+  color?: string;
+  font?: string;
+}
+
+/** Font size field: blank = keep; otherwise 1..400 pt (null = invalid). */
+export function parseFontSize(value: string): number | undefined | null {
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  const size = Number(trimmed.replace(",", "."));
+  return Number.isFinite(size) && size >= 1 && size <= 400 ? size : null;
+}
 
 export type MasterPanelStatus = "ready" | "loading" | "unbound";
 

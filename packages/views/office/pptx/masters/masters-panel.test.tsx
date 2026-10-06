@@ -239,4 +239,36 @@ describe("MastersPanel", () => {
     view.rerender(<MastersPanel {...baseProps({ selectedElementId: "p1" })} />);
     expect(within(view.container).getByLabelText("Width")).toHaveValue(50);
   });
+
+  it("renames the active layout and adds a placeholder to it (T01)", () => {
+    const { onEdit } = setup();
+    const name = screen.getByLabelText("Layout name");
+    expect(name).toHaveValue("Title Slide");
+    const rename = document.querySelector("[data-pptx-masters-rename]") as HTMLButtonElement;
+    expect(rename).toBeDisabled();
+    fireEvent.change(name, { target: { value: "  Hero  " } });
+    fireEvent.click(rename);
+    expect(onEdit).toHaveBeenLastCalledWith({ op: "master_rename", part: PART, name: "Hero" });
+    fireEvent.click(document.querySelector("[data-pptx-masters-add-placeholder]") as HTMLButtonElement);
+    expect(onEdit).toHaveBeenLastCalledWith({ op: "master_add_placeholder", part: PART, placeholder: "body", box: { x: 48, y: 48, w: 384, h: 96 } });
+  });
+
+  it("sets the selected placeholder text style from the filled fields only, and blocks invalid input (T01)", () => {
+    const { onEdit } = setup();
+    const apply = document.querySelector("[data-pptx-masters-text-style-apply]") as HTMLButtonElement;
+    expect(apply).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Size (pt)"), { target: { value: "500" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a size from 1 to 400");
+    expect(apply).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Size (pt)"), { target: { value: "36" } });
+    fireEvent.change(screen.getByLabelText("Text colour"), { target: { value: "#1f4e79" } });
+    fireEvent.change(screen.getByLabelText("Font"), { target: { value: " Inter " } });
+    fireEvent.click(apply);
+    expect(onEdit).toHaveBeenLastCalledWith({ op: "master_set_text_style", part: PART, placeholder: "title", sizePt: 36, color: "#1F4E79", font: "Inter" });
+  });
+
+  it("offers no text style for an element that is not a placeholder (T01)", () => {
+    setup({ selectedElementId: "p1" });
+    expect(document.querySelector("[data-pptx-masters-text-style]")).toBeNull();
+  });
 });

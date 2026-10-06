@@ -24,7 +24,9 @@ import {
   type MasterPanelProps,
   type MasterPartView,
 } from "./masters-model";
+import { MastersPartTools } from "./masters-part-tools";
 import { MasterSelectList, type MasterSelectItem } from "./masters-select-list";
+import { MastersTextStyle } from "./masters-text-style";
 
 export function MastersPanel({
   parts,
@@ -77,6 +79,7 @@ export function MastersPanel({
   const bound = typeof onEdit === "function";
   const blocked = pending || !bound;
   const selected = elements.find((element) => element.id === selectedElementId) ?? null;
+  const active = parts.find((part) => part.partPath === activePart) ?? null;
 
   const emit = (edit: MasterPanelEdit) => {
     if (!onEdit || pending) return;
@@ -156,6 +159,8 @@ export function MastersPanel({
         />
       )}
 
+      {active ? <MastersPartTools key={active.partPath + "|" + active.name} part={active} disabled={blocked} onEdit={emit} /> : null}
+
       {parts.length === 0 ? null : activePart === null ? (
         <p className="text-caption text-muted-foreground" data-testid="pptx-masters-no-part">
           {t("masters.no_part")}
@@ -199,6 +204,10 @@ export function MastersPanel({
             {t("masters.no_element")}
           </p>
         )
+      ) : null}
+
+      {activePart !== null && selected?.placeholder ? (
+        <MastersTextStyle key={activePart + "|" + selected.id} part={activePart} placeholder={selected.placeholder} disabled={blocked} onEdit={emit} />
       ) : null}
     </section>
   );

@@ -8,7 +8,7 @@
  * edit maps to exactly one engine edit, and the engine validates the result
  * (a refusal surfaces through the host's error channel like any other edit).
  */
-import type { MasterEdit } from "@uniwork/office-engine/pptx";
+import type { MasterEdit, MasterPartEdit } from "@uniwork/office-engine/pptx";
 import { paragraphsFromText } from "../text/text-model";
 import type { MasterPanelEdit } from "./masters-model";
 
@@ -19,7 +19,7 @@ const EMU_PER_PT = 12700;
  *  patch needs a width, so a new outline starts at the PowerPoint default 1pt. */
 const DEFAULT_STROKE_PT = 1;
 
-export function toMasterEdit(edit: MasterPanelEdit): MasterEdit {
+export function toMasterEdit(edit: MasterPanelEdit): MasterEdit | MasterPartEdit {
   switch (edit.op) {
     case "master_edit_text":
       return { op: edit.op, part: edit.part, elementId: edit.elementId, paragraphs: paragraphsFromText(edit.text) };
@@ -44,5 +44,11 @@ export function toMasterEdit(edit: MasterPanelEdit): MasterEdit {
     }
     case "master_delete_element":
       return { op: edit.op, part: edit.part, elementId: edit.elementId };
+    case "master_rename":
+      return { op: edit.op, part: edit.part, name: edit.name };
+    case "master_add_placeholder":
+      return { op: edit.op, part: edit.part, placeholder: edit.placeholder, xPx: edit.box.x, yPx: edit.box.y, wPx: edit.box.w, hPx: edit.box.h };
+    case "master_set_text_style":
+      return edit;
   }
 }
