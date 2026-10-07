@@ -215,12 +215,15 @@ const FAMILY_WIDTH = 148;
  */
 function FontFamilyItem({
   value,
-  defaultFamily,
   commands,
   disabled,
   scope,
-}: Pick<DocxToolbarGroupContext, "commands"> & { value: string | null; defaultFamily: string | null; disabled: boolean; scope: DocxDocumentScope }) {
+}: Pick<DocxToolbarGroupContext, "commands"> & { value: string | null; disabled: boolean; scope: DocxDocumentScope }) {
   const [documentFonts, setDocumentFonts] = useState<readonly string[]>([]);
+  // Subscribed, not read when the items are built: the editor reaches the
+  // scope in a layout effect after the first ribbon render, and nothing else
+  // re-renders the ribbon before the user moves the caret.
+  const defaultFamily = docxDefaultFontFamily(useDocxScopeValue(scope.editor));
   const refreshDocumentFonts = useCallback(() => {
     const live = scope.editor.get();
     if (live && !live.isDestroyed) setDocumentFonts([...documentFontsFor(live, commands)]);
@@ -241,6 +244,27 @@ function FontFamilyItem({
   );
 }
 
+/** The size control as a `custom` item; subscribed to the live editor like {@link FontFamilyItem}. */
+function FontSizeItem({
+  fontSizePt,
+  commands,
+  disabled,
+  scope,
+}: Pick<DocxToolbarGroupContext, "commands"> & { fontSizePt: number | null; disabled: boolean; scope: DocxDocumentScope }) {
+  const sizeDisplay = docxFontSizeDisplay(useDocxScopeValue(scope.editor), fontSizePt);
+  // docxFontSizeDisplay drives the picker's displayed value/mixed state;
+  // the picker renders the mixed placeholder itself.
+  return (
+    <FontSizePicker
+      value={sizeDisplay.mixed ? null : sizeDisplay.value}
+      mixed={sizeDisplay.mixed}
+      disabled={disabled}
+      onSet={(pt) => commands?.setFontSizePt(pt)}
+      onStep={(direction) => commands?.stepFontSize(direction)}
+    />
+  );
+}
+
 /**
  * The typed Font-group items (R7/R8). Every command is the one the pre-typed
  * group already called, in Word's order: family picker, size picker, B/I/U/S/x2
@@ -258,8 +282,6 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
   const { format, commands, readOnly, saving } = context;
   const blocked = readOnly || saving || !commands || !format;
   const verticalAlign = format?.verticalAlign ?? null;
-  const live = context.docScope.editor.get();
-  const sizeDisplay = docxFontSizeDisplay(live, format?.fontSizePt ?? null);
 
   return [
     {
@@ -271,7 +293,7 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       width: FAMILY_WIDTH,
       disabled: blocked,
       render: () => (
-        <FontFamilyItem value={format?.fontFamily ?? null} defaultFamily={docxDefaultFontFamily(live)} commands={commands} disabled={blocked} scope={context.docScope} />
+        <FontFamilyItem value={format?.fontFamily ?? null} commands={commands} disabled={blocked} scope={context.docScope} />
       ),
     },
     {
@@ -282,16 +304,8 @@ export function homeFontRibbonItems(context: DocxToolbarGroupContext): readonly 
       collapseAs: "icon",
       width: 112,
       disabled: blocked,
-      // docxFontSizeDisplay drives the picker's displayed value/mixed state;
-      // the picker renders the mixed placeholder itself.
       render: () => (
-        <FontSizePicker
-          value={sizeDisplay.mixed ? null : sizeDisplay.value}
-          mixed={sizeDisplay.mixed}
-          disabled={blocked}
-          onSet={(pt) => commands?.setFontSizePt(pt)}
-          onStep={(direction) => commands?.stepFontSize(direction)}
-        />
+        <FontSizeItem fontSizePt={format?.fontSizePt ?? null} commands={commands} disabled={blocked} scope={context.docScope} />
       ),
     },
     {

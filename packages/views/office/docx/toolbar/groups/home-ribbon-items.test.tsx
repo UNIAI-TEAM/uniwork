@@ -4,7 +4,7 @@
 // placeholder. The custom items are exercised through RTL renders with a real
 // command runtime over a TipTap editor.
 import { Editor } from "@tiptap/core";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { RibbonItem } from "../../../ribbon";
@@ -237,6 +237,21 @@ describe("Home font typed items", () => {
     renderItem(mixed);
     await waitFor(() => expect(screen.getByTestId("docx-font-size")).toHaveValue(""));
     expect(screen.getByTestId("docx-font-size")).toHaveAttribute("aria-placeholder", "-");
+  });
+
+  it("fills the size box once the editor reaches the scope after the items were built", async () => {
+    // DocxEditor publishes the editor in a layout effect after the first
+    // ribbon render, and nothing re-renders the ribbon until the caret moves:
+    // the custom item must subscribe, not keep the build-time snapshot.
+    const editor = editorWith("hello world");
+    editor.commands.setTextSelection(3);
+    const runtime = createDocxCommandRuntime(() => editor);
+    const size = item(homeFontRibbonItems(context(editor, runtime, { format: { ...runtime.getState(), fontSizePt: null } })), "docx-font-size");
+    renderItem(size);
+    expect(screen.getByTestId("docx-font-size")).toHaveValue("");
+
+    act(() => testScope.publishEditor(editor));
+    await waitFor(() => expect(screen.getByTestId("docx-font-size")).toHaveValue("11"));
   });
 
   it("restores the family picker and commits a typed family name (F4)", async () => {

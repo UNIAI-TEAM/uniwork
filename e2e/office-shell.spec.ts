@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { createRecordingAccount } from "./meeting-recording-fixture";
 import { VI_LOCALE_STATE } from "./locale-state";
+import { e2eApiUrl, e2eBaseUrl } from "./api-url";
 
 /**
  * Shell browser contract over the bound DOCX host. The format lanes own the
@@ -18,8 +19,9 @@ test.describe.configure({ timeout: 120_000 });
 const enabled = process.env.OFFICE_SHELL_E2E === "1";
 const suppliedDocumentUrl = process.env.OFFICE_DOCUMENT_URL;
 const suppliedFlagOffUrl = process.env.OFFICE_DOCUMENT_FLAG_OFF_URL;
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-const baseUrl = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+// The global setup has checked the web build calls this same API.
+const apiUrl = e2eApiUrl;
+const baseUrl = e2eBaseUrl;
 // `pnpm --filter @uniwork/e2e test` runs with e2e/ as cwd while a root
 // Playwright invocation runs from the repository root; keep the fixture pin
 // stable for both supported local-stack entry points.
