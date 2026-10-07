@@ -163,7 +163,7 @@ var (
 	// and DetectContentType now names it text/csv.
 	attachmentMIMETypes = []string{
 		"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp",
-		"application/pdf", "text/markdown", "text/plain", "text/csv",
+		"video/mp4", "application/pdf", "text/markdown", "text/plain", "text/csv",
 		"application/msword",
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 		"application/vnd.ms-excel",

@@ -101,6 +101,17 @@ func TestSwaggerSpecFollowsChiRoutesAndSDI(t *testing.T) {
 		t.Fatalf("login SDI missing example: %s", loginSDI)
 	}
 
+	for name, raw := range map[string]json.RawMessage{
+		"task upload operation":      spec.Paths["/api/v1/tasks/{taskID}/attachments"],
+		"workspace upload operation": spec.Paths["/api/v1/workspaces/{workspaceID}/attachments"],
+		"task upload SDI":            spec.Components.Schemas["FormDataSdiUploadTaskAttachmentSDI"],
+		"workspace upload SDI":       spec.Components.Schemas["FormDataSdiUploadWorkspaceAttachmentSDI"],
+	} {
+		if !strings.Contains(string(raw), "MP4") {
+			t.Errorf("%s does not document MP4: %s", name, raw)
+		}
+	}
+
 	// The directory and its CSV export share their filter query params.
 	for route, want := range map[string][]string{
 		"/api/v1/orgs/{org}/people":     {"q", "department_id", "manager_id", "role", "status", "cursor", "limit"},

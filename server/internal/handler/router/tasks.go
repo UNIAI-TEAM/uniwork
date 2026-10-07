@@ -438,11 +438,11 @@ func registerTasksSuite(r api, h Routes) {
 			tags: []string{"tasks"}, sdo: sdo.AttachmentListSDO{}, auth: true,
 		})
 		suite.Post("/tasks/{taskID}/attachments", h.UploadTaskAttachment, apiOp{
-			summary: "Upload task attachment", description: "Tải lên đính kèm (multipart field file, tối đa 25 MiB).",
+			summary: "Upload task attachment", description: "Tải lên đính kèm, gồm video MP4 (multipart field file, tối đa 25 MiB).",
 			tags: []string{"tasks"}, sdi: sdi.UploadTaskAttachmentSDI{}, sdo: sdo.AttachmentDTO{}, auth: true,
 		})
 		suite.Post("/workspaces/{workspaceID}/attachments", h.UploadWorkspaceAttachment, apiOp{
-			summary: "Upload attachment before task create", description: "Tải tệp tạm theo workspace; gửi id trong attachment_ids khi tạo task.",
+			summary: "Upload attachment before task create", description: "Tải tệp tạm theo workspace, gồm video MP4; gửi id trong attachment_ids khi tạo task; tối đa 25 MiB.",
 			tags: []string{"tasks"}, sdi: sdi.UploadWorkspaceAttachmentSDI{}, sdo: sdo.AttachmentDTO{}, auth: true,
 		})
 		suite.Get("/attachments/{attachmentID}", h.GetAttachment, apiOp{

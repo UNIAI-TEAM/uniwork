@@ -78,6 +78,8 @@ func MisnamedSamples() []Sample {
 		{"png_named_csv", "export.csv", pngSample(), "image/png"},
 		{"malformed_ftyp_named_m4a", "voice.m4a", append([]byte("\x00\x00\x00\x14ftyp\x01\x02\x03\x04\x00\x00\x00\x00\xff\xfe\xfd\xfc"), make([]byte, 16)...), "application/octet-stream"},
 		{"heic_named_mp4", "photo.mp4", ftypSample("heic", "mif1", "heic"), "application/octet-stream"},
+		{"heic_compatible_named_mp4", "photo.mp4", ftypSample("isom", "isom", "heic"), "application/octet-stream"},
+		{"avif_compatible_named_mp4", "photo.mp4", ftypSample("isom", "isom", "avif"), "application/octet-stream"},
 		{"latin1_named_csv", "export.csv", []byte("id,t\xe9n\n1,\xc1nh\n"), "text/plain"},
 	}
 }
