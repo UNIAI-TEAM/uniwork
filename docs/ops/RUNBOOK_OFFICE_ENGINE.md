@@ -317,10 +317,11 @@ reached only by this service. Owner of the decision: Advisor with G2-04.
 
 ## Kubernetes (Helm)
 
-The `uniwork` chart (`deploy/app/uniwork`) deploys the engine behind **one switch**, `officeEngine.enabled` (default
-`false`; off renders nothing of the engine and the BE refuses office jobs). Keep `OFFICE_ENGINE_URL` empty in
-`deploy/app/env/uniwork-be.env`: with the switch on, the chart sets it on the BE container. What the pod does and
-why (values in `deploy/app/uniwork/values.yaml`, template `deployment-office-engine.yaml`):
+The `uniwork` chart (`deploy/app/uniwork`) always deploys the office engine in production
+(`officeEngine.enabled=true`). Keep `OFFICE_ENGINE_URL` empty in `deploy/app/env/uniwork-be.env`: the chart sets
+it on the BE container to the in-cluster Service. Non-secret engine env is
+`deploy/app/env/uniwork-office-engine.env` (ConfigMap via Helm `--set-file`). What the pod does and why
+(values in `deploy/app/uniwork/values.yaml`, template `deployment-office-engine.yaml`):
 
 - Same limits and capability set as compose (drop `ALL`, add `CHOWN SETUID SETGID KILL DAC_OVERRIDE FOWNER`, no
   privilege escalation, read-only root filesystem, 512 Mi Memory `/tmp`, 2 Gi / 2 cpu). No `runAsNonRoot`: the
@@ -329,15 +330,13 @@ why (values in `deploy/app/uniwork/values.yaml`, template `deployment-office-eng
 - Probes use `/healthz`, the only route without the service credential. The Service is ClusterIP only; there is no
   edge route.
 - NetworkPolicy: ingress only from `uniwork-be` pods on the engine port; egress to DNS plus
-  `networkPolicy.officeEngineFileStore` CIDRs.
-- Rollout: `ci/scripts/rollout-uniwork.sh` with `OFFICE_ENGINE_ENABLED=1`, `OFFICE_ENGINE_DIGEST`,
-  `OFFICE_ENGINE_OUTPUT_ORIGINS` and an optional `OFFICE_ENGINE_VALUES_FILE`. Every later rollout must keep them or
-  the engine is removed.
+  `networkPolicy.officeEngineFileStore` CIDRs (set in values for CMC S3).
+- Rollout: `ci/scripts/rollout-uniwork.sh` always builds/pins BE + FE + office-engine digests and
+  `--set-file`s the three env files. No Jenkins toggle for the engine.
 
-Per-environment values that cannot live in the chart (CIDRs, origins, the `uniwork-office-engine` Secret, the
-kubelet `podPidsLimit`, public installer URLs, bucket CORS) are one list:
+Per-environment prerequisites (Secret, kubelet `podPidsLimit`, public installer URLs, bucket CORS) are one list:
 [`docs/ops/OFFICE_ENV_CHECKLIST.md`](OFFICE_ENV_CHECKLIST.md). Troubleshooting "Office job báo chưa cấu hình" on
-Helm means `officeEngine.enabled` is off or the Secret is missing, not an empty URL to fill by hand.
+Helm means the Secret is missing or the BE cannot reach the engine Service — not an empty URL to fill by hand.
 
 ## Per-format flags
 

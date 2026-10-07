@@ -11,6 +11,7 @@ tolerations: []
 env:
   beContent: ""
   feContent: ""
+  officeEngineContent: ""
 
 public:
   origin: https://uniwork.unicomhub.com
@@ -88,18 +89,18 @@ networkPolicy:
   # Namespace of the in-cluster Prometheus allowed to scrape be.metricsPort.
   # Empty renders no rule: the port stays closed to every other pod.
   metricsScrapeNamespace: ""
-  # Egress of the office engine to the file store (used only when
-  # officeEngine.enabled). A NetworkPolicy matches IPs, not names: list the
-  # object store's CIDR(s) as {cidr: "x.x.x.x/32", port: 443}. Empty = DNS only.
-  officeEngineFileStore: []
+  # Egress of the office engine to the file store. NetworkPolicy matches IPs,
+  # not DNS names — CMC S3 hn-2 A records (re-check if the endpoint moves).
+  officeEngineFileStore:
+    - { cidr: "113.20.100.19/32", port: 443 }
+    - { cidr: "113.20.100.20/32", port: 443 }
 
-# Office engine (apps/office-engine, G2-02): private conversion/render service
-# the BE calls over the cluster network. Off by default; with it off nothing
-# below renders and the BE refuses office jobs (OFFICE_ENGINE_URL must then be
-# empty in deploy/app/env/uniwork-be.env). Build the image from the repo root:
-#   docker build -f apps/office-engine/Dockerfile -t <registry>/uniwork-office-engine .
+# Office engine (apps/office-engine): always on in production. Non-secret env is
+# deploy/app/env/uniwork-office-engine.env (helm --set-file env.officeEngineContent).
+# Secrets: uniwork-office-engine (SERVICE_TOKEN + GRANT_KEY). Chart sets
+# OFFICE_ENGINE_URL on the BE to the in-cluster Service.
 officeEngine:
-  enabled: false
+  enabled: true
   replicaCount: 1
   image:
     registry: registry-harbor.ubos.vn/uniwork
@@ -108,16 +109,8 @@ officeEngine:
     digest: ""
     requireDigest: true
     pullPolicy: IfNotPresent
+  # Must match OFFICE_ENGINE_PORT in uniwork-office-engine.env.
   port: 8090
-  # Bare http(s) origins the engine may fetch inputs from / write outputs to
-  # (the file store's presigned-URL origin). Plain value, not a secret.
-  outputOrigins: ""
-  # Extra OFFICE_ENGINE_* settings (name: value), mirroring the compose
-  # `office` profile defaults. OFFICE_ENGINE_SANDBOX=required is set by the image.
-  env:
-    OFFICE_ENGINE_MAX_WORKERS: "2"
-    OFFICE_ENGINE_MAX_QUEUE: "16"
-    OFFICE_ENGINE_FAULT_OPERATIONS: "0"
   # tmpfs pages count against the memory limit: 512Mi /tmp (2 workers x 256 MiB
   # temp) + 2 x 512 MiB job RSS + the service itself stays under 2Gi.
   tmpSizeLimit: 512Mi

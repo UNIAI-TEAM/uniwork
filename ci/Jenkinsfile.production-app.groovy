@@ -4,6 +4,9 @@
  * UniWork production-app: build develop → Harbor push → human approve →
  * Helm digest rollout on reap-eng-prod-k8s.
  *
+ * Images: uniwork-be, uniwork-fe, uniwork-office-engine (always).
+ * Non-secret env lives in deploy/app/env/*.env (Helm --set-file at rollout).
+ *
  * Split agents:
  *   107.188          — checkout, docker build/push, write target/rollout.env
  *   production-k8s   — helm + kubectl against reap-eng-prod-k8s
@@ -14,7 +17,8 @@ pipeline {
 
   options {
     disableConcurrentBuilds()
-    timeout(time: 90, unit: 'MINUTES')
+    // Office engine image builds the XLSX Rust sidecar; BE+FE alone fit in 90m.
+    timeout(time: 150, unit: 'MINUTES')
     buildDiscarder(logRotator(numToKeepStr: '20'))
     timestamps()
   }
@@ -138,33 +142,47 @@ pipeline {
           }
         }
 
+        stage('Build Office Engine') {
+          steps {
+            script {
+              def serviceTag = 'uniwork-office-engine'
+              def imageName = "${env.REGISTRY}/${serviceTag}:${env.IMAGE_TAG}"
+              // No --memory cap: XLSX stage builds a Rust sidecar.
+              // BuildKit picks up apps/office-engine/Dockerfile.dockerignore.
+              sh """
+                docker build \\
+                  -t ${imageName} \\
+                  -f apps/office-engine/Dockerfile .
+              """
+              pushImage(imageName, serviceTag)
+            }
+          }
+        }
+
         stage('Prepare rollout') {
           steps {
             script {
-              def beDigestFile = 'target/digests/uniwork-be.digest'
-              def feDigestFile = 'target/digests/uniwork-fe.digest'
-              if (!fileExists(beDigestFile)) {
-                error("missing digest file after push (${beDigestFile})")
-              }
-              if (!fileExists(feDigestFile)) {
-                error("missing digest file after push (${feDigestFile})")
-              }
-              def beDigest = readFile(beDigestFile).trim()
-              def feDigest = readFile(feDigestFile).trim()
-              if (!beDigest.startsWith('sha256:')) {
-                error("invalid BE digest: ${beDigest}")
-              }
-              if (!feDigest.startsWith('sha256:')) {
-                error("invalid FE digest: ${feDigest}")
-              }
+              def digests = [
+                'uniwork-be'            : 'BE_DIGEST',
+                'uniwork-fe'            : 'FE_DIGEST',
+                'uniwork-office-engine' : 'OFFICE_ENGINE_DIGEST',
+              ]
               def imageTag = env.IMAGE_TAG ?: ''
-              writeFile file: 'target/rollout.env', text: """export IMAGE_TAG=${imageTag}
-export BE_DIGEST=${beDigest}
-export FE_DIGEST=${feDigest}
-"""
+              def lines = ["export IMAGE_TAG=${imageTag}"]
+              digests.each { serviceTag, envName ->
+                def path = "target/digests/${serviceTag}.digest"
+                if (!fileExists(path)) {
+                  error("missing digest file after push (${path})")
+                }
+                def digest = readFile(path).trim()
+                if (!digest.startsWith('sha256:')) {
+                  error("invalid ${serviceTag} digest: ${digest}")
+                }
+                lines << "export ${envName}=${digest}"
+                echo "${envName}=${digest}"
+              }
+              writeFile file: 'target/rollout.env', text: lines.join('\n') + '\n'
               echo "IMAGE_TAG=${imageTag}"
-              echo "BE_DIGEST=${beDigest}"
-              echo "FE_DIGEST=${feDigest}"
             }
             stash name: 'prod-app-rollout', includes: 'target/**,deploy/app/uniwork/**,deploy/app/env/**,ci/scripts/**'
             sh '''
@@ -180,6 +198,7 @@ export FE_DIGEST=${feDigest}
               echo "IMAGE_TAG=${IMAGE_TAG:-}"
               echo "BE_DIGEST=${BE_DIGEST:-}"
               echo "FE_DIGEST=${FE_DIGEST:-}"
+              echo "OFFICE_ENGINE_DIGEST=${OFFICE_ENGINE_DIGEST:-}"
               echo "OK: rollout.env written. Helm apply runs on production-k8s after Approve."
             '''
           }
@@ -198,7 +217,7 @@ export FE_DIGEST=${feDigest}
         expression { return params.DEPLOY }
       }
       steps {
-        input message: 'Deploy develop images to reap-eng-prod-k8s?', ok: 'Deploy'
+        input message: 'Deploy develop images (be + fe + office-engine) to reap-eng-prod-k8s?', ok: 'Deploy'
       }
     }
 

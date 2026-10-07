@@ -3,32 +3,25 @@
 > **Trạng thái:** in-progress (UNI-954). Linked from [`RUNBOOK_OFFICE_ENGINE.md`](RUNBOOK_OFFICE_ENGINE.md).
 
 Everything the Helm chart and the repo cannot decide for an environment, in one list. Tick each line
-per environment (staging, production) before turning `officeEngine.enabled` on or publishing an
-installer. Nothing here is a secret value; secrets are created out of band and referenced by name.
+per environment (staging, production) before the first production rollout that includes the office
+engine, or before publishing an installer. Nothing here is a secret value; secrets are created out
+of band and referenced by name.
 
-## 1. Engine pod (`officeEngine.enabled=true`)
+Office engine is **always on** in production (`officeEngine.enabled=true`). Jenkins / rollout do
+not take `OFFICE_ENGINE_ENABLED` / `OUTPUT_ORIGINS` / `VALUES_FILE` — edit
+`deploy/app/env/uniwork-office-engine.env` and `deploy/app/uniwork/values.yaml` instead.
+
+## 1. Engine pod (always deployed)
 
 | # | Item | Where | Done |
 | --- | --- | --- | --- |
-| 1 | Secret `uniwork-office-engine` exists with keys `OFFICE_ENGINE_SERVICE_TOKEN` and `OFFICE_ENGINE_GRANT_KEY`, each >= 32 chars and different from each other. Command: `deploy/app/env/README.md` "Office engine". Without it the engine pod fails at start and so does the BE (its refs are required once the switch is on) | namespace `uniwork` | [ ] |
+| 1 | Secret `uniwork-office-engine` exists with keys `OFFICE_ENGINE_SERVICE_TOKEN` and `OFFICE_ENGINE_GRANT_KEY`, each >= 32 chars and different from each other. Command: `deploy/app/env/README.md` "Office engine". Without it the engine and BE pods fail at start | namespace `uniwork` | [ ] |
 | 2 | `OFFICE_ENGINE_URL` is **empty** in `deploy/app/env/uniwork-be.env` (the chart sets it) | repo | [ ] |
-| 3 | `officeEngine.outputOrigins`: the bare origin(s) of the file store's presigned URLs (`https://host[:port]`, comma separated, no trailing slash). Empty means every output write is refused (`output_write_*`). Rollout script: `OFFICE_ENGINE_OUTPUT_ORIGINS` | values / env | [ ] |
-| 4 | `networkPolicy.officeEngineFileStore`: the file store's IP CIDR(s) as `{cidr: "x.x.x.x/32", port: 443}`. A NetworkPolicy cannot match DNS names, so resolve the store and list every address. Empty leaves the engine with DNS only and every output write fails | values file | [ ] |
-| 5 | Engine image built from the repo root (`docker build -f apps/office-engine/Dockerfile ...`), pushed, digest recorded. The chart requires a digest | registry | [ ] |
+| 3 | `OFFICE_ENGINE_OUTPUT_ORIGINS` in `deploy/app/env/uniwork-office-engine.env` matches the file-store bare origin (no trailing slash). Empty means every output write is refused | repo env | [ ] |
+| 4 | `networkPolicy.officeEngineFileStore` in `values.yaml` lists the store CIDR(s). Empty leaves the engine with DNS only and every output write fails | values | [ ] |
+| 5 | Production pipeline always builds/pushes `uniwork-office-engine` and pins digest via `OFFICE_ENGINE_DIGEST` in `target/rollout.env` | CI | [ ] |
 | 6 | Kubelet `podPidsLimit: 256` on every node that can schedule the engine (a pod spec has no per-pod pids field; compose uses `pids_limit: 256`). Node-level `KubeletConfiguration`, ops action; check with `kubectl get --raw /api/v1/nodes/<node>/proxy/configz` | node pool | [ ] |
 | 7 | The CNI enforces NetworkPolicy (otherwise the engine's ingress and egress restrictions do nothing) | cluster | [ ] |
-| 8 | Rollout through `ci/scripts/rollout-uniwork.sh` with `OFFICE_ENGINE_ENABLED=1`, `OFFICE_ENGINE_DIGEST`, `OFFICE_ENGINE_OUTPUT_ORIGINS` and, for the CIDRs, `OFFICE_ENGINE_VALUES_FILE`. Every later rollout must pass the same: when `OFFICE_ENGINE_ENABLED` is unset or empty the script reads the live release (`helm get values`, needs `jq`) and **refuses** (exit 2, nothing applied) if it runs the engine, or if it cannot read the release, instead of dropping it. To remove the engine on purpose, set `OFFICE_ENGINE_ENABLED=0` explicitly; a first install (no release yet) needs no flag | CI | [ ] |
-
-Example values file for `OFFICE_ENGINE_VALUES_FILE`:
-
-```yaml
-networkPolicy:
-  officeEngineFileStore:
-    - { cidr: "203.0.113.10/32", port: 443 }
-officeEngine:
-  resources:
-    limits: { cpu: "2", memory: 2Gi }
-```
 
 Kubelet snippet (item 6):
 
