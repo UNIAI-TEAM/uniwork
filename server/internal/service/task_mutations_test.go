@@ -39,16 +39,18 @@ func TestUpdateTaskSuiteBumpsRevisionOnce(t *testing.T) {
 	s, events, ua, _, w := taskFixture(t)
 	ctx := context.Background()
 
-	task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Once", Priority: "medium"})
+	task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Once", Description: "Before", Priority: "medium"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	title := "Once updated"
+	description := "After"
 	st := "in_progress"
 	up, err := s.UpdateTaskSuite(ctx, Human(ua.ID), task.ID, UpdateTaskSuiteInput{
-		Revision: task.Revision,
-		Title:    &title,
-		Status:   &st,
+		Revision:    task.Revision,
+		Title:       &title,
+		Description: &description,
+		Status:      &st,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +58,7 @@ func TestUpdateTaskSuiteBumpsRevisionOnce(t *testing.T) {
 	if up.Revision != task.Revision+1 {
 		t.Fatalf("revision: got %d want %d", up.Revision, task.Revision+1)
 	}
-	if up.Title != title || up.Status != st {
+	if up.Title != title || up.Description != description || up.Status != st {
 		t.Fatalf("fields: %+v", up)
 	}
 	evs := events.drain(t)
