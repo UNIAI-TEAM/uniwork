@@ -110,6 +110,9 @@ export function printableVisuals(
     const metrics = metricsFor(visual.sheetId);
     const box = metrics ? printBox(visual, metrics) : null;
     const title = visual.chart?.title || visual.title || kindLabel(visualKind(visual));
+    // Rendered on first read: print lists anchors and boxes for its range
+    // without drawing anything, then draws each image once (review m3).
+    let image: XlsxPrintableImage | null | undefined;
     out.push({
       sheetId: visual.sheetId,
       sheetName: sheet.name,
@@ -117,7 +120,10 @@ export function printableVisuals(
       zIndex,
       anchor: visual.anchor,
       box,
-      image: printImage(visual, box, title),
+      get image() {
+        if (image === undefined) image = printImage(visual, box, title);
+        return image;
+      },
       title,
     });
   }
