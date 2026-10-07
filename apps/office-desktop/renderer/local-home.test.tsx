@@ -31,7 +31,11 @@ it("shows a typed error with retry", () => {
   const callbacks = actions();
   render(<LocalHomeView files={null} error {...callbacks} />);
   expect(screen.getByRole("alert")).toHaveTextContent(i18n.t("officeDesktop.local.error"));
-  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.retry") }));
+  const retry = screen.getByRole("button", { name: i18n.t("officeDesktop.local.retry") });
+  expect(screen.getByRole("alert")).toHaveClass("items-start");
+  expect(retry).toHaveClass("h-7");
+  expect(retry).not.toHaveClass("w-full");
+  fireEvent.click(retry);
   expect(callbacks.onRetry).toHaveBeenCalledOnce();
 });
 
