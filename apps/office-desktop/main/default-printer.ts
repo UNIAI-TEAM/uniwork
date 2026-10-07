@@ -1,4 +1,15 @@
 import { execFile } from "node:child_process";
+import { win32 } from "node:path";
+
+/** The slice of `execFile` the registry reads use (injected by tests). */
+export type RegRunner = (file: string, args: string[], options: { timeout: number; windowsHide: true; maxBuffer?: number }, callback: (error: Error | null, stdout: string | Buffer) => void) => unknown;
+
+/** `reg.exe` by its absolute System32 path. A bare name would be searched in the
+ * process's current directory first (a launch through a file association can start
+ * in a downloaded document's folder), so a planted `reg.exe` would run as the user. */
+export function regExecutable(env: Readonly<Record<string, string | undefined>> = process.env): string {
+  return win32.join(env.SystemRoot ?? "C:\\Windows", "System32", "reg.exe");
+}
 
 /** Where Windows keeps the current user's default printer, as
  * `<printer name>,winspool,<port>` (written by both the classic setting and
@@ -19,9 +30,9 @@ export function parseWindowsDeviceValue(output: string): string | undefined {
  * One fixed `reg query`, no shell, a short timeout; any failure is "unknown",
  * never an error - the dialog then preselects the first printer.
  */
-export function readWindowsDefaultPrinter(): Promise<string | undefined> {
+export function readWindowsDefaultPrinter(run: RegRunner = execFile, env: Readonly<Record<string, string | undefined>> = process.env): Promise<string | undefined> {
   return new Promise((resolve) => {
-    execFile("reg", ["query", WINDOWS_DEVICE_KEY, "/v", "Device"], { timeout: 3000, windowsHide: true }, (error, stdout) => {
+    run(regExecutable(env), ["query", WINDOWS_DEVICE_KEY, "/v", "Device"], { timeout: 3000, windowsHide: true }, (error, stdout) => {
       resolve(error ? undefined : parseWindowsDeviceValue(String(stdout)));
     });
   });
@@ -67,9 +78,9 @@ export function parseWindowsPrinterPorts(output: string): Map<string, string> {
  * flag. One fixed `reg query`, no shell, a short timeout; any failure is an
  * empty map ("unknown", which never blocks a silent print).
  */
-export function readWindowsPrinterPorts(): Promise<Map<string, string>> {
+export function readWindowsPrinterPorts(run: RegRunner = execFile, env: Readonly<Record<string, string | undefined>> = process.env): Promise<Map<string, string>> {
   return new Promise((resolve) => {
-    execFile("reg", ["query", WINDOWS_PRINTERS_KEY, "/s", "/v", "Port"], { timeout: 3000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (error, stdout) => {
+    run(regExecutable(env), ["query", WINDOWS_PRINTERS_KEY, "/s", "/v", "Port"], { timeout: 3000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (error, stdout) => {
       resolve(error ? new Map() : parseWindowsPrinterPorts(String(stdout)));
     });
   });

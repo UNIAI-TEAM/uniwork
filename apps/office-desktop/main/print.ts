@@ -101,10 +101,12 @@ export type PrintOwner = {
 };
 
 /** How long the renderer waits for Electron's print callback. Past it the
- * request answers `print_timeout`, but the job is NOT released: its window,
- * file and busy flag stay until the callback finally arrives or the owner
+ * request answers `print_timeout`. A system-dialog job is NOT released: its
+ * window, file and busy flag stay until the callback finally arrives or the owner
  * regains focus (blur then focus), so an OS dialog that is still open is never
- * closed and a second dialog never opens over it. */
+ * closed and a second dialog never opens over it. A silent job (the in-app
+ * dialog) has no dialog to protect and no blur/focus to free it, so it is
+ * released on the spot: window closed, file removed, busy cleared. */
 export const PRINT_CALLBACK_TIMEOUT_MS = 120_000;
 
 export interface PrintDocumentOptions<Owner extends PrintOwner = PrintOwner> {
@@ -213,9 +215,13 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
       }
       let file: PrintFile | undefined;
       let window: PrintWindow | undefined;
+      let released = false;
       // Runs once, when Electron answers (or the job never reached the dialog):
-      // never on the timeout, which leaves an open dialog alone.
+      // on the timeout only for a silent job; a system dialog is left alone. A
+      // callback arriving after a silent job's release finds nothing left to do.
       const release = async () => {
+        if (released) return;
+        released = true;
         detach();
         if (window && !window.isDestroyed()) closeWindow(window);
         await file?.cleanup().catch(() => undefined);
@@ -230,6 +236,7 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
         return { outcome: "failed", reason: "print_owner_unavailable" };
       }
       let printing: Promise<DesktopPrintResponse>;
+      const printOptions = electronPrintOptions(request.options);
       try {
         file = await options.writeFile(request.html, printFileName(request.title));
         const created = options.createWindow({ show: false, skipTaskbar: true, title: printJobTitle(request.title), webPreferences: PRINT_WINDOW_WEB_PREFERENCES }, owner);
@@ -241,7 +248,7 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
           // returns to the app as the dialog appears does not count.
           owner?.on("blur", onBlur);
           owner?.on("focus", onFocus);
-          created.webContents.print(electronPrintOptions(request.options), (success, failureReason) => resolve(printOutcome(success, failureReason)));
+          created.webContents.print(printOptions, (success, failureReason) => resolve(printOutcome(success, failureReason)));
         });
       } catch {
         await release();
@@ -253,9 +260,15 @@ export function createPrintIpcHandler<Owner extends PrintOwner>(options: PrintDo
       const timedOut = new Promise<DesktopPrintResponse>((resolve) => {
         timer = setTimeout(() => {
           job.timedOut = true;
+          const answer = () => resolve({ outcome: "failed", reason: "print_timeout" });
+          if (printOptions.silent) {
+            // No OS dialog is open and no blur/focus will ever free the job: release it now.
+            release().then(answer, answer);
+            return;
+          }
           // The user already came back to the app window while we waited: that refocus counts now.
           if (job.refocusHeld) supersede();
-          resolve({ outcome: "failed", reason: "print_timeout" });
+          answer();
         }, timeoutMs);
       });
       try {

@@ -488,6 +488,48 @@ describe("print owner and callback timeout", () => {
       vi.useRealTimers();
     }
   });
+  it("releases a silent job whose callback never comes: print_timeout, window closed, file removed, next print accepted, late callback harmless", async () => {
+    vi.useFakeTimers();
+    try {
+      const silent = { landscape: false, pageSize: { width: 210_000, height: 297_000 }, silent: true, deviceName: "Prompting printer" } as const;
+      const callbacks: PrintCallback[] = [];
+      const { handler, window, cleanup } = harness((callback) => { callbacks.push(callback); });
+      const first = handler({ ...request, options: silent });
+      await vi.waitFor(() => expect(callbacks).toHaveLength(1));
+      await vi.advanceTimersByTimeAsync(PRINT_CALLBACK_TIMEOUT_MS);
+      expect(await first).toEqual({ outcome: "failed", reason: "print_timeout" });
+      expect(window.close).toHaveBeenCalledTimes(1);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      // No OS dialog to protect: the next print is not print_busy.
+      const second = handler({ ...request, options: silent });
+      await vi.waitFor(() => expect(callbacks).toHaveLength(2));
+      // The first job's callback arriving now must neither clean up twice nor free the second job.
+      callbacks[0]!(true, "");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(await handler({ ...request, options: silent })).toEqual({ outcome: "failed", reason: "print_busy" });
+      callbacks[1]!(true, "");
+      expect(await second).toEqual({ outcome: "printed" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("keeps a non-silent job open on timeout even when options are given (an OS dialog is never closed)", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish: PrintCallback | undefined;
+      const { handler, window, cleanup } = harness((callback) => { finish = callback; });
+      const first = handler({ ...request, options: { landscape: true, pageSize: { width: 190_500, height: 338_658 } } });
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      await vi.advanceTimersByTimeAsync(PRINT_CALLBACK_TIMEOUT_MS);
+      expect(await first).toEqual({ outcome: "failed", reason: "print_timeout" });
+      expect(window.close).not.toHaveBeenCalled();
+      expect(cleanup).not.toHaveBeenCalled();
+      expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_busy" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("uses a bounded default wait", () => {
     expect(PRINT_CALLBACK_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
     expect(PRINT_CALLBACK_TIMEOUT_MS).toBeLessThanOrEqual(600_000);

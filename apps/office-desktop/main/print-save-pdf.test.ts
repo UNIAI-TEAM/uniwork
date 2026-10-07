@@ -183,6 +183,25 @@ describe("desktop:print-save-pdf handler", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
     expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_timeout" });
   });
+  it("answers print_timeout when the load never settles, writes nothing, cleans up and frees the slot", async () => {
+    const { handler, window, cleanup, output } = harness({ load: () => new Promise<void>(() => undefined), timeoutMs: 20 });
+    expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_timeout" });
+    expect(window.webContents.printToPDF).not.toHaveBeenCalled();
+    expect(output).not.toHaveBeenCalled();
+    expect(window.close).toHaveBeenCalledTimes(1);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_timeout" });
+  });
+  it("answers print_range_invalid when printToPDF rejects a requested page range, and keeps print_unavailable without one", async () => {
+    const rejecting = async () => { throw new Error("Invalid pageRanges: 9-12"); };
+    const ranged = harness({ toPdf: rejecting });
+    expect(await ranged.handler({ ...request, options: { ...options, pageRanges: [{ from: 8, to: 11 }] } })).toEqual({ outcome: "failed", reason: "print_range_invalid" });
+    expect(ranged.output).not.toHaveBeenCalled();
+    expect(ranged.window.close).toHaveBeenCalledTimes(1);
+    expect(ranged.cleanup).toHaveBeenCalledTimes(1);
+    const whole = harness({ toPdf: rejecting });
+    expect(await whole.handler(request)).toEqual({ outcome: "failed", reason: "print_unavailable" });
+  });
   it("defaults to a 60 second timeout", async () => {
     vi.useFakeTimers();
     try {

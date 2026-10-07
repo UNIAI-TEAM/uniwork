@@ -132,6 +132,16 @@ describe("desktop:print-preview handler", () => {
     finish!(new Uint8Array(4));
     expect((await again).outcome).toBe("ready");
   });
+  it("answers print_timeout when the load never settles, never lays out, cleans up and frees the slot", async () => {
+    let hang = true;
+    const { handler, window, cleanup } = harness(async () => new Uint8Array(4), () => (hang ? new Promise<void>(() => undefined) : Promise.resolve()), 20);
+    expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_timeout" });
+    expect(window.webContents.printToPDF).not.toHaveBeenCalled();
+    expect(window.close).toHaveBeenCalledTimes(1);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    hang = false;
+    expect((await handler(request)).outcome).toBe("ready");
+  });
   it("answers print_timeout when printToPDF does not finish, closes the window, removes the file and frees the slot", async () => {
     const { handler, window, cleanup } = harness(() => new Promise<Uint8Array>(() => undefined), undefined, 20);
     expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_timeout" });

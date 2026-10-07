@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { isPromptPort, parseWindowsDeviceValue, parseWindowsPrinterPorts } from "./default-printer";
+import { describe, expect, it, vi } from "vitest";
+import { isPromptPort, parseWindowsDeviceValue, parseWindowsPrinterPorts, readWindowsDefaultPrinter, readWindowsPrinterPorts, regExecutable, type RegRunner } from "./default-printer";
 
 describe("parseWindowsDeviceValue", () => {
   it("reads the printer name before the driver and port", () => {
@@ -61,4 +61,33 @@ describe("parseWindowsPrinterPorts", () => {
 describe("isPromptPort", () => {
   it.each(["PORTPROMPT:", "portprompt:", "FILE:", "XPSPort:", "xpsport:", "SHRFAX:", " SHRFAX: "])("flags %s", (port) => expect(isPromptPort(port)).toBe(true));
   it.each(["nul:", "USB001", "IP_10.0.0.5", "C:\\out.prn", "LPT1:", "", "PORTPROMPT"])("lets %s print silently", (port) => expect(isPromptPort(port)).toBe(false));
+});
+
+describe("reg.exe lookup", () => {
+  const env = { SystemRoot: "D:\\Win" };
+  const reg = "D:\\Win\\System32\\reg.exe";
+  const answering = (stdout: string) => vi.fn<RegRunner>((_file, _args, _options, callback) => { callback(null, stdout); });
+
+  it("names reg.exe by its absolute System32 path, never by a bare name that the cwd or PATH could hijack", () => {
+    expect(regExecutable(env)).toBe(reg);
+    expect(regExecutable({})).toBe("C:\\Windows\\System32\\reg.exe");
+  });
+  it("runs the absolute executable for the default printer read", async () => {
+    const run = answering("    Device    REG_SZ    Office printer,winspool,Ne00:\r\n");
+    expect(await readWindowsDefaultPrinter(run, env)).toBe("Office printer");
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0]![0]).toBe(reg);
+    expect(run.mock.calls[0]![1]).toEqual(["query", "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows", "/v", "Device"]);
+  });
+  it("runs the absolute executable for the printer ports read", async () => {
+    const run = answering(`${KEY}\\Fax\r\n    Port    REG_SZ    SHRFAX:\r\n`);
+    expect([...await readWindowsPrinterPorts(run, env)]).toEqual([["Fax", "SHRFAX:"]]);
+    expect(run.mock.calls[0]![0]).toBe(reg);
+    expect(run.mock.calls[0]![1]).toEqual(["query", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Print\\Printers", "/s", "/v", "Port"]);
+  });
+  it("answers unknown when reg fails", async () => {
+    const failing = vi.fn<RegRunner>((_file, _args, _options, callback) => { callback(new Error("ENOENT"), ""); });
+    expect(await readWindowsDefaultPrinter(failing, env)).toBeUndefined();
+    expect((await readWindowsPrinterPorts(failing, env)).size).toBe(0);
+  });
 });

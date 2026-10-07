@@ -39,7 +39,7 @@ export interface PrintPreviewOptions {
 
 /** One copy to lay out: the sanitized HTML, the document's geometry (microns) and, for a
  * save, the 0-based inclusive page spans to keep. */
-export interface PdfCopy {
+interface PdfCopy {
   title: string;
   html: string;
   landscape: boolean;
@@ -52,7 +52,7 @@ export function toElectronPageRanges(ranges: ReadonlyArray<{ from: number; to: n
   return ranges.map(({ from, to }) => (from === to ? String(from + 1) : `${from + 1}-${to + 1}`)).join(", ");
 }
 
-export interface RenderCopyOptions {
+interface RenderCopyOptions {
   createWindow(options: PrintWindowOptions): PreviewWindow;
   writeFile: PrintDocumentOptions["writeFile"];
   timeoutMs: number;
@@ -61,38 +61,53 @@ export interface RenderCopyOptions {
 /**
  * Lays one copy out as a PDF through the hidden print window (temp file under the print
  * root, script-free window, navigation denied) and answers its bytes or a typed reason:
- * `print_timeout` or `print_unavailable`. Never throws; the window is closed and the
+ * `print_timeout`, `print_range_invalid` (printToPDF refused the requested pages, which Electron
+ * does for a range past the page count) or `print_unavailable`. Never throws; the window is closed and the
  * temp file removed in every case. Shared by the preview and the PDF save.
  */
-export async function renderCopyToPdf(options: RenderCopyOptions, copy: PdfCopy): Promise<{ pdf: Uint8Array } | { reason: "print_timeout" | "print_unavailable" }> {
+export async function renderCopyToPdf(options: RenderCopyOptions, copy: PdfCopy): Promise<{ pdf: Uint8Array } | { reason: "print_timeout" | "print_range_invalid" | "print_unavailable" }> {
   let file: Awaited<ReturnType<PrintDocumentOptions["writeFile"]>> | undefined;
   let window: PreviewWindow | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let layoutFailed = false;
+  let over = false;
   try {
     file = await options.writeFile(copy.html, printFileName(copy.title));
+    const printPath = file.path;
     const created = options.createWindow({ show: false, skipTaskbar: true, title: printJobTitle(copy.title), webPreferences: PRINT_WINDOW_WEB_PREFERENCES });
     window = created;
     denyNavigation(created);
-    await created.loadFile(file.path);
+    // One clock over load AND layout: a load that never settles must answer print_timeout too.
     const timedOut = new Promise<"timeout">((resolve) => { timer = setTimeout(() => { resolve("timeout"); }, options.timeoutMs); });
-    // preferCSSPageSize: a section's own `@page` size in the copy (a Word section, a sheet,
-    // a slide size) wins over the sheet below, which only fills in where the copy names none.
-    const laidOut = created.webContents.printToPDF({
-      printBackground: true,
-      landscape: copy.landscape,
-      preferCSSPageSize: true,
-      pageSize: { width: copy.pageSize.width / MICRONS_PER_INCH, height: copy.pageSize.height / MICRONS_PER_INCH },
-      ...(copy.pageRanges ? { pageRanges: toElectronPageRanges(copy.pageRanges) } : {}),
-    });
-    // A layout that loses the race is closed below; its late rejection must not go unhandled.
-    laidOut.catch(() => undefined);
-    const pdf = await Promise.race([laidOut, timedOut]);
+    const work = (async () => {
+      await created.loadFile(printPath);
+      // A load that settles after the timeout finds its window closed: lay nothing out.
+      if (over) throw new Error("preview timed out");
+      // preferCSSPageSize: a section's own `@page` size in the copy (a Word section, a sheet,
+      // a slide size) wins over the sheet below, which only fills in where the copy names none.
+      try {
+        return await created.webContents.printToPDF({
+          printBackground: true,
+          landscape: copy.landscape,
+          preferCSSPageSize: true,
+          pageSize: { width: copy.pageSize.width / MICRONS_PER_INCH, height: copy.pageSize.height / MICRONS_PER_INCH },
+          ...(copy.pageRanges ? { pageRanges: toElectronPageRanges(copy.pageRanges) } : {}),
+        });
+      } catch (error) {
+        layoutFailed = true;
+        throw error;
+      }
+    })();
+    // A job that loses the race is closed below; its late rejection must not go unhandled.
+    work.catch(() => undefined);
+    const pdf = await Promise.race([work, timedOut]);
     if (pdf === "timeout") return { reason: "print_timeout" };
     // An exact copy: Electron hands a pooled Buffer, whose view would carry unrelated pool memory.
     return { pdf: new Uint8Array(pdf) };
   } catch {
-    return { reason: "print_unavailable" };
+    return { reason: layoutFailed && copy.pageRanges ? "print_range_invalid" : "print_unavailable" };
   } finally {
+    over = true;
     clearTimeout(timer);
     try {
       if (window && !window.isDestroyed()) window.close();
