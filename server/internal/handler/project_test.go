@@ -4,6 +4,28 @@ import (
 	"testing"
 )
 
+func TestCreateProjectDuplicateTitleReturnsConflictCode(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	res, body := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/projects", token, map[string]any{
+		"title": "Delivery roadmap",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("seed project: %d %v", res.StatusCode, body)
+	}
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/projects", token, map[string]any{
+		"title": "  delivery   ROADMAP  ",
+	})
+	if res.StatusCode != 409 {
+		t.Fatalf("duplicate status = %d, want 409; body=%v", res.StatusCode, body)
+	}
+	errObj, _ := body["error"].(map[string]any)
+	if errObj["code"] != "duplicate_project_title" {
+		t.Fatalf("duplicate code = %v, want duplicate_project_title; body=%v", errObj["code"], body)
+	}
+}
+
 func TestProjectsHTTPRoundTripAndCapabilityAvailable(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 

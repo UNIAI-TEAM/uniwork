@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -147,6 +150,9 @@ func (s *TaskService) CreateProject(ctx context.Context, actor Actor, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if err := s.guardDuplicateProjectTitle(ctx, q, ws, "", title, ""); err != nil {
+		return db.Project{}, err
+	}
 
 	project, err := q.CreateProject(ctx, db.CreateProjectParams{
 		ID: util.NewID(), OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
@@ -348,6 +354,15 @@ func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if title.Valid {
+		currentTitle := normalizeProjectTitle(current.Title)
+		nextTitle := normalizeProjectTitle(title.String)
+		if currentTitle != nextTitle {
+			if err := s.guardDuplicateProjectTitle(ctx, q, ws, projectID, title.String, currentTitle); err != nil {
+				return db.Project{}, err
+			}
+		}
+	}
 
 	updated, err := q.UpdateProject(ctx, db.UpdateProjectParams{
 		ID: projectID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
@@ -386,6 +401,59 @@ func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceI
 		return db.Project{}, err
 	}
 	return updated, nil
+}
+
+func normalizeProjectTitle(title string) string {
+	folded := cases.Fold().String(norm.NFC.String(title))
+	return norm.NFC.String(strings.Join(strings.Fields(folded), " "))
+}
+
+// guardDuplicateProjectTitle serializes every write that enters or leaves a
+// normalized title. Locking both keys on rename prevents a concurrent rename
+// away from a title racing with another project taking that title.
+func (s *TaskService) guardDuplicateProjectTitle(
+	ctx context.Context,
+	q *db.Queries,
+	ws db.Workspace,
+	excludeProjectID, title, previousNormalizedTitle string,
+) error {
+	normalizedTitle := normalizeProjectTitle(title)
+	lockTitles := []string{normalizedTitle}
+	if previousNormalizedTitle != "" && previousNormalizedTitle != normalizedTitle {
+		lockTitles = append(lockTitles, previousNormalizedTitle)
+	}
+	sort.Strings(lockTitles)
+	for _, lockTitle := range lockTitles {
+		lockKey := strings.Join([]string{
+			"project-title",
+			ws.OrganizationID,
+			ws.ID,
+			lockTitle,
+		}, "|")
+		if err := q.LockProjectDuplicateKey(ctx, lockKey); err != nil {
+			return err
+		}
+	}
+
+	candidates, err := q.ListProjectTitlesForDuplicateCheck(ctx, db.ListProjectTitlesForDuplicateCheckParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, candidate := range candidates {
+		if candidate.ID == excludeProjectID || normalizeProjectTitle(candidate.Title) != normalizedTitle {
+			continue
+		}
+		return CodedError{
+			Code:   "duplicate_project_title",
+			Status: http.StatusConflict,
+			Msg:    "project title already exists",
+			Err:    ErrConflict,
+		}
+	}
+	return nil
 }
 
 func (s *TaskService) DeleteProject(ctx context.Context, actor Actor, workspaceID, projectID string) error {
