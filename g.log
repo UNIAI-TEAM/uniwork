@@ -1,0 +1,1633 @@
+$ node --test scripts/*.test.mjs scripts/office/*.test.mjs
+TAP version 13
+# Subtest: slice 6 locale strings have no source brand or Issue domain
+ok 1 - slice 6 locale strings have no source brand or Issue domain
+  ---
+  duration_ms: 54.974856
+  ...
+# Subtest: agent integration suite UI has no source brand or Issue domain
+ok 2 - agent integration suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 30.028508
+  ...
+# Subtest: every alert has a runbook_url whose file exists and is named after the alert
+ok 3 - every alert has a runbook_url whose file exists and is named after the alert
+  ---
+  duration_ms: 1.239956
+  ...
+# Subtest: every runbook has the four sections in order and a status line
+ok 4 - every runbook has the four sections in order and a status line
+  ---
+  duration_ms: 3.737475
+  ...
+# Subtest: every runbook is referenced by an alert
+ok 5 - every runbook is referenced by an alert
+  ---
+  duration_ms: 0.284217
+  ...
+# Subtest: runbook index lists every alert
+ok 6 - runbook index lists every alert
+  ---
+  duration_ms: 0.274087
+  ...
+# Subtest: every raster asset was built from the SVG currently committed
+ok 7 - every raster asset was built from the SVG currently committed
+  ---
+  duration_ms: 1.64594
+  ...
+# Subtest: the link-preview cards were built from the template currently committed
+ok 8 - the link-preview cards were built from the template currently committed
+  ---
+  duration_ms: 0.432604
+  ...
+# Subtest: every SVG source is recorded, and every recorded source exists
+ok 9 - every SVG source is recorded, and every recorded source exists
+  ---
+  duration_ms: 1.647708
+  ...
+# Subtest: every asset the lock names is on disk
+ok 10 - every asset the lock names is on disk
+  ---
+  duration_ms: 0.357331
+  ...
+# Subtest: every platform icon is opaque to its corners
+ok 11 - every platform icon is opaque to its corners
+  ---
+  duration_ms: 8.180407
+  ...
+# Subtest: the Next.js metadata files exist under app/
+ok 12 - the Next.js metadata files exist under app/
+  ---
+  duration_ms: 0.145857
+  ...
+# Subtest: every icon the manifest lists exists in public/
+ok 13 - every icon the manifest lists exists in public/
+  ---
+  duration_ms: 0.266683
+  ...
+# Subtest: the logo gradient never leaks into the token layer
+ok 14 - the logo gradient never leaks into the token layer
+  ---
+  duration_ms: 0.474951
+  ...
+# Subtest: the manifest theme colour is the brand token's value
+ok 15 - the manifest theme colour is the brand token's value
+  ---
+  duration_ms: 0.507575
+  ...
+# Subtest: pnpm catalog declares every shared dependency the port needs
+ok 16 - pnpm catalog declares every shared dependency the port needs
+  ---
+  duration_ms: 0.912429
+  ...
+# Subtest: every variable the server reads is documented in .env.example
+ok 17 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 26.93861
+  ...
+# Subtest: the Go catalogue and the documented table agree
+ok 18 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 9.924467
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 19 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.067963
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 20 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 0.728288
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 21 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 1.096038
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 22 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 1.159234
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 23 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 9.787304
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 24 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 0.646887
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 25 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 0.745038
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 26 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 2.054028
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 27 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 4.432741
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 28 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.353215
+  ...
+# Subtest: both hooks exist and are executable
+ok 29 - both hooks exist and are executable
+  ---
+  duration_ms: 0.207977
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 30 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 1.645836
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 31 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 44.57116
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 32 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 1.404018
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 33 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.175588
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 34 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 6.651114
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 35 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.496085
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 36 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 6.920514
+  ...
+# Subtest: every plan says whether it shipped
+ok 37 - every plan says whether it shipped
+  ---
+  duration_ms: 19.75832
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 38 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 0.956685
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 39 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 61.554703
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 40 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 0.511738
+  ...
+# Subtest: chat.* i18n keys match between vi and en
+ok 41 - chat.* i18n keys match between vi and en
+  ---
+  duration_ms: 49.347439
+  ...
+# Subtest: packages/core/i18n/locales/vi.json has no duplicate keys
+ok 42 - packages/core/i18n/locales/vi.json has no duplicate keys
+  ---
+  duration_ms: 2899.982597
+  ...
+# Subtest: packages/core/i18n/locales/en.json has no duplicate keys
+ok 43 - packages/core/i18n/locales/en.json has no duplicate keys
+  ---
+  duration_ms: 2761.419463
+  ...
+# Subtest: the scanner reports real duplicates and only those
+ok 44 - the scanner reports real duplicates and only those
+  ---
+  duration_ms: 1.831816
+  ...
+# Subtest: every committed image matches the hash the generator recorded
+ok 45 - every committed image matches the hash the generator recorded
+  ---
+  duration_ms: 3.388386
+  ...
+# Subtest: the prompts, the lock and the files on disk agree
+ok 46 - the prompts, the lock and the files on disk agree
+  ---
+  duration_ms: 0.323736
+  ...
+# Subtest: every image was rendered from the prompt now in the repo
+ok 47 - every image was rendered from the prompt now in the repo
+  ---
+  duration_ms: 0.361305
+  ...
+# Subtest: the component resolver and the prompts agree on what is localized
+ok 48 - the component resolver and the prompts agree on what is localized
+  ---
+  duration_ms: 0.239581
+  ...
+# Subtest: the artwork stays inside its weight budget
+ok 49 - the artwork stays inside its weight budget
+  ---
+  duration_ms: 0.143984
+  ...
+# Subtest: every vendored mark still matches the upstream artwork
+ok 50 - every vendored mark still matches the upstream artwork
+  ---
+  duration_ms: 2.140388
+  ...
+# Subtest: the generated module carries exactly the paths the lock recorded
+ok 51 - the generated module carries exactly the paths the lock recorded
+  ---
+  duration_ms: 0.229203
+  ...
+# Subtest: no vendored mark carries its own colour
+ok 52 - no vendored mark carries its own colour
+  ---
+  duration_ms: 0.313461
+  ...
+# Subtest: horse v2 preserves transparent, lightweight provenance
+ok 53 - horse v2 preserves transparent, lightweight provenance
+  ---
+  duration_ms: 1.575761
+  ...
+# Subtest: horse v2-blink preserves transparent, lightweight provenance
+ok 54 - horse v2-blink preserves transparent, lightweight provenance
+  ---
+  duration_ms: 0.618025
+  ...
+# Subtest: 3D hero uses the shared mark without a hand-drawn brand substitute
+ok 55 - 3D hero uses the shared mark without a hand-drawn brand substitute
+  ---
+  duration_ms: 0.228193
+  ...
+# Subtest: original motion assets match provenance and stay within the mobile budget
+ok 56 - original motion assets match provenance and stay within the mobile budget
+  ---
+  duration_ms: 1.740849
+  ...
+# Subtest: studio assets preserve their exact prompts and optimized WebP byte counts
+ok 57 - studio assets preserve their exact prompts and optimized WebP byte counts
+  ---
+  duration_ms: 1.593294
+  ...
+# Subtest: no --uw-* token references remain
+ok 58 - no --uw-* token references remain
+  ---
+  duration_ms: 44.399093
+  ...
+# Subtest: no legacy token utilities remain
+ok 59 - no legacy token utilities remain
+  ---
+  duration_ms: 65.624408
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 60 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 36.449465
+  ...
+# Subtest: no plan code literal outside the billing package
+ok 61 - no plan code literal outside the billing package
+  ---
+  duration_ms: 202.215757
+  ...
+# Subtest: no usf branding survives the port
+ok 62 - no usf branding survives the port
+  ---
+  duration_ms: 82.337018
+  ...
+# Subtest: acceptance matrix reconciles its inventory, rows, and markdown tables
+ok 63 - acceptance matrix reconciles its inventory, rows, and markdown tables
+  ---
+  duration_ms: 5.173789
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 64 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 26.579684
+  ...
+# Subtest: DOCX browser entry bundles the real renderer with only shared browser imports
+ok 65 - DOCX browser entry bundles the real renderer with only shared browser imports
+  ---
+  duration_ms: 511.622358
+  ...
+# Subtest: the built artifact carries the patched symbols (a no-op series must fail)
+ok 66 - the built artifact carries the patched symbols (a no-op series must fail)
+  ---
+  duration_ms: 6.061529
+  ...
+# Subtest: pptx browser build record
+    # Subtest: applies the whole patch series fail-loud and records provenance
+    ok 1 - applies the whole patch series fail-loud and records provenance
+      ---
+      duration_ms: 0.922108
+      ...
+    # Subtest: bundles engine, ops, render and the UniWork shims, with no external import
+    ok 2 - bundles engine, ops, render and the UniWork shims, with no external import
+      ---
+      duration_ms: 0.221872
+      ...
+    # Subtest: the built artifact carries every contract symbol and no node: specifier
+    ok 3 - the built artifact carries every contract symbol and no node: specifier
+      ---
+      duration_ms: 8.694345
+      ...
+    1..3
+ok 67 - pptx browser build record
+  ---
+  duration_ms: 174.806195
+  type: 'suite'
+  ...
+# Subtest: pptx browser shims match the node implementations
+    # Subtest: createHash("sha256") matches node:crypto for empty, ascii and unicode input
+    ok 1 - createHash("sha256") matches node:crypto for empty, ascii and unicode input
+      ---
+      duration_ms: 0.93068
+      ...
+    # Subtest: randomUUID produces distinct RFC 4122 v4 ids
+    ok 2 - randomUUID produces distinct RFC 4122 v4 ids
+      ---
+      duration_ms: 0.739579
+      ...
+    # Subtest: deflateSync output is a zlib stream node:zlib inflates back
+    ok 3 - deflateSync output is a zlib stream node:zlib inflates back
+      ---
+      duration_ms: 23.23682
+      ...
+    # Subtest: the Buffer shim covers the closure operations
+    ok 4 - the Buffer shim covers the closure operations
+      ---
+      duration_ms: 0.488158
+      ...
+    # Subtest: the bidi shim returns per-code-unit levels for ltr, rtl and mixed text
+    ok 5 - the bidi shim returns per-code-unit levels for ltr, rtl and mixed text
+      ---
+      duration_ms: 0.878781
+      ...
+    # Subtest: the node file-io shim refuses instead of silently writing nothing
+    ok 6 - the node file-io shim refuses instead of silently writing nothing
+      ---
+      duration_ms: 0.292167
+      ...
+    1..6
+ok 68 - pptx browser shims match the node implementations
+  ---
+  duration_ms: 32.509681
+  type: 'suite'
+  ...
+# Subtest: pptx browser artifact end to end
+    # Subtest: opens a committed deck, applies a real op, saves and reopens it
+    ok 1 - opens a committed deck, applies a real op, saves and reopens it
+      ---
+      duration_ms: 250.029983
+      ...
+    # Subtest: fails closed on bytes that are not an OOXML package
+    ok 2 - fails closed on bytes that are not an OOXML package
+      ---
+      duration_ms: 2.87893
+      ...
+    1..2
+ok 69 - pptx browser artifact end to end
+  ---
+  duration_ms: 253.12204
+  type: 'suite'
+  ...
+# Subtest: the recorded arch is the rustc host, whatever arch Node runs as
+ok 70 - the recorded arch is the rustc host, whatever arch Node runs as
+  ---
+  duration_ms: 1.184919
+  ...
+# Subtest: CARGO_BUILD_TARGET wins over the host for a cross build
+ok 71 - CARGO_BUILD_TARGET wins over the host for a cross build
+  ---
+  duration_ms: 0.195619
+  ...
+# Subtest: an unknown or unreadable triple records no arch instead of a guess
+ok 72 - an unknown or unreadable triple records no arch instead of a guess
+  ---
+  duration_ms: 0.108081
+  ...
+# Subtest: XLSX browser entry bundles the vendored sheets renderer with only shared browser imports
+ok 73 - XLSX browser entry bundles the vendored sheets renderer with only shared browser imports
+  ---
+  duration_ms: 1583.601284
+  ...
+# Subtest: every pinned patch symbol is absent from the unpatched upstream source
+ok 74 - every pinned patch symbol is absent from the unpatched upstream source
+  ---
+  duration_ms: 3.575782
+  ...
+# Subtest: every patch that adds a symbol the host calls is pinned
+ok 75 - every patch that adds a symbol the host calls is pinned
+  ---
+  duration_ms: 0.111969
+  ...
+# Subtest: the built xlsx artifact carries its contract symbols
+ok 76 - the built xlsx artifact carries its contract symbols
+  ---
+  duration_ms: 60.920267
+  ...
+# Subtest: every vendored t() key ships in the en/vi editor packs
+ok 77 - every vendored t() key ships in the en/vi editor packs
+  ---
+  duration_ms: 16.009619
+  ...
+# Subtest: real tree passes: browser isolation, no /ee, licence attribution
+ok 78 - real tree passes: browser isolation, no /ee, licence attribution
+  ---
+  duration_ms: 220.276346
+  ...
+# Subtest: fails on a planted browser -> node: import
+ok 79 - fails on a planted browser -> node: import
+  ---
+  duration_ms: 4.001012
+  ...
+# Subtest: fails when core office code imports node or electron
+ok 80 - fails when core office code imports node or electron
+  ---
+  duration_ms: 0.381982
+  ...
+# Subtest: fails when core office code imports an engine Node sidecar
+ok 81 - fails when core office code imports an engine Node sidecar
+  ---
+  duration_ms: 0.344487
+  ...
+# Subtest: fails when the desktop renderer imports Node/main code
+ok 82 - fails when the desktop renderer imports Node/main code
+  ---
+  duration_ms: 0.344322
+  ...
+# Subtest: fails when desktop graphs use bare privileged specifiers
+ok 83 - fails when desktop graphs use bare privileged specifiers
+  ---
+  duration_ms: 1.335289
+  ...
+# Subtest: desktop tabs and library accept their UI exports and reject a native export
+ok 84 - desktop tabs and library accept their UI exports and reject a native export
+  ---
+  duration_ms: 0.615449
+  ...
+# Subtest: fails on a TRANSITIVE browser -> node: import
+ok 85 - fails on a TRANSITIVE browser -> node: import
+  ---
+  duration_ms: 0.466387
+  ...
+# Subtest: fails on a browser entry importing the node entry point
+ok 86 - fails on a browser entry importing the node entry point
+  ---
+  duration_ms: 0.581358
+  ...
+# Subtest: fails on unverifiable module access in browser scope
+ok 87 - fails on unverifiable module access in browser scope
+  ---
+  duration_ms: 0.629426
+  ...
+# Subtest: fails on a bare Node global re-added to a browser-scope file
+ok 88 - fails on a bare Node global re-added to a browser-scope file
+  ---
+  duration_ms: 0.511166
+  ...
+# Subtest: fails on a bare Node global in a transitive browser-scope helper
+ok 89 - fails on a bare Node global in a transitive browser-scope helper
+  ---
+  duration_ms: 0.491035
+  ...
+# Subtest: ignores Node global names in browser-scope comments and strings
+ok 90 - ignores Node global names in browser-scope comments and strings
+  ---
+  duration_ms: 0.363466
+  ...
+# Subtest: fails on a template import the checker cannot enumerate
+ok 91 - fails on a template import the checker cannot enumerate
+  ---
+  duration_ms: 0.36402
+  ...
+# Subtest: a literal template import is extracted and checked normally
+ok 92 - a literal template import is extracted and checked normally
+  ---
+  duration_ms: 0.331173
+  ...
+# Subtest: fails on eval/Function/import.meta.resolve in browser scope
+ok 93 - fails on eval/Function/import.meta.resolve in browser scope
+  ---
+  duration_ms: 1.636431
+  ...
+# Subtest: a literal Worker/importScripts specifier is chased like an import
+ok 94 - a literal Worker/importScripts specifier is chased like an import
+  ---
+  duration_ms: 0.540551
+  ...
+# Subtest: a computed Worker/importScripts specifier is flagged, not chased
+ok 95 - a computed Worker/importScripts specifier is flagged, not chased
+  ---
+  duration_ms: 0.372419
+  ...
+# Subtest: fails when exports["./browser"] carries a runtime condition key
+ok 96 - fails when exports["./browser"] carries a runtime condition key
+  ---
+  duration_ms: 0.466038
+  ...
+# Subtest: fails when exports["./browser"] points at node code
+ok 97 - fails when exports["./browser"] points at node code
+  ---
+  duration_ms: 0.425512
+  ...
+# Subtest: fails when exports["."] target does not exist
+ok 98 - fails when exports["."] target does not exist
+  ---
+  duration_ms: 0.385882
+  ...
+# Subtest: fails on a planted /ee path
+ok 99 - fails on a planted /ee path
+  ---
+  duration_ms: 0.35929
+  ...
+# Subtest: fails on a planted import of an /ee path
+ok 100 - fails on a planted import of an /ee path
+  ---
+  duration_ms: 0.265227
+  ...
+# Subtest: fails when office-upstream exists without LICENSE/NOTICE
+ok 101 - fails when office-upstream exists without LICENSE/NOTICE
+  ---
+  duration_ms: 0.251338
+  ...
+# Subtest: an empty LICENSE is a violation, not a pass
+ok 102 - an empty LICENSE is a violation, not a pass
+  ---
+  duration_ms: 0.204118
+  ...
+# Subtest: fails on a bare Node global planted in a widened browser root
+ok 103 - fails on a bare Node global planted in a widened browser root
+  ---
+  duration_ms: 1.048311
+  ...
+# Subtest: the xlsx vendor typeof-Buffer feature-detect stays allowed, per file
+ok 104 - the xlsx vendor typeof-Buffer feature-detect stays allowed, per file
+  ---
+  duration_ms: 0.511351
+  ...
+# Subtest: global/module/exports are forbidden bare globals
+ok 105 - global/module/exports are forbidden bare globals
+  ---
+  duration_ms: 0.339992
+  ...
+# Subtest: a ternary or a switch case still trips the global scan
+ok 106 - a ternary or a switch case still trips the global scan
+  ---
+  duration_ms: 0.254094
+  ...
+# Subtest: a regex literal is not a comment and does not false-positive
+ok 107 - a regex literal is not a comment and does not false-positive
+  ---
+  duration_ms: 0.13795
+  ...
+# Subtest: object keys, member access and local shadows are not bare globals
+ok 108 - object keys, member access and local shadows are not bare globals
+  ---
+  duration_ms: 0.098513
+  ...
+# Subtest: splitSelectors keeps commas inside functions and attributes
+ok 109 - splitSelectors keeps commas inside functions and attributes
+  ---
+  duration_ms: 0.889321
+  ...
+# Subtest: host selectors are re-aimed at the surface root and document selectors stay scoped
+ok 110 - host selectors are re-aimed at the surface root and document selectors stay scoped
+  ---
+  duration_ms: 0.982329
+  ...
+# Subtest: non-theme media queries keep both the re-aimed host rule and the scoped rule
+ok 111 - non-theme media queries keep both the re-aimed host rule and the scoped rule
+  ---
+  duration_ms: 3.651693
+  ...
+# Subtest: keyframes are hoisted out of the scope block
+ok 112 - keyframes are hoisted out of the scope block
+  ---
+  duration_ms: 0.268451
+  ...
+# Subtest: the vendored sheets repackage under one scope with no host selector left
+ok 113 - the vendored sheets repackage under one scope with no host selector left
+  ---
+  duration_ms: 52.290896
+  ...
+# Subtest: maps every package.mjs artifact to the platform key the server expects
+ok 114 - maps every package.mjs artifact to the platform key the server expects
+  ---
+  duration_ms: 1.186799
+  ...
+# Subtest: the platform key set equals the one the Go config declares
+ok 115 - the platform key set equals the one the Go config declares
+  ---
+  duration_ms: 0.247315
+  ...
+# Subtest: a beta build only picks beta files, a dev file never fills beta
+ok 116 - a beta build only picks beta files, a dev file never fills beta
+  ---
+  duration_ms: 0.474564
+  ...
+# Subtest: macOS keys are supported when a Mac-built asset exists
+ok 117 - macOS keys are supported when a Mac-built asset exists
+  ---
+  duration_ms: 0.108904
+  ...
+# Subtest: stable is refused: no signed release exists
+ok 118 - stable is refused: no signed release exists
+  ---
+  duration_ms: 0.11386
+  ...
+# Subtest: signed-looking or unsafe names are ignored
+ok 119 - signed-looking or unsafe names are ignored
+  ---
+  duration_ms: 0.073999
+  ...
+# Subtest: two installers for one platform is ambiguous
+ok 120 - two installers for one platform is ambiguous
+  ---
+  duration_ms: 0.125463
+  ...
+# Subtest: the base URL must be https without credentials, query or fragment
+ok 121 - the base URL must be https without credentials, query or fragment
+  ---
+  duration_ms: 0.229654
+  ...
+# Subtest: argument parsing rejects unknown and incomplete input
+ok 122 - argument parsing rejects unknown and incomplete input
+  ---
+  duration_ms: 0.348718
+  ...
+# Subtest: the CLI prints the compact JSON for a directory and exits non-zero on bad input
+ok 123 - the CLI prints the compact JSON for a directory and exits non-zero on bad input
+  ---
+  duration_ms: 109.365506
+  ...
+# Subtest: the Go and TypeScript contract identities are the same pin
+ok 124 - the Go and TypeScript contract identities are the same pin
+  ---
+  duration_ms: 0.599497
+  ...
+# Subtest: the evidence doc records the same pin it was produced against
+ok 125 - the evidence doc records the same pin it was produced against
+  ---
+  duration_ms: 0.172215
+  ...
+# Subtest: every in-scope format row names a fixture the manifest knows
+ok 126 - every in-scope format row names a fixture the manifest knows
+  ---
+  duration_ms: 1.079723
+  ...
+# Subtest: the upgrade-replay manifest replays every format on the pinned build
+ok 127 - the upgrade-replay manifest replays every format on the pinned build
+  ---
+  duration_ms: 1.279326
+  ...
+# Subtest: the evidence doc leaves no in-scope format claim without a test
+ok 128 - the evidence doc leaves no in-scope format claim without a test
+  ---
+  duration_ms: 0.242696
+  ...
+# Subtest: the real engine container advertises the pin and the honesty rule
+ok 129 - the real engine container advertises the pin and the honesty rule
+  ---
+  duration_ms: 0.215966
+  ...
+# not_run: OFFICE_ENGINE_TEST_URL is not set, the container rows were not exercised
+# Subtest: Remove Duplicates: one set-range-values moves the kept rows up, empties the rest, journals every cell and undoes in one step
+ok 130 - Remove Duplicates: one set-range-values moves the kept rows up, empties the rest, journals every cell and undoes in one step
+  ---
+  duration_ms: 399.252624
+  ...
+# Subtest: a cell-style preset is a style-only write: values stay, the fill and colour journal as style
+ok 131 - a cell-style preset is a style-only write: values stay, the fill and colour journal as style
+  ---
+  duration_ms: 4.647211
+  ...
+# Subtest: Text to Columns: typed pieces land right of the source, an empty {} hole keeps its cell
+ok 132 - Text to Columns: typed pieces land right of the source, an empty {} hole keeps its cell
+  ---
+  duration_ms: 4.332296
+  ...
+# Subtest: Subtotal: inserts, one sparse write and the outline run as ONE undo step that lands, journals and undoes as planned
+ok 133 - Subtotal: inserts, one sparse write and the outline run as ONE undo step that lands, journals and undoes as planned
+  ---
+  duration_ms: 7.852518
+  ...
+# Subtest: Subtotal refused at its last outline step leaves nothing behind (atomic)
+ok 134 - Subtotal refused at its last outline step leaves nothing behind (atomic)
+  ---
+  duration_ms: 5.427404
+  ...
+# Subtest: sheet-dependent render patches wait for a workbook unit and survive reload
+ok 135 - sheet-dependent render patches wait for a workbook unit and survive reload
+  ---
+  duration_ms: 4.855244
+  ...
+# Subtest: controller load is clean and publishes the actual initial sheet selection
+ok 136 - controller load is clean and publishes the actual initial sheet selection
+  ---
+  duration_ms: 1.034595
+  ...
+# Subtest: selection commands publish authoritative ranges before the late UI facade event is ready
+ok 137 - selection commands publish authoritative ranges before the late UI facade event is ready
+  ---
+  duration_ms: 0.764268
+  ...
+# Subtest: a selection spanning exactly one merge is published as a merged cell (review-delta-r2 X4)
+ok 138 - a selection spanning exactly one merge is published as a merged cell (review-delta-r2 X4)
+  ---
+  duration_ms: 0.598122
+  ...
+# Subtest: pending edit commit awaits the actual workbook facade and refuses failed/unfinished commits
+ok 139 - pending edit commit awaits the actual workbook facade and refuses failed/unfinished commits
+  ---
+  duration_ms: 1.196102
+  ...
+# Subtest: bare shifted selection requests reverse movement without committing or dirtying
+ok 140 - bare shifted selection requests reverse movement without committing or dirtying
+  ---
+  duration_ms: 11.782844
+  ...
+# Subtest: shifted native inline keys commit before reverse navigation, serialize concurrent keys and detach
+ok 141 - shifted native inline keys commit before reverse navigation, serialize concurrent keys and detach
+  ---
+  duration_ms: 1.132206
+  ...
+# Subtest: shifted keys leave ordinary keys, IME, formula controls, readonly and unloaded ranges untouched
+ok 142 - shifted keys leave ordinary keys, IME, formula controls, readonly and unloaded ranges untouched
+  ---
+  duration_ms: 0.857704
+  ...
+# Subtest: rejected commit, intervening pointer, scope replacement and disposal never navigate
+ok 143 - rejected commit, intervening pointer, scope replacement and disposal never navigate
+  ---
+  duration_ms: 3.103979
+  ...
+# Subtest: bare shifted keys require a current selection and exact native focus, and suppress repeats
+ok 144 - bare shifted keys require a current selection and exact native focus, and suppress repeats
+  ---
+  duration_ms: 1.082307
+  ...
+# Subtest: public formula/format/tab/theme commands preserve journals and ignore view commands
+ok 145 - public formula/format/tab/theme commands preserve journals and ignore view commands
+  ---
+  duration_ms: 1.692487
+  ...
+# Subtest: readonly public and internal commands cannot mutate and rich clipboard is refused
+ok 146 - readonly public and internal commands cannot mutate and rich clipboard is refused
+  ---
+  duration_ms: 0.605061
+  ...
+# Subtest: formula bar inputs preserve typed numbers/booleans/text and clear blank cells
+ok 147 - formula bar inputs preserve typed numbers/booleans/text and clear blank cells
+  ---
+  duration_ms: 0.757619
+  ...
+# Subtest: workbook skeleton waits for local font probes and exposes truthful font mappings
+ok 148 - workbook skeleton waits for local font probes and exposes truthful font mappings
+  ---
+  duration_ms: 0.483778
+  ...
+# Subtest: renderer command port runs allowlisted commands through the policy and refuses the rest
+ok 149 - renderer command port runs allowlisted commands through the policy and refuses the rest
+  ---
+  duration_ms: 0.741772
+  ...
+# Subtest: renderer format state mirrors the active range composed style and stays readable for readonly mounts
+ok 150 - renderer format state mirrors the active range composed style and stays readable for readonly mounts
+  ---
+  duration_ms: 0.568331
+  ...
+# Subtest: row/column mutations journal through the controller and emit on the edit channel
+ok 151 - row/column mutations journal through the controller and emit on the edit channel
+  ---
+  duration_ms: 0.821905
+  ...
+# Subtest: outline commands run through the registered command service and journal level runs
+ok 152 - outline commands run through the registered command service and journal level runs
+  ---
+  duration_ms: 3.375847
+  ...
+# Subtest: Show / Hide Detail hides or shows the outline group through the allowlisted row/column commands
+ok 153 - Show / Hide Detail hides or shows the outline group through the allowlisted row/column commands
+  ---
+  duration_ms: 1.583169
+  ...
+# Subtest: Hide / Show Detail journals the summary line collapsed flag as its own undoable outline op
+ok 154 - Hide / Show Detail journals the summary line collapsed flag as its own undoable outline op
+  ---
+  duration_ms: 2.15056
+  ...
+# Subtest: Show Detail clears a collapsed flag the file carries, and a group ending at the grid edge has no summary line
+ok 155 - Show Detail clears a collapsed flag the file carries, and a group ending at the grid edge has no summary line
+  ---
+  duration_ms: 0.709029
+  ...
+# Subtest: a rule-manager command must name a rule the live sheet model holds (the BeforeCommandExecute gate)
+ok 156 - a rule-manager command must name a rule the live sheet model holds (the BeforeCommandExecute gate)
+  ---
+  duration_ms: 0.930639
+  ...
+# Subtest: column default-width command journals a null size and file outline levels seed the axis
+ok 157 - column default-width command journals a null size and file outline levels seed the axis
+  ---
+  duration_ms: 0.736374
+  ...
+# Subtest: file row outline levels seed at open, so a group over unstreamed rows raises from them (UNI-953 F2)
+ok 158 - file row outline levels seed at open, so a group over unstreamed rows raises from them (UNI-953 F2)
+  ---
+  duration_ms: 0.535875
+  ...
+# Subtest: disposing during font preparation prevents a late workbook installation
+ok 159 - disposing during font preparation prevents a late workbook installation
+  ---
+  duration_ms: 0.248117
+  ...
+# Subtest: hyperlink and outline edits emitted outside the batch carry the live sheet name
+ok 160 - hyperlink and outline edits emitted outside the batch carry the live sheet name
+  ---
+  duration_ms: 1.008522
+  ...
+# Subtest: sheet mutations emit sheet edits, stamp live names and refuse out-of-policy ids
+ok 161 - sheet mutations emit sheet edits, stamp live names and refuse out-of-policy ids
+  ---
+  duration_ms: 1.247589
+  ...
+# Subtest: onViewportChange fires only for commands that can move cells on screen
+ok 162 - onViewportChange fires only for commands that can move cells on screen
+  ---
+  duration_ms: 0.335793
+  ...
+# Subtest: routes every call to the host of the session that asked, whatever mounted last
+ok 163 - routes every call to the host of the session that asked, whatever mounted last
+  ---
+  duration_ms: 1.326584
+  ...
+# Subtest: answers the empty shapes when a host lacks the optional reads
+ok 164 - answers the empty shapes when a host lacks the optional reads
+  ---
+  duration_ms: 0.237643
+  ...
+# Subtest: a list dropdown opened while the cell editor is open has no search
+ok 165 - a list dropdown opened while the cell editor is open has no search
+  ---
+  duration_ms: 0.931514
+  ...
+# Subtest: the installer reads the editor bridge and the cell dropdown service from the injector
+ok 166 - the installer reads the editor bridge and the cell dropdown service from the injector
+  ---
+  duration_ms: 0.154107
+  ...
+# Subtest: only the pinned cell editor commit/cancel keyboard operations pass the edit gate
+ok 167 - only the pinned cell editor commit/cancel keyboard operations pass the edit gate
+  ---
+  duration_ms: 1.08726
+  ...
+# Subtest: bound grid mutations emit typed values and formulas through the vendored journal
+ok 168 - bound grid mutations emit typed values and formulas through the vendored journal
+  ---
+  duration_ms: 0.925333
+  ...
+# Subtest: a data-validation refusal journals and emits nothing, not even the rollback that follows
+ok 169 - a data-validation refusal journals and emits nothing, not even the rollback that follows
+  ---
+  duration_ms: 5.711319
+  ...
+# Subtest: a refusal on a sheet with no earlier edit leaves its journal untouched
+ok 170 - a refusal on a sheet with no earlier edit leaves its journal untouched
+  ---
+  duration_ms: 0.317083
+  ...
+# Subtest: an accepted validated commit emits its edits at the verdict and a later undo still journals
+ok 171 - an accepted validated commit emits its edits at the verdict and a later undo still journals
+  ---
+  duration_ms: 0.224663
+  ...
+# Subtest: a commit whose verdict never comes, or a newer commit, releases the held edits as accepted
+ok 172 - a commit whose verdict never comes, or a newer commit, releases the held edits as accepted
+  ---
+  duration_ms: 0.332579
+  ...
+# Subtest: the verdict is observed from onValidateCell although the async DV handler answers many ticks later
+ok 173 - the verdict is observed from onValidateCell although the async DV handler answers many ticks later
+  ---
+  duration_ms: 0.318427
+  ...
+# Subtest: an accepted verdict observed from onValidateCell emits the held edits once
+ok 174 - an accepted verdict observed from onValidateCell emits the held edits once
+  ---
+  duration_ms: 0.232887
+  ...
+# Subtest: a validation of another sheet does not settle the pending write (review-session n-1)
+ok 175 - a validation of another sheet does not settle the pending write (review-session n-1)
+  ---
+  duration_ms: 0.400256
+  ...
+# Subtest: a validation of another cell of the same sheet does not settle the pending write (review-delta-r2 X2)
+ok 176 - a validation of another cell of the same sheet does not settle the pending write (review-delta-r2 X2)
+  ---
+  duration_ms: 0.390379
+  ...
+# Subtest: an editor commit names its cell only when its range is exactly one cell (review-delta-r2 X2)
+ok 177 - an editor commit names its cell only when its range is exactly one cell (review-delta-r2 X2)
+  ---
+  duration_ms: 0.140539
+  ...
+# Subtest: a pending write without a known cell keeps taking the first verdict of its sheet (review-delta-r2 X2)
+ok 178 - a pending write without a known cell keeps taking the first verdict of its sheet (review-delta-r2 X2)
+  ---
+  duration_ms: 0.145642
+  ...
+# Subtest: observeValidationVerdicts leaves a validation with no pending commit alone and restores on dispose
+ok 179 - observeValidationVerdicts leaves a validation with no pending commit alone and restores on dispose
+  ---
+  duration_ms: 0.150291
+  ...
+# Subtest: Group at the deepest level is refused with a notice; ungroup and clear no-ops still succeed (review-delta-r2 X1)
+ok 180 - Group at the deepest level is refused with a notice; ungroup and clear no-ops still succeed (review-delta-r2 X1)
+  ---
+  duration_ms: 0.790693
+  ...
+# Subtest: viewport, selection, load, calculation, other workbooks and no-op writes emit no edits
+ok 181 - viewport, selection, load, calculation, other workbooks and no-op writes emit no edits
+  ---
+  duration_ms: 0.14291
+  ...
+# Subtest: undo and redo mutations restore content, formulas and number formats
+ok 182 - undo and redo mutations restore content, formulas and number formats
+  ---
+  duration_ms: 0.290215
+  ...
+# Subtest: style edits, resets and undo clearing a font attribute restore savable styles
+ok 183 - style edits, resets and undo clearing a font attribute restore savable styles
+  ---
+  duration_ms: 0.232991
+  ...
+# Subtest: shared formula followers are materialized before cached result mutations
+ok 184 - shared formula followers are materialized before cached result mutations
+  ---
+  duration_ms: 0.124877
+  ...
+# Subtest: readonly gates mutations, editor activation, shortcuts, undo/redo and paste
+ok 185 - readonly gates mutations, editor activation, shortcuts, undo/redo and paste
+  ---
+  duration_ms: 0.096705
+  ...
+# Subtest: structural, sheet, chart, filter and untranslatable command surfaces are refused
+ok 186 - structural, sheet, chart, filter and untranslatable command surfaces are refused
+  ---
+  duration_ms: 0.73017
+  ...
+# Subtest: row/column structure commands and mutations pass only with a bounded span
+ok 187 - row/column structure commands and mutations pass only with a bounded span
+  ---
+  duration_ms: 1.015467
+  ...
+# Subtest: editing guards refuse unseen and pivot cells but permit loaded or genuinely empty cells
+ok 188 - editing guards refuse unseen and pivot cells but permit loaded or genuinely empty cells
+  ---
+  duration_ms: 0.157408
+  ...
+# Subtest: derived auto-height is allowed only inside supported cell commands and stays out of the journal
+ok 189 - derived auto-height is allowed only inside supported cell commands and stays out of the journal
+  ---
+  duration_ms: 0.211921
+  ...
+# Subtest: conditional formula dirty bookkeeping is local, bound and derived even for readonly
+ok 190 - conditional formula dirty bookkeeping is local, bound and derived even for readonly
+  ---
+  duration_ms: 0.195271
+  ...
+# Subtest: real Univer commands and undo/redo emit journal restorations and obey the mutation gate
+ok 191 - real Univer commands and undo/redo emit journal restorations and obey the mutation gate
+  ---
+  duration_ms: 392.996518
+  ...
+# Subtest: structural mutations journal their op and emit it on the edit channel
+ok 192 - structural mutations journal their op and emit it on the edit channel
+  ---
+  duration_ms: 0.585442
+  ...
+# Subtest: size, hidden and auto-size mutations convert to file units before journalling
+ok 193 - size, hidden and auto-size mutations convert to file units before journalling
+  ---
+  duration_ms: 0.36296
+  ...
+# Subtest: outline actions shift runs of levels, clamp at the bounds and clear
+ok 194 - outline actions shift runs of levels, clamp at the bounds and clear
+  ---
+  duration_ms: 0.316924
+  ...
+# Subtest: Show / Hide Detail targets the outline group of a line or the group a summary line closes
+ok 195 - Show / Hide Detail targets the outline group of a line or the group a summary line closes
+  ---
+  duration_ms: 0.193011
+  ...
+# Subtest: outline levels follow their rows and columns through inserts and removals
+ok 196 - outline levels follow their rows and columns through inserts and removals
+  ---
+  duration_ms: 0.345124
+  ...
+# Subtest: an outline history entry restores the previous levels with allowed outline commands
+ok 197 - an outline history entry restores the previous levels with allowed outline commands
+  ---
+  duration_ms: 0.17489
+  ...
+# Subtest: real Univer undo/redo of an outline action restores the levels and journals the restoration
+ok 198 - real Univer undo/redo of an outline action restores the levels and journals the restoration
+  ---
+  duration_ms: 3.860983
+  ...
+# Subtest: default column width journals one null set-col-size op for the span
+ok 199 - default column width journals one null set-col-size op for the span
+  ---
+  duration_ms: 0.173269
+  ...
+# Subtest: file row outline levels seed the outline map, clamp and stay below session edits
+ok 200 - file row outline levels seed the outline map, clamp and stay below session edits
+  ---
+  duration_ms: 0.205039
+  ...
+# Subtest: file column outline levels seed the outline map and stay below session edits
+ok 201 - file column outline levels seed the outline map and stay below session edits
+  ---
+  duration_ms: 0.173906
+  ...
+# Subtest: liveSessionSheets follows the journal through add, rename and remove
+ok 202 - liveSessionSheets follows the journal through add, rename and remove
+  ---
+  duration_ms: 0.356209
+  ...
+# Subtest: sheet mutations journal and emit one typed sheet edit each
+ok 203 - sheet mutations journal and emit one typed sheet edit each
+  ---
+  duration_ms: 0.439955
+  ...
+# Subtest: sheet commands and mutations pass the policy only with bound params
+ok 204 - sheet commands and mutations pass the policy only with bound params
+  ---
+  duration_ms: 0.464966
+  ...
+# Subtest: the pinned validateSheetName shape is enforced for names
+ok 205 - the pinned validateSheetName shape is enforced for names
+  ---
+  duration_ms: 0.083648
+  ...
+# Subtest: filter mutations snapshot the live model into a whole-sheet edit
+ok 206 - filter mutations snapshot the live model into a whole-sheet edit
+  ---
+  duration_ms: 0.426147
+  ...
+# Subtest: a removed filter emits a clear with the origin or last-seen visibility range
+ok 207 - a removed filter emits a clear with the origin or last-seen visibility range
+  ---
+  duration_ms: 0.222612
+  ...
+# Subtest: color criteria refuse the snapshot instead of silently dropping criteria
+ok 208 - color criteria refuse the snapshot instead of silently dropping criteria
+  ---
+  duration_ms: 0.426694
+  ...
+# Subtest: filter mutations ignore foreign workbooks, unknown sheets, suppression and other ids
+ok 209 - filter mutations ignore foreign workbooks, unknown sheets, suppression and other ids
+  ---
+  duration_ms: 0.131465
+  ...
+# Subtest: filter commands and mutations pass the policy only with bounded params
+ok 210 - filter commands and mutations pass the policy only with bounded params
+  ---
+  duration_ms: 0.480992
+  ...
+# Subtest: sort commands and the reorder mutation pass only with a bounded range and keys
+ok 211 - sort commands and the reorder mutation pass only with a bounded range and keys
+  ---
+  duration_ms: 0.464146
+  ...
+# Subtest: table commands and mutations: add, delete by id or name, and undo without a subUnitId
+ok 212 - table commands and mutations: add, delete by id or name, and undo without a subUnitId
+  ---
+  duration_ms: 0.497217
+  ...
+# Subtest: a reorder-range sort mutation journals the sorted rows as cell edits
+ok 213 - a reorder-range sort mutation journals the sorted rows as cell edits
+  ---
+  duration_ms: 0.333261
+  ...
+# Subtest: patch 0007 adds the funnel stub beside the range stub
+ok 214 - patch 0007 adds the funnel stub beside the range stub
+  ---
+  duration_ms: 5.365182
+  ...
+# Subtest: the suppression neutralizes the range outline and the funnel buttons
+ok 215 - the suppression neutralizes the range outline and the funnel buttons
+  ---
+  duration_ms: 13.990932
+  ...
+# Subtest: the interception leaves a controller without the funnel painters alone
+ok 216 - the interception leaves a controller without the funnel painters alone
+  ---
+  duration_ms: 6.332658
+  ...
+# Subtest: declared local faces stay intact and theme families are included in the audit
+ok 217 - declared local faces stay intact and theme families are included in the audit
+  ---
+  duration_ms: 1.192631
+  ...
+# Subtest: only missing Calibri receives bundled Carlito and other missing declarations stay intact
+ok 218 - only missing Calibri receives bundled Carlito and other missing declarations stay intact
+  ---
+  duration_ms: 0.565009
+  ...
+# Subtest: failed fallback font loads are reported as unresolved browser fallback
+ok 219 - failed fallback font loads are reported as unresolved browser fallback
+  ---
+  duration_ms: 0.260638
+  ...
+# Subtest: without freeze a cell box subtracts the scroll and applies zoom
+ok 220 - without freeze a cell box subtracts the scroll and applies zoom
+  ---
+  duration_ms: 1.329678
+  ...
+# Subtest: cells inside frozen rows ignore the vertical scroll, frozen columns the horizontal one
+ok 221 - cells inside frozen rows ignore the vertical scroll, frozen columns the horizontal one
+  ---
+  duration_ms: 0.222962
+  ...
+# Subtest: frozen counts fall back to getFrozenRows/getFrozenColumns when getFreeze is absent
+ok 222 - frozen counts fall back to getFrozenRows/getFrozenColumns when getFreeze is absent
+  ---
+  duration_ms: 0.143864
+  ...
+# Subtest: a point in the frozen row band resolves from row 0 with no scroll; below it the scrolled rows resolve
+ok 223 - a point in the frozen row band resolves from row 0 with no scroll; below it the scrolled rows resolve
+  ---
+  duration_ms: 0.406038
+  ...
+# Subtest: a point in the frozen column band resolves from column 0 with no scroll
+ok 224 - a point in the frozen column band resolves from column 0 with no scroll
+  ---
+  duration_ms: 0.162451
+  ...
+# Subtest: a freeze set while scrolled keeps its band at [startRow - ySplit, startRow)
+ok 225 - a freeze set while scrolled keeps its band at [startRow - ySplit, startRow)
+  ---
+  duration_ms: 0.13116
+  ...
+# Subtest: a freeze set while scrolled keeps its column band at [startColumn - xSplit, startColumn)
+ok 226 - a freeze set while scrolled keeps its column band at [startColumn - xSplit, startColumn)
+  ---
+  duration_ms: 0.17102
+  ...
+# Subtest: hidden rows and columns take no room in cellAtPoint
+ok 227 - hidden rows and columns take no room in cellAtPoint
+  ---
+  duration_ms: 0.125711
+  ...
+# Subtest: a long hidden run terminates the walk and is skipped
+ok 228 - a long hidden run terminates the walk and is skipped
+  ---
+  duration_ms: 5.996655
+  ...
+# Subtest: commandMovesCells keeps scroll/zoom/size/freeze/structural ids and drops the rest
+ok 229 - commandMovesCells keeps scroll/zoom/size/freeze/structural ids and drops the rest
+  ---
+  duration_ms: 0.514726
+  ...
+# Subtest: mirrors the stack sizes and notifies on every change, not on repeats
+ok 230 - mirrors the stack sizes and notifies on every change, not on repeats
+  ---
+  duration_ms: 1.046913
+  ...
+# Subtest: reads the current status at once, tolerates a malformed one, and unsubscribes on dispose
+ok 231 - reads the current status at once, tolerates a malformed one, and unsubscribes on dispose
+  ---
+  duration_ms: 0.182846
+  ...
+# Subtest: a runtime without the status stream reads as unknown (null), never as an empty stack
+ok 232 - a runtime without the status stream reads as unknown (null), never as an empty stack
+  ---
+  duration_ms: 0.159696
+  ...
+# Subtest: watchRendererHistory resolves the undo/redo service from the injector
+ok 233 - watchRendererHistory resolves the undo/redo service from the injector
+  ---
+  duration_ms: 0.09869
+  ...
+# Subtest: reports the workbook unit only: the cell editor document stack never shows (review r3 F3c)
+ok 234 - reports the workbook unit only: the cell editor document stack never shows (review r3 F3c)
+  ---
+  duration_ms: 0.372141
+  ...
+# Subtest: counts the entries the capped stack drops from its bottom, never a batched merge (review r3 F3a)
+ok 235 - counts the entries the capped stack drops from its bottom, never a batched merge (review r3 F3a)
+  ---
+  duration_ms: 0.226893
+  ...
+# Subtest: numfmt output follows the locale set by the shell, English by default
+ok 236 - numfmt output follows the locale set by the shell, English by default
+  ---
+  duration_ms: 2.241119
+  ...
+# Subtest: the same locale reaches Univer's own formatter through the workbook facade
+ok 237 - the same locale reaches Univer's own formatter through the workbook facade
+  ---
+  duration_ms: 0.494473
+  ...
+# Subtest: max level and the per-sheet levels the bar reads
+ok 238 - max level and the per-sheet levels the bar reads
+  ---
+  duration_ms: 1.328053
+  ...
+# Subtest: a level hides every deeper grouped line, shows the rest and sets each group summary flag
+ok 239 - a level hides every deeper grouped line, shows the rest and sets each group summary flag
+  ---
+  duration_ms: 0.531166
+  ...
+# Subtest: runOutlineLevel runs hide then show, journals changed flags once and refuses bad input
+ok 240 - runOutlineLevel runs hide then show, journals changed flags once and refuses bad input
+  ---
+  duration_ms: 0.610459
+  ...
+# Subtest: the command policy allowlists set-outline-level with a strict axis, level and sheet
+ok 241 - the command policy allowlists set-outline-level with a strict axis, level and sheet
+  ---
+  duration_ms: 0.501898
+  ...
+# Subtest: the level bar shows 1..max+1 buttons per outlined axis, labels them and shrinks the grid
+ok 242 - the level bar shows 1..max+1 buttons per outlined axis, labels them and shrinks the grid
+  ---
+  duration_ms: 0.696478
+  ...
+# Subtest: real Univer: a level click hides and shows by level, flags the summaries, and undoes in one step
+ok 243 - real Univer: a level click hides and shows by level, flags the summaries, and undoes in one step
+  ---
+  duration_ms: 373.456487
+  ...
+# Subtest: controller: the level bar appears with an outline, a click runs set-outline-level, read-only mounts have none
+ok 244 - controller: the level bar appears with an outline, a click runs set-outline-level, read-only mounts have none
+  ---
+  duration_ms: 178.962014
+  ...
+# Subtest: prints a conditional-format fill and font colour Univer holds as rgb() strings
+ok 245 - prints a conditional-format fill and font colour Univer holds as rgb() strings
+  ---
+  duration_ms: 0.936214
+  ...
+# Subtest: keeps hex colours, clears and border colours
+ok 246 - keeps hex colours, clears and border colours
+  ---
+  duration_ms: 0.172388
+  ...
+# Subtest: prints a fully transparent rgba() colour as no colour, not an opaque fill
+ok 247 - prints a fully transparent rgba() colour as no colour, not an opaque fill
+  ---
+  duration_ms: 0.271399
+  ...
+# Subtest: a CF mutation snapshots the sheet rule model as a whole-sheet edit and marks the sheet dirty
+ok 248 - a CF mutation snapshots the sheet rule model as a whole-sheet edit and marks the sheet dirty
+  ---
+  duration_ms: 6.492583
+  ...
+# Subtest: a DV mutation snapshots validations without their ranges inside the rule object
+ok 249 - a DV mutation snapshots validations without their ranges inside the rule object
+  ---
+  duration_ms: 0.310349
+  ...
+# Subtest: suppressed installs, foreign units, unknown sheets and unrelated mutations emit nothing
+ok 250 - suppressed installs, foreign units, unknown sheets and unrelated mutations emit nothing
+  ---
+  duration_ms: 0.172093
+  ...
+# Subtest: snapshotSheetRules tolerates a facade without the getters
+ok 251 - snapshotSheetRules tolerates a facade without the getters
+  ---
+  duration_ms: 0.070757
+  ...
+# Subtest: rule-set edits wait for the file rules of a file sheet; a session sheet is always ready
+ok 252 - rule-set edits wait for the file rules of a file sheet; a session sheet is always ready
+  ---
+  duration_ms: 0.220354
+  ...
+# Subtest: the policy admits the toolbar CF/DV commands with saveable rules
+ok 253 - the policy admits the toolbar CF/DV commands with saveable rules
+  ---
+  duration_ms: 0.960459
+  ...
+# Subtest: the policy refuses unsaveable rules, bad areas, foreign scopes, unloaded sheets and read-only
+ok 254 - the policy refuses unsaveable rules, bad areas, foreign scopes, unloaded sheets and read-only
+  ---
+  duration_ms: 0.356965
+  ...
+# Subtest: an x14 family is refused on its sheet and never snapshotted; the other family still works
+ok 255 - an x14 family is refused on its sheet and never snapshotted; the other family still works
+  ---
+  duration_ms: 0.522834
+  ...
+# Subtest: a family the file ships no rules for is ready before the loader marks the sheet
+ok 256 - a family the file ships no rules for is ready before the loader marks the sheet
+  ---
+  duration_ms: 0.28301
+  ...
+# Subtest: the policy refuses CF rules the gateway serializer throws on and DV operators or error styles it cannot write
+ok 257 - the policy refuses CF rules the gateway serializer throws on and DV operators or error styles it cannot write
+  ---
+  duration_ms: 0.545056
+  ...
+# Subtest: a family whose installed file rules fall short of the file count is refused and never snapshotted
+ok 258 - a family whose installed file rules fall short of the file count is refused and never snapshotted
+  ---
+  duration_ms: 0.442638
+  ...
+# Subtest: an installed file rule the save cannot re-serialize refuses its family
+ok 259 - an installed file rule the save cannot re-serialize refuses its family
+  ---
+  duration_ms: 0.156477
+  ...
+# Subtest: a family whose file rules all installed and dry-run clean stays editable and snapshotted
+ok 260 - a family whose file rules all installed and dry-run clean stays editable and snapshotted
+  ---
+  duration_ms: 0.193471
+  ...
+# Subtest: a duplicate of an x14 sheet inherits the refusal; its copied rules are never snapshotted
+ok 261 - a duplicate of an x14 sheet inherits the refusal; its copied rules are never snapshotted
+  ---
+  duration_ms: 0.178862
+  ...
+# Subtest: a duplicate of a not-yet-installed classic sheet stays refused; a ready source or a plain new sheet is editable
+ok 262 - a duplicate of a not-yet-installed classic sheet stays refused; a ready source or a plain new sheet is editable
+  ---
+  duration_ms: 0.151539
+  ...
+# Subtest: a restore with the saved rules replaces the live CF model and refuses the family
+ok 263 - a restore with the saved rules replaces the live CF model and refuses the family
+  ---
+  duration_ms: 0.40049
+  ...
+# Subtest: a restore without saved rules reinstalls the file rules the loader installed, without counting them again
+ok 264 - a restore without saved rules reinstalls the file rules the loader installed, without counting them again
+  ---
+  duration_ms: 0.220142
+  ...
+# Subtest: a restore without saved rules on a copy reinstalls the file rules its source shipped
+ok 265 - a restore without saved rules on a copy reinstalls the file rules its source shipped
+  ---
+  duration_ms: 0.172631
+  ...
+# Subtest: a restore passes the rule-set policy gate: a live sheet of this workbook, a known family, bounded rules
+ok 266 - a restore passes the rule-set policy gate: a live sheet of this workbook, a known family, bounded rules
+  ---
+  duration_ms: 0.128832
+  ...
+# Subtest: readLiveRuleSet returns each live rule with its model id, CF in model order
+ok 267 - readLiveRuleSet returns each live rule with its model id, CF in model order
+  ---
+  duration_ms: 0.179573
+  ...
+# Subtest: the policy admits the rule-manager commands by model id and refuses malformed ones
+ok 268 - the policy admits the rule-manager commands by model id and refuses malformed ones
+  ---
+  duration_ms: 0.378166
+  ...
+# Subtest: a rule-manager mutation snapshots the whole sheet like any CF/DV change
+ok 269 - a rule-manager mutation snapshots the whole sheet like any CF/DV change
+  ---
+  duration_ms: 0.133357
+  ...
+# Subtest: a warning rule asks whether to keep an invalid value; the answer is the verdict
+ok 270 - a warning rule asks whether to keep an invalid value; the answer is the verdict
+  ---
+  duration_ms: 0.215799
+  ...
+# Subtest: an information rule shows a notice: OK keeps the value, Cancel drops it
+ok 271 - an information rule shows a notice: OK keeps the value, Cancel drops it
+  ---
+  duration_ms: 0.091199
+  ...
+# Subtest: a valid value, a stop or unstyled rule, a silenced alert and a plugin refusal never ask
+ok 272 - a valid value, a stop or unstyled rule, a silenced alert and a plugin refusal never ask
+  ---
+  duration_ms: 0.211508
+  ...
+# Subtest: the invalid-cell hint grows to its title instead of wrapping it into the message
+ok 273 - the invalid-cell hint grows to its title instead of wrapping it into the message
+  ---
+  duration_ms: 0.219406
+  ...
+# Subtest: askOnValidateCell settles the question on the verdict the editor awaits, ahead of an outer wrapper
+ok 274 - askOnValidateCell settles the question on the verdict the editor awaits, ahead of an outer wrapper
+  ---
+  duration_ms: 0.222566
+  ...
+# Subtest: a rule-manager command must name a rule the live model holds (F2)
+ok 275 - a rule-manager command must name a rule the live model holds (F2)
+  ---
+  duration_ms: 0.178846
+  ...
+# Subtest: the DV options command admits only the keys the manager sends (F5)
+ok 276 - the DV options command admits only the keys the manager sends (F5)
+  ---
+  duration_ms: 0.195806
+  ...
+# Subtest: a DV error style is an integer code 0, 1 or 2 (F9)
+ok 277 - a DV error style is an integer code 0, 1 or 2 (F9)
+  ---
+  duration_ms: 0.209309
+  ...
+# Subtest: a prompt step that throws falls back to the plugin verdict instead of rejecting (F7)
+ok 278 - a prompt step that throws falls back to the plugin verdict instead of rejecting (F7)
+  ---
+  duration_ms: 0.24472
+  ...
+# Subtest: stacked onValidateCell wrappers come off in reverse, so the original is restored (F6)
+ok 279 - stacked onValidateCell wrappers come off in reverse, so the original is restored (F6)
+  ---
+  duration_ms: 0.125085
+  ...
+# Subtest: the controller live-id reader refuses a rule-manager command on a rule the sheet lost (F2, D4)
+ok 280 - the controller live-id reader refuses a rule-manager command on a rule the sheet lost (F2, D4)
+  ---
+  duration_ms: 0.145088
+  ...
+# Subtest: a prompt step that throws keeps a false plugin verdict (F7, D4)
+ok 281 - a prompt step that throws keeps a false plugin verdict (F7, D4)
+  ---
+  duration_ms: 0.08811
+  ...
+# Subtest: installStacked disposes once, and a throwing install leaves nothing installed (D2)
+ok 282 - installStacked disposes once, and a throwing install leaves nothing installed (D2)
+  ---
+  duration_ms: 0.2832
+  ...
+# Subtest: a CF rule installed from a linked x14 rule reads back linked, by id, through later shifts
+ok 283 - a CF rule installed from a linked x14 rule reads back linked, by id, through later shifts
+  ---
+  duration_ms: 0.363302
+  ...
+# Subtest: univer rules are wrapped in the xlsx surface scope
+ok 284 - univer rules are wrapped in the xlsx surface scope
+  ---
+  duration_ms: 1.00888
+  ...
+# Subtest: global at-rules stay outside the scope and media groups are scoped inside
+ok 285 - global at-rules stay outside the scope and media groups are scoped inside
+  ---
+  duration_ms: 0.192123
+  ...
+# Subtest: the merged stylesheet carries the UniWork banner and every input rule
+ok 286 - the merged stylesheet carries the UniWork banner and every input rule
+  ---
+  duration_ms: 0.279418
+  ...
+# Subtest: authored XLSX controller and journal helpers typecheck against pinned Univer
+ok 287 - authored XLSX controller and journal helpers typecheck against pinned Univer
+  ---
+  duration_ms: 2559.071145
+  ...
+# Subtest: runs every step inside one batch and closes it
+ok 288 - runs every step inside one batch and closes it
+  ---
+  duration_ms: 1.181538
+  ...
+# Subtest: stops at the first refusal, still closing the batch, and says how many steps ran (F-P2)
+ok 289 - stops at the first refusal, still closing the batch, and says how many steps ran (F-P2)
+  ---
+  duration_ms: 0.178453
+  ...
+# Subtest: closes the batch when a step throws
+ok 290 - closes the batch when a step throws
+  ---
+  duration_ms: 0.24227
+  ...
+# Subtest: refuses while another batch is open and skips an empty list
+ok 291 - refuses while another batch is open and skips an empty list
+  ---
+  duration_ms: 0.096013
+  ...
+# Subtest: real Univer: values, formats and a merge undo in one step
+ok 292 - real Univer: values, formats and a merge undo in one step
+  ---
+  duration_ms: 443.655573
+  ...
+# Subtest: rollback: a refused later step takes back the batched entry; the default keeps it
+ok 293 - rollback: a refused later step takes back the batched entry; the default keeps it
+  ---
+  duration_ms: 0.531792
+  ...
+# Subtest: real Univer: an atomic batch refused at a later step leaves the model and the undo stack as they were
+ok 294 - real Univer: an atomic batch refused at a later step leaves the model and the undo stack as they were
+  ---
+  duration_ms: 11.005775
+  ...
+# Subtest: real Univer: one undo of a bottom-up multi-insert batch restores every row exactly
+ok 295 - real Univer: one undo of a bottom-up multi-insert batch restores every row exactly
+  ---
+  duration_ms: 9.56845
+  ...
+# Subtest: one step pushing several undo items undoes them newest first (D3)
+ok 296 - one step pushing several undo items undoes them newest first (D3)
+  ---
+  duration_ms: 0.610572
+  ...
+# Subtest: rollback: a step that throws takes back what ran and answers 0; the default rethrows (D5)
+ok 297 - rollback: a step that throws takes back what ran and answers 0; the default rethrows (D5)
+  ---
+  duration_ms: 0.676082
+  ...
+# Subtest: real Univer: a rolled-back atomic batch keeps the redo history (D1)
+ok 298 - real Univer: a rolled-back atomic batch keeps the redo history (D1)
+  ---
+  duration_ms: 6.569067
+  ...
+# Subtest: projects suite UI has no source brand or Issue domain
+ok 299 - projects suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 16.24323
+  ...
+# Subtest: slice-2 route catalogue pins Work Management API surface
+ok 300 - slice-2 route catalogue pins Work Management API surface
+  ---
+  duration_ms: 3.955423
+  ...
+# Subtest: slice 5 locale strings have no source brand or Issue domain
+ok 301 - slice 5 locale strings have no source brand or Issue domain
+  ---
+  duration_ms: 47.515031
+  ...
+# Subtest: task detail suite UI has no source brand or Issue domain
+ok 302 - task detail suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 81.967648
+  ...
+# Subtest: Tasks parity manifest pins and classifies the complete baseline
+ok 303 - Tasks parity manifest pins and classifies the complete baseline
+  ---
+  duration_ms: 17.593052
+  ...
+# Subtest: Task parity generator emits a byte-stable manifest from a fixed Git fixture
+ok 304 - Task parity generator emits a byte-stable manifest from a fixed Git fixture
+  ---
+  duration_ms: 155.964417
+  ...
+# Subtest: slice-1 verification overlay marks only owned capability entries
+ok 305 - slice-1 verification overlay marks only owned capability entries
+  ---
+  duration_ms: 0.685625
+  ...
+# Subtest: slice-2 verification overlay marks only owned API entries
+ok 306 - slice-2 verification overlay marks only owned API entries
+  ---
+  duration_ms: 0.486323
+  ...
+# Subtest: slice-3 verification overlay marks only owned UI entries
+ok 307 - slice-3 verification overlay marks only owned UI entries
+  ---
+  duration_ms: 0.507618
+  ...
+# Subtest: slice-4 verification overlay marks only owned projects entries
+ok 308 - slice-4 verification overlay marks only owned projects entries
+  ---
+  duration_ms: 0.410365
+  ...
+# Subtest: slice-5 verification overlay marks only owned detail entries
+ok 309 - slice-5 verification overlay marks only owned detail entries
+  ---
+  duration_ms: 1.160171
+  ...
+# Subtest: slice-6 verification overlay marks only owned agent-integration entries
+ok 310 - slice-6 verification overlay marks only owned agent-integration entries
+  ---
+  duration_ms: 0.648558
+  ...
+# Subtest: collection UI has no source brand or Issue domain
+ok 311 - collection UI has no source brand or Issue domain
+  ---
+  duration_ms: 60.725315
+  ...
+# Subtest: parity flag identifier is gone from apps, packages, and server
+ok 312 - parity flag identifier is gone from apps, packages, and server
+  ---
+  duration_ms: 75.414823
+  ...
+1..312
+# tests 320
+# suites 3
+# pass 320
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7243.313089
