@@ -1,0 +1,5 @@
+$ set -a && . ./.env && set +a && pnpm knip
+
+> uniwork@ knip /workspace
+> knip
+

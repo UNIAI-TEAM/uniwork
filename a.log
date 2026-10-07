@@ -1,0 +1,236 @@
+$ set -a && . ./.env && set +a && pnpm exec turbo build typecheck
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/e2e, @uniwork/eslint-config, @uniwork/office-contracts, @uniwork/office-desktop, @uniwork/office-engine, @uniwork/office-engine-app, @uniwork/office-upstream, @uniwork/tsconfig, @uniwork/ui, @uniwork/views, @uniwork/web
+   • Running build, typecheck in 12 packages
+   • Remote caching disabled
+
+@uniwork/office-upstream:build: cache miss, executing e4d6059cd5f78d4f
+@uniwork/office-contracts:typecheck: cache miss, executing 2904bed913a7824c
+@uniwork/ui:typecheck: cache miss, executing b48cae5932b3ab87
+@uniwork/office-engine-app:build: cache miss, executing dc55ddaedfa1c96c
+@uniwork/ui:typecheck: 
+@uniwork/ui:typecheck: > @uniwork/ui@0.0.0 typecheck /workspace/packages/ui
+@uniwork/ui:typecheck: > tsc --noEmit
+@uniwork/ui:typecheck: 
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-contracts:typecheck: > @uniwork/office-contracts@0.0.0 typecheck /workspace/packages/office-contracts
+@uniwork/office-contracts:typecheck: > tsc --noEmit
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-engine-app:build: 
+@uniwork/office-engine-app:build: > @uniwork/office-engine-app@0.0.0 build /workspace/apps/office-engine
+@uniwork/office-engine-app:build: > node scripts/build.mjs
+@uniwork/office-engine-app:build: 
+@uniwork/office-upstream:build: 
+@uniwork/office-upstream:build: > @uniwork/office-upstream@0.0.0 build /workspace/packages/office-upstream
+@uniwork/office-upstream:build: > node ../../scripts/office/build-upstream.mjs --docx-browser && node ../../scripts/office/build-xlsx-browser.mjs && node ../../scripts/office/build-pptx-browser.mjs
+@uniwork/office-upstream:build: 
+@uniwork/office-engine-app:build: office-engine bundle written to dist/
+@uniwork/office-upstream:build: {"bytes":1297818,"gzipBytes":407217,"sha256":"e6da3125203da6e6ffd053818fc61332d5d3d9178f1ee24657d8629b5c4c7f27","inputs":161,"styles":[{"path":"packages/office-upstream/upstream/apps/docs/src/renderer/styles.css","sha256":"D4BEC6BD6C1D451178760FAB6F42DFC4BBACE61FCECE1CB8424DB5CDA89AC66A"},{"path":"packages/office-upstream/upstream/packages/ui/src/tokens.css","sha256":"A41E5C3B42996C8F297D83138AFE8AE6859B0E562B7CC6BC506EF911F45DC9E3"}]}
+@uniwork/office-engine:typecheck: cache miss, executing ac1b17998737e724
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/office-upstream:build: {
+@uniwork/office-upstream:build:  "ok": true,
+@uniwork/office-upstream:build:  "bytes": 14773918,
+@uniwork/office-upstream:build:  "gzipBytes": 3871107,
+@uniwork/office-upstream:build:  "sha256": "425892013e493317401af90210154204ee52a4801ac90e709cebab643b47fc8e",
+@uniwork/office-upstream:build:  "inputs": 71,
+@uniwork/office-upstream:build:  "styles": 9
+@uniwork/office-upstream:build: }
+@uniwork/office-upstream:build: {
+@uniwork/office-upstream:build:  "ok": true,
+@uniwork/office-upstream:build:  "bytes": 773033,
+@uniwork/office-upstream:build:  "gzipBytes": 247829,
+@uniwork/office-upstream:build:  "sha256": "21e273278c9a5dd96a35c2165af4ed5fd7abfdaef0790df4cf87c6e24c61cd55",
+@uniwork/office-upstream:build:  "inputs": 92,
+@uniwork/office-upstream:build:  "shims": 5
+@uniwork/office-upstream:build: }
+@uniwork/office-desktop:build: cache miss, executing fd6d876dd9b1c2d6
+@uniwork/web:build: cache miss, executing 4cc7693200186c55
+@uniwork/office-desktop:build: 
+@uniwork/office-desktop:build: > @uniwork/office-desktop@0.1.0 build /workspace/apps/office-desktop
+@uniwork/office-desktop:build: > node scripts/build.mjs
+@uniwork/office-desktop:build: 
+@uniwork/web:build: 
+@uniwork/web:build: > @uniwork/web@0.0.0 build /workspace/apps/web
+@uniwork/web:build: > node scripts/copy-pdfium-wasm.mjs && next build
+@uniwork/web:build: 
+@uniwork/web:build: ▲ Next.js 16.3.8 (Turbopack)
+@uniwork/web:build: ✓ Running next.config.mjs took 30ms
+@uniwork/web:build: 
+@uniwork/web:build:   Creating an optimized production build ...
+@uniwork/office-engine-app:typecheck: cache miss, executing fa5e304bf56db7bc
+@uniwork/core:typecheck: cache miss, executing 7694901afbcf6d7a
+@uniwork/core:typecheck: 
+@uniwork/core:typecheck: > @uniwork/core@0.0.0 typecheck /workspace/packages/core
+@uniwork/core:typecheck: > tsc --noEmit
+@uniwork/core:typecheck: 
+@uniwork/office-engine-app:typecheck: 
+@uniwork/office-engine-app:typecheck: > @uniwork/office-engine-app@0.0.0 typecheck /workspace/apps/office-engine
+@uniwork/office-engine-app:typecheck: > tsc --noEmit
+@uniwork/office-engine-app:typecheck: 
+@uniwork/office-desktop:build: office-desktop: building the xlsx gateway + recalc sidecar with /usr/local/cargo/bin/cargo
+@uniwork/office-desktop:build: {"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+@uniwork/office-desktop:build: office-desktop: no xlsx-sidecar xlsx recalc sidecar staged (the native build finished but did not produce it (see the native step of the build-upstream record)) - saving a local .xlsx that contains formulas will be refused. Read the build-upstream output above (and the native step of its build-record.json), fix the toolchain, and rebuild.
+@uniwork/office-desktop:build: office-desktop: unsigned development bundle written to dist/
+@uniwork/views:typecheck: cache miss, executing 31dc4ccae5692d7b
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: > @uniwork/views@0.0.0 typecheck /workspace/packages/views
+@uniwork/views:typecheck: > tsc --noEmit
+@uniwork/views:typecheck: 
+@uniwork/web:build: Found 2 warnings while optimizing generated CSS:
+@uniwork/web:build: 
+@uniwork/web:build: Issue #1:
+@uniwork/web:build: [2m│   }[22m
+@uniwork/web:build: [2m│ }[22m
+@uniwork/web:build: [2m│[22m ::highlight(task-find) {
+@uniwork/web:build: [2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+@uniwork/web:build: [2m┆[22m
+@uniwork/web:build: [2m│   background-color: var(--selection);[22m
+@uniwork/web:build: [2m│   color: var(--selection-foreground);[22m
+@uniwork/web:build: 
+@uniwork/web:build: Issue #2:
+@uniwork/web:build: [2m│   color: var(--selection-foreground);[22m
+@uniwork/web:build: [2m│ }[22m
+@uniwork/web:build: [2m│[22m ::highlight(task-find-active) {
+@uniwork/web:build: [2m┆[22m             [33m[2m^--[22m 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?[39m
+@uniwork/web:build: [2m┆[22m
+@uniwork/web:build: [2m│   background-color: var(--brand);[22m
+@uniwork/web:build: [2m│   color: var(--brand-foreground);[22m
+@uniwork/web:build: 
+@uniwork/web:build: ✓ Compiled successfully in 55s
+@uniwork/web:build:   Running TypeScript ...
+@uniwork/web:typecheck: cache miss, executing d08ba528d37942f1
+@uniwork/office-desktop:typecheck: cache miss, executing ff83581edd494c35
+@uniwork/office-desktop:typecheck: 
+@uniwork/office-desktop:typecheck: > @uniwork/office-desktop@0.1.0 typecheck /workspace/apps/office-desktop
+@uniwork/office-desktop:typecheck: > tsc --noEmit
+@uniwork/office-desktop:typecheck: 
+@uniwork/web:typecheck: 
+@uniwork/web:typecheck: > @uniwork/web@0.0.0 typecheck /workspace/apps/web
+@uniwork/web:typecheck: > tsc --noEmit
+@uniwork/web:typecheck: 
+@uniwork/web:build:   Finished TypeScript in 48s ...
+@uniwork/web:build:   Collecting page data using 3 workers ...
+@uniwork/web:build:   Generating static pages using 3 workers (0/51) ...
+@uniwork/web:build:   Generating static pages using 3 workers (12/51) 
+@uniwork/web:build:   Generating static pages using 3 workers (25/51) 
+@uniwork/web:build:   Generating static pages using 3 workers (38/51) 
+@uniwork/web:build: ✓ Generating static pages using 3 workers (51/51) in 643ms
+@uniwork/web:build: Turbopack build encountered 2 warnings:
+@uniwork/web:build: ./apps/web/app/globals.css:2:301979
+@uniwork/web:build: Warning: Parsing CSS source code failed
+@uniwork/web:build:   [90m1 |[0m ...
+@uniwork/web:build: [33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+@uniwork/web:build:   [90m  |[0m                                                [33m[1m^[0m
+@uniwork/web:build:   [90m3 |[0m ...
+@uniwork/web:build: 
+@uniwork/web:build: 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+@uniwork/web:build: 
+@uniwork/web:build: Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+@uniwork/web:build: ./apps/web/app/globals.css:2:301979
+@uniwork/web:build:   [90m1 |[0m ...
+@uniwork/web:build: [33m[1m>[0m [90m2 |[0m ...r-layout]>[data-panel]{transition:none}}::highlight(task-find){background-color:[36mvar[0m(--se...
+@uniwork/web:build:   [90m  |[0m                                                [33m[1m^[0m
+@uniwork/web:build:   [90m3 |[0m ...
+@uniwork/web:build: 
+@uniwork/web:build: Import trace:
+@uniwork/web:build:   Client Component Browser:
+@uniwork/web:build:     ./apps/web/app/globals.css [Client Component Browser]
+@uniwork/web:build:     ./apps/web/app/layout.tsx [Server Component]
+@uniwork/web:build: 
+@uniwork/web:build: 
+@uniwork/web:build: ./apps/web/app/globals.css:2:302070
+@uniwork/web:build: Warning: Parsing CSS source code failed
+@uniwork/web:build:   [90m1 |[0m ...
+@uniwork/web:build: [33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+@uniwork/web:build:   [90m  |[0m                                                [33m[1m^[0m
+@uniwork/web:build:   [90m3 |[0m ...
+@uniwork/web:build: 
+@uniwork/web:build: 'highlight' is not recognized as a valid pseudo-element. Did you mean ':highlight' (pseudo-class) or is this a typo?
+@uniwork/web:build: 
+@uniwork/web:build: Generated code of PostCSS transform of file content of apps/web/app/globals.css:
+@uniwork/web:build: ./apps/web/app/globals.css:2:302070
+@uniwork/web:build:   [90m1 |[0m ...
+@uniwork/web:build: [33m[1m>[0m [90m2 |[0m ...tion);color:[36mvar[0m(--selection-foreground)}::highlight(task-find-active){background-color:[36mv..[0m.
+@uniwork/web:build:   [90m  |[0m                                                [33m[1m^[0m
+@uniwork/web:build:   [90m3 |[0m ...
+@uniwork/web:build: 
+@uniwork/web:build: Import trace:
+@uniwork/web:build:   Client Component Browser:
+@uniwork/web:build:     ./apps/web/app/globals.css [Client Component Browser]
+@uniwork/web:build:     ./apps/web/app/layout.tsx [Server Component]
+@uniwork/web:build: 
+@uniwork/web:build: 
+@uniwork/web:build:   Finalizing page optimization ...
+@uniwork/web:build: 
+@uniwork/web:build: Route (app)
+@uniwork/web:build: ┌ ƒ /
+@uniwork/web:build: ├ ƒ /_not-found
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/calendar
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/chat
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/documents
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/documents/[documentId]
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/email
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/inbox
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/meetings
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/meetings/[meetingId]
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/members
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/my-tasks
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/people
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/people/[userId]
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/projects
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/projects/[projectId]
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/settings
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/tasks
+@uniwork/web:build: ├ ƒ /[orgSlug]/[workspaceSlug]/tasks/[taskId]
+@uniwork/web:build: ├ ƒ /admin
+@uniwork/web:build: ├ ƒ /admin/flags
+@uniwork/web:build: ├ ƒ /admin/organizations
+@uniwork/web:build: ├ ƒ /admin/organizations/[id]
+@uniwork/web:build: ├ ƒ /admin/quota
+@uniwork/web:build: ├ ƒ /admin/system
+@uniwork/web:build: ├ ƒ /admin/trace
+@uniwork/web:build: ├ ○ /apple-icon.png
+@uniwork/web:build: ├ ƒ /auth/callback
+@uniwork/web:build: ├ ƒ /auth/desktop/authorize
+@uniwork/web:build: ├ ƒ /enterprise
+@uniwork/web:build: ├ ƒ /features
+@uniwork/web:build: ├ ƒ /features/[slug]
+@uniwork/web:build: ├ ƒ /forgot-password
+@uniwork/web:build: ├ ○ /icon.svg
+@uniwork/web:build: ├ ƒ /invitations
+@uniwork/web:build: ├ ƒ /invite/[token]
+@uniwork/web:build: ├ ƒ /invite/meeting/[linkId]
+@uniwork/web:build: ├ ƒ /invite/meeting/[linkId]/room
+@uniwork/web:build: ├ ƒ /learn
+@uniwork/web:build: ├ ƒ /login
+@uniwork/web:build: ├ ○ /manifest.webmanifest
+@uniwork/web:build: ├ ƒ /onboarding
+@uniwork/web:build: ├ ○ /opengraph-image.png
+@uniwork/web:build: ├ ƒ /pricing
+@uniwork/web:build: ├ ƒ /register
+@uniwork/web:build: ├ ƒ /reset-password
+@uniwork/web:build: ├ ƒ /share/[token]
+@uniwork/web:build: ├ ƒ /solutions
+@uniwork/web:build: ├ ƒ /solutions/operations
+@uniwork/web:build: ├ ƒ /solutions/product
+@uniwork/web:build: ├ ƒ /verify
+@uniwork/web:build: ├ ƒ /why-uniwork
+@uniwork/web:build: ├ ƒ /workspaces
+@uniwork/web:build: └ ƒ /workspaces/new
+@uniwork/web:build: 
+@uniwork/web:build: 
+@uniwork/web:build: ○  (Static)   prerendered as static content
+@uniwork/web:build: ƒ  (Dynamic)  server-rendered on demand
+@uniwork/web:build: 
+
+ Tasks:    12 successful, 12 total
+Cached:    0 cached, 12 total
+  Time:    2m4.43s 
+
