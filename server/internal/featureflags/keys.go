@@ -38,7 +38,7 @@ var catalogue = []Flag{
 	{Key: "debug_trace_full_sampling", Description: "Lấy mẫu trace 100% cho tổ chức đang điều tra sự cố", Default: false, Public: false, Owner: "platform", ReviewAt: day(2026, 12, 5)},
 	{Key: "chat_work_hub", Description: "Kênh hạng nhất gắn Project, khám phá và tham gia (C-13)", Default: true, Public: true, Owner: "chat", ReviewAt: day(2026, 12, 31)},
 	{Key: "documents", Description: "Tài liệu trong workspace: page, tệp, phiên bản (UNI-679); mặc định bật", Default: true, Public: true, Owner: "documents", ReviewAt: day(2026, 12, 31)},
-	{Key: "office_engine", Description: "Shared Office editor shell and browser draft host (UNI-822; default off until format acceptance)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_engine", Description: "Shared Office editor shell and browser draft host (UNI-822; default on, FF_OFFICE_ENGINE=false is the kill switch)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_docx", Description: "Sửa tệp DOCX trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_xlsx", Description: "Sửa tệp XLSX trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_pptx", Description: "Sửa tệp PPTX trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},

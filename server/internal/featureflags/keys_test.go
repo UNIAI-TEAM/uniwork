@@ -67,7 +67,7 @@ func TestOfficeFormatFlagsAreOnByDefaultAndEngineStaysOff(t *testing.T) {
 		}
 	}
 	engine, ok := Lookup("office_engine")
-	if !ok || engine.Default {
-		t.Fatalf("office_engine = %+v ok=%v, want declared and default off", engine, ok)
+	if !ok || !engine.Default {
+		t.Fatalf("office_engine = %+v ok=%v, want declared and default on", engine, ok)
 	}
 }
