@@ -1,0 +1,225 @@
+$ set -a && . ./.env && set +a && NEXT_PUBLIC_API_URL=http://localhost:8080 OFFICE_SHELL_E2E=1 E2E_BASE_URL=http://localhost:3000 pnpm --filter @uniwork/e2e exec playwright test --shard=3/3
+
+Running 81 tests using 1 worker, shard 3 of 3
+
+(node:16769) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16769) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[api] 401 POST http://localhost:8080/api/v1/auth/refresh
+[api] 401 POST http://localhost:8080/api/v1/auth/refresh
+  ✓   1 files-chat.spec.ts:127:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke (1.9s)
+  ✓   2 files-chat.spec.ts:152:3 › chat file and voice messages › a voice message plays for the second member with its duration (3.3s)
+  ✓   3 files-chat.spec.ts:177:3 › chat file and voice messages › a resend with the same client_msg_id does not duplicate the message (725ms)
+  ✓   4 files-chat.spec.ts:213:3 › chat file and voice messages › a member of another organization cannot reach the workspace or its files (2.1s)
+  ✓   5 files-chat.spec.ts:241:3 › chat file and voice messages › an unsupported file type is refused before it is sent (633ms)
+[api] 403 POST http://localhost:8080/api/v1/workspaces/01M4ABZ4G9EREQ6JQSZ42CZBKD/chat/rooms/01M4ABZG68A5GVQ42AE4MYQ454/read
+  ✓   6 files-chat.spec.ts:263:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions (2.7s)
+(node:16889) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16889) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light (3.6s)
+(node:16962) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16962) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   8 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1280 vi dark (5.4s)
+  ✓   9 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 768 vi light (5.2s)
+  ✓  10 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 en dark (4.9s)
+  ✓  11 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 390 vi light (4.9s)
+  ✓  12 landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 320 vi dark (5.3s)
+  ✓  13 landing-updates.spec.ts:7:1 › new product stories are local demos with truthful availability (5.1s)
+  ✓  14 landing-updates.spec.ts:38:5 › unified workspace views render in both themes: desktop-vi (15.5s)
+  ✓  15 landing-updates.spec.ts:38:5 › unified workspace views render in both themes: desktop-en (15.2s)
+  ✓  16 landing-updates.spec.ts:38:5 › unified workspace views render in both themes: mobile-vi (14.6s)
+  ✓  17 landing-updates.spec.ts:38:5 › unified workspace views render in both themes: mobile-en (14.8s)
+  ✓  18 landing-updates.spec.ts:62:1 › workspace finishes revealing without extra scrolling and respect reduced motion (5.9s)
+  ✓  19 landing-why.spec.ts:13:3 › Why UniWork — 1440px vi light (1.3s)
+  ✓  20 landing-why.spec.ts:13:3 › Why UniWork — 1510px en dark (1.2s)
+  ✓  21 landing-why.spec.ts:13:3 › Why UniWork — 768px en light (1.1s)
+  ✓  22 landing-why.spec.ts:13:3 › Why UniWork — 390px en dark (1.1s)
+  ✓  23 landing-why.spec.ts:13:3 › Why UniWork — 320px vi light (1.2s)
+  ✓  24 landing-workspace.spec.ts:4:1 › one workspace stage replaces the index and separate feature bands (5.4s)
+  ✓  25 landing-workspace.spec.ts:20:1 › feature deep links select the right panel and sidebar works with keyboard (4.4s)
+  ✓  26 landing-workspace.spec.ts:37:1 › local state survives view switches and the global reset clears every demo (5.9s)
+  ✓  27 landing-workspace.spec.ts:64:1 › tablet product stage stays readable and Starter keeps one honest action (4.2s)
+  ✘  28 landing.spec.ts:47:3 › landing › dải tin cậy, FAQ và hai trang giải pháp (19.7s)
+(node:17304) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17304) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  29 landing.spec.ts:133:3 › landing › đổi ngôn ngữ và chế độ sáng tối ngay trên header (20.2s)
+  ✓  30 landing.spec.ts:166:3 › landing › mỗi request nhận đúng ngôn ngữ của chính nó (605ms)
+  ✓  31 landing.spec.ts:189:5 › landing › tương phản chữ đạt WCAG AA — light (9.5s)
+  ✓  32 landing.spec.ts:189:5 › landing › tương phản chữ đạt WCAG AA — dark (9.6s)
+  ✓  33 meeting-prejoin-contrast.spec.ts:20:3 › chữ trong khung camera tắt ở màn chuẩn bị vào họp đạt WCAG AA — light (2.0s)
+  ✓  34 meeting-prejoin-contrast.spec.ts:20:3 › chữ trong khung camera tắt ở màn chuẩn bị vào họp đạt WCAG AA — dark (1.9s)
+  ✓  35 meetings-attendance.spec.ts:13:1 › attendance: secretary marks, quorum warns, finalize locks and shows on the timeline (3.3s)
+  -  36 meetings-livekit.spec.ts:17:3 › meeting livekit smoke › instant meeting → prejoin → stage shell
+  -  37 meetings-livekit.spec.ts:45:3 › meeting livekit smoke › a signed-in user from another organization joins through an invite link (UNI-901)
+  -  38 meetings-livekit.spec.ts:86:3 › meeting livekit smoke › recording: egress writes the file, the webhook completes it, playback seeks
+  ✓  39 meetings.spec.ts:19:1 › meeting: create → start → summary panel → ics → end (3.3s)
+  ✓  40 meetings.spec.ts:77:1 › recording playback: listed, exact bytes, member reads, other org blocked @files-smoke (1.9s)
+  ✓  41 notifications.spec.ts:33:1 › assigning a task lights the assignee's inbox badge without a reload (8.5s)
+  ✓  42 office-shell.spec.ts:156:1 › an unsaved edit survives a reload as a recoverable local draft (8.4s)
+  ✓  43 office-shell.spec.ts:178:1 › keeps bound Office header actions reachable at 390px without nested scrolling (3.2s)
+  ✓  44 office-shell.spec.ts:215:3 › holds the shell at 360px in both themes (3.2s)
+  ✓  45 office-shell.spec.ts:215:3 › holds the shell at 375px in both themes (3.3s)
+  ✓  46 office-shell.spec.ts:215:3 › holds the shell at 768px in both themes (3.3s)
+  ✓  47 office-shell.spec.ts:215:3 › holds the shell at 1280px in both themes (2.9s)
+  ✓  48 office-shell.spec.ts:237:1 › keyboard-only navigation keeps focus visible on the bound shell (2.5s)
+  ✓  49 office-shell.spec.ts:246:1 › flag off leaves the existing file view unchanged (2.7s)
+  ✓  50 onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — light (2.2s)
+  ✓  51 onboarding-contrast.spec.ts:13:3 › tương phản chữ đạt WCAG AA — dark (2.1s)
+  ✓  52 onboarding-focus.spec.ts:14:1 › mọi điểm dừng Tab đều có chỉ báo focus nhìn thấy được — cả 4 bước (1.6s)
+  ✓  53 onboarding-focus.spec.ts:61:1 › chỉ có MỘT chỉ báo focus, không lồng hai vòng (845ms)
+  ✓  54 onboarding-focus.spec.ts:84:1 › vòng focus tách được khỏi nền ngay sát nó (>= 3:1) — cả 4 bước (1.6s)
+  ✓  55 onboarding-mobile.spec.ts:11:1 › không có thanh cuộn ngang ở bất kỳ bước nào (1.1s)
+  ✓  56 onboarding-mobile.spec.ts:23:1 › rail ẩn, thanh tiến độ nói được vị trí bước (792ms)
+  ✓  57 onboarding-mobile.spec.ts:31:1 › mọi vùng chạm đạt 44px ở mọi bước (1.1s)
+  ✓  58 onboarding-mobile.spec.ts:82:1 › CTA chính không bị vệt mờ của vùng cuộn ăn vào (772ms)
+  ✓  59 onboarding-shell.spec.ts:36:1 › onboarding — structural blocks match the column width on every step (1.1s)
+  ✓  60 onboarding-shell.spec.ts:56:1 › onboarding — the shell survives step changes instead of re-mounting (833ms)
+  ✓  61 onboarding-smoke.spec.ts:9:1 › register → onboarding 4 bước → 🎉 → task hướng dẫn (2.4s)
+  ✓  62 people.spec.ts:46:1 › directory, department, accent-insensitive search, then deactivation (7.3s)
+  ✓  63 projects-suite-parity-smoke.spec.ts:35:1 › projects suite: list + detail TaskSurface always on (3.5s)
+  ✓  64 reset-password.spec.ts:5:1 › quên mật khẩu → link trong mail → mật khẩu mới đăng nhập được (2.0s)
+  ✓  65 sidebar-rail.spec.ts:9:1 › every nav row is clickable in the collapsed icon rail (2.0s)
+  ✘  66 smoke.spec.ts:9:1 › register → workspace → task → meeting (20.5s)
+(node:17894) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17894) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  67 smoke.spec.ts:67:1 › đường dẫn không tồn tại hiện trang không tìm thấy, không phải màn hình trắng (485ms)
+  ✓  68 task-detail-parity-smoke.spec.ts:55:1 › task detail: suite comment + attachment always on (3.7s)
+  ✓  69 tasks-collection-parity-smoke.spec.ts:34:1 › tasks collection: suite mode controls always on (4.1s)
+  ✓  70 tasks-table.spec.ts:187:1 › board → table stays responsive and navigation still works (4.4s)
+  ✓  71 tasks-table.spec.ts:204:1 › title sort holds across Tải thêm pages (4.4s)
+  ✓  72 tasks-table.spec.ts:216:1 › search finds a task outside the first page (3.3s)
+  ✓  73 tasks-table.spec.ts:236:1 › a child on the third page nests under its parent (3.2s)
+  ✓  74 tasks-table.spec.ts:265:1 › groups by project, then by priority (3.8s)
+  ✓  75 tasks-table.spec.ts:281:1 › a select property edits in place and survives reload (3.9s)
+  ✓  76 tasks-table.spec.ts:309:1 › keyboard column reorder persists across reload (2.8s)
+  ✓  77 verify.spec.ts:10:1 › mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; cổng chặn khi chưa xác thực (1.6s)
+  ✓  78 verify.spec.ts:39:1 › nút Google chỉ hiện khi server báo có Google (457ms)
+  ✓  79 verify.spec.ts:47:1 › tương phản chữ đạt WCAG AA — /verify light và dark (4.4s)
+(node:18047) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18047) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  80 meetings-governance.spec.ts:154:1 › votes: the secretary drafts, opens and closes an item; the result reaches the detail page and the timeline (4.2s)
+  -  81 meetings-governance.spec.ts:253:3 › votes in the meeting room › a member votes through the prompt card and the secret result reaches the room
+
+
+  1) landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light ────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.landing-trust-story')
+    Expected: visible
+    Error: strict mode violation: locator('.landing-trust-story') resolved to 2 elements:
+        1) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('div').filter({ hasText: 'Clear access. Traceable work.' }).nth(1)
+        2) <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div> aka locator('[id="S:0"] > .landing-site.be_vietnam_pro_28bf86fb-module__3Lls9a__variable.min-h-dvh > #landing-main > .landing-trust-story')
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('.landing-trust-story')
+        - locator resolved to <div class="landing-trust-story dark text-foreground landing-trust-module__ADd0iG__chapter">…</div>
+        - unexpected value "hidden"
+
+
+      28 |     }
+      29 |     const chapter = page.locator(".landing-trust-story");
+    > 30 |     await expect(chapter).toBeVisible();
+         |                           ^
+      31 |     await page.evaluate(() => document.fonts.ready);
+      32 |     await chapter.scrollIntoViewIfNeeded();
+      33 |     const copy = chapter.locator(".security-copy");
+        at /workspace/e2e/landing-trust.spec.ts:30:27
+
+    Error Context: test-results/landing-trust-trust-chapte-48b2a-ct-and-usable-1536-en-light/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-trust-trust-chapte-48b2a-ct-and-usable-1536-en-light/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-trust-trust-chapte-48b2a-ct-and-usable-1536-en-light/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) landing.spec.ts:47:3 › landing › dải tin cậy, FAQ và hai trang giải pháp ──────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Từ cuộc họp tới việc đã giao, không mất gì ở giữa' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: 'Từ cuộc họp tới việc đã giao, không mất gì ở giữa' })
+
+
+       98 |     await expect(
+       99 |       page.getByRole("heading", { name: "Từ cuộc họp tới việc đã giao, không mất gì ở giữa" }),
+    > 100 |     ).toBeVisible();
+          |       ^
+      101 |
+      102 |     await page.goto("/solutions/operations");
+      103 |     await expect(
+        at /workspace/e2e/landing.spec.ts:100:7
+
+    Error Context: test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) smoke.spec.ts:9:1 › register → workspace → task → meeting ─────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Phòng họp video chưa được thiết lập. Hãy báo quản trị viên workspace.').or(getByRole('heading', { name: 'Cuộc họp chưa bắt đầu' })).or(locator('[data-lk-theme]'))
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('Phòng họp video chưa được thiết lập. Hãy báo quản trị viên workspace.').or(getByRole('heading', { name: 'Cuộc họp chưa bắt đầu' })).or(locator('[data-lk-theme]'))
+
+
+      62 |       .or(page.getByRole("heading", { name: "Cuộc họp chưa bắt đầu" }))
+      63 |       .or(page.locator("[data-lk-theme]")),
+    > 64 |   ).toBeVisible({ timeout: 15_000 });
+         |     ^
+      65 | });
+      66 |
+      67 | test("đường dẫn không tồn tại hiện trang không tìm thấy, không phải màn hình trắng", async ({ page }) => {
+        at /workspace/e2e/smoke.spec.ts:64:5
+
+    Error Context: test-results/smoke-register-→-workspace-→-task-→-meeting/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/smoke-register-→-workspace-→-task-→-meeting/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/smoke-register-→-workspace-→-task-→-meeting/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    landing-trust.spec.ts:16:3 › trust chapter stays compact and usable: 1536 en light ─────────────
+    landing.spec.ts:47:3 › landing › dải tin cậy, FAQ và hai trang giải pháp ───────────────────────
+    smoke.spec.ts:9:1 › register → workspace → task → meeting ──────────────────────────────────────
+  4 skipped
+  74 passed (6.2m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=3/3
