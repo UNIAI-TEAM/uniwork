@@ -49,17 +49,39 @@ export type PrintWindow = {
 };
 
 /** The slice of Electron's `WebContentsPrintOptions` main ever passes. */
-type ElectronPrintOptions = { silent: false; printBackground: true; landscape?: boolean; pageSize?: { width: number; height: number } };
+type ElectronPrintOptions =
+  | { silent: false; printBackground: true; landscape?: boolean; pageSize?: { width: number; height: number } }
+  | {
+    silent: true;
+    printBackground: true;
+    deviceName: string;
+    landscape: boolean;
+    pageSize: { width: number; height: number };
+    copies?: number;
+    pageRanges?: Array<{ from: number; to: number }>;
+    color?: boolean;
+    duplexMode?: "simplex" | "shortEdge" | "longEdge";
+  };
 
 /**
- * Map the validated request options onto `webContents.print`: the dialog
- * always opens (never silent) and opens in the document's orientation and
- * paper. Each key is copied by name, never a spread of the payload. No
- * options (an older renderer) keeps Chromium's plain dialog.
+ * Map the validated request options onto `webContents.print`. Without `silent`
+ * the system dialog always opens and opens in the document's orientation and
+ * paper. With `silent` (the in-app print dialog, UNI-961) the job goes to the
+ * named printer with the chosen job settings and no OS dialog; a setting the
+ * user left alone is left out so Chromium keeps its own default. Each key is
+ * copied by name, never a spread of the payload. No options (an older
+ * renderer) keeps Chromium's plain dialog.
  */
 export function electronPrintOptions(options: DesktopPrintOptions | undefined): ElectronPrintOptions {
   if (!options) return { silent: false, printBackground: true };
-  return { silent: false, printBackground: true, landscape: options.landscape, pageSize: { width: options.pageSize.width, height: options.pageSize.height } };
+  const pageSize = { width: options.pageSize.width, height: options.pageSize.height };
+  if (!options.silent || options.deviceName === undefined) return { silent: false, printBackground: true, landscape: options.landscape, pageSize };
+  const job: Extract<ElectronPrintOptions, { silent: true }> = { silent: true, printBackground: true, deviceName: options.deviceName, landscape: options.landscape, pageSize };
+  if (options.copies !== undefined) job.copies = options.copies;
+  if (options.pageRanges !== undefined) job.pageRanges = options.pageRanges.map((range) => ({ from: range.from, to: range.to }));
+  if (options.color !== undefined) job.color = options.color;
+  if (options.duplexMode !== undefined) job.duplexMode = options.duplexMode;
+  return job;
 }
 
 export type PrintFile = Readonly<{ path: string; cleanup(): Promise<void> }>;
@@ -139,7 +161,8 @@ export function printFileName(title: string): string {
   return `${stem || PRINT_FALLBACK_TITLE}.html`;
 }
 
-function denyNavigation(window: PrintWindow): void {
+/** Shared with the print preview, which loads the same copy in the same kind of window. */
+export function denyNavigation(window: PrintWindow): void {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   for (const event of ["will-navigate", "will-redirect", "will-frame-navigate", "will-attach-webview"] as const) {
     window.webContents.on(event, (navigation) => navigation.preventDefault());

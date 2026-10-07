@@ -1,7 +1,8 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { brandIconPath, printWindowTitle } from "./branding";
-import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, type PrintOwner, type PrintWindow, type PrintWindowOptions } from "./print";
+import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, type PrintOwner, type PrintWindowOptions } from "./print";
+import { createPrintersIpcHandler, createPrintPreviewIpcHandler, type PreviewWindow, type PrintersOptions } from "./print-preview";
 
 /**
  * The Electron wiring of `desktop:print-document` (moved out of
@@ -35,11 +36,13 @@ export interface PrintHostOptions<Owner extends PrintHostOwner> {
   senderWindow(): Owner | null | undefined;
   /** `new BrowserWindow(options)`: options are applied verbatim. `parent` is set
    * only off Windows, and only when the sender window is still alive. */
-  createWindow(options: PrintWindowOptions & { icon?: string; parent?: Owner }): PrintWindow & { destroy(): void; once(event: "closed", listener: () => void): unknown };
+  createWindow(options: PrintWindowOptions & { icon?: string; parent?: Owner }): PreviewWindow & { destroy(): void; once(event: "closed", listener: () => void): unknown };
   /** Registers the callback that runs when the app window closed or the app is
    * about to quit (electron-main: `window.once("closed")`, `app.once("before-quit")`).
    * It may run more than once. */
   registerShutdown(closeWindows: () => void): void;
+  /** `webContents.getPrintersAsync()` of the app window, for the in-app print dialog. */
+  listPrinters: PrintersOptions["listPrinters"];
   /** The built bundle directory (`dist`) the product icon is read from. */
   distDirectory: string;
   /** Overrides `process.platform` (tests). */
@@ -47,7 +50,8 @@ export interface PrintHostOptions<Owner extends PrintHostOwner> {
 }
 
 /** Guard the print partition, sweep jobs a previous process left behind, and
- * return the `desktop:print-document` handler for the host dispatcher. */
+ * return the `desktop:print-document`, `desktop:print-preview` and
+ * `desktop:print-printers` handlers for the host dispatcher. */
 export async function createPrintHost<Owner extends PrintHostOwner>(options: PrintHostOptions<Owner>) {
   const printRoot = join(options.tempDirectory, "uniwork-print");
   installPrintSessionGuard(options.partitionSession(PRINT_PARTITION), pathToFileURL(printRoot).href);
@@ -62,23 +66,31 @@ export async function createPrintHost<Owner extends PrintHostOwner>(options: Pri
     for (const window of live) if (!window.isDestroyed()) window.destroy();
     live.clear();
   });
-  return createPrintIpcHandler<Owner>({
+  const writeFile = createPrintFileWriter(printRoot);
+  // The hidden window is branded the same for a print and a preview: Chromium names the job and the
+  // suggested PDF after its title (the document, else the product, never "Electron"), and it is tracked
+  // so quit and app-window close destroy it. `parent` is only ever passed for a print, never a preview.
+  const brandedWindow = (windowOptions: PrintWindowOptions, owner?: Owner) => {
+    const branded = { ...windowOptions, title: printWindowTitle(windowOptions.title), icon: brandIconPath(platform, options.distDirectory) };
+    const created = options.createWindow(owner && platform !== "win32" ? { ...branded, parent: owner } : branded);
+    live.add(created);
+    // A window leaves the set the moment it closes, not at the next print.
+    created.once("closed", () => { live.delete(created); });
+    return created;
+  };
+  const print = createPrintIpcHandler<Owner>({
     // Windows: the dialog is not modal to the app window, so a click on it does not mean the dialog closed.
     ownerFocusEndsJob: platform === "win32" ? "after-callback-timeout" : "always",
     owner: () => {
       const sender = options.senderWindow();
       return sender && !sender.isDestroyed() ? sender : undefined;
     },
-    // The print window is hidden, but Chromium still names the job and the
-    // suggested PDF after its title: the document, else the product, never "Electron".
-    createWindow: (windowOptions, owner) => {
-      const branded = { ...windowOptions, title: printWindowTitle(windowOptions.title), icon: brandIconPath(platform, options.distDirectory) };
-      const created = options.createWindow(owner && platform !== "win32" ? { ...branded, parent: owner } : branded);
-      live.add(created);
-      // A window leaves the set the moment it closes, not at the next print.
-      created.once("closed", () => { live.delete(created); });
-      return created;
-    },
-    writeFile: createPrintFileWriter(printRoot),
+    createWindow: (windowOptions, owner) => brandedWindow(windowOptions, owner),
+    writeFile,
   });
+  return {
+    ...print,
+    ...createPrintPreviewIpcHandler({ createWindow: (windowOptions) => brandedWindow(windowOptions), writeFile }),
+    ...createPrintersIpcHandler({ listPrinters: options.listPrinters }),
+  };
 }

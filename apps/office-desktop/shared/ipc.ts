@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, DESKTOP_DOCUMENT_FORMATS, desktopDocumentMimeTypes, type DesktopDocumentFormat } from "./document-formats";
 import { isAllowedExternalUrl } from "./external-url";
-import { desktopPrintOptionsSchema, desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES } from "./ipc-print";
+import { bytesSchema, isByteValue } from "./ipc-bytes";
+import { desktopPrintOptionsSchema, desktopPrintPreviewRequestSchema, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES } from "./ipc-print";
 
-export { PRINT_HTML_MAX_BYTES, desktopPrintResponseSchema, type DesktopPrintOptions, type DesktopPrintResponse } from "./ipc-print";
+export { PRINT_HTML_MAX_BYTES, PRINT_PREVIEW_MAX_BYTES, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, type DesktopPrinter, type DesktopPrintGeometry, type DesktopPrintOptions, type DesktopPrintPreviewResponse, type DesktopPrintResponse } from "./ipc-print";
 
 /** The closed desktop wire surface. Keep this module free of Electron and
  * main-process imports so preload and renderer can consume only contracts. */
@@ -48,6 +49,8 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:office-job",
   "desktop:leave-resolved",
   "desktop:print-document",
+  "desktop:print-preview",
+  "desktop:print-printers",
 ] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
@@ -63,23 +66,6 @@ const attemptIdSchema = z.string().regex(/^attempt_[A-Za-z0-9_-]{32,160}$/, "inv
 const fileHandleSchema = z.string().regex(/^file_[A-Za-z0-9_-]{32,160}$/, "invalid file handle");
 export const fileOpenRequestedSchema = z.object({ handle: fileHandleSchema }).strict();
 const draftIdSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid draft id");
-/** A byte field crosses Electron IPC as a Uint8Array (structured clone), never
- * as base64 text, so a local working file has no wire ceiling of its own: the
- * only limit is the memory of the machine. The check is by tag, not by
- * `instanceof`, because the preload bridge hands the renderer a copy made in
- * another realm. Validation looks at the type only (never at the bytes), and
- * the value is normalised to an exact Uint8Array view so a pooled Buffer never
- * carries unrelated pool memory across the boundary. */
-function isByteValue(value: unknown): value is Uint8Array | ArrayBuffer {
-  const tag = Object.prototype.toString.call(value);
-  return tag === "[object Uint8Array]" || tag === "[object ArrayBuffer]";
-}
-function exactBytes(value: Uint8Array | ArrayBuffer): Uint8Array {
-  if (!ArrayBuffer.isView(value)) return new Uint8Array(value);
-  if (value.byteOffset === 0 && value.byteLength === value.buffer.byteLength) return value;
-  return Uint8Array.prototype.slice.call(value) as Uint8Array;
-}
-const bytesSchema = z.custom<Uint8Array | ArrayBuffer>(isByteValue, "invalid byte field").transform(exactBytes);
 /** Engine-call arguments: free-form, except that `data` (the document's own
  * bytes) must be binary and arrives as an exact Uint8Array. */
 const engineArgsSchema = z.record(z.string(), z.unknown()).default({}).transform((args, ctx) => {
@@ -344,6 +330,8 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-xlsx": desktopFileXlsxResponseSchema,
   "desktop:leave-resolved": desktopLeaveResolvedResponseSchema,
   "desktop:print-document": desktopPrintResponseSchema,
+  "desktop:print-preview": desktopPrintPreviewResponseSchema,
+  "desktop:print-printers": desktopPrintPrintersResponseSchema,
 };
 export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]), version: z.number().int().nonnegative().optional() }).strict();
 export type LaunchRequestedEvent = z.infer<typeof launchRequestedEventSchema>;
@@ -407,6 +395,8 @@ const requestSchemas = {
   "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, format: documentFormatSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), data: bytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
   "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),
   "desktop:print-document": z.object({ sessionGeneration: sessionGenerationSchema, title: z.string().max(255), html: z.string().min(1).max(PRINT_HTML_MAX_BYTES), options: desktopPrintOptionsSchema.optional() }).strict(),
+  "desktop:print-preview": desktopPrintPreviewRequestSchema,
+  "desktop:print-printers": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
 export type IpcSenderContext = { senderId: number; frameId: number; origin: string; expectedSenderId: number; expectedFrameId: number; expectedOrigin: string; sessionGeneration: string; allowedExternalHosts?: readonly string[] };
@@ -475,7 +465,7 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
   // Every request keeps the small control cap, byte fields excepted (see
   // sizeInBytes); print HTML has its own cap.
-  const byteLimit = channel === "desktop:print-document" ? PRINT_HTML_MAX_BYTES + IPC_MAX_BYTES : IPC_MAX_BYTES;
+  const byteLimit = channel === "desktop:print-document" || channel === "desktop:print-preview" ? PRINT_HTML_MAX_BYTES + IPC_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(channel, payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {
