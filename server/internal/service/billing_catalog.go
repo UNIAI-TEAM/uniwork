@@ -178,10 +178,7 @@ func (s *BillingService) planCatalogView(ctx context.Context, plan db.Plan) (Adm
 func planFeaturesToAll(rows []db.ListPlanFeaturesRow) []db.ListAllPlanFeaturesRow {
 	out := make([]db.ListAllPlanFeaturesRow, 0, len(rows))
 	for _, f := range rows {
-		out = append(out, db.ListAllPlanFeaturesRow{
-			PlanID: f.PlanID, FeatureKey: f.FeatureKey, Enabled: f.Enabled, QuotaLimit: f.QuotaLimit,
-			Name: f.Name, Kind: f.Kind, Unit: f.Unit, Category: f.Category, MeterMode: f.MeterMode, SortOrder: f.SortOrder,
-		})
+		out = append(out, db.ListAllPlanFeaturesRow(f))
 	}
 	return out
 }
