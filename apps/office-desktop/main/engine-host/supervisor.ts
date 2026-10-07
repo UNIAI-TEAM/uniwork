@@ -2,6 +2,9 @@ import { ENGINE_HOST_INSUFFICIENT_MEMORY, type EngineHostChild, type EngineHostR
 
 export interface EngineHostClient {
   call(kind: EngineHostRequestKind, payload: unknown): Promise<unknown>;
+  /** Tell a running child something that needs no answer; without a child it
+   *  is a no-op (there is nothing to tell, and nothing is spawned for it). */
+  notify(kind: EngineHostRequestKind, payload: unknown): void;
   /** Stop the child, if any; pending requests answer insufficient_memory. */
   dispose(): void;
 }
@@ -70,6 +73,12 @@ export function createEngineHostClient(spawn: EngineHostSpawner): EngineHostClie
           reject(error instanceof Error && (error as { code?: unknown }).code === ENGINE_HOST_INSUFFICIENT_MEMORY ? error : memoryError());
         }
       });
+    },
+    notify(kind, payload) {
+      if (!child) return;
+      // The answer carries an id nobody waits on, so the message listener drops it.
+      try { child.postMessage({ id: nextId++, kind, payload }); }
+      catch { /* an unreachable child is replaced on the next call */ }
     },
     dispose() {
       const dying = child;

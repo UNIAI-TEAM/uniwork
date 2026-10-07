@@ -18,6 +18,7 @@ import {
   type PdfSnapshot,
 } from "@uniwork/views/office/pdf";
 import type { OfficeEditorComponent } from "@uniwork/views/office";
+import { createBrowserPrintPort } from "@uniwork/views/office/print";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions } from "./editor-host-core";
 import { createPdfRenderSession, type PdfRenderSession } from "./pdf-render";
 import { createPdfSaveTransport, type PdfDocumentsTransport } from "./pdf-save-transport";
@@ -327,6 +328,8 @@ export function createPdfFormatAdapter(options: PdfFormatAdapterOptions) {
     coordinator: session.coordinator,
     capability: options.capability as PdfCapability,
     title: options.title,
+    // UNI-952: the web prints the page copy from an isolated frame, never the app window.
+    printPort: createBrowserPrintPort(),
   });
   const PdfSlot = lazy(async () => {
     const loaded = await loadPdfEditor("pdf");

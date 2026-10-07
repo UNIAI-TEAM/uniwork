@@ -13,6 +13,7 @@ import {
   setTitlePgEdit,
   type DocxHeaderFooterState,
 } from "../header-footer/header-footer-state";
+import { readDocxPrintHeaderFooter, type DocxPrintHfSource } from "../export/docx-print-header-footer";
 import type { DocxCommandArea, DocxCommandFactoryContext } from "./context";
 
 export type { DocxHeaderFooterState } from "../header-footer/header-footer-state";
@@ -37,6 +38,8 @@ export interface DocxHeaderFooterCommands {
   setDocxTitlePg(value: boolean): boolean;
   /** settings.xml w:evenAndOddHeaders; false = no change. */
   setDocxEvenOddHeaders(value: boolean): boolean;
+  /** UNI-952: per-section header/footer parts (with images) for the print copy, from the same parse; null before open. */
+  docxPrintHeaderFooterSource(): DocxPrintHfSource | null;
 }
 
 export function createHeaderFooterCommands(
@@ -46,6 +49,7 @@ export function createHeaderFooterCommands(
   let seeded: DocxHeaderFooterState | null = null;
   let state: DocxHeaderFooterState | null = null;
   let edits: DocxEdit[] = [];
+  let printSource: DocxPrintHfSource | null = null;
 
   /** A save-transparent transaction (same shape as B4/B6): marks the document
    * dirty without changing content or the undo history. */
@@ -88,6 +92,7 @@ export function createHeaderFooterCommands(
         seeded = readDocxHeaderFooterState(parsed as Parameters<typeof readDocxHeaderFooterState>[0]);
         state = seeded ? cloneState(seeded) : null;
         edits = [];
+        printSource = readDocxPrintHeaderFooter(parsed);
       },
       listDocxHeaderFooterEdits: () => edits.map((edit) => ({ ...edit }) as DocxEdit),
       restoreDocxHeaderFooterEdits: (next) => {
@@ -131,6 +136,7 @@ export function createHeaderFooterCommands(
         touch();
         return true;
       },
+      docxPrintHeaderFooterSource: () => printSource,
     },
     readState: (_editor: Editor | null) => ({ docxHeaderFooter: state ? cloneState(state) : null }),
   };

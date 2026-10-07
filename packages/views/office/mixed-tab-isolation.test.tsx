@@ -10,7 +10,6 @@ import { OfficeDocumentActiveProvider } from "./common/document-active";
 import { createDocxCommandRuntime } from "./docx/commands";
 import { DocxEditor } from "./docx/docx-editor";
 import { docxExtensions } from "./docx/docx-schema";
-import { DOCX_PRINT_TARGET_ATTRIBUTE, installDocxPrintStyles } from "./docx/export/docx-print";
 import type { DocxEditorHandle, DocxOpenOutcome, DocxSaveCoordinator } from "./docx/types";
 import { PdfEditor } from "./pdf/pdf-editor";
 import type { PdfEditorHandle, PdfOpenOutcome, PdfSaveCoordinator } from "./pdf/types";
@@ -143,14 +142,12 @@ describe("mixed DOCX + XLSX + PDF tabs (UNI-957)", () => {
     expect(xlsxExecute).not.toHaveBeenCalledWith(XLSX_FORMAT_PAINTER_OPERATION, expect.anything());
   });
 
-  it("does not hijack a native print of the visible PDF for the hidden DOCX", async () => {
+  it("never stamps the app window for print: a native print of the visible PDF stays untouched", async () => {
     await renderMixedTabs();
-    installDocxPrintStyles();
+    // UNI-952: DOCX prints a document copy through its port, so no app-window
+    // print marker exists for a hidden DOCX to set.
     window.dispatchEvent(new Event("beforeprint"));
-    // The old rule stamped the page whenever any DOCX surface existed, hiding
-    // everything but a surface that is itself display:none: a blank page.
     expect(document.body.hasAttribute("data-docx-printing")).toBe(false);
-    expect(document.querySelector(`[${DOCX_PRINT_TARGET_ATTRIBUTE}]`)).toBeNull();
     window.dispatchEvent(new Event("afterprint"));
   });
 });

@@ -19,6 +19,9 @@ import { attribute, decodeXml, elements, parseDefinedNamesXml, sectionInner, typ
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
 import { parseDataValidations, type XlsxRenderDataValidation } from "./render-model-validations.ts";
+import { parseWorksheetPageSetup, type XlsxRenderPageSetup } from "./render-model-page-setup.ts";
+import { readWorkbookHeaderFooterPictures } from "./render-model-hf-pictures.ts";
+export type { XlsxRenderHeaderFooter, XlsxRenderPageMargins, XlsxRenderPageSetup } from "./render-model-page-setup.ts";
 export { parseThemeXml } from "./render-model-styles.ts";
 
 import type { XlsxCellScalar, XlsxGatewayFunctions } from "./engine.ts";
@@ -105,6 +108,8 @@ export interface XlsxRenderSheet {
   /** Charts, pictures and shapes the file ships (UNI-953), one per drawing
    *  anchor in document order. Additive: an absent value reads as none. */
   readonly visuals?: readonly XlsxRenderVisual[] | undefined;
+  /** UNI-952: the file's own page layout (print). Absent when it sets none. */
+  readonly pageSetup?: XlsxRenderPageSetup | undefined;
 }
 
 /** Border edge; mirrors the genoffice cell-style contract. */
@@ -231,6 +236,7 @@ function parseWorksheetXml(
       }
     : null;
 
+  const pageSetup = parseWorksheetPageSetup(xml);
   const merges: XlsxRenderMerge[] = [];
   for (const merge of elements(sectionInner(xml, "mergeCells"), "mergeCell")) {
     const ref = attribute(merge.tag, "ref");
@@ -358,6 +364,7 @@ function parseWorksheetXml(
     // under a whole-sheet CF snapshot.
     ...(/<x14:dataValidation\b/.test(xml) ? { x14DataValidations: true as const } : {}),
     ...rawRuleCounts(xml),
+    ...(pageSetup === undefined ? {} : { pageSetup }),
   };
 }
 
@@ -449,6 +456,8 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
     (paths) => engine.readEntriesText(bytes, paths),
     parseRefRange,
   );
+  // UNI-952: header/footer pictures (&G) for print, when the gateway reads binary parts.
+  const hfPictures = await readWorkbookHeaderFooterPictures(ordered, sheetXmls, (paths) => engine.readEntriesText(bytes, paths), engine, bytes);
 
   const sheetVisuals = await readSheetVisuals(
     ordered,
@@ -462,7 +471,12 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
       ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels, palette)
       : { id: sheet.id, name: sheet.name, rowCount: 1, columnCount: 1, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [], cells: {} };
     const visuals = sheetVisuals[index] ?? [];
-    return { ...parsed, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [], ...(visuals.length > 0 ? { visuals } : {}) };
+    const hf = hfPictures[index];
+    const headerFooter = parsed.pageSetup?.headerFooter;
+    const pageSetup = hf && headerFooter
+      ? { pageSetup: { ...parsed.pageSetup, headerFooter: { ...headerFooter, pictures: hf.pictures, ...(Object.keys(hf.media).length > 0 ? { pictureMedia: hf.media } : {}) } } }
+      : {};
+    return { ...parsed, ...pageSetup, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [], ...(visuals.length > 0 ? { visuals } : {}) };
   });
 
   const view = elements(sectionInner(workbookXml, "workbookView"), "workbookView")[0];

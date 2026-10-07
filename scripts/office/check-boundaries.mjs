@@ -127,6 +127,12 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   // fetched from a host URL; neither touches node:*.
   "pdf-lib",
   "@embedpdf/pdfium",
+  // UNI-952: every host mounts the shared print contract and the header menu slot. Both
+  // graphs were read in full: views/office/print (index, shortcut, markdown/wysiwyg/print) and
+  // views/layout/header-actions-slot import only react and the already allowlisted
+  // @uniwork/office-engine html/assets subpaths - no node:*, no next/*, no process.
+  "@uniwork/views/office/print",
+  "@uniwork/views/layout/header-actions-slot",
 ]);
 const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx", "pptx"]);
 

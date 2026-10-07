@@ -6,6 +6,7 @@ import type {
   SaveCoordinatorState,
   StableSnapshot,
 } from "@uniwork/core/office";
+import type { OfficePrintPort } from "../print";
 import type { XlsxGridHostPort } from "./xlsx-grid-surface";
 import type { XlsxRangeType } from "./selection-mapping";
 import type { XlsxDroppedRuleSet } from "./conditional-format/rule-set-drops";
@@ -136,6 +137,9 @@ export interface XlsxEditorProps<TSnapshot = XlsxWorkbookSnapshot> {
   /** Where a confirmed save lands. Defaults to cloud; the desktop passes local
    *  for a file on disk so the label does not claim a UniWork receipt. */
   saveDestination?: "cloud" | "local";
+  /** UNI-952: the host print port. Undefined = the web browser port; null =
+   *  this host cannot print (no Print entry is shown). */
+  printPort?: OfficePrintPort | null;
 }
 
 export type XlsxViewState = "opening" | "ready" | "error";

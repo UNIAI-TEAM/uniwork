@@ -105,6 +105,14 @@ describe("render model bridge", () => {
     }
   });
 
+  it("passes the file page layout through for print (UNI-952) and omits it when absent", () => {
+    const pageSetup = { orientation: "landscape" as const, paperSize: 9, rowBreaks: [20] };
+    const model: XlsxRenderModel = { ...MODEL, sheets: [{ ...MODEL.sheets[0]!, pageSetup }, ...MODEL.sheets.slice(1)] };
+    const file = toRendererWorkbookFile(model, { sessionId: "s", name: "n.xlsx", sha256: "x" });
+    expect(file.sheets[0]!.pageSetup).toEqual(pageSetup);
+    expect(toRendererWorkbookFile(MODEL, { sessionId: "s", name: "n.xlsx", sha256: "x" }).sheets[0]).not.toHaveProperty("pageSetup");
+  });
+
   it("maps the tables a file ships into the renderer sheet shape", () => {
     const withTable: XlsxRenderModel = {
       ...MODEL,

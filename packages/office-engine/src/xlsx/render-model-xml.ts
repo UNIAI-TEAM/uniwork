@@ -6,7 +6,7 @@ export const decodeXml = (text: string): string =>
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec), 10))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
     .replace(/&amp;/g, "&");
 
 export const attribute = (tag: string, name: string): string | undefined => {

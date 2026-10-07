@@ -19,9 +19,8 @@ export interface HtmlEditorProps<TSnapshot = unknown> {
   manifest?: AssetManifestLike | null;
   assetFailures?: Readonly<Record<string, AssetStatus | boolean>>;
   permissions?: import("../source-editor-types").TextEditorPermissions;
-  /** The host print path. When absent the surface offers no Print entry at
-   * all, so the web host and its tests are unchanged; a host that injects
-   * one gets the same sanitized-copy entry the Markdown surface has. */
+  /** The host print path (desktop injects its own). When absent the surface
+   * prints through the shared browser port, like the Markdown surface. */
   printPort?: MarkdownPrintPort;
   /**
    * The visual editor host (browser parse map + engine `applyPatchSet`). With

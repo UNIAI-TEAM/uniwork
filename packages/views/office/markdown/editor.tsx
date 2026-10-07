@@ -51,8 +51,9 @@ import { MarkdownTableMenu } from "./wysiwyg/table-menu";
 import { MarkdownFind, type MarkdownFindHandle } from "./wysiwyg/find";
 import { MarkdownOutlinePane } from "./wysiwyg/outline";
 import { MarkdownFrontmatterPanel } from "./wysiwyg/frontmatter";
-import { MarkdownPrintMenuItems } from "./wysiwyg/print-menu";
-import type { MarkdownPrintPort } from "./wysiwyg/print";
+import { MarkdownPrintMenuItems, MarkdownPrintShortcut } from "./wysiwyg/print-menu";
+import { PrintNotice, usePrintNotice } from "./wysiwyg/print-notice";
+import { createBrowserPrintPort } from "../print";
 import type { MarkdownEditorProps, MarkdownOpenOutcome } from "./types";
 import { useOfficeDocumentActive } from "../common/document-active";
 
@@ -80,25 +81,9 @@ function canWrite<TSnapshot>(editor: MarkdownEditorProps<TSnapshot>["editor"]): 
   return Boolean(editor.source?.setText || editor.setText);
 }
 
-/**
- * The web host's print path for this surface (M8: the view calls the INJECTED
- * port, never `window.print()`). The sanitized copy goes into an off-screen
- * frame and only that frame prints, so app chrome never reaches the job.
- */
-const browserPrintPort: MarkdownPrintPort = {
-  print({ html, title }) {
-    if (typeof document === "undefined") return { outcome: "failed", reason: "no_dom" };
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true"); frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-    document.body.append(frame);
-    const view = frame.contentWindow;
-    if (!view?.document) { frame.remove(); return { outcome: "failed", reason: "no_print_frame" }; }
-    view.document.open(); view.document.write(html); view.document.close();
-    view.document.title = title;
-    try { view.focus(); view.print(); } catch { frame.remove(); return { outcome: "failed", reason: "print_blocked" }; }
-    window.setTimeout(() => frame.remove(), 0); return { outcome: "printed" };
-  },
-};
+/** The web host's print path (M8): the shared isolated-frame port, so app
+ * chrome never reaches the job. */
+const browserPrintPort = createBrowserPrintPort();
 
 /** The Markdown document surface: lifecycle + the visual / source canvases. */
 export function MarkdownEditor<TSnapshot = unknown>({
@@ -383,6 +368,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
   // preview renderer, then let the sanitizer + port take over. Never the raw
   // source, never `window.print()`.
   const renderPrintHtml = useCallback(() => buildMarkdownPreviewCopy({ source: sourceText(editorRef.current, latestTextRef.current), document_path: "document.md" }), []);
+  const printNotice = usePrintNotice();
   // m3: the section owns Ctrl+S only while focus is inside it; after the find
   // panel closes with Escape, focus falls to `document.body` and the press is
   // lost. This window listener covers that gap - a press inside the landmark is
@@ -505,7 +491,9 @@ export function MarkdownEditor<TSnapshot = unknown>({
         >
           {/* M-6/C4: print + export ride the page overflow menu, not a
               floating button over the canvas (C9). Renders nothing itself. */}
-          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
+          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />} />
+          <MarkdownPrintShortcut port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />
+          <PrintNotice notice={printNotice.notice} />
           {/*
             M7 find/replace owns the panel, Ctrl+F (find-only), Ctrl+H (with
             replace) and Escape. It is mounted for BOTH canvases: the visual

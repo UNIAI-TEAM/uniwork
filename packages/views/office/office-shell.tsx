@@ -9,6 +9,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { BreadcrumbHeader, type BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../layout/header-actions-slot";
 import { PAGE_TOOLBAR } from "../layout/page-header";
+import { OfficePrintShortcutScope } from "./print/shortcut";
 import { SaveStatus, type OfficeSaveStatusKind } from "./save-status";
 
 export interface OfficeSaveCoordinatorLike {
@@ -257,7 +258,7 @@ export function OfficeShell({
     </div>
   );
 
-  return (
+  const shell = (
     <div
       ref={shellRef}
       className={cn("flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground", fullscreen && "fixed inset-0 z-40", className)}
@@ -328,4 +329,7 @@ export function OfficeShell({
       </div>
     </div>
   );
+
+  // Ctrl/Cmd+P anywhere on the page runs the open document's Print (UNI-952).
+  return <OfficePrintShortcutScope rootRef={shellRef}>{shell}</OfficePrintShortcutScope>;
 }

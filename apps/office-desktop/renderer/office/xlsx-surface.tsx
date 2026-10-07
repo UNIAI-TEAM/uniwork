@@ -4,7 +4,8 @@ import { OfficeShell } from "@uniwork/views/office/office-shell";
 import { XlsxEditor, type XlsxModelHost } from "@uniwork/views/office/xlsx";
 import { DraftRecoveryPrompt } from "@uniwork/views/office/leave-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
+import { DropdownMenuGroup } from "@uniwork/ui/components/ui/dropdown-menu";
+import { HeaderActionsSlotProvider } from "@uniwork/views/layout/header-actions-slot";
 import { RecoveryNotice, type DesktopRecoveryState } from "../recovery-status";
 import { LockedAiEntry } from "../ai-entry";
 import { FeatureOffNotice } from "./feature-off-notice";
@@ -13,12 +14,7 @@ import type { ReadOnlyReason } from "../tabs/use-document-tabs";
 import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
 import type { DesktopXlsxSession } from "./xlsx-session";
-
-/** The header overflow control, same glyph as the other formats' document menu
- *  (open-document.tsx keeps its copy module-private). */
-function MoreIcon() {
-  return <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></svg>;
-}
+import { DesktopDocumentMenu, useDesktopPrint } from "./document-menu";
 
 /** The desktop XLSX document surface. It mounts the SAME shared XlsxEditor the
  *  web host uses, through the host-adapter seams the session binds: open/save
@@ -38,7 +34,6 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
-  const { t: tOffice } = useTranslation(undefined, { keyPrefix: "office" });
   const { t: tAi } = useTranslation(undefined, { keyPrefix: "officeDesktop.ai" });
   const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
   const [notice, setNotice] = useState<DesktopRecoveryState | null>(null);
@@ -47,6 +42,7 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
   const prepareRef = useRef<(() => Promise<void>) | null>(null);
   const featureOff = readOnlyReason !== undefined && !session.canSave;
   const formatName = useFeatureOffFormatName("xlsx");
+  const print = useDesktopPrint(bridge);
   const saveState = useSyncExternalStore(session.coordinator.subscribe, () => session.coordinator.getState().state);
 
   useEffect(() => () => session.dispose(), [session]);
@@ -83,20 +79,19 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
       onRecover={async () => { const outcome = await session.recoverDraft(offer.metadata); if (outcome === "locked") { setNotice("locked"); setOffer(null); return true; } const applied = outcome === "recovered"; setRecovered(applied); if (applied) setOffer(null); return applied; }}
       onKeep={async () => { setOffer(null); return true; }}
       onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null}
+    {/* The slot provider lets the workbook view contribute its document menu
+        items (Print) to the desktop menu, as it does to the web page menu. */}
+    <HeaderActionsSlotProvider>
     <OfficeShell title={title} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} saveCoordinator={saveCoordinator} saveStatus={featureOff ? "ready" : undefined} editorReady={active && session.canSave}
       saveDestination={kind === "local" ? "local" : "cloud"}
-      actions={<>{kind === "local" ? <DropdownMenu>
-        <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={tOffice("ribbon.more")} title={tOffice("ribbon.more")} data-office-document-menu />}>
-          <MoreIcon />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-56">
-          <DropdownMenuGroup aria-label={tAi("entry")} className="p-1 [&>button]:w-full [&>button]:justify-start"><LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /></DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu> : null}<Button type="button" variant="outline" disabled={saveState === "saving"} onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</Button></>}
+      actions={<><DesktopDocumentMenu>
+        {kind === "local" ? <DropdownMenuGroup aria-label={tAi("entry")} className="p-1 [&>button]:w-full [&>button]:justify-start"><LockedAiEntry signedIn={signedIn} onSignIn={onSignIn} /></DropdownMenuGroup> : null}
+      </DesktopDocumentMenu><Button type="button" variant="outline" disabled={saveState === "saving"} onClick={onBack}>{kind === "local" ? tLocal("home") : t("back")}</Button></>}
       editor={<>
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}
         {featureOff ? <FeatureOffNotice formatName={formatName} reason={readOnlyReason} className="mx-4 my-2" /> : null}
+        {print.hint}
         <XlsxEditor
           documentKey={session.documentKey}
           editor={session.editor}
@@ -108,8 +103,10 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
           title={title}
           embedded
           saveDestination={kind === "local" ? "local" : "cloud"}
+          printPort={print.port}
           registerSavePreparation={(prepare) => { prepareRef.current = prepare; return () => { if (prepareRef.current === prepare) prepareRef.current = null; }; }}
         />
       </>} />
+    </HeaderActionsSlotProvider>
   </>;
 }

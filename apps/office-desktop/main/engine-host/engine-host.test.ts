@@ -29,7 +29,7 @@ const never = (): Promise<unknown> => new Promise(() => undefined);
 
 function setup(handlers: Partial<EngineHostHandlers> = {}) {
   const children: FakeChild[] = [];
-  const full: EngineHostHandlers = { "xlsx-open": never, "xlsx-edit": never, "pdf-call": never, ...handlers };
+  const full: EngineHostHandlers = { "xlsx-open": never, "xlsx-edit": never, "pdf-call": never, "pdf-release": never, ...handlers };
   const client = createEngineHostClient(() => { const child = new FakeChild(full); children.push(child); return child; });
   return { children, client };
 }
@@ -123,6 +123,22 @@ describe("engine host supervisor", () => {
     expect(first.killed).toBe(true);
     await expect(client.call("pdf-call", {})).resolves.toEqual({ ok: true });
     expect(children).toHaveLength(2);
+  });
+
+  it("notifies a running child in order and never spawns one for a notice", async () => {
+    const order: string[] = [];
+    const { client, children } = setup({
+      "pdf-release": async () => { order.push("release"); return null; },
+      "pdf-call": async (payload) => { order.push(String((payload as { n: number }).n)); return { ok: true }; },
+    });
+    client.notify("pdf-release", null);
+    expect(children).toHaveLength(0);
+    await client.call("pdf-call", { n: 1 });
+    client.notify("pdf-release", null);
+    // The notice's answer is dropped and does not settle the call after it.
+    await expect(client.call("pdf-call", { n: 2 })).resolves.toEqual({ ok: true });
+    expect(order).toEqual(["1", "release", "2"]);
+    expect(children).toHaveLength(1);
   });
 
   it("dispose kills the child and fails what is pending", async () => {

@@ -13,6 +13,7 @@ import type { XlsxGridEdit } from "./xlsx-edit-bridge";
 import type { XlsxGridRange } from "./selection-mapping";
 import type { XlsxVisualsGrid } from "./visuals/use-xlsx-visuals";
 import type { XlsxDroppedRuleSet } from "./conditional-format/rule-set-drops";
+import type { XlsxPrintGrid } from "./print/collect-live";
 import type { XlsxLiveRule, XlsxRuleFamily } from "./toolbar/types";
 
 export interface XlsxGridHostPort {
@@ -85,6 +86,8 @@ export interface XlsxGridHandle extends XlsxVisualsGrid {
   restoreRuleSet?(sheetId: string, family: XlsxDroppedRuleSet["family"], rules: XlsxDroppedRuleSet["savedRules"]): boolean;
   /** UNI-953: a sheet's live CF / DV rules for the rule managers. */
   readRuleSets?(sheetId: string, family: XlsxRuleFamily): readonly XlsxLiveRule[] | null;
+  /** UNI-952: what the grid paints for a range, for print (optional). */
+  readPrintRange?: XlsxPrintGrid["readPrintRange"];
   setDarkMode(dark: boolean): void;
   /** Live language change: number separators follow it (the renderer re-paints). */
   setLocale?(lang: "en" | "vi"): void;
@@ -218,6 +221,7 @@ export function XlsxGridSurface({
       getCellBox: (sheetId, row, column) => handleRef.current?.getCellBox?.(sheetId, row, column) ?? null,
       cellAtPoint: (sheetId, x, y) => handleRef.current?.cellAtPoint?.(sheetId, x, y) ?? null,
       readRangeValues: (sheetId, range) => handleRef.current?.readRangeValues?.(sheetId, range) ?? null,
+      readPrintRange: (sheetId, range) => handleRef.current?.readPrintRange?.(sheetId, range) ?? null,
       dispose: () => {
         handleRef.current?.dispose();
         handleRef.current = null;

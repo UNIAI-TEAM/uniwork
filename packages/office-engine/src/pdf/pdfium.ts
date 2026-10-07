@@ -260,19 +260,22 @@ export class PdfOpenError extends Error {
   }
 }
 
+/** A pdfium document loaded from a heap copy of its bytes; both stay
+    allocated until closeDocument. */
+export interface OpenedDocument {
+  readonly doc: number;
+  readonly docPtr: number;
+}
+
 /**
- * Open `bytes` in pdfium and run `fn` on the document pointer. An encrypted
- * document is opened with `password` when one is supplied (pdfium performs the
- * decryption; this build never writes decrypted bytes anywhere). The password
- * is UTF-8 + NUL terminated into the wasm heap for the load call only, then
- * wiped and freed before `fn` runs — it is never kept, echoed back or logged.
+ * Load `bytes` into pdfium. An encrypted document is opened with `password`
+ * when one is supplied (pdfium performs the decryption; this build never
+ * writes decrypted bytes anywhere). The password is UTF-8 + NUL terminated into
+ * the wasm heap for the load call only, then wiped and freed before this
+ * returns — it is never kept, echoed back or logged. The caller owns the
+ * result and must hand it to closeDocument.
  */
-export async function withDocument<T>(
-  m: Pdfium,
-  bytes: Uint8Array,
-  fn: (doc: number) => Promise<T>,
-  password?: string,
-): Promise<T> {
+export function openDocument(m: Pdfium, bytes: Uint8Array, password?: string): OpenedDocument {
   const docPtr = m._malloc(bytes.length);
   if (!docPtr) throw new PdfOpenError("heap");
   m.HEAPU8.set(bytes, docPtr);
@@ -303,10 +306,27 @@ export async function withDocument<T>(
     m._free(docPtr);
     throw new PdfOpenError(err);
   }
+  return { doc, docPtr };
+}
+
+/** Close a document openDocument loaded and free its heap copy. */
+export function closeDocument(m: Pdfium, opened: OpenedDocument): void {
+  m._FPDF_CloseDocument(opened.doc);
+  m._free(opened.docPtr);
+}
+
+/** Open `bytes` (see openDocument), run `fn` on the document pointer, and
+ * close it however `fn` settles. */
+export async function withDocument<T>(
+  m: Pdfium,
+  bytes: Uint8Array,
+  fn: (doc: number) => Promise<T>,
+  password?: string,
+): Promise<T> {
+  const opened = openDocument(m, bytes, password);
   try {
-    return await fn(doc);
+    return await fn(opened.doc);
   } finally {
-    m._FPDF_CloseDocument(doc);
-    m._free(docPtr);
+    closeDocument(m, opened);
   }
 }

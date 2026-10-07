@@ -59,20 +59,50 @@ describe("XlsxPageSetupGroup", () => {
     const onExportCsv = vi.fn();
     render(<XlsxPageSetupGroup {...groupProps({ onOpenPageSetup, onPrint, onExportCsv })} />);
     expect(screen.getByTestId("xlsx-page-setup-open")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.pageSetup.open"));
+    expect(screen.getByTestId("xlsx-print")).toHaveAccessibleName(lookup(viLocale, "office.common.print"));
+    expect(screen.getByTestId("xlsx-export-csv")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.export.csv"));
     fireEvent.click(screen.getByTestId("xlsx-page-setup-open"));
     fireEvent.click(screen.getByTestId("xlsx-print"));
     fireEvent.click(screen.getByTestId("xlsx-export-csv"));
     expect(onOpenPageSetup).toHaveBeenCalledOnce();
     expect(onPrint).toHaveBeenCalledOnce();
     expect(onExportCsv).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("xlsx-print")).not.toHaveAttribute("aria-busy");
   });
 
-  it("stays in the tab order and inert when the host wires no handlers", () => {
-    // No handlers at all: every control is inert (and still in the tab order).
+  it("names the ribbon Print icon button from its label alone, busy or not, and both languages carry that label (m3)", () => {
+    for (const dictionary of [viLocale, en]) expect((lookup(dictionary, "office.common.print") as string).trim()).not.toBe("");
+    const name = lookup(viLocale, "office.common.print") as string;
+    for (const printBusy of [false, true]) {
+      const { unmount } = render(<XlsxPageSetupGroup {...groupProps({ printBusy })} />);
+      const button = screen.getByRole("button", { name });
+      expect(button).toBe(screen.getByTestId("xlsx-print"));
+      // The icon carries no text of its own: the label is the whole name.
+      expect(button).toHaveTextContent("");
+      expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      unmount();
+    }
+  });
+
+  it("shows Print busy and inert, still focusable, while a run is pending (R1)", () => {
+    const onPrint = vi.fn();
+    render(<XlsxPageSetupGroup {...groupProps({ onPrint, printBusy: true })} />);
+    const button = screen.getByTestId("xlsx-print");
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    fireEvent.click(button);
+    expect(onPrint).not.toHaveBeenCalled();
+  });
+
+  it("stays in the tab order and inert when the host wires no handlers, and offers no Print without a port", () => {
+    // No handlers at all: Page Setup and CSV are inert (and still in the tab
+    // order); Print is not rendered (UNI-952: a host that cannot print).
     const view = render(
       <XlsxPageSetupGroup {...groupProps({ onOpenPageSetup: undefined, onPrint: undefined, onExportCsv: undefined })} />,
     );
-    for (const testId of ["xlsx-page-setup-open", "xlsx-print", "xlsx-export-csv"]) {
+    expect(screen.queryByTestId("xlsx-print")).toBeNull();
+    for (const testId of ["xlsx-page-setup-open", "xlsx-export-csv"]) {
       const button = screen.getByTestId(testId);
       expect(button).toHaveAttribute("aria-disabled", "true");
       expect(button).not.toBeDisabled();
@@ -119,7 +149,7 @@ describe("xlsx page-setup registry entry", () => {
   });
 
   it("keeps the page-setup and export subtrees in vi/en key parity", () => {
-    for (const subtree of ["office.xlsx.pageSetup", "office.xlsx.export"]) {
+    for (const subtree of ["office.xlsx.pageSetup", "office.xlsx.export", "office.xlsx.print"]) {
       const paths = (dictionary: unknown) => stringPaths(lookup(dictionary, subtree));
       expect(paths(viLocale).length).toBeGreaterThan(0);
       expect(paths(viLocale)).toEqual(paths(en));

@@ -9,6 +9,7 @@ function fakeRenderer(build: ThumbnailBuilder): PptxDeckRenderer {
   return {
     buildThumbnail: build,
     buildSlide: () => null,
+    buildSlideMarkup: () => null,
     viewport: (fitWidthPx) => ({ widthPx: fitWidthPx, heightPx: fitWidthPx / 2, scale: 1 }),
     slideCount: 3,
     aspect: 0.5,

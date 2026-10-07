@@ -71,6 +71,10 @@ make test-go   # chỉ Go: gofmt, vet, staticcheck, test -race (tự đảm bả
 make e2e       # chỉ Playwright, cần app đang chạy (E2E_BASE_URL)
 ```
 
+Playwright đọc `NEXT_PUBLIC_API_URL` (mặc định `http://localhost:8080`) để seed dữ liệu; giá trị này phải
+trùng với API mà bản build web được trỏ tới. Global setup (`e2e/api-url.ts`) mở app một lần và dừng cả lượt
+chạy nếu app gọi một API khác. Spec `office-shell` chỉ chạy khi có `OFFICE_SHELL_E2E=1` (CI bật sẵn).
+
 CI (`.github/workflows/ci.yml`) chạy mọi thứ trừ Playwright.
 
 ## Cấu trúc

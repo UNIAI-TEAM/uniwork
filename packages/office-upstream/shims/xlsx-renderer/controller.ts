@@ -34,7 +34,7 @@ import { watchRendererHistory, type XlsxRendererHistoryState } from "./history";
 import { installDvRejectDialogTitle, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
 import { installDvDropdownSearchGuard } from "./dv-dropdown-search";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
-import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
+import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererPrintRange, type XlsxRendererRangeValues } from "./geometry";
 import {
   applyColumnDefaultWidth,
   applyOutlineCollapse,
@@ -232,6 +232,8 @@ export interface XlsxRendererHandle {
   cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
   /** Live values of a range on the active sheet (null for another sheet). */
   readRangeValues(sheetId: string, range: IRange): XlsxRendererRangeValues | null;
+  /** UNI-952: composed styles, sizes and merges of a range, for print. */
+  readPrintRange(sheetId: string, range: IRange): XlsxRendererPrintRange | null;
   dispose(): void;
 }
 
@@ -1046,6 +1048,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     getCellBox: geometry.getCellBox,
     cellAtPoint: geometry.cellAtPoint,
     readRangeValues: geometry.readRangeValues,
+    readPrintRange: geometry.readPrintRange,
     dispose() {
       disposed = true;
       removeShiftedNavigation();

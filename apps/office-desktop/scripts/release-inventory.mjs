@@ -162,14 +162,27 @@ async function collectFontRows() {
   return rows.sort((a, b) => a.fixture.localeCompare(b.fixture));
 }
 
-async function scanEe() {
-  const matches = [];
-  for (const file of await listFiles(repositoryRoot)) {
-    if (file.includes(`${sep}.git${sep}`) || file.includes(`${sep}node_modules${sep}`) || file.includes(`${sep}dist${sep}`)) continue;
-    const parts = file.split(/[\\/]/);
-    if (parts.includes("ee")) matches.push(relative(repositoryRoot, file).replaceAll("\\", "/"));
+/** Every file git would ship from `root`: tracked files (a force-added file under
+ * an ignored directory included) plus untracked files no ignore rule hides.
+ * Whether a directory is a cache is git's call (`.gitignore`), never a list of
+ * directory names here: a source directory that merely shares a cache's name
+ * (`coverage`, `dist`) is still scanned, and a git-ignored Go build cache of
+ * hundreds of megabytes is never listed because git does not descend into it. */
+function shippableFiles(root) {
+  const result = spawnSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+    cwd: root,
+    encoding: "utf8",
+    windowsHide: true,
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) {
+    throw new Error(`ee scan: git ls-files failed in ${root}: ${String(result.stderr ?? result.error?.message ?? "").trim() || result.error?.message || "no output"}`);
   }
-  return matches;
+  return [...new Set(String(result.stdout).split("\0").filter(Boolean))].sort();
+}
+
+export async function scanEe(root = repositoryRoot) {
+  return shippableFiles(root).filter((file) => file.split("/").includes("ee"));
 }
 
 export async function generateReleaseInventory({ outputDirectory = join(appDirectory, "dist", "release-inventory"), metafile } = {}) {

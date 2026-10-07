@@ -119,6 +119,8 @@ export interface XlsxToolbarGroupProps {
   onOpenPageSetup?: () => void;
   /** Prints the document through the host print path. */
   onPrint?: () => void;
+  /** UNI-952: a print run is pending (the Print button shows busy). */
+  printBusy?: boolean;
   /** Downloads the active sheet as CSV. */
   onExportCsv?: () => void;
   /** The renderer host for the groups that must read cells (AutoSum's guess).

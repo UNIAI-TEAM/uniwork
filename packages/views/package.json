@@ -69,6 +69,7 @@
     "./office/pdf/page-ops": "./office/pdf/page-ops/index.ts",
     "./office/pdf/page-box": "./office/pdf/page-box/index.ts",
     "./office/pdf/types": "./office/pdf/types.ts",
+    "./office/print": "./office/print/index.ts",
     "./office/pdf/*": "./office/pdf/*.tsx",
     "./office/ribbon": "./office/ribbon/index.ts"
   },

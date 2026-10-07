@@ -1,4 +1,5 @@
 import { Client } from "pg";
+import { assertWebUsesE2eApi, e2eApiUrl } from "./api-url";
 
 /**
  * Global setup: turn the `documents` flag on for the database the suite runs
@@ -13,9 +14,11 @@ const url =
   process.env.E2E_DATABASE_URL ??
   process.env.DATABASE_URL ??
   "postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable";
-const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const api = e2eApiUrl;
 
 export default async function globalSetup(): Promise<void> {
+  // Fail before any spec if the web build and the specs disagree on the API.
+  await assertWebUsesE2eApi();
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
