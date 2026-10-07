@@ -4791,7 +4791,8 @@
       "icon_label": "Choose icon",
       "confirm": "Create project",
       "toast_created": "Project created",
-      "toast_failed": "Couldn't create the project"
+      "toast_failed": "Couldn't create the project",
+      "title_duplicate": "A project with this title already exists."
     },
     "toolbar": {
       "result_count_title": "Matching projects / all projects",

@@ -512,6 +512,43 @@ func (q *Queries) ListProjectResources(ctx context.Context, arg ListProjectResou
 	return items, nil
 }
 
+const listProjectTitlesForDuplicateCheck = `-- name: ListProjectTitlesForDuplicateCheck :many
+SELECT id, title FROM projects
+WHERE organization_id = $1
+  AND workspace_id = $2
+ORDER BY created_at, id
+`
+
+type ListProjectTitlesForDuplicateCheckParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type ListProjectTitlesForDuplicateCheckRow struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+func (q *Queries) ListProjectTitlesForDuplicateCheck(ctx context.Context, arg ListProjectTitlesForDuplicateCheckParams) ([]ListProjectTitlesForDuplicateCheckRow, error) {
+	rows, err := q.db.Query(ctx, listProjectTitlesForDuplicateCheck, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectTitlesForDuplicateCheckRow{}
+	for rows.Next() {
+		var i ListProjectTitlesForDuplicateCheckRow
+		if err := rows.Scan(&i.ID, &i.Title); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjects = `-- name: ListProjects :many
 SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
@@ -568,6 +605,15 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockProjectDuplicateKey = `-- name: LockProjectDuplicateKey :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+func (q *Queries) LockProjectDuplicateKey(ctx context.Context, dollar_1 string) error {
+	_, err := q.db.Exec(ctx, lockProjectDuplicateKey, dollar_1)
+	return err
 }
 
 const searchProjects = `-- name: SearchProjects :many

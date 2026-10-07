@@ -4787,7 +4787,8 @@
       "icon_label": "Chọn biểu tượng",
       "confirm": "Tạo dự án",
       "toast_created": "Đã tạo dự án",
-      "toast_failed": "Không tạo được dự án"
+      "toast_failed": "Không tạo được dự án",
+      "title_duplicate": "Đã có dự án với tên này."
     },
     "toolbar": {
       "result_count_title": "Dự án khớp / tất cả dự án",

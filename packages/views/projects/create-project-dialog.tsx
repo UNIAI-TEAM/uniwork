@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { PROJECT_PRIORITY_ORDER } from "@uniwork/core/projects/config";
 import { useCreateProject } from "@uniwork/core/tasks";
 import type { ProjectPriority, ProjectStatus } from "@uniwork/core/types/project";
@@ -27,6 +26,7 @@ import {
   CreateProjectStatusField,
   ProjectIconField,
 } from "./create-project-fields";
+import { createProjectErrorMessage } from "./create-project-error";
 import { leadRefToProjectBody } from "./project-row-metrics";
 
 const TITLE_MAX_LENGTH = 200;
@@ -107,7 +107,12 @@ export function CreateProjectDialog({
       toast.success(t("projects.create_dialog.toast_created"));
       if (created?.id) onCreated(created.id);
     } catch (err) {
-      toast.error(apiErrorMessage(err) ?? t("projects.create_dialog.toast_failed"));
+      toast.error(
+        createProjectErrorMessage(err, {
+          duplicateTitle: t("projects.create_dialog.title_duplicate"),
+          fallback: t("projects.create_dialog.toast_failed"),
+        }),
+      );
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
