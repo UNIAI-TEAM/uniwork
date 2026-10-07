@@ -34,7 +34,7 @@ export const desktopPrintGeometrySchema = z.object(printGeometryShape).strict();
 export type DesktopPrintGeometry = z.infer<typeof desktopPrintGeometrySchema>;
 
 /** One 0-based, inclusive page span of the in-app print dialog (UNI-961). */
-const pageRangeSchema = z.object({ from: z.number().int().min(0).max(99_999), to: z.number().int().min(0).max(99_999) }).strict().refine((range) => range.from <= range.to, "range runs backwards");
+export const pageRangeSchema = z.object({ from: z.number().int().min(0).max(99_999), to: z.number().int().min(0).max(99_999) }).strict().refine((range) => range.from <= range.to, "range runs backwards");
 
 /**
  * What main hands to `webContents.print` besides its fixed defaults. Without
@@ -84,7 +84,32 @@ export type DesktopPrintPreviewResponse = z.infer<typeof desktopPrintPreviewResp
 
 /** `desktop:print-printers`: the OS printers (`webContents.getPrintersAsync`),
  * names only - never driver options, ports or locations. */
-export const desktopPrinterSchema = z.object({ name: z.string().min(1).max(256), displayName: z.string().max(256), isDefault: z.boolean() }).strict();
+/** `needsSystemDialog`: the queue's port asks the user something (a file name
+ * for PORTPROMPT:, FILE:, XPSPort:; a fax number for SHRFAX:), which a silent
+ * job cannot answer - Electron fails or never calls back. The in-app dialog
+ * sends such a printer to the system dialog instead (UNI-961 live probe). */
+export const desktopPrinterSchema = z.object({ name: z.string().min(1).max(256), displayName: z.string().max(256), isDefault: z.boolean(), needsSystemDialog: z.boolean() }).strict();
 export type DesktopPrinter = z.infer<typeof desktopPrinterSchema>;
 export const desktopPrintPrintersResponseSchema = z.object({ printers: z.array(desktopPrinterSchema).max(128) }).strict();
 export type DesktopPrintPrintersResponse = z.infer<typeof desktopPrintPrintersResponseSchema>;
+
+/** `desktop:print-save-pdf`: the in-app "Save as PDF" destination. Main lays
+ * the same script-free copy out with printToPDF at the chosen geometry and
+ * pages, and writes it where the user picks in main's own save dialog - the
+ * renderer never names a path. */
+export const desktopPrintSavePdfRequestSchema = z.object({
+  sessionGeneration: z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation"),
+  title: z.string().max(255),
+  html: z.string().min(1).max(PRINT_HTML_MAX_BYTES),
+  options: z.object({ ...printGeometryShape, pageRanges: z.array(pageRangeSchema).min(1).max(100).optional() }).strict(),
+}).strict();
+export type DesktopPrintSavePdfRequest = z.infer<typeof desktopPrintSavePdfRequestSchema>;
+
+/** `saved`, `cancelled` (the save dialog was dismissed) or a typed failure:
+ * `print_busy`, `print_timeout`, `print_unavailable`, `print_save_failed`. */
+export const desktopPrintSavePdfResponseSchema = z.discriminatedUnion("outcome", [
+  z.object({ outcome: z.literal("saved") }).strict(),
+  z.object({ outcome: z.literal("cancelled") }).strict(),
+  z.object({ outcome: z.literal("failed"), reason: z.string().regex(/^[a-z0-9_]{1,64}$/) }).strict(),
+]);
+export type DesktopPrintSavePdfResponse = z.infer<typeof desktopPrintSavePdfResponseSchema>;

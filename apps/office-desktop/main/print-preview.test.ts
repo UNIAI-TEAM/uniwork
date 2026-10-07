@@ -209,14 +209,14 @@ describe("desktop:print-printers", () => {
       { name: "Blank display", displayName: "" },
     ])(ask);
     expect(answer).toEqual({ printers: [
-      { name: "HP_LaserJet", displayName: "HP LaserJet", isDefault: true },
-      { name: "Plain", displayName: "Plain", isDefault: false },
-      { name: "Blank display", displayName: "Blank display", isDefault: false },
+      { name: "HP_LaserJet", displayName: "HP LaserJet", isDefault: true, needsSystemDialog: false },
+      { name: "Plain", displayName: "Plain", isDefault: false, needsSystemDialog: false },
+      { name: "Blank display", displayName: "Blank display", isDefault: false, needsSystemDialog: false },
     ] });
   });
   it("drops entries with an empty or oversized name and truncates a long display name", async () => {
     const answer = await listPrinters([{ name: "" }, { name: "n".repeat(257) }, { name: "ok", displayName: "d".repeat(300) }])(ask);
-    expect(answer.printers).toEqual([{ name: "ok", displayName: "d".repeat(256), isDefault: false }]);
+    expect(answer.printers).toEqual([{ name: "ok", displayName: "d".repeat(256), isDefault: false, needsSystemDialog: false }]);
   });
   it("caps the list at 128 printers", async () => {
     const many = Array.from({ length: 200 }, (_, index) => ({ name: `printer-${index}` }));
@@ -230,8 +230,40 @@ describe("desktop:print-printers", () => {
     const sync = createPrintersIpcHandler({ listPrinters: () => { throw new Error("destroyed"); } })["desktop:print-printers"];
     expect(await sync(ask)).toEqual({ printers: [] });
   });
+  it("marks the OS default printer when the list does not say which it is", async () => {
+    const printers = async () => [{ name: "OneNote" }, { name: "Microsoft Print to PDF" }];
+    const handler = createPrintersIpcHandler({ listPrinters: printers, defaultPrinter: async () => "Microsoft Print to PDF" })["desktop:print-printers"];
+    expect((await handler(ask)).printers.map((printer) => printer.isDefault)).toEqual([false, true]);
+    const failing = createPrintersIpcHandler({ listPrinters: printers, defaultPrinter: () => { throw new Error("reg"); } })["desktop:print-printers"];
+    expect((await failing(ask)).printers).toHaveLength(2);
+  });
+  it("flags a printer whose port prompts, leaves unknown and silent ports unflagged, and keeps the default mark", async () => {
+    const printers = async () => [{ name: "Microsoft Print to PDF" }, { name: "Fax" }, { name: "OneNote (Desktop)" }, { name: "Unlisted" }, { name: "Microsoft XPS Document Writer" }];
+    const ports = async () => new Map([["Microsoft Print to PDF", "PORTPROMPT:"], ["Fax", "SHRFAX:"], ["OneNote (Desktop)", "nul:"], ["Microsoft XPS Document Writer", "XPSPort:"]]);
+    const handler = createPrintersIpcHandler({ listPrinters: printers, printerPorts: ports, defaultPrinter: async () => "Microsoft Print to PDF" })["desktop:print-printers"];
+    expect((await handler(ask)).printers.map((printer) => [printer.name, printer.needsSystemDialog, printer.isDefault])).toEqual([
+      ["Microsoft Print to PDF", true, true],
+      ["Fax", true, false],
+      ["OneNote (Desktop)", false, false],
+      ["Unlisted", false, false],
+      ["Microsoft XPS Document Writer", true, false],
+    ]);
+  });
+  it("flags nothing without a port reader, and never loses the list when the reader fails or answers rubbish", async () => {
+    const printers = async () => [{ name: "A" }, { name: "B" }];
+    const none = createPrintersIpcHandler({ listPrinters: printers })["desktop:print-printers"];
+    expect((await none(ask)).printers.map((printer) => printer.needsSystemDialog)).toEqual([false, false]);
+    for (const printerPorts of [async () => { throw new Error("reg"); }, () => { throw new Error("sync"); }, async () => "garbage" as never, async () => undefined as never]) {
+      const handler = createPrintersIpcHandler({ listPrinters: printers, printerPorts })["desktop:print-printers"];
+      const answer = await handler(ask);
+      expect(answer.printers.map((printer) => printer.name)).toEqual(["A", "B"]);
+      expect(answer.printers.map((printer) => printer.needsSystemDialog)).toEqual([false, false]);
+    }
+  });
   it("passes the dispatcher's response check", async () => {
     const dispatch = createIpcDispatcher({ "desktop:print-printers": listPrinters([{ name: "A", isDefault: true }]) }, context);
-    expect(await dispatch("desktop:print-printers", ask)).toEqual({ printers: [{ name: "A", displayName: "A", isDefault: true }] });
+    expect(await dispatch("desktop:print-printers", ask)).toEqual({ printers: [{ name: "A", displayName: "A", isDefault: true, needsSystemDialog: false }] });
+    const missing = createIpcDispatcher({ "desktop:print-printers": async () => ({ printers: [{ name: "A", displayName: "A", isDefault: true }] } as never) }, context);
+    await expect(missing("desktop:print-printers", ask)).rejects.toThrowError(IpcValidationError);
   });
 });

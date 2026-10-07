@@ -2,9 +2,9 @@ import { z } from "zod";
 import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, DESKTOP_DOCUMENT_FORMATS, desktopDocumentMimeTypes, type DesktopDocumentFormat } from "./document-formats";
 import { isAllowedExternalUrl } from "./external-url";
 import { bytesSchema, isByteValue } from "./ipc-bytes";
-import { desktopPrintOptionsSchema, desktopPrintPreviewRequestSchema, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES } from "./ipc-print";
+import { desktopPrintOptionsSchema, desktopPrintPreviewRequestSchema, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, desktopPrintSavePdfRequestSchema, desktopPrintSavePdfResponseSchema, PRINT_HTML_MAX_BYTES } from "./ipc-print";
 
-export { PRINT_HTML_MAX_BYTES, PRINT_PREVIEW_MAX_BYTES, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, type DesktopPrinter, type DesktopPrintGeometry, type DesktopPrintOptions, type DesktopPrintPreviewResponse, type DesktopPrintResponse } from "./ipc-print";
+export { PRINT_HTML_MAX_BYTES, PRINT_PREVIEW_MAX_BYTES, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, desktopPrintSavePdfResponseSchema, type DesktopPrinter, type DesktopPrintSavePdfResponse, type DesktopPrintGeometry, type DesktopPrintOptions, type DesktopPrintPreviewResponse, type DesktopPrintResponse } from "./ipc-print";
 
 /** The closed desktop wire surface. Keep this module free of Electron and
  * main-process imports so preload and renderer can consume only contracts. */
@@ -51,6 +51,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:print-document",
   "desktop:print-preview",
   "desktop:print-printers",
+  "desktop:print-save-pdf",
 ] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
@@ -332,6 +333,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:print-document": desktopPrintResponseSchema,
   "desktop:print-preview": desktopPrintPreviewResponseSchema,
   "desktop:print-printers": desktopPrintPrintersResponseSchema,
+  "desktop:print-save-pdf": desktopPrintSavePdfResponseSchema,
 };
 export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]), version: z.number().int().nonnegative().optional() }).strict();
 export type LaunchRequestedEvent = z.infer<typeof launchRequestedEventSchema>;
@@ -397,6 +399,7 @@ const requestSchemas = {
   "desktop:print-document": z.object({ sessionGeneration: sessionGenerationSchema, title: z.string().max(255), html: z.string().min(1).max(PRINT_HTML_MAX_BYTES), options: desktopPrintOptionsSchema.optional() }).strict(),
   "desktop:print-preview": desktopPrintPreviewRequestSchema,
   "desktop:print-printers": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:print-save-pdf": desktopPrintSavePdfRequestSchema,
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
 export type IpcSenderContext = { senderId: number; frameId: number; origin: string; expectedSenderId: number; expectedFrameId: number; expectedOrigin: string; sessionGeneration: string; allowedExternalHosts?: readonly string[] };
@@ -465,7 +468,7 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
   // Every request keeps the small control cap, byte fields excepted (see
   // sizeInBytes); print HTML has its own cap.
-  const byteLimit = channel === "desktop:print-document" || channel === "desktop:print-preview" ? PRINT_HTML_MAX_BYTES + IPC_MAX_BYTES : IPC_MAX_BYTES;
+  const byteLimit = channel === "desktop:print-document" || channel === "desktop:print-preview" || channel === "desktop:print-save-pdf" ? PRINT_HTML_MAX_BYTES + IPC_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(channel, payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {

@@ -3,6 +3,7 @@
 // main/* modules receive the Electron objects they need as arguments.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, screen, session, shell, utilityProcess } from "electron";
+import { writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
@@ -28,6 +29,7 @@ import { leaveExpiredEventSchema, leaveRequestedEventSchema, loginRequestedEvent
 import { resolveLocalDevice } from "./main/local/device";
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
+import { readWindowsDefaultPrinter, readWindowsPrinterPorts } from "./main/default-printer";
 import { createPrintHost } from "./main/print-host";
 import { installPrintShortcut } from "./main/print-shortcut";
 import { DESKTOP_TITLE_BAR_TOKENS } from "./main/window";
@@ -176,7 +178,7 @@ async function startElectronHost(): Promise<void> {
       window.close();
     });
   });
-  const printHandlers = await createPrintHost({ tempDirectory: app.getPath("temp"), partitionSession: (partition) => session.fromPartition(partition), senderWindow: () => BrowserWindow.fromWebContents(window.webContents), createWindow: (options) => new BrowserWindow(options), registerShutdown: (closeWindows) => { window.once("closed", closeWindows); app.once("before-quit", closeWindows); }, listPrinters: () => window.webContents.getPrintersAsync(), distDirectory: dirname(DIST_MAIN_DIRECTORY) });
+  const printHandlers = await createPrintHost({ tempDirectory: app.getPath("temp"), partitionSession: (partition) => session.fromPartition(partition), senderWindow: () => BrowserWindow.fromWebContents(window.webContents), createWindow: (options) => new BrowserWindow(options), registerShutdown: (closeWindows) => { window.once("closed", closeWindows); app.once("before-quit", closeWindows); }, listPrinters: () => window.webContents.getPrintersAsync(), ...(process.platform === "win32" ? { defaultPrinter: readWindowsDefaultPrinter, printerPorts: readWindowsPrinterPorts } : {}), chooseSavePath: async (defaultName) => { const result = await dialog.showSaveDialog(window, { defaultPath: join(app.getPath("documents"), defaultName), filters: [{ name: "PDF", extensions: ["pdf"] }] }); return result.canceled ? undefined : result.filePath; }, writeOutput: (path, bytes) => writeFile(path, bytes), distDirectory: dirname(DIST_MAIN_DIRECTORY) });
   // The unbounded local engines (xlsx, pdfium) run in a utilityProcess with a
   // machine-sized heap: a heap OOM there kills only the child, and every request
   // in flight answers insufficient_memory (see main/engine-host).

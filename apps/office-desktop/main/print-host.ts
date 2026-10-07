@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { brandIconPath, printWindowTitle } from "./branding";
 import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION, type PrintOwner, type PrintWindowOptions } from "./print";
 import { createPrintersIpcHandler, createPrintPreviewIpcHandler, type PreviewWindow, type PrintersOptions } from "./print-preview";
+import { createPrintSavePdfIpcHandler, type PrintSavePdfOptions } from "./print-save-pdf";
 
 /**
  * The Electron wiring of `desktop:print-document` (moved out of
@@ -43,6 +44,14 @@ export interface PrintHostOptions<Owner extends PrintHostOwner> {
   registerShutdown(closeWindows: () => void): void;
   /** `webContents.getPrintersAsync()` of the app window, for the in-app print dialog. */
   listPrinters: PrintersOptions["listPrinters"];
+  /** See {@link PrintersOptions.defaultPrinter}. */
+  defaultPrinter?: PrintersOptions["defaultPrinter"];
+  /** See {@link PrintersOptions.printerPorts}. */
+  printerPorts?: PrintersOptions["printerPorts"];
+  /** The save dialog of the in-app "Save as PDF" destination (electron-main: `dialog.showSaveDialog` on the app window). */
+  chooseSavePath: PrintSavePdfOptions["chooseSavePath"];
+  /** Writes the saved PDF to the path the user chose (electron-main: `fs.writeFile`). */
+  writeOutput: PrintSavePdfOptions["writeOutput"];
   /** The built bundle directory (`dist`) the product icon is read from. */
   distDirectory: string;
   /** Overrides `process.platform` (tests). */
@@ -50,8 +59,8 @@ export interface PrintHostOptions<Owner extends PrintHostOwner> {
 }
 
 /** Guard the print partition, sweep jobs a previous process left behind, and
- * return the `desktop:print-document`, `desktop:print-preview` and
- * `desktop:print-printers` handlers for the host dispatcher. */
+ * return the `desktop:print-document`, `desktop:print-preview`,
+ * `desktop:print-printers` and `desktop:print-save-pdf` handlers for the host dispatcher. */
 export async function createPrintHost<Owner extends PrintHostOwner>(options: PrintHostOptions<Owner>) {
   const printRoot = join(options.tempDirectory, "uniwork-print");
   installPrintSessionGuard(options.partitionSession(PRINT_PARTITION), pathToFileURL(printRoot).href);
@@ -91,6 +100,7 @@ export async function createPrintHost<Owner extends PrintHostOwner>(options: Pri
   return {
     ...print,
     ...createPrintPreviewIpcHandler({ createWindow: (windowOptions) => brandedWindow(windowOptions), writeFile }),
-    ...createPrintersIpcHandler({ listPrinters: options.listPrinters }),
+    ...createPrintersIpcHandler({ listPrinters: options.listPrinters, ...(options.defaultPrinter ? { defaultPrinter: options.defaultPrinter } : {}), ...(options.printerPorts ? { printerPorts: options.printerPorts } : {}) }),
+    ...createPrintSavePdfIpcHandler({ createWindow: (windowOptions) => brandedWindow(windowOptions), writeFile, chooseSavePath: options.chooseSavePath, writeOutput: options.writeOutput }),
   };
 }
