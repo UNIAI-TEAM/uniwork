@@ -24,7 +24,7 @@ type DesktopShellWindow = {
    * build one without it, so the renderer never silently falls back to
    * matchMedia/navigator.languages. */
   createHost(options: Omit<DesktopHostOptions, "appearance">): ReturnType<typeof createDesktopHost>;
-  menuTemplate(channel: "dev" | "beta" | "stable", onSave: () => void, onCheckUpdates?: () => void): Electron.MenuItemConstructorOptions[];
+  menuTemplate(channel: "dev" | "beta" | "stable", onSave: () => void, onCheckUpdates?: () => void, onPrint?: () => void): Electron.MenuItemConstructorOptions[];
 };
 
 /** How the desktop looks and speaks: branding, the one window, the OS theme
@@ -50,7 +50,7 @@ export function startDesktopShell(deps: DesktopShellDependencies): { openWindow(
         t,
         appearance,
         createHost: (hostOptions) => createDesktopHost({ ...hostOptions, appearance }),
-        menuTemplate: (channel, onSave, onCheckUpdates) => createNativeMenuTemplate(channel, onSave, deps.platform === "darwin", onCheckUpdates, t),
+        menuTemplate: (channel, onSave, onCheckUpdates, onPrint) => createNativeMenuTemplate(channel, onSave, deps.platform === "darwin", onCheckUpdates, t, onPrint),
       };
     },
   };

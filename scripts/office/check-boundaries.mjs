@@ -69,6 +69,11 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "@uniwork/views/layout/collection-page",
   "@uniwork/ui/components/ui/dropdown-menu",
   "@uniwork/ui/components/ui/popover",
+  // UNI-961 in-app print dialog (registry primitives, no Node/Electron import).
+  "@uniwork/ui/components/ui/dialog",
+  "@uniwork/ui/components/ui/select",
+  "@uniwork/ui/components/ui/label",
+  "@uniwork/ui/components/ui/spinner",
   "@uniwork/views/office/office-shell",
   "@uniwork/views/office/editor-slot",
   "@uniwork/views/office/docx",
