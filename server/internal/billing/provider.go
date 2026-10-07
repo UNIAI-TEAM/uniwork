@@ -8,7 +8,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/config"
 )
 
 // ErrProviderUnavailable: the configured provider cannot do this (manual has
@@ -21,6 +24,12 @@ type CheckoutInput struct {
 	CustomerEmail  string
 	SuccessURL     string
 	CancelURL      string
+	// Set by BillingService before CreateCheckout:
+	IntentID  string
+	Amount    int64
+	Currency  string
+	OrderInfo string
+	ClientIP  string
 }
 
 type CheckoutSession struct {
@@ -40,12 +49,17 @@ type InvoiceData struct {
 // Event is a provider callback normalised to what BillingService understands.
 type Event struct {
 	ProviderEventID string
+	ProviderTxnRef  string
 	Type            string // subscription.activated | subscription.updated | subscription.canceled | invoice.paid | invoice.failed
 	OrganizationID  string
 	PlanCode        string
 	PeriodStart     time.Time
 	PeriodEnd       time.Time
 	Invoice         *InvoiceData
+	Paid            bool
+	Amount          int64
+	Currency        string
+	RawParams       map[string]string
 }
 
 type Provider interface {
@@ -77,10 +91,20 @@ func (stub) ParseWebhook(*http.Request) (Event, error) { return Event{}, ErrProv
 
 // FromConfig picks the provider named by BILLING_PROVIDER; unknown names fall
 // back to manual so a typo cannot open a payment path.
-func FromConfig(name string) Provider {
-	switch name {
+func FromConfig(cfg config.Config) Provider {
+	switch cfg.BillingProvider {
+	case "vnpay":
+		ipn := strings.TrimRight(cfg.APIPublicURL, "/") + "/api/v1/billing/webhooks/vnpay"
+		p, err := NewVNPay(VNPayConfig{
+			TMNCode: cfg.VNPayTMNCode, HashSecret: cfg.VNPayHashSecret,
+			PaymentURL: cfg.VNPayPaymentURL, IPNURL: ipn,
+		})
+		if err != nil {
+			return stub{name: "vnpay"}
+		}
+		return p
 	case "stripe", "payos":
-		return stub{name: name}
+		return stub{name: cfg.BillingProvider}
 	}
 	return Manual{}
 }

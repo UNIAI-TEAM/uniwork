@@ -15,6 +15,7 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `ApiRateLimitedSpike` | 2 | một route trả 429 > 0,5 req/s trong 5 phút; webhook LiveKit: bất kỳ 429 nào | [ApiRateLimitedSpike.md](ApiRateLimitedSpike.md) |
 | `OutboxLagHigh` | 2 | dòng outbox chờ > 60 s | [OutboxLagHigh.md](OutboxLagHigh.md) |
 | `OutboxDeadLetter` | 2 | có dead letter mới trong 15 phút | [OutboxDeadLetter.md](OutboxDeadLetter.md) |
+| `BILLING_VNPAY_WEBHOOK` | 2 | billing webhook dead letter trong 15 phút | [BILLING_VNPAY_WEBHOOK.md](BILLING_VNPAY_WEBHOOK.md) |
 | `AiCostSpike` | 2 | chi phí AI 1 giờ > 3× trung bình 7 ngày | [AiCostSpike.md](AiCostSpike.md) |
 | `WebhookInboxLagHigh` | 2 | webhook LiveKit chờ xử lý > 30 s | [WebhookInboxLagHigh.md](WebhookInboxLagHigh.md) |
 | `QueueLagUnreadable` | 2 | không đọc được lag outbox hoặc webhook inbox suốt 5 phút | [QueueLagUnreadable.md](QueueLagUnreadable.md) |

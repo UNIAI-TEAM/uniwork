@@ -429,6 +429,7 @@ UPDATE webhook_inbox SET
 WHERE id IN (
   SELECT id FROM webhook_inbox
   WHERE status = 'PENDING' AND next_attempt_at <= now()
+    AND provider NOT IN ('vnpay', 'stripe', 'payos')
   ORDER BY received_at
   LIMIT sqlc.arg('limit_n')
   FOR UPDATE SKIP LOCKED

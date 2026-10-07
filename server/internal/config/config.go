@@ -48,6 +48,9 @@ type Config struct {
 	LiveKitDepartureTimeout   time.Duration
 	MeetingProvider           string
 	BillingProvider           string
+	VNPayTMNCode              string
+	VNPayHashSecret           string
+	VNPayPaymentURL           string
 	MeetingWorkerTick         time.Duration
 	MeetingOutboxBatch        int32
 	MeetingWebhookBatch       int32
@@ -172,6 +175,9 @@ func Load() (Config, error) {
 		LiveKitDepartureTimeout:       parseDuration(os.Getenv("LIVEKIT_ROOM_DEPARTURE_TIMEOUT"), 20*time.Second),
 		MeetingProvider:               getenv("MEETING_PROVIDER", "livekit"),
 		BillingProvider:               getenv("BILLING_PROVIDER", "manual"),
+		VNPayTMNCode:                  os.Getenv("VNPAY_TMN_CODE"),
+		VNPayHashSecret:               os.Getenv("VNPAY_HASH_SECRET"),
+		VNPayPaymentURL:               getenv("VNPAY_PAYMENT_URL", "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"),
 		MeetingWorkerTick:             parseDuration(os.Getenv("MEETING_WORKER_TICK"), time.Second),
 		MeetingOutboxBatch:            parseInt32(os.Getenv("MEETING_OUTBOX_BATCH"), 50),
 		MeetingWebhookBatch:           parseInt32(os.Getenv("MEETING_WEBHOOK_BATCH"), 50),

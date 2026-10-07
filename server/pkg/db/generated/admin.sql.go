@@ -11,6 +11,31 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adminCountInvoices = `-- name: AdminCountInvoices :one
+SELECT count(*)::bigint FROM invoices i
+JOIN organizations o ON o.id = i.organization_id
+LEFT JOIN users init_u ON init_u.id = i.initiated_by
+WHERE ($1::text IS NULL OR i.provider = $1::text)
+  AND ($2::text IS NULL OR i.status = $2::text)
+  AND ($3::text IS NULL OR i.number ILIKE '%' || $3::text || '%'
+    OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
+    OR init_u.email ILIKE '%' || $3::text || '%' OR init_u.display_name ILIKE '%' || $3::text || '%')
+`
+
+type AdminCountInvoicesParams struct {
+	Provider pgtype.Text `json:"provider"`
+	Status   pgtype.Text `json:"status"`
+	Q        pgtype.Text `json:"q"`
+}
+
+// tenant: platform
+func (q *Queries) AdminCountInvoices(ctx context.Context, arg AdminCountInvoicesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, adminCountInvoices, arg.Provider, arg.Status, arg.Q)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const adminCountOrganizations = `-- name: AdminCountOrganizations :one
 SELECT count(*)::bigint FROM organizations o
 WHERE ($1::text IS NULL OR o.status = $1::text)
@@ -26,6 +51,31 @@ type AdminCountOrganizationsParams struct {
 // ride on there, and "page 3 of 0" is worse than one extra query.
 func (q *Queries) AdminCountOrganizations(ctx context.Context, arg AdminCountOrganizationsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, adminCountOrganizations, arg.Status, arg.Q)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const adminCountPaymentIntents = `-- name: AdminCountPaymentIntents :one
+SELECT count(*)::bigint FROM billing_payment_intents pi
+JOIN organizations o ON o.id = pi.organization_id
+LEFT JOIN users pay_u ON pay_u.id = pi.created_by
+WHERE ($1::text IS NULL OR pi.provider = $1::text)
+  AND ($2::text IS NULL OR pi.status = $2::text)
+  AND ($3::text IS NULL OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
+    OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
+    OR pay_u.email ILIKE '%' || $3::text || '%' OR pay_u.display_name ILIKE '%' || $3::text || '%')
+`
+
+type AdminCountPaymentIntentsParams struct {
+	Provider pgtype.Text `json:"provider"`
+	Status   pgtype.Text `json:"status"`
+	Q        pgtype.Text `json:"q"`
+}
+
+// tenant: platform
+func (q *Queries) AdminCountPaymentIntents(ctx context.Context, arg AdminCountPaymentIntentsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, adminCountPaymentIntents, arg.Provider, arg.Status, arg.Q)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -116,6 +166,120 @@ func (q *Queries) AdminListAuditEventsByCorrelation(ctx context.Context, correla
 			&i.ResourceID,
 			&i.RequestID,
 			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminListInvoices = `-- name: AdminListInvoices :many
+SELECT t.id, t.organization_id, t.subscription_id, t.provider, t.provider_invoice_id, t.number,
+  t.status, t.amount_due, t.amount_paid, t.currency, t.period_start, t.period_end, t.hosted_url,
+  t.issued_at, t.paid_at, t.created_at, t.updated_at, t.org_slug, t.org_name,
+  t.user_id, t.user_display_name, t.user_email, t.total_count
+FROM (
+  SELECT i.id, i.organization_id, i.subscription_id, i.provider, i.provider_invoice_id, i.number,
+    i.status, i.amount_due, i.amount_paid, i.currency, i.period_start, i.period_end, i.hosted_url,
+    i.issued_at, i.paid_at, i.created_at, i.updated_at,
+    o.slug AS org_slug, o.name AS org_name,
+    COALESCE(init_u.id, owner_u.id, '')::text AS user_id,
+    COALESCE(init_u.display_name, owner_u.display_name, '')::text AS user_display_name,
+    COALESCE(init_u.email, owner_u.email, '')::text AS user_email,
+    count(*) OVER ()::bigint AS total_count
+  FROM invoices i
+  JOIN organizations o ON o.id = i.organization_id
+  LEFT JOIN users init_u ON init_u.id = i.initiated_by
+  LEFT JOIN organization_members owner_m ON owner_m.organization_id = i.organization_id AND owner_m.role = 'owner'
+  LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
+  WHERE ($1::text IS NULL OR i.provider = $1::text)
+    AND ($2::text IS NULL OR i.status = $2::text)
+    AND ($3::text IS NULL OR i.number ILIKE '%' || $3::text || '%'
+      OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
+      OR init_u.email ILIKE '%' || $3::text || '%' OR init_u.display_name ILIKE '%' || $3::text || '%')
+) t
+ORDER BY COALESCE(t.paid_at, t.created_at) DESC
+LIMIT $5 OFFSET $4
+`
+
+type AdminListInvoicesParams struct {
+	Provider pgtype.Text `json:"provider"`
+	Status   pgtype.Text `json:"status"`
+	Q        pgtype.Text `json:"q"`
+	Offset   int32       `json:"offset"`
+	Limit    int32       `json:"limit"`
+}
+
+type AdminListInvoicesRow struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	SubscriptionID    string             `json:"subscription_id"`
+	Provider          string             `json:"provider"`
+	ProviderInvoiceID pgtype.Text        `json:"provider_invoice_id"`
+	Number            string             `json:"number"`
+	Status            string             `json:"status"`
+	AmountDue         int64              `json:"amount_due"`
+	AmountPaid        int64              `json:"amount_paid"`
+	Currency          string             `json:"currency"`
+	PeriodStart       pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd         pgtype.Timestamptz `json:"period_end"`
+	HostedUrl         pgtype.Text        `json:"hosted_url"`
+	IssuedAt          pgtype.Timestamptz `json:"issued_at"`
+	PaidAt            pgtype.Timestamptz `json:"paid_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	OrgSlug           string             `json:"org_slug"`
+	OrgName           string             `json:"org_name"`
+	UserID            string             `json:"user_id"`
+	UserDisplayName   string             `json:"user_display_name"`
+	UserEmail         string             `json:"user_email"`
+	TotalCount        int64              `json:"total_count"`
+}
+
+// tenant: platform
+func (q *Queries) AdminListInvoices(ctx context.Context, arg AdminListInvoicesParams) ([]AdminListInvoicesRow, error) {
+	rows, err := q.db.Query(ctx, adminListInvoices,
+		arg.Provider,
+		arg.Status,
+		arg.Q,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminListInvoicesRow{}
+	for rows.Next() {
+		var i AdminListInvoicesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.SubscriptionID,
+			&i.Provider,
+			&i.ProviderInvoiceID,
+			&i.Number,
+			&i.Status,
+			&i.AmountDue,
+			&i.AmountPaid,
+			&i.Currency,
+			&i.PeriodStart,
+			&i.PeriodEnd,
+			&i.HostedUrl,
+			&i.IssuedAt,
+			&i.PaidAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrgSlug,
+			&i.OrgName,
+			&i.UserID,
+			&i.UserDisplayName,
+			&i.UserEmail,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}
@@ -255,6 +419,113 @@ func (q *Queries) AdminListOutboxEventsByCorrelation(ctx context.Context, correl
 			&i.CreatedAt,
 			&i.DoneAt,
 			&i.DeadAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminListPaymentIntents = `-- name: AdminListPaymentIntents :many
+SELECT t.id, t.organization_id, t.subscription_id, t.plan_id, t.provider, t.provider_txn_ref,
+  t.amount, t.currency, t.status, t.expires_at, t.completed_at, t.created_at, t.updated_at,
+  t.org_slug, t.org_name, t.plan_code, t.user_id, t.user_display_name, t.user_email, t.total_count
+FROM (
+  SELECT pi.id, pi.organization_id, pi.subscription_id, pi.plan_id, pi.provider, pi.provider_txn_ref,
+    pi.amount, pi.currency, pi.status, pi.expires_at, pi.completed_at, pi.created_at, pi.updated_at,
+    o.slug AS org_slug, o.name AS org_name, p.code AS plan_code,
+    COALESCE(pay_u.id, owner_u.id, '')::text AS user_id,
+    COALESCE(pay_u.display_name, owner_u.display_name, '')::text AS user_display_name,
+    COALESCE(pay_u.email, owner_u.email, '')::text AS user_email,
+    count(*) OVER ()::bigint AS total_count
+  FROM billing_payment_intents pi
+  JOIN organizations o ON o.id = pi.organization_id
+  JOIN plans p ON p.id = pi.plan_id
+  LEFT JOIN users pay_u ON pay_u.id = pi.created_by
+  LEFT JOIN organization_members owner_m ON owner_m.organization_id = pi.organization_id AND owner_m.role = 'owner'
+  LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
+  WHERE ($1::text IS NULL OR pi.provider = $1::text)
+    AND ($2::text IS NULL OR pi.status = $2::text)
+    AND ($3::text IS NULL OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
+      OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
+      OR pay_u.email ILIKE '%' || $3::text || '%' OR pay_u.display_name ILIKE '%' || $3::text || '%')
+) t
+ORDER BY t.created_at DESC
+LIMIT $5 OFFSET $4
+`
+
+type AdminListPaymentIntentsParams struct {
+	Provider pgtype.Text `json:"provider"`
+	Status   pgtype.Text `json:"status"`
+	Q        pgtype.Text `json:"q"`
+	Offset   int32       `json:"offset"`
+	Limit    int32       `json:"limit"`
+}
+
+type AdminListPaymentIntentsRow struct {
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	SubscriptionID  string             `json:"subscription_id"`
+	PlanID          string             `json:"plan_id"`
+	Provider        string             `json:"provider"`
+	ProviderTxnRef  string             `json:"provider_txn_ref"`
+	Amount          int64              `json:"amount"`
+	Currency        string             `json:"currency"`
+	Status          string             `json:"status"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	OrgSlug         string             `json:"org_slug"`
+	OrgName         string             `json:"org_name"`
+	PlanCode        string             `json:"plan_code"`
+	UserID          string             `json:"user_id"`
+	UserDisplayName string             `json:"user_display_name"`
+	UserEmail       string             `json:"user_email"`
+	TotalCount      int64              `json:"total_count"`
+}
+
+// tenant: platform
+func (q *Queries) AdminListPaymentIntents(ctx context.Context, arg AdminListPaymentIntentsParams) ([]AdminListPaymentIntentsRow, error) {
+	rows, err := q.db.Query(ctx, adminListPaymentIntents,
+		arg.Provider,
+		arg.Status,
+		arg.Q,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminListPaymentIntentsRow{}
+	for rows.Next() {
+		var i AdminListPaymentIntentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.SubscriptionID,
+			&i.PlanID,
+			&i.Provider,
+			&i.ProviderTxnRef,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.ExpiresAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrgSlug,
+			&i.OrgName,
+			&i.PlanCode,
+			&i.UserID,
+			&i.UserDisplayName,
+			&i.UserEmail,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}

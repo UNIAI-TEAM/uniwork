@@ -150,3 +150,97 @@ export interface FlagOverrideDeleteInput {
   scope_id: string;
   reason: string;
 }
+
+export const AdminPlanFeatureSchema = z.object({
+  feature_key: z.string(),
+  name: z.string().optional().default(""),
+  kind: z.string().optional().default(""),
+  unit: z.string().optional().default(""),
+  enabled: z.boolean().optional().default(false),
+  quota_limit: z.number().nullable().optional().default(null),
+});
+export type AdminPlanFeature = z.infer<typeof AdminPlanFeatureSchema>;
+
+export const AdminPlanSchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  name: z.string(),
+  description: z.string().optional().default(""),
+  billing_period: z.string().optional().default("none"),
+  price_amount: z.number().nullable().optional().default(null),
+  price_currency: z.string().optional().default("VND"),
+  is_default: z.boolean().optional().default(false),
+  is_active: z.boolean().optional().default(true),
+  sort_order: z.number().optional().default(0),
+  features: z.array(AdminPlanFeatureSchema).optional().default([]),
+});
+export type AdminPlan = z.infer<typeof AdminPlanSchema>;
+
+export const AdminInvoiceSchema = z.object({
+  id: z.string(),
+  organization_id: z.string(),
+  org_slug: z.string().optional().default(""),
+  org_name: z.string().optional().default(""),
+  number: z.string().optional().default(""),
+  status: z.string().optional().default(""),
+  provider: z.string().optional().default(""),
+  amount_paid: z.number().optional().default(0),
+  currency: z.string().optional().default("VND"),
+  period_start: z.string().optional().default(""),
+  period_end: z.string().optional().default(""),
+  paid_at: z.string().optional().default(""),
+  created_at: z.string().optional().default(""),
+  user_id: z.string().optional().default(""),
+  user_display_name: z.string().optional().default(""),
+  user_email: z.string().optional().default(""),
+});
+export type AdminInvoice = z.infer<typeof AdminInvoiceSchema>;
+
+export const AdminPaymentIntentSchema = z.object({
+  id: z.string(),
+  organization_id: z.string(),
+  org_slug: z.string().optional().default(""),
+  org_name: z.string().optional().default(""),
+  plan_code: z.string().optional().default(""),
+  provider: z.string().optional().default(""),
+  provider_txn_ref: z.string().optional().default(""),
+  amount: z.number().optional().default(0),
+  currency: z.string().optional().default("VND"),
+  status: z.string().optional().default(""),
+  expires_at: z.string().optional().default(""),
+  completed_at: z.string().optional().default(""),
+  created_at: z.string().optional().default(""),
+  user_id: z.string().optional().default(""),
+  user_display_name: z.string().optional().default(""),
+  user_email: z.string().optional().default(""),
+});
+export type AdminPaymentIntent = z.infer<typeof AdminPaymentIntentSchema>;
+
+export interface PlanCreateInput {
+  code: string;
+  name: string;
+  description: string;
+  billing_period: string;
+  price_amount: number | null;
+  price_currency: string;
+  is_active: boolean;
+  sort_order: number;
+  reason: string;
+}
+
+export interface PlanUpsertInput {
+  name: string;
+  description: string;
+  billing_period: string;
+  price_amount: number | null;
+  price_currency: string;
+  is_active: boolean;
+  sort_order: number;
+  reason: string;
+}
+
+export interface PlanFeatureUpdateInput {
+  enabled: boolean;
+  quota_limit: number | null;
+  reason: string;
+}

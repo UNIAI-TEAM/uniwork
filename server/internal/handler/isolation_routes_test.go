@@ -192,6 +192,8 @@ var isoRoutes = map[string]isoSpec{
 
 	// Provider callbacks.
 	"POST /api/v1/integrations/livekit/webhook":            {class: isoPublic, reason: reasonProvider},
+	"GET /api/v1/billing/webhooks/vnpay":                   {class: isoPublic, reason: reasonProvider},
+	"POST /api/v1/billing/webhooks/vnpay":                  {class: isoPublic, reason: reasonProvider},
 	"GET /api/v1/calendar-connections/{provider}/callback": {class: isoPublic, reason: reasonProvider},
 
 	// Links whose secret is the credential.
@@ -256,6 +258,12 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/admin/flags/{key}/overrides":            {class: isoPlatform, reason: reasonPlatform},
 	"PUT /api/v1/admin/flags/{key}/overrides":            {class: isoPlatform, reason: reasonPlatform},
 	"GET /api/v1/admin/me":                               {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/plans":                            {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/plans":                           {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/invoices":                         {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/billing/payment-intents":          {class: isoPlatform, reason: reasonPlatform},
+	"PUT /api/v1/admin/plans/{code}":                     {class: isoPlatform, reason: reasonPlatform},
+	"PUT /api/v1/admin/plans/{code}/features/{key}":      {class: isoPlatform, reason: reasonPlatform},
 	"GET /api/v1/admin/organizations":                    {class: isoPlatform, reason: reasonPlatform},
 	"GET /api/v1/admin/organizations/{orgID}":            {class: isoPlatform, reason: reasonPlatform},
 	"POST /api/v1/admin/organizations/{orgID}/plan":      {class: isoPlatform, reason: reasonPlatform},
@@ -397,11 +405,13 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/meeting-join-requests/{requestId}/cancel":                                    {controlAs: "third"},
 	"POST /api/v1/tasks/{taskID}/labels":                                                       {body: isoWith(map[string]string{"label_id": "label"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/agents":                                             {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
-	"POST /api/v1/orgs/{orgID}/billing/checkout":                                               {body: isoJSON(map[string]any{"plan_code": "starter"})},
-	"PATCH /api/v1/orgs/{orgID}/billing/plan":                                                  {body: isoJSON(map[string]any{"plan_code": "starter"})},
-	"POST /api/v1/meetings/{meetingID}/host-transfer":                                          {body: isoWith(map[string]string{"new_host_user_id": "peer"}, nil)},
-	"POST /api/v1/orgs/{org}/transfer-ownership":                                               {body: isoWith(map[string]string{"to_user_id": "third"}, map[string]any{"password": "password123"})},
-	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/leave":                          {controlAs: "third"},
+	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
+		"plan_code": "starter", "success_path": "/billing/ok", "cancel_path": "/billing/cancel",
+	})},
+	"PATCH /api/v1/orgs/{orgID}/billing/plan":                         {body: isoJSON(map[string]any{"plan_code": "starter", "row_version": 1})},
+	"POST /api/v1/meetings/{meetingID}/host-transfer":                 {body: isoWith(map[string]string{"new_host_user_id": "peer"}, nil)},
+	"POST /api/v1/orgs/{org}/transfer-ownership":                      {body: isoWith(map[string]string{"to_user_id": "third"}, map[string]any{"password": "password123"})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/leave": {controlAs: "third"},
 	// Tenant rows named in the body rather than the path.
 	"POST /api/v1/invitations/{token}/accept": {class: isoScoped, skipControl: "accepting consumes the invitation"},
 	"POST /api/v1/chat/voice/token":           {body: isoWith(map[string]string{"room_id": "room", "call_id": "callID"}, nil)},

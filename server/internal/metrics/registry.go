@@ -30,6 +30,7 @@ type Registry struct {
 	WebVitals     *WebVitals
 	Documents     *Documents
 	Office        *Office
+	Billing       *Billing
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -85,6 +86,8 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	reg.MustRegister(documentMetrics.Collectors()...)
 	officeMetrics := NewOffice()
 	reg.MustRegister(officeMetrics.Collectors()...)
+	billingMetrics := NewBilling()
+	reg.MustRegister(billingMetrics.Collectors()...)
 
 	return &Registry{
 		Gatherer:      reg,
@@ -97,6 +100,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		WebVitals:     webVitals,
 		Documents:     documentMetrics,
 		Office:        officeMetrics,
+		Billing:       billingMetrics,
 	}
 }
 

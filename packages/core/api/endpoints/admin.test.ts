@@ -11,7 +11,12 @@ import {
   listAdminFlags,
   listAdminOrganizations,
   listAllFlagOverrides,
+  createAdminPlan,
+  listAdminInvoices,
+  listAdminPaymentIntents,
+  listAdminPlans,
   setFlagOverride,
+  updateAdminPlan,
   suspendOrganization,
   unsuspendOrganization,
 } from "./admin";
@@ -172,5 +177,47 @@ describe("admin endpoints", () => {
     await expect(setFlagOverride("k", body)).resolves.toEqual([]);
     vi.mocked(fetch).mockResolvedValueOnce(json(null));
     await expect(deleteFlagOverride("k", { scope_type: "global", scope_id: "", reason: "Hết pilot rồi" })).resolves.toEqual([]);
+  });
+
+  it("listAdminInvoices and payment intents degrade on malformed JSON", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invoices: [{ id: "i1", organization_id: "o1", number: "UW-1" }], total: 1 }));
+    expect((await listAdminInvoices()).invoices).toHaveLength(1);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invoices: [{ id: 1 }] }));
+    expect((await listAdminInvoices()).invoices).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ intents: [{ id: "p1", organization_id: "o1" }], total: 1 }));
+    expect(await listAdminPaymentIntents()).toHaveProperty("intents");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ intents: [{ id: true }] }));
+    expect((await listAdminPaymentIntents()).intents).toEqual([]);
+  });
+
+  it("createAdminPlan POSTs and degrades on malformed JSON", async () => {
+    const plan = { id: "p2", code: "enterprise", name: "Enterprise", is_active: true, features: [] };
+    const body = {
+      code: "enterprise", name: "Enterprise", description: "", billing_period: "month", price_amount: 999000,
+      price_currency: "VND", is_active: true, sort_order: 10, reason: "Ra mắt gói Enterprise thử nghiệm",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ plan }));
+    expect(await createAdminPlan(body)).toMatchObject({ code: "enterprise" });
+    expect(vi.mocked(fetch).mock.calls[0]![1]?.method).toBe("POST");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ plan: { code: 1 } }));
+    expect(await createAdminPlan(body)).toBeNull();
+  });
+
+  it("listAdminPlans and updateAdminPlan degrade on malformed JSON", async () => {
+    const plan = {
+      id: "p1", code: "starter", name: "Starter", is_active: true, is_default: true, features: [{ feature_key: "members.max", enabled: true }],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ plans: [plan] }));
+    expect(await listAdminPlans()).toHaveLength(1);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ plans: [{ code: 1 }] }));
+    await expect(listAdminPlans()).resolves.toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ plan }));
+    const body = {
+      name: "Starter", description: "", billing_period: "none", price_amount: 0, price_currency: "VND",
+      is_active: true, sort_order: 0, reason: "Điều chỉnh catalog thử nghiệm",
+    };
+    expect(await updateAdminPlan("starter", body)).toMatchObject({ code: "starter" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ plan: { code: true } }));
+    expect(await updateAdminPlan("starter", body)).toBeNull();
   });
 });

@@ -1,26 +1,29 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, CalendarClock, CreditCard, ExternalLink, ShieldAlert, TriangleAlert } from "lucide-react";
+import { AlertCircle, CalendarClock, CreditCard, ShieldAlert, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import {
   useCancelSubscription,
   useChangePlan,
+  useCheckoutReturn,
   useCreateCheckout,
   usePlans,
   useResumeSubscription,
   useSubscription,
+  type CheckoutReturnState,
 } from "@uniwork/core/billing";
 import { useBillingPermissions } from "@uniwork/core/permissions";
 import type { Plan, Subscription } from "@uniwork/core/types";
-import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { Notice } from "../../common/notice";
 import { CollectionPageState } from "../../layout/collection-page";
 import { useWorkspace } from "../../layout/workspace-context";
+import { useNavigation } from "../../navigation";
 import { toastApiError } from "../../toast-api-error";
 import { BillingUsage } from "./billing-usage";
 import { CorrelationNote } from "./copyable-id";
@@ -97,10 +100,32 @@ export function BillingTab() {
   const cancel = useCancelSubscription(orgId);
   const resume = useResumeSubscription(orgId);
   const checkout = useCreateCheckout(orgId);
+  const navigation = useNavigation();
+  const checkoutRaw = navigation.searchParams.get("checkout");
+  const checkoutReturn: CheckoutReturnState =
+    checkoutRaw === "success" || checkoutRaw === "cancel" ? checkoutRaw : null;
+  const returnPoll = useCheckoutReturn(canView.allowed ? orgId : "", checkoutReturn);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [pendingCode, setPendingCode] = useState("");
-  // Where the checkout link shows: beside the button that asked for it.
-  const [checkoutLink, setCheckout] = useState<{ url: string; from: "plans" | "past_due" } | null>(null);
+
+  const clearCheckoutQuery = () => {
+    const params = new URLSearchParams(navigation.searchParams);
+    params.delete("checkout");
+    const q = params.toString();
+    navigation.replace(q ? `${navigation.pathname}?${q}` : navigation.pathname);
+  };
+
+  useEffect(() => {
+    if (returnPoll.confirmed) {
+      toast.success(t("checkout_success"));
+      clearCheckoutQuery();
+    } else if (returnPoll.timedOut) {
+      clearCheckoutQuery();
+    } else if (returnPoll.canceled) {
+      toast.message(t("checkout_cancelled"));
+      clearCheckoutQuery();
+    }
+  }, [returnPoll.confirmed, returnPoll.timedOut, returnPoll.canceled, t]);
 
   if (permissionsLoading || (canView.allowed && subscription.isLoading)) {
     return (
@@ -157,17 +182,20 @@ export function BillingTab() {
   const pastDue = sub.status === "past_due";
   const canPayNow = canManage.allowed && currentPlan !== undefined && isPaid(currentPlan);
 
-  const choose = async (plan: Plan, from: "plans" | "past_due" = "plans") => {
+  const choose = async (plan: Plan) => {
     setPendingCode(plan.code);
     try {
       if (isPaid(plan)) {
-        // Paths only: the server prefixes FRONTEND_ORIGIN. The provider's page
-        // is another origin and the URL arrives after an await, so a
-        // window.open here would be popup-blocked; render a link instead.
-        const back = `/${workspace.organization_slug}/${workspace.slug}/settings?tab=billing`;
-        const url = await checkout.mutateAsync({ plan_code: plan.code, success_path: back, cancel_path: back });
-        setCheckout(url ? { url, from } : null);
-        if (url) toast.success(t("checkout_ready"));
+        const base = `/${workspace.organization_slug}/${workspace.slug}/settings?tab=billing`;
+        const url = await checkout.mutateAsync({
+          plan_code: plan.code,
+          success_path: `${base}&checkout=success`,
+          cancel_path: `${base}&checkout=cancel`,
+        });
+        if (url) {
+          toast.message(t("checkout_redirecting"));
+          window.location.assign(url);
+        }
         return;
       }
       await changePlan.mutateAsync({ plan_code: plan.code, row_version: sub.row_version });
@@ -191,23 +219,6 @@ export function BillingTab() {
       },
     );
   };
-
-  const checkoutNotice = (from: "plans" | "past_due") =>
-    checkoutLink?.from === from ? (
-      <Notice
-        tone="info"
-        icon={CreditCard}
-        layout="inline"
-        action={
-          <ButtonLink href={checkoutLink.url} target="_blank" rel="noopener noreferrer" size="sm">
-            {t("open_checkout")}
-            <ExternalLink aria-hidden />
-          </ButtonLink>
-        }
-      >
-        {t("checkout_notice")}
-      </Notice>
-    ) : null;
 
   const priceValue = currentPlan ? (
     <SettingsValue className="tabular-nums">{formatPrice(currentPlan, locale, t)}</SettingsValue>
@@ -245,7 +256,6 @@ export function BillingTab() {
     else
       plansBody = (
         <>
-          {checkoutNotice("plans")}
           <PlanCards
             plans={plans.data}
             currentCode={sub.plan_code}
@@ -284,7 +294,8 @@ export function BillingTab() {
             tone="warning"
             icon={TriangleAlert}
             layout="inline"
-            live="off"
+            live="assertive"
+            className="border-2 border-warning/50 shadow-sm"
             action={
               canPayNow ? (
                 <Button
@@ -292,7 +303,7 @@ export function BillingTab() {
                   size="sm"
                   disabled={busy}
                   aria-busy={pendingCode === currentPlan?.code}
-                  onClick={() => currentPlan && void choose(currentPlan, "past_due")}
+                  onClick={() => currentPlan && void choose(currentPlan)}
                 >
                   {pendingCode === currentPlan?.code ? (
                     <Spinner aria-hidden aria-label={undefined} role="presentation" />
@@ -306,13 +317,40 @@ export function BillingTab() {
             {canManage.allowed ? null : <> {t("past_due_ask_owner")}</>}
           </Notice>
         ) : null}
-        {checkoutNotice("past_due")}
+        {returnPoll.confirming ? (
+          <Notice
+            tone="info"
+            icon={CreditCard}
+            layout="inline"
+            live="polite"
+            className="border border-info/40 shadow-sm"
+          >
+            {t("checkout_confirming")}
+          </Notice>
+        ) : null}
+        {returnPoll.timedOut && !returnPoll.confirmed ? (
+          <Notice
+            tone="warning"
+            icon={TriangleAlert}
+            layout="inline"
+            live="assertive"
+            className="border-2 border-warning/50 shadow-sm"
+            action={
+              <Button type="button" size="sm" variant="outline" onClick={() => void subscription.refetch()}>
+                {t("retry")}
+              </Button>
+            }
+          >
+            {t("checkout_confirming_timeout")}
+          </Notice>
+        ) : null}
         {sub.cancel_at ? (
           <Notice
             tone="warning"
             icon={CalendarClock}
             layout="inline"
-            live="off"
+            live="polite"
+            className="border border-warning/40 shadow-sm"
             action={
               canManage.allowed ? (
                 <Button

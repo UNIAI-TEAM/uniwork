@@ -69,6 +69,8 @@ function builderTemplates(): string[] {
     paths.admin.organizations(),
     paths.admin.organization(ID),
     paths.admin.flags(),
+    paths.admin.plans(),
+    paths.admin.invoices(),
     paths.admin.trace(),
     paths.admin.quota(),
     paths.admin.system(),

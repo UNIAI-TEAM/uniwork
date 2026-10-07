@@ -5,6 +5,7 @@ import {
   Building2,
   CreditCard,
   FileText,
+  Receipt,
   Keyboard,
   Network,
   Plug,
@@ -49,6 +50,7 @@ const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: 
 const AiTab = lazy(() => import("./ai-tab").then((m) => ({ default: m.AiTab })));
 const AuditTab = lazy(() => import("./audit-tab").then((m) => ({ default: m.AuditTab })));
 const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.BillingTab })));
+const InvoicesTab = lazy(() => import("./invoices-tab").then((m) => ({ default: m.InvoicesTab })));
 const DepartmentsTab = lazy(() => import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })));
 const DocumentsTab = lazy(() => import("./documents-settings").then((m) => ({ default: m.DocumentsSettings })));
 const KeyboardShortcutsTab = lazy(() => import("./keyboard-shortcuts-tab").then((m) => ({ default: m.KeyboardShortcutsTab })));
@@ -98,6 +100,7 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
       { value: "organization", label: "organization", icon: Building2, Panel: OrganizationTab },
       { value: "departments", label: "departments", icon: Network, Panel: DepartmentsTab },
       { value: "billing", label: "billing", icon: CreditCard, Panel: BillingTab, gate: "billing" },
+      { value: "invoices", label: "invoices", icon: Receipt, Panel: InvoicesTab, gate: "billing" },
       { value: "documents", label: "documents", icon: FileText, Panel: DocumentsTab, gate: "org_admin" },
       { value: "audit", label: "audit", icon: ScrollText, Panel: AuditTab, gate: "audit", wide: true },
     ],

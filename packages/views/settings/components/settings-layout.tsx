@@ -329,14 +329,21 @@ export function SettingsDangerZone({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-3">
-      <div className="min-w-0">
-        <h3 className="text-body font-semibold text-destructive">{title}</h3>
+    <section
+      className="space-y-4 rounded-xl border-2 border-destructive/50 bg-destructive-soft p-4 shadow-sm sm:p-5"
+      aria-labelledby="settings-danger-zone-title"
+    >
+      <div className="min-w-0 space-y-2">
+        <h3 id="settings-danger-zone-title" className="text-title font-semibold text-destructive">
+          {title}
+        </h3>
         {description ? (
-          <p className="mt-1 max-w-[68ch] text-caption leading-5 text-pretty text-muted-foreground">{description}</p>
+          <p className="max-w-[68ch] text-body font-medium leading-6 text-pretty text-destructive-soft-foreground">
+            {description}
+          </p>
         ) : null}
       </div>
-      <Card className="gap-0 border-destructive/30 py-0 shadow-none">
+      <Card className="gap-0 border border-destructive/30 bg-background py-0 shadow-none">
         <CardContent className="divide-y divide-border px-0">{children}</CardContent>
       </Card>
     </section>

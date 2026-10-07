@@ -25,6 +25,12 @@ type Routes struct {
 	AdminListAllFlagOverrides  http.HandlerFunc
 	AdminSetFlagOverride       http.HandlerFunc
 	AdminDeleteFlagOverride    http.HandlerFunc
+	AdminListPlans             http.HandlerFunc
+	AdminCreatePlan            http.HandlerFunc
+	AdminUpdatePlan            http.HandlerFunc
+	AdminUpdatePlanFeature     http.HandlerFunc
+	AdminListInvoices          http.HandlerFunc
+	AdminListPaymentIntents    http.HandlerFunc
 
 	Register              http.HandlerFunc
 	Login                 http.HandlerFunc
@@ -251,12 +257,14 @@ type Routes struct {
 	WorkspaceAiUsage     http.HandlerFunc
 	OrganizationAiUsage  http.HandlerFunc
 
-	ListPlans          http.HandlerFunc
-	GetSubscription    http.HandlerFunc
-	ChangePlan         http.HandlerFunc
-	CancelSubscription http.HandlerFunc
-	ResumeSubscription http.HandlerFunc
-	CreateCheckout     http.HandlerFunc
+	ListPlans           http.HandlerFunc
+	GetSubscription     http.HandlerFunc
+	ChangePlan          http.HandlerFunc
+	CancelSubscription  http.HandlerFunc
+	ResumeSubscription  http.HandlerFunc
+	CreateCheckout      http.HandlerFunc
+	ListInvoices        http.HandlerFunc
+	VNPayBillingWebhook http.HandlerFunc
 
 	ListOrgAgents       http.HandlerFunc
 	CreateOrgAgent      http.HandlerFunc

@@ -6,6 +6,7 @@ import {
   changePlan,
   createCheckout,
   getSubscription,
+  listInvoices,
   listPlans,
   resumeSubscription,
 } from "./billing";
@@ -69,6 +70,18 @@ describe("billing endpoints", () => {
     expect((await resumeSubscription("o1"))?.subscription.cancel_at).toBeUndefined();
     vi.mocked(fetch).mockResolvedValueOnce(json([]));
     await expect(resumeSubscription("o1")).resolves.toBeNull();
+  });
+
+  it("listInvoices returns rows and [] on malformed response", async () => {
+    const inv = {
+      id: "i1", number: "UW-2026-abc", status: "paid", provider: "vnpay",
+      amount_paid: 499000, currency: "VND",
+      period_start: "2026-09-06T00:00:00Z", period_end: "2026-10-06T00:00:00Z",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invoices: [inv] }));
+    expect((await listInvoices("o1"))[0]!.number).toBe("UW-2026-abc");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invoices: [{ id: 1 }] }));
+    await expect(listInvoices("o1")).resolves.toEqual([]);
   });
 
   it("createCheckout returns the url and '' when malformed", async () => {

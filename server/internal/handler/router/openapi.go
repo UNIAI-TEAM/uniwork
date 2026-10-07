@@ -272,7 +272,16 @@ func pathParamSDI(path string) any {
 		}{}
 	case "key":
 		return struct {
-			Key string `path:"key" description:"Khóa feature flag" example:"agents_assignee"`
+			Key string `path:"key" description:"Khóa feature flag hoặc entitlement" example:"members.max"`
+		}{}
+	case "code":
+		return struct {
+			Code string `path:"code" description:"Mã gói billing (plans.code)" example:"starter"`
+		}{}
+	case "code,key":
+		return struct {
+			Code string `path:"code" description:"Mã gói billing" example:"starter"`
+			Key  string `path:"key" description:"Khóa feature entitlement" example:"members.max"`
 		}{}
 	case "orgID,eventID":
 		return struct {

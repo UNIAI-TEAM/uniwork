@@ -1,12 +1,25 @@
 "use client";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as admin from "../api/endpoints/admin";
-import type { AdminOrganizationQuery } from "../api/endpoints/admin";
-import type { FlagOverrideDeleteInput, FlagOverrideInput } from "../types/admin";
+import type { AdminBillingQuery, AdminOrganizationQuery } from "../api/endpoints/admin";
+import type {
+  FlagOverrideDeleteInput,
+  FlagOverrideInput,
+  PlanCreateInput,
+  PlanFeatureUpdateInput,
+  PlanUpsertInput,
+} from "../types/admin";
 import { adminKeys } from "./keys";
 
 export { adminKeys } from "./keys";
-export type { AdminOrganizationPage, AdminOrganizationQuery, AdminOrganizationSort } from "../api/endpoints/admin";
+export type {
+  AdminBillingQuery,
+  AdminInvoicePage,
+  AdminOrganizationPage,
+  AdminOrganizationQuery,
+  AdminOrganizationSort,
+  AdminPaymentIntentPage,
+} from "../api/endpoints/admin";
 
 /**
  * The caller's platform role. A 404 is the server saying "no role" without
@@ -119,4 +132,50 @@ export function useSetFlagOverride(key: string) {
 
 export function useDeleteFlagOverride(key: string) {
   return useOverrideMutation(key, (body: FlagOverrideDeleteInput) => admin.deleteFlagOverride(key, body));
+}
+
+export function useAdminPlans() {
+  return useQuery({ queryKey: adminKeys.plans, queryFn: admin.listAdminPlans });
+}
+
+function usePlanCatalogMutation<TVars>(fn: (vars: TVars) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: adminKeys.plans });
+    },
+  });
+}
+
+export function useAdminInvoices(query: AdminBillingQuery = {}, enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.invoices(query),
+    queryFn: () => admin.listAdminInvoices(query),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+export function useAdminPaymentIntents(query: AdminBillingQuery = {}, enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.paymentIntents(query),
+    queryFn: () => admin.listAdminPaymentIntents(query),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+export function useCreateAdminPlan() {
+  return usePlanCatalogMutation((body: PlanCreateInput) => admin.createAdminPlan(body));
+}
+
+export function useUpdateAdminPlan(code: string) {
+  return usePlanCatalogMutation((body: PlanUpsertInput) => admin.updateAdminPlan(code, body));
+}
+
+export function useUpdateAdminPlanFeature(code: string, featureKey: string) {
+  return usePlanCatalogMutation((body: PlanFeatureUpdateInput) =>
+    admin.updateAdminPlanFeature(code, featureKey, body),
+  );
 }

@@ -9,6 +9,7 @@ import * as billing from "../api/endpoints/billing";
 export const billingKeys = {
   plans: ["billing", "plans"] as const,
   current: (orgId: string) => ["billing", orgId, "subscription"] as const,
+  invoices: (orgId: string) => ["billing", orgId, "invoices"] as const,
 };
 
 export function usePlans() {
@@ -53,3 +54,13 @@ export function useCreateCheckout(orgId: string) {
       billing.createCheckout(orgId, body),
   });
 }
+
+export function useInvoices(orgId: string) {
+  return useQuery({
+    queryKey: billingKeys.invoices(orgId),
+    queryFn: () => billing.listInvoices(orgId),
+    enabled: !!orgId,
+  });
+}
+
+export { useCheckoutReturn, type CheckoutReturnState } from "./use-checkout-return";

@@ -216,7 +216,8 @@ func main() {
 	meetingSvc.Tasks = taskSvc
 	agentSvc := service.NewAgentService(pool, q, orgSvc, wsSvc)
 	readiness := service.NewReadiness(pool, rdb).WithStorageProber(objectStore)
-	billingSvc := service.NewBillingService(pool, q, orgSvc, billing.FromConfig(cfg.BillingProvider))
+	billingSvc := service.NewBillingService(pool, q, orgSvc, billing.FromConfig(cfg))
+	billingSvc.SetLogger(log)
 	actorSvc := service.NewActorService(q)
 	// One AI gateway for the process (F-09): meeting summaries and Ask UNI
 	// share the provider, the policy, the meter and the audit trail. No
@@ -232,6 +233,9 @@ func main() {
 	}
 	if reg != nil && reg.Meetings != nil {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
+	}
+	if reg != nil && reg.Billing != nil {
+		billingSvc.SetBillingMetrics(reg.Billing)
 	}
 	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
 	chatSvc.TenorAPIKey = cfg.TenorAPIKey
@@ -388,6 +392,8 @@ func main() {
 	go func() { meetingSvc.RunWorkers(runCtx); close(meetingWorkersDone) }()
 	meetingAutoEndDone := make(chan struct{})
 	go func() { meetingSvc.RunAutoEnd(runCtx); close(meetingAutoEndDone) }()
+	billingWorkersDone := make(chan struct{})
+	go func() { billingSvc.RunWorkers(runCtx); close(billingWorkersDone) }()
 	go digest.Run(runCtx)
 	go notification.NewMeetingReminder(notifConsumer).Run(runCtx)
 	// Run returns only once every lane has stopped, so awaiting dispatcherDone
@@ -600,6 +606,11 @@ func main() {
 	case <-officeDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("office: reconciler did not stop in time")
+	}
+	select {
+	case <-billingWorkersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("billing: workers did not stop in time")
 	}
 	if relay != nil {
 		relay.Stop()

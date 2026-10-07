@@ -193,6 +193,9 @@ const (
 	ActionPlatformRoleRevoked     = "platform_role.revoked"
 	ActionFlagOverrideSet         = "flag.override_set"
 	ActionFlagOverrideDeleted     = "flag.override_deleted"
+	ActionPlanCreated             = "plan.created"
+	ActionPlanUpdated             = "plan.updated"
+	ActionPlanFeatureUpdated      = "plan.feature_updated"
 
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"

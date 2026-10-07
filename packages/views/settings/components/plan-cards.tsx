@@ -26,6 +26,19 @@ export function isContactOnly(plan: Plan): boolean {
   return plan.price_amount === null;
 }
 
+/** Sort key for upgrade vs downgrade; contact-only sorts above paid tiers. */
+export function planListPrice(plan: Plan): number {
+  if (plan.price_amount === null) return Number.MAX_SAFE_INTEGER;
+  return plan.price_amount;
+}
+
+/** Paid subscription must not downgrade via "choose free" — use cancel at period end. */
+export function isDowngradePlan(current: Plan | undefined, target: Plan): boolean {
+  if (!current || !isPaid(current)) return false;
+  if (target.code === current.code) return false;
+  return planListPrice(target) < planListPrice(current);
+}
+
 /** Currencies whose minor unit is never shown (ISO 4217 exponent 0 in practice). */
 const ZERO_DECIMAL_CURRENCIES = new Set(["VND", "JPY", "KRW", "CLP", "ISK", "UGX", "XAF", "XOF"]);
 
@@ -55,7 +68,21 @@ export function formatPrice(plan: Plan, locale: string, t: (k: string, o?: Recor
 }
 
 /** The quota keys worth a line on a plan card, in this order. Flags follow. */
-const HEADLINE_QUOTAS = ["members.max", "workspaces.max", "tasks.max", "meeting.participant_minutes"];
+const HEADLINE_QUOTAS = ["members.max", "workspaces.max", "tasks.max", "meeting.participant_minutes", "ai.tokens", "storage.bytes"];
+
+function formatPlanQuotaLimit(
+  featureKey: string,
+  limit: number | null,
+  locale: string,
+  t: (k: string, o?: Record<string, unknown>) => string,
+): string {
+  if (limit === null) return t("unlimited");
+  if (featureKey === "storage.bytes") {
+    const gb = limit / 1024 ** 3;
+    return t("plan_line_storage_gb", { n: gb.toLocaleString(locale, { maximumFractionDigits: 0 }) });
+  }
+  return limit.toLocaleString(locale);
+}
 
 function planLines(plan: Plan, known: Map<string, Entitlement>, locale: string, t: (k: string, o?: Record<string, unknown>) => string): string[] {
   const byKey = new Map(plan.features.map((f) => [f.feature_key, f]));
@@ -64,7 +91,7 @@ function planLines(plan: Plan, known: Map<string, Entitlement>, locale: string, 
     const f = byKey.get(key);
     const e = known.get(key);
     if (!f || !e || !f.enabled) continue;
-    const limit = f.quota_limit === null ? t("unlimited") : f.quota_limit.toLocaleString(locale);
+    const limit = formatPlanQuotaLimit(key, f.quota_limit, locale, t);
     lines.push(t("plan_line_quota", { name: featureLabel(t, key, e.name), limit }));
   }
   for (const f of plan.features) {
@@ -106,6 +133,7 @@ export function PlanCards({ plans, currentCode, entitlements, busy, pendingCode,
   // Side by side, a description of one or two lines would push one card's
   // feature list below its neighbour's; reserve the same room on every card.
   const describes = !single && plans.some((p) => p.description);
+  const activePlan = plans.find((p) => p.code === currentCode);
 
   return (
     <>
@@ -113,6 +141,7 @@ export function PlanCards({ plans, currentCode, entitlements, busy, pendingCode,
         {plans.map((plan) => {
           const current = plan.code === currentCode;
           const paid = isPaid(plan);
+          const downgrade = isDowngradePlan(activePlan, plan);
           return (
             <Card
               key={plan.id}
@@ -147,6 +176,10 @@ export function PlanCards({ plans, currentCode, entitlements, busy, pendingCode,
                 // button to press: the price line already says "contact us".
                 <CardFooter className="mt-auto px-4">
                   <p className="text-caption text-pretty text-muted-foreground">{t("contact_only")}</p>
+                </CardFooter>
+              ) : downgrade ? (
+                <CardFooter className="mt-auto px-4">
+                  <p className="text-caption font-medium text-pretty text-muted-foreground">{t("downgrade_use_cancel")}</p>
                 </CardFooter>
               ) : (
                 // The current plan is already marked in the header; a second
