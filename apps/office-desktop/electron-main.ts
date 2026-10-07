@@ -25,7 +25,7 @@ import { FileHandleRegistry } from "./main/files/registry";
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
 import { createDesktopLeaveCoordinator } from "./main/leave";
-import { leaveExpiredEventSchema, leaveRequestedEventSchema, loginRequestedEventSchema } from "./shared/ipc";
+import { leaveExpiredEventSchema, leaveRequestedEventSchema, loginRequestedEventSchema, officePrintRequestedEventSchema } from "./shared/ipc";
 import { resolveLocalDevice } from "./main/local/device";
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
@@ -266,7 +266,7 @@ async function startElectronHost(): Promise<void> {
   });
   // Keep the platform editing roles available (especially Cmd/C/X/V on
   // macOS) while adding the desktop Save and update actions owned by the host.
-  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate(DESKTOP_IDENTITY_MANIFEST.build.channel, () => nativeSaveListener?.(), () => { void update(); })));
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate(DESKTOP_IDENTITY_MANIFEST.build.channel, () => nativeSaveListener?.(), () => { void update(); }, () => { window.webContents.send("desktop:office-print-requested", officePrintRequestedEventSchema.parse({})); })));
   registerWindowIpc({ ipcMain, app, window, dispatch: host.dispatch, fileRegistry, deviceScope, localOpenContext: documentSession.localOpenContext, nativeFiles: launchEvents.nativeFiles, argv: process.argv });
 
   window.once("ready-to-show", () => {
