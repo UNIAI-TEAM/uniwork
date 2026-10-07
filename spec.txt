@@ -1,0 +1,7 @@
+pnpm --filter @uniwork/office-desktop exec tsc --noEmit
+pnpm --filter @uniwork/views exec tsc --noEmit
+pnpm --filter @uniwork/office-desktop exec vitest run --coverage.enabled=false
+pnpm --filter @uniwork/core exec vitest run --coverage.enabled=false i18n
+pnpm --filter @uniwork/office-desktop exec eslint . --max-warnings 0
+pnpm knip
+node --test scripts/*.test.mjs scripts/office/*.test.mjs
