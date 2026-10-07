@@ -4,7 +4,7 @@ import { isAllowedExternalUrl } from "./external-url";
 import { bytesSchema, isByteValue } from "./ipc-bytes";
 import { desktopPrintOptionsSchema, desktopPrintPreviewRequestSchema, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, desktopPrintSavePdfRequestSchema, desktopPrintSavePdfResponseSchema, PRINT_HTML_MAX_BYTES } from "./ipc-print";
 
-export { PRINT_HTML_MAX_BYTES, PRINT_PREVIEW_MAX_BYTES, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, desktopPrintSavePdfResponseSchema, type DesktopPrinter, type DesktopPrintSavePdfResponse, type DesktopPrintGeometry, type DesktopPrintOptions, type DesktopPrintPreviewResponse, type DesktopPrintResponse } from "./ipc-print";
+export { PRINT_HTML_MAX_BYTES, PRINT_PREVIEW_MAX_BYTES, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, desktopPrintSavePdfResponseSchema, type DesktopPrinter, type DesktopPrintSavePdfResponse, type DesktopPrintGeometry, type DesktopPrintOptions, type DesktopPrintResponse } from "./ipc-print";
 
 /** The closed desktop wire surface. Keep this module free of Electron and
  * main-process imports so preload and renderer can consume only contracts. */

@@ -72,7 +72,6 @@ export const desktopPrintPreviewRequestSchema = z.object({
   html: z.string().min(1).max(PRINT_HTML_MAX_BYTES),
   options: desktopPrintGeometrySchema,
 }).strict();
-export type DesktopPrintPreviewRequest = z.infer<typeof desktopPrintPreviewRequestSchema>;
 
 /** The preview PDF as bytes (never base64), or a typed failure:
  * `print_busy`, `print_timeout`, `print_preview_too_large`, `print_unavailable`. */
