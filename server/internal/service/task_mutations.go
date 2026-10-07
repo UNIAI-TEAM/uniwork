@@ -20,11 +20,12 @@ const (
 // UpdateTaskSuiteInput is a revision-aware update. Revision must match the
 // server's current value or the call fails with revision_conflict.
 type UpdateTaskSuiteInput struct {
-	Revision int64
-	Title    *string
-	Status   *string
-	Priority *string
-	Position *float64
+	Revision    int64
+	Title       *string
+	Description *string
+	Status      *string
+	Priority    *string
+	Position    *float64
 }
 
 // BatchUpdateTasksInput applies one patch to many tasks in a workspace.
@@ -83,7 +84,7 @@ func (s *TaskService) CreateTaskSuite(ctx context.Context, actor Actor, workspac
 }
 
 // UpdateTaskSuite refuses a stale revision then applies fields and bumps
-// revision exactly once for title/status/priority/position updates.
+// revision exactly once for title/description/status/priority/position updates.
 func (s *TaskService) UpdateTaskSuite(ctx context.Context, actor Actor, taskID string, in UpdateTaskSuiteInput) (db.Task, error) {
 	before, err := s.authorizeActor(ctx, actor, taskID)
 	if err != nil {
@@ -93,10 +94,11 @@ func (s *TaskService) UpdateTaskSuite(ctx context.Context, actor Actor, taskID s
 		return db.Task{}, err
 	}
 	return s.Update(ctx, actor, taskID, UpdateTaskInput{
-		Title:    in.Title,
-		Status:   in.Status,
-		Priority: in.Priority,
-		Position: in.Position,
+		Title:       in.Title,
+		Description: in.Description,
+		Status:      in.Status,
+		Priority:    in.Priority,
+		Position:    in.Position,
 	})
 }
 

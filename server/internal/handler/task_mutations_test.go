@@ -97,6 +97,64 @@ func TestPutTaskSuiteStaleIfMatchConflict(t *testing.T) {
 	}
 }
 
+func TestPutTaskSuiteUpdatesDescription(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "PUT description", "description": "Before",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create: %d %v", res.StatusCode, out)
+	}
+	task := out["task"].(map[string]any)
+	taskID := task["id"].(string)
+	revision := task["revision"].(float64)
+
+	res, out = doJSON(t, srv, "PUT", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"revision": revision, "description": "After",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("put: %d %v", res.StatusCode, out)
+	}
+	task = out["task"].(map[string]any)
+	if task["description"] != "After" {
+		t.Fatalf("description=%v want After", task["description"])
+	}
+	if task["revision"] != revision+1 {
+		t.Fatalf("revision=%v want %v", task["revision"], revision+1)
+	}
+
+	res, out = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID, token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("get after put: %d %v", res.StatusCode, out)
+	}
+	reloaded := out["task"].(map[string]any)
+	if reloaded["description"] != "After" {
+		t.Fatalf("reloaded description=%v want After", reloaded["description"])
+	}
+	if reloaded["revision"] != revision+1 {
+		t.Fatalf("reloaded revision=%v want %v", reloaded["revision"], revision+1)
+	}
+
+	res, out = doJSON(t, srv, "PUT", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"revision": revision + 1, "description": "",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("clear description: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID, token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("get after clear: %d %v", res.StatusCode, out)
+	}
+	reloaded = out["task"].(map[string]any)
+	if reloaded["description"] != "" {
+		t.Fatalf("cleared description=%v want empty", reloaded["description"])
+	}
+	if reloaded["revision"] != revision+2 {
+		t.Fatalf("cleared revision=%v want %v", reloaded["revision"], revision+2)
+	}
+}
+
 func TestPatchTaskHTTPStartDate(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 

@@ -55,11 +55,12 @@ type QueryTasksSDI struct {
 // PutTaskSDI is PUT /api/v1/tasks/{taskID} (flagged suite). Revision may also
 // arrive via If-Match; body revision wins when both are present and equal.
 type PutTaskSDI struct {
-	Revision *int64   `json:"revision" description:"Revision hiện tại phía client; lệch → revision_conflict" example:"1"`
-	Title    *string  `json:"title" example:"Chuẩn bị standup"`
-	Status   *string  `json:"status" example:"in_progress"`
-	Priority *string  `json:"priority" example:"high"`
-	Position *float64 `json:"position" example:"1"`
+	Revision    *int64   `json:"revision" description:"Revision hiện tại phía client; lệch → revision_conflict" example:"1"`
+	Title       *string  `json:"title" example:"Chuẩn bị standup"`
+	Description *string  `json:"description" example:"Tổng hợp nội dung cho buổi họp"`
+	Status      *string  `json:"status" example:"in_progress"`
+	Priority    *string  `json:"priority" example:"high"`
+	Position    *float64 `json:"position" example:"1"`
 }
 
 // BatchUpdateTasksSDI is POST .../tasks/batch-update.
