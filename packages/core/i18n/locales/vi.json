@@ -9410,7 +9410,9 @@
           "delete": "Xóa {{name}}",
           "fileReadOnly": "Hình vẽ này được neo theo kiểu trình sửa chưa di chuyển được. Hình hiển thị đúng như trong tệp.",
           "unavailable": "Hiện chưa sửa được hình vẽ: tài liệu chỉ xem hoặc đang lưu.",
-          "fileChart": "Biểu đồ {{title}}"
+          "fileChart": "Biểu đồ {{title}}",
+          "kindChart": "Biểu đồ",
+          "kindShape": "Hình dạng"
         },
         "placeholder": {
           "chart": "Chưa xem trước được loại biểu đồ này.",
