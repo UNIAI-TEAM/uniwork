@@ -74,7 +74,7 @@ func New(d Deps, h Routes) http.Handler {
 		// budget and LiveKit dropped the refused events. The route checks the
 		// webhook signature and the network policy admits only LiveKit.
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, bearerUser(d.Minter))
-		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/api/v1"+liveKitWebhookPath))
+		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
 	// In-room limiters budget per verified person, not per address: a formal
@@ -106,6 +106,7 @@ func New(d Deps, h Routes) http.Handler {
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
 		registerAuth(v1, h, credentialLimit)
+		registerBillingWebhooks(v1, h)
 		v1.Group(func(desktop api) {
 			if d.DeviceStatus != nil {
 				desktop.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))

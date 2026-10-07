@@ -55,6 +55,8 @@ export const paths = {
     organizations: () => "/admin/organizations",
     organization: (id: string) => `/admin/organizations/${id}`,
     flags: () => "/admin/flags",
+    plans: () => "/admin/plans",
+    invoices: () => "/admin/invoices",
     trace: (traceId?: string) => (traceId ? `/admin/trace?id=${encodeURIComponent(traceId)}` : "/admin/trace"),
     quota: () => "/admin/quota",
     system: () => "/admin/system",

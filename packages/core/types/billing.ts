@@ -59,3 +59,16 @@ export interface SubscriptionView {
   subscription: Subscription;
   entitlements: Entitlement[];
 }
+
+export const InvoiceSchema = z.object({
+  id: z.string(),
+  number: z.string(),
+  status: z.string(),
+  provider: z.string(),
+  amount_paid: z.number(),
+  currency: z.string().optional().default("VND"),
+  period_start: z.string(),
+  period_end: z.string(),
+  paid_at: z.string().optional(),
+});
+export type Invoice = z.infer<typeof InvoiceSchema>;

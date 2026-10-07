@@ -1,4 +1,4 @@
-import type { AdminOrganizationQuery } from "../api/endpoints/admin";
+import type { AdminBillingQuery, AdminOrganizationQuery } from "../api/endpoints/admin";
 
 /**
  * Query keys for the platform-admin console. Nothing here is workspace
@@ -16,4 +16,8 @@ export const adminKeys = {
   flags: ["admin", "flags"] as const,
   overrides: (key: string) => ["admin", "flags", key, "overrides"] as const,
   allOverrides: ["admin", "flags", "overrides"] as const,
+  plans: ["admin", "plans"] as const,
+  invoicesRoot: ["admin", "invoices"] as const,
+  invoices: (query: AdminBillingQuery) => ["admin", "invoices", query] as const,
+  paymentIntents: (query: AdminBillingQuery) => ["admin", "payment-intents", query] as const,
 };

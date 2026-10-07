@@ -56,6 +56,26 @@ func registerRecordingUser(t *testing.T, srv *httptest.Server, tag string) (toke
 	return token, email, wsID
 }
 
+// enableMeetingRecordingForWorkspace turns on meeting.recording for the org
+// behind wsID. B1 disables it on the default Starter plan; UNI-746 pins
+// playback authorization, not tier gating.
+func enableMeetingRecordingForWorkspace(t *testing.T, wsID string) {
+	t.Helper()
+	ctx := context.Background()
+	tag, err := testPool.Exec(ctx, `
+		UPDATE subscriptions s
+		SET overrides = COALESCE(s.overrides, '{}'::jsonb) || '{"meeting.recording": true}'::jsonb
+		FROM workspaces w
+		WHERE w.id = $1 AND s.organization_id = w.organization_id
+	`, wsID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tag.RowsAffected() != 1 {
+		t.Fatalf("subscription override: rows=%d ws=%s", tag.RowsAffected(), wsID)
+	}
+}
+
 // inviteToWorkspace walks the real invitation flow so a second user joins the
 // host's workspace as a plain member.
 func inviteToWorkspace(t *testing.T, srv *httptest.Server, hostToken, wsID, memberToken, memberEmail string) {
@@ -114,6 +134,7 @@ func TestMeetingRecordingHTTPPlaybackAuthorization(t *testing.T) {
 
 	srv := newTestServer(t)
 	hostToken, _, hostWS := registerRecordingUser(t, srv, "rec-host")
+	enableMeetingRecordingForWorkspace(t, hostWS)
 	memberToken, memberEmail, _ := registerRecordingUser(t, srv, "rec-member")
 	outsiderToken, _, _ := registerRecordingUser(t, srv, "rec-outsider")
 	inviteToWorkspace(t, srv, hostToken, hostWS, memberToken, memberEmail)

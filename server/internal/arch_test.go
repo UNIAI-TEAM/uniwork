@@ -209,7 +209,7 @@ func TestAuditAndOutboxWritesGoThroughTheAuditPackage(t *testing.T) {
 // fail-closed formula, so the sqlc queries on plans, subscriptions and
 // usage_* are callable from those two files only.
 func TestBillingQueriesStayInBillingServices(t *testing.T) {
-	billing := regexp.MustCompile(`\.(ListActivePlans|GetPlanByCode|GetPlanByID|GetDefaultPlan|ListFeatures|ListPlanFeatures|ListActivePlanFeatures|GetLiveSubscription|LockLiveSubscription|CreateSubscription|ChangeSubscriptionPlan|SetSubscriptionCancelAt|InsertUsageEvent|GetUsageCounter|ListUsageCounters|AddUsageWithinLimit|MarkUsageThresholdNotified)\(`)
+	billing := regexp.MustCompile(`\.(ListActivePlans|ListAllPlans|GetPlanByCode|GetPlanByID|GetDefaultPlan|GetFeatureByKey|ListFeatures|ListPlanFeatures|ListAllPlanFeatures|ListActivePlanFeatures|InsertPlanCatalog|UpdatePlanCatalog|UpsertPlanFeatureRow|GetLiveSubscription|LockLiveSubscription|CreateSubscription|ChangeSubscriptionPlan|SetSubscriptionCancelAt|InsertUsageEvent|GetUsageCounter|ListUsageCounters|AddUsageWithinLimit|MarkUsageThresholdNotified|InsertBillingPaymentIntent|ExpirePendingBillingPaymentIntents|GetBillingPaymentIntentByTxnRef|GetBillingPaymentIntentByID|MarkBillingPaymentIntentCompleted|MarkBillingPaymentIntentFailed|ApplyPaidSubscriptionFromProvider|InsertInvoice|ListInvoicesByOrganization|ListSubscriptionsDueForCancelLapse|ListSubscriptionsDueForPastDue|RevertSubscriptionToDefaultAtCancel|MarkSubscriptionPastDue|ClaimPendingBillingWebhookInbox)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -220,7 +220,9 @@ func TestBillingQueriesStayInBillingServices(t *testing.T) {
 		if strings.Contains(slash, "pkg/db/generated") ||
 			strings.Contains(slash, "cmd/seed/") ||
 			strings.HasSuffix(slash, "internal/service/entitlement.go") ||
-			strings.HasSuffix(slash, "internal/service/billing.go") {
+			strings.HasSuffix(slash, "internal/service/billing.go") ||
+			strings.HasSuffix(slash, "internal/service/billing_catalog.go") ||
+			strings.Contains(slash, "internal/service/billing_") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
@@ -310,13 +312,13 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 // fenced: only service/admin.go calls Admin* queries, and admin.go never
 // reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
 func TestAdminQueriesStayInAdminService(t *testing.T) {
-	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride)\(`)
+	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride|AdminListInvoices|AdminCountInvoices|AdminListPaymentIntents|AdminCountPaymentIntents)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
 		slash := filepath.ToSlash(path)
-		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.Contains(slash, "pkg/db/generated/") {
+		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.HasSuffix(slash, "internal/service/admin_billing.go") || strings.HasSuffix(slash, "internal/service/admin_plans.go") || strings.Contains(slash, "pkg/db/generated/") {
 			return nil
 		}
 		src, err := os.ReadFile(path)

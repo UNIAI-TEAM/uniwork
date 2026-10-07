@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,6 +26,24 @@ type BillingService struct {
 	orgs     *OrganizationService
 	ent      *EntitlementService
 	provider billing.Provider
+	metrics  BillingMetrics
+	log      *slog.Logger
+}
+
+func (s *BillingService) SetBillingMetrics(m BillingMetrics) {
+	s.metrics = m
+}
+
+func (s *BillingService) SetLogger(log *slog.Logger) {
+	s.log = log
+}
+
+func (s *BillingService) billingLogWarn(msg string, err error, attrs ...any) {
+	if s.log == nil || err == nil {
+		return
+	}
+	args := append([]any{"err", err}, attrs...)
+	s.log.Warn(msg, args...)
 }
 
 func NewBillingService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, provider billing.Provider) *BillingService {
@@ -105,7 +124,14 @@ func (s *BillingService) requireOwner(ctx context.Context, userID, orgID string)
 }
 
 func planIsPaid(p db.Plan) bool {
-	return !p.PriceAmount.Valid || p.PriceAmount.Int64 > 0
+	return p.PriceAmount.Valid && p.PriceAmount.Int64 > 0
+}
+
+func planListPrice(p db.Plan) int64 {
+	if !p.PriceAmount.Valid {
+		return 1 << 62
+	}
+	return p.PriceAmount.Int64
 }
 
 // ChangePlan (spec §4.4). An owner may move between free manual plans; a
@@ -151,6 +177,11 @@ func (s *BillingService) ChangePlan(ctx context.Context, userID, orgID, planCode
 	before, err := q.GetPlanByID(ctx, sub.PlanID)
 	if err != nil {
 		return EntitlementSnapshot{}, err
+	}
+	if !platformAdmin && planListPrice(before) > 0 && planListPrice(plan) < planListPrice(before) {
+		return EntitlementSnapshot{}, CodedError{Code: "downgrade_not_allowed", Status: http.StatusForbidden,
+			Msg:    "không thể hạ gói trả phí tại đây; dùng hủy gói vào cuối kỳ hoặc liên hệ quản trị",
+			Fields: map[string]any{"current_plan": before.Code, "target_plan": plan.Code}}
 	}
 	actor := Human(userID)
 	after, err := q.ChangeSubscriptionPlan(ctx, db.ChangeSubscriptionPlanParams{
@@ -276,29 +307,4 @@ func (s *BillingService) setCancelAt(ctx context.Context, userID, orgID string, 
 		return EntitlementSnapshot{}, err
 	}
 	return s.ent.Snapshot(ctx, orgID)
-}
-
-// Checkout asks the provider for a payment page. Manual (and the stubs)
-// answer 503 billing_provider_unavailable.
-func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, successURL, cancelURL string) (billing.CheckoutSession, error) {
-	if _, err := s.requireOwner(ctx, userID, orgID); err != nil {
-		return billing.CheckoutSession{}, err
-	}
-	u, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return billing.CheckoutSession{}, err
-	}
-	if _, err := s.q.GetPlanByCode(ctx, planCode); errors.Is(err, pgx.ErrNoRows) {
-		return billing.CheckoutSession{}, ErrNotFound
-	} else if err != nil {
-		return billing.CheckoutSession{}, err
-	}
-	sess, err := s.provider.CreateCheckout(ctx, billing.CheckoutInput{
-		OrganizationID: orgID, PlanCode: planCode, CustomerEmail: u.Email, SuccessURL: successURL, CancelURL: cancelURL,
-	})
-	if errors.Is(err, billing.ErrProviderUnavailable) {
-		return billing.CheckoutSession{}, CodedError{Code: "billing_provider_unavailable", Status: http.StatusServiceUnavailable, Err: err,
-			Msg: "chưa có cổng thanh toán; liên hệ quản trị viên để đổi gói", Fields: map[string]any{"provider": s.provider.Name()}}
-	}
-	return sess, err
 }

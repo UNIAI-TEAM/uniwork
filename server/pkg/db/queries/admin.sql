@@ -90,3 +90,82 @@ WHERE platform_role IS NOT NULL ORDER BY platform_role_granted_at DESC;
 
 -- name: GetOrganizationStatus :one
 SELECT status FROM organizations WHERE id = $1;
+
+-- name: AdminListInvoices :many
+-- tenant: platform
+SELECT t.id, t.organization_id, t.subscription_id, t.provider, t.provider_invoice_id, t.number,
+  t.status, t.amount_due, t.amount_paid, t.currency, t.period_start, t.period_end, t.hosted_url,
+  t.issued_at, t.paid_at, t.created_at, t.updated_at, t.org_slug, t.org_name,
+  t.user_id, t.user_display_name, t.user_email, t.total_count
+FROM (
+  SELECT i.id, i.organization_id, i.subscription_id, i.provider, i.provider_invoice_id, i.number,
+    i.status, i.amount_due, i.amount_paid, i.currency, i.period_start, i.period_end, i.hosted_url,
+    i.issued_at, i.paid_at, i.created_at, i.updated_at,
+    o.slug AS org_slug, o.name AS org_name,
+    COALESCE(init_u.id, owner_u.id, '')::text AS user_id,
+    COALESCE(init_u.display_name, owner_u.display_name, '')::text AS user_display_name,
+    COALESCE(init_u.email, owner_u.email, '')::text AS user_email,
+    count(*) OVER ()::bigint AS total_count
+  FROM invoices i
+  JOIN organizations o ON o.id = i.organization_id
+  LEFT JOIN users init_u ON init_u.id = i.initiated_by
+  LEFT JOIN organization_members owner_m ON owner_m.organization_id = i.organization_id AND owner_m.role = 'owner'
+  LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
+  WHERE (sqlc.narg('provider')::text IS NULL OR i.provider = sqlc.narg('provider')::text)
+    AND (sqlc.narg('status')::text IS NULL OR i.status = sqlc.narg('status')::text)
+    AND (sqlc.narg('q')::text IS NULL OR i.number ILIKE '%' || sqlc.narg('q')::text || '%'
+      OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
+      OR init_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR init_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%')
+) t
+ORDER BY COALESCE(t.paid_at, t.created_at) DESC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: AdminCountInvoices :one
+-- tenant: platform
+SELECT count(*)::bigint FROM invoices i
+JOIN organizations o ON o.id = i.organization_id
+LEFT JOIN users init_u ON init_u.id = i.initiated_by
+WHERE (sqlc.narg('provider')::text IS NULL OR i.provider = sqlc.narg('provider')::text)
+  AND (sqlc.narg('status')::text IS NULL OR i.status = sqlc.narg('status')::text)
+  AND (sqlc.narg('q')::text IS NULL OR i.number ILIKE '%' || sqlc.narg('q')::text || '%'
+    OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
+    OR init_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR init_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%');
+
+-- name: AdminListPaymentIntents :many
+-- tenant: platform
+SELECT t.id, t.organization_id, t.subscription_id, t.plan_id, t.provider, t.provider_txn_ref,
+  t.amount, t.currency, t.status, t.expires_at, t.completed_at, t.created_at, t.updated_at,
+  t.org_slug, t.org_name, t.plan_code, t.user_id, t.user_display_name, t.user_email, t.total_count
+FROM (
+  SELECT pi.id, pi.organization_id, pi.subscription_id, pi.plan_id, pi.provider, pi.provider_txn_ref,
+    pi.amount, pi.currency, pi.status, pi.expires_at, pi.completed_at, pi.created_at, pi.updated_at,
+    o.slug AS org_slug, o.name AS org_name, p.code AS plan_code,
+    COALESCE(pay_u.id, owner_u.id, '')::text AS user_id,
+    COALESCE(pay_u.display_name, owner_u.display_name, '')::text AS user_display_name,
+    COALESCE(pay_u.email, owner_u.email, '')::text AS user_email,
+    count(*) OVER ()::bigint AS total_count
+  FROM billing_payment_intents pi
+  JOIN organizations o ON o.id = pi.organization_id
+  JOIN plans p ON p.id = pi.plan_id
+  LEFT JOIN users pay_u ON pay_u.id = pi.created_by
+  LEFT JOIN organization_members owner_m ON owner_m.organization_id = pi.organization_id AND owner_m.role = 'owner'
+  LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
+  WHERE (sqlc.narg('provider')::text IS NULL OR pi.provider = sqlc.narg('provider')::text)
+    AND (sqlc.narg('status')::text IS NULL OR pi.status = sqlc.narg('status')::text)
+    AND (sqlc.narg('q')::text IS NULL OR pi.provider_txn_ref ILIKE '%' || sqlc.narg('q')::text || '%'
+      OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
+      OR pay_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR pay_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%')
+) t
+ORDER BY t.created_at DESC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: AdminCountPaymentIntents :one
+-- tenant: platform
+SELECT count(*)::bigint FROM billing_payment_intents pi
+JOIN organizations o ON o.id = pi.organization_id
+LEFT JOIN users pay_u ON pay_u.id = pi.created_by
+WHERE (sqlc.narg('provider')::text IS NULL OR pi.provider = sqlc.narg('provider')::text)
+  AND (sqlc.narg('status')::text IS NULL OR pi.status = sqlc.narg('status')::text)
+  AND (sqlc.narg('q')::text IS NULL OR pi.provider_txn_ref ILIKE '%' || sqlc.narg('q')::text || '%'
+    OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
+    OR pay_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR pay_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%');

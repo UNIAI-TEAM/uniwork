@@ -12,8 +12,17 @@ import {
   type AdminOrganizationDetail,
   type AdminSystem,
   type AdminTrace,
+  AdminInvoiceSchema,
+  AdminPaymentIntentSchema,
+  AdminPlanSchema,
+  type AdminInvoice,
+  type AdminPaymentIntent,
+  type AdminPlan,
   type FlagOverrideDeleteInput,
   type FlagOverrideInput,
+  type PlanCreateInput,
+  type PlanFeatureUpdateInput,
+  type PlanUpsertInput,
 } from "../../types/admin";
 import { SubscriptionSchema, type Subscription } from "../../types/billing";
 import { request } from "../http";
@@ -36,6 +45,20 @@ const OrganizationResponse = z.object({ organization: AdminOrganizationSchema })
 const SubscriptionResponse = z.object({ subscription: SubscriptionSchema });
 const FlagsResponse = z.object({ flags: z.array(AdminFlagSchema) });
 const OverridesResponse = z.object({ overrides: z.array(AdminFlagOverrideSchema) });
+const PlansResponse = z.object({ plans: z.array(AdminPlanSchema) });
+const PlanResponse = z.object({ plan: AdminPlanSchema });
+const InvoicesResponse = z.object({
+  invoices: z.array(AdminInvoiceSchema),
+  total: z.number().optional(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
+});
+const PaymentIntentsResponse = z.object({
+  intents: z.array(AdminPaymentIntentSchema),
+  total: z.number().optional(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
+});
 
 const enc = encodeURIComponent;
 
@@ -168,4 +191,101 @@ export async function setFlagOverride(key: string, body: FlagOverrideInput): Pro
 export async function deleteFlagOverride(key: string, body: FlagOverrideDeleteInput): Promise<AdminFlagOverride[]> {
   const raw = await request(`/api/v1/admin/flags/${enc(key)}/overrides`, { method: "DELETE", body });
   return parseOverrides(raw, "DELETE /api/v1/admin/flags/{key}/overrides");
+}
+
+export async function createAdminPlan(body: PlanCreateInput): Promise<AdminPlan | null> {
+  const raw = await request("/api/v1/admin/plans", { method: "POST", body });
+  return parseWithFallback<{ plan: AdminPlan | null }>(raw, PlanResponse, { plan: null }, {
+    endpoint: "POST /api/v1/admin/plans",
+  }).plan;
+}
+
+export async function listAdminPlans(): Promise<AdminPlan[]> {
+  const raw = await request("/api/v1/admin/plans");
+  return parseWithFallback<{ plans: AdminPlan[] }>(raw, PlansResponse, { plans: [] }, {
+    endpoint: "GET /api/v1/admin/plans",
+  }).plans;
+}
+
+export async function updateAdminPlan(code: string, body: PlanUpsertInput): Promise<AdminPlan | null> {
+  const raw = await request(`/api/v1/admin/plans/${enc(code)}`, { method: "PUT", body });
+  return parseWithFallback<{ plan: AdminPlan | null }>(raw, PlanResponse, { plan: null }, {
+    endpoint: "PUT /api/v1/admin/plans/{code}",
+  }).plan;
+}
+
+export async function updateAdminPlanFeature(
+  code: string,
+  featureKey: string,
+  body: PlanFeatureUpdateInput,
+): Promise<AdminPlan | null> {
+  const raw = await request(`/api/v1/admin/plans/${enc(code)}/features/${enc(featureKey)}`, { method: "PUT", body });
+  return parseWithFallback<{ plan: AdminPlan | null }>(raw, PlanResponse, { plan: null }, {
+    endpoint: "PUT /api/v1/admin/plans/{code}/features/{key}",
+  }).plan;
+}
+
+export interface AdminBillingQuery {
+  q?: string;
+  provider?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AdminInvoicePage {
+  invoices: AdminInvoice[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminPaymentIntentPage {
+  intents: AdminPaymentIntent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+function billingQueryString(query: AdminBillingQuery = {}): string {
+  const params = new URLSearchParams();
+  if (query.q) params.set("q", query.q);
+  if (query.provider) params.set("provider", query.provider);
+  if (query.status) params.set("status", query.status);
+  if (query.limit) params.set("limit", String(query.limit));
+  if (query.offset) params.set("offset", String(query.offset));
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export async function listAdminInvoices(query: AdminBillingQuery = {}): Promise<AdminInvoicePage> {
+  const raw = await request(`/api/v1/admin/invoices${billingQueryString(query)}`);
+  const parsed = parseWithFallback<{
+    invoices: AdminInvoice[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+  }>(raw, InvoicesResponse, { invoices: [] }, { endpoint: "GET /api/v1/admin/invoices" });
+  return {
+    invoices: parsed.invoices,
+    total: parsed.total ?? parsed.invoices.length,
+    limit: parsed.limit ?? query.limit ?? 50,
+    offset: parsed.offset ?? query.offset ?? 0,
+  };
+}
+
+export async function listAdminPaymentIntents(query: AdminBillingQuery = {}): Promise<AdminPaymentIntentPage> {
+  const raw = await request(`/api/v1/admin/billing/payment-intents${billingQueryString(query)}`);
+  const parsed = parseWithFallback<{
+    intents: AdminPaymentIntent[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+  }>(raw, PaymentIntentsResponse, { intents: [] }, { endpoint: "GET /api/v1/admin/billing/payment-intents" });
+  return {
+    intents: parsed.intents,
+    total: parsed.total ?? parsed.intents.length,
+    limit: parsed.limit ?? query.limit ?? 50,
+    offset: parsed.offset ?? query.offset ?? 0,
+  };
 }

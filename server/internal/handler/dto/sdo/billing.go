@@ -29,7 +29,7 @@ type SubscriptionDTO struct {
 	PlanCode           string `json:"plan_code" example:"starter"`
 	PlanName           string `json:"plan_name" example:"Starter"`
 	Status             string `json:"status" description:"trialing, active, past_due, suspended hoặc canceled" example:"active"`
-	Provider           string `json:"provider" description:"manual, stripe hoặc payos" example:"manual"`
+	Provider           string `json:"provider" description:"manual, vnpay, stripe hoặc payos" example:"manual"`
 	CurrentPeriodStart string `json:"current_period_start" example:"2026-09-06T00:00:00Z"`
 	CurrentPeriodEnd   string `json:"current_period_end,omitempty" example:"2026-10-06T00:00:00Z"`
 	CancelAt           string `json:"cancel_at,omitempty" example:"2026-10-06T00:00:00Z"`
@@ -59,4 +59,22 @@ type SubscriptionSDO struct {
 // CheckoutSDO is POST /api/v1/orgs/{orgID}/billing/checkout.
 type CheckoutSDO struct {
 	URL string `json:"url" example:"https://pay.example.com/session/abc"`
+}
+
+// InvoiceDTO is one paid billing period from a provider checkout.
+type InvoiceDTO struct {
+	ID          string `json:"id" example:"01K4F02INV0N1P2Q3R4S5T6U7V"`
+	Number      string `json:"number" example:"UW-2026-01ABC12345"`
+	Status      string `json:"status" example:"paid"`
+	Provider    string `json:"provider" example:"vnpay"`
+	AmountPaid  int64  `json:"amount_paid" example:"499000"`
+	Currency    string `json:"currency" example:"VND"`
+	PeriodStart string `json:"period_start" example:"2026-09-06T00:00:00Z"`
+	PeriodEnd   string `json:"period_end" example:"2026-10-06T00:00:00Z"`
+	PaidAt      string `json:"paid_at,omitempty" example:"2026-09-06T12:00:00Z"`
+}
+
+// InvoiceListSDO is GET /api/v1/orgs/{orgID}/billing/invoices.
+type InvoiceListSDO struct {
+	Invoices []InvoiceDTO `json:"invoices"`
 }

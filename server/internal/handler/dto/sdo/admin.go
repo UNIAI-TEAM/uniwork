@@ -145,3 +145,94 @@ type AdminFlagOverrideDTO struct {
 type AdminFlagOverrideListSDO struct {
 	Overrides []AdminFlagOverrideDTO `json:"overrides"`
 }
+
+// AdminPlanFeatureDTO is one entitlement row on a catalog plan.
+type AdminPlanFeatureDTO struct {
+	FeatureKey string `json:"feature_key" example:"members.max"`
+	Name       string `json:"name" example:"Thành viên tổ chức"`
+	Kind       string `json:"kind" description:"flag | quota" example:"quota"`
+	Unit       string `json:"unit,omitempty" example:"members"`
+	Enabled    bool   `json:"enabled" example:"true"`
+	QuotaLimit *int64 `json:"quota_limit" description:"null = không giới hạn" example:"50"`
+}
+
+// AdminPlanDTO is one row of the billing catalog (includes inactive plans).
+type AdminPlanDTO struct {
+	ID            string                `json:"id" example:"01K4F02PLAN0STARTER000000A"`
+	Code          string                `json:"code" example:"starter"`
+	Name          string                `json:"name" example:"Starter"`
+	Description   string                `json:"description" example:"Gói mặc định cho mọi tổ chức"`
+	BillingPeriod string                `json:"billing_period" description:"month, year hoặc none" example:"none"`
+	PriceAmount   *int64                `json:"price_amount" description:"Đơn vị nhỏ nhất (VND: đồng); null = liên hệ" example:"0"`
+	PriceCurrency string                `json:"price_currency" example:"VND"`
+	IsDefault     bool                  `json:"is_default" example:"true"`
+	IsActive      bool                  `json:"is_active" example:"true"`
+	SortOrder     int32                 `json:"sort_order" example:"0"`
+	Features      []AdminPlanFeatureDTO `json:"features"`
+}
+
+// AdminPlanListSDO is GET /api/v1/admin/plans.
+type AdminPlanListSDO struct {
+	Plans []AdminPlanDTO `json:"plans"`
+}
+
+// AdminPlanSDO is PUT /api/v1/admin/plans/{code} and feature updates.
+type AdminPlanSDO struct {
+	Plan AdminPlanDTO `json:"plan"`
+}
+
+// AdminInvoiceDTO is one invoice row with organization metadata.
+type AdminInvoiceDTO struct {
+	ID              string `json:"id"`
+	OrganizationID  string `json:"organization_id"`
+	OrgSlug         string `json:"org_slug" example:"acme"`
+	OrgName         string `json:"org_name" example:"Acme"`
+	Number          string `json:"number" example:"UW-2026-01ABC12345"`
+	Status          string `json:"status" example:"paid"`
+	Provider        string `json:"provider" example:"vnpay"`
+	AmountPaid      int64  `json:"amount_paid" example:"499000"`
+	Currency        string `json:"currency" example:"VND"`
+	PeriodStart     string `json:"period_start" example:"2026-09-06T00:00:00Z"`
+	PeriodEnd       string `json:"period_end" example:"2026-10-06T00:00:00Z"`
+	PaidAt          string `json:"paid_at,omitempty" example:"2026-09-06T12:00:00Z"`
+	CreatedAt       string `json:"created_at" example:"2026-09-06T12:00:00Z"`
+	UserID          string `json:"user_id,omitempty" description:"Người bắt đầu checkout; fallback chủ tổ chức"`
+	UserDisplayName string `json:"user_display_name,omitempty" example:"Nguyễn Văn A"`
+	UserEmail       string `json:"user_email,omitempty" example:"owner@example.com"`
+}
+
+// AdminInvoiceListSDO is GET /api/v1/admin/invoices.
+type AdminInvoiceListSDO struct {
+	Invoices []AdminInvoiceDTO `json:"invoices"`
+	Total    int64             `json:"total" example:"128"`
+	Limit    int32             `json:"limit" example:"50"`
+	Offset   int32             `json:"offset" example:"0"`
+}
+
+// AdminPaymentIntentDTO is one checkout intent for support.
+type AdminPaymentIntentDTO struct {
+	ID              string `json:"id"`
+	OrganizationID  string `json:"organization_id"`
+	OrgSlug         string `json:"org_slug" example:"acme"`
+	OrgName         string `json:"org_name" example:"Acme"`
+	PlanCode        string `json:"plan_code" example:"team"`
+	Provider        string `json:"provider" example:"vnpay"`
+	ProviderTxnRef  string `json:"provider_txn_ref" example:"UW1700000000"`
+	Amount          int64  `json:"amount" example:"499000"`
+	Currency        string `json:"currency" example:"VND"`
+	Status          string `json:"status" description:"pending | completed | failed | expired" example:"completed"`
+	ExpiresAt       string `json:"expires_at" example:"2026-09-06T13:00:00Z"`
+	CompletedAt     string `json:"completed_at,omitempty"`
+	CreatedAt       string `json:"created_at" example:"2026-09-06T12:00:00Z"`
+	UserID          string `json:"user_id,omitempty"`
+	UserDisplayName string `json:"user_display_name,omitempty"`
+	UserEmail       string `json:"user_email,omitempty"`
+}
+
+// AdminPaymentIntentListSDO is GET /api/v1/admin/billing/payment-intents.
+type AdminPaymentIntentListSDO struct {
+	Intents []AdminPaymentIntentDTO `json:"intents"`
+	Total   int64                   `json:"total" example:"64"`
+	Limit   int32                   `json:"limit" example:"50"`
+	Offset  int32                   `json:"offset" example:"0"`
+}

@@ -15,6 +15,7 @@ import (
 //	POST  /api/v1/orgs/{orgID}/billing/cancel
 //	POST  /api/v1/orgs/{orgID}/billing/resume
 //	POST  /api/v1/orgs/{orgID}/billing/checkout
+//	GET   /api/v1/orgs/{orgID}/billing/invoices
 func registerBilling(r api, h Routes) {
 	r.Get("/plans", h.ListPlans, apiOp{
 		summary:     "List plans",
@@ -50,6 +51,13 @@ func registerBilling(r api, h Routes) {
 		description: "Owner bỏ lịch hủy.",
 		tags:        []string{"billing"},
 		sdo:         sdo.SubscriptionSDO{},
+		auth:        true,
+	})
+	r.Get("/orgs/{orgID}/billing/invoices", h.ListInvoices, apiOp{
+		summary:     "List billing invoices",
+		description: "Lịch sử hóa đơn đã thanh toán qua cổng (VNPay, …). Mọi thành viên tổ chức.",
+		tags:        []string{"billing"},
+		sdo:         sdo.InvoiceListSDO{},
 		auth:        true,
 	})
 	r.Post("/orgs/{orgID}/billing/checkout", h.CreateCheckout, apiOp{

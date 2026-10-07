@@ -132,6 +132,26 @@ func TestChangePlanGates(t *testing.T) {
 	}
 }
 
+func TestChangePlanDowngradeFromPaidBlocked(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	f.seedPlan(t, "free_small", 0, map[string]int64{FeatureWorkspacesMax: 99})
+	v := f.version(t)
+	admin := registerVerified(t, f.q, f.auth, "bill-admin@example.com", "Admin")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.billing.ChangePlan(f.ctx, admin.ID, f.orgID, "paid_team", v); err != nil {
+		t.Fatal(err)
+	}
+	v = f.version(t)
+	_, err := f.billing.ChangePlan(f.ctx, f.owner.ID, f.orgID, "free_small", v)
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "downgrade_not_allowed" {
+		t.Fatalf("owner downgrade from paid: got %v", err)
+	}
+}
+
 func TestCancelResumeAndCheckout(t *testing.T) {
 	f := newBillingFixture(t)
 	snap, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID)
@@ -142,7 +162,7 @@ func TestCancelResumeAndCheckout(t *testing.T) {
 	if err != nil || snap.Subscription.CancelAt.Valid {
 		t.Fatalf("resume clears cancel_at: %v %+v", err, snap.Subscription)
 	}
-	_, err = f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, snap.Plan.Code, "/ok", "/back")
+	_, err = f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, snap.Plan.Code, "/ok", "/back", "127.0.0.1")
 	var ce CodedError
 	if !errors.As(err, &ce) || ce.Code != "billing_provider_unavailable" || ce.Status != 503 {
 		t.Fatalf("manual provider has no checkout: got %v", err)

@@ -341,6 +341,7 @@
         "members": "Thành viên",
         "integrations": "Tích hợp",
         "billing": "Thanh toán",
+        "invoices": "Hóa đơn",
         "audit": "Nhật ký hoạt động",
         "documents": "Tài liệu",
         "ai": "AI",
@@ -476,6 +477,7 @@
       "checkout_ready": "Đã tạo trang thanh toán",
       "open_checkout": "Mở trang thanh toán",
       "choose_plan": "Chọn gói này",
+      "downgrade_use_cancel": "Đang dùng gói trả phí. Muốn hạ gói, dùng mục Ngừng gói cuối trang — không chọn gói thấp hơn ở đây.",
       "checkout": "Thanh toán",
       "plan_line_quota": "{{name}}: {{limit}}",
       "confirm_change_title": "Đổi sang gói {{name}}?",
@@ -527,6 +529,12 @@
       "not_in_plan": "Không có trong gói",
       "cancel_notice": "Gói ngừng vào {{date}}. Tổ chức vẫn dùng đầy đủ gói đến ngày đó; khôi phục trước ngày này nếu đổi ý.",
       "checkout_notice": "Trang thanh toán đã sẵn sàng, mở trong thẻ mới.",
+      "checkout_redirecting": "Đang chuyển sang cổng VNPay…",
+      "checkout_confirming": "Đang xác nhận thanh toán với hệ thống…",
+      "checkout_success": "Thanh toán đã được xác nhận. Gói mới đã áp dụng.",
+      "checkout_confirming_timeout": "Chưa nhận xác nhận tự động. Thử tải lại trang hoặc liên hệ hỗ trợ nếu đã trừ tiền.",
+      "checkout_cancelled": "Bạn đã hủy thanh toán trên cổng. Gói hiện tại giữ nguyên.",
+      "plan_line_storage_gb": "{{n}} GB",
       "cancel_label": "Ngừng vào cuối kỳ",
       "cancel_hint": "Khôi phục được bất cứ lúc nào trước ngày ngừng.",
       "cancel_open": "Ngừng gói",
@@ -539,7 +547,8 @@
         "meeting_ai_summary": "Tóm tắt họp bằng AI",
         "ai_tokens": "Token AI",
         "storage_bytes": "Dung lượng lưu trữ",
-        "sso_oidc": "Đăng nhập SSO (OIDC)"
+        "sso_oidc": "Đăng nhập SSO (OIDC)",
+        "documents_public_links": "Liên kết công khai cho tài liệu"
       },
       "action_failed": "Không đổi được gói. Thử lại sau ít phút.",
       "plans_error": "Không tải được danh sách gói.",
@@ -551,6 +560,33 @@
       "past_due_pay": "Thanh toán ngay",
       "usage_unbounded_unit": "{{used}} {{unit}} · Không giới hạn",
       "usage_unbounded_plain": "{{used}} · Không giới hạn"
+    },
+    "invoices": {
+      "title": "Hóa đơn",
+      "description": "Các kỳ đã thanh toán qua cổng (VNPay). Chỉ ghi nhận sau khi hệ thống xác nhận IPN.",
+      "forbidden_title": "Bạn không xem được hóa đơn",
+      "forbidden_description": "Chỉ chủ sở hữu và quản trị viên của tổ chức mới xem được.",
+      "error_title": "Không tải được hóa đơn",
+      "error_description": "Thử lại sau ít phút.",
+      "retry": "Thử lại",
+      "empty_title": "Chưa có hóa đơn",
+      "empty_description": "Sau khi thanh toán gói trả phí thành công trên tab Thanh toán, hóa đơn sẽ hiện ở đây.",
+      "list_title": "Đã thanh toán",
+      "list_description": "Mới nhất trước.",
+      "list_aria": "Danh sách hóa đơn đã thanh toán",
+      "summary_count": "Số hóa đơn",
+      "summary_total": "Tổng đã thanh toán",
+      "paid_at": "Thanh toán {{date}}",
+      "period_range": "Kỳ {{start}} – {{end}}",
+      "status": {
+        "paid": "Đã thanh toán",
+        "open": "Chưa thanh toán",
+        "draft": "Nháp"
+      },
+      "provider": {
+        "vnpay": "VNPay",
+        "manual": "Thủ công"
+      }
     },
     "audit": {
       "title": "Nhật ký hoạt động",
@@ -4317,6 +4353,8 @@
     "title": "Quản trị nền tảng",
     "nav": {
       "organizations": "Tổ chức",
+      "plans": "Gói dịch vụ",
+      "invoices": "Hóa đơn",
       "flags": "Flags",
       "trace": "Trace",
       "quota": "Hạn mức",
@@ -4343,6 +4381,100 @@
       "cancel": "Hủy",
       "hint_remaining": "Cần thêm {{n}} ký tự; lý do được ghi vào lịch sử thao tác admin",
       "hint_ok": "{{n}} ký tự; lý do được ghi vào lịch sử thao tác admin"
+    },
+    "plans": {
+      "title": "Catalog gói",
+      "description": "Chỉnh giá, trạng thái hiển thị và ma trận quyền/hạn mức trên từng gói. Mọi thay đổi cần lý do ≥ 10 ký tự.",
+      "error_title": "Không tải được catalog",
+      "error_description": "Thử lại sau ít phút hoặc kiểm tra kết nối API.",
+      "empty_title": "Chưa có gói nào",
+      "empty_description": "Seed billing trong migration trước khi dùng màn này.",
+      "retry": "Thử lại",
+      "create_action": "Thêm gói",
+      "create_title": "Thêm gói mới",
+      "create_description": "Mã gói không đổi sau khi tạo. Mọi entitlement bắt đầu ở trạng thái tắt — bật và đặt hạn mức bên dưới.",
+      "edit_plan": "Sửa gói",
+      "edit_title": "Sửa gói {{code}}",
+      "edit_description": "Không xóa gói — tắt is_active để ẩn khỏi trang billing công khai.",
+      "default_hint": "Gói mặc định luôn phải active.",
+      "no_description": "Không có mô tả",
+      "meta": "{{price}} · chu kỳ {{period}} · thứ tự {{order}}",
+      "save_feature": "Lưu",
+      "feature_edit_title": "Cập nhật {{key}}",
+      "feature_enabled": "Bật tính năng",
+      "quota_unlimited": "Không giới hạn",
+      "quota_storage_placeholder": "VD: 5",
+      "quota_storage_aria": "Dung lượng lưu trữ tính bằng GB",
+      "unit_gb": "GB",
+      "badge": {
+        "inactive": "Đã tắt",
+        "default": "Mặc định"
+      },
+      "field": {
+        "code": "Mã gói (vd. enterprise)",
+        "name": "Tên hiển thị",
+        "description": "Mô tả",
+        "billing_period": "Chu kỳ (none / month / year)",
+        "price": "Giá (đồng, để trống = liên hệ)",
+        "sort_order": "Thứ tự sắp xếp",
+        "is_active": "Hiển thị trên trang billing"
+      },
+      "col": {
+        "feature_key": "Khóa",
+        "name": "Tên",
+        "kind": "Loại",
+        "enabled": "Bật",
+        "quota": "Hạn mức",
+        "actions": "Thao tác"
+      }
+    },
+    "invoices": {
+      "title": "Hóa đơn & giao dịch",
+      "description": "Tra cứu hóa đơn đã thanh toán và phiên checkout (VNPay) trên mọi tổ chức — chỉ đọc, dùng cho CS và đối soát.",
+      "error_title": "Không tải được dữ liệu",
+      "error_description": "Thử lại sau ít phút hoặc kiểm tra kết nối API.",
+      "retry": "Thử lại",
+      "empty": "Không có bản ghi khớp bộ lọc",
+      "search_label": "Tìm kiếm",
+      "search_invoices": "Số HĐ, org, email hoặc tên người thanh toán",
+      "search_intents": "Mã VNPay, org, email người checkout",
+      "tab": {
+        "invoices": "Hóa đơn",
+        "intents": "Giao dịch checkout"
+      },
+      "filter": {
+        "provider_all": "Mọi cổng",
+        "provider_manual": "Thủ công",
+        "provider_label": "Cổng thanh toán",
+        "status_all": "Mọi trạng thái",
+        "status_label": "Trạng thái"
+      },
+      "status": {
+        "paid": "Đã thanh toán",
+        "open": "Đang mở",
+        "draft": "Nháp"
+      },
+      "intent": {
+        "completed": "Thành công",
+        "pending": "Đang chờ",
+        "failed": "Thất bại",
+        "expired": "Hết hạn"
+      },
+      "col": {
+        "number": "Số hóa đơn",
+        "organization": "Tổ chức",
+        "user": "Người thanh toán",
+        "amount": "Số tiền",
+        "provider": "Cổng",
+        "status": "Trạng thái",
+        "paid_at": "Thanh toán",
+        "txn_ref": "Mã giao dịch",
+        "plan": "Gói",
+        "created_at": "Tạo lúc"
+      },
+      "pager": "{{from}}–{{to}} / {{total}}",
+      "prev": "Trước",
+      "next": "Sau"
     },
     "organizations": {
       "title": "Tổ chức",

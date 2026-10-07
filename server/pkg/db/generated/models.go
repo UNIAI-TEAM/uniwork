@@ -168,6 +168,24 @@ type AuditRetentionPolicy struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type BillingPaymentIntent struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	SubscriptionID string             `json:"subscription_id"`
+	PlanID         string             `json:"plan_id"`
+	Provider       string             `json:"provider"`
+	ProviderTxnRef string             `json:"provider_txn_ref"`
+	Amount         int64              `json:"amount"`
+	Currency       string             `json:"currency"`
+	Status         string             `json:"status"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	CreatedBy      pgtype.Text        `json:"created_by"`
+	CreatedByKind  pgtype.Text        `json:"created_by_kind"`
+}
+
 type CalendarConnection struct {
 	ID                   string             `json:"id"`
 	OrganizationID       string             `json:"organization_id"`
@@ -924,6 +942,8 @@ type Invoice struct {
 	PaidAt            pgtype.Timestamptz `json:"paid_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	InitiatedBy       pgtype.Text        `json:"initiated_by"`
+	InitiatedByKind   pgtype.Text        `json:"initiated_by_kind"`
 }
 
 type Meeting struct {

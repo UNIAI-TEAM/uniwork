@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -11,7 +12,18 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+func toInvoiceDTO(inv db.Invoice) sdo.InvoiceDTO {
+	return sdo.InvoiceDTO{
+		ID: inv.ID, Number: inv.Number, Status: inv.Status, Provider: inv.Provider,
+		AmountPaid: inv.AmountPaid, Currency: inv.Currency,
+		PeriodStart: inv.PeriodStart.Time.Format(time.RFC3339),
+		PeriodEnd:   inv.PeriodEnd.Time.Format(time.RFC3339),
+		PaidAt:      optTime(inv.PaidAt),
+	}
+}
 
 func optInt64(v pgtype.Int8) *int64 {
 	if !v.Valid {
@@ -105,13 +117,38 @@ func (h *handlers) resumeSubscription(w http.ResponseWriter, r *http.Request) {
 	h.respondSubscription(w, snap, err)
 }
 
+func (h *handlers) listInvoices(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	rows, err := h.Billing.ListInvoices(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), int32(limit), int32(offset))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.InvoiceDTO, 0, len(rows))
+	for _, inv := range rows {
+		out = append(out, toInvoiceDTO(inv))
+	}
+	respondJSON(w, 200, sdo.InvoiceListSDO{Invoices: out})
+}
+
 func (h *handlers) createCheckout(w http.ResponseWriter, r *http.Request) {
 	var in sdi.CheckoutSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	if err := service.ValidateCheckoutPath(in.SuccessPath); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	if err := service.ValidateCheckoutPath(in.CancelPath); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
 	origin := h.Cfg.FrontendOrigin
-	sess, err := h.Billing.Checkout(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), in.PlanCode, origin+in.SuccessPath, origin+in.CancelPath)
+	clientIP := middleware.ClientIP(r, h.proxies)
+	sess, err := h.Billing.Checkout(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), in.PlanCode, origin+in.SuccessPath, origin+in.CancelPath, clientIP)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

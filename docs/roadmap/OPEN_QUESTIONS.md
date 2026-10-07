@@ -19,7 +19,7 @@ tương ứng và đổi trạng thái sang **Đã duyệt**.
 
 | # | Câu hỏi | Đề xuất mặc định | Quyết định |
 | --- | --- | --- | --- |
-| B1 | Bộ gói và `quota_limit` từng gói? | Seed `starter` không giới hạn tạm thời; chốt trước tháng 3 (Vision §4.2) | **Chốt:** theo đề xuất |
+| B1 | Bộ gói và `quota_limit` từng gói? | Seed `starter` không giới hạn tạm thời; chốt trước tháng 3 (Vision §4.2) | **Chốt:** Starter / Team / Business — migration `9991790921000000_billing_tiers_b1` |
 | B2 | Cổng nội địa thứ hai: VNPay, MoMo hay PayOS? | PayOS (API đơn giản, hóa đơn) | **Chốt:** theo đề xuất |
 | B3 | `past_due`: khóa ngay hay grace 7 ngày? | Grace 7 ngày, chỉ chặn tạo mới | **Chốt:** theo đề xuất |
 | B4 | Cho tự downgrade khi usage đã vượt gói đích? | Không; yêu cầu giảm usage trước | **Chốt:** theo đề xuất |

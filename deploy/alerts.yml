@@ -146,6 +146,18 @@ groups:
           description: "Chi phí AI trong 1 giờ qua là {{ $value | printf \"%.2f\" }} USD, hơn 3 lần trung bình giờ của 7 ngày trước (sàn 1 USD để bỏ nhiễu lúc mới bật)."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/AiCostSpike.md
 
+  - name: uniwork-billing
+    rules:
+      - alert: BILLING_VNPAY_WEBHOOK
+        expr: sum(increase(uniwork_billing_webhook_dead_total[15m])) > 0
+        for: 0m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Có webhook billing chuyển dead letter"
+          description: "{{ $value | printf \"%.0f\" }} lần billing webhook inbox chuyển DEAD_LETTER trong 15 phút (VNPay IPN retry hết); thanh toán có thể chưa lên gói."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/BILLING_VNPAY_WEBHOOK.md
+
   - name: uniwork-web-vitals
     rules:
       - alert: WebVitalsLCPPoor

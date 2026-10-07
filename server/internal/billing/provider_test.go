@@ -5,21 +5,28 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/config"
 )
 
 func TestFromConfig(t *testing.T) {
 	t.Parallel()
-	if got := FromConfig("manual"); got.Name() != "manual" {
+	if got := FromConfig(config.Config{BillingProvider: "manual"}); got.Name() != "manual" {
 		t.Fatalf("manual name: %q", got.Name())
 	}
-	if got := FromConfig("stripe"); got.Name() != "stripe" {
+	if got := FromConfig(config.Config{BillingProvider: "stripe"}); got.Name() != "stripe" {
 		t.Fatalf("stripe stub name: %q", got.Name())
 	}
-	if got := FromConfig("payos"); got.Name() != "payos" {
+	if got := FromConfig(config.Config{BillingProvider: "payos"}); got.Name() != "payos" {
 		t.Fatalf("payos stub name: %q", got.Name())
 	}
-	if got := FromConfig("typo"); got.Name() != "manual" {
+	if got := FromConfig(config.Config{BillingProvider: "typo"}); got.Name() != "manual" {
 		t.Fatalf("unknown falls back to manual: %q", got.Name())
+	}
+	if got := FromConfig(config.Config{
+		BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: "secret",
+	}); got.Name() != "vnpay" {
+		t.Fatalf("vnpay name: %q", got.Name())
 	}
 }
 

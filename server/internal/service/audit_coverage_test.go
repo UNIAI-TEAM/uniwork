@@ -208,6 +208,36 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			f.override(t, true)
 			f.override(t, false)
 		},
+		audit.ActionPlanCreated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.admin.CreatePlanCatalog(f.ctx, f.third.ID, CreatePlanCatalogInput{
+				Code: "audit_test_plan",
+				UpdatePlanCatalogInput: UpdatePlanCatalogInput{
+					Name: "Audit test", Description: "", BillingPeriod: "none", PriceCurrency: "VND",
+					IsActive: false, SortOrder: 99,
+				},
+			}, "audit coverage fixture"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionPlanUpdated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.admin.SetPlanCatalog(f.ctx, f.third.ID, "starter", UpdatePlanCatalogInput{
+				Name: "Starter", Description: "Gói mặc định", BillingPeriod: "none", PriceCurrency: "VND",
+				IsActive: true, SortOrder: 0,
+			}, "audit coverage fixture"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionPlanFeatureUpdated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			limit := int64(5)
+			if _, err := f.admin.SetPlanFeature(f.ctx, f.third.ID, "starter", "members.max", UpdatePlanFeatureInput{
+				Enabled: true, QuotaLimit: &limit,
+			}, "audit coverage fixture"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionSubscriptionChanged: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			if _, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID); err != nil {

@@ -342,6 +342,7 @@
         "members": "Members",
         "integrations": "Integrations",
         "billing": "Billing",
+        "invoices": "Invoices",
         "audit": "Activity log",
         "documents": "Documents",
         "ai": "AI",
@@ -477,6 +478,7 @@
       "checkout_ready": "Payment page ready",
       "open_checkout": "Open the payment page",
       "choose_plan": "Choose this plan",
+      "downgrade_use_cancel": "You are on a paid plan. To downgrade, use Cancel plan at the bottom of this page — do not pick a lower plan here.",
       "checkout": "Pay",
       "plan_line_quota": "{{name}}: {{limit}}",
       "confirm_change_title": "Switch to {{name}}?",
@@ -528,6 +530,12 @@
       "not_in_plan": "Not in this plan",
       "cancel_notice": "The plan ends on {{date}}. The organization keeps the full plan until then; resume before that date if you change your mind.",
       "checkout_notice": "The checkout page is ready and opens in a new tab.",
+      "checkout_redirecting": "Redirecting to VNPay…",
+      "checkout_confirming": "Confirming your payment with the server…",
+      "checkout_success": "Payment confirmed. Your new plan is active.",
+      "checkout_confirming_timeout": "We have not received confirmation yet. Refresh the page or contact support if you were charged.",
+      "checkout_cancelled": "You cancelled on the payment gateway. Your current plan is unchanged.",
+      "plan_line_storage_gb": "{{n}} GB",
       "cancel_label": "Cancel at the end of the period",
       "cancel_hint": "You can resume any time before the plan ends.",
       "cancel_open": "Cancel plan",
@@ -540,7 +548,8 @@
         "meeting_ai_summary": "AI meeting summaries",
         "ai_tokens": "AI tokens",
         "storage_bytes": "Storage",
-        "sso_oidc": "SSO sign-in (OIDC)"
+        "sso_oidc": "SSO sign-in (OIDC)",
+        "documents_public_links": "Public links for documents"
       },
       "action_failed": "The plan could not be changed. Try again in a few minutes.",
       "plans_error": "The plans could not be loaded.",
@@ -552,6 +561,33 @@
       "past_due_pay": "Pay now",
       "usage_unbounded_unit": "{{used}} {{unit}} · Unlimited",
       "usage_unbounded_plain": "{{used}} · Unlimited"
+    },
+    "invoices": {
+      "title": "Invoices",
+      "description": "Periods paid through the gateway (VNPay). Listed only after the server confirms IPN.",
+      "forbidden_title": "You cannot view invoices",
+      "forbidden_description": "Only the organization owner and admins can view them.",
+      "error_title": "Could not load invoices",
+      "error_description": "Try again in a few minutes.",
+      "retry": "Retry",
+      "empty_title": "No invoices yet",
+      "empty_description": "After a successful paid checkout on the Billing tab, invoices appear here.",
+      "list_title": "Paid",
+      "list_description": "Newest first.",
+      "list_aria": "Paid invoice list",
+      "summary_count": "Invoices",
+      "summary_total": "Total paid",
+      "paid_at": "Paid {{date}}",
+      "period_range": "Period {{start}} – {{end}}",
+      "status": {
+        "paid": "Paid",
+        "open": "Unpaid",
+        "draft": "Draft"
+      },
+      "provider": {
+        "vnpay": "VNPay",
+        "manual": "Manual"
+      }
     },
     "audit": {
       "title": "Activity log",
@@ -4321,6 +4357,8 @@
     "title": "Platform admin",
     "nav": {
       "organizations": "Organizations",
+      "plans": "Plans",
+      "invoices": "Invoices",
       "flags": "Flags",
       "trace": "Trace",
       "quota": "Quota",
@@ -4347,6 +4385,100 @@
       "cancel": "Cancel",
       "hint_remaining": "{{n}} more characters; the reason is kept in the admin action history",
       "hint_ok": "{{n}} characters; the reason is kept in the admin action history"
+    },
+    "plans": {
+      "title": "Plan catalog",
+      "description": "Edit list price, visibility, and the entitlement matrix per tier. Every write requires a reason (≥ 10 characters).",
+      "error_title": "Could not load the catalog",
+      "error_description": "Try again in a moment or check the API connection.",
+      "empty_title": "No plans yet",
+      "empty_description": "Run billing migrations to seed plans before using this screen.",
+      "retry": "Retry",
+      "create_action": "Add plan",
+      "create_title": "Add a new plan",
+      "create_description": "Plan code cannot change after creation. Every entitlement starts disabled — turn features on and set quotas below.",
+      "edit_plan": "Edit plan",
+      "edit_title": "Edit {{code}}",
+      "edit_description": "Plans are never deleted — set is_active=false to hide from public billing.",
+      "default_hint": "The default plan must stay active.",
+      "no_description": "No description",
+      "meta": "{{price}} · period {{period}} · sort {{order}}",
+      "save_feature": "Save",
+      "feature_edit_title": "Update {{key}}",
+      "feature_enabled": "Feature enabled",
+      "quota_unlimited": "Unlimited",
+      "quota_storage_placeholder": "e.g. 5",
+      "quota_storage_aria": "Storage quota in GB",
+      "unit_gb": "GB",
+      "badge": {
+        "inactive": "Inactive",
+        "default": "Default"
+      },
+      "field": {
+        "code": "Plan code (e.g. enterprise)",
+        "name": "Display name",
+        "description": "Description",
+        "billing_period": "Billing period (none / month / year)",
+        "price": "Price (smallest unit; empty = contact us)",
+        "sort_order": "Sort order",
+        "is_active": "Visible on billing page"
+      },
+      "col": {
+        "feature_key": "Key",
+        "name": "Name",
+        "kind": "Kind",
+        "enabled": "On",
+        "quota": "Quota",
+        "actions": "Actions"
+      }
+    },
+    "invoices": {
+      "title": "Invoices & transactions",
+      "description": "Search paid invoices and checkout sessions (VNPay) across every organization — read-only for support and reconciliation.",
+      "error_title": "Could not load data",
+      "error_description": "Try again in a moment or check the API connection.",
+      "retry": "Retry",
+      "empty": "No rows match your filters",
+      "search_label": "Search",
+      "search_invoices": "Invoice #, org, payer email or name",
+      "search_intents": "VNPay ref, org, checkout user email",
+      "tab": {
+        "invoices": "Invoices",
+        "intents": "Checkout transactions"
+      },
+      "filter": {
+        "provider_all": "All providers",
+        "provider_manual": "Manual",
+        "provider_label": "Payment provider",
+        "status_all": "All statuses",
+        "status_label": "Status"
+      },
+      "status": {
+        "paid": "Paid",
+        "open": "Open",
+        "draft": "Draft"
+      },
+      "intent": {
+        "completed": "Completed",
+        "pending": "Pending",
+        "failed": "Failed",
+        "expired": "Expired"
+      },
+      "col": {
+        "number": "Invoice #",
+        "organization": "Organization",
+        "user": "Payer",
+        "amount": "Amount",
+        "provider": "Provider",
+        "status": "Status",
+        "paid_at": "Paid at",
+        "txn_ref": "Transaction ref",
+        "plan": "Plan",
+        "created_at": "Created"
+      },
+      "pager": "{{from}}–{{to}} of {{total}}",
+      "prev": "Previous",
+      "next": "Next"
     },
     "organizations": {
       "title": "Organizations",

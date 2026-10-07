@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
-import { requestMock, wrap } from "../../test/api-mock";
+import { requestMock, wrapWithNav } from "../../test/api-mock";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { BillingTab } from "./billing-tab";
 import { formatPrice } from "./plan-cards";
@@ -66,7 +66,7 @@ function mockApi(role: string, sub: Record<string, unknown> = subscription) {
 
 function renderTab() {
   return render(
-    wrap(
+    wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
         <BillingTab />
       </WorkspaceProvider>,
@@ -120,6 +120,15 @@ describe("BillingTab", () => {
     expect(within(card).queryByRole("button")).toBeNull();
   });
 
+  it("does not offer a free downgrade while on a paid plan", async () => {
+    mockApi("owner", paidSubscription);
+    renderTab();
+    const starter = await screen.findByTestId("plan-card-starter");
+    expect(within(starter).queryByRole("button", { name: "Chọn gói này" })).toBeNull();
+    expect(within(starter).getByText(/Ngừng gói cuối trang/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("plan-card-team_free")).queryByRole("button", { name: "Chọn gói này" })).toBeNull();
+  });
+
   it("asks before stopping the plan and only then calls the server", async () => {
     mockApi("owner", paidSubscription);
     renderTab();
@@ -140,18 +149,17 @@ describe("BillingTab", () => {
     expect(screen.queryByRole("button", { name: "Ngừng gói" })).toBeNull();
   });
 
-  it("offers checkout as a prominent link that opens in a new tab", async () => {
+  it("redirects to checkout in the same window", async () => {
     mockApi("owner");
     const base = requestMock.getMockImplementation()!;
     requestMock.mockImplementation((path: string, init?: unknown) =>
       String(path).includes("checkout") ? Promise.resolve({ url: "https://pay.example/checkout/1" }) : base(path, init),
     );
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", { value: { ...window.location, assign }, writable: true });
     renderTab();
     fireEvent.click(await screen.findByRole("button", { name: "Thanh toán" }));
-    const link = await screen.findByRole("link", { name: /Mở trang thanh toán/ });
-    expect(link).toHaveAttribute("href", "https://pay.example/checkout/1");
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link.getAttribute("rel")).toContain("noopener");
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://pay.example/checkout/1"));
   });
 
   it("asks before switching to a free plan", async () => {
