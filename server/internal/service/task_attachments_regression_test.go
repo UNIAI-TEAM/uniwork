@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/files/filescontract"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -62,6 +63,39 @@ func twoOrgAttachmentFixture(t *testing.T) (*TaskService, *memStorage, db.User, 
 	}
 	store := newMemStorage()
 	return NewTaskService(pool, q, ws, store), store, ua, ub, v.Workspace
+}
+
+func TestLegacyTaskAttachmentAllowsMP4(t *testing.T) {
+	s, _, _, ua, _, w := taskFixtureWithStorage(t)
+	ctx := context.Background()
+	task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Video attachment"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var mp4 []byte
+	for _, sample := range filescontract.Samples() {
+		if sample.Name == "mp4" {
+			mp4 = sample.Body
+			break
+		}
+	}
+	if len(mp4) == 0 {
+		t.Fatal("files contract has no MP4 sample")
+	}
+
+	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", "demo.mp4", "video/mp4", int64(len(mp4)), bytes.NewReader(mp4))
+	if err != nil {
+		t.Fatalf("upload MP4: %v", err)
+	}
+	if att.ContentType != "video/mp4" {
+		t.Fatalf("content type = %q, want video/mp4", att.ContentType)
+	}
+	for _, contentType := range []string{"video/webm", "video/ogg"} {
+		if _, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", "other-video", contentType, int64(len(mp4)), bytes.NewReader(mp4)); err == nil {
+			t.Errorf("legacy upload unexpectedly allows %q", contentType)
+		}
+	}
 }
 
 // Removing one of many attachments removes exactly that row and object; the

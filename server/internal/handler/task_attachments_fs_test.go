@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/unicomhub/uniwork/server/internal/files/filescontract"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -162,6 +163,77 @@ func TestTaskAttachmentFSHTTPRoundTrip(t *testing.T) {
 	res, _ = doJSON(t, srv, "GET", "/api/v1/attachments/"+attID, token, nil)
 	if res.StatusCode != 404 {
 		t.Fatalf("get after delete = %d", res.StatusCode)
+	}
+}
+
+func TestTaskAttachmentFSHTTPAcceptsMP4ByBytes(t *testing.T) {
+	w := newFilesWorld(t)
+
+	res, body := doJSON(t, w.srv, http.MethodPost, "/api/v1/workspaces/"+w.wsID+"/tasks", w.token, map[string]any{
+		"title": "MP4 attachment",
+	})
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
+		t.Fatalf("create task: %d %v", res.StatusCode, body)
+	}
+	taskID, _ := body["task"].(map[string]any)["id"].(string)
+	if taskID == "" {
+		t.Fatalf("task = %v", body)
+	}
+
+	var mp4 []byte
+	for _, sample := range filescontract.Samples() {
+		if sample.Name == "mp4" {
+			mp4 = sample.Body
+			break
+		}
+	}
+	if len(mp4) == 0 {
+		t.Fatal("files contract has no MP4 sample")
+	}
+
+	res = uploadAttachmentWithPurpose(t, w.srv, w.token,
+		w.srv.URL+"/api/v1/tasks/"+taskID+"/attachments",
+		"demo.mp4", "application/octet-stream", "task_attachment", mp4)
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(res.Body)
+		t.Fatalf("upload status = %d body=%s", res.StatusCode, raw)
+	}
+	var uploaded map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&uploaded); err != nil {
+		t.Fatal(err)
+	}
+	if got := uploaded["content_type"]; got != "video/mp4" {
+		t.Fatalf("content_type = %v, want video/mp4", got)
+	}
+	attID, _ := uploaded["id"].(string)
+	att, err := w.q.GetAttachmentByID(t.Context(), attID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !att.FileID.Valid || att.FileID.String == "" || att.ObjectKey.Valid {
+		t.Fatalf("attachment did not use FileService: file_id=%+v object_key=%+v", att.FileID, att.ObjectKey)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, w.srv.URL+"/api/v1/attachments/"+attID+"/content", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+w.token)
+	contentRes, err := w.srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer contentRes.Body.Close()
+	if contentRes.StatusCode != http.StatusOK {
+		t.Fatalf("content status = %d", contentRes.StatusCode)
+	}
+	got, err := io.ReadAll(contentRes.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, mp4) {
+		t.Fatalf("content bytes changed: got %d bytes, want %d", len(got), len(mp4))
 	}
 }
 

@@ -127,6 +127,27 @@ func TestCapsFollowThePublishedPipelines(t *testing.T) {
 	}
 }
 
+func TestTaskAttachmentPoliciesAllowMP4(t *testing.T) {
+	registry := DefaultRegistry()
+	for _, purpose := range []UploadPurpose{TaskAttachment, TaskCommentAttachment} {
+		spec, err := registry.Lookup(purpose)
+		if err != nil {
+			t.Fatalf("lookup %q: %v", purpose, err)
+		}
+		if !spec.Policy.Allows("video/mp4") {
+			t.Errorf("purpose %q rejects video/mp4", purpose)
+		}
+		if spec.Policy.MaxBytes != 25<<20 {
+			t.Errorf("purpose %q cap = %d, want 25 MiB", purpose, spec.Policy.MaxBytes)
+		}
+		for _, contentType := range []string{"video/webm", "video/ogg", "video/*"} {
+			if spec.Policy.Allows(contentType) {
+				t.Errorf("purpose %q unexpectedly allows %q", purpose, contentType)
+			}
+		}
+	}
+}
+
 func TestRegistryRejectsBadTables(t *testing.T) {
 	valid := PurposeSpec{
 		Purpose: TaskAttachment, Prefix: "tasks/attachments", Scope: ScopeOrgWorkspace,

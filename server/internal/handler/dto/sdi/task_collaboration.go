@@ -25,9 +25,9 @@ type SubscribeTaskSDI struct {
 
 // UploadTaskAttachmentSDI is multipart POST .../tasks/{taskID}/attachments.
 type UploadTaskAttachmentSDI struct {
-	File []byte `formData:"file" description:"Tệp đính kèm (field file); tối đa 25 MiB; MIME allowlist (ảnh, PDF, markdown/plain, Office phổ biến)"`
+	File []byte `formData:"file" description:"Tệp đính kèm (field file); tối đa 25 MiB; MIME allowlist (ảnh, MP4, PDF, markdown/plain, Office phổ biến)"`
 }
 
 type UploadWorkspaceAttachmentSDI struct {
-	File []byte `formData:"file" description:"Tệp tạm trước khi tạo task; tối đa 25 MiB"`
+	File []byte `formData:"file" description:"Tệp tạm trước khi tạo task; tối đa 25 MiB; hỗ trợ ảnh, MP4, PDF, markdown/plain và Office phổ biến"`
 }

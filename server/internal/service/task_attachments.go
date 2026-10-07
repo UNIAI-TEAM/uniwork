@@ -28,6 +28,7 @@ var allowedAttachmentMIME = map[string]bool{
 	"image/gif":          true,
 	"image/webp":         true,
 	"image/bmp":          true,
+	"video/mp4":          true,
 	"application/pdf":    true,
 	"text/markdown":      true,
 	"text/plain":         true,

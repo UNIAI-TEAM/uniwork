@@ -22,6 +22,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 var filesPNG = append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{7}, 92)...)
@@ -29,6 +30,7 @@ var filesPNG = append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{7}, 92)..
 type filesWorld struct {
 	srv      *httptest.Server
 	fs       *service.FileService
+	q        *db.Queries
 	token    string
 	userID   string
 	orgID    string
@@ -48,6 +50,7 @@ func newFilesWorld(t *testing.T) *filesWorld {
 	if err != nil {
 		t.Fatal(err)
 	}
+	d.Tasks.SetFiles(fs)
 	access, err := service.NewFileAccessService(service.FileAccessOptions{
 		Files: fs, Workspaces: d.Workspaces, Secret: []byte("t4-handler-secret-t4-handler-secret"),
 	})
@@ -58,7 +61,7 @@ func newFilesWorld(t *testing.T) *filesWorld {
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 
-	w := &filesWorld{srv: srv, fs: fs}
+	w := &filesWorld{srv: srv, fs: fs, q: db.New(pool)}
 	w.token, w.userID = filesRegister(t, srv, "files-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Files Org", "slug": "files-org"})
 	if res.StatusCode != 201 {

@@ -71,7 +71,7 @@ var textByExtension = map[string]string{
 //     stream is audio/ogg, a Theora one video/ogg, anything else
 //     application/ogg. A well-formed ftyp box is the MP4 family whatever its
 //     brands: audio/mp4 with an M4A or M4B brand, video/mp4 otherwise, except
-//     a still-image HEIF/AVIF major brand, which stays unknown; a malformed
+//     a still-image HEIF/AVIF brand, which stays unknown; a malformed
 //     ftyp box is unknown too. WebM stays video/webm: telling an
 //     audio-only WebM from a video one needs the track headers, which a head
 //     scan cannot read reliably.
@@ -260,7 +260,7 @@ func oggType(head []byte) string {
 // offset 4, printable brands - proves the ISO base media family whatever its
 // brands, because recorders vary them (Safari and iOS write brands the
 // standard sniffer does not know). An M4A/M4B brand marks an audio file; a
-// still-image HEIF/AVIF major brand is not media and stays unknown; anything
+// still-image HEIF/AVIF brand is not media and stays unknown; anything
 // else is video/mp4. It returns "" when head has no well-formed ftyp box,
 // leaving the sniffer's answer alone.
 func mp4Type(head []byte) string {
@@ -284,10 +284,10 @@ func mp4Type(head []byte) string {
 		if !printableBrand(brand) {
 			return ""
 		}
-	}
-	switch brands[0] {
-	case "mif1", "msf1", "heic", "heix", "heim", "heis", "hevc", "hevx", "avif", "avis":
-		return ""
+		switch brand {
+		case "mif1", "msf1", "heic", "heix", "heim", "heis", "hevc", "hevx", "avif", "avis":
+			return ""
+		}
 	}
 	for _, brand := range brands {
 		switch brand {
