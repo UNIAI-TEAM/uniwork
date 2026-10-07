@@ -14,7 +14,7 @@ function owner(destroyed = false) {
   return { on: vi.fn(), removeListener: vi.fn(), isDestroyed: () => destroyed } satisfies PrintHostOwner;
 }
 
-function printWindow(): PrintWindow & { destroy: Mock<() => void>; emitClosed(): void } {
+function printWindow(): PrintWindow & { destroy: Mock<() => void>; once: Mock<(event: "closed", listener: () => void) => void>; emitClosed(): void } {
   let destroyed = false;
   const closedListeners: Array<() => void> = [];
   return {
