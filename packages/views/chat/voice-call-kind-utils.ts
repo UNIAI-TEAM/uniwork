@@ -9,3 +9,9 @@ export function voiceCallKindFromServer(callKind?: string): VoiceCallKind {
   if (callKind === "group") return "group";
   return "dm";
 }
+
+/** Primary hang-up must signal the server so voice_call_log is written (UNI-951). */
+export function voiceCallPrimaryLeaveEndsForAll(callKind: VoiceCallKind, isCaller: boolean): boolean {
+  if (callKind === "dm") return true;
+  return isMultiPartyVoiceCall(callKind) && isCaller;
+}

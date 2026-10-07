@@ -30,6 +30,8 @@ var supportedChatFileContentTypes = map[string]string{
 	"image/webp":      "webp",
 	"application/pdf": "pdf",
 	"text/plain":      "txt",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       "xlsx",
 }
 
 // FileMessageInfo is private-object metadata for a stored chat file. FileID

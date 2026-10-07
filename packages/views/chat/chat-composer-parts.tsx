@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Bell, CircleAlert, FileText, Square, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { isChatImageFile } from "./chat-file-accept";
 import { formatChatFileSize } from "./chat-file-size";
 import type { ChatVoiceRecorderError, ChatVoiceRecording, ChatVoiceRecorderState } from "./use-chat-voice-recorder";
 import { formatVoiceCallDuration } from "./voice-call-duration";
@@ -15,6 +16,52 @@ const VOICE_MAX_SECONDS = 120;
 /** A file waiting in the composer: its name, size and a way to take it back out. */
 export function StagedFileChip({ file, onRemove }: { file: File; onRemove: () => void }) {
   const { t, i18n } = useTranslation();
+  const isImage = isChatImageFile(file);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isImage) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+      setPreviewUrl(null);
+    };
+  }, [file, isImage]);
+
+  if (isImage && previewUrl) {
+    return (
+      <span className="relative inline-flex max-w-48 flex-col overflow-hidden rounded-lg border border-border bg-surface">
+        <img
+          src={previewUrl}
+          alt={file.name}
+          className="max-h-32 w-full object-contain bg-muted"
+        />
+        <span className="flex items-center gap-1 border-t border-border py-1 pr-1 pl-2">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-micro font-medium text-foreground">{file.name}</span>
+            <span className="block text-micro text-muted-foreground tabular-nums">
+              {formatChatFileSize(file.size, i18n.language)}
+            </span>
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={t("chat.composer_remove_file", { name: file.name })}
+            onClick={onRemove}
+          >
+            <X aria-hidden />
+          </Button>
+        </span>
+      </span>
+    );
+  }
+
   return (
     <span className="inline-flex max-w-60 items-center gap-2 rounded-lg border border-border bg-surface py-1 pr-1 pl-2">
       <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />

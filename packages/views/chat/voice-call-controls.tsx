@@ -11,7 +11,7 @@ import { ConfirmDialog } from "../common/form-dialog";
 import { roomShortcutLabel } from "../meetings/meeting-room-shortcuts";
 import type { VoiceCallRecordingState } from "./use-voice-call-recording";
 import { VoiceCallControlRow } from "./voice-call-floating-panel";
-import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
+import { isMultiPartyVoiceCall, voiceCallPrimaryLeaveEndsForAll } from "./voice-call-kind-utils";
 import type { VoiceCallKind } from "./voice-call-overlay-types";
 import { VoiceCallRecordControl } from "./voice-call-recording-controls";
 import { useVoiceCallActions, useVoiceCallStatus } from "./voice-call-room-context";
@@ -95,7 +95,7 @@ export function ActiveVoiceControls({
   compact?: boolean;
 }) {
   const { t } = useTranslation();
-  const { connected, muted, cameraEnabled, screenShareEnabled, remoteParticipantCount } = useVoiceCallStatus();
+  const { connected, muted, cameraEnabled, screenShareEnabled } = useVoiceCallStatus();
   const { toggleMute, toggleCamera, toggleScreenShare } = useVoiceCallActions();
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const multiParty = isMultiPartyVoiceCall(callKind);
@@ -107,7 +107,7 @@ export function ActiveVoiceControls({
   };
 
   const handleLeave = () => {
-    if (callKind === "dm" || (multiParty && isCaller && remoteParticipantCount === 0)) {
+    if (voiceCallPrimaryLeaveEndsForAll(callKind, isCaller)) {
       onEndForAll();
       return;
     }

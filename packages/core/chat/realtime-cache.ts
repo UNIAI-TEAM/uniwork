@@ -94,7 +94,11 @@ function patchRoomMessageListIfLoaded(
 ): void {
   const key = chatKeys.roomMessages(wsId, roomId);
   const existing = qc.getQueryData<ChatMessageRecord[]>(key);
-  if (existing === undefined) return;
+  if (existing === undefined) {
+    // Sidebar preview updated elsewhere; mark timeline stale for the next open (UNI-950).
+    void qc.invalidateQueries({ queryKey: key });
+    return;
+  }
   qc.setQueryData<ChatMessageRecord[]>(key, patch(existing));
 }
 

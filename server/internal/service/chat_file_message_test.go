@@ -34,6 +34,12 @@ func TestValidateFileMessageInput(t *testing.T) {
 	if err := validateFileMessageInput(valid); err != nil {
 		t.Fatalf("valid input: %v", err)
 	}
+	docx := valid
+	docx.Filename = "spec.docx"
+	docx.ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	if err := validateFileMessageInput(docx); err != nil {
+		t.Fatalf("docx: %v", err)
+	}
 	tests := []struct {
 		name string
 		edit func(*PrepareFileMessageInput)

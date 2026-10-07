@@ -17,7 +17,7 @@ import {
   VoiceCallFloatingPanel,
   type VoiceCallPanelMode,
 } from "./voice-call-floating-panel";
-import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
+import { isMultiPartyVoiceCall, voiceCallPrimaryLeaveEndsForAll } from "./voice-call-kind-utils";
 import type {
   VoiceCallEndInit,
   VoiceCallKind,
@@ -110,11 +110,7 @@ export function ActiveVoiceCallContent({
 
   const endForAll = () => onEndForAll();
   const leave = () => onLeave();
-  const leaveFromNotice =
-    callKind === "dm" ||
-    (multiParty && isCaller && remoteParticipantCount === 0)
-      ? endForAll
-      : leave;
+  const leaveFromNotice = voiceCallPrimaryLeaveEndsForAll(callKind, isCaller) ? endForAll : leave;
   const leaveLabel = multiParty
     ? t("chat.voice_call_leave")
     : t("chat.voice_call_end");

@@ -46,6 +46,14 @@ func sniffChatFileContentType(data []byte, filename string) (string, bool) {
 		return "image/gif", true
 	case ".webp":
 		return "image/webp", true
+	case ".docx":
+		if len(data) >= 2 && data[0] == 'P' && data[1] == 'K' {
+			return "application/vnd.openxmlformats-officedocument.wordprocessingml.document", true
+		}
+	case ".xlsx":
+		if len(data) >= 2 && data[0] == 'P' && data[1] == 'K' {
+			return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", true
+		}
 	}
 	return "", false
 }
