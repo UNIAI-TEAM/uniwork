@@ -11,6 +11,7 @@ import { NavigationProgress } from "./navigation-progress";
 import { WorkspaceChrome } from "./workspace-top-bar";
 import { WorkspaceLoader } from "./workspace-loader";
 import { WorkspaceProvider } from "./workspace-context";
+import { EntitlementGateToastHost } from "./entitlement-gate-toast";
 import { WorkspaceRealtimeSync } from "./workspace-realtime-sync";
 import { WorkspaceChatPresence } from "./workspace-chat-presence";
 import { ChatVoiceCallHost } from "../chat/chat-voice-call-host";
@@ -54,6 +55,7 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
             <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>
               <ChatVoiceCallHost>
                 <WorkspaceRealtimeSync />
+                <EntitlementGateToastHost />
                 <WorkspaceChatPresence />
                 <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
                   {/* First in the DOM so it is the first tab stop; visible only

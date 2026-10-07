@@ -285,6 +285,42 @@ func (q *Queries) GetBillingPaymentIntentByID(ctx context.Context, arg GetBillin
 	return i, err
 }
 
+const getPendingBillingPaymentIntentForPlan = `-- name: GetPendingBillingPaymentIntentForPlan :one
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind FROM billing_payment_intents
+WHERE organization_id = $1 AND plan_id = $2 AND status = 'pending' AND expires_at > now()
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetPendingBillingPaymentIntentForPlanParams struct {
+	OrganizationID string `json:"organization_id"`
+	PlanID         string `json:"plan_id"`
+}
+
+// tenant: by-id
+func (q *Queries) GetPendingBillingPaymentIntentForPlan(ctx context.Context, arg GetPendingBillingPaymentIntentForPlanParams) (BillingPaymentIntent, error) {
+	row := q.db.QueryRow(ctx, getPendingBillingPaymentIntentForPlan, arg.OrganizationID, arg.PlanID)
+	var i BillingPaymentIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.PlanID,
+		&i.Provider,
+		&i.ProviderTxnRef,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+	)
+	return i, err
+}
+
 const getBillingPaymentIntentByTxnRef = `-- name: GetBillingPaymentIntentByTxnRef :one
 SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind FROM billing_payment_intents WHERE provider_txn_ref = $1
 `
@@ -1089,7 +1125,7 @@ UPDATE billing_payment_intents SET
   status = 'completed',
   completed_at = now(),
   updated_at = now()
-WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'expired')
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
 RETURNING id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind
 `
 
@@ -1124,7 +1160,7 @@ func (q *Queries) MarkBillingPaymentIntentCompleted(ctx context.Context, arg Mar
 
 const markBillingPaymentIntentFailed = `-- name: MarkBillingPaymentIntentFailed :exec
 UPDATE billing_payment_intents SET status = 'failed', updated_at = now()
-WHERE id = $1 AND organization_id = $2 AND status = 'pending'
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'expired')
 `
 
 type MarkBillingPaymentIntentFailedParams struct {

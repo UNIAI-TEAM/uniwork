@@ -1,5 +1,6 @@
 import { runtimeConfig } from "../runtime-config";
 import { SessionResponseSchema, type SessionResponse } from "../types/user";
+import { emitEntitlementGateError } from "./entitlement-error-bus";
 import { parseWithFallback } from "./schema";
 import { getAccessToken, setAccessToken } from "./session";
 import { GUEST_SESSION_HEADER, getGuestSession } from "./guest-session";
@@ -235,7 +236,7 @@ async function throwFromFailedResponse(res: Response): Promise<never> {
   } catch {
     /* body is not JSON */
   }
-  throw new ApiError(
+  const err = new ApiError(
     message,
     code,
     res.status,
@@ -244,6 +245,14 @@ async function throwFromFailedResponse(res: Response): Promise<never> {
     errorClass,
     parseRetryAfter(res.headers.get("Retry-After")),
   );
+  if (code === "entitlement_required" || code === "quota_exceeded") {
+    emitEntitlementGateError({
+      code,
+      fields,
+      errorClass,
+    });
+  }
+  throw err;
 }
 
 /**

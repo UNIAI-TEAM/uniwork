@@ -139,6 +139,13 @@ RETURNING *;
 UPDATE billing_payment_intents SET status = 'expired', updated_at = now()
 WHERE organization_id = $1 AND status = 'pending';
 
+-- name: GetPendingBillingPaymentIntentForPlan :one
+-- tenant: by-id
+SELECT * FROM billing_payment_intents
+WHERE organization_id = $1 AND plan_id = $2 AND status = 'pending' AND expires_at > now()
+ORDER BY created_at DESC
+LIMIT 1;
+
 -- name: GetBillingPaymentIntentByTxnRef :one
 -- tenant: token
 SELECT * FROM billing_payment_intents WHERE provider_txn_ref = $1;
@@ -153,13 +160,13 @@ UPDATE billing_payment_intents SET
   status = 'completed',
   completed_at = now(),
   updated_at = now()
-WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'expired')
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
 RETURNING *;
 
 -- name: MarkBillingPaymentIntentFailed :exec
 -- tenant: by-id
 UPDATE billing_payment_intents SET status = 'failed', updated_at = now()
-WHERE id = $1 AND organization_id = $2 AND status = 'pending';
+WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'expired');
 
 -- name: ApplyPaidSubscriptionFromProvider :one
 -- tenant: by-id

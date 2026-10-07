@@ -68,7 +68,7 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | C-02 | Calendar: lịch nhóm workspace (+ filter Của tôi), ICS, gộp meeting + task due | Calendar | CHƯA | `2026-09-22-calendar-design.md` (đề xuất — chờ duyệt) | P1 |
 | C-03 | Meeting intelligence nâng cao: STT server-side (LiveKit Agents), họp → task có người duyệt qua proposal | Meeting + AI | MỘT PHẦN | mở rộng `2026-08-29-meeting-world-class-design.md` | P0 |
 | C-04 | Billing thật: cổng nội địa + Stripe, hóa đơn, webhook | Tenant & Subscription | CHƯA | phần Billing của spec F-02 | P0 |
-| C-05 | Quota UI cho org admin, cảnh báo ngưỡng | Tenant & Subscription | CHƯA | spec F-02 | P1 |
+| C-05 | Quota UI cho org admin, cảnh báo ngưỡng | Tenant & Subscription | ĐANG (toast quota.threshold + gate API) | spec F-02 · plan `2026-10-07-c05-quota-threshold-ui.md` | P1 |
 | C-06 | Tenant export / delete (Nghị định 13/2023) | Audit & Compliance | CHƯA | phần retention/export của spec F-08 | P0 |
 | C-07 | Trang status + changelog công khai | Ops | CHƯA | `(cần viết)` | P1 |
 | C-08 | Ứng dụng mobile iOS (Expo + React Native) theo kiến trúc `usf`: app độc lập `apps/mobile`, chỉ dùng type + pure function từ `packages/core`, parity ngữ nghĩa với web, CI riêng, phát hành EAS; 5 tab Home · Chat · Work · Meet · More | Mobile | CHƯA | `2026-09-04-mobile-app-design.md` (đề xuất); ADR 0011 | P1 |
