@@ -101,7 +101,8 @@ Không phải biến của server, nhưng cần khi triển khai:
 
 | Biến | Đặt ở đâu | Nghĩa |
 | --- | --- | --- |
-| `OFFICE_ENGINE_ENABLED` | Đầu vào của `ci/scripts/rollout-uniwork.sh` | `1` = cài/giữ pod engine (kèm `OFFICE_ENGINE_DIGEST`, `OFFICE_ENGINE_OUTPUT_ORIGINS`, tùy chọn `OFFICE_ENGINE_VALUES_FILE`); `0` = gỡ engine. Để trống: coi như tắt, nhưng script **từ chối** nếu bản đang chạy có engine (tránh vô tình gỡ). Mọi lần rollout sau đều phải truyền lại `1` |
+| `OFFICE_ENGINE_DIGEST` | Đầu vào bắt buộc của `ci/scripts/rollout-uniwork.sh` (Jenkins tự ghi vào `target/rollout.env`) | Digest `sha256:…` của image `uniwork-office-engine`. Engine **luôn** được deploy cùng BE/FE; không còn công tắc bật/tắt engine khi rollout |
+| `OFFICE_ENGINE_OUTPUT_ORIGINS`, `OFFICE_ENGINE_MAX_WORKERS`, `OFFICE_ENGINE_MAX_QUEUE`, `OFFICE_ENGINE_FAULT_OPERATIONS` | `deploy/app/env/uniwork-office-engine.env` (ConfigMap của engine) | Origin kho file engine được đọc/ghi (CMC S3), số việc chạy cùng lúc, hàng chờ; `FAULT_OPERATIONS` luôn `0` ngoài test |
 | `MINIO_API_CORS_ALLOW_ORIGIN` | Biến của **container MinIO** | Origin trình duyệt được gọi thẳng vào MinIO (`FRONTEND_ORIGIN`, `PREVIEW_ORIGIN`, cách nhau dấu phẩy). Không đặt = MinIO nhận **mọi** origin; production nên đặt. Chi tiết: [bucket-cors.md](bucket-cors.md) |
 
 Web (đặt **lúc build**, vì Next nhúng cứng): `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL`, `NEXT_PUBLIC_APP_URL`.
