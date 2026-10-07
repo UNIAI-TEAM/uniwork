@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import process from "node:process";
 import { generateReleaseInventory, scanEe } from "./release-inventory.mjs";
@@ -28,18 +29,56 @@ test("release inventory copies provenance, notices, fonts and a clean ee scan", 
   }
 });
 
-test("ee scan walks tracked sources but never a Go cache, dependencies or build output", async () => {
+function git(root, ...args) {
+  const result = spawnSync("git", args, { cwd: root, encoding: "utf8", windowsHide: true });
+  assert.equal(result.status, 0, result.stderr);
+}
+
+async function put(root, file, text = "x") {
+  await mkdir(dirname(join(root, file)), { recursive: true });
+  await writeFile(join(root, file), text);
+}
+
+test("ee scan covers exactly what git would ship: ignored caches are skipped, cache-named sources are not", async () => {
   const root = await mkdtemp(join(tmpdir(), "office-ee-scan-"));
   try {
-    for (const directory of [".go-cache/3f/ee", ".go-tmp/ee", "node_modules/pkg/ee", "dist/ee", "packages/a/dist/ee", ".git/ee", ".next/ee", "src/clean"]) {
-      await mkdir(join(root, directory), { recursive: true });
-      await writeFile(join(root, directory, "file.txt"), "x");
-    }
+    git(root, "init", "-q");
+    await put(root, ".gitignore", ".go-cache/\n.go-tmp/\nnode_modules/\ndist/\n.next/\n");
+    for (const file of [".go-cache/3f/ee/file.txt", ".go-tmp/ee/file.txt", "node_modules/pkg/ee/file.txt", "dist/ee/file.txt", "packages/a/.next/ee/file.txt", "src/clean/file.txt"]) await put(root, file);
     assert.deepEqual(await scanEe(root), []);
-    await mkdir(join(root, "packages", "feature", "ee"), { recursive: true });
-    await writeFile(join(root, "packages", "feature", "ee", "license.txt"), "x");
-    await writeFile(join(root, "ee"), "a file named ee is a path part too");
+
+    await put(root, "packages/feature/ee/license.txt");
+    await put(root, "ee", "a file named ee is a path part too");
     assert.deepEqual(await scanEe(root), ["ee", "packages/feature/ee/license.txt"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ee scan still catches an ee path under a directory that is only NAMED like a cache", async () => {
+  const root = await mkdtemp(join(tmpdir(), "office-ee-scan-"));
+  try {
+    git(root, "init", "-q");
+    await put(root, ".gitignore", "dist/\n.go-cache/\n");
+    // Untracked but not ignored: a source directory that merely shares a cache's name.
+    await put(root, "packages/lib/coverage/ee/a.ts");
+    await put(root, "packages/lib/.go-tmp/ee/b.ts");
+    await put(root, "test-results/ee/c.ts");
+    // Force-added although the ignore rule hides it: git ships it.
+    await put(root, "dist/ee/forced.ts");
+    git(root, "add", "-f", "dist/ee/forced.ts");
+    // Ignored and untracked: never shipped.
+    await put(root, ".go-cache/ee/d.ts");
+    assert.deepEqual(await scanEe(root), ["dist/ee/forced.ts", "packages/lib/.go-tmp/ee/b.ts", "packages/lib/coverage/ee/a.ts", "test-results/ee/c.ts"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ee scan fails loudly when git cannot list the checkout", async () => {
+  const root = await mkdtemp(join(tmpdir(), "office-ee-scan-"));
+  try {
+    await assert.rejects(scanEe(join(root, "missing")), /ee scan/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
