@@ -60,6 +60,30 @@ describe("printPageFromCopy", () => {
   });
 });
 
+describe("a page rule that nests margin boxes", () => {
+  const nested = "@page { size: 792pt 612pt; margin: 36pt; @top-left { content: 'x'; size: 1in 9in } @bottom-center { content: counter(page) } }";
+
+  it("reads its size like any other rule, and never a size inside a margin box", () => {
+    expect(printPageFromCopy(copy(nested))).toMatchObject({ landscape: true, widthMm: expect.closeTo(279.4, 1), heightMm: expect.closeTo(215.9, 1) });
+    expect(printOrientationFromCopy(copy(nested))).toBe("landscape");
+    expect(printOrientationFromCopy(copy("@page wide { margin: 0; @top-left { size: 10in 5in } }"))).toBeUndefined();
+  });
+
+  it("reads a named rule and keeps reading the rules after it", () => {
+    const css = "@page { size: 612pt 792pt } @page wide { size: 792pt 612pt; @top-right { content: 'y' } } @page tall { size: 612pt 792pt }";
+    expect(printOrientationFromCopy(copy(css))).toBe("mixed");
+  });
+
+  it("takes the first unnamed rule that states a size, skipping a margin-box-only one before it", () => {
+    expect(printPageFromCopy(copy("@page { @top-left { content: 'x' } } @page { size: A4 landscape }"))).toMatchObject({ landscape: true, widthMm: 297 });
+  });
+
+  it("gives up on an unbalanced rule instead of reading past it", () => {
+    expect(printPageFromCopy(copy("@page { size: A4 landscape; @top-left { content: 'x' }"))).toBeUndefined();
+    expect(printOrientationFromCopy(copy("@page { size: A4; @top-left { content: 'x' } @page tall { size: 10in 20in }"))).toBeUndefined();
+  });
+});
+
 describe("printOrientationFromCopy", () => {
   it.each([
     ["a DOCX with a portrait then a landscape section", "@page { size: 612pt 792pt; margin: 72pt }\n@page docx-s0 { size: 612pt 792pt; margin: 72pt }\n@page docx-s1 { size: 792pt 612pt; margin: 72pt }", "mixed"],

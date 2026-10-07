@@ -34,11 +34,9 @@ const NAMED_SIZES_MM: Readonly<Record<string, readonly [number, number]>> = {
 
 /** CSS comments and quoted strings: an `@page` inside one is not a rule. */
 const CSS_COMMENT_OR_STRING = /\/\*[\s\S]*?\*\/|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g;
-/** The first unnamed, pseudo-less `@page` rule's body. It holds plain
- * declarations only: a rule that nests margin boxes (`@top-left{...}`) is
- * skipped, so a copy states its `size` in a rule of its own ahead of any
- * margin-box rule (the XLSX header/footer copy does; print-copy-gaps.test pins it). */
-const UNNAMED_PAGE_RULE = /@page\s*\{([^{}]*)\}/i;
+/** The head of a plain `@page` rule, named or not. A pseudo-class (`@page :first`)
+ * never matches: those rules carry margin boxes, not a size. */
+const PAGE_RULE_HEAD = /@page(?:\s+([\w-]+))?\s*\{/gi;
 /** The copy's comments and `<style>` elements in document order: only a
  * style's text (group 1) can hold the rule, a commented-out one never does. */
 const COMMENT_OR_STYLE = /<!--[\s\S]*?-->|<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi;
@@ -75,9 +73,34 @@ function pageFromCssSize(value: string): OfficePrintPage | undefined {
   return { widthMm: width, heightMm: height, landscape: width > height };
 }
 
-/** Every plain `@page` rule, named or not (a pseudo-class such as `:first` never
- * matches: those rules carry margin boxes, not a size). */
-const ANY_PAGE_RULE = /@page(?:\s+[\w-]+)?\s*\{([^{}]*)\}/gi;
+/** A plain page rule: its name (undefined when unnamed) and its own declarations. */
+type PageRule = { name: string | undefined; declarations: string };
+
+/**
+ * Every plain `@page` rule in `css`, in order. A rule may nest margin boxes
+ * (`@page { size: A4; @top-left { ... } }`): braces are balanced and only the
+ * rule's own declarations are returned, so a `size` inside a margin box is never
+ * read as the page's. A rule that never closes ends the scan.
+ */
+function pageRules(css: string): PageRule[] {
+  const rules: PageRule[] = [];
+  PAGE_RULE_HEAD.lastIndex = 0;
+  for (let head = PAGE_RULE_HEAD.exec(css); head; head = PAGE_RULE_HEAD.exec(css)) {
+    let depth = 1;
+    let declarations = "";
+    let index = PAGE_RULE_HEAD.lastIndex;
+    for (; index < css.length && depth > 0; index += 1) {
+      const char = css[index]!;
+      if (char === "{") depth += 1;
+      else if (char === "}") depth -= 1;
+      else if (depth === 1) declarations += char;
+    }
+    if (depth > 0) break;
+    rules.push({ name: head[1], declarations });
+    PAGE_RULE_HEAD.lastIndex = index;
+  }
+  return rules;
+}
 
 /** What a copy lays out: every page it states is portrait, every one is
  * landscape, or the copy mixes both. */
@@ -95,8 +118,8 @@ export function printOrientationFromCopy(html: string): OfficePrintOrientation |
   for (const match of html.matchAll(COMMENT_OR_STYLE)) {
     if (match[1] === undefined) continue;
     const css = match[1].replace(CSS_COMMENT_OR_STRING, "");
-    for (const rule of css.matchAll(ANY_PAGE_RULE)) {
-      const size = SIZE_DECLARATION.exec(rule[1]!);
+    for (const rule of pageRules(css)) {
+      const size = SIZE_DECLARATION.exec(rule.declarations);
       const page = size ? pageFromCssSize(size[1]!) : undefined;
       if (!page) continue;
       if (page.landscape) landscape = true;
@@ -118,10 +141,12 @@ export function printPageFromCopy(html: string): OfficePrintPage | undefined {
   for (const match of html.matchAll(COMMENT_OR_STYLE)) {
     if (match[1] === undefined) continue;
     const css = match[1].replace(CSS_COMMENT_OR_STRING, "");
-    const rule = UNNAMED_PAGE_RULE.exec(css);
-    if (!rule) continue;
-    const size = SIZE_DECLARATION.exec(rule[1]!);
-    return size ? pageFromCssSize(size[1]!) : undefined;
+    for (const rule of pageRules(css)) {
+      if (rule.name !== undefined) continue;
+      // A rule that only nests margin boxes states no size: the next one may.
+      const size = SIZE_DECLARATION.exec(rule.declarations);
+      if (size) return pageFromCssSize(size[1]!);
+    }
   }
   return undefined;
 }
