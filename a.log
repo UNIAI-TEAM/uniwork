@@ -1,0 +1,11 @@
+$ node scripts/office/build-upstream.mjs && node scripts/office/build-upstream.mjs --docx-browser && node scripts/office/build-xlsx-browser.mjs
+{"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+{"bytes":1297818,"gzipBytes":407217,"sha256":"e6da3125203da6e6ffd053818fc61332d5d3d9178f1ee24657d8629b5c4c7f27","inputs":161,"styles":[{"path":"packages/office-upstream/upstream/apps/docs/src/renderer/styles.css","sha256":"D4BEC6BD6C1D451178760FAB6F42DFC4BBACE61FCECE1CB8424DB5CDA89AC66A"},{"path":"packages/office-upstream/upstream/packages/ui/src/tokens.css","sha256":"A41E5C3B42996C8F297D83138AFE8AE6859B0E562B7CC6BC506EF911F45DC9E3"}]}
+{
+ "ok": true,
+ "bytes": 14773918,
+ "gzipBytes": 3871107,
+ "sha256": "425892013e493317401af90210154204ee52a4801ac90e709cebab643b47fc8e",
+ "inputs": 71,
+ "styles": 9
+}
