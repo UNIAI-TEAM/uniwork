@@ -5,13 +5,16 @@ import { Label } from "@uniwork/ui/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
 import type { DesktopPrinter } from "../../../shared/ipc";
 import { PAPER_IDS, SAVE_PDF_DESTINATION, parseCopies, type Destination, type DuplexChoice, type PaperId, type PrintForm, type RangeMode, type RangeResolution } from "./print-settings";
 import type { PrintersState } from "./use-print-data";
 
-/** One radio with its visible text; Base UI names the radio from the wrapping label. */
+/** One radio with its visible text; Base UI names the radio from the wrapping label.
+ * Its radio is a span (no `disabled` attribute for the primitive's `disabled:`
+ * styles), so a disabled choice is dimmed here. */
 function Choice({ value, label, disabled }: { value: string; label: string; disabled?: boolean }) {
-  return <Label className="gap-2 font-normal">
+  return <Label className={cn("gap-2 font-normal", disabled && "cursor-not-allowed opacity-50")}>
     <RadioGroupItem value={value} disabled={disabled} />
     {label}
   </Label>;
