@@ -402,6 +402,35 @@ describe("OfficeShell", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 
+  // The shell is shared by all six formats: only a failed save is the one-line
+  // strip (9de552bb); every other in-shell banner keeps its card and margins.
+  it.each(["permission", "conflict", "blocked", "readonly", "incompatible"] as const)(
+    "keeps the %s banner a margined card in the shell",
+    (saveStatus) => {
+      const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveStatus={saveStatus} />);
+      const banner = container.querySelector("[data-office-shell] > [role=alert]");
+      expect(banner).not.toBeNull();
+      expect(banner!.className).toContain("mx-4 my-2 w-auto");
+      expect(banner!.className).not.toContain("border-b");
+      expect(banner).not.toHaveAttribute("data-testid", "office-save-error");
+    },
+  );
+
+  it.each(["ready", "dirty", "saving", "saved"] as const)("renders no save banner for %s", (saveStatus) => {
+    const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveStatus={saveStatus} />);
+    expect(container.querySelector("[data-office-shell] > [role=alert]")).toBeNull();
+    expect(container.querySelector("[data-office-shell] > [role=status]")).toBeNull();
+  });
+
+  it("renders a failed save as the one-line strip without the card margins", () => {
+    const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveStatus="error" />);
+    const strip = screen.getByTestId("office-save-error");
+    expect(strip.parentElement).toBe(container.querySelector("[data-office-shell]"));
+    expect(strip.className).toContain("border-b");
+    expect(strip.className).not.toContain("mx-4");
+    expect(strip.className).not.toContain("my-2");
+  });
+
   it("renders the editor edge to edge", () => {
     render(<OfficeShell title="Document" editor={<div data-testid="ed" />} />);
     expect(screen.getByTestId("ed").closest("main")!.className).not.toMatch(/(^|\s)p-[0-9]/);

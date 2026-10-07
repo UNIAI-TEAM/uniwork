@@ -222,6 +222,38 @@ describe("SaveStatus", () => {
     expect(element).toHaveAttribute("title", full);
   });
 
+  // 9de552bb made the shell pass `inline` for every state. The one-line strip
+  // is the failed-save banner only: every other state must render the markup it
+  // had before, because the shell is shared by all six formats.
+  it.each(["checkpoint", "saved-local", "saved-cloud", "not-sent", "saving", "ready"] as const)(
+    "renders %s as the same status line with or without inline",
+    (status) => {
+      const plain = render(<SaveStatus status={status} className="mx-4 my-2 w-auto" onAction={vi.fn()} />);
+      const plainHtml = plain.container.innerHTML;
+      plain.unmount();
+      const inline = render(<SaveStatus status={status} className="mx-4 my-2 w-auto" onAction={vi.fn()} inline />);
+      expect(inline.container.innerHTML).toBe(plainHtml);
+      const line = screen.getByTestId(`office-save-${status}`);
+      expect(line.className).toBe("flex min-h-8 items-center gap-2 text-caption text-muted-foreground mx-4 my-2 w-auto");
+      expect(line).toHaveAttribute("role", "status");
+      expect(line).toHaveAttribute("aria-live", "polite");
+      expect(line).not.toHaveAttribute("data-error-code");
+    },
+  );
+
+  it.each(["permission", "conflict"] as const)("keeps the %s banner a card with or without inline", (status) => {
+    const plain = render(<SaveStatus status={status} className="mx-4 my-2 w-auto" onAction={vi.fn()} />);
+    const plainHtml = plain.container.innerHTML;
+    plain.unmount();
+    const inline = render(<SaveStatus status={status} className="mx-4 my-2 w-auto" onAction={vi.fn()} inline />);
+    expect(inline.container.innerHTML).toBe(plainHtml);
+    const card = screen.getByTestId(`office-save-${status}`);
+    expect(card).toHaveAttribute("role", "alert");
+    expect(card.className).toContain("mx-4 my-2 w-auto");
+    expect(card.className).not.toContain("border-b");
+    expect(card).not.toHaveAttribute("data-error-code");
+  });
+
   it("preserves an explicit ready status instead of treating it as a receipt", () => {
     render(<SaveStatus status="ready" />);
     expect(screen.getByText("No changes")).toBeInTheDocument();
