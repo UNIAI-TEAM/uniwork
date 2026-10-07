@@ -23,6 +23,7 @@ services:
   # signed with OFFICE_ENGINE_GRANT_KEY. The dev values below are placeholders -
   # set real secrets in any shared environment. Fault operations stay off unless
   # a test run sets OFFICE_ENGINE_FAULT_OPERATIONS=1.
+  # test build
   office-engine:
     profiles: ["office"]
     build:
