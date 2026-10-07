@@ -39,6 +39,8 @@ func TestChatFileAndVoiceCapsPinForFileServiceMigration(t *testing.T) {
 		"image/webp":      "webp",
 		"application/pdf": "pdf",
 		"text/plain":      "txt",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       "xlsx",
 	}
 	if len(supportedChatFileContentTypes) != len(wantFiles) {
 		t.Fatalf("chat file allowlist = %v, want %v", supportedChatFileContentTypes, wantFiles)

@@ -57,8 +57,9 @@ function clearLocalUnread(
 
 /**
  * CatchUp sheet + header button for the active room (C-13.7).
- * Messages load with mark_read=0 so opening an unread room does not clear the
- * CatchUp window; we advance last_read when leaving the room or closing CatchUp.
+ * Messages load with mark_read=0 so CatchUp can still use the pre-open cursor;
+ * opening a room still calls MarkRoomRead so sidebar badges and peer receipts
+ * match “đã xem”. CatchUp close also flushes read after a brief was shown.
  */
 export function useChatCatchUpUi(workspaceId: string, roomId: string | null, threadRootId?: string | null) {
   const { t, i18n } = useTranslation();
@@ -86,8 +87,10 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
       flushRead(prev);
     }
     prevRoomRef.current = roomId;
-    // Hide badge while viewing; server last_read stays until flushRead.
-    if (roomId) clearLocalUnread(qc, workspaceId, roomId);
+    if (roomId) {
+      clearLocalUnread(qc, workspaceId, roomId);
+      flushRead(roomId);
+    }
   }, [flushRead, qc, roomId, workspaceId]);
 
   const run = useCallback(async () => {

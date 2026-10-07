@@ -31,6 +31,11 @@ describe("useChatCatchUpUi", () => {
     mocks.markRead.mockResolvedValue(true);
   });
 
+  it("marks the room read when the room opens", () => {
+    setup();
+    expect(mocks.markRead).toHaveBeenCalledWith("room1");
+  });
+
   it("marks the room read on close once a brief was shown", async () => {
     mocks.catchUp.mockResolvedValue(brief);
     const { result } = setup();
@@ -40,12 +45,13 @@ describe("useChatCatchUpUi", () => {
     expect(mocks.markRead).toHaveBeenCalledWith("room1");
   });
 
-  it("leaves the unread window alone when the summary failed", async () => {
+  it("does not mark read again on close when the summary failed", async () => {
     mocks.catchUp.mockRejectedValue(new Error("ai down"));
     const { result } = setup();
+    expect(mocks.markRead).toHaveBeenCalledTimes(1);
     await act(async () => result.current.onCatchUp?.());
     expect(result.current.error).not.toBeNull();
     act(() => result.current.setOpen(false));
-    expect(mocks.markRead).not.toHaveBeenCalled();
+    expect(mocks.markRead).toHaveBeenCalledTimes(1);
   });
 });

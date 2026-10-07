@@ -26,6 +26,8 @@ func TestSniffChatFileContentType(t *testing.T) {
 		{"jpeg", []byte{0xff, 0xd8, 0xff, 0xe0}, "a.jpg", "image/jpeg", true},
 		{"gif", []byte("GIF89a........"), "a.gif", "image/gif", true},
 		{"pdf by ext", []byte("%PDF-1.4"), "doc.PDF", "application/pdf", true},
+		{"docx zip", []byte{'P', 'K', 0x03, 0x04}, "report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", true},
+		{"xlsx zip", []byte{'P', 'K', 0x03, 0x04}, "data.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", true},
 		{"reject", []byte{0x00, 0x01, 0x02}, "x.bin", "", false},
 	}
 	for _, tc := range cases {

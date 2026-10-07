@@ -7,7 +7,7 @@ import { useChatFileBlobLoader } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { ChatAnimatedImage } from "./chat-animated-image";
-import { isChatImageContentType, isChatPdfContentType } from "./chat-file-accept";
+import { isChatImageContentType, isChatPdfContentType, resolveChatFileContentType } from "./chat-file-accept";
 import { formatChatFileSize } from "./chat-file-size";
 import type { ChatMessage } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
@@ -239,10 +239,11 @@ export function ChatFileAttachment({
 }) {
   const file = message.file;
   const { busy, download } = useDownload(workspaceId, roomId, message.id, file?.filename ?? "");
-  if (isChatImageContentType(file?.content_type)) {
+  const contentType = file ? resolveChatFileContentType(file) : undefined;
+  if (isChatImageContentType(contentType, file?.filename)) {
     return <ImageAttachment workspaceId={workspaceId} roomId={roomId} message={message} />;
   }
-  if (isChatPdfContentType(file?.content_type)) {
+  if (isChatPdfContentType(contentType)) {
     return (
       <PdfAttachment workspaceId={workspaceId} roomId={roomId} message={message} busy={busy} onDownload={download} />
     );
@@ -252,6 +253,7 @@ export function ChatFileAttachment({
 
 /** Image and PDF attachments sit edge to edge in the bubble; a file card gets padding. */
 export function chatFileIsEdgeToEdge(file: ChatFile | undefined): boolean {
-  return isChatImageContentType(file?.content_type) || isChatPdfContentType(file?.content_type);
+  const contentType = file ? resolveChatFileContentType(file) : undefined;
+  return isChatImageContentType(contentType, file?.filename) || isChatPdfContentType(contentType);
 }
 

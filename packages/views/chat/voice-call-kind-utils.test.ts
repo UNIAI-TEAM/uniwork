@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isMultiPartyVoiceCall, voiceCallKindFromServer } from "./voice-call-kind-utils";
+import {
+  isMultiPartyVoiceCall,
+  voiceCallKindFromServer,
+  voiceCallPrimaryLeaveEndsForAll,
+} from "./voice-call-kind-utils";
 
 describe("voice-call-kind-utils", () => {
   it("treats channel like group for multi-party checks", () => {
@@ -12,5 +16,12 @@ describe("voice-call-kind-utils", () => {
     expect(voiceCallKindFromServer("channel")).toBe("channel");
     expect(voiceCallKindFromServer("group")).toBe("group");
     expect(voiceCallKindFromServer(undefined)).toBe("dm");
+  });
+
+  it("caller hang-up on channel/group signals server hangup even with peers in room", () => {
+    expect(voiceCallPrimaryLeaveEndsForAll("channel", true)).toBe(true);
+    expect(voiceCallPrimaryLeaveEndsForAll("group", true)).toBe(true);
+    expect(voiceCallPrimaryLeaveEndsForAll("channel", false)).toBe(false);
+    expect(voiceCallPrimaryLeaveEndsForAll("dm", false)).toBe(true);
   });
 });

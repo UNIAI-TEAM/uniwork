@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   isChatAcceptedFile,
+  isChatImageContentType,
+  isChatImageFile,
   isChatPdfContentType,
   pickChatAcceptedFiles,
+  resolveChatFileContentType,
 } from "./chat-file-accept";
 
 describe("chat-file-accept", () => {
@@ -12,6 +15,14 @@ describe("chat-file-accept", () => {
     ).toBe(true);
     expect(
       isChatAcceptedFile(new File(["x"], "a.pdf", { type: "application/pdf" })),
+    ).toBe(true);
+    expect(isChatAcceptedFile(new File(["x"], "plan.docx", { type: "" }))).toBe(true);
+    expect(
+      isChatAcceptedFile(
+        new File(["x"], "sheet.xlsx", {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+      ),
     ).toBe(true);
     expect(isChatAcceptedFile(new File(["x"], "a.PDF", { type: "" }))).toBe(
       true,
@@ -32,5 +43,15 @@ describe("chat-file-accept", () => {
   it("detects PDF content types", () => {
     expect(isChatPdfContentType("application/pdf")).toBe(true);
     expect(isChatPdfContentType("image/png")).toBe(false);
+  });
+
+  it("infers image type from filename when content_type is empty", () => {
+    expect(resolveChatFileContentType({ filename: "photo.PNG", content_type: "" })).toBe("image/png");
+    expect(isChatImageContentType(undefined, "shot.jpg")).toBe(true);
+  });
+
+  it("detects image files in the composer from type or name", () => {
+    expect(isChatImageFile(new File([], "Screenshot.png", { type: "image/png" }))).toBe(true);
+    expect(isChatImageFile(new File([], "doc.pdf", { type: "application/pdf" }))).toBe(false);
   });
 });

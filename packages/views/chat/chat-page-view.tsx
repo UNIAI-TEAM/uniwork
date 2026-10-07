@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import {
@@ -28,6 +29,7 @@ import {
   useChatSendOutboxFlush,
   useChatSendOutboxCount,
   useSyncChatRoomsOnAuth,
+  chatKeys,
 } from "@uniwork/core/chat";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -212,12 +214,21 @@ export function ChatPageView({
   // After the reset above: a notification's `?message=` jumps once its room is open.
   useChatMessageDeepLink({ activeRoomId, roomsReady: unreadBadgesReady, onJump: setJumpToMessageId });
 
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     useActiveChatRoomStore.getState().setActiveRoom(workspaceId, activeRoomId);
     return () => {
       useActiveChatRoomStore.getState().setActiveRoom(null, null);
     };
   }, [workspaceId, activeRoomId]);
+
+  useEffect(() => {
+    if (!workspaceId || !activeRoomId) return;
+    void queryClient.invalidateQueries({
+      queryKey: chatKeys.roomMessages(workspaceId, activeRoomId),
+    });
+  }, [workspaceId, activeRoomId, queryClient]);
 
   useChatMentionNotify({ currentUserId, activeRoomId });
 
