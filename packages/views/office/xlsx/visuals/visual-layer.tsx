@@ -128,11 +128,12 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
     return () => doc.removeEventListener("pointerdown", onPointerDown, true);
   }, [onSelect, selectedId]);
 
-  // Delete / Backspace removes the selected visual wherever focus is: a press
-  // on an item does not focus it (the drag starts first), so the key would
-  // otherwise reach the grid and clear cells. The grid's focus target is its
-  // contenteditable editor input (review r3 F1): only an open cell edit there
-  // keeps the key, as do an input or a dialog; a handled key never reaches the grid.
+  // Delete / Backspace removes the selected visual wherever focus is outside
+  // the grid (a press on an item focuses it, so the item's own handler usually
+  // answers). Inside the grid the renderer's window-level shortcut has already
+  // run before this listener; that is why moving focus into the grid clears
+  // the selection (onBlur below), like clicking a cell. Only an open cell edit,
+  // an input or a dialog keeps the key; a handled key never reaches the grid.
   const selectedVisual = items.find((item) => item.visual.id === selectedId)?.visual ?? null;
   const removable = selectedVisual !== null && !readOnly && !selectedVisual.fixed;
   useEffect(() => {
@@ -170,6 +171,12 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
     if (event.button !== 0 || !item.box) return;
     event.stopPropagation();
     onSelect(item.visual.id);
+    // R2a (visual r3): the renderer's shortcut listener sits on the window's
+    // capture phase, ahead of every host listener, and clears the selected
+    // cells on Delete/Backspace whenever focus is inside its containers. A
+    // press on an item must take focus out of the grid (the drag's
+    // preventDefault below would keep it there), so the key lands on the item.
+    (event.currentTarget as HTMLElement).closest<HTMLElement>("[data-visual-id]")?.focus({ preventScroll: true });
     if (!editable(item.visual)) return;
     event.preventDefault();
     (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
@@ -210,6 +217,14 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
     (target ?? surface)?.focus();
   };
 
+  // Focus moving from an item into the grid (Tab, a script) is a press on a
+  // cell: the selection goes, so a later Delete clears cells as the user sees.
+  const leaveForGrid = (next: EventTarget | null) => {
+    const layer = layerRef.current;
+    if (!(next instanceof Node) || !layer || layer.contains(next)) return;
+    if (layer.parentElement?.contains(next)) onSelect(null);
+  };
+
   const onKeyDown = (event: KeyboardEvent, item: XlsxVisualLayerItem) => {
     const { visual, box } = item;
     if (event.key === "Escape") {
@@ -221,7 +236,11 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
       event.stopPropagation();
-      if (editable(visual)) onRemove(visual);
+      if (!editable(visual)) return;
+      onRemove(visual);
+      // The removed item takes focus with it; back on the grid, Ctrl+Z
+      // reaches the editor's undo (it would land on <body> otherwise).
+      returnFocus();
       return;
     }
     if (!box || !editable(visual)) return;
@@ -263,6 +282,7 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
               )}
               style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
               onFocus={() => onSelect(visual.id)}
+              onBlur={(event) => leaveForGrid(event.relatedTarget)}
               onPointerDown={(event) => startDrag(event, item, null)}
               onPointerMove={moveDrag}
               onPointerUp={(event) => endDrag(event, visual)}
@@ -305,7 +325,7 @@ export function XlsxVisualLayer({ items, selectedId, readOnly, onSelect, onMove,
                 title={t("office.xlsx.visuals.item.delete", { name: label })}
                 data-testid="xlsx-visual-delete"
                 onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => onRemove(visual)}
+                onClick={() => { onRemove(visual); returnFocus(); }}
               >
                 <Trash2 aria-hidden />
               </Button>

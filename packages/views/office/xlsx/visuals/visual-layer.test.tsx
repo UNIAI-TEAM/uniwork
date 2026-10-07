@@ -180,6 +180,104 @@ describe("XlsxVisualLayer", () => {
       grid.remove();
     });
 
+    // Visual r3 R2a: Univer's ShortcutService listens for keydown on the
+    // window's capture phase, registered when the renderer mounts (before any
+    // host listener), and runs its Delete/Backspace "clear contents" shortcut
+    // for any target inside its containers. This models that dispatch rule.
+    // The layer renders into the surface first (a React root clears its
+    // container); the renderer then mounts its own root beside it.
+    function rendererWithShortcuts(mountLayer: (surface: HTMLElement) => void) {
+      const surface = document.createElement("div");
+      surface.setAttribute("data-xlsx-grid-surface", "");
+      document.body.append(surface);
+      mountLayer(surface);
+      const container = document.createElement("div");
+      const editor = document.createElement("div");
+      editor.setAttribute("contenteditable", "true");
+      editor.dataset.uComp = "editor";
+      container.append(editor);
+      surface.append(container);
+      const clearCells = vi.fn();
+      const shortcut = (event: KeyboardEvent) => {
+        if ((event.key !== "Delete" && event.key !== "Backspace") || !container.contains(event.target as Node)) return;
+        clearCells();
+        event.preventDefault();
+      };
+      window.addEventListener("keydown", shortcut, true);
+      editor.focus();
+      const press = (key: string) => fireEvent.keyDown(document.activeElement ?? document.body, { key });
+      const remove = () => { window.removeEventListener("keydown", shortcut, true); surface.remove(); };
+      return { surface, editor, clearCells, press, remove };
+    }
+
+    function setupInSurface(overrides: Partial<XlsxVisualLayerProps> = {}, selectedId: string | null = "v-picture") {
+      const props = { onSelect: vi.fn(), onMove: vi.fn(), onRemove: vi.fn(), ...overrides };
+      const grid = rendererWithShortcuts((surface) => {
+        render(<XlsxVisualLayer items={[selectedItem]} selectedId={selectedId} readOnly={false} {...props} />, { container: surface });
+      });
+      return { props, grid };
+    }
+
+    it.each(["Delete", "Backspace"])("a press on the item moves focus off the grid, so %s removes the visual and never clears cells", (key) => {
+      const { props, grid } = setupInSurface({ isCellEditing: () => false });
+      const item = screen.getByTestId("xlsx-visual-item-picture");
+      fireEvent.pointerDown(item, { clientX: 150, clientY: 150, pointerId: 1, button: 0 });
+      fireEvent.pointerUp(item, { clientX: 150, clientY: 150, pointerId: 1 });
+      expect(document.activeElement).toBe(item);
+      grid.press(key);
+      expect(grid.clearCells).not.toHaveBeenCalled();
+      expect(props.onRemove).toHaveBeenCalledTimes(1);
+      expect(props.onRemove).toHaveBeenCalledWith(selectedItem.visual);
+      // Focus goes back to the grid, inside the editor root, so Ctrl+Z
+      // reaches the undo that restores the visual; the selection goes too.
+      expect(document.activeElement).toBe(grid.editor);
+      expect(props.onSelect).toHaveBeenLastCalledWith(null);
+      grid.remove();
+    });
+
+    it("the trash button hands focus back to the grid after removing", () => {
+      const { props, grid } = setupInSurface();
+      const trash = screen.getByTestId("xlsx-visual-delete");
+      act(() => trash.focus());
+      fireEvent.click(trash);
+      expect(props.onRemove).toHaveBeenCalledWith(selectedItem.visual);
+      expect(document.activeElement).toBe(grid.editor);
+      grid.remove();
+    });
+
+    it("a press on a handle focuses the item too", () => {
+      const { grid } = setupInSurface();
+      const handle = screen.getByTestId("xlsx-visual-handle-se");
+      fireEvent.pointerDown(handle, { clientX: 220, clientY: 180, pointerId: 1, button: 0 });
+      fireEvent.pointerUp(handle, { clientX: 220, clientY: 180, pointerId: 1 });
+      expect(document.activeElement).toBe(screen.getByTestId("xlsx-visual-item-picture"));
+      grid.remove();
+    });
+
+    it("focus moving from the item into the grid clears the selection; Delete there still clears cells", () => {
+      const { props, grid } = setupInSurface();
+      const item = screen.getByTestId("xlsx-visual-item-picture");
+      act(() => item.focus());
+      act(() => grid.editor.focus());
+      expect(props.onSelect).toHaveBeenLastCalledWith(null);
+      const outside = document.createElement("button");
+      document.body.append(outside);
+      props.onSelect.mockClear();
+      act(() => item.focus());
+      act(() => outside.focus());
+      expect(props.onSelect).not.toHaveBeenCalledWith(null);
+      outside.remove();
+      grid.remove();
+    });
+
+    it("leaves Delete to the grid when no visual is selected", () => {
+      const { props, grid } = setupInSurface({}, null);
+      grid.press("Delete");
+      expect(grid.clearCells).toHaveBeenCalledTimes(1);
+      expect(props.onRemove).not.toHaveBeenCalled();
+      grid.remove();
+    });
+
     it("is ignored while typing, with a modifier, without a selection, read-only or on a file-locked visual", () => {
       const { props: { selectedId: _selected, ...handlers }, rerender } = setup([selectedItem], { selectedId: "v-picture" });
       const props = handlers;
