@@ -196,11 +196,13 @@ requests or ordinary pushes, only when:
   example `office-desktop-v0.1.0-dev.7`. The version part must equal `version` in
   `apps/office-desktop/package.json`. Tag builds always require the sidecar.
 
-The matrix is **Windows x64** (`-setup.exe` and `.zip`) and **Linux x64** (`.deb`
-and `.AppImage`). **macOS is omitted**: a `.dmg` needs a macOS runner and none is
-wired. Once a Mac exists, build with `package:macos` and add the file to the same
-release; `installer-urls.mjs` already knows the `darwin-arm64` and `darwin-x64`
-keys. There is no signing, notarization or update feed (certificates are parked
+The matrix is **Windows x64** (`-setup.exe` and `.zip`), **Linux x64** (`.deb`
+and `.AppImage`) and **macOS arm64** (`.dmg`, on the hosted `macos-latest` runner,
+`package --arch arm64`). Intel macOS (`darwin-x64`) is not built: the sidecar is
+compiled for the runner's own CPU and staging refuses a dmg arch it was not built
+for. `installer-urls.mjs` already knows the `darwin-x64` key for a later leg. The
+unsigned dmg is blocked by Gatekeeper on first open; users open it with right-click
+**Open**, or `xattr -dr com.apple.quarantine "/Applications/<app>.app"`. There is no signing, notarization or update feed (certificates are parked
 backlog); every file name contains `unsigned`, and the `stable` channel is still
 refused.
 
