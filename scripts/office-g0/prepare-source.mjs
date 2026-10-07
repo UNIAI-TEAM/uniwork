@@ -23,9 +23,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { REPO_ROOT, resolveWorkspaceRoot, resolveLabRoot, resolveUpstreamSource } from './paths.mjs';
+import { REPO_ROOT, SOURCE_MANIFEST_PATH, resolveWorkspaceRoot, resolveLabRoot, resolveUpstreamSource } from './paths.mjs';
 
-export const SOURCE_MANIFEST_PATH = path.join(REPO_ROOT, 'docs/office/g0/source-manifest.json');
 export const CAPABILITY_MANIFEST_PATH = path.join(REPO_ROOT, 'docs/office/g0/fixtures/manifest.json');
 export const RECORD_KIND = 'uniwork-office-trial-source-record';
 export const MANAGED_MARKER = 'prepare-record.json';
@@ -507,7 +506,7 @@ export function buildRecord({ labRoot, sourceDir, sourceManifest, state, targetD
     issue: 'UNI-666',
     parentIssue: 'UNI-656',
     task: 'DOC-002 2.4',
-    sourceManifest: 'docs/office/g0/source-manifest.json',
+    sourceManifest: 'packages/office-upstream/source-manifest.json',
     fixtureManifest: 'docs/office/g0/fixtures/manifest.json',
     source: { path: sourceDir, commit: state.commit, tree: state.tree, clean: state.status === '', extraction: 'git object store at the pinned commit' },
     produced: {

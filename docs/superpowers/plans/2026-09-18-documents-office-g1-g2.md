@@ -80,7 +80,7 @@ Lần chạy này cần hai thư mục bằng chứng G0 ngoài git (`.uniwork-d
 vẫn kiểm được.
 
 - [x] G0 bàn giao source pin + checksum + license/dependency inventory:
-  `docs/office/g0/source-manifest.json` (commit upstream `09485f88`, LICENSE/NOTICE, hash từng input).
+  `packages/office-upstream/source-manifest.json` (commit upstream `09485f88`, LICENSE/NOTICE, hash từng input).
 - [x] G0 bàn giao contract engine và save/version/error đã review, có revision:
   `engine-contract.md` được pin sha256 trong register; `login-sync-contract.md`
   "accepted G0" (Advisor g118, 2026-09-25); cả hai ở revision `c6b567f0`.

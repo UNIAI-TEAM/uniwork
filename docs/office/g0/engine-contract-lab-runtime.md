@@ -91,7 +91,7 @@ host tree stopped, and the engine port is free again. Any other outcome exits `1
 | `--host-entry <file>` | `e2e/office-g0/engine-host.mts` | Engine host entry module |
 | `--tsx <file>` | `<source>/node_modules/tsx/dist/cli.mjs` | TypeScript runner from the prepared source |
 | `--node <file>` | the running node | Pinned node executable to boot the host with |
-| `--manifest <file>` | `docs/office/g0/source-manifest.json` | Pin/lockfile source of truth |
+| `--manifest <file>` | `packages/office-upstream/source-manifest.json` | Pin/lockfile source of truth |
 | `--expected-pin <sha>` | the manifest pin | Refuse unless the manifest pin matches this |
 | `--upstream-checkout <dir>` | absent | Verify this git checkout is AT the pinned commit and tree (clean) before the run; absent, pin identity rests on the manifest artifacts alone and is recorded as such |
 | `--readiness-timeout-ms <n>` | `60000` | Bound on the identity+readiness wait |
@@ -258,7 +258,7 @@ source tree, its `node_modules`, and `esbuild`/`tsx` inside it.
 
 Related documents: [engine-contract.md](engine-contract.md) (frozen contract),
 [README.md](README.md) (source/manifest provenance),
-[source-manifest.json](source-manifest.json) (pin and dependency closure).
+[source-manifest.json](../../../packages/office-upstream/source-manifest.json) (pin and dependency closure).
 
 ---
 

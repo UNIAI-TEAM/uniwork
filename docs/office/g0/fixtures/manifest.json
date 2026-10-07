@@ -4,7 +4,7 @@
   "issue": "UNI-666",
   "parentIssue": "UNI-656",
   "doc": "docs/office/g0/README.md",
-  "sourceManifest": "docs/office/g0/source-manifest.json",
+  "sourceManifest": "packages/office-upstream/source-manifest.json",
   "capabilityInventory": "docs/office/g0/capabilities.json",
   "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
   "generator": "scripts/office-g0/generate-fixtures.mjs",

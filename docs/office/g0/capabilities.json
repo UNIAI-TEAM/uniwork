@@ -4,7 +4,7 @@
   "issue": "UNI-666",
   "parentIssue": "UNI-656",
   "doc": "docs/office/g0/capability-matrix.md",
-  "sourceManifest": "docs/office/g0/source-manifest.json",
+  "sourceManifest": "packages/office-upstream/source-manifest.json",
   "fixtureManifest": "docs/office/g0/fixtures/manifest.json",
   "surveyedCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
   "surveyKind": "source read at the pinned commit; no editor, browser, Electron or native process was executed for this inventory",

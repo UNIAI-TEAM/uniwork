@@ -55,7 +55,7 @@ import { inspectSource, readJson } from './verify-manifest.mjs';
 // symlink cases skip where the platform does not allow creating a link.
 
 const manifest = readJson(path.join(REPO_ROOT, 'docs/office/g0/fixtures/manifest.json'));
-const sourceManifest = readJson(path.join(REPO_ROOT, 'docs/office/g0/source-manifest.json'));
+const sourceManifest = readJson(path.join(REPO_ROOT, 'packages/office-upstream/source-manifest.json'));
 const UPSTREAM_SOURCE = resolveUpstreamSource();
 
 const tempDir = (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -663,7 +663,7 @@ test('the real pinned source extracts byte for byte into a lab, with a complete 
   const configuredLab = resolveLabRoot(REPO_ROOT);
   fs.mkdirSync(configuredLab, { recursive: true });
   const lab = fs.mkdtempSync(path.join(configuredLab, 'extraction-self-test-'));
-  const code = run(['--source', UPSTREAM_SOURCE, '--work-dir', lab], { sourceManifestPath: path.join(REPO_ROOT, 'docs/office/g0/source-manifest.json'), fixtureManifestPath: path.join(REPO_ROOT, 'docs/office/g0/fixtures/manifest.json') });
+  const code = run(['--source', UPSTREAM_SOURCE, '--work-dir', lab], { sourceManifestPath: path.join(REPO_ROOT, 'packages/office-upstream/source-manifest.json'), fixtureManifestPath: path.join(REPO_ROOT, 'docs/office/g0/fixtures/manifest.json') });
   assert.equal(code, 0, 'the pinned source must extract cleanly');
   const target = path.join(lab, 'trial-source');
   const record = JSON.parse(fs.readFileSync(path.join(target, MANAGED_MARKER), 'utf8'));
@@ -688,7 +688,7 @@ test('the real pinned source extracts byte for byte into a lab, with a complete 
 
   // Re-running must rebuild only with an explicit --replace, and a second
   // extraction must produce exactly the same record.
-  const realOpts = { sourceManifestPath: path.join(REPO_ROOT, 'docs/office/g0/source-manifest.json'), fixtureManifestPath: path.join(REPO_ROOT, 'docs/office/g0/fixtures/manifest.json') };
+  const realOpts = { sourceManifestPath: path.join(REPO_ROOT, 'packages/office-upstream/source-manifest.json'), fixtureManifestPath: path.join(REPO_ROOT, 'docs/office/g0/fixtures/manifest.json') };
   assert.equal(run(['--source', UPSTREAM_SOURCE, '--work-dir', lab], realOpts), 1, 'a second run must refuse without --replace');
   const after = JSON.parse(fs.readFileSync(path.join(target, MANAGED_MARKER), 'utf8'));
   assert.deepEqual(after, record, 'the refused run must leave the record unchanged');

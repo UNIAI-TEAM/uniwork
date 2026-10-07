@@ -188,7 +188,7 @@ và đơn vị phiên bản của task 4.
 | `docs/office/g0/uniwork-office-integration-brand.md` (tạo) | 1/2/4/5/6 | Bản đồ tích hợp, source/asset/identity đổi brand, ngoại lệ attribution, owner G1-G7 và nghiệm thu |
 | `docs/adr/drafts/documents-office-runtime.md` (tạo, sau đó đưa thành ADR được chấp nhận) | 1/4 | Thay quyết định DOCX-only; số ADR cấp lúc thực thi |
 | `docs/office/g0/README.md` (tạo) | 2/6 | Mục lục, hướng dẫn tái lập, phân loại bằng chứng |
-| `docs/office/g0/source-manifest.json` (tạo) | 2 | Commit, allowlist source/dependency, runtime, license/NOTICE và checksum |
+| `packages/office-upstream/source-manifest.json` (tạo) | 2 | Commit, allowlist source/dependency, runtime, license/NOTICE và checksum |
 | `docs/office/g0/capabilities.json` + `capability-matrix.md` (tạo) | 2/3 | Dữ liệu máy đọc và bảng khả năng; upstream/web/desktop tách riêng |
 | `docs/office/g0/fixtures/manifest.json` (tạo) | 2 | Fixture ID, nguồn/license, checksum, tính năng, thao tác/kết quả chuẩn |
 | `docs/office/g0/browser-proof.md` + `evidence-index.json` (tạo) | 3 | Kết quả từng tổ hợp, file đầu ra, render/diff và môi trường |

@@ -21,7 +21,7 @@ assert.ok(q.startsWith(path.join(workspace, '.uniwork-dev') + path.sep), 'scratc
 assert.ok(!q.startsWith(repoRoot + path.sep) && !repoRoot.startsWith(q + path.sep) || repoRoot === path.join(q, 'runner'), 'only the staged runner may overlap its managed scratch');
 const json = (file) => JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
 const pin = '09485f884dc845cf3bf27fb7edfe489f9d457aad';
-const manifest = path.join(repoRoot, 'docs/office/g0/source-manifest.json');
+const manifest = path.join(repoRoot, 'packages/office-upstream/source-manifest.json');
 const source = path.join(workspace, '.uniwork-dev/office-g0/bootstrap-source');
 const pins = json(path.join(q, 'source-pins.json'));
 for (const row of pins.files) {

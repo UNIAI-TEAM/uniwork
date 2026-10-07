@@ -32,7 +32,7 @@
   "package_lock_sha256": "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5",
   "license_identifier": "Apache-2.0",
   "license_holder": "Copyright 2026 Mainfunc, Inc.",
-  "source_manifest": "docs/office/g0/source-manifest.json",
+  "source_manifest": "packages/office-upstream/source-manifest.json",
   "source_manifest_issue": "UNI-666",
   "excluded_paths": [
    "ee/**"
@@ -58,7 +58,7 @@
    ".uniwork-dev/office-g0/cursor-doc003-review-r1.md",
    ".uniwork-dev/office-g0/cursor-doc003-engine-contract-review.md"
   ],
-  "source_manifest": "docs/office/g0/source-manifest.json",
+  "source_manifest": "packages/office-upstream/source-manifest.json",
   "fixture_manifest": "docs/office/g0/fixtures/manifest.json",
   "plan": "docs/superpowers/plans/2026-09-16-documents-office-g0.md (uncommitted; read from the main checkout)"
  },

@@ -82,7 +82,7 @@ const WORKSPACE_ROOT = findWorkspaceRoot(REPO_ROOT);
 // Guard: a linked worktree also has its own .uniwork-dev, so assert we resolved the shared lab root.
 assert.ok(!WORKSPACE_ROOT || fs.existsSync(path.join(WORKSPACE_ROOT, '.uniwork-dev', 'office-g0')) || fs.existsSync(path.join(WORKSPACE_ROOT, '.uniwork-dev', 'tools')), 'the workspace root must be the shared lab root');
 const PIN = '09485f884dc845cf3bf27fb7edfe489f9d457aad';
-const SOURCE_MANIFEST = path.join(REPO_ROOT, 'docs', 'office', 'g0', 'source-manifest.json');
+const SOURCE_MANIFEST = path.join(REPO_ROOT, 'packages', 'office-upstream', 'source-manifest.json');
 const PREPARED_SOURCE = WORKSPACE_ROOT ? path.join(WORKSPACE_ROOT, '.uniwork-dev', 'office-g0', 'bootstrap-source') : null;
 const PINNED_NODE = WORKSPACE_ROOT ? path.join(WORKSPACE_ROOT, '.uniwork-dev', 'tools', 'node-v22.23.2-win-x64', 'node.exe') : null;
 // Discovery selects the launcher's layout; the separate authorized root bounds writes.
