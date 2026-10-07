@@ -1,0 +1,185 @@
+$ set -a && . ./.env && set +a && NEXT_PUBLIC_API_URL=http://localhost:8080 OFFICE_SHELL_E2E=1 E2E_BASE_URL=http://localhost:3000 pnpm --filter @uniwork/e2e exec playwright test --shard=1/3
+
+Running 85 tests using 1 worker, shard 1 of 3
+
+(node:17032) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17032) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 admin-contrast.spec.ts:50:3 › tương phản chữ của console admin đạt WCAG AA — light (10.9s)
+  ✓   2 admin-contrast.spec.ts:50:3 › tương phản chữ của console admin đạt WCAG AA — dark (5.2s)
+  ✓   3 admin.spec.ts:26:1 › a platform admin suspends and unsuspends an organization from /admin (4.5s)
+  ✓   4 agent-integration-parity-smoke.spec.ts:49:1 › agent chrome hidden: no Squads/Runtimes nav or AgentRun panels (3.7s)
+  -   5 ask-uni.spec.ts:41:1 › ⌘J answers from the asker's own workspace only
+  ✓   6 audit.spec.ts:17:1 › a task edit shows up in the organization's audit log (3.3s)
+  ✓   7 audit.spec.ts:159:1 › @files-smoke audit export: an owner creates a CSV and downloads it (6.7s)
+  ✓   8 audit.spec.ts:199:1 › audit export: JSON Lines mirrors the log, and a lapsed link is withdrawn (7.3s)
+  ✓   9 auth-contrast.spec.ts:16:3 › tương phản chữ đạt WCAG AA — /login light (2.2s)
+  ✓  10 auth-contrast.spec.ts:39:3 › tương phản chữ đạt WCAG AA — /register light (3.9s)
+  ✓  11 auth-contrast.spec.ts:16:3 › tương phản chữ đạt WCAG AA — /login dark (2.2s)
+  ✓  12 auth-contrast.spec.ts:39:3 › tương phản chữ đạt WCAG AA — /register dark (3.8s)
+  ✓  13 auth-layout.spec.ts:18:3 › rail giữ tỉ lệ, cột form không trôi — /login (478ms)
+  ✓  14 auth-layout.spec.ts:18:3 › rail giữ tỉ lệ, cột form không trôi — /register (468ms)
+  ✓  15 auth-layout.spec.ts:62:1 › tiêu đề dẫn được trang ở desktop, và nút hiện mật khẩu đủ lớn cho chuột (484ms)
+  ✓  16 auth-layout.spec.ts:97:3 › nút hiện mật khẩu › đổi được bằng chuột và bằng chạm (543ms)
+  ✓  17 auth-layout.spec.ts:133:1 › luật autofill tới được trình duyệt sau khi build (480ms)
+  ✓  18 chat-smoke.spec.ts:11:1 › workspace chat sends and shows a text message (2.2s)
+  ✓  19 create-task-parity.spec.ts:62:1 › create task: fields, draft recovery, duplicate, view action, attachment (6.1s)
+  ✓  20 documents-comments.spec.ts:85:1 › comments panel posts, replies, reacts, resolves and survives a reload (8.8s)
+  ✓  21 documents-isolation.spec.ts:93:1 › another organization answers not found across read, history, comments and download (41ms)
+  ✓  22 documents-isolation.spec.ts:105:1 › an organization member outside the document workspace answers not found (21ms)
+  ✓  23 documents-isolation.spec.ts:109:1 › an account in no organization answers not found (24ms)
+  ✓  24 documents-isolation.spec.ts:114:1 › a deactivated member is refused with member_deactivated (4ms)
+  ✓  25 documents-isolation.spec.ts:121:1 › two saves from one base: the first wins, the stale one conflicts (10ms)
+  ✓  26 documents-isolation.spec.ts:144:1 › a create replay returns the same page; a changed payload under the same key is refused (12ms)
+  ✓  27 documents-isolation.spec.ts:160:1 › a plain member creates, types and reloads a page in the browser (5.3s)
+  ✓  28 documents-isolation.spec.ts:181:1 › a workspace member without access sees the not-found screen, not the content (3.0s)
+  ✓  29 documents-isolation.spec.ts:187:1 › the other organization's shell sends a foreign document URL to the picker (2.0s)
+  ✓  30 documents-sharing-ui.spec.ts:29:1 › share, public link, anonymous read, access log and revoke (14.0s)
+  ✓  31 documents-sharing.spec.ts:56:1 › a cross-workspace grant reaches the recipient and its revoke takes it away (37ms)
+  ✓  32 documents-sharing.spec.ts:93:1 › a principal from another organization cannot be granted access (9ms)
+  ✓  33 documents-sharing.spec.ts:105:1 › the other organization cannot manage the document's access (9ms)
+  ✓  34 documents-sharing.spec.ts:115:1 › a public link reads anonymously only while it is live and the switch is on (45ms)
+  ✓  35 documents-versions.spec.ts:27:1 › version checkpoint restores the working copy and a second session sees it (16.1s)
+  ✓  36 documents.spec.ts:79:1 › a page is created, typed into, and survives a reload (6.7s)
+  ✓  37 documents.spec.ts:130:1 › a file document takes a new version and downloads it (3.6s)
+  ✓  38 documents.spec.ts:162:1 › the library lists pages across its tabs and the tree opens one (4.8s)
+  ✓  39 documents.spec.ts:227:1 › the library and the page editor never call the Office service (2.1s)
+  ✓  40 files-avatar.spec.ts:92:1 › @files-smoke avatar: đổi ảnh, thấy ở header (2.1s)
+  ✓  41 files-avatar.spec.ts:106:1 › thay avatar lần hai, hiện ở tổ chức thứ hai (3.3s)
+  ✓  42 files-avatar.spec.ts:162:1 › ảnh sai loại bị từ chối (2.0s)
+  ✓  43 files-foundation.spec.ts:24:1 › @files-smoke readiness reports the storage adapter, liveness stays up (9ms)
+  ✓  44 files-task.spec.ts:95:1 › @files-smoke đính kèm task: tải lên, thấy tệp, tải về đúng bytes (2.8s)
+  ✓  45 files-task.spec.ts:120:1 › bình luận kèm tệp: gửi bình luận có đính kèm (3.2s)
+  ✓  46 files-task.spec.ts:141:1 › ảnh trong mô tả sống sót sau khi tải lại (4.1s)
+  ✓  47 files-task.spec.ts:165:1 › gỡ một trong nhiều tệp đính kèm (7.5s)
+  ✓  48 files-task.spec.ts:220:1 › tệp trên 25 MiB bị từ chối (3.0s)
+  ✓  49 files-task.spec.ts:232:1 › loại tệp không được hỗ trợ bị từ chối (2.8s)
+  ✓  50 files-task.spec.ts:262:1 › tổ chức khác đoán URL tệp thì bị chặn (5.1s)
+  ✓  51 home.spec.ts:16:1 › home lists my work due today and completes it (2.4s)
+  ✓  52 landing-action-motion.spec.ts:10:3 › click leads a continuous card move: 1440-light (3.0m)
+  ✓  53 landing-action-motion.spec.ts:10:3 › click leads a continuous card move: 768-light (3.0m)
+  ✓  54 landing-action-motion.spec.ts:10:3 › click leads a continuous card move: 820-dark (3.1m)
+  ✓  55 landing-action-motion.spec.ts:92:1 › reduced motion keeps click results without spatial effects (9.3s)
+  ✓  56 landing-business-os.spec.ts:5:3 › Business OS shows all capabilities around four readable light previews (5.5s)
+  ✓  57 landing-business-os.spec.ts:5:3 › Business OS shows all capabilities around four readable dark previews (5.6s)
+  ✓  58 landing-business-os.spec.ts:49:1 › the full Business OS gallery fits mobile in English (8.8s)
+  ✓  59 landing-business-os.spec.ts:70:1 › previews respond to keyboard and respect reduced motion (1.5s)
+  ✓  60 landing-business-os.spec.ts:97:1 › gallery motion pauses on request and outside the viewport (6.8s)
+  ✓  61 landing-catalog.spec.ts:4:1 › catalog covers 25 reference entries without implying illustrations are working modules (8.9s)
+  ✓  62 landing-catalog.spec.ts:28:1 › project and organization previews work locally and source links stay within the showcase (5.0s)
+  ✓  63 landing-chapters.spec.ts:15:3 › public chapters 1440-vi-light (13.1s)
+  ✓  64 landing-chapters.spec.ts:15:3 › public chapters 390-en-dark (9.3s)
+  ✓  65 landing-chapters.spec.ts:15:3 › public chapters 1510-en-dark (4.6s)
+  ✓  66 landing-chapters.spec.ts:15:3 › public chapters 768-vi-light (5.5s)
+  ✓  67 landing-chapters.spec.ts:15:3 › public chapters 320-vi-light (5.4s)
+  ✓  68 landing-chapters.spec.ts:72:1 › contextual closing demo links open their actual preview (2.2s)
+  ✓  69 landing-closing.spec.ts:17:3 › product-led closing /features/tasks 1440-en-light (1.3s)
+  ✓  70 landing-closing.spec.ts:17:3 › product-led closing / 1554-vi-dark (4.7s)
+  ✓  71 landing-closing.spec.ts:17:3 › product-led closing /features/tasks 768-vi-light (1.2s)
+  ✓  72 landing-closing.spec.ts:17:3 › product-led closing /features/tasks 390-en-dark (1.0s)
+  ✓  73 landing-closing.spec.ts:17:3 › product-led closing / 390-vi-light (4.4s)
+  ✓  74 landing-closing.spec.ts:17:3 › product-led closing /solutions/product 1254-vi-light (1.1s)
+  ✓  75 landing-closing.spec.ts:17:3 › product-led closing /solutions/operations 390-en-dark (937ms)
+  ✓  76 landing-closing.spec.ts:17:3 › product-led closing /features/documents 1510-en-dark (1.1s)
+  ✓  77 landing-closing.spec.ts:17:3 › product-led closing /features/documents 320-vi-light (1.1s)
+  ✓  78 landing-demo-parity.spec.ts:9:3 › V2 demo fits the original landing 1440-light (4.5s)
+  ✓  79 landing-demo-parity.spec.ts:9:3 › V2 demo fits the original landing 1440-dark (4.4s)
+  ✓  80 landing-demo-parity.spec.ts:9:3 › V2 demo fits the original landing 1024-dark (4.2s)
+  ✓  81 landing-demo-parity.spec.ts:9:3 › V2 demo fits the original landing 390-dark (3.7s)
+  ✘  82 landing-density.spec.ts:4:3 › product stage shares the landing frame at 1910px (3.5s)
+(node:18299) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18299) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  83 landing-density.spec.ts:4:3 › product stage shares the landing frame at 1440px (3.8s)
+(node:18376) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18376) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  84 landing-density.spec.ts:4:3 › product stage shares the landing frame at 768px (5.3s)
+  ✓  85 landing-density.spec.ts:4:3 › product stage shares the landing frame at 390px (4.4s)
+
+
+  1) landing-density.spec.ts:4:3 › product stage shares the landing frame at 1910px ────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('#product-preview').locator('.lovable-canvas')
+    Expected: visible
+    Error: strict mode violation: locator('#product-preview').locator('.lovable-canvas') resolved to 2 elements:
+        1) <div role="img" class="lovable-canvas" data-lovable-screen="tasks" aria-label="Open the task that needs an assignee.">…</div> aka getByRole('img', { name: 'Open the task that needs an' })
+        2) <div role="img" class="lovable-canvas" data-lovable-screen="tasks" aria-label="Open the task that needs an assignee.">…</div> aka getByLabel('Open the task that needs an').nth(2)
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('#product-preview').locator('.lovable-canvas')
+        - locator resolved to <div role="img" class="lovable-canvas" data-lovable-screen="tasks" aria-label="Open the task that needs an assignee.">…</div>
+        - unexpected value "hidden"
+
+
+       9 |     await page.goto("/#du-an");
+      10 |     const workspace = page.locator("#product-preview");
+    > 11 |     await expect(workspace.locator(width < 768 ? ".mobile-feature-story" : ".lovable-canvas")).toBeVisible();
+         |                                                                                                ^
+      12 |     await expect(page.locator(".demo-director, .demo-beats, .workspace-availability, .hero-scene-footer, .preview-caption")).toHaveCount(0);
+      13 |     await expect(page.locator("#platform-title")).toHaveClass("sr-only");
+      14 |     const geometry = await workspace.evaluate(node => {
+        at /workspace/e2e/landing-density.spec.ts:11:96
+
+    Error Context: test-results/landing-density-product-st-f362d-the-landing-frame-at-1910px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-density-product-st-f362d-the-landing-frame-at-1910px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-density-product-st-f362d-the-landing-frame-at-1910px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) landing-density.spec.ts:4:3 › product stage shares the landing frame at 1440px ────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('#product-preview').locator('.lovable-canvas')
+    Expected: visible
+    Error: strict mode violation: locator('#product-preview').locator('.lovable-canvas') resolved to 2 elements:
+        1) <div role="img" class="lovable-canvas" data-lovable-screen="tasks" aria-label="Mở công việc cần giao người phụ trách.">…</div> aka getByRole('img', { name: 'Mở công việc cần giao người' })
+        2) <div role="img" class="lovable-canvas" data-lovable-screen="tasks" aria-label="Mở công việc cần giao người phụ trách.">…</div> aka getByLabel('Mở công việc cần giao người').nth(2)
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('#product-preview').locator('.lovable-canvas')
+        - locator resolved to <div role="img" class="lovable-canvas" data-lovable-screen="tasks" aria-label="Mở công việc cần giao người phụ trách.">…</div>
+        - unexpected value "hidden"
+
+
+       9 |     await page.goto("/#du-an");
+      10 |     const workspace = page.locator("#product-preview");
+    > 11 |     await expect(workspace.locator(width < 768 ? ".mobile-feature-story" : ".lovable-canvas")).toBeVisible();
+         |                                                                                                ^
+      12 |     await expect(page.locator(".demo-director, .demo-beats, .workspace-availability, .hero-scene-footer, .preview-caption")).toHaveCount(0);
+      13 |     await expect(page.locator("#platform-title")).toHaveClass("sr-only");
+      14 |     const geometry = await workspace.evaluate(node => {
+        at /workspace/e2e/landing-density.spec.ts:11:96
+
+    Error Context: test-results/landing-density-product-st-f275d-the-landing-frame-at-1440px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-density-product-st-f275d-the-landing-frame-at-1440px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-density-product-st-f275d-the-landing-frame-at-1440px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Slow test file: landing-action-motion.spec.ts (9.2m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  2 failed
+    landing-density.spec.ts:4:3 › product stage shares the landing frame at 1910px ─────────────────
+    landing-density.spec.ts:4:3 › product stage shares the landing frame at 1440px ─────────────────
+  1 skipped
+  82 passed (14.3m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=1/3
