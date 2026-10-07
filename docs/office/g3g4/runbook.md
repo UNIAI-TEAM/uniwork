@@ -30,7 +30,7 @@ Chart `deploy/app/uniwork/` đã có `templates/deployment-office-engine.yaml`, 
 - [x] Workflow build + SHA-256 + script tạo JSON link (không còn "CI không build").
 - [ ] Chạy workflow cho kênh `dev`/`beta` và kiểm job pass (mục XLSX sidecar bắt buộc).
 - [ ] Release/host phải tải được công khai bằng HTTPS (server không gửi thông tin đăng nhập). Repo riêng: copy file sang host HTTPS rồi chạy `installer-urls.mjs`.
-- [ ] Điền JSON vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` của BE (`deploy/app/env/uniwork-be.env`, không phải Secret), ví dụ `{"win32-x64":"https://…-setup.exe","linux-x64-deb":"https://….deb"}`, rồi khởi động lại BE. Xem `.env.example`. Dòng này hiện chưa có trong `uniwork-be.env`.
+- [ ] Điền JSON vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` của BE (`deploy/app/env/uniwork-be.env`, không phải Secret), ví dụ `{"win32-x64":"https://…-setup.exe","linux-x64-deb":"https://….deb"}`, rồi khởi động lại BE. Xem `.env.example`. `uniwork-be.env` đã có sẵn ba dòng (để trống).
 - [ ] `GET /api/v1/config` trả link này (`office_installers.<kênh>` có `unsigned: true`). Để trống = web hiện "chưa có bản tải"; không thay kênh khác.
 - [ ] macOS: build trên máy Mac và thêm file vào cùng release (chưa có).
 - [ ] Bản build **chưa ký**: có cảnh báo SmartScreen/Gatekeeper; **không** tự cập nhật. Ký mã/notarization vẫn ở backlog.
@@ -88,7 +88,18 @@ Server Go (mọi biến đã có trong `.env.example`):
 | `DESKTOP_AUTH_CODE_TTL`, `DESKTOP_AUTH_ATTEMPT_TTL` | Hạn mã đăng nhập (120s) và lượt thử (10m) |
 | `OFFICE_INSTALLER_{DEV,BETA,STABLE}_URLS` | Link tải bản cài theo nền tảng (JSON). `_URL` số ít là kiểu cũ, bỏ sau 2026-11-02 |
 | `FEATURE_FLAGS_FILE` | File YAML cờ; có thể ghi đè bằng `FF_<TÊN_CỜ>` |
+| `FF_DOCUMENTS`, `FF_OFFICE_ENGINE` | Bật/tắt cờ cho **cả môi trường** (`true`/`false`; `false` là công tắc khẩn). Office cần **cả hai** bật. Bật theo từng tổ chức thì dùng override trong `/admin` (mục 3.6) |
+| `FF_OFFICE_DOCX` … `FF_OFFICE_HTML`, `FF_OFFICE_HTML_VISUAL_EDIT` | Tắt riêng từng định dạng (mặc định bật; sửa HTML trực quan mặc định tắt) |
 | `MINIO_*` hoặc `S3_*` (`STORAGE_BACKEND`) | Kho file |
+| `S3_KEY_PREFIX` | Thư mục gốc theo môi trường trong kho dùng chung (`<env>/v1/...`, UNI-947); mỗi môi trường một giá trị khác nhau |
+| `MINIO_PUBLIC_ENDPOINT` | Địa chỉ MinIO mà **trình duyệt** tới được, dùng khi ký URL tải thẳng. Bỏ trống khi dùng S3 |
+
+Không phải biến của server, nhưng cần khi triển khai:
+
+| Biến | Đặt ở đâu | Nghĩa |
+| --- | --- | --- |
+| `OFFICE_ENGINE_ENABLED` | Đầu vào của `ci/scripts/rollout-uniwork.sh` | `1` = cài/giữ pod engine (kèm `OFFICE_ENGINE_DIGEST`, `OFFICE_ENGINE_OUTPUT_ORIGINS`, tùy chọn `OFFICE_ENGINE_VALUES_FILE`); `0` = gỡ engine. Để trống: coi như tắt, nhưng script **từ chối** nếu bản đang chạy có engine (tránh vô tình gỡ). Mọi lần rollout sau đều phải truyền lại `1` |
+| `MINIO_API_CORS_ALLOW_ORIGIN` | Biến của **container MinIO** | Origin trình duyệt được gọi thẳng vào MinIO (`FRONTEND_ORIGIN`, `PREVIEW_ORIGIN`, cách nhau dấu phẩy). Không đặt = MinIO nhận **mọi** origin; production nên đặt. Chi tiết: [bucket-cors.md](bucket-cors.md) |
 
 Web (đặt **lúc build**, vì Next nhúng cứng): `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL`, `NEXT_PUBLIC_APP_URL`.
 Không có biến `NEXT_PUBLIC_*` riêng cho Office.
