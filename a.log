@@ -1,0 +1,37 @@
+$ pnpm install --frozen-lockfile && pnpm audit --audit-level high
+Scope: all 13 workspace projects
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+packages/office-upstream prepare$ node ../../scripts/office/build-upstream.mjs --docx-browser && node ../../scripts/office/build-xlsx-browser.mjs && node ../../scripts/office/build-pptx-browser.mjs
+. prepare$ git config core.hooksPath .githooks || node -e 0
+. prepare: Done
+packages/office-upstream prepare: {"bytes":1297818,"gzipBytes":407217,"sha256":"e6da3125203da6e6ffd053818fc61332d5d3d9178f1ee24657d8629b5c4c7f27","inputs":161,"styles":[{"path":"packages/office-upstream/upstream/apps/docs/src/renderer/styles.css","sha256":"D4BEC6BD6C1D451178760FAB6F42DFC4BBACE61FCECE1CB8424DB5CDA89AC66A"},{"path":"packages/office-upstream/upstream/packages/ui/src/tokens.css","sha256":"A41E5C3B42996C8F297D83138AFE8AE6859B0E562B7CC6BC506EF911F45DC9E3"}]}
+packages/office-upstream prepare: {
+packages/office-upstream prepare:  "ok": true,
+packages/office-upstream prepare:  "bytes": 14773918,
+packages/office-upstream prepare:  "gzipBytes": 3871107,
+packages/office-upstream prepare:  "sha256": "425892013e493317401af90210154204ee52a4801ac90e709cebab643b47fc8e",
+packages/office-upstream prepare:  "inputs": 71,
+packages/office-upstream prepare:  "styles": 9
+packages/office-upstream prepare: }
+packages/office-upstream prepare: {
+packages/office-upstream prepare:  "ok": true,
+packages/office-upstream prepare:  "bytes": 773033,
+packages/office-upstream prepare:  "gzipBytes": 247829,
+packages/office-upstream prepare:  "sha256": "21e273278c9a5dd96a35c2165af4ed5fd7abfdaef0790df4cf87c6e24c61cd55",
+packages/office-upstream prepare:  "inputs": 92,
+packages/office-upstream prepare:  "shims": 5
+packages/office-upstream prepare: }
+packages/office-upstream prepare: Done
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: core-js@3.50.0, electron-winstaller@5.4.0,          │
+│   protobufjs@7.6.6, unicode-animations@1.0.3, unrs-resolver@1.12.2.          │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 3.6s using pnpm v10.28.2
+7 vulnerabilities found
+Severity: 3 low | 2 moderate | 2 high (2 ignored)
