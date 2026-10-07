@@ -8,7 +8,8 @@
 //     render model the grid was loaded from).
 //   * Page setup: this session's dialog edits > the file's layout > defaults.
 //   * Charts, pictures and shapes come from the visuals layer, measured in
-//     the sizes this copy prints with (print-visuals).
+//     the sizes this copy prints with (print-visuals). Without a print area
+//     the printed range grows over them, as Excel prints a sheet.
 //   * Each area of a multi-area print area is read with the title rows and
 //     columns it repeats, as separate blocks (title rows x the area's columns,
 //     the area's rows x title columns, and their corner), so a print area far
@@ -119,10 +120,23 @@ function chunksOf(range: XlsxPrintRange): XlsxPrintRange[] {
 }
 
 
-/** The used range: the file's dimension, grown by any live cell beyond it. */
-function usedRange(rowCount: number, columnCount: number, cells: Readonly<Record<string, { readonly value: XlsxCellScalar }>> | undefined): XlsxPrintRange {
-  let endRow = Math.max(0, rowCount - 1);
-  let endColumn = Math.max(0, columnCount - 1);
+/** The last row and column the sheet's charts, pictures and shapes cover
+ *  (an anchor ending exactly on a cell edge does not reach into that cell). */
+function drawnExtent(visuals: XlsxPrintableVisuals | null | undefined, sheetIds: readonly string[]): { endRow: number; endColumn: number } | null {
+  if (!visuals) return null;
+  const ends = visuals(sheetIds[0], () => null).flatMap(({ sheetId, anchor }) => {
+    const endRow = anchor.toRowOffset > 0 ? anchor.toRow : Math.max(anchor.fromRow, anchor.toRow - 1);
+    const endColumn = anchor.toColumnOffset > 0 ? anchor.toColumn : Math.max(anchor.fromColumn, anchor.toColumn - 1);
+    return sheetIds.includes(sheetId) && Number.isFinite(endRow) && Number.isFinite(endColumn) ? [{ endRow, endColumn }] : [];
+  });
+  return ends.length === 0 ? null : { endRow: Math.max(...ends.map((end) => end.endRow)), endColumn: Math.max(...ends.map((end) => end.endColumn)) };
+}
+
+/** The used range: the file's dimension, grown by any live cell and, as
+ *  Excel prints it, by any drawn visual beyond it. */
+function usedRange(rowCount: number, columnCount: number, cells: Readonly<Record<string, { readonly value: XlsxCellScalar }>> | undefined, drawn: { endRow: number; endColumn: number } | null): XlsxPrintRange {
+  let endRow = Math.max(0, rowCount - 1, drawn?.endRow ?? 0);
+  let endColumn = Math.max(0, columnCount - 1, drawn?.endColumn ?? 0);
   for (const [address, cell] of Object.entries(cells ?? {})) {
     if (cell.value === null || cell.value === "") continue;
     const parts = addressParts(address);
@@ -144,13 +158,14 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
   const liveSheet = snapshot?.sheets.find((candidate) => candidate.name === input.sheetName) ??
     snapshot?.sheets.find((candidate) => candidate.id === fileSheet.id);
 
-  const used = usedRange(fileSheet.rowCount, fileSheet.columnCount, liveSheet?.cells);
+  const gridSheetId = input.sheetId ?? fileSheet.id;
+  const sheetIds = [...new Set([gridSheetId, fileSheet.id])];
+  const used = usedRange(fileSheet.rowCount, fileSheet.columnCount, liveSheet?.cells, drawnExtent(input.visuals, sheetIds));
   const setup = resolvePrintSetup({ file: fileSheet.pageSetup, session: input.session, definedNames: file.definedNames, sheetIndex: index, used });
   const areas = setup.printAreas ?? [used];
   const reads = areas.flatMap((area) => blocksFor(area, setup.titleRows, setup.titleColumns));
   if (reads.reduce((total, read) => total + cellCount(read), 0) > MAX_PRINT_CELLS) return { ok: false, reason: "print_too_large" };
 
-  const gridSheetId = input.sheetId ?? fileSheet.id;
   const live = new XlsxLiveLayout(file.styles);
   const cells = new Map<string, XlsxPrintCell>();
   const rows = new Map<number, { height?: number; hidden?: boolean }>();
@@ -211,7 +226,7 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
   const pictures = input.visuals
     ? collectPrintPictures({
       source: input.visuals,
-      sheetIds: [...new Set([gridSheetId, fileSheet.id])],
+      sheetIds,
       columnWidth: (column) => (columns.get(column)?.hidden ? 0 : (columns.get(column)?.width ?? defaultColumnWidth)),
       rowHeight: (row) => (rows.get(row)?.hidden ? 0 : (rows.get(row)?.height ?? defaultRowHeight)),
     })

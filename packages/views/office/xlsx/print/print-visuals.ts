@@ -60,6 +60,7 @@ export interface XlsxPrintPicture {
 
 const PT_PER_PX = 0.75;
 const EMU_PER_PX = 9525;
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Base64 rasters, or an SVG this module percent-encoded. */
 const IMAGE_SRC = /^(?:data:image\/(?:png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/]+={0,2}|data:image\/svg\+xml;charset=utf-8,[A-Za-z0-9%._~!*'()-]+)$/;
@@ -99,9 +100,12 @@ function authoredStyle(style: string | null): string[] {
  *  that), scripts, foreign content and event handlers dropped, as a data:
  *  URL. Null when it does not parse. */
 function selfContainedSvg(svg: string, doc: Document): string | null {
-  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+  // The overlay renders its SVG inline in HTML, where no xmlns is needed; as
+  // XML that markup would parse into null-namespace elements that never draw.
+  const markup = /^\s*<svg\b(?![^>]*\sxmlns=)/.test(svg) ? svg.replace(/^\s*<svg\b/, `<svg xmlns="${SVG_NS}"`) : svg;
+  const parsed = new DOMParser().parseFromString(markup, "image/svg+xml");
   const root = parsed.documentElement;
-  if (root.nodeName.toLowerCase() !== "svg" || parsed.querySelector("parsererror")) return null;
+  if (root.namespaceURI !== SVG_NS || root.localName !== "svg" || parsed.querySelector("parsererror")) return null;
   for (const node of Array.from(root.querySelectorAll("script, foreignObject"))) node.remove();
   const host = doc.createElement("div");
   host.setAttribute("aria-hidden", "true");
@@ -136,7 +140,6 @@ function selfContainedSvg(svg: string, doc: Document): string | null {
       }
       element.removeAttribute("class");
     }
-    if (!live.getAttribute("xmlns")) live.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(live))}`;
   } finally {
     host.remove();

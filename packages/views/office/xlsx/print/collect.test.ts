@@ -167,16 +167,19 @@ describe("collectXlsxPrintSheet", () => {
 
   it("measures the sheet's visuals in the sizes it prints with", async () => {
     const png = "data:image/png;base64,iVBORw0KGgo=";
+    const measured: number[][] = [];
     const visuals = vi.fn((_sheetId?: string, metricsFor?: (sheetId: string) => { columnWidth(column: number): number; rowHeight(row: number): number } | null) => {
+      // The first listing only reads anchors (the printed range); the second measures.
       const metrics = metricsFor?.("sheet-1");
-      // Column B is 20 chars (140px); row 3 is hidden in the model.
-      expect([metrics?.columnWidth(1), metrics?.rowHeight(2)]).toEqual([140, 0]);
+      if (metrics) measured.push([metrics.columnWidth(1), metrics.rowHeight(2)]);
       return [{ sheetId: "sheet-1", zIndex: 0, anchor: { fromRow: 0, fromColumn: 0, fromRowOffset: 0, fromColumnOffset: 0, toRow: 1, toColumn: 1, toRowOffset: 0, toColumnOffset: 0 },
         box: { x: 4, y: 8, width: 100, height: 40 }, image: { type: "dataUrl" as const, dataUrl: png }, title: "Logo" }];
     });
     const result = await collectXlsxPrintSheet({ host: host(), sheetName: "Data", sheetId: "sheet-1", snapshot: null, title: "Book", visuals });
     if (!result.ok) throw new Error(result.reason);
     expect(visuals).toHaveBeenCalledWith("sheet-1", expect.any(Function));
+    // Column B is 20 chars (140px); row 3 is hidden in the model.
+    expect(measured).toEqual([[140, 0]]);
     expect(result.sheet.pictures).toEqual([{ x: 3, y: 6, width: 75, height: 30, zIndex: 0, src: png, title: "Logo" }]);
   });
 
