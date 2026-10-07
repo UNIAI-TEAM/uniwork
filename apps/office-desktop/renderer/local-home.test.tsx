@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import i18n from "i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { expect, it, vi } from "vitest";
 import type { RecentFile } from "../shared/ipc";
 import { LocalHomeView } from "./local-home";
@@ -33,7 +34,9 @@ it("shows a typed error with retry", () => {
   expect(screen.getByRole("alert")).toHaveTextContent(i18n.t("officeDesktop.local.error"));
   const retry = screen.getByRole("button", { name: i18n.t("officeDesktop.local.retry") });
   expect(screen.getByRole("alert")).toHaveClass("items-start");
-  expect(retry).toHaveClass("h-7");
+  // The primitive's own small outline button, whatever its tokens are (jsdom cannot lay out).
+  const { container } = render(<Button type="button" size="sm" variant="outline">x</Button>);
+  expect(retry.className).toBe(container.querySelector("button")?.className);
   expect(retry).not.toHaveClass("w-full");
   fireEvent.click(retry);
   expect(callbacks.onRetry).toHaveBeenCalledOnce();
