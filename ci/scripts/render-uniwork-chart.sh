@@ -7,18 +7,22 @@ trap 'rm -f "${OUT}" "${OUT}.err"' EXIT
 
 ENV_BE="${ROOT}/deploy/app/env/uniwork-be.env"
 ENV_FE="${ROOT}/deploy/app/env/uniwork-fe.env"
+ENV_OE="${ROOT}/deploy/app/env/uniwork-office-engine.env"
 
 helm template uniwork "${CHART}" \
   --set-file env.beContent="${ENV_BE}" \
   --set-file env.feContent="${ENV_FE}" \
+  --set-file env.officeEngineContent="${ENV_OE}" \
   --set be.image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
-  --set be.image.tag=test --set fe.image.tag=test \
+  --set-string officeEngine.image.digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
+  --set be.image.tag=test --set fe.image.tag=test --set-string officeEngine.image.tag=test \
   > "${OUT}"
 
 grep -q 'namespace: uniwork' "${OUT}"
 grep -q 'name: uniwork-be' "${OUT}"
 grep -q 'name: uniwork-fe' "${OUT}"
+grep -q 'name: uniwork-office-engine' "${OUT}"
 grep -q 'replicas: 1' "${OUT}"
 grep -q 'workload: app' "${OUT}"
 grep -q 'type: ClusterIP' "${OUT}"
@@ -37,6 +41,13 @@ grep -q 'name: uniwork-livekit' "${OUT}"
 grep -q 'LIVEKIT_API_KEY' "${OUT}"
 grep -q 'COREPACK_HOME' "${OUT}"
 grep -q 'allow-from-reap-edge' "${OUT}" || grep -q 'reap-edge' "${OUT}"
+grep -q 'shareProcessNamespace: true' "${OUT}"
+grep -q 'name: tmp-sticky' "${OUT}"
+grep -q '"1777"' "${OUT}"
+grep -q 'value: "http://uniwork-office-engine:8090"' "${OUT}"
+grep -q 'OFFICE_ENGINE_OUTPUT_ORIGINS' "${OUT}"
+grep -q 's3.hn-2.cloud.cmctelecom.vn' "${OUT}"
+grep -q '113.20.100.19/32' "${OUT}"
 for forbidden in LoadBalancer NodePort; do
   if grep -q "${forbidden}" "${OUT}"; then
     echo "FAIL: ${forbidden} must not appear" >&2
@@ -47,33 +58,25 @@ done
 if helm template uniwork "${CHART}" \
   --set-file env.beContent="${ENV_BE}" \
   --set-file env.feContent="${ENV_FE}" \
+  --set-file env.officeEngineContent="${ENV_OE}" \
   --set be.image.digest= \
   --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  --set-string officeEngine.image.digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
   >/dev/null 2>"${OUT}.err"; then
   echo "FAIL: expected helm to refuse empty be.image.digest" >&2
   exit 1
 fi
 
-# Engine off (the default) renders nothing of it; on, the pod carries the
-# reaper (shared PID namespace) and the sticky /tmp init container.
-if grep -Eq 'shareProcessNamespace|tmp-sticky' "${OUT}"; then
-  echo "FAIL: office engine pod rendered with officeEngine.enabled=false" >&2
-  exit 1
-fi
-helm template uniwork "${CHART}" \
+# Missing officeEngineContent must fail when engine is enabled (default).
+if helm template uniwork "${CHART}" \
   --set-file env.beContent="${ENV_BE}" \
   --set-file env.feContent="${ENV_FE}" \
   --set be.image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
-  --set be.image.tag=test --set fe.image.tag=test \
-  --set officeEngine.enabled=true \
-  --set officeEngine.image.digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
-  --set officeEngine.outputOrigins=https://s3.example.invalid \
-  > "${OUT}"
-grep -q 'name: uniwork-office-engine' "${OUT}"
-grep -q 'shareProcessNamespace: true' "${OUT}"
-grep -q 'name: tmp-sticky' "${OUT}"
-grep -q '"1777"' "${OUT}"
-grep -q 'value: "http://uniwork-office-engine:8090"' "${OUT}"
+  --set-string officeEngine.image.digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
+  >/dev/null 2>"${OUT}.err"; then
+  echo "FAIL: expected helm to refuse missing env.officeEngineContent" >&2
+  exit 1
+fi
 
 echo "OK: uniwork chart render assertions passed"

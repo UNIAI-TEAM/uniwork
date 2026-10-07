@@ -2,13 +2,14 @@
 
 Non-secret production runtime for the `uniwork` Helm chart.
 **Do not put secrets here** (DB/Redis URLs, JWT, LiveKit API keys, SMTP password,
-AWS keys, Google client secret, VAPID private key, AI keys). Those stay as
-Kubernetes Secrets + `secretKeyRef` in the chart.
+AWS keys, Google client secret, VAPID private key, AI keys, office engine tokens).
+Those stay as Kubernetes Secrets + `secretKeyRef` in the chart.
 
 | File | Used by |
 |---|---|
 | `uniwork-be.env` | `uniwork-be` ConfigMap |
 | `uniwork-fe.env` | `uniwork-fe` ConfigMap (runtime only; NEXT_PUBLIC_* are image build-args) |
+| `uniwork-office-engine.env` | `uniwork-office-engine` ConfigMap |
 
 ## Install / upgrade
 
@@ -17,29 +18,29 @@ helm upgrade --install uniwork deploy/app/uniwork \
   --namespace uniwork \
   --set-file env.beContent=deploy/app/env/uniwork-be.env \
   --set-file env.feContent=deploy/app/env/uniwork-fe.env \
-  --set be.image.digest=sha256:… --set fe.image.digest=sha256:…
+  --set-file env.officeEngineContent=deploy/app/env/uniwork-office-engine.env \
+  --set be.image.digest=sha256:… \
+  --set fe.image.digest=sha256:… \
+  --set-string officeEngine.image.digest=sha256:…
 ```
 
-`ci/scripts/rollout-uniwork.sh` passes the same `--set-file` flags.
+`ci/scripts/rollout-uniwork.sh` passes the same `--set-file` flags and always
+rolls out BE + FE + office-engine. Jenkins build params do **not** toggle the
+engine; change origins/workers in `uniwork-office-engine.env` and re-rollout.
 
-Office engine rollout: the same script reads `OFFICE_ENGINE_ENABLED=1`,
-`OFFICE_ENGINE_DIGEST`, `OFFICE_ENGINE_OUTPUT_ORIGINS` and an optional
-`OFFICE_ENGINE_VALUES_FILE` (see the script header); unset means the engine stays
-off and the render is unchanged. Per-environment prerequisites (CIDRs, origins,
-Secret, kubelet pids limit, release URLs, bucket CORS) are one checklist:
+Prerequisite checklist (Secret, bucket CORS, kubelet pids):  
 [`docs/ops/OFFICE_ENV_CHECKLIST.md`](../../../docs/ops/OFFICE_ENV_CHECKLIST.md).
 
 ### Office engine
 
-One switch: `officeEngine.enabled`. `OFFICE_ENGINE_URL` stays empty in
-`uniwork-be.env`; with `officeEngine.enabled=true` the chart deploys the engine and
-sets `OFFICE_ENGINE_URL` (the `uniwork-office-engine` Service, port
-`officeEngine.port`) on the BE container, and the BE's two credential refs stop
-being optional, so a missing Secret fails at pod start. With it off, nothing of
-the engine renders and the BE refuses office jobs. The two credentials live in the
-Secret `uniwork-office-engine` (keys `OFFICE_ENGINE_SERVICE_TOKEN`,
-`OFFICE_ENGINE_GRANT_KEY`; each >= 32 chars, different), read by both the BE and the
-engine:
+Always on (`officeEngine.enabled=true` in values). Chart:
+
+1. Deploys Deployment / Service / NetworkPolicy for `uniwork-office-engine`.
+2. Injects non-secret env from `uniwork-office-engine.env` (ConfigMap).
+3. Sets `OFFICE_ENGINE_URL=http://uniwork-office-engine:<port>` on the BE
+   (keep `OFFICE_ENGINE_URL=` empty in `uniwork-be.env`).
+4. Requires Secret `uniwork-office-engine` (BE + engine both read it; missing
+   Secret fails pods at start).
 
 ```bash
 kubectl -n uniwork create secret generic uniwork-office-engine \
