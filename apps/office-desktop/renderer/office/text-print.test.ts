@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRINT_HTML_MAX_BYTES } from "../../shared/ipc";
-import { createDesktopPrintPort, desktopPrintOptions, observePrintPort } from "./text-print";
+import type { PrintPreviewChoice, PrintPreviewHook } from "./print-preview/types";
+import { createDesktopPrintPort, desktopPrintOptions } from "./text-print";
 
 // Any format's copy: a view builds it (DOCX sections, XLSX sheet, PPTX slides,
 // PDF pages, Markdown/HTML preview); the desktop port only stamps the title
@@ -87,30 +88,6 @@ it("caps the title at the channel limit", async () => {
   expect(bridge.call.mock.calls[0]![1].title).toHaveLength(255);
 });
 
-it("tells the observer when a print starts and settles, and passes the outcome through", async () => {
-  const events: string[] = [];
-  const settledWith: unknown[] = [];
-  const started: unknown[] = [];
-  let finish: ((value: { outcome: "cancelled" }) => void) | undefined;
-  const port = observePrintPort({ print: () => new Promise((resolve) => { finish = resolve; }) }, { onStart: (request) => { events.push("start"); started.push(request); }, onSettled: (outcome) => { events.push("settled"); settledWith.push(outcome); } });
-  const request = { html: "<p>x</p>", title: "t", page: { widthMm: 297, heightMm: 210, landscape: true } };
-  const result = port.print(request);
-  expect(events).toEqual(["start"]);
-  // The host reads the request's page (the Windows hint asks for Landscape).
-  expect(started).toEqual([request]);
-  finish!({ outcome: "cancelled" });
-  expect(await result).toEqual({ outcome: "cancelled" });
-  expect(events).toEqual(["start", "settled"]);
-  expect(settledWith).toEqual([{ outcome: "cancelled" }]);
-});
-
-it("settles the observer even when the port throws", async () => {
-  const onSettled = vi.fn();
-  const port = observePrintPort({ print: () => { throw new Error("boom"); } }, { onStart: () => undefined, onSettled });
-  await expect(port.print({ html: "<p>x</p>", title: "t" })).rejects.toThrow("boom");
-  expect(onSettled).toHaveBeenCalledTimes(1);
-});
-
 it("opens the system dialog in the document's orientation and paper, not portrait", async () => {
   const bridge = stubBridge(async () => ({ outcome: "printed" }));
   // A 13.333 x 7.5 in slide as printed: the sheet goes portrait, the flag turns it.
@@ -137,4 +114,75 @@ it.each([
   ["a banner clamped to the 2 m ceiling", { widthMm: 3000, heightMm: 500, landscape: true }, { landscape: true, pageSize: { width: 500_000, height: 2_000_000 } }],
 ] as const)("maps %s", (_label, page, expected) => {
   expect(desktopPrintOptions(page)).toEqual(expected);
+});
+
+describe("the in-app print preview (UNI-961)", () => {
+  const request = { html: `<!DOCTYPE html><html><head>${CSP}</head><body><p>x</p></body></html>`, title: "Deck.pptx", page: { widthMm: 338.658, heightMm: 190.5, landscape: true } };
+  const geometry = { landscape: true, pageSize: { width: 190_500, height: 338_658 } };
+  const answering = (choice: PrintPreviewChoice) => vi.fn<PrintPreviewHook>(async () => choice);
+
+  it("hands the preview the stamped copy and the document geometry, before anything is sent", async () => {
+    const bridge = stubBridge(async () => ({ outcome: "printed" }));
+    const preview = answering({ kind: "cancel" });
+    await createDesktopPrintPort(bridge, { preview }).print(request);
+    expect(preview).toHaveBeenCalledTimes(1);
+    const job = preview.mock.calls[0]![0];
+    expect(job.title).toBe("Deck.pptx");
+    expect(job.geometry).toEqual(geometry);
+    expect(new DOMParser().parseFromString(job.html, "text/html").title).toBe("Deck.pptx");
+    expect(job.html.startsWith("<!DOCTYPE html>")).toBe(true);
+  });
+
+  it("sends the copy silently with the dialog's options, verbatim, when the user prints", async () => {
+    const bridge = stubBridge(async () => ({ outcome: "printed" }));
+    const options = { ...geometry, silent: true as const, deviceName: "HP LaserJet", copies: 2, pageRanges: [{ from: 0, to: 1 }], color: false, duplexMode: "longEdge" as const };
+    const preview = answering({ kind: "print", options });
+    expect(await createDesktopPrintPort(bridge, { preview }).print(request)).toEqual({ outcome: "printed" });
+    expect(bridge.call).toHaveBeenCalledTimes(1);
+    const [channel, payload] = bridge.call.mock.calls[0]!;
+    expect(channel).toBe("desktop:print-document");
+    expect(payload).toEqual({ sessionGeneration: "desktop-dev-session", title: "Deck.pptx", html: preview.mock.calls[0]![0].html, options });
+  });
+
+  it("opens the system dialog with today's exact payload when the user asks for it", async () => {
+    const bridge = stubBridge(async () => ({ outcome: "printed" }));
+    expect(await createDesktopPrintPort(bridge, { preview: answering({ kind: "system" }) }).print(request)).toEqual({ outcome: "printed" });
+    const payload = bridge.call.mock.calls[0]![1];
+    expect(payload.options).toEqual(geometry);
+    expect(payload.options).not.toHaveProperty("silent");
+    expect(Object.keys(payload).sort()).toEqual(["html", "options", "sessionGeneration", "title"]);
+  });
+
+  it("sends nothing and answers cancelled when the user closes the dialog", async () => {
+    const bridge = stubBridge(async () => ({ outcome: "printed" }));
+    expect(await createDesktopPrintPort(bridge, { preview: answering({ kind: "cancel" }) }).print(request)).toEqual({ outcome: "cancelled" });
+    expect(bridge.call).not.toHaveBeenCalled();
+  });
+
+  it("fails typed, sending nothing, when the preview throws", async () => {
+    const bridge = stubBridge(async () => ({ outcome: "printed" }));
+    const preview = vi.fn<PrintPreviewHook>(async () => { throw new Error("boom"); });
+    expect(await createDesktopPrintPort(bridge, { preview }).print(request)).toEqual({ outcome: "failed", reason: "print_preview_failed" });
+    expect(bridge.call).not.toHaveBeenCalled();
+  });
+
+  it("still maps main's answer to a print the dialog chose", async () => {
+    const bridge = stubBridge(async () => ({ outcome: "failed", reason: "print_no_printer" }));
+    const preview = answering({ kind: "print", options: { ...geometry, silent: true, deviceName: "PDF" } });
+    expect(await createDesktopPrintPort(bridge, { preview }).print(request)).toEqual({ outcome: "failed", reason: "print_no_printer" });
+  });
+
+  it("does not open the preview for a copy over the cap or without a bridge", async () => {
+    const preview = answering({ kind: "system" });
+    const html = `<p>${"ệ".repeat(Math.ceil(PRINT_HTML_MAX_BYTES / 3) + 1)}</p>`;
+    expect(await createDesktopPrintPort(stubBridge(async () => ({ outcome: "printed" })), { preview }).print({ html, title: "Big.xlsx" })).toEqual({ outcome: "failed", reason: "print_too_large" });
+    expect(await createDesktopPrintPort(undefined, { preview }).print(request)).toEqual({ outcome: "failed", reason: "print_unavailable" });
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it("prints as before when no preview is injected", async () => {
+    const bridge = stubBridge(async () => ({ outcome: "printed" }));
+    await createDesktopPrintPort(bridge, {}).print(request);
+    expect(bridge.call.mock.calls[0]![1].options).toEqual(geometry);
+  });
 });

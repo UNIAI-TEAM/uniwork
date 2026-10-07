@@ -1,10 +1,27 @@
 /** @vitest-environment jsdom */
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsFill, HeaderActionsSlotProvider } from "@uniwork/views/layout/header-actions-slot";
 import { DesktopDocumentMenu, useDesktopPrint } from "./document-menu";
+import type { PrintPreviewHook } from "./print-preview/types";
+
+// The in-app dialog is its own module (UNI-961); here it is a stub whose answer each test sets.
+const previewHook = vi.hoisted(() => ({ preview: undefined as unknown as PrintPreviewHook }));
+vi.mock("./print-preview/use-print-preview", async () => {
+  const { createElement } = await import("react");
+  return { usePrintPreview: () => ({ preview: previewHook.preview, dialog: createElement("div", { "data-testid": "preview-dialog" }) }) };
+});
+const answers = (...kinds: Array<"system" | "cancel" | "print">) => {
+  const queue = [...kinds];
+  previewHook.preview = vi.fn<PrintPreviewHook>(async (job) => {
+    const kind = queue.length > 1 ? queue.shift()! : queue[0]!;
+    return kind === "print" ? { kind, options: { ...job.geometry, silent: true as const, deviceName: "PDF" } } : { kind };
+  });
+};
+// Unless a test says otherwise, the user picks the system dialog: the path the hint is about.
+beforeEach(() => { answers("system"); });
 
 const openMenu = () => {
   const trigger = screen.getByRole("button", { name: i18n.t("office.ribbon.more") });
@@ -40,7 +57,7 @@ type Hook = ReturnType<typeof useDesktopPrint>;
 function HintProbe({ windows, bridge, onReady }: { windows: boolean; bridge: Parameters<typeof useDesktopPrint>[0]; onReady(hook: Hook): void }) {
   const hook = useDesktopPrint(bridge, windows);
   onReady(hook);
-  return <div>{hook.hint}</div>;
+  return <div>{hook.hint}{hook.dialog}</div>;
 }
 
 it("shows the Windows preview hint while a print is in flight, then clears it", async () => {
@@ -272,4 +289,78 @@ it("keeps the open dialog's mixed line when a portrait print is answered print_b
   await act(async () => { await hook.port.print(printArgs); });
   expect(screen.getByTestId("print-preview-hint")).toHaveTextContent(i18n.t("officeDesktop.library.printMixedOrientationHint"));
   await act(async () => { finish!({ outcome: "printed" }); await first; });
+});
+
+it("returns the in-app print dialog for the shell to mount", () => {
+  render(<HintProbe windows bridge={{ call: vi.fn() }} onReady={() => undefined} />);
+  expect(screen.getByTestId("preview-dialog")).toBeInTheDocument();
+});
+
+it("shows the hint only once the user picks the system dialog, not while the in-app dialog is open", async () => {
+  let choose: ((choice: { kind: "system" }) => void) | undefined;
+  previewHook.preview = vi.fn<PrintPreviewHook>(() => new Promise((resolve) => { choose = resolve; }));
+  let finish: ((value: unknown) => void) | undefined;
+  const bridge = { call: vi.fn(() => new Promise((resolve) => { finish = resolve; })) };
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let pending!: Promise<unknown>;
+  act(() => { pending = Promise.resolve(hook.port.print({ ...printArgs, page: LANDSCAPE_SLIDE })); });
+  await waitFor(() => expect(previewHook.preview).toHaveBeenCalledTimes(1));
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+  expect(bridge.call).not.toHaveBeenCalled();
+  await act(async () => { choose!({ kind: "system" }); });
+  const hint = await screen.findByTestId("print-preview-hint");
+  expect(hint).toHaveTextContent(i18n.t("officeDesktop.library.printLandscapeHint"));
+  await act(async () => { finish!({ outcome: "printed" }); await pending; });
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+});
+
+it("shows no hint for a silent print the user chose in the dialog, and sends the dialog's options", async () => {
+  answers("print");
+  let finish: ((value: unknown) => void) | undefined;
+  const bridge = { call: vi.fn(() => new Promise((resolve) => { finish = resolve; })) };
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let pending!: Promise<unknown>;
+  act(() => { pending = Promise.resolve(hook.port.print(printArgs)); });
+  await waitFor(() => expect(bridge.call).toHaveBeenCalledTimes(1));
+  expect(bridge.call).toHaveBeenCalledWith("desktop:print-document", expect.objectContaining({ options: expect.objectContaining({ silent: true, deviceName: "PDF" }) }));
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+  await act(async () => { finish!({ outcome: "printed" }); await pending; });
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+});
+
+it("answers cancelled, silently and with nothing sent, when the dialog is cancelled", async () => {
+  answers("cancel");
+  const bridge = { call: vi.fn(async () => ({ outcome: "printed" })) };
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  await act(async () => { expect(await hook.port.print(printArgs)).toEqual({ outcome: "cancelled" }); });
+  expect(bridge.call).not.toHaveBeenCalled();
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+});
+
+it("tracks the hint per print: a print that went silent does not end the system dialog's hint", async () => {
+  answers("system", "print");
+  let finishSystem: ((value: unknown) => void) | undefined;
+  const bridge = pendingBridge([() => new Promise((resolve) => { finishSystem = resolve; }), async () => ({ outcome: "printed" })]);
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let first!: Promise<unknown>;
+  act(() => { first = Promise.resolve(hook.port.print(printArgs)); });
+  await screen.findByTestId("print-preview-hint");
+  await act(async () => { await hook.port.print(printArgs); });
+  expect(screen.getByTestId("print-preview-hint")).toBeInTheDocument();
+  await act(async () => { finishSystem!({ outcome: "printed" }); await first; });
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+});
+
+it("passes a failed preview through to the view and shows no hint", async () => {
+  previewHook.preview = vi.fn<PrintPreviewHook>(async () => { throw new Error("boom"); });
+  const bridge = { call: vi.fn(async () => ({ outcome: "printed" })) };
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  await act(async () => { expect(await hook.port.print(printArgs)).toEqual({ outcome: "failed", reason: "print_preview_failed" }); });
+  expect(bridge.call).not.toHaveBeenCalled();
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
 });

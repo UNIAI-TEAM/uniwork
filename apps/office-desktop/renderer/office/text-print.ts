@@ -1,5 +1,6 @@
 import { A4_PORTRAIT_PAGE, printPageFromCopy, type OfficePrintOutcome, type OfficePrintPage, type OfficePrintPort, type OfficePrintRequest } from "@uniwork/views/office/print";
-import { desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES, type DesktopIpcRequest, type DesktopPrintOptions } from "../../shared/ipc";
+import { desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES, type DesktopIpcRequest, type DesktopPrintGeometry, type DesktopPrintOptions } from "../../shared/ipc";
+import type { PrintPreviewBridge, PrintPreviewChoice, PrintPreviewHook } from "./print-preview/types";
 
 /**
  * The desktop print port for every Office format (UNI-928, UNI-952).
@@ -17,6 +18,11 @@ const SESSION_GENERATION = "desktop-dev-session";
 
 /** The one bridge call the print port needs. */
 export type DesktopPrintBridge = Readonly<{ call(channel: "desktop:print-document", payload: DesktopIpcRequest<"desktop:print-document">): Promise<unknown> }>;
+
+/** The bridge the host hands `useDesktopPrint`: the print channel plus the
+ * channels of the in-app print dialog (UNI-961). The port itself still sees
+ * only `DesktopPrintBridge`, so its payload type stays exact. */
+export type DesktopPrintHostBridge = DesktopPrintBridge & PrintPreviewBridge;
 
 /** Name the copy after the document. Chromium names the OS print job (and
  * the dialog title) after the page title; a copy with none made the dialog
@@ -47,7 +53,7 @@ function microns(mm: number): number {
  * orientation rides on the flag: a 13.33 x 7.5 in slide becomes a 7.5 x 13.33
  * in sheet printed landscape, which is what the copy's `@page size` lays out.
  */
-export function desktopPrintOptions(page: OfficePrintPage | undefined): DesktopPrintOptions {
+export function desktopPrintOptions(page: OfficePrintPage | undefined): DesktopPrintGeometry {
   // A size that is not a number would fail the schema and print nothing.
   const usable = page && Number.isFinite(page.widthMm) && Number.isFinite(page.heightMm) ? page : A4_PORTRAIT_PAGE;
   const { widthMm, heightMm, landscape } = usable;
@@ -58,7 +64,7 @@ export function desktopPrintOptions(page: OfficePrintPage | undefined): DesktopP
 
 /** The page a print run lays out: the one the view gave, else the copy's own
  * first `@page` size (Markdown, HTML), else undefined (A4 portrait). */
-export function printRequestPage(request: OfficePrintRequest): OfficePrintPage | undefined {
+function printRequestPage(request: OfficePrintRequest): OfficePrintPage | undefined {
   return request.page ?? printPageFromCopy(request.html);
 }
 
@@ -82,8 +88,14 @@ function utf8Bytes(text: string): number {
  * HTML) takes the copy's own first `@page` size, else A4 portrait. Never throws - a
  * refused call, a malformed answer, an oversized copy or a missing bridge is a
  * typed failure, never a silent success.
+ *
+ * With a `preview` (the in-app print dialog, UNI-961) the stamped copy and its
+ * geometry go to the dialog first and the user's choice decides what is sent:
+ * `print` sends the dialog's silent options, `system` the geometry alone (the
+ * OS dialog, as without a preview), `cancel` sends nothing. A preview that
+ * throws is `print_preview_failed`.
  */
-export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): OfficePrintPort {
+export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined, { preview }: { preview?: PrintPreviewHook } = {}): OfficePrintPort {
   return {
     async print(request): Promise<OfficePrintOutcome> {
       const { html, title } = request;
@@ -95,32 +107,24 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined): 
       const jobName = jobTitle(title);
       const copy = withDocumentTitle(html, jobName);
       if (utf8Bytes(copy) > PRINT_HTML_MAX_BYTES) return tooLarge;
+      const geometry = desktopPrintOptions(printRequestPage(request));
+      let options: DesktopPrintOptions = geometry;
+      if (preview) {
+        let choice: PrintPreviewChoice;
+        try {
+          choice = await preview({ title: jobName, html: copy, geometry });
+        } catch {
+          return { outcome: "failed", reason: "print_preview_failed" };
+        }
+        if (choice.kind === "cancel") return { outcome: "cancelled" };
+        if (choice.kind === "print") options = choice.options;
+      }
       try {
-        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy, options: desktopPrintOptions(printRequestPage(request)) }));
+        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy, options }));
         return parsed.success ? parsed.data : { outcome: "failed", reason: "print_response_invalid" };
       } catch {
         // A refused call (sender check, closed bridge): a code, never the raw Electron message.
         return { outcome: "failed", reason: "print_call_failed" };
-      }
-    },
-  };
-}
-
-/** Wrap a port so the host learns when a print is in flight and what it
- * prints (the shell shows its Windows preview hint while the dialog is up). The outcome passes
- * through untouched - every view shows its own busy/failed notice - and is
- * also handed to `onSettled` (undefined when the port threw). `print_busy` and
- * `print_timeout` mean a dialog from an earlier print may still be open. */
-export function observePrintPort(port: OfficePrintPort, observer: { onStart(request: OfficePrintRequest): void; onSettled(outcome?: OfficePrintOutcome): void }): OfficePrintPort {
-  return {
-    async print(request) {
-      observer.onStart(request);
-      let outcome: OfficePrintOutcome | undefined;
-      try {
-        outcome = await port.print(request);
-        return outcome;
-      } finally {
-        observer.onSettled(outcome);
       }
     },
   };

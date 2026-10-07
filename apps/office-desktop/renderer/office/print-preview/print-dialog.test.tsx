@@ -1,0 +1,517 @@
+/** @vitest-environment jsdom */
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import i18n from "i18next";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { desktopPrintOptionsSchema } from "../../../shared/ipc-print";
+import type { PrintPreviewBridge, PrintPreviewChoice, PrintPreviewHook, PrintPreviewJob } from "./types";
+import { PREVIEW_DEBOUNCE_MS } from "./use-print-data";
+import { usePrintPreview } from "./use-print-preview";
+
+const tp = (key: string, options?: Record<string, unknown>): string => i18n.t(`officeDesktop.print.${key}`, options);
+
+const job: PrintPreviewJob = { title: "Report.docx", html: "<!DOCTYPE html><html><body><p>x</p></body></html>", geometry: { landscape: false, pageSize: { width: 210_000, height: 297_000 } } };
+const PRINTERS = [
+  { name: "Office Laser", displayName: "Office Laser", isDefault: false },
+  { name: "Front Desk", displayName: "Front Desk", isDefault: true },
+];
+const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+
+interface Call { channel: string; payload: Record<string, unknown> & { operation?: string; args?: Record<string, unknown>; options?: Record<string, unknown> } }
+interface FakeOptions {
+  pageCount?: number;
+  printers?: unknown;
+  printersReject?: boolean;
+  /** The n-th (1-based) `desktop:print-preview` answer. */
+  preview?: (n: number) => unknown | Promise<unknown>;
+}
+
+function fakeBridge(options: FakeOptions = {}) {
+  const calls: Call[] = [];
+  let previews = 0;
+  let handles = 0;
+  const call = vi.fn(async (channel: string, payload: Call["payload"]): Promise<unknown> => {
+    calls.push({ channel, payload });
+    if (channel === "desktop:print-printers") {
+      if (options.printersReject) throw new Error("no printers");
+      return { printers: options.printers ?? PRINTERS };
+    }
+    if (channel === "desktop:print-preview") {
+      previews += 1;
+      return options.preview ? await options.preview(previews) : { outcome: "ready", pdf: PDF };
+    }
+    if (payload.operation === "open") return { ok: true, probe: { pageCount: options.pageCount ?? 3 }, pdfHandle: `handle-${++handles}` };
+    if (payload.operation === "render") return { ok: true, pngBase64: "AAAA", width: 300, height: 400 };
+    return { ok: true };
+  });
+  const of = (channel: string): Call[] => calls.filter((entry) => entry.channel === channel);
+  const engine = (operation: string): Call[] => of("desktop:engine-call").filter((entry) => entry.payload.operation === operation);
+  return { bridge: { call } as unknown as PrintPreviewBridge, call, calls, of, engine };
+}
+
+type Hook = ReturnType<typeof usePrintPreview>;
+function Harness({ bridge, onHook }: { bridge: PrintPreviewBridge | undefined; onHook(hook: Hook): void }) {
+  const hook = usePrintPreview(bridge);
+  onHook(hook);
+  return <>{hook.dialog}</>;
+}
+
+/** Mount the hook and open one dialog; `choice` settles when the dialog closes. */
+async function openDialog(bridge: PrintPreviewBridge | "none" | "fake" = "fake") {
+  const used = bridge === "fake" ? fakeBridge().bridge : bridge === "none" ? undefined : bridge;
+  let hook!: Hook;
+  const view = render(<Harness bridge={used} onHook={(next) => { hook = next; }} />);
+  let choice!: Promise<PrintPreviewChoice>;
+  const settled = vi.fn();
+  act(() => { choice = hook.preview(job); void choice.then(settled); });
+  return { view, choice, settled, hook: () => hook };
+}
+
+const dialogEl = (): HTMLElement => screen.getByRole("dialog");
+const printButton = (): HTMLElement => within(dialogEl()).getByRole("button", { name: tp("print") });
+const radio = (key: string): HTMLElement => within(dialogEl()).getByRole("radio", { name: tp(key) });
+/** jsdom does not turn a click on Base UI's radio span into a change; a click on its label does, like a real one. */
+const choose = (key: string): void => { fireEvent.click(radio(key).closest("label")!); };
+/** Open a Base UI select and pick one option the way the repo's other tests do. */
+const pick = async (name: string, option: string): Promise<void> => {
+  fireEvent.click(within(dialogEl()).getByRole("combobox", { name }));
+  const item = await screen.findByRole("option", { name: option });
+  fireEvent.pointerDown(item, { pointerType: "mouse" });
+  fireEvent.pointerUp(item, { pointerType: "mouse" });
+  fireEvent.click(item);
+};
+const pages = async (count: number): Promise<HTMLElement[]> => {
+  await waitFor(() => expect(screen.getAllByTestId("print-preview-page")).toHaveLength(count));
+  return screen.getAllByTestId("print-preview-page");
+};
+
+afterEach(() => { vi.useRealTimers(); });
+
+describe("usePrintPreview", () => {
+  it("renders no dialog until a job is opened, then closes it and resolves the choice", async () => {
+    const { bridge } = fakeBridge();
+    let hook!: Hook;
+    render(<Harness bridge={bridge} onHook={(next) => { hook = next; }} />);
+    expect(hook.dialog).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    let choice!: Promise<PrintPreviewChoice>;
+    act(() => { choice = hook.preview(job); });
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("cancel") }));
+    await expect(choice).resolves.toEqual({ kind: "cancel" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(hook.dialog).toBeNull();
+  });
+
+  it("answers a second job while one dialog is open with cancel and leaves the open dialog alone", async () => {
+    const { choice, settled, hook } = await openDialog();
+    await screen.findByRole("dialog");
+    let second!: Promise<PrintPreviewChoice>;
+    act(() => { second = hook().preview({ ...job, title: "Other.docx" }); });
+    await expect(second).resolves.toEqual({ kind: "cancel" });
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(settled).not.toHaveBeenCalled();
+    fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("systemDialog") }));
+    await expect(choice).resolves.toEqual({ kind: "system" });
+  });
+
+  it("falls back to the system dialog without a bridge", async () => {
+    const { choice } = await openDialog("none");
+    await expect(choice).resolves.toEqual({ kind: "system" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("resolves an open dialog as cancel when the host unmounts", async () => {
+    const { choice, view } = await openDialog();
+    await screen.findByRole("dialog");
+    view.unmount();
+    await expect(choice).resolves.toEqual({ kind: "cancel" });
+  });
+
+  it("keeps the same preview function while the bridge is the same", async () => {
+    const { bridge } = fakeBridge();
+    const seen = new Set<PrintPreviewHook>();
+    const view = render(<Harness bridge={bridge} onHook={(hook) => seen.add(hook.preview)} />);
+    view.rerender(<Harness bridge={bridge} onHook={(hook) => seen.add(hook.preview)} />);
+    expect(seen.size).toBe(1);
+  });
+});
+
+describe("the dialog's preview", () => {
+  it("names the document in the title and lays the copy out through the print and engine channels", async () => {
+    const fake = fakeBridge({ pageCount: 3 });
+    await openDialog(fake.bridge);
+    expect(await screen.findByRole("dialog", { name: tp("title", { title: "Report.docx" }) })).toBeInTheDocument();
+    expect(dialogEl().textContent).not.toMatch(/electron/i);
+    await pages(3);
+    expect(await screen.findAllByRole("img")).toHaveLength(3);
+    expect(within(dialogEl()).getByText(tp("pageCount", { count: 3 }))).toBeInTheDocument();
+
+    expect(fake.of("desktop:print-preview")).toHaveLength(1);
+    expect(fake.of("desktop:print-preview")[0]!.payload).toEqual({ sessionGeneration: "desktop-dev-session", title: "Report.docx", html: job.html, options: job.geometry });
+    const open = fake.engine("open")[0]!;
+    expect(open.payload).toMatchObject({ sessionGeneration: "desktop-dev-session", handle: "print-preview", args: { retain: true, surface: expect.stringMatching(/^pp_/) } });
+    expect(open.payload.args!.data).toBeInstanceOf(Uint8Array);
+    const render0 = fake.engine("render").find((entry) => entry.payload.args!.pageIndex === 0)!;
+    expect(render0.payload.args).toMatchObject({ pdfHandle: "handle-1", pageIndex: 0, scale: expect.any(Number), surface: open.payload.args!.surface });
+    expect(render0.payload.args!.scale).toBeLessThanOrEqual(1);
+    expect(screen.getAllByRole("img")[0]).toHaveAttribute("src", "data:image/png;base64,AAAA");
+  });
+
+  it("is busy while the first layout is prepared, and says so", async () => {
+    let release!: (value: unknown) => void;
+    const fake = fakeBridge({ preview: () => new Promise((resolve) => { release = resolve; }) });
+    await openDialog(fake.bridge);
+    const section = await screen.findByRole("region", { name: tp("preview") });
+    expect(section).toHaveAttribute("aria-busy", "true");
+    expect(within(section).getByText(tp("previewPreparing"))).toBeInTheDocument();
+    await act(async () => { release({ outcome: "ready", pdf: PDF }); });
+    await pages(3);
+    await waitFor(() => expect(section).toHaveAttribute("aria-busy", "false"));
+  });
+
+  it("steps through the pages with the previous and next buttons", async () => {
+    await openDialog(fakeBridge({ pageCount: 3 }).bridge);
+    await pages(3);
+    const prev = within(dialogEl()).getByRole("button", { name: tp("previousPage") });
+    const next = within(dialogEl()).getByRole("button", { name: tp("nextPage") });
+    expect(within(dialogEl()).getByText(tp("pageOf", { current: 1, total: 3 }))).toBeInTheDocument();
+    expect(prev).toBeDisabled();
+    fireEvent.click(next);
+    expect(within(dialogEl()).getByText(tp("pageOf", { current: 2, total: 3 }))).toBeInTheDocument();
+    expect(screen.getAllByTestId("print-preview-page")[1]).toHaveAttribute("aria-current", "page");
+    fireEvent.click(next);
+    expect(next).toBeDisabled();
+    fireEvent.click(prev);
+    expect(within(dialogEl()).getByText(tp("pageOf", { current: 2, total: 3 }))).toBeInTheDocument();
+  });
+});
+
+describe("what Print sends", () => {
+  it("prints silently to the default printer with the document's own geometry", async () => {
+    const { choice } = await openDialog();
+    await pages(3);
+    fireEvent.click(printButton());
+    const result = await choice;
+    expect(result).toEqual({ kind: "print", options: { landscape: false, pageSize: job.geometry.pageSize, silent: true, deviceName: "Front Desk", copies: 1, color: true, duplexMode: "simplex" } });
+    if (result.kind !== "print") throw new Error("expected print");
+    expect("pageRanges" in result.options).toBe(false);
+    expect(desktopPrintOptionsSchema.safeParse(result.options).success).toBe(true);
+  });
+
+  it("opens on the document's own orientation", async () => {
+    const landscape = { ...job, geometry: { landscape: true, pageSize: { width: 190_500, height: 338_667 } } };
+    const fake = fakeBridge();
+    let hook!: Hook;
+    render(<Harness bridge={fake.bridge} onHook={(next) => { hook = next; }} />);
+    let choice!: Promise<PrintPreviewChoice>;
+    act(() => { choice = hook.preview(landscape); });
+    await screen.findByRole("dialog");
+    expect(radio("landscape")).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(fake.of("desktop:print-preview")[0]!.payload.options).toEqual(landscape.geometry));
+    fireEvent.click(printButton());
+    await expect(choice).resolves.toMatchObject({ kind: "print", options: { landscape: true, pageSize: { width: 190_500, height: 338_667 } } });
+  });
+
+  it("carries copies, colour, a custom page range and the paper through the wire schema", async () => {
+    const { choice } = await openDialog();
+    await pages(3);
+    fireEvent.change(within(dialogEl()).getByLabelText(tp("copies")), { target: { value: "12" } });
+    choose("colorMono");
+    choose("rangeCustom");
+    fireEvent.change(within(dialogEl()).getByLabelText(tp("rangeCustomLabel")), { target: { value: "1-2, 3" } });
+    await waitFor(() => expect(printButton()).not.toHaveAttribute("aria-disabled", "true"));
+    fireEvent.click(printButton());
+    const result = await choice;
+    if (result.kind !== "print") throw new Error("expected print");
+    expect(result.options).toMatchObject({ silent: true, deviceName: "Front Desk", copies: 12, color: false, pageRanges: [{ from: 0, to: 1 }, { from: 2, to: 2 }] });
+    expect(desktopPrintOptionsSchema.parse(result.options)).toEqual(result.options);
+  });
+
+  it("prints just the page the preview shows for the current-page choice", async () => {
+    const { choice } = await openDialog();
+    await pages(3);
+    fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("nextPage") }));
+    choose("rangeCurrent");
+    fireEvent.click(printButton());
+    await expect(choice).resolves.toMatchObject({ kind: "print", options: { pageRanges: [{ from: 1, to: 1 }] } });
+  });
+
+  it("turns the sheet with the orientation choice", async () => {
+    const { choice } = await openDialog();
+    await pages(3);
+    choose("landscape");
+    fireEvent.click(printButton());
+    await expect(choice).resolves.toMatchObject({ kind: "print", options: { landscape: true, pageSize: job.geometry.pageSize } });
+  });
+
+  it("refuses a bad page range and shows why, until it is fixed", async () => {
+    const { choice } = await openDialog();
+    await pages(3);
+    choose("rangeCustom");
+    const input = within(dialogEl()).getByLabelText(tp("rangeCustomLabel"));
+    for (const bad of ["3-1", "0", "", "1-"]) {
+      fireEvent.change(input, { target: { value: bad } });
+      expect(printButton()).toHaveAttribute("aria-disabled", "true");
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(within(dialogEl()).getByText(tp("rangeSyntax"))).toBeInTheDocument();
+    }
+    fireEvent.change(input, { target: { value: "2-9" } });
+    expect(printButton()).toHaveAttribute("aria-disabled", "true");
+    expect(within(dialogEl()).getByText(tp("rangeBounds", { count: 3 }))).toBeInTheDocument();
+    fireEvent.click(printButton());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "2-3" } });
+    expect(printButton()).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(printButton());
+    await expect(choice).resolves.toMatchObject({ kind: "print", options: { pageRanges: [{ from: 1, to: 2 }] } });
+  });
+
+  it("refuses copies outside 1..999", async () => {
+    await openDialog();
+    await pages(3);
+    const copies = within(dialogEl()).getByLabelText(tp("copies"));
+    for (const bad of ["0", "1000", ""]) {
+      fireEvent.change(copies, { target: { value: bad } });
+      expect(copies).toHaveAttribute("aria-invalid", "true");
+      expect(within(dialogEl()).getByText(tp("copiesInvalid"))).toBeInTheDocument();
+      expect(printButton()).toHaveAttribute("aria-disabled", "true");
+    }
+    fireEvent.change(copies, { target: { value: "999" } });
+    expect(copies).not.toHaveAttribute("aria-invalid", "true");
+    expect(printButton()).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("picks another printer and a duplex mode from the lists", async () => {
+    const { choice } = await openDialog();
+    await pages(3);
+    await pick(tp("printer"), "Office Laser");
+    await pick(tp("duplex"), tp("duplexShortEdge"));
+    fireEvent.click(printButton());
+    await expect(choice).resolves.toMatchObject({ kind: "print", options: { deviceName: "Office Laser", duplexMode: "shortEdge" } });
+  });
+});
+
+describe("the other choices and focus", () => {
+  it("resolves the system dialog from its link", async () => {
+    const { choice } = await openDialog();
+    fireEvent.click(await within(await screen.findByRole("dialog")).findByRole("button", { name: tp("systemDialog") }));
+    await expect(choice).resolves.toEqual({ kind: "system" });
+  });
+
+  it("resolves cancel on Esc, and the dialog holds focus until then", async () => {
+    const { choice, settled } = await openDialog();
+    await pages(3);
+    expect(dialogEl().contains(document.activeElement)).toBe(true);
+    // Focus pushed out is pulled back by the trap.
+    act(() => { document.body.focus(); });
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Tab" });
+    expect(dialogEl().contains(document.activeElement) || document.activeElement === document.body).toBe(true);
+    expect(settled).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await expect(choice).resolves.toEqual({ kind: "cancel" });
+  });
+
+  it("does not cancel on a click outside the dialog", async () => {
+    const { settled } = await openDialog();
+    await pages(3);
+    fireEvent.pointerDown(document.body, { button: 0 });
+    fireEvent.click(document.body);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(settled).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("printers", () => {
+  it("offers only the system dialog and cancel when there is no printer", async () => {
+    const { choice } = await openDialog(fakeBridge({ printers: [] }).bridge);
+    expect(await within(await screen.findByRole("dialog")).findByText(tp("printersEmpty"))).toBeInTheDocument();
+    expect(within(dialogEl()).queryByRole("button", { name: tp("print") })).toBeNull();
+    expect(within(dialogEl()).queryByLabelText(tp("copies"))).toBeNull();
+    expect(within(dialogEl()).getByRole("button", { name: tp("cancel") })).toBeInTheDocument();
+    fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("systemDialog") }));
+    await expect(choice).resolves.toEqual({ kind: "system" });
+  });
+
+  it("says so when the printer list cannot be read", async () => {
+    await openDialog(fakeBridge({ printersReject: true }).bridge);
+    expect(await within(await screen.findByRole("dialog")).findByText(tp("printersError"))).toBeInTheDocument();
+    expect(within(dialogEl()).queryByRole("button", { name: tp("print") })).toBeNull();
+    expect(within(dialogEl()).getByRole("button", { name: tp("systemDialog") })).toBeInTheDocument();
+  });
+
+  it("treats a reply that is not a printer list as an error", async () => {
+    await openDialog(fakeBridge({ printers: "nope" as unknown }).bridge);
+    expect(await within(await screen.findByRole("dialog")).findByText(tp("printersError"))).toBeInTheDocument();
+  });
+
+  it("cannot print while the list is still loading", async () => {
+    let release!: (value: unknown) => void;
+    const calls: string[] = [];
+    const bridge = { call: vi.fn((channel: string) => { calls.push(channel); return channel === "desktop:print-printers" ? new Promise((resolve) => { release = resolve; }) : new Promise(() => undefined); }) } as unknown as PrintPreviewBridge;
+    await openDialog(bridge);
+    expect(await within(await screen.findByRole("dialog")).findByText(tp("printerLoading"))).toBeInTheDocument();
+    expect(within(dialogEl()).queryByRole("button", { name: tp("print") })).toBeNull();
+    await act(async () => { release({ printers: PRINTERS }); });
+    expect(await within(dialogEl()).findByRole("button", { name: tp("print") })).toBeInTheDocument();
+  });
+});
+
+describe("re-laying out the preview", () => {
+  const wait = (ms: number) => act(async () => { await new Promise((resolve) => setTimeout(resolve, ms)); });
+
+  it("asks main again, after the debounce, when the orientation changes, and frees the old document", async () => {
+    const fake = fakeBridge();
+    await openDialog(fake.bridge);
+    await pages(3);
+    expect(fake.of("desktop:print-preview")).toHaveLength(1);
+
+    choose("landscape");
+    expect(fake.of("desktop:print-preview")).toHaveLength(1);
+    await waitFor(() => expect(fake.of("desktop:print-preview")).toHaveLength(2));
+    expect(fake.of("desktop:print-preview")[1]!.payload.options).toEqual({ landscape: true, pageSize: job.geometry.pageSize });
+    await waitFor(() => expect(fake.engine("close").map((entry) => entry.payload.args!.pdfHandle)).toEqual(["handle-1"]));
+    expect(fake.engine("open")).toHaveLength(2);
+    expect(PREVIEW_DEBOUNCE_MS).toBeGreaterThanOrEqual(250);
+  });
+
+  it("asks once for a burst of changes", async () => {
+    const fake = fakeBridge();
+    await openDialog(fake.bridge);
+    await pages(3);
+    choose("landscape");
+    choose("portrait");
+    choose("landscape");
+    await waitFor(() => expect(fake.of("desktop:print-preview")).toHaveLength(2));
+    await wait(PREVIEW_DEBOUNCE_MS + 200);
+    expect(fake.of("desktop:print-preview")).toHaveLength(2);
+  });
+
+  it("re-lays out for a new paper size", async () => {
+    const fake = fakeBridge();
+    await openDialog(fake.bridge);
+    await pages(3);
+    await pick(tp("paper"), tp("paperSizes.letter"));
+    await waitFor(() => expect(fake.of("desktop:print-preview")).toHaveLength(2));
+    expect(fake.of("desktop:print-preview")[1]!.payload.options).toEqual({ landscape: false, pageSize: { width: 215_900, height: 279_400 } });
+  });
+
+  it("never re-lays out for copies, page range, colour or duplex", async () => {
+    const fake = fakeBridge();
+    await openDialog(fake.bridge);
+    await pages(3);
+    fireEvent.change(within(dialogEl()).getByLabelText(tp("copies")), { target: { value: "4" } });
+    choose("colorMono");
+    choose("rangeCurrent");
+    choose("rangeCustom");
+    fireEvent.change(within(dialogEl()).getByLabelText(tp("rangeCustomLabel")), { target: { value: "1" } });
+    await wait(PREVIEW_DEBOUNCE_MS + 300);
+    expect(fake.of("desktop:print-preview")).toHaveLength(1);
+    expect(fake.engine("open")).toHaveLength(1);
+  });
+
+  it("closes a document whose answer arrives after a newer request took over", async () => {
+    let release!: (value: unknown) => void;
+    const fake = fakeBridge({ preview: (n) => (n === 1 ? new Promise((resolve) => { release = resolve; }) : { outcome: "ready", pdf: PDF }) });
+    await openDialog(fake.bridge);
+    await waitFor(() => expect(fake.of("desktop:print-preview")).toHaveLength(1));
+    choose("landscape");
+    await pages(3);
+    expect(fake.engine("open")).toHaveLength(1);
+    await act(async () => { release({ outcome: "ready", pdf: PDF }); });
+    // The stale layout is opened by the engine, then freed without ever being shown.
+    await waitFor(() => expect(fake.engine("close").map((entry) => entry.payload.args!.pdfHandle)).toEqual(["handle-2"]));
+    expect(screen.getAllByTestId("print-preview-page")).toHaveLength(3);
+  });
+});
+
+describe("when the preview fails", () => {
+  it("says a too-large document cannot be previewed, still prints all pages and keeps the system dialog", async () => {
+    const fake = fakeBridge({ preview: () => ({ outcome: "failed", reason: "print_preview_too_large" }) });
+    const { choice } = await openDialog(fake.bridge);
+    expect(await within(await screen.findByRole("dialog")).findByText(tp("previewTooLarge"))).toBeInTheDocument();
+    expect(fake.engine("open")).toHaveLength(0);
+    expect(radio("rangeCurrent")).toHaveAttribute("aria-disabled", "true");
+    expect(radio("rangeCustom")).toHaveAttribute("aria-disabled", "true");
+    expect(within(dialogEl()).getByRole("button", { name: tp("systemDialog") })).toBeInTheDocument();
+    expect(printButton()).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(printButton());
+    const result = await choice;
+    if (result.kind !== "print") throw new Error("expected print");
+    expect("pageRanges" in result.options).toBe(false);
+    expect(result.options).toMatchObject({ silent: true, deviceName: "Front Desk" });
+  });
+
+  it.each(["print_busy", "print_timeout", "print_unavailable"])("shows a message for %s and still offers printing", async (reason) => {
+    await openDialog(fakeBridge({ preview: () => ({ outcome: "failed", reason }) }).bridge);
+    expect(await within(await screen.findByRole("dialog")).findByText(tp("previewFailed"))).toBeInTheDocument();
+    expect(within(dialogEl()).getByRole("button", { name: tp("systemDialog") })).toBeInTheDocument();
+    expect(printButton()).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("treats a rejected call, a malformed reply and an engine that cannot open the PDF as an unavailable preview", async () => {
+    const rejecting = fakeBridge({ preview: () => { throw new Error("ipc"); } });
+    const view = (await openDialog(rejecting.bridge)).view;
+    expect(await within(await screen.findByRole("dialog")).findByText(tp("previewFailed"))).toBeInTheDocument();
+    view.unmount();
+
+    const malformed = fakeBridge({ preview: () => ({ outcome: "ready" }) });
+    const second = (await openDialog(malformed.bridge)).view;
+    expect(await within(await screen.findByRole("dialog")).findByText(tp("previewFailed"))).toBeInTheDocument();
+    second.unmount();
+
+    const noEngine = fakeBridge({ pageCount: 0 });
+    await openDialog(noEngine.bridge);
+    expect(await within(await screen.findByRole("dialog")).findByText(tp("previewFailed"))).toBeInTheDocument();
+  });
+
+  it("marks a page that cannot be drawn without losing the others", async () => {
+    const fake = fakeBridge();
+    const original = fake.call.getMockImplementation()!;
+    fake.call.mockImplementation(async (channel, payload) => (payload.operation === "render" && payload.args!.pageIndex === 1 ? { ok: false } : await original(channel, payload)));
+    await openDialog(fake.bridge);
+    await pages(3);
+    expect(await within(dialogEl()).findByText(tp("pageFailed"))).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(2));
+  });
+});
+
+describe("closing", () => {
+  it("frees the engine's copy of the document when the dialog closes", async () => {
+    const fake = fakeBridge();
+    const { choice } = await openDialog(fake.bridge);
+    await pages(3);
+    expect(fake.engine("close")).toHaveLength(0);
+    fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("cancel") }));
+    await choice;
+    await waitFor(() => expect(fake.engine("close")).toHaveLength(1));
+    const open = fake.engine("open")[0]!;
+    expect(fake.engine("close")[0]!.payload).toMatchObject({ sessionGeneration: "desktop-dev-session", handle: "print-preview", args: { pdfHandle: "handle-1", surface: open.payload.args!.surface } });
+  });
+
+  it("frees it after Print and after the system dialog too, and when the host unmounts", async () => {
+    for (const how of ["print", "system", "unmount"] as const) {
+      const fake = fakeBridge();
+      const { choice, view } = await openDialog(fake.bridge);
+      await pages(3);
+      if (how === "print") fireEvent.click(printButton());
+      if (how === "system") fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("systemDialog") }));
+      if (how === "unmount") view.unmount();
+      await choice;
+      await waitFor(() => expect(fake.engine("close")).toHaveLength(1));
+      view.unmount();
+    }
+  });
+
+  it("frees a document that was still being laid out when the dialog closed", async () => {
+    let release!: (value: unknown) => void;
+    const fake = fakeBridge({ preview: () => new Promise((resolve) => { release = resolve; }) });
+    const { choice } = await openDialog(fake.bridge);
+    await waitFor(() => expect(fake.of("desktop:print-preview")).toHaveLength(1));
+    fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("cancel") }));
+    await choice;
+    await act(async () => { release({ outcome: "ready", pdf: PDF }); });
+    await waitFor(() => expect(fake.engine("close")).toHaveLength(1));
+  });
+});

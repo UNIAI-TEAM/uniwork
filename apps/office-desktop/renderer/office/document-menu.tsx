@@ -3,8 +3,10 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, useHeaderActionsMenuFilled } from "@uniwork/views/layout/header-actions-slot";
-import { printOrientationFromCopy, type OfficePrintPort, type OfficePrintRequest } from "@uniwork/views/office/print";
-import { createDesktopPrintPort, observePrintPort, printRequestPage, type DesktopPrintBridge } from "./text-print";
+import { printOrientationFromCopy, type OfficePrintOutcome, type OfficePrintPort } from "@uniwork/views/office/print";
+import type { PrintPreviewJob } from "./print-preview/types";
+import { usePrintPreview } from "./print-preview/use-print-preview";
+import { createDesktopPrintPort, type DesktopPrintHostBridge } from "./text-print";
 
 /** The header overflow control. Inline rather than a lucide import: the
  * desktop package does not depend on the icon set directly. */
@@ -50,18 +52,24 @@ function isWindowsHost(): boolean {
 
 type DialogOrientation = "portrait" | "landscape" | "mixed";
 
-/** The orientation line a print needs: a copy that holds both portrait and
- * landscape pages is mixed whatever its first page is (one job cannot be right
- * for both), else the page the print lays out decides. */
-function dialogOrientation(request: OfficePrintRequest): DialogOrientation {
-  if (printOrientationFromCopy(request.html) === "mixed") return "mixed";
-  return printRequestPage(request)?.landscape === true ? "landscape" : "portrait";
+/** The orientation line a system dialog needs: a copy that holds both portrait
+ * and landscape pages is mixed whatever its first page is (one job cannot be
+ * right for both), else the page the print lays out decides. */
+function dialogOrientation(job: PrintPreviewJob): DialogOrientation {
+  if (printOrientationFromCopy(job.html) === "mixed") return "mixed";
+  return job.geometry.landscape ? "landscape" : "portrait";
 }
 
 /**
- * The desktop print port a shell hands every format view, plus the Windows
- * preview hint it shows while a print dialog is up. The view still owns every
- * outcome notice (busy, failed); the hint is the only host line.
+ * The desktop print port a shell hands every format view, the in-app print
+ * dialog it mounts (`dialog`, UNI-961) and the Windows preview hint it shows
+ * while the SYSTEM print dialog is up. The view still owns every outcome notice
+ * (busy, failed; a cancelled dialog is silent); the hint is the only host line.
+ *
+ * The in-app dialog hands the user's choice back to the port. Only the choice
+ * "system" opens the OS dialog, so only then does a print count as in flight
+ * and decide the orientation line: not while the in-app dialog is open, and not
+ * for a silent print, which has no system dialog to explain.
  *
  * Prints are counted, not flagged: a second Print answered `print_busy` at once
  * must not hide the hint of the dialog that is still open. A `print_timeout`
@@ -76,7 +84,11 @@ function dialogOrientation(request: OfficePrintRequest): DialogOrientation {
  * portrait and landscape pages adds the line saying which pages get turned. The print that opened the
  * dialog decides it; one answered print_busy while it is up does not.
  */
-export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows: boolean = isWindowsHost()): { port: OfficePrintPort; hint: ReactNode } {
+export function useDesktopPrint(bridge: DesktopPrintHostBridge | undefined, windows: boolean = isWindowsHost()): { port: OfficePrintPort; hint: ReactNode; dialog: ReactNode } {
+  const { preview, dialog } = usePrintPreview(bridge);
+  // Read through a ref so the port keeps one identity: the views rebuild their editor when it changes.
+  const previewRef = useRef(preview);
+  useEffect(() => { previewRef.current = preview; }, [preview]);
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [inFlight, setInFlight] = useState(0);
   const [lingering, setLingering] = useState(false);
@@ -88,18 +100,34 @@ export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows:
   const pending = useRef(0);
   const lingerRef = useRef(false);
   const changeLingering = useCallback((next: boolean) => { lingerRef.current = next; setLingering(next); }, []);
-  const port = useMemo(() => observePrintPort(createDesktopPrintPort(bridge), {
-    onStart: (request) => {
-      if (pending.current === 0 && !lingerRef.current) setOrientation(dialogOrientation(request));
-      pending.current += 1;
-      setInFlight((count) => count + 1);
-    },
-    onSettled: (outcome) => {
-      pending.current = Math.max(0, pending.current - 1);
-      setInFlight((count) => Math.max(0, count - 1));
-      const reason = outcome?.outcome === "failed" ? outcome.reason : undefined;
-      if (reason === "print_timeout") changeLingering(true);
-      else if (reason !== "print_busy") changeLingering(false);
+  const port = useMemo<OfficePrintPort>(() => ({
+    async print(request) {
+      let system = false;
+      const attempt = createDesktopPrintPort(bridge, {
+        preview: async (job) => {
+          const choice = await previewRef.current(job);
+          if (choice.kind === "system") {
+            system = true;
+            if (pending.current === 0 && !lingerRef.current) setOrientation(dialogOrientation(job));
+            pending.current += 1;
+            setInFlight((count) => count + 1);
+          }
+          return choice;
+        },
+      });
+      let outcome: OfficePrintOutcome | undefined;
+      try {
+        outcome = await attempt.print(request);
+        return outcome;
+      } finally {
+        if (system) {
+          pending.current = Math.max(0, pending.current - 1);
+          setInFlight((count) => Math.max(0, count - 1));
+          const reason = outcome?.outcome === "failed" ? outcome.reason : undefined;
+          if (reason === "print_timeout") changeLingering(true);
+          else if (reason !== "print_busy") changeLingering(false);
+        }
+      }
     },
   }), [bridge, changeLingering]);
   useEffect(() => {
@@ -114,5 +142,5 @@ export function useDesktopPrint(bridge: DesktopPrintBridge | undefined, windows:
   }, [lingering, changeLingering]);
   const shown = windows && (inFlight > 0 || lingering);
   const hint = shown ? <p role="status" className="pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg bg-popover px-3 py-2 text-caption text-popover-foreground shadow-md ring-1 ring-foreground/10" data-testid="print-preview-hint">{t("printPreviewHint")}{orientation === "portrait" ? null : <span className="mt-1 block">{t(orientation === "mixed" ? "printMixedOrientationHint" : "printLandscapeHint")}</span>}</p> : null;
-  return { port, hint };
+  return { port, hint, dialog };
 }
