@@ -93,18 +93,19 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 	if intent.Status == "completed" {
 		return nil
 	}
-	if intent.Status == "expired" {
-		if time.Since(intent.ExpiresAt.Time) > billingExpiredGrace {
-			return fmt.Errorf("billing: intent expired beyond grace")
-		}
+	if intent.Status != "pending" && intent.Status != "failed" {
+		return fmt.Errorf("billing: intent %q not payable (status=%s)", intent.ID, intent.Status)
 	}
-	if ev.Amount > 0 && ev.Amount != intent.Amount {
+	if ev.Amount != intent.Amount {
 		_ = q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
 			ID: intent.ID, OrganizationID: intent.OrganizationID,
 		})
 		return fmt.Errorf("billing: amount mismatch")
 	}
 	if ev.Currency != "" && ev.Currency != intent.Currency {
+		_ = q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
+			ID: intent.ID, OrganizationID: intent.OrganizationID,
+		})
 		return fmt.Errorf("billing: currency mismatch")
 	}
 
@@ -114,6 +115,12 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 	}
 	sub, err := q.LockLiveSubscription(ctx, intent.OrganizationID)
 	if err != nil {
+		return err
+	}
+	if err := s.fitsUnder(ctx, q, sub, plan); err != nil {
+		_ = q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
+			ID: intent.ID, OrganizationID: intent.OrganizationID,
+		})
 		return err
 	}
 	start := time.Now().UTC()

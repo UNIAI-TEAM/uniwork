@@ -15,10 +15,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-const (
-	billingIntentTTL    = 15 * time.Minute
-	billingExpiredGrace = 72 * time.Hour
-)
+const billingIntentTTL = 15 * time.Minute
 
 // ValidateCheckoutPath rejects absolute or ambiguous return paths (C-04 §6.3).
 func ValidateCheckoutPath(path string) error {
@@ -31,6 +28,8 @@ func ValidateCheckoutPath(path string) error {
 
 // Checkout asks the payment provider for a redirect URL. Paid plans persist a
 // billing_payment_intent before the URL is built so IPN can match vnp_TxnRef.
+// A still-valid pending intent for the same plan is reused so two devices do
+// not open two payable orders for one checkout wave.
 func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, successURL, cancelURL, clientIP string) (billing.CheckoutSession, error) {
 	if _, err := s.requireOwner(ctx, userID, orgID); err != nil {
 		return billing.CheckoutSession{}, err
@@ -76,21 +75,38 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 			Msg:    "không thể hạ gói trả phí qua thanh toán; dùng hủy gói vào cuối kỳ hoặc liên hệ quản trị",
 			Fields: map[string]any{"current_plan": before.Code, "target_plan": plan.Code}}
 	}
-	if err := q.ExpirePendingBillingPaymentIntents(ctx, orgID); err != nil {
-		return billing.CheckoutSession{}, err
-	}
-	intentID := util.NewID()
-	expires := time.Now().Add(billingIntentTTL)
-	checkoutActor := Human(userID)
-	_, err = q.InsertBillingPaymentIntent(ctx, db.InsertBillingPaymentIntentParams{
-		ID: intentID, OrganizationID: orgID, SubscriptionID: sub.ID, PlanID: plan.ID,
-		Provider: s.provider.Name(), ProviderTxnRef: intentID,
-		Amount: plan.PriceAmount.Int64, Currency: plan.PriceCurrency,
-		ExpiresAt:     pgtype.Timestamptz{Time: expires, Valid: true},
-		CreatedBy:     pgtype.Text{String: checkoutActor.ID, Valid: true},
-		CreatedByKind: pgtype.Text{String: string(checkoutActor.Kind), Valid: true},
+
+	var intentID string
+	var amount int64
+	var currency string
+	existing, err := q.GetPendingBillingPaymentIntentForPlan(ctx, db.GetPendingBillingPaymentIntentForPlanParams{
+		OrganizationID: orgID, PlanID: plan.ID,
 	})
-	if err != nil {
+	if err == nil {
+		intentID = existing.ID
+		amount = existing.Amount
+		currency = existing.Currency
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		if err := q.ExpirePendingBillingPaymentIntents(ctx, orgID); err != nil {
+			return billing.CheckoutSession{}, err
+		}
+		intentID = util.NewID()
+		expires := time.Now().Add(billingIntentTTL)
+		checkoutActor := Human(userID)
+		amount = plan.PriceAmount.Int64
+		currency = plan.PriceCurrency
+		_, err = q.InsertBillingPaymentIntent(ctx, db.InsertBillingPaymentIntentParams{
+			ID: intentID, OrganizationID: orgID, SubscriptionID: sub.ID, PlanID: plan.ID,
+			Provider: s.provider.Name(), ProviderTxnRef: intentID,
+			Amount: amount, Currency: currency,
+			ExpiresAt:     pgtype.Timestamptz{Time: expires, Valid: true},
+			CreatedBy:     pgtype.Text{String: checkoutActor.ID, Valid: true},
+			CreatedByKind: pgtype.Text{String: string(checkoutActor.Kind), Valid: true},
+		})
+		if err != nil {
+			return billing.CheckoutSession{}, err
+		}
+	} else {
 		return billing.CheckoutSession{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -100,12 +116,18 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 	sess, err := s.provider.CreateCheckout(ctx, billing.CheckoutInput{
 		OrganizationID: orgID, PlanCode: planCode, CustomerEmail: u.Email,
 		SuccessURL: successURL, CancelURL: cancelURL,
-		IntentID: intentID, Amount: plan.PriceAmount.Int64, Currency: plan.PriceCurrency,
+		IntentID: intentID, Amount: amount, Currency: currency,
 		OrderInfo: "UniWork " + plan.Code, ClientIP: clientIP,
 	})
-	if errors.Is(err, billing.ErrProviderUnavailable) {
-		return billing.CheckoutSession{}, CodedError{Code: "billing_provider_unavailable", Status: http.StatusServiceUnavailable, Err: err,
-			Msg: "chưa có cổng thanh toán; liên hệ quản trị viên để đổi gói", Fields: map[string]any{"provider": s.provider.Name()}}
+	if err != nil {
+		_ = s.q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
+			ID: intentID, OrganizationID: orgID,
+		})
+		if errors.Is(err, billing.ErrProviderUnavailable) {
+			return billing.CheckoutSession{}, CodedError{Code: "billing_provider_unavailable", Status: http.StatusServiceUnavailable, Err: err,
+				Msg: "chưa có cổng thanh toán; liên hệ quản trị viên để đổi gói", Fields: map[string]any{"provider": s.provider.Name()}}
+		}
+		return billing.CheckoutSession{}, err
 	}
-	return sess, err
+	return sess, nil
 }

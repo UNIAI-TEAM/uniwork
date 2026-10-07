@@ -22,6 +22,16 @@
     "minute": "Phút",
     "opens_new_tab": " (mở tab mới)"
   },
+  "entitlement": {
+    "toast": {
+      "quota_threshold": "Một hạn mức của tổ chức đã vượt 80% hoặc hết trong kỳ này.",
+      "view_billing": "Xem gói",
+      "gate_quota_exceeded": "Tổ chức đã hết hạn mức của gói hiện tại.",
+      "gate_entitlement_required": "Gói hiện tại không bao gồm tính năng này.",
+      "gate_entitlement_required_named": "Gói hiện tại không bao gồm: {{feature}}.",
+      "contact_admin": "Liên hệ quản trị viên"
+    }
+  },
   "errors": {
     "not_found_title": "Không tìm thấy trang",
     "not_found_description": "Đường dẫn này không tồn tại hoặc đã bị đổi.",
@@ -549,6 +559,15 @@
         "storage_bytes": "Dung lượng lưu trữ",
         "sso_oidc": "Đăng nhập SSO (OIDC)",
         "documents_public_links": "Liên kết công khai cho tài liệu"
+      },
+      "errors": {
+        "checkout_required": "Gói trả phí cần thanh toán qua cổng; dùng nút Thanh toán.",
+        "checkout_not_available": "Gói này không mua trực tuyến được; liên hệ quản trị hoặc chọn gói khác.",
+        "invalid_checkout_path": "Đường dẫn quay lại không hợp lệ. Tải lại trang rồi thử lại.",
+        "downgrade_not_allowed": "Không hạ gói trả phí tại đây. Dùng Ngừng gói cuối kỳ hoặc liên hệ hỗ trợ.",
+        "quota_exceeded": "Tổ chức đang dùng vượt hạn mức gói đích. Giảm mức dùng rồi thử lại.",
+        "billing_provider_unavailable": "Chưa bật cổng thanh toán. Liên hệ quản trị viên.",
+        "version_conflict": "Gói vừa được người khác đổi. Tải lại trang rồi thử lại."
       },
       "action_failed": "Không đổi được gói. Thử lại sau ít phút.",
       "plans_error": "Không tải được danh sách gói.",
@@ -4473,6 +4492,7 @@
         "created_at": "Tạo lúc"
       },
       "pager": "{{from}}–{{to}} / {{total}}",
+      "pager_label": "Phân trang danh sách",
       "prev": "Trước",
       "next": "Sau"
     },

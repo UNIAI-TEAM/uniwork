@@ -22,6 +22,16 @@
     "minute": "Minute",
     "opens_new_tab": " (opens in a new tab)"
   },
+  "entitlement": {
+    "toast": {
+      "quota_threshold": "An organization quota has reached 80% or the limit for this period.",
+      "view_billing": "View plan",
+      "gate_quota_exceeded": "This organization has used its quota for the current plan.",
+      "gate_entitlement_required": "The current plan does not include this feature.",
+      "gate_entitlement_required_named": "The current plan does not include: {{feature}}.",
+      "contact_admin": "Contact an administrator"
+    }
+  },
   "errors": {
     "not_found_title": "Page not found",
     "not_found_description": "This address does not exist or has moved.",
@@ -550,6 +560,15 @@
         "storage_bytes": "Storage",
         "sso_oidc": "SSO sign-in (OIDC)",
         "documents_public_links": "Public links for documents"
+      },
+      "errors": {
+        "checkout_required": "Paid plans must be purchased through checkout; use Pay.",
+        "checkout_not_available": "This plan cannot be bought online; contact an admin or pick another plan.",
+        "invalid_checkout_path": "The return path is invalid. Refresh the page and try again.",
+        "downgrade_not_allowed": "You cannot downgrade a paid plan here. Cancel at period end or contact support.",
+        "quota_exceeded": "Usage already exceeds the target plan limits. Reduce usage, then try again.",
+        "billing_provider_unavailable": "Payment gateway is not configured. Contact an administrator.",
+        "version_conflict": "Someone else just changed the plan. Refresh the page and try again."
       },
       "action_failed": "The plan could not be changed. Try again in a few minutes.",
       "plans_error": "The plans could not be loaded.",
@@ -4477,6 +4496,7 @@
         "created_at": "Created"
       },
       "pager": "{{from}}–{{to}} of {{total}}",
+      "pager_label": "List pagination",
       "prev": "Previous",
       "next": "Next"
     },

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   useCancelSubscription,
   useChangePlan,
+  saveCheckoutBaseline,
   useCheckoutReturn,
   useCreateCheckout,
   usePlans,
@@ -24,7 +25,7 @@ import { Notice } from "../../common/notice";
 import { CollectionPageState } from "../../layout/collection-page";
 import { useWorkspace } from "../../layout/workspace-context";
 import { useNavigation } from "../../navigation";
-import { toastApiError } from "../../toast-api-error";
+import { billingApiErrorCopy } from "../billing-api-error";
 import { BillingUsage } from "./billing-usage";
 import { CorrelationNote } from "./copyable-id";
 import { formatPrice, isPaid, PlanCards } from "./plan-cards";
@@ -178,7 +179,7 @@ export function BillingTab() {
   const locale = i18n.language;
   const busy = changePlan.isPending || cancel.isPending || resume.isPending || checkout.isPending;
   const currentPlan = plans.data?.find((p) => p.code === sub.plan_code);
-  const fail = (err: unknown) => toastApiError(err, t("action_failed"));
+  const fail = (err: unknown) => toast.error(billingApiErrorCopy(err) ?? t("action_failed"));
   const pastDue = sub.status === "past_due";
   const canPayNow = canManage.allowed && currentPlan !== undefined && isPaid(currentPlan);
 
@@ -193,6 +194,7 @@ export function BillingTab() {
           cancel_path: `${base}&checkout=cancel`,
         });
         if (url) {
+          saveCheckoutBaseline(orgId, sub);
           toast.message(t("checkout_redirecting"));
           window.location.assign(url);
         }

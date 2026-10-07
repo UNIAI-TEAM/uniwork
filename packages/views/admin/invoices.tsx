@@ -17,7 +17,7 @@ import { PAGE_TOOLBAR } from "../layout/page-header";
 import { AppLink } from "../navigation";
 
 const ALL = "all";
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 function formatMoney(amount: number, currency: string, locale: string): string {
   const code = currency.toUpperCase();
@@ -74,6 +74,40 @@ export function AdminInvoicesView() {
   const intents = useAdminPaymentIntents(query, tab === "intents");
   const active = tab === "invoices" ? invoices : intents;
   const total = tab === "invoices" ? (invoices.data?.total ?? 0) : (intents.data?.total ?? 0);
+  const rows =
+    tab === "invoices" ? (invoices.data?.invoices ?? []) : (intents.data?.intents ?? []);
+
+  const pager =
+    rows.length > 0 ? (
+      <nav
+        aria-label={t("pager_label")}
+        className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2"
+      >
+        <p aria-live="polite" className="text-caption text-muted-foreground">
+          {t("pager", { from: offset + 1, to: offset + rows.length, total })}
+        </p>
+        <span className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={offset === 0 || active.isFetching}
+            onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+          >
+            <ChevronLeft aria-hidden="true" className="size-3.5" />
+            {t("prev")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={offset + rows.length >= total || active.isFetching}
+            onClick={() => setOffset((o) => o + PAGE_SIZE)}
+          >
+            {t("next")}
+            <ChevronRight aria-hidden="true" className="size-3.5" />
+          </Button>
+        </span>
+      </nav>
+    ) : null;
 
   const providerItems = [
     { value: ALL, label: t("filter.provider_all") },
@@ -172,6 +206,7 @@ export function AdminInvoicesView() {
           }
         />
       ) : tab === "invoices" ? (
+        <>
         <Table>
           <TableHeader>
             <TableRow>
@@ -213,7 +248,10 @@ export function AdminInvoicesView() {
             )}
           </TableBody>
         </Table>
+        {pager}
+        </>
       ) : (
+        <>
         <Table>
           <TableHeader>
             <TableRow>
@@ -256,27 +294,9 @@ export function AdminInvoicesView() {
             )}
           </TableBody>
         </Table>
+        {pager}
+        </>
       )}
-      {total > PAGE_SIZE ? (
-        <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
-          <span className="text-caption text-muted-foreground">
-            {t("pager", { from: offset + 1, to: Math.min(offset + PAGE_SIZE, total), total })}
-          </span>
-          <Button variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}>
-            <ChevronLeft aria-hidden="true" className="size-4" />
-            {t("prev")}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={offset + PAGE_SIZE >= total}
-            onClick={() => setOffset((o) => o + PAGE_SIZE)}
-          >
-            {t("next")}
-            <ChevronRight aria-hidden="true" className="size-4" />
-          </Button>
-        </div>
-      ) : null}
     </>
   );
 }

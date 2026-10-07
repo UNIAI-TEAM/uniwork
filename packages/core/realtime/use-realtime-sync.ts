@@ -8,6 +8,7 @@ import { calendarKeys } from "../calendar/keys";
 import { agentKeys } from "../agents/hooks";
 import { aiKeys } from "../ai/hooks";
 import { auditKeys } from "../audit/hooks";
+import { emitQuotaThreshold } from "../billing/quota-threshold-bus";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
 import { documentKeys } from "../documents/keys";
@@ -130,10 +131,18 @@ function keysFor(
       if (payload.workspace_id) push(aiKeys.capabilities(payload.workspace_id));
       break;
     }
-    case "subscription.changed":
-    case "quota.threshold": {
-      // Both are organization-scoped; the payload names the organization.
+    case "subscription.changed": {
       if (payload.organization_id) push(billingKeys.current(payload.organization_id));
+      break;
+    }
+    case "quota.threshold": {
+      if (payload.organization_id) push(billingKeys.current(payload.organization_id));
+      if (payload.organization_id && payload.user_id) {
+        emitQuotaThreshold({
+          organizationId: payload.organization_id,
+          userId: payload.user_id,
+        });
+      }
       break;
     }
     case "chat.room.created":
