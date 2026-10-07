@@ -30,3 +30,21 @@ data:
 {{- else }}
 {{- fail "env.feContent is required (helm --set-file env.feContent=deploy/app/env/uniwork-fe.env)" }}
 {{- end }}
+{{- if .Values.officeEngine.enabled }}
+---
+{{- if $env.officeEngineContent }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: uniwork-office-engine
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: uniwork-office-engine
+  annotations:
+    uniwork.io/env-layer: office-engine
+data:
+{{- include "uniwork.envFileData" $env.officeEngineContent | nindent 2 }}
+{{- else }}
+{{- fail "env.officeEngineContent is required when officeEngine.enabled (helm --set-file env.officeEngineContent=deploy/app/env/uniwork-office-engine.env)" }}
+{{- end }}
+{{- end }}

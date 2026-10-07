@@ -9,16 +9,19 @@ Ngắn gọn. Làm theo thứ tự. Chỗ nào ghi "Chưa có" là repo chưa c�
 
 Đã kiểm trong repo. Làm xong các mục này mới deploy Office lên production.
 
-**A. `office-engine` trên Helm: chart đã có, DevOps còn phải vận hành.**
-Chart `deploy/app/uniwork/` đã có `templates/deployment-office-engine.yaml`, `templates/service-office-engine.yaml` (Service riêng tư, không ra edge), `templates/networkpolicy.yaml` (chính sách riêng cho engine) và khối `officeEngine:` trong `values.yaml` (mặc định `enabled: false`). Quyền container giống compose: bỏ hết capability trừ `CHOWN SETUID SETGID KILL DAC_OVERRIDE FOWNER`, `no-new-privileges`, root filesystem chỉ đọc, `/tmp` tmpfs 512Mi, bộ nhớ 2Gi, 2 cpu. Sidecar XLSX nằm **trong** image engine, không phải dịch vụ riêng. Repo đã làm (tick); phần còn lại là việc của DevOps (để trống):
+**A. `office-engine` trên Helm: luôn bật production; DevOps còn Secret + node.**
+Chart `deploy/app/uniwork/` luôn deploy engine (`officeEngine.enabled: true`). Non-secret env:
+`deploy/app/env/uniwork-office-engine.env` (origins/workers). CIDR kho file: `networkPolicy.officeEngineFileStore`
+trong `values.yaml`. Jenkins luôn build image + pin digest — **không** còn param `OFFICE_ENGINE_ENABLED` /
+`OUTPUT_ORIGINS` / `VALUES_FILE`. Quyền container giống compose. Sidecar XLSX nằm **trong** image engine.
 
-- [ ] Build và push image từ `apps/office-engine/Dockerfile` (build từ gốc repo); điền `officeEngine.image.tag`/`digest`.
-- [x] Deployment + Service **riêng tư**, cổng `8090`, cùng quyền như compose (`deployment-office-engine.yaml`, `service-office-engine.yaml`).
-- [ ] Node chạy engine đặt `podPidsLimit: 256` (kubelet) cho bằng `pids_limit` của compose; pod spec không có trường này.
-- [ ] Tạo Secret `uniwork-office-engine` chứa `OFFICE_ENGINE_SERVICE_TOKEN` và `OFFICE_ENGINE_GRANT_KEY` (>= 32 ký tự, khác nhau). Chart chỉ tham chiếu tên Secret (`officeEngine.secrets`, `be.secrets.officeEngine*`), không chứa giá trị.
-- [ ] Đặt `officeEngine.outputOrigins` = origin kho file; liệt kê CIDR kho file trong `networkPolicy.officeEngineFileStore`; rồi bật `officeEngine.enabled: true`.
-- [x] NetworkPolicy: chỉ `uniwork-be` gọi engine; engine chỉ ra DNS và các CIDR kho file (`networkpolicy.yaml`).
-- [x] Phía BE: `OFFICE_ENGINE_URL`, `OFFICE_ENGINE_REQUEST_TIMEOUT_MS`, `OFFICE_JOB_*` đã có trong `deploy/app/env/uniwork-be.env`; hai khóa được BE đọc từ cùng Secret qua `be.secrets.officeEngine*`. `OFFICE_ENGINE_URL` để trống trong file env; chart tự đặt nó trên container BE khi `officeEngine.enabled: true` (một công tắc duy nhất).
+- [x] Pipeline production-app build/push `uniwork-office-engine` + digest (cùng BE/FE).
+- [x] Deployment + Service **riêng tư**, cổng `8090` (`deployment-office-engine.yaml`, `service-office-engine.yaml`).
+- [x] Env non-secret: `uniwork-office-engine.env` + CIDR CMC S3 trong `values.yaml`.
+- [ ] Node chạy engine đặt `podPidsLimit: 256` (kubelet); pod spec không có trường này.
+- [ ] Tạo Secret `uniwork-office-engine` chứa `OFFICE_ENGINE_SERVICE_TOKEN` và `OFFICE_ENGINE_GRANT_KEY` (>= 32 ký tự, khác nhau). Xem `deploy/app/env/README.md`.
+- [x] NetworkPolicy: chỉ `uniwork-be` gọi engine; engine ra DNS + CIDR kho file.
+- [x] BE: `OFFICE_ENGINE_URL` để trống trong `uniwork-be.env`; chart set URL in-cluster. Timeout/job knobs trong `uniwork-be.env`.
 - [x] `DESKTOP_AUTH_*` đã có trong `uniwork-be.env` (xem mục 3.2).
 - [ ] Sau deploy chạy mục 4.
 
@@ -40,7 +43,7 @@ Chart `deploy/app/uniwork/` đã có `templates/deployment-office-engine.yaml`, 
 | Phần | Chạy ở đâu | Cần gì |
 | --- | --- | --- |
 | Trình soạn web DOCX, XLSX, PPTX, PDF, MD, HTML | Trình duyệt, trong `apps/web` (code ở `packages/views/office/`) | Cờ `office_engine` bật; file lưu qua kho file (MinIO/S3) |
-| Máy xử lý Office (`office-engine`) | Container riêng, cổng `8090`, chỉ Go gọi | 2 khóa bí mật; địa chỉ kho file; `docker compose --profile office` hoặc chart Helm (`officeEngine.enabled`) |
+| Máy xử lý Office (`office-engine`) | Container riêng, cổng `8090`, chỉ Go gọi | 2 khóa bí mật; `uniwork-office-engine.env` (origins); Helm luôn bật production |
 | Máy tính lại XLSX (`xlsx-sidecar`) | Nằm trong cùng image `office-engine`, do engine tự chạy | Không cần cấu hình riêng (`UNIWORK_XLSX_ASSETS` đã đặt trong image) |
 | Khung xem trước MD/HTML | Origin riêng `preview.<host>`, cùng tiến trình Go | `PREVIEW_ORIGIN`, `PREVIEW_CAPABILITY_SECRET`, DNS + chứng chỉ riêng |
 | Server Go | Như hiện tại | Migration, env, kho file |

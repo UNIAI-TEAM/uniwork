@@ -75,15 +75,10 @@ spec:
           ports:
             - name: http
               containerPort: {{ $oe.port }}
+          envFrom:
+            - configMapRef:
+                name: uniwork-office-engine
           env:
-            - name: OFFICE_ENGINE_PORT
-              value: {{ $oe.port | quote }}
-            - name: OFFICE_ENGINE_OUTPUT_ORIGINS
-              value: {{ $oe.outputOrigins | quote }}
-            {{- range $name, $value := $oe.env }}
-            - name: {{ $name }}
-              value: {{ $value | quote }}
-            {{- end }}
             - name: OFFICE_ENGINE_SERVICE_TOKEN
               valueFrom:
                 secretKeyRef:
