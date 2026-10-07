@@ -42,3 +42,31 @@ describe("named pages", () => {
     expect(rules).toContain("@page sec1{size:297mm 210mm}");
   });
 });
+
+describe("a fixed-page PDF copy", () => {
+  const pdfCopy = `<!DOCTYPE html><html><head><style>@page{size:595pt 842pt;margin:0}@page pdf-size-0{size:595pt 842pt;margin:0}.pdf-size-0{page:pdf-size-0;width:595pt;height:842pt}.pdf-print-page img{width:100%;height:100%}</style></head><body><div class="pdf-print-page pdf-size-0"><img src="data:image/png;base64,AA" alt=""></div></body></html>`;
+
+  it("fits each page box to the chosen landscape sheet so a page never spills onto a second one", () => {
+    const out = withChosenSheet(pdfCopy, { ...a4, landscape: true }, a4);
+    const rules = new DOMParser().parseFromString(out, "text/html").head.querySelector("style[data-print-sheet]")?.textContent ?? "";
+    expect(rules).toContain("@page pdf-size-0{size:297mm 210mm}");
+    expect(rules).toContain(".pdf-print-page{width:297mm!important;height:210mm!important}");
+    expect(rules).toContain(".pdf-print-page img{object-fit:contain}");
+  });
+
+  it("fits a changed paper in portrait", () => {
+    const rules = new DOMParser().parseFromString(withChosenSheet(pdfCopy, { landscape: false, pageSize: { width: 215_900, height: 279_400 } }, a4), "text/html").head.querySelector("style[data-print-sheet]")?.textContent ?? "";
+    expect(rules).toContain(".pdf-print-page{width:215.9mm!important;height:279.4mm!important}");
+  });
+
+  it("adds no fit rule to a reflowing copy, nor when the sheet is the document's own", () => {
+    const reflow = withChosenSheet(copy, { ...a4, landscape: true }, a4);
+    expect(reflow).not.toContain("pdf-print-page");
+    expect(withChosenSheet(pdfCopy, a4, a4)).toBe(pdfCopy);
+  });
+
+  it("does not take a page box mentioned in body text for a fixed-page copy", () => {
+    const prose = copy.replace("<p>x</p>", "<p>the pdf-print-page class</p>");
+    expect(withChosenSheet(prose, { ...a4, landscape: true }, a4)).not.toContain("!important");
+  });
+});

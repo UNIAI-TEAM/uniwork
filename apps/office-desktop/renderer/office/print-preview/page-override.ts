@@ -1,5 +1,10 @@
 import type { DesktopPrintGeometry } from "../../../shared/ipc";
 
+/** Whether the markup holds the PDF print copy's page boxes (an element carrying the class, not text that mentions it). */
+function hasFixedPages(html: string): boolean {
+  return /<div\b[^>]*\bclass="[^"]*\bpdf-print-page\b/i.test(html);
+}
+
 function sameGeometry(a: DesktopPrintGeometry, b: DesktopPrintGeometry): boolean {
   return a.landscape === b.landscape && a.pageSize.width === b.pageSize.width && a.pageSize.height === b.pageSize.height;
 }
@@ -24,7 +29,10 @@ function namedPages(html: string): string[] {
  * head re-declares only `size` for the unnamed page and for every named page
  * the copy uses (`:first` included); being later at the same specificity it
  * wins, while each page keeps its margins and margin boxes (headers, footers).
- * The document's own geometry returns the copy untouched. The preview, the
+ * A fixed-page copy (the PDF one: each page a box of fixed size holding one
+ * raster) also gets its page boxes sized to the chosen sheet with the image
+ * contained in them, otherwise a page would overflow the turned sheet onto a
+ * second one. The document's own geometry returns the copy untouched. The preview, the
  * print and the saved PDF apply the same rule, so the preview is what prints.
  */
 export function withChosenSheet(html: string, chosen: DesktopPrintGeometry, documentGeometry: DesktopPrintGeometry): string {
@@ -34,7 +42,8 @@ export function withChosenSheet(html: string, chosen: DesktopPrintGeometry, docu
   const size = `{size:${chosen.landscape ? `${long}mm ${short}mm` : `${short}mm ${long}mm`}}`;
   const selectors = ["", ...namedPages(html).map((name) => ` ${name}`)];
   const rules = selectors.map((selector) => `@page${selector}${size}@page${selector}:first${size}`).join("");
-  const style = `<style data-print-sheet>${rules}</style>`;
+  const fit = hasFixedPages(html) ? `.pdf-print-page{width:${chosen.landscape ? long : short}mm!important;height:${chosen.landscape ? short : long}mm!important}.pdf-print-page img{object-fit:contain}` : "";
+  const style = `<style data-print-sheet>${rules}${fit}</style>`;
   const close = html.search(/<\/head>/i);
   return close === -1 ? `${style}${html}` : `${html.slice(0, close)}${style}${html.slice(close)}`;
 }

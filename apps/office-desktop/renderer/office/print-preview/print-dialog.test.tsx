@@ -104,7 +104,6 @@ describe("usePrintPreview", () => {
     const { bridge } = fakeBridge();
     let hook!: Hook;
     render(<Harness bridge={bridge} onHook={(next) => { hook = next; }} />);
-    expect(hook.dialog).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     let choice!: Promise<PrintPreviewChoice>;
     act(() => { choice = hook.preview(job); });
@@ -112,7 +111,6 @@ describe("usePrintPreview", () => {
     fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("cancel") }));
     await expect(choice).resolves.toEqual({ kind: "cancel" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(hook.dialog).toBeNull();
   });
 
   it("answers a second job while one dialog is open with cancel and leaves the open dialog alone", async () => {
@@ -378,6 +376,111 @@ describe("the other choices and focus", () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
     expect(settled).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+/** The stops of a Tab walk in a browser: tabbable, not disabled, not inside an inert subtree. */
+function tabStops(): HTMLElement[] {
+  const selector = "a[href],button,input,select,textarea,[tabindex]";
+  return Array.from(document.body.querySelectorAll<HTMLElement>(selector)).filter((el) => !el.hasAttribute("disabled") && el.getAttribute("tabindex") !== "-1" && !el.closest("[inert]"));
+}
+/** jsdom does not move focus on Tab; walk the stops by hand. Base UI's focus guards bracket the popup and, in a browser, hand focus back
+ * to its far end (jsdom has no layout for them to decide by), so landing on one wraps inside the dialog like it does there. A page
+ * button reached before a guard is a failure of the caller's assertion. */
+async function tab(dialog: HTMLElement, back = false): Promise<void> {
+  const stops = tabStops();
+  const inside = stops.filter((el) => dialog.contains(el));
+  const at = stops.indexOf(document.activeElement as HTMLElement);
+  let next = stops[(at + (back ? -1 : 1) + stops.length) % stops.length];
+  if (next?.hasAttribute("data-type") && !dialog.contains(next)) next = stops.indexOf(next) < stops.indexOf(inside[0]!) ? inside.at(-1) : inside[0];
+  await act(async () => { next?.focus(); await new Promise((resolve) => { setTimeout(resolve, 0); }); });
+}
+
+function Page({ bridge, onChoice, triggerShown = true }: { bridge: PrintPreviewBridge; onChoice(choice: PrintPreviewChoice): void; triggerShown?: boolean }) {
+  const { preview, dialog } = usePrintPreview(bridge);
+  return <>
+    {triggerShown ? <button type="button" onClick={() => { void preview(job).then(onChoice); }}>Open print</button> : null}
+    <button type="button">App chrome</button>
+    {dialog}
+  </>;
+}
+
+describe("focus across repeated opens (the dialog stays a modal every time)", () => {
+  it("starts inside, keeps Tab and Shift+Tab inside, and hands focus back to the opener, three times in a row", async () => {
+    const onChoice = vi.fn();
+    render(<Page bridge={fakeBridge().bridge} onChoice={onChoice} />);
+    const trigger = screen.getByRole("button", { name: "Open print" });
+    const chrome = screen.getByRole("button", { name: "App chrome" });
+    for (let round = 1; round <= 3; round += 1) {
+      act(() => { trigger.focus(); });
+      fireEvent.click(trigger);
+      const dialog = await screen.findByRole("dialog");
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+      await pages(3);
+      // The page behind is released from the keyboard and the screen reader for as long as the dialog is open.
+      expect(chrome.parentElement?.hasAttribute("data-base-ui-inert")).toBe(true);
+      for (let step = 0; step < 30; step += 1) {
+        await tab(dialog, step % 7 === 6);
+        expect(document.activeElement).not.toBe(chrome);
+        expect(document.activeElement).not.toBe(trigger);
+        expect(dialog.contains(document.activeElement), `round ${round} step ${step}: ${tabStops().map((el) => (el === document.activeElement ? "[*]" : "") + el.tagName + (el.getAttribute("data-type") ?? "") + (dialog.contains(el) ? "" : "(out)")).join(" ")}`).toBe(true);
+      }
+      fireEvent.click(within(dialog).getByRole("button", { name: tp("cancel") }));
+      await waitFor(() => expect(onChoice).toHaveBeenCalledTimes(round));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(document.activeElement).toBe(trigger);
+      expect(chrome.parentElement?.hasAttribute("data-base-ui-inert")).toBe(false);
+      expect(chrome.parentElement?.hasAttribute("aria-hidden")).toBe(false);
+    }
+    expect(onChoice).toHaveBeenLastCalledWith({ kind: "cancel" });
+  });
+
+  it("restores focus after Esc, and falls back to the default when the opener left the page", async () => {
+    const onChoice = vi.fn();
+    const bridge = fakeBridge().bridge;
+    const view = render(<Page bridge={bridge} onChoice={onChoice} />);
+    const trigger = screen.getByRole("button", { name: "Open print" });
+    act(() => { trigger.focus(); });
+    fireEvent.click(trigger);
+    await screen.findByRole("dialog");
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+    // The opener is gone by the time the dialog closes: nothing throws, focus is not left on a detached node.
+    act(() => { trigger.focus(); });
+    fireEvent.click(trigger);
+    await screen.findByRole("dialog");
+    view.rerender(<Page bridge={bridge} onChoice={onChoice} triggerShown={false} />);
+    fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("cancel") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement?.isConnected).toBe(true);
+    view.unmount();
+  });
+});
+
+describe("layout classes", () => {
+  it("stacks the settings above a fixed-height preview below md, never squeezing one into the other, and splits into two columns from md", async () => {
+    await openDialog();
+    await pages(3);
+    const settings = within(dialogEl()).getByRole("group", { name: tp("settings") }).parentElement!;
+    const previewBox = within(dialogEl()).getByRole("region", { name: tp("preview") }).parentElement!;
+    const body = settings.parentElement!;
+    expect(previewBox.parentElement).toBe(body);
+    expect(body.classList).toContain("flex-col");
+    expect(body.classList).toContain("overflow-y-auto");
+    expect(body.classList).toContain("md:grid-cols-[18rem_minmax(0,1fr)]");
+    expect(body.classList).toContain("md:overflow-hidden");
+    // No bare min-h-0 or shrink on the children: below md they keep their own height.
+    expect(settings.classList).toContain("shrink-0");
+    expect(settings.classList).not.toContain("min-h-0");
+    expect(previewBox.classList).toContain("shrink-0");
+    expect(previewBox.classList).toContain("h-80");
+    expect(previewBox.classList).not.toContain("min-h-0");
+    expect(previewBox.classList).toContain("md:h-auto");
+    expect(previewBox.classList).toContain("md:min-h-0");
+    // The header and the footer are the dialog's own rows, outside the scrolling body.
+    expect(body.parentElement).toBe(dialogEl());
+    expect(dialogEl().classList).toContain("overflow-hidden");
   });
 });
 

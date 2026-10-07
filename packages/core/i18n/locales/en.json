@@ -12162,7 +12162,7 @@
       },
       "color": "Colour",
       "colorDefault": "Printer default",
-      "colorColor": "Colour",
+      "colorColor": "Full colour",
       "colorMono": "Black and white",
       "duplex": "Sides",
       "duplexDefault": "Printer default",
