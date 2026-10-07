@@ -33,7 +33,7 @@ export interface XlsxPrintableVisual {
   readonly box: XlsxVisualBox | null;
   /** null: a chart type or picture with no preview (print a frame with `title`). */
   readonly image: XlsxPrintableImage | null;
-  /** The chart or picture title, else the kind (print's alt text and frame label). */
+  /** The chart or picture title, else the localized kind (print's alt text and frame label). */
   readonly title: string;
 }
 
@@ -96,6 +96,7 @@ export function printableVisuals(
   visuals: readonly XlsxEditorVisual[],
   sheets: readonly { readonly id: string; readonly name: string }[],
   metricsFor: (sheetId: string) => XlsxPrintSheetMetrics | null,
+  kindLabel: (kind: XlsxPrintableVisual["kind"]) => string,
   sheetId?: string,
 ): XlsxPrintableVisual[] {
   const out: XlsxPrintableVisual[] = [];
@@ -108,7 +109,7 @@ export function printableVisuals(
     order.set(visual.sheetId, zIndex + 1);
     const metrics = metricsFor(visual.sheetId);
     const box = metrics ? printBox(visual, metrics) : null;
-    const title = visual.chart?.title || visual.title || visualKind(visual);
+    const title = visual.chart?.title || visual.title || kindLabel(visualKind(visual));
     out.push({
       sheetId: visual.sheetId,
       sheetName: sheet.name,

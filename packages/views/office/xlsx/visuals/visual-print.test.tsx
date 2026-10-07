@@ -7,6 +7,7 @@ const ANCHOR = { fromRow: 1, fromColumn: 2, fromRowOffset: 9525 * 4, fromColumnO
 /** Columns 64 px, rows 20 px, column 3 hidden. */
 const METRICS: XlsxPrintSheetMetrics = { columnWidth: (column) => (column === 3 ? 0 : 64), rowHeight: () => 20 };
 const SHEETS = [{ id: "s1", name: "Data" }, { id: "s2", name: "Report" }];
+const KIND = (kind: string) => `kind:${kind}`;
 const visual = (id: string, extra: Partial<XlsxEditorVisual>): XlsxEditorVisual => ({ id, sheetId: "s1", anchor: ANCHOR, generation: 0, ...extra });
 
 describe("printBox", () => {
@@ -28,7 +29,7 @@ describe("printableVisuals", () => {
   ];
 
   it("lists one sheet's drawn visuals in paint order with an SVG for charts, a data URL for pictures and a frame for unpreviewed ones", () => {
-    const list = printableVisuals(visuals, SHEETS, () => METRICS, "s1");
+    const list = printableVisuals(visuals, SHEETS, () => METRICS, KIND, "s1");
     expect(list.map((entry) => [entry.kind, entry.zIndex, entry.image?.type ?? null])).toEqual([["chart", 0, "svg"], ["picture", 1, null], ["picture", 2, "dataUrl"]]);
     expect(list[0]).toMatchObject({ sheetId: "s1", sheetName: "Data", title: "Doanh thu", anchor: ANCHOR, box: { x: 138, y: 24 } });
     expect(list[0]?.image).toMatchObject({ type: "svg", svg: expect.stringMatching(/^<svg[\s\S]*Doanh thu[\s\S]*<\/svg>$/) });
@@ -36,14 +37,14 @@ describe("printableVisuals", () => {
   });
 
   it("covers every sheet without a filter and leaves box null where a sheet has no sizes", () => {
-    const list = printableVisuals(visuals, SHEETS, (id) => (id === "s1" ? METRICS : null));
+    const list = printableVisuals(visuals, SHEETS, (id) => (id === "s1" ? METRICS : null), KIND);
     const shape = list.find((entry) => entry.sheetId === "s2");
     expect(shape).toMatchObject({ kind: "shape", sheetName: "Report", zIndex: 0, box: null, image: { type: "svg" } });
   });
 
-  it("feeds print's collector as its source: an untitled visual is labelled by its kind", () => {
+  it("feeds print's collector as its source: an untitled visual is labelled by the given kind label", () => {
     const pictures = collectPrintPictures({
-      source: (sheetId, metricsFor) => printableVisuals(visuals, SHEETS, metricsFor ?? (() => METRICS), sheetId),
+      source: (sheetId, metricsFor) => printableVisuals(visuals, SHEETS, metricsFor ?? (() => METRICS), KIND, sheetId),
       sheetIds: ["s1"],
       columnWidth: () => 48,
       rowHeight: () => 15,
@@ -52,8 +53,8 @@ describe("printableVisuals", () => {
     });
     expect(pictures.map((picture) => [picture.title, picture.src?.slice(0, 22) ?? null])).toEqual([
       ["Doanh thu", "data:image/svg+xml;cha"],
-      ["picture", null],
-      ["picture", "data:image/png;base64,"],
+      ["kind:picture", null],
+      ["kind:picture", "data:image/png;base64,"],
     ]);
   });
 

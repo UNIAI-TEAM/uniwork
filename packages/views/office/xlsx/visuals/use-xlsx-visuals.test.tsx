@@ -24,6 +24,7 @@ const selection = (address = "A1", endAddress: string | null = "B3"): XlsxSelect
 
 let commandsRef: XlsxVisualsCommands | null = null;
 let historyRef: XlsxVisualsHistory | null = null;
+let printableRef: ReturnType<typeof useXlsxVisuals>["getPrintableVisuals"] | null = null;
 function Probe() {
   commandsRef = useXlsxVisualsCommands();
   return null;
@@ -47,6 +48,7 @@ function Harness({ grid, ...options }: Partial<XlsxVisualsOptions> & { grid: Xls
     ...options,
   });
   historyRef = visuals.history;
+  printableRef = visuals.getPrintableVisuals;
   return (
     <XlsxVisualsProvider visuals={visuals}>
       <Probe />
@@ -86,6 +88,7 @@ const lastOp = (edit: ReturnType<typeof vi.fn>) => (edit.mock.calls.at(-1)?.[0] 
 beforeEach(async () => {
   commandsRef = null;
   historyRef = null;
+  printableRef = null;
   await setLocale("en");
 });
 
@@ -106,6 +109,18 @@ describe("useXlsxVisuals", () => {
       series: [{ name: "Q1", categories: ["North", "South"], values: [10, 20], valuesRef: "'Data'!$B$2:$B$3" }],
     });
     expect(await screen.findByTestId("xlsx-visual-item-chart")).toHaveAccessibleName("Column chart Q1");
+  });
+
+  it("labels an untitled visual by its localized kind on the print path, not the raw English kind", async () => {
+    const bare = { editable: false, anchor: ANCHOR } as const;
+    const untitled: NonNullable<XlsxVisualsOptions["fileVisuals"]> = {
+      s1: [{ ...bare, index: 0, kind: "chart" }, { ...bare, index: 1, kind: "picture" }, { ...bare, index: 2, kind: "shape", shape: { shapeType: "rect" } }],
+    };
+    await setLocale("vi");
+    setup({ fileVisuals: untitled });
+    const titles = () => printableRef?.("s1").map((entry) => entry.title);
+    await waitFor(() => expect(titles()).toHaveLength(3));
+    expect(titles()).toEqual(["Biểu đồ", "Hình ảnh", "Hình dạng"]);
   });
 
   it("explains instead of inserting when the range has no numbers", () => {

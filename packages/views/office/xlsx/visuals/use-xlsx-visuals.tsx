@@ -435,8 +435,9 @@ export function useXlsxVisuals(options: XlsxVisualsOptions): XlsxVisualsWiring {
   const getPrintableVisuals = useCallback((sheetId?: string, metricsFor?: (sheetId: string) => XlsxPrintSheetMetrics | null) => {
     const measure = geometry();
     const fallback = (id: string) => (measure ? gridSheetMetrics(measure, id) : null);
-    return printableVisuals(visuals, sheets, metricsFor ?? fallback, sheetId);
-  }, [geometry, sheets, visuals]);
+    const kindLabel = (kind: XlsxPrintableVisual["kind"]) => (kind === "chart" ? t("office.xlsx.visuals.item.kindChart") : kind === "shape" ? t("office.xlsx.visuals.item.kindShape") : t("office.xlsx.visuals.item.picture"));
+    return printableVisuals(visuals, sheets, metricsFor ?? fallback, kindLabel, sheetId);
+  }, [geometry, sheets, t, visuals]);
 
   return { commands, overlay, onViewportChange, dialog, getPrintableVisuals, history, isCellEditing };
 }
