@@ -127,6 +127,9 @@ func newOfficeWorld(t *testing.T, enableFlag bool) *officeWorld {
 		if testFlagOverrides != nil {
 			testFlagOverrides.Invalidate()
 		}
+	} else {
+		// documents is on by default; a flag-off world turns it off explicitly.
+		disableDocumentsFlag(t)
 	}
 
 	w := &officeWorld{srv: srv, q: q}

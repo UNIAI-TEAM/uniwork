@@ -571,6 +571,7 @@ func TestDocumentCommentsFlagOff404(t *testing.T) {
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 	token, _ := filesRegister(t, srv, "flagoff-comments@example.com")
+	disableDocumentsFlag(t)
 
 	docID := "01J8X4DOC0N1P2Q3R4S5T6U7"
 	commentID := "01J8X4CMTN1P2Q3R4S5T6U7V"
