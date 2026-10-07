@@ -91,7 +91,7 @@ export function OpenXlsxDocument({ bridge, session, title, onBack, active = true
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}
         {featureOff ? <FeatureOffNotice formatName={formatName} reason={readOnlyReason} className="mx-4 my-2" /> : null}
-        {print.hint}
+        {print.hint}{print.dialog}
         <XlsxEditor
           documentKey={session.documentKey}
           editor={session.editor}
