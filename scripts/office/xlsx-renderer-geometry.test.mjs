@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 import { REPO_ROOT } from '../office-g0/paths.mjs';
 
 const renderer = path.join(REPO_ROOT, 'packages/office-upstream/shims/xlsx-renderer');
+const upstream = path.join(REPO_ROOT, 'packages/office-upstream/upstream');
 const bundled = await build({
   stdin: { contents: `export * from './geometry';`, resolveDir: renderer, loader: 'ts' },
   bundle: true, write: false, format: 'cjs', platform: 'node', logLevel: 'silent',
@@ -12,9 +13,23 @@ const bundled = await build({
     name: 'render-stub',
     setup(builder) {
       builder.onResolve({ filter: /^@univerjs\/engine-render$/ }, () => ({ path: 'render', namespace: 'stub' }));
-      builder.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({
-        contents: 'export const IRenderManagerService = "render-manager"; export const SHEET_VIEWPORT_KEY = { VIEW_MAIN: "main" };',
+      builder.onLoad({ filter: /.*/, namespace: 'stub' }, (args) => ({
+        contents: args.path === 'cf'
+          ? 'export const iconMap = {};'
+          : 'export const IRenderManagerService = "render-manager"; export const SHEET_VIEWPORT_KEY = { VIEW_MAIN: "main" };',
       }));
+      // geometry.ts reaches the vendored edit-journal through print-style, so the
+      // bundle needs the same gateway alias and stubs the journal tests use.
+      builder.onResolve({ filter: /^@univerjs\/preset-sheets-conditional-formatting$/ }, () => ({ path: 'cf', namespace: 'stub' }));
+      builder.onResolve({ filter: /^@univerjs\/core$/ }, () => ({ path: 'core', namespace: 'test' }));
+      builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
+        contents: 'export const CellValueType={STRING:1,NUMBER:2,BOOLEAN:3}; export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2};',
+      }));
+      builder.onResolve({ filter: /^@genoffice\/xlsx-gateway\// }, (args) => ({
+        path: path.join(upstream, 'packages/xlsx-gateway/src', args.path.split('/').slice(2).join('/')) + '.ts',
+      }));
+      builder.onResolve({ filter: /selection-format$/ }, () => ({ path: 'indent', namespace: 'test-indent' }));
+      builder.onLoad({ filter: /.*/, namespace: 'test-indent' }, () => ({ contents: 'export const INDENT_STEP_PX=9;' }));
     },
   }],
 });
