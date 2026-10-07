@@ -13,10 +13,11 @@ vi.mock("./print-preview/use-print-preview", async () => {
   const { createElement } = await import("react");
   return { usePrintPreview: () => ({ preview: previewHook.preview, dialog: createElement("div", { "data-testid": "preview-dialog" }) }) };
 });
-const answers = (...kinds: Array<"system" | "cancel" | "print">) => {
+const answers = (...kinds: Array<"system" | "cancel" | "print" | "save-pdf">) => {
   const queue = [...kinds];
   previewHook.preview = vi.fn<PrintPreviewHook>(async (job) => {
     const kind = queue.length > 1 ? queue.shift()! : queue[0]!;
+    if (kind === "save-pdf") return { kind, options: job.geometry };
     return kind === "print" ? { kind, options: { ...job.geometry, silent: true as const, deviceName: "PDF" } } : { kind };
   });
 };
@@ -167,6 +168,22 @@ it("keeps the open dialog's landscape line when a portrait print is answered pri
   await act(async () => { await hook.port.print(printArgs); });
   expect(screen.getByTestId("print-preview-hint")).toHaveTextContent(i18n.t("officeDesktop.library.printLandscapeHint"));
   await act(async () => { finish!({ outcome: "printed" }); await first; });
+});
+
+it("shows no hint while a Save as PDF is in flight: only the system dialog needs one", async () => {
+  answers("save-pdf");
+  let finish: ((value: unknown) => void) | undefined;
+  const bridge = { call: vi.fn(() => new Promise((resolve) => { finish = resolve; })) };
+  let hook!: Hook;
+  render(<HintProbe windows bridge={bridge} onReady={(next) => { hook = next; }} />);
+  let pending!: Promise<unknown>;
+  act(() => { pending = Promise.resolve(hook.port.print({ html: "<p>x</p>", title: "Doc.docx", page: LANDSCAPE_SLIDE })); });
+  await waitFor(() => expect(bridge.call).toHaveBeenCalledTimes(1));
+  expect(bridge.call).toHaveBeenCalledWith("desktop:print-save-pdf", expect.objectContaining({ title: "Doc.docx" }));
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
+  await act(async () => { finish!({ outcome: "saved" }); await pending; });
+  await expect(pending).resolves.toEqual({ outcome: "printed" });
+  expect(screen.queryByTestId("print-preview-hint")).toBeNull();
 });
 
 it("shows no hint off Windows", async () => {

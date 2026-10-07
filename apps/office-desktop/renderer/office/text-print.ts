@@ -1,5 +1,6 @@
 import { A4_PORTRAIT_PAGE, printPageFromCopy, type OfficePrintOutcome, type OfficePrintPage, type OfficePrintPort, type OfficePrintRequest } from "@uniwork/views/office/print";
-import { desktopPrintResponseSchema, PRINT_HTML_MAX_BYTES, type DesktopIpcRequest, type DesktopPrintGeometry, type DesktopPrintOptions } from "../../shared/ipc";
+import { desktopPrintResponseSchema, desktopPrintSavePdfResponseSchema, PRINT_HTML_MAX_BYTES, type DesktopIpcRequest, type DesktopPrintGeometry, type DesktopPrintOptions } from "../../shared/ipc";
+import { withChosenSheet } from "./print-preview/page-override";
 import type { PrintPreviewBridge, PrintPreviewChoice, PrintPreviewHook } from "./print-preview/types";
 
 /**
@@ -16,12 +17,13 @@ import type { PrintPreviewBridge, PrintPreviewChoice, PrintPreviewHook } from ".
 
 const SESSION_GENERATION = "desktop-dev-session";
 
-/** The one bridge call the print port needs. */
-export type DesktopPrintBridge = Readonly<{ call(channel: "desktop:print-document", payload: DesktopIpcRequest<"desktop:print-document">): Promise<unknown> }>;
+/** The bridge calls the print port needs: the print itself and the in-app
+ * "Save as PDF". The channel types each payload, so neither is loosened. */
+type DesktopPrintChannel = "desktop:print-document" | "desktop:print-save-pdf";
+export type DesktopPrintBridge = Readonly<{ call<C extends DesktopPrintChannel>(channel: C, payload: DesktopIpcRequest<C>): Promise<unknown> }>;
 
-/** The bridge the host hands `useDesktopPrint`: the print channel plus the
- * channels of the in-app print dialog (UNI-961). The port itself still sees
- * only `DesktopPrintBridge`, so its payload type stays exact. */
+/** The bridge the host hands `useDesktopPrint`: the port's channels plus the
+ * channels of the in-app print dialog (UNI-961). */
 export type DesktopPrintHostBridge = DesktopPrintBridge & PrintPreviewBridge;
 
 /** Name the copy after the document. Chromium names the OS print job (and
@@ -80,6 +82,19 @@ function utf8Bytes(text: string): number {
   return new TextEncoder().encode(text).byteLength;
 }
 
+/** `desktop:print-save-pdf`: main writes the PDF where the user picks. Its
+ * outcome maps onto the print one (`saved` is a completed job); like the print
+ * call it never throws. */
+async function savePdf(bridge: DesktopPrintBridge, { title, html, options }: { title: string; html: string; options: DesktopIpcRequest<"desktop:print-save-pdf">["options"] }): Promise<OfficePrintOutcome> {
+  try {
+    const parsed = desktopPrintSavePdfResponseSchema.safeParse(await bridge.call("desktop:print-save-pdf", { sessionGeneration: SESSION_GENERATION, title, html, options }));
+    if (!parsed.success) return { outcome: "failed", reason: "print_response_invalid" };
+    return parsed.data.outcome === "saved" ? { outcome: "printed" } : parsed.data;
+  } catch {
+    return { outcome: "failed", reason: "print_call_failed" };
+  }
+}
+
 /**
  * The desktop `OfficePrintPort`: stamp the document title on the sanitized
  * copy a view produced and send it to main with the page geometry as print
@@ -91,9 +106,10 @@ function utf8Bytes(text: string): number {
  *
  * With a `preview` (the in-app print dialog, UNI-961) the stamped copy and its
  * geometry go to the dialog first and the user's choice decides what is sent:
- * `print` sends the dialog's silent options, `system` the geometry alone (the
- * OS dialog, as without a preview), `cancel` sends nothing. A preview that
- * throws is `print_preview_failed`.
+ * `print` sends the dialog's silent options, `save-pdf` the copy on the chosen
+ * sheet to `desktop:print-save-pdf` (main asks where to save), `system` the
+ * geometry alone (the OS dialog, as without a preview), `cancel` sends
+ * nothing. A preview that throws is `print_preview_failed`.
  */
 export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined, { preview }: { preview?: PrintPreviewHook } = {}): OfficePrintPort {
   return {
@@ -109,6 +125,7 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined, {
       if (utf8Bytes(copy) > PRINT_HTML_MAX_BYTES) return tooLarge;
       const geometry = desktopPrintOptions(printRequestPage(request));
       let options: DesktopPrintOptions = geometry;
+      let sent = copy;
       if (preview) {
         let choice: PrintPreviewChoice;
         try {
@@ -117,10 +134,16 @@ export function createDesktopPrintPort(bridge: DesktopPrintBridge | undefined, {
           return { outcome: "failed", reason: "print_preview_failed" };
         }
         if (choice.kind === "cancel") return { outcome: "cancelled" };
+        if (choice.kind === "print" || choice.kind === "save-pdf") {
+          // The sheet the user picked, as the preview laid it out (page-override.ts).
+          sent = withChosenSheet(copy, choice.options, geometry);
+          if (utf8Bytes(sent) > PRINT_HTML_MAX_BYTES) return tooLarge;
+        }
+        if (choice.kind === "save-pdf") return await savePdf(bridge, { title: jobName, html: sent, options: choice.options });
         if (choice.kind === "print") options = choice.options;
       }
       try {
-        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: copy, options }));
+        const parsed = desktopPrintResponseSchema.safeParse(await bridge.call("desktop:print-document", { sessionGeneration: SESSION_GENERATION, title: jobName, html: sent, options }));
         return parsed.success ? parsed.data : { outcome: "failed", reason: "print_response_invalid" };
       } catch {
         // A refused call (sender check, closed bridge): a code, never the raw Electron message.

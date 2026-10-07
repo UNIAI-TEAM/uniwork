@@ -12110,8 +12110,8 @@
       "printer": "Máy in",
       "printerLoading": "Đang tìm máy in…",
       "printerDefault": "{{name}} (mặc định)",
-      "printersEmpty": "Thiết bị này chưa có máy in nào. Bạn vẫn có thể dùng hộp thoại in của hệ thống.",
-      "printersError": "Không đọc được danh sách máy in. Bạn vẫn có thể dùng hộp thoại in của hệ thống.",
+      "printersEmpty": "Thiết bị này chưa có máy in nào. Bạn vẫn có thể lưu tệp PDF hoặc dùng hộp thoại in của hệ thống.",
+      "printersError": "Không đọc được danh sách máy in. Bạn vẫn có thể lưu tệp PDF hoặc dùng hộp thoại in của hệ thống.",
       "copies": "Số bản in",
       "copiesInvalid": "Nhập số nguyên từ 1 đến 999.",
       "range": "Trang in",
@@ -12156,7 +12156,12 @@
       "pageFailed": "Không vẽ được trang này.",
       "print": "In",
       "systemDialog": "Hộp thoại in của hệ thống",
-      "cancel": "Hủy"
+      "cancel": "Hủy",
+      "savePdf": "Lưu dưới dạng PDF",
+      "savePdfNote": "Bạn sẽ chọn nơi lưu tệp ở bước tiếp theo.",
+      "save": "Lưu",
+      "systemDialogNote": "Máy in này cần hộp thoại in của hệ thống để hỏi nơi lưu hoặc số fax.",
+      "continueInSystemDialog": "Tiếp tục trong hộp thoại hệ thống"
     },
     "tabs": {
       "appTitle": "UniWork Office",

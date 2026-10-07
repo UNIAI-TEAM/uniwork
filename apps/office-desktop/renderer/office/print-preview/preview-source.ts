@@ -1,5 +1,6 @@
 import { desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, type DesktopIpcRequest, type DesktopPrinter, type DesktopPrintGeometry } from "../../../shared/ipc";
 import { createPdfEngineSession } from "../pdf-engine-session";
+import { withChosenSheet } from "./page-override";
 import type { PrintPreviewBridge, PrintPreviewJob } from "./types";
 
 /**
@@ -68,7 +69,7 @@ export async function loadPrinters(bridge: PrintPreviewBridge): Promise<DesktopP
 export async function loadPreviewDocument(bridge: PrintPreviewBridge, job: PrintPreviewJob, geometry: DesktopPrintGeometry): Promise<PreviewOutcome> {
   let pdf: Uint8Array | ArrayBuffer;
   try {
-    const raw = await bridge.call("desktop:print-preview", { sessionGeneration: SESSION_GENERATION, title: job.title, html: job.html, options: geometry });
+    const raw = await bridge.call("desktop:print-preview", { sessionGeneration: SESSION_GENERATION, title: job.title, html: withChosenSheet(job.html, geometry, job.geometry), options: geometry });
     const parsed = desktopPrintPreviewResponseSchema.safeParse(raw);
     if (!parsed.success) return { kind: "failed", reason: "print_unavailable" };
     if (parsed.data.outcome === "failed") return { kind: "failed", reason: parsed.data.reason };

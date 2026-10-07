@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRINT_HTML_MAX_BYTES } from "../../shared/ipc";
+import { desktopPrintSavePdfRequestSchema } from "../../shared/ipc-print";
 import type { PrintPreviewChoice, PrintPreviewHook } from "./print-preview/types";
 import { createDesktopPrintPort, desktopPrintOptions } from "./text-print";
 
@@ -13,7 +14,7 @@ const slideCopy = `<!DOCTYPE html><html><head>${CSP}<style>@page s1 { size: 13.3
 afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ""; });
 
 function stubBridge(answer: () => Promise<unknown>) {
-  const call = vi.fn((_channel: "desktop:print-document", _payload: { sessionGeneration: string; title: string; html: string; options?: unknown }) => answer());
+  const call = vi.fn((_channel: "desktop:print-document" | "desktop:print-save-pdf", _payload: { sessionGeneration: string; title: string; html: string; options?: unknown }) => answer());
   return { call };
 }
 
@@ -144,6 +145,16 @@ describe("the in-app print preview (UNI-961)", () => {
     expect(payload).toEqual({ sessionGeneration: "desktop-dev-session", title: "Deck.pptx", html: preview.mock.calls[0]![0].html, options });
   });
 
+  it("lays the copy out on the sheet the user picked when it differs from the document's", async () => {
+    const bridge = stubBridge(async () => ({ outcome: "printed" }));
+    const options = { landscape: !geometry.landscape, pageSize: geometry.pageSize, silent: true as const, deviceName: "HP LaserJet" };
+    const preview = answering({ kind: "print", options });
+    await createDesktopPrintPort(bridge, { preview }).print(request);
+    const sent = (bridge.call.mock.calls[0]![1] as { html: string }).html;
+    expect(sent).not.toBe(preview.mock.calls[0]![0].html);
+    expect(new DOMParser().parseFromString(sent, "text/html").head.lastElementChild?.hasAttribute("data-print-sheet")).toBe(true);
+  });
+
   it("opens the system dialog with today's exact payload when the user asks for it", async () => {
     const bridge = stubBridge(async () => ({ outcome: "printed" }));
     expect(await createDesktopPrintPort(bridge, { preview: answering({ kind: "system" }) }).print(request)).toEqual({ outcome: "printed" });
@@ -178,6 +189,65 @@ describe("the in-app print preview (UNI-961)", () => {
     expect(await createDesktopPrintPort(stubBridge(async () => ({ outcome: "printed" })), { preview }).print({ html, title: "Big.xlsx" })).toEqual({ outcome: "failed", reason: "print_too_large" });
     expect(await createDesktopPrintPort(undefined, { preview }).print(request)).toEqual({ outcome: "failed", reason: "print_unavailable" });
     expect(preview).not.toHaveBeenCalled();
+  });
+
+  describe("Save as PDF", () => {
+    const options = { landscape: true, pageSize: { width: 215_900, height: 279_400 }, pageRanges: [{ from: 1, to: 2 }] };
+
+    it("sends the copy on the chosen sheet to the save channel, never to the print channel", async () => {
+      const bridge = stubBridge(async () => ({ outcome: "saved" }));
+      const preview = answering({ kind: "save-pdf", options });
+      expect(await createDesktopPrintPort(bridge, { preview }).print(request)).toEqual({ outcome: "printed" });
+      expect(bridge.call).toHaveBeenCalledTimes(1);
+      const [channel, payload] = bridge.call.mock.calls[0]!;
+      expect(channel).toBe("desktop:print-save-pdf");
+      expect(payload).toEqual({ sessionGeneration: "desktop-dev-session", title: "Deck.pptx", html: expect.any(String), options });
+      expect(desktopPrintSavePdfRequestSchema.safeParse(payload).success).toBe(true);
+      // The sheet differs from the document's: the same override rule the preview applied.
+      expect(payload.html).not.toBe(preview.mock.calls[0]![0].html);
+      expect(new DOMParser().parseFromString(payload.html, "text/html").head.lastElementChild?.hasAttribute("data-print-sheet")).toBe(true);
+    });
+
+    it("sends the copy untouched when the chosen sheet is the document's own", async () => {
+      const bridge = stubBridge(async () => ({ outcome: "saved" }));
+      const own = { ...geometry };
+      const preview = answering({ kind: "save-pdf", options: own });
+      await createDesktopPrintPort(bridge, { preview }).print(request);
+      const payload = bridge.call.mock.calls[0]![1];
+      expect(payload.html).toBe(preview.mock.calls[0]![0].html);
+      expect(payload.options).toEqual(own);
+      expect("pageRanges" in own).toBe(false);
+    });
+
+    it.each([
+      [{ outcome: "saved" }, { outcome: "printed" }],
+      [{ outcome: "cancelled" }, { outcome: "cancelled" }],
+      [{ outcome: "failed", reason: "print_save_failed" }, { outcome: "failed", reason: "print_save_failed" }],
+      [{ outcome: "failed", reason: "print_timeout" }, { outcome: "failed", reason: "print_timeout" }],
+      [{ outcome: "printed" }, { outcome: "failed", reason: "print_response_invalid" }],
+      [{ outcome: "saved", extra: 1 }, { outcome: "failed", reason: "print_response_invalid" }],
+      [{ outcome: "failed", reason: "Raw Electron Message" }, { outcome: "failed", reason: "print_response_invalid" }],
+      [undefined, { outcome: "failed", reason: "print_response_invalid" }],
+    ] as const)("maps main's answer %j to %j", async (answer, expected) => {
+      expect(await createDesktopPrintPort(stubBridge(async () => answer), { preview: answering({ kind: "save-pdf", options }) }).print(request)).toEqual(expected);
+    });
+
+    it("fails typed when the channel is refused", async () => {
+      const bridge = stubBridge(async () => { throw new Error("invalid_sender"); });
+      expect(await createDesktopPrintPort(bridge, { preview: answering({ kind: "save-pdf", options }) }).print(request)).toEqual({ outcome: "failed", reason: "print_call_failed" });
+    });
+
+    it("refuses a copy that grows past the cap on the chosen sheet, sending nothing", async () => {
+      const bridge = stubBridge(async () => ({ outcome: "saved" }));
+      const shell = (padding: number) => `<!DOCTYPE html><html><head>${CSP}</head><body><p>${"x".repeat(padding)}</p></body></html>`;
+      // Measure the stamped copy once, then pad it to just under the cap: the sheet rule tips it over.
+      let stamped = "";
+      await createDesktopPrintPort(bridge, { preview: vi.fn<PrintPreviewHook>(async (job) => { stamped = job.html; return { kind: "cancel" }; }) }).print({ ...request, html: shell(0) });
+      const padding = PRINT_HTML_MAX_BYTES - new TextEncoder().encode(stamped).byteLength - 10;
+      const outcome = await createDesktopPrintPort(bridge, { preview: answering({ kind: "save-pdf", options }) }).print({ ...request, html: shell(padding) });
+      expect(outcome).toEqual({ outcome: "failed", reason: "print_too_large" });
+      expect(bridge.call).not.toHaveBeenCalled();
+    });
   });
 
   it("prints as before when no preview is injected", async () => {

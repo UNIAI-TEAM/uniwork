@@ -1,4 +1,5 @@
-import type { DesktopPrintGeometry, DesktopPrintOptions } from "../../../shared/ipc";
+import type { DesktopPrinter, DesktopPrintGeometry, DesktopPrintOptions } from "../../../shared/ipc";
+import type { DesktopPrintSavePdfRequest } from "../../../shared/ipc-print";
 
 /**
  * The pure half of the print dialog (UNI-961): paper sizes, the page-range
@@ -116,10 +117,51 @@ export function buildPrintOptions(input: PrintSettingsInput): DesktopPrintOption
   return { ...options, pageRanges: input.range.ranges.map((range) => ({ from: range.from, to: range.to })) };
 }
 
+/** The "Save as PDF" destination's value in the printer select. A NUL can
+ * never be part of a printer name, so it cannot collide with one. */
+export const SAVE_PDF_DESTINATION = "\u0000save-pdf";
+
+/** Where the job goes. `system-dialog` is a queue whose port prompts (stock
+ * "Microsoft Print to PDF", Fax, XPS): a silent job there fails or hangs, so
+ * the system dialog takes the job and decides every setting itself. */
+export type Destination =
+  | { readonly kind: "save-pdf" }
+  | { readonly kind: "system-dialog"; readonly name: string }
+  | { readonly kind: "printer"; readonly name: string };
+
+/**
+ * The destination for the printer select's `picked` value ("" until the user
+ * picks). Untouched, it is the OS default printer; Save as PDF takes its place
+ * when there is no printer to default to or the default needs the system
+ * dialog, so the dialog never opens on a queue it cannot print to.
+ */
+export function resolveDestination(picked: string, printers: readonly DesktopPrinter[]): Destination {
+  if (picked === SAVE_PDF_DESTINATION) return { kind: "save-pdf" };
+  const printer = picked ? printers.find((candidate) => candidate.name === picked) : (printers.find((candidate) => candidate.isDefault) ?? printers[0]);
+  if (!printer) return picked ? { kind: "printer", name: picked } : { kind: "save-pdf" };
+  if (!printer.needsSystemDialog) return { kind: "printer", name: printer.name };
+  // A default that cannot print silently is never chosen for the user; a pick is.
+  return picked ? { kind: "system-dialog", name: printer.name } : { kind: "save-pdf" };
+}
+
+export interface SavePdfInput {
+  readonly landscape: boolean;
+  readonly pageSize: PageSize;
+  readonly range: RangeResolution;
+}
+
+/** The "Save as PDF" options: the sheet and the pages. `pageRanges` is left
+ * out for "all" so main writes the whole document. */
+export function buildSavePdfOptions(input: SavePdfInput): DesktopPrintSavePdfRequest["options"] {
+  const options = { landscape: input.landscape, pageSize: input.pageSize };
+  if (input.range.kind !== "ranges") return options;
+  return { ...options, pageRanges: input.range.ranges.map((range) => ({ from: range.from, to: range.to })) };
+}
+
 /** What the user has set so far. Free-text fields stay strings until they are
  * parsed, so a half-typed "1-" is an error to show, not a value to lose. */
 export interface PrintForm {
-  /** The printer the user picked; empty until they do (the default printer stands in). */
+  /** The destination the user picked (a printer name or `SAVE_PDF_DESTINATION`); empty until they do (`resolveDestination`). */
   readonly deviceName: string;
   readonly copies: string;
   readonly rangeMode: RangeMode;

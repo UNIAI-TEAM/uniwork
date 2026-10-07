@@ -12134,8 +12134,8 @@
       "printer": "Printer",
       "printerLoading": "Looking for printers…",
       "printerDefault": "{{name}} (default)",
-      "printersEmpty": "No printer is available on this device. You can still use the system print dialog.",
-      "printersError": "Could not read the printer list. You can still use the system print dialog.",
+      "printersEmpty": "No printer is available on this device. You can still save a PDF or use the system print dialog.",
+      "printersError": "Could not read the printer list. You can still save a PDF or use the system print dialog.",
       "copies": "Copies",
       "copiesInvalid": "Enter a whole number from 1 to 999.",
       "range": "Pages",
@@ -12180,7 +12180,12 @@
       "pageFailed": "This page could not be drawn.",
       "print": "Print",
       "systemDialog": "Use the system print dialog",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "savePdf": "Save as PDF",
+      "savePdfNote": "You choose where to save the file in the next step.",
+      "save": "Save",
+      "systemDialogNote": "This printer needs the system print dialog to ask where to save or which fax number to use.",
+      "continueInSystemDialog": "Continue in the system dialog"
     },
     "tabs": {
       "appTitle": "UniWork Office",

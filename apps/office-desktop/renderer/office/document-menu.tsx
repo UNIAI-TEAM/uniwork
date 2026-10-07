@@ -69,7 +69,8 @@ function dialogOrientation(job: PrintPreviewJob): DialogOrientation {
  * The in-app dialog hands the user's choice back to the port. Only the choice
  * "system" opens the OS dialog, so only then does a print count as in flight
  * and decide the orientation line: not while the in-app dialog is open, and not
- * for a silent print, which has no system dialog to explain.
+ * for a silent print or a Save as PDF, which have no system print dialog to
+ * explain.
  *
  * Prints are counted, not flagged: a second Print answered `print_busy` at once
  * must not hide the hint of the dialog that is still open. A `print_timeout`

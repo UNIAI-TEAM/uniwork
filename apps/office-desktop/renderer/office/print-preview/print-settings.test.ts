@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { desktopPrintOptionsSchema } from "../../../shared/ipc-print";
-import { buildPrintOptions, PAPER_IDS, paperPageSize, parseCopies, parsePageRange, resolveRange } from "./print-settings";
+import { desktopPrintOptionsSchema, desktopPrintSavePdfRequestSchema } from "../../../shared/ipc-print";
+import { buildPrintOptions, buildSavePdfOptions, PAPER_IDS, paperPageSize, parseCopies, parsePageRange, resolveDestination, resolveRange, SAVE_PDF_DESTINATION } from "./print-settings";
 
 const A4 = { width: 210_000, height: 297_000 };
 
@@ -82,5 +82,49 @@ describe("buildPrintOptions", () => {
 
   it("never invents a span for a range that is not settled", () => {
     expect("pageRanges" in buildPrintOptions({ ...base, range: { kind: "invalid", reason: "pending" } })).toBe(false);
+  });
+});
+
+describe("resolveDestination", () => {
+  const laser = { name: "Office Laser", displayName: "Office Laser", isDefault: false, needsSystemDialog: false };
+  const desk = { name: "Front Desk", displayName: "Front Desk", isDefault: true, needsSystemDialog: false };
+  const stock = { name: "Microsoft Print to PDF", displayName: "Microsoft Print to PDF", isDefault: false, needsSystemDialog: true };
+
+  it("defaults to the OS default printer, else the first, when it prints silently", () => {
+    expect(resolveDestination("", [laser, desk])).toEqual({ kind: "printer", name: "Front Desk" });
+    expect(resolveDestination("", [laser])).toEqual({ kind: "printer", name: "Office Laser" });
+  });
+
+  it("prefers Save as PDF over a default that needs the system dialog, and when there is no printer", () => {
+    expect(resolveDestination("", [{ ...stock, isDefault: true }, laser])).toEqual({ kind: "save-pdf" });
+    expect(resolveDestination("", [stock])).toEqual({ kind: "save-pdf" });
+    expect(resolveDestination("", [])).toEqual({ kind: "save-pdf" });
+  });
+
+  it("honours a pick: a plain printer, the system-dialog queue, or the Save as PDF sentinel", () => {
+    expect(resolveDestination("Office Laser", [laser, desk])).toEqual({ kind: "printer", name: "Office Laser" });
+    expect(resolveDestination(stock.name, [laser, stock])).toEqual({ kind: "system-dialog", name: stock.name });
+    expect(resolveDestination(SAVE_PDF_DESTINATION, [laser])).toEqual({ kind: "save-pdf" });
+    expect(resolveDestination(SAVE_PDF_DESTINATION, [])).toEqual({ kind: "save-pdf" });
+  });
+
+  it("uses a sentinel no printer name can equal", () => {
+    expect(SAVE_PDF_DESTINATION).toContain("\u0000");
+  });
+});
+
+describe("buildSavePdfOptions", () => {
+  it("carries the sheet and omits pageRanges for all pages", () => {
+    const options = buildSavePdfOptions({ landscape: true, pageSize: A4, range: { kind: "all" } });
+    expect(options).toEqual({ landscape: true, pageSize: A4 });
+    expect("pageRanges" in options).toBe(false);
+    expect(desktopPrintSavePdfRequestSchema.shape.options.parse(options)).toEqual(options);
+  });
+
+  it("carries the resolved spans, and never invents one for a range that is not settled", () => {
+    const options = buildSavePdfOptions({ landscape: false, pageSize: A4, range: { kind: "ranges", ranges: [{ from: 0, to: 2 }, { from: 4, to: 4 }] } });
+    expect(options).toEqual({ landscape: false, pageSize: A4, pageRanges: [{ from: 0, to: 2 }, { from: 4, to: 4 }] });
+    expect(desktopPrintSavePdfRequestSchema.shape.options.parse(options)).toEqual(options);
+    expect("pageRanges" in buildSavePdfOptions({ landscape: false, pageSize: A4, range: { kind: "invalid", reason: "pending" } })).toBe(false);
   });
 });

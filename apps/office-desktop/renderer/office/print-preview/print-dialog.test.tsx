@@ -2,7 +2,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { desktopPrintOptionsSchema } from "../../../shared/ipc-print";
+import { desktopPrintOptionsSchema, desktopPrintSavePdfRequestSchema } from "../../../shared/ipc-print";
 import type { PrintPreviewBridge, PrintPreviewChoice, PrintPreviewHook, PrintPreviewJob } from "./types";
 import { PREVIEW_DEBOUNCE_MS } from "./use-print-data";
 import { usePrintPreview } from "./use-print-preview";
@@ -11,9 +11,11 @@ const tp = (key: string, options?: Record<string, unknown>): string => i18n.t(`o
 
 const job: PrintPreviewJob = { title: "Report.docx", html: "<!DOCTYPE html><html><body><p>x</p></body></html>", geometry: { landscape: false, pageSize: { width: 210_000, height: 297_000 } } };
 const PRINTERS = [
-  { name: "Office Laser", displayName: "Office Laser", isDefault: false },
-  { name: "Front Desk", displayName: "Front Desk", isDefault: true },
+  { name: "Office Laser", displayName: "Office Laser", isDefault: false, needsSystemDialog: false },
+  { name: "Front Desk", displayName: "Front Desk", isDefault: true, needsSystemDialog: false },
 ];
+/** A stock queue whose port prompts (file name, fax number): a silent job there would fail. */
+const PDF_QUEUE = { name: "Microsoft Print to PDF", displayName: "Microsoft Print to PDF", isDefault: false, needsSystemDialog: true };
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 
 interface Call { channel: string; payload: Record<string, unknown> & { operation?: string; args?: Record<string, unknown>; options?: Record<string, unknown> } }
@@ -68,6 +70,8 @@ async function openDialog(bridge: PrintPreviewBridge | "none" | "fake" = "fake")
 
 const dialogEl = (): HTMLElement => screen.getByRole("dialog");
 const printButton = (): HTMLElement => within(dialogEl()).getByRole("button", { name: tp("print") });
+const saveButton = (): HTMLElement => within(dialogEl()).getByRole("button", { name: tp("save") });
+const destinationSelect = (): HTMLElement => within(dialogEl()).getByRole("combobox", { name: tp("printer") });
 const radio = (key: string): HTMLElement => within(dialogEl()).getByRole("radio", { name: tp(key) });
 /** jsdom does not turn a click on Base UI's radio span into a change; a click on its label does, like a real one. */
 const choose = (key: string): void => { fireEvent.click(radio(key).closest("label")!); };
@@ -324,21 +328,25 @@ describe("the other choices and focus", () => {
 });
 
 describe("printers", () => {
-  it("offers only the system dialog and cancel when there is no printer", async () => {
+  it("offers Save as PDF, the system dialog and cancel, but no Print, when there is no printer", async () => {
     const { choice } = await openDialog(fakeBridge({ printers: [] }).bridge);
     expect(await within(await screen.findByRole("dialog")).findByText(tp("printersEmpty"))).toBeInTheDocument();
     expect(within(dialogEl()).queryByRole("button", { name: tp("print") })).toBeNull();
-    expect(within(dialogEl()).queryByLabelText(tp("copies"))).toBeNull();
+    expect(saveButton()).toBeInTheDocument();
+    expect(destinationSelect()).toHaveTextContent(tp("savePdf"));
     expect(within(dialogEl()).getByRole("button", { name: tp("cancel") })).toBeInTheDocument();
     fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("systemDialog") }));
     await expect(choice).resolves.toEqual({ kind: "system" });
   });
 
-  it("says so when the printer list cannot be read", async () => {
-    await openDialog(fakeBridge({ printersReject: true }).bridge);
+  it("says so when the printer list cannot be read, and still saves a PDF", async () => {
+    const { choice } = await openDialog(fakeBridge({ printersReject: true }).bridge);
     expect(await within(await screen.findByRole("dialog")).findByText(tp("printersError"))).toBeInTheDocument();
     expect(within(dialogEl()).queryByRole("button", { name: tp("print") })).toBeNull();
     expect(within(dialogEl()).getByRole("button", { name: tp("systemDialog") })).toBeInTheDocument();
+    await pages(3);
+    fireEvent.click(saveButton());
+    await expect(choice).resolves.toEqual({ kind: "save-pdf", options: { landscape: false, pageSize: job.geometry.pageSize } });
   });
 
   it("treats a reply that is not a printer list as an error", async () => {
@@ -355,6 +363,124 @@ describe("printers", () => {
     expect(within(dialogEl()).queryByRole("button", { name: tp("print") })).toBeNull();
     await act(async () => { release({ printers: PRINTERS }); });
     expect(await within(dialogEl()).findByRole("button", { name: tp("print") })).toBeInTheDocument();
+  });
+});
+
+describe("destinations", () => {
+  const optionNames = (): string[] => screen.getAllByRole("option").map((option) => option.textContent ?? "");
+  const savePdfOptions = (choice: PrintPreviewChoice) => {
+    if (choice.kind !== "save-pdf") throw new Error("expected save-pdf");
+    expect(desktopPrintSavePdfRequestSchema.shape.options.parse(choice.options)).toEqual(choice.options);
+    return choice.options;
+  };
+
+  it("lists Save as PDF first, ahead of every printer, and keeps the default printer selected", async () => {
+    await openDialog();
+    await pages(3);
+    expect(destinationSelect()).toHaveTextContent("Front Desk");
+    fireEvent.click(destinationSelect());
+    await screen.findAllByRole("option");
+    expect(optionNames()).toEqual([tp("savePdf"), tp("printerDefault", { name: "Front Desk" }), "Office Laser"]);
+    expect(within(dialogEl()).queryByRole("button", { name: tp("save") })).toBeNull();
+  });
+
+  it("preselects Save as PDF when the default printer needs the system dialog", async () => {
+    const { choice } = await openDialog(fakeBridge({ printers: [{ ...PDF_QUEUE, isDefault: true }, ...PRINTERS.map((printer) => ({ ...printer, isDefault: false }))] }).bridge);
+    await pages(3);
+    expect(destinationSelect()).toHaveTextContent(tp("savePdf"));
+    expect(within(dialogEl()).getByText(tp("savePdfNote"))).toBeInTheDocument();
+    expect(within(dialogEl()).queryByRole("button", { name: tp("print") })).toBeNull();
+    fireEvent.click(saveButton());
+    expect(savePdfOptions(await choice)).toEqual({ landscape: false, pageSize: job.geometry.pageSize });
+  });
+
+  it("saves the chosen orientation, paper and pages, and omits pageRanges for all pages", async () => {
+    const { choice } = await openDialog();
+    await pages(3);
+    await pick(tp("printer"), tp("savePdf"));
+    choose("landscape");
+    await pick(tp("paper"), tp("paperSizes.letter"));
+    choose("rangeCustom");
+    fireEvent.change(within(dialogEl()).getByLabelText(tp("rangeCustomLabel")), { target: { value: "2-3" } });
+    // The pages can be chosen only once the new sheet is laid out.
+    await waitFor(() => expect(saveButton()).not.toHaveAttribute("aria-disabled", "true"));
+    fireEvent.click(saveButton());
+    expect(savePdfOptions(await choice)).toEqual({ landscape: true, pageSize: { width: 215_900, height: 279_400 }, pageRanges: [{ from: 1, to: 2 }] });
+  });
+
+  it("leaves pageRanges out when every page is saved", async () => {
+    const { choice } = await openDialog();
+    await pages(3);
+    await pick(tp("printer"), tp("savePdf"));
+    fireEvent.click(saveButton());
+    expect("pageRanges" in savePdfOptions(await choice)).toBe(false);
+  });
+
+  it("refuses a bad page range for a PDF too, but never blocks it on copies", async () => {
+    const { choice } = await openDialog();
+    await pages(3);
+    fireEvent.change(within(dialogEl()).getByLabelText(tp("copies")), { target: { value: "0" } });
+    await pick(tp("printer"), tp("savePdf"));
+    expect(within(dialogEl()).queryByText(tp("copiesInvalid"))).toBeNull();
+    expect(saveButton()).not.toHaveAttribute("aria-disabled", "true");
+    choose("rangeCustom");
+    fireEvent.change(within(dialogEl()).getByLabelText(tp("rangeCustomLabel")), { target: { value: "5" } });
+    expect(saveButton()).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(saveButton());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.change(within(dialogEl()).getByLabelText(tp("rangeCustomLabel")), { target: { value: "1" } });
+    fireEvent.click(saveButton());
+    expect(savePdfOptions(await choice).pageRanges).toEqual([{ from: 0, to: 0 }]);
+  });
+
+  it("disables copies, colour and duplex for Save as PDF but keeps pages, orientation and paper", async () => {
+    await openDialog();
+    await pages(3);
+    expect(within(dialogEl()).getByLabelText(tp("copies"))).toBeEnabled();
+    await pick(tp("printer"), tp("savePdf"));
+    expect(within(dialogEl()).getByLabelText(tp("copies"))).toBeDisabled();
+    expect(radio("colorColor")).toHaveAttribute("aria-disabled", "true");
+    expect(radio("colorMono")).toHaveAttribute("aria-disabled", "true");
+    expect(within(dialogEl()).getByRole("combobox", { name: tp("duplex") })).toBeDisabled();
+    for (const key of ["rangeAll", "rangeCurrent", "rangeCustom", "portrait", "landscape"]) expect(radio(key)).not.toHaveAttribute("aria-disabled", "true");
+    expect(within(dialogEl()).getByRole("combobox", { name: tp("paper") })).toBeEnabled();
+  });
+
+  it("sends a printer that needs the system dialog there: a note, a relabelled button, no setting applied", async () => {
+    const { choice } = await openDialog(fakeBridge({ printers: [...PRINTERS, PDF_QUEUE] }).bridge);
+    await pages(3);
+    await pick(tp("printer"), PDF_QUEUE.name);
+    expect(within(dialogEl()).getByText(tp("systemDialogNote"))).toBeInTheDocument();
+    expect(within(dialogEl()).queryByRole("button", { name: tp("print") })).toBeNull();
+    expect(within(dialogEl()).queryByRole("button", { name: tp("save") })).toBeNull();
+    expect(within(dialogEl()).getByLabelText(tp("copies"))).toBeDisabled();
+    for (const key of ["rangeAll", "rangeCurrent", "rangeCustom", "portrait", "landscape", "colorColor", "colorMono"]) expect(radio(key)).toHaveAttribute("aria-disabled", "true");
+    for (const name of [tp("paper"), tp("duplex")]) expect(within(dialogEl()).getByRole("combobox", { name })).toBeDisabled();
+    fireEvent.click(within(dialogEl()).getByRole("button", { name: tp("continueInSystemDialog") }));
+    await expect(choice).resolves.toEqual({ kind: "system" });
+  });
+
+  it("shows the document's own sheet, not an unapplied choice, for a printer that needs the system dialog", async () => {
+    const fake = fakeBridge({ printers: [...PRINTERS, PDF_QUEUE] });
+    await openDialog(fake.bridge);
+    await pages(3);
+    choose("landscape");
+    await waitFor(() => expect(fake.of("desktop:print-preview")).toHaveLength(2));
+    await pick(tp("printer"), PDF_QUEUE.name);
+    await waitFor(() => expect(fake.of("desktop:print-preview")).toHaveLength(3));
+    expect(fake.of("desktop:print-preview")[2]!.payload.options).toEqual(job.geometry);
+  });
+
+  it("goes back to a plain printer and prints silently from the same dialog", async () => {
+    const { choice } = await openDialog(fakeBridge({ printers: [...PRINTERS, PDF_QUEUE] }).bridge);
+    await pages(3);
+    await pick(tp("printer"), PDF_QUEUE.name);
+    await pick(tp("printer"), tp("savePdf"));
+    await pick(tp("printer"), "Office Laser");
+    expect(within(dialogEl()).getByLabelText(tp("copies"))).toBeEnabled();
+    fireEvent.click(printButton());
+    await expect(choice).resolves.toMatchObject({ kind: "print", options: { silent: true, deviceName: "Office Laser" } });
   });
 });
 

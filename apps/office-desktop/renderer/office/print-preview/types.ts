@@ -1,4 +1,5 @@
 import type { DesktopIpcRequest, DesktopPrintGeometry, DesktopPrintOptions } from "../../../shared/ipc";
+import type { DesktopPrintSavePdfRequest } from "../../../shared/ipc-print";
 
 /**
  * The contract between the desktop print port (text-print.ts) and the in-app
@@ -17,10 +18,13 @@ export interface PrintPreviewJob {
 }
 
 /** `print`: send the copy silently with these options (always `silent: true`
- * plus the chosen `deviceName`). `system`: open the OS dialog as before the
- * preview existed. `cancel`: the user closed the dialog; nothing is sent. */
+ * plus the chosen `deviceName`). `save-pdf`: the in-app "Save as PDF"
+ * destination at the chosen sheet and pages. `system`: open the OS dialog as
+ * before the preview existed. `cancel`: the user closed the dialog; nothing
+ * is sent. */
 export type PrintPreviewChoice =
   | { readonly kind: "print"; readonly options: DesktopPrintOptions }
+  | { readonly kind: "save-pdf"; readonly options: DesktopPrintSavePdfRequest["options"] }
   | { readonly kind: "system" }
   | { readonly kind: "cancel" };
 
