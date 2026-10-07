@@ -191,7 +191,9 @@ describe("XlsxToolbar on the shared ribbon", () => {
     fireEvent.click(tab("insert"));
     expect(document.querySelector("[data-ribbon-group='number']")).not.toBeInTheDocument();
     expect(document.querySelector("[data-ribbon-group='charts']")).toBeInTheDocument();
-    expect(document.querySelector("[data-ribbon-group='structure-insert']")).toBeInTheDocument();
+    expect(document.querySelector("[data-ribbon-group='table']")).toBeInTheDocument();
+    // Design review X2: the row/column insert cluster lives on Home > Cells now.
+    expect(document.querySelector("[data-ribbon-group='structure-insert']")).not.toBeInTheDocument();
   });
 
   it("mounts every Home group once, labelled and hosting its typed items", () => {

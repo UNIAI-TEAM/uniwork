@@ -35,7 +35,12 @@ const MODEL: XlsxRenderModel = {
       freeze: { frozenRows: 2, frozenColumns: 1 },
       merges: [{ startRow: 0, endRow: 1, startColumn: 0, endColumn: 2 }],
       columnWidths: [{ startColumn: 1, endColumn: 1, width: 18, customWidth: true }],
-      rowsMeta: [{ row: 0, height: 22, customHeight: true }, { row: 4, hidden: true }],
+      rowsMeta: [
+        { row: 0, height: 22, customHeight: true },
+        { row: 4, hidden: true },
+        { row: 60, outlineLevel: 2, collapsed: true },
+        { row: 61, outlineLevel: 1 },
+      ],
       hyperlinks: [{ row: 2, column: 0, target: "https://example.com" }],
       cells: {
         A1: { v: "Title", s: 1 },
@@ -72,6 +77,10 @@ describe("render model bridge", () => {
     expect(file.sheets[0]!.freeze).toEqual({ frozenRows: 2, frozenColumns: 1 });
     expect(file.sheets[0]!.columnWidths).toEqual([{ startColumn: 1, endColumn: 1, width: 18, customWidth: true }]);
     expect(file.sheets[0]!.showGridLines).toBe(true);
+    // UNI-953 F2: every grouped row of the file rides the sheet, not only the
+    // rows a viewport streams.
+    expect(file.sheets[0]!.rowOutline).toEqual([{ row: 60, outlineLevel: 2, collapsed: true }, { row: 61, outlineLevel: 1 }]);
+    expect(file.sheets[1]!.rowOutline).toEqual([]);
     expect(file.sheets[0]!.defaultRowHeight).toBeNull();
     expect(file.styles).toHaveLength(2);
     expect(file.themeColors).toHaveLength(12);
@@ -219,15 +228,17 @@ describe("render model bridge", () => {
     expect(saved).not.toHaveProperty("errorStyle");
   });
 
-  it("stamps each sheet with what its file ships per rule family, x14 first (X01 review M1/M2)", () => {
+  it("stamps each sheet with what its file ships per rule family, x14 DV first (X01 review M1/M2)", () => {
     const rule = { ranges: [{ startRow: 1, endRow: 4, startColumn: 1, endColumn: 1 }], ruleType: "list",
       formulas: ['"A,B"'], allowBlank: true, suppressDropdown: false, showInputMessage: false, showErrorMessage: false };
+    // An Excel data bar (a linked x14 CF block) counts as one classic rule:
+    // gateway patch 0011 keeps it under a CF snapshot (UNI-953 option A).
     const model = { ...MODEL, sheets: [
-      { ...MODEL.sheets[0]!, dataValidations: [rule], x14ConditionalFormats: true as const },
+      { ...MODEL.sheets[0]!, dataValidations: [rule], ruleCounts: { conditionalFormats: 1, dataValidations: 1 } },
       { ...MODEL.sheets[1]!, x14DataValidations: true as const },
     ] };
     const file = toRendererWorkbookFile(model, { sessionId: "s", name: "n.xlsx", sha256: "x" });
-    expect(file.sheets[0]!.ruleSets).toEqual({ conditionalFormats: "x14", dataValidations: "classic" });
+    expect(file.sheets[0]!.ruleSets).toEqual({ conditionalFormats: "classic", dataValidations: "classic" });
     expect(file.sheets[1]!.ruleSets).toEqual({ conditionalFormats: "none", dataValidations: "x14" });
     expect(toRendererWorkbookFile(MODEL, { sessionId: "s", name: "n.xlsx", sha256: "x" }).sheets[1]!.ruleSets)
       .toEqual({ conditionalFormats: "none", dataValidations: "none" });

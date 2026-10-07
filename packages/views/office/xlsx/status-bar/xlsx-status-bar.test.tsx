@@ -67,35 +67,66 @@ describe("XlsxStatusBar", () => {
     });
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(10)}`);
     expect(screen.getByTestId("xlsx-status-bar-average")).toHaveTextContent(`Trung bình: ${viNumber(2.5)}`);
-    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số lượng: 4");
-    expect(screen.getByTestId("xlsx-status-bar-min")).toHaveTextContent(`Nhỏ nhất: ${viNumber(1)}`);
-    expect(screen.getByTestId("xlsx-status-bar-max")).toHaveTextContent(`Lớn nhất: ${viNumber(4)}`);
+    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số đếm: 4");
+    // Excel default status bar: Average, Count, Sum - in that order, no Min/Max.
+    expect(screen.queryByTestId("xlsx-status-bar-min")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-status-bar-max")).not.toBeInTheDocument();
+    expect(screen.getByTestId("xlsx-status-bar").textContent).toBe(
+      `Trung bình: ${viNumber(2.5)}Số đếm: 4Tổng: ${viNumber(10)}`,
+    );
+  });
+
+  it("formats large totals with the Vietnamese grouping", async () => {
+    const readRange = vi.fn(async () => result([cell(1_250_000_000)]));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A2")} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-sum");
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent("Tổng: 1.250.000.000");
+  });
+
+  it("shows nothing for a single text cell, like Excel", async () => {
+    const readRange = vi.fn(async () => result([cell("alpha")]));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-single-value");
+    expect(screen.queryByTestId("xlsx-status-bar-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-status-bar-no-values")).not.toBeInTheDocument();
+  });
+
+  it("shows nothing for any single cell, a number included, like Excel (review-design F8)", async () => {
+    for (const value of [42, null]) {
+      const readRange = vi.fn(async () => result(value === null ? [] : [cell(value)]));
+      const view = render(<XlsxStatusBar documentKey="doc" selection={selection("B3", "B3")} host={host(readRange)} />);
+      await screen.findByTestId("xlsx-status-bar-single-value");
+      expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("xlsx-status-bar-no-values")).not.toBeInTheDocument();
+      view.unmount();
+    }
   });
 
   it("shows only the count for a text-only selection", async () => {
     const readRange = vi.fn(async () => result([cell("alpha"), cell("beta")]));
     render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A2")} host={host(readRange)} />);
     await screen.findByTestId("xlsx-status-bar-count");
-    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số lượng: 2");
+    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số đếm: 2");
     expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
   });
 
-  it("shows only the count for a mixed selection", async () => {
+  it("shows Average, Count and Sum over the numbers for a mixed selection", async () => {
     const readRange = vi.fn(async () => result([cell(1, 0, 0), cell("two", 1, 0), cell(3, 2, 0)]));
     render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A3")} host={host(readRange)} />);
     await screen.findByTestId("xlsx-status-bar-count");
-    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số lượng: 3");
-    expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
+    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số đếm: 3");
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(4)}`);
+    expect(screen.getByTestId("xlsx-status-bar-average")).toHaveTextContent(`Trung bình: ${viNumber(2)}`);
   });
 
   it("keeps the previous summary visible while the next read is pending", async () => {
     const readRange = vi.fn(async () => result([cell(5)]));
     const stableHost = host(readRange);
-    const { rerender } = render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={stableHost} />);
+    const { rerender } = render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A2")} host={stableHost} />);
     await screen.findByTestId("xlsx-status-bar-sum");
     const gate = deferred<RendererRangeResult>();
     readRange.mockImplementationOnce(() => gate.promise);
-    rerender(<XlsxStatusBar documentKey="doc" selection={selection("B1")} host={stableHost} />);
+    rerender(<XlsxStatusBar documentKey="doc" selection={selection("B1", "B2")} host={stableHost} />);
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(5)}`);
     expect(screen.getByTestId("xlsx-status-bar-pending")).toBeInTheDocument();
     await act(async () => { gate.resolve(result([cell(9, 0, 1)])); await gate.promise; });
@@ -107,8 +138,8 @@ describe("XlsxStatusBar", () => {
     const second = deferred<RendererRangeResult>();
     const readRange = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     const stableHost = host(readRange);
-    const { rerender } = render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={stableHost} />);
-    rerender(<XlsxStatusBar documentKey="doc" selection={selection("B1")} host={stableHost} />);
+    const { rerender } = render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A2")} host={stableHost} />);
+    rerender(<XlsxStatusBar documentKey="doc" selection={selection("B1", "B2")} host={stableHost} />);
     await act(async () => { second.resolve(result([cell(7, 0, 1)])); await second.promise; });
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(7)}`);
     await act(async () => { first.resolve(result([cell(1, 0, 0)])); await first.promise; });
@@ -119,10 +150,10 @@ describe("XlsxStatusBar", () => {
     const gate = deferred<RendererRangeResult>();
     const readRange = vi.fn().mockResolvedValueOnce(result([cell(1)])).mockReturnValueOnce(gate.promise);
     const stableHost = host(readRange);
-    const { rerender } = render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={stableHost} dirtyGeneration={0} />);
+    const { rerender } = render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A2")} host={stableHost} dirtyGeneration={0} />);
     await screen.findByTestId("xlsx-status-bar-sum");
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(1)}`);
-    rerender(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={stableHost} dirtyGeneration={1} />);
+    rerender(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A2")} host={stableHost} dirtyGeneration={1} />);
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(1)}`);
     expect(screen.getByTestId("xlsx-status-bar-pending")).toBeInTheDocument();
     await act(async () => { gate.resolve(result([cell(6)])); await gate.promise; });
@@ -130,7 +161,7 @@ describe("XlsxStatusBar", () => {
     expect(readRange).toHaveBeenNthCalledWith(2, {
       sessionId: "s-1",
       sheetId: "sheet-1",
-      range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 },
+      range: { startRow: 0, endRow: 1, startColumn: 0, endColumn: 0 },
     });
   });
 
@@ -157,12 +188,12 @@ describe("XlsxStatusBar", () => {
     rerender(<XlsxStatusBar documentKey="doc" selection={selection("B2", "B5")} host={stableHost} dirtyGeneration={1} snapshot={after} />);
     await screen.findByTestId("xlsx-status-bar-sum");
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(9_960_000_000)}`);
-    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số lượng: 4");
+    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số đếm: 4");
   });
 
   it("reports a failed read without inventing values", async () => {
     const readRange = vi.fn().mockRejectedValueOnce(new Error("sidecar down"));
-    render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={host(readRange)} />);
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A2")} host={host(readRange)} />);
     expect(await screen.findByTestId("xlsx-status-bar-error")).toBeInTheDocument();
     expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
   });
@@ -179,7 +210,7 @@ describe("XlsxStatusBar", () => {
     render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A3")} host={host(readRange)} />);
     await screen.findByTestId("xlsx-status-bar-partial");
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(1)}`);
-    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số lượng: 1");
+    expect(screen.getByTestId("xlsx-status-bar-count")).toHaveTextContent("Số đếm: 1");
   });
 
   it("explains a partial read that confirms no values instead of a bare badge", async () => {
@@ -208,13 +239,36 @@ describe("XlsxStatusBar", () => {
     expect(readRange).not.toHaveBeenCalled();
   });
 
+  it("does not read the host for a single cell, since its summary is never shown (review-delta-r2 X4)", async () => {
+    const readRange = vi.fn(async () => result([cell(42)]));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("B3", "B3")} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-single-value");
+    expect(readRange).not.toHaveBeenCalled();
+  });
+
+  it("treats one merged cell as a single cell, like Excel (review-delta-r2 X4)", async () => {
+    const readRange = vi.fn(async () => result([cell(7, 0, 0)]));
+    render(<XlsxStatusBar documentKey="doc" selection={{ ...selection("A1", "B2"), merged: true }} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-single-value");
+    expect(screen.queryByTestId("xlsx-status-bar-sum")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-status-bar-count")).not.toBeInTheDocument();
+    expect(readRange).not.toHaveBeenCalled();
+  });
+
+  it("still summarizes the same rectangle when it is not one merged cell", async () => {
+    const readRange = vi.fn(async () => result([cell(7, 0, 0)]));
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "B2")} host={host(readRange)} />);
+    await screen.findByTestId("xlsx-status-bar-sum");
+    expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Tổng: ${viNumber(7)}`);
+  });
+
   it("localizes the summary with the active locale", async () => {
     await setLocale("en");
     const readRange = vi.fn(async () => result([cell(1010)]));
-    render(<XlsxStatusBar documentKey="doc" selection={selection("A1")} host={host(readRange)} />);
+    render(<XlsxStatusBar documentKey="doc" selection={selection("A1", "A2")} host={host(readRange)} />);
     await screen.findByTestId("xlsx-status-bar-sum");
     expect(screen.getByTestId("xlsx-status-bar-sum")).toHaveTextContent(`Sum: ${(1010).toLocaleString("en")}`);
-    expect(screen.getByTestId("xlsx-status-bar-max")).toHaveTextContent("Max: 1,010");
+    expect(screen.getByTestId("xlsx-status-bar-average")).toHaveTextContent("Average: 1,010");
   });
 });
 

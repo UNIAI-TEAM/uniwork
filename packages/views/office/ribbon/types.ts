@@ -156,6 +156,10 @@ export interface RibbonGroup {
   icon?: RibbonIcon;
   /** Dialog launcher ↘ next to the caption (Font, Paragraph, Page setup). */
   launcher?: { labelKey: string; onOpen: () => void };
+  /** False drops the caption row under the items of the group's dropdown
+   * panel (a group of menus gains nothing from repeating its name); a
+   * launcher keeps the row. Default true. */
+  panelCaption?: boolean;
   items: readonly RibbonItem[];
 }
 

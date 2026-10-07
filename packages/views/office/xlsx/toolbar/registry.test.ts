@@ -35,6 +35,12 @@ describe("xlsx toolbar registry", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("orders Insert and Data like Excel (design review X2/X3)", () => {
+    const order = (tab: string) => XLSX_TOOLBAR_GROUPS.filter((group) => group.tab === tab).sort((left, right) => left.order - right.order).map((group) => group.id);
+    expect(order("insert")).toEqual(["table", "illustrations", "charts", "links"]);
+    expect(order("data")).toEqual(["sort", "filter", "data-validation", "structure-outline"]);
+  });
+
   it("registers the Excel Home groups in order, all as typed ribbon items", () => {
     const home = XLSX_TOOLBAR_GROUPS.filter((group) => group.tab === "home").sort((left, right) => left.order - right.order);
     expect(home.map((group) => group.id)).toEqual(["clipboard", "font", "alignment", "number", "conditional-format", "cells", "editing"]);

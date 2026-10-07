@@ -26,9 +26,10 @@ export interface XlsxSummarySheetBounds {
   columnCount?: number;
 }
 
-/** Values over the cells a read returned. A selection whose values are all
- *  numbers gets the full aggregate; a mixed or text-only selection shows the
- *  count of values only, so no sum silently absorbs or excludes text cells. */
+/** Values over the cells a read returned, Excel-style: a selection holding at
+ *  least one number gets the aggregate over its numbers (sum, average) next to
+ *  the count of ALL values, text included; a text-only selection has the count
+ *  only. */
 export type XlsxSelectionSummary =
   | { kind: "empty" }
   | { kind: "count"; nonEmptyCount: number }
@@ -66,7 +67,6 @@ function holdsValue(value: RendererRangeCell["value"]): value is Exclude<Rendere
 export function summarizeCells(cells: readonly Pick<RendererRangeCell, "value">[]): XlsxSelectionSummary {
   let numericCount = 0;
   let nonEmptyCount = 0;
-  let textCount = 0;
   let sum = 0;
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
@@ -84,11 +84,16 @@ export function summarizeCells(cells: readonly Pick<RendererRangeCell, "value">[
       continue;
     }
     nonEmptyCount += 1;
-    textCount += 1;
   }
   if (nonEmptyCount === 0) return { kind: "empty" };
-  if (textCount > 0) return { kind: "count", nonEmptyCount };
+  if (numericCount === 0) return { kind: "count", nonEmptyCount };
   return { kind: "numeric", nonEmptyCount, numericCount, sum, average: sum / numericCount, min, max };
+}
+
+/** Excel shows no statistics for one selected cell: a lone address, or a
+ *  selection the grid reports as exactly one merged cell. */
+export function isSingleCellSelection(selection: XlsxSelection | null): boolean {
+  return !selection?.endAddress || selection.endAddress === selection.address || selection.merged === true;
 }
 
 function rangeFromSelection(selection: XlsxSelection): XlsxSummaryRange | null {

@@ -66,6 +66,7 @@ export {
   XLSX_VISUAL_MAX_IMAGE_BYTES,
   groupXlsxVisualAdditions,
   isXlsxVisualOp,
+  shiftXlsxVisualAnchor,
 } from "./ops-visuals.ts";
 export type {
   XlsxSheetVisualAddition,
@@ -78,6 +79,7 @@ export type {
   XlsxVisualSetOp,
   XlsxVisualShape,
   XlsxVisualShapeType,
+  XlsxVisualStructuralShift,
 } from "./ops-visuals.ts";
 
 /** The bound wire vocabulary, in the order the unknown-op message lists it.

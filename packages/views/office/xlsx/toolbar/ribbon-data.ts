@@ -1,10 +1,12 @@
 import { createElement, type ReactNode } from "react";
 import {
   ArrowDownUp,
+  Image,
+  ListChecks,
+  Palette,
   BetweenHorizontalStart,
   ChartColumn,
   Clipboard,
-  Columns3,
   Eraser,
   Eye,
   Filter,
@@ -67,7 +69,6 @@ export const XLSX_GROUP_ICONS: Readonly<Record<string, LucideIcon>> = {
   charts: ChartColumn,
   calculation: Sigma,
   formula: SquareFunction,
-  "structure-insert": Columns3,
   "structure-outline": ListTree,
   "view-zoom": ZoomIn,
   "view-display": Eye,
@@ -79,6 +80,9 @@ export const XLSX_GROUP_ICONS: Readonly<Record<string, LucideIcon>> = {
   protect: ShieldCheck,
   table: Table2,
   links: Link2,
+  "conditional-format": Palette,
+  "data-validation": ListChecks,
+  illustrations: Image,
 };
 
 /**
@@ -96,14 +100,16 @@ export const XLSX_GROUP_WIDTHS: Readonly<Record<string, number>> = {
   charts: 36,
   calculation: 104,
   formula: 40,
-  "structure-insert": 264,
-  "structure-outline": 132,
-  filter: 132,
-  sort: 104,
+  // Group + Ungroup + Subtotal (large) + Show/Hide Detail.
+  "structure-outline": 296,
+  filter: 180,
+  sort: 216,
+  // Text to Columns + Remove Duplicates (large) + the Data Validation group.
+  "data-validation": 344,
   "page-setup": 72,
   protect: 104,
-  table: 152,
-  links: 72,
+  table: 72,
+  links: 152,
   "view-zoom": 176,
   "view-display": 140,
   "view-goto": 104,
@@ -145,11 +151,16 @@ function itemsFor(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGroupPr
   return [item];
 }
 
+/** Groups made only of dropdown menus: their collapsed panel needs no repeated
+ *  group caption under the menu buttons. */
+const XLSX_MENU_ONLY_GROUPS: ReadonlySet<string> = new Set(["cells"]);
+
 function toRibbonGroup(group: XlsxToolbarGroupDefinition, context: XlsxToolbarGroupProps): RibbonGroup {
   return {
     id: group.id,
     labelKey: group.labelKey,
     priority: xlsxGroupPriority(group.order),
+    ...(XLSX_MENU_ONLY_GROUPS.has(group.id) ? { panelCaption: false } : {}),
     ...(XLSX_GROUP_ICONS[group.id] === undefined ? {} : { icon: XLSX_GROUP_ICONS[group.id] }),
     items: itemsFor(group, context),
   };

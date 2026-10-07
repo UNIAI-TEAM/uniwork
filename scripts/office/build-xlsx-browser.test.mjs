@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { buildXlsxBrowser, UNIVER_STYLE_FILES } from './build-xlsx-browser.mjs';
+import { buildXlsxBrowser, PATCHED_SYMBOLS, UNIVER_STYLE_FILES } from './build-xlsx-browser.mjs';
 import { PATCHES_DIR } from './build-upstream.mjs';
-import { PACKAGE_DIR } from './vendor-upstream.mjs';
+import { PACKAGE_DIR, UPSTREAM_DIR } from './vendor-upstream.mjs';
 import { REPO_ROOT } from '../office-g0/paths.mjs';
 
 test('XLSX browser entry bundles the vendored sheets renderer with only shared browser imports', async () => {
@@ -34,6 +34,22 @@ test('XLSX browser entry bundles the vendored sheets renderer with only shared b
   );
 });
 
+test('every pinned patch symbol is absent from the unpatched upstream source', () => {
+  // review-visuals V6: a symbol upstream already has cannot detect a lost hunk.
+  for (const { patch, file, symbol } of PATCHED_SYMBOLS) {
+    const body = fs.readFileSync(path.join(UPSTREAM_DIR, file), 'utf8');
+    assert.equal(body.includes(symbol), false, `patch ${patch} pins "${symbol}", which ${file} already carries before the series`);
+  }
+});
+
+test('every patch that adds a symbol the host calls is pinned', () => {
+  // review-design F7: gateway patch 0015 (applyHostNumfmtLocale) must be pinned too.
+  assert.ok(
+    PATCHED_SYMBOLS.some((s) => s.patch === '0015' && s.symbol === 'export function applyHostNumfmtLocale('),
+    'patch 0015 has no pinned symbol',
+  );
+});
+
 test('the built xlsx artifact carries its contract symbols', () => {
   const record = JSON.parse(fs.readFileSync(path.join(PACKAGE_DIR, 'dist', 'xlsx-renderer-build.json'), 'utf8'));
   assert.deepEqual(
@@ -41,10 +57,16 @@ test('the built xlsx artifact carries its contract symbols', () => {
     [
       'xfIdentity',
       'lazilyLoadedXmls',
-      'tableAdditions: readonly SheetTableAddition[] = [],',
-      'visualAdditions: readonly SheetVisualAddition[] = [],',
+      '    tableAdditions,',
+      '    visualAdditions,',
       'export const UNIWORK_XLSX_VISUAL_ADDITIONS = true',
+      '    visualEdits,',
+      'export const UNIWORK_XLSX_VISUAL_EDITS = true',
+      'export async function readEntriesBase64(',
+      'export const UNIWORK_XLSX_VISUAL_READ_BUDGET = true',
+      'export function applyHostNumfmtLocale(',
       'export function noteFormulaStreamChunk(runtime: UniverRuntime): void',
+      'fn fill_col_widths(source: Vec<u8>) -> Vec<u8>',
     ],
     'the build records the enforced patched symbols',
   );

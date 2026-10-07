@@ -285,6 +285,21 @@ On Windows the native step needs the Rust toolchain and MSVC BuildTools:
 3. Stage: `pnpm --filter @uniwork/office-desktop package` runs `stageXlsxAssets` and writes `staged-assets.json`
    (bytes + sha256) as the shipped evidence; the sha256 of the staged `xlsx-sidecar.exe` must equal the built one.
 
+`pnpm --filter @uniwork/office-desktop build` runs step 2 itself when `cargo` is found (PATH, then `CARGO_HOME` or
+`~/.cargo/bin`) and the gateway or sidecar is missing; without cargo it only warns. Switches:
+
+- `OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1` (installer CI) makes a missing, unattested or wrong-architecture sidecar fatal;
+  the record's `native.binary.sha256` must match the staged binary and `native.arch` must equal the package arch
+  (package one architecture at a time with `--arch`).
+- `OFFICE_DESKTOP_SKIP_NATIVE_BUILD=1` turns the automatic cargo build off (CI that only bundles).
+- Windows `CARGO_TARGET_DIR` defaults to `<.uniwork-dev>/ct-<8 hex of the checkout path>` (`<checkout>/.go-tmp/ct`
+  outside such a workspace). That directory is outside the checkout, so removing a worktree does not free it
+  (~420 MB): delete the matching `ct-*` directory with the worktree. An explicit `CARGO_TARGET_DIR` wins; a relative one
+  resolves against the repo root.
+- Forcing a rebuild: a present `<out>/native/xlsx-sidecar[.exe]` is never rebuilt by a later `build`, even after the
+  crate or the gateway patches changed. Delete `.go-tmp/office-upstream-build` (or just its `native/` and `dist/`) and run
+  `build` again; the build record is rewritten and the sidecar re-attested.
+
 ### XLSX sidecar — decided: same image, supervisor-owned subprocess (was: open question)
 
 Settled with G2-04 on the runbook recommendation. The reasoning stands:

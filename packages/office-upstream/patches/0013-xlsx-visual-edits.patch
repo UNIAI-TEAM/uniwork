@@ -1,0 +1,84 @@
+diff --git a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts b/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
+--- a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
++++ b/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
+@@ -578,6 +578,63 @@ export async function applyPlanToXlsx(
+ /// a bundle without it instead of shifting formulaValues one slot.
+ export const UNIWORK_XLSX_VISUAL_ADDITIONS = true
+ 
++/// UniWork patch 0013 capability marker: a bundle exporting it binds
++/// visualEdits AFTER formulaValues on applyCellEditsToXlsx (edits to visuals
++/// that already live in the file) and exports readEntriesBase64. Hosts refuse
++/// a bundle without it instead of silently dropping visual edits.
++export const UNIWORK_XLSX_VISUAL_EDITS = true
++
++/// UniWork patch 0013 capability marker: readEntriesBase64 takes the
++/// workbook budget (maxTotalBytes) and checks every entry's sizes from the
++/// ZIP directory before inflating it. Hosts refuse a bundle without it.
++export const UNIWORK_XLSX_VISUAL_READ_BUDGET = true
++
++/// Sizes the ZIP directory records for an entry loadSafeZip read
++/// (JSZip's CompressedObject), or the byte length of an entry it re-added
++/// under its canonical name. null when neither is known.
++function declaredEntrySizes(file: JSZip.JSZipObject): { compressed: number; uncompressed: number } | null {
++  const data = (file as unknown as { _data?: unknown })._data
++  if (data instanceof Uint8Array) return { compressed: data.byteLength, uncompressed: data.byteLength }
++  const sizes = data as { compressedSize?: unknown; uncompressedSize?: unknown } | null | undefined
++  if (typeof sizes?.compressedSize === 'number' && typeof sizes.uncompressedSize === 'number') {
++    return { compressed: sizes.compressedSize, uncompressed: sizes.uncompressedSize }
++  }
++  return null
++}
++
++/// UniWork patch 0013: base64 bytes of package entries the render model draws
++/// (pictures already in the file), read in `paths` order. Each entry may hold
++/// at most maxBytes and all of them together at most maxTotalBytes. Both
++/// budgets are checked against the ZIP directory BEFORE an entry is inflated:
++/// loadSafeZip's CRC pass already proved each declared uncompressed size, so
++/// an entry over its share is never inflated or encoded. A missing entry, a
++/// directory, an entry over maxBytes, and an entry that no longer fits the
++/// remaining workbook budget read as null (a later, smaller one may still fit).
++export async function readEntriesBase64(
++  buffer: Buffer,
++  paths: readonly string[],
++  maxBytes: number,
++  maxTotalBytes: number = Number.POSITIVE_INFINITY,
++): Promise<Record<string, string | null>> {
++  const zip = await loadSafeZip(buffer)
++  const out: Record<string, string | null> = {}
++  let remaining = maxTotalBytes
++  for (const path of paths) {
++    out[path] = null
++    const file = zip.file(path)
++    const limit = Math.min(maxBytes, remaining)
++    if (!file || file.dir || !(limit > 0)) continue
++    const declared = declaredEntrySizes(file)
++    // Deflate can grow incompressible data by a few bytes per stored block.
++    if (declared && (declared.uncompressed > limit || declared.compressed > limit + (limit >> 6) + 1024)) continue
++    const bytes = await file.async('uint8array')
++    if (bytes.byteLength > limit) continue
++    remaining -= bytes.byteLength
++    out[path] = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('base64')
++  }
++  return out
++}
++
+ /// Save path for user edits on streamed workbooks. Unlike applyPlanToXlsx
+ /// there is no per-cell before-check: the caller gates on the whole-file
+ /// SHA-256 recorded at open time, which the streamed originals came from.
+@@ -598,6 +655,7 @@ export async function applyCellEditsToXlsx(
+   tableAdditions: readonly SheetTableAddition[] = [],
+   visualAdditions: readonly SheetVisualAddition[] = [],
+   formulaValues: readonly SheetFormulaValues[] = [],
++  visualEdits: readonly WorkbookVisualEdit[] = [],
+ ): Promise<XlsxMutation> {
+   const plan = await planCellEditsToXlsx(
+     await createBufferEntrySource(source),
+@@ -618,7 +676,7 @@ export async function applyCellEditsToXlsx(
+     [],
+     [],
+     [],
+-    [],
++    visualEdits,
+     [],
+     formulaValues,
+   )

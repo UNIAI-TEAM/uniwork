@@ -7,6 +7,7 @@ import { RuleSetDropNotice } from "./conditional-format/rule-set-drop-notice";
 import { useRuleSetDropRestore, type RuleSetRestoreGrid } from "./conditional-format/use-rule-set-drop-restore";
 import type { XlsxToolbarCommands } from "./toolbar/types";
 import type { XlsxEditorHandle } from "./types";
+import type { XlsxPasteNotice } from "./use-xlsx-editor-clipboard";
 
 export interface XlsxFrameNoticesProps {
   recalcProgress: number | null;
@@ -18,12 +19,14 @@ export interface XlsxFrameNoticesProps {
   editor?: Pick<XlsxEditorHandle, "droppedRuleSets">;
   /** The live grid: a drop restores what the grid paints (r3 MA-3). */
   grid?: RuleSetRestoreGrid;
+  /** An informational notice (a paste kept only its values): neutral, not an error. */
+  pasteNotice?: XlsxPasteNotice | null;
   /** This document's command port: only its refusals raise the notice. */
   commands?: XlsxToolbarCommands;
 }
 
-/** The frame subbar notices: recalculation progress and the two inline errors. */
-export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor, grid, commands }: XlsxFrameNoticesProps) {
+/** The frame subbar notices: recalculation progress, the inline errors and the neutral paste notice. */
+export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor, grid, pasteNotice, commands }: XlsxFrameNoticesProps) {
   const { t } = useTranslation();
   const [commandRefused, setCommandRefused] = useState(false);
   useEffect(() => subscribeCommandRefusals(() => setCommandRefused(true), commands), [commands]);
@@ -36,6 +39,12 @@ export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCa
           <progress max={100} value={recalcProgress} aria-label={t("office.xlsx.recalc.progress", { progress: recalcProgress })} />
           <button type="button" className="text-primary underline" onClick={onCancelRecalculate} data-testid="xlsx-recalc-cancel">{t("office.xlsx.recalc.cancel")}</button>
         </div>
+      ) : null}
+      {pasteNotice ? (
+        <p className="flex items-center gap-2 border-b border-border bg-muted px-3 py-1 text-caption text-muted-foreground" role="status" data-testid="xlsx-paste-notice">
+          <span>{pasteNotice.message}</span>
+          <button type="button" className="text-foreground underline" onClick={pasteNotice.dismiss}>{t("office.xlsx.errors.dismiss")}</button>
+        </p>
       ) : null}
       {recalcError ? <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-recalc-error">{recalcError}</p> : null}
       {editFailed ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}

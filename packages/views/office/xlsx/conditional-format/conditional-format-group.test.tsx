@@ -1,15 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { XlsxToolbarGroupProps } from "../toolbar/types";
-import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { XlsxConditionalFormatGroup, xlsxConditionalFormatRibbonItems } from "./conditional-format-group";
 
-function lookup(dictionary: unknown, key: string): unknown {
-  return key.split(".").reduce<unknown>((node, part) => {
-    if (!node || typeof node !== "object") return undefined;
-    return (node as Record<string, unknown>)[part];
-  }, dictionary);
-}
 
 const RANGE = { startRow: 0, endRow: 3, startColumn: 0, endColumn: 2 };
 
@@ -111,20 +104,44 @@ describe("XlsxConditionalFormatGroup", () => {
     expect(screen.getByTestId("xlsx-cf-menu")).toBeInTheDocument();
   });
 
-  it("shows the x14 reason in the menu and disables both clear items", async () => {
+  it("gives every menu item an icon", async () => {
+    render(<XlsxConditionalFormatGroup {...groupProps({ commands: { execute: vi.fn(() => true), readRuleSets: vi.fn(() => []) } })} />);
+    openMenu();
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.length).toBeGreaterThanOrEqual(9);
+    for (const item of items) expect(item.querySelector("svg")).not.toBeNull();
+  });
+
+  it("offers Unique Values after Duplicate Values and adds the rule", async () => {
+    const execute = vi.fn((_id: string, _params?: unknown) => true);
+    render(<XlsxConditionalFormatGroup {...groupProps({ commands: { execute } })} />);
+    openMenu();
+    const items = (await screen.findAllByRole("menuitem")).map((item) => item.getAttribute("data-testid"));
+    expect(items.indexOf("xlsx-cf-uniqueValues")).toBe(items.indexOf("xlsx-cf-duplicateValues") + 1);
+    fireEvent.click(screen.getByTestId("xlsx-cf-uniqueValues"));
+    fireEvent.click(await screen.findByTestId("xlsx-cf-ok"));
+    expect(execute).toHaveBeenCalledWith(
+      "sheet.command.add-conditional-rule",
+      expect.objectContaining({ rule: expect.objectContaining({ rule: expect.objectContaining({ subType: "uniqueValues" }) }) }),
+    );
+  });
+
+  it("no longer special-cases x14 sheets: Excel data bars are editable", async () => {
     const execute = vi.fn((_id: string, _params?: unknown) => true);
     const host = { file: { sheets: [{ id: "sheet-1", ruleSets: { conditionalFormats: "x14", dataValidations: "none" } }] } } as unknown as XlsxToolbarGroupProps["host"];
     render(<XlsxConditionalFormatGroup {...groupProps({ commands: { execute }, host })} />);
     openMenu();
-    expect(await screen.findByTestId("xlsx-cf-x14-reason")).toHaveTextContent(lookup(viLocale, "office.xlsx.conditionalFormat.errors.x14Sheet") as string);
-    for (const id of ["xlsx-cf-clear-selection", "xlsx-cf-clear-sheet"]) {
-      const item = screen.getByTestId(id);
-      expect(item).toHaveAttribute("aria-disabled", "true");
-      fireEvent.click(item);
-    }
-    expect(execute).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("xlsx-cf-greaterThan"));
-    expect(await screen.findByTestId("xlsx-cf-x14")).toBeInTheDocument();
-    expect(screen.getByTestId("xlsx-cf-ok")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByTestId("xlsx-cf-x14-reason")).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId("xlsx-cf-clear-sheet"));
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it("disables Manage Rules when the port cannot read rules", async () => {
+    render(<XlsxConditionalFormatGroup {...groupProps()} />);
+    openMenu();
+    const manage = await screen.findByTestId("xlsx-cf-manage");
+    expect(manage).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(manage);
+    expect(screen.queryByTestId("xlsx-cf-manager")).not.toBeInTheDocument();
   });
 });

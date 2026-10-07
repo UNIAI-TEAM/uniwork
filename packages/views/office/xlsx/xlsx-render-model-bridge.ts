@@ -3,7 +3,7 @@
 // consumes (WorkbookFile + WorkbookRangeResult). The vendored code is not
 // edited: this module is the boundary that lets it run unchanged in UniWork.
 import { seedFittedColumnWidths } from "./xlsx-column-autofit";
-import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderPageSetup, XlsxRenderSheet, XlsxRenderStyle, XlsxRenderTable } from "@uniwork/office-engine/xlsx";
+import type { XlsxRenderDefinedName, XlsxRenderModel, XlsxRenderPageSetup, XlsxRenderSheet, XlsxRenderStyle, XlsxRenderTable, XlsxRenderVisual } from "@uniwork/office-engine/xlsx";
 
 /** One file-native table in the genoffice `WorkbookFile` sheet shape (the
  *  subset the vendored loader and the ribbon read). `styleName` is left out on
@@ -80,12 +80,18 @@ export interface RendererWorkbookSheet {
     collapsed?: boolean;
     styleIndex?: number;
   }[];
+  /** UNI-953: the file's row outline levels, seeded at open like the column
+   *  levels so an outline action over rows not yet streamed raises from the
+   *  file's level instead of flattening it. */
+  rowOutline?: { row: number; outlineLevel?: number; collapsed?: boolean }[];
   pivotTables: never[];
   tables: RendererWorkbookTable[];
   comments: never[];
   pivotRanges: never[];
   /** X01: per family, whether the file ships no rules, classic rules, or
-   *  Excel extended (x14) rules the declarative save cannot rewrite. The
+   *  Excel extended (x14) rules the declarative save cannot rewrite. Only
+   *  data validation reads x14: an Excel data bar (a linked x14 CF block) is
+   *  kept by gateway patch 0011, so CF reads classic there (UNI-953). The
    *  loader ignores it; the renderer's rule-set policy and the DV/CF ribbon
    *  groups read it. */
   ruleSets?: { conditionalFormats: XlsxRuleSetFileState; dataValidations: XlsxRuleSetFileState };
@@ -229,12 +235,19 @@ function toRendererWorkbookSheet(sheet: XlsxRenderSheet, styles: readonly XlsxRe
     // Renderer-only: unsized columns get a content-fitted width (never a
     // customWidth); the model the save path reads is not touched.
     columnWidths: seedFittedColumnWidths(sheet, styles),
+    rowOutline: sheet.rowsMeta
+      .filter((row) => row.outlineLevel !== undefined || row.collapsed !== undefined)
+      .map((row) => ({
+        row: row.row,
+        ...(row.outlineLevel === undefined ? {} : { outlineLevel: row.outlineLevel }),
+        ...(row.collapsed === undefined ? {} : { collapsed: row.collapsed }),
+      })),
     pivotTables: [],
     tables: (sheet.tables ?? []).map((table) => toRendererWorkbookTable(table)),
     comments: [],
     pivotRanges: [],
     ruleSets: {
-      conditionalFormats: ruleSetFileState(sheet.x14ConditionalFormats, sheet.conditionalRules, sheet.ruleCounts?.conditionalFormats),
+      conditionalFormats: ruleSetFileState(false, sheet.conditionalRules, sheet.ruleCounts?.conditionalFormats),
       dataValidations: ruleSetFileState(sheet.x14DataValidations, sheet.dataValidations, sheet.ruleCounts?.dataValidations),
     },
     ...(sheet.ruleCounts ? { ruleCounts: { ...sheet.ruleCounts } } : {}),
@@ -344,6 +357,9 @@ export interface XlsxModelHost {
     sheetId: string;
     range: XlsxModelRange;
   }): Promise<RendererRangeResult>;
+  /** Charts, pictures and shapes the opened file ships, per sheet id
+   *  (UNI-953); the visual overlay draws and edits them. */
+  fileVisuals?: Readonly<Record<string, readonly XlsxRenderVisual[]>>;
 }
 
 export function createXlsxModelHost(model: XlsxRenderModel, meta: RenderModelMeta): XlsxModelHost {
@@ -353,5 +369,6 @@ export function createXlsxModelHost(model: XlsxRenderModel, meta: RenderModelMet
     async readRange(input) {
       return readRangeFromModel(model, input.sheetId, input.range);
     },
+    fileVisuals: Object.fromEntries(model.sheets.flatMap((sheet) => (sheet.visuals?.length ? [[sheet.id, sheet.visuals]] : []))),
   };
 }

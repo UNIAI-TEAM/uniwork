@@ -29,6 +29,8 @@ export interface SaveStatusProps {
   className?: string;
   /** Keep destructive status chrome compact when it is rendered in header actions. */
   compact?: boolean;
+  /** One-line strip for a failed save instead of the card, so the editor below does not jump. */
+  inline?: boolean;
 }
 
 const COORDINATOR_STATUS: Record<OfficeState, OfficeSaveStatusKind> = {
@@ -70,10 +72,6 @@ function actionKey(status: OfficeSaveStatusKind): string | null {
   }
 }
 
-// Refusals a retry can never fix: no retry button, and the body says what
-// to do instead (office.save.fix.<code>).
-const RETRY_CANNOT_FIX = new Set(["xlsx_recalc_unavailable"]);
-
 /** Renders one shared status vocabulary for web and desktop. */
 export function SaveStatus({
   status,
@@ -83,25 +81,29 @@ export function SaveStatus({
   onAction,
   className,
   compact = false,
+  inline = false,
 }: SaveStatusProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.save" });
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.save" });
   const { t: tRoot } = useTranslation();
   const normalized = normalizeStatus(status, coordinatorState, destination);
   const errorCorrelation = coordinatorState?.error?.correlationId ?? null;
   const resolvedCorrelation = correlationId ?? errorCorrelation;
+  // A refusal the coordinator marks non-retryable and that has written advice
+  // (office.save.fix.<code>) gets no retry button; the body says what to do
+  // instead. A non-retryable code without that copy keeps the generic banner.
   const errorCode = normalized === "error" ? coordinatorState?.error?.code : undefined;
-  const unfixable = errorCode && RETRY_CANNOT_FIX.has(errorCode) ? errorCode : null;
+  const unfixable = errorCode && coordinatorState?.error?.retryable === false && i18n.exists(`office.save.fix.${errorCode}`) ? errorCode : null;
   const action = unfixable ? null : actionKey(normalized);
   // F4 (UNI-926): a refused save used to show only the generic headline. The
   // coordinator keeps the job failure code/class in its error slot; surface it
   // so the reader (and a tester) can see why the save was not confirmed.
   const saveFailureReason = normalized === "error" && coordinatorState?.error
     // A code with a written explanation (office.save.reason.<code>) reads as
-    // words; any other code stays as-is so a tester can still quote it.
-    ? [t(`reason.${coordinatorState.error.code}`, { defaultValue: coordinatorState.error.code }), coordinatorState.error.errorClass !== "unknown" ? coordinatorState.error.errorClass : null]
-      .filter((part): part is string => Boolean(part))
-      .join(" · ")
+    // words; any other code reads as a generic sentence. The raw code stays in
+    // data-error-code for a tester, never in the visible text.
+    ? t(`reason.${coordinatorState.error.code}`, { defaultValue: t("reason.unknown") })
     : null;
+  const errorCodeAttr = normalized === "error" ? coordinatorState?.error?.code : undefined;
   const alertRef = useRef<HTMLDivElement>(null);
   const descriptionId = useId();
   useEffect(() => {
@@ -111,7 +113,31 @@ export function SaveStatus({
   const title = t(`status.${normalized}`);
   const body = unfixable ? t(`fix.${unfixable}`) : t(`description.${normalized}`);
   const destructive = normalized === "permission" || normalized === "conflict" || normalized === "error";
-  const element = destructive && compact ? (
+  const element = normalized === "error" && inline && !compact ? (
+    <div
+      ref={alertRef}
+      tabIndex={-1}
+      role="alert"
+      aria-describedby={descriptionId}
+      title={[body, saveFailureReason].filter(Boolean).join(" ")}
+      className={cn("flex min-w-0 max-w-full items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive", className)}
+      data-testid="office-save-error"
+      data-error-code={errorCodeAttr}
+    >
+      <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+      <span className="shrink-0 font-medium">{title}</span>
+      <span id={descriptionId} className="min-w-0 truncate" data-testid="office-save-error-reason">
+        {body}
+        {saveFailureReason ? ` ${tRoot("office.xlsx.errors.saveReason", { reason: saveFailureReason })}` : ""}
+        {resolvedCorrelation ? ` ${t("correlation", { id: resolvedCorrelation })}` : ""}
+      </span>
+      {action && onAction ? (
+        <Button size="xs" variant="ghost" className="ml-auto shrink-0 text-destructive" onClick={onAction}>
+          {t(`action.${action}`)}
+        </Button>
+      ) : null}
+    </div>
+  ) : destructive && compact ? (
     <div
       ref={alertRef}
       tabIndex={-1}
@@ -140,6 +166,7 @@ export function SaveStatus({
       variant="destructive"
       className={cn("min-w-0 max-w-full break-words", className)}
       data-testid={`office-save-${normalized}`}
+      data-error-code={errorCodeAttr}
     >
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>

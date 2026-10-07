@@ -6,7 +6,7 @@ import { XlsxEngineError } from "./engine.ts";
 import { toA1, type XlsxFilterOp, type XlsxHyperlinkOp, type XlsxNotesOp, type XlsxSheetOp, type XlsxStructuralOp } from "./ops.ts";
 import { type XlsxPageSetupOp } from "./page-setup.ts";
 import { type XlsxTableAddOp } from "./tables.ts";
-import { type XlsxVisualSetOp } from "./ops-visuals.ts";
+import { renameXlsxVisualSheet, type XlsxVisualEntry } from "./ops-visuals.ts";
 import { type XlsxSheetProtectionOp } from "./ops-protection.ts";
 import { renamedRuleSet, type XlsxRuleSetEntry } from "./ops-cf-dv.ts";
 import { type ModelSheetState, type PendingCell, type RemovedSheetState, type XlsxSheetEditPlan } from "./model-state.ts";
@@ -21,7 +21,7 @@ export interface XlsxSheetOpHost {
   filters: Map<string, XlsxFilterOp>;
   pageSetups: Map<string, XlsxPageSetupOp>;
   tables: XlsxTableAddOp[];
-  visuals: XlsxVisualSetOp[];
+  visuals: XlsxVisualEntry[];
   sheetProtections: Map<string, XlsxSheetProtectionOp>;
   hyperlinks: Map<string, Map<string, XlsxHyperlinkOp>>;
   notes: Map<string, XlsxNotesOp>;
@@ -77,7 +77,7 @@ export class XlsxSheetOps {
         const source = this.requireSheet(op.sheetName);
         const addition = this.makeAddedSheet(op.name, source.key);
         this.host.sheetStates.splice(this.insertIndex(op.index), 0, addition);
-        this.cloneSheetEdits(source.name, addition.name);
+        this.cloneSheetEdits(source.name, addition.name, op.sources ?? []);
         break;
       }
       case "rename_sheet": {
@@ -199,7 +199,7 @@ export class XlsxSheetOps {
       this.host.pageSetups.set(next, { ...pageSetup, sheetName: next });
     }
     this.host.tables = this.host.tables.map((table) => (table.sheetName === previous ? { ...table, sheetName: next } : table));
-    this.host.visuals = this.host.visuals.map((visual) => (visual.sheetName === previous ? { ...visual, sheetName: next } : visual));
+    this.host.visuals = renameXlsxVisualSheet(this.host.visuals, previous, next);
     const protection = this.host.sheetProtections.get(previous);
     if (protection !== undefined) {
       this.host.sheetProtections.delete(previous);
@@ -237,7 +237,10 @@ export class XlsxSheetOps {
     this.host.ruleSets.delete(sheetName);
   }
 
-  cloneSheetEdits(fromName: string, toName: string): void {
+  /** `ruleSetSources`: the duplicate's own wire position. The copy's rule
+   *  sets name it instead of the source's positions, so a refusal of the copy
+   *  never drops the source's ops (review r4 R4-2). */
+  cloneSheetEdits(fromName: string, toName: string, ruleSetSources: readonly number[]): void {
     for (const entry of [...this.host.pending.values()]) {
       if (entry.sheetName !== fromName) continue;
       this.host.pending.set(JSON.stringify([toName, toA1(entry.row, entry.column)]), {
@@ -264,7 +267,7 @@ export class XlsxSheetOps {
     const notes = this.host.notes.get(fromName);
     if (notes !== undefined) this.host.notes.set(toName, { ...notes, sheetName: toName });
     const ruleSets = this.host.ruleSets.get(fromName);
-    if (ruleSets !== undefined) this.host.ruleSets.set(toName, renamedRuleSet(ruleSets, toName));
+    if (ruleSets !== undefined) this.host.ruleSets.set(toName, renamedRuleSet(ruleSets, toName, ruleSetSources));
   }
 
   /** The gateway's SheetEditPlan rebuilt from the model's final state. Field

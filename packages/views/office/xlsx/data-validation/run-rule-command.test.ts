@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runRuleCommand } from "./run-rule-command";
+import { runRuleCommand, runRuleCommandsAtomically } from "./run-rule-command";
 
 describe("runRuleCommand", () => {
   it("calls execute once and reports acceptance", async () => {
@@ -24,5 +24,26 @@ describe("runRuleCommand", () => {
     await expect(runRuleCommand({ execute }, "c", {})).resolves.toBe(true);
     const other = () => { throw new TypeError("something else"); };
     await expect(runRuleCommand({ execute: other }, "c", {})).resolves.toBe(false);
+  });
+});
+
+describe("runRuleCommandsAtomically", () => {
+  const steps = [{ id: "a", params: 1 }, { id: "b", params: 2 }];
+  it("accepts no steps, runs one alone and several as one atomic step", async () => {
+    const execute = vi.fn((_id: string, _params?: unknown) => true);
+    const executeAsOneStep = vi.fn((_steps: readonly unknown[], _options?: { atomic?: boolean }) => Promise.resolve(true));
+    await expect(runRuleCommandsAtomically({ execute, executeAsOneStep }, [])).resolves.toBe(true);
+    await expect(runRuleCommandsAtomically({ execute, executeAsOneStep }, [steps[0]!])).resolves.toBe(true);
+    expect(execute).toHaveBeenCalledWith("a", 1);
+    await expect(runRuleCommandsAtomically({ execute, executeAsOneStep }, steps)).resolves.toBe(true);
+    expect(executeAsOneStep).toHaveBeenCalledWith(steps, { atomic: true });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses several steps without the batch port, and a rejected batch", async () => {
+    const execute = vi.fn((_id: string, _params?: unknown) => true);
+    await expect(runRuleCommandsAtomically({ execute }, steps)).resolves.toBe(false);
+    expect(execute).not.toHaveBeenCalled();
+    await expect(runRuleCommandsAtomically({ execute, executeAsOneStep: () => Promise.reject(new Error("x")) }, steps)).resolves.toBe(false);
   });
 });

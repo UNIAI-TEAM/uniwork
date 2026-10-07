@@ -9123,7 +9123,15 @@
         "file_checkpoint_failed": "Your changes could not be protected on this computer first, so the file was not saved. Try again.",
         "file_save_in_progress": "Another save is still running. Wait for it to finish, then try again.",
         "file_engine_unavailable": "This UniWork Office build cannot process this file type on this computer yet.",
-        "file_failed": "The file could not be processed. Try again."
+        "file_failed": "The file could not be processed. Try again.",
+        "unknown": "Something went wrong while saving. Try again in a few minutes.",
+        "office_unknown_error": "Something went wrong while saving. Try again in a few minutes.",
+        "engine_result_invalid": "The save result was not valid. Try again.",
+        "engine_crashed": "The file processor stopped midway. Try again.",
+        "engine_overloaded": "The system is busy. Try again in a few minutes.",
+        "engine_checksum_mismatch": "The saved data did not match. Try again.",
+        "request_aborted": "The save was interrupted. Try again.",
+        "stale_generation": "A newer version of this change exists. Save again."
       },
       "fix": {
         "xlsx_recalc_unavailable": "Install the latest UniWork Office, which includes the formula engine, or upload the workbook to UniWork and save it there."
@@ -9341,6 +9349,7 @@
             "copy": "Copy"
           },
           "cellsItems": {
+            "insertRowsCols": "Insert rows/columns",
             "insert": "Insert",
             "delete": "Delete",
             "format": "Format"
@@ -9378,6 +9387,14 @@
           "pie": "Pie",
           "doughnut": "Doughnut"
         },
+        "chartTypesInline": {
+          "column": "Column",
+          "bar": "Bar",
+          "line": "Line",
+          "area": "Area",
+          "pie": "Pie",
+          "doughnut": "Doughnut"
+        },
         "shapeTypes": {
           "rect": "Rectangle",
           "roundRect": "Rounded rectangle",
@@ -9396,8 +9413,16 @@
           "picture": "Picture",
           "roleDescription": "drawing object",
           "keyboardHelp": "Arrow keys move it, Shift + arrow keys resize it, Delete removes it, Esc returns to the sheet.",
-          "locked": "Saved to the file. Saved drawings cannot be edited yet.",
-          "delete": "Delete {{name}}"
+          "delete": "Delete {{name}}",
+          "fileReadOnly": "This drawing is anchored in a way the editor cannot move yet. It is shown as it is in the file.",
+          "unavailable": "Drawings cannot be edited right now: the document is read-only or a save is in progress.",
+          "fileChart": "Chart {{title}}",
+          "kindChart": "Chart",
+          "kindShape": "Shape"
+        },
+        "placeholder": {
+          "chart": "This chart type has no preview here yet.",
+          "picture": "This picture is too large to preview here."
         },
         "errors": {
           "noChartData": "The selected range has no numbers to chart.",
@@ -9482,6 +9507,10 @@
         "groupCols": "Group columns",
         "ungroupCols": "Ungroup columns",
         "clearOutline": "Clear outline",
+        "group": "Group",
+        "ungroup": "Ungroup",
+        "showDetail": "Show Detail",
+        "hideDetail": "Hide Detail",
         "mergeCells": "Merge cells",
         "mergeAcross": "Merge across",
         "unmergeCells": "Unmerge cells",
@@ -9494,6 +9523,9 @@
         "toggle": "Toggle filter",
         "clear": "Clear filter",
         "advanced": "Advanced filter…",
+        "clearShort": "Clear",
+        "reapply": "Reapply",
+        "advancedShort": "Advanced…",
         "dialog": {
           "title": "Advanced filter",
           "close": "Close advanced filter",
@@ -9529,6 +9561,7 @@
         },
         "open": "Data Validation…",
         "clear": "Clear validation",
+        "manage": "Manage validation rules",
         "dialog": {
           "title": "Data Validation",
           "close": "Close data validation",
@@ -9541,10 +9574,48 @@
           "minimum": "Minimum",
           "maximum": "Maximum",
           "errorSection": "Error message",
+          "errorStyle": "Style",
           "errorTitle": "Title (optional)",
           "errorMessage": "Message (optional)",
           "apply": "Apply",
           "cancel": "Cancel"
+        },
+        "errorStyles": {
+          "stop": "Stop",
+          "warning": "Warning",
+          "information": "Information"
+        },
+        "errorStyleHints": {
+          "stop": "Rejects the value.",
+          "warning": "Asks whether to keep the value.",
+          "information": "Shows a notice and keeps the value."
+        },
+        "manager": {
+          "title": "Manage validation rules",
+          "description": "Data validation rules on this sheet.",
+          "scope": "Show rules for",
+          "scopeSelection": "This selection",
+          "scopeSheet": "This sheet",
+          "list": "Data validation rules",
+          "empty": {
+            "selection": "No validation rules apply to the selected cells.",
+            "sheet": "This sheet has no data validation rules."
+          },
+          "appliesTo": "Applies to {{areas}}",
+          "errorStyle": "Error style: {{style}}",
+          "edit": "Edit validation rule: {{rule}}",
+          "editTitle": "Edit rule",
+          "editUnsupported": "This kind of rule can't be edited here. Delete it and add a new one, or edit it in Excel.",
+          "delete": "Delete validation rule: {{rule}}",
+          "deleteTitle": "Delete rule",
+          "done": "Done",
+          "unavailable": "Rules can't be listed here yet.",
+          "rules": {
+            "list": "List: {{items}}",
+            "value": "{{type}} {{operator}} {{value}}",
+            "range": "{{type}} {{operator}} {{min}} and {{max}}",
+            "other": "Other rule ({{type}})"
+          }
         },
         "types": {
           "list": "List",
@@ -9583,6 +9654,8 @@
         },
         "ascending": "Sort ascending",
         "descending": "Sort descending",
+        "ascendingShort": "Sort A to Z",
+        "descendingShort": "Sort Z to A",
         "custom": "Custom sort…",
         "limitExceeded": "This range is too large to sort. Each save sorts at most {{limit}} cells; select a smaller range.",
         "applyFailed": "The sort could not be applied here. Select the range and try again.",
@@ -9599,10 +9672,94 @@
           "cancel": "Cancel"
         }
       },
+      "styles": {
+        "formatAsTable": "Format as Table",
+        "cellStyles": "Cell Styles",
+        "cellStylesNote": "Styles are saved as ordinary cell formatting.",
+        "limitExceeded": "The selection is too large to style. Select at most {{limit}} cells.",
+        "presets": {
+          "normal": "Normal",
+          "good": "Good",
+          "bad": "Bad",
+          "neutral": "Neutral",
+          "input": "Input",
+          "calculation": "Calculation",
+          "title": "Title",
+          "heading1": "Heading 1",
+          "heading2": "Heading 2"
+        }
+      },
+      "dataTools": {
+        "textToColumns": "Text to Columns",
+        "removeDuplicates": "Remove Duplicates",
+        "subtotal": "Subtotal",
+        "common": {
+          "ok": "OK",
+          "cancel": "Cancel",
+          "close": "Close",
+          "failed": "This could not be done here. Select the range again and retry.",
+          "limitExceeded": "The selection is too large. One save edits at most {{limit}} cells; select a smaller range.",
+          "hasHeader": "My data has headers",
+          "column": "Column {{column}}"
+        },
+        "removeDuplicatesDialog": {
+          "title": "Remove Duplicates",
+          "description": "Select one or more columns that contain duplicates.",
+          "columns": "Columns",
+          "selectAll": "Select All",
+          "unselectAll": "Unselect All",
+          "noColumns": "Select at least one column.",
+          "needRows": "Select a range with at least two rows.",
+          "formulas": "The selection contains formulas. Remove Duplicates works on ranges of values only.",
+          "formatNote": "Cell formatting stays in place; only the values move up.",
+          "result_one": "{{removed}} duplicate values found and removed; {{kept}} unique values remain.",
+          "result_other": "{{removed}} duplicate values found and removed; {{kept}} unique values remain.",
+          "resultNone": "No duplicate values found."
+        },
+        "subtotalDialog": {
+          "title": "Subtotal",
+          "description": "Insert a subtotal row under each group of rows that share a value, and outline the groups.",
+          "atEachChange": "At each change in",
+          "useFunction": "Use function",
+          "addTo": "Add subtotal to",
+          "functions": {
+            "sum": "Sum",
+            "count": "Count",
+            "average": "Average",
+            "max": "Max",
+            "min": "Min",
+            "product": "Product"
+          },
+          "groupLabel": "{{value}} {{function}}",
+          "grandLabel": "Grand {{function}}",
+          "needRows": "Select a list with a header row and at least one data row.",
+          "noColumns": "Select at least one column to subtotal.",
+          "note": "Rows are inserted across the whole sheet, as in Excel."
+        },
+        "textToColumnsDialog": {
+          "title": "Convert Text to Columns",
+          "description": "Split the text of each selected cell into columns at the delimiters you choose.",
+          "delimiters": "Delimiters",
+          "tab": "Tab",
+          "semicolon": "Semicolon",
+          "comma": "Comma",
+          "space": "Space",
+          "other": "Other",
+          "otherInput": "Other delimiter",
+          "otherPlaceholder": "Char",
+          "consecutive": "Treat consecutive delimiters as one",
+          "preview": "Data preview",
+          "overwrite": "Cells to the right already hold data and will be replaced.",
+          "singleColumn": "Select a single column to split.",
+          "noDelimiter": "Choose at least one delimiter."
+        }
+      },
       "conditionalFormat": {
         "dropped": {
           "title": "Some rules could not be saved and were left out.",
           "item": "{{family}}: sheet {{sheet}}",
+          "itemRules_one": "{{family}}: sheet {{sheet}} ({{count}} rule)",
+          "itemRules_other": "{{family}}: sheet {{sheet}} ({{count}} rules)",
           "familyConditionalFormats": "Conditional formatting",
           "familyDataValidations": "Data validation",
           "more": "+{{count}} more",
@@ -9618,22 +9775,26 @@
           "between": "Between…",
           "containsText": "Text that Contains…",
           "duplicateValues": "Duplicate Values…",
+          "uniqueValues": "Unique Values…",
           "clearSelection": "Clear Rules from Selected Cells",
-          "clearSheet": "Clear Rules from Entire Sheet"
+          "clearSheet": "Clear Rules from Entire Sheet",
+          "manage": "Manage Rules…"
         },
         "titles": {
           "greaterThan": "Greater Than",
           "lessThan": "Less Than",
           "between": "Between",
           "containsText": "Text that Contains",
-          "duplicateValues": "Duplicate Values"
+          "duplicateValues": "Duplicate Values",
+          "uniqueValues": "Unique Values"
         },
         "descriptions": {
           "greaterThan": "Format cells that are GREATER THAN:",
           "lessThan": "Format cells that are LESS THAN:",
           "between": "Format cells that are BETWEEN:",
           "containsText": "Format cells that contain the text:",
-          "duplicateValues": "Format cells that contain:"
+          "duplicateValues": "Format cells that contain:",
+          "uniqueValues": "Format cells that contain:"
         },
         "dialog": {
           "close": "Close",
@@ -9645,10 +9806,65 @@
           "and": "and",
           "text": "Text",
           "duplicate": "Duplicate values",
+          "unique": "Unique values",
+          "duplicateHint": "Cells whose value appears more than once in the selection",
+          "uniqueHint": "Cells whose value appears only once in the selection",
           "with": "with",
           "sample": "AaBbCc"
         },
+        "manager": {
+          "title": "Manage Rules",
+          "description": "Conditional formatting rules, in priority order: the first rule applies first.",
+          "scope": "Show rules for",
+          "scopeSelection": "This selection",
+          "scopeSheet": "This sheet",
+          "list": "Conditional formatting rules",
+          "empty": {
+            "selection": "No rules apply to the selected cells.",
+            "sheet": "This sheet has no conditional formatting rules."
+          },
+          "appliesTo": "Applies to {{areas}}",
+          "edit": "Edit rule: {{rule}}",
+          "editTitle": "Edit rule",
+          "editUnsupported": "This kind of rule can't be edited here. Delete it and add a new one, or edit it in Excel.",
+          "editLinked": "This rule carries Excel-only settings (such as a data bar's extras) that are saved as they are, so it can't be edited here. Delete it and add a new one, or edit it in Excel.",
+          "moveUp": "Move rule up: {{rule}}",
+          "moveUpTitle": "Move up",
+          "moveDown": "Move rule down: {{rule}}",
+          "moveDownTitle": "Move down",
+          "delete": "Delete rule: {{rule}}",
+          "deleteTitle": "Delete rule",
+          "done": "Done",
+          "unavailable": "Rules can't be listed here yet.",
+          "rules": {
+            "number": {
+              "greaterThan": "Cell value is greater than {{value}}",
+              "greaterThanOrEqual": "Cell value is greater than or equal to {{value}}",
+              "lessThan": "Cell value is less than {{value}}",
+              "lessThanOrEqual": "Cell value is less than or equal to {{value}}",
+              "equal": "Cell value is equal to {{value}}",
+              "notEqual": "Cell value is not equal to {{value}}",
+              "between": "Cell value is between {{min}} and {{max}}",
+              "notBetween": "Cell value is not between {{min}} and {{max}}"
+            },
+            "text": {
+              "containsText": "Text contains “{{value}}”",
+              "notContainsText": "Text does not contain “{{value}}”",
+              "beginsWith": "Text begins with “{{value}}”",
+              "endsWith": "Text ends with “{{value}}”",
+              "equal": "Text is exactly “{{value}}”"
+            },
+            "duplicateValues": "Duplicate values",
+            "uniqueValues": "Unique values",
+            "formula": "Formula rule",
+            "dataBar": "Data bars",
+            "colorScale": "Color scale",
+            "iconSet": "Icon set",
+            "other": "Other rule ({{type}})"
+          }
+        },
         "styles": {
+          "current": "Current format",
           "lightRedDarkRed": "Light red fill with dark red text",
           "yellowDarkYellow": "Yellow fill with dark yellow text",
           "greenDarkGreen": "Green fill with dark green text",
@@ -9690,6 +9906,7 @@
         },
         "insert": "Insert link",
         "note": "Insert note",
+        "noteShort": "Note",
         "dialog": {
           "linkTitle": "Insert link",
           "noteTitle": "Insert note",
@@ -9923,9 +10140,7 @@
         "partialHint": "Part of the selection is outside the read window, so the totals cover only the cells that were read.",
         "sum": "Sum: {{value}}",
         "average": "Average: {{value}}",
-        "count": "Count: {{value}}",
-        "min": "Min: {{value}}",
-        "max": "Max: {{value}}"
+        "count": "Count: {{value}}"
       },
       "recalc": {
         "progress": "Recalculating ({{progress}}%)",
@@ -9954,7 +10169,8 @@
         "commandRefused": "The row or column change could not be applied. Check the selection and try again.",
         "dismiss": "Dismiss",
         "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again.",
-        "richPasteValuesOnly": "Formatting could not be kept for this paste, so only the values were pasted."
+        "richPasteValuesOnly": "Formatting could not be kept for this paste, so only the values were pasted.",
+        "richPasteMergesSkipped": "Merged cells could not be kept for this paste. The values and formatting were pasted."
       },
       "find": {
         "title": "Find and replace",
@@ -10055,6 +10271,13 @@
         }
       },
       "editor": {
+        "dvInfoCancel": "Cancel",
+        "dvInfoOk": "OK",
+        "dvInfoTitle": "Information",
+        "dvInvalidMessage": "This value does not match the data validation rule for this cell.",
+        "dvWarningNo": "No",
+        "dvWarningTitle": "Keep this value?",
+        "dvWarningYes": "Yes",
         "appClosureActive": "{{count}} formulas recalculate live (closure mode); the rest of the workbook streams on demand.",
         "appColorFiltersUnsaveable": "Color filters cannot be saved as XLSX yet — clear them before saving.",
         "appColumnLabel": "Column {{col}}",
@@ -10073,6 +10296,12 @@
         "appRecalcPartial": "Formulas recalculated from your edits — {{count}} kept cached values (functions the fallback engine lacks).",
         "appSheetStillIndexing": "The sheet is still indexing — try again in a moment.",
         "appAreaStreaming": "This part of the sheet is still loading — try again in a moment.",
+        "appOutlineMaxLevels": "An outline has at most 7 levels, and these lines are already at the deepest one.",
+        "outlineLevelsBar": "Outline levels",
+        "outlineLevelsRows": "Row levels",
+        "outlineLevelsCols": "Column levels",
+        "outlineLevelShowRows": "Show rows up to level {{level}}",
+        "outlineLevelShowCols": "Show columns up to level {{level}}",
         "appStreamingRows": "Streaming {{name}}: {{rows}} rows available.",
         "dvRejectTitle": "Invalid value",
         "dvRejectOk": "OK",

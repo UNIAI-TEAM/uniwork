@@ -1,0 +1,49 @@
+param([string]$Out)
+$ErrorActionPreference = 'Stop'
+# Excel.Application's COM class is registered to WPS on this machine, so start
+# Microsoft Excel itself and take it from the running object table.
+$proc = Start-Process -FilePath 'C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE' -ArgumentList '/automation', '-Embedding' -PassThru
+"excel pid $($proc.Id)"
+$excel = $null
+try {
+  for ($t = 0; $t -lt 60 -and $null -eq $excel; $t++) {
+    Start-Sleep -Milliseconds 500
+    try { $excel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application') } catch {}
+  }
+  if ($null -eq $excel) { throw 'no excel in the ROT' }
+  "excel path $($excel.Path) version $($excel.Version)"
+  if ($excel.Path -notlike '*Microsoft Office*') { $excel = $null; throw 'not Microsoft Excel' }
+  $excel.Visible = $false
+  $excel.DisplayAlerts = $false
+  $wb = $excel.Workbooks.Add()
+  while ($wb.Worksheets.Count -gt 1) { $wb.Worksheets.Item($wb.Worksheets.Count).Delete() }
+  $ws = $wb.Worksheets.Item(1)
+  $ws.Name = 'Data'
+  $ws.Range('A1').Value2 = 'Item'; $ws.Range('B1').Value2 = 'Amount'; $ws.Range('C1').Value2 = 'Score'; $ws.Range('D1').Value2 = 'Qty'
+  $names = 'North', 'South', 'East', 'West', 'Central'
+  $amounts = 12, 45, 7, 30, 22
+  $scores = 3, 8, 5, 9, 1
+  $qty = 4, 11, 2, 15, 6
+  for ($i = 0; $i -lt 5; $i++) {
+    $r = $i + 2
+    $ws.Range("A$r").Value2 = [string]$names[$i]
+    $ws.Range("B$r").Value2 = [double]$amounts[$i]
+    $ws.Range("C$r").Value2 = [double]$scores[$i]
+    $ws.Range("D$r").Value2 = [double]$qty[$i]
+  }
+  # Data bar on B2:B6: Excel writes the base cfRule plus the linked x14 rule.
+  $null = $ws.Range('B2:B6').FormatConditions.AddDatabar()
+  # A second data bar over two areas (multi-area sqref).
+  $null = $ws.Range('C2:C3,C5:C6').FormatConditions.AddDatabar()
+  # A classic cellIs > 9 on D2:D6 with a fill.
+  $fc = $ws.Range('D2:D6').FormatConditions.Add(1, 5, '=9')
+  $fc.Interior.Color = 13551615
+  $wb.SaveAs($Out, 51)
+  $wb.Close($false)
+  $excel.Quit()
+} finally {
+  if ($null -ne $excel) { [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null }
+  [GC]::Collect(); [GC]::WaitForPendingFinalizers()
+  Start-Sleep -Seconds 3
+  if (-not $proc.HasExited) { Stop-Process -Id $proc.Id }
+}

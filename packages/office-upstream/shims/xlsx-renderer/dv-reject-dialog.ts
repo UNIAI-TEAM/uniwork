@@ -1,4 +1,5 @@
-import { LocaleType, mergeLocales, type IDisposable } from "@univerjs/core";
+import { DataValidationStatus, IConfirmService, LocaleType, mergeLocales, type IDisposable } from "@univerjs/core";
+import { SheetDataValidationModel, SheetsDataValidationValidatorService } from "@univerjs/preset-sheets-data-validation";
 import UniverPresetSheetsConditionalFormattingEnUS from "@univerjs/preset-sheets-conditional-formatting/locales/en-US";
 import UniverPresetSheetsConditionalFormattingViVN from "@univerjs/preset-sheets-conditional-formatting/locales/vi-VN";
 import UniverPresetSheetsCoreEnUS from "@univerjs/preset-sheets-core/locales/en-US";
@@ -19,8 +20,8 @@ import { SheetInterceptorService, VALIDATE_CELL } from "@univerjs/sheets";
 import { IDialogService } from "@univerjs/ui";
 import type { CreateUniverOptions } from "../../upstream/apps/sheets/src/renderer/create-univer";
 import type { UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
-import type { ValidatedWriteGate } from "./edits";
 import { getLang, t } from "./locale";
+import { askOnValidateCell, ensureDvHintStyle, type DvErrorStylePort, type DvValidateCellSource } from "./dv-error-style";
 
 // ── Univer locale + data-validation rejection dialog (X01 vfix-dv) ─────────
 //
@@ -154,12 +155,43 @@ export function installDvRejectDialogTitle(runtime: UniverRuntime, doc: Document
     if (title) reject.title = { ...reject.title, title };
     requestAnimationFrame(() => adoptOpenDialogs(doc, scopeClass));
   });
+  ensureDvHintStyle(doc);
+  const errorStyles = installDvErrorStyles(runtime, doc, scopeClass);
   return {
     dispose() {
       intercept();
       subscription.unsubscribe();
+      errorStyles.dispose();
     },
   };
+}
+
+/** A warning / information rule asks the user before the editor's verdict
+ *  settles (dv-error-style.ts). Installed before the write gate wraps
+ *  onValidateCell (controller loadWorkbook), so the gate reads the answer. */
+function installDvErrorStyles(runtime: UniverRuntime, doc: Document, scopeClass: string): IDisposable {
+  const injector = runtime.univer.__getInjector();
+  const port: DvErrorStylePort = {
+    ruleAt: ({ unitId, subUnitId, row, col }) => {
+      const model = injector.get(SheetDataValidationModel);
+      const ruleId = model.getRuleIdByLocation(unitId, subUnitId, row, col);
+      return (ruleId ? model.getRuleById(unitId, subUnitId, ruleId) : null) ?? null;
+    },
+    isValid: async ({ unitId, subUnitId, row, col }) =>
+      (await injector.get(SheetsDataValidationValidatorService).validatorCell(unitId, subUnitId, row, col)) === DataValidationStatus.VALID,
+    confirm: (options) => {
+      const answer = injector.get(IConfirmService).confirm({
+        id: options.id,
+        title: { title: options.title },
+        children: { title: options.message },
+        confirmText: options.confirmText,
+        cancelText: options.cancelText,
+      });
+      requestAnimationFrame(() => adoptOpenDialogs(doc, scopeClass));
+      return answer;
+    },
+  };
+  return askOnValidateCell(injector.get(SheetInterceptorService) as unknown as DvValidateCellSource, port);
 }
 
 /** Whether the sheet carries any data-validation rule: only then can a commit
@@ -169,21 +201,4 @@ export function sheetHasDataValidation(runtime: UniverRuntime, unitId: string, s
     getWorkbook(id: string): { getSheetBySheetId(id: string): { getDataValidations?: () => unknown[] } | null } | null;
   };
   return (api.getWorkbook(unitId)?.getSheetBySheetId(subUnitId)?.getDataValidations?.().length ?? 0) > 0;
-}
-
-/** Between the DV plugin's handler (priority 0) and the pinned pass-through
- *  (-1): reads the verdict the DV plugin produced and hands it to the write
- *  gate before the editor acts on it (its await was registered later, so this
- *  continuation runs first and the gate is settled before the rollback). */
-export function installValidatedWriteVerdict(runtime: UniverRuntime, gate: ValidatedWriteGate): IDisposable {
-  const injector = runtime.univer.__getInjector();
-  const intercept = injector.get(SheetInterceptorService).writeCellInterceptor.intercept(VALIDATE_CELL, {
-    priority: -0.5,
-    handler: (value, _context, next) => {
-      const settle = gate.awaitVerdict();
-      if (settle) Promise.resolve(value).then((accepted) => settle(accepted !== false), () => settle(true));
-      return next(value);
-    },
-  });
-  return { dispose: intercept };
 }

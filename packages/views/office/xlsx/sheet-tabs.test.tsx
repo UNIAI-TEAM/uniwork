@@ -231,4 +231,16 @@ describe("XlsxSheetTabs", () => {
       expect(onAction).toHaveBeenCalledWith({ kind: "remove", sheet: "Data" });
     });
   });
+
+  it("gives every icon-only action button an accessible name and a tooltip", () => {
+    renderTabs({ tabs: [...tabs, { name: "Extra", hidden: false, tabColor: null }] });
+    const ids = ["add", "rename", "duplicate", "move-left", "move-right", "hide", "remove", "actions-menu"];
+    for (const id of ids) {
+      const button = screen.getByTestId(`xlsx-sheet-${id === "actions-menu" ? id : id}`);
+      expect(button.getAttribute("aria-label")).toBeTruthy();
+      expect(button).toHaveAttribute("title", button.getAttribute("aria-label"));
+    }
+    const unhide = screen.getByRole("button", { name: unhideArchive });
+    expect(unhide).toHaveAttribute("title", unhideArchive);
+  });
 });

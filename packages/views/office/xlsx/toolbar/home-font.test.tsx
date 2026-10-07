@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { XlsxGridFormatState } from "../xlsx-grid-surface";
 import type { XlsxToolbarGroupProps } from "./types";
@@ -167,5 +167,46 @@ describe("XlsxFontGroup", () => {
     expect(bold).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(bold);
     expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("closes on the first outside pointerdown while letting that event reach the grid", async () => {
+    const seen: boolean[] = [];
+    const { props } = groupProps();
+    render(
+      <>
+        <XlsxFontGroup {...props} />
+        <div data-testid="grid" onPointerDown={(event) => seen.push(event.defaultPrevented)} />
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Màu tô" }));
+    await screen.findByRole("dialog", { name: "Màu tô" });
+    fireEvent.pointerDown(screen.getByTestId("grid"));
+    expect(seen).toEqual([false]);
+    expect(screen.queryByRole("dialog", { name: "Màu tô" })).not.toBeInTheDocument();
+  });
+
+  it("leaves the focus on the grid after that close, and returns it to the trigger on Escape", async () => {
+    const { props } = groupProps();
+    render(
+      <>
+        <XlsxFontGroup {...props} />
+        <div data-testid="grid" tabIndex={-1} />
+      </>,
+    );
+    const trigger = screen.getByRole("button", { name: "Màu tô" });
+    const grid = screen.getByTestId("grid");
+    fireEvent.click(trigger);
+    await screen.findByRole("dialog", { name: "Màu tô" });
+    fireEvent.pointerDown(grid);
+    // The browser's own pointerdown default focuses the grid.
+    grid.focus();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Màu tô" })).not.toBeInTheDocument());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(document.activeElement).toBe(grid);
+
+    fireEvent.click(trigger);
+    const dialog = await screen.findByRole("dialog", { name: "Màu tô" });
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });

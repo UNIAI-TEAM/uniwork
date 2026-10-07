@@ -38,9 +38,9 @@ export function LocalHomeView({ files, error = false, busy = false, onOpen, onCr
       <CollectionPageHeader icon={HomeIcon} title={t("title")} count={loading || error ? undefined : rows.length} countLabel={t("count", { count: rows.length })} actions={rows.length > 0 || loading || error ? actions : undefined} className="flex-wrap" />
       <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 pb-6">
         {error ? (
-          <div className="flex flex-col gap-3" role="alert">
+          <div className="flex flex-col items-start gap-3" role="alert">
             <p className="text-body text-muted-foreground">{t("error")}</p>
-            <Button type="button" variant="outline" onClick={onRetry}>{t("retry")}</Button>
+            <Button type="button" size="sm" variant="outline" onClick={onRetry}>{t("retry")}</Button>
           </div>
         ) : loading ? (
           <Skeleton className="h-24 w-full" />

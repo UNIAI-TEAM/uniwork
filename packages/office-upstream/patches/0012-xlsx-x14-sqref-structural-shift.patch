@@ -1,0 +1,50 @@
+diff --git a/packages/xlsx-gateway/src/gateway/xlsx-structure.ts b/packages/xlsx-gateway/src/gateway/xlsx-structure.ts
+--- a/packages/xlsx-gateway/src/gateway/xlsx-structure.ts
++++ b/packages/xlsx-gateway/src/gateway/xlsx-structure.ts
+@@ -1335,7 +1335,46 @@
+       return count === 0 ? '' : `${prefix}${count}${mid}${inner}${close}`
+     },
+   )
++  return shiftX14Sqrefs(result, shift, axis)
++}
++
++/// UniWork patch 0012: the x14 halves in the worksheet extLst (a data bar's
++/// linked x14:cfRule, an x14-only rule, an x14:dataValidation) name their
++/// range in <xm:sqref>, not a sqref attribute, so the loop above never moved
++/// them and a row insert left them on the old cells. They move by the same
++/// rule; one whose every range is deleted is removed, and the containers it
++/// leaves empty are pruned.
++function shiftX14Sqrefs(xml: string, shift: Shift, axis: Axis): string {
++  if (!/<\w+:sqref>/.test(xml)) return xml
++  let result = xml
++  for (const tag of ['conditionalFormatting', 'dataValidation']) {
++    result = result.replace(
++      new RegExp(`<(\\w+):${tag}\\b[^>]*>[\\s\\S]*?</\\1:${tag}>`, 'g'),
++      (element) => {
++        const sqref = /<(\w+):sqref>([^<]*)<\/\1:sqref>/.exec(element)
++        if (!sqref?.[2]) return element
++        const moved = sqref[2]
++          .split(/\s+/)
++          .filter((ref) => ref !== '')
++          .map((ref) => moveRefRange(ref, shift, axis))
++          .filter((ref): ref is string => ref !== null)
++        if (moved.length === 0) return ''
++        return element.replace(sqref[0], () => `<${sqref[1]}:sqref>${moved.join(' ')}</${sqref[1]}:sqref>`)
++      },
++    )
++  }
++  result = result.replace(
++    /(<(\w+):dataValidations\b[^>]*\bcount=")[0-9]+("[^>]*>)([\s\S]*?)(<\/\2:dataValidations>)/g,
++    (_full, prefix: string, ns: string, mid: string, inner: string, close: string) => {
++      const count = (inner.match(new RegExp(`<${ns}:dataValidation\\b`, 'g')) ?? []).length
++      return count === 0 ? '' : `${prefix}${count}${mid}${inner}${close}`
++    },
++  )
+   return result
++    .replace(/<(\w+):conditionalFormattings\b[^>]*>\s*<\/\1:conditionalFormattings>/g, '')
++    .replace(/<(\w+):dataValidations\b[^>]*>\s*<\/\1:dataValidations>/g, '')
++    .replace(/<ext\b[^>]*>\s*<\/ext>/g, (ext) => (/\buri="\{(?:78C0D931-6437-407[dD]-A8EE-F0AAD7539E65|CCE6A557-97BC-4[bB]89-ADB6-D9C93CAAB3DF)\}"/.test(ext) ? '' : ext))
++    .replace(/<extLst>\s*<\/extLst>/g, '')
+ }
+ 
+ function assertSwapKeepsAnchorIntact(ref: string, swap: BlockSwap['swap']): void {

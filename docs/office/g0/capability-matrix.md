@@ -50,8 +50,8 @@ Ghi chú của nhóm này:
 
 | ID | Định dạng | Thao tác | upstream có | phải port | web đã chứng minh | desktop đã chứng minh | Tag | Fixture |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `xlsx-open` | xlsx, xlsm, xls, csv | open in editor | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-BASIC`, `F-XLSX-KITCHEN`, `F-XLSX-VI`, `F-LARGE-XLSX` |
-| `xlsx-edit-cells` | xlsx | edit cells | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-EDIT`, `F-XLSX-VI`, `F-LARGE-XLSX`, `F-XLSX-KITCHEN`, `F-XLSX-SHEETS` |
+| `xlsx-open` | xlsx, xlsm, xls, csv | open in editor | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-BASIC`, `F-XLSX-KITCHEN`, `F-XLSX-VI`, `F-LARGE-XLSX`, `F-XLSX-NUMFMT` |
+| `xlsx-edit-cells` | xlsx | edit cells | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-EDIT`, `F-XLSX-VI`, `F-LARGE-XLSX`, `F-XLSX-KITCHEN`, `F-XLSX-SHEETS`, `F-XLSX-NUMFMT` |
 | `xlsx-save` | xlsx, xlsm, csv | save | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-EDIT`, `F-XLSX-STRUCT` |
 | `xlsx-recalculate` | xlsx, xlsm | recalculate formulas | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-VI`, `F-XLSX-BASIC` |
 | `xlsx-cross-sheet-formulas` | xlsx | cross-sheet and defined-name formulas | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-XLSX-VI`, `F-XLSX-SHEETS` |
@@ -194,7 +194,7 @@ Ghi chú của nhóm này:
 | Dòng có ít nhất một fixture tồn tại trong manifest | 95 |
 | Dòng thuộc phạm vi pilot (phải port) | 72 |
 | Dòng upstream không có đường triển khai | 1 |
-| Fixture đã khai trong manifest | 68 |
+| Fixture đã khai trong manifest | 69 |
 | Dòng đã chứng minh trên web | 26 |
 | Dòng đã chứng minh trên desktop | 0 |
 

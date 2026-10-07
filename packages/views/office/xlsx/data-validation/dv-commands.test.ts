@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import {
   addDvParams,
   buildDvRule,
   clearDvParams,
   isRealIsoDate,
+  removeDvParams,
   selectionDvRange,
+  updateDvCommands,
   XLSX_DV_EMPTY_FORM,
   type XlsxDvForm,
 } from "./dv-commands";
@@ -136,5 +139,66 @@ describe("helpers", () => {
       failure: { field: "value2", code: "rangeOrder" },
     });
     expect(build({ type: "whole", operator: "notBetween", value1: "3", value2: "9" })).toMatchObject({ ok: true });
+  });
+});
+
+describe("error styles", () => {
+  it("writes Univer's codes: stop 1, warning 2, information 0, and keeps showErrorMessage", () => {
+    for (const [errorStyle, code] of [["stop", 1], ["warning", 2], ["information", 0]] as const) {
+      expect(build({ type: "list", value1: "a", errorStyle })).toMatchObject({
+        ok: true,
+        rule: { errorStyle: code, showErrorMessage: true },
+      });
+    }
+    expect(XLSX_DV_EMPTY_FORM.errorStyle).toBe("stop");
+  });
+});
+
+describe("edit commands", () => {
+  it("sends the changed setting and options with exact params, keeping the live flags (F4)", () => {
+    const built = build({ type: "whole", operator: "between", value1: "1", value2: "5", errorStyle: "warning", error: "no" });
+    if (!built.ok) throw new Error("expected ok");
+    const live = { type: "list", formula1: "a,b", allowBlank: false, showErrorMessage: false, errorStyle: 1 };
+    const steps = updateDvCommands("u", "s", "r1", built.rule, live);
+    expect(steps).toEqual([
+      {
+        id: "sheets.command.update-data-validation-setting",
+        params: { unitId: "u", subUnitId: "s", ruleId: "r1", setting: { type: "whole", operator: "between", formula1: "1", formula2: "5", allowBlank: false } },
+      },
+      {
+        id: "sheets.command.update-data-validation-options",
+        params: { unitId: "u", subUnitId: "s", ruleId: "r1", options: { errorStyle: 2, error: "no", errorTitle: "", showErrorMessage: false } },
+      },
+    ]);
+    expect(removeDvParams("u", "s", "r1")).toEqual({ unitId: "u", subUnitId: "s", ruleId: "r1" });
+  });
+});
+
+describe("edit commands skip what did not change (F3)", () => {
+  const whole = { type: "whole" as const, operator: "between" as const, value1: "1", value2: "5", errorTitle: "", error: "", errorStyle: "stop" as const };
+  it("sends nothing for an unchanged rule, Univer defaults included", () => {
+    const built = build(whole);
+    if (!built.ok) throw new Error("expected ok");
+    // No operator stored = between; no error style = stop; no text = "".
+    expect(updateDvCommands("u", "s", "r1", built.rule, { type: "whole", formula1: "1", formula2: "5" })).toEqual([]);
+  });
+  it("sends only the step that changed", () => {
+    const style = build({ ...whole, errorStyle: "information" });
+    const value = build({ ...whole, value2: "9" });
+    if (!style.ok || !value.ok) throw new Error("expected ok");
+    const live = { type: "whole", operator: "between", formula1: "1", formula2: "5", errorStyle: 1, allowBlank: true };
+    expect(updateDvCommands("u", "s", "r1", style.rule, live).map((step) => step.id)).toEqual(["sheets.command.update-data-validation-options"]);
+    expect(updateDvCommands("u", "s", "r1", value.rule, live).map((step) => step.id)).toEqual(["sheets.command.update-data-validation-setting"]);
+  });
+});
+
+describe("review fixes stay fixed", () => {
+  it("refuses hex and exponent numbers, and words notBetween as 'không nằm giữa'", () => {
+    for (const raw of ["0x10", "1e3"]) {
+      expect(build({ type: "decimal", operator: "equal", value1: raw })).toMatchObject({ ok: false });
+    }
+    expect((viLocale as { office: { xlsx: { dataValidation: { operators: Record<string, string> } } } }).office.xlsx.dataValidation.operators.notBetween).toBe(
+      "không nằm giữa",
+    );
   });
 });

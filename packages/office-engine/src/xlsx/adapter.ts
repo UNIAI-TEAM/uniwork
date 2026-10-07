@@ -42,6 +42,7 @@ import {
 import { ruleSetSaveFailure } from "./adapter-rule-sets.ts";
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps } from "./ops.ts";
+import { resolveFileVisualEdits } from "./render-model-visuals.ts";
 import { withRuleSetSource } from "./ops-cf-dv.ts";
 import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
 import { readSharedFollowers, type XlsxSharedFollowers } from "./shared-formulas.ts";
@@ -383,6 +384,11 @@ export class XlsxAdapter {
       .model
       .pendingVisualAdditions()
       .map((visual) => ({ ...visual, sheetName: gatewayName(visual.sheetName) }));
+    // File-visual edits (UNI-953, patch 0013): moves and deletes of anchors
+    // already in the input package, located by the drawing part of the
+    // sheet's file name; the gateway runs them before any visual addition.
+    // An edit of an anchor the editor shows as fixed is refused (V4).
+    const visualEdits = await resolveFileVisualEdits(session.model.visuals, gatewayName, (paths) => this.deps.engine.readEntriesText(session.inputBytes, paths));
     // Hyperlink edits carry final per-cell coordinates, so the gateway applies
     // them after structural replay; a hyperlink change never moves cells, so
     // the recalc pass is unaffected. Each op is a per-cell last-write link
@@ -462,7 +468,7 @@ export class XlsxAdapter {
       keptWarning(mapped.kept);
     }
     const gatewayArguments: XlsxGatewayArguments =
-      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && visualAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && cfStates.length === 0 && dvStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
+      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && visualAdditions.length === 0 && visualEdits.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && cfStates.length === 0 && dvStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
         ? {}
         : {
             ...(structuralOps.length > 0 ? { structuralOps } : {}),
@@ -471,6 +477,7 @@ export class XlsxAdapter {
             ...(pageSetupStates.length > 0 ? { pageSetupStates } : {}),
             ...(tableAdditions.length > 0 ? { tableAdditions } : {}),
             ...(visualAdditions.length > 0 ? { visualAdditions } : {}),
+            ...(visualEdits.length > 0 ? { visualEdits } : {}),
             ...(hyperlinkEdits.length > 0 ? { hyperlinkEdits } : {}),
             ...(noteStates.length > 0 ? { noteStates } : {}),
             ...(cfStates.length > 0 ? { cfStates } : {}),

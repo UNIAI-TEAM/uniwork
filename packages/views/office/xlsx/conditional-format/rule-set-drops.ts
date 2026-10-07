@@ -11,8 +11,9 @@
 // and fail the save with XLSX_RULE_SETS_DROPPED - a non-terminal code
 // (packages/core/office/error-state.ts), so the next explicit Save re-runs the
 // intent without them and every other edit is kept. The notice names family
-// and sheet from the host's own op list. A payload that is malformed or does
-// not match the sent list drops nothing and shows the generic notice.
+// and sheet from the host's own op list. A payload that is malformed drops
+// nothing and shows the generic notice; positions that do not match the sent
+// list drop the refused family's unsaved ops (planRuleSetDrops, r4 R4-4).
 
 import type { XlsxGridRuleSetRule } from "./rule-set-bridge";
 
@@ -35,6 +36,8 @@ export interface XlsxDroppedRuleSet {
   family: RuleSetFamily;
   sheet: string;
   savedRules: XlsxGridRuleSetRule[] | null;
+  /** How many rules the dropped (newest) snapshot held, for the notice. */
+  rules: number;
 }
 
 /** One failing state of a refusal: its family and its op positions. */
@@ -104,10 +107,23 @@ function liveName(sheet: string, later: readonly unknown[]): string {
   return name;
 }
 
+/** The copy's name when the op is a duplicate_sheet: the engine names a
+ *  copy's inherited rule set by its duplicate op (review r4 R4-2). */
+function copyOf(operation: unknown): string | undefined {
+  const { op, attributes } = wire(operation);
+  return op === "duplicate_sheet" && targetOf(operation) !== undefined && typeof attributes?.name === "string" ? attributes.name : undefined;
+}
+
+function ruleCount(operation: unknown): number {
+  const rules = wire(operation).attributes?.rules;
+  return Array.isArray(rules) ? rules.length : 0;
+}
+
 /** The family's rules on that sheet just before `earlier` ended, walking it
  *  backward through renames and copies: the last rule-set op of the family on
  *  the sheet, [] for a sheet added this session, null when nothing in
- *  `earlier` wrote them (the file's rules as opened). */
+ *  `earlier` wrote them (the file's rules as opened; for a copy, the rules it
+ *  inherited from its source's file sheet). */
 function rulesBefore(sheet: string, family: RuleSetFamily, earlier: readonly unknown[]): XlsxGridRuleSetRule[] | null {
   let name = sheet;
   for (let index = earlier.length - 1; index >= 0; index -= 1) {
@@ -123,39 +139,135 @@ function rulesBefore(sheet: string, family: RuleSetFamily, earlier: readonly unk
   return null;
 }
 
-/** What a host drops after a refusal: the positions in the failed job's
- *  edit list and the notice / restore entries. */
+/** The only ops `rulesBefore` reads: what a host keeps of the ops it already
+ *  committed (review r4 R4-1), so a session does not hold every committed
+ *  cell batch and picture body for a rare restore lookup. */
+export function ruleSetHistory(operations: readonly unknown[]): unknown[] {
+  return operations.filter((operation) => {
+    const { op } = wire(operation);
+    return familyOf(operation) !== null || op === "rename_sheet" || op === "add_sheet" || op === "duplicate_sheet";
+  });
+}
+
+/** What a host drops after a refusal: the positions in the failed job's edit
+ *  list (`indexes`) and in the ops queued after the job's snapshot
+ *  (`laterIndexes`), and the notice / restore entries. */
 export interface XlsxRuleSetDropPlan {
   indexes: number[];
+  laterIndexes: number[];
   drops: XlsxDroppedRuleSet[];
+}
+
+/** The same positions in a host's pending list (the sent list, then later). */
+export function pendingDropIndexes(plan: XlsxRuleSetDropPlan, sentLength: number): number[] {
+  return [...plan.indexes, ...plan.laterIndexes.map((index) => sentLength + index)];
+}
+
+/** An op of the sent list or of the later queue. */
+interface Located {
+  list: "sent" | "later";
+  index: number;
+}
+
+/** One refused state: its family, the sheet name its walk starts from, its
+ *  oldest op (a copy's duplicate op included) and the ops dropped for it. */
+interface DropGroup {
+  family: RuleSetFamily;
+  start: string;
+  first: Located;
+  throughFirst: boolean;
+  ops: Located[];
+  /** The sheet's live name when it is not the newest op's (a copy). */
+  named?: string;
 }
 
 /** Plan a refusal against the exact list the failed job sent (`sent`), the
  *  ops this session already committed (`committed`, oldest first) and the
- *  ops queued after the job's snapshot (`later`). Every named position must
- *  hold a rule-set op of its family; one that does not (stale, out of range,
- *  another op) voids the whole refusal: nothing is dropped and the notice is
- *  the generic one, never a wrong drop. */
+ *  ops queued after the job's snapshot (`later`).
+ *  - A refusal whose positions all hold a rule-set op of its family (or the
+ *    duplicate_sheet a copy inherited it from) drops those ops, plus every
+ *    later op of the family on that sheet: a later whole-sheet snapshot still
+ *    carries the refused rules, and one Save must converge (r4 R4-3).
+ *  - A refusal with a position that matches nothing (stale, out of range,
+ *    another op), or that names only a copy's duplicate op, cannot be
+ *    narrowed: every unsaved op of that family, sent or later, is dropped
+ *    (r4 R4-4, lead option A). Re-sending the same list would only loop, so
+ *    this is the way out; the notice names each sheet it touched.
+ *  Never another family, a cell edit or any other op. */
 export function planRuleSetDrops(
   refusals: readonly XlsxRuleSetRefusal[],
   sent: readonly unknown[],
   committed: readonly unknown[] = [],
   later: readonly unknown[] = [],
 ): XlsxRuleSetDropPlan {
-  const indexes = new Set<number>();
-  const drops: XlsxDroppedRuleSet[] = [];
+  const groups: DropGroup[] = [];
+  const familyWide = new Set<RuleSetFamily>();
+  const at = ({ list, index }: Located) => (list === "sent" ? sent[index] : later[index]);
+  const after = ({ list, index }: Located) => (list === "sent" ? [...sent.slice(index + 1), ...later] : later.slice(index + 1));
   for (const { family, ops } of refusals) {
-    if (!ops.every((index) => index < sent.length && familyOf(sent[index]) === family && targetOf(sent[index]) !== undefined)) return { indexes: [], drops: [] };
+    const matches = ops.every((index) => index < sent.length && ((familyOf(sent[index]) === family && targetOf(sent[index]) !== undefined) || copyOf(sent[index]) !== undefined));
+    const droppable = ops.filter((index) => familyOf(sent[index]) === family).sort((a, b) => a - b);
+    if (!matches || droppable.length === 0) {
+      familyWide.add(family);
+      continue;
+    }
     const first = Math.min(...ops);
     const last = Math.max(...ops);
-    for (const index of ops) indexes.add(index);
-    drops.push({
-      family,
-      sheet: liveName(targetOf(sent[last])!, [...sent.slice(last + 1), ...later]),
-      savedRules: rulesBefore(targetOf(sent[first])!, family, [...committed, ...sent.slice(0, first)]),
-    });
+    let name = liveName(copyOf(sent[last]) ?? targetOf(sent[last])!, sent.slice(last + 1));
+    const located: Located[] = droppable.map((index) => ({ list: "sent", index }));
+    for (const [index, operation] of later.entries()) {
+      const { op, attributes } = wire(operation);
+      if (op === "rename_sheet" && targetOf(operation) === name && typeof attributes?.newName === "string") name = attributes.newName;
+      else if (familyOf(operation) === family && targetOf(operation) === name) located.push({ list: "later", index });
+    }
+    const copy = copyOf(sent[first]);
+    groups.push({ family, start: copy ?? targetOf(sent[first])!, first: { list: "sent", index: first }, throughFirst: copy !== undefined, ops: located });
   }
-  return { indexes: [...indexes].sort((a, b) => a - b), drops };
+  for (const family of familyWide) {
+    const byName = new Map<string, Located[]>();
+    const all: Located[] = [
+      ...sent.flatMap((operation, index) => (familyOf(operation) === family && targetOf(operation) !== undefined ? [{ list: "sent" as const, index }] : [])),
+      ...later.flatMap((operation, index) => (familyOf(operation) === family && targetOf(operation) !== undefined ? [{ list: "later" as const, index }] : [])),
+    ];
+    for (const entry of all) {
+      const name = liveName(targetOf(at(entry))!, after(entry));
+      byName.set(name, [...(byName.get(name) ?? []), entry]);
+    }
+    for (const located of byName.values()) {
+      groups.push({ family, start: targetOf(at(located[0]!))!, first: located[0]!, throughFirst: false, ops: located });
+    }
+    // A sheet copied in this job after one of those ops inherited the dropped
+    // rules on screen too: name it and restore it. A copy with ops of its own
+    // already has its group above, whose restore walks through the duplicate
+    // op to the same baseline, so it is named once (review-session m-1).
+    for (const [index, operation] of sent.entries()) {
+      const copy = copyOf(operation);
+      if (copy === undefined) continue;
+      const named = liveName(copy, after({ list: "sent", index }));
+      const inherited = all.filter((entry) => entry.list === "sent" && entry.index < index && liveName(targetOf(sent[entry.index])!, sent.slice(entry.index + 1, index)) === targetOf(operation));
+      if (!byName.has(named) && inherited.length > 0) groups.push({ family, start: copy, first: { list: "sent", index }, throughFirst: true, ops: [inherited[inherited.length - 1]!], named });
+    }
+  }
+  const sentDrops = new Set<number>();
+  const laterDrops = new Set<number>();
+  for (const group of groups) for (const entry of group.ops) (entry.list === "sent" ? sentDrops : laterDrops).add(entry.index);
+  const kept = (list: readonly unknown[], dropped: Set<number>, end: number) => list.slice(0, end).filter((_operation, index) => !dropped.has(index));
+  const drops = groups.map(({ family, start, first, throughFirst, ops, named }): XlsxDroppedRuleSet => {
+    // What the file holds before this state: the committed history plus what
+    // stays of the job (and, for a state only queued later, of the queue). A
+    // copy's walk passes its own duplicate op to reach its source.
+    const history = first.list === "sent"
+      ? [...committed, ...kept(sent, sentDrops, first.index + (throughFirst ? 1 : 0))]
+      : [...committed, ...kept(sent, sentDrops, sent.length), ...kept(later, laterDrops, first.index)];
+    const newest = ops[ops.length - 1]!;
+    return {
+      family,
+      sheet: named ?? liveName(targetOf(at(newest))!, after(newest)),
+      savedRules: rulesBefore(start, family, history),
+      rules: ruleCount(at(newest)),
+    };
+  });
+  return { indexes: [...sentDrops].sort((a, b) => a - b), laterIndexes: [...laterDrops].sort((a, b) => a - b), drops };
 }
 
 /** The list without the entries at the planned positions. */

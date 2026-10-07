@@ -236,6 +236,68 @@ describe("Office save coordinator", () => {
     expect(h.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1 });
   });
 
+  // UNI-953 item 3 (every format: the harness is the generic md fake): edits
+  // typed while a save failed with a proven non-commit used to need a second
+  // Save after the retry; one Save now saves everything as a new intent.
+  it("saves everything typed during a refused save in one new intent, and replays the same bytes otherwise", async () => {
+    const h = setup();
+    h.transport.release = vi.fn(async () => undefined);
+    h.transport.reconcile = vi.fn(async () => null);
+    let refuse = true;
+    h.transport.serialize = vi.fn(async () => {
+      if (refuse) throw { code: "xlsx_rule_sets_dropped", error_class: "engine" };
+      return h.transport.serializedOutput;
+    });
+    h.setDirty(1);
+    await expect(h.coordinator.save("button")).resolves.toEqual({ accepted: false, reason: "error" });
+    // No newer edit: Retry re-runs the same intent (same key).
+    await expect(h.coordinator.save("retry")).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(h.persistedIntents).toHaveLength(1);
+    expect(h.transport.release).not.toHaveBeenCalled();
+    // Typed after the failure: ONE Save settles the old intent and saves both.
+    h.setDirty(2);
+    refuse = false;
+    await expect(h.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
+    expect(h.persistedIntents).toHaveLength(2);
+    expect(h.persistedIntents[1]).toMatchObject({ snapshotGeneration: 2 });
+    expect(h.persistedIntents[1]?.idempotencyKey).not.toBe(h.persistedIntents[0]?.idempotencyKey);
+    expect(h.transport.release).toHaveBeenCalledExactlyOnceWith({ intent: h.persistedIntents[0] });
+    expect(h.clearedIntentIds).toContain(h.persistedIntents[0]?.intentId);
+    expect(h.coordinator.getState()).toMatchObject({ state: "saved", dirtyGeneration: 2, lastSavedGeneration: 2 });
+  });
+
+  // review-session m-2/m-3: a commit that failed with an unmapped (neither
+  // ambiguous nor refusal) error may have landed. A later refusal on the retry
+  // must not make the intent look settled: it keeps its key and its hold.
+  it("keeps a post-commit unsure intent's key after a later refusal and publishes the outcome as unknown", async () => {
+    const h = setup();
+    h.transport.release = vi.fn(async () => undefined);
+    h.transport.reconcile = vi.fn(async () => null);
+    let committed = false;
+    let open = false;
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => {
+      if (open) return h.receiptFor(intent);
+      committed = true;
+      throw { code: "storage_write_unconfirmed", error_class: "storage", status: 500, retryable: true };
+    });
+    h.transport.serialize = vi.fn(async () => {
+      if (committed && !open) throw { code: "xlsx_rule_sets_dropped", error_class: "engine" };
+      return h.transport.serializedOutput;
+    });
+    h.setDirty(1);
+    await expect(h.coordinator.save("button")).resolves.toEqual({ accepted: false, reason: "error" });
+    const failed = h.coordinator.getState();
+    expect(failed).toMatchObject({ state: "error", activeIntentId: h.persistedIntents[0]?.intentId, outcomeUnknown: true });
+    expect(failed.error?.ambiguous).toBe(false);
+    h.setDirty(2);
+    open = true;
+    await expect(h.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
+    // The same key is replayed, never released for a fresh intent.
+    expect(h.persistedIntents).toHaveLength(1);
+    expect(h.transport.release).not.toHaveBeenCalled();
+    expect(h.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1, outcomeUnknown: false });
+  });
+
   it("reconciles an unresolved intent before a new Save can start", async () => {
     const h = setup();
     saveNeverCommits(h);

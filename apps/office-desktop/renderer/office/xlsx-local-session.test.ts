@@ -169,7 +169,7 @@ describe("desktop local xlsx session (C1b)", () => {
     session.coordinator.markDirty(session.editor.getDirtyGeneration());
     expect(await session.coordinator.save("button")).toEqual({ accepted: false, reason: "error" });
     expect(session.coordinator.getState()).toMatchObject({ state: "error", error: { code: "xlsx_rule_sets_dropped", action: "retry", retryable: false } });
-    expect(session.editor.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null }]);
+    expect(session.editor.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null, rules: 0 }]);
     // Review m-2: the live draft stream loses the dropped op too.
     expect(((await session.editor.captureSnapshot()).value as { pendingOps?: unknown[] }).pendingOps).toEqual([editOp]);
     const edits = () => bridge.call.mock.calls.filter(([channel, payload]) => channel === "desktop:file-xlsx" && payload.operation === "edit").map(([, payload]) => payload.edits);

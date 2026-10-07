@@ -5,7 +5,7 @@ import { dispatchOfficeError, isOfficeTooLarge } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
 import { cloneSnapshot, stableJson } from "./xlsx-adapter-data";
-import { applyXlsxJournalToSnapshot, diffXlsxSnapshotsToOperations, parseRuleSetDrops, planRuleSetDrops, ruleSetDropMessage, ruleSetsDroppedError, withPendingOps, withoutOperationsAt, withoutPendingOps, type XlsxDroppedRuleSet } from "@uniwork/views/office/xlsx";
+import { applyXlsxJournalToSnapshot, diffXlsxSnapshotsToOperations, parseRuleSetDrops, pendingDropIndexes, planRuleSetDrops, ruleSetDropMessage, ruleSetHistory, ruleSetsDroppedError, withPendingOps, withoutOperationsAt, withoutPendingOps, type XlsxDroppedRuleSet } from "@uniwork/views/office/xlsx";
 
 /** Required renderer fields: an older engine must fail clearly instead of
  * silently mounting the legacy value-only table. */
@@ -80,7 +80,8 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
   let lastCommit: { intentId: string; revision: string } | null = null;
   const candidates = new Map<string, { baseRevision: string; snapshot: XlsxWorkbookSnapshot; operations: OfficeEditOp[]; output?: XlsxRuntimeSerializedOutput; running?: Promise<XlsxRuntimeSerializedOutput> }>();
   let dropped: XlsxDroppedRuleSet[] = [];
-  // Every op this session already committed, oldest first (rule-set restore).
+  // The rule-set and sheet ops this session already committed, oldest first:
+  // all a rule-set restore reads (r4 R4-1), never cell batches or pictures.
   let committedOps: unknown[] = [];
   let activeJob: string | null = null;
   let disposed = false;
@@ -207,11 +208,13 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
         const later = pending.filter((entry) => entry.revision > captured.snapshot.revision).map((entry) => entry.operation);
         const plan = planRuleSetDrops(refusals, captured.operations, committedOps, later);
         dropped = plan.drops;
+        const queued = pendingDropIndexes(plan, captured.operations.length);
         captured.operations = withoutOperationsAt(captured.operations, plan.indexes);
-        pending = withoutOperationsAt(pending, plan.indexes);
+        // R4-3: later snapshots of a refused sheet go too, so one Save converges.
+        pending = withoutOperationsAt(pending, queued);
         const live = (snapshot as { pendingOps?: readonly unknown[] } | null)?.pendingOps;
         if (snapshot && Array.isArray(live)) {
-          const kept = withoutOperationsAt(live, plan.indexes);
+          const kept = withoutOperationsAt(live, queued);
           snapshot = kept.length ? withPendingOps(withoutPendingOps(snapshot), kept) : withoutPendingOps(snapshot);
         }
         throw ruleSetsDroppedError();
@@ -237,7 +240,7 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision);
       const kept = pending.map((entry) => entry.operation);
       snapshot = snapshot === null ? null : kept.length ? withPendingOps(snapshot, kept) : withoutPendingOps(snapshot);
-      committedOps.push(...candidate.operations);
+      committedOps.push(...ruleSetHistory(candidate.operations));
       baseRevision = revision;
       lastCommit = { intentId, revision };
       candidates.clear();

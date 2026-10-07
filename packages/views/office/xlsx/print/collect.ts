@@ -8,7 +8,9 @@
 //     render model the grid was loaded from).
 //   * Page setup: this session's dialog edits > the file's layout > defaults.
 //   * Charts, pictures and shapes come from the visuals layer, measured in
-//     the sizes this copy prints with (print-visuals).
+//     the sizes this copy prints with (print-visuals). Without a print area
+//     the printed range grows over the boxes they draw (print-extent), as
+//     Excel prints a sheet; so do the open bounds of a whole-row/column one.
 //   * Each area of a multi-area print area is read with the title rows and
 //     columns it repeats, as separate blocks (title rows x the area's columns,
 //     the area's rows x title columns, and their corner), so a print area far
@@ -22,6 +24,7 @@ import { addressParts } from "../xlsx-editor-model";
 import { toA1Address } from "../xlsx-render-model-bridge";
 import { XlsxLiveLayout, type XlsxPrintGrid } from "./collect-live";
 import { MAX_PRINT_CELLS, type XlsxPrintCell, type XlsxPrintSheet } from "./print-copy";
+import { drawnExtent } from "./print-extent";
 import { resolvePrintSetup, type XlsxPrintRange } from "./print-setup";
 import { collectPrintPictures, type XlsxPrintableVisuals } from "./print-visuals";
 
@@ -118,8 +121,19 @@ function chunksOf(range: XlsxPrintRange): XlsxPrintRange[] {
   return chunks;
 }
 
+/** The file's column spans over columns start..end, in points. */
+function setFileColumns(into: Map<number, { width?: number; hidden?: boolean }>, spans: readonly { startColumn: number; endColumn: number; width?: number | undefined; hidden?: boolean | undefined }[], start: number, end: number): void {
+  for (const span of spans) {
+    for (let column = Math.max(span.startColumn, start); column <= Math.min(span.endColumn, end); column += 1) {
+      into.set(column, {
+        ...(span.width === undefined ? {} : { width: columnPoints(span.width) }),
+        ...(span.hidden ? { hidden: true } : {}),
+      });
+    }
+  }
+}
 
-/** The used range: the file's dimension, grown by any live cell beyond it. */
+/** The used range: the file's dimension, grown by any live cell. */
 function usedRange(rowCount: number, columnCount: number, cells: Readonly<Record<string, { readonly value: XlsxCellScalar }>> | undefined): XlsxPrintRange {
   let endRow = Math.max(0, rowCount - 1);
   let endColumn = Math.max(0, columnCount - 1);
@@ -144,13 +158,47 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
   const liveSheet = snapshot?.sheets.find((candidate) => candidate.name === input.sheetName) ??
     snapshot?.sheets.find((candidate) => candidate.id === fileSheet.id);
 
-  const used = usedRange(fileSheet.rowCount, fileSheet.columnCount, liveSheet?.cells);
+  const gridSheetId = input.sheetId ?? fileSheet.id;
+  const sheetIds = [...new Set([gridSheetId, fileSheet.id])];
+  const defaultChars = fileSheet.defaultColumnWidth ?? Math.trunc((((fileSheet.baseColumnWidth ?? 8) * MDW + 5) / MDW) * 256) / 256;
+  const defaultColumnWidth = columnPoints(defaultChars);
+  const defaultRowHeight = fileSheet.defaultRowHeight ?? 15;
+  const cellsUsed = usedRange(fileSheet.rowCount, fileSheet.columnCount, liveSheet?.cells);
+  // Sizes as the copy prints them: the model's rows and the file's columns,
+  // overridden by what the grid paints (one column / one row wide reads).
+  const drawn = input.visuals ? await drawnExtent({
+    visuals: input.visuals,
+    sheetIds,
+    used: cellsUsed,
+    defaultRowHeight,
+    defaultColumnWidth,
+    readRows: async (startRow, endRow) => {
+      const range = { startRow, endRow, startColumn: 0, endColumn: 0 };
+      const sizes = new Map<number, { height?: number; hidden?: boolean }>();
+      for (const row of (await host.readRange({ sessionId: file.sessionId, sheetId: fileSheet.id, range })).rows) {
+        sizes.set(row.row, { ...(row.height === undefined ? {} : { height: row.height }), ...(row.hidden ? { hidden: true } : {}) });
+      }
+      const strip = new XlsxLiveLayout([]);
+      strip.add(range, grid?.readPrintRange?.(gridSheetId, range));
+      for (const [row, size] of strip.rows) sizes.set(row, size);
+      return sizes;
+    },
+    readColumns: async (startColumn, endColumn) => {
+      const range = { startRow: 0, endRow: 0, startColumn, endColumn };
+      const sizes = new Map<number, { width?: number; hidden?: boolean }>();
+      setFileColumns(sizes, fileSheet.columnWidths, startColumn, endColumn);
+      const strip = new XlsxLiveLayout([]);
+      strip.add(range, grid?.readPrintRange?.(gridSheetId, range));
+      for (const [column, size] of strip.columns) sizes.set(column, size);
+      return sizes;
+    },
+  }) : null;
+  const used = drawn ? { ...cellsUsed, endRow: Math.max(cellsUsed.endRow, drawn.endRow), endColumn: Math.max(cellsUsed.endColumn, drawn.endColumn) } : cellsUsed;
   const setup = resolvePrintSetup({ file: fileSheet.pageSetup, session: input.session, definedNames: file.definedNames, sheetIndex: index, used });
   const areas = setup.printAreas ?? [used];
   const reads = areas.flatMap((area) => blocksFor(area, setup.titleRows, setup.titleColumns));
   if (reads.reduce((total, read) => total + cellCount(read), 0) > MAX_PRINT_CELLS) return { ok: false, reason: "print_too_large" };
 
-  const gridSheetId = input.sheetId ?? fileSheet.id;
   const live = new XlsxLiveLayout(file.styles);
   const cells = new Map<string, XlsxPrintCell>();
   const rows = new Map<number, { height?: number; hidden?: boolean }>();
@@ -191,27 +239,15 @@ export async function collectXlsxPrintSheet(input: XlsxPrintCollectInput): Promi
   }
 
   const columns = new Map<number, { width?: number; hidden?: boolean }>();
-  for (const span of fileSheet.columnWidths) {
-    for (const read of reads) {
-      for (let column = Math.max(span.startColumn, read.startColumn); column <= Math.min(span.endColumn, read.endColumn); column += 1) {
-        columns.set(column, {
-          ...(span.width === undefined ? {} : { width: columnPoints(span.width) }),
-          ...(span.hidden ? { hidden: true } : {}),
-        });
-      }
-    }
-  }
+  for (const read of reads) setFileColumns(columns, fileSheet.columnWidths, read.startColumn, read.endColumn);
   // What the grid paints wins over the file for every row/column it read.
   for (const [row, size] of live.rows) rows.set(row, size);
   for (const [column, size] of live.columns) columns.set(column, size);
-  const defaultChars = fileSheet.defaultColumnWidth ?? Math.trunc((((fileSheet.baseColumnWidth ?? 8) * MDW + 5) / MDW) * 256) / 256;
   const now = input.now ?? new Date();
-  const defaultColumnWidth = columnPoints(defaultChars);
-  const defaultRowHeight = fileSheet.defaultRowHeight ?? 15;
   const pictures = input.visuals
     ? collectPrintPictures({
       source: input.visuals,
-      sheetIds: [...new Set([gridSheetId, fileSheet.id])],
+      sheetIds,
       columnWidth: (column) => (columns.get(column)?.hidden ? 0 : (columns.get(column)?.width ?? defaultColumnWidth)),
       rowHeight: (row) => (rows.get(row)?.hidden ? 0 : (rows.get(row)?.height ?? defaultRowHeight)),
     })

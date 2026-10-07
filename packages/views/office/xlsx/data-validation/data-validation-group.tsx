@@ -6,13 +6,14 @@
 // one command port and stay focusable (aria-disabled) when blocked.
 
 import { useState } from "react";
-import { Eraser, ListChecks } from "lucide-react";
+import { Eraser, ListChecks, ListTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { fireCommand } from "../fire-command";
 import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "../toolbar/group-layout";
 import type { XlsxToolbarGroupProps } from "../toolbar/types";
 import { XlsxDataValidationDialog } from "./data-validation-dialog";
+import { XlsxDvRuleManager } from "./dv-rule-manager";
 import { clearDvParams, selectionDvRange, XLSX_DV_CLEAR_COMMAND } from "./dv-commands";
 
 export function XlsxDataValidationGroup({
@@ -26,12 +27,15 @@ export function XlsxDataValidationGroup({
 }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [managing, setManaging] = useState(false);
   const range = selectionDvRange(selection);
   const sheetId = sheetName ? resolveSheetId?.(sheetName) : undefined;
   const blocked = readOnly || !commands || range === null || sheetId === undefined || !unitId;
 
   const x14 = host?.file.sheets.find((sheet) => sheet.id === sheetId)?.ruleSets?.dataValidations === "x14";
   const x14Reason = t("office.xlsx.dataValidation.errors.x14Sheet");
+
+  const canManage = !blocked && typeof commands?.readRuleSets === "function";
 
   const clear = () => {
     if (blocked || x14 || !commands || range === null || sheetId === undefined || !unitId) return;
@@ -70,6 +74,24 @@ export function XlsxDataValidationGroup({
             <Eraser aria-hidden />
           </Button>
         </XlsxGroupRow>
+        <XlsxGroupRow>
+          <Button
+            type="button"
+            variant="toolbar"
+            size="icon-sm"
+            className={XLSX_ICON_BUTTON_CLASS}
+            aria-label={t("office.xlsx.dataValidation.manage")}
+            title={canManage ? t("office.xlsx.dataValidation.manage") : t("office.xlsx.dataValidation.manager.unavailable")}
+            aria-haspopup="dialog"
+            aria-disabled={!canManage || undefined}
+            data-testid="xlsx-dv-manage"
+            onClick={() => {
+              if (canManage) setManaging(true);
+            }}
+          >
+            <ListTree aria-hidden />
+          </Button>
+        </XlsxGroupRow>
       </XlsxGroupRows>
       {open && !blocked && commands && range !== null && sheetId !== undefined && unitId ? (
         <XlsxDataValidationDialog
@@ -79,6 +101,16 @@ export function XlsxDataValidationGroup({
           range={range}
           blocked={x14}
           onClose={() => setOpen(false)}
+        />
+      ) : null}
+      {managing && canManage && commands && range !== null && sheetId !== undefined && unitId ? (
+        <XlsxDvRuleManager
+          commands={commands}
+          unitId={unitId}
+          subUnitId={sheetId}
+          selection={range}
+          x14={x14}
+          onClose={() => setManaging(false)}
         />
       ) : null}
     </XlsxGroupBody>

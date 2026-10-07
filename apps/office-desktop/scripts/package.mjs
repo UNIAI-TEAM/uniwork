@@ -398,7 +398,7 @@ export async function packageDesktop({ platform = process.platform, arch, output
     // whose local .xlsx open dies with engine_incompatible. build.mjs above
     // already built anything missing (when cargo is available), so this only
     // re-applies the OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR gate and stages.
-    await prepareXlsxAssets({ repositoryRoot, distDirectory, platform, build: false });
+    await prepareXlsxAssets({ repositoryRoot, distDirectory, platform, arches, build: false });
     for (const targetArch of arches) {
       const config = createPackagerConfig({
         platform,

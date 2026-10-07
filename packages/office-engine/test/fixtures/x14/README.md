@@ -26,3 +26,19 @@ node /tmp/make-x14.cjs \
 ```
 
 The generator has a `.txt` extension so lint, knip and the test runners skip it.
+
+## Saved by Microsoft Excel (UNI-953 option A)
+
+`xlsx-excel-data-bar.xlsx` is written by Microsoft Excel 16 itself (not
+derived): sheet `Data` (A1:D6) with a data bar on `B2:B6`, a second data bar
+on the two areas `C2:C3 C5:C6`, and a classic `cellIs > 9` on `D2:D6`. Excel
+writes each data bar as a base `<cfRule type="dataBar">` linked by `x14:id`
+to an `x14:cfRule` in the worksheet extLst. `test/xlsx-cf-x14-linked.test.ts`
+proves gateway patches 0011 and 0012 on it.
+
+`make-excel-data-bar.ps1.txt` is the Windows PowerShell script that drove
+Excel through COM. It starts `EXCEL.EXE /automation` and takes the instance
+from the running object table, because on a machine where WPS Office owns
+the `Excel.Application` class a plain `New-Object -ComObject` produces a WPS
+file instead. Copy it to a `.ps1` path and run
+`powershell -File make-excel-data-bar.ps1 -Out <absolute path>.xlsx`.

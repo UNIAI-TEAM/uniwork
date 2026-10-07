@@ -1,0 +1,17 @@
+// Derives xlsx-widthless-cols.xlsx from the G0 kitchen-sink: the same package
+// with a style-only <col> (no width attribute) on columns B:C of sheet Data.
+// Usage: node make-widthless-cols.cjs <jszip dir> <kitchen-sink.xlsx> <out dir>
+const fs = require("node:fs");
+const path = require("node:path");
+const [jszipDir, source, outDir] = process.argv.slice(2);
+const JSZip = require(jszipDir);
+
+(async () => {
+  const zip = await JSZip.loadAsync(fs.readFileSync(source));
+  const part = "xl/worksheets/sheet1.xml";
+  const xml = await zip.file(part).async("string");
+  if (xml.includes("<cols")) throw new Error("source already has <cols>");
+  zip.file(part, xml.replace("<sheetData>", '<cols><col min="2" max="3" style="0"/></cols><sheetData>'));
+  const bytes = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  fs.writeFileSync(path.join(outDir, "xlsx-widthless-cols.xlsx"), bytes);
+})();

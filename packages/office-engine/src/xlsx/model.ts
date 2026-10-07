@@ -34,7 +34,7 @@ import {
 } from "./ops.ts";
 import { groupXlsxPageSetupStates, isXlsxPageSetupOp, type XlsxPageSetupFields, type XlsxPageSetupOp, type XlsxSheetPageSetupState } from "./page-setup.ts";
 import { groupXlsxTableAdditions, isXlsxTableOp, type XlsxTableAddOp } from "./tables.ts";
-import { foldXlsxVisualOp, groupXlsxVisualAdditions, isXlsxVisualOp, type XlsxSheetVisualAddition, type XlsxVisualSetOp } from "./ops-visuals.ts";
+import { foldXlsxVisualOp, groupXlsxVisualAdditions, isXlsxVisualOp, shiftXlsxVisualEntries, type XlsxSheetVisualAddition, type XlsxVisualEntry } from "./ops-visuals.ts";
 import { groupXlsxSheetProtectionStates, isXlsxSheetProtectionOp, type XlsxSheetProtectionOp, type XlsxSheetProtectionState } from "./ops-protection.ts";
 import { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, type XlsxDefinedNamesOp, type XlsxDefinedNamesState } from "./ops-names.ts";
 import {
@@ -117,8 +117,10 @@ export class XlsxSessionModel {
   tables: XlsxTableAddOp[] = [];
   /** Visual additions (B8): charts, pictures and shapes inserted this session,
    *  in first-insert order; a set_visual with a pending id replaces it in
-   *  place, remove_visual drops it. Keyed by CURRENT sheet name like tables. */
-  visuals: XlsxVisualSetOp[] = [];
+   *  place, remove_visual drops it. Keyed by CURRENT sheet name like tables.
+   *  `file_visual` entries (UNI-953) are moves/deletes of visuals already in
+   *  the file, addressed by drawing index; they feed visualEdits. */
+  visuals: XlsxVisualEntry[] = [];
   /** Declarative sheet-protection journal: the LAST protection op per sheet,
    *  in first-touch order (whole-sheet, like filters). Keyed by CURRENT name. */
   sheetProtections = new Map<string, XlsxSheetProtectionOp>();
@@ -361,6 +363,7 @@ export class XlsxSessionModel {
     if ("index" in op) {
       this.shiftPendingCells(op);
       this.shiftLinkAndNoteJournals(op);
+      this.visuals = shiftXlsxVisualEntries(this.visuals, op.sheetName, op);
     }
     this.touched = true;
     this.revision += 1;

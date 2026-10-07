@@ -67,7 +67,7 @@ const result = await build({
         else if (name === 'LocaleType') lines.push('export const LocaleType={EN_US:"enUS",VI_VN:"viVN"};');
         else if (name === 'CommandType') lines.push('export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2};');
         else if (name === 'ICommandService') lines.push('export const ICommandService="ICommandService";');
-        else if (name === 'ThemeService' || name === 'SheetInterceptorService' || name === 'IDialogService') lines.push(`export const ${name}='${name}';`);
+        else if (name === 'ThemeService' || name === 'SheetInterceptorService' || name === 'IDialogService' || name === 'IUndoRedoService') lines.push(`export const ${name}='${name}';`);
         else if (name === 'createUniver') lines.push('export function createUniver(options){h().factoryOptions=options;return h().runtime;}');
         else if (name === 'journalSuppression' || name === 'loadAutoHeightSuppression') lines.push(`export const ${name}={active:false};`);
         else if (name === 'loadWorkbookSkeleton') lines.push('export function loadWorkbookSkeleton(runtime,file){h().load(file);}');
@@ -136,7 +136,9 @@ export function mountController(options = {}, environment = {}) {
       getSheetId: () => id,
       getSheetName: () => name,
       isSheetHidden: () => meta.hidden === true,
-      getSheet: () => ({ getCellRaw: (row, column) => cells.get(`${id}:${row}:${column}`) }),
+      // Hidden lines the outline level buttons read (h.hiddenRows / h.hiddenCols: "sheet:line").
+      getSheet: () => ({ getCellRaw: (row, column) => cells.get(`${id}:${row}:${column}`),
+        getRowRawVisible: (row) => !h.hiddenRows?.has(`${id}:${row}`), getColVisible: (column) => !h.hiddenCols?.has(`${id}:${column}`) }),
       getRange(row, column) {
         const range = { startRow: row, endRow: row, startColumn: column, endColumn: column };
         return {
@@ -187,6 +189,10 @@ export function mountController(options = {}, environment = {}) {
         // The data-validation rejection dialog taps the write interceptor and
         // the dialog list once per renderer; neither has anything to report here.
         if (token === 'IDialogService') return { getDialogs$: () => ({ subscribe: () => ({ unsubscribe() {} }) }) };
+        // Outline actions push their own undo entry (edits.ts outlineHistoryItem).
+        if (token === 'IUndoRedoService') {
+          return { pushUndoRedo: (item) => { (h.undoItems ??= []).push(item); }, undoRedoStatus$: { subscribe: () => ({ unsubscribe() {} }) } };
+        }
         return token === 'ThemeService' ? { setDarkMode: (dark) => h.dark.push(dark) } : {};
       } }),
       dispose: () => { h.disposed = true; },
@@ -208,14 +214,21 @@ export function mountController(options = {}, environment = {}) {
   globalThis.__xlsxControllerTest = h;
   globalThis.window = { setTimeout: (fn) => { fn(); return 0; } };
   const classes = new Set();
-  const element = () => ({ id: '', className: '', style: {}, remove() {} });
+  // Enough DOM for the outline level bar (outline-bar.ts) to mount and be clicked.
+  const element = (tag = 'div') => ({ id: '', className: '', style: {}, tagName: String(tag).toUpperCase(), children: [], attributes: new Map(),
+    listeners: new Map(), hidden: false, textContent: '', remove() {}, setAttribute(key, value) { this.attributes.set(key, String(value)); },
+    getAttribute(key) { return this.attributes.get(key) ?? null; }, appendChild(child) { this.children.push(child); return child; },
+    replaceChildren(...nodes) { this.children = nodes; }, addEventListener(type, handler) { this.listeners.set(type, handler); } });
   const attributes = new Map();
   const listeners = new Map();
   const container = { ...element(), setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key),
     addEventListener: (type, handler) => listeners.set(type,handler),
     removeEventListener: (type) => listeners.delete(type), contains: (element) => element === h.target,
     classList: { add: (value) => classes.add(value), remove: (value) => classes.delete(value) },
-    ownerDocument: { createElement: element, fonts: environment.fonts }, appendChild() {} };
+    // The DV hint stylesheet and the dialog relabel look the document up.
+    ownerDocument: { createElement: element, fonts: environment.fonts, getElementById: () => null,
+      head: { appendChild() {} }, querySelectorAll: () => [] }, appendChild() {},
+    insertBefore: (child) => { h.outlineBar = child; return child; } };
   const handle = createXlsxRenderer({ container, host: { async readRange() { return {}; } }, ...options });
   return {
     handle, h, workbook, events, container,

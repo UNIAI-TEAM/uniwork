@@ -119,6 +119,15 @@ const STRUCTURAL_COMMANDS = new Set([
   // command instead.
   "uniwork.command.set-rows-outline",
   "uniwork.command.set-cols-outline",
+  // Show / Hide Detail: runs the allowlisted hidden/visible command on the
+  // outline group the controller finds, which passes this policy again.
+  "uniwork.command.set-outline-detail",
+  // The summary line's collapsed flag, written by Show / Hide Detail and
+  // replayed by its undo/redo entry.
+  "uniwork.command.set-outline-collapsed",
+  // Outline level buttons (1..n): hide/show every group by level through the
+  // allowlisted hidden/visible commands, which pass this policy again.
+  "uniwork.command.set-outline-level",
   "uniwork.command.set-cols-default-width",
 ]);
 
@@ -211,10 +220,25 @@ function structuralCommandAllowed(
 ): boolean {
   const params = event.params as {
     value?: unknown; range?: unknown; ranges?: unknown; start?: unknown; end?: unknown; action?: unknown; subUnitId?: unknown;
+    axis?: unknown; hide?: unknown; collapsed?: unknown;
   } | undefined;
   if (event.id === "uniwork.command.set-rows-outline" || event.id === "uniwork.command.set-cols-outline") {
     return (params?.action === "group" || params?.action === "ungroup" || params?.action === "clear") &&
       structuralAxisCommandOK(params, event.id.includes("rows") ? "row" : "column", state);
+  }
+  if (event.id === "uniwork.command.set-outline-detail") {
+    return (params?.axis === "rows" || params?.axis === "cols") && typeof params.hide === "boolean" &&
+      structuralAxisCommandOK(params, params.axis === "rows" ? "row" : "column", state);
+  }
+  if (event.id === "uniwork.command.set-outline-collapsed") {
+    return (params?.axis === "rows" || params?.axis === "cols") && typeof params.collapsed === "boolean" &&
+      structuralAxisCommandOK(params, params.axis === "rows" ? "row" : "column", state);
+  }
+  if (event.id === "uniwork.command.set-outline-level") {
+    const level = (event.params as { level?: unknown } | undefined)?.level;
+    return (params?.axis === "rows" || params?.axis === "cols") &&
+      typeof level === "number" && Number.isInteger(level) && level >= 1 && level <= 8 &&
+      (params.subUnitId === undefined || (typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId)));
   }
   if (event.id === "uniwork.command.set-cols-default-width") {
     return structuralAxisCommandOK(params, "column", state);

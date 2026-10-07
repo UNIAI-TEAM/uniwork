@@ -5,10 +5,12 @@
 // entry or the replay driver performs the dynamic import), so this file stays
 // free of Node/fs/canvas and the browser boundary holds.
 //
-// Upstream surface bound here (pinned 09485f88 + patches 0001/0002/0008/0010):
+// Upstream surface bound here (pinned 09485f88 + patches 0001/0002/0008/0010/0013):
 //   dist/xlsx-gateway.mjs -> readBasicWorkbook / inventoryXlsx /
 //     createBufferEntrySource / applyCellEditsToXlsx /
-//     assertOnlyTouchedEntriesChanged, UNIWORK_XLSX_VISUAL_ADDITIONS (0010 marker)
+//     assertOnlyTouchedEntriesChanged, UNIWORK_XLSX_VISUAL_ADDITIONS (0010 marker),
+//     readEntriesBase64 + UNIWORK_XLSX_VISUAL_EDITS and
+//     UNIWORK_XLSX_VISUAL_READ_BUDGET (0013 markers)
 import { EngineBoundaryError } from "@uniwork/office-contracts";
 import type {
   XlsxCellEdit,
@@ -46,11 +48,19 @@ export interface UpstreamXlsxGatewayModule {
     tableAdditions?: readonly unknown[],
     visualAdditions?: readonly unknown[],
     formulaValues?: readonly XlsxSheetFormulaValues[],
+    visualEdits?: readonly unknown[],
   ): Promise<XlsxMutation>;
+  readEntriesBase64(buffer: Uint8Array, paths: readonly string[], maxBytes: number, maxTotalBytes: number): Promise<Record<string, string | null>>;
   assertOnlyTouchedEntriesChanged(mutation: XlsxMutation): void;
   /** Patch 0010 capability marker: the bundle binds visualAdditions before
    *  formulaValues. A bundle without it predates the slot. */
   readonly UNIWORK_XLSX_VISUAL_ADDITIONS: true;
+  /** Patch 0013 capability marker: visualEdits rides after formulaValues and
+   *  readEntriesBase64 exists. A bundle without it would drop file-visual edits. */
+  readonly UNIWORK_XLSX_VISUAL_EDITS: true;
+  /** Patch 0013 (review-visuals V1): readEntriesBase64 takes the workbook
+   *  budget and checks entry sizes before inflating. */
+  readonly UNIWORK_XLSX_VISUAL_READ_BUDGET: true;
 }
 
 /** The upstream signatures type their inputs as Buffer; jszip underneath
@@ -89,6 +99,7 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
     "createBufferEntrySource",
     "applyCellEditsToXlsx",
     "assertOnlyTouchedEntriesChanged",
+    "readEntriesBase64",
   ] as const) {
     if (typeof mod[key] !== "function") {
       throw new EngineBoundaryError("engine_incompatible", { detail: "xlsx gateway artifact lacks " + key });
@@ -101,6 +112,20 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
   if (mod.UNIWORK_XLSX_VISUAL_ADDITIONS !== true) {
     throw new EngineBoundaryError("engine_incompatible", {
       detail: "xlsx gateway artifact predates patch 0010 (no UNIWORK_XLSX_VISUAL_ADDITIONS marker); rebuild it with node scripts/office/build-upstream.mjs",
+    });
+  }
+  // Patch 0013: without visualEdits a save would silently drop the moves and
+  // deletes of visuals already in the file.
+  if (mod.UNIWORK_XLSX_VISUAL_EDITS !== true) {
+    throw new EngineBoundaryError("engine_incompatible", {
+      detail: "xlsx gateway artifact predates patch 0013 (no UNIWORK_XLSX_VISUAL_EDITS marker); rebuild it with node scripts/office/build-upstream.mjs",
+    });
+  }
+  // Patch 0013 V1: an older 0013 bundle ignores the workbook budget and
+  // inflates every picture before its size check.
+  if (mod.UNIWORK_XLSX_VISUAL_READ_BUDGET !== true) {
+    throw new EngineBoundaryError("engine_incompatible", {
+      detail: "xlsx gateway artifact predates the patch 0013 read budget (no UNIWORK_XLSX_VISUAL_READ_BUDGET marker); rebuild it with node scripts/office/build-upstream.mjs",
     });
   }
   const gateway = mod as UpstreamXlsxGatewayModule;
@@ -128,6 +153,9 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
       }
       return out;
     },
+    async readEntriesBase64(bytes: Uint8Array, paths: readonly string[], maxBytes: number, maxTotalBytes: number): Promise<Readonly<Record<string, string | null>>> {
+      return gateway.readEntriesBase64(toEngineBytes(bytes), paths, maxBytes, maxTotalBytes);
+    },
     async applyCellEdits(
       source: Uint8Array,
       edits: readonly XlsxCellEdit[],
@@ -140,7 +168,7 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
       //   filterStates [], hyperlinkEdits [], cfStates [], dvStates [],
       //   sheetProtections [], definedNamesState null, pageSetupStates [],
       //   noteStates [], tableAdditions [], visualAdditions [] (patch 0010),
-      //   formulaValues.
+      //   formulaValues, visualEdits [] (patch 0013, appended last).
       const mutation = await gateway.applyCellEditsToXlsx(
         toEngineBytes(source),
         edits,
@@ -158,6 +186,7 @@ export function bindXlsxGateway(mod: Partial<UpstreamXlsxGatewayModule>): XlsxGa
         gatewayArguments.tableAdditions ?? [],
         gatewayArguments.visualAdditions ?? [],
         formulaValues,
+        gatewayArguments.visualEdits ?? [],
       );
       assertMutationShape(mutation);
       return { ...mutation, buffer: toBytes(mutation.buffer) };

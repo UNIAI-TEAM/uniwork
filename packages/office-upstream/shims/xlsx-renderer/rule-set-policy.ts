@@ -1,7 +1,7 @@
 import { CF_MUTATIONS, DV_MUTATIONS } from "../../upstream/apps/sheets/src/renderer/app-constants";
-import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
+import type { LazyWorkbookState, UniverWorksheet } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import { liveSessionSheets, type RendererCommand } from "./edits";
-import { RULE_SET_COMMANDS, ruleSetSheetReady, type XlsxRendererRuleSetKind } from "./rule-set-capture";
+import { readLiveRuleSet, RULE_SET_COMMANDS, ruleSetSheetReady, type XlsxRendererRuleSetKind } from "./rule-set-capture";
 import { cfRuleSaveable, dvRuleSaveable } from "./rule-set-saveable";
 
 // ── conditional formatting + data validation (X01) ─────────────────────────
@@ -38,6 +38,12 @@ interface RuleSetParams {
   subUnitId?: unknown;
   ranges?: unknown;
   rule?: unknown;
+  cfId?: unknown;
+  ruleId?: unknown;
+  start?: unknown;
+  end?: unknown;
+  setting?: unknown;
+  options?: unknown;
 }
 
 /** The commands are sheet-scoped: an explicit unit must be this workbook, and
@@ -89,8 +95,100 @@ export function ruleSetCommandAllowed(event: RendererCommand, state: LazyWorkboo
       return params.ranges === undefined || areasOK(params.ranges);
     case "sheet.command.clear-worksheet-conditional-rule":
       return true;
+    // The rule managers (UNI-953): edit, reorder and delete one rule by its
+    // model id. An edited rule passes the same dry-run as a new one.
+    case "sheet.command.set-conditional-rule":
+      return idOK(params.cfId) && newRuleOK(params.rule, "cf") && (params.rule as { cfId?: unknown }).cfId === params.cfId;
+    case "sheet.command.move-conditional-rule":
+      return anchorOK(params.start, ["self"]) && anchorOK(params.end, ["before", "after"]);
+    case "sheet.command.delete-conditional-rule":
+      return idOK(params.cfId);
+    case "sheets.command.update-data-validation-setting":
+      return idOK(params.ruleId) && !!params.setting && typeof params.setting === "object" && dvRuleSaveable(params.setting);
+    case "sheets.command.update-data-validation-options":
+      return idOK(params.ruleId) && dvOptionsOK(params.options);
+    case "sheet.command.updateDataValidationRuleRange":
+      return idOK(params.ruleId) && areasOK(params.ranges);
+    case "sheet.command.remove-data-validation-rule":
+      return idOK(params.ruleId);
   }
   return false;
+}
+
+/** The model ids a rule-manager command addresses, or null for the commands
+ *  that address areas instead (add, clear). */
+function ruleManagerTargets(event: RendererCommand): string[] | null {
+  const params = event.params as RuleSetParams | undefined;
+  switch (event.id) {
+    case "sheet.command.set-conditional-rule":
+    case "sheet.command.delete-conditional-rule":
+      return [params?.cfId as string];
+    case "sheet.command.move-conditional-rule":
+      return [(params?.start as { id?: string } | undefined)?.id as string, (params?.end as { id?: string } | undefined)?.id as string];
+    case "sheets.command.update-data-validation-setting":
+    case "sheets.command.update-data-validation-options":
+    case "sheet.command.updateDataValidationRuleRange":
+    case "sheet.command.remove-data-validation-rule":
+      return [params?.ruleId as string];
+  }
+  return null;
+}
+
+/** A rule-manager command must address rules the sheet's live model holds
+ *  (review dvcf F2): the pinned remove-DV handler "succeeds" on an unknown id
+ *  and pushes an undo that inserts an empty rule. `liveIds` reads the live
+ *  model (readLiveRuleSet); null = no such sheet. Runs after
+ *  ruleSetCommandAllowed, which already checked the params' shapes. */
+export function ruleSetTargetsLive(
+  event: RendererCommand,
+  liveIds: (sheetId: string, kind: XlsxRendererRuleSetKind) => readonly string[] | null,
+): boolean {
+  const targets = ruleManagerTargets(event);
+  if (targets === null) return true;
+  const sheetId = (event.params as RuleSetParams | undefined)?.subUnitId;
+  if (typeof sheetId !== "string") return false;
+  const live = liveIds(sheetId, event.id.includes("conditional") ? "conditionalFormats" : "dataValidations");
+  return !!live && targets.every((id) => typeof id === "string" && live.includes(id));
+}
+
+/** The `liveIds` reader the controller hands ruleSetTargetsLive: the ids
+ *  readLiveRuleSet finds on the sheet `worksheetOf` resolves (the active
+ *  workbook's), null when it has no such sheet. */
+export function liveRuleIdsReader(
+  worksheetOf: (sheetId: string) => UniverWorksheet | null | undefined,
+): (sheetId: string, kind: XlsxRendererRuleSetKind) => string[] | null {
+  return (sheetId, kind) => {
+    const worksheet = worksheetOf(sheetId);
+    return worksheet ? readLiveRuleSet(worksheet, kind).map((rule) => rule.id) : null;
+  };
+}
+
+const MAX_RULE_ID = 200;
+
+function idOK(value: unknown): boolean {
+  return typeof value === "string" && value.length > 0 && value.length <= MAX_RULE_ID;
+}
+
+function anchorOK(value: unknown, types: readonly string[]): boolean {
+  if (!value || typeof value !== "object") return false;
+  const anchor = value as { id?: unknown; type?: unknown };
+  return idOK(anchor.id) && typeof anchor.type === "string" && types.includes(anchor.type);
+}
+
+/** The option keys the DV rule manager sends. Any other key (prompt,
+ *  promptTitle, showDropDown, renderMode, …) is refused: nothing bounds it
+ *  here, and an unbounded prompt would fail the save (review dvcf F5). */
+const DV_OPTION_KEYS = new Set(["errorStyle", "error", "errorTitle", "showErrorMessage"]);
+
+/** DV options: an error style xlsx-dv.ts maps, bounded message strings and a
+ *  boolean alert flag, and nothing else. */
+function dvOptionsOK(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (Object.keys(value).some((key) => !DV_OPTION_KEYS.has(key))) return false;
+  const options = value as { errorStyle?: unknown; error?: unknown; errorTitle?: unknown; showErrorMessage?: unknown };
+  const textOK = (field: unknown, max: number) => field === undefined || (typeof field === "string" && field.length <= max);
+  return dvRuleSaveable({ type: "any", errorStyle: options.errorStyle }) && textOK(options.error, 255) &&
+    textOK(options.errorTitle, 32) && (options.showErrorMessage === undefined || typeof options.showErrorMessage === "boolean");
 }
 
 /** Rule mutations replay through undo/redo and the ref-range handlers; they

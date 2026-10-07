@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parseRuleSetDrops, planRuleSetDrops, ruleSetDropMessage, ruleSetsDroppedError, withoutOperationsAt, XLSX_RULE_SETS_DROPPED } from "./rule-set-drops";
+import { parseRuleSetDrops, pendingDropIndexes, planRuleSetDrops, ruleSetDropMessage, ruleSetHistory, ruleSetsDroppedError, withoutOperationsAt, XLSX_RULE_SETS_DROPPED } from "./rule-set-drops";
 
 const rule = (tag: string) => ({ ranges: [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 }], stopIfTrue: false, rule: { tag } });
 const cf = (sheet: string, tag = "x") => ({ op: "set_conditional_formats", target: { sheet }, attributes: { rules: [rule(tag)] } });
 const dv = (sheet: string) => ({ op: "set_data_validations", target: { sheet }, attributes: { rules: [] } });
 const rename = (sheet: string, newName: string) => ({ op: "rename_sheet", target: { sheet }, attributes: { newName } });
 const cell = { op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 1 } };
+const duplicate = (sheet: string, name: string) => ({ op: "duplicate_sheet", target: { sheet }, attributes: { name } });
 
 describe("dropped rule-set refusal (X01 review r2 M-A, r3 MA-2)", () => {
   it("reads op positions from a job reason and from inside an Electron IPC message", () => {
@@ -30,7 +31,7 @@ describe("dropped rule-set refusal (X01 review r2 M-A, r3 MA-2)", () => {
     const sent = [cf("Data"), dv("Data"), cf("Other"), cell];
     const plan = planRuleSetDrops([{ family: "conditionalFormats", ops: [0] }], sent);
     expect(plan.indexes).toEqual([0]);
-    expect(plan.drops).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null }]);
+    expect(plan.drops).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null, rules: 1 }]);
     expect(withoutOperationsAt(sent, plan.indexes)).toEqual([dv("Data"), cf("Other"), cell]);
     const entries = sent.map((operation, revision) => ({ revision, operation }));
     expect(withoutOperationsAt(entries, [1]).map((entry) => entry.revision)).toEqual([0, 2, 3]);
@@ -40,7 +41,7 @@ describe("dropped rule-set refusal (X01 review r2 M-A, r3 MA-2)", () => {
     const sent = [cf("Q1", "a"), rename("Q1", "Doanh thu"), cf("Doanh thu", "b"), cell];
     const plan = planRuleSetDrops([{ family: "conditionalFormats", ops: [0, 2] }], sent, [], [rename("Doanh thu", "Năm")]);
     expect(withoutOperationsAt(sent, plan.indexes)).toEqual([rename("Q1", "Doanh thu"), cell]);
-    expect(plan.drops).toEqual([{ family: "conditionalFormats", sheet: "Năm", savedRules: null }]);
+    expect(plan.drops).toEqual([{ family: "conditionalFormats", sheet: "Năm", savedRules: null, rules: 1 }]);
   });
 
   it("restores the rules the last commit wrote, followed back through renames, or [] on a sheet added this session (MA-3)", () => {
@@ -55,11 +56,69 @@ describe("dropped rule-set refusal (X01 review r2 M-A, r3 MA-2)", () => {
     expect(otherFamily.drops[0]?.savedRules).toBeNull();
   });
 
-  it("voids a refusal whose positions do not match the sent list: nothing dropped, generic notice", () => {
-    const sent = [cf("Data"), cell];
-    for (const refusal of [{ family: "conditionalFormats" as const, ops: [5] }, { family: "conditionalFormats" as const, ops: [1] }, { family: "dataValidations" as const, ops: [0] }]) {
-      expect(planRuleSetDrops([refusal], sent), JSON.stringify(refusal)).toEqual({ indexes: [], drops: [] });
+  it("drops the refused family's unsaved ops on every sheet when the positions do not match the sent list (r4 R4-4)", () => {
+    const sent = [cf("Data", "a"), dv("Data"), rename("Data", "Q1"), cf("Other", "b"), cell];
+    const later = [cf("Q1", "c"), dv("Other")];
+    for (const ops of [[9], [4], [1]]) {
+      const plan = planRuleSetDrops([{ family: "conditionalFormats", ops }], sent, [], later);
+      expect(plan.indexes, JSON.stringify(ops)).toEqual([0, 3]);
+      expect(plan.laterIndexes).toEqual([0]);
+      expect(plan.drops).toEqual([
+        { family: "conditionalFormats", sheet: "Q1", savedRules: null, rules: 1 },
+        { family: "conditionalFormats", sheet: "Other", savedRules: null, rules: 1 },
+      ]);
+      // The other family, the rename and the cell edit stay; one more Save converges.
+      expect(withoutOperationsAt([...sent, ...later], pendingDropIndexes(plan, sent.length))).toEqual([dv("Data"), rename("Data", "Q1"), cell, dv("Other")]);
     }
+  });
+
+  it("also drops a later snapshot of the refused sheet, followed through a rename, so one Save converges (r4 R4-3)", () => {
+    const sent = [cf("Data", "bad"), cell];
+    const later = [rename("Data", "Q1"), cf("Q1", "worse"), cf("Other", "fine"), dv("Q1")];
+    const plan = planRuleSetDrops([{ family: "conditionalFormats", ops: [0] }], sent, [], later);
+    expect(plan.indexes).toEqual([0]);
+    expect(plan.laterIndexes).toEqual([1]);
+    expect(plan.drops).toEqual([{ family: "conditionalFormats", sheet: "Q1", savedRules: null, rules: 1 }]);
+  });
+
+  it("drops only the copy's ops for a refused duplicated sheet and restores what the copy inherits (r4 R4-2)", () => {
+    // The engine names the copy's state by its duplicate op (1) plus its own edit (2).
+    const sent = [cf("A", "source"), duplicate("A", "B"), cf("B", "bad"), cell];
+    const plan = planRuleSetDrops([{ family: "conditionalFormats", ops: [1, 2] }], sent);
+    expect(plan.indexes).toEqual([2]);
+    expect(plan.drops).toEqual([{ family: "conditionalFormats", sheet: "B", savedRules: [rule("source")], rules: 1 }]);
+    // A copy of a sheet whose rules are the file's: null, the copy's inherited file rules.
+    const fromFile = planRuleSetDrops([{ family: "conditionalFormats", ops: [1, 2] }], [cell, duplicate("A", "B"), cf("B", "bad")]);
+    expect(fromFile.drops[0]?.savedRules).toBeNull();
+  });
+
+  it("converges on a copy-only refusal that names just the duplicate op: the family's ops are dropped", () => {
+    const sent = [cf("A", "source"), duplicate("A", "B"), dv("A"), cell];
+    const plan = planRuleSetDrops([{ family: "conditionalFormats", ops: [1] }], sent);
+    expect(plan.indexes).toEqual([0]);
+    expect(withoutOperationsAt(sent, plan.indexes)).toEqual([duplicate("A", "B"), dv("A"), cell]);
+    // The copy inherited the dropped rules on screen: it is named and restored too.
+    expect(plan.drops).toEqual([
+      { family: "conditionalFormats", sheet: "A", savedRules: null, rules: 1 },
+      { family: "conditionalFormats", sheet: "B", savedRules: null, rules: 1 },
+    ]);
+  });
+
+  it("names a copy with its own ops once on a family-wide drop, with its own rule count (review-session m-1)", () => {
+    const rules = (sheet: string, count: number) => ({ op: "set_conditional_formats", target: { sheet }, attributes: { rules: Array.from({ length: count }, (_unused, at) => rule(`${sheet}${at}`)) } });
+    const sent = [rules("Data", 2), duplicate("Data", "Copy"), rules("Copy", 3), cell];
+    const plan = planRuleSetDrops([{ family: "conditionalFormats", ops: [9] }], sent);
+    expect(plan.indexes).toEqual([0, 2]);
+    expect(plan.drops).toEqual([
+      { family: "conditionalFormats", sheet: "Data", savedRules: null, rules: 2 },
+      { family: "conditionalFormats", sheet: "Copy", savedRules: null, rules: 3 },
+    ]);
+  });
+
+  it("keeps only the ops a restore lookup reads from the committed history (r4 R4-1)", () => {
+    const picture = { op: "set_visual", target: { sheet: "A" }, attributes: { image: "x".repeat(1000) } };
+    const kept = [cf("A"), rename("A", "B"), { op: "add_sheet", attributes: { name: "N" } }, duplicate("B", "C"), dv("C")];
+    expect(ruleSetHistory([picture, kept[0], cell, kept[1], kept[2], kept[3], kept[4]])).toEqual(kept);
   });
 
   it("fails the save with the non-terminal dropped code", () => {

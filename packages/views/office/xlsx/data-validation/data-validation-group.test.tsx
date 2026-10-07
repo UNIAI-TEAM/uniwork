@@ -91,7 +91,7 @@ describe("XlsxDataValidationGroup", () => {
       const execute = vi.fn(() => true);
       const commands = "commands" in overrides ? overrides.commands : { execute };
       const view = render(<XlsxDataValidationGroup {...groupProps({ ...overrides, commands })} />);
-      for (const testId of ["xlsx-dv-open", "xlsx-dv-clear"]) {
+      for (const testId of ["xlsx-dv-open", "xlsx-dv-clear", "xlsx-dv-manage"]) {
         const button = screen.getByTestId(testId);
         expect(button).not.toBeDisabled();
         expect(button).toHaveAttribute("aria-disabled", "true");

@@ -411,4 +411,12 @@ describe("XlsxEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
     expect(saveCoordinator.markDirty).toHaveBeenCalledWith(3);
   });
+
+  it("disables Undo/Redo without a grid when the handle reports an empty stack (review r3 N1)", async () => {
+    const handle = editor({ canUndo: () => false, canRedo: () => true });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Hoàn tác" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Làm lại" })).not.toHaveAttribute("aria-disabled");
+  });
 });

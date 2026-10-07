@@ -26,6 +26,9 @@ export interface XlsxSelection {
   /** Univer RANGE_TYPE from the live grid (see selection-mapping.ts); absent
    *  for fallback-surface and host-set selections. */
   rangeType?: XlsxRangeType;
+  /** The live grid selects exactly one merged cell (its range spans the
+   *  merge); Excel treats that as a single cell. */
+  merged?: true;
 }
 
 export interface XlsxSelectionPort {

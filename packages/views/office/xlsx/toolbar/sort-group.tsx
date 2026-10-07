@@ -21,7 +21,7 @@ import { addressParts } from "../xlsx-editor-model";
 import type { XlsxSelection } from "../types";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
-import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
+import { XLSX_SMALL_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
 import {
   selectionSortRange,
   sortWithinOpLimit,
@@ -100,28 +100,30 @@ export function XlsxSortGroup({
           <Button
             type="button"
             variant="toolbar"
-            size="icon-sm"
-            className={XLSX_ICON_BUTTON_CLASS}
-            aria-label={t("office.xlsx.sort.ascending")}
+            size="xs"
+            className={XLSX_SMALL_BUTTON_CLASS}
             title={t("office.xlsx.sort.ascending")}
             aria-disabled={blocked || undefined}
             data-testid="xlsx-sort-asc"
             onClick={() => run("asc")}
           >
             <ArrowUpAZ aria-hidden />
+            {t("office.xlsx.sort.ascendingShort")}
           </Button>
+        </XlsxGroupRow>
+        <XlsxGroupRow>
           <Button
             type="button"
             variant="toolbar"
-            size="icon-sm"
-            className={XLSX_ICON_BUTTON_CLASS}
-            aria-label={t("office.xlsx.sort.descending")}
+            size="xs"
+            className={XLSX_SMALL_BUTTON_CLASS}
             title={t("office.xlsx.sort.descending")}
             aria-disabled={blocked || undefined}
             data-testid="xlsx-sort-desc"
             onClick={() => run("desc")}
           >
             <ArrowDownAZ aria-hidden />
+            {t("office.xlsx.sort.descendingShort")}
           </Button>
         </XlsxGroupRow>
         {limitError ? (

@@ -13,6 +13,8 @@ export interface XlsxGridRange {
   startColumn: number;
   endColumn: number;
   rangeType?: number;
+  /** The renderer found this range to be exactly one merged cell. */
+  merged?: boolean;
 }
 
 function knownRangeType(value: number | undefined): value is XlsxRangeType {
@@ -28,5 +30,6 @@ export function xlsxSelectionFromGrid(sheet: string, range: XlsxGridRange): Xlsx
     address: toA1Address(range.startRow, range.startColumn),
     ...(single ? {} : { endAddress: toA1Address(range.endRow, range.endColumn) }),
     ...(knownRangeType(range.rangeType) ? { rangeType: range.rangeType } : {}),
+    ...(range.merged === true ? { merged: true as const } : {}),
   };
 }

@@ -4,11 +4,12 @@
 // the engine persists (packages/office-engine/src/xlsx/ops-visuals.ts).
 import type { XlsxVisualAnchor, XlsxVisualChart, XlsxVisualImage, XlsxVisualShape } from "@uniwork/office-engine/xlsx";
 
-/** One inserted visual as the overlay holds it. `sheetId` is the grid id (a
- *  session rename keeps it); the op target resolves the live name on emission.
- *  `generation` is the editor dirty generation of its last emitted op: once a
- *  save covers it the visual is in the file and `saved` locks it (the save
- *  path has no edit for visuals already in the file). */
+/** One visual as the overlay holds it. `sheetId` is the grid id (a session
+ *  rename keeps it); the op target resolves the live name on emission.
+ *  `generation` is the editor dirty generation of its last emitted op.
+ *  `file` (UNI-953) is set once the visual lives in the file - opened with
+ *  it, or written by a save (visual-file.ts renumbers): its ops then address
+ *  that drawing index instead of the session id, so it stays editable. */
 export interface XlsxEditorVisual {
   readonly id: string;
   readonly sheetId: string;
@@ -17,7 +18,20 @@ export interface XlsxEditorVisual {
   readonly shape?: XlsxVisualShape | undefined;
   readonly image?: XlsxVisualImage | undefined;
   readonly generation: number;
-  readonly saved: boolean;
+  readonly file?: number | undefined;
+  /** A file visual's kind; a chart or picture may have no previewable body,
+   *  and "other" (groups, SmartArt, a Fallback copy) is never drawn. */
+  readonly kind?: "chart" | "picture" | "shape" | "other" | undefined;
+  /** A file chart's title (also when its type has no preview). */
+  readonly title?: string | undefined;
+  /** A file visual the save path cannot move (oneCell / absolute anchor). */
+  readonly fixed?: true | undefined;
+  /** The marker of a sheet whose drawing could not be read (file -1): its
+   *  anchor count is unknown, so a visual a save writes there stays fixed. */
+  readonly unread?: true | undefined;
+  /** oneCell / absolute anchors: EMU size, and an absolute anchor's position. */
+  readonly extent?: { readonly cx: number; readonly cy: number } | undefined;
+  readonly position?: { readonly x: number; readonly y: number } | undefined;
 }
 
 /** A rectangle in container pixels. */
@@ -121,16 +135,20 @@ export function setVisualOp(visual: XlsxEditorVisual, sheetName: string): Record
 }
 
 /** A move or resize: the anchor-only set_visual. The engine keeps the body
- *  the insert carried, so a nudge never re-sends a picture's bytes. */
+ *  the insert carried, so a nudge never re-sends a picture's bytes. A file
+ *  visual is addressed by its drawing index. */
 export function moveVisualOp(visual: XlsxEditorVisual, sheetName: string): Record<string, unknown> {
-  return { op: "set_visual", target: { sheet: sheetName }, attributes: { id: visual.id, anchor: visual.anchor } };
+  const handle = visual.file === undefined ? { id: visual.id } : { file: visual.file };
+  return { op: "set_visual", target: { sheet: sheetName }, attributes: { ...handle, anchor: visual.anchor } };
 }
 
 export function removeVisualOp(visual: XlsxEditorVisual, sheetName: string): Record<string, unknown> {
-  return { op: "remove_visual", target: { sheet: sheetName }, attributes: { id: visual.id } };
+  const handle = visual.file === undefined ? { id: visual.id } : { file: visual.file };
+  return { op: "remove_visual", target: { sheet: sheetName }, attributes: handle };
 }
 
 /** The visual's kind, for labels and test handles. */
-export function visualKind(visual: Pick<XlsxEditorVisual, "chart" | "shape">): "chart" | "shape" | "picture" {
-  return visual.chart ? "chart" : visual.shape ? "shape" : "picture";
+export function visualKind(visual: Pick<XlsxEditorVisual, "chart" | "shape" | "kind">): "chart" | "shape" | "picture" {
+  if (visual.chart || visual.kind === "chart") return "chart";
+  return visual.shape || visual.kind === "shape" ? "shape" : "picture";
 }

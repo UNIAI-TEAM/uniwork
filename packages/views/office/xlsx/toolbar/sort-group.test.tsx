@@ -67,7 +67,8 @@ describe("XlsxSortGroup", () => {
   it("fires the pinned sort command with a single key on the selection's first column", () => {
     const execute = vi.fn(() => true);
     render(<XlsxSortGroup {...groupProps({ commands: { execute } })} />);
-    expect(screen.getByTestId("xlsx-sort-asc")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.sort.ascending"));
+    expect(screen.getByTestId("xlsx-sort-asc")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.sort.ascendingShort"));
+    expect(screen.getByTestId("xlsx-sort-asc")).toHaveAttribute("title", lookup(viLocale, "office.xlsx.sort.ascending") as string);
     fireEvent.click(screen.getByTestId("xlsx-sort-asc"));
     expect(execute).toHaveBeenCalledWith("sheet.command.sort-range", {
       unitId: "file-abc",
@@ -81,6 +82,13 @@ describe("XlsxSortGroup", () => {
       "sheet.command.sort-range",
       expect.objectContaining({ orderRules: [{ type: "desc", colIndex: 0 }] }),
     );
+  });
+
+  it("shows visible short labels on the two one-click sorts", () => {
+    render(<XlsxSortGroup {...groupProps()} />);
+    expect(screen.getByTestId("xlsx-sort-asc")).toHaveTextContent(lookup(viLocale, "office.xlsx.sort.ascendingShort") as string);
+    expect(screen.getByTestId("xlsx-sort-desc")).toHaveTextContent(lookup(viLocale, "office.xlsx.sort.descendingShort") as string);
+    expect(screen.getByTestId("xlsx-sort-desc")).toHaveAttribute("title", lookup(viLocale, "office.xlsx.sort.descending") as string);
   });
 
   it("refuses an over-budget range with a message and never calls the command", () => {

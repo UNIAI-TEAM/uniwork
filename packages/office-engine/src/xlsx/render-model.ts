@@ -13,6 +13,8 @@
 // renderer controller; it never touches the Rust sidecar.
 import { readSheetTables, type XlsxRenderTable } from "./render-model-tables.ts";
 export type { XlsxRenderTable };
+import { readSheetVisuals, type XlsxRenderVisual } from "./render-model-visuals.ts";
+export type { XlsxRenderVisual };
 import { attribute, decodeXml, elements, parseDefinedNamesXml, sectionInner, type XlsxParsedDefinedName } from "./render-model-xml.ts";
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
@@ -92,11 +94,6 @@ export interface XlsxRenderSheet {
   /** Classic data-validation rules the sheet ships (X01). Additive: an absent
    *  value reads as no rules. */
   readonly dataValidations?: readonly XlsxRenderDataValidation[] | undefined;
-  /** True when a <conditionalFormatting> block carries an extLst: the base
-   *  half of an Excel x14 rule (data bars, extended icon sets). The gateway's
-   *  declarative CF save refuses to rewrite such a sheet unless the snapshot
-   *  reproduces the block byte for byte, so CF editing is refused there. */
-  readonly x14ConditionalFormats?: true | undefined;
   /** True when the worksheet holds x14 data validation (extLst), which the
    *  gateway's declarative DV save refuses to rewrite. */
   readonly x14DataValidations?: true | undefined;
@@ -108,6 +105,9 @@ export interface XlsxRenderSheet {
   /** Tables the file ships (xl/tables/tableN.xml). Additive: an absent value
    *  reads as no tables. Read-only; the write path is the table ops. */
   readonly tables?: readonly XlsxRenderTable[] | undefined;
+  /** Charts, pictures and shapes the file ships (UNI-953), one per drawing
+   *  anchor in document order. Additive: an absent value reads as none. */
+  readonly visuals?: readonly XlsxRenderVisual[] | undefined;
   /** UNI-952: the file's own page layout (print). Absent when it sets none. */
   readonly pageSetup?: XlsxRenderPageSetup | undefined;
 }
@@ -359,8 +359,9 @@ function parseWorksheetXml(
     cells,
     conditionalRules: parseConditionalRules(xml, parseRefRange, palette),
     dataValidations: parseDataValidations(xml, parseRefRange),
-    // The same tests the gateway's applyCfRules / applyDvRules fail closed on.
-    ...(hasLinkedX14ConditionalFormat(xml) ? { x14ConditionalFormats: true as const } : {}),
+    // The test the gateway's applyDvRules fails closed on. A linked x14 CF
+    // block (an Excel data bar) is not flagged: gateway patch 0011 keeps it
+    // under a whole-sheet CF snapshot.
     ...(/<x14:dataValidation\b/.test(xml) ? { x14DataValidations: true as const } : {}),
     ...rawRuleCounts(xml),
     ...(pageSetup === undefined ? {} : { pageSetup }),
@@ -372,13 +373,6 @@ function rawRuleCounts(xml: string): { ruleCounts?: { conditionalFormats: number
   const conditionalFormats = xml.match(/<cfRule[\s>/]/g)?.length ?? 0;
   const dataValidations = xml.match(/<dataValidation[\s>/]/g)?.length ?? 0;
   return conditionalFormats + dataValidations === 0 ? {} : { ruleCounts: { conditionalFormats, dataValidations } };
-}
-
-function hasLinkedX14ConditionalFormat(xml: string): boolean {
-  for (const block of xml.matchAll(/<conditionalFormatting\b[^>]*>[\s\S]*?<\/conditionalFormatting>/g)) {
-    if (/<extLst\b/.test(block[0])) return true;
-  }
-  return false;
 }
 
 // ── reader ─────────────────────────────────────────────────────────────────
@@ -465,17 +459,24 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
   // UNI-952: header/footer pictures (&G) for print, when the gateway reads binary parts.
   const hfPictures = await readWorkbookHeaderFooterPictures(ordered, sheetXmls, (paths) => engine.readEntriesText(bytes, paths), engine, bytes);
 
+  const sheetVisuals = await readSheetVisuals(
+    ordered,
+    (paths) => engine.readEntriesText(bytes, paths),
+    engine.readEntriesBase64 ? (paths, maxBytes, maxTotalBytes) => engine.readEntriesBase64!(bytes, paths, maxBytes, maxTotalBytes) : undefined,
+  );
+
   const sheets = ordered.map((sheet, index) => {
     const xml = sheet.path ? sheetXmls[sheet.path] : null;
     const parsed: XlsxRenderSheet = xml
       ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels, palette)
       : { id: sheet.id, name: sheet.name, rowCount: 1, columnCount: 1, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [], cells: {} };
+    const visuals = sheetVisuals[index] ?? [];
     const hf = hfPictures[index];
     const headerFooter = parsed.pageSetup?.headerFooter;
     const pageSetup = hf && headerFooter
       ? { pageSetup: { ...parsed.pageSetup, headerFooter: { ...headerFooter, pictures: hf.pictures, ...(Object.keys(hf.media).length > 0 ? { pictureMedia: hf.media } : {}) } } }
       : {};
-    return { ...parsed, ...pageSetup, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [] };
+    return { ...parsed, ...pageSetup, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [], ...(visuals.length > 0 ? { visuals } : {}) };
   });
 
   const view = elements(sectionInner(workbookXml, "workbookView"), "workbookView")[0];

@@ -5,8 +5,14 @@
 // on-screen box is the main canvas origin plus (scene - viewport scroll) x
 // zoom - the mapping genoffice's shape-draw.ts rectToAnchor uses. Boxes are
 // returned relative to the renderer container, which is where the overlay is
-// mounted. Frozen panes are not modelled (the overlay follows the main
-// viewport only).
+// mounted. Frozen panes are modelled per axis. Univer's freeze is
+// { xSplit, ySplit, startRow, startColumn }: ySplit rows are frozen and
+// startRow is the first row of the scrolling viewport, so the frozen row band
+// is [startRow - ySplit, startRow) (rows above it are scrolled out behind the
+// band); columns likewise. A cell inside a band is drawn with the band's own
+// scroll (its offset from row/column 0), and a point inside a band resolves by
+// walking from the band's first row/column. Hidden rows and columns have size
+// 0 in the walk.
 import type { IRange } from "@univerjs/core";
 import { IRenderManagerService, SHEET_VIEWPORT_KEY } from "@univerjs/engine-render";
 import { iconMap } from "@univerjs/preset-sheets-conditional-formatting";
@@ -99,9 +105,58 @@ export interface XlsxRendererGeometry {
   readPrintRange(sheetId: string, range: IRange): XlsxRendererPrintRange | null;
 }
 
+/** Univer command/operation/mutation ids (pinned @univerjs/sheets + sheets-ui)
+ *  that can move or resize cells on screen: scroll, zoom, active sheet, row and
+ *  column size/visibility, freeze, structural insert/remove and the selection
+ *  moves that auto-scroll. */
+const VIEWPORT_COMMAND_IDS: ReadonlySet<string> = new Set([
+  "sheet.operation.set-scroll", "sheet.command.set-scroll-relative", "sheet.command.scroll-view",
+  "sheet.command.scroll-view-reset", "sheet.command.scroll-to-cell", "sheet.operation.scroll-to-cell",
+  "sheet.operation.scroll-to-range",
+  "sheet.operation.set-zoom-ratio", "sheet.command.set-zoom-ratio", "sheet.command.change-zoom-ratio",
+  "sheet.operation.set-worksheet-active", "sheet.command.set-worksheet-show", "sheet.command.insert-sheet",
+  "sheet.command.remove-sheet", "sheet.mutation.insert-sheet", "sheet.mutation.remove-sheet",
+  "sheet.command.set-row-height", "sheet.command.delta-row-height", "sheet.command.set-worksheet-col-width",
+  "sheet.command.set-col-auto-width", "sheet.command.set-row-is-auto-height", "sheet.command.set-row-data",
+  "sheet.command.set-col-data", "sheet.mutation.set-row-data", "sheet.mutation.set-col-data",
+  "sheet.command.set-rows-hidden", "sheet.command.set-col-hidden", "sheet.command.set-col-visible-on-cols",
+  "sheet.mutation.set-col-hidden", "sheet.mutation.set-col-visible",
+  "sheet.command.hide-row-confirm", "sheet.command.hide-col-confirm",
+  "sheet.command.set-row-frozen", "sheet.command.set-col-frozen",
+  "sheet.command.insert-row-before", "sheet.command.insert-row-after", "sheet.command.insert-col-before",
+  "sheet.command.insert-col-after", "sheet.command.insert-row-by-range", "sheet.command.insert-col-by-range",
+  "sheet.command.insert-multi-rows-above", "sheet.command.insert-multi-rows-after",
+  "sheet.command.insert-multi-cols-before", "sheet.command.insert-multi-cols-right",
+  "sheet.command.remove-row-by-range", "sheet.command.remove-col-by-range",
+  "sheet.command.remove-row-confirm", "sheet.command.remove-col-confirm",
+  "sheet.mutation.insert-row", "sheet.mutation.insert-col", "sheet.mutation.remove-rows", "sheet.mutation.remove-col",
+  "sheet.command.set-worksheet-row-count", "sheet.command.set-worksheet-column-count",
+  "sheet.command.move-selection", "sheet.command.move-selection-enter-tab",
+]);
+
+/** Fallback for ids a later Univer adds (and the row auto-height mutations a
+ *  cell edit fires): anything that scrolls, zooms, freezes, resizes or
+ *  hides rows or columns still counts. */
+const VIEWPORT_COMMAND_PATTERN = /scroll|zoom|frozen|freeze|row-height|col-width|auto-height|hidden|visible/i;
+
+/** True when a executed command can change where a cell is drawn, so the
+ *  visual overlay must re-measure; every other command leaves the layout. */
+export function commandMovesCells(commandId: unknown): boolean {
+  if (typeof commandId !== "string") return false;
+  return VIEWPORT_COMMAND_IDS.has(commandId) || VIEWPORT_COMMAND_PATTERN.test(commandId);
+}
+
 /** OOXML grid bounds; a walk never leaves them. */
 const MAX_ROW = 1_048_575;
 const MAX_COLUMN = 16_383;
+
+/** A frozen band: indexes [start, end). */
+interface FrozenBand {
+  readonly start: number;
+  readonly end: number;
+}
+
+type ActiveWorksheet = NonNullable<ReturnType<ReturnType<UniverRuntime["univerAPI"]["getActiveWorkbook"]>["getActiveSheet"]>>;
 
 export function createGridGeometry(runtime: UniverRuntime, container: HTMLElement): XlsxRendererGeometry {
   /** The active sheet when it is `sheetId` (geometry exists only for the
@@ -132,6 +187,40 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
     return { x: viewMain?.viewportScrollX ?? 0, y: viewMain?.viewportScrollY ?? 0 };
   };
 
+  /** The frozen band per axis as a half-open index range; empty (start ==
+   *  end) when the sheet has no freeze. The band is [start - split, start). */
+  const freezeOf = (worksheet: ActiveWorksheet): { rows: FrozenBand; columns: FrozenBand } => {
+    const none: FrozenBand = { start: 0, end: 0 };
+    const band = (split: unknown, start: unknown): FrozenBand => {
+      if (typeof split !== "number" || split <= 0) return none;
+      if (typeof start === "number" && start >= split) return { start: start - split, end: start };
+      return { start: 0, end: split };
+    };
+    try {
+      const freeze = worksheet.getFreeze?.();
+      if (freeze) return { rows: band(freeze.ySplit, freeze.startRow), columns: band(freeze.xSplit, freeze.startColumn) };
+    } catch { /* fall through to the count accessors */ }
+    try {
+      const rows = worksheet.getFrozenRows?.();
+      const columns = worksheet.getFrozenColumns?.();
+      return { rows: band(rows, 0), columns: band(columns, 0) };
+    } catch {
+      return { rows: none, columns: none };
+    }
+  };
+
+  /** Hidden rows/columns occupy no space; unknown visibility reads as visible. */
+  const isHidden = (worksheet: ActiveWorksheet, axis: "row" | "column", index: number): boolean => {
+    try {
+      const sheet = worksheet.getSheet?.();
+      if (!sheet) return false;
+      const visible = axis === "row" ? sheet.getRowVisible?.(index) : sheet.getColVisible?.(index);
+      return visible === false;
+    } catch {
+      return false;
+    }
+  };
+
   const getCellBox: XlsxRendererGeometry["getCellBox"] = (sheetId, row, column) => {
     const active = activeSheet(sheetId);
     const surface = surfaceRect();
@@ -141,9 +230,19 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
       const zoom = active.worksheet.getZoom() || 1;
       const scroll = scrollOf(active.workbook.getId());
       const origin = container.getBoundingClientRect();
+      const frozen = freezeOf(active.worksheet);
+      // A band cell moves with the band's own scroll: its distance from row/column 0.
+      const inRows = row >= frozen.rows.start && row < frozen.rows.end;
+      const inColumns = column >= frozen.columns.start && column < frozen.columns.end;
+      const bandY = inRows && frozen.rows.start > 0
+        ? active.worksheet.getRange(frozen.rows.start, column, 1, 1).getCellRect().y - active.worksheet.getRange(0, column, 1, 1).getCellRect().y
+        : 0;
+      const bandX = inColumns && frozen.columns.start > 0
+        ? active.worksheet.getRange(row, frozen.columns.start, 1, 1).getCellRect().x - active.worksheet.getRange(row, 0, 1, 1).getCellRect().x
+        : 0;
       return {
-        x: surface.x - origin.x + (cell.x - scroll.x) * zoom,
-        y: surface.y - origin.y + (cell.y - scroll.y) * zoom,
+        x: surface.x - origin.x + (cell.x - (inColumns ? bandX : scroll.x)) * zoom,
+        y: surface.y - origin.y + (cell.y - (inRows ? bandY : scroll.y)) * zoom,
         width: cell.width * zoom,
         height: cell.height * zoom,
         zoom,
@@ -175,10 +274,25 @@ export function createGridGeometry(runtime: UniverRuntime, container: HTMLElemen
     if (!visible) return null;
     const origin = getCellBox(sheetId, visible.startRow, visible.startColumn);
     if (!origin) return null;
-    const columnWidth = (index: number) => Math.max(active.worksheet.getColumnWidth(index), 1);
-    const rowHeight = (index: number) => Math.max(active.worksheet.getRowHeight(index), 1);
-    const column = walk(visible.startColumn, origin.x, x, columnWidth, MAX_COLUMN, origin.zoom);
-    const row = walk(visible.startRow, origin.y, y, rowHeight, MAX_ROW, origin.zoom);
+    const frozen = freezeOf(active.worksheet);
+    const columnWidth = (index: number) => (isHidden(active.worksheet, "column", index) ? 0 : Math.max(active.worksheet.getColumnWidth(index), 1));
+    const rowHeight = (index: number) => (isHidden(active.worksheet, "row", index) ? 0 : Math.max(active.worksheet.getRowHeight(index), 1));
+    // A point inside the frozen band starts at the band's first index at that
+    // cell's box edge; the far edge of the band is the last band cell's edge.
+    let columnStart = { index: visible.startColumn, edge: origin.x };
+    if (frozen.columns.end > frozen.columns.start) {
+      const first = getCellBox(sheetId, 0, frozen.columns.start);
+      const last = getCellBox(sheetId, 0, frozen.columns.end - 1);
+      if (first && last && x < last.x + last.width) columnStart = { index: frozen.columns.start, edge: first.x };
+    }
+    let rowStart = { index: visible.startRow, edge: origin.y };
+    if (frozen.rows.end > frozen.rows.start) {
+      const first = getCellBox(sheetId, frozen.rows.start, 0);
+      const last = getCellBox(sheetId, frozen.rows.end - 1, 0);
+      if (first && last && y < last.y + last.height) rowStart = { index: frozen.rows.start, edge: first.y };
+    }
+    const column = walk(columnStart.index, columnStart.edge, x, columnWidth, MAX_COLUMN, origin.zoom);
+    const row = walk(rowStart.index, rowStart.edge, y, rowHeight, MAX_ROW, origin.zoom);
     return { row: row.index, column: column.index, offsetX: column.offset, offsetY: row.offset };
   };
 

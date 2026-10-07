@@ -61,6 +61,8 @@ export interface RendererWorkbookFile {
     columnCount: number;
     hidden?: boolean;
     showFormulas?: boolean;
+    /** UNI-953: the file's grouped rows, seeded into the outline map at open. */
+    rowOutline?: Array<{ row: number; outlineLevel?: number; collapsed?: boolean }>;
   }>;
   styles: unknown[];
 }
@@ -245,6 +247,10 @@ export interface XlsxRendererHandle {
    *  when the mount is read-only, there is no active range, or the command
    *  policy cancels the command. */
   executeCommand(id: string, params?: unknown): Promise<boolean>;
+  /** UNI-953: several commands as ONE undo entry (a rich paste); resolves to
+   *  how many steps ran (steps.length: all, 0: nothing written), stopping at
+   *  the first refusal; `rollback` takes a partial run back (all or nothing). */
+  executeCommandsAsOneStep(steps: readonly { id: string; params?: unknown }[], options?: { rollback?: boolean }): Promise<number>;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxRendererFormatState | null;
   /** The live sheet list in tab order (rename/insert/remove/reorder as they
@@ -257,9 +263,22 @@ export interface XlsxRendererHandle {
     kind: "conditionalFormats" | "dataValidations",
     rules: readonly { ranges: readonly { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; stopIfTrue?: boolean; rule: Record<string, unknown> }[] | null,
   ): boolean;
+  /** UNI-953 rule manager: a sheet's live CF / DV rules with their model ids
+   *  (CF `cfId`, DV `uid`; CF in priority order), `linked` on a CF rule
+   *  installed from an Excel linked x14 rule. Null before a workbook loads or
+   *  for an unknown sheet. */
+  readRuleSets(
+    sheetId: string,
+    kind: "conditionalFormats" | "dataValidations",
+  ): { id: string; ranges: { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; stopIfTrue?: boolean; rule: Record<string, unknown>; linked?: true }[] | null;
   setDarkMode(dark: boolean): void;
+  /** Live language change (UNI-953): re-applies the numfmt locale and repaints. */
+  setLocale(lang: "en" | "vi"): void;
   undo(): void;
   redo(): void;
+  /** UNI-953: undo/redo entries on the workbook's stack (Undo/Redo empty state). */
+  getHistory(): { undos: number; redos: number } | null;
+  subscribeHistory(listener: (state: { undos: number; redos: number }) => void): () => void;
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): XlsxRendererJournal;

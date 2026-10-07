@@ -1,11 +1,13 @@
 // X01 review M1: workbooks with Excel extended (x14) conditional formatting
-// or data validation. The gateway's declarative CF/DV save fails closed on
-// them, so the editor refuses CF/DV edits on such a sheet at edit time (the
+// or data validation. The gateway's declarative DV save fails closed on x14
+// validation, so the editor refuses DV edits on such a sheet at edit time (the
 // render model flags it, the renderer policy reads the flag) and never
-// journals a snapshot there. These round-trips prove the engine half: the
-// flags, a structural save that keeps the x14 parts, and the backstop that
-// names a rule set that still fails at save and drops it so the next save
-// goes through.
+// journals a snapshot there. A linked x14 data bar is kept by gateway patch
+// 0011 under a CF snapshot (UNI-953 option A; the real-Excel round-trips are
+// in xlsx-cf-x14-linked.test.ts). These round-trips prove the engine half:
+// the flags, a structural save that keeps the x14 parts, and the backstop
+// that names a rule set that still fails at save and drops it so the next
+// save goes through.
 //
 // Fixtures (test/fixtures/x14/README.md): derived from the G0
 // xlsx-compatibility-edit.xlsx by swapping in worksheet XML in the exact shape
@@ -79,26 +81,24 @@ describeWithPatchedGateway("x14 conditional formatting and data validation", () 
     const classic = (await readXlsxRenderModel(engine, bytesOf(join(X14, "xlsx-classic-unsupported-cf.xlsx")))).sheets[0];
     expect(classic?.ruleCounts).toEqual({ conditionalFormats: 3, dataValidations: 1 });
     expect(classic?.conditionalRules?.length ?? 0).toBeLessThan(3);
-    expect(classic?.x14ConditionalFormats).toBeUndefined();
     // x14 halves are not classic elements: only the data bar's base rule counts.
     expect((await readXlsxRenderModel(engine, dataBar())).sheets[0]?.ruleCounts).toEqual({ conditionalFormats: 1, dataValidations: 0 });
     expect((await readXlsxRenderModel(engine, x14Validation())).sheets[0]?.ruleCounts).toBeUndefined();
   });
 
-  it("flags the sheets whose CF or DV the declarative save cannot rewrite", async () => {
+  it("flags the sheets whose DV the declarative save cannot rewrite, and no longer a data-bar sheet", async () => {
     const bar = (await readXlsxRenderModel(engine, dataBar())).sheets[0];
-    expect(bar).toMatchObject({ name: "Data", x14ConditionalFormats: true });
+    expect(bar).toMatchObject({ name: "Data" });
+    expect(bar).not.toHaveProperty("x14ConditionalFormats");
     expect(bar?.x14DataValidations).toBeUndefined();
     const dv = (await readXlsxRenderModel(engine, x14Validation())).sheets;
     expect(dv[0]).toMatchObject({ name: "Data", x14DataValidations: true });
-    expect(dv[0]?.x14ConditionalFormats).toBeUndefined();
     expect(dv[1]?.x14DataValidations).toBeUndefined();
     const plain = (await readXlsxRenderModel(engine, bytesOf(COMPAT_EDIT))).sheets[0];
-    expect(plain?.x14ConditionalFormats).toBeUndefined();
     expect(plain?.x14DataValidations).toBeUndefined();
   });
 
-  it("keeps the data bar byte for byte through a cell edit, and through a row insert", async () => {
+  it("keeps the data bar byte for byte through a cell edit, and moves both halves on a row insert", async () => {
     const original = await sheetXml(dataBar());
     const block = BASE_BLOCK.exec(original)?.[0] ?? "";
     const extension = EXT_LST.exec(original)?.[0] ?? "";
@@ -111,63 +111,83 @@ describeWithPatchedGateway("x14 conditional formatting and data validation", () 
     expect(afterEdit).toContain(block);
     expect(afterEdit).toContain(extension);
 
-    // The renderer journals no CF snapshot on this sheet; the gateway's own
-    // structural replay moves the base block's sqref.
+    // The gateway's structural replay moves the base block's sqref and, with
+    // patch 0012 (review m-2), the x14 half's xm:sqref with it.
     const inserted = await session(dataBar());
     inserted.edit([{ op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 0, count: 1 } }]);
     const afterInsert = await sheetXml(await inserted.save());
     expect(afterInsert).toContain(block.replace('sqref="B2:B6"', 'sqref="B3:B7"'));
-    expect(afterInsert).toContain(extension);
+    expect(extension).toContain("<xm:sqref>B2:B6</xm:sqref>");
+    expect(afterInsert).toContain(extension.replace("<xm:sqref>B2:B6</xm:sqref>", "<xm:sqref>B3:B7</xm:sqref>"));
   });
 
-  it("names a CF snapshot the gateway refuses, drops it, and the next save keeps the data bar", async () => {
+  // UNI-953 option A: the loader-resolved data bar (numeric cfvos) never
+  // re-serializes byte for byte, and patch 0011 no longer needs it to: the
+  // snapshot's rule on the same areas keeps the linked block verbatim.
+  it("saves the loader's CF snapshot next to the data bar and keeps the bar verbatim", async () => {
     const original = await sheetXml(dataBar());
     const doc = await session(dataBar());
     doc.edit([loaderSnapshot, cellEdit("D2", 7)]);
-    const failure = await doc.save().then(() => null, (error: unknown) => error);
-    expect(failure).toBeInstanceOf(EngineBoundaryError);
-    expect((failure as EngineBoundaryError).code).toBe("unsupported_operation");
-    expect((failure as EngineBoundaryError).fields).toMatchObject({ rule_sets: [{ family: "conditionalFormats", ops: [0] }] });
-    // r3 m-1: sheet names are document content and never ride an error field.
-    expect(JSON.stringify((failure as EngineBoundaryError).fields)).not.toContain("Data");
-
     const saved = await sheetXml(await doc.save());
     expect(saved).toContain(BASE_BLOCK.exec(original)?.[0] ?? "missing");
     expect(saved).toContain(EXT_LST.exec(original)?.[0] ?? "missing");
+    expect(saved).toMatch(/<conditionalFormatting sqref="D2:D6"><cfRule type="cellIs"/);
     expect(saved).toMatch(/<c r="D2"[^>]*><v>7<\/v><\/c>/);
+  });
+
+  it("names a DV snapshot the gateway refuses on the session error, without the sheet name", async () => {
+    const doc = await session(x14Validation());
+    doc.edit([dvSnapshot, cellEdit("D2", 7)]);
+    const failure = await doc.save().then(() => null, (error: unknown) => error);
+    expect(failure).toBeInstanceOf(EngineBoundaryError);
+    expect((failure as EngineBoundaryError).code).toBe("unsupported_operation");
+    expect((failure as EngineBoundaryError).fields).toMatchObject({ rule_sets: [{ family: "dataValidations", ops: [0] }] });
+    // r3 m-1: sheet names are document content and never ride an error field.
+    expect(JSON.stringify((failure as EngineBoundaryError).fields)).not.toContain("Data");
+    expect(await sheetXml(await doc.save())).toMatch(/<c r="D2"[^>]*><v>7<\/v><\/c>/);
   });
 
   // Review r2 M-A: the real hosts save through one-shot jobs (a fresh adapter
   // per save), so the discard must ride the job's reason to the client, which
   // drops the named ops and saves again. Two consecutive jobs prove it.
   it("names the dropped rule sets in the one-shot job reason, and the trimmed op list then saves", async () => {
-    const original = await sheetXml(dataBar());
-    const ops = [loaderSnapshot, cellEdit("D2", 7)];
-    const failure = await applyXlsxEditBytes(engine, undefined, dataBar(), ops).then(() => null, (error: unknown) => error);
+    const original = await sheetXml(x14Validation());
+    const ops = [dvSnapshot, cellEdit("D2", 7)];
+    const failure = await applyXlsxEditBytes(engine, undefined, x14Validation(), ops).then(() => null, (error: unknown) => error);
     expect(failure).toBeInstanceOf(XlsxTypedError);
     expect((failure as XlsxTypedError).code).toBe("unsupported_operation");
-    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["cf",[0]]]');
+    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["dv",[0]]]');
     expect((failure as XlsxTypedError).message).not.toContain("Data");
     // The same op list fails again: a job keeps nothing between saves.
-    await expect(applyXlsxEditBytes(engine, undefined, dataBar(), ops)).rejects.toBeInstanceOf(XlsxTypedError);
+    await expect(applyXlsxEditBytes(engine, undefined, x14Validation(), ops)).rejects.toBeInstanceOf(XlsxTypedError);
 
     // What the client runtime keeps after dropping the named set.
     const trimmed = ops.filter((_op, index) => index !== 0);
-    const saved = await sheetXml((await applyXlsxEditBytes(engine, undefined, dataBar(), trimmed)).bytes);
-    expect(saved).toContain(BASE_BLOCK.exec(original)?.[0] ?? "missing");
-    expect(saved).toContain(EXT_LST.exec(original)?.[0] ?? "missing");
+    const saved = await sheetXml((await applyXlsxEditBytes(engine, undefined, x14Validation(), trimmed)).bytes);
+    expect(saved).toContain(X14_DV.exec(original)?.[0] ?? "missing");
     expect(saved).toMatch(/<c r="D2"[^>]*><v>7<\/v><\/c>/);
   });
 
   // Review r3 MA-2: the reason names op positions, not sheet names, so a sheet
   // renamed after its rule edit still matches the ops the client sent.
   it("names every op folded into a refused state by position, across a rename, and the trimmed list then saves", async () => {
-    const renamed = { ...loaderSnapshot, target: { sheet: "Doanh thu" } };
-    const ops = [loaderSnapshot, { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Doanh thu" } }, renamed, { ...cellEdit("D2", 7), target: { sheet: "Doanh thu", cell: "D2" } }];
-    const failure = await applyXlsxEditBytes(engine, undefined, dataBar(), ops).then(() => null, (error: unknown) => error);
-    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["cf",[0,2]]]');
-    const saved = (await applyXlsxEditBytes(engine, undefined, dataBar(), [ops[1]!, ops[3]!])).bytes;
+    const renamed = { ...dvSnapshot, target: { sheet: "Doanh thu" } };
+    const ops = [dvSnapshot, { op: "rename_sheet", target: { sheet: "Data" }, attributes: { newName: "Doanh thu" } }, renamed, { ...cellEdit("D2", 7), target: { sheet: "Doanh thu", cell: "D2" } }];
+    const failure = await applyXlsxEditBytes(engine, undefined, x14Validation(), ops).then(() => null, (error: unknown) => error);
+    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["dv",[0,2]]]');
+    const saved = (await applyXlsxEditBytes(engine, undefined, x14Validation(), [ops[1]!, ops[3]!])).bytes;
     expect(await engine.readEntryText(saved, SHEET1)).toMatch(/<c r="D2"[^>]*><v>7<\/v><\/c>/);
+  });
+
+  // Review r4 R4-2: a copy's inherited state names the duplicate op, not the
+  // source's positions, so a refusal of the copy never drops the source's op.
+  it("names a duplicated sheet's inherited rule set by the duplicate op's position", async () => {
+    const ops = [dvSnapshot, { op: "duplicate_sheet", target: { sheet: "Data" }, attributes: { name: "Data copy" } }, cellEdit("D2", 7)];
+    const failure = await applyXlsxEditBytes(engine, undefined, x14Validation(), ops).then(() => null, (error: unknown) => error);
+    expect((failure as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["dv",[0]],["dv",[1]]]');
+    const copyEdit = { ...dvSnapshot, target: { sheet: "Data copy" } };
+    const later = await applyXlsxEditBytes(engine, undefined, x14Validation(), [ops[1]!, copyEdit]).then(() => null, (error: unknown) => error);
+    expect((later as XlsxTypedError).reason).toBe('xlsx_rule_sets_dropped:[["dv",[1]]]');
   });
 
   it("trims the dropped-rule-set reason to whole entries and bounded positions that fit the job channel", () => {

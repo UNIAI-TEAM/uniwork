@@ -16,6 +16,13 @@ describe("xlsxSelectionFromGrid", () => {
       .toEqual({ sheet: "Data", address: "A1", endAddress: "Z5", rangeType: XLSX_RANGE_TYPE.NORMAL });
   });
 
+  it("carries the renderer's one-merged-cell flag and nothing else for an ordinary range", () => {
+    expect(xlsxSelectionFromGrid("Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1, merged: true }))
+      .toEqual({ sheet: "Data", address: "A1", endAddress: "B2", merged: true });
+    expect(xlsxSelectionFromGrid("Data", { startRow: 0, endRow: 1, startColumn: 0, endColumn: 1 }))
+      .toEqual({ sheet: "Data", address: "A1", endAddress: "B2" });
+  });
+
   it("drops a range type outside Univer's four values", () => {
     expect(xlsxSelectionFromGrid("Data", { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0, rangeType: 7 }))
       .toEqual({ sheet: "Data", address: "A1" });

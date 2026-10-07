@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import {
@@ -6,7 +7,7 @@ import {
   FeatureFlagService,
   StaticProvider,
 } from "@uniwork/core/feature-flags";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { paths } from "@uniwork/core/paths";
 import { useSearchStore } from "@uniwork/core/search";
@@ -296,5 +297,17 @@ describe("SearchCommand", () => {
     expect(screen.getByText("Công việc")).toBeInTheDocument();
     expect(screen.getByText("Cuộc họp")).toBeInTheDocument();
     expect(screen.getByText("Cài đặt")).toBeInTheDocument();
+  });
+
+  it("shows the saved toast in the language just chosen from the palette (review r3 N4)", async () => {
+    const success = vi.spyOn(toast, "success").mockImplementation(() => "t");
+    await setLocale("vi");
+    useSearchStore.setState({ open: true });
+    render(wrapWithNav(paletteTree(workspace)));
+    fireEvent.click(screen.getByText("Ngôn ngữ: English"));
+    await waitFor(() => expect(success).toHaveBeenCalled());
+    expect(success.mock.calls[0]?.[0]).toBe("Saved");
+    success.mockRestore();
+    await setLocale("vi");
   });
 });

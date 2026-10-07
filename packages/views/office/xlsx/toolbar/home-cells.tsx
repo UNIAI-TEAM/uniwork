@@ -1,14 +1,15 @@
 "use client";
 
 import { ChevronDown, Grid3X3, Rows3, SquareMinus, SquarePlus, type LucideIcon } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
-import type { RibbonItem } from "../../ribbon";
+import { useRibbonPanelClose, type RibbonItem } from "../../ribbon";
 import { fireCommand } from "../fire-command";
-import { insertCounts, selectionSpan } from "./structure-insert";
+import { selectionSpan, XlsxStructureInsertGroup } from "./structure-insert";
 import { XlsxStructureSizeGroup } from "./structure-size";
+import { useCloseOnOutsidePointerDown } from "./use-close-on-outside-pointerdown";
 import type { XlsxToolbarGroupProps } from "./types";
 
 // min-w-22 is the spacing-scale spelling of the 88px floor the Cells menus
@@ -39,11 +40,20 @@ function CellsMenu({
   icon: LucideIcon;
   blocked: boolean;
   entries?: readonly CellsMenuEntry[];
-  children?: ReactNode;
+  /** Extra panel content; a function receives the menu's close callback. */
+  children?: ReactNode | ((close: () => void) => ReactNode);
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const label = t(labelKey);
+  const closePanel = useRibbonPanelClose();
+  // A one-shot command closes this menu and, in a collapsed Cells group, the
+  // ribbon panel hosting it.
+  const closePopover = useCallback(() => {
+    setOpen(false);
+    closePanel();
+  }, [closePanel]);
+  const finalFocus = useCloseOnOutsidePointerDown(open, closePopover);
   return (
     <Popover open={open} onOpenChange={(next) => setOpen(blocked ? false : next)}>
       <PopoverTrigger
@@ -64,7 +74,7 @@ function CellsMenu({
         <span className="flex-1 text-left">{label}</span>
         <ChevronDown aria-hidden className="size-3" />
       </PopoverTrigger>
-      <PopoverContent
+      <PopoverContent finalFocus={finalFocus}
         role="dialog"
         aria-label={label}
         align="start"
@@ -84,32 +94,29 @@ function CellsMenu({
             onClick={() => {
               if (blocked) return;
               entry.onSelect();
-              setOpen(false);
+              closePopover();
             }}
           >
             {entry.label}
           </Button>
         ))}
-        {children}
+        {typeof children === "function" ? children(closePopover) : children}
       </PopoverContent>
     </Popover>
   );
 }
 
+/** Insert rows/columns (design review X2): Excel's Cells > Insert, labelled,
+ *  with the row and column counts inside its dropdown (the former Insert-tab
+ *  cluster of two bare count spinners and tiny icons). */
 function InsertMenu(context: XlsxToolbarGroupProps) {
-  const { t } = useTranslation();
   const { readOnly = false, selection, commands } = context;
-  const span = selectionSpan(selection);
-  const blocked = readOnly || !commands || !span;
-  const run = (command: string, params?: unknown) => () => fireCommand(commands, command, params);
-  const counts = span === null ? null : insertCounts(span, selection?.rangeType);
-  const entries: readonly CellsMenuEntry[] = counts === null ? [] : [
-    { id: "rows-above", label: t("office.xlsx.structure.insertRowsAbove", { count: counts.rows }), onSelect: run("sheet.command.insert-row-before", { value: counts.rows }) },
-    { id: "rows-below", label: t("office.xlsx.structure.insertRowsBelow"), onSelect: run("sheet.command.insert-multi-rows-after", { value: counts.rows }) },
-    { id: "cols-left", label: t("office.xlsx.structure.insertColsLeft", { count: counts.columns }), onSelect: run("sheet.command.insert-col-before", { value: counts.columns }) },
-    { id: "cols-right", label: t("office.xlsx.structure.insertColsRight"), onSelect: run("sheet.command.insert-multi-cols-right", { value: counts.columns }) },
-  ];
-  return <CellsMenu id="cells-insert" labelKey="office.xlsx.toolbar.groups.cellsItems.insert" icon={SquarePlus} blocked={blocked} entries={entries} />;
+  const blocked = readOnly || !commands || !selectionSpan(selection);
+  return (
+    <CellsMenu id="cells-insert" labelKey="office.xlsx.toolbar.groups.cellsItems.insertRowsCols" icon={SquarePlus} blocked={blocked}>
+      {(close) => <XlsxStructureInsertGroup {...context} onDone={close} />}
+    </CellsMenu>
+  );
 }
 
 function DeleteMenu(context: XlsxToolbarGroupProps) {
@@ -153,7 +160,7 @@ function FormatMenu(context: XlsxToolbarGroupProps) {
 }
 
 /** Home > Cells as three stacked Excel-style dropdowns: Insert, Delete, Format.
- *  The Insert-tab group is unchanged and keeps the same command ids. */
+ *  Insert carries the row/column insert form that used to sit on the Insert tab. */
 export function xlsxCellsRibbonItems(context: XlsxToolbarGroupProps): readonly RibbonItem[] {
   const blocked = context.readOnly === true || !context.commands || !selectionSpan(context.selection);
   const item = (id: string, labelKey: string, render: () => ReactNode, rowBreak: boolean, disabled: boolean): RibbonItem => ({
@@ -163,12 +170,12 @@ export function xlsxCellsRibbonItems(context: XlsxToolbarGroupProps): readonly R
     size: "icon",
     collapseAs: "icon",
     rowBreak,
-    width: 108,
+    width: 132,
     disabled,
     render,
   });
   return [
-    item("cells-insert", "office.xlsx.toolbar.groups.cellsItems.insert", () => <InsertMenu {...context} />, false, blocked),
+    item("cells-insert", "office.xlsx.toolbar.groups.cellsItems.insertRowsCols", () => <InsertMenu {...context} />, false, blocked),
     item("cells-delete", "office.xlsx.toolbar.groups.cellsItems.delete", () => <DeleteMenu {...context} />, true, blocked),
     item("cells-format", "office.xlsx.toolbar.groups.cellsItems.format", () => <FormatMenu {...context} />, true, false),
   ];

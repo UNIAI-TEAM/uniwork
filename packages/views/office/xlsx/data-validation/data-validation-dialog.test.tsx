@@ -175,4 +175,96 @@ describe("XlsxDataValidationDialog", () => {
     expect(execute).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("picks an error style, defaults to stop, and explains each", async () => {
+    const { execute } = renderDialog();
+    const hint = (style: string) => lookup(viLocale, `office.xlsx.dataValidation.errorStyleHints.${style}`) as string;
+    expect(screen.getByText(hint("stop"))).toBeInTheDocument();
+    pick("office.xlsx.dataValidation.dialog.errorStyle", "office.xlsx.dataValidation.errorStyles.warning");
+    expect(screen.getByText(hint("warning"))).toBeInTheDocument();
+    pick("office.xlsx.dataValidation.dialog.errorStyle", "office.xlsx.dataValidation.errorStyles.information");
+    expect(screen.getByText(hint("information"))).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("xlsx-dv-source"), { target: { value: "a,b" } });
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    await waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    expect(execute.mock.calls[0]![1]).toMatchObject({ rule: { errorStyle: 0, showErrorMessage: true } });
+  });
+
+  it("edit mode runs the changed setting and options as one all-or-nothing step (F1)", async () => {
+    const execute = vi.fn((_id: string, _params?: unknown) => true);
+    // The renderer refused a later step and took the earlier one back.
+    const executeAsOneStep = vi.fn((_steps: readonly { id: string }[], _options?: { atomic?: boolean }) => Promise.resolve(false));
+    const onClose = vi.fn();
+    render(
+      <XlsxDataValidationDialog
+        commands={{ execute, executeAsOneStep }}
+        unitId="file-abc"
+        subUnitId="sheet-1"
+        range={range}
+        edit={{
+          ruleId: "r1",
+          ranges: [range],
+          form: { type: "list", operator: "between", value1: "x,y", value2: "", errorTitle: "", error: "", errorStyle: "warning" },
+          rule: { type: "list", formula1: "x", errorStyle: 1 },
+        }}
+        onClose={onClose}
+      />,
+    );
+    expect(screen.getByTestId("xlsx-dv-source")).toHaveValue("x,y");
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    await waitFor(() => expect(screen.getByTestId("xlsx-dv-refused")).toBeInTheDocument());
+    expect(execute).not.toHaveBeenCalled();
+    expect(executeAsOneStep).toHaveBeenCalledTimes(1);
+    expect(executeAsOneStep.mock.calls[0]![0].map((step) => step.id)).toEqual([
+      "sheets.command.update-data-validation-setting",
+      "sheets.command.update-data-validation-options",
+    ]);
+    expect(executeAsOneStep.mock.calls[0]![1]).toEqual({ atomic: true });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("edit mode never runs a multi-step edit one command at a time", async () => {
+    const execute = vi.fn((_id: string, _params?: unknown) => true);
+    render(
+      <XlsxDataValidationDialog
+        commands={{ execute }}
+        unitId="file-abc"
+        subUnitId="sheet-1"
+        range={range}
+        edit={{
+          ruleId: "r1",
+          ranges: [range],
+          form: { type: "list", operator: "between", value1: "x,y", value2: "", errorTitle: "", error: "", errorStyle: "warning" },
+          rule: { type: "list", formula1: "x", errorStyle: 1 },
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    await waitFor(() => expect(screen.getByTestId("xlsx-dv-refused")).toBeInTheDocument());
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("edit mode with nothing changed closes without a command", async () => {
+    const execute = vi.fn((_id: string, _params?: unknown) => true);
+    const onClose = vi.fn();
+    render(
+      <XlsxDataValidationDialog
+        commands={{ execute }}
+        unitId="file-abc"
+        subUnitId="sheet-1"
+        range={range}
+        edit={{
+          ruleId: "r1",
+          ranges: [range],
+          form: { type: "list", operator: "between", value1: "x,y", value2: "", errorTitle: "", error: "", errorStyle: "stop" },
+          rule: { type: "list", formula1: "x,y" },
+        }}
+        onClose={onClose}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("xlsx-dv-apply"));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(execute).not.toHaveBeenCalled();
+  });
 });

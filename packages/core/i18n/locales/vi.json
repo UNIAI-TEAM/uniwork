@@ -9117,7 +9117,15 @@
         "file_checkpoint_failed": "Chưa bảo vệ được thay đổi trên máy nên tệp chưa được lưu. Thử lại.",
         "file_save_in_progress": "Một lần lưu khác vẫn đang chạy. Chờ xong rồi thử lại.",
         "file_engine_unavailable": "Bản UniWork Office này chưa xử lý được loại tệp này trên máy.",
-        "file_failed": "Không xử lý được tệp. Thử lại."
+        "file_failed": "Không xử lý được tệp. Thử lại.",
+        "unknown": "Có sự cố khi lưu. Thử lại sau ít phút.",
+        "office_unknown_error": "Có sự cố khi lưu. Thử lại sau ít phút.",
+        "engine_result_invalid": "Kết quả lưu chưa hợp lệ. Thử lại.",
+        "engine_crashed": "Bộ xử lý tệp dừng giữa chừng. Thử lại.",
+        "engine_overloaded": "Hệ thống đang bận. Thử lại sau ít phút.",
+        "engine_checksum_mismatch": "Dữ liệu lưu không khớp. Thử lại.",
+        "request_aborted": "Việc lưu đã bị ngắt. Thử lại.",
+        "stale_generation": "Có bản mới hơn của thay đổi này. Lưu lại."
       },
       "fix": {
         "xlsx_recalc_unavailable": "Cài bản UniWork Office mới nhất (có kèm bộ tính lại công thức), hoặc tải sổ tính lên UniWork rồi lưu ở đó."
@@ -9335,6 +9343,7 @@
             "copy": "Sao chép"
           },
           "cellsItems": {
+            "insertRowsCols": "Chèn hàng/cột",
             "insert": "Chèn",
             "delete": "Xóa",
             "format": "Định dạng"
@@ -9372,6 +9381,14 @@
           "pie": "Tròn",
           "doughnut": "Vành khuyên"
         },
+        "chartTypesInline": {
+          "column": "cột",
+          "bar": "thanh",
+          "line": "đường",
+          "area": "vùng",
+          "pie": "tròn",
+          "doughnut": "vành khuyên"
+        },
         "shapeTypes": {
           "rect": "Hình chữ nhật",
           "roundRect": "Hình chữ nhật bo góc",
@@ -9390,8 +9407,16 @@
           "picture": "Hình ảnh",
           "roleDescription": "đối tượng vẽ",
           "keyboardHelp": "Phím mũi tên để di chuyển, Shift + mũi tên để đổi kích thước, Delete để xóa, Esc để quay lại trang tính.",
-          "locked": "Đã lưu vào tệp. Chưa sửa được hình đã lưu.",
-          "delete": "Xóa {{name}}"
+          "delete": "Xóa {{name}}",
+          "fileReadOnly": "Hình vẽ này được neo theo kiểu trình sửa chưa di chuyển được. Hình hiển thị đúng như trong tệp.",
+          "unavailable": "Hiện chưa sửa được hình vẽ: tài liệu chỉ xem hoặc đang lưu.",
+          "fileChart": "Biểu đồ {{title}}",
+          "kindChart": "Biểu đồ",
+          "kindShape": "Hình dạng"
+        },
+        "placeholder": {
+          "chart": "Chưa xem trước được loại biểu đồ này.",
+          "picture": "Hình ảnh quá lớn để xem trước ở đây."
         },
         "errors": {
           "noChartData": "Vùng đã chọn không có số liệu để vẽ biểu đồ.",
@@ -9476,6 +9501,10 @@
         "groupCols": "Nhóm cột",
         "ungroupCols": "Bỏ nhóm cột",
         "clearOutline": "Xóa phân cấp nhóm",
+        "group": "Nhóm",
+        "ungroup": "Bỏ nhóm",
+        "showDetail": "Hiện chi tiết",
+        "hideDetail": "Ẩn chi tiết",
         "mergeCells": "Gộp ô",
         "mergeAcross": "Gộp theo hàng",
         "unmergeCells": "Bỏ gộp ô",
@@ -9488,6 +9517,9 @@
         "toggle": "Bật/tắt lọc",
         "clear": "Xóa điều kiện lọc",
         "advanced": "Lọc nâng cao…",
+        "clearShort": "Xóa bộ lọc",
+        "reapply": "Áp dụng lại",
+        "advancedShort": "Nâng cao…",
         "dialog": {
           "title": "Lọc nâng cao",
           "close": "Đóng lọc nâng cao",
@@ -9523,6 +9555,7 @@
         },
         "open": "Xác thực dữ liệu…",
         "clear": "Xóa xác thực",
+        "manage": "Quản lý quy tắc xác thực",
         "dialog": {
           "title": "Xác thực dữ liệu",
           "close": "Đóng xác thực dữ liệu",
@@ -9535,10 +9568,48 @@
           "minimum": "Nhỏ nhất",
           "maximum": "Lớn nhất",
           "errorSection": "Thông báo lỗi",
+          "errorStyle": "Kiểu",
           "errorTitle": "Tiêu đề (không bắt buộc)",
           "errorMessage": "Nội dung (không bắt buộc)",
           "apply": "Áp dụng",
           "cancel": "Hủy"
+        },
+        "errorStyles": {
+          "stop": "Dừng",
+          "warning": "Cảnh báo",
+          "information": "Thông tin"
+        },
+        "errorStyleHints": {
+          "stop": "Từ chối giá trị không hợp lệ.",
+          "warning": "Hỏi bạn có muốn giữ giá trị không hợp lệ hay không.",
+          "information": "Hiện thông báo và vẫn giữ giá trị."
+        },
+        "manager": {
+          "title": "Quản lý quy tắc xác thực",
+          "description": "Các quy tắc xác thực dữ liệu trên trang tính này.",
+          "scope": "Hiển thị quy tắc cho",
+          "scopeSelection": "Vùng đang chọn",
+          "scopeSheet": "Trang tính này",
+          "list": "Quy tắc xác thực dữ liệu",
+          "empty": {
+            "selection": "Chưa có quy tắc xác thực nào áp dụng cho các ô đã chọn.",
+            "sheet": "Trang tính này chưa có quy tắc xác thực dữ liệu."
+          },
+          "appliesTo": "Áp dụng cho {{areas}}",
+          "errorStyle": "Kiểu cảnh báo lỗi: {{style}}",
+          "edit": "Sửa quy tắc xác thực: {{rule}}",
+          "editTitle": "Sửa quy tắc",
+          "editUnsupported": "Loại quy tắc này chưa sửa được tại đây. Hãy xóa rồi thêm quy tắc mới, hoặc sửa trong Excel.",
+          "delete": "Xóa quy tắc xác thực: {{rule}}",
+          "deleteTitle": "Xóa quy tắc",
+          "done": "Xong",
+          "unavailable": "Chưa liệt kê được các quy tắc tại đây.",
+          "rules": {
+            "list": "Danh sách: {{items}}",
+            "value": "{{type}} {{operator}} {{value}}",
+            "range": "{{type}} {{operator}} {{min}} và {{max}}",
+            "other": "Quy tắc khác ({{type}})"
+          }
         },
         "types": {
           "list": "Danh sách",
@@ -9577,6 +9648,8 @@
         },
         "ascending": "Sắp xếp tăng dần",
         "descending": "Sắp xếp giảm dần",
+        "ascendingShort": "Sắp xếp A → Z",
+        "descendingShort": "Sắp xếp Z → A",
         "custom": "Sắp xếp tùy chỉnh…",
         "limitExceeded": "Vùng chọn quá lớn để sắp xếp. Mỗi lần lưu chỉ sắp xếp tối đa {{limit}} ô; hãy chọn vùng nhỏ hơn.",
         "applyFailed": "Không sắp xếp được tại đây. Hãy chọn đúng vùng rồi thử lại.",
@@ -9593,10 +9666,94 @@
           "cancel": "Hủy"
         }
       },
+      "styles": {
+        "formatAsTable": "Định dạng như bảng",
+        "cellStyles": "Kiểu ô",
+        "cellStylesNote": "Kiểu được lưu như định dạng ô thông thường.",
+        "limitExceeded": "Vùng chọn quá lớn để áp dụng kiểu. Hãy chọn tối đa {{limit}} ô.",
+        "presets": {
+          "normal": "Bình thường",
+          "good": "Tốt",
+          "bad": "Xấu",
+          "neutral": "Trung tính",
+          "input": "Nhập liệu",
+          "calculation": "Tính toán",
+          "title": "Tiêu đề",
+          "heading1": "Đầu đề 1",
+          "heading2": "Đầu đề 2"
+        }
+      },
+      "dataTools": {
+        "textToColumns": "Văn bản thành cột",
+        "removeDuplicates": "Loại bỏ trùng lặp",
+        "subtotal": "Tổng phụ",
+        "common": {
+          "ok": "OK",
+          "cancel": "Hủy",
+          "close": "Đóng",
+          "failed": "Không thực hiện được tại đây. Hãy chọn lại vùng rồi thử lại.",
+          "limitExceeded": "Vùng chọn quá lớn. Mỗi lần lưu chỉ sửa tối đa {{limit}} ô; hãy chọn vùng nhỏ hơn.",
+          "hasHeader": "Dữ liệu của tôi có tiêu đề",
+          "column": "Cột {{column}}"
+        },
+        "removeDuplicatesDialog": {
+          "title": "Loại bỏ trùng lặp",
+          "description": "Chọn một hoặc nhiều cột có chứa giá trị trùng lặp.",
+          "columns": "Cột",
+          "selectAll": "Chọn tất cả",
+          "unselectAll": "Bỏ chọn tất cả",
+          "noColumns": "Chọn ít nhất một cột.",
+          "needRows": "Chọn vùng có ít nhất hai hàng.",
+          "formulas": "Vùng chọn có công thức. Loại bỏ trùng lặp chỉ áp dụng cho vùng chỉ chứa giá trị.",
+          "formatNote": "Định dạng ô giữ nguyên vị trí; chỉ giá trị được dồn lên.",
+          "result_one": "Đã tìm thấy và xóa {{removed}} giá trị trùng lặp; còn lại {{kept}} giá trị duy nhất.",
+          "result_other": "Đã tìm thấy và xóa {{removed}} giá trị trùng lặp; còn lại {{kept}} giá trị duy nhất.",
+          "resultNone": "Không tìm thấy giá trị trùng lặp."
+        },
+        "subtotalDialog": {
+          "title": "Tổng phụ",
+          "description": "Chèn một hàng tổng phụ dưới mỗi nhóm hàng có cùng giá trị và nhóm các hàng theo cấp.",
+          "atEachChange": "Tại mỗi thay đổi trong",
+          "useFunction": "Dùng hàm",
+          "addTo": "Thêm tổng phụ vào",
+          "functions": {
+            "sum": "Tổng",
+            "count": "Đếm",
+            "average": "Trung bình",
+            "max": "Lớn nhất",
+            "min": "Nhỏ nhất",
+            "product": "Tích"
+          },
+          "groupLabel": "{{function}} {{value}}",
+          "grandLabel": "{{function}} chung",
+          "needRows": "Chọn danh sách có dòng tiêu đề và ít nhất một dòng dữ liệu.",
+          "noColumns": "Chọn ít nhất một cột để tính tổng phụ.",
+          "note": "Các hàng được chèn trên toàn bộ trang tính, giống Excel."
+        },
+        "textToColumnsDialog": {
+          "title": "Chuyển văn bản thành cột",
+          "description": "Tách nội dung của mỗi ô đã chọn thành các cột tại những dấu phân cách bạn chọn.",
+          "delimiters": "Dấu phân cách",
+          "tab": "Tab",
+          "semicolon": "Dấu chấm phẩy",
+          "comma": "Dấu phẩy",
+          "space": "Dấu cách",
+          "other": "Khác",
+          "otherInput": "Dấu phân cách khác",
+          "otherPlaceholder": "Ký tự",
+          "consecutive": "Coi các dấu phân cách liền nhau là một",
+          "preview": "Xem trước dữ liệu",
+          "overwrite": "Các ô bên phải đã có dữ liệu và sẽ bị thay thế.",
+          "singleColumn": "Chọn đúng một cột để tách.",
+          "noDelimiter": "Chọn ít nhất một dấu phân cách."
+        }
+      },
       "conditionalFormat": {
         "dropped": {
           "title": "Một số quy tắc chưa lưu được nên đã được bỏ qua.",
           "item": "{{family}}: trang tính {{sheet}}",
+          "itemRules_one": "{{family}}: trang tính {{sheet}} ({{count}} quy tắc)",
+          "itemRules_other": "{{family}}: trang tính {{sheet}} ({{count}} quy tắc)",
           "familyConditionalFormats": "Định dạng có điều kiện",
           "familyDataValidations": "Xác thực dữ liệu",
           "more": "và {{count}} mục khác",
@@ -9612,22 +9769,26 @@
           "between": "Nằm giữa…",
           "containsText": "Văn bản chứa…",
           "duplicateValues": "Giá trị trùng lặp…",
+          "uniqueValues": "Giá trị duy nhất…",
           "clearSelection": "Xóa quy tắc khỏi ô đã chọn",
-          "clearSheet": "Xóa quy tắc khỏi toàn bộ trang tính"
+          "clearSheet": "Xóa quy tắc khỏi toàn bộ trang tính",
+          "manage": "Quản lý quy tắc…"
         },
         "titles": {
           "greaterThan": "Lớn hơn",
           "lessThan": "Nhỏ hơn",
           "between": "Nằm giữa",
           "containsText": "Văn bản chứa",
-          "duplicateValues": "Giá trị trùng lặp"
+          "duplicateValues": "Giá trị trùng lặp",
+          "uniqueValues": "Giá trị duy nhất"
         },
         "descriptions": {
           "greaterThan": "Định dạng các ô LỚN HƠN:",
           "lessThan": "Định dạng các ô NHỎ HƠN:",
           "between": "Định dạng các ô NẰM GIỮA:",
           "containsText": "Định dạng các ô chứa văn bản:",
-          "duplicateValues": "Định dạng các ô chứa:"
+          "duplicateValues": "Định dạng các ô chứa:",
+          "uniqueValues": "Định dạng các ô chứa:"
         },
         "dialog": {
           "close": "Đóng",
@@ -9639,10 +9800,65 @@
           "and": "và",
           "text": "Văn bản",
           "duplicate": "Giá trị trùng lặp",
+          "unique": "Giá trị duy nhất",
+          "duplicateHint": "Ô có giá trị xuất hiện nhiều lần trong vùng chọn",
+          "uniqueHint": "Ô có giá trị chỉ xuất hiện một lần trong vùng chọn",
           "with": "với",
           "sample": "AaBbCc"
         },
+        "manager": {
+          "title": "Quản lý quy tắc",
+          "description": "Các quy tắc định dạng có điều kiện theo thứ tự ưu tiên: quy tắc đầu tiên được áp dụng trước.",
+          "scope": "Hiển thị quy tắc cho",
+          "scopeSelection": "Vùng đang chọn",
+          "scopeSheet": "Trang tính này",
+          "list": "Quy tắc định dạng có điều kiện",
+          "empty": {
+            "selection": "Chưa có quy tắc nào áp dụng cho các ô đã chọn.",
+            "sheet": "Trang tính này chưa có quy tắc định dạng có điều kiện."
+          },
+          "appliesTo": "Áp dụng cho {{areas}}",
+          "edit": "Sửa quy tắc: {{rule}}",
+          "editTitle": "Sửa quy tắc",
+          "editUnsupported": "Loại quy tắc này chưa sửa được tại đây. Hãy xóa rồi thêm quy tắc mới, hoặc sửa trong Excel.",
+          "editLinked": "Quy tắc này có thiết lập riêng của Excel (như phần mở rộng của thanh dữ liệu) được giữ nguyên khi lưu, nên chưa sửa được tại đây. Hãy xóa rồi thêm quy tắc mới, hoặc sửa trong Excel.",
+          "moveUp": "Chuyển quy tắc lên: {{rule}}",
+          "moveUpTitle": "Chuyển lên",
+          "moveDown": "Chuyển quy tắc xuống: {{rule}}",
+          "moveDownTitle": "Chuyển xuống",
+          "delete": "Xóa quy tắc: {{rule}}",
+          "deleteTitle": "Xóa quy tắc",
+          "done": "Xong",
+          "unavailable": "Chưa liệt kê được các quy tắc tại đây.",
+          "rules": {
+            "number": {
+              "greaterThan": "Giá trị ô lớn hơn {{value}}",
+              "greaterThanOrEqual": "Giá trị ô lớn hơn hoặc bằng {{value}}",
+              "lessThan": "Giá trị ô nhỏ hơn {{value}}",
+              "lessThanOrEqual": "Giá trị ô nhỏ hơn hoặc bằng {{value}}",
+              "equal": "Giá trị ô bằng {{value}}",
+              "notEqual": "Giá trị ô khác {{value}}",
+              "between": "Giá trị ô nằm giữa {{min}} và {{max}}",
+              "notBetween": "Giá trị ô không nằm giữa {{min}} và {{max}}"
+            },
+            "text": {
+              "containsText": "Văn bản chứa “{{value}}”",
+              "notContainsText": "Văn bản không chứa “{{value}}”",
+              "beginsWith": "Văn bản bắt đầu bằng “{{value}}”",
+              "endsWith": "Văn bản kết thúc bằng “{{value}}”",
+              "equal": "Văn bản đúng bằng “{{value}}”"
+            },
+            "duplicateValues": "Giá trị trùng lặp",
+            "uniqueValues": "Giá trị duy nhất",
+            "formula": "Quy tắc dùng công thức",
+            "dataBar": "Thanh dữ liệu",
+            "colorScale": "Thang màu",
+            "iconSet": "Bộ biểu tượng",
+            "other": "Quy tắc khác ({{type}})"
+          }
+        },
         "styles": {
+          "current": "Định dạng hiện tại",
           "lightRedDarkRed": "Tô nền đỏ nhạt, chữ đỏ đậm",
           "yellowDarkYellow": "Tô nền vàng, chữ vàng đậm",
           "greenDarkGreen": "Tô nền xanh lá, chữ xanh lá đậm",
@@ -9684,6 +9900,7 @@
         },
         "insert": "Chèn liên kết",
         "note": "Chèn ghi chú",
+        "noteShort": "Ghi chú",
         "dialog": {
           "linkTitle": "Chèn liên kết",
           "noteTitle": "Chèn ghi chú",
@@ -9917,9 +10134,7 @@
         "partialHint": "Một phần vùng chọn nằm ngoài cửa sổ đọc, nên tổng chỉ tính trên các ô đã đọc.",
         "sum": "Tổng: {{value}}",
         "average": "Trung bình: {{value}}",
-        "count": "Số lượng: {{value}}",
-        "min": "Nhỏ nhất: {{value}}",
-        "max": "Lớn nhất: {{value}}"
+        "count": "Số đếm: {{value}}"
       },
       "recalc": {
         "progress": "Đang tính lại ({{progress}}%)",
@@ -9948,7 +10163,8 @@
         "commandRefused": "Không thể áp dụng thay đổi hàng hoặc cột. Kiểm tra vùng chọn rồi thử lại.",
         "dismiss": "Đóng",
         "clipboardFailed": "Không thể truy cập bảng tạm. Kiểm tra quyền của trình duyệt rồi thử lại.",
-        "richPasteValuesOnly": "Không giữ được định dạng khi dán nên chỉ dán giá trị."
+        "richPasteValuesOnly": "Không giữ được định dạng khi dán nên chỉ dán giá trị.",
+        "richPasteMergesSkipped": "Không giữ được ô gộp khi dán. Giá trị và định dạng đã được dán."
       },
       "find": {
         "title": "Tìm và thay thế",
@@ -10049,6 +10265,13 @@
         }
       },
       "editor": {
+        "dvInfoCancel": "Hủy",
+        "dvInfoOk": "OK",
+        "dvInfoTitle": "Thông tin",
+        "dvInvalidMessage": "Giá trị này không khớp với quy tắc xác thực dữ liệu của ô.",
+        "dvWarningNo": "Không",
+        "dvWarningTitle": "Giữ giá trị này?",
+        "dvWarningYes": "Có",
         "appClosureActive": "{{count}} công thức được tính lại trực tiếp (chế độ closure); phần còn lại của sổ tính tải theo nhu cầu.",
         "appColorFiltersUnsaveable": "Chưa thể lưu bộ lọc màu dưới dạng XLSX — hãy xoá chúng trước khi lưu.",
         "appColumnLabel": "Cột {{col}}",
@@ -10067,6 +10290,12 @@
         "appRecalcPartial": "Đã tính lại công thức từ các sửa đổi — {{count}} ô giữ giá trị đã lưu (hàm mà công cụ dự phòng không hỗ trợ).",
         "appSheetStillIndexing": "Trang tính vẫn đang lập chỉ mục — thử lại sau giây lát.",
         "appAreaStreaming": "Khu vực này của trang tính vẫn đang tải — thử lại sau giây lát.",
+        "appOutlineMaxLevels": "Dàn ý chỉ có tối đa 7 cấp, và các dòng này đã ở cấp sâu nhất.",
+        "outlineLevelsBar": "Cấp dàn ý",
+        "outlineLevelsRows": "Cấp hàng",
+        "outlineLevelsCols": "Cấp cột",
+        "outlineLevelShowRows": "Hiện hàng đến cấp {{level}}",
+        "outlineLevelShowCols": "Hiện cột đến cấp {{level}}",
         "appStreamingRows": "Đang truyền {{name}}: {{rows}} hàng khả dụng.",
         "dvRejectTitle": "Giá trị không hợp lệ",
         "dvRejectOk": "Đã hiểu",

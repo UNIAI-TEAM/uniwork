@@ -13,25 +13,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@uniwork/ui/co
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
-import { columnLabel } from "../xlsx-editor-model";
 import type { XlsxToolbarCommands } from "../toolbar/types";
 import {
   addDvParams,
   buildDvRule,
   isTwoValueOperator,
   XLSX_DV_ADD_COMMAND,
+  updateDvCommands,
   XLSX_DV_EMPTY_FORM,
+  XLSX_DV_ERROR_STYLES,
   XLSX_DV_ERROR_MAX_CHARS,
   XLSX_DV_OPERATORS,
   XLSX_DV_TITLE_MAX_CHARS,
   XLSX_DV_TYPES,
+  type XlsxDvErrorStyle,
   type XlsxDvFailure,
   type XlsxDvForm,
   type XlsxDvOperator,
   type XlsxDvRange,
   type XlsxDvType,
 } from "./dv-commands";
-import { runRuleCommand } from "./run-rule-command";
+import { rangesLabel } from "./rule-areas";
+import { runRuleCommand, runRuleCommandsAtomically } from "./run-rule-command";
 
 export interface XlsxDataValidationDialogProps {
   commands: XlsxToolbarCommands;
@@ -41,18 +44,17 @@ export interface XlsxDataValidationDialogProps {
   /** The sheet holds Excel extended (x14) validation the save cannot rewrite:
    *  the dialog explains it and Apply stays inert. */
   blocked?: boolean;
+  /** Edit mode (rule manager): the dialog opens with the rule's form and Apply
+   *  updates live rule `rule` (id `ruleId`) in place, all or nothing, with
+   *  only the setting / options that changed. */
+  edit?: { ruleId: string; ranges: readonly XlsxDvRange[]; form: XlsxDvForm; rule: Readonly<Record<string, unknown>> };
   onClose: () => void;
 }
 
 const isDvType = (value: unknown): value is XlsxDvType => XLSX_DV_TYPES.some((type) => type === value);
 const isDvOperator = (value: unknown): value is XlsxDvOperator => XLSX_DV_OPERATORS.some((operator) => operator === value);
 
-/** The A1 label of a rectangle ("A1:C4", or "B2" for one cell). */
-function rangeLabel(range: XlsxDvRange): string {
-  const start = `${columnLabel(range.startColumn)}${range.startRow + 1}`;
-  const end = `${columnLabel(range.endColumn)}${range.endRow + 1}`;
-  return start === end ? start : `${start}:${end}`;
-}
+const isErrorStyle = (value: unknown): value is XlsxDvErrorStyle => XLSX_DV_ERROR_STYLES.some((style) => style === value);
 
 function Field({
   id,
@@ -87,10 +89,10 @@ function Field({
   );
 }
 
-export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, blocked = false, onClose }: XlsxDataValidationDialogProps) {
+export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, blocked = false, edit, onClose }: XlsxDataValidationDialogProps) {
   const { t } = useTranslation();
   const base = useId();
-  const [form, setForm] = useState<XlsxDvForm>(XLSX_DV_EMPTY_FORM);
+  const [form, setForm] = useState<XlsxDvForm>(edit?.form ?? XLSX_DV_EMPTY_FORM);
   const [failure, setFailure] = useState<XlsxDvFailure | null>(null);
   const [refused, setRefused] = useState(false);
   const [pending, setPending] = useState(false);
@@ -116,7 +118,12 @@ export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, b
       return;
     }
     setPending(true);
-    const accepted = await runRuleCommand(commands, XLSX_DV_ADD_COMMAND, addDvParams(unitId, subUnitId, built.rule));
+    let accepted: boolean;
+    if (edit) {
+      accepted = await runRuleCommandsAtomically(commands, updateDvCommands(unitId, subUnitId, edit.ruleId, built.rule, edit.rule));
+    } else {
+      accepted = await runRuleCommand(commands, XLSX_DV_ADD_COMMAND, addDvParams(unitId, subUnitId, built.rule));
+    }
     setPending(false);
     if (accepted) onClose();
     else setRefused(true);
@@ -126,6 +133,7 @@ export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, b
   const operatorId = `${base}-operator`;
   const value1Id = `${base}-value1`;
   const value2Id = `${base}-value2`;
+  const styleId = `${base}-style`;
   const titleId = `${base}-title`;
   const messageId = `${base}-message`;
 
@@ -149,7 +157,7 @@ export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, b
           }}
         >
           <p className="text-caption text-muted-foreground" data-testid="xlsx-dv-range">
-            {t("office.xlsx.dataValidation.dialog.range")}: <span className="font-medium text-foreground">{rangeLabel(range)}</span>
+            {t("office.xlsx.dataValidation.dialog.range")}: <span className="font-medium text-foreground">{rangesLabel(edit?.ranges ?? [range])}</span>
           </p>
           <Field id={typeId} label={t("office.xlsx.dataValidation.dialog.allow")}>
             <Select
@@ -230,6 +238,23 @@ export function XlsxDataValidationDialog({ commands, unitId, subUnitId, range, b
           )}
           <fieldset className="grid gap-2 rounded-control border border-border p-2">
             <legend className="px-1 text-caption font-medium">{t("office.xlsx.dataValidation.dialog.errorSection")}</legend>
+            <Field
+              id={styleId}
+              label={t("office.xlsx.dataValidation.dialog.errorStyle")}
+              hint={t(`office.xlsx.dataValidation.errorStyleHints.${form.errorStyle}`)}
+            >
+              <Select
+                id={styleId}
+                aria-label={t("office.xlsx.dataValidation.dialog.errorStyle")}
+                aria-describedby={`${styleId}-hint`}
+                triggerVariant="subtle"
+                value={form.errorStyle}
+                onValueChange={(value) => {
+                  if (isErrorStyle(value)) patch({ errorStyle: value });
+                }}
+                items={XLSX_DV_ERROR_STYLES.map((style) => ({ value: style, label: t(`office.xlsx.dataValidation.errorStyles.${style}`) }))}
+              />
+            </Field>
             <Field id={titleId} label={t("office.xlsx.dataValidation.dialog.errorTitle")} error={errorFor("errorTitle")}>
               <Input
                 id={titleId}

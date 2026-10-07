@@ -4,15 +4,71 @@
 // so the editor can draw, move and delete them again instead of saving
 // visuals the user cannot see. The engine (ops-visuals.ts) stays the
 // validator: entries that are not well-formed visual ops are skipped here.
+import { shiftXlsxVisualAnchor, type XlsxVisualStructuralShift } from "@uniwork/office-engine/xlsx";
 import type { XlsxEditorVisual } from "./visual-model";
 
 type RecoveredVisual = Pick<XlsxEditorVisual, "id" | "anchor" | "chart" | "shape" | "image"> & { readonly sheetName: string };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** A row/column insert or delete op of the stream, else null. Recovered
+ *  anchors are final at emission, so a later one shifts them like the engine. */
+function structuralShift(op: Record<string, unknown>): XlsxVisualStructuralShift | null {
+  const kind = op.op;
+  const attributes = isRecord(op.attributes) ? op.attributes : {};
+  if (kind !== "insert_rows" && kind !== "remove_rows" && kind !== "insert_cols" && kind !== "remove_cols") return null;
+  return typeof attributes.index === "number" && typeof attributes.count === "number" ? { kind, index: attributes.index, count: attributes.count } : null;
+}
+
 function targetSheet(op: Record<string, unknown>): string | null {
   const target = op.target;
   return isRecord(target) && typeof target.sheet === "string" ? target.sheet : null;
+}
+
+/** A file visual's pending edit in a raw stream (UNI-953): its last anchor or its delete. */
+export interface RecoveredFileEdit {
+  readonly sheetName: string;
+  readonly file: number;
+  readonly anchor?: XlsxEditorVisual["anchor"] | undefined;
+  readonly remove?: true | undefined;
+}
+
+/** The moves and deletes of visuals already in the file that a raw op
+ *  stream carries, folded per (sheet, index) and keyed by the sheet's final
+ *  name. A move after a delete restores the visual, like in the engine. */
+export function fileEditsFromStream(stream: readonly unknown[]): RecoveredFileEdit[] {
+  let edits: RecoveredFileEdit[] = [];
+  for (const op of stream) {
+    if (!isRecord(op)) continue;
+    const sheet = targetSheet(op);
+    if (sheet === null) continue;
+    const attributes = isRecord(op.attributes) ? op.attributes : {};
+    if (op.op === "rename_sheet" && typeof attributes.newName === "string") {
+      const newName = attributes.newName;
+      edits = edits.map((edit) => (edit.sheetName === sheet ? { ...edit, sheetName: newName } : edit));
+      continue;
+    }
+    if (op.op === "remove_sheet") {
+      edits = edits.filter((edit) => edit.sheetName !== sheet);
+      continue;
+    }
+    const shift = structuralShift(op);
+    if (shift) {
+      edits = edits.map((edit) => (edit.sheetName === sheet && edit.anchor ? { ...edit, anchor: shiftXlsxVisualAnchor(edit.anchor, shift) } : edit));
+      continue;
+    }
+    const file = attributes.file;
+    if ((op.op !== "set_visual" && op.op !== "remove_visual") || typeof file !== "number" || !Number.isInteger(file) || file < 0) continue;
+    const index = edits.findIndex((edit) => edit.sheetName === sheet && edit.file === file);
+    // A move after a delete restores the visual (undo); a second delete is moot.
+    if (index >= 0 && edits[index]?.remove && op.op === "remove_visual") continue;
+    let next: RecoveredFileEdit;
+    if (op.op === "remove_visual") next = { sheetName: sheet, file, remove: true };
+    else if (isRecord(attributes.anchor)) next = { sheetName: sheet, file, anchor: attributes.anchor as unknown as XlsxEditorVisual["anchor"] };
+    else continue;
+    edits = index >= 0 ? edits.map((edit, at) => (at === index ? next : edit)) : [...edits, next];
+  }
+  return edits;
 }
 
 /** The session visuals a raw op stream leaves pending, in first-insert order,
@@ -31,6 +87,11 @@ export function visualsFromStream(stream: readonly unknown[]): RecoveredVisual[]
     }
     if (op.op === "remove_sheet") {
       visuals = visuals.filter((visual) => visual.sheetName !== sheet);
+      continue;
+    }
+    const shift = structuralShift(op);
+    if (shift) {
+      visuals = visuals.map((visual) => (visual.sheetName === sheet ? { ...visual, anchor: shiftXlsxVisualAnchor(visual.anchor, shift) } : visual));
       continue;
     }
     if ((op.op !== "set_visual" && op.op !== "remove_visual") || typeof attributes.id !== "string") continue;

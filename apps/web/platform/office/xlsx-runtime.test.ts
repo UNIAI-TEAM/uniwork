@@ -340,7 +340,9 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     expect(error).toMatchObject({ code: "engine_result_invalid", reason: "native failure", kind: "malformed_result", retryable: true, errorClass: "engine" });
     expect(dispatchOfficeError(error)).toMatchObject({ code: "engine_result_invalid", errorClass: "engine", action: "retry", retryable: true });
   });
-  it("exhausts three automatic attempts then explicitly retries the same intent/prefix while N+1 stays live", async () => {
+  // UNI-953 item 3: the failed attempts never reached the commit step, so the
+  // explicit Retry settles that intent and saves N+1 with it in one new intent.
+  it("exhausts three automatic attempts, then one explicit Retry saves the prefix and N+1 together", async () => {
     const { engine, coordinator, documents, persisted } = await setup();
     api.get.mockImplementation(async () => {
       if (editRequests().length === 1) {
@@ -355,10 +357,10 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     expect(documents.upload).not.toHaveBeenCalled();
     api.get.mockResolvedValue({ jobId: "job", state: "completed" } as OfficeJob);
     expect(await coordinator.retry()).toMatchObject({ accepted: true });
-    expect(persisted).toHaveBeenCalledOnce();
-    expect(editRequests().map((request) => request.edits)).toEqual(Array.from({ length: 4 }, () => [valueEdit(7)]));
+    expect(persisted).toHaveBeenCalledTimes(2);
+    expect(editRequests().map((request) => request.edits)).toEqual([...Array.from({ length: 3 }, () => [valueEdit(7)]), [valueEdit(7), valueEdit(8)]]);
     expect(engine.snapshot("model").sheets[0]!.cells.A1!.value).toBe(8);
-    expect(coordinator.getState()).toMatchObject({ state: "dirty", lastSavedGeneration: 2, dirtyGeneration: 3 });
+    expect(coordinator.getState()).toMatchObject({ state: "saved", lastSavedGeneration: 3, dirtyGeneration: 3 });
     expect(documents.commit).toHaveBeenCalledOnce();
   });
   it("routes the real polling deadline to reconcile and retains the same intent for retry", async () => {
@@ -438,7 +440,7 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     const snapshot = stable(engine);
     api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[0]]]`));
     await expect(engine.serialize("model", { intentId: "save-1", snapshot })).rejects.toMatchObject({ code: "xlsx_rule_sets_dropped", errorClass: "engine" });
-    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null }]);
+    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null, rules: 0 }]);
     await engine.serialize("model", { intentId: "save-1", snapshot });
     expect(editRequests().map((body) => body.edits)).toEqual([[cfOp, valueEdit(7)], [valueEdit(7)]]);
     expect(engine.droppedRuleSets?.()).toEqual([]);
@@ -476,21 +478,59 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     coordinator.markDirty(stable(engine).generation);
     api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[1]]]`));
     expect(await coordinator.save("shortcut")).toEqual({ accepted: false, reason: "error" });
-    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Doanh thu", savedRules: null }]);
+    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Doanh thu", savedRules: null, rules: 0 }]);
     expect(await coordinator.save("shortcut")).toMatchObject({ accepted: true });
     expect(editRequests()[1].edits).toEqual([valueEdit(7), rename, cell]);
     expect(documents.commit).toHaveBeenCalledOnce();
   });
 
-  it("drops nothing for a stale position", async () => {
+  // r4 R4-4 (lead option A): a stale position cannot be narrowed, and the
+  // same list would be refused forever; the family's unsaved ops go instead.
+  it("drops the refused family's unsaved ops for a stale position, so the next Save converges", async () => {
     const engine = await opened();
-    await engine.edit("model", [cfOp, valueEdit(7)]);
+    await engine.edit("model", [cfOp, dvRuleOp, valueEdit(7)]);
     const snapshot = stable(engine);
     api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[7]]]`));
     await expect(engine.serialize("model", { intentId: "save-1", snapshot })).rejects.toMatchObject({ code: "xlsx_rule_sets_dropped" });
-    expect(engine.droppedRuleSets?.()).toEqual([]);
+    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: null, rules: 0 }]);
     await engine.serialize("model", { intentId: "save-1", snapshot });
-    expect(editRequests().at(-1)?.edits).toEqual([cfOp, valueEdit(7)]);
+    expect(editRequests().at(-1)?.edits).toEqual([dvRuleOp, valueEdit(7)]);
+  });
+
+  // r4 R4-3: a snapshot of the refused sheet typed while the save ran still
+  // carries the refused rules; it goes too, so the next Save (a new intent with
+  // everything typed since) converges in one step.
+  it("drops a later snapshot of the refused sheet and saves everything else on the next intent", async () => {
+    const engine = await opened();
+    await engine.edit("model", [cfOp, valueEdit(7)]);
+    const snapshot = stable(engine);
+    await engine.edit("model", [cfRuleOp, dvRuleOp]);
+    api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[0]]]`));
+    await expect(engine.serialize("model", { intentId: "save-1", snapshot })).rejects.toMatchObject({ code: "xlsx_rule_sets_dropped" });
+    engine.releaseSave?.("save-1");
+    await engine.serialize("model", { intentId: "save-2", snapshot: stable(engine) });
+    expect(editRequests().at(-1)?.edits).toEqual([valueEdit(7), dvRuleOp]);
+  });
+
+  // r4 R4-2 + the tester_visual scenario: a refused copy drops only its own
+  // op, keeps the source's, restores what the copy inherits, and after a
+  // rename of the copy the next Save commits everything else.
+  it("drops only a refused duplicate's own rule op, then a rename and one more Save commit the rest", async () => {
+    const { engine, coordinator } = await setup();
+    const duplicate = { op: "duplicate_sheet", target: { sheet: "Data" }, attributes: { name: "Copy" } };
+    const copyRules = { ...cfOp, target: { sheet: "Copy" } };
+    await engine.edit("model", [cfRuleOp, duplicate, copyRules, valueEdit(7)]);
+    coordinator.markDirty(stable(engine).generation);
+    api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[2,3]]]`));
+    expect(await coordinator.save("button")).toEqual({ accepted: false, reason: "error" });
+    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Copy", savedRules: cfRuleOp.attributes.rules, rules: 0 }]);
+    const rename = { op: "rename_sheet", target: { sheet: "Copy" }, attributes: { newName: "Bản sao" } };
+    await engine.edit("model", [rename]);
+    coordinator.markDirty(stable(engine).generation);
+    expect(await coordinator.save("button")).toMatchObject({ accepted: true });
+    // setup() already queued valueEdit(7) at position 0.
+    expect(editRequests().at(-1)?.edits).toEqual([valueEdit(7), cfRuleOp, duplicate, valueEdit(7), rename]);
+    expect(coordinator.getState().state).toBe("saved");
   });
 
   it("reports the rules a committed save wrote as savedRules of a later dropped op", async () => {
@@ -502,7 +542,7 @@ describe("native XLSX runtime through the real error dispatcher and save coordin
     coordinator.markDirty(stable(engine).generation);
     api.get.mockResolvedValueOnce(dropFailure(`xlsx_rule_sets_dropped:[["cf",[0]]]`));
     expect(await coordinator.save("shortcut")).toEqual({ accepted: false, reason: "error" });
-    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: cfRuleOp.attributes.rules }]);
+    expect(engine.droppedRuleSets?.()).toEqual([{ family: "conditionalFormats", sheet: "Data", savedRules: cfRuleOp.attributes.rules, rules: 0 }]);
   });
 
   // T09: the frozen candidate blocks restore (xlsx_restore_save_pending) and

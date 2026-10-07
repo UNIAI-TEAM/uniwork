@@ -29,7 +29,7 @@ function stringPaths(dictionary: unknown): string[] {
 const range = { startRow: 0, endRow: 3, startColumn: 0, endColumn: 2 };
 const STYLE = { bg: { rgb: "#FFC7CE" }, cl: { rgb: "#9C0006" } };
 
-function renderDialog(preset: XlsxCfPreset, readOnly = false, result: boolean | Promise<boolean> = true, blocked = false) {
+function renderDialog(preset: XlsxCfPreset, readOnly = false, result: boolean | Promise<boolean> = true) {
   const execute = vi.fn((_id: string, _params?: unknown) => result);
   const onClose = vi.fn();
   const view = render(
@@ -40,7 +40,6 @@ function renderDialog(preset: XlsxCfPreset, readOnly = false, result: boolean | 
       range={range}
       commands={{ execute }}
       readOnly={readOnly}
-      blocked={blocked}
       onClose={onClose}
     />,
   );
@@ -74,6 +73,7 @@ describe("XlsxConditionalFormatDialog", () => {
       ["between", { "xlsx-cf-first": "1", "xlsx-cf-second": "5" }, { subType: "number", operator: "between", value: [1, 5] }],
       ["containsText", { "xlsx-cf-first": "abc" }, { subType: "text", operator: "containsText", value: "abc" }],
       ["duplicateValues", {}, { subType: "duplicateValues" }],
+      ["uniqueValues", {}, { subType: "uniqueValues" }],
     ] as [XlsxCfPreset, Record<string, string>, Record<string, unknown>][]) {
       const { execute, unmount } = renderDialog(preset);
       for (const [id, value] of Object.entries(inputs)) type(id, value);
@@ -140,13 +140,57 @@ describe("XlsxConditionalFormatDialog", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
-  it("explains an x14 sheet and keeps OK inert", () => {
-    const { execute, onClose } = renderDialog("duplicateValues", false, true, true);
-    expect(screen.getByRole("alert")).toHaveTextContent(lookup(viLocale, "office.xlsx.conditionalFormat.errors.x14Sheet") as string);
-    const ok = screen.getByTestId("xlsx-cf-ok");
-    expect(ok).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(ok);
-    expect(execute).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
+  it("gives its fields unique DOM ids so two dialogs never collide", () => {
+    const first = renderDialog("between");
+    const ids = [screen.getByTestId("xlsx-cf-first").id, screen.getByTestId("xlsx-cf-second").id];
+    expect(ids.every((id) => id.length > 0 && !id.startsWith("xlsx-cf-"))).toBe(true);
+    expect(screen.getByLabelText(lookup(viLocale, "office.xlsx.conditionalFormat.dialog.minimum") as string)).toBe(screen.getByTestId("xlsx-cf-first"));
+    first.unmount();
+  });
+
+  it("replaces the rule in place in edit mode, keeping its areas, flag and an unknown format", async () => {
+    const execute = vi.fn((_id: string, _params?: unknown) => true);
+    const onClose = vi.fn();
+    const style = { bg: { rgb: "#123456" } };
+    render(
+      <XlsxConditionalFormatDialog
+        preset="between"
+        unitId="file-abc"
+        subUnitId="sheet-1"
+        range={range}
+        commands={{ execute }}
+        edit={{
+          cfId: "cf-9",
+          ranges: [range, { startRow: 7, endRow: 7, startColumn: 4, endColumn: 4 }],
+          stopIfTrue: true,
+          initial: { preset: "between", first: "1", second: "5", styleId: null, style },
+        }}
+        onClose={onClose}
+      />,
+    );
+    expect(screen.getByTestId("xlsx-cf-first")).toHaveValue("1");
+    type("xlsx-cf-second", "8");
+    fireEvent.click(screen.getByTestId("xlsx-cf-ok"));
+    expect(execute).toHaveBeenCalledWith("sheet.command.set-conditional-rule", {
+      unitId: "file-abc",
+      subUnitId: "sheet-1",
+      cfId: "cf-9",
+      rule: {
+        cfId: "cf-9",
+        ranges: [range, { startRow: 7, endRow: 7, startColumn: 4, endColumn: 4 }],
+        stopIfTrue: true,
+        rule: { type: "highlightCell", subType: "number", operator: "between", value: [1, 8], style },
+      },
+    });
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it("does not repeat the Unique Values title as a field label", () => {
+    renderDialog("uniqueValues");
+    const title = screen.getByRole("heading", { name: "Giá trị duy nhất" });
+    expect(title).toBeInTheDocument();
+    const kind = screen.getByTestId("xlsx-cf-duplicate-kind");
+    expect(kind.textContent).not.toBe("Giá trị duy nhất");
+    expect(kind.textContent).toBe(lookup(viLocale, "office.xlsx.conditionalFormat.dialog.uniqueHint"));
   });
 });

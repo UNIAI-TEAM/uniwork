@@ -40,39 +40,26 @@ function groupProps(overrides: Partial<XlsxToolbarGroupProps> = {}): XlsxToolbar
 describe("XlsxTableGroup", () => {
   const table = (sheet: string, name: string) => ({ sheet, name, range: { startRow: 0, endRow: 2, startColumn: 0, endColumn: 1 } });
 
-  it("shows the next free default name instead of an empty field", () => {
-    const view = render(<XlsxTableGroup {...groupProps()} />);
-    expect(screen.getByTestId("xlsx-table-name")).toHaveValue("Table1");
-    view.unmount();
-    render(<XlsxTableGroup {...groupProps({ tables: [table("Data", "Table1"), table("Other", "Table2")] })} />);
-    expect(screen.getByTestId("xlsx-table-name")).toHaveValue("Table3");
-  });
-
-  it("creates a table over the selection's range under the field's name", () => {
+  it("creates a table over the selection's range under the next free name", () => {
     const execute = vi.fn(() => true);
-    render(<XlsxTableGroup {...groupProps({ commands: { execute } })} />);
+    const view = render(<XlsxTableGroup {...groupProps({ commands: { execute } })} />);
     expect(screen.getByTestId("xlsx-table-create")).toHaveAccessibleName(lookup(viLocale, "office.xlsx.table.create"));
     fireEvent.click(screen.getByTestId("xlsx-table-create"));
     expect(execute).toHaveBeenCalledWith("sheet.command.add-table", {
       range: { startRow: 0, endRow: 4, startColumn: 0, endColumn: 1 },
       name: "Table1",
     });
+    view.unmount();
+    // A file-native Table1 (any sheet) is never reused.
+    render(<XlsxTableGroup {...groupProps({ commands: { execute }, tables: [table("Data", "Table1"), table("Other", "Table2")] })} />);
+    fireEvent.click(screen.getByTestId("xlsx-table-create"));
+    expect(execute).toHaveBeenLastCalledWith("sheet.command.add-table", expect.objectContaining({ name: "Table3" }));
   });
 
-  it("uses a typed name and refuses an invalid or taken one", () => {
-    const execute = vi.fn(() => true);
-    render(<XlsxTableGroup {...groupProps({ commands: { execute }, tables: [table("Data", "Sales")] })} />);
-    const field = screen.getByTestId("xlsx-table-name");
-    fireEvent.change(field, { target: { value: "Budget" } });
-    fireEvent.click(screen.getByTestId("xlsx-table-create"));
-    expect(execute).toHaveBeenLastCalledWith("sheet.command.add-table", expect.objectContaining({ name: "Budget" }));
-    for (const bad of ["1 bad", "sales", ""]) {
-      fireEvent.change(field, { target: { value: bad } });
-      expect(field).toHaveAttribute("aria-invalid", "true");
-      expect(screen.getByTestId("xlsx-table-create")).toHaveAttribute("aria-disabled", "true");
-      fireEvent.click(screen.getByTestId("xlsx-table-create"));
-    }
-    expect(execute).toHaveBeenCalledTimes(1);
+  it("keeps the table name off the Insert tab (it belongs to Table Design, design review X2)", () => {
+    render(<XlsxTableGroup {...groupProps()} />);
+    expect(screen.queryByTestId("xlsx-table-name")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
   it("offers no remove control here (Convert to range lives on Table Design)", () => {
@@ -85,6 +72,7 @@ describe("XlsxTableGroup", () => {
       const execute = vi.fn(() => true);
       const commands = "commands" in overrides ? overrides.commands : { execute };
       const view = render(<XlsxTableGroup {...groupProps({ ...overrides, commands })} />);
+      expect(screen.getByTestId("xlsx-table-create")).toHaveAttribute("aria-disabled", "true");
       fireEvent.click(screen.getByTestId("xlsx-table-create"));
       expect(execute).not.toHaveBeenCalled();
       view.unmount();
