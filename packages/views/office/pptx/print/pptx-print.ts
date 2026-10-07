@@ -1,21 +1,21 @@
 /**
- * PPTX print document (UNI-927 C1).
+ * PPTX print copy (UNI-927 C1, UNI-952).
  *
- * Pure: a deck's rendered slides become one self-contained HTML document with one page per
- * slide, each page the slide's own SVG at the deck's aspect ratio. The browser path
- * (`pptx-export-pdf.ts`) mounts this document in a hidden frame and calls `print()`; the
- * desktop host receives the same HTML through the typed `host:pdf-save` channel. Keeping the
- * document a pure function of the slides means the print output is unit-testable without a
- * DOM or an engine.
+ * Pure: a deck's rendered slides become one self-contained, script-free HTML document with
+ * one page per slide. Each page is a single `<img>` whose source is a `data:` URL: the slide's
+ * own SVG (vector, so it prints at any resolution) or, when the vector copy is too large for a
+ * print run, a raster of it. A slide drawn as an image cannot run script or load anything, so
+ * deck content never reaches the print surface as live markup, and the copy's CSP
+ * (`PRINT_COPY_CSP`, `img-src data:` only) holds. The copy is handed to the shared
+ * `OfficePrintPort` (web: an isolated frame; desktop: main's hidden window).
  *
  * The page box follows the vendored genoffice slides PDF export: a fixed 7.5in height and a
  * width from the slide ratio (16:9 -> 13.333in, 4:3 -> 10in), so a printed deck and an
- * exported PDF agree on their page geometry.
+ * exported PDF agree on their page geometry - landscape for every landscape deck.
  */
-import { buildSlideSvg } from "../canvas/build-slide-svg";
+import { PRINT_COPY_CSP } from "../../markdown/wysiwyg/print";
 import type { PptxDeckRenderer } from "../canvas/deck-renderer";
-import type { PptxCanvasPalette, PptxImageSize } from "../canvas/paint";
-import { slideSvgMarkup } from "../canvas/svg-node";
+import { svgDataUrl } from "../canvas/svg-node";
 
 /** Fixed page height in inches, mirrored from the genoffice slides PDF export. */
 export const PPTX_PRINT_HEIGHT_IN = 7.5;
@@ -31,12 +31,16 @@ export interface PptxPrintSlide {
   markup: string;
   widthPx: number;
   heightPx: number;
+  /** Accessible name of the printed page (`Slide N`). */
+  label?: string;
 }
 
 export interface PptxPrintDocument {
   slides: readonly PptxPrintSlide[];
   /** Print document title; the browser uses it as the default file name. */
   title?: string;
+  /** Per-slide raster `data:` URL replacing the vector source (same order as `slides`). */
+  images?: readonly (string | null | undefined)[];
 }
 
 export interface PptxPrintPageSize {
@@ -72,29 +76,41 @@ export function pptxPrintStyles(page: PptxPrintPageSize): string {
   const height = `${page.heightIn}in`;
   return [
     `@page { size: ${width} ${height}; margin: 0; }`,
-    "html, body { margin: 0; padding: 0; background: #ffffff; }",
+    "html, body { margin: 0; padding: 0; background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }",
     `.page { position: relative; width: ${width}; height: ${height}; overflow: hidden; page-break-after: always; break-after: page; }`,
     ".page:last-child { page-break-after: auto; break-after: auto; }",
-    ".page svg { display: block; width: 100%; height: 100%; }",
+    ".page img { display: block; width: 100%; height: 100%; object-fit: contain; }",
   ].join("\n");
 }
 
+/** Only an image `data:` URL may stand in for a slide; anything else keeps the vector copy. */
+function isImageDataUrl(value: string | null | undefined): value is string {
+  return typeof value === "string" && /^data:image\/(png|jpeg|webp);/i.test(value);
+}
+
 /**
- * The whole print document: one `.page` per slide, each holding the slide's own SVG. The page
- * box comes from the first slide (a deck has one slide size), so every page shares one `@page`
- * rule; a slide whose own ratio differs still keeps its viewBox and centres inside the box.
+ * The whole print document: one `.page` per slide, each holding the slide as one `data:`
+ * image. The page box comes from the first slide (a deck has one slide size), so every page
+ * shares one `@page` rule; a slide whose own ratio differs is letterboxed inside the box.
  */
 export function buildPptxPrintHtml(input: PptxPrintDocument): string {
   const first = input.slides[0];
   const page = pptxPrintPageSize(first?.widthPx ?? 0, first?.heightPx ?? 0);
   const title = input.title?.trim() ? input.title : "";
   const pages = input.slides
-    .map((slide, index) => `<div class="page" id="${pptxPrintPageId(index)}"${slide.id ? ` data-slide-id="${escapeHtml(slide.id)}"` : ""}>${slide.markup}</div>`)
+    .map((slide, index) => {
+      const raster = input.images?.[index];
+      const source = isImageDataUrl(raster) ? raster : svgDataUrl(slide.markup);
+      const alt = slide.label ?? `Slide ${index + 1}`;
+      const slideId = slide.id ? ` data-slide-id="${escapeHtml(slide.id)}"` : "";
+      return `<div class="page" id="${pptxPrintPageId(index)}"${slideId}><img alt="${escapeHtml(alt)}" src="${escapeHtml(source)}"></div>`;
+    })
     .join("");
   return [
     "<!DOCTYPE html>",
     '<html lang="en">',
     "<head>",
+    `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(PRINT_COPY_CSP)}">`,
     '<meta charset="utf-8">',
     `<title>${escapeHtml(title)}</title>`,
     `<style>${pptxPrintStyles(page)}</style>`,
@@ -105,40 +121,28 @@ export function buildPptxPrintHtml(input: PptxPrintDocument): string {
 }
 
 export interface CollectPptxPrintSlidesOptions {
-  /** Canvas palette the on-screen rendition uses, so print colours match the editor. */
-  palette: PptxCanvasPalette;
   /** Build width; defaults to `PPTX_PRINT_WIDTH`. */
   widthPx?: number;
-  /** Natural pixel size of a data URL (tiled picture/image fills). */
-  imageSize?(dataUrl: string): PptxImageSize | undefined;
   /** Accessible name per slide; falls back to `Slide N`. */
   title?(index: number): string | undefined;
+  /** Slides left out of the run. The editor skips hidden slides, as PowerPoint does by default. */
+  skip?(index: number): boolean;
 }
 
 /**
- * Render every slide of a deck into print slides. A slide the artifact cannot build is skipped
- * (its page is omitted) rather than failing the whole export, matching the rail thumbnail path.
+ * Render every printed slide of a deck through the renderer's own SVG path (the one the canvas
+ * and the rail use), so pattern fills, tiled pictures and preset geometry print as drawn. A
+ * slide the artifact cannot build is skipped (its page is omitted) rather than failing the
+ * whole run, matching the rail thumbnail path.
  */
-export function collectPptxPrintSlides(renderer: PptxDeckRenderer, options: CollectPptxPrintSlidesOptions): PptxPrintSlide[] {
+export function collectPptxPrintSlides(renderer: PptxDeckRenderer, options: CollectPptxPrintSlidesOptions = {}): PptxPrintSlide[] {
   const widthPx = options.widthPx ?? PPTX_PRINT_WIDTH;
   const out: PptxPrintSlide[] = [];
   for (let index = 0; index < renderer.slideCount; index += 1) {
-    const slide = renderer.buildSlide(index, widthPx);
-    if (!slide) continue;
-    try {
-      const doc = buildSlideSvg(slide, {
-        idPrefix: `pptx-print-${index}`,
-        palette: options.palette,
-        ...(options.imageSize ? { imageSize: options.imageSize } : {}),
-      });
-      out.push({
-        markup: slideSvgMarkup(doc.root, doc, { title: options.title?.(index) ?? `Slide ${index + 1}` }),
-        widthPx: doc.widthPx,
-        heightPx: doc.heightPx,
-      });
-    } catch {
-      // One unrenderable slide must not lose the rest of the print run.
-    }
+    if (options.skip?.(index)) continue;
+    const label = options.title?.(index) ?? `Slide ${index + 1}`;
+    const built = renderer.buildSlideMarkup(index, widthPx, label);
+    if (built) out.push({ ...built, label });
   }
   return out;
 }

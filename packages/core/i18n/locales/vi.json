@@ -7849,6 +7849,8 @@
       "download_failed": "Không thể tải tệp xuống. Hãy thử lại."
     },
     "common": {
+      "print": "In",
+      "printTooLarge": "Tài liệu quá lớn để in.",
       "chrome": {
         "undo": "Hoàn tác",
         "redo": "Làm lại",
@@ -8186,6 +8188,8 @@
       "export": {
         "menuLabel": "Xuất và in",
         "print": "In",
+        "printBusy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
+        "printFailed": "Không in được tài liệu. Thử lại.",
         "html": "Xuất HTML",
         "fileName": "tài liệu",
         "documentTitle": "Tài liệu",
@@ -9777,8 +9781,11 @@
         }
       },
       "export": {
-        "print": "In",
         "csv": "Xuất CSV"
+      },
+      "print": {
+        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
+        "failed": "Không thể in trang tính."
       },
       "sheets": {
         "label": "Các trang tính trong sổ",
@@ -10233,7 +10240,9 @@
         "notAvailable": "Chưa hỗ trợ in tại đây.",
         "exportPdf": "Xuất PDF",
         "exportDocx": "Xuất DOCX",
-        "exportNotAvailable": "Chưa hỗ trợ xuất định dạng này."
+        "exportNotAvailable": "Chưa hỗ trợ xuất định dạng này.",
+        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
+        "failed": "Không in được tài liệu. Thử lại."
       },
       "view": {
         "label": "Chế độ xem",
@@ -10421,6 +10430,7 @@
         "edit_text_select": "Chọn một hộp văn bản hoặc hình để sửa văn bản",
         "export_pdf_unbound": "Ứng dụng này chưa hỗ trợ xuất PDF",
         "print_unbound": "Ứng dụng này chưa hỗ trợ in",
+        "print_preparing": "Đang chuẩn bị bản in…",
         "edit_unbound": "Không thể chỉnh sửa bản trình bày này tại đây",
         "layouts_pending": "Chưa hỗ trợ trang chiếu cái và bố cục",
         "embedded_fonts_pending": "Chưa hỗ trợ phông chữ nhúng",
@@ -10796,7 +10806,7 @@
         "title": "In bản trình bày",
         "slide_label": "Trang chiếu {{index}}",
         "failed": "Không thể in bản trình bày.",
-        "blocked": "Trình duyệt đã chặn cửa sổ in. Cho phép cửa sổ bật lên rồi thử lại."
+        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước."
       },
       "charts": {
         "title": "Biểu đồ",
@@ -11826,8 +11836,9 @@
         "kind": { "text": "Văn bản", "checkbox": "Hộp kiểm", "radio": "Nút chọn", "choice": "Danh sách chọn" }
       },
       "print": {
-        "action": "In", "preparing": "Đang in…",
-        "failed": "Không thể in tài liệu."
+        "preparing": "Đang in…",
+        "failed": "Không thể in tài liệu.",
+        "busy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước."
       },
       "export": {
         "pages": "Xuất các trang thành PNG", "progress": "Đang xuất trang {{page}} / {{total}}…",
@@ -11940,7 +11951,9 @@
       "emptySearchDescription": "Không có tài liệu nào khớp từ khóa tìm kiếm.",
       "fileOpenQueued": "Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.",
       "actionError": "Không thể thực hiện thao tác. Thử lại.",
-      "printBusy": "Hộp thoại in đang mở. Hãy hoàn tất hoặc đóng hộp thoại đó trước.",
+      "printPreviewHint": "Hộp thoại in của Windows có thể không hiện bản xem trước. Trang in ra vẫn đúng.",
+      "printLandscapeHint": "Tài liệu này nằm ngang: hãy chọn Hướng là Ngang trong hộp thoại in để trang không bị xoay.",
+      "printMixedOrientationHint": "Tài liệu này có cả trang dọc lẫn trang ngang. Những trang khác hướng với hướng bạn chọn sẽ bị xoay cho vừa tờ giấy; muốn các trang ngang in thẳng, hãy in riêng các trang đó và chọn Hướng là Ngang trong hộp thoại in.",
       "back": "Về thư viện",
       "untitled": "Tài liệu mới.docx",
       "saveLocal": "Lưu tệp",

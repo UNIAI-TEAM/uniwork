@@ -4,7 +4,7 @@
 // host. One request in, one response out, correlated by id. Payloads are
 // structured-cloned, so binary stays a Uint8Array end to end (never base64).
 
-export type EngineHostRequestKind = "xlsx-open" | "xlsx-edit" | "pdf-call";
+export type EngineHostRequestKind = "xlsx-open" | "xlsx-edit" | "pdf-call" | "pdf-release";
 
 export interface EngineHostRequest {
   readonly id: number;

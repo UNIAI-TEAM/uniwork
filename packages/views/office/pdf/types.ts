@@ -7,6 +7,7 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import type { OpenFailureClass, OpenOutcome } from "@uniwork/office-contracts";
+import type { OfficePrintPort } from "../print";
 import type { PdfCanvasPage, PdfPageRenderService } from "./canvas/types";
 import type { PdfSearchHit } from "./find/types";
 import type { PdfFormField } from "./forms/types";
@@ -142,6 +143,9 @@ export interface PdfEditorProps<TSnapshot = PdfSnapshot> {
   className?: string;
   onOpen?: (outcome: PdfOpenOutcome) => void;
   onSelectionChange?: (selection: PdfSelection | null) => void;
+  /** The host print path (browser frame on web, main's hidden window on
+   * desktop). Absent means the host cannot print here: no Print entry shows. */
+  printPort?: OfficePrintPort;
 }
 
 export type PdfViewState = "opening" | "ready" | "error";

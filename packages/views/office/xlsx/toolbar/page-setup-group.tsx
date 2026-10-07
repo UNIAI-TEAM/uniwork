@@ -2,9 +2,10 @@
 
 // C2 (UNI-926): View-tab page-setup group. Page Setup opens the editor-owned
 // dialog; Print and Export CSV are host actions the editor wires (print =
-// the browser's print dialog, export = a CSV download of the active sheet).
-// The three controls stay in the tab order and inert without a mounted grid,
-// a handler or edit rights, like every other group.
+// the injected print port, UNI-952; export = a CSV download of the active
+// sheet). Page Setup and Export CSV stay in the tab order and inert without a
+// mounted grid, a handler or edit rights, like every other group; Print is
+// not rendered at all without a handler (a host that cannot print).
 
 import { FileDown, Printer, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -23,6 +24,7 @@ export function XlsxPageSetupGroup({
   readOnly = false,
   onOpenPageSetup,
   onPrint,
+  printBusy = false,
   onExportCsv,
 }: XlsxToolbarGroupProps) {
   const { t } = useTranslation();
@@ -40,21 +42,24 @@ export function XlsxPageSetupGroup({
         <XlsxLargeLabel>{t("office.xlsx.pageSetup.open")}</XlsxLargeLabel>
       </XlsxLargeButton>
       <XlsxGroupRows>
-        <XlsxGroupRow>
-          <Button
-            type="button"
-            variant="toolbar"
-            size="icon-sm"
-            className={XLSX_ICON_BUTTON_CLASS}
-            aria-label={t("office.xlsx.export.print")}
-            title={t("office.xlsx.export.print")}
-            aria-disabled={!onPrint || undefined}
-            data-testid="xlsx-print"
-            onClick={() => { if (onPrint) onPrint(); }}
-          >
-            <Printer aria-hidden />
-          </Button>
-        </XlsxGroupRow>
+        {onPrint ? (
+          <XlsxGroupRow>
+            <Button
+              type="button"
+              variant="toolbar"
+              size="icon-sm"
+              className={XLSX_ICON_BUTTON_CLASS}
+              aria-label={t("office.common.print")}
+              title={t("office.common.print")}
+              data-testid="xlsx-print"
+              aria-busy={printBusy || undefined}
+              aria-disabled={printBusy || undefined}
+              onClick={() => { if (!printBusy) onPrint(); }}
+            >
+              <Printer aria-hidden />
+            </Button>
+          </XlsxGroupRow>
+        ) : null}
         <XlsxGroupRow>
           <Button
             type="button"

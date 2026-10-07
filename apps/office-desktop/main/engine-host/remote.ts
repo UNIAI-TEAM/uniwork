@@ -30,7 +30,7 @@ export function engineHostHeapMegabytes(totalBytes: number = totalmem()): number
 
 /** Bind the engine host: `fork` is Electron's utilityProcess.fork. Nothing is
  *  spawned until the first request. */
-export function createLocalEngineHost(options: { readonly fork: (script: string, args: string[], options: { serviceName: string; execArgv: string[] }) => EngineHostChild; readonly script: string; readonly assetsDir: string | undefined }): { readonly xlsx: LocalXlsxEngine; readonly pdfCall: ReturnType<typeof createRemotePdfCall>; dispose(): void } {
+export function createLocalEngineHost(options: { readonly fork: (script: string, args: string[], options: { serviceName: string; execArgv: string[] }) => EngineHostChild; readonly script: string; readonly assetsDir: string | undefined }): { readonly xlsx: LocalXlsxEngine; readonly pdfCall: ReturnType<typeof createRemotePdfCall>; releasePdfs(): void; dispose(): void } {
   const client = createEngineHostClient(() => options.fork(options.script, [options.assetsDir ?? ""], { serviceName: "uniwork-engine-host", execArgv: [`--max-old-space-size=${engineHostHeapMegabytes()}`] }));
-  return { xlsx: createRemoteXlsxEngine(client), pdfCall: createRemotePdfCall(client), dispose: () => client.dispose() };
+  return { xlsx: createRemoteXlsxEngine(client), pdfCall: createRemotePdfCall(client), releasePdfs: () => client.notify("pdf-release", null), dispose: () => client.dispose() };
 }

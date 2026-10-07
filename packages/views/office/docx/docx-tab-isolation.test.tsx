@@ -10,7 +10,6 @@ import { OfficeDocumentActiveProvider } from "../common/document-active";
 import { createDocxCommandRuntime, type DocxCommandRuntime } from "./commands";
 import { DocxEditor } from "./docx-editor";
 import { docxExtensions } from "./docx-schema";
-import { DOCX_PRINT_ATTRIBUTE, DOCX_PRINT_TARGET_ATTRIBUTE } from "./export/docx-print";
 import type { DocxEditorHandle, DocxOpenOutcome, DocxSaveCoordinator } from "./types";
 
 initI18n();
@@ -120,26 +119,14 @@ describe("two DOCX documents in one page (UNI-957)", () => {
     });
   });
 
-  it("prints the document whose command ran, never the hidden one", async () => {
-    const { b, tabA, tabB } = await renderTwoTabs();
-    const targets: string[] = [];
-    vi.spyOn(window, "print").mockImplementation(() => {
-      expect(document.body.hasAttribute(DOCX_PRINT_ATTRIBUTE)).toBe(true);
-      for (const tab of [tabA, tabB]) {
-        if (tab.querySelector(`[${DOCX_PRINT_TARGET_ATTRIBUTE}]`)) targets.push(tab.dataset.testid ?? "");
-      }
-    });
-    expect(b.commands.printDocx()).toBe(true);
-    expect(targets).toEqual(["tab-b"]);
-    // A native Ctrl+P (beforeprint) picks the visible surface too.
-    targets.length = 0;
-    window.dispatchEvent(new Event("beforeprint"));
-    for (const tab of [tabA, tabB]) {
-      if (tab.querySelector(`[${DOCX_PRINT_TARGET_ATTRIBUTE}]`)) targets.push(tab.dataset.testid ?? "");
-    }
-    expect(targets).toEqual(["tab-b"]);
-    window.dispatchEvent(new Event("afterprint"));
-    expect(document.querySelector(`[${DOCX_PRINT_TARGET_ATTRIBUTE}]`)).toBeNull();
+  it("builds the print copy from the document whose command ran, never the hidden one", async () => {
+    const { a, b } = await renderTwoTabs();
+    const copyB = b.commands.buildDocxPrintCopy({ title: "B" }) ?? "";
+    expect(copyB).toContain("one");
+    expect(copyB).not.toContain("alpha");
+    const copyA = a.commands.buildDocxPrintCopy({ title: "A" }) ?? "";
+    expect(copyA).toContain("alpha");
+    expect(copyA).not.toContain(">one<");
   });
 
   it("drives each document's own zoom controller from its View chrome", async () => {

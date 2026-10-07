@@ -19,6 +19,7 @@ import { RecoveryNotice } from "./recovery-status";
 import { supportedFormatsLabel } from "./supported-formats";
 import { WorkspaceAlerts } from "./workspace-alert";
 import { DesktopShell } from "./desktop-shell";
+import { relayNativePrintShortcut } from "./print-shortcut-relay";
 import { DesktopTabStrip } from "./tab-strip";
 import { useAccountDrafts } from "./use-account-drafts";
 import { useLocalRecents } from "./use-local-recents";
@@ -348,6 +349,8 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       const active = tabs.current.current.tabs.find((tab) => tab.id === tabs.current.current.activeTabId);
       if (active?.id === event.documentId && !leaveRef.current && !openDialog()) void active.data.session.coordinator.save("menu");
     });
+    // Ctrl/Cmd+P claimed by main (a key pressed inside a preview iframe never reaches this window).
+    const offPrint = relayNativePrintShortcut(bridge);
     const shortcut = (event: KeyboardEvent) => {
       if (modeRef.current === "login") return;
       if ((!event.ctrlKey && !event.metaKey) || event.altKey || leaveRef.current || openDialog()) return;
@@ -361,7 +364,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
       else if (/^[1-8]$/.test(event.key)) { const id = tabs.current.current.tabs[Number(event.key) - 1]?.id; if (id) { stop(); tabs.select(id); } }
     };
     window.addEventListener("keydown", shortcut, true);
-    return () => { offLeave?.(); offExpired?.(); offLaunch?.(); offFile?.(); offSave?.(); window.removeEventListener("keydown", shortcut, true); };
+    return () => { offLeave?.(); offExpired?.(); offLaunch?.(); offFile?.(); offSave?.(); offPrint(); window.removeEventListener("keydown", shortcut, true); };
   // The mode subscriptions use live refs for tabs and handlers above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bridge]);

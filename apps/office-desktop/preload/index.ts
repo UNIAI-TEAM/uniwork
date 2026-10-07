@@ -4,7 +4,7 @@
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { fileOpenRequestedSchema, leaveExpiredEventSchema, loginRequestedEventSchema, themeChangedEventSchema, type LeaveExpiredEvent, type ThemeChangedEvent } from "../shared/ipc";
-import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, launchRequestedEventSchema, leaveRequestedEventSchema, officeSaveRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata, type LaunchRequestedEvent, type LeaveRequestedEvent, type LoginRequestedEvent, type OfficeSaveRequestedEvent } from "../shared/ipc";
+import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, launchRequestedEventSchema, leaveRequestedEventSchema, officePrintRequestedEventSchema, officeSaveRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata, type LaunchRequestedEvent, type LeaveRequestedEvent, type LoginRequestedEvent, type OfficeSaveRequestedEvent } from "../shared/ipc";
 
 export type IpcRendererAdapter = {
   invoke(channel: string, payload: unknown): Promise<unknown>;
@@ -18,6 +18,7 @@ export type DesktopRendererBridge = {
   channels: readonly DesktopIpcChannel[];
   onLaunchRequested(listener: (event: LaunchRequestedEvent) => void): () => void;
   onOfficeSaveRequested(listener: (event: OfficeSaveRequestedEvent) => void): () => void;
+  onOfficePrintRequested(listener: () => void): () => void;
   onSessionChanged(listener: (metadata: DesktopSessionMetadata) => void): () => void;
   onLeaveRequested(listener: (event: LeaveRequestedEvent) => void): () => void;
   onLeaveExpired(listener: (event: LeaveExpiredEvent) => void): () => void;
@@ -139,6 +140,16 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
         if (parsed.success) listener(parsed.data);
       };
       const eventChannel = "desktop:office-save-requested";
+      if (!(DESKTOP_EVENTS as readonly string[]).includes(eventChannel)) return () => undefined;
+      ipcRenderer.on(eventChannel, handler);
+      return () => ipcRenderer.removeListener?.(eventChannel, handler);
+    },
+    onOfficePrintRequested(listener) {
+      if (!ipcRenderer.on) return () => undefined;
+      const handler = (...args: unknown[]) => {
+        if (officePrintRequestedEventSchema.safeParse(args.at(-1)).success) listener();
+      };
+      const eventChannel = "desktop:office-print-requested";
       if (!(DESKTOP_EVENTS as readonly string[]).includes(eventChannel)) return () => undefined;
       ipcRenderer.on(eventChannel, handler);
       return () => ipcRenderer.removeListener?.(eventChannel, handler);

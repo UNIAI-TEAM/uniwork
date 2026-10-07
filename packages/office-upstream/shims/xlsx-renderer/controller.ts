@@ -30,7 +30,7 @@ import { ingestRuleSetMutation, restoreRuleSetFamily, type XlsxRendererRuleSetKi
 import { ruleSetRestoreAllowed } from "./rule-set-policy";
 import { installDvRejectDialogTitle, installValidatedWriteVerdict, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
-import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererRangeValues } from "./geometry";
+import { createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererPrintRange, type XlsxRendererRangeValues } from "./geometry";
 import {
   applyColumnDefaultWidth,
   applyOutlineAction,
@@ -202,6 +202,8 @@ export interface XlsxRendererHandle {
   cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
   /** Live values of a range on the active sheet (null for another sheet). */
   readRangeValues(sheetId: string, range: IRange): XlsxRendererRangeValues | null;
+  /** UNI-952: composed styles, sizes and merges of a range, for print. */
+  readPrintRange(sheetId: string, range: IRange): XlsxRendererPrintRange | null;
   dispose(): void;
 }
 
@@ -831,6 +833,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     getCellBox: geometry.getCellBox,
     cellAtPoint: geometry.cellAtPoint,
     readRangeValues: geometry.readRangeValues,
+    readPrintRange: geometry.readPrintRange,
     dispose() {
       disposed = true;
       removeShiftedNavigation();

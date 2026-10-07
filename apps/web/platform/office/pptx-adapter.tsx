@@ -15,6 +15,7 @@ import { createSaveSettleGate, isOfficeTooLarge } from "@uniwork/core/office";
 import { isPptxSessionDiverged, type PptxEdit, type PptxParagraphLike, type PptxSlideAnimationRead, type PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
+import { createBrowserPrintPort } from "@uniwork/views/office/print";
 import { OfficeTooLargeNotice } from "@uniwork/views/office";
 import { PptxEditor } from "@uniwork/views/office/pptx/editor-view";
 import type { MasterElementView, MasterPartView, PptxDeckModel } from "@uniwork/views/office/pptx";
@@ -151,6 +152,9 @@ export function makePptxEditorHost(editor: PptxEditorHandle, editable: boolean):
 /** The mounted editor surface: opens the deck through the adapter, then renders
  * the real shared canvas with the live deck, revision, slide list and the edit
  * ports the demo core flow needs. */
+/** One web print port for every PPTX surface: it holds no state between runs. */
+const browserPrintPort = createBrowserPrintPort();
+
 function PptxEditorSurface(props: {
   view: () => PptxSurfaceView | null;
   subscribe: (listener: () => void) => () => void;
@@ -166,6 +170,8 @@ function PptxEditorSurface(props: {
   /** Masters panel reads of the live session (UNI-927 B6). */
   masterParts: () => readonly MasterPartView[];
   masterElements: (partPath: string) => readonly MasterElementView[];
+  /** Print job title (the document name). */
+  title?: string;
 }): ReactNode {
   const { t } = useTranslation();
   // F7: the open effect must not restart on a fresh `t` identity. react-i18next
@@ -294,8 +300,9 @@ function PptxEditorSurface(props: {
       // F6: readonly binds no edit port (text/transform/panel/delete); find and
       // slide selection stay live because they never mutate the deck.
       {...(editable ? { onCommitText: commitText, onTransform: transform, onApplyEdit: applyEdit, onDeleteElements: deleteElements } : {})}
-      // X4fix F2: the browser print path, bound explicitly (Chromium print dialog, Save as PDF).
-      printPort="browser"
+      // UNI-952: the shared web print port (isolated frame; Chromium print dialog, Save as PDF).
+      printPort={browserPrintPort}
+      {...(props.title !== undefined ? { printTitle: props.title } : {})}
       slideNotes={slideNotes}
       slideLayouts={slideLayouts}
       masterParts={masterParts}
@@ -533,6 +540,7 @@ export function createPptxFormatAdapter(options: PptxFormatAdapterOptions): Pptx
         slideLayouts={slideLayouts}
         masterParts={masterParts}
         masterElements={masterElements}
+        {...(options.title !== undefined ? { title: options.title } : {})}
       />
     ),
     open,

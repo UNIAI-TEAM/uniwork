@@ -7,8 +7,15 @@ import { createOfficeSaveCoordinator, type DraftAdapter, type EditorHandle, type
 import { createFakeOfficeTransport } from "../../core/office/test-fakes";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { OfficeShell, type OfficeSaveCoordinatorLike } from "./office-shell";
+import { PRINT_PLATFORMS, pressPrintChord, stubPrintPlatform } from "../test/print-chord";
+import { useOfficePrintShortcut } from "./print/shortcut";
 
 initI18n();
+
+function PrintingView({ run }: { run: () => void }) {
+  useOfficePrintShortcut(run);
+  return <div data-testid="canvas" />;
+}
 
 function coordinator(state: "ready" | "saving" | "saved" | "dirty"): OfficeSaveCoordinatorLike {
   return {
@@ -400,6 +407,41 @@ describe("OfficeShell", () => {
     );
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
+
+  it("routes Ctrl/Cmd+P from the page header to the open document's print, not the app window", () => {
+    const run = vi.fn();
+    render(
+      <HeaderActionsSlotProvider>
+        <header data-testid="page-header"><button type="button">menu</button><HeaderActionsSlot /></header>
+        <OfficeShell embedded title="Report.docx" editor={<PrintingView run={run} />} />
+      </HeaderActionsSlotProvider>,
+    );
+    const handled = pressPrintChord(screen.getByRole("button", { name: "menu" }));
+    expect(handled).toBe(false);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(PRINT_PLATFORMS)("prints only the active document when a hidden tab's shell is also mounted (%s)", (platform) => {
+    const restore = stubPrintPlatform(platform);
+    const hiddenRun = vi.fn();
+    const activeRun = vi.fn();
+    render(<>
+      <div hidden inert><OfficeShell title="Old.xlsx" editor={<PrintingView run={hiddenRun} />} /></div>
+      <OfficeShell title="Open.pptx" editor={<PrintingView run={activeRun} />} />
+    </>);
+    try {
+      pressPrintChord(document.body);
+      expect(activeRun).toHaveBeenCalledTimes(1);
+      expect(hiddenRun).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  it("leaves Ctrl+P to the platform when the open document cannot print", () => {
+    render(<OfficeShell title="Document" editor={<div />} />);
+    expect(pressPrintChord(document.body)).toBe(true);
   });
 
   it("renders the editor edge to edge", () => {

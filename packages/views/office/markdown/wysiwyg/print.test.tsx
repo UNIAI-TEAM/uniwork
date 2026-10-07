@@ -324,3 +324,108 @@ describe("MarkdownPrintMenuItems", () => {
     expect(calls[0]!.html).toContain("img-src data: https://proxy.example");
   });
 });
+
+describe("sanitizePrintCopy: page geometry and blocked images", () => {
+  it("gives a copy without its own @page rule page margins, ahead of the document's styles", () => {
+    const copy = sanitizePrintCopy(`<style>p{color:red}</style><h1>Title</h1><p>Body</p>`);
+    const doc = new DOMParser().parseFromString(copy, "text/html");
+    const styles = Array.from(doc.head.querySelectorAll("style"));
+    expect(styles[0]!.textContent).toMatch(/@page\s*\{[^}]*margin:\s*\d+mm/);
+    expect(styles.map((s) => s.textContent).join("")).toContain("p{color:red}");
+    // page 1 is the content: the first thing in the body is the document's own first block.
+    expect(doc.body.firstElementChild!.localName).toBe("h1");
+  });
+
+  it("keeps the copy's CSP meta the first thing in the head, the default style right after it", () => {
+    const copy = sanitizePrintCopy(`<style>p{color:red}</style><p>x</p>`);
+    const head = new DOMParser().parseFromString(copy, "text/html").head;
+    expect(head.firstElementChild!.getAttribute("http-equiv")?.toLowerCase()).toBe("content-security-policy");
+    const style = head.querySelector("style[data-print-page]")!;
+    expect(style.previousElementSibling!.localName).toBe("meta");
+    const styles = Array.from(head.querySelectorAll("style"));
+    const own = styles.find((s) => s.textContent?.includes("p{color:red}"))!;
+    expect(styles.indexOf(style as HTMLStyleElement)).toBeLessThan(styles.indexOf(own));
+  });
+
+  it("lets a table and a quote break across pages, but keeps a row and a code block whole", () => {
+    const css = new DOMParser()
+      .parseFromString(sanitizePrintCopy(`<p>x</p>`), "text/html")
+      .head.querySelector("style[data-print-page]")!.textContent!;
+    const avoided = /([^{}]+)\{[^}]*break-inside:avoid/.exec(css)![1]!.split(",").map((s) => s.trim());
+    expect(avoided).toEqual(expect.arrayContaining(["pre", "tr"]));
+    expect(avoided).not.toContain("table");
+    expect(avoided).not.toContain("blockquote");
+  });
+
+  it("still adds the default margins when a comment or a string only mentions @page", () => {
+    const copy = sanitizePrintCopy(`<style>/* @page { margin: 0 } */ p::before{content:"@page"}</style><p>x</p>`);
+    expect(new DOMParser().parseFromString(copy, "text/html").head.querySelector("style[data-print-page]")).not.toBeNull();
+  });
+
+  it("keeps a document's own @page rule and adds none", () => {
+    const copy = sanitizePrintCopy(`<style>@page{size:A5;margin:5mm}</style><p>x</p>`);
+    expect(copy.match(/@page/g)).toHaveLength(1);
+    expect(copy).toContain("size:A5");
+  });
+
+  it("prints a blocked image as its alt text, with no broken-image element", () => {
+    const copy = sanitizePrintCopy(`<p><img src="https://tracker.example/p.gif" alt="Sơ đồ"></p><p><img src="assets/missing.png" alt="Ảnh"></p>`);
+    const doc = new DOMParser().parseFromString(copy, "text/html");
+    expect(doc.querySelectorAll("img")).toHaveLength(0);
+    expect(Array.from(doc.querySelectorAll("[data-blocked-image]")).map((e) => e.textContent)).toEqual(["Sơ đồ", "Ảnh"]);
+    expect(copy).not.toContain("about:blank#blocked");
+  });
+});
+
+describe("sanitizePrintCopy: reading stylesheet for an unstyled copy", () => {
+  const reading = (html: string): string | null =>
+    new DOMParser().parseFromString(sanitizePrintCopy(html), "text/html").head.querySelector("style[data-print-reading]")?.textContent ?? null;
+
+  it("styles a copy that brings no styles: sans font, bordered padded tables, code, quote, lists, images", () => {
+    const css = reading(`<h1>T</h1><table><tr><th>A</th></tr><tr><td>1</td></tr></table>`)!;
+    expect(css).toMatch(/body\{[^}]*font-family:[^;}]*sans-serif/);
+    expect(css).toMatch(/table:not\(\[width\]\):not\(\[border\]\)\{[^}]*border-collapse:collapse/);
+    expect(css).toMatch(/:is\(th,td\)\{[^}]*border:1px solid #[0-9a-f]{3,6}[^}]*padding:[^;}]+/);
+    expect(css).toMatch(/h1\{[^}]*font-size:24px/);
+    expect(css).toMatch(/blockquote\{[^}]*border-left:3px solid/);
+    expect(css).toMatch(/pre\{[^}]*background:#[0-9a-f]{3,6}/);
+    // images are held to the page width by the page rule beside it; the reading sheet keeps their aspect.
+    expect(css).toMatch(/img\{[^}]*height:auto/);
+    expect(css).toMatch(/ul,ol\{[^}]*padding-left/);
+  });
+
+  it("leaves a table that sets its own width or border alone: every table rule is gated on those attributes", () => {
+    const css = reading(`<table width="300"><tr><td>1</td></tr></table>`)!;
+    // No bare element rule for tables: each selector starts from the gate.
+    const gate = "table:not([width]):not([border])";
+    const selectors = css.split("}").map((rule) => rule.split("{")[0]!).filter((selector) => /\b(table|th|td)\b/.test(selector));
+    expect(selectors.length).toBeGreaterThan(0);
+    for (const selector of selectors) expect(selector.startsWith(gate)).toBe(true);
+    const doc = new DOMParser().parseFromString(`<table id="md"><tr><td>1</td></tr></table><table id="w" width="300"></table><table id="b" border="1"></table>`, "text/html");
+    expect(doc.getElementById("md")!.matches(gate)).toBe(true);
+    expect(doc.getElementById("w")!.matches(gate)).toBe(false);
+    expect(doc.getElementById("b")!.matches(gate)).toBe(false);
+  });
+
+  it("uses light literal values only: no var(), no external font or url()", () => {
+    const css = reading(`<p>x</p>`)!;
+    expect(css).not.toMatch(/var\(|url\(|@import|@font-face/);
+  });
+
+  it("sits after the page geometry, keeping the CSP meta first", () => {
+    const head = new DOMParser().parseFromString(sanitizePrintCopy(`<p>x</p>`), "text/html").head;
+    expect(head.firstElementChild!.getAttribute("http-equiv")?.toLowerCase()).toBe("content-security-policy");
+    const styles = Array.from(head.querySelectorAll("style"));
+    expect(styles.map((s) => Object.keys(s.dataset)[0])).toEqual(["printPage", "printReading"]);
+  });
+
+  it("leaves a document that carries its own styles alone, adding only the page margins", () => {
+    const doc = new DOMParser().parseFromString(sanitizePrintCopy(`<style>p{color:red}</style><p>x</p>`), "text/html");
+    expect(doc.head.querySelector("style[data-print-reading]")).toBeNull();
+    expect(doc.head.querySelector("style[data-print-page]")).not.toBeNull();
+  });
+
+  it("does not style a copy that has its own @page rule (DOCX sections)", () => {
+    expect(reading(`<style>@page{size:A5;margin:5mm}</style><p>x</p>`)).toBeNull();
+  });
+});

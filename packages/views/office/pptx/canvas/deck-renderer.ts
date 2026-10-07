@@ -47,8 +47,17 @@ export interface PptxDeckRenderer {
   viewport(fitWidthPx: number): PptxViewport;
   /** Render tree for one slide (null when the index is out of range). */
   buildSlide(slideIndex: number, fitWidthPx: number): PptxRenderSlide | null;
+  /** Standalone SVG document of one slide, built with the canvas's own SVG options (pattern
+   *  grids, preset geometry, image sizes), so a print copy draws what the canvas draws. */
+  buildSlideMarkup(slideIndex: number, fitWidthPx: number, title?: string): PptxSlideMarkup | null;
   /** `data:` URL of the same SVG the canvas mounts, for the rail thumbnails. */
   buildThumbnail(slideIndex: number, fitWidthPx: number, title?: string): string | null;
+}
+
+interface PptxSlideMarkup {
+  markup: string;
+  widthPx: number;
+  heightPx: number;
 }
 
 const RENDITION_CACHE_LIMIT = 8;
@@ -96,20 +105,25 @@ export function createPptxDeckRenderer(
     ...(module.presetPath ? { presetPath: module.presetPath } : {}),
     ...(module.presetPolygon ? { presetPolygon: module.presetPolygon } : {}),
   };
+  const buildSlideMarkup = (slideIndex: number, fitWidthPx: number, title?: string): PptxSlideMarkup | null => {
+    const slide = buildSlide(slideIndex, fitWidthPx);
+    if (!slide) return null;
+    try {
+      const doc = buildSlideSvg(slide, { ...svgOptions, idPrefix: `${options.idPrefix}-t${slideIndex}` });
+      return { markup: slideSvgMarkup(doc.root, doc, title ? { title } : {}), widthPx: doc.widthPx, heightPx: doc.heightPx };
+    } catch {
+      return null;
+    }
+  };
   return {
     slideCount: deck.slides.length,
     aspect,
     viewport: (fitWidthPx) => module.makeViewport(size, fitWidthPx),
     buildSlide,
+    buildSlideMarkup,
     buildThumbnail: (slideIndex, fitWidthPx, title) => {
-      const slide = buildSlide(slideIndex, fitWidthPx);
-      if (!slide) return null;
-      try {
-        const doc = buildSlideSvg(slide, { ...svgOptions, idPrefix: `${options.idPrefix}-t${slideIndex}` });
-        return svgDataUrl(slideSvgMarkup(doc.root, doc, title ? { title } : {}));
-      } catch {
-        return null;
-      }
+      const built = buildSlideMarkup(slideIndex, fitWidthPx, title);
+      return built ? svgDataUrl(built.markup) : null;
     },
   };
 }

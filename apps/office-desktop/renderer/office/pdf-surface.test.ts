@@ -19,7 +19,7 @@ function settings(call: (channel: string, payload: unknown) => Promise<unknown>,
 
 describe("desktop PDF surface", () => {
   it("opens through the engine channel and reports a view-safe page summary", async () => {
-    const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 3 } }));
+    const call = vi.fn(async () => ({ ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 3 } }));
     const surface = createDesktopPdfSurface(settings(call));
     await surface.open();
     expect(call).toHaveBeenCalledWith("desktop:engine-call", expect.objectContaining({ operation: "open", handle: "doc-1" }));
@@ -28,7 +28,7 @@ describe("desktop PDF surface", () => {
   });
 
   it("sends the rendered bytes with no filesystem path in the payload", async () => {
-    const call = vi.fn(async (_channel: string, payload: unknown) => ({ ok: true, operation: "open", probe: { pageCount: 1 }, payload }));
+    const call = vi.fn(async (_channel: string, payload: unknown) => ({ ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, payload }));
     const surface = createDesktopPdfSurface(settings(call));
     await surface.open();
     const payload = call.mock.calls[0]![1] as { args: { data: Uint8Array } };
@@ -37,7 +37,7 @@ describe("desktop PDF surface", () => {
   });
 
   it("exposes a renderer and real canvas page sizes from the open probe (U2)", async () => {
-    const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 2 }, pageSizes: [{ width: 595.28, height: 841.89 }, { width: 841.89, height: 595.28 }] }));
+    const call = vi.fn(async () => ({ ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 2 }, pageSizes: [{ width: 595.28, height: 841.89 }, { width: 841.89, height: 595.28 }] }));
     const surface = createDesktopPdfSurface(settings(call));
     await surface.open();
     expect(surface.renderer).toBeTypeOf("object");
@@ -50,7 +50,7 @@ describe("desktop PDF surface", () => {
   });
 
   it("falls back to an A4 portrait box when the probe omits a page size", async () => {
-    const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 1 } }));
+    const call = vi.fn(async () => ({ ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 } }));
     const surface = createDesktopPdfSurface(settings(call));
     await surface.open();
     expect(surface.getCanvasPages?.()).toEqual([{ pageNumber: 1, width: 595.28, height: 841.89, rotation: 0, boxes: [] }]);
@@ -59,7 +59,7 @@ describe("desktop PDF surface", () => {
   it("renders a page through the engine channel and returns a non-empty data URL", async () => {
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string; args: { pageIndex?: number; scale?: number } };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
       return { ok: true, operation: "render", pngBase64: PNG_BASE64, width: 1191, height: 1684 };
     });
     const surface = createDesktopPdfSurface(settings(call));
@@ -70,11 +70,49 @@ describe("desktop PDF surface", () => {
     expect(renderCall[1]).toMatchObject({ operation: "render", args: { pageIndex: 0, scale: 2 } });
   });
 
+  it("keeps an uncached (print) render out of the view cache but serves one the view already holds", async () => {
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+      return { ok: true, operation: "render", pngBase64: PNG_BASE64, width: 10, height: 10 };
+    });
+    const renders = () => call.mock.calls.filter(([, payload]) => (payload as { operation: string }).operation === "render").length;
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    const page = { pageNumber: 1, width: 595.28, height: 841.89 };
+    await surface.renderer!.renderPage({ ...page, scale: 3, cache: false });
+    await surface.renderer!.renderPage({ ...page, scale: 3, cache: false });
+    expect(renders()).toBe(2);
+    // The view's own request was not served from a print raster: nothing was kept.
+    await surface.renderer!.renderPage({ ...page, scale: 3 });
+    expect(renders()).toBe(3);
+    // An entry the view already holds is reused by print instead of re-rendered.
+    await surface.renderer!.renderPage({ ...page, scale: 3, cache: false });
+    expect(renders()).toBe(3);
+  });
+
+  it("answers an abort while the engine is still rendering instead of waiting for it", async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    const call = vi.fn(async (_channel: string, payload: unknown) => {
+      const request = payload as { operation: string };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+      return await new Promise((resolve) => { finish = resolve; });
+    });
+    const surface = createDesktopPdfSurface(settings(call));
+    await surface.open();
+    const controller = new AbortController();
+    const pending = surface.renderer!.renderPage({ pageNumber: 1, width: 595.28, height: 841.89, scale: 2, cache: false, signal: controller.signal });
+    await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(2));
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    finish({ ok: true, operation: "render", pngBase64: PNG_BASE64, width: 1, height: 1 });
+  });
+
   it("re-probes page geometry after an edit and bumps the dirty generation", async () => {
     let pageCount = 2;
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount }, pageSizes: Array.from({ length: pageCount }, () => ({ width: 595.28, height: 841.89 })) };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount }, pageSizes: Array.from({ length: pageCount }, () => ({ width: 595.28, height: 841.89 })) };
       pageCount = 1;
       return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(PDF_BYTES)) };
     });
@@ -92,7 +130,7 @@ describe("desktop PDF surface", () => {
   it("submits panel engine envelopes (notes) through the edit channel and reports skips", async () => {
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 595.28, height: 841.89 }] };
       return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(PDF_BYTES)), warnings: [] };
     });
     const surface = createDesktopPdfSurface(settings(call));
@@ -110,7 +148,7 @@ describe("desktop PDF surface", () => {
   it("surfaces an engine note skip so the view reports it instead of claiming success", async () => {
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 } };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 } };
       return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(PDF_BYTES)), warnings: [{ code: "edit_skipped", detail: "note page=1: page out of range" }] };
     });
     const surface = createDesktopPdfSurface(settings(call));
@@ -122,7 +160,7 @@ describe("desktop PDF surface", () => {
   it("keeps a form refusal identifiable in the skipped entries", async () => {
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 } };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 } };
       return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(PDF_BYTES)), warnings: [{ code: "edit_skipped", detail: 'form field "fullName": WinAnsi cannot encode' }] };
     });
     const surface = createDesktopPdfSurface(settings(call));
@@ -132,7 +170,7 @@ describe("desktop PDF surface", () => {
   });
 
   it("refuses an edit when the capability is read-only", async () => {
-    const call = vi.fn(async () => ({ ok: true, operation: "open", probe: { pageCount: 1 } }));
+    const call = vi.fn(async () => ({ ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 } }));
     const surface = createDesktopPdfSurface(settings(call, { readOnly: true }));
     await surface.open();
     await expect(surface.edit([{ op: "delete_page", target: { page: 1 } }])).rejects.toThrow("pdf_readonly");
@@ -154,7 +192,7 @@ describe("desktop PDF surface", () => {
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const args = (payload as { args: { password?: string } }).args;
       if (args.password === undefined) return { ok: false, error: { kind: "password", status: "required" } };
-      if (args.password === "    ") return { ok: true, operation: "open", probe: { pageCount: 1 } };
+      if (args.password === "    ") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 } };
       return { ok: false, error: { kind: "password", status: "wrong" } };
     });
     const surface = createDesktopPdfSurface(settings(call));
@@ -171,7 +209,7 @@ describe("desktop PDF surface", () => {
   function textEngine(pages: readonly { text: string; width?: number; height?: number }[], failures: { remaining: number } = { remaining: 0 }) {
     return vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string; args: { pageIndex?: number; pageLimit?: number; geometry?: boolean } };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: pages.length }, pageSizes: pages.map((page) => ({ width: page.width ?? 100, height: page.height ?? 100 })) };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: pages.length }, pageSizes: pages.map((page) => ({ width: page.width ?? 100, height: page.height ?? 100 })) };
       if (request.operation === "edit") return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(PDF_BYTES)) };
       if (failures.remaining > 0) { failures.remaining -= 1; throw new Error("ipc down"); }
       const start = request.args.pageIndex ?? -1;
@@ -235,7 +273,7 @@ describe("desktop PDF surface", () => {
     expect(textCalls(call)).toHaveLength(6);
   });
 
-  it("sends the document to every engine call as binary, never as base64 text", async () => {
+  it("sends the document as binary whenever it sends it, never as base64 text", async () => {
     const call = textEngine([{ text: "alpha" }, { text: "alpha two" }]);
     const encode = vi.spyOn(globalThis, "btoa");
     try {
@@ -244,9 +282,12 @@ describe("desktop PDF surface", () => {
       await surface.searchText!("alpha");
       await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
       expect(encode).not.toHaveBeenCalled();
+      // Open, edit and the re-probe carry the bytes; reads go by pdfHandle.
+      const transfers = call.mock.calls.map(([, payload]) => payload as { operation: string; args: { data?: unknown; dataBase64?: unknown } }).filter((request) => request.args.data !== undefined);
+      expect(transfers.map((request) => request.operation)).toEqual(["open", "edit", "open"]);
       for (const [, payload] of call.mock.calls) {
         const args = (payload as { args: { data?: unknown; dataBase64?: unknown } }).args;
-        expect(args.data).toBeInstanceOf(Uint8Array);
+        if (args.data !== undefined) expect(args.data).toBeInstanceOf(Uint8Array);
         expect(args.dataBase64).toBeUndefined();
       }
     } finally {
@@ -269,7 +310,7 @@ describe("desktop PDF surface", () => {
     let geometryAnswers = 0;
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string; args: { geometry?: boolean } };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
       if (request.args.geometry) {
         geometryAnswers += 1;
         if (geometryAnswers === 1) throw new Error("geometry down");
@@ -287,7 +328,7 @@ describe("desktop PDF surface", () => {
     const gate = new Promise<void>((resolve) => { release = resolve; });
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string; args: { pageIndex?: number } };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 20 }, pageSizes: [] };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 20 }, pageSizes: [] };
       if (request.operation === "edit") return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(PDF_BYTES)) };
       if (request.args.pageIndex === 0) await gate;
       return { ok: true, operation: "text", pageCount: 20, pages: [{ page: (request.args.pageIndex ?? 0) + 1, width: 100, height: 100, text: "alpha", charBoxes: [] }] };
@@ -308,7 +349,7 @@ describe("desktop PDF surface", () => {
   it("stops the walk at the first password wall and retries on the next query", async () => {
     const call = vi.fn(async (_channel: string, payload: unknown) => {
       const request = payload as { operation: string };
-      if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 40 } };
+      if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 40 } };
       return { ok: false, error: { kind: "password", status: "required" } };
     });
     const surface = createDesktopPdfSurface(settings(call));
@@ -342,7 +383,7 @@ describe("desktop PDF surface", () => {
     const openWith = async (bytes: Uint8Array, editedBytes?: Uint8Array) => {
       const call = vi.fn(async (_channel: string, payload: unknown) => {
         const request = payload as { operation: string };
-        if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 200, height: 200 }] };
+        if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 200, height: 200 }] };
         return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(editedBytes ?? bytes)) };
       });
       const surface = createDesktopPdfSurface(settings(call, { readBytes: async () => bytes }));
@@ -391,7 +432,7 @@ describe("desktop PDF surface", () => {
       const call = vi.fn(async (_channel: string, payload: unknown) => {
         const request = payload as { operation: string; args: { data: Uint8Array } };
         sent.push(`${request.operation}:${Buffer.from(request.args.data).at(-1)}`);
-        if (request.operation === "open") return { ok: true, operation: "open", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
+        if (request.operation === "open") return { ok: true, operation: "open", pdfHandle: "pdf_1", probe: { pageCount: 1 }, pageSizes: [{ width: 100, height: 100 }] };
         const edited = versions[next]!;
         next += 1;
         return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(edited)) };
@@ -601,6 +642,187 @@ describe("desktop PDF surface", () => {
       surface.undo();
       await settle();
       expect(changes).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("retained engine document (H-pdf-handle)", () => {
+    type Request = { operation: string; args: Record<string, unknown> };
+    /** An engine fake that retains on open, renders by handle, and answers a
+     * handle it no longer holds as typed stale data, like the main process. */
+    const handleEngine = (pageCount: number) => {
+      let issued = 0;
+      const live = new Set<string>();
+      const state = { staleNext: 0, failReopen: false };
+      const call = vi.fn(async (_channel: string, payload: unknown) => {
+        const request = payload as Request;
+        if (request.operation === "open") {
+          if (state.failReopen && issued > 0) throw new Error("ipc down");
+          issued += 1;
+          const pdfHandle = `pdf_${issued}`;
+          live.clear();
+          if (request.args.retain === true) live.add(pdfHandle);
+          return { ok: true, operation: "open", pdfHandle, probe: { pageCount }, pageSizes: Array.from({ length: pageCount }, () => ({ width: 100, height: 100 })) };
+        }
+        if (request.operation === "close") {
+          live.delete(request.args.pdfHandle as string);
+          return { ok: true, operation: "close" };
+        }
+        if (request.operation === "edit") return { ok: true, operation: "edit", data: Uint8Array.from(Buffer.from(PDF_BYTES)) };
+        if (state.staleNext > 0 || !live.has(request.args.pdfHandle as string)) {
+          state.staleNext = Math.max(0, state.staleNext - 1);
+          return { ok: false, error: { kind: "handle", status: "unknown" } };
+        }
+        if (request.operation === "text") return { ok: true, operation: "text", pageCount, pages: [{ page: (request.args.pageIndex as number) + 1, width: 100, height: 100, text: "alpha", charBoxes: [] }] };
+        return { ok: true, operation: "render", pngBase64: PNG_BASE64, width: 10, height: 10 };
+      });
+      const requests = () => call.mock.calls.map(([, payload]) => payload as Request);
+      const transfers = () => requests().filter((request) => request.args.data instanceof Uint8Array);
+      const ofOperation = (operation: string) => requests().filter((request) => request.operation === operation);
+      return { call, live, state, transfers, ofOperation };
+    };
+    const page = (pageNumber: number) => ({ pageNumber, width: 100, height: 100, scale: 2, cache: false });
+
+    it("prints N pages with one document transfer and N page requests that carry no bytes", async () => {
+      const engine = handleEngine(5);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open();
+      for (let pageNumber = 1; pageNumber <= 5; pageNumber += 1) await surface.renderer!.renderPage(page(pageNumber));
+      expect(engine.transfers()).toHaveLength(1);
+      expect(engine.transfers()[0]).toMatchObject({ operation: "open", args: { retain: true } });
+      const renders = engine.ofOperation("render");
+      expect(renders).toHaveLength(5);
+      for (const [index, render] of renders.entries()) {
+        expect(render.args).toEqual({ pageIndex: index, scale: 2, pdfHandle: "pdf_1", surface: expect.stringMatching(/^pdfs_[0-9a-f]{32}$/) });
+      }
+    });
+
+    it("reads text by handle and keeps the password out of every per-page request", async () => {
+      const engine = handleEngine(2);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open(undefined, "    ");
+      expect(engine.transfers()[0]!.args).toMatchObject({ retain: true, password: "    " });
+      await surface.searchText!("alpha");
+      await surface.renderer!.renderPage(page(1));
+      for (const request of [...engine.ofOperation("text"), ...engine.ofOperation("render")]) {
+        expect(request.args).toMatchObject({ pdfHandle: "pdf_1" });
+        expect(request.args).not.toHaveProperty("password");
+        expect(request.args).not.toHaveProperty("data");
+      }
+    });
+
+    it("re-opens once on a stale handle, shared by every page waiting on it, and retries", async () => {
+      const engine = handleEngine(3);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open();
+      engine.live.clear();
+      const results = await Promise.all([1, 2, 3].map((pageNumber) => surface.renderer!.renderPage(page(pageNumber))));
+      expect(results.every((result) => result.src.startsWith("data:image/png"))).toBe(true);
+      // The first open plus one shared re-open.
+      expect(engine.ofOperation("open")).toHaveLength(2);
+      expect(engine.transfers()).toHaveLength(2);
+      expect(engine.ofOperation("render").slice(-3).map((request) => request.args.pdfHandle)).toEqual(["pdf_2", "pdf_2", "pdf_2"]);
+    });
+
+    it("fails a render closed when the handle is still stale after the one re-open", async () => {
+      const engine = handleEngine(1);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open();
+      engine.state.staleNext = 2;
+      await expect(surface.renderer!.renderPage(page(1))).rejects.toThrow("pdf_render_failed");
+      expect(engine.ofOperation("open")).toHaveLength(2);
+      expect(engine.ofOperation("render")).toHaveLength(2);
+    });
+
+    it("fails a render closed when the re-open itself fails", async () => {
+      const engine = handleEngine(1);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open();
+      engine.live.clear();
+      engine.state.failReopen = true;
+      await expect(surface.renderer!.renderPage(page(1))).rejects.toThrow("ipc down");
+    });
+
+    it("closes the handle on dispose, and a disposed surface sends nothing more", async () => {
+      const engine = handleEngine(1);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open();
+      await surface.dispose();
+      expect(engine.ofOperation("close").map((request) => request.args)).toEqual([{ pdfHandle: "pdf_1", surface: expect.any(String) }]);
+      expect(engine.live.size).toBe(0);
+      const before = engine.call.mock.calls.length;
+      await expect(surface.renderer!.renderPage(page(1))).rejects.toThrow("pdf_surface_disposed");
+      expect(engine.call.mock.calls.length).toBe(before);
+    });
+
+    it("moves to the new handle on a document change and closes the old one", async () => {
+      const engine = handleEngine(1);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open();
+      await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
+      expect(engine.ofOperation("close").map((request) => request.args)).toEqual([{ pdfHandle: "pdf_1", surface: expect.any(String) }]);
+      await surface.renderer!.renderPage(page(1));
+      expect(engine.ofOperation("render").at(-1)!.args.pdfHandle).toBe("pdf_2");
+    });
+
+    it("re-sends the edited bytes when the post-edit re-probe failed, never the pre-edit document", async () => {
+      const engine = handleEngine(1);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open();
+      engine.state.failReopen = true;
+      await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
+      engine.state.failReopen = false;
+      // The old handle was dropped with the failed re-probe: the render re-opens the edited bytes.
+      await surface.renderer!.renderPage(page(1));
+      expect(engine.ofOperation("render").map((request) => request.args.pdfHandle)).toEqual(["pdf_2"]);
+      expect(engine.ofOperation("close").map((request) => request.args)).toEqual([{ pdfHandle: "pdf_1", surface: expect.any(String) }]);
+    });
+
+    it("names its own surface instance on every call, so two surfaces of one document keep apart", async () => {
+      const engine = handleEngine(1);
+      const seen = { older: new Set<unknown>(), newer: new Set<unknown>() };
+      const via = (name: keyof typeof seen) => async (channel: string, payload: unknown) => {
+        seen[name].add((payload as Request).args.surface);
+        return await engine.call(channel, payload);
+      };
+      const older = createDesktopPdfSurface(settings(via("older")));
+      const newer = createDesktopPdfSurface(settings(via("newer")));
+      await older.open();
+      await newer.open();
+      await older.renderer!.renderPage(page(1));
+      await newer.renderer!.renderPage(page(1));
+      await older.dispose();
+      expect(seen.older.size).toBe(1);
+      expect(seen.newer.size).toBe(1);
+      expect([...seen.older][0]).not.toBe([...seen.newer][0]);
+    });
+
+    it("re-probes an edit by the live handle and never sends the password again for it", async () => {
+      const engine = handleEngine(1);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open(undefined, "    ");
+      await surface.edit([{ op: "delete_page", target: { page: 1 } }]);
+      surface.undo();
+      await vi.waitFor(() => expect(engine.ofOperation("open")).toHaveLength(3));
+      const [first, ...reprobes] = engine.ofOperation("open");
+      expect(first!.args).toMatchObject({ retain: true, password: "    " });
+      expect(reprobes.map((request) => request.args.pdfHandle)).toEqual(["pdf_1", "pdf_2"]);
+      for (const request of reprobes) {
+        expect(request.args).toMatchObject({ retain: true, data: expect.any(Uint8Array) });
+        expect(request.args).not.toHaveProperty("password");
+      }
+      for (const request of engine.ofOperation("edit")) expect(request.args).not.toHaveProperty("password");
+    });
+
+    it("hands the password over again only for a re-open after the engine dropped the handle", async () => {
+      const engine = handleEngine(1);
+      const surface = createDesktopPdfSurface(settings(engine.call));
+      await surface.open(undefined, "    ");
+      engine.live.clear();
+      await surface.renderer!.renderPage(page(1));
+      const opens = engine.ofOperation("open");
+      expect(opens).toHaveLength(2);
+      expect(opens[1]!.args).toMatchObject({ retain: true, password: "    " });
+      expect(opens[1]!.args).not.toHaveProperty("pdfHandle");
     });
   });
 });

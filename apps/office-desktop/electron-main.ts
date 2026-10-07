@@ -4,7 +4,7 @@
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, screen, session, shell, utilityProcess } from "electron";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { desktopSessionMetadataSchema } from "./shared/ipc";
 import { desktopDialogFilters } from "./shared/document-formats";
@@ -28,7 +28,8 @@ import { leaveExpiredEventSchema, leaveRequestedEventSchema, loginRequestedEvent
 import { resolveLocalDevice } from "./main/local/device";
 import { createLocalModeStore } from "./main/local/mode";
 import { createRecentFilesStore } from "./main/local/recent-files";
-import { clearPrintRoot, createPrintFileWriter, createPrintIpcHandler, installPrintSessionGuard, PRINT_PARTITION } from "./main/print";
+import { createPrintHost } from "./main/print-host";
+import { installPrintShortcut } from "./main/print-shortcut";
 import { DESKTOP_TITLE_BAR_TOKENS } from "./main/window";
 import { brandIconPath, formatWindowTitle } from "./main/branding";
 import { startDesktopShell } from "./main/shell";
@@ -121,6 +122,7 @@ async function startElectronHost(): Promise<void> {
   installRendererProtocol(protocol, net, RENDERER_DIRECTORY);
 
   const { window, t, createHost, menuTemplate } = desktopShell.openWindow({ show: !SMOKE_MODE, preload: PRELOAD_PATH, workAreaHeight: screen.getPrimaryDisplay().workAreaSize.height });
+  installPrintShortcut(window.webContents);
   let nativeSaveListener: (() => void) | undefined;
   const officeTransport = deploymentProfile && credentials ? createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
     const session = await authManager?.refreshSession();
@@ -174,18 +176,15 @@ async function startElectronHost(): Promise<void> {
       window.close();
     });
   });
-  const printRoot = join(app.getPath("temp"), "uniwork-print");
-  installPrintSessionGuard(session.fromPartition(PRINT_PARTITION), pathToFileURL(printRoot).href);
-  // A process that quit with a print dialog open never ran its cleanup.
-  await clearPrintRoot(printRoot);
-  const printHandlers = createPrintIpcHandler({ owner: window, createWindow: (options) => new BrowserWindow({ ...options, parent: window }), writeFile: createPrintFileWriter(printRoot) });
+  const printHandlers = await createPrintHost({ tempDirectory: app.getPath("temp"), partitionSession: (partition) => session.fromPartition(partition), senderWindow: () => BrowserWindow.fromWebContents(window.webContents), createWindow: (options) => new BrowserWindow(options), registerShutdown: (closeWindows) => { window.once("closed", closeWindows); app.once("before-quit", closeWindows); }, distDirectory: dirname(DIST_MAIN_DIRECTORY) });
   // The unbounded local engines (xlsx, pdfium) run in a utilityProcess with a
   // machine-sized heap: a heap OOM there kills only the child, and every request
   // in flight answers insufficient_memory (see main/engine-host).
   const engineHost = createLocalEngineHost({ fork: (script, args, options) => utilityProcess.fork(script, args, options), script: join(DIST_MAIN_DIRECTORY, "engine-host.mjs"), assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) });
   app.once("will-quit", () => engineHost.dispose());
+  window.webContents.on("did-navigate", () => engineHost.releasePdfs()).on("render-process-gone", () => engineHost.releasePdfs()).on("destroyed", () => engineHost.releasePdfs());
   const host = createHost({
-    handlers: { "desktop:engine-call": (request) => engineHost.pdfCall({ operation: request.operation, handle: request.handle, args: { data: request.args.data, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } }), "desktop:window-theme": (request) => {
+    handlers: { "desktop:engine-call": (request) => engineHost.pdfCall({ operation: request.operation, handle: request.handle, sessionGeneration: request.sessionGeneration, args: { data: request.args.data, retain: request.args.retain, pdfHandle: request.args.pdfHandle, surface: request.args.surface, edits: request.args.edits, password: request.args.password, pageIndex: request.args.pageIndex, pageLimit: request.args.pageLimit, geometry: request.args.geometry, scale: request.args.scale } }), "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 40 });
       return { applied: true };
     }, "desktop:tabs-update": (request) => ({ updated: documents.update(request) }), ...printHandlers },

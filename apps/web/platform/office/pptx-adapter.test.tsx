@@ -342,6 +342,12 @@ describe("web PPTX format adapter", () => {
     await adapter.session.dispose();
   });
 
+  it("hands the surface the document title, which names the print job", async () => {
+    const adapter = createPptxFormatAdapter({ ...options(runtime(), documents()), title: "Quarterly deck.pptx" });
+    expect((adapter.editorView as ReactElement<{ title?: string }>).props.title).toBe("Quarterly deck.pptx");
+    await adapter.session.dispose();
+  });
+
   it("reads master parts and elements off the live session and yields [] before open, after dispose or when unbound", async () => {
     type MasterProps = { masterParts: () => readonly unknown[]; masterElements: (partPath: string) => readonly unknown[] };
     const engine = runtime();

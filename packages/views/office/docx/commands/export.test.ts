@@ -42,17 +42,18 @@ describe("createExportCommands", () => {
     const area = createExportCommands({ getEditor: () => null });
     expect(area.commands.exportDocxHtml()).toBeNull();
     expect(area.commands.downloadDocxHtml("document")).toBe(false);
-    expect(area.commands.printDocx()).toBe(false);
+    expect(area.commands.buildDocxPrintCopy({ title: "x" })).toBeNull();
   });
 
-  it("prints through the browser dialog when a surface is mounted", () => {
-    const surface = document.createElement("div");
-    surface.setAttribute("data-testid", "docx-document-surface");
-    document.body.appendChild(surface);
+  it("builds the sanitized print copy from the live document, never printing the app window", () => {
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
     const area = createExportCommands({ getEditor: () => stubEditor() });
-    expect(area.commands.printDocx()).toBe(true);
-    expect(print).toHaveBeenCalledTimes(1);
+    const copy = area.commands.buildDocxPrintCopy({ title: "Tài liệu", sections: null, headerFooter: null });
+    expect(copy).toContain("<title>Tài liệu</title>");
+    expect(copy).toContain("<p>Hello</p>");
+    expect(copy).toContain("@page docx-s0");
+    expect(copy).toContain("Content-Security-Policy");
+    expect(print).not.toHaveBeenCalled();
   });
 
   it("downloads the serialized file through a blob", () => {
@@ -89,7 +90,7 @@ describe("export command wiring", () => {
       expect(runtime.getState().docxExportReady).toBe(true);
       expect(typeof runtime.exportDocxHtml).toBe("function");
       expect(typeof runtime.downloadDocxHtml).toBe("function");
-      expect(typeof runtime.printDocx).toBe("function");
+      expect(typeof runtime.buildDocxPrintCopy).toBe("function");
     } finally {
       editor.destroy();
     }

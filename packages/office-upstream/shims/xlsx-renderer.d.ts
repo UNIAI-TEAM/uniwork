@@ -272,7 +272,59 @@ export interface XlsxRendererHandle {
     sheetId: string,
     range: { startRow: number; endRow: number; startColumn: number; endColumn: number },
   ): XlsxRendererRangeValues | null;
+  /** UNI-952: composed styles (session edits and conditional-format results
+   *  included), sizes, visibility and merges of a range on the active sheet,
+   *  for print (null for another sheet). */
+  readPrintRange(
+    sheetId: string,
+    range: { startRow: number; endRow: number; startColumn: number; endColumn: number },
+  ): XlsxRendererPrintRange | null;
   dispose(): void;
+}
+
+/** One composed cell style in the renderer-neutral wire shape. Colours are
+ *  hex; null clears (no fill / automatic font colour). */
+export interface XlsxRendererCellStyle {
+  readonly bold?: boolean;
+  readonly italic?: boolean;
+  readonly underline?: boolean;
+  readonly strikethrough?: boolean;
+  readonly fontFamily?: string;
+  readonly fontSize?: number;
+  readonly fontColor?: string | null;
+  readonly fillColor?: string | null;
+  readonly horizontalAlignment?: "left" | "center" | "right" | "justify" | "distributed";
+  readonly verticalAlignment?: "top" | "center" | "bottom";
+  readonly wrapText?: boolean;
+  /** OOXML: 0-90 up, 91-180 down (value-90), 255 stacked. */
+  readonly textRotation?: number;
+  readonly indent?: number;
+  readonly numberFormat?: string;
+  readonly borderTop?: { readonly style: string; readonly color?: string } | null;
+  readonly borderBottom?: { readonly style: string; readonly color?: string } | null;
+  readonly borderLeft?: { readonly style: string; readonly color?: string } | null;
+  readonly borderRight?: { readonly style: string; readonly color?: string } | null;
+}
+
+/** What the grid shows for a range, for print. Sizes are unzoomed sheet
+ *  pixels; hidden includes filtered-out rows. */
+export interface XlsxRendererPrintRange {
+  readonly styles: readonly (readonly (XlsxRendererCellStyle | null)[])[];
+  readonly rows: readonly { readonly height: number; readonly hidden: boolean }[];
+  readonly columns: readonly { readonly width: number; readonly hidden: boolean }[];
+  readonly merges: readonly { readonly startRow: number; readonly endRow: number; readonly startColumn: number; readonly endColumn: number }[];
+  /** UNI-952 D3: data bars and icons the canvas paints (CF view model). */
+  readonly marks: readonly XlsxRendererCellMark[];
+}
+
+/** What a data bar or icon-set rule paints over one cell: the painter's
+ *  percentages and its own icon data: URL. */
+export interface XlsxRendererCellMark {
+  readonly row: number;
+  readonly column: number;
+  readonly dataBar?: { readonly color: string; readonly value: number; readonly startPoint: number; readonly isGradient: boolean };
+  readonly icon?: string;
+  readonly hideValue?: boolean;
 }
 
 /** A cell's box in container pixels (zoom and scroll applied) plus the zoom. */

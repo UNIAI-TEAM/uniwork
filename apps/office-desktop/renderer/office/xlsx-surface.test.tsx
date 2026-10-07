@@ -6,8 +6,18 @@ import { OpenXlsxDocument } from "./xlsx-surface";
 import type { RendererBridge } from "../app";
 import type { DesktopXlsxSession } from "./xlsx-session";
 
-// The shared editor is not under test here: only the surface's own markup.
-vi.mock("@uniwork/views/office/xlsx", () => ({ XlsxEditor: () => <div data-testid="xlsx-editor-stub" /> }));
+// The shared editor is not under test here: only the surface's own markup and
+// what it hands the view. The stub contributes a Print menu item like the real
+// workbook view does, so the desktop menu rendering it is observable.
+const xlsxProbe = vi.hoisted(() => ({ props: [] as Array<Record<string, unknown>> }));
+vi.mock("@uniwork/views/office/xlsx", async () => {
+  const { HeaderActionsFill } = await import("@uniwork/views/layout/header-actions-slot");
+  const { DropdownMenuItem } = await import("@uniwork/ui/components/ui/dropdown-menu");
+  return { XlsxEditor: (props: Record<string, unknown>) => {
+    xlsxProbe.props.push(props);
+    return <><div data-testid="xlsx-editor-stub" /><HeaderActionsFill menuItems={<DropdownMenuItem data-xlsx-print>Print</DropdownMenuItem>} /></>;
+  } };
+});
 
 function textNodes(root: Node): string[] {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -60,11 +70,23 @@ it("keeps the locked AI entry out of the visible header: it lives in the documen
   expect(within(group).getByRole("button", { name: i18n.t("officeDesktop.ai.entry") })).toHaveAttribute("data-ai-entry", "locked");
 });
 
-it("has no document menu for a cloud document (nothing to put in it)", async () => {
-  mount({ kind: "cloud" });
+it.each(["cloud", "local"] as const)("shows the workbook view's own Print item in the %s document menu, once", async (kind) => {
+  mount({ kind });
   await screen.findByTestId("xlsx-editor-stub");
-  expect(document.querySelector("[data-office-document-menu]")).toBeNull();
-  expect(document.querySelector("[data-ai-entry]")).toBeNull();
+  const trigger = screen.getByRole("button", { name: i18n.t("office.ribbon.more") });
+  fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
+  fireEvent.click(trigger);
+  expect(await screen.findByRole("menuitem", { name: "Print" })).toHaveAttribute("data-xlsx-print");
+  expect(document.querySelectorAll("[data-xlsx-print]")).toHaveLength(1);
+  if (kind === "cloud") expect(document.querySelector("[data-ai-entry]")).toBeNull();
+});
+
+it("hands the workbook view the desktop print port", async () => {
+  xlsxProbe.props.length = 0;
+  mount();
+  await screen.findByTestId("xlsx-editor-stub");
+  const port = xlsxProbe.props.at(-1)?.printPort as { print?: unknown } | undefined;
+  expect(typeof port?.print).toBe("function");
 });
 
 function readOnlyXlsxSession(): DesktopXlsxSession {

@@ -3,7 +3,6 @@ import { HtmlEditor } from "@uniwork/views/office/html";
 import { MarkdownEditor } from "@uniwork/views/office/markdown";
 import type { OfficeEditorLoader } from "@uniwork/views/office/editor-slot";
 import { createDesktopTextPreviewPort } from "./text-preview-port";
-import { createDesktopPrintPort } from "./text-print";
 import type { DesktopEditorLoaderConfig } from "./editor-registry";
 
 /** The shared views dispose their editor and cancel the coordinator when they
@@ -20,17 +19,13 @@ function sessionOwned<T extends object>(target: T, inert: readonly string[]): T 
 }
 
 /** Mount the shared Markdown or HTML editor over the desktop byte session. */
-export function textEditorLoader(format: "md" | "html", { documentKey, title, session, capability, surfaceVersion, printBridge }: DesktopEditorLoaderConfig): OfficeEditorLoader<Uint8Array> {
+export function textEditorLoader(format: "md" | "html", { documentKey, title, session, capability, surfaceVersion, printPort }: DesktopEditorLoaderConfig): OfficeEditorLoader<Uint8Array> {
   const preview = createDesktopTextPreviewPort(format);
   return async () => ({ default: function DesktopTextEditor() {
     const editor = useMemo(() => sessionOwned(session.editor, ["dispose", "cancel"]), []);
     const coordinator = useMemo(() => sessionOwned(session.coordinator, ["cancel"]), []);
-    // UNI-928 print parity: the shared editors render their Print entry only
-    // under a `HeaderActionsSlotProvider`. Desktop has none today, so this port
-    // stays dormant; injecting it means the entry is already wired if a slot
-    // provider ever appears above the shell. The desktop "..." menu keeps its
-    // own Print item (see open-document.tsx) and never waits on the slot.
-    const printPort = useMemo(() => createDesktopPrintPort(printBridge), []);
+    // The editors contribute their Print entry through `HeaderActionsFill`;
+    // the desktop shell's slot provider renders it in the document menu.
     const open = useMemo(() => ({ open: async () => {
       await session.openEditor();
       // A surface that failed to open throws inside openEditor, so this is the opened outcome.

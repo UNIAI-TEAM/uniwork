@@ -72,6 +72,7 @@ export function XlsxToolbar({
   onOpenAdvancedFilter,
   onOpenPageSetup,
   onPrint,
+  printBusy,
   onExportCsv,
   onOpenProtect,
   onSave,
@@ -124,6 +125,7 @@ export function XlsxToolbar({
     onOpenAdvancedFilter,
     onOpenPageSetup,
     onPrint,
+    printBusy,
     onExportCsv,
     onOpenProtect,
   };
