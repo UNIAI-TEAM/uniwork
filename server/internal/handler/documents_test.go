@@ -178,6 +178,8 @@ func TestDocumentsFlagOff404(t *testing.T) {
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 	token, _ := filesRegister(t, srv, "flagoff@example.com")
+	// documents is on by default; this matrix needs it off for the caller.
+	disableDocumentsFlag(t)
 
 	for _, tc := range []struct{ method, path string }{
 		{"POST", "/api/v1/workspaces/ws_x/documents"},

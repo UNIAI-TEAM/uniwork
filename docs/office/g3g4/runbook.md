@@ -147,12 +147,12 @@ Sidecar XLSX: không có biến riêng cần đặt.
 
 | Cờ | Mặc định | Làm gì |
 | --- | --- | --- |
-| `documents` | tắt | Tài liệu trong workspace |
+| `documents` | bật | Tài liệu trong workspace (menu Tài liệu) |
 | `office_engine` | tắt | Công tắc tổng: bật trình soạn Office cho cả web và desktop host |
 | `office_docx` `office_xlsx` `office_pptx` `office_pdf` `office_markdown` `office_html` | bật | Cho phép sửa riêng từng định dạng (cần `office_engine` bật) |
 | `office_html_visual_edit` | tắt | Sửa HTML trực quan (chưa có giao diện) |
 
-1. Bật `documents` rồi `office_engine`: đặt trong file YAML (`FEATURE_FLAGS_FILE`) hoặc `FF_OFFICE_ENGINE=true`.
+1. `documents` mặc định đã bật (tắt bằng `FF_DOCUMENTS=false` hoặc override); bật `office_engine`: đặt trong file YAML (`FEATURE_FLAGS_FILE`) hoặc `FF_OFFICE_ENGINE=true`.
 2. Tắt/bật **riêng từng định dạng**: mỗi định dạng có cờ riêng, mặc định **bật** — `office_docx`, `office_xlsx`, `office_pptx`, `office_pdf`, `office_markdown`, `office_html`. Một định dạng chỉ sửa được khi `office_engine` **và** cờ của nó cùng bật. Để tắt một định dạng: `FF_OFFICE_DOCX=false` (đổi tên theo cờ) hoặc override trong file/org. Tệp định dạng đó mở ở màn xem/tải như khi tắt `office_engine`, không mở trình soạn; các định dạng khác không đổi. Web đọc `GET /api/v1/config` theo tổ chức của tài liệu, nên override theo org có hiệu lực. Desktop đọc cùng các cờ này theo tổ chức đang chọn (lấy sau khi chọn tổ chức, đọc lại khi đổi tổ chức hoặc tài khoản; nếu lỗi thì thử lại ngay một lần, sau đó tự thử lại theo khoảng tăng dần tới 5 phút, ngay khi cửa sổ được focus hoặc có mạng lại, và trước mỗi lần mở tài liệu cloud): tài liệu cloud thuộc định dạng bị tắt, hoặc khi chưa đọc được cấu hình, mở ở chế độ chỉ xem. Tab chỉ xem ghi rõ lý do: định dạng bị tổ chức tắt, hoặc chưa đọc được cấu hình. Khi được phép, tab được đọc lại tài liệu mới nhất rồi mới chuyển sang sửa (chưa có chỉnh sửa nào trong chế độ chỉ xem nên không mất dữ liệu). Tệp cục bộ không bị cờ chặn. Web: đổi cờ có hiệu lực ở lần làm mới cấu hình tiếp theo (tối đa ~5 phút hoặc khi quay lại tab). Trình soạn đang mở không bị đóng khi làm mới lỗi; chỉ đóng khi câu trả lời mới nói tắt, và nếu đang có thay đổi chưa lưu thì hiện hộp thoại Lưu / giữ bản nháp / bỏ trước. Trong lúc chưa đọc được cấu hình, thẻ tệp ghi "đang kiểm tra" hoặc "chưa kiểm tra được" (có nút Thử lại), không ghi "đang tắt".
 3. Cờ chỉ ẩn tính năng, không cấp quyền.
 

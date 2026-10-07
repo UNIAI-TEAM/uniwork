@@ -556,6 +556,7 @@ func TestDocuments05bFlagOff404(t *testing.T) {
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 	token, _ := filesRegister(t, srv, "flagoff-05b@example.com")
+	disableDocumentsFlag(t)
 	docID := "01J8X4DOC0N1P2Q3R4S5T6U7"
 	shareID := "01J8X4SHAREN1P2Q3R4S5T6U7"
 	linkID := "01J8X4LINK0N1P2Q3R4S5T6U7"
