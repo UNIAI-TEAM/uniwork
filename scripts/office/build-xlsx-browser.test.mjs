@@ -66,6 +66,7 @@ test('the built xlsx artifact carries its contract symbols', () => {
       'export const UNIWORK_XLSX_VISUAL_READ_BUDGET = true',
       'export function applyHostNumfmtLocale(',
       'export function noteFormulaStreamChunk(runtime: UniverRuntime): void',
+      'fn fill_col_widths(source: Vec<u8>) -> Vec<u8>',
     ],
     'the build records the enforced patched symbols',
   );
