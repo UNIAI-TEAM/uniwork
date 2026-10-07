@@ -35,6 +35,19 @@ describe("usePptxPrint", () => {
     await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
   });
 
+  it("names the print job after the document title, and the generic text only without one", async () => {
+    const print = vi.fn(async (_request: { html: string; title: string }) => ({ outcome: "printed" as const }));
+    const { result, rerender } = renderHook(({ title }: { title?: string }) => usePptxPrint({ port: { print }, renderer, slides: [{}], flush: () => null, onFailed: vi.fn(), rasterize: null, ...(title !== undefined ? { title } : {}) }), { initialProps: { title: "Quarterly deck.pptx" } as { title?: string } });
+    act(() => result.current.run());
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    expect(print.mock.calls[0]![0]).toEqual(expect.objectContaining({ title: "Quarterly deck.pptx" }));
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    rerender({});
+    act(() => result.current.run());
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(2));
+    expect(print.mock.calls[1]![0]).toEqual(expect.objectContaining({ title: "Print presentation" }));
+  });
+
   it("reports a copy past the print cap with the shared too-large message", async () => {
     const onFailed = vi.fn();
     const { result } = renderHook(() => usePptxPrint({

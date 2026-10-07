@@ -196,6 +196,8 @@ it("binds every desktop pptx edit port and advances the revision on a committed 
   // hands the view a document menu where its contributed Print entry shows.
   const printPort = props.printPort as { print(request: { html: string; title: string }): Promise<unknown> };
   expect(typeof printPort?.print).toBe("function");
+  // The print job is named after the deck, the same title the header shows.
+  expect(props.printTitle).toBe("Deck.pptx");
   expect(props.actions).toBeTruthy();
   expect(props).not.toHaveProperty("onFind");
   expect(props.deck).toMatchObject({ revision: 0 });

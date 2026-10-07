@@ -257,6 +257,7 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     onDeleteElements={deleteElements}
     // Main prints the deck's copy from its own hidden window (desktop:print-document).
     printPort={print.port}
+    printTitle={title}
     saveCoordinator={session.coordinator}
     saveDestination={session.localHandle ? "local" : "cloud"}
     breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]}
