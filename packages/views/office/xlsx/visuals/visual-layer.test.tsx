@@ -262,7 +262,7 @@ describe("XlsxVisualLayer", () => {
       expect(props.onSelect).toHaveBeenLastCalledWith(null);
       const outside = document.createElement("button");
       document.body.append(outside);
-      props.onSelect.mockClear();
+      vi.mocked(props.onSelect).mockClear();
       act(() => item.focus());
       act(() => outside.focus());
       expect(props.onSelect).not.toHaveBeenCalledWith(null);
