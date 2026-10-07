@@ -35,7 +35,7 @@ export interface PrintHostOptions<Owner extends PrintHostOwner> {
   senderWindow(): Owner | null | undefined;
   /** `new BrowserWindow(options)`: options are applied verbatim. `parent` is set
    * only off Windows, and only when the sender window is still alive. */
-  createWindow(options: PrintWindowOptions & { icon?: string; parent?: Owner }): PrintWindow & { destroy(): void };
+  createWindow(options: PrintWindowOptions & { icon?: string; parent?: Owner }): PrintWindow & { destroy(): void; once(event: "closed", listener: () => void): unknown };
   /** Registers the callback that runs when the app window closed or the app is
    * about to quit (electron-main: `window.once("closed")`, `app.once("before-quit")`).
    * It may run more than once. */
@@ -74,8 +74,9 @@ export async function createPrintHost<Owner extends PrintHostOwner>(options: Pri
     createWindow: (windowOptions, owner) => {
       const branded = { ...windowOptions, title: printWindowTitle(windowOptions.title), icon: brandIconPath(platform, options.distDirectory) };
       const created = options.createWindow(owner && platform !== "win32" ? { ...branded, parent: owner } : branded);
-      for (const window of live) if (window.isDestroyed()) live.delete(window);
       live.add(created);
+      // A window leaves the set the moment it closes, not at the next print.
+      created.once("closed", () => { live.delete(created); });
       return created;
     },
     writeFile: createPrintFileWriter(printRoot),

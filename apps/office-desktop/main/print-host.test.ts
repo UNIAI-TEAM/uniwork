@@ -14,14 +14,17 @@ function owner(destroyed = false) {
   return { on: vi.fn(), removeListener: vi.fn(), isDestroyed: () => destroyed } satisfies PrintHostOwner;
 }
 
-function printWindow(): PrintWindow & { destroy: Mock<() => void> } {
+function printWindow(): PrintWindow & { destroy: Mock<() => void>; emitClosed(): void } {
   let destroyed = false;
+  const closedListeners: Array<() => void> = [];
   return {
     webContents: { setWindowOpenHandler: vi.fn(), on: vi.fn(), print: vi.fn((_options, callback) => callback(true, "")) },
     loadFile: vi.fn(async () => undefined),
     isDestroyed: () => destroyed,
     close: vi.fn(),
     destroy: vi.fn<() => void>(() => { destroyed = true; }),
+    once: vi.fn((_event: "closed", listener: () => void) => { closedListeners.push(listener); }),
+    emitClosed: () => { for (const listener of closedListeners) listener(); },
   };
 }
 
@@ -100,6 +103,19 @@ describe("print host wiring", () => {
     expect(created[0]!.destroy).toHaveBeenCalledTimes(1); // the release closed it (the fake maps close to destroy)
     h.shutdown();
     expect(created[0]!.destroy).toHaveBeenCalledTimes(1);
+  });
+  it("forgets a print window once it has closed, so a finished job is not held until the next print", async () => {
+    const h = await setup(() => owner());
+    const created: Array<ReturnType<typeof printWindow>> = [];
+    h.createWindow.mockImplementation(() => { const next = printWindow(); next.webContents.print = vi.fn(); created.push(next); return next; });
+    const handler = (await createPrintHost({ tempDirectory: h.temp, partitionSession: h.partitionSession, senderWindow: h.sender, createWindow: h.createWindow, registerShutdown: h.registerShutdown, distDirectory: DIST, platform: "win32" }))["desktop:print-document"];
+    void handler(request);
+    await vi.waitFor(() => expect(created[0]!.webContents.print).toHaveBeenCalledTimes(1));
+    expect(created[0]!.once).toHaveBeenCalledWith("closed", expect.any(Function));
+    // The window reports closed while nothing else (no second print) ran: shutdown has nothing left to destroy.
+    created[0]!.emitClosed();
+    h.shutdown();
+    expect(created[0]!.destroy).not.toHaveBeenCalled();
   });
   it("uses the unparented focus rule on Windows and the immediate one elsewhere", async () => {
     for (const [platform, ends] of [["win32", true], ["darwin", false]] as const) {
