@@ -63,6 +63,11 @@ export function useHeaderActionsSlotFilled(): boolean {
   return useContext(EntriesContext).some(([, entry]) => entry.actions != null);
 }
 
+/** True when some surface currently contributes overflow-menu items. */
+export function useHeaderActionsMenuFilled(): boolean {
+  return useContext(EntriesContext).some(([, entry]) => entry.menuItems != null);
+}
+
 /** Hands `actions` / `menuItems` to the nearest page header; renders nothing. */
 export function HeaderActionsFill({ actions, menuItems }: HeaderActionsEntry) {
   const registry = useContext(RegistryContext);

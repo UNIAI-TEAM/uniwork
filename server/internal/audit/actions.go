@@ -197,6 +197,9 @@ const (
 	ActionPlanUpdated             = "plan.updated"
 	ActionPlanFeatureUpdated      = "plan.feature_updated"
 
+	// An operator closed a desktop device session family on the owner's behalf.
+	ActionDesktopDeviceRevoked = "desktop_device.revoked"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"

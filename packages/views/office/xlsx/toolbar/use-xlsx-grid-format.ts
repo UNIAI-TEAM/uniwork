@@ -38,6 +38,20 @@ export function useXlsxGridFormat(gridRef: RefObject<XlsxGridHandle | null>): {
       });
       return result;
     },
+    readRuleSets: (sheetId, family) => gridRef.current?.readRuleSets?.(sheetId, family) ?? null,
+    executeAsOneStep: (steps, options) => {
+      const grid = gridRef.current;
+      if (!grid?.executeCommandsAsOneStep) return Promise.resolve(false);
+      // The grid reports either a boolean or (paste-x06) how many steps
+      // completed; only a fully completed batch counts as run.
+      const result = Promise.resolve(grid.executeCommandsAsOneStep(steps, options?.atomic ? { rollback: true } : undefined) as Promise<unknown>)
+        .then((outcome) => (typeof outcome === "number" ? outcome === steps.length : outcome === true))
+        .catch(() => false);
+      void result.then((executed) => {
+        if (executed) refreshFormatState();
+      });
+      return result;
+    },
   }), [gridRef, refreshFormatState]);
   return { formatState, refreshFormatState, commands };
 }

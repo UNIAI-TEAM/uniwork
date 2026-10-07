@@ -1,5 +1,6 @@
 "use client";
 
+import type { OfficePrintPort } from "../print";
 import type { OfficeEditorLoader, OfficeEditorRendererProps } from "../editor-slot";
 import { PdfEditor } from "./pdf-editor";
 import { PdfErrorState } from "./pdf-error-state";
@@ -12,6 +13,8 @@ export interface PdfEditorSlotConfig {
   capability?: PdfCapability;
   title?: string;
   onOpen?: (outcome: PdfOpenOutcome) => void;
+  /** The host print path handed to the editor; see `PdfEditorProps.printPort`. */
+  printPort?: OfficePrintPort;
 }
 
 function missingHandleFailure(documentKey: string): PdfOpenFailure {
@@ -24,7 +27,7 @@ export function createPdfEditorLoader(config: PdfEditorSlotConfig): OfficeEditor
     return {
       default: ({ editorHandle }: OfficeEditorRendererProps) => {
         if (!editorHandle) return <PdfErrorState failure={missingHandleFailure(config.documentKey)} />;
-        return <PdfEditor documentKey={config.documentKey} editor={editorHandle as PdfEditorHandle} open={config.open} coordinator={config.coordinator} capability={config.capability} title={config.title} onOpen={config.onOpen} />;
+        return <PdfEditor documentKey={config.documentKey} editor={editorHandle as PdfEditorHandle} open={config.open} coordinator={config.coordinator} capability={config.capability} title={config.title} onOpen={config.onOpen} printPort={config.printPort} />;
       },
     };
   };

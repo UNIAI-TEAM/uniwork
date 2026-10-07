@@ -38,11 +38,22 @@ export const UNIVER_STYLE_FILES = [
   '@univerjs/preset-sheets-table/lib/index.css',
 ];
 
-/** Symbols each applied patch must have introduced in the scratch tree. */
-const PATCHED_SYMBOLS = [
+/** Symbols each applied patch must have introduced in the scratch tree. Each
+ *  one is absent from the unpatched upstream source, so a lost hunk fails the
+ *  build (a parameter line the gateway already declares elsewhere would not). */
+export const PATCHED_SYMBOLS = [
   { patch: '0001', file: 'packages/xlsx-gateway/src/gateway/xlsx-styles.ts', symbol: 'xfIdentity' },
   { patch: '0002', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'lazilyLoadedXmls' },
-  { patch: '0008', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'tableAdditions: readonly SheetTableAddition[] = [],' },
+  { patch: '0008', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: '    tableAdditions,' },
+  { patch: '0010', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: '    visualAdditions,' },
+  { patch: '0010', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export const UNIWORK_XLSX_VISUAL_ADDITIONS = true' },
+  { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: '    visualEdits,' },
+  { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export const UNIWORK_XLSX_VISUAL_EDITS = true' },
+  { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export async function readEntriesBase64(' },
+  { patch: '0013', file: 'packages/xlsx-gateway/src/gateway/xlsx-gateway.ts', symbol: 'export const UNIWORK_XLSX_VISUAL_READ_BUDGET = true' },
+  { patch: '0015', file: 'apps/sheets/src/renderer/numfmt-fix.ts', symbol: 'export function applyHostNumfmtLocale(' },
+  { patch: '0016', file: 'apps/sheets/src/renderer/formula-stream-hold.ts', symbol: 'export function noteFormulaStreamChunk(runtime: UniverRuntime): void' },
+  { patch: '0017', file: 'apps/sheets/native/xlsx-engine/src/recalc.rs', symbol: 'fn fill_col_widths(source: Vec<u8>) -> Vec<u8>' },
 ];
 
 const FORBIDDEN_EXTERNAL = /^(?!react(?:\/|$)|react-dom(?:\/|$)|i18next$).+$/;

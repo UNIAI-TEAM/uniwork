@@ -6,7 +6,7 @@ import { mkdir, copyFile, writeFile, rm, readFile } from "node:fs/promises";
 import { dirname as pathDirname, join as pathJoin } from "node:path";
 import { deriveBuildMetadata, readDeploymentProfileFromEnv, writeDeploymentProfile } from "./deployment-profile.mjs";
 import { compileRendererStyles } from "./compile-styles.mjs";
-import { missingGatewayError, resolveXlsxAssetSources, stageXlsxAssets } from "./xlsx-assets.mjs";
+import { missingGatewayError, missingSidecarWarning, prepareXlsxAssets } from "./xlsx-assets.mjs";
 
 const app = join(dirname(fileURLToPath(import.meta.url)), "..");
 const identity = JSON.parse(await readFile(join(app, "identity.json"), "utf8"));
@@ -31,6 +31,10 @@ const buildMetafiles = [];
 // shim sees a defined `require`.
 const mainRequireBanner = 'import { createRequire as __uniworkCreateRequire } from "node:module";\nconst require = __uniworkCreateRequire(import.meta.url);';
 buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtension: { ".js": ".mjs" }, platform: "node", banner: { js: mainRequireBanner }, entryPoints: { "main/index": join(app, "electron-main.ts") }, outdir: dist })).metafile);
+// The engine host utilityProcess (xlsx gateway + pdfium run here, not in main,
+// so a heap OOM cannot take the window host down). Same ESM + require shim as
+// main; dist/main/pdf-assets sits beside it, which is where pdfium looks.
+buildMetafiles.push((await esbuild.build({ ...common, format: "esm", outExtension: { ".js": ".mjs" }, platform: "node", banner: { js: mainRequireBanner }, entryPoints: { "main/engine-host": join(app, "main/engine-host/child.ts") }, outdir: dist })).metafile);
 // Electron sandboxed preloads run as plain CommonJS. Keep this artifact
 // loadable under the pinned sandbox contract; native wiring may still inject
 // Electron through the adapter seam without exposing it to the renderer.
@@ -40,6 +44,11 @@ buildMetafiles.push((await esbuild.build({ ...common, format: "cjs", outExtensio
 const katexFontLoaders = { ".woff2": "dataurl", ".woff": "empty", ".ttf": "empty" };
 buildMetafiles.push((await esbuild.build({ ...common, loader: katexFontLoaders, format: "esm", outExtension: { ".js": ".mjs" }, platform: "browser", jsx: "automatic", entryPoints: { "renderer/index": join(app, "renderer/index.tsx") }, outdir: dist })).metafile);
 await copyFile(join(app, "renderer/index.html"), join(dist, "renderer/index.html"));
+// Window and dock icon (main/branding.ts brandIconPath): the .ico for Windows,
+// the 512 png for Linux and the macOS dev dock.
+await mkdir(join(dist, "icons"), { recursive: true });
+await copyFile(join(app, "build", "icon.ico"), join(dist, "icons", "icon.ico"));
+await copyFile(join(app, "build", "icons", "512x512.png"), join(dist, "icons", "icon.png"));
 await mkdir(join(dist, "renderer"), { recursive: true });
 await compileRendererStyles(join(app, "renderer/styles.css"), join(dist, "renderer/styles.css"));
 if (deploymentProfile) await writeDeploymentProfile(join(dist, "deployment-profile.json"), deploymentProfile);
@@ -58,19 +67,19 @@ for (const font of ["NotoSans-Regular.ttf", "NotoSans-Bold.ttf"]) {
 }
 // The local .xlsx lane runs the bundled gateway in MAIN. package.mjs stages it
 // for a packaged build; an unpackaged run (electron <app>) resolves the same
-// dist/xlsx-assets dir, so stage it here too. The gateway comes from
-// scripts/office/build-upstream.mjs (or OFFICE_DESKTOP_XLSX_ASSETS); a dev
-// build without it still builds, says so, and every local .xlsx open answers
-// the typed engine_incompatible failure instead of a fake engine.
+// dist/xlsx-assets dir, so stage it here too. When the gateway or the recalc
+// sidecar is missing and cargo is available, scripts/office/build-upstream.mjs
+// --with-native builds them first; without cargo a dev build still builds and
+// says so. OFFICE_DESKTOP_SKIP_NATIVE_BUILD=1 skips that automatic build.
+// OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1 turns a missing sidecar (or a failed
+// native build) into a failure (the installer CI job sets it).
 const repositoryRoot = join(app, "..", "..");
-const xlsxSources = resolveXlsxAssetSources({ repositoryRoot });
-if (xlsxSources.gateway) {
-  const staged = await stageXlsxAssets({ repositoryRoot, distDirectory: dist });
-  // Without the sidecar a local .xlsx opens and formula-free saves work, but
-  // every save of a workbook with formulas is refused (xlsx_recalc_unavailable).
-  if (!staged.sidecar) process.stderr.write("office-desktop: no xlsx recalc sidecar staged - saving a local .xlsx that contains formulas will be refused. Build it with node scripts/office/build-upstream.mjs --with-native, or point OFFICE_DESKTOP_XLSX_ASSETS at a dir holding xlsx-gateway.mjs + the sidecar.\n");
-}
-else process.stderr.write(`office-desktop: local .xlsx open is unavailable in this build - ${missingGatewayError(xlsxSources).message}\n`);
+const { attempt, staged } = await prepareXlsxAssets({ repositoryRoot, distDirectory: dist, requireGateway: false });
+// Without the sidecar a local .xlsx opens and formula-free saves work, but
+// every save of a workbook with formulas is refused (xlsx_recalc_unavailable).
+if (staged && !staged.sidecar) process.stderr.write(`${missingSidecarWarning({ attempt })}\n`);
+if (!staged) process.stderr.write(`office-desktop: local .xlsx open is unavailable in this build - ${missingGatewayError(attempt.sources).message}
+`);
 await writeFile(join(dist, "BUILD-METADATA.json"), JSON.stringify({
   product: buildMetadata.identity.product,
   appId: buildMetadata.identity.appId,

@@ -212,7 +212,9 @@ export function serializeDocxInline(nodes: readonly JSONContent[] | undefined): 
     switch (node.type) {
       case "docHardBreak":
       case "hardBreak":
-        parts.push("<br>");
+        // A Word page break (w:br w:type="page") becomes a block that forces
+        // the next content onto a new sheet when the file is printed.
+        parts.push(node.attrs?.pageBreak === true ? '<span class="docx-page-break"></span>' : "<br>");
         break;
       case "docInlineImage":
         parts.push(serializeInlineImage(node));
@@ -300,8 +302,9 @@ interface ListLevel {
   items: ListItemNode[];
 }
 
-/** Consecutive docListItem siblings grouped into ul/ol, nested by ilvl. */
-function serializeBlockNodes(nodes: readonly JSONContent[]): string {
+/** Consecutive docListItem siblings grouped into ul/ol, nested by ilvl. The
+ * print copy (./docx-print) serializes each section's blocks through this. */
+export function serializeBlockNodes(nodes: readonly JSONContent[]): string {
   const parts: string[] = [];
   const levels: Array<ListLevel | null> = [];
   const currentItems: Array<ListItemNode | null> = [];
@@ -366,6 +369,7 @@ const EXPORT_BASE_CSS = [
   "td>p,th>p{margin:0}",
   "ruby rt{font-size:0.6em}",
   "sup,sub{font-size:0.75em}",
+  ".docx-page-break{display:block;break-after:page}",
   "@media print{body{padding:0;background:none}.docx-export{max-width:none}}",
 ].join("\n");
 

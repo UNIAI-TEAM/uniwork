@@ -10,6 +10,13 @@ import { Annotation, Compartment, EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, placeholder as cmPlaceholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 
+/** The caret and selection in document offsets; `head` is the moving end (the caret). */
+export interface HtmlSourceSelection {
+  from: number;
+  to: number;
+  head: number;
+}
+
 export interface HtmlSourceEditorProps {
   value: string;
   readOnly?: boolean;
@@ -17,6 +24,8 @@ export interface HtmlSourceEditorProps {
   onChange(next: string): void;
   /** Fired alongside onChange when the edit is not part of a composition. */
   onCheckpoint?(): void;
+  /** Fired when the caret or selection moves (and after edits), for the status row. */
+  onSelectionChange?(selection: HtmlSourceSelection): void;
   className?: string;
   ariaLabel?: string;
   /** Optional text shown when the document is empty. */
@@ -82,11 +91,13 @@ function ariaLabelExtension(ariaLabel?: string) {
   return EditorView.contentAttributes.of(ariaLabel ? { "aria-label": ariaLabel } : {});
 }
 
-export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoint, className, ariaLabel, placeholder }: HtmlSourceEditorProps): ReactElement {
+export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoint, onSelectionChange, className, ariaLabel, placeholder }: HtmlSourceEditorProps): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onCheckpointRef = useRef(onCheckpoint);
+  const onSelectionRef = useRef(onSelectionChange);
+  onSelectionRef.current = onSelectionChange;
   const composingRef = useRef(false);
   const composedChangeRef = useRef(false);
   onChangeRef.current = onChange;
@@ -128,6 +139,10 @@ export function HtmlSourceEditor({ value, readOnly = false, onChange, onCheckpoi
           readOnlyCompartment.of(readOnlyExtensions(readOnly)),
           ariaLabelCompartment.of(ariaLabelExtension(ariaLabel)),
           EditorView.updateListener.of((update) => {
+            if (update.selectionSet || update.docChanged) {
+              const { from, to, head } = update.state.selection.main;
+              onSelectionRef.current?.({ from, to, head });
+            }
             if (!update.docChanged) return;
             if (update.transactions.some((tr) => tr.annotation(externalSync))) return;
             // Skip edits that land while an IME composition is live; they are

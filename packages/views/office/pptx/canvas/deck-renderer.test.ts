@@ -110,11 +110,27 @@ describe("createPptxDeckRenderer", () => {
     expect(markup).toContain('<polygon points="0 0 10 0 5 5"');
   });
 
+  it("builds slide markup with the canvas SVG options, and the thumbnail is that markup as a data URL", () => {
+    const module: PptxRendererModule = {
+      ...fakeModule(),
+      buildRenderSlide: () => slide([shapeNode({ fill: { kind: "pattern", preset: "pct50", fg: "#111111", bg: "#eeeeee", cellPx: 8 } })]),
+      patternGrid: () => [[true]],
+    };
+    const renderer = createPptxDeckRenderer(module, input, { idPrefix: "t", palette });
+    const built = renderer.buildSlideMarkup(0, 120, "Slide 1");
+    expect(built).toMatchObject({ widthPx: expect.any(Number), heightPx: expect.any(Number) });
+    expect(built?.markup).toContain("<pattern");
+    expect(built?.markup).toContain("<title>Slide 1</title>");
+    expect(renderer.buildThumbnail(0, 120, "Slide 1")).toBe(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(built!.markup)}`);
+    expect(renderer.buildSlideMarkup(7, 120)).toBeNull();
+  });
+
   it("degrades a slide the artifact cannot build instead of throwing through the editor", () => {
     const module: PptxRendererModule = { ...fakeModule(), buildRenderSlide: () => { throw new Error("bad slide"); } };
     const renderer = createPptxDeckRenderer(module, input, { idPrefix: "t", palette });
     expect(renderer.buildSlide(0, 320)).toBeNull();
     expect(renderer.buildThumbnail(0, 320)).toBeNull();
+    expect(renderer.buildSlideMarkup(0, 320)).toBeNull();
   });
 });
 

@@ -2,7 +2,9 @@ import { readPdfFormFields, readPdfNotes } from "@uniwork/office-engine/browser"
 import { bridgePdfOperations, quadsForRange, toNoteThreads, type PdfCanvasPage, type PdfEditOperation, type PdfEditorHandle, type PdfOpenOutcome, type PdfPageRenderService, type PdfRenderPageRequest, type PdfRenderResult, type PdfSelectionPort, type PdfSnapshot } from "@uniwork/views/office/pdf";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopIpcRequest } from "../../shared/ipc";
+import { createPdfEngineSession } from "./pdf-engine-session";
 import type { DesktopSurfaceSettings } from "./surface";
+import { incomingBytes, typedMemoryFailure } from "./bytes";
 
 /** One page's size in PDF points, in page order; zero when pdfium could not
  * read it. */
@@ -30,11 +32,14 @@ type EngineResponse = {
   probe?: { pageCount: number };
   /** Real per-page sizes from the open probe (U2). */
   pageSizes?: PageSize[];
+  /** The retained document an `open` with `retain` answers; renders and text
+   * reads name it instead of sending the bytes again. */
+  pdfHandle?: string;
   /** Rendered page pixels, base64 PNG (render). */
   pngBase64?: string;
   width?: number;
   height?: number;
-  dataBase64?: string;
+  data?: Uint8Array;
   /** Text layers of the requested page range (text read); `charBoxes` is empty unless
    * the request asked for geometry. */
   pageCount?: number;
@@ -44,17 +49,6 @@ type EngineResponse = {
   warnings?: readonly { code: string; detail?: string }[];
   error?: { kind?: string; status?: string };
 };
-
-function decodeBase64(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
-function encodeBase64(value: Uint8Array): string {
-  let binary = "";
-  for (let offset = 0; offset < value.length; offset += 0x8000) binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
 
 /** Pages one text-only read covers; the engine caps a range at 32. */
 const TEXT_CHUNK_PAGES = 16;
@@ -71,6 +65,18 @@ function pageSizeAt(sizes: readonly PageSize[], index: number): PageSize {
 
 function abortError(): DOMException {
   return new DOMException("The pdf render was aborted", "AbortError");
+}
+
+/** Settle with `pending`, or reject with AbortError as soon as `signal`
+ * aborts: an engine render in flight cannot be stopped, but its caller (a
+ * print run walking every page) must not wait for it. */
+function untilAborted<T>(pending: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return pending;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(abortError());
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
 }
 
 /** The op name each engine warning detail begins with; the detail prefixes the
@@ -110,7 +116,31 @@ function passwordFailureClass(error: EngineResponse["error"]): "password_require
   return error.status === "wrong" ? "wrong_password" : "password_required";
 }
 
-export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEditorHandle<Uint8Array> & {
+/** The undo/redo stacks keep the newest byte snapshots until this budget is
+ * spent; the web lane uses the same budget. */
+const UNDO_BYTE_BUDGET = 256 * 1024 * 1024;
+
+/** Push a snapshot and drop the oldest entries past the budget, always keeping
+ * at least the newest one. */
+function pushBounded(stack: Uint8Array[], entry: Uint8Array, budget: number): void {
+  stack.push(entry);
+  let total = stack.reduce((sum, item) => sum + item.byteLength, 0);
+  while (total > budget && stack.length > 1) {
+    const dropped = stack.shift();
+    if (dropped) total -= dropped.byteLength;
+  }
+}
+
+/** A random id for one surface instance, so two surfaces of one document
+ * (draft recovery builds the new one before disposing the old) never replace
+ * each other's retained engine document. */
+function newSurfaceId(): string {
+  const random = crypto.getRandomValues(new Uint8Array(16));
+  return `pdfs_${Array.from(random, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** `undoByteBudget` is a test seam; production uses UNDO_BYTE_BUDGET. */
+export function createDesktopPdfSurface(settings: DesktopSurfaceSettings, undoByteBudget = UNDO_BYTE_BUDGET): PdfEditorHandle<Uint8Array> & {
   format: DesktopDocumentFormat;
   open(signal?: AbortSignal, password?: string): Promise<void>;
   openOutcome(): PdfOpenOutcome | null;
@@ -119,6 +149,9 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
   selection: PdfSelectionPort;
   edit(operations: readonly unknown[]): Promise<void>;
   submitEngineOperations(operations: readonly unknown[]): Promise<{ skipped: readonly { op: string; reason: string }[] }>;
+  subscribe(listener: () => void): () => void;
+  undo(): void;
+  redo(): void;
 } {
   let bytes: Uint8Array = Uint8Array.from([]);
   let generation = settings.generation;
@@ -129,29 +162,62 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
   let password: string | undefined;
   let disposed = false;
   const listeners = new Set<(generation: number) => void>();
+  /** Byte-change listeners of the shared editor (edit, undo, redo): it refreshes
+   * the canvas and re-marks dirty with the new generation (G-1). */
+  const changeListeners = new Set<() => void>();
+  /** Pre-edit bytes for undo, and the bytes an undo stepped away from for redo.
+   * Open and dispose reset both; a new edit clears redo. */
+  let undoStack: Uint8Array[] = [];
+  let redoStack: Uint8Array[] = [];
+  /** Serialises edits and undo/redo so the byte stacks never interleave. */
+  let queue: Promise<unknown> = Promise.resolve();
+  const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
+    const run = queue.then(task, task);
+    queue = run.catch(() => undefined);
+    return run;
+  };
   let selected: Parameters<NonNullable<PdfSelectionPort["setSelection"]>>[0] = null;
   const selection: PdfSelectionPort = {
     getSelection: () => selected,
     setSelection: (next) => { selected = next ?? null; },
     subscribe: (listener) => { listener(selected); return () => undefined; },
   };
-  const callEngine = async (operation: "open" | "edit" | "render" | "text", args: Record<string, unknown>): Promise<EngineResponse> => {
-    const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args };
-    return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse;
+  const surfaceId = newSurfaceId();
+  const callEngine = async (operation: "open" | "edit" | "render" | "text" | "close", args: Record<string, unknown>): Promise<EngineResponse> => {
+    const payload: DesktopIpcRequest<"desktop:engine-call"> = { sessionGeneration: settings.sessionGeneration, operation, handle: settings.documentId, args: { ...args, surface: surfaceId } };
+    // A crashed engine host (heap OOM) reaches here as a bare invoke rejection;
+    // it leaves as the typed file_insufficient_memory error.
+    try { return await settings.bridge.call("desktop:engine-call", payload) as EngineResponse; }
+    catch (error) { throw typedMemoryFailure(error); }
   };
+
+  /** The engine keeps the opened bytes: open and every byte swap send the
+   * document once, and a render or text read sends only its request. A stale
+   * handle (the engine evicted it) re-sends the current bytes once, and only
+   * then does the surface hand over the password again. */
+  const engineSession = createPdfEngineSession({
+    reopen: async () => {
+      const result = await callEngine("open", retainedOpenArgs(password));
+      if (!result.ok || !result.pdfHandle) throw new Error("pdf_reopen_failed");
+      return result.pdfHandle;
+    },
+    close: (pdfHandle) => callEngine("close", { pdfHandle }),
+  });
+  /** An open of the current bytes the engine keeps; the password goes with
+   * this one transfer and stays engine-side for the handle's renders and for
+   * every re-probe that names the handle. */
+  function retainedOpenArgs(withPassword: string | undefined): Record<string, unknown> {
+    const args: Record<string, unknown> = { data: bytes, retain: true };
+    if (withPassword !== undefined) args.password = withPassword;
+    return args;
+  }
 
   /** Rendered pages, keyed by page@scale@generation. An edit bumps the
    * generation, so a stale key never serves the pre-edit pixels; a failed
-   * render is dropped from the cache instead of poisoning it. */
+   * render is dropped from the cache instead of poisoning it. An uncached
+   * request (print) reads an entry the view holds but never adds one. */
   let cache = new Map<string, Promise<PdfRenderResult>>();
   const clearCache = (): void => { cache = new Map(); };
-
-  /** The document's base64, memoized per generation so a search or a render burst
-   * does not re-encode the whole file for every engine call. Every place that
-   * swaps `bytes` (open, edit, dispose) drops it. */
-  let encoded: string | null = null;
-  const bytesBase64 = (): string => { encoded ??= encodeBase64(bytes); return encoded; };
-  const clearEncoded = (): void => { encoded = null; };
 
   /** The engine's text reads within one generation: text-only chunks of
    * `TEXT_CHUNK_PAGES` pages keyed by chunk start, and one-page geometry reads
@@ -169,11 +235,10 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
     const map = geometry ? caches.geometry : caches.text;
     const cached = map.get(start);
     if (cached) return cached;
-    const args: Record<string, unknown> = { dataBase64: bytesBase64(), pageIndex: start, pageLimit: geometry ? 1 : TEXT_CHUNK_PAGES, geometry };
-    if (password !== undefined) args.password = password;
+    const args: Record<string, unknown> = { pageIndex: start, pageLimit: geometry ? 1 : TEXT_CHUNK_PAGES, geometry };
     const pending = (async (): Promise<TextRead> => {
       try {
-        const result = await callEngine("text", args);
+        const result = await engineSession.run((pdfHandle) => callEngine("text", { ...args, pdfHandle }));
         if (result.ok && Array.isArray(result.pages)) return { status: "ok", pages: result.pages };
         return result.error?.kind === "password" ? { status: "wall" } : { status: "failed" };
       } catch {
@@ -197,17 +262,22 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
       const key = `${request.pageNumber}:${request.scale}:${generation}`;
       let pending = cache.get(key);
       if (!pending) {
-        const args: Record<string, unknown> = { dataBase64: bytesBase64(), pageIndex: index, scale: request.scale };
-        if (password !== undefined) args.password = password;
-        pending = (async () => {
-          const result = await callEngine("render", args);
+        const args: Record<string, unknown> = { pageIndex: index, scale: request.scale };
+        const created = (async () => {
+          const result = await engineSession.run((pdfHandle) => callEngine("render", { ...args, pdfHandle }));
           if (!result.ok || !result.pngBase64) throw new Error("pdf_render_failed");
           return { src: `data:image/png;base64,${result.pngBase64}`, width: result.width ?? 0, height: result.height ?? 0 };
         })();
-        cache.set(key, pending);
-        pending.catch(() => { if (cache.get(key) === pending) cache.delete(key); });
+        pending = created;
+        if (request.cache !== false) {
+          cache.set(key, created);
+          created.catch(() => { if (cache.get(key) === created) cache.delete(key); });
+        } else {
+          // Nobody else awaits an uncached render: an abandoned one must not reject unhandled.
+          created.catch(() => undefined);
+        }
       }
-      const result = await pending;
+      const result = await untilAborted(pending, request.signal);
       if (request.signal?.aborted) throw abortError();
       return result;
     },
@@ -228,33 +298,74 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
    * boxes, or the canvas draws a phantom page the engine then refuses to render.
    * A failed re-probe keeps the previous geometry and never fails the edit. */
   const refreshGeometry = async (): Promise<void> => {
-    const args: Record<string, unknown> = { dataBase64: bytesBase64() };
-    if (password !== undefined) args.password = password;
     try {
-      const result = await callEngine("open", args);
+      // Name the live handle: the engine re-keys the new bytes to the password
+      // it already holds, so a byte swap never sends the password again.
+      const live = engineSession.current();
+      const result = await callEngine("open", live ? { data: bytes, retain: true, pdfHandle: live } : retainedOpenArgs(password));
+      // The engine now holds the new bytes; without a handle the next render
+      // re-sends them instead of drawing the pre-edit document.
+      engineSession.adopt(result.ok ? result.pdfHandle : undefined);
       if (result.ok && result.probe) applyGeometry(result.probe, result.pageSizes ?? []);
     } catch {
       // Keep the pre-edit geometry; the edit itself already succeeded.
+      engineSession.adopt(undefined);
     }
+  };
+
+  /** Make `next` the document: re-probe the page geometry, bump the generation,
+   * drop every cached page and text read, and tell both listener sets. Edits,
+   * undo and redo all swap through here. `commit` moves the history stacks
+   * before the listeners run, so a listener reading canUndo/canRedo sees the
+   * stacks of the new bytes. A surface disposed during the await keeps its
+   * reset state: nothing is committed and false comes back. */
+  const swapBytes = async (next: Uint8Array, commit: () => void): Promise<boolean> => {
+    if (disposed) return false;
+    bytes = next;
+    await refreshGeometry();
+    if (disposed) return false;
+    generation += 1;
+    commit();
+    // The new bytes paint differently: drop every cached page and let the
+    // canvas re-request it through the new generation key.
+    clearCache();
+    clearTextCache();
+    for (const listener of listeners) listener(generation);
+    for (const listener of [...changeListeners]) listener();
+    return true;
   };
 
   /** Apply one batch of engine envelopes, swap the bytes, bump the generation and
    * report the skips. Shared by the snake_case `edit` path and the camelCase
    * panel path so both keep one dirty/refresh discipline. */
-  const applyEngineEdits = async (edits: readonly unknown[]): Promise<{ skipped: { op: string; reason: string }[] }> => {
+  const applyEngineEdits = (edits: readonly unknown[]): Promise<{ skipped: { op: string; reason: string }[] }> => enqueue(async () => {
     if (settings.readOnly) throw new Error("pdf_readonly");
-    const result = await callEngine("edit", { dataBase64: bytesBase64(), edits: [...edits] });
-    if (!result.ok || !result.dataBase64) throw new Error("pdf_edit_failed");
-    bytes = Uint8Array.from(decodeBase64(result.dataBase64));
-    clearEncoded();
-    await refreshGeometry();
-    generation += 1;
-    // The edited bytes paint differently: drop every cached page and let the
-    // canvas re-request it through the new generation key.
-    clearCache();
-    clearTextCache();
-    for (const listener of listeners) listener(generation);
+    const before = bytes;
+    const result = await callEngine("edit", { data: bytes, edits: [...edits] });
+    if (!result.ok || !result.data) throw new Error("pdf_edit_failed");
+    const applied = await swapBytes(incomingBytes(result.data), () => {
+      pushBounded(undoStack, before, undoByteBudget);
+      redoStack = [];
+    });
+    if (!applied) throw new Error("pdf_surface_disposed");
     return { skipped: skippedFromWarnings(result.warnings) };
+  });
+
+  /** One history step with the web lane's semantics: an empty stack is a
+   * no-op; otherwise the stack's newest bytes become the document and the
+   * current bytes move onto the other stack. */
+  const step = (from: () => Uint8Array[], to: () => Uint8Array[]): void => {
+    if (settings.readOnly) return;
+    void enqueue(async () => {
+      const source = from();
+      const target = source[source.length - 1];
+      if (!target || disposed) return;
+      const current = bytes;
+      await swapBytes(target, () => {
+        source.pop();
+        pushBounded(to(), current, undoByteBudget);
+      });
+    }).catch(() => undefined);
   };
 
   const surface = {
@@ -262,12 +373,12 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
     async open(_signal?: AbortSignal, nextPassword?: string) {
       if (disposed) throw new Error("pdf_surface_disposed");
       bytes = Uint8Array.from(await settings.readBytes());
-      clearEncoded();
-      const args: Record<string, unknown> = { dataBase64: bytesBase64() };
-      if (nextPassword !== undefined) args.password = nextPassword;
-      const result = await callEngine("open", args);
+      const result = await callEngine("open", retainedOpenArgs(nextPassword));
+      engineSession.adopt(result.ok ? result.pdfHandle : undefined);
       if (result.ok && result.probe) {
         password = nextPassword;
+        undoStack = [];
+        redoStack = [];
         clearCache();
         clearTextCache();
         applyGeometry(result.probe, result.pageSizes ?? []);
@@ -337,25 +448,31 @@ export function createDesktopPdfSurface(settings: DesktopSurfaceSettings): PdfEd
       return hits;
     },
     /** Form fields of the current bytes, read with the browser-safe pdf-lib
-     * reader (no IPC). Bytes the reader cannot parse - a password-protected file
-     * the engine only reads with its password - answer an empty list so the
-     * panel leaves its loading state instead of failing forever. */
+     * reader (no IPC). As on the web lane, bytes the reader cannot parse (a
+     * password-protected file the engine only reads with its password) reject,
+     * so the shared panel leaves its loading state with its error message
+     * instead of claiming the file has no fields (R-3). */
     async readFormFields() {
       if (bytes.byteLength === 0) return [];
-      try { return await readPdfFormFields(bytes); } catch { return []; }
+      return await readPdfFormFields(bytes);
     },
     /** Saved note threads of the current bytes, same reader discipline as the web
-     * lane; unreadable bytes degrade to no threads. */
+     * lane: an unreadable file rejects and the notes panel shows its error. */
     async readSavedNotes() {
       if (bytes.byteLength === 0) return [];
-      try { return toNoteThreads(await readPdfNotes(bytes)); } catch { return []; }
+      return toNoteThreads(await readPdfNotes(bytes));
     },
     getPdfSnapshot: () => snapshot,
     renderer,
     getCanvasPages: canvasPages,
     selection,
     subscribeDirty: (listener: (next: number) => void) => { listeners.add(listener); return () => listeners.delete(listener); },
-    dispose: () => { disposed = true; listeners.clear(); clearCache(); clearTextCache(); bytes = Uint8Array.from([]); clearEncoded(); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
+    subscribe: (listener: () => void) => { changeListeners.add(listener); return () => { changeListeners.delete(listener); }; },
+    undo: () => step(() => undoStack, () => redoStack),
+    redo: () => step(() => redoStack, () => undoStack),
+    canUndo: () => !settings.readOnly && undoStack.length > 0,
+    canRedo: () => !settings.readOnly && redoStack.length > 0,
+    dispose: () => { disposed = true; engineSession.close(); listeners.clear(); changeListeners.clear(); undoStack = []; redoStack = []; clearCache(); clearTextCache(); bytes = Uint8Array.from([]); snapshot = null; pageSizes = []; pageCount = 0; password = undefined; },
   };
   return surface;
 }

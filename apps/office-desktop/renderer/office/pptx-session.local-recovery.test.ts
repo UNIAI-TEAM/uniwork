@@ -36,6 +36,7 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
     getSlideNotes: () => "",
     buildRenderSlide: () => ({ nodes: [] }),
     HeuristicMetrics: class HeuristicMetrics {},
+    parseMasterPart: () => null,
   };
 });
 
@@ -104,10 +105,12 @@ async function harness() {
       // command records the draft context and hands the bytes over.
       const registered = await registry.openPath(path);
       const opened = await files["desktop:file-open"]({ sessionGeneration: "desktop-dev-session", handle: registered.handle });
+      // A refused open answers with a code; only the opened branch has metadata.
+      if (!("metadata" in opened)) throw new Error("expected the local file to open");
       const metadata = opened.metadata;
       const bytes = await registry.read(metadata.handle);
       const identity: OfficeIdentity = { deploymentId: "local", accountId: "local", organizationId: "local", workspaceId: "local", documentId: metadata.handle, generation: 1, baseRevision: String(Math.trunc(metadata.modifiedAtMs)), baseVersionId: metadata.checksum };
-      const session = createPptxDocumentSession(bridge, identity, { format: "pptx", dataBase64: Buffer.from(bytes).toString("base64"), checksum: metadata.checksum, localHandle: metadata.handle }, (onDirty) => createDesktopPptxAdapter({ identity, runtime: createWebPptxSessionRuntime({ documentId: metadata.handle }), readBytes: async () => bytes, capability, onDirty }));
+      const session = createPptxDocumentSession(bridge, identity, { format: "pptx", data: Uint8Array.from(Buffer.from(bytes)), checksum: metadata.checksum, localHandle: metadata.handle }, (onDirty) => createDesktopPptxAdapter({ identity, runtime: createWebPptxSessionRuntime({ documentId: metadata.handle }), readBytes: async () => bytes, capability, onDirty }));
       await session.openEditor();
       return { session, metadata, store };
     };

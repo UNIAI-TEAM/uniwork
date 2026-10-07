@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it, vi } from "vitest";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { describe, expect, it, vi, type Mock } from "vitest";
+import { PdfEditor } from "@uniwork/views/office/pdf";
 import { applyPdfOpsInBrowser } from "@uniwork/office-engine/browser";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
@@ -59,6 +62,7 @@ function keyProvider(): DraftKeyProvider {
 interface FakeSession extends PdfRenderSession {
   bytesSeen: Uint8Array[];
   disposed: boolean;
+  replaceBytes: Mock<PdfRenderSession["replaceBytes"]>;
 }
 function fakeSession(bytes: Uint8Array, pageTexts: string[]): FakeSession {
   let texts = pageTexts;
@@ -170,6 +174,85 @@ describe("web PDF format adapter", () => {
     await adapter.session.dispose();
   });
 
+  it("reports canUndo/canRedo from the stacks, already moved when subscribers run (UNI-954)", async () => {
+    const { adapter, editor } = setup();
+    await adapter.open.open();
+    expect(editor.canUndo?.()).toBe(false);
+    expect(editor.canRedo?.()).toBe(false);
+    const seen: Array<[boolean | undefined, boolean | undefined]> = [];
+    editor.subscribe?.(() => seen.push([editor.canUndo?.(), editor.canRedo?.()]));
+    await editor.submitEngineOperations?.([{ op: "a" }]);
+    const stepped = () => new Promise<void>((resolve) => { const off = editor.subscribe!(() => { off(); resolve(); }); });
+    let next = stepped();
+    editor.undo?.();
+    await next;
+    next = stepped();
+    editor.redo?.();
+    await next;
+    expect(seen).toEqual([[true, false], [false, true], [true, false]]);
+    // A redo on the now-empty redo stack is a no-op: no notify, no generation bump.
+    const generation = editor.getDirtyGeneration();
+    editor.redo?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(seen).toHaveLength(3);
+    expect(editor.getDirtyGeneration()).toBe(generation);
+    await adapter.session.dispose();
+  });
+
+  it("rejects an edit overtaken by dispose, committing nothing: pdf_editor_disposed mid-swap, not-open before it (review-fe-r1 R17)", async () => {
+    // Disposed while the render session swaps the edited bytes.
+    const swapping = setup();
+    await swapping.adapter.open.open();
+    let releaseSwap: (() => void) | null = null;
+    swapping.sessions[0]!.replaceBytes.mockImplementationOnce(() => new Promise<void>((resolve) => { releaseSwap = resolve; }));
+    const listener = vi.fn();
+    swapping.editor.subscribe?.(listener);
+    const edit = swapping.editor.submitEngineOperations!([{ op: "a" }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(releaseSwap).not.toBeNull();
+    void swapping.editor.dispose();
+    releaseSwap!();
+    await expect(edit).rejects.toThrow("pdf_editor_disposed");
+    expect(listener).not.toHaveBeenCalled();
+    expect(swapping.editor.getDirtyGeneration()).toBe(0);
+    expect(swapping.editor.canUndo?.()).toBe(false);
+    await swapping.adapter.session.dispose();
+
+    // Disposed while the engine still computes: the swap never starts.
+    let releaseOps: (() => void) | null = null;
+    const applyOps = vi.fn(async () => { await new Promise<void>((resolve) => { releaseOps = resolve; }); return { bytes: new Uint8Array([37, 80, 68, 70, 1, 9]), skipped: [] }; });
+    const computing = setup({ applyOps });
+    await computing.adapter.open.open();
+    const late = computing.editor.submitEngineOperations!([{ op: "a" }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    void computing.editor.dispose();
+    releaseOps!();
+    await expect(late).rejects.toThrow("pdf_editor_not_open");
+    expect(computing.sessions[0]!.replaceBytes).not.toHaveBeenCalled();
+    expect(computing.editor.getDirtyGeneration()).toBe(0);
+    await computing.adapter.session.dispose();
+  });
+
+  it("a step overtaken by dispose commits nothing (r5 F4 parity)", async () => {
+    const { adapter, editor, sessions } = setup();
+    await adapter.open.open();
+    await editor.submitEngineOperations?.([{ op: "a" }]);
+    let release: (() => void) | null = null;
+    sessions[0]!.replaceBytes.mockImplementationOnce(() => new Promise<void>((resolve) => { release = resolve; }));
+    const listener = vi.fn();
+    editor.subscribe?.(listener);
+    editor.undo?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(release).not.toBeNull();
+    void editor.dispose();
+    release!();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(listener).not.toHaveBeenCalled();
+    expect(editor.getDirtyGeneration()).toBe(0);
+    expect(editor.canUndo?.()).toBe(false);
+    await adapter.session.dispose();
+  });
+
   it("reads form fields from the current bytes and searches page text case-insensitively", async () => {
     const { adapter, editor, readFormFields } = setup();
     await adapter.open.open();
@@ -253,6 +336,12 @@ describe("web PDF format adapter", () => {
     const createRenderSession = vi.fn(async () => { throw Object.assign(new Error("password needed"), { code: "password_required" }); });
     const { adapter } = setup({ createRenderSession });
     expect(await adapter.open.open()).toMatchObject({ outcome: "failed", format: "pdf", failure_class: "password_required", message: "password needed" });
+    await adapter.session.dispose();
+  });
+
+  it("maps a too-large source to the too_large failure class (UNI-956)", async () => {
+    const { adapter } = setup({ documents: { read: vi.fn(async () => { throw Object.assign(new Error("too big"), { code: "file_too_large" }); }), upload: vi.fn(), commit: vi.fn() } });
+    expect(await adapter.open.open()).toMatchObject({ outcome: "failed", format: "pdf", failure_class: "too_large" });
     await adapter.session.dispose();
   });
 
@@ -393,6 +482,54 @@ describe("web PDF format adapter", () => {
     expect(sessions[0]!.disposed).toBe(true);
     expect(editor.getPdfSnapshot?.()).toBeNull();
     expect(editor.openOutcome()).toBeNull();
+    await adapter.session.dispose();
+  });
+});
+
+/** Polls inside act until the check holds (this package has no testing-library). */
+async function until(check: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const started = Date.now();
+  while (!check()) {
+    if (Date.now() - started > timeoutMs) throw new Error("condition not met in time");
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+  }
+}
+
+describe("web PDF host through the shared editor (review-fe-r1 R6)", () => {
+  it("an Undo pressed while a rotate awaits the engine undoes that rotate instead of being dropped", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    let releaseOps: (() => void) | null = null;
+    const edited = new Uint8Array([37, 80, 68, 70, 1, 9]);
+    const applyOps = vi.fn(async () => { await new Promise<void>((resolve) => { releaseOps = resolve; }); return { bytes: edited, skipped: [] }; });
+    const { adapter, editor, sessions } = setup({ applyOps });
+    const coordinator = { getState: () => ({ state: "ready" as const, identity, dirtyGeneration: 0, lastSavedGeneration: 0, activeIntentId: null, error: null }), subscribe: () => () => undefined, save: vi.fn(async () => ({ accepted: false as const, reason: "clean" as const })), markDirty: vi.fn() };
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => { root.render(createElement(PdfEditor, { documentKey: "doc-r6", editor, open: adapter.open, coordinator, capability })); });
+    const byTestId = (id: string) => container.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+    const button = (name: string) => [...container.querySelectorAll<HTMLElement>("button")].find((candidate) => (candidate.getAttribute("aria-label") ?? candidate.textContent?.trim()) === name);
+    await until(() => byTestId("pdf-canvas") !== null && button("Page 2") !== undefined);
+    const undo = byTestId("pdf-chrome-undo")!;
+    expect(undo.getAttribute("aria-disabled")).toBe("true");
+
+    await act(async () => { button("Page 2")!.click(); });
+    await act(async () => { byTestId("pdf-chrome-tab-pages")!.click(); });
+    await act(async () => { button("Rotate page")!.click(); });
+    await until(() => releaseOps !== null);
+    // The engine has not answered: Undo is offered and the press is kept.
+    await until(() => !undo.hasAttribute("aria-disabled"));
+    await act(async () => { undo.click(); });
+    await act(async () => { releaseOps!(); });
+
+    // The rotate landed, then the queued Undo swapped the original bytes back.
+    await until(() => sessions[0]!.bytesSeen.length >= 3);
+    expect(Array.from(sessions[0]!.bytesSeen.at(-2)!)).toEqual(Array.from(edited));
+    expect(Array.from(sessions[0]!.bytesSeen.at(-1)!)).toEqual(Array.from(original));
+    expect(editor.canUndo?.()).toBe(false);
+    expect(editor.canRedo?.()).toBe(true);
+    await act(async () => root.unmount());
+    container.remove();
     await adapter.session.dispose();
   });
 });

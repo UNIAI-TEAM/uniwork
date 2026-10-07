@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { OfficeHost } from "@uniwork/core/office";
 import { setLocale } from "@uniwork/core/i18n";
@@ -128,11 +128,38 @@ describe("PdfEditor", () => {
     // Undo/redo and Save moved off the deleted toolbar onto the editor's keyboard handler.
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "y", ctrlKey: true });
-    expect(handle.undo).toHaveBeenCalledTimes(1);
+    // The Undo pressed while the text edit was still settling runs right behind it (review-fe-r1 R6).
+    await waitFor(() => expect(handle.undo).toHaveBeenCalledTimes(1));
     expect(handle.redo).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
     expect(save).toHaveBeenNthCalledWith(1, "shortcut");
     expect(saveCoordinator.writeBytes).not.toHaveBeenCalled();
+  });
+
+  it("leaves Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z to editable controls and still undoes from the canvas", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+    const textarea = document.createElement("textarea");
+    const select = document.createElement("select");
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    const textbox = document.createElement("div");
+    textbox.setAttribute("role", "textbox");
+    root.append(textarea, select, editable, textbox);
+    for (const target of [textarea, select, editable, textbox]) {
+      expect(fireEvent.keyDown(target, { key: "z", ctrlKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: "y", ctrlKey: true })).toBe(true);
+      expect(fireEvent.keyDown(target, { key: "z", ctrlKey: true, shiftKey: true })).toBe(true);
+    }
+    expect(handle.undo).not.toHaveBeenCalled();
+    expect(handle.redo).not.toHaveBeenCalled();
+
+    expect(fireEvent.keyDown(screen.getByTestId("pdf-canvas"), { key: "z", ctrlKey: true })).toBe(false);
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByTestId("pdf-canvas"), { key: "z", ctrlKey: true, shiftKey: true });
+    expect(handle.redo).toHaveBeenCalledTimes(1);
   });
 
   it("selects pages and submits every page operation through the edit envelope", async () => {
@@ -348,6 +375,8 @@ describe("PdfEditor", () => {
     for (const id of ["insert-page", "extract-page", "merge-pages"]) {
       expect(document.querySelector(`[data-ribbon-item='${id}']`)).toHaveAttribute("aria-disabled", "true");
     }
+    // The Pages banner names only the ops that are refused, not "this edit".
+    expect(screen.getByTestId("pdf-browser-unsupported")).toHaveTextContent("Chèn, trích xuất và gộp trang chưa dùng được trên trình duyệt.");
     // Delete, rotate and reorder need no Buffer producer and stay usable.
     for (const id of ["delete-page", "rotate-page", "reorder-page"]) {
       expect(document.querySelector(`[data-ribbon-item='${id}']`)).not.toHaveAttribute("aria-disabled");
@@ -389,8 +418,8 @@ describe("PdfEditor", () => {
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
 
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
-    // The adapter's queued swap lands after the synchronous markDirty(0), so the
-    // notify is what must carry the post-step generation to the coordinator.
+    // The adapter's queued swap lands later; the notify is the only dirty signal
+    // and must carry the post-step generation to the coordinator.
     runSwap();
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
 
@@ -411,6 +440,54 @@ describe("PdfEditor", () => {
     expect(save).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(outcomes).toEqual(["accepted"]));
     expect(dirty()).toBe(1);
+  });
+
+  describe("an Undo pressed while an edit is in flight (review-fe-r2 N2/N3)", () => {
+    const pressApply = async () => {
+      await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+      fireEvent.change(screen.getByLabelText("Chữ thay thế"), { target: { value: "Nội dung mới" } });
+      fireEvent.click(screen.getByRole("button", { name: "Áp dụng chữ" }));
+    };
+
+    it("skips the queued step when that edit fails, so the previous successful edit stays", async () => {
+      let fail!: (error: Error) => void;
+      const handle = editor({ edit: vi.fn(() => new Promise<void>((_resolve, reject) => { fail = reject; })) });
+      renderEditor(opened(), { editor: handle });
+      await pressApply();
+      fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
+      await act(async () => { fail(new Error("engine fault")); await Promise.resolve(); });
+      await screen.findByRole("alert");
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(handle.undo).not.toHaveBeenCalled();
+    });
+
+    it("still undoes an edit that succeeded behind it", async () => {
+      let done!: () => void;
+      const handle = editor({ edit: vi.fn(() => new Promise<void>((resolve) => { done = resolve; })) });
+      renderEditor(opened(), { editor: handle });
+      await pressApply();
+      fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
+      expect(handle.undo).not.toHaveBeenCalled();
+      await act(async () => { done(); await Promise.resolve(); });
+      await waitFor(() => expect(handle.undo).toHaveBeenCalledTimes(1));
+    });
+
+    it("does not step the document opened in between when the key changes before the edit settles", async () => {
+      let done!: () => void;
+      const first = editor({ edit: vi.fn(() => new Promise<void>((resolve) => { done = resolve; })) });
+      const second = editor();
+      const saveCoordinator = coordinator();
+      const open = { open: vi.fn(async () => opened()) };
+      const view = (key: string, handle: PdfEditorHandle) => <PdfEditor documentKey={key} editor={handle} open={open} coordinator={saveCoordinator} capability={capability} />;
+      const { rerender } = render(view("doc-v1", first));
+      await pressApply();
+      fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
+      rerender(view("doc-v2", second));
+      await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+      await act(async () => { done(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(second.undo).not.toHaveBeenCalled();
+      expect(first.undo).not.toHaveBeenCalled();
+    });
   });
 
   it("cancels and disposes an in-flight session", async () => {
@@ -438,6 +515,106 @@ describe("PdfEditor", () => {
     expect(screen.queryByRole("search")).not.toBeInTheDocument();
   });
 
+  it("takes focus on load so Ctrl+F right after opening reaches the editor, not the browser", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+    expect(document.activeElement).toBe(root);
+    // The browser targets the focused element: that is the editor landmark now.
+    expect(fireEvent.keyDown(document.activeElement ?? document.body, { key: "f", ctrlKey: true })).toBe(false);
+    expect(screen.getByRole("search")).toBeInTheDocument();
+  });
+
+  it("does not steal focus from a control that already holds it", async () => {
+    const outside = document.createElement("input");
+    document.body.appendChild(outside);
+    outside.focus();
+    try {
+      renderEditor();
+      await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+      expect(document.activeElement).toBe(outside);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("opens the thumbnail rail from the status bar below sm and closes it on a page pick", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const rail = screen.getByTestId("pdf-thumbnails-rail");
+    expect(rail).toHaveClass("hidden", "sm:flex");
+    const toggle = screen.getByTestId("pdf-rail-toggle");
+    expect(toggle).toHaveAccessibleName("Hiện ảnh thu nhỏ trang");
+    fireEvent.click(toggle);
+    expect(rail).toHaveClass("flex");
+    expect(rail).not.toHaveClass("hidden");
+    // Open below sm the rail floats over the canvas, so the page is not squeezed (UIQ-3).
+    expect(rail).toHaveClass("absolute");
+    expect(screen.getByTestId("pdf-rail-slot")).toHaveClass("w-0");
+    expect(toggle).toHaveAccessibleName("Ẩn ảnh thu nhỏ trang");
+    fireEvent.click(screen.getByTestId("pdf-thumbnail-1"));
+    expect(rail).toHaveClass("hidden");
+    // Focus returns to the toggle, not BODY, once the rail closes (UIQ-3).
+    expect(toggle).toHaveFocus();
+  });
+
+  it("treats the open overlay rail as a popover: focus moves in, canvas inert, Escape closes (r6 F3)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const canvas = screen.getByTestId("pdf-canvas").querySelector<HTMLElement>("[data-office-canvas]")!;
+    const toggle = screen.getByTestId("pdf-rail-toggle");
+    fireEvent.click(toggle);
+    // Focus lands on the current page's thumbnail, inside the rail.
+    expect(screen.getByTestId("pdf-rail-slot")).toContainElement(document.activeElement as HTMLElement);
+    expect(canvas).toHaveAttribute("inert");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.getByTestId("pdf-thumbnails-rail")).toHaveClass("hidden");
+    expect(toggle).toHaveFocus();
+    expect(canvas).not.toHaveAttribute("inert");
+  });
+
+  it("closes the overlay rail on a press outside it and leaves focus where the press went (r6 F3)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const canvas = screen.getByTestId("pdf-canvas").querySelector<HTMLElement>("[data-office-canvas]")!;
+    fireEvent.click(screen.getByTestId("pdf-rail-toggle"));
+    // A press inside the rail keeps it open.
+    fireEvent.pointerDown(screen.getByTestId("pdf-thumbnail-2"));
+    expect(screen.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+    fireEvent.pointerDown(screen.getByTestId("pdf-ribbon-bar"));
+    expect(screen.getByTestId("pdf-thumbnails-rail")).toHaveClass("hidden");
+    expect(canvas).not.toHaveAttribute("inert");
+  });
+
+  it("falls back to the editor root when the rail toggle cannot take focus (r6 F4)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const toggle = screen.getByTestId("pdf-rail-toggle");
+    fireEvent.click(toggle);
+    // From sm up the toggle is display:none, so focus() on it does nothing.
+    toggle.focus = () => undefined;
+    fireEvent.click(screen.getByTestId("pdf-thumbnail-2"));
+    expect(screen.getByTestId("pdf-editor")).toHaveFocus();
+  });
+
+  it("opens Find on Ctrl+F pressed with focus on the body, and leaves other controls' Ctrl+F alone (r3 F2)", async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const root = screen.getByTestId("pdf-editor");
+    // The landmark keeps an inset ring so its overflow-hidden edge cannot clip it (r3 F1).
+    expect(root).toHaveClass("focus-visible:-outline-offset-2");
+    const outside = document.createElement("input");
+    document.body.append(outside);
+    outside.focus();
+    fireEvent.keyDown(outside, { key: "f", ctrlKey: true });
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
+    outside.blur();
+    outside.remove();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: "f", ctrlKey: true });
+    expect(screen.getByRole("search")).toBeInTheDocument();
+  });
+
   it("does not toggle Find on Ctrl+Shift+F - the shifted chord is out of scope", async () => {
     renderEditor();
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
@@ -463,6 +640,47 @@ describe("PdfEditor", () => {
     expect(screen.getByTestId("pdf-chrome-redo")).toHaveAttribute("aria-disabled", "true");
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "z", ctrlKey: true });
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "y", ctrlKey: true });
+    expect(markDirty).not.toHaveBeenCalled();
+  });
+
+  it("keeps Undo/Redo aria-disabled on an empty stack and marks dirty only from the change notify (UNI-954)", async () => {
+    const markDirty = vi.fn();
+    const listeners = new Set<() => void>();
+    let depth = 0;
+    let generation = 0;
+    const handle = editor({
+      getDirtyGeneration: () => generation,
+      canUndo: () => depth > 0,
+      canRedo: () => false,
+      subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    });
+    renderEditor(opened(), { editor: handle, coordinator: coordinator({ markDirty }) });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    const undo = screen.getByTestId("pdf-chrome-undo");
+    const root = screen.getByTestId("pdf-editor");
+
+    // Fresh document: both controls stay focusable but inert, and neither the
+    // buttons nor the shortcuts step or flag the document unsaved.
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    expect(undo).not.toBeDisabled();
+    expect(screen.getByTestId("pdf-chrome-redo")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(undo);
+    fireEvent.click(screen.getByTestId("pdf-chrome-redo"));
+    fireEvent.keyDown(root, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(root, { key: "z", ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(root, { key: "y", ctrlKey: true });
+    expect(handle.undo).not.toHaveBeenCalled();
+    expect(handle.redo).not.toHaveBeenCalled();
+    expect(markDirty).not.toHaveBeenCalled();
+
+    // A real edit notifies: dirty comes from it and Undo becomes available.
+    act(() => { depth = 1; generation = 1; for (const listener of [...listeners]) listener(); });
+    expect(markDirty).toHaveBeenLastCalledWith(1);
+    expect(screen.getByTestId("pdf-chrome-undo")).not.toHaveAttribute("aria-disabled");
+    markDirty.mockClear();
+    fireEvent.keyDown(root, { key: "z", ctrlKey: true });
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    // The host swaps asynchronously; nothing is marked until its notify lands.
     expect(markDirty).not.toHaveBeenCalled();
   });
 
@@ -551,5 +769,42 @@ describe("PdfEditor", () => {
     stubPane(1440, 900);
     fireEvent(window, new Event("resize"));
     expect(screen.getByTestId("pdf-status-zoom")).toHaveTextContent("100%");
+  });
+});
+
+describe("PdfEditor in a background desktop tab (review-fe-r1 R7)", () => {
+  it("ignores document Escape and presses while its panel is hidden and inert, so the visible tab's rail still closes", async () => {
+    const panel = (id: string) => (
+      <div data-testid={`panel-${id}`}>
+        <PdfEditor documentKey={`doc-${id}`} editor={editor()} open={{ open: vi.fn(async () => opened()) }} coordinator={coordinator()} capability={capability} />
+      </div>
+    );
+    render(<>{panel("a")}{panel("b")}</>);
+    await waitFor(() => expect(screen.getAllByTestId("pdf-canvas")).toHaveLength(2));
+    const [panelA, panelB] = [screen.getByTestId("panel-a"), screen.getByTestId("panel-b")];
+    const inA = within(panelA);
+    const inB = within(panelB);
+
+    // Tab A's rail is open when the user switches to tab B: A stays mounted, hidden and inert.
+    fireEvent.click(inA.getByTestId("pdf-rail-toggle"));
+    expect(inA.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+    panelA.hidden = true;
+    panelA.setAttribute("inert", "");
+
+    fireEvent.click(inB.getByTestId("pdf-rail-toggle"));
+    expect(inB.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+    // Escape in B closes B's rail; A's handler neither runs nor swallows the key.
+    const escape = fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(inB.getByTestId("pdf-thumbnails-rail")).toHaveClass("hidden");
+    expect(inB.getByTestId("pdf-rail-toggle")).toHaveFocus();
+    expect(escape).toBe(false);
+    expect(inA.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+
+    // A press anywhere in B does not close A's rail either, and focus never moves into A.
+    fireEvent.click(inB.getByTestId("pdf-rail-toggle"));
+    fireEvent.pointerDown(inB.getByTestId("pdf-ribbon-bar"));
+    expect(inB.getByTestId("pdf-thumbnails-rail")).toHaveClass("hidden");
+    expect(inA.getByTestId("pdf-thumbnails-rail")).not.toHaveClass("hidden");
+    expect(panelA).not.toContainElement(document.activeElement as HTMLElement);
   });
 });

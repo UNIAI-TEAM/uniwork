@@ -5,7 +5,7 @@ import type { OfficeCapabilityEntry } from "@uniwork/core/office";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { ByteDocumentSession } from "./session";
 import type { DesktopDocxSurface } from "./docx-surface";
-import type { DesktopPrintBridge } from "./text-print";
+import type { OfficePrintPort } from "@uniwork/views/office/print";
 
 export interface DesktopEditorLoaderConfig {
   documentKey: string;
@@ -14,24 +14,25 @@ export interface DesktopEditorLoaderConfig {
   capability: OfficeCapabilityEntry;
   /** Bumped by a recovered draft so the lane remounts its editor surface. */
   surfaceVersion: number;
-  /** The typed print call the Markdown/HTML lane hands its print port. */
-  printBridge?: DesktopPrintBridge;
+  /** The desktop print port every format view prints through (one per tab). */
+  printPort: OfficePrintPort;
 }
 
 /** Format lane loaders, one entry per format. The slot asks for the opened
  * document's format and gets its loader; no caller branches on format. */
 const EDITOR_LOADERS: Partial<Record<DesktopDocumentFormat, (config: DesktopEditorLoaderConfig) => OfficeEditorLoader<Uint8Array>>> = {
-  docx: ({ documentKey, title, session, capability, surfaceVersion }) => async () => ({ default: function DesktopDocx() {
+  docx: ({ documentKey, title, session, capability, surfaceVersion, printPort }) => async () => ({ default: function DesktopDocx() {
     const editor = session.editor as DesktopDocxSurface;
-    return <DocxEditor key={surfaceVersion} documentKey={documentKey} title={title} editor={editor} coordinator={session.coordinator} capability={capability as never} manageSession={false} showDocumentControls={false} open={{ open: async () => (await session.openEditor() as DesktopDocxSurface).openOutcome()! }} />;
+    return <DocxEditor key={surfaceVersion} documentKey={documentKey} title={title} editor={editor} coordinator={session.coordinator} capability={capability as never} manageSession={false} showDocumentControls={false} printPort={printPort} open={{ open: async () => (await session.openEditor() as DesktopDocxSurface).openOutcome()! }} />;
   } }),
   // The text lane pulls the Markdown/HTML views (TipTap, KaTeX, highlighting):
   // load it only when a text document mounts, like the surface registry does.
   md: (config) => async (format) => (await import("./text-editor-loader")).textEditorLoader("md", config)(format),
   html: (config) => async (format) => (await import("./text-editor-loader")).textEditorLoader("html", config)(format),
-  pdf: ({ documentKey, title, session, capability }) => (async (format) => await createPdfEditorLoader({
+  pdf: ({ documentKey, title, session, capability, printPort }) => (async (format) => await createPdfEditorLoader({
     documentKey,
     title,
+    printPort,
     coordinator: session.coordinator as never,
     capability: capability as never,
     open: { open: async (signal?: AbortSignal, password?: string): Promise<PdfOpenOutcome> => {

@@ -15,7 +15,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { XLSX_HYPERLINK_COMMAND, XLSX_NOTE_COMMAND, parseA1Address } from "../links/link-commands";
 import type { XlsxToolbarGroupProps } from "./types";
-import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
+import { XLSX_SMALL_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows, XlsxLargeButton, XlsxLargeLabel } from "./group-layout";
 
 /** The active cell's anchor (the selection's start address). */
 function activeCell(address: string | undefined): string | null {
@@ -80,9 +80,8 @@ export function XlsxLinksGroup({ readOnly = false, commands, selection, unitId, 
           <Button
             type="button"
             variant="toolbar"
-            size="icon-sm"
-            className={XLSX_ICON_BUTTON_CLASS}
-            aria-label={t("office.xlsx.links.note")}
+            size="sm"
+            className={XLSX_SMALL_BUTTON_CLASS}
             title={t("office.xlsx.links.note")}
             aria-haspopup="dialog"
             aria-disabled={!ready || undefined}
@@ -90,6 +89,7 @@ export function XlsxLinksGroup({ readOnly = false, commands, selection, unitId, 
             onClick={() => { if (ready) setNoteOpen(true); }}
           >
             <MessageSquare aria-hidden />
+            <span>{t("office.xlsx.links.noteShort")}</span>
           </Button>
         </XlsxGroupRow>
       </XlsxGroupRows>

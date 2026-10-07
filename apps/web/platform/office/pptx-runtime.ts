@@ -17,6 +17,8 @@ import {
   bindPptxRender,
   createPptxAdapter,
   isSlideHidden,
+  type MasterElementData,
+  type MasterPartInfo,
   pptxSessionDivergedError,
   rebasePptxJournal,
   resolvePptxReplayRefs,
@@ -49,6 +51,14 @@ import type { PptxDeckModel } from "@uniwork/views/office/pptx";
  * notes_unbound instead of inventing notes. */
 const upstreamNotesRead = typeof (pptxUpstream as { getSlideNotes?: unknown }).getSlideNotes === "function"
   ? (pptxUpstream as unknown as { getSlideNotes(archive: unknown, slidePath: string): string }).getSlideNotes
+  : undefined;
+
+/** The generated artifact's optional master/layout part parser (the Masters
+ * panel's element read). Same contract as the notes read: undefined until
+ * shims/pptx-renderer-entry.ts re-exports parseMasterPart, and the adapter then
+ * refuses masterElements with a typed master_unbound, never an invented list. */
+const upstreamMasterParse = typeof (pptxUpstream as { parseMasterPart?: unknown }).parseMasterPart === "function"
+  ? (pptxUpstream as unknown as { parseMasterPart: NonNullable<Parameters<typeof bindPptxEngine>[0]["parseMasterPart"]> }).parseMasterPart
   : undefined;
 
 /** One applied edit, JSON-safe (byte payloads become base64). */
@@ -131,6 +141,13 @@ export interface PptxSessionRuntime {
   slideAnimations?(documentModelRef: string, slideIndex: number): PptxSlideAnimationRead[];
   /** Slide layouts of the LIVE package ([] when the engine binds no layout read). Optional like slideNotes. */
   slideLayouts?(documentModelRef: string): { name: string; path: string }[];
+  /** Slide masters and layouts of the LIVE engine session (the Masters panel
+   * part list). Optional like slideNotes: a hand-built test double that predates
+   * this read stays assignable; both shipped runtimes implement it. */
+  masterParts?(documentModelRef: string): MasterPartInfo[];
+  /** The editable elements of one master/layout part of the LIVE session. A part
+   * path the deck does not carry is a typed engine refusal (bad_master_part). */
+  masterElements?(documentModelRef: string, partPath: string): MasterElementData[];
   slides(documentModelRef: string): PptxSlideSummary[];
   release(documentModelRef: string): Promise<void>;
 }
@@ -284,6 +301,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         reparseDeck,
         listSlideLayouts,
         ...(upstreamNotesRead ? { getSlideNotes: upstreamNotesRead } : {}),
+        ...(upstreamMasterParse ? { parseMasterPart: upstreamMasterParse } : {}),
       }),
       ops: bindPptxOps({ runTxn }),
       render: bindPptxRender({ buildRenderSlide, HeuristicMetrics }),
@@ -615,6 +633,16 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
 
     slideLayouts(documentModelRef) {
       return engineAdapter().slideLayouts(currentEngineRef(documentModelRef));
+    },
+
+    masterParts(documentModelRef) {
+      // Read off the LIVE engine session like slideNotes, so an undo's reopen is
+      // reflected and a released session refuses (pptx_runtime_not_open).
+      return engineAdapter().masterParts(currentEngineRef(documentModelRef));
+    },
+
+    masterElements(documentModelRef, partPath) {
+      return engineAdapter().masterElements(currentEngineRef(documentModelRef), partPath);
     },
 
     slides(documentModelRef) {

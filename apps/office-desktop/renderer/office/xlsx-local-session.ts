@@ -1,9 +1,15 @@
-﻿import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
+﻿// The renderer reads the shared i18n singleton through react-i18next (allowlisted by check-boundaries), never i18next directly.
+import { getI18n } from "react-i18next";
+import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
+import { createSaveSettleGate } from "@uniwork/core/office";
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
-import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, stableJson, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
+import { applyXlsxJournalToSnapshot, createXlsxModelHost, diffXlsxSnapshotsToOperations, isRenderModel, parseRuleSetDrops, pendingDropIndexes, planRuleSetDrops, ruleSetDropMessage, ruleSetHistory, ruleSetsDroppedError, stableJson, withoutOperationsAt, withoutPendingOps, withPendingOps, type XlsxDroppedRuleSet, type XlsxModelHost, type XlsxOpenOutcome } from "@uniwork/views/office/xlsx";
 import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopFileXlsxResponseSchema, type DesktopDraftMetadata, type DesktopFileXlsxRequest } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
+import { localFileFailureCode, throwIfLocalFileFailed } from "./local-file-failure";
+
+import { bytesToText, incomingBytes, textToBytes } from "./bytes";
 
 const SESSION_GENERATION = "desktop-dev-session";
 const ENGINE_BUILD = "xlsx-desktop-local-1";
@@ -15,27 +21,12 @@ const RECALC_UNAVAILABLE = "xlsx_recalc_unavailable";
 /** The web-compatible render-model reference the shared XlsxEditor reads. */
 export type DesktopRenderModelRef = { current: XlsxModelHost | null; listeners: Set<(host: XlsxModelHost | null) => void> };
 
-function decode(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
 
-function encode(value: Uint8Array): string {
-  let binary = "";
-  for (let offset = 0; offset < value.length; offset += 0x8000) binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
 
-function encodeText(value: string): string {
-  return encode(new TextEncoder().encode(value));
-}
 
-function decodeText(value: string): string {
-  return new TextDecoder().decode(decode(value));
-}
 
 async function fingerprint(value: XlsxWorkbookSnapshot): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const bytes = textToBytes(JSON.stringify(value));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -87,11 +78,14 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
   let pending: { revision: number; operation: Record<string, unknown> }[] = [];
   let baseRevision = options.baseRevision;
   let baseVersionId = options.baseVersionId;
+  let dropped: XlsxDroppedRuleSet[] = [];
+  // Every op this session already committed, oldest first (rule-set restore).
+  let committedOps: unknown[] = [];
   let lastCommit: { intentId: string; revision: string } | null = null;
   const candidates = new Map<string, { baseRevision: string; snapshot: XlsxWorkbookSnapshot; operations: Record<string, unknown>[]; output?: { bytes: Uint8Array; checksum: string } }>();
   const rendererHostRef: DesktopRenderModelRef = { current: null, listeners: new Set() };
   const snapshotListeners = new Set<(snapshot: XlsxWorkbookSnapshot) => void>();
-  const outputs = new Map<string, { dataBase64: string; sizeBytes: number; checksum: string }>();
+  const outputs = new Map<string, { data: Uint8Array; sizeBytes: number; checksum: string }>();
 
   const publishRenderModel = (host: XlsxModelHost | null) => {
     rendererHostRef.current = host;
@@ -114,13 +108,14 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       throw error;
     }
     const response = desktopFileXlsxResponseSchema.parse(raw);
-    if (response.state !== "completed" || response.outputBase64 === undefined) throw new Error(`local_xlsx_job_${response.state}`);
+    throwIfLocalFileFailed(response);
+    if (response.state !== "completed" || response.output === undefined) throw new Error(`local_xlsx_job_${response.state}`);
     return response;
   };
   const runOpenJob = async (): Promise<{ snapshot: XlsxWorkbookSnapshot; renderModel: XlsxRenderModel }> => {
     const response = await callJob({ operation: "open", baseRevision });
     let parsed: unknown;
-    try { parsed = JSON.parse(decodeText(response.outputBase64!)); } catch { throw new Error("office_open_snapshot_invalid"); }
+    try { parsed = JSON.parse(bytesToText(incomingBytes(response.output))); } catch { throw new Error("office_open_snapshot_invalid"); }
     const value = parsed && typeof parsed === "object" ? parsed as { snapshot?: unknown; render_model?: unknown } : {};
     if (!isXlsxWorkbookSnapshot(value.snapshot)) throw new Error("office_open_snapshot_invalid");
     if (!isRenderModel(value.render_model)) throw new Error("office_open_render_model_invalid");
@@ -144,6 +139,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       try { await opening; } finally { opening = null; }
     },
     getDirtyGeneration: () => generation,
+    droppedRuleSets: () => dropped.map((entry) => ({ ...entry })),
     async captureSnapshot() {
       if (!snapshot) throw new Error("xlsx_snapshot_unavailable");
       const value = structuredClone(snapshot);
@@ -164,6 +160,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       disposed = true;
       snapshot = null;
       committed = null;
+      committedOps = [];
       pending = [];
       candidates.clear();
       publishRenderModel(null);
@@ -174,6 +171,11 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
   // The local engine job is the serializer: serialize queues the ops the editor
   // applied and returns the produced bytes; commit writes them back to the
   // opaque local handle through the ordinary desktop:file-save command.
+  // The draft id binds synchronously inside the gate's write; a snapshot read
+  // across a Save (which filters the pending journal) is captured again. The
+  // commit marks the rebase once the write is confirmed; a capture parked behind
+  // a Save that never answers writes under the pre-save base after the bound.
+  const gate = createSaveSettleGate();
   const transport: OfficeSaveTransport<XlsxWorkbookSnapshot> = {
     async serialize({ intent, snapshot: stable }) {
       if (!snapshot || !committed) throw new Error("xlsx_editor_not_open");
@@ -188,12 +190,36 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       if (candidate.baseRevision !== baseRevision) throw new Error("xlsx_save_base_changed");
       const captured = candidate;
       if (!captured.output) {
-        const response = await callJob({ operation: "edit", baseRevision: captured.baseRevision, edits: captured.operations });
-        const bytes = decode(response.outputBase64!);
+        let response: Awaited<ReturnType<typeof callJob>>;
+        try {
+          response = await callJob({ operation: "edit", baseRevision: captured.baseRevision, edits: captured.operations });
+        } catch (error) {
+          // X01 review r2: main refused journalled CF/DV rule sets. Drop exactly
+          // the named ops from the candidate and the pending list so the next
+          // explicit Save of this intent re-runs without them; every other edit
+          // stays pending. A malformed payload names nothing: drop nothing.
+          const refusals = parseRuleSetDrops(ruleSetDropMessage(error));
+          if (!refusals) throw error;
+          const later = pending.filter((entry) => entry.revision > captured.snapshot.revision).map((entry) => entry.operation);
+          const plan = planRuleSetDrops(refusals, captured.operations, committedOps, later);
+          dropped = plan.drops;
+          const queued = pendingDropIndexes(plan, captured.operations.length);
+          captured.operations = withoutOperationsAt(captured.operations, plan.indexes);
+          // R4-3: later snapshots of a refused sheet go too, so one Save converges.
+          pending = withoutOperationsAt(pending, queued);
+          const live = (snapshot as { pendingOps?: readonly unknown[] } | null)?.pendingOps;
+          if (snapshot && Array.isArray(live)) {
+            const kept = withoutOperationsAt(live, queued);
+            snapshot = kept.length ? withPendingOps(withoutPendingOps(snapshot), kept) : withoutPendingOps(snapshot);
+          }
+          throw ruleSetsDroppedError();
+        }
+        dropped = [];
+        const bytes = incomingBytes(response.output);
         captured.output = { bytes, checksum: response.outputChecksum ?? `sha256:${await fingerprint(captured.snapshot)}` };
       }
       const output = captured.output;
-      outputs.set(intent.intentId, { dataBase64: encode(output.bytes), sizeBytes: output.bytes.byteLength, checksum: output.checksum });
+      outputs.set(intent.intentId, { data: output.bytes, sizeBytes: output.bytes.byteLength, checksum: output.checksum });
       return { data: output.bytes.slice(), checksumSha256: output.checksum, sizeBytes: output.bytes.byteLength, format: "xlsx" };
     },
     async upload({ intent, output }) {
@@ -202,19 +228,27 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     async commit({ intent }) {
       const output = outputs.get(intent.intentId);
       if (!output) throw new Error("desktop save output missing");
-      const result = desktopFileResponseSchema.parse(await options.bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: options.localHandle, dataBase64: output.dataBase64 }));
+      const result = desktopFileResponseSchema.parse(await options.bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: options.localHandle, data: output.data }));
+      throwIfLocalFileFailed(result);
       if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
       if (result.metadata.checksum !== output.checksum) throw new Error("local_save_checksum_mismatch");
+      gate.markRebase();
       outputs.delete(intent.intentId);
       const candidate = candidates.get(intent.intentId);
       const versionId = result.metadata.checksum;
       // Local revisions are decimal strings; never feed a fractional Windows
       // mtime into BigInt, and never hand the coordinator a non-advancing base.
       const nextRevision = String(Math.trunc(result.metadata.modifiedAtMs));
-      if (candidate) { committed = structuredClone(candidate.snapshot); pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision); baseRevision = nextRevision; baseVersionId = versionId; lastCommit = { intentId: intent.intentId, revision: nextRevision }; candidates.clear(); }
+      if (candidate) { committedOps.push(...ruleSetHistory(candidate.operations)); committed = structuredClone(candidate.snapshot); pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision); baseRevision = nextRevision; baseVersionId = versionId; lastCommit = { intentId: intent.intentId, revision: nextRevision }; candidates.clear(); }
+      // F4: the live stream keeps exactly the edits the committed file lacks (typed
+      // during the in-flight save or after), so a draft taken now recovers them and
+      // never replays what the save already wrote.
+      if (candidate && snapshot) { const kept = pending.map((entry) => entry.operation); snapshot = kept.length ? withPendingOps(withoutPendingOps(snapshot), kept) : withoutPendingOps(snapshot); }
       const receiptRevision = BigInt(nextRevision) > BigInt(intent.identity.baseRevision) ? nextRevision : String(BigInt(intent.identity.baseRevision) + 1n);
       return { intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId, versionId, revision: receiptRevision, checksumSha256: result.metadata.checksum, sizeBytes: output.sizeBytes, engineName: "genoffice", engineVersion: ENGINE_BUILD, contractVersion: CONTRACT_REVISION, protocolVersion: "1" };
     },
+    // Settled without a commit: drop the retained bytes and the frozen candidate.
+    async release({ intent }) { outputs.delete(intent.intentId); candidates.delete(intent.intentId); },
     async reconcile() { return null; },
   };
 
@@ -236,19 +270,21 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
       return true;
     } catch { return false; }
   };
+  const writeRow = async (stable: StableSnapshot<XlsxWorkbookSnapshot>, draftId: string): Promise<void> => {
+    const rows = await listRows();
+    generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
+    const next = Math.max(1, generationFloor + 1, stable.generation);
+    const result = desktopDraftResponseSchema.parse(await options.bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId, draftId, generation: next, data: textToBytes(JSON.stringify(stable)) }));
+    lastCheckpoint = stable;
+    generationFloor = Math.max(generationFloor, result.generation);
+    durableRows.set(draftId, result.generation);
+  };
   const draft: DraftAdapter<XlsxWorkbookSnapshot> = {
-    checkpoint: async (stable) => {
+    checkpoint: () => gate.capture(() => editor.captureSnapshot(), (stable) => {
       if (disposed) throw new Error("xlsx_editor_disposed");
-      if (stable.generation <= coordinator.getState().lastSavedGeneration) return;
-      const draftId = draftIdFor(coordinator.getState().identity);
-      const rows = await listRows();
-      generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
-      const next = Math.max(1, generationFloor + 1, stable.generation);
-      const result = desktopDraftResponseSchema.parse(await options.bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, documentId, draftId, generation: next, dataBase64: encodeText(JSON.stringify(stable)) }));
-      lastCheckpoint = stable;
-      generationFloor = Math.max(generationFloor, result.generation);
-      durableRows.set(draftId, result.generation);
-    },
+      if (stable.generation <= coordinator.getState().lastSavedGeneration) return undefined;
+      return writeRow(stable, draftIdFor(coordinator.getState().identity));
+    }),
     recover: async () => lastCheckpoint,
     discard: async (target, savedGeneration) => {
       if (savedGeneration !== undefined && lastCheckpoint && lastCheckpoint.generation > savedGeneration) return;
@@ -264,6 +300,9 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
   };
 
   const coordinator = createOfficeSaveCoordinator({ identity, editor, draft, transport });
+  // Saves and reconciles run inside the gate so no checkpoint lands across their rebase.
+  const save: typeof coordinator.save = (entryPoint) => gate.run(() => coordinator.save(entryPoint));
+  const gatedCoordinator = { ...coordinator, save, retry: () => save("retry"), reconcile: () => gate.run(() => coordinator.reconcile()) };
   if (!options.canSave) coordinator.setCapability({ format: "xlsx", operation: "edit", host: "desktop", engineBuild: ENGINE_BUILD, contractRevision: CONTRACT_REVISION, status: "readonly", fidelityWarnings: [] });
 
   const open = {
@@ -278,6 +317,10 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
         // gateway: not a retryable glitch, so the screen says the engine is
         // missing from the build instead of "cannot open, retry".
         if (/engine_incompatible/.test(message)) return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_unavailable", engine_error: "engine_incompatible", message };
+        // A refused local file (locked, missing, too large...) reads as the same
+        // sentence the other formats show, not the raw file_* code.
+        const fileCode = localFileFailureCode(error);
+        if (fileCode) return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_error", engine_error: fileCode, message: getI18n().t(`office.save.reason.${fileCode}`, { defaultValue: getI18n().t("office.save.reason.file_failed") }) };
         return { outcome: "failed", document_id: documentId, format: "xlsx", failure_class: "engine_error", message };
       }
     },
@@ -300,7 +343,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     format: "xlsx",
     kind: "local",
     editor,
-    coordinator,
+    coordinator: gatedCoordinator,
     open,
     rendererHostRef,
     documentKey: documentId,
@@ -329,7 +372,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
         if (result.status !== "recovered") return "failed";
         await editor.open();
         let recovered: XlsxWorkbookSnapshot;
-        try { recovered = (JSON.parse(decodeText(result.dataBase64)) as StableSnapshot<XlsxWorkbookSnapshot>).value; } catch { return "failed"; }
+        try { recovered = (JSON.parse(bytesToText(incomingBytes(result.data))) as StableSnapshot<XlsxWorkbookSnapshot>).value; } catch { return "failed"; }
         if (!isXlsxWorkbookSnapshot(recovered)) return "failed";
         const operations = diffXlsxSnapshotsToOperations(snapshot ?? recovered, recovered);
         if (operations.length) await editor.edit?.(operations);
@@ -343,7 +386,7 @@ export function createDesktopLocalXlsxSession(options: DesktopLocalXlsxSessionOp
     get canSave(): boolean { return options.canSave; },
     get isDisposed(): boolean { return disposed; },
     get localHandle(): string { return options.localHandle; },
-    dispose() { void editor.dispose(); },
+    dispose() { gate.dispose(); void editor.dispose(); },
   };
 }
 

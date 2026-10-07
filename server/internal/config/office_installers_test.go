@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestOfficeInstallersPlatformMaps(t *testing.T) {
 	cfg := Config{OfficeInstallerDevURL: "https://downloads.test/legacy.exe", OfficeInstallerDevURLs: `{"linux-x64-deb":"https://downloads.test/office.deb","darwin-arm64":"https://downloads.test/office.dmg"}`}
@@ -54,5 +57,38 @@ func TestOfficeInstallersEncodedFilenames(t *testing.T) {
 	cfg := Config{OfficeInstallerDevURLs: `{"win32-x64":"https://downloads.test/my%20office%2Eexe"}`}
 	if items, err := cfg.OfficeInstallers("dev"); err != nil || len(items) != 1 {
 		t.Fatalf("valid encoded artifact rejected: %+v %v", items, err)
+	}
+}
+
+// The exact shape scripts/office/installer-urls.mjs emits from the
+// office-desktop-installers workflow: release-asset URLs, unsigned file names.
+func TestOfficeInstallerURLsFromCIJob(t *testing.T) {
+	setRequired(t)
+	base := "https://github.com/unicomhub/uniwork/releases/download/office-desktop-v0.1.0-dev.7/"
+	t.Setenv("OFFICE_INSTALLER_DEV_URL", "")
+	t.Setenv("OFFICE_INSTALLER_BETA_URL", "")
+	t.Setenv("OFFICE_INSTALLER_STABLE_URL", "")
+	t.Setenv("OFFICE_INSTALLER_DEV_URLS", `{"win32-x64":"`+base+`uniwork-office-test_0.1.0-dev.7_unsigned_win32_x64-setup.exe","win32-x64-zip":"`+base+`uniwork-office-test_0.1.0-dev.7_unsigned_win32_x64.zip","linux-x64-deb":"`+base+`uniwork-office-test_0.1.0-dev.7_unsigned_linux_x64.deb","linux-x64-appimage":"`+base+`uniwork-office-test_0.1.0-dev.7_unsigned_linux_x64.AppImage"}`)
+	t.Setenv("OFFICE_INSTALLER_BETA_URLS", `{"win32-x64":"https://github.com/unicomhub/uniwork/releases/download/office-desktop-v0.1.0-beta.3/uniwork-office_0.1.0-beta.3_unsigned_win32_x64-setup.exe"}`)
+	t.Setenv("OFFICE_INSTALLER_STABLE_URLS", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev, err := cfg.OfficeInstallers("dev")
+	if err != nil || len(dev) != 4 {
+		t.Fatalf("dev installers: %+v %v", dev, err)
+	}
+	for i, want := range []struct{ platform, kind string }{{"win32-x64", ".exe"}, {"win32-x64-zip", ".zip"}, {"linux-x64-deb", ".deb"}, {"linux-x64-appimage", ".AppImage"}} {
+		if dev[i].Platform != want.platform || dev[i].Kind != want.kind || dev[i].Version != "0.1.0-dev.7" || !dev[i].Unsigned || !strings.HasPrefix(dev[i].URL, base) {
+			t.Fatalf("dev[%d] = %+v, want %s %s unsigned 0.1.0-dev.7", i, dev[i], want.platform, want.kind)
+		}
+	}
+	beta, err := cfg.OfficeInstallers("beta")
+	if err != nil || len(beta) != 1 || beta[0].Version != "0.1.0-beta.3" || !beta[0].Unsigned {
+		t.Fatalf("beta installers: %+v %v", beta, err)
+	}
+	if stable, err := cfg.OfficeInstallers("stable"); err != nil || len(stable) != 0 {
+		t.Fatalf("stable must stay empty: %+v %v", stable, err)
 	}
 }

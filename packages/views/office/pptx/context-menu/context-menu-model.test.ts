@@ -81,6 +81,16 @@ describe("buildPptxContextMenu", () => {
     expect(byAction({ slideBound: false }, "insert")?.reasonKey).toBe("reason_no_slide");
   });
 
+  it("disables every slide edit while the master view owns the canvas", () => {
+    const open = rows({ masterView: true });
+    for (const action of ["delete", "bring-to-front", "send-to-back", "edit-text", "insert"]) {
+      const entry = open.find((candidate) => candidate.action === action);
+      expect(entry?.enabled, action).toBe(false);
+      expect(entry?.reasonKey, action).toBe("reason_master_view");
+    }
+    expect(enabledPptxContextMenuActions(open)).toEqual([]);
+  });
+
   it("never renders an enabled row without a reason for the disabled ones", () => {
     for (const entry of rows({ selectionCount: 0, canDelete: false, canReorder: false, canEditText: false, canInsert: false })) {
       if (!entry.enabled) expect(entry.reasonKey).toBeTruthy();

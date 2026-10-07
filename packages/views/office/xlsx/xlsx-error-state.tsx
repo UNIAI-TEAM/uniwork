@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import { createLogger } from "@uniwork/core/logger";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Notice } from "../../common/notice";
+import { isOfficeTooLarge } from "@uniwork/core/office";
+import { OfficeTooLargeNotice } from "../too-large-notice";
 import type { XlsxOpenFailure } from "./types";
 
 const logger = createLogger("xlsx-error-state");
@@ -72,6 +74,8 @@ export function XlsxErrorState({
       code: failure.engine_error ?? null,
     });
   }, [key, failure]);
+
+  if (isOfficeTooLarge(failure)) return <OfficeTooLargeNotice format="xlsx" />;
 
   return (
     <section className="flex min-h-64 flex-1 items-center justify-center p-6" data-testid="xlsx-error-state">

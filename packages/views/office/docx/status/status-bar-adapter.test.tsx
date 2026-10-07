@@ -4,6 +4,7 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { DocxStatusBar, readDocumentLang } from "../status-bar";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import type { DocxEditorHandle, DocxSaveCoordinator } from "../types";
+import { createDocxDocumentScope } from "../editor-store";
 
 initI18n();
 
@@ -49,6 +50,7 @@ function editor(): DocxEditorHandle {
 /** The shared context docx-editor.tsx spreads into every chrome slot. */
 function context(): DocxToolbarGroupContext {
   return {
+    docScope: createDocxDocumentScope(),
     editor: editor(),
     coordinator: coordinator(),
     format: null,
@@ -78,10 +80,11 @@ describe("DocxStatusBar chrome adapter", () => {
       "docx-status-words",
       "docx-status-characters",
       "docx-status-characters-no-spaces",
-      "docx-status-language",
     ]) {
       expect(screen.getByTestId(testId)).toHaveTextContent("—");
     }
+    // T12: an unknown language is left out, not a dash slot.
+    expect(screen.queryByTestId("docx-status-language")).toBeNull();
     expect(screen.getByTestId("docx-status-zoom")).toHaveTextContent("–");
     expect(screen.getByTestId("docx-status-zoom")).not.toHaveTextContent("%");
   });

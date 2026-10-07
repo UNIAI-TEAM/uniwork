@@ -394,4 +394,29 @@ describe("XlsxEditor", () => {
     await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
     expect(screen.getByTestId("xlsx-status-bar")).toBeInTheDocument();
   });
+
+  it("marks dirty only when an undo/redo step moved the workbook (UNI-954)", async () => {
+    let generation = 2;
+    const handle = editor({ getDirtyGeneration: () => generation });
+    const { saveCoordinator } = renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    vi.mocked(saveCoordinator.markDirty!).mockClear();
+    // Empty stacks: the step leaves the generation alone, so nothing is dirty.
+    fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
+    fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    expect(handle.redo).toHaveBeenCalledTimes(1);
+    expect(saveCoordinator.markDirty).not.toHaveBeenCalled();
+    vi.mocked(handle.undo!).mockImplementation(() => { generation += 1; });
+    fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
+    expect(saveCoordinator.markDirty).toHaveBeenCalledWith(3);
+  });
+
+  it("disables Undo/Redo without a grid when the handle reports an empty stack (review r3 N1)", async () => {
+    const handle = editor({ canUndo: () => false, canRedo: () => true });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Hoàn tác" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Làm lại" })).not.toHaveAttribute("aria-disabled");
+  });
 });

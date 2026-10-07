@@ -236,7 +236,7 @@ model, and edits never round-trip to a gateway. Only Save does.** Concretely:
   wrap/numFmt + theme palette), merges, column widths, row heights/hidden,
   frozen panes, hyperlinks, and — when the closure needs them — CF rules, DV
   and autoFilter. The model is delivered through the existing `open:xlsx` job
-  payload (today ≤16 MB, `xlsx_open_model_too_large` otherwise) as an additive
+  payload (today ≤16 MB; above it the job fails typed as `upload_bounds` / `xlsx_open_model_too_large`, a 413 `byte_bound` non-retryable failure the web turns into the desktop-app suggestion, UNI-956) as an additive
   field next to `snapshot`, so G3-05b’s value snapshot and probing stay the
   session baseline. Virtualisation windows are then served **from the
   in-browser model** (section 5), not by service calls.

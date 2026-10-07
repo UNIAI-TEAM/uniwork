@@ -160,6 +160,9 @@ export interface PptxTextEditorOverlayProps {
   displayHeightPx?: number;
   onCommitText: (commit: PptxTextCommit) => void;
   onCancel: () => void;
+  /** Opened by typing over the selection (UNI-958): the caret sits after the typed
+   *  text instead of selecting it, so the next key appends. */
+  caretAtEnd?: boolean;
 }
 
 /** The contenteditable surface over one text element's box. */
@@ -170,6 +173,7 @@ export function PptxTextEditorOverlay({
   displayHeightPx,
   onCommitText,
   onCancel,
+  caretAtEnd = false,
 }: PptxTextEditorOverlayProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx.text" });
   const editorRef = useRef<HTMLDivElement>(null);
@@ -190,10 +194,11 @@ export function PptxTextEditorOverlay({
     const selection = typeof window !== "undefined" ? window.getSelection() : null;
     if (range && selection && element.firstChild) {
       range.selectNodeContents(element);
+      if (caretAtEnd) range.collapse(false);
       selection.removeAllRanges();
       selection.addRange(range);
     }
-  }, [target.sourceId, target.text]);
+  }, [caretAtEnd, target.sourceId, target.text]);
 
   const commit = useCallback(() => {
     if (settled.current) return;

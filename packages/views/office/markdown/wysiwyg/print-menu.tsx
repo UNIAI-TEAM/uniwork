@@ -16,16 +16,17 @@
  * The entries are menu items, not floating buttons over the canvas (C9), so
  * they mount into the page's ⋯ menu through the header menu slot.
  */
-import { useCallback, useId, useState } from "react";
+import { useCallback, useId, useSyncExternalStore } from "react";
 import { FileDown, FileText, Printer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { AssetManifest } from "@uniwork/office-engine/assets";
+import { useOfficePrintShortcut } from "../../print/shortcut";
 import { printMarkdownDocument, type MarkdownPrintOutcome, type MarkdownPrintPort } from "./print";
 
 /** i18next keys this module reads. All exist in `en.json` / `vi.json`. */
 export const MARKDOWN_PRINT_KEYS = {
-  print: "office.markdown.print.title",
+  print: "office.common.print",
   exportPdf: "office.markdown.print.exportPdf",
   exportDocx: "office.markdown.print.exportDocx",
   exportNotAvailable: "office.markdown.print.exportNotAvailable",
@@ -50,7 +51,9 @@ export interface MarkdownPrintMenuItemsProps {
    * `manifest`/`assetUrl` are set, or the rewritten URLs self-block. Defaults
    * to {@link PRINT_COPY_CSP}. */
   csp?: string;
-  /** Reports the port's outcome so the caller can toast on failure. */
+  /** A print run starts: the caller clears the previous outcome notice. */
+  onStart?(): void;
+  /** Reports the port's outcome so the caller can show it (the menu closes on click). */
   onOutcome?(outcome: MarkdownPrintOutcome): void;
 }
 
@@ -61,33 +64,77 @@ const DISABLED_EXPORTS = [
 ] as const;
 
 /**
- * The ⋯-menu entries. A disabled export keeps its reason on the item's
- * `title` and in an `sr-only` note wired with `aria-describedby`, so the
- * reason is reachable by pointer and by screen reader.
+ * "A run is in flight" for one print port. The menu entry (mounted only while
+ * the menu is open) and the Ctrl/Cmd+P binding are separate components over the
+ * same port, so the flag lives per port and both read it: a run started from
+ * either blocks the other until it settles.
  */
-export function MarkdownPrintMenuItems({
-  port,
-  renderHtml,
-  title,
-  manifest,
-  assetUrl,
-  csp,
-  onOutcome,
-}: MarkdownPrintMenuItemsProps) {
-  const { t } = useTranslation();
-  const [printing, setPrinting] = useState(false);
-  const reasonId = useId();
+interface PrintGate {
+  busy: boolean;
+  listeners: Set<() => void>;
+}
+const printGates = new WeakMap<MarkdownPrintPort, PrintGate>();
+const NO_PRINT_GATE: PrintGate = { busy: false, listeners: new Set() };
 
+function gateFor(port: MarkdownPrintPort | undefined): PrintGate {
+  if (!port) return NO_PRINT_GATE;
+  let gate = printGates.get(port);
+  if (!gate) {
+    gate = { busy: false, listeners: new Set() };
+    printGates.set(port, gate);
+  }
+  return gate;
+}
+
+function setBusy(gate: PrintGate, busy: boolean): void {
+  gate.busy = busy;
+  gate.listeners.forEach((listener) => listener());
+}
+
+/** One print run: render, sanitize, hand to the port, report the outcome. */
+function useMarkdownPrint({ port, renderHtml, title, manifest, assetUrl, csp, onStart, onOutcome }: MarkdownPrintMenuItemsProps) {
+  const gate = gateFor(port);
+  const subscribe = useCallback((listener: () => void) => {
+    gate.listeners.add(listener);
+    return () => { gate.listeners.delete(listener); };
+  }, [gate]);
+  const printing = useSyncExternalStore(subscribe, () => gate.busy, () => false);
   const print = useCallback(async () => {
-    if (!port || printing) return;
-    setPrinting(true);
+    // Read the gate, not the rendered state: two triggers in one tick start one run.
+    if (!port || gate.busy) return;
+    setBusy(gate, true);
+    onStart?.();
     try {
       const outcome = await printMarkdownDocument({ port, renderHtml, title, manifest, assetUrl, csp });
       onOutcome?.(outcome);
     } finally {
-      setPrinting(false);
+      setBusy(gate, false);
     }
-  }, [assetUrl, csp, manifest, onOutcome, port, printing, renderHtml, title]);
+  }, [assetUrl, csp, gate, manifest, onOutcome, onStart, port, renderHtml, title]);
+  return { print, printing };
+}
+
+/**
+ * Binds Ctrl/Cmd+P (the Office shell's listener, UNI-952) to the same print
+ * the menu entry runs. Mount it beside the menu contribution with the same
+ * props: the menu items only exist while the menu is open. Renders nothing.
+ */
+export function MarkdownPrintShortcut(props: MarkdownPrintMenuItemsProps) {
+  const { print } = useMarkdownPrint(props);
+  useOfficePrintShortcut(props.port ? () => { void print(); } : null);
+  return null;
+}
+
+/**
+ * The ⋯-menu entries. A disabled export keeps its reason on the item's
+ * `title` and in an `sr-only` note wired with `aria-describedby`, so the
+ * reason is reachable by pointer and by screen reader.
+ */
+export function MarkdownPrintMenuItems(props: MarkdownPrintMenuItemsProps) {
+  const { port } = props;
+  const { t } = useTranslation();
+  const { print, printing } = useMarkdownPrint(props);
+  const reasonId = useId();
 
   return (
     <>

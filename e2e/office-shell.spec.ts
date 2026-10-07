@@ -4,20 +4,24 @@ import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { createRecordingAccount } from "./meeting-recording-fixture";
 import { VI_LOCALE_STATE } from "./locale-state";
+import { e2eApiUrl, e2eBaseUrl } from "./api-url";
 
 /**
- * Shell-only browser contract. The format lanes own real byte/edit oracles;
- * this suite checks that the shared host remains reachable behind the flag,
- * survives a reload with a local recovery, and keeps keyboard/focus/layout
- * behavior stable. CI supplies an authenticated OFFICE_DOCUMENT_URL fixture.
+ * Shell browser contract over the bound DOCX host. The format lanes own the
+ * byte/edit oracles; this suite checks that the shared host mounts the editor
+ * behind the flag, keeps an unsaved edit as a recoverable draft across a reload,
+ * and holds keyboard/focus/layout. Without OFFICE_DOCUMENT_URL the suite seeds
+ * its own account and DOCX file (CI does this).
  */
-test.describe.configure({ mode: "serial", timeout: 120_000 });
+// Not serial: one failing case must not skip the rest; a new worker re-seeds.
+test.describe.configure({ timeout: 120_000 });
 
 const enabled = process.env.OFFICE_SHELL_E2E === "1";
 const suppliedDocumentUrl = process.env.OFFICE_DOCUMENT_URL;
 const suppliedFlagOffUrl = process.env.OFFICE_DOCUMENT_FLAG_OFF_URL;
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-const baseUrl = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+// The global setup has checked the web build calls this same API.
+const apiUrl = e2eApiUrl;
+const baseUrl = e2eBaseUrl;
 // `pnpm --filter @uniwork/e2e test` runs with e2e/ as cwd while a root
 // Playwright invocation runs from the repository root; keep the fixture pin
 // stable for both supported local-stack entry points.
@@ -29,24 +33,43 @@ interface OfficeFixture {
   documentUrl: string;
   flagOffUrl: string;
   email: string;
+  organizationId: string | null;
 }
 
 let officeFixture: OfficeFixture | null = null;
 
-async function setOfficeFlag(enabled: boolean): Promise<void> {
+/**
+ * Turns office_engine on for one organization (the seeded one), so the CI
+ * suite's other Documents specs keep the default file card; a supplied
+ * OFFICE_DOCUMENT_URL has no known organization and gets a global row.
+ */
+async function setOfficeFlag(enabled: boolean, organizationId: string | null): Promise<void> {
+  const scopeType = organizationId ? "organization" : "global";
+  const scopeId = organizationId ?? "";
   const url = process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL ?? "postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable";
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
     await client.query(
       `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
-       VALUES ('e2e-office-shell-global', 'office_engine', 'global', '', $1, 'e2e: office shell', 'e2e', 'system')
+       VALUES ($2, 'office_engine', $3, $4, $1, 'e2e: office shell', 'e2e', 'system')
        ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = $1`,
-      [enabled],
+      [enabled, `e2e-office-shell-${organizationId ?? "global"}`, scopeType, scopeId],
     );
   } finally {
     await client.end();
   }
+  // The override bypasses the admin write path, so nothing invalidates the
+  // server's flag cache (featureflags.CacheTTL, 30s). Wait until /config
+  // answers the new value; otherwise the first page renders the file card
+  // (this was the "360px does not mount" failure: it ran first).
+  await expect.poll(async () => {
+    const query = organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : "";
+    const response = await fetch(`${apiUrl}/api/v1/config${query}`);
+    if (!response.ok) return null;
+    const body = (await response.json()) as { flags?: Record<string, boolean> };
+    return body.flags?.office_engine ?? null;
+  }, { timeout: 45_000, intervals: [1_000] }).toBe(enabled);
 }
 
 async function seedOfficeFixture(browser: Browser): Promise<OfficeFixture> {
@@ -69,13 +92,15 @@ async function seedOfficeFixture(browser: Browser): Promise<OfficeFixture> {
       },
     });
     expect(response.ok(), `seed Office file: HTTP ${response.status()} ${await response.text()}`).toBeTruthy();
-    const payload = (await response.json()) as { document?: { id: string } };
+    const payload = (await response.json()) as { document?: { id: string; organization_id?: string } };
     expect(payload.document?.id, "seed Office file returned no document id").toBeTruthy();
+    expect(payload.document?.organization_id, "seed Office file returned no organization id").toBeTruthy();
     const documentUrl = `${baseUrl}/${account.orgSlug}/${account.wsSlug}/documents/${payload.document!.id}`;
     return {
       documentUrl,
       flagOffUrl: `${documentUrl}?office_flag=off`,
       email: account.email,
+      organizationId: payload.document!.organization_id ?? null,
     };
   } finally {
     await context.close();
@@ -91,7 +116,9 @@ async function signIn(page: Page, email: string): Promise<void> {
 }
 
 async function installFlagOffConfig(page: Page): Promise<void> {
-  await page.route("**/api/v1/config", async (route) => {
+  // The document page asks with ?organization_id=…, which a "**/api/v1/config"
+  // glob does not match; match the path instead.
+  await page.route((url) => url.pathname === "/api/v1/config", async (route) => {
     const response = await route.fetch();
     if (!response.ok()) {
       await route.fulfill({ response });
@@ -105,24 +132,52 @@ async function installFlagOffConfig(page: Page): Promise<void> {
   });
 }
 
+/** The DOCX route is bound (G3-03b's unbound alert is gone): wait for the
+ * vendored editor surface itself, never for a placeholder. */
+async function expectDocxEditor(page: Page): Promise<void> {
+  await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("docx-canvas")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('[data-testid="docx-canvas"] [contenteditable="true"]').first()).toBeVisible();
+  await expect(page.getByTestId("office-host-unbound")).toHaveCount(0);
+}
+
 test.beforeAll(async ({ browser }) => {
-  test.skip(!enabled, "Set OFFICE_SHELL_E2E=1 to run the local Office shell browser contract.");
-  await setOfficeFlag(true);
+  test.skip(!enabled, "Set OFFICE_SHELL_E2E=1 to run the Office shell browser contract.");
   officeFixture = suppliedDocumentUrl
-    ? { documentUrl: suppliedDocumentUrl, flagOffUrl: suppliedFlagOffUrl ?? suppliedDocumentUrl, email: "" }
+    ? { documentUrl: suppliedDocumentUrl, flagOffUrl: suppliedFlagOffUrl ?? suppliedDocumentUrl, email: "", organizationId: null }
     : await seedOfficeFixture(browser);
+  await setOfficeFlag(true, officeFixture.organizationId);
 });
 
 test.beforeEach(async ({ page }) => {
   if (officeFixture?.email) await signIn(page, officeFixture.email);
 });
 
-test("real-engine edit, reload, and recovery is deferred to 0Xb", async () => {
-  test.skip(true, "0Xb owns the real-engine edit -> reload -> recovery path; 03b covers the unbound shell and browser chrome.");
+test("an unsaved edit survives a reload as a recoverable local draft", async ({ page }) => {
+  const marker = `uw-shell-draft-${Date.now().toString(36)}`;
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(officeFixture!.documentUrl);
+  await expectDocxEditor(page);
+  const surface = page.locator('[data-testid="docx-canvas"] [contenteditable="true"]').first();
+  await surface.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(` ${marker}`);
+  await expect(surface).toContainText(marker);
+  // The host checkpoints a dirty editor on a 2s timer (editor-host.tsx);
+  // leave room for the encrypted IndexedDB write to settle.
+  await page.waitForTimeout(4_000);
+  await page.reload();
+  await expectDocxEditor(page);
+  const prompt = page.getByRole("dialog", { name: "Tìm thấy bản nháp" });
+  await expect(prompt).toBeVisible({ timeout: 30_000 });
+  await prompt.getByRole("button", { name: "Khôi phục bản nháp" }).click();
+  await expect(prompt).toBeHidden();
+  await expect(page.locator('[data-testid="docx-canvas"] [contenteditable="true"]').first()).toContainText(marker);
 });
 
 test("keeps bound Office header actions reachable at 390px without nested scrolling", async ({ page }) => {
-  test.skip(!process.env.OFFICE_HEADER_DOCUMENT_URL, "Supply an authenticated bound Office editor to verify real header actions.");
+  // An externally supplied editor (OFFICE_HEADER_DOCUMENT_URL) may bring its
+  // own session; the default is the seeded DOCX fixture.
   if (process.env.OFFICE_HEADER_STORAGE_STATE) {
     const state = JSON.parse(readFileSync(process.env.OFFICE_HEADER_STORAGE_STATE, "utf8")) as { cookies: Parameters<ReturnType<typeof page.context>["addCookies"]>[0]; origins: { origin: string; localStorage: { name: string; value: string }[] }[] };
     await page.context().addCookies(state.cookies);
@@ -133,22 +188,26 @@ test("keeps bound Office header actions reachable at 390px without nested scroll
     }, state.origins ?? []);
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(process.env.OFFICE_HEADER_DOCUMENT_URL!);
-  const shell = page.locator("[data-office-shell]");
-  const header = shell.locator(":scope > header");
-  await expect(header.locator("button").first()).toBeVisible();
+  await page.goto(process.env.OFFICE_HEADER_DOCUMENT_URL ?? officeFixture!.documentUrl);
+  await expectDocxEditor(page);
+  // The shell is embedded: its save/desktop cluster renders into the
+  // document page's one header through the header-actions slot.
+  const save = page.locator("[data-office-save]");
+  await expect(save).toBeVisible();
+  const header = save.locator("xpath=ancestor::header[1]");
+  await expect(header).toBeVisible();
   for (const theme of ["light", "dark"] as const) {
     await page.evaluate(mode => document.documentElement.classList.toggle("dark", mode === "dark"), theme);
     const layout = await header.evaluate(element => ({
-      actionBounds: [...element.querySelectorAll("button")].map(button => ({ left: button.getBoundingClientRect().left, right: button.getBoundingClientRect().right })),
-      scrollers: [...element.querySelectorAll("div")].filter(div => ["auto", "scroll"].includes(getComputedStyle(div).overflowX)).length,
-      followingBandEmpty: element.nextElementSibling?.textContent?.trim() === "",
+      actionBounds: [...element.querySelectorAll("button")].filter(button => button.getClientRects().length > 0).map(button => ({ left: button.getBoundingClientRect().left, right: button.getBoundingClientRect().right })),
+      scrollers: [...element.querySelectorAll("div")].filter(div => ["auto", "scroll"].includes(getComputedStyle(div).overflowX) && div.scrollWidth > div.clientWidth).length,
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     }));
     expect(layout.actionBounds.length).toBeGreaterThan(0);
     for (const bounds of layout.actionBounds) { expect(bounds.left).toBeGreaterThanOrEqual(0); expect(bounds.right).toBeLessThanOrEqual(390); }
     expect(layout.scrollers).toBe(0);
-    expect(layout.followingBandEmpty).toBe(false);
-    await shell.screenshot({ path: test.info().outputPath(`office-header-390-${theme}.png`) });
+    expect(layout.pageOverflow).toBeLessThanOrEqual(0);
+    await header.screenshot({ path: test.info().outputPath(`office-header-390-${theme}.png`) });
   }
 });
 
@@ -156,8 +215,7 @@ for (const width of viewports) {
   test(`holds the shell at ${width}px in both themes`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto(officeFixture!.documentUrl);
-    await expect(page.locator("[data-office-editor-host]")).toBeVisible();
-    await expect(page.getByTestId("office-host-unbound")).toBeVisible();
+    await expectDocxEditor(page);
     const shell = page.locator("[data-office-shell]");
     await expect(shell).toBeVisible();
     const bounds = await shell.boundingBox();
@@ -166,6 +224,8 @@ for (const width of viewports) {
     for (const theme of ["light", "dark"] as const) {
       await page.evaluate((mode) => document.documentElement.classList.toggle("dark", mode === "dark"), theme);
       await page.evaluate(() => document.fonts?.ready);
+      // Baselines are per platform (`-linux` from the CI image); the
+      // tolerance absorbs sub-pixel text antialiasing only.
       await expect(shell).toHaveScreenshot(`office-shell-${width}-${theme}.png`, {
         animations: "disabled",
         maxDiffPixels: 120,
@@ -174,10 +234,10 @@ for (const width of viewports) {
   });
 }
 
-test("keyboard-only navigation keeps focus visible on the unbound shell", async ({ page }) => {
+test("keyboard-only navigation keeps focus visible on the bound shell", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto(officeFixture!.documentUrl);
-  await expect(page.getByTestId("office-host-unbound")).toBeVisible();
+  await expectDocxEditor(page);
   await page.keyboard.press("Tab");
   await expect(page.locator(":focus-visible")).toHaveCount(1);
   await expect(page.locator(":focus-visible")).toBeVisible();
@@ -193,6 +253,8 @@ test("flag off leaves the existing file view unchanged", async ({ page }) => {
     await signIn(page, officeFixture.email);
   }
   await page.goto(officeFixture!.flagOffUrl);
+  // UNI-941: a DOCX whose flag is off keeps the file card with the typed
+  // "editing is off" notice; wait for it before asserting no host mounted.
+  await expect(page.getByText(/Chỉnh sửa DOCX đang tắt|DOCX editing is turned off/i)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("[data-office-editor-host]")).toHaveCount(0);
-  await expect(page.getByText(/Chưa sửa được trong web|Not editable in web/i)).toBeVisible();
 });

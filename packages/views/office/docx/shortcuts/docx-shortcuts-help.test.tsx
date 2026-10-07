@@ -4,6 +4,7 @@ import { configureShortcutPlatform } from "@uniwork/core/shortcuts";
 import { createDocxCommandRuntime } from "../commands";
 import type { DocxToolbarGroupContext } from "../toolbar/types";
 import { DocxShortcutsHelp } from "./docx-shortcuts-help";
+import { createDocxDocumentScope } from "../editor-store";
 
 // The sheet spells chords for the resolved platform; pin it so the assertions
 // do not change with the machine running the suite.
@@ -30,6 +31,7 @@ function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarG
     error: null,
   };
   return {
+    docScope: createDocxDocumentScope(),
     editor: {
       format: "docx",
       open: vi.fn(async () => undefined),

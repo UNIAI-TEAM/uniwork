@@ -29,6 +29,7 @@ import {
   type OpenFailureClass,
   type OpenOutcome,
 } from "@uniwork/office-contracts";
+import { scanZipBomb } from "../shared/zip-central.ts";
 import {
   XLSX_SIDECAR_PROTOCOL_VERSION,
   type XlsxGatewayArguments,
@@ -38,8 +39,11 @@ import {
   type XlsxSheetFormulaValues,
   type XlsxWorkbookSnapshot,
 } from "./engine.ts";
+import { ruleSetSaveFailure } from "./adapter-rule-sets.ts";
 import { createXlsxSessionModel, type XlsxSessionModel } from "./model.ts";
 import { parseXlsxOps } from "./ops.ts";
+import { resolveFileVisualEdits } from "./render-model-visuals.ts";
+import { withRuleSetSource } from "./ops-cf-dv.ts";
 import { formulaCellsOfSnapshot, recalcFormulaCells, XLSX_MAX_RECALC_EDITS } from "./recalc.ts";
 import { readSharedFollowers, type XlsxSharedFollowers } from "./shared-formulas.ts";
 
@@ -79,7 +83,15 @@ export interface XlsxAdapterDeps {
    *  formulas is a typed unsupported_operation — stale <v>s never ship. */
   recalc?: XlsxRecalcPort | undefined;
   sha256?: (bytes: Uint8Array) => Promise<string>;
+  /** Input bound in bytes; defaults to the server contract. A host that does
+   *  not cap local files (the desktop app) passes Number.POSITIVE_INFINITY. */
   maxInputBytes?: number;
+  /** Output bound in bytes; same default and same unbounded convention. */
+  maxOutputBytes?: number;
+  /** "proportional" pre-scans the package central directory (no inflation)
+   *  and refuses a zip bomb as corrupted before the upstream parser runs. For a
+   *  host that does not cap local files; omitted = no pre-scan (web, server). */
+  zipGuard?: "proportional";
   /** Build identity bound into the session (input hash + engine version +
    *  protocol + model revision is the binding the task pins). The service
    *  passes the gateway artifact's sha256; a drift between open and
@@ -101,6 +113,8 @@ interface XlsxSession {
   model: XlsxSessionModel;
   sheetNamesById: Readonly<Record<string, string>>;
   preservedParts: readonly string[];
+  /** Wire ops accepted so far: a rule-set op records its position (r3 MA-2). */
+  wireOps: number;
 }
 
 let sessionCounter = 0;
@@ -196,6 +210,8 @@ export class XlsxAdapter {
       }
       return this.failed(document_id, "not_office_file", "bytes are not a ZIP/OOXML container");
     }
+    const bomb = this.deps.zipGuard === "proportional" ? scanZipBomb(bytes) : null;
+    if (bomb !== null) return this.failed(document_id, "corrupted", "zip_bomb: " + bomb);
     let parsed: { snapshot: XlsxWorkbookSnapshot; sheetNamesById: Readonly<Record<string, string>> };
     let entries: readonly XlsxPackageEntry[];
     try {
@@ -228,6 +244,7 @@ export class XlsxAdapter {
       model: createXlsxSessionModel(parsed.snapshot, inputSha256),
       sheetNamesById: parsed.sheetNamesById,
       preservedParts,
+      wireOps: 0,
     });
     return { outcome: "opened", document_id, document_model_ref: ref, warnings: preservedWarnings(preservedParts) };
   }
@@ -257,11 +274,12 @@ export class XlsxAdapter {
     // leaving the valid prefix applied.
     const checkpoint = session.model.checkpoint();
     try {
-      parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op) => session.model.applyEdit(op));
+      parseXlsxOps(ops, session.model.resolver(session.sheetNamesById), (op, index) => session.model.applyEdit(withRuleSetSource(op, session.wireOps + index)));
     } catch (error) {
       session.model.rollback(checkpoint);
       throw error;
     }
+    session.wireOps += ops.length;
     return { applied: true, revision: session.model.revision };
   }
 
@@ -359,6 +377,18 @@ export class XlsxAdapter {
       .model
       .pendingTableAdditions()
       .map((table) => ({ ...table, sheetName: gatewayName(table.sheetName) }));
+    // Visual additions (B8): new drawing/chart/media parts anchored at final
+    // coordinates; the gateway writes them after the worksheet flush, so they
+    // never move cells and the recalc pass is unaffected.
+    const visualAdditions = session
+      .model
+      .pendingVisualAdditions()
+      .map((visual) => ({ ...visual, sheetName: gatewayName(visual.sheetName) }));
+    // File-visual edits (UNI-953, patch 0013): moves and deletes of anchors
+    // already in the input package, located by the drawing part of the
+    // sheet's file name; the gateway runs them before any visual addition.
+    // An edit of an anchor the editor shows as fixed is refused (V4).
+    const visualEdits = await resolveFileVisualEdits(session.model.visuals, gatewayName, (paths) => this.deps.engine.readEntriesText(session.inputBytes, paths));
     // Hyperlink edits carry final per-cell coordinates, so the gateway applies
     // them after structural replay; a hyperlink change never moves cells, so
     // the recalc pass is unaffected. Each op is a per-cell last-write link
@@ -383,6 +413,16 @@ export class XlsxAdapter {
     const noteStates = session
       .model
       .pendingNoteStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    // CF/DV rule sets (X01) are declarative whole-sheet snapshots the gateway
+    // rewrites after the worksheet flush; like notes they never move cells.
+    const cfStates = session
+      .model
+      .pendingConditionalFormatStates()
+      .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
+    const dvStates = session
+      .model
+      .pendingDataValidationStates()
       .map((state) => ({ ...state, sheetName: gatewayName(state.sheetName) }));
     // The pre-assemble recalc runs against the ORIGINAL bytes plus the cell
     // edits, so it is only sound when the save keeps every coordinate and the
@@ -428,7 +468,7 @@ export class XlsxAdapter {
       keptWarning(mapped.kept);
     }
     const gatewayArguments: XlsxGatewayArguments =
-      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
+      structuralOps.length === 0 && sheetPlan === undefined && filterStates.length === 0 && pageSetupStates.length === 0 && tableAdditions.length === 0 && visualAdditions.length === 0 && visualEdits.length === 0 && hyperlinkEdits.length === 0 && noteStates.length === 0 && cfStates.length === 0 && dvStates.length === 0 && sheetProtections.length === 0 && definedNamesState === undefined
         ? {}
         : {
             ...(structuralOps.length > 0 ? { structuralOps } : {}),
@@ -436,17 +476,23 @@ export class XlsxAdapter {
             ...(filterStates.length > 0 ? { filterStates } : {}),
             ...(pageSetupStates.length > 0 ? { pageSetupStates } : {}),
             ...(tableAdditions.length > 0 ? { tableAdditions } : {}),
+            ...(visualAdditions.length > 0 ? { visualAdditions } : {}),
+            ...(visualEdits.length > 0 ? { visualEdits } : {}),
             ...(hyperlinkEdits.length > 0 ? { hyperlinkEdits } : {}),
             ...(noteStates.length > 0 ? { noteStates } : {}),
+            ...(cfStates.length > 0 ? { cfStates } : {}),
+            ...(dvStates.length > 0 ? { dvStates } : {}),
             ...(sheetProtections.length > 0 ? { sheetProtections } : {}),
             ...(definedNamesState === undefined ? {} : { definedNamesState }),
           };
-    let out = await this.assemble(
-      session.inputBytes,
-      edits,
-      formulaValues,
-      Object.keys(gatewayArguments).length > 0 ? gatewayArguments : undefined,
-    );
+    const assembleWith = (args: XlsxGatewayArguments | undefined) =>
+      this.assemble(session.inputBytes, edits, formulaValues, args && Object.keys(args).length > 0 ? args : undefined);
+    let out: Uint8Array;
+    try {
+      out = await assembleWith(gatewayArguments);
+    } catch (error) {
+      throw await ruleSetSaveFailure(session.model, gatewayArguments, assembleWith, error);
+    }
     // Rebase on the produced bytes: a saved package that does not re-parse is
     // an engine bug the caller must never inherit as the new base.
     let rebased = await this.reparse(out);
@@ -502,7 +548,7 @@ export class XlsxAdapter {
     if (!out || out.length === 0) {
       throw new EngineBoundaryError("engine_result_invalid", { detail: "xlsx assemble returned empty bytes" });
     }
-    if (out.length > ENGINE_LIMITS.max_output_bytes) {
+    if (out.length > (this.deps.maxOutputBytes ?? ENGINE_LIMITS.max_output_bytes)) {
       throw new EngineBoundaryError("upload_bounds", { detail: "output exceeds byte bound" });
     }
     return out;
@@ -619,5 +665,6 @@ export {
   applyXlsxEditBytes,
   type XlsxFailureCode,
   type XlsxOpenModel,
+  type XlsxByteBounds,
 } from "./adapter-service.ts";
 

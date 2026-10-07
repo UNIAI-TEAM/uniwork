@@ -1,7 +1,7 @@
 "use client";
 
 import { Redo2, Search, Undo2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
@@ -17,6 +17,8 @@ export interface PdfRibbonBarProps {
   onCommand?: (id: PdfCommandId) => void;
   findOpen: boolean;
   onFindToggle: () => void;
+  /** The Print button, beside Find; absent when the host cannot print. */
+  printAction?: ReactNode;
 }
 
 /**
@@ -35,6 +37,7 @@ export function PdfRibbonBar({
   onCommand,
   findOpen,
   onFindToggle,
+  printAction,
 }: PdfRibbonBarProps) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -90,6 +93,8 @@ export function PdfRibbonBar({
 
   const trailing = useMemo(
     () => (
+      <>
+      {printAction}
       <ToggleGroup
         value={findOpen ? ["find"] : []}
         onValueChange={() => onFindToggle()}
@@ -107,8 +112,9 @@ export function PdfRibbonBar({
           <Search aria-hidden />
         </ToggleGroupItem>
       </ToggleGroup>
+      </>
     ),
-    [findOpen, onFindToggle, t],
+    [findOpen, onFindToggle, printAction, t],
   );
 
   // The shared ribbon owns its tab buttons and body and exposes no per-tab test

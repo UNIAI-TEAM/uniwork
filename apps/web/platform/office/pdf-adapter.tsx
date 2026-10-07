@@ -3,7 +3,7 @@
 import { createElement, lazy, Suspense, type ReactNode } from "react";
 import { sha256Hex } from "@uniwork/office-contracts";
 import { applyPdfOpsInBrowser, readPdfFormFields, readPdfNotes } from "@uniwork/office-engine/browser";
-import type { EditorHandle, OfficeCapabilityEntry, OfficeHost, StableSnapshot } from "@uniwork/core/office";
+import { isOfficeTooLarge, type EditorHandle, type OfficeCapabilityEntry, type OfficeHost, type StableSnapshot } from "@uniwork/core/office";
 import {
   bridgePdfOperations,
   createPdfEditorLoader,
@@ -18,6 +18,7 @@ import {
   type PdfSnapshot,
 } from "@uniwork/views/office/pdf";
 import type { OfficeEditorComponent } from "@uniwork/views/office";
+import { createBrowserPrintPort } from "@uniwork/views/office/print";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions } from "./editor-host-core";
 import { createPdfRenderSession, type PdfRenderSession } from "./pdf-render";
 import { createPdfSaveTransport, type PdfDocumentsTransport } from "./pdf-save-transport";
@@ -37,7 +38,7 @@ export interface PdfFormatAdapterOptions extends BrowserOfficeDraftOptions<PdfSn
 }
 
 type SearchHits = Awaited<ReturnType<NonNullable<PdfEditorHandle["searchText"]>>>;
-type FailureClass = "password_required" | "wrong_password" | "engine_error";
+type FailureClass = "password_required" | "wrong_password" | "too_large" | "engine_error";
 
 interface PdfEditorSurface extends PdfEditorHandle<PdfSnapshot> {
   /** The web lane opens with an optional password (C3) and threads the
@@ -67,7 +68,8 @@ function pushBounded(stack: Uint8Array[], bytes: Uint8Array, budget: number): vo
 
 function failureClassOf(error: unknown): FailureClass {
   const code = (error as { code?: unknown } | null)?.code;
-  return code === "password_required" || code === "wrong_password" ? code : "engine_error";
+  if (code === "password_required" || code === "wrong_password") return code;
+  return isOfficeTooLarge(error as { code?: string; kind?: string; failureClass?: string }) ? "too_large" : "engine_error";
 }
 
 /**
@@ -115,12 +117,19 @@ function createPdfEditorSurface(options: {
     queue = run.catch(() => undefined);
     return run;
   };
-  const swapDocument = async (bytes: Uint8Array) => {
-    await requireSession().replaceBytes(bytes);
+  /** `commit` moves the history stacks before the listeners run, so a listener
+   *  reading canUndo/canRedo sees the stacks of the new bytes. A session
+   *  disposed during the swap commits nothing and returns false. */
+  const swapDocument = async (bytes: Uint8Array, commit: () => void): Promise<boolean> => {
+    const session = requireSession();
+    await session.replaceBytes(bytes);
+    if (render !== session) return false;
     current = bytes;
     generation += 1;
+    commit();
     refreshSnapshot();
     notify();
+    return true;
   };
 
   const load = async (signal?: AbortSignal, password?: string) => {
@@ -156,9 +165,11 @@ function createPdfEditorSurface(options: {
     const bytes = current;
     if (!bytes) throw new Error("pdf_editor_not_open");
     const result = await options.applyOps(bytes, operations);
-    await swapDocument(result.bytes);
-    pushBounded(undoStack, bytes, options.undoByteBudget);
-    redoStack = [];
+    const applied = await swapDocument(result.bytes, () => {
+      pushBounded(undoStack, bytes, options.undoByteBudget);
+      redoStack = [];
+    });
+    if (!applied) throw new Error("pdf_editor_disposed");
     return { skipped: result.skipped };
   });
 
@@ -168,9 +179,10 @@ function createPdfEditorSurface(options: {
       const target = source[source.length - 1];
       const bytes = current;
       if (!target || !bytes) return;
-      await swapDocument(target);
-      source.pop();
-      pushBounded(to(), bytes, options.undoByteBudget);
+      await swapDocument(target, () => {
+        source.pop();
+        pushBounded(to(), bytes, options.undoByteBudget);
+      });
     }).catch(() => undefined);
   };
 
@@ -250,6 +262,8 @@ function createPdfEditorSurface(options: {
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     undo: () => step(() => undoStack, () => redoStack),
     redo: () => step(() => redoStack, () => undoStack),
+    canUndo: () => undoStack.length > 0,
+    canRedo: () => redoStack.length > 0,
     dispose() {
       epoch += 1;
       opening = null;
@@ -314,6 +328,8 @@ export function createPdfFormatAdapter(options: PdfFormatAdapterOptions) {
     coordinator: session.coordinator,
     capability: options.capability as PdfCapability,
     title: options.title,
+    // UNI-952: the web prints the page copy from an isolated frame, never the app window.
+    printPort: createBrowserPrintPort(),
   });
   const PdfSlot = lazy(async () => {
     const loaded = await loadPdfEditor("pdf");

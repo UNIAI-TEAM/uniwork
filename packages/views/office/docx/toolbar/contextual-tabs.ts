@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import type { RibbonGroup, RibbonItem, RibbonMenuEntry, RibbonTab } from "../../ribbon";
 import { isDocxInTable } from "../context-menu/table-actions";
-import { getDocxLiveEditor } from "../editor-store";
 import { createDocxImageEditing } from "../image/docx-image-commands";
 import {
   DOCX_IMAGE_POSITION_PRESETS,
@@ -85,8 +84,8 @@ function positionLabelKey(h: DocxImagePositionH, v: DocxImagePositionV): string 
 }
 
 /** Run one image-port edit against the live editor; a no-op without one. */
-function withImageEditing(run: (editing: ReturnType<typeof createDocxImageEditing>) => void): void {
-  const editor = getDocxLiveEditor();
+function withImageEditing(context: DocxToolbarGroupContext, run: (editing: ReturnType<typeof createDocxImageEditing>) => void): void {
+  const editor = context.docScope.editor.get();
   if (!editor) return;
   run(createDocxImageEditing(() => editor));
 }
@@ -245,12 +244,12 @@ function pictureFormatTab(context: DocxToolbarGroupContext, when: boolean): Ribb
   const wrapEntries: readonly RibbonMenuEntry[] = DOCX_IMAGE_WRAP_OPTIONS.map((wrap) => ({
     id: `picture-format-wrap-${wrap ?? "inline"}`,
     labelKey: wrap === null ? "office.docx.image.wrap.inline" : `office.docx.image.wrap.${wrap}`,
-    onSelect: () => withImageEditing((editing) => editing.apply({ kind: "wrap", wrap })),
+    onSelect: () => withImageEditing(context, (editing) => editing.apply({ kind: "wrap", wrap })),
   }));
   const positionEntries: readonly RibbonMenuEntry[] = DOCX_IMAGE_POSITION_PRESETS.map(({ h, v }) => ({
     id: `picture-format-position-${v}-${h}`,
     labelKey: positionLabelKey(h, v),
-    onSelect: () => withImageEditing((editing) => editing.apply({ kind: "position", h, v })),
+    onSelect: () => withImageEditing(context, (editing) => editing.apply({ kind: "position", h, v })),
   }));
   const groups: readonly RibbonGroup[] = [
     {
@@ -270,9 +269,9 @@ function pictureFormatTab(context: DocxToolbarGroupContext, when: boolean): Ribb
       labelKey: "office.docx.image.align.label",
       priority: 12,
       items: [
-        { kind: "button", id: "picture-format-align-left", labelKey: "office.docx.image.align.left", icon: AlignLeft, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "align", align: "left" })) },
-        { kind: "button", id: "picture-format-align-center", labelKey: "office.docx.image.align.center", icon: AlignCenter, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "align", align: "center" })) },
-        { kind: "button", id: "picture-format-align-right", labelKey: "office.docx.image.align.right", icon: AlignRight, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "align", align: "right" })) },
+        { kind: "button", id: "picture-format-align-left", labelKey: "office.docx.image.align.left", icon: AlignLeft, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "align", align: "left" })) },
+        { kind: "button", id: "picture-format-align-center", labelKey: "office.docx.image.align.center", icon: AlignCenter, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "align", align: "center" })) },
+        { kind: "button", id: "picture-format-align-right", labelKey: "office.docx.image.align.right", icon: AlignRight, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "align", align: "right" })) },
       ],
     },
     {
@@ -280,17 +279,17 @@ function pictureFormatTab(context: DocxToolbarGroupContext, when: boolean): Ribb
       labelKey: "office.docx.toolbar.contextual.pictureTransform",
       priority: 13,
       items: [
-        { kind: "button", id: "picture-format-rotate-left", labelKey: "office.docx.image.rotate.left", icon: RotateCcw, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "rotate", deg: -90 })) },
-        { kind: "button", id: "picture-format-rotate-right", labelKey: "office.docx.image.rotate.right", icon: RotateCw, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "rotate", deg: 90 })) },
-        { kind: "button", id: "picture-format-flip-h", labelKey: "office.docx.image.flip.h", icon: FlipHorizontal2, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "flip", flipH: true, flipV: false })) },
-        { kind: "button", id: "picture-format-flip-v", labelKey: "office.docx.image.flip.v", icon: FlipVertical2, size: "icon", disabled, onExecute: () => withImageEditing((editing) => editing.apply({ kind: "flip", flipH: false, flipV: true })) },
+        { kind: "button", id: "picture-format-rotate-left", labelKey: "office.docx.image.rotate.left", icon: RotateCcw, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "rotate", deg: -90 })) },
+        { kind: "button", id: "picture-format-rotate-right", labelKey: "office.docx.image.rotate.right", icon: RotateCw, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "rotate", deg: 90 })) },
+        { kind: "button", id: "picture-format-flip-h", labelKey: "office.docx.image.flip.h", icon: FlipHorizontal2, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "flip", flipH: true, flipV: false })) },
+        { kind: "button", id: "picture-format-flip-v", labelKey: "office.docx.image.flip.v", icon: FlipVertical2, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "flip", flipH: false, flipV: true })) },
       ],
     },
     {
       id: "picture-format-remove",
       labelKey: "office.docx.image.delete",
       priority: 14,
-      items: [{ kind: "button", id: "picture-format-delete", labelKey: "office.docx.image.delete", icon: Trash2, size: "small", disabled, onExecute: () => withImageEditing((editing) => editing.remove()) }],
+      items: [{ kind: "button", id: "picture-format-delete", labelKey: "office.docx.image.delete", icon: Trash2, size: "small", disabled, onExecute: () => withImageEditing(context, (editing) => editing.remove()) }],
     },
   ];
   return {
@@ -367,7 +366,7 @@ function shapeFormatTab(context: DocxToolbarGroupContext, when: boolean): Ribbon
  * editor every tab is `when: false`.
  */
 export function buildDocxContextualTabs(context: DocxToolbarGroupContext): readonly RibbonTab[] {
-  const editor = getDocxLiveEditor();
+  const editor = context.docScope.editor.get();
   const inTable = context.format?.inTable === true || isSelectionInTable(editor);
   const kind = selectedNodeKind(editor);
   return [

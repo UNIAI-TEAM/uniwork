@@ -1,10 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
-import { requestMock, wrap } from "../test/api-mock";
+import { registerLeaveGuard } from "../navigation";
+import { localeAdapter, requestMock, wrap } from "../test/api-mock";
 import { DocumentFileView } from "./document-file-view";
 
 const featureFlagMock = vi.hoisted(() => ({
@@ -128,6 +131,14 @@ describe("DocumentFileView", () => {
 
     expect(screen.getByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: t("documents.file.new_version") })).toBeNull();
+    // The permission reason is stated, apart from the editor/format note.
+    expect(screen.getByTestId("document-file-readonly")).toHaveTextContent(t("documents.file.readonly_hint"));
+  });
+
+  it("states no permission reason for a reader who can edit", () => {
+    mockApi();
+    renderView();
+    expect(screen.queryByTestId("document-file-readonly")).toBeNull();
   });
 
   it("mounts the injected Office host only when the flag is enabled", async () => {
@@ -142,6 +153,151 @@ describe("DocumentFileView", () => {
     expect(officeHost).toHaveBeenCalled();
     expect(officeHost.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ wsId: WS, readonly: true }));
     expect(screen.queryByText(t("documents.file.history_title"))).toBeNull();
+  });
+
+  it("falls back to the file card when the format's own flag is off", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_pdf" ? false : key === "office_engine" ? true : fallback));
+    const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+    expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+    expect(screen.queryByTestId("office-host")).toBeNull();
+    expect(officeHost).not.toHaveBeenCalled();
+    // The card says why: the format's editing is turned off (not "a later step").
+    expect(screen.getByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.no_web_editor_title"))).toBeNull();
+  });
+
+  it("keeps the generic card note when no Office host is mounted", async () => {
+    mockApi();
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} />));
+
+    expect(await screen.findByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
+  });
+
+  it("keeps the editor when only another format's flag is off", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_docx" ? false : key === "office_engine" ? true : fallback));
+    const officeHost = () => <div data-testid="office-host">Office host</div>;
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+    expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+  });
+
+  describe("organization-scoped flags", () => {
+    const orgConfig = (flags: Record<string, boolean>) => requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/config?organization_id=org1") return Promise.resolve({ flags });
+      return Promise.resolve({ versions: [], next_cursor: null });
+    });
+
+    it("asks /config for the document's organization and honours its format override", async () => {
+      // The host-wide flags say on; the organization says the PDF format is off.
+      featureFlagMock.useFlag.mockReturnValue(true);
+      orgConfig({ office_engine: true, office_pdf: false });
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+
+      // Asserted once the answer has settled: the card names the cause only then.
+      expect(await screen.findByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeInTheDocument();
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/config?organization_id=org1", expect.anything());
+      expect(screen.queryByTestId("office-host")).toBeNull();
+      expect(officeHost).not.toHaveBeenCalled();
+    });
+
+    it("mounts the editor once the organization's answer has both flags on", async () => {
+      orgConfig({ office_engine: true });
+      const officeHost = () => <div data-testid="office-host">Office host</div>;
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+
+      expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    });
+
+    it("says it is checking, not that editing is off, while the answer is loading", async () => {
+      let answer!: (body: unknown) => void;
+      requestMock.mockImplementation((path: string) => path.startsWith("/api/v1/config")
+        ? new Promise((resolve) => { answer = resolve; })
+        : Promise.resolve({ versions: [], next_cursor: null }));
+      const officeHost = () => <div data-testid="office-host">Office host</div>;
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+
+      expect(await screen.findByText(t("documents.file.office_checking", { format: "PDF" }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
+      act(() => answer({ flags: { office_engine: true } }));
+      expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    });
+
+    it("stays on the file card, saying it could not check, when the config is rejected or malformed", async () => {
+      requestMock.mockImplementation((path: string) => (path.startsWith("/api/v1/config") ? Promise.reject(new Error("offline")) : Promise.resolve({ versions: [], next_cursor: null })));
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      const { unmount } = render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+      // The rejection (and its one retry) has settled when the "could not check" copy shows.
+      expect(await screen.findByText(t("documents.file.office_unknown_title", { format: "PDF" }))).toBeInTheDocument();
+      expect(requestMock.mock.calls.filter(([path]) => String(path).startsWith("/api/v1/config"))).toHaveLength(2);
+      expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
+      expect(officeHost).not.toHaveBeenCalled();
+      unmount();
+
+      requestMock.mockImplementation((path: string) => Promise.resolve(path.startsWith("/api/v1/config") ? { flags: "yes" } : { versions: [], next_cursor: null }));
+      render(wrap(<DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />));
+      expect(await screen.findByText(t("documents.file.office_unknown_title", { format: "PDF" }))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeNull();
+      expect(officeHost).not.toHaveBeenCalled();
+
+      // Try again asks once more; a good answer then mounts the editor.
+      requestMock.mockImplementation((path: string) => Promise.resolve(path.startsWith("/api/v1/config") ? { flags: { office_engine: true } } : { versions: [], next_cursor: null }));
+      fireEvent.click(screen.getByRole("button", { name: t("documents.file.office_unknown_retry") }));
+      expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+    });
+
+    describe("a live editor and a flag refresh (F7)", () => {
+      function renderLive(qc: QueryClient) {
+        const officeHost = () => <div data-testid="office-host">Office host</div>;
+        return render(
+          <QueryClientProvider client={qc}>
+            <LocaleAdapterProvider adapter={localeAdapter}>
+              <DocumentFileView wsId={WS} doc={fileDocument({ organization_id: "org1" })} readonly={false} officeEditorHost={officeHost} />
+            </LocaleAdapterProvider>
+          </QueryClientProvider>,
+        );
+      }
+      const refetch = (qc: QueryClient) => act(async () => { await qc.invalidateQueries({ queryKey: ["office-public-config"] }); });
+      const testClient = () => new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
+
+      it("keeps the editor mounted when a refresh fails", async () => {
+        const qc = testClient();
+        orgConfig({ office_engine: true });
+        renderLive(qc);
+        expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+
+        requestMock.mockImplementation((path: string) => (path.startsWith("/api/v1/config") ? Promise.reject(new Error("blip")) : Promise.resolve({ versions: [], next_cursor: null })));
+        await refetch(qc);
+        await waitFor(() => expect(qc.getQueryState(["office-public-config", "org1"])?.status).toBe("error"));
+        expect(screen.getByTestId("office-host")).toBeInTheDocument();
+      });
+
+      it("closes the editor on a settled off answer, through the leave guards", async () => {
+        const qc = testClient();
+        orgConfig({ office_engine: true });
+        renderLive(qc);
+        expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+
+        // A dirty editor refuses the first time (the reader cancels the leave dialog).
+        const guard = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
+        const release = registerLeaveGuard(guard);
+        orgConfig({ office_engine: true, office_pdf: false });
+        await refetch(qc);
+        await waitFor(() => expect(guard).toHaveBeenCalledTimes(1));
+        expect(screen.getByTestId("office-host")).toBeInTheDocument();
+        release();
+
+        // With nothing left to protect, the next settled off answer closes it.
+        await refetch(qc);
+        expect(await screen.findByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeInTheDocument();
+        expect(screen.queryByTestId("office-host")).toBeNull();
+      });
+    });
   });
 
   it("keeps download and upload reachable from the page menu while the editor is mounted", async () => {

@@ -18,7 +18,7 @@
  * (`PptxEdit` in packages/office-engine/src/pptx/model.ts), so the wire round
  * can forward them unchanged.
  */
-import type { PptxEdit } from "@uniwork/office-engine/pptx";
+import type { ConnectorLine, PptxConnectorSide, PptxEdit } from "@uniwork/office-engine/pptx";
 
 // ── shapes ────────────────────────────────────────────────────────────────
 
@@ -469,6 +469,8 @@ export interface PptxInsertElementRef {
   id: string;
   type: string;
   label?: string;
+  /** A connector line (a `shape` element drawn as a line): restylable, never an endpoint. */
+  connector?: boolean;
 }
 
 /** Element types the vendored connector/group ops accept as endpoints. */
@@ -481,6 +483,11 @@ export interface PptxInsertConnectorRequest {
   to: string;
   kind: PptxConnectorKind;
   arrow: PptxConnectorArrow;
+  /** Pinned attach side per end (T03); absent = the engine picks the closest side. */
+  fromSide?: PptxConnectorSide;
+  toSide?: PptxConnectorSide;
+  /** Line style (T02); absent = the vendored 1pt black default. */
+  line?: ConnectorLine;
 }
 
 export type PptxInsertConnectorValidation =
@@ -494,7 +501,7 @@ export function validateConnectorRequest(
   request: PptxInsertConnectorRequest,
   elements: readonly PptxInsertElementRef[],
 ): PptxInsertConnectorValidation {
-  const connectable = elements.filter((element) => PPTX_CONNECTABLE_TYPES.includes(element.type));
+  const connectable = elements.filter((element) => PPTX_CONNECTABLE_TYPES.includes(element.type) && !element.connector);
   const from = connectable.find((element) => element.id === request.from);
   const to = connectable.find((element) => element.id === request.to);
   if (!from || !to) return { ok: false, reasonKey: "office.pptx.insert.connector.empty" };
@@ -523,7 +530,8 @@ export function groupableSelection(
 export type PptxInsertEdit =
   | Extract<PptxEdit, { op: "add_element" }>
   | Extract<PptxEdit, { op: "add_image" }>
-  | Extract<PptxEdit, { op: "replace_picture" }>;
+  | Extract<PptxEdit, { op: "replace_picture" }>
+  | Extract<PptxEdit, { op: "set_stroke" }>;
 
 /** Shapes/text box/WordArt all ride the registered `add_element` kind. */
 export function addElementEdit(slideIndex: number, kind: string, box: PptxInsertBox, extra?: Partial<Extract<PptxEdit, { op: "add_element" }>>): Extract<PptxEdit, { op: "add_element" }> {

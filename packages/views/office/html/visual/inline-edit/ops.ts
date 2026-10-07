@@ -38,7 +38,25 @@ function hasChildElements(context: HtmlOpContext, sid: number): boolean {
 }
 
 /**
- * The op for a committed inline text edit.
+ * The words of the element's source the way the frame reports them: entities
+ * decoded, scripts gone (the preview strips them), whitespace collapsed and
+ * trimmed. Null when there is no DOM parser to ask (the caller then edits).
+ */
+function normalisedSourceText(context: HtmlOpContext, sid: number): string | null {
+  const element = context.map.bySid.get(sid);
+  if (!element || typeof DOMParser === "undefined") return null;
+  const inner = context.text.slice(element.inner[0], element.inner[1]);
+  const body = new DOMParser().parseFromString(`<body>${inner}`, "text/html").body;
+  for (const script of Array.from(body.querySelectorAll("script"))) script.remove();
+  return (body.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The op for a committed inline text edit, or null when the commit says what
+ * the element already says. The frame reports a commit on every blur, even with
+ * no typing, and its text is flattened and whitespace-collapsed: writing it
+ * back would silently drop the element's inline markup, `&nbsp;`, `<br>` and
+ * line breaks, so an unchanged commit must leave the source alone.
  *
  * A plain-text element keeps its tag and swaps only its text (`set_text`); an
  * element with child markup has its whole inner content replaced
@@ -46,7 +64,8 @@ function hasChildElements(context: HtmlOpContext, sid: number): boolean {
  * escape the committed text, so a payload such as `<img onerror=...>` lands as
  * inert text and never as markup.
  */
-export function textEditOp(context: HtmlOpContext, commit: InlineTextCommit): UpstreamPatchSet {
+export function textEditOp(context: HtmlOpContext, commit: InlineTextCommit): UpstreamPatchSet | null {
+  if (normalisedSourceText(context, commit.sid) === commit.text) return null;
   if (hasChildElements(context, commit.sid)) {
     return setInnerHtml(context, { sid: commit.sid }, escapeHtmlText(commit.text));
   }

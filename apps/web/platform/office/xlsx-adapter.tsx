@@ -1,9 +1,10 @@
 "use client";
 
 import { createElement, type ReactNode } from "react";
-import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
+import { uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
+import { readDocumentBytesWithinBound } from "./download-bound";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
-import { officeSaveReceiptSchema } from "@uniwork/core/office";
+import { createSaveSettleGate, isOfficeTooLarge, officeSaveReceiptSchema } from "@uniwork/core/office";
 import { bytesOf, cloneSnapshot, digestHex, fingerprint } from "./xlsx-adapter-data";
 import type {
   OfficeCapabilityEntry,
@@ -15,7 +16,7 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import { createOfficeEditorSession, type OfficeEditorSession, type BrowserOfficeDraftOptions } from "./editor-host-core";
-import { createXlsxModelHost, type XlsxModelHost } from "@uniwork/views/office/xlsx";
+import { createXlsxModelHost, type XlsxDroppedRuleSet, type XlsxModelHost } from "@uniwork/views/office/xlsx";
 import { XlsxEditorView, type XlsxRenderModelRef } from "./xlsx-editor-view";
 import type {
   XlsxEditorHandle,
@@ -52,6 +53,10 @@ export interface XlsxSessionRuntime {
   cancelRecalculate?(documentModelRef: string): Promise<void> | void;
   /** Advance the server base after the coordinator commits a version. */
   setBaseRevision?(revision: string, intentId: string): void;
+  /** The CF/DV rule sets the last failed save dropped; empty once a save succeeds. */
+  droppedRuleSets?(): readonly XlsxDroppedRuleSet[];
+  /** The Save settled without committing: drop its frozen candidate. */
+  releaseSave?(intentId: string): void;
   release(documentModelRef: string): Promise<void> | void;
 }
 
@@ -110,8 +115,7 @@ export interface XlsxDocumentsTransport {
 export function createXlsxDocumentsTransport(options: { documentId: string; version?: number }): XlsxDocumentsTransport {
   return {
     async read() {
-      const blob = await downloadDocumentFile(options.documentId, options.version);
-      return new Uint8Array(await blob.arrayBuffer());
+      return readDocumentBytesWithinBound(options.documentId, options.version);
     },
     async upload({ file, idempotencyKey }) {
       const receipt = await uploadDocumentFile(options.documentId, file, { idempotencyKey });
@@ -150,6 +154,9 @@ export interface XlsxSaveTransportOptions {
   contractVersion?: string;
   protocolVersion?: string;
   runtime?: XlsxSessionRuntime;
+  /** Called once the write is confirmed, before the runtime moves its base
+   *  (the session gate's rebase mark). */
+  markRebase?(): void;
 }
 
 function toBlob(bytes: Uint8Array): Blob {
@@ -241,6 +248,7 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
         contractVersion: version.contract_version ?? contractVersion,
         protocolVersion: version.protocol_version ?? protocolVersion,
       } satisfies OfficeSaveReceipt);
+      options.markRebase?.();
       options.runtime?.setBaseRevision?.(receipt.revision, intent.intentId);
       outputs.delete(intent.intentId);
       return receipt;
@@ -252,12 +260,17 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
       if (receipt.intentId !== intent.intentId || receipt.idempotencyKey !== intent.idempotencyKey || receipt.documentId !== options.documentId || BigInt(receipt.revision) <= BigInt(intent.identity.baseRevision)) return null;
       const output = outputs.get(intent.intentId);
       if (output && (receipt.checksumSha256 !== output.checksumSha256 || receipt.sizeBytes !== output.sizeBytes)) throw new Error("commit_checksum_mismatch");
+      options.markRebase?.();
       options.runtime?.setBaseRevision?.(receipt.revision, intent.intentId);
       outputs.delete(intent.intentId);
       return receipt;
     },
     async cancel({ intent }) {
       controllers.get(intent.intentId)?.abort();
+    },
+    async release({ intent }) {
+      outputs.delete(intent.intentId);
+      options.runtime?.releaseSave?.(intent.intentId);
     },
   };
 }
@@ -311,11 +324,6 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
   let opening: Promise<void> | null = null;
   let generation = 0;
   let disposed = false;
-  // StrictMode (next dev) runs mount -> cleanup -> mount on a fresh tree: the
-  // cleanup disposes the session and the remount opens it again. Disposal is
-  // therefore deferred one task and cancelled by the next open(), so the
-  // remount revives the live session instead of reading a disposed one.
-  let cancelPendingDispose: () => void = () => undefined;
   let currentSnapshot: XlsxWorkbookSnapshot | null = null;
   let serialized: XlsxRuntimeSerializedOutput | null = null;
   let viewReady = false;
@@ -352,7 +360,6 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     format: "xlsx",
     clipboard: options.clipboard,
     async open() {
-      cancelPendingDispose();
       if (disposed) throw new Error("xlsx_editor_disposed");
       if (opening) return opening;
       if (modelRef) return;
@@ -394,6 +401,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       try { await opening; } finally { opening = null; }
     },
     getDirtyGeneration: () => generation,
+    droppedRuleSets: () => options.runtime.droppedRuleSets?.() ?? [],
     async captureSnapshot() {
       if (!currentSnapshot) throw new Error("xlsx_snapshot_unavailable");
       const value = cloneSnapshot(currentSnapshot);
@@ -462,6 +470,9 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       }
     : undefined;
 
+  // The runtime moves its base inside commit and reconcile, before they return:
+  // the transport marks that on the session's gate first.
+  const gate = createSaveSettleGate({ maxWaitMs: options.saveSettleMaxWaitMs });
   const transport = createXlsxSaveTransport({
     documents: options.documents,
     documentId: options.identity.documentId,
@@ -469,6 +480,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     contractVersion: options.capability.contractRevision,
     protocolVersion: "1",
     runtime: options.runtime,
+    markRebase: () => gate.markRebase(),
     serialize: async (input) => {
       if (!modelRef) throw new Error("xlsx_editor_not_open");
       const out = await options.runtime.serialize(modelRef, input);
@@ -476,33 +488,26 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       return out;
     },
   });
+  // A commit (or reconcile) moves the runtime's base and trims its op stream to
+  // the edits the saved file lacks; re-read it so a draft checkpoint taken
+  // before the next edit never carries ops the save already wrote.
+  const afterBaseMove = <T,>(receipt: T): T => {
+    if (!disposed && modelRef && receipt) currentSnapshot = cloneSnapshot(options.runtime.snapshot(modelRef));
+    return receipt;
+  };
   const boundTransport: OfficeSaveTransport<XlsxWorkbookSnapshot> = {
     ...transport,
     serialize: transport.serialize,
+    commit: async (input) => afterBaseMove(await transport.commit(input)),
+    reconcile: async (input) => afterBaseMove(await transport.reconcile(input)),
   };
-  const session = createOfficeEditorSession({ ...options, editor, transport: boundTransport });
-  // StrictMode replays the OfficeEditorHost mount (its [] cleanup disposes this
-  // session) against the SAME adapter, so an immediate dispose kills the live
-  // editor the replayed mount then opens (xlsx_editor_disposed). Defer one task
-  // and let the next open() cancel it; a real unmount still releases the model.
+  const session = createOfficeEditorSession({ ...options, editor, transport: boundTransport, gate });
+  // A StrictMode replay of the OfficeEditorHost mount is absorbed by the host
+  // (editor-host.tsx defers its dispose past the replayed mount), so the
+  // session disposes once, when it is asked to.
   const originalDispose = session.dispose;
   let disposal: Promise<void> | null = null;
-  session.dispose = () => {
-    if (disposal) return disposal;
-    disposal = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        cancelPendingDispose = () => undefined;
-        originalDispose().then(resolve, reject);
-      }, 0);
-      cancelPendingDispose = () => {
-        clearTimeout(timer);
-        cancelPendingDispose = () => undefined;
-        disposal = null;
-        resolve();
-      };
-    });
-    return disposal;
-  };
+  session.dispose = () => disposal ??= originalDispose();
   const save = session.coordinator.save;
   session.coordinator.save = async (entryPoint) => {
     if (preparing) return { accepted: false, reason: "saving" };
@@ -529,7 +534,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
           outcome: "failed",
           document_id: options.identity.documentId,
           format: "xlsx",
-          failure_class: typed.failureClass ?? "engine_error",
+          failure_class: typed.failureClass ?? (isOfficeTooLarge(error as { code?: string; kind?: string }) ? "too_large" : "engine_error"),
           ...(typed.engineError ? { engine_error: typed.engineError } : {}),
           message: error instanceof Error ? error.message : String(error),
         };

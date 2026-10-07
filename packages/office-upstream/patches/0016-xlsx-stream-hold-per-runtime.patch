@@ -1,0 +1,176 @@
+diff --git a/apps/sheets/src/renderer/formula-stream-hold.ts b/apps/sheets/src/renderer/formula-stream-hold.ts
+index 9fac09b..3c09966 100644
+--- a/apps/sheets/src/renderer/formula-stream-hold.ts
++++ b/apps/sheets/src/renderer/formula-stream-hold.ts
+@@ -37,8 +37,11 @@ interface HoldState {
+   schedule: (() => void) | null
+ }
+ 
++// One hold per runtime. UniWork (UNI-957) mounts several workbooks in one
++// renderer page, so the stream notes name their runtime: a module-wide
++// "current" hold sent one workbook's chunks and full-recalc request to the
++// workbook mounted last.
+ const states = new WeakMap<UniverRuntime, HoldState>()
+-let current: HoldState | null = null
+ 
+ export function hasDirtyData(dirty: Record<string, unknown> | undefined): boolean {
+   if (!dirty) return false
+@@ -52,9 +55,10 @@ export function hasDirtyData(dirty: Record<string, unknown> | undefined): boolea
+ }
+ 
+ /** Called by the importer after every file-data chunk lands in the grid. */
+-export function noteFormulaStreamChunk(): void {
+-  if (!current) return
+-  current.lastChunkAt = Date.now()
++export function noteFormulaStreamChunk(runtime: UniverRuntime): void {
++  const state = states.get(runtime)
++  if (!state) return
++  state.lastChunkAt = Date.now()
+ }
+ 
+ /**
+@@ -64,17 +68,15 @@ export function noteFormulaStreamChunk(): void {
+  * value (SUMIFS keyed on a cross-sheet lookup stuck at 0). Recalculate
+  * everything once the workbook is complete, like Excel's recalc on open.
+  */
+-export function requestFullRecalcAfterStream(): void {
+-  if (!current) return
+-  current.fullRecalc = true
+-  current.schedule?.()
++export function requestFullRecalcAfterStream(runtime: UniverRuntime): void {
++  const state = states.get(runtime)
++  if (!state) return
++  state.fullRecalc = true
++  state.schedule?.()
+ }
+ 
+ export function installFormulaStreamHold(runtime: UniverRuntime): void {
+-  if (states.has(runtime)) {
+-    current = states.get(runtime) ?? null
+-    return
+-  }
++  if (states.has(runtime)) return
+   const state: HoldState = {
+     lastChunkAt: 0,
+     vetoed: false,
+@@ -84,7 +86,6 @@ export function installFormulaStreamHold(runtime: UniverRuntime): void {
+     schedule: null,
+   }
+   states.set(runtime, state)
+-  current = state
+   const injector = runtime.univer.__getInjector()
+   const commandService = injector.get(ICommandService)
+   const holding = () => Date.now() - state.lastChunkAt < FORMULA_STREAM_HOLD_MS
+diff --git a/apps/sheets/src/renderer/univer-sync.ts b/apps/sheets/src/renderer/univer-sync.ts
+index 81164ff..9e6714f 100644
+--- a/apps/sheets/src/renderer/univer-sync.ts
++++ b/apps/sheets/src/renderer/univer-sync.ts
+@@ -1280,7 +1280,7 @@ export async function loadVisibleRange(
+     screenColumnCount,
+   )
+   await loadRange(runtime, lazyWorkbookRef, worksheet, range, setMessage)
+-  await loadFrozenColumnStrip(lazyWorkbookRef, worksheet, sheet, range)
++  await loadFrozenColumnStrip(runtime, lazyWorkbookRef, worksheet, sheet, range)
+   await extendWindowPastHiddenRows(
+     runtime,
+     lazyWorkbookRef,
+@@ -1342,7 +1342,7 @@ async function extendWindowPastHiddenRows(
+     if (nextEnd <= window.endRow) return
+     window = { ...window, endRow: nextEnd }
+     await loadRange(runtime, lazyWorkbookRef, worksheet, window, setMessage)
+-    await loadFrozenColumnStrip(lazyWorkbookRef, worksheet, sheet, window)
++    await loadFrozenColumnStrip(runtime, lazyWorkbookRef, worksheet, sheet, window)
+   }
+ }
+ 
+@@ -1462,6 +1462,7 @@ export async function activateFormulaClosure(
+       const wanted = degradeCostlyFormulas(state, sheetMeta.name, picked)
+       recordRowStyleKeys(state, sheetId, result.rows)
+       recordHiddenFileRows(state, sheetId, result.rows, range)
++      noteFormulaStreamChunk(runtime)
+       patchWorksheetRange(
+         worksheet,
+         undefined,
+@@ -1716,6 +1717,7 @@ export async function pinStreamedPrecedents(
+       // Cached values only (useFormulas=false), like every streamed install:
+       // a precedent formula cell keeps its Excel-cached value — making it
+       // live would require pinning ITS precedents transitively.
++      noteFormulaStreamChunk(runtime)
+       patchWorksheetRange(
+         worksheet,
+         undefined,
+@@ -2501,6 +2503,7 @@ async function runFormulaRecalc(
+ /// After horizontal scrolling the viewport range no longer covers frozen
+ /// columns; fetch that strip separately (patched without eviction).
+ async function loadFrozenColumnStrip(
++  runtime: UniverRuntime,
+   lazyWorkbookRef: { current: LazyWorkbookState | null },
+   worksheet: UniverWorksheet,
+   sheet: WorkbookFile['sheets'][number],
+@@ -2540,6 +2543,7 @@ async function loadFrozenColumnStrip(
+     const stripPatchRange = { ...stripRange, endRow: availableEndRow }
+     recordRowStyleKeys(state, sheetId, mapped.screen.rows)
+     recordHiddenFileRows(state, sheetId, mapped.screen.rows, stripPatchRange)
++    noteFormulaStreamChunk(runtime)
+     patchWorksheetRange(
+       worksheet,
+       undefined,
+@@ -2826,6 +2830,7 @@ async function loadRange(
+       // through the normal window patcher so the previous chunk is evicted:
+       // otherwise a whole-column fill leaves every visited 20k-row strip
+       // resident in Univer and can grow the renderer past 2 GiB.
++      noteFormulaStreamChunk(runtime)
+       patchWorksheetRange(
+         worksheet,
+         // A running full preload owns residency: evicting here would wipe
+@@ -2863,6 +2868,7 @@ async function loadRange(
+         if (state.formulaMode) recordCachedFormulaValues(state, sheetId, mapped.screen.cells)
+         recordRowStyleKeys(state, sheetId, mapped.screen.rows)
+         recordHiddenFileRows(state, sheetId, mapped.screen.rows, availableRange)
++        noteFormulaStreamChunk(runtime)
+         patchWorksheetRange(
+           worksheet,
+           // See above: never evict while a full preload is installing rows.
+@@ -3066,7 +3072,7 @@ async function loadRange(
+           if (lazyWorkbookRef.current !== state) return
+           state.loadingKeys.delete(sheetId)
+           void loadRange(runtime, lazyWorkbookRef, worksheet, range, setMessage, true).then(() =>
+-            loadFrozenColumnStrip(lazyWorkbookRef, worksheet, sheet, range),
++            loadFrozenColumnStrip(runtime, lazyWorkbookRef, worksheet, sheet, range),
+           )
+         }, 250)
+         state.retryTimers.set(sheetId, timer)
+@@ -3392,7 +3398,7 @@ export function applyRowProperties(
+   rows: WorkbookRangeResult['rows'],
+ ): void {
+   if (rows.length === 0) return
+-  noteFormulaStreamChunk()
++  noteFormulaStreamChunk(runtime)
+   recordRowStyleKeys(state, sheetId, rows)
+   let applied = state.appliedRowKeys.get(sheetId)
+   if (!applied) {
+@@ -3762,7 +3768,6 @@ function patchWorksheetRange(
+   inheritedWrap?: (row: number, column: number) => boolean,
+   hiddenRows?: HiddenRowsInfo,
+ ): void {
+-  noteFormulaStreamChunk()
+   // Windowed CF formula registrations follow the loaded row window; report
+   // it before the patch so rules installed right after see it. Best-effort:
+   // without a sheet id (unit-test worksheet doubles) windowing simply stays
+@@ -5411,6 +5416,7 @@ async function preloadEntireWorkbookInner(
+       if (state.formulaMode) collectArrayFollowers(arrayFollowers, installable, ops)
+       recordRowStyleKeys(state, sheetId, screen.rows)
+       recordHiddenFileRows(state, sheetId, screen.rows, screenRange)
++      noteFormulaStreamChunk(runtime)
+       patchWorksheetRange(
+         worksheet,
+         undefined,
+@@ -5512,7 +5518,7 @@ async function preloadEntireWorkbookInner(
+   }
+   if (lazyWorkbookRef.current === state) {
+     state.flags.preloadComplete = true
+-    if (state.formulaMode && !isManualCalculation(runtime)) requestFullRecalcAfterStream()
++    if (state.formulaMode && !isManualCalculation(runtime)) requestFullRecalcAfterStream(runtime)
+     setMessage(t('appFullyLoaded'))
+   }
+ }

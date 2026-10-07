@@ -29,6 +29,9 @@ const pwt = require.resolve("@playwright/test", { paths: [path.join(ROOT, "e2e")
 const { chromium } = require(require.resolve("playwright-core", { paths: [path.dirname(pwt)] }));
 
 const read = (name) => readFileSync(path.join(SVG, name), "utf8");
+// Lock keys are POSIX paths whatever host runs the build, so the lock stays
+// byte-stable between a Windows and a Linux rebuild.
+const rel = (file) => path.relative(ROOT, file).split(path.sep).join("/");
 const sha = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 const LOCK = path.join(ROOT, "packages", "ui", "brand", "assets.lock.json");
 const OG_TEMPLATE = "scripts/brand/og-cards.mjs";
@@ -57,6 +60,18 @@ const PNGS = [
 
 const ICO_SIZES = [16, 32, 48];
 
+// UniWork Office desktop icons (apps/office-desktop/build, read by
+// electron-builder and copied into dist/ for the window icon). A desktop shell
+// does not mask an icon the way iOS and Android launchers do, so the
+// full-bleed tile gets its corner here: a rounded square edge to edge for
+// Windows and Linux, and Apple's icon grid (an 824 body on the 1024 canvas,
+// 185.4 corner) for the macOS png electron-builder turns into the .icns.
+const DESKTOP = path.join(ROOT, "apps", "office-desktop", "build");
+const DESKTOP_ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
+const DESKTOP_LINUX_SIZES = [16, 32, 48, 64, 128, 256, 512];
+const DESKTOP_CORNER = 0.1875;
+const MAC_GRID = { body: 824 / 1024, corner: 185.4 / 824 };
+
 async function shot(page, svg, width, height, transparent) {
   await page.setViewportSize({ width, height });
   await page.setContent(
@@ -64,6 +79,19 @@ async function shot(page, svg, width, height, transparent) {
      svg{display:block;width:${width}px;height:${height}px}</style>${svg}`,
   );
   return page.screenshot({ omitBackground: transparent });
+}
+
+/** The tile clipped to a rounded square of `body` (a fraction of the canvas),
+ * centred, transparent outside the corner. */
+async function desktopTile(page, svg, size, body, corner) {
+  const side = Math.round(size * body);
+  const inset = (size - side) / 2;
+  await page.setViewportSize({ width: size, height: size });
+  await page.setContent(
+    `<style>html,body{margin:0}div{position:absolute;left:${inset}px;top:${inset}px;width:${side}px;height:${side}px;border-radius:${side * corner}px;overflow:hidden}
+     svg{display:block;width:100%;height:100%}</style><div>${svg}</div>`,
+  );
+  return page.screenshot({ omitBackground: true });
 }
 
 /**
@@ -110,7 +138,7 @@ for (const { out, source, size, width = size, height = size, transparent = false
   mkdirSync(path.dirname(out), { recursive: true });
   writeFileSync(out, data);
   written.push([path.relative(ROOT, out), data.length]);
-  lock.assets[path.relative(ROOT, out)] = {
+  lock.assets[rel(out)] = {
     source,
     size: size ?? `${width}x${height}`,
     sha: sha(read(source)),
@@ -129,6 +157,24 @@ lock.assets["apps/web/app/favicon.ico"] = {
   size: ICO_SIZES.join("/"),
   sha: sha(compact),
 };
+
+const appIcon = read("app-icon.svg");
+const desktopAsset = (file, size, data) => {
+  const out = path.join(DESKTOP, file);
+  mkdirSync(path.dirname(out), { recursive: true });
+  writeFileSync(out, data);
+  written.push([path.relative(ROOT, out), data.length]);
+  lock.assets[rel(out)] = { source: "app-icon.svg", size, sha: sha(appIcon) };
+};
+const desktopIco = [];
+for (const size of DESKTOP_ICO_SIZES) {
+  desktopIco.push({ size, data: await desktopTile(page, appIcon, size, 1, DESKTOP_CORNER) });
+}
+desktopAsset("icon.ico", DESKTOP_ICO_SIZES.join("/"), ico(desktopIco));
+for (const size of DESKTOP_LINUX_SIZES) {
+  desktopAsset(`icons/${size}x${size}.png`, size, await desktopTile(page, appIcon, size, 1, DESKTOP_CORNER));
+}
+desktopAsset("icon.png", 1024, await desktopTile(page, appIcon, 1024, MAC_GRID.body, MAC_GRID.corner));
 
 // Link-preview cards. They set type, so they need the brand face; without it
 // (BRAND_FONT_TTF unset) the committed cards and their lock entries stand, and
@@ -156,7 +202,7 @@ if (fontDir) {
     written.push([path.relative(ROOT, `${base}.png`), png.length]);
     // Two inputs: the lockup SVG (checked like every other raster) and the
     // card's own HTML from the template, recorded per card.
-    lock.assets[path.relative(ROOT, `${base}.png`)] = {
+    lock.assets[rel(`${base}.png`)] = {
       source: "lockup-horizontal.svg",
       size: "1200x630",
       sha: sha(lockup),

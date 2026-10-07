@@ -2,13 +2,18 @@
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- the editor application landmark captures the host Save shortcut */
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "./commands";
 import { DocxContextMenuSurface } from "./context-menu/docx-context-menu-surface";
-import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
+import { DocxPrintMenuItem, DocxPrintNotice, runDocxPrint } from "./export/docx-print-entry";
+import { createDocxDocumentScope, DocxDocumentScopeProvider } from "./editor-store";
 import { OfficeFrame } from "../frame/office-frame";
+import { HeaderActionsFill } from "../../layout/header-actions-slot";
+import { createBrowserPrintPort } from "../print";
+import { useOfficePrintShortcut } from "../print/shortcut";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import { DocxErrorState } from "./docx-error-state";
 import { DocxToolbar } from "./docx-toolbar";
 import { DocxFindPanel } from "./find/docx-find-panel";
@@ -24,13 +29,14 @@ import type {
   DocxViewState,
 } from "./types";
 import { DocxViewChrome } from "./view";
+import { openFailureClassOf } from "../too-large-notice";
 
 function unexpectedFailure(documentId: string, error: unknown): DocxOpenFailure {
   return {
     outcome: "failed",
     document_id: documentId,
     format: "docx",
-    failure_class: "engine_error",
+    failure_class: openFailureClassOf(error),
     message: error instanceof Error ? error.message : String(error),
   };
 }
@@ -56,6 +62,7 @@ export function DocxEditor<TSnapshot = unknown>({
   showDocumentControls = true,
   onOpen,
   onSelectionChange,
+  printPort,
 }: DocxEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<DocxViewState>("opening");
@@ -79,14 +86,34 @@ export function DocxEditor<TSnapshot = unknown>({
   translateRef.current = t;
 
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available";
-  // The context menu needs a TipTap Editor, not the host handle: read the
-  // editor the lane publishes from its schema extension (./editor-store).
-  const liveEditor = useSyncExternalStore(subscribeDocxLiveEditor, getDocxLiveEditor, getDocxLiveEditor);
+  // UNI-957: everything chrome shares across subtrees (live editor, Find, zoom,
+  // ribbon dialogs, the DOM root) lives in this document's own scope, so two
+  // DOCX documents mounted in one page never reach each other's state.
+  const [scope] = useState(createDocxDocumentScope);
+  // The context menu needs a TipTap Editor, not the host handle: the command
+  // runtime this handle drives reads it, and the scope publishes it to the rest
+  // of the chrome. Read on every render: open/dispose swap it under the handle.
+  // The handle builds its TipTap editor inside open(), before viewState turns
+  // "ready", so the ready render already sees it (review r1 n1).
+  const liveEditor = viewState === "ready" ? ((editor.commands as DocxCommandRuntime | undefined)?.liveEditor?.() ?? null) : null;
+  useLayoutEffect(() => {
+    scope.publishEditor(liveEditor);
+  }, [scope, liveEditor]);
+  useEffect(() => () => scope.publishEditor(null), [scope]);
+  const bindRoot = useCallback((node: HTMLDivElement | null) => {
+    scope.root.current = node;
+  }, [scope]);
   // Capability identity is semantic input to the session. Keep the object and
   // callbacks in refs so shell identity churn does not restart an active open.
   const capabilityStatus = capability?.status;
   const capabilityOperation = capability?.operation;
   const effectiveTitle = title ?? t("office.docx.title");
+  // UNI-952: web prints through the browser port (an isolated frame holding the
+  // document copy); the desktop host injects its own port.
+  const [browserPrintPort] = useState(createBrowserPrintPort);
+  const activePrintPort = printPort ?? browserPrintPort;
+  const print = useMemo(() => ({ port: activePrintPort, title: effectiveTitle }), [activePrintPort, effectiveTitle]);
+  const printContextRef = useRef<Parameters<typeof runDocxPrint>[0] | null>(null);
 
   useEffect(() => {
     setCoordinatorState(coordinator.getState());
@@ -193,14 +220,14 @@ export function DocxEditor<TSnapshot = unknown>({
     coordinator.markDirty?.(editor.getDirtyGeneration());
   }, [coordinator, editor]);
 
+  // An empty history is not a change: only a step that moved the generation
+  // marks the document dirty (UNI-954).
   const undo = useCallback(() => {
-    editor.undo?.();
-    markDirtyFromHandle();
+    if (stepHistory(editor, "undo")) markDirtyFromHandle();
   }, [editor, markDirtyFromHandle]);
 
   const redo = useCallback(() => {
-    editor.redo?.();
-    markDirtyFromHandle();
+    if (stepHistory(editor, "redo")) markDirtyFromHandle();
   }, [editor, markDirtyFromHandle]);
 
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
@@ -210,8 +237,9 @@ export function DocxEditor<TSnapshot = unknown>({
     }
   }, [save]);
 
-  const canUndo = useMemo(() => typeof editor.undo === "function", [editor.undo]);
-  const canRedo = useMemo(() => typeof editor.redo === "function", [editor.redo]);
+  // Read on every render: each edit re-marks the coordinator, whose publish re-renders.
+  const canUndo = canStepHistory(editor, "undo");
+  const canRedo = canStepHistory(editor, "redo");
   const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
   const saving = coordinatorState.state === "saving";
 
@@ -232,22 +260,43 @@ export function DocxEditor<TSnapshot = unknown>({
     onUndo: undo,
     onRedo: redo,
     onSave: showDocumentControls ? save : undefined,
+    print,
+    docScope: scope,
   };
+  printContextRef.current = viewState === "ready" ? sharedContext : null;
+  // UNI-952: Ctrl/Cmd+P anywhere on the page (the Office shell's one listener)
+  // runs the same print as the menu entries, never the app window's print.
+  const printFromShortcut = useCallback(() => {
+    if (printContextRef.current) void runDocxPrint(printContextRef.current);
+  }, []);
+  useOfficePrintShortcut(viewState === "ready" ? printFromShortcut : null);
+  // Memoized on the ready flag, not the whole format state, so typing does not
+  // re-publish the header menu entry on every transaction.
+  const printCommands = sharedContext.commands;
+  const printReady = sharedContext.format?.docxExportReady ?? false;
+  const headerPrintItem = useMemo(
+    () => <DocxPrintMenuItem commands={printCommands} print={print} docScope={scope} ready={printReady} />,
+    [printCommands, print, scope, printReady],
+  );
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
+    <DocxDocumentScopeProvider scope={scope}>
+    <div ref={bindRoot} className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       {showDocumentControls ? <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="docx-open-state">
           {viewState === "opening" ? t("office.docx.state.opening") : viewState === "ready" ? t(`office.docx.saveState.${coordinatorState.state}`) : t("office.docx.state.error")}
         </span>
       </header> : null}
+      {viewState === "ready" ? <HeaderActionsFill menuItems={headerPrintItem} /> : null}
+      {/* The outcome of every print entry (ribbon, PDF dialog, header menu, Ctrl+P) shows here, whatever the ribbon renders. */}
+      {viewState === "ready" ? <DocxPrintNotice /> : null}
       {viewState === "ready" ? (
         <OfficeFrame
           className="bg-office-canvas"
           ribbon={<DocxToolbar {...sharedContext} />}
           subbar={<DocxFindPanel {...sharedContext} />}
-          statusBar={<DocxStatusBar selection={selection} help={<DocxShortcutsHelp {...sharedContext} />} />}
+          statusBar={<DocxStatusBar selection={selection} docScope={scope} help={<DocxShortcutsHelp {...sharedContext} />} />}
         >
           <div className="flex h-full min-h-0 min-w-0 flex-col" data-testid="docx-canvas">
             {/* A6-wire: attaches the zoom controller to the surface below and
@@ -279,6 +328,7 @@ export function DocxEditor<TSnapshot = unknown>({
         </div>
       )}
     </div>
+    </DocxDocumentScopeProvider>
   );
 }
 

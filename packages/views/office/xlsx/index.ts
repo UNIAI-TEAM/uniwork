@@ -36,3 +36,4 @@ export type {
   XlsxSnapshot,
   XlsxViewState,
 } from "./types";
+export { parseRuleSetDrops, pendingDropIndexes, planRuleSetDrops, ruleSetDropMessage, ruleSetHistory, ruleSetsDroppedError, withoutOperationsAt, type XlsxDroppedRuleSet } from "./conditional-format/rule-set-drops";

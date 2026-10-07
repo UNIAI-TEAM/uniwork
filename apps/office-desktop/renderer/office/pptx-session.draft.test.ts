@@ -27,6 +27,7 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
     getSlideNotes: () => "",
     buildRenderSlide: () => ({ nodes: [] }),
     HeuristicMetrics: class HeuristicMetrics {},
+    parseMasterPart: () => null,
   };
 });
 
@@ -36,32 +37,32 @@ const capability = { format: "pptx", operation: "edit", host: "desktop", engineB
 const box = (xPx: number): PptxEdit => ({ op: "add_element", slideIndex: 0, kind: "rect", xPx, yPx: 1, wPx: 10, hPx: 10 });
 const toBase64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
 
-interface StoredDraft { draftId: string; generation: number; dataBase64: string }
+interface StoredDraft { draftId: string; generation: number; data: Uint8Array }
 
 /** The main-process side: drafts keyed by id, and a cloud save held open on demand. */
 function fakeMain() {
   const drafts = new Map<string, StoredDraft>();
-  const gate: { hold: boolean; entered: boolean; release: () => void; saved: string | null } = { hold: false, entered: false, release: () => undefined, saved: null };
+  const gate: { hold: boolean; entered: boolean; release: () => void; saved: Uint8Array | null } = { hold: false, entered: false, release: () => undefined, saved: null };
   const meta = (stored: StoredDraft) => {
     const [documentId, version, revision] = stored.draftId.split(":") as [string, string, string];
-    return { draftId: stored.draftId, identity: { deploymentId: "lane", accountId: "acct", organizationId: "org", workspaceId: "ws", documentId, base: { revision, version } }, generation: stored.generation, checksum: CHECKSUM, byteLength: stored.dataBase64.length, updatedAt: stored.generation };
+    return { draftId: stored.draftId, identity: { deploymentId: "lane", accountId: "acct", organizationId: "org", workspaceId: "ws", documentId, base: { revision, version } }, generation: stored.generation, checksum: CHECKSUM, byteLength: stored.data.length, updatedAt: stored.generation };
   };
   const bridge: LibraryBridge = {
     call: (async (channel: string, payload: Record<string, unknown>) => {
       switch (channel) {
         case "desktop:draft-list": return { drafts: [...drafts.values()].map(meta) };
         case "desktop:draft-checkpoint": {
-          const stored = { draftId: payload.draftId as string, generation: payload.generation as number, dataBase64: payload.dataBase64 as string };
+          const stored = { draftId: payload.draftId as string, generation: payload.generation as number, data: payload.data as Uint8Array };
           drafts.set(stored.draftId, stored);
           return { stored: true, generation: stored.generation };
         }
         case "desktop:draft-discard": return { discarded: drafts.delete(payload.draftId as string) };
         case "desktop:draft-recover": {
           const stored = drafts.get(payload.draftId as string);
-          return stored ? { status: "recovered", metadata: meta(stored), dataBase64: stored.dataBase64 } : { status: "missing" };
+          return stored ? { status: "recovered", metadata: meta(stored), data: stored.data } : { status: "missing" };
         }
         case "desktop:office-save": {
-          gate.saved = payload.dataBase64 as string;
+          gate.saved = payload.data as Uint8Array;
           if (gate.hold) {
             gate.entered = true;
             await new Promise<void>((resolve) => { gate.release = resolve; });
@@ -75,15 +76,22 @@ function fakeMain() {
   return { drafts, gate, bridge };
 }
 
-function openSession(bridge: LibraryBridge, bytes: Uint8Array, base: Pick<OfficeIdentity, "baseRevision" | "baseVersionId">) {
-  const captures = { count: 0 };
+function openSession(bridge: LibraryBridge, bytes: Uint8Array, base: Pick<OfficeIdentity, "baseRevision" | "baseVersionId">, options: { saveSettleMaxWaitMs?: number } = {}) {
+  const captures: { count: number; hold: Promise<void> | null; held: boolean } = { count: 0, hold: null, held: false };
   let adapter!: DesktopPptxAdapter;
-  const session = createPptxDocumentSession(bridge, { ...identity, ...base }, { format: "pptx", dataBase64: toBase64(bytes), checksum: CHECKSUM }, (onDirty) => {
+  const session = createPptxDocumentSession(bridge, { ...identity, ...base }, { format: "pptx", data: Uint8Array.from(Buffer.from(toBase64(bytes), "base64")), checksum: CHECKSUM }, (onDirty) => {
     adapter = createDesktopPptxAdapter({ identity, runtime: createWebPptxSessionRuntime({ documentId: "doc" }), readBytes: async () => bytes, capability, onDirty });
     const capture = adapter.editor.captureSnapshot.bind(adapter.editor);
-    adapter.editor.captureSnapshot = async () => { const value = await capture(); captures.count += 1; return value; };
+    adapter.editor.captureSnapshot = async () => {
+      const value = await capture();
+      captures.count += 1;
+      // One-shot: the snapshot is read now but resolves only when released.
+      const hold = captures.hold;
+      if (hold) { captures.hold = null; captures.held = true; await hold; }
+      return value;
+    };
     return adapter;
-  });
+  }, options);
   return { session, captures };
 }
 
@@ -101,12 +109,11 @@ describe("desktop pptx session - mid-save checkpoint (W14 review F1)", () => {
     main.gate.hold = true;
     const saving = session.coordinator.save("button");
     await vi.waitFor(() => expect(main.gate.entered).toBe(true));
-    // Typing after the save intent's snapshot, then a checkpoint whose snapshot
-    // (the full journal, three entries) is captured BEFORE the commit lands.
+    // Typing after the save intent's snapshot, then a checkpoint requested
+    // while the commit is still in flight.
     await session.editor.edit([box(3)]);
-    const capturesBefore = captures.count;
+    // The checkpoint queues behind the Save; no capture runs while it commits.
     const waiting = entry === "checkpoint" ? session.coordinator.checkpoint() : session.keepDraft();
-    await vi.waitFor(() => expect(captures.count).toBe(capturesBefore + 1));
     main.gate.release();
     await expect(saving).resolves.toMatchObject({ accepted: true, receipt: { revision: "3" } });
     await waiting;
@@ -120,10 +127,10 @@ describe("desktop pptx session - mid-save checkpoint (W14 review F1)", () => {
     // The stored draft under the NEW base is that tail - not the pre-rebase journal.
     const stored = main.drafts.get("doc:v3:3");
     expect(stored).toBeDefined();
-    expect(JSON.parse(Buffer.from(stored!.dataBase64, "base64").toString("utf8"))).toEqual(tail);
+    expect(JSON.parse(Buffer.from(stored!.data).toString("utf8"))).toEqual(tail);
 
     // Crash -> reopen the SAVED bytes at the new base -> recover: same deck, once.
-    const savedBytes = Uint8Array.from(Buffer.from(main.gate.saved!, "base64"));
+    const savedBytes = Uint8Array.from(main.gate.saved!);
     const reopened = openSession(main.bridge, savedBytes, { baseRevision: "3", baseVersionId: "v3" });
     await reopened.session.openEditor();
     expect(elementCount(reopened.session)).toBe(baseCount + 2);
@@ -134,5 +141,61 @@ describe("desktop pptx session - mid-save checkpoint (W14 review F1)", () => {
     expect(elementCount(reopened.session)).toBe(baseCount + 3);
     expect(elementCount(reopened.session)).toBe(elementCount(session));
     expect(reopened.session.editor.snapshot()).toEqual(tail);
+  });
+});
+
+describe("desktop pptx session - capture that resolves after the Save (T09 settle gate)", () => {
+  it("a checkpoint capture read before the rebase but resolved after the Save is captured again, never stored pre-rebase", async () => {
+    const main = fakeMain();
+    const { session, captures } = openSession(main.bridge, makeFakePptxBytes(), { baseRevision: "2", baseVersionId: "v2" });
+    await session.openEditor();
+    await session.editor.edit([box(1)]);
+    await session.editor.edit([box(2)]);
+    main.gate.hold = true;
+    const saving = session.coordinator.save("button");
+    await vi.waitFor(() => expect(main.gate.entered).toBe(true));
+    await session.editor.edit([box(3)]);
+    // The coordinator's own capture reads the full pre-rebase journal and is
+    // held until after the Save settled (a digest yields to the event loop).
+    let releaseCapture!: () => void;
+    captures.hold = new Promise<void>((resolve) => { releaseCapture = resolve; });
+    const checkpointing = session.coordinator.checkpoint();
+    await vi.waitFor(() => expect(captures.held).toBe(true));
+    main.gate.release();
+    await expect(saving).resolves.toMatchObject({ accepted: true, receipt: { revision: "3" } });
+    releaseCapture();
+    await checkpointing;
+
+    const tail = session.editor.snapshot();
+    expect(tail?.edits).toHaveLength(1);
+    const stored = main.drafts.get("doc:v3:3");
+    expect(stored).toBeDefined();
+    expect(JSON.parse(Buffer.from(stored!.data).toString("utf8"))).toEqual(tail);
+  });
+});
+
+describe("desktop pptx session - a cloud context refresh that never answers (N2)", () => {
+  it("writes a checkpoint under the saved base once the bound runs out", async () => {
+    const main = fakeMain();
+    let openAsked = false;
+    const bridge = {
+      call: ((channel: string, payload: Record<string, unknown>) => {
+        if (channel !== "desktop:office-open") return main.bridge.call(channel as never, payload as never);
+        openAsked = true;
+        return new Promise(() => undefined);
+      }) as LibraryBridge["call"],
+    } as LibraryBridge;
+    const { session } = openSession(bridge, makeFakePptxBytes(), { baseRevision: "2", baseVersionId: "v2" }, { saveSettleMaxWaitMs: 20 });
+    await session.openEditor();
+    await session.editor.edit([box(1)]);
+    void session.coordinator.save("button");
+    await vi.waitFor(() => expect(openAsked).toBe(true));
+    await session.editor.edit([box(2)]);
+    await session.coordinator.checkpoint();
+    const tail = session.editor.snapshot();
+    expect(tail?.edits).toHaveLength(1);
+    const stored = main.drafts.get("doc:v3:3");
+    expect(stored).toBeDefined();
+    expect(JSON.parse(Buffer.from(stored!.data).toString("utf8"))).toEqual(tail);
   });
 });

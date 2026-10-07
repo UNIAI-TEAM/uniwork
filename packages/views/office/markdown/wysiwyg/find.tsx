@@ -51,6 +51,7 @@ import {
   type FindResult,
 } from "../../common/find";
 import type { TextEditorHandle } from "../../source-editor-types";
+import { useOfficeDocumentActiveRef } from "../../common/document-active";
 import {
   applyMarkdownFindHighlight,
   buildMarkdownFindHighlight,
@@ -193,8 +194,11 @@ export function MarkdownFind({
 
   // Ctrl/Cmd+F is find-only, Ctrl/Cmd+H shows the replace row. Capture on the
   // document so the browser's own find never wins, and ignore a composing IME.
+  // UNI-957: a hidden tab's panel must not answer the shortcut.
+  const documentActiveRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!documentActiveRef.current) return;
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
       const key = event.key.toLowerCase();
       if (key !== "f" && key !== "h") return;
@@ -203,7 +207,7 @@ export function MarkdownFind({
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [openWith]);
+  }, [documentActiveRef, openWith]);
 
   // Source mode follows the shared text port, so an external edit (or a
   // replacement applied here) re-runs the matcher on the new bytes.

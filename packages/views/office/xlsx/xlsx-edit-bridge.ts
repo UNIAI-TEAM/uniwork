@@ -1,5 +1,6 @@
 import type { XlsxPageSetupFields } from "@uniwork/office-engine/xlsx";
 import { toA1Address } from "./xlsx-render-model-bridge";
+import { isRuleSetGridEdit, RULE_SET_OP_MAPPINGS, type RuleSetOperation, type XlsxGridRuleSetEdit } from "./conditional-format/rule-set-bridge";
 
 /** Serializable user edits emitted by the streamed grid, including undo.
  *  `sheetName` is the sheet's CURRENT name captured live from the mounted
@@ -156,7 +157,8 @@ export type XlsxGridEdit =
   | XlsxGridPageSetupEdit
   | XlsxGridTableEdit
   | XlsxGridHyperlinkEdit
-  | XlsxGridNotesEdit;
+  | XlsxGridNotesEdit
+  | XlsxGridRuleSetEdit;
 
 export function isStructuralGridEdit(edit: XlsxGridEdit): edit is XlsxGridStructuralEdit {
   return "structural" in edit;
@@ -343,7 +345,8 @@ export type XlsxJournalOperation =
   | PageSetupOperation
   | TableOperation
   | HyperlinkOperation
-  | NotesOperation;
+  | NotesOperation
+  | RuleSetOperation;
 
 /** One named journal-edit → op-kind mapping. Entries are tested in table
  *  order and the first match wins; the structural entries are appended after
@@ -358,7 +361,7 @@ export interface XlsxJournalOpMapping {
 /** A clear is a writeValue edit with no content and no style — the one shape
  *  that must not be written as an empty set_cell. */
 function isClearEdit(edit: XlsxGridEdit): boolean {
-  return !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && !isTableGridEdit(edit) && !isHyperlinkGridEdit(edit) && !isNotesGridEdit(edit) && edit.writeValue && edit.value === null && edit.formula === undefined && edit.style === undefined && !edit.styleReset;
+  return !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && !isTableGridEdit(edit) && !isHyperlinkGridEdit(edit) && !isNotesGridEdit(edit) && !isRuleSetGridEdit(edit) && edit.writeValue && edit.value === null && edit.formula === undefined && edit.style === undefined && !edit.styleReset;
 }
 
 const STRUCTURAL_WIRE_OP = {
@@ -528,6 +531,7 @@ export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
     matches: isPageSetupGridEdit,
     build: (edit, sheet) => pageSetupOperation(edit as XlsxGridPageSetupEdit, (edit as XlsxGridPageSetupEdit).sheetName || sheet),
   },
+  ...RULE_SET_OP_MAPPINGS,
   filterMapping("set_filter", (filter) => filter !== null),
   filterMapping("clear_filter", (filter) => filter === null),
   {
@@ -540,7 +544,7 @@ export const XLSX_JOURNAL_OP_MAPPINGS: readonly XlsxJournalOpMapping[] = [
   },
   {
     op: "set_cell",
-    matches: (edit) => !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && !isTableGridEdit(edit) && !isHyperlinkGridEdit(edit) && !isNotesGridEdit(edit),
+    matches: (edit) => !isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && !isTableGridEdit(edit) && !isHyperlinkGridEdit(edit) && !isNotesGridEdit(edit) && !isRuleSetGridEdit(edit),
     build: (edit, sheet) => {
       const cell = edit as XlsxGridCellEdit;
       const attributes: NonNullable<CellOperation["attributes"]> = {
@@ -597,7 +601,7 @@ export function rendererEditsToOperations(
   return edits.map((edit) => {
     const sheet = isSheetGridEdit(edit) ? edit.sheetName : edit.sheetName ?? names.get(edit.sheetId);
     if (!sheet) throw new Error("xlsx_edit_unknown_sheet");
-    if (!isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && !isTableGridEdit(edit) && !isHyperlinkGridEdit(edit) && !isNotesGridEdit(edit) && (!Number.isSafeInteger(edit.row) || !Number.isSafeInteger(edit.column) || edit.row < 0 || edit.row >= 1_048_576 || edit.column < 0 || edit.column >= 16_384)) throw new Error("xlsx_edit_outside_grid");
+    if (!isStructuralGridEdit(edit) && !isSheetGridEdit(edit) && !isFilterGridEdit(edit) && !isPageSetupGridEdit(edit) && !isTableGridEdit(edit) && !isHyperlinkGridEdit(edit) && !isNotesGridEdit(edit) && !isRuleSetGridEdit(edit) && (!Number.isSafeInteger(edit.row) || !Number.isSafeInteger(edit.column) || edit.row < 0 || edit.row >= 1_048_576 || edit.column < 0 || edit.column >= 16_384)) throw new Error("xlsx_edit_outside_grid");
     const mapping = XLSX_JOURNAL_OP_MAPPINGS.find((entry) => entry.matches(edit));
     if (!mapping) throw new Error("xlsx_edit_unmapped");
     return mapping.build(edit, sheet);

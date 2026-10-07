@@ -32,7 +32,7 @@ describe("desktop format validation at the IPC boundary", () => {
     const result = await handlers["desktop:file-create"]({ ...session, format });
     expect(createUntitled).toHaveBeenCalledWith(expect.any(Uint8Array), name);
     expect(result).toMatchObject({ opened: true, metadata: { name } });
-    expect(typeof result.dataBase64).toBe("string"); // a blank Markdown file is zero bytes
+    expect((result as { data?: unknown }).data).toBeInstanceOf(Uint8Array); // a blank Markdown file is zero bytes
   });
 
   it.each([

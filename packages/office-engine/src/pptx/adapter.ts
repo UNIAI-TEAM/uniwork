@@ -19,6 +19,7 @@ import {
   type OpenOutcome,
   type RenderSlide,
 } from "@uniwork/office-contracts";
+import { scanZipBomb } from "../shared/zip-central";
 import type {
   OpenedPptxLike,
   PptxEngineFunctions,
@@ -28,6 +29,7 @@ import type {
 } from "./engine";
 import { PptxEngineError } from "./engine";
 import { PptxSessionModel, type PptxEdit } from "./model";
+import { listMasterPartInfos, readMasterElements, type MasterElementData, type MasterPartInfo } from "./edits/master-edits";
 import { inventoryPptxAssets, unsupportedPptxWarnings, type PptxAssetInventory } from "./assets";
 import { isEncryptedOoxml } from "../docx/adapter";
 import { readPptxNotesWithoutBodyPlaceholder } from "./notes-read";
@@ -49,7 +51,15 @@ export interface PptxAdapterDeps {
    * never a fabricated RenderSlide. */
   render?: PptxRenderPort;
   sha256?: (bytes: Uint8Array) => Promise<string>;
+  /** Input bound in bytes; defaults to the server contract. A host that does
+   *  not cap local files (the desktop app) passes Number.POSITIVE_INFINITY. */
   maxInputBytes?: number;
+  /** Output bound in bytes; same default and same unbounded convention. */
+  maxOutputBytes?: number;
+  /** "proportional" pre-scans the package central directory (no inflation)
+   *  and refuses a zip bomb as corrupted before the upstream parser runs. For a
+   *  host that does not cap local files; omitted = no pre-scan (web, server). */
+  zipGuard?: "proportional";
 }
 
 interface PptxSession {
@@ -129,6 +139,8 @@ export class PptxAdapter {
     if (!isZipPackage(bytes)) {
       return this.failed(document_id, "not_office_file", "bytes are not a ZIP/OOXML container");
     }
+    const bomb = this.deps.zipGuard === "proportional" ? scanZipBomb(bytes) : null;
+    if (bomb !== null) return this.failed(document_id, "corrupted", "zip_bomb: " + bomb);
     let opened: OpenedPptxLike;
     try {
       opened = await this.deps.engine.openPptx(bytes);
@@ -220,6 +232,20 @@ export class PptxAdapter {
     return this.deps.engine.listSlideLayouts?.(session.model.opened.archive) ?? [];
   }
 
+  /** Master and layout parts of the held deck, each master followed by its
+   * layouts (structural twin of the vendored listMasterParts). */
+  masterParts(documentModelRef: string): MasterPartInfo[] {
+    return listMasterPartInfos(this.sessionOf(documentModelRef).model.opened);
+  }
+
+  /** Elements of one master/layout part (vendored parseMasterPart). Refuses
+   * bad_master_part for an unknown part and master_unbound when the engine
+   * binds no parser - never an invented empty list. */
+  masterElements(documentModelRef: string, partPath: string): MasterElementData[] {
+    const model = this.sessionOf(documentModelRef).model;
+    return readMasterElements(model.opened, model.fitWidthPx, partPath, this.deps.engine.parseMasterPart);
+  }
+
   async serialize(input: {
     document_model_ref: string;
     format: OfficeFormat;
@@ -238,7 +264,7 @@ export class PptxAdapter {
     if (!out || out.length === 0) {
       throw new EngineBoundaryError("engine_result_invalid", { detail: "savePptx returned empty bytes" });
     }
-    if (out.length > ENGINE_LIMITS.max_output_bytes) {
+    if (out.length > (this.deps.maxOutputBytes ?? ENGINE_LIMITS.max_output_bytes)) {
       throw new EngineBoundaryError("upload_bounds", { detail: "output exceeds byte bound" });
     }
     // Save-verify: re-open the produced bytes; a deck that won't re-open is

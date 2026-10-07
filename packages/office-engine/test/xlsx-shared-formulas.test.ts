@@ -10,11 +10,11 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bindXlsxGateway, createXlsxAdapter, type XlsxRecalcEdit, type XlsxRecalcPort, type XlsxRecalcRead } from "../src/xlsx";
+import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 import { a1ToRowColumn } from "../src/xlsx/ops-shared";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
-const ARTIFACT = join(REPO, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 
 type Gateway = Awaited<ReturnType<typeof load>>;
 type Adapter = ReturnType<typeof createXlsxAdapter>;
@@ -251,7 +251,7 @@ function expectGroup(
   }
 }
 
-describe.skipIf(!existsSync(ARTIFACT))("xlsx shared-formula follower caches (R3-1B)", () => {
+describeWithPatchedGateway("xlsx shared-formula follower caches (R3-1B)", () => {
   it("opens the fixture with followers as plain literals and masters as formulas", async () => {
     const engine = await load();
     const { snapshot } = await engine.readWorkbook(buildFixture());

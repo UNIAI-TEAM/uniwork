@@ -5,12 +5,16 @@
 // documents first load must not carry it), mounted into a scoped container
 // and disposed with the editor. The loader is injectable so component tests
 // do not pull the 14 MB Univer bundle into jsdom.
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { RendererRangeResult, RendererWorkbookFile } from "./xlsx-render-model-bridge";
 import type { XlsxGridEdit } from "./xlsx-edit-bridge";
 import type { XlsxGridRange } from "./selection-mapping";
+import type { XlsxVisualsGrid } from "./visuals/use-xlsx-visuals";
+import type { XlsxDroppedRuleSet } from "./conditional-format/rule-set-drops";
+import type { XlsxPrintGrid } from "./print/collect-live";
+import type { XlsxLiveRule, XlsxRuleFamily } from "./toolbar/types";
 
 export interface XlsxGridHostPort {
   file: RendererWorkbookFile;
@@ -19,6 +23,8 @@ export interface XlsxGridHostPort {
     sheetId: string;
     range: { startRow: number; endRow: number; startColumn: number; endColumn: number };
   }): Promise<RendererRangeResult>;
+  /** The opened file's own charts, pictures and shapes per sheet id (UNI-953). */
+  fileVisuals?: Readonly<Record<string, readonly import("@uniwork/office-engine/xlsx").XlsxRenderVisual[]>> | undefined;
 }
 
 export interface XlsxGridSelection {
@@ -52,8 +58,9 @@ export interface XlsxGridSheetInfo {
   readonly hidden: boolean;
 }
 
-/** The subset of the artifact handle the surface uses. */
-export interface XlsxGridHandle {
+/** The subset of the artifact handle the surface uses. The visuals members
+ *  (getCellBox / cellAtPoint / readRangeValues, UNI-940) are optional. */
+export interface XlsxGridHandle extends XlsxVisualsGrid {
   loadWorkbook(file: RendererWorkbookFile, options?: { initialSheetId?: string }): Promise<void>;
   refreshViewport(): void;
   revealCell(sheetId: string, row: number, column: number): Promise<void>;
@@ -64,16 +71,42 @@ export interface XlsxGridHandle {
   /** Run an allowlisted Univer command on the active selection (false when
    *  the renderer refuses it: read-only, no active range, or policy). */
   executeCommand(id: string, params?: unknown): boolean | Promise<boolean>;
+  /** UNI-953: several commands as ONE undo entry (a rich paste); resolves to
+   *  how many steps ran (steps.length: all, 0: nothing written). Optional so
+   *  test doubles that only exercise the cell ports stay valid. `rollback`
+   *  takes a partial run back (all or nothing). */
+  executeCommandsAsOneStep?(steps: readonly { id: string; params?: unknown }[], options?: { rollback?: boolean }): Promise<number>;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxGridFormatState | null;
   /** The live sheet list in tab order; optional so test doubles that only
    *  exercise the cell ports stay valid. */
   getSheets?(): readonly XlsxGridSheetInfo[];
+  /** r3 MA-3: after a save dropped a CF/DV family of a sheet, refuse it for
+   *  the session and show the rules the file holds (null: as opened). */
+  restoreRuleSet?(sheetId: string, family: XlsxDroppedRuleSet["family"], rules: XlsxDroppedRuleSet["savedRules"]): boolean;
+  /** UNI-953: a sheet's live CF / DV rules for the rule managers. */
+  readRuleSets?(sheetId: string, family: XlsxRuleFamily): readonly XlsxLiveRule[] | null;
+  /** UNI-952: what the grid paints for a range, for print (optional). */
+  readPrintRange?: XlsxPrintGrid["readPrintRange"];
   setDarkMode(dark: boolean): void;
+  /** Live language change: number separators follow it (the renderer re-paints). */
+  setLocale?(lang: "en" | "vi"): void;
   undo(): void;
   redo(): void;
+  /** UNI-953 item 9: undo/redo entries on the stack, and their changes. */
+  getHistory?(): XlsxGridHistoryState | null;
+  subscribeHistory?(listener: (state: XlsxGridHistoryState) => void): () => void;
+  /** Review r3 F1/F2: a cell edit is open; null when the renderer cannot tell. */
+  isCellEditing?(): boolean | null;
   getDirtyGeneration(): number;
   dispose(): void;
+}
+
+export interface XlsxGridHistoryState {
+  undos: number;
+  redos: number;
+  /** Old entries the full stack has dropped (monotonic; review r3 F3). */
+  dropped?: number;
 }
 
 export interface XlsxRendererModule {
@@ -86,6 +119,7 @@ export interface XlsxRendererModule {
     onDirty?: () => void;
     onEdits?: (edits: XlsxGridEdit[]) => void;
     onSelectionChange?: (selection: XlsxGridSelection | null) => void;
+    onViewportChange?: () => void;
   }): XlsxGridHandle;
   installXlsxRendererStyles(doc?: Document): void;
 }
@@ -110,6 +144,10 @@ export interface XlsxGridSurfaceProps {
   /** Right-click on the grid: the editor opens its context menu at the point
    *  and returns focus to `container` when the menu closes. Absent = no menu. */
   onContextMenu?: (point: { x: number; y: number }, container: HTMLElement) => void;
+  /** UNI-940: the visual overlay drawn above the canvas, and the renderer's
+   *  signal that the grid moved under it (scroll, zoom, sheet switch). */
+  overlay?: ReactNode;
+  onViewportChange?: () => void;
   /** Test seam: resolves the artifact without the real chunk. */
   loadModule?: () => Promise<XlsxRendererModule>;
   ref?: Ref<XlsxGridHandle>;
@@ -133,19 +171,26 @@ export function XlsxGridSurface({
   onReady,
   onFailure,
   onContextMenu,
+  overlay,
+  onViewportChange,
   loadModule = loadXlsxRendererModule,
   ref,
 }: XlsxGridSurfaceProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang: "en" | "vi" = i18n.language?.toLowerCase().startsWith("vi") ? "vi" : "en";
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<XlsxGridHandle | null>(null);
   const darkRef = useRef(dark);
   darkRef.current = dark;
-  const callbacksRef = useRef({ onDirty, onEdits, onMessage, onSelectionChange, onReady, onFailure, loadModule });
-  callbacksRef.current = { onDirty, onEdits, onMessage, onSelectionChange, onReady, onFailure, loadModule };
+  const callbacksRef = useRef({ onDirty, onEdits, onMessage, onSelectionChange, onViewportChange, onReady, onFailure, loadModule });
+  callbacksRef.current = { onDirty, onEdits, onMessage, onSelectionChange, onViewportChange, onReady, onFailure, loadModule };
   const [failed, setFailed] = useState(false);
   const contextMenuRef = useRef(onContextMenu);
   contextMenuRef.current = onContextMenu;
+  // History listeners outlive a renderer swap (a readOnly or host change
+  // recreates the renderer while the editor stays ready): each new handle
+  // forwards to the same set and announces its own stack (review-session n-3).
+  const historyListenersRef = useRef(new Set<(state: XlsxGridHistoryState) => void>());
 
   useImperativeHandle(
     ref,
@@ -158,12 +203,25 @@ export function XlsxGridSurface({
       selectSheet: (sheetId) => handleRef.current?.selectSheet(sheetId),
       setNumberFormat: (pattern) => handleRef.current?.setNumberFormat(pattern),
       executeCommand: (id, params) => handleRef.current?.executeCommand(id, params) ?? false,
+      executeCommandsAsOneStep: (steps, options) => handleRef.current?.executeCommandsAsOneStep?.(steps, options) ?? Promise.resolve(0),
       getActiveFormatState: () => handleRef.current?.getActiveFormatState() ?? null,
       getSheets: () => handleRef.current?.getSheets?.() ?? [],
+      restoreRuleSet: (sheetId, family, rules) => handleRef.current?.restoreRuleSet?.(sheetId, family, rules) ?? false,
+      readRuleSets: (sheetId, family) => handleRef.current?.readRuleSets?.(sheetId, family) ?? null,
       setDarkMode: (nextDark) => handleRef.current?.setDarkMode(nextDark),
       undo: () => handleRef.current?.undo(),
       redo: () => handleRef.current?.redo(),
+      getHistory: () => handleRef.current?.getHistory?.() ?? null,
+      subscribeHistory: (listener) => {
+        historyListenersRef.current.add(listener);
+        return () => { historyListenersRef.current.delete(listener); };
+      },
+      isCellEditing: () => handleRef.current?.isCellEditing?.() ?? null,
       getDirtyGeneration: () => handleRef.current?.getDirtyGeneration() ?? 0,
+      getCellBox: (sheetId, row, column) => handleRef.current?.getCellBox?.(sheetId, row, column) ?? null,
+      cellAtPoint: (sheetId, x, y) => handleRef.current?.cellAtPoint?.(sheetId, x, y) ?? null,
+      readRangeValues: (sheetId, range) => handleRef.current?.readRangeValues?.(sheetId, range) ?? null,
+      readPrintRange: (sheetId, range) => handleRef.current?.readPrintRange?.(sheetId, range) ?? null,
       dispose: () => {
         handleRef.current?.dispose();
         handleRef.current = null;
@@ -176,6 +234,7 @@ export function XlsxGridSurface({
     const container = containerRef.current;
     if (!container) return undefined;
     let disposed = false;
+    let unsubscribeHistory: (() => void) | null = null;
     setFailed(false);
     void (async () => {
       try {
@@ -191,15 +250,22 @@ export function XlsxGridSurface({
           onDirty: () => callbacksRef.current.onDirty?.(),
           onEdits: (edits) => callbacksRef.current.onEdits?.(edits),
           onSelectionChange: (selection) => callbacksRef.current.onSelectionChange?.(selection),
+          onViewportChange: () => callbacksRef.current.onViewportChange?.(),
         });
         if (disposed) {
           handle.dispose();
           return;
         }
         handleRef.current = handle;
+        const broadcast = (state: XlsxGridHistoryState) => {
+          for (const listener of historyListenersRef.current) listener(state);
+        };
+        unsubscribeHistory = handle.subscribeHistory?.(broadcast) ?? null;
         await handle.loadWorkbook(host.file);
         if (disposed) return;
         handle.setDarkMode(darkRef.current);
+        const history = handle.getHistory?.();
+        if (history) broadcast(history);
         callbacksRef.current.onReady?.();
       } catch (error) {
         if (disposed) return;
@@ -209,6 +275,7 @@ export function XlsxGridSurface({
     })();
     return () => {
       disposed = true;
+      unsubscribeHistory?.();
       handleRef.current?.dispose();
       handleRef.current = null;
     };
@@ -216,6 +283,9 @@ export function XlsxGridSurface({
   }, [documentKey, host, readOnly]);
 
   useEffect(() => { handleRef.current?.setDarkMode(dark); }, [dark]);
+
+  // A language switch keeps the workbook (and its undo journal): only the numfmt locale moves.
+  useEffect(() => { handleRef.current?.setLocale?.(lang); }, [lang]);
 
   // The Univer input lives in a nested React root, so the right click is caught
   // natively in the capture phase: it cannot be swallowed by a child handler
@@ -241,6 +311,7 @@ export function XlsxGridSurface({
       ref={containerRef}
       className={cn("relative h-[min(55vh,32rem)] min-h-64 min-w-0 flex-auto overflow-hidden bg-background", className)}
       data-testid="xlsx-grid-surface"
+      data-xlsx-grid-surface=""
       data-document-key={documentKey}
       role="group"
       aria-label={t("office.xlsx.surface.grid")}
@@ -251,6 +322,7 @@ export function XlsxGridSurface({
           {t("office.xlsx.errors.rendererFailed")}
         </p>
       ) : null}
+      {failed ? null : overlay}
     </div>
   );
 }

@@ -31,11 +31,11 @@ import {
   Palette,
   Paintbrush,
   PanelTop,
-  Plus,
   Replace,
   LayoutGrid,
   ArrowRightLeft,
   LayoutTemplate,
+  PanelsTopLeft,
   Maximize,
   Monitor,
   Presentation,
@@ -89,7 +89,8 @@ export type PptxGroupId =
   | "comments"
   | "notes"
   | "views"
-  | "arrange";
+  | "arrange"
+  | "master";
 
 /** Quick-access undo/redo, pinned at the far left of the tab row (C6). */
 export const PPTX_QUICK_ACCESS_COMMANDS: readonly PptxCommandId[] = ["undo", "redo"];
@@ -124,6 +125,7 @@ const PPTX_COMMAND_ICONS: Partial<Record<PptxCommandId, RibbonIcon>> = {
   redo: Redo2,
   presenter: Presentation,
   fullscreen: Maximize,
+  slideMaster: PanelsTopLeft,
 };
 
 /** Default icon per panel kind; a spec may override it. */
@@ -182,7 +184,9 @@ export interface PptxRibbonTabSpec {
 const g = (id: string) => `office.pptx.groups.${id}`;
 const p = (key: string) => `office.pptx.panels.${key}`;
 
-const newSlide: PptxRibbonPanelSpec = { kind: "sorter", labelKey: p("new_slide"), icon: Plus };
+/** UNI-958: New slide ADDS a slide (the editor injects it, bound to the edit port);
+ *  the sorter stays on View and the status bar. */
+const slides: PptxRibbonGroupSpec = { id: "slides", labelKey: g("slides"), injected: true };
 
 /**
  * Fixed ribbon order. Every command the command map can produce appears exactly
@@ -195,7 +199,7 @@ export const PPTX_RIBBON_TABS: readonly PptxRibbonTabSpec[] = [
     id: "home",
     labelKey: "office.pptx.tabs.home",
     groups: [
-      { id: "slides", labelKey: g("slides"), panels: [newSlide] },
+      slides,
       { id: "font", labelKey: g("font"), injected: true, largeFirst: false, launcher: { panel: "text-format", labelKey: p("font_dialog") } },
       { id: "paragraph", labelKey: g("paragraph"), injected: true, largeFirst: false, launcher: { panel: "text-format", labelKey: p("paragraph_dialog") } },
       { id: "drawing", labelKey: g("drawing"), panels: [{ kind: "format", labelKey: p("format") }], launcher: { panel: "format", labelKey: p("format") } },
@@ -207,7 +211,7 @@ export const PPTX_RIBBON_TABS: readonly PptxRibbonTabSpec[] = [
     id: "insert",
     labelKey: "office.pptx.tabs.insert",
     groups: [
-      { id: "slides", labelKey: g("slides"), panels: [newSlide] },
+      slides,
       { id: "tables", labelKey: g("tables"), commands: ["tables"] },
       {
         id: "images",
@@ -253,7 +257,11 @@ export const PPTX_RIBBON_TABS: readonly PptxRibbonTabSpec[] = [
   {
     id: "view",
     labelKey: "office.pptx.tabs.view",
-    groups: [{ id: "views", labelKey: g("views"), panels: [{ kind: "sorter", labelKey: p("sorter") }], commands: ["render-fidelity"], order: "panels-first" }],
+    groups: [
+      { id: "views", labelKey: g("views"), panels: [{ kind: "sorter", labelKey: p("sorter") }], commands: ["render-fidelity"], order: "panels-first" },
+      // B6: the slide master view replaces the canvas while the toggle is pressed.
+      { id: "master", labelKey: g("master"), commands: ["slideMaster"] },
+    ],
   },
 ];
 

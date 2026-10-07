@@ -25,10 +25,10 @@ import {
   type XlsxSheetResolver,
   type XlsxWorkbookSnapshot,
 } from "../src/xlsx";
+import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
-const ARTIFACT = join(REPO, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets");
 const COMPAT_EDIT = "xlsx-compatibility-edit.xlsx";
 const COMPAT_STRUCTURE = "xlsx-compatibility-structure.xlsx";
@@ -224,7 +224,7 @@ describe("XLSX sheet ops in the session model", () => {
   });
 });
 
-describe.skipIf(!existsSync(ARTIFACT))("xlsx sheet ops on the real gateway", () => {
+describeWithPatchedGateway("xlsx sheet ops on the real gateway", () => {
   it("renames a sheet and writes a cell into it in one envelope, rewriting cross-sheet refs", async () => {
     const engine = await load();
     const saved = await saveOps(engine, fixture(COMPAT_STRUCTURE), [

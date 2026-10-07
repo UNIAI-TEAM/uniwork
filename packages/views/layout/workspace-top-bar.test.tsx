@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { initI18n } from "@uniwork/core/i18n";
+import { waitFor } from "@testing-library/react";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
+import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { useSearchStore } from "@uniwork/core/search";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -90,6 +93,19 @@ describe("WorkspaceTopBar", () => {
     expect(screen.getByLabelText(/ngôn ngữ/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();
     expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
+  });
+
+  it("shows the saved toast in the language just chosen, not the previous one", async () => {
+    const success = vi.spyOn(toast, "success").mockImplementation(() => "t");
+    await setLocale("vi");
+    renderTopBar();
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(/ngôn ngữ/i));
+    await user.click(await screen.findByRole("menuitemradio", { name: /english/i }));
+    await waitFor(() => expect(success).toHaveBeenCalled());
+    expect(success.mock.calls[0]?.[0]).toBe("Saved");
+    success.mockRestore();
+    await setLocale("vi");
   });
 
   it("puts the search trigger right after the sidebar toggle and opens the palette", () => {

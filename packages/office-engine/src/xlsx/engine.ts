@@ -179,6 +179,12 @@ export interface XlsxGatewayArguments {
   readonly noteStates?: readonly unknown[];
   /** SheetTableAddition[] — tables created this session (B9). */
   readonly tableAdditions?: readonly unknown[];
+  /** SheetVisualAddition[] — charts, pictures and shapes inserted this
+   *  session (B8; positional slot added by office-upstream patch 0010). */
+  readonly visualAdditions?: readonly unknown[];
+  /** WorkbookVisualEdit[] — moves and deletes of visuals already in the file
+   *  (UNI-953; slot appended after formulaValues by office-upstream patch 0013). */
+  readonly visualEdits?: readonly unknown[];
 }
 
 /** The vendored gateway functions this lane consumes (bound via vendor.ts).
@@ -197,6 +203,10 @@ export interface XlsxGatewayFunctions {
    *  workbook/styles/theme/worksheet parts together, and one source per part
    *  would re-inflate the package once per part. */
   readEntriesText(bytes: Uint8Array, paths: readonly string[]): Promise<Readonly<Record<string, string | null>>>;
+  /** Base64 of binary entries (pictures the render model draws), read in
+   *  order: each null when absent, larger than maxBytes decoded, or past what
+   *  is left of maxTotalBytes; sizes are checked before inflating (patch 0013). */
+  readEntriesBase64?(bytes: Uint8Array, paths: readonly string[], maxBytes: number, maxTotalBytes: number): Promise<Readonly<Record<string, string | null>>>;
   /** Apply the cell edits plus refreshed formula cached values in ONE
    *  assemble pass (applyCellEditsToXlsx). The optional trailing
    *  XlsxGatewayArguments carries the other 11 gateway slots; absent (or

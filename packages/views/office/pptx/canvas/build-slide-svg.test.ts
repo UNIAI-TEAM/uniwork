@@ -97,6 +97,22 @@ describe("buildSlideSvg: shapes", () => {
     expect(byTag(doc.root, "path").length).toBe(1);
   });
 
+  it("draws a pinned-side connector exactly to the engine-routed sites and keeps its colour, width and dash", () => {
+    // UNI-939 T03: bottom of one shape (50, 0) down to the top of another (50, 120) is a vertical run.
+    const doc = build([
+      shapeNode({
+        fill: { kind: "none" },
+        stroke: { color: "#C00000", widthPx: 4, widthPt: 3, dash: [12, 8] },
+        line: { points: [50, 0, 50, 120] },
+      }),
+    ]);
+    const polyline = byTag(doc.root, "polyline")[0];
+    expect(polyline?.attrs?.points).toBe("50 0 50 120");
+    expect(polyline?.attrs?.stroke).toBe("#C00000");
+    expect(polyline?.attrs?.["stroke-width"]).toBe(4);
+    expect(polyline?.attrs?.["stroke-dasharray"]).toBe("12 8");
+  });
+
   it("substitutes a transparent or solid paint for image fills and references defs", () => {
     const doc = build([shapeNode({ fill: { kind: "image", dataUrl: "data:image/png;base64,AAAA", mode: "stretch" } })]);
     const pattern = byTag(doc.root, "pattern")[0];

@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { ArrowDownRight, ChevronDown, LayoutGrid } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { cn } from "@uniwork/ui/lib/utils";
+import { RibbonPanelCloseProvider } from "./panel-close";
 import { groupBlocks, itemSize, type RibbonBlock } from "./layout";
 import { RIBBON_PORTAL_ATTR } from "./ribbon-menu";
 import { RibbonItemView } from "./ribbon-item";
@@ -91,10 +93,14 @@ function GroupPanel({ group }: { group: RibbonGroup }) {
     >
       <div role="group" aria-label={caption} data-ribbon-panel={group.id} className="flex min-h-0 flex-col gap-1.5">
         <GroupItems group={group} stage={0} inPanel />
-        <div className="flex items-center justify-between gap-2 border-t border-border pt-1 text-caption text-muted-foreground">
-          <span>{caption}</span>
-          <Launcher group={group} />
-        </div>
+        {group.panelCaption !== false || group.launcher ? (
+          // A group may drop the caption row of its panel (the panel is named
+          // by aria-label); a dialog launcher keeps it.
+          <div className="flex items-center justify-between gap-2 border-t border-border pt-1 text-caption text-muted-foreground">
+            <span>{caption}</span>
+            <Launcher group={group} />
+          </div>
+        ) : null}
       </div>
     </PopoverContent>
   );
@@ -106,8 +112,9 @@ export function RibbonGroupButton({ group, variant }: { group: RibbonGroup; vari
   const { t } = useTranslation();
   const caption = t(group.labelKey);
   const Icon = group.icon ?? group.items.find((item) => item.icon)?.icon ?? LayoutGrid;
+  const [open, setOpen] = useState(false);
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <Button
@@ -126,7 +133,9 @@ export function RibbonGroupButton({ group, variant }: { group: RibbonGroup; vari
         <span title={caption} className={variant === "large" ? "shrink-0 truncate max-w-40 text-center leading-tight" : undefined}>{caption}</span>
         <ChevronDown aria-hidden className="size-3" />
       </PopoverTrigger>
-      <GroupPanel group={group} />
+      <RibbonPanelCloseProvider value={() => setOpen(false)}>
+        <GroupPanel group={group} />
+      </RibbonPanelCloseProvider>
     </Popover>
   );
 }

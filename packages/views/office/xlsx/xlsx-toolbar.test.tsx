@@ -191,7 +191,9 @@ describe("XlsxToolbar on the shared ribbon", () => {
     fireEvent.click(tab("insert"));
     expect(document.querySelector("[data-ribbon-group='number']")).not.toBeInTheDocument();
     expect(document.querySelector("[data-ribbon-group='charts']")).toBeInTheDocument();
-    expect(document.querySelector("[data-ribbon-group='structure-insert']")).toBeInTheDocument();
+    expect(document.querySelector("[data-ribbon-group='table']")).toBeInTheDocument();
+    // Design review X2: the row/column insert cluster lives on Home > Cells now.
+    expect(document.querySelector("[data-ribbon-group='structure-insert']")).not.toBeInTheDocument();
   });
 
   it("mounts every Home group once, labelled and hosting its typed items", () => {
@@ -467,5 +469,17 @@ describe("toolbar i18n", () => {
     const keys = toolbarKeyPaths(viLocale);
     expect(keys.length).toBeGreaterThan(0);
     expect(keys).toEqual(toolbarKeyPaths(en));
+  });
+});
+
+describe("applied number format lifetime (UNI-957)", () => {
+  it("drops the document's applied format when its toolbar unmounts", async () => {
+    const { appliedFormatKey, readAppliedPattern, recordAppliedFormat } = await import("./number-format/applied-format");
+    const key = appliedFormatKey("doc-toolbar", { sheet: "Data", address: "B2" });
+    const view = render(<XlsxToolbar {...renderProps({ documentKey: "doc-toolbar" })} />);
+    recordAppliedFormat(key, "0.00%");
+    expect(readAppliedPattern(key)).toBe("0.00%");
+    view.unmount();
+    expect(readAppliedPattern(key)).toBeNull();
   });
 });

@@ -7,38 +7,43 @@ import {
   BooleanNumber,
   CommandType,
   ICommandService,
-  LocaleType,
+  IUndoRedoService,
   ThemeService,
   WrapStrategy,
-  mergeLocales,
 } from "@univerjs/core";
 import { UniverSheetsConditionalFormattingPreset } from "@univerjs/preset-sheets-conditional-formatting";
-import UniverPresetSheetsConditionalFormattingEnUS from "@univerjs/preset-sheets-conditional-formatting/locales/en-US";
 import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
-import UniverPresetSheetsCoreEnUS from "@univerjs/preset-sheets-core/locales/en-US";
 import { UniverSheetsDataValidationPreset } from "@univerjs/preset-sheets-data-validation";
-import UniverPresetSheetsDataValidationEnUS from "@univerjs/preset-sheets-data-validation/locales/en-US";
 import { UniverSheetsDrawingPreset } from "@univerjs/preset-sheets-drawing";
 import { UniverSheetsFilterPreset } from "@univerjs/preset-sheets-filter";
-import UniverPresetSheetsFilterEnUS from "@univerjs/preset-sheets-filter/locales/en-US";
 import { UniverSheetsFindReplacePreset } from "@univerjs/preset-sheets-find-replace";
-import UniverPresetSheetsFindReplaceEnUS from "@univerjs/preset-sheets-find-replace/locales/en-US";
 import { UniverSheetsNotePreset } from "@univerjs/preset-sheets-note";
-import UniverPresetSheetsNoteEnUS from "@univerjs/preset-sheets-note/locales/en-US";
 import { UniverSheetsSortPreset } from "@univerjs/preset-sheets-sort";
-import UniverPresetSheetsSortEnUS from "@univerjs/preset-sheets-sort/locales/en-US";
 import { UniverSheetsTablePreset, UniverSheetsTableUIPlugin } from "@univerjs/preset-sheets-table";
-import UniverPresetSheetsTableEnUS from "@univerjs/preset-sheets-table/locales/en-US";
 import type { WorkbookFile, WorkbookRangeResult } from "../../upstream/apps/sheets/src/shared/desktop-api";
 import type { IRange, IStyleData } from "@univerjs/core";
 import { SheetInterceptorService } from "@univerjs/sheets";
+import { registerDesktopApiSession } from "./desktop-api-bridge";
 import { canEditRange, canExecuteCommand } from "./command-policy";
 import { parseCellText } from "./cell-input";
 import { installShiftedNavigation } from "./shifted-navigation";
+import { ingestRuleSetMutation, linkedRuleIds, noteLinkedConditionalRules, readLiveRuleSet, restoreRuleSetFamily, type XlsxRendererLiveRule, type XlsxRendererRuleSetKind, type XlsxRendererRuleSetRule } from "./rule-set-capture";
+import { isRuleSetCommand, liveRuleIdsReader, ruleSetRestoreAllowed, ruleSetTargetsLive } from "./rule-set-policy";
+import { installStacked } from "./dv-error-style";
+import { watchRendererHistory, type XlsxRendererHistoryState } from "./history";
+import { installDvRejectDialogTitle, rendererLocaleOptions, sheetHasDataValidation } from "./dv-reject-dialog";
+import { installDvDropdownSearchGuard } from "./dv-dropdown-search";
 import { loadWorkbookFonts, type XlsxRendererFontMapping } from "./fonts";
+import { commandMovesCells, createGridGeometry, type XlsxRendererCellBox, type XlsxRendererCellHit, type XlsxRendererPrintRange, type XlsxRendererRangeValues } from "./geometry";
 import {
   applyColumnDefaultWidth,
-  applyOutlineAction,
+  applyOutlineCollapse,
+  outlineCollapseHistoryItem,
+  outlineDetailSpan,
+  outlineHistoryItem,
+  validOutlineSpan,
+  createValidatedWriteGate,
+  observeValidationVerdicts,
   ingestCellMutation,
   ingestFilterMutation,
   ingestMergeMutation,
@@ -50,15 +55,21 @@ import {
   ingestNoteMutation,
   hyperlinkEdit,
   intersectMergeRanges,
+  selectsOneMergedCell,
+  runOutlineCommand,
+  editorCommitCell,
   isSheetMutation,
   liveSessionSheets,
   seedColumnOutline,
+  seedRowOutline,
   type AxisRange,
   type RendererCommand,
   type XlsxRendererEdit,
   type XlsxRendererFilterEdit,
 } from "./edits";
-import { t } from "./locale";
+import { getLang, t } from "./locale";
+import { createOutlineLevelBar } from "./outline-bar";
+import { outlineMaxLevels, runOutlineLevel } from "./outline-levels";
 import { sharedFormulaResolverFor } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import { installAutofitLinePitch } from "../../upstream/apps/sheets/src/renderer/autofit-line-pitch";
 import { installAutofitWrapBudget } from "../../upstream/apps/sheets/src/renderer/autofit-wrap-budget";
@@ -72,7 +83,7 @@ import { installFormulaStreamHold } from "../../upstream/apps/sheets/src/rendere
 import { installForceStringMarkGate, installLongTextRender } from "../../upstream/apps/sheets/src/renderer/long-text-render";
 import { installMergeBorderFix } from "../../upstream/apps/sheets/src/renderer/merge-border-fix";
 import { installNumberAsTextAlertSeverity } from "../../upstream/apps/sheets/src/renderer/number-as-text-alert";
-import { installNumberFormatFix } from "../../upstream/apps/sheets/src/renderer/numfmt-fix";
+import { applyHostNumfmtLocale, installNumberFormatFix } from "../../upstream/apps/sheets/src/renderer/numfmt-fix";
 import { installRichTextBidiFix } from "../../upstream/apps/sheets/src/renderer/rich-text-bidi-fix";
 import { installRtlGridMirror } from "../../upstream/apps/sheets/src/renderer/rtl-grid-mirror";
 import { installRtlTextDirectionFix } from "../../upstream/apps/sheets/src/renderer/rtl-text-fix";
@@ -89,6 +100,7 @@ import {
   normalizeLinkTarget,
 } from "../../upstream/apps/sheets/src/renderer/univer-sync";
 import { parseAddress } from "../../upstream/packages/xlsx-gateway/src/domain/cell-address";
+import { executeAsOneUndoStep, type XlsxRendererBatchOptions, type XlsxRendererCommandStep } from "./undo-step";
 import {
   installJournalSuppressionUndoFilter,
   installLoadAutoHeightGate,
@@ -118,10 +130,11 @@ export interface XlsxRendererOptions {
   onMessage?: (message: string) => void;
   onDirty?: () => void;
   onEdits?: (edits: XlsxRendererEdit[]) => void;
-  onSelectionChange?: (selection: { sheetId: string; range: IRange } | null) => void;
+  onSelectionChange?: (selection: { sheetId: string; range: IRange & { merged?: true } } | null) => void;
+  /** UNI-940 X02: the grid moved under a visual overlay (scroll, zoom,
+   *  sheet switch or any executed command); re-read the cell boxes. */
+  onViewportChange?: () => void;
 }
-
-type DesktopApi = Record<string, unknown>;
 
 /** The cheap active-selection style read the toolbar mirrors control state
  *  from. Alignment numbers are the pinned Univer style values (horizontal
@@ -183,18 +196,44 @@ export interface XlsxRendererHandle {
    *  command policy cancels (the policy stays the single savability gate).
    *  Returns whether the command actually ran. */
   executeCommand(id: string, params?: unknown): Promise<boolean>;
+  /** UNI-953: several commands as ONE undo entry (a rich paste). Resolves to
+   *  how many steps ran: steps.length is all of them, 0 is nothing written.
+   *  `rollback` takes a partial run back (all or nothing). */
+  executeCommandsAsOneStep(steps: readonly XlsxRendererCommandStep[], options?: XlsxRendererBatchOptions): Promise<number>;
   /** The active range's composed style, or null without an active range.
    *  Read-only mounts still report state; only writes are refused. */
   getActiveFormatState(): XlsxRendererFormatState | null;
   /** The live sheet list in tab order (rename/insert/remove/reorder as they
    *  happen); read-only mounts still report it. */
   getSheets(): readonly XlsxRendererSheetInfo[];
+  /** After a save dropped a CF/DV family of a sheet (r3 MA-3): refuse it for
+   *  the session and show the rules the file holds (null: as opened).
+   *  Refused on a read-only mount or by the rule-set policy. */
+  restoreRuleSet(sheetId: string, kind: XlsxRendererRuleSetKind, rules: readonly XlsxRendererRuleSetRule[] | null): boolean;
+  /** UNI-953 rule manager: a sheet's live CF / DV rules with their model ids
+   *  (null before a workbook loads or for an unknown sheet). */
+  readRuleSets(sheetId: string, kind: XlsxRendererRuleSetKind): XlsxRendererLiveRule[] | null;
   setDarkMode(dark: boolean): void;
+  setLocale(lang: "en" | "vi"): void;
   undo(): void;
   redo(): void;
+  /** UNI-953: undo/redo entries on the workbook's stack (Undo/Redo empty state). */
+  getHistory(): XlsxRendererHistoryState | null;
+  subscribeHistory(listener: (state: XlsxRendererHistoryState) => void): () => void;
+  /** Review r3 F2: a cell edit is open (its keys belong to the editor, not
+   *  to the host's visual Undo/Delete). False before a workbook loads. */
+  isCellEditing(): boolean;
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): EditJournal;
+  /** UNI-940 X02 geometry seam: a cell's box in container pixels on the
+   *  active sheet (null for any other sheet), and the cell under a point. */
+  getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
+  cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
+  /** Live values of a range on the active sheet (null for another sheet). */
+  readRangeValues(sheetId: string, range: IRange): XlsxRendererRangeValues | null;
+  /** UNI-952: composed styles, sizes and merges of a range, for print. */
+  readPrintRange(sheetId: string, range: IRange): XlsxRendererPrintRange | null;
   dispose(): void;
 }
 
@@ -217,31 +256,6 @@ function withLiveSheetNames(state: LazyWorkbookState | null, edits: XlsxRenderer
     if (name === undefined || name === file.get(edit.sheetId)) return edit;
     return { ...edit, sheetName: name };
   });
-}
-
-/**
- * A minimal, reversible bridge: the vendored modules read the genoffice host
- * port off `window.desktopApi`, so the controller installs the translation
- * while the renderer is mounted and restores whatever existed before on
- * dispose (the desktop shell owns its own global and must not lose it).
- */
-function installDesktopApiBridge(host: XlsxRendererHost): () => void {
-  const globalObject = globalThis as unknown as { desktopApi?: unknown };
-  const previous = globalObject.desktopApi;
-  const api: DesktopApi = {
-    readWorkbookRange: (input: { sessionId: string; sheetId: string; range: IRange }) => host.readRange(input),
-    readWorkbookFormulas: (input: { sessionId: string; sheetId: string }) => host.readFormulas?.(input) ?? Promise.resolve({ cells: [] }),
-    recalcWorkbook: (input: unknown) => host.recalcWorkbook?.(input) ?? Promise.resolve({ cells: [], cached: false }),
-    // Visuals are outside this slice's render scope; the vendored callers get
-    // a typed empty answer, never a fabricated image.
-    readLocalImage: () => Promise.resolve(null),
-    fetchImage: () => Promise.resolve(null),
-    closeWorkbook: () => Promise.resolve(),
-  };
-  globalObject.desktopApi = api;
-  return () => {
-    if (globalObject.desktopApi === api) globalObject.desktopApi = previous;
-  };
 }
 
 function createLazyState(file: WorkbookFile): LazyWorkbookState {
@@ -315,24 +329,16 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   container.appendChild(univerHost);
   univerHost.id = `${containerId}-canvas`;
 
-  const restoreDesktopApi = installDesktopApiBridge(options.host);
+  // The vendored loaders reach the host through window.desktopApi; the
+  // bridge routes by session, registered once the workbook (and so its
+  // sessionId) is known (UNI-957: several workbooks share one page).
+  let releaseDesktopApi: (() => void) | null = null;
   const setMessage = (message: string) => options.onMessage?.(message);
 
   const runtime: UniverRuntime = createUniver({
     darkMode: options.dark ?? false,
-    locale: LocaleType.EN_US,
-    locales: {
-      [LocaleType.EN_US]: mergeLocales(
-        UniverPresetSheetsCoreEnUS,
-        UniverPresetSheetsConditionalFormattingEnUS,
-        UniverPresetSheetsFilterEnUS,
-        UniverPresetSheetsDataValidationEnUS,
-        UniverPresetSheetsNoteEnUS,
-        UniverPresetSheetsFindReplaceEnUS,
-        UniverPresetSheetsSortEnUS,
-        UniverPresetSheetsTableEnUS,
-      ),
-    },
+    // The app language, with the app's copy for the DV surfaces (X01 vfix-dv).
+    ...rendererLocaleOptions(),
     presets: [
       UniverSheetsCorePreset({
         container: univerHost.id,
@@ -363,6 +369,9 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   installInjectorResolutionGuard(runtime);
   let findRevealDispose: (() => void) | undefined;
   let numberFormatDispose: { dispose(): void } | undefined;
+  // The DV prompts and the write gate both wrap onValidateCell; installStacked
+  // removes them in reverse so each wrapper restores its own original.
+  let validateCellWrappersDispose: { dispose(): void } | undefined;
   const wrapMeasureDisposable = installWrapMeasureLifecycle(runtime);
   installJournalSuppressionUndoFilter();
   installLoadAutoHeightGate();
@@ -382,6 +391,13 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   const lazyWorkbookRef: { current: LazyWorkbookState | null } = { current: null };
   let dirtyGeneration = 0;
+  // A refused data-validation commit is held back until its verdict and then
+  // journals nothing (edits.ts). Accepted edits are emitted from here.
+  const validatedWrites = createValidatedWriteGate((held) => {
+    dirtyGeneration += 1;
+    options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, held));
+    options.onDirty?.();
+  });
   let fontMappings: XlsxRendererFontMapping[] = [];
   let disposed = false;
   let commitInProgress = false;
@@ -415,6 +431,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   });
 
   const themeService = runtime.univer.__getInjector().get(ThemeService);
+  const geometry = createGridGeometry(runtime, container);
+  const notifyViewport = () => options.onViewportChange?.();
 
   const refreshViewport = () => {
     const state = lazyWorkbookRef.current;
@@ -427,9 +445,14 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     const workbook = runtime.univerAPI.getActiveWorkbook();
     const sheet = workbook?.getActiveSheet();
     const range = workbook?.getActiveRange()?.getRange();
-    const selection = sheet && range ? { sheetId: sheet.getSheetId(), range: { ...range } } : null;
+    // One merged cell reads as a single cell (Excel's status bar shows no
+    // statistics for it): the selection spans exactly one live merge.
+    const merged = sheet && range && selectsOneMergedCell(sheet.getSheet?.()?.getMergeData?.(), range);
+    const selection = sheet && range
+      ? { sheetId: sheet.getSheetId(), range: { ...range, ...(merged ? { merged: true as const } : {}) } }
+      : null;
     const key = selection ? JSON.stringify([selection.sheetId, selection.range.startRow, selection.range.endRow,
-      selection.range.startColumn, selection.range.endColumn, selection.range.rangeType]) : "null";
+      selection.range.startColumn, selection.range.endColumn, selection.range.rangeType, merged === true]) : "null";
     const state = lazyWorkbookRef.current;
     if (selection && state) lastSelection = { state, sheetId: selection.sheetId, range: { ...selection.range } };
     else if (!selection) lastSelection = null;
@@ -441,12 +464,16 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
 
   // Viewport streaming: scroll and sheet switches refetch the visible window.
   const disposables: Array<{ dispose(): void }> = [];
+  const history = watchRendererHistory(runtime.univer.__getInjector(), () => runtime.univerAPI.getActiveWorkbook()?.getId() ?? null);
+  disposables.push(history);
 
   // UniWork outline commands (B1): the pinned Univer has no outline model and
   // journals no levels, so these two commands record the level change
   // straight into the renderer's structural journal (one op per contiguous
-  // run) and emit it on the same edit channel as cell edits. They carry no
-  // undo entry — there is no Univer state to undo (genoffice parity). The
+  // run) and emit it on the same edit channel as cell edits. Each action
+  // pushes its own undo entry (edits.ts outlineHistoryItem): undo replays
+  // outline commands that restore the previous levels and journal them, and
+  // inside an executeAsOneStep batch the entry joins the batch. The
   // column default-width reset rides the same route: the pinned build's
   // `set-col-is-auto-width` command emits no mutation, so the reset journals
   // a null set-col-size op itself.
@@ -461,12 +488,83 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     return true;
   };
   const runOutline = (axis: "rows" | "cols", params: unknown): boolean => {
-    const p = params as { subUnitId?: string; start?: number; end?: number; action?: "group" | "ungroup" | "clear" } | undefined;
+    const p = params as {
+      subUnitId?: string; start?: number; end?: number; action?: "group" | "ungroup" | "clear"; history?: boolean;
+    } | undefined;
     if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.end !== "number") return false;
     if (p.action !== "group" && p.action !== "ungroup" && p.action !== "clear") return false;
     const sheetId = p.subUnitId ?? runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
     if (!sheetId) return false;
-    return emitStructuralEdits(applyOutlineAction(lazyWorkbookRef.current, sheetId, axis, p.start, p.end, p.action));
+    const unitId = runtime.univerAPI.getActiveWorkbook()?.getId();
+    return runOutlineCommand({
+      state: lazyWorkbookRef.current,
+      unitId,
+      emit: emitStructuralEdits,
+      pushUndo: (item) => runtime.univer.__getInjector().get(IUndoRedoService).pushUndoRedo(item),
+      notice: (key) => setMessage(t(key)),
+    }, sheetId, axis, p.start, p.end, p.action, p.history !== false);
+  };
+  // The collapsed flag of a group's summary line (Excel draws "+" / "-" from
+  // it): journalled as an outline op carrying `collapsed`, with its own undo
+  // entry. Undo/redo replays carry history: false and push nothing.
+  const runOutlineCollapsed = (params: unknown): boolean => {
+    const p = params as { subUnitId?: string; axis?: string; start?: number; collapsed?: boolean; history?: boolean } | undefined;
+    if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.collapsed !== "boolean") return false;
+    if (p.axis !== "rows" && p.axis !== "cols") return false;
+    const sheetId = p.subUnitId ?? runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
+    if (!sheetId) return false;
+    const ran = emitStructuralEdits(applyOutlineCollapse(lazyWorkbookRef.current, sheetId, p.axis, p.start, p.collapsed));
+    const unitId = runtime.univerAPI.getActiveWorkbook()?.getId();
+    if (ran && p.history !== false && unitId) {
+      runtime.univer.__getInjector().get(IUndoRedoService)
+        .pushUndoRedo(outlineCollapseHistoryItem(unitId, sheetId, p.axis, p.start, p.collapsed));
+    }
+    return ran || validOutlineSpan(lazyWorkbookRef.current, sheetId, p.start, p.start);
+  };
+  // Runs `step` so every undo push it makes folds into one entry: the hide and
+  // the collapsed flag are one Ctrl+Z. Inside a batch already open (or on a
+  // service without batching) the pushes simply join that one.
+  const inOneUndoStep = <T,>(unitId: string, step: () => T): T => {
+    let batch: { dispose(): void } | null = null;
+    try {
+      batch = runtime.univer.__getInjector().get(IUndoRedoService).__tempBatchingUndoRedo(unitId);
+    } catch {
+      batch = null;
+    }
+    try {
+      return step();
+    } finally {
+      batch?.dispose();
+    }
+  };
+  // Show / Hide Detail (Excel): hide or show the outline group the selection's
+  // first line belongs to (or the group a summary line closes) through the
+  // allowlisted hidden/visible command, then write the collapsed flag on the
+  // summary line below it (the file Excel opens shows "+" / "-" from it), so
+  // the step journals and undoes like any hide. No group: nothing runs and
+  // nothing is marked dirty.
+  const runOutlineDetail = (params: unknown): boolean => {
+    const p = params as { subUnitId?: string; axis?: string; start?: number; hide?: boolean } | undefined;
+    if (journalSuppression.active || !p || typeof p.start !== "number" || typeof p.hide !== "boolean") return false;
+    if (p.axis !== "rows" && p.axis !== "cols") return false;
+    const workbook = runtime.univerAPI.getActiveWorkbook();
+    const sheetId = p.subUnitId ?? workbook?.getActiveSheet()?.getSheetId();
+    if (!sheetId || !workbook) return false;
+    const span = outlineDetailSpan(lazyWorkbookRef.current, sheetId, p.axis, p.start);
+    if (!span) return true;
+    const rows = p.axis === "rows";
+    const range = rows
+      ? { startRow: span.start, endRow: span.end, startColumn: 0, endColumn: 0, rangeType: 1 }
+      : { startRow: 0, endRow: 0, startColumn: span.start, endColumn: span.end, rangeType: 2 };
+    const id = rows
+      ? p.hide ? "sheet.command.set-rows-hidden" : "sheet.command.set-specific-rows-visible"
+      : p.hide ? "sheet.command.set-col-hidden" : "sheet.command.set-col-visible-on-cols";
+    return inOneUndoStep(workbook.getId(), () => {
+      if (runtime.univerAPI.syncExecuteCommand(id, { unitId: workbook.getId(), subUnitId: sheetId, ranges: [range] }) !== true) return false;
+      // The summary line is the one after the group (Excel's default, summary
+      // below detail); a group ending at the grid edge has none.
+      return runOutlineCollapsed({ subUnitId: sheetId, axis: p.axis, start: span.end + 1, collapsed: p.hide });
+    });
   };
   const runColumnDefaultWidth = (params: unknown): boolean => {
     const p = params as { subUnitId?: string; start?: number; end?: number } | undefined;
@@ -486,10 +584,70 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     }));
   }
   disposables.push(commandService.registerCommand({
+    id: "uniwork.command.set-outline-detail",
+    type: CommandType.COMMAND,
+    handler: (_accessor, params) => runOutlineDetail(params),
+  }));
+  disposables.push(commandService.registerCommand({
+    id: "uniwork.command.set-outline-collapsed",
+    type: CommandType.COMMAND,
+    handler: (_accessor, params) => runOutlineCollapsed(params),
+  }));
+  disposables.push(commandService.registerCommand({
     id: "uniwork.command.set-cols-default-width",
     type: CommandType.COMMAND,
     handler: (_accessor, params) => runColumnDefaultWidth(params),
   }));
+  // Outline level buttons (Excel's 1..n): one click hides/shows every group
+  // by level and writes the summary flags, as one undo step (outline-levels.ts).
+  const runOutlineLevelCommand = (params: unknown): boolean => {
+    const p = params as { subUnitId?: string; axis?: string; level?: number } | undefined;
+    if (journalSuppression.active || !p || typeof p.level !== "number") return false;
+    if (p.axis !== "rows" && p.axis !== "cols") return false;
+    const axis = p.axis;
+    const level = p.level;
+    const workbook = runtime.univerAPI.getActiveWorkbook();
+    const sheetId = p.subUnitId ?? workbook?.getActiveSheet()?.getSheetId();
+    const sheet = sheetId ? workbook?.getSheetBySheetId(sheetId)?.getSheet() : undefined;
+    if (!workbook || !sheetId || !sheet) return false;
+    return inOneUndoStep(workbook.getId(), () => runOutlineLevel({
+      state: lazyWorkbookRef.current,
+      unitId: workbook.getId(),
+      isHidden: (line) => axis === "rows" ? !sheet.getRowRawVisible(line) : !sheet.getColVisible(line),
+      execute: (id, commandParams) => runtime.univerAPI.syncExecuteCommand(id, commandParams) === true,
+      emit: emitStructuralEdits,
+      pushUndo: (item) => runtime.univer.__getInjector().get(IUndoRedoService).pushUndoRedo(item),
+    }, sheetId, axis, level));
+  };
+  disposables.push(commandService.registerCommand({
+    id: "uniwork.command.set-outline-level",
+    type: CommandType.COMMAND,
+    handler: (_accessor, params) => runOutlineLevelCommand(params),
+  }));
+  const outlineBar = options.readOnly ? null : createOutlineLevelBar({
+    container, grid: univerHost, label: t,
+    onLevel: (axis, level) => {
+      const workbook = runtime.univerAPI.getActiveWorkbook();
+      const subUnitId = workbook?.getActiveSheet()?.getSheetId();
+      if (workbook && subUnitId) void runtime.univerAPI.executeCommand("uniwork.command.set-outline-level", { unitId: workbook.getId(), subUnitId, axis, level });
+    },
+  });
+  let outlineBarQueued = false;
+  // Any command can change the levels (group, undo, insert/remove lines), a
+  // sheet switch changes the sheet; one microtask reads them once per burst.
+  const scheduleOutlineBar = (): void => {
+    if (!outlineBar || outlineBarQueued) return;
+    outlineBarQueued = true;
+    queueMicrotask(() => {
+      outlineBarQueued = false;
+      if (disposed) return;
+      const sheetId = runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
+      outlineBar.update(outlineMaxLevels(lazyWorkbookRef.current, sheetId));
+    });
+  };
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, scheduleOutlineBar));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.ActiveSheetChanged, scheduleOutlineBar));
+  if (outlineBar) disposables.push(outlineBar);
   // Hyperlinks (B6): the pinned Univer 0.25.1 has no spreadsheet hyperlink
   // command, so UniWork registers one. It mirrors the vendored applyAiHyperlink
   // (journal + link styling) and emits the per-cell edit so the host persists
@@ -565,9 +723,12 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     const source = liveSessionSheets(state).find((sheet) => sheet.id === params.subUnitId);
     if (source) pendingSheetCopy = { sourceSheetId: source.id, sourceName: source.name };
   };
+  // The rule ids the live model holds: a rule-manager command must name one.
+  const liveRuleIds = liveRuleIdsReader((sheetId) => runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeCommandExecute, (event) => {
     if (journalSuppression.active) return;
-    if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false)) {
+    if (!canExecuteCommand(event, lazyWorkbookRef.current, options.readOnly ?? false) ||
+        (isRuleSetCommand(event.id) && !ruleSetTargetsLive(event, liveRuleIds))) {
       if (commitInProgress) commitDenied = true;
       // F10: a refused copy never inserts, so a marker left by an earlier
       // copy must not survive to mislabel a later unrelated insert.
@@ -577,6 +738,15 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     }
     rememberMergeRemoval(event);
     rememberSheetCommand(event);
+    // The editor commit is the only set-range-values carrying a redo/undo id;
+    // it validates after it writes, so its edits wait for the verdict.
+    const write = event.id === "sheet.command.set-range-values"
+      ? event.params as { unitId?: string; subUnitId?: string; redoUndoId?: unknown; range?: unknown } | undefined
+      : undefined;
+    if (write && typeof write.redoUndoId === "string" && write.unitId && write.subUnitId &&
+        sheetHasDataValidation(runtime, write.unitId, write.subUnitId)) {
+      validatedWrites.begin(lazyWorkbookRef.current, write.subUnitId, editorCommitCell(write.range));
+    }
   }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeSheetEditStart, (event) => {
     if (options.readOnly || !canEditRange(lazyWorkbookRef.current, event.worksheet.getSheetId(), {
@@ -591,10 +761,13 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.BeforeClipboardPaste, (event) => {
     if (options.readOnly || event.html) event.cancel = true;
   }));
-  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, () => refreshViewport()));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, () => { refreshViewport(); notifyViewport(); }));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, (event) => {
+    if (commandMovesCells(event?.id)) notifyViewport();
+  }));
   disposables.push(
     runtime.univerAPI.addEvent(runtime.univerAPI.Event.ActiveSheetChanged, () =>
-      window.setTimeout(() => { refreshViewport(); notifySelection(); }, 0),
+      window.setTimeout(() => { refreshViewport(); notifySelection(); notifyViewport(); }, 0),
     ),
   );
   disposables.push(
@@ -612,14 +785,15 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       const sheetId = (event.params as { subUnitId?: string } | undefined)?.subUnitId;
       const workbook = runtime.univerAPI.getActiveWorkbook();
       const sheet = sheetId ? workbook?.getSheetBySheetId(sheetId) : undefined;
-      const edits = ingestCellMutation(
-        lazyWorkbookRef.current, event, journalSuppression.active,
+      const edits = validatedWrites.capture(ingestCellMutation(
+        // The rollback of a refused commit is not an edit either.
+        lazyWorkbookRef.current, event, journalSuppression.active || (sheetId !== undefined && validatedWrites.isRollback(sheetId)),
         sheetId ? sharedFormulaResolverFor(runtime, sheetId) : undefined,
         (row, column) => {
           const style = workbook?.getWorkbook().getStyles().getStyleByCell(sheet?.getSheet().getCellRaw(row, column));
           return style ? { ...style } : undefined;
         },
-      );
+      ));
       // Row/column structure rides the same channel: insert/remove, sizes,
       // hidden flags and auto-height resets journal here (outline levels are
       // recorded by the two commands above, outside Univer's mutation set).
@@ -675,9 +849,16 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         (state, sheetId, range, order) => journalRangeSnapshot(runtime, state, sheetId, range, order),
         journalSuppression.active,
       );
-      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0 && noteEdits.length === 0 && sortEdits.length === 0) return;
+      // Conditional formatting + data validation (X01): every rule mutation
+      // snapshots its sheet's live rule model as a whole-sheet state.
+      const ruleSetEdits = ingestRuleSetMutation(
+        lazyWorkbookRef.current, event,
+        (sheetId) => workbook?.getSheetBySheetId(sheetId) ?? null,
+        journalSuppression.active,
+      );
+      if (edits.length === 0 && structuralEdits.length === 0 && mergeEdits.length === 0 && sheetEdits.length === 0 && filterEdits.length === 0 && tableEdits.length === 0 && noteEdits.length === 0 && sortEdits.length === 0 && ruleSetEdits.length === 0) return;
       dirtyGeneration += 1;
-      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits, ...noteEdits, ...sortEdits]));
+      options.onEdits?.(withLiveSheetNames(lazyWorkbookRef.current, [...edits, ...structuralEdits, ...mergeEdits, ...sheetEdits, ...filterEdits, ...tableEdits, ...noteEdits, ...sortEdits, ...ruleSetEdits]));
       options.onDirty?.();
     }),
   );
@@ -687,6 +868,19 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       loadingWorkbook = true;
       fontMappings = await loadWorkbookFonts(file, container.ownerDocument);
       if (disposed) return;
+      releaseDesktopApi?.();
+      // A wrapper, not options.host itself: each controller notes the linked
+      // CF rules of the ranges IT reads into its own workbook state (UNI-957
+      // per-document state); release compares this same object.
+      releaseDesktopApi = registerDesktopApiSession(file.sessionId, {
+        readRange: (input) => options.host.readRange(input).then((result) => {
+          // Linked x14 CF rules (review dvcf B2), noted before the loader installs them.
+          noteLinkedConditionalRules(lazyWorkbookRef.current, input.sheetId, (result as { conditionalRules?: unknown }).conditionalRules);
+          return result;
+        }),
+        readFormulas: (input) => options.host.readFormulas?.(input) ?? Promise.resolve({ cells: [] }),
+        recalcWorkbook: (input) => options.host.recalcWorkbook?.(input) ?? Promise.resolve({ cells: [], cached: false }),
+      });
       container.setAttribute("data-xlsx-font-mappings", JSON.stringify(fontMappings));
       journalSuppression.active = true;
       loadAutoHeightSuppression.active = true;
@@ -697,6 +891,13 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         installForceStringMarkGate(runtime.univer.__getInjector().get(SheetInterceptorService));
         findRevealDispose ??= installFindRevealFix(runtime);
         numberFormatDispose ??= installNumberFormatFix(runtime, () => lazyWorkbookRef.current?.file.date1904 ?? false);
+        // Separators follow the editor language (vi: 1.250.000.000); Univer keeps "en" otherwise.
+        applyHostNumfmtLocale(runtime, getLang() === "vi" ? "vi" : "en");
+        validateCellWrappersDispose ??= installStacked([
+          () => installDvRejectDialogTitle(runtime, container.ownerDocument, RENDERER_ROOT_CLASS),
+          () => installDvDropdownSearchGuard(runtime.univer.__getInjector()),
+          () => observeValidationVerdicts(runtime.univer.__getInjector().get(SheetInterceptorService), validatedWrites),
+        ]);
       } finally {
         loadAutoHeightSuppression.active = false;
         journalSuppression.active = false;
@@ -705,7 +906,10 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       lazyWorkbookRef.current = state;
       // Column outline metadata rides the sheet metadata (not a streamed
       // chunk), so seed it now, before any session group edit can own an entry.
+      // Row levels come whole from the host too (UNI-953 F2), not only as
+      // their rows stream.
       seedColumnOutline(state);
+      seedRowOutline(state);
       dirtyGeneration = 0;
       const workbook = runtime.univerAPI.getActiveWorkbook();
       // Native workbook permissions also block the vendored viewport loader's
@@ -720,6 +924,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         notifySelection();
       }
       loadingWorkbook = false;
+      scheduleOutlineBar();
     },
     refreshViewport,
     async revealCell(sheetId, row, column) {
@@ -779,6 +984,11 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       const commandParams = { unitId: workbook.getId(), subUnitId: sheet.getSheetId(), ...base, ...resolved };
       return (await runtime.univerAPI.executeCommand(id, commandParams)) === true;
     },
+    executeCommandsAsOneStep(steps, batchOptions) {
+      const unitId = runtime.univerAPI.getActiveWorkbook()?.getId();
+      if (options.readOnly || !unitId) return Promise.resolve(0);
+      return executeAsOneUndoStep(runtime.univer.__getInjector(), unitId, steps, (step) => this.executeCommand(step.id, step.params), batchOptions);
+    },
     getActiveFormatState() {
       const range = runtime.univerAPI.getActiveWorkbook()?.getActiveRange();
       return range ? formatStateFromStyle(range.getCellStyleData()) : null;
@@ -791,13 +1001,43 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
         hidden: sheet.isSheetHidden() === true,
       }));
     },
+    restoreRuleSet(sheetId, kind, rules) {
+      const state = lazyWorkbookRef.current;
+      if (options.readOnly || !state || !ruleSetRestoreAllowed(state, sheetId, kind, rules)) return false;
+      const worksheet = runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId);
+      if (!worksheet) return false;
+      journalSuppression.active = true;
+      try {
+        restoreRuleSetFamily(state, sheetId, kind, rules, {
+          worksheet,
+          execute: (id, params) => { runtime.univerAPI.syncExecuteCommand(id, params); },
+        });
+      } finally {
+        journalSuppression.active = false;
+      }
+      return true;
+    },
+    readRuleSets(sheetId, kind) {
+      const state = lazyWorkbookRef.current;
+      if (!state || (kind !== "conditionalFormats" && kind !== "dataValidations")) return null;
+      const worksheet = runtime.univerAPI.getActiveWorkbook()?.getSheetBySheetId(sheetId);
+      return worksheet ? readLiveRuleSet(worksheet, kind, linkedRuleIds(state, sheetId)) : null;
+    },
     setDarkMode: (dark) => themeService.setDarkMode(dark),
+    setLocale(lang) {
+      applyHostNumfmtLocale(runtime, lang);
+      runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.refreshCanvas?.();
+      scheduleOutlineBar();
+    },
     undo() {
       if (!options.readOnly) void runtime.univerAPI.undo();
     },
     redo() {
       if (!options.readOnly) void runtime.univerAPI.redo();
     },
+    getHistory: () => history.get(),
+    subscribeHistory: (listener) => history.subscribe(listener),
+    isCellEditing: () => runtime.univerAPI.getActiveWorkbook()?.isCellEditing() === true,
     getDirtyGeneration: () => dirtyGeneration,
     getFontMappings: () => fontMappings.map((mapping) => ({ ...mapping })),
     getJournal: () => {
@@ -805,12 +1045,17 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       if (!state) throw new Error("xlsx renderer has no workbook loaded");
       return state.editJournal;
     },
+    getCellBox: geometry.getCellBox,
+    cellAtPoint: geometry.cellAtPoint,
+    readRangeValues: geometry.readRangeValues,
+    readPrintRange: geometry.readPrintRange,
     dispose() {
       disposed = true;
       removeShiftedNavigation();
       for (const disposable of disposables) disposable.dispose();
       findRevealDispose?.();
       numberFormatDispose?.dispose();
+      validateCellWrappersDispose?.dispose();
       wrapMeasureDisposable?.dispose();
       lazyWorkbookRef.current = null;
       try {
@@ -821,7 +1066,8 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       univerHost.remove();
       container.classList.remove(RENDERER_ROOT_CLASS);
       container.removeAttribute("data-xlsx-font-mappings");
-      restoreDesktopApi();
+      releaseDesktopApi?.();
+      releaseDesktopApi = null;
     },
   };
 }

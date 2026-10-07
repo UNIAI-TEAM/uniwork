@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode, type Ref } f
 import { AlertTriangle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../../common/notice";
 import { OfficeFrame } from "../frame";
 import { PdfCanvas, type PdfCanvasHighlight, type PdfCanvasHighlightQuad, type PdfCanvasPage, type PdfCanvasRegion, type PdfCanvasTool } from "./canvas";
@@ -61,6 +62,10 @@ export interface PdfEditorSurfaceProps {
   statusBar?: ReactNode;
   /** A shell-owned notice shown above the surface's own notices. */
   banner?: ReactNode;
+  /** Below sm the thumbnail rail is hidden until the status bar's toggle opens it. */
+  railOpen?: boolean;
+  /** The rail slot, so the shell can move focus into the open overlay rail. */
+  railRef?: Ref<HTMLDivElement>;
 }
 
 const NOTE_SIZE = 24;
@@ -117,7 +122,7 @@ function noop(): void {
  * so a successful edit marks the save coordinator dirty and a failure shows a
  * translated message instead of crashing the editor.
  */
-export function PdfEditorSurface({ editor, pages, readOnly, zoom, canvasRef, selection, selectedPage, revision, activePanel, onActivePanelChange, findOpen, onFindClose, onSelectPage, onCanvasSelect, fontReport, errorKey, run, ribbon, statusBar, banner }: PdfEditorSurfaceProps) {
+export function PdfEditorSurface({ editor, pages, readOnly, zoom, canvasRef, selection, selectedPage, revision, activePanel, onActivePanelChange, findOpen, onFindClose, onSelectPage, onCanvasSelect, fontReport, errorKey, run, ribbon, statusBar, banner, railOpen = false, railRef }: PdfEditorSurfaceProps) {
   const { t } = useTranslation();
   const canvasMode = editor.renderer !== undefined && editor.getCanvasPages !== undefined;
   const [canvasPages, setCanvasPages] = useState<readonly PdfCanvasPage[]>(() => (canvasMode ? freshPages(editor) : NO_PAGES));
@@ -301,7 +306,13 @@ export function PdfEditorSurface({ editor, pages, readOnly, zoom, canvasRef, sel
       data-testid="pdf-canvas"
       ribbon={ribbon}
       subbar={findBar || notices ? <>{findBar}{notices}</> : undefined}
-      rail={<PdfThumbnailsRail className="hidden sm:flex" pages={railPages} activePage={selectedPage ?? undefined} onSelect={navigate} renderThumbnail={renderer ? renderThumbnail : undefined} />}
+      rail={
+        // Below sm an open rail floats over the canvas instead of squeezing it: the
+        // fitted page keeps its width and is not clipped on the right (UIQ-3).
+        <div ref={railRef} className={cn("relative z-10 w-0 shrink-0 sm:contents", !railOpen && "hidden")} data-testid="pdf-rail-slot">
+          <PdfThumbnailsRail className={railOpen ? "absolute inset-y-0 left-0 flex shadow-[var(--floating-shadow)] sm:static sm:shadow-none" : "hidden sm:flex"} pages={railPages} activePage={selectedPage ?? undefined} onSelect={navigate} renderThumbnail={renderer ? renderThumbnail : undefined} />
+        </div>
+      }
       aside={aside}
       bottom={objectEditor}
       statusBar={statusBar}

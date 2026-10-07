@@ -11,6 +11,7 @@ tolerations: []
 env:
   beContent: ""
   feContent: ""
+  officeEngineContent: ""
 
 public:
   origin: https://uniwork.unicomhub.com
@@ -54,6 +55,10 @@ be:
     emailHub: { name: uniwork-email-hub, key: EMAIL_HUB_CREDENTIAL_KEY }
     # OpenRouter / OpenAI-compatible key (Email Hub AI, Ask UNI, meeting summary).
     openAPIKey: { name: uniwork-open-api-key, key: OPENAI_API_KEY }
+    # Office engine credentials (same Secret as officeEngine.secrets). Optional:
+    # without them the BE has no engine and refuses office jobs.
+    officeEngineServiceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }
+    officeEngineGrantKey: { name: uniwork-office-engine, key: OFFICE_ENGINE_GRANT_KEY }
 
 fe:
   # The Next app keeps no per-pod state (no route handlers, middleware, ISR or
@@ -84,3 +89,48 @@ networkPolicy:
   # Namespace of the in-cluster Prometheus allowed to scrape be.metricsPort.
   # Empty renders no rule: the port stays closed to every other pod.
   metricsScrapeNamespace: ""
+  # Egress of the office engine to the file store. NetworkPolicy matches IPs,
+  # not DNS names — CMC S3 hn-2 A records (re-check if the endpoint moves).
+  officeEngineFileStore:
+    - { cidr: "113.20.100.19/32", port: 443 }
+    - { cidr: "113.20.100.20/32", port: 443 }
+
+# Office engine (apps/office-engine): always on in production. Non-secret env is
+# deploy/app/env/uniwork-office-engine.env (helm --set-file env.officeEngineContent).
+# Secrets: uniwork-office-engine (SERVICE_TOKEN + GRANT_KEY). Chart sets
+# OFFICE_ENGINE_URL on the BE to the in-cluster Service.
+officeEngine:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: registry-harbor.ubos.vn/uniwork
+    repository: uniwork-office-engine
+    tag: pending
+    digest: ""
+    requireDigest: true
+    pullPolicy: IfNotPresent
+  # Must match OFFICE_ENGINE_PORT in uniwork-office-engine.env.
+  port: 8090
+  # tmpfs pages count against the memory limit: 512Mi /tmp (2 workers x 256 MiB
+  # temp) + 2 x 512 MiB job RSS + the service itself stays under 2Gi.
+  tmpSizeLimit: 512Mi
+  terminationGracePeriodSeconds: 15
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "2", memory: 2Gi }
+  securityContext:
+    # The supervisor runs as uid 0 to drop each worker to its slot uid; every
+    # capability it does not need stays dropped (compose cap_add list). The
+    # container also sets allowPrivilegeEscalation=false (no-new-privileges)
+    # and readOnlyRootFilesystem. Compose caps the container at pids_limit 256;
+    # a pod spec has no per-pod pids field, so enforce the same ceiling on the
+    # node with the kubelet `podPidsLimit: 256` (KubeletConfiguration) for the
+    # nodes that carry this pool.
+    addCapabilities: [CHOWN, SETUID, SETGID, KILL, DAC_OVERRIDE, FOWNER]
+  # Existing Secret (created out of band) holding the two engine credentials.
+  # The BE reads the same Secret through be.secrets.officeEngine*.
+  secrets:
+    # Service credential the BE sends; >= 32 chars.
+    serviceToken: { name: uniwork-office-engine, key: OFFICE_ENGINE_SERVICE_TOKEN }
+    # Grant signing key; >= 32 chars and DIFFERENT from the service token.
+    grantKey: { name: uniwork-office-engine, key: OFFICE_ENGINE_GRANT_KEY }

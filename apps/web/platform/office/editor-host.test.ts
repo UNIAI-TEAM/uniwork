@@ -194,9 +194,11 @@ describe("browser Office host draft adapter", () => {
     const saving = host.coordinator.save();
     await vi.waitFor(() => expect(transport.commit).toHaveBeenCalledOnce());
     generation = 2;
-    await host.checkpoint();
+    // A checkpoint asked for mid-save waits for the Save to settle (T09).
+    const checkpointing = host.checkpoint();
     finishCommit();
     await expect(saving).resolves.toMatchObject({ accepted: true });
+    await checkpointing;
     expect(host.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1 });
     expect(store.rebaseEncrypted).toHaveBeenCalledOnce();
     expect(await host.recoverDraft()).toMatchObject({ status: "recovered", snapshot: { generation: 2, value: { text: "edit-2" } } });
@@ -204,5 +206,138 @@ describe("browser Office host draft adapter", () => {
     expect(await reopened.recoverDraft()).toMatchObject({ status: "recovered", snapshot: { generation: 2, value: { text: "edit-2" } }, metadata: { identity: { base: { revision: "2" } } } });
     await host.dispose();
     await reopened.dispose();
+  });
+});
+
+/** A base-relative editor (the pptx/xlsx journal shape): a commit rebases it
+ *  onto the saved bytes, so a snapshot is only valid under the base it was
+ *  read at. `holdNextCapture` keeps the next capture's digest pending. */
+function journalHost(format: "docx" | "xlsx" | "pptx", saveSettleMaxWaitMs?: number) {
+  type Journal = { base: string; edits: string[] };
+  const doc = { base: "1", edits: [] as string[], generation: 0 };
+  let holdArmed = false;
+  let releaseDigest!: () => void;
+  const digest = new Promise<void>((resolve) => { releaseDigest = resolve; });
+  const rows: Array<{ base: string; generation: number; value: Journal }> = [];
+  const store = fakeStore();
+  const decodeRow = (request: Parameters<IndexedDbDraftStore["checkpointEncrypted"]>[0]) => {
+    rows.push({ base: request.snapshot.identity.base.revision, generation: request.snapshot.generation, value: (JSON.parse(new TextDecoder().decode(request.snapshot.ciphertext)) as StableSnapshot<Journal>).value });
+    return { status: "stored", metadata: {} } as never;
+  };
+  vi.mocked(store.checkpointEncrypted).mockImplementation(async (request) => decodeRow(request));
+  vi.mocked(store.rebaseEncrypted).mockImplementation(async (request) => decodeRow(request));
+  const keyProvider = fakeKeyProvider();
+  vi.mocked(keyProvider.encrypt).mockImplementation(async ({ plaintext }) => ({ ciphertext: plaintext, wrappedKey: new Uint8Array([1]), checksum: "sha256:checkpoint" }));
+  const editor: EditorHandle<Journal> = {
+    format, open: vi.fn(), dispose: vi.fn(),
+    getDirtyGeneration: () => doc.generation,
+    captureSnapshot: async () => {
+      const value = { base: doc.base, edits: [...doc.edits] };
+      const generation = doc.generation;
+      if (holdArmed) { holdArmed = false; await digest; }
+      return { generation, fingerprint: `fp-${generation}`, value };
+    },
+  };
+  const transport = createFakeOfficeTransport<Journal>();
+  transport.serializedOutput = { data: new Uint8Array([1]), checksumSha256: "sha", sizeBytes: 1, format };
+  let finishCommit!: () => void;
+  transport.commit = vi.fn(({ intent }) => new Promise((resolve) => {
+    finishCommit = () => {
+      // The runtime rebases inside commit (setBaseRevision) before the receipt.
+      doc.edits = doc.edits.slice((intent.snapshot as Journal).edits.length);
+      doc.base = "2";
+      resolve({ intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, documentId: "document", versionId: "version-2", revision: "2", checksumSha256: "sha", sizeBytes: 1, engineName: "test", engineVersion: "1", contractVersion: "1", protocolVersion: "1" });
+    };
+  }));
+  const host = createOfficeEditorSession({ identity, session, editor, transport, draftStore: store, keyProvider, saveSettleMaxWaitMs });
+  const edit = (name: string) => { doc.edits.push(name); doc.generation += 1; host.coordinator.markDirty(doc.generation); };
+  return { host, transport, rows, edit, releaseDigest, finishCommit: () => finishCommit(), armHold: () => { holdArmed = true; }, disarmHold: () => { holdArmed = false; } };
+}
+
+describe.each(["docx", "xlsx", "pptx"] as const)("%s draft re-capture settle gate (T09)", (format) => {
+  it("never writes a pre-rebase journal under the new base when a checkpoint is asked for mid-save", async () => {
+    const { host, transport, rows, edit, releaseDigest, armHold, disarmHold, finishCommit } = journalHost(format);
+    edit("e1");
+    edit("e2");
+    const saving = host.coordinator.save();
+    await vi.waitFor(() => expect(transport.commit).toHaveBeenCalledOnce());
+    edit("e3");
+    // Ungated, this capture reads the full pre-rebase journal and its digest
+    // outlives the whole commit, settle and draft rebase.
+    armHold();
+    const checkpointing = host.checkpoint();
+    disarmHold();
+    finishCommit();
+    await expect(saving).resolves.toMatchObject({ accepted: true });
+    releaseDigest();
+    await checkpointing;
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows.filter((candidate) => candidate.base === "2")) {
+      expect(row.value).toEqual({ base: "2", edits: ["e3"] });
+    }
+    expect(rows.at(-1)).toMatchObject({ base: "2", generation: 3, value: { base: "2", edits: ["e3"] } });
+    await host.dispose();
+  });
+});
+
+describe("web draft checkpoints behind a Save that never settles (T09 F1/F2)", () => {
+  it("writes under the pre-rebase base once the wait runs out, and the Save's rebase later moves the row", async () => {
+    const { host, transport, rows, edit, finishCommit } = journalHost("pptx", 20);
+    edit("e1");
+    const saving = host.coordinator.save();
+    await vi.waitFor(() => expect(transport.commit).toHaveBeenCalledOnce());
+    edit("e2");
+    // Keep draft resolves although the commit request never answers.
+    await expect(host.checkpoint()).resolves.toBe(true);
+    expect(rows).toEqual([{ base: "1", generation: 2, value: { base: "1", edits: ["e1", "e2"] } }]);
+    finishCommit();
+    await expect(saving).resolves.toMatchObject({ accepted: true });
+    expect(rows.at(-1)).toEqual({ base: "2", generation: 2, value: { base: "2", edits: ["e2"] } });
+    await host.dispose();
+  });
+
+  // N1: a reconcile that finds no commit rebased nothing; the retry that
+  // follows is network work and must not hold checkpoints past the bound.
+  it.each(["docx", "xlsx", "pptx"] as const)("%s: writes after the bound when an ambiguous commit reconciles to nothing and the retry hangs", async (format) => {
+    const { host, transport, rows, edit } = journalHost(format, 20);
+    transport.commit = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("idempotency_in_flight"), { code: "idempotency_in_flight" }))
+      .mockImplementation(() => new Promise(() => undefined));
+    edit("e1");
+    void host.coordinator.save();
+    await vi.waitFor(() => expect(transport.commit).toHaveBeenCalledTimes(2));
+    expect(transport.reconcileCalls).toBe(1);
+    edit("e2");
+    await expect(host.checkpoint()).resolves.toBe(true);
+    expect(rows.at(-1)).toEqual({ base: "1", generation: 2, value: { base: "1", edits: ["e1", "e2"] } });
+    await host.dispose();
+  });
+
+  it("writes after the bound while an ambiguous commit's reconcile never answers", async () => {
+    const { host, transport, rows, edit } = journalHost("pptx", 20);
+    transport.commit = vi.fn().mockRejectedValueOnce(Object.assign(new Error("engine_timeout"), { code: "engine_timeout" }));
+    transport.reconcile = vi.fn(() => new Promise<never>(() => undefined));
+    edit("e1");
+    void host.coordinator.save();
+    await vi.waitFor(() => expect(transport.reconcile).toHaveBeenCalledOnce());
+    edit("e2");
+    await expect(host.checkpoint()).resolves.toBe(true);
+    expect(rows.at(-1)).toEqual({ base: "1", generation: 2, value: { base: "1", edits: ["e1", "e2"] } });
+    await host.dispose();
+  });
+
+  it("writes nothing for a checkpoint parked behind a held Save once the session is disposed", async () => {
+    const { host, transport, rows, edit, finishCommit } = journalHost("pptx");
+    edit("e1");
+    const saving = host.coordinator.save();
+    await vi.waitFor(() => expect(transport.commit).toHaveBeenCalledOnce());
+    edit("e2");
+    const checkpointing = host.checkpoint();
+    await host.dispose();
+    finishCommit();
+    await saving;
+    await expect(checkpointing).rejects.toThrow("office_editor_disposed");
+    expect(rows.filter((row) => row.generation === 2 && row.base === "1")).toEqual([]);
+    expect(rows.some((row) => row.value.edits.includes("e2") && row.base === "1")).toBe(false);
   });
 });

@@ -13,9 +13,15 @@
 // renderer controller; it never touches the Rust sidecar.
 import { readSheetTables, type XlsxRenderTable } from "./render-model-tables.ts";
 export type { XlsxRenderTable };
+import { readSheetVisuals, type XlsxRenderVisual } from "./render-model-visuals.ts";
+export type { XlsxRenderVisual };
 import { attribute, decodeXml, elements, parseDefinedNamesXml, sectionInner, type XlsxParsedDefinedName } from "./render-model-xml.ts";
 import { parseColorXml, parseStylesXml, parseThemeXml, resolvedColor } from "./render-model-styles.ts";
 import { parseConditionalRules, type XlsxRenderConditionalRule } from "./render-model-conditional.ts";
+import { parseDataValidations, type XlsxRenderDataValidation } from "./render-model-validations.ts";
+import { parseWorksheetPageSetup, type XlsxRenderPageSetup } from "./render-model-page-setup.ts";
+import { readWorkbookHeaderFooterPictures } from "./render-model-hf-pictures.ts";
+export type { XlsxRenderHeaderFooter, XlsxRenderPageMargins, XlsxRenderPageSetup } from "./render-model-page-setup.ts";
 export { parseThemeXml } from "./render-model-styles.ts";
 
 import type { XlsxCellScalar, XlsxGatewayFunctions } from "./engine.ts";
@@ -85,9 +91,25 @@ export interface XlsxRenderSheet {
   readonly hyperlinks: readonly XlsxRenderHyperlink[];
   readonly cells: Readonly<Record<string, XlsxRenderCell>>;
   readonly conditionalRules?: readonly XlsxRenderConditionalRule[] | undefined;
+  /** Classic data-validation rules the sheet ships (X01). Additive: an absent
+   *  value reads as no rules. */
+  readonly dataValidations?: readonly XlsxRenderDataValidation[] | undefined;
+  /** True when the worksheet holds x14 data validation (extLst), which the
+   *  gateway's declarative DV save refuses to rewrite. */
+  readonly x14DataValidations?: true | undefined;
+  /** The raw classic <cfRule> / <dataValidation> element counts (X01 review
+   *  r2 M-B), present when either is non-zero. The parsed lists skip rules
+   *  they cannot read; the renderer refuses a family whose installed rules
+   *  fall short, so a whole-sheet save never deletes a rule the grid lacks. */
+  readonly ruleCounts?: { readonly conditionalFormats: number; readonly dataValidations: number } | undefined;
   /** Tables the file ships (xl/tables/tableN.xml). Additive: an absent value
    *  reads as no tables. Read-only; the write path is the table ops. */
   readonly tables?: readonly XlsxRenderTable[] | undefined;
+  /** Charts, pictures and shapes the file ships (UNI-953), one per drawing
+   *  anchor in document order. Additive: an absent value reads as none. */
+  readonly visuals?: readonly XlsxRenderVisual[] | undefined;
+  /** UNI-952: the file's own page layout (print). Absent when it sets none. */
+  readonly pageSetup?: XlsxRenderPageSetup | undefined;
 }
 
 /** Border edge; mirrors the genoffice cell-style contract. */
@@ -214,6 +236,7 @@ function parseWorksheetXml(
       }
     : null;
 
+  const pageSetup = parseWorksheetPageSetup(xml);
   const merges: XlsxRenderMerge[] = [];
   for (const merge of elements(sectionInner(xml, "mergeCells"), "mergeCell")) {
     const ref = attribute(merge.tag, "ref");
@@ -335,7 +358,21 @@ function parseWorksheetXml(
     hyperlinks,
     cells,
     conditionalRules: parseConditionalRules(xml, parseRefRange, palette),
+    dataValidations: parseDataValidations(xml, parseRefRange),
+    // The test the gateway's applyDvRules fails closed on. A linked x14 CF
+    // block (an Excel data bar) is not flagged: gateway patch 0011 keeps it
+    // under a whole-sheet CF snapshot.
+    ...(/<x14:dataValidation\b/.test(xml) ? { x14DataValidations: true as const } : {}),
+    ...rawRuleCounts(xml),
+    ...(pageSetup === undefined ? {} : { pageSetup }),
   };
+}
+
+/** Classic elements only: x14 rules are <x14:cfRule> / <x14:dataValidation>. */
+function rawRuleCounts(xml: string): { ruleCounts?: { conditionalFormats: number; dataValidations: number } } {
+  const conditionalFormats = xml.match(/<cfRule[\s>/]/g)?.length ?? 0;
+  const dataValidations = xml.match(/<dataValidation[\s>/]/g)?.length ?? 0;
+  return conditionalFormats + dataValidations === 0 ? {} : { ruleCounts: { conditionalFormats, dataValidations } };
 }
 
 // ── reader ─────────────────────────────────────────────────────────────────
@@ -419,13 +456,27 @@ export async function readXlsxRenderModel(engine: XlsxGatewayFunctions, bytes: U
     (paths) => engine.readEntriesText(bytes, paths),
     parseRefRange,
   );
+  // UNI-952: header/footer pictures (&G) for print, when the gateway reads binary parts.
+  const hfPictures = await readWorkbookHeaderFooterPictures(ordered, sheetXmls, (paths) => engine.readEntriesText(bytes, paths), engine, bytes);
+
+  const sheetVisuals = await readSheetVisuals(
+    ordered,
+    (paths) => engine.readEntriesText(bytes, paths),
+    engine.readEntriesBase64 ? (paths, maxBytes, maxTotalBytes) => engine.readEntriesBase64!(bytes, paths, maxBytes, maxTotalBytes) : undefined,
+  );
 
   const sheets = ordered.map((sheet, index) => {
     const xml = sheet.path ? sheetXmls[sheet.path] : null;
     const parsed: XlsxRenderSheet = xml
       ? parseWorksheetXml(xml, sheet.id, sheet.name, sharedStrings, rels, palette)
       : { id: sheet.id, name: sheet.name, rowCount: 1, columnCount: 1, merges: [], columnWidths: [], rowsMeta: [], hyperlinks: [], cells: {} };
-    return { ...parsed, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [] };
+    const visuals = sheetVisuals[index] ?? [];
+    const hf = hfPictures[index];
+    const headerFooter = parsed.pageSetup?.headerFooter;
+    const pageSetup = hf && headerFooter
+      ? { pageSetup: { ...parsed.pageSetup, headerFooter: { ...headerFooter, pictures: hf.pictures, ...(Object.keys(hf.media).length > 0 ? { pictureMedia: hf.media } : {}) } } }
+      : {};
+    return { ...parsed, ...pageSetup, hidden: sheet.hidden ?? false, index, tables: sheetTables[index] ?? [], ...(visuals.length > 0 ? { visuals } : {}) };
   });
 
   const view = elements(sectionInner(workbookXml, "workbookView"), "workbookView")[0];

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHttpOfficeTransport } from "./office-transport";
+import { desktopPublicConfigResponseSchema } from "../../shared/ipc";
 import { blankDocxBytes } from "../files/blank-docx";
 
 const profile = { deploymentId: "lane", apiOrigin: "http://127.0.0.1:8787", clientId: "uniwork-office-dev", channel: "dev" as const };
@@ -29,7 +30,7 @@ describe("desktop office HTTP transport", () => {
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
     const result = await transport.create({ workspaceId: "ws", title: "Blank.docx", format: "docx" });
     expect(result.document).toMatchObject({ id: "new-doc", version: 1, canEdit: true });
-    expect(Buffer.from(result.dataBase64, "base64")).toEqual(Buffer.from(bytes));
+    expect(Buffer.from(result.data)).toEqual(Buffer.from(bytes));
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
   it("refreshes once across concurrent expired requests and replays with the rotated token", async () => {
@@ -66,6 +67,31 @@ describe("desktop office HTTP transport", () => {
     await expect(transport.list({ workspaceId: "ws", mode: "list" })).rejects.toThrow("login_required");
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  const apiBody = (code: string) => JSON.stringify({ error: { code, message: code } });
+  it("maps the API's own 404 / 403 envelope to a permanent code and leaves every other status transient", async () => {
+    for (const [status, body, code] of [
+      [404, apiBody("not_found"), "office_document_gone"],
+      [403, apiBody("forbidden"), "forbidden"],
+      [403, apiBody("email_unverified"), "office_request_failed"],
+      [404, apiBody("something_else"), "office_request_failed"],
+      [500, apiBody("internal"), "office_request_failed"],
+      [429, apiBody("rate_limited"), "office_request_failed"],
+    ] as const) {
+      const fetchImpl = vi.fn(async () => new Response(body, { status }));
+      const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+      await expect(transport.open({ workspaceId: "ws", documentId: "doc-1" })).rejects.toThrow(new RegExp(`^${code}$`));
+    }
+  });
+  it("keeps a bare or foreign 404 / 403 (gateway, proxy, edge rule) transient", async () => {
+    for (const status of [404, 403]) {
+      for (const body of [null, "", "<html>Bad gateway</html>", JSON.stringify({ message: "nope" }), JSON.stringify({ error: "forbidden" }), JSON.stringify({ error: { code: 404 } })]) {
+        const fetchImpl = vi.fn(async () => new Response(body, { status }));
+        const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+        await expect(transport.open({ workspaceId: "ws", documentId: "doc-1" })).rejects.toThrow(/^office_request_failed$/);
+      }
+    }
   });
 
   it("does not replay a request into a different account after refresh", async () => {
@@ -169,10 +195,57 @@ describe("desktop office HTTP transport", () => {
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
     const result = await transport.officeJob({ workspaceId: "ws-1", documentId: "doc-x", format: "xlsx", operation: "edit", baseRevision: "2", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }] });
     expect(result.state).toBe("completed");
-    expect(Buffer.from(result.outputBase64 ?? "", "base64")).toEqual(Buffer.from(output));
+    expect(Buffer.from(result.output!)).toEqual(Buffer.from(output));
     expect(result.outputChecksum).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(polls).toBe(2);
   }, 20_000);
+
+  it.each([
+    ["xlsx_rule_sets_dropped:[[\"cf\",[1]]]", "xlsx_rule_sets_dropped:[[\"cf\",[1]]]"],
+    ["cannot open Budget Q3 confidential.xlsx", undefined],
+  ])("passes a failed job's reason to the renderer only for the rule-set refusal (%s)", async (reason, expected) => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/documents/doc-x/office/jobs") && init?.method === "POST") return new Response(JSON.stringify({ job_id: "job-1", state: "accepted" }), { status: 202 });
+      if (url.endsWith("/office/jobs/job-1")) return new Response(JSON.stringify({ job_id: "job-1", state: "failed", error: { code: "unsupported_operation", reason } }), { status: 200 });
+      throw new Error("unexpected " + url);
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    const result = await transport.officeJob({ workspaceId: "ws-1", documentId: "doc-x", format: "xlsx", operation: "edit", baseRevision: "2", edits: [] });
+    expect(result.state).toBe("failed");
+    expect(result.errorReason).toBe(expected);
+  }, 20_000);
+
+  it("reads the public flags through the session and keeps only boolean ones", async () => {
+    const fetchImpl = vi.fn(async (input: string, init?: RequestInit) => {
+      expect(input).toBe("http://127.0.0.1:8787/api/v1/config");
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer secret");
+      return new Response(JSON.stringify({ flags: { office_engine: true, office_docx: false, rum_sampling: "yes", Bad_Key: true }, rum_sample_rate: 0.1 }), { status: 200 });
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    await expect(transport.publicConfig()).resolves.toEqual({ flags: { office_engine: true, office_docx: false } });
+  });
+
+  it("asks for the selected organization so its overrides evaluate", async () => {
+    const fetchImpl = vi.fn(async (input: string) => {
+      expect(input).toBe("http://127.0.0.1:8787/api/v1/config?organization_id=org%2F1");
+      return new Response(JSON.stringify({ flags: { office_engine: true } }), { status: 200 });
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    await expect(transport.publicConfig("org/1")).resolves.toEqual({ flags: { office_engine: true } });
+  });
+
+  it("truncates a flag catalogue past the cap instead of overflowing the response schema", async () => {
+    const flags = Object.fromEntries(Array.from({ length: 200 }, (_, index) => [`flag_${index}`, true]));
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl: vi.fn(async () => new Response(JSON.stringify({ flags }), { status: 200 })) });
+    const answer = await transport.publicConfig();
+    expect(Object.keys(answer.flags)).toHaveLength(128);
+    expect(desktopPublicConfigResponseSchema.safeParse(answer).success).toBe(true);
+  });
+
+  it("answers no flags for a malformed config body", async () => {
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl: vi.fn(async () => new Response(JSON.stringify({ flags: [1, 2] }), { status: 200 })) });
+    await expect(transport.publicConfig()).resolves.toEqual({ flags: {} });
+  });
 
   it("registers a document context without downloading bytes for a metadata-only open", async () => {
     const summaryRow = { id: "doc-x", organization_id: "org-1", workspace_id: "ws-1", kind: "file", title: "budget.xlsx", visibility: "workspace", revision: "2", current_version: 1, position: 0, my_level: "edit", created_by: "user-1", created_by_kind: "human", updated_by: "user-1", updated_by_kind: "human", created_at: "2026-09-30T00:00:00Z", updated_at: "2026-09-30T00:00:00Z" };

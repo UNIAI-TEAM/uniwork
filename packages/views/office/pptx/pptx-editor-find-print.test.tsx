@@ -1,18 +1,18 @@
 // UNI-927 X4 (R2-6) - the find panel and the print commands inside the real editor.
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { PptxRendererModule } from "./canvas/renderer-module";
-import { clearPptxThumbnailCache } from "./canvas/use-pptx-thumbnails";
 import { run, shapeNode, slide, textLayout } from "./canvas/pptx-render-fixtures";
 import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
-import type { PptxPrintPort } from "./print";
+import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
+import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
+import type { OfficePrintOutcome, OfficePrintPort, OfficePrintRequest } from "../print";
 
 initI18n();
 beforeEach(async () => {
   await setLocale("en");
-  clearPptxThumbnailCache();
 });
 
 const host = { read: {} as never, write: { writeOutput: vi.fn() }, assets: {} as never, ipc: { call: vi.fn(), send: vi.fn(), subscribe: vi.fn() } } as unknown as OfficeHost;
@@ -144,31 +144,25 @@ describe("PptxEditor find & replace (R2-6)", () => {
   });
 });
 
-describe("PptxEditor print commands (R2-6)", () => {
-  const printPort = (): PptxPrintPort => ({ available: true, mode: "browser", print: vi.fn(async () => ({ outcome: "printed" as const, mode: "browser" as const })) });
+describe("PptxEditor print commands (UNI-952)", () => {
+  const printPort = (outcome: OfficePrintOutcome = { outcome: "printed" }) => {
+    const print = vi.fn<(request: OfficePrintRequest) => Promise<OfficePrintOutcome>>(async () => outcome);
+    return { port: { print } satisfies OfficePrintPort, print };
+  };
+  const ready = () => waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
 
-  it("shows Print and Export PDF once the host binds the browser path and the deck renderer is up; hides Open (no channel)", async () => {
-    renderEditor({ printPort: "browser" });
+  it("shows Print and Export PDF once the host binds a port and the deck renderer is up; hides Open (no channel)", async () => {
+    renderEditor({ printPort: printPort().port });
     await waitFor(() => expect(screen.getByRole("button", { name: "Print" })).toBeEnabled());
     expect(screen.getByRole("button", { name: "Export PDF" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Open" })).not.toBeInTheDocument();
   });
 
-  it("hides both commands when the host binds no print path (X4fix F2: the desktop today)", async () => {
+  it("hides both commands when the host binds no print port", async () => {
     renderEditor();
-    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+    await ready();
     expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Export PDF" })).not.toBeInTheDocument();
-  });
-
-  it("surfaces a print run the port reports as failed instead of dropping it (X4fix F1)", async () => {
-    const port: PptxPrintPort = { available: true, mode: "browser", print: vi.fn(async () => ({ outcome: "failed" as const, reason: "No print frame is available." })) };
-    const onCommandError = vi.fn();
-    renderEditor({ printPort: port, onCommandError });
-    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Print" }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No print frame is available."));
-    expect(onCommandError).toHaveBeenCalledWith(expect.objectContaining({ message: "No print frame is available." }));
   });
 
   it("hides both commands when the host turns printing off or there is no deck to print", () => {
@@ -176,18 +170,114 @@ describe("PptxEditor print commands (R2-6)", () => {
     expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Export PDF" })).not.toBeInTheDocument();
     unmount();
-    renderEditor({ deck: undefined });
+    renderEditor({ deck: undefined, printPort: printPort().port });
     expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
   });
 
-  it.each(["Print", "Export PDF"])("%s sends the rendered deck through the print port", async (name) => {
-    const port = printPort();
-    renderEditor({ printPort: port });
-    await waitFor(() => expect(screen.getByText("Rendered title")).toBeInTheDocument());
+  it.each(["Print", "Export PDF"])("%s hands the port one print copy: a page per visible slide, data: images only", async (name) => {
+    const { port, print } = printPort();
+    renderEditor({ printPort: port, printTitle: "Quarterly deck", slides: [{ id: "s1" }, { id: "s2", hidden: true }] });
+    await ready();
     fireEvent.click(screen.getByRole("button", { name }));
-    await waitFor(() => expect(port.print).toHaveBeenCalledTimes(1));
-    const request = vi.mocked(port.print).mock.calls[0]![0];
-    expect(request.slides).toHaveLength(2);
-    expect(request.slides[0]!.markup).toContain("<svg");
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    const request = print.mock.calls[0]![0];
+    expect(request.title).toBe("Quarterly deck");
+    // The hidden second slide is skipped, as PowerPoint prints by default.
+    expect(request.html.match(/class="page"/g)).toHaveLength(1);
+    expect(request.html).toContain('alt="Slide 1"');
+    expect(request.html).toContain("@page { size: 13.333in 7.5in; margin: 0; }");
+    expect(request.html).not.toMatch(/<script|<svg/i);
+    expect([...request.html.matchAll(/src="([^"]*)"/g)].every(([, src]) => src!.startsWith("data:image/"))).toBe(true);
+  });
+
+  it("names the job after the presentation when the host gives no title", async () => {
+    const { port, print } = printPort();
+    renderEditor({ printPort: port });
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    expect(print.mock.calls[0]![0].title).toBe("Print presentation");
+  });
+
+  it("reports a failed run as the generic action error, never the raw reason", async () => {
+    const { port } = printPort({ outcome: "failed", reason: "print_unavailable" });
+    const onCommandError = vi.fn();
+    renderEditor({ printPort: port, onCommandError });
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The presentation could not be printed."));
+    expect(onCommandError).toHaveBeenCalledWith(expect.objectContaining({ message: "The presentation could not be printed." }));
+  });
+
+  it("shows the neutral already-open status for print_busy, not an error", async () => {
+    const { port } = printPort({ outcome: "failed", reason: "print_busy" });
+    const onCommandError = vi.fn();
+    renderEditor({ printPort: port, onCommandError });
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    await waitFor(() => expect(screen.getByTestId("pptx-print-busy")).toHaveTextContent("A print dialog is already open."));
+    expect(screen.getByTestId("pptx-print-busy")).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(onCommandError).not.toHaveBeenCalled();
+  });
+
+  it("stays silent when the dialog is cancelled", async () => {
+    const { port, print } = printPort({ outcome: "cancelled" });
+    const onCommandError = vi.fn();
+    renderEditor({ printPort: port, onCommandError });
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pptx-print-busy")).not.toBeInTheDocument();
+    expect(onCommandError).not.toHaveBeenCalled();
+  });
+
+  it("shows Print, Export PDF and the menu item busy while a run is in flight, and ignores a second click", async () => {
+    let release: (outcome: OfficePrintOutcome) => void = () => undefined;
+    const print = vi.fn((_request: OfficePrintRequest) => new Promise<OfficePrintOutcome>((resolve) => { release = resolve; }));
+    renderWithPageMenu({ printPort: { print } });
+    await ready();
+    const off = (element: HTMLElement) => element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true";
+    const item = await within(await screen.findByRole("menu")).findByRole("menuitem", { name: "Print" });
+    expect(item).not.toHaveAttribute("aria-busy");
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    expect(off(screen.getByRole("button", { name: "Print" }))).toBe(true);
+    expect(off(screen.getByRole("button", { name: "Export PDF" }))).toBe(true);
+    expect(item).toHaveAttribute("aria-busy", "true");
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(item);
+    await act(async () => { await Promise.resolve(); });
+    expect(print).toHaveBeenCalledTimes(1);
+    await act(async () => { release({ outcome: "printed" }); await Promise.resolve(); });
+    await waitFor(() => expect(off(screen.getByRole("button", { name: "Print" }))).toBe(false));
+    expect(item).not.toHaveAttribute("aria-busy");
+  });
+
+  function renderWithPageMenu(props: Partial<PptxEditorProps>) {
+    return render(
+      <HeaderActionsSlotProvider>
+        <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu>
+        <PptxEditor host={host} editorHandle={handle()} loadRendererModule={async () => rendererModule} slides={slides} deck={deck} {...props} />
+      </HeaderActionsSlotProvider>,
+    );
+  }
+
+  it("contributes one Print item to the page header menu that runs the same print", async () => {
+    const { port, print } = printPort();
+    renderWithPageMenu({ printPort: port });
+    await ready();
+    const menu = await screen.findByRole("menu");
+    fireEvent.click(await within(menu).findByRole("menuitem", { name: "Print" }));
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    expect(print.mock.calls[0]![0].html.match(/class="page"/g)).toHaveLength(2);
+  });
+
+  it("contributes no header menu item without a port", async () => {
+    renderWithPageMenu({});
+    await ready();
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByRole("menuitem", { name: "Print" })).not.toBeInTheDocument();
   });
 });

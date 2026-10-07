@@ -34,7 +34,7 @@ it("retains a local context through atomic replacement and consumes its protecte
   const checkpoint = vi.fn(async () => { protectedRow = true; });
   const confirmed = vi.fn(() => { protectedRow = false; });
   const handlers = createFileIpcHandlers({ registry: h.registry, session: () => session, saveGuard: createOfficeSaveGuard(), isOpened: (id) => h.documents.context(id)?.kind === "local", beginSave: h.documents.beginSave, checkpoint, onSaveConfirmed: confirmed });
-  const saving = handlers["desktop:file-save"]({ sessionGeneration, handle: h.metadata.handle, dataBase64: Buffer.from("saved").toString("base64") });
+  const saving = handlers["desktop:file-save"]({ sessionGeneration, handle: h.metadata.handle, data: Uint8Array.from(Buffer.from("saved")) });
   const result = saving.catch((error: unknown) => ({ error }));
   await replaced;
   const closedDuringWrite = h.documents.update({ documentIds: [], activeDocumentId: null });
@@ -52,7 +52,10 @@ it("retains a local context through atomic replacement and consumes its protecte
 it("releases a local context after a refused save without marking a receipt", async () => {
   const h = await fixture();
   const handlers = createFileIpcHandlers({ registry: h.registry, isOpened: (id) => h.documents.context(id)?.kind === "local", beginSave: h.documents.beginSave, checkpoint: async () => { throw new Error("storage unavailable"); } });
-  await expect(handlers["desktop:file-save"]({ sessionGeneration, handle: h.metadata.handle, dataBase64: "YQ==" })).rejects.toThrow();
+  // A draft-store fault before the write is a named refusal (file_checkpoint_failed),
+  // answered like every other refused Save rather than thrown; nothing was written.
+  await expect(handlers["desktop:file-save"]({ sessionGeneration, handle: h.metadata.handle, data: Uint8Array.from(Buffer.from("YQ==", "base64")) })).resolves.toEqual({ opened: false, code: "file_checkpoint_failed" });
+  expect(await fs.readFile(h.path, "utf8")).not.toBe("a");
   expect(h.documents.context(h.metadata.handle)?.lastConfirmedSaveAt).toBe(0);
   expect(h.documents.update({ documentIds: [], activeDocumentId: null })).toBe(true);
 });
@@ -66,13 +69,15 @@ it("rebinds Save As at eight documents without writing and then reporting a capa
   }, onSaveAsConfirmed: (previousHandle, metadata) => {
     if (!h.documents.rebindLocal(previousHandle, metadata.handle, localDraftIdentity(session, h.registry.identityFor(metadata.handle), metadata))) throw new Error("document_context_refused");
   } });
-  const response = await handlers["desktop:file-save-as"]({ sessionGeneration, handle: h.metadata.handle, dataBase64: Buffer.from("copied").toString("base64") });
+  const response = await handlers["desktop:file-save-as"]({ sessionGeneration, handle: h.metadata.handle, data: Uint8Array.from(Buffer.from("copied")) });
   expect(response.opened).toBe(true);
+  // The refused branch of the result union carries a code, not metadata.
+  if (!("metadata" in response) || !response.metadata) throw new Error("expected Save As to answer with metadata");
   expect(await fs.readFile(destination, "utf8")).toBe("copied");
   expect(await fs.readFile(h.path, "utf8")).toBe("old");
   expect(h.documents.all()).toHaveLength(8);
   expect(h.documents.context(h.metadata.handle)).toBeUndefined();
-  expect(h.documents.context(response.metadata!.handle)?.kind).toBe("local");
-  expect(h.documents.activeDocumentId()).toBe(response.metadata!.handle);
+  expect(h.documents.context(response.metadata.handle)?.kind).toBe("local");
+  expect(h.documents.activeDocumentId()).toBe(response.metadata.handle);
   expect(h.registry.size).toBe(1);
 });

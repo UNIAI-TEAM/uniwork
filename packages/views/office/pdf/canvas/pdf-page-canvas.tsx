@@ -185,7 +185,7 @@ export function PdfPageCanvas({ page, renderer, zoom, tileSize, selection, onSel
     onPageRegion?.(page.pageNumber, { x: (page.width - width) / 2, y: (page.height - height) / 2, width, height });
   };
   const displayDraft = draft ? toDisplayRegion(draft, page.width, page.height, turns) : null;
-  return <article className="relative bg-background shadow-[var(--floating-shadow)] ring-1 ring-border" style={{ width: pageWidth, height: pageHeight }} role="listitem" aria-label={t("office.pdf.selection.page", { page: page.pageNumber })} data-testid={`pdf-page-${page.pageNumber}`} data-tool={annotating ? tool : "select"}>
+  return <article className="relative bg-background shadow-office-page" style={{ width: pageWidth, height: pageHeight }} role="listitem" aria-label={t("office.pdf.selection.page", { page: page.pageNumber })} data-testid={`pdf-page-${page.pageNumber}`} data-tool={annotating ? tool : "select"}>
     <PageImage page={page} renderer={renderer} zoom={zoom} tileSize={tileSize} />
     <div className="absolute inset-0">
       <div

@@ -224,9 +224,11 @@ export function WorkspaceTopBar({
               if (!next || next === currentLocale) return;
               const locale = next as SupportedLocale;
               localeAdapter.persist(locale);
-              void setLocale(locale);
               document.documentElement.lang = locale;
-              toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+              // The toast text resolves after the language switched, in the new language.
+              void setLocale(locale).then(() => {
+                toast.success(i18n.t("settings.preferences.toastSaved", { lng: locale }), { id: "settings-auto-save" });
+              });
             }}
           >
             {languageOptions.map((option) => (

@@ -1,4 +1,5 @@
-﻿import type { XlsxCellState, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
+﻿import type { SaveCoordinatorState } from "@uniwork/core/office";
+import type { XlsxCellState, XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxEditorProps, XlsxOpenFailure, XlsxOpenOutcome } from "./types";
 function isFailure(outcome: XlsxOpenOutcome): outcome is XlsxOpenFailure { return outcome.outcome === "failed"; }
 export function isSnapshot(value: unknown): value is XlsxWorkbookSnapshot {
@@ -38,6 +39,17 @@ export function columnLabel(column: number): string {
     number = Math.floor((number - 1) / 26);
   }
   return result;
+}
+
+/** Review m-3: visuals stay frozen while a save runs AND while a failed
+ *  save's outcome is still unknown (an ambiguous failure, or a failure after
+ *  the commit step that was not a refusal, keeps the intent pending until a
+ *  reconcile settles it; review-session m-2). A move made in that window could
+ *  follow an insert that already committed, and the server refuses an
+ *  anchor-only move whose insert is in the file. */
+export function visualsFrozen(state: Pick<SaveCoordinatorState, "state" | "activeIntentId" | "error" | "outcomeUnknown">): boolean {
+  if (state.state === "saving") return true;
+  return state.activeIntentId !== null && (state.outcomeUnknown === true || state.error?.ambiguous === true);
 }
 
 export function snapshotForEditor<TSnapshot>(editor: XlsxEditorProps<TSnapshot>["editor"], outcome: XlsxOpenOutcome): XlsxWorkbookSnapshot | null {

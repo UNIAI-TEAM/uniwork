@@ -6,6 +6,7 @@ import type { DesktopSessionMetadata, RecentFile } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
 import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
 import { settleDocxSessions } from "../test/settle-sessions";
+import { supportedFormatsLabel } from "./supported-formats";
 
 installDocxGeometry();
 const fixtureBase64 = Buffer.from(docxSource).toString("base64");
@@ -39,17 +40,18 @@ const RECENT_ID = `recent_${"c".repeat(32)}`;
 const MISSING_ID = `recent_${"d".repeat(32)}`;
 
 /** What main answers for desktop:file-create, per format (main/files/blank-*.ts):
- * the blank Markdown document is zero bytes, so its dataBase64 is "". */
+ * the blank Markdown document is zero bytes, so its data is empty. */
 const BLANK_HTML_TEXT = "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title></title>\n</head>\n<body>\n</body>\n</html>\n";
 function created(format: string) {
   const handle = `file_${"1".repeat(32)}`;
-  if (format === "docx") return { opened: true, metadata: fileMeta(handle, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), dataBase64: fixtureBase64 };
+  if (format === "docx") return { opened: true, metadata: fileMeta(handle, "Untitled.docx", { untitled: true, modifiedAtMs: 0 }), data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
   const bytes = format === "md" ? new Uint8Array(0) : new TextEncoder().encode(BLANK_HTML_TEXT);
-  return { opened: true, metadata: { handle, name: format === "md" ? "Untitled.md" : "Untitled.html", byteLength: bytes.byteLength, modifiedAtMs: 0, checksum: bytesChecksum(bytes), untitled: true }, dataBase64: Buffer.from(bytes).toString("base64") };
+  return { opened: true, metadata: { handle, name: format === "md" ? "Untitled.md" : "Untitled.html", byteLength: bytes.byteLength, modifiedAtMs: 0, checksum: bytesChecksum(bytes), untitled: true }, data: Uint8Array.from(Buffer.from(bytes)) };
 }
 
-function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean; recentMissing?: boolean; pick?: unknown; openName?: string; failCheckpoint?: boolean } = {}) {
+function harness(options: { localMode?: boolean; signedIn?: boolean; files?: RecentFile[]; strict?: boolean; failAuthConfig?: boolean; recentMissing?: boolean; pick?: unknown; openName?: string; failCheckpoint?: boolean; drop?: unknown } = {}) {
   const calls: Array<{ channel: string; payload: unknown }> = [];
+  const dropped: number[] = [];
   let sessionListener: ((metadata: DesktopSessionMetadata) => void) | undefined;
   let fileListener: ((event: { handle: string }) => void) | undefined;
   let loginListener: ((event: { reason: "signed_out" | "deployment_mismatch" | "account_mismatch" }) => void) | undefined;
@@ -65,9 +67,9 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
       case "desktop:library-list": return { documents: [], nextCursor: null, engineAvailable: true };
       case "desktop:recent-list": return { files: options.files ?? [] };
       case "desktop:recent-remove": return { removed: true };
-      case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), dataBase64: fixtureBase64 };
-      case "desktop:file-pick-open": return options.pick ?? { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), dataBase64: fixtureBase64 };
-      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), options.openName ?? "Opened.docx"), dataBase64: fixtureBase64 };
+      case "desktop:recent-open": return options.recentMissing ? { opened: false, missing: true } : { opened: true, metadata: fileMeta(`file_${"e".repeat(32)}`, "Recent.docx"), data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
+      case "desktop:file-pick-open": return options.pick ?? { opened: true, metadata: fileMeta(`file_${"f".repeat(32)}`, "Local.docx"), data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
+      case "desktop:file-open": return { opened: true, metadata: fileMeta(String(payload.handle), options.openName ?? "Opened.docx"), data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
       case "desktop:file-create": return created(String(payload.format ?? "docx"));
       case "desktop:file-save": return { opened: true, metadata: fileMeta(String(payload.handle)) };
       case "desktop:file-save-as": return { opened: true, metadata: fileMeta(`file_${"2".repeat(32)}`, "copy.docx") };
@@ -90,6 +92,8 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
     onFileOpenRequested: (listener) => { fileListener = listener; return () => undefined; },
     onLoginRequested: (listener) => { loginListener = listener; return () => undefined; },
     onLeaveRequested: (listener) => { leaveListener = listener; return () => undefined; },
+    // The preload's private drop seam: main answers the same typed shape as a pick.
+    openDroppedFile: async () => { dropped.push(1); if (options.drop instanceof Error) throw options.drop; return options.drop ?? response("desktop:file-pick-open", {}); },
   };
   const rendered = render(<App bridge={bridge} />);
   return {
@@ -97,6 +101,8 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
     call,
     calls,
     channels: () => calls.map((entry) => entry.channel),
+    dropCount: () => dropped.length,
+    dropFile: (name = "Dropped.docx") => fireEvent.drop(rendered.container.querySelector("[aria-busy]")!, { dataTransfer: { files: [new File(["x"], name)] } }),
     emitSession: (metadata: DesktopSessionMetadata) => act(() => sessionListener?.(metadata)),
     emitFile: (handle: string) => act(() => fileListener?.({ handle })),
     hasFileListener: () => Boolean(fileListener),
@@ -274,11 +280,33 @@ it("keeps the protection warning visible while the sign-in card is shown", async
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   await screen.findByRole("tab", { name: /Local\.docx/ });
   await edit(`file_${"f".repeat(32)}`);
-  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 20_000 });
+  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailedNamed", { titles: "Local.docx" }))).toBeInTheDocument(), { timeout: 20_000 });
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.tabs.signIn") }));
   await waitFor(() => expect(h.container.querySelector("[data-login-state]")).not.toBeNull());
-  expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument();
+  expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailedNamed", { titles: "Local.docx" }))).toBeInTheDocument();
 });
+
+it("treats a checkpoint overtaken by a newer edit as retry-next-tick, not as a protection failure (UNI-956)", async () => {
+  const h = harness({ localMode: true });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  await screen.findByRole("tab", { name: /Local.docx/ });
+  const handle = `file_${"f".repeat(32)}`;
+  await edit(handle);
+  // Every capture lands one generation behind: the user is still typing.
+  const session = sessions.get(handle)!;
+  const capture = vi.mocked(session.editor.captureSnapshot).getMockImplementation()!;
+  const behind = vi.spyOn(session.editor, "captureSnapshot").mockImplementation(async () => { const snapshot = await capture(); return { ...snapshot, generation: snapshot.generation - 1 }; });
+  await waitFor(() => expect(behind.mock.calls.length).toBeGreaterThanOrEqual(2), { timeout: 20_000 });
+  expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailedNamed", { titles: "Local.docx" }))).toBeNull();
+  expect(h.call).not.toHaveBeenCalledWith("desktop:draft-checkpoint", expect.anything());
+  // The typing stops: the next tick stores the draft (this harness answers no draft row by default).
+  const answer = h.call.getMockImplementation()!;
+  h.call.mockImplementation(async (channel: string, payload?: unknown) => channel === "desktop:draft-checkpoint" ? { stored: true, generation: (payload as { generation: number }).generation } : answer(channel, payload));
+  behind.mockImplementation(capture);
+  await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:draft-checkpoint", expect.objectContaining({ documentId: handle })), { timeout: 20_000 });
+  expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailedNamed", { titles: "Local.docx" }))).toBeNull();
+}, 60_000);
 
 it("clears the protective-checkpoint warning once a local save is confirmed", async () => {
   const h = harness({ localMode: true, failCheckpoint: true });
@@ -287,10 +315,10 @@ it("clears the protective-checkpoint warning once a local save is confirmed", as
   await screen.findByRole("tab", { name: /Local\.docx/ });
   await edit(`file_${"f".repeat(32)}`);
   // The 2 s checkpoint tick reports a dirty local file with no durable row.
-  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeInTheDocument(), { timeout: 20_000 });
+  await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.tabs.checkpointFailedNamed", { titles: "Local.docx" }))).toBeInTheDocument(), { timeout: 20_000 });
   fireEvent.keyDown(window, { key: "s", ctrlKey: true });
   await waitFor(() => expect(h.call).toHaveBeenCalledWith("desktop:file-save", expect.anything()));
-  await waitFor(() => expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailed"))).toBeNull());
+  await waitFor(() => expect(screen.queryByText(i18n.t("officeDesktop.tabs.checkpointFailedNamed", { titles: "Local.docx" }))).toBeNull());
 });
 
 const openCreateMenu = async (label: string) => {
@@ -333,7 +361,7 @@ it.each([
 
 it("opens an existing empty Markdown file without treating its payload as missing", async () => {
   const handle = `file_${"e".repeat(32)}`;
-  const h = harness({ localMode: true, pick: { opened: true, metadata: { handle, name: "Empty.md", byteLength: 0, modifiedAtMs: 1, checksum: bytesChecksum(new Uint8Array(0)) }, dataBase64: "" } });
+  const h = harness({ localMode: true, pick: { opened: true, metadata: { handle, name: "Empty.md", byteLength: 0, modifiedAtMs: 1, checksum: bytesChecksum(new Uint8Array(0)) }, data: Uint8Array.from(Buffer.from("", "base64")) } });
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   await screen.findByRole("tab", { name: /Empty\.md/ });
@@ -345,17 +373,52 @@ it("shows a dismissible unsupported alert for a .txt pick and opens no tab", asy
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   const alert = await screen.findByRole("alert");
-  expect(alert).toHaveTextContent(i18n.t("officeDesktop.local.unsupported"));
+  expect(alert).toHaveTextContent(i18n.t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) }));
   expect(screen.queryAllByRole("tab")).toHaveLength(1);
   fireEvent.click(within(alert).getByRole("button", { name: i18n.t("officeDesktop.tabs.dismissAlert") }));
   expect(screen.queryByRole("alert")).toBeNull();
 });
 
-it("rejects an opened file whose extension is outside the format table", async () => {
-  const h = harness({ localMode: true, pick: { opened: true, metadata: fileMeta(`file_${"9".repeat(32)}`, "page.xhtml"), dataBase64: "AAAA" } });
+it("opens a dropped file as a tab through the native drop seam", async () => {
+  const h = harness({ localMode: true, drop: { opened: true, metadata: fileMeta(`file_${"8".repeat(32)}`, "Dropped.docx"), data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) } });
+  await enterLocal(h);
+  h.dropFile();
+  await screen.findByRole("tab", { name: /Dropped.docx/ });
+  expect(h.dropCount()).toBe(1);
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it.each([
+  ["a locked file", { opened: false, code: "file_locked" }, () => i18n.t("office.save.reason.file_locked")],
+  ["a file too big for this computer's memory", { opened: false, code: "file_insufficient_memory" }, () => i18n.t("office.save.reason.file_insufficient_memory")],
+  ["a linked file", { opened: false, code: "file_access_denied" }, () => i18n.t("office.save.reason.file_access_denied")],
+  ["an unsupported format", { opened: false, unsupported: true }, () => i18n.t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) })],
+  ["a code from a newer main", { opened: false, code: "file_from_a_newer_main" }, () => i18n.t("officeDesktop.library.actionError")],
+  ["a transport failure", new Error("boom"), () => i18n.t("officeDesktop.library.actionError")],
+])("says why a dropped file was refused: %s", async (_label, drop, expected) => {
+  const h = harness({ localMode: true, drop });
+  await enterLocal(h);
+  h.dropFile();
+  expect(await screen.findByRole("alert")).toHaveTextContent(expected());
+  expect(screen.queryAllByRole("tab")).toHaveLength(1);
+});
+
+it.each([
+  ["file_locked", () => i18n.t("office.save.reason.file_locked")],
+  ["file_from_a_newer_main", () => i18n.t("officeDesktop.library.actionError")],
+])("names a refused pick by its code %s, or falls back to the generic copy", async (code, expected) => {
+  const h = harness({ localMode: true, pick: { opened: false, code } });
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
-  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("officeDesktop.local.unsupported"));
+  expect(await screen.findByRole("alert")).toHaveTextContent(expected());
+  expect(screen.queryAllByRole("tab")).toHaveLength(1);
+});
+
+it("rejects an opened file whose extension is outside the format table", async () => {
+  const h = harness({ localMode: true, pick: { opened: true, metadata: fileMeta(`file_${"9".repeat(32)}`, "page.xhtml"), data: Uint8Array.from(Buffer.from("AAAA", "base64")) } });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("officeDesktop.local.unsupported", { formats: supportedFormatsLabel(i18n.language) }));
   expect(screen.queryAllByRole("tab")).toHaveLength(1);
 });
 

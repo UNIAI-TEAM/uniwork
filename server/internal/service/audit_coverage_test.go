@@ -199,6 +199,12 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDesktopDeviceRevoked: func(t *testing.T, f *auditFixture) {
+			_, userID, sess := f.desktopDevice(t, "audit-device@example.com")
+			if _, err := f.admin.RevokeDesktopDevice(f.ctx, CLIActor, userID, sess.DeviceSessionID, "lost laptop reported"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionFlagOverrideSet: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			f.override(t, true)
@@ -1326,6 +1332,7 @@ func auditActions() []string {
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
+		audit.ActionDesktopDeviceRevoked,
 		audit.ActionSubscriptionChanged,
 		audit.ActionDocumentCreated,
 		audit.ActionOfficeLaunchSessionCreated,

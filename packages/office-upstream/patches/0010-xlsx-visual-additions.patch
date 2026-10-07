@@ -1,0 +1,32 @@
+diff --git a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts b/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
+--- a/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
++++ b/packages/xlsx-gateway/src/gateway/xlsx-gateway.ts
+@@ -573,6 +573,11 @@ export async function applyPlanToXlsx(
+   return assembleWithJsZip(source, pkg.toPlan(touchedEntries))
+ }
+ 
++/// UniWork patch 0010 capability marker: a bundle exporting it binds
++/// visualAdditions before formulaValues on applyCellEditsToXlsx. Hosts refuse
++/// a bundle without it instead of shifting formulaValues one slot.
++export const UNIWORK_XLSX_VISUAL_ADDITIONS = true
++
+ /// Save path for user edits on streamed workbooks. Unlike applyPlanToXlsx
+ /// there is no per-cell before-check: the caller gates on the whole-file
+ /// SHA-256 recorded at open time, which the streamed originals came from.
+@@ -591,6 +596,7 @@ export async function applyCellEditsToXlsx(
+   pageSetupStates: readonly SheetPageSetupState[] = [],
+   noteStates: readonly SheetNoteState[] = [],
+   tableAdditions: readonly SheetTableAddition[] = [],
++  visualAdditions: readonly SheetVisualAddition[] = [],
+   formulaValues: readonly SheetFormulaValues[] = [],
+ ): Promise<XlsxMutation> {
+   const plan = await planCellEditsToXlsx(
+@@ -605,7 +611,7 @@ export async function applyCellEditsToXlsx(
+     dvStates,
+     sheetProtections,
+     definedNamesState,
+-    [],
++    visualAdditions,
+     pageSetupStates,
+     noteStates,
+     tableAdditions,

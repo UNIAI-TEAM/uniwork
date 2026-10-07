@@ -1,8 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Bold, Scissors } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
-import { RibbonGroupView } from "./ribbon-group";
+import { RibbonGroupButton, RibbonGroupView } from "./ribbon-group";
 import type { RibbonGroup, RibbonItem } from "./types";
 
 function renderGroup(group: RibbonGroup, stage: 0 | 1 | 2 = 0) {
@@ -119,5 +119,35 @@ describe("items", () => {
     expect(button.className).toContain("size-6");
     await userEvent.hover(button);
     expect(await screen.findByText("Bold (Ctrl+B)")).toBeInTheDocument();
+  });
+});
+
+describe("folded group panel (opt-in only)", () => {
+  const cut = (onExecute = vi.fn()): RibbonItem => ({ kind: "button", id: "cut", labelKey: "Cut it", icon: Scissors, size: "icon", onExecute });
+  const open = async (group: RibbonGroup) => {
+    render(<RibbonGroupButton group={group} variant="large" />);
+    await userEvent.click(screen.getByRole("button", { name: /^G/ }));
+    return screen.getByRole("group", { name: "G" });
+  };
+
+  it("keeps the caption row under a group that does not opt out", async () => {
+    const panel = await open({ id: "g", labelKey: "G", priority: 1, items: [cut()] });
+    expect(panel.querySelector(".border-t")).toHaveTextContent("G");
+  });
+
+  it("drops the caption row only when panelCaption is false, and a launcher keeps it", async () => {
+    const quiet = await open({ id: "g", labelKey: "G", priority: 1, panelCaption: false, items: [cut()] });
+    expect(quiet.querySelector(".border-t")).toBeNull();
+    cleanup();
+    const launcher = await open({ id: "g", labelKey: "G", priority: 1, panelCaption: false, launcher: { labelKey: "Open G", onOpen: vi.fn() }, items: [cut()] });
+    expect(launcher.querySelector(".border-t")).toHaveTextContent("G");
+  });
+
+  it("leaves the panel open after an item runs unless the item asks to close it", async () => {
+    const onExecute = vi.fn();
+    const panel = await open({ id: "g", labelKey: "G", priority: 1, items: [cut(onExecute)] });
+    await userEvent.click(within(panel).getByRole("button", { name: "Cut it" }));
+    expect(onExecute).toHaveBeenCalledOnce();
+    expect(screen.getByRole("group", { name: "G" })).toBeInTheDocument();
   });
 });

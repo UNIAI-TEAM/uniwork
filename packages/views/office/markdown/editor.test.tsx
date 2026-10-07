@@ -4,11 +4,13 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { describe, expect, it, vi } from "vitest";
 import type { Editor } from "@tiptap/react";
 import { MarkdownEditor } from "./editor";
+import { OfficeShell } from "../office-shell";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome, MarkdownSaveCoordinator } from "./types";
-import type { MarkdownPrintPort } from "./wysiwyg/print";
+import type { MarkdownPrintOutcome, MarkdownPrintPort } from "./wysiwyg/print";
 import type { IsolatedPreviewPort, PreviewMountOptions, TextCapability } from "../source-editor-types";
+import { pressPrintChord } from "../../test/print-chord";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -30,7 +32,7 @@ const CAPABILITY: TextCapability & { format: "md" } = { format: "md", operation:
 
 const FIXTURE = "---\ntitle: Keep\n---\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst x = 1;\n```\n<!-- keep -->";
 
-function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean }; assetFailures?: Readonly<Record<string, "ready" | "missing" | "unauthorised" | "failed" | boolean>>; capability?: TextCapability & { format: "md" }; openFails?: boolean; text?: string; manifest?: { entries: readonly { key?: string; asset_id?: string; status?: "ready" | "missing" | "unauthorised" | "failed" }[] } | null; pageMenu?: boolean; printPort?: MarkdownPrintPort } = {}) {
+function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean }; assetFailures?: Readonly<Record<string, "ready" | "missing" | "unauthorised" | "failed" | boolean>>; capability?: TextCapability & { format: "md" }; openFails?: boolean; text?: string; manifest?: { entries: readonly { key?: string; asset_id?: string; status?: "ready" | "missing" | "unauthorised" | "failed" }[] } | null; pageMenu?: boolean; printPort?: MarkdownPrintPort; shell?: boolean } = {}) {
   let text = options.text ?? FIXTURE;
   const listeners = new Set<(next: string) => void>();
   const handle: MarkdownEditorHandle = {
@@ -53,7 +55,9 @@ function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: Re
   const outcome: MarkdownOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
   const saveCoordinator = options.coordinator ?? coordinator();
   const open = vi.fn(async () => options.openFails ? ({ outcome: "failed", document_id: "doc", format: "md", failure_class: "engine_error", message: "boom" } as MarkdownOpenOutcome) : outcome);
-  const editor = <MarkdownEditor documentKey="doc" editor={handle} open={{ open }} coordinator={saveCoordinator} capability={options.capability ?? CAPABILITY} permissions={options.permissions} assetFailures={options.assetFailures} preview={options.preview} printPort={options.printPort} />;
+  const view = <MarkdownEditor documentKey="doc" editor={handle} open={{ open }} coordinator={saveCoordinator} capability={options.capability ?? CAPABILITY} permissions={options.permissions} assetFailures={options.assetFailures} preview={options.preview} printPort={options.printPort} />;
+  // The Office shell owns the one Ctrl/Cmd+P listener (UNI-952).
+  const editor = options.shell ? <OfficeShell title="Doc" editor={view} /> : view;
   // The page overflow (⋯) menu the host page owns; the editor contributes its
   // print/export entries to it through `HeaderActionsFill` (M-6/C4).
   const rendered = options.pageMenu
@@ -166,6 +170,14 @@ describe("MarkdownEditor (production surface)", () => {
     await waitFor(() => expect(screen.getByTestId("md-error-state")).toBeInTheDocument());
     expect(screen.getByTestId("md-error-state")).toHaveTextContent("boom");
     expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the shared too-large notice, not the generic error, when the open is too_large (UNI-956)", async () => {
+    const handle = { format: "md", open: vi.fn(async () => undefined), getDirtyGeneration: () => 0, captureSnapshot: vi.fn(), undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), source: { getText: () => "", setText: vi.fn() } } as unknown as MarkdownEditorHandle;
+    const outcome = { outcome: "failed", document_id: "doc", format: "md", failure_class: "too_large" } as MarkdownOpenOutcome;
+    render(<MarkdownEditor documentKey="doc" editor={handle} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator()} capability={CAPABILITY} />);
+    await waitFor(() => expect(screen.getByTestId("office-too-large")).toBeInTheDocument());
+    expect(screen.queryByTestId("md-error-state")).toBeNull();
   });
 
   it("gates editing on the capability: an unavailable build renders the error state", async () => {
@@ -318,6 +330,37 @@ describe("MarkdownEditor source mode", () => {
     expect(handle.undo).toHaveBeenCalledTimes(1);
     expect(handle.redo).toHaveBeenCalledTimes(1);
     expect(source.value).toBe(before);
+  });
+
+  it("marks dirty and checkpoints only when an undo/redo step moved the text (UNI-954)", async () => {
+    const { handle, saveCoordinator } = renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    // No history yet: the source-mode controls render aria-disabled.
+    handle.canUndo = () => false;
+    handle.canRedo = () => false;
+    switchToSource();
+    await screen.findByTestId("md-source");
+    const toolbar = within(screen.getByTestId("md-subbar"));
+    expect(toolbar.getByRole("button", { name: "Undo" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(toolbar.getByRole("button", { name: "Undo" }));
+    expect(handle.undo).not.toHaveBeenCalled();
+    // A step that leaves the generation alone (an empty stack) is not a change.
+    handle.canUndo = () => true;
+    handle.canRedo = () => true;
+    saveCoordinator.markDirty.mockClear();
+    saveCoordinator.checkpoint.mockClear();
+    fireEvent.keyDown(screen.getByTestId("md-source"), { key: "z", ctrlKey: true });
+    fireEvent.keyDown(screen.getByTestId("md-source"), { key: "y", ctrlKey: true });
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    expect(handle.redo).toHaveBeenCalledTimes(1);
+    expect(saveCoordinator.markDirty).not.toHaveBeenCalled();
+    expect(saveCoordinator.checkpoint).not.toHaveBeenCalled();
+    let generation = 2;
+    handle.getDirtyGeneration = () => generation;
+    vi.mocked(handle.undo!).mockImplementation(() => { generation += 1; });
+    fireEvent.keyDown(screen.getByTestId("md-source"), { key: "z", ctrlKey: true });
+    expect(saveCoordinator.markDirty).toHaveBeenCalledWith(3);
+    expect(saveCoordinator.checkpoint).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -483,6 +526,42 @@ describe("MarkdownEditor mounts the Markdown features (production surface)", () 
     } finally {
       window.print = original;
     }
+  });
+
+  it("prints through the same entry on Ctrl/Cmd+P from outside the editor, never the app window", async () => {
+    const windowPrint = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    const calls: string[] = [];
+    const printPort: MarkdownPrintPort = { print(request) { calls.push(request.html); return { outcome: "printed" }; } };
+    try {
+      renderEditor({ shell: true, printPort, text: "# Bao cao\n" });
+      await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+      expect(pressPrintChord(document.body)).toBe(false);
+      await waitFor(() => expect(calls).toHaveLength(1));
+      expect(calls[0]).toContain("Bao cao");
+      expect(windowPrint).not.toHaveBeenCalled();
+    } finally {
+      windowPrint.mockRestore();
+    }
+  });
+
+  it("shows the print outcome itself: busy -> neutral status, failure -> generic, cancelled silent, cleared on the next print", async () => {
+    const outcomes: MarkdownPrintOutcome[] = [
+      { outcome: "failed", reason: "print_busy" },
+      { outcome: "failed", reason: "print_blocked" },
+      { outcome: "cancelled" },
+    ];
+    const printPort: MarkdownPrintPort = { print: () => outcomes.shift()! };
+    renderEditor({ pageMenu: true, printPort, text: "# Bao cao\n" });
+    await waitFor(() => expect(screen.getByTestId("md-wysiwyg")).toBeInTheDocument());
+    const menu = await screen.findByRole("menu");
+    const print = () => fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
+    print();
+    expect(await screen.findByText("A print dialog is already open. Finish or close it first.")).toBeInTheDocument();
+    print();
+    expect(await screen.findByText("Could not print the document. Try again.")).toBeInTheDocument();
+    expect(screen.queryByText("A print dialog is already open. Finish or close it first.")).toBeNull();
+    print();
+    await waitFor(() => expect(screen.queryByText("Could not print the document. Try again.")).toBeNull());
   });
 
   it("keeps the browser print path when no port is injected (default unchanged)", async () => {

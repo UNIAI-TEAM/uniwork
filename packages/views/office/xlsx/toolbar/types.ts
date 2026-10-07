@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { RibbonItem } from "../../ribbon";
 import type { XlsxViewEcho } from "./view-echo";
 import type { XlsxGridFormatState, XlsxGridHostPort } from "../xlsx-grid-surface";
@@ -20,6 +21,38 @@ export interface XlsxToolbarTabDefinition {
  *  `false` means the renderer did not run the command. */
 export interface XlsxToolbarCommands {
   execute(id: string, params?: unknown): boolean | Promise<boolean>;
+  /** The sheet's live CF / DV rules for the rule managers (UNI-953); null
+   *  without a mounted grid. Absent on hosts and doubles that only run
+   *  commands. */
+  readRuleSets?(sheetId: string, family: XlsxRuleFamily): readonly XlsxLiveRule[] | null;
+  /** Runs the steps as ONE undo entry on the mounted grid (the Data tools
+   *  rewrite a range in one step); resolves false when any step is refused.
+   *  `atomic`: a refusal also takes back the steps that ran (a DV rule edit
+   *  must not stay half-applied). Absent on doubles that only run single
+   *  commands. */
+  executeAsOneStep?(steps: readonly XlsxToolbarCommandStep[], options?: { atomic?: boolean }): Promise<boolean>;
+}
+
+/** One command of a batched, single-undo-step run. */
+export interface XlsxToolbarCommandStep {
+  readonly id: string;
+  readonly params?: unknown;
+}
+
+export type XlsxRuleFamily = "conditionalFormats" | "dataValidations";
+
+/** One live rule as the renderer's model holds it: its model id (CF `cfId`,
+ *  DV `uid`), its 0-based areas and the Univer rule object (CF: the inner
+ *  rule; DV: the rule without ranges and id). CF rules come in priority
+ *  order, the first applies first. */
+export interface XlsxLiveRule {
+  readonly id: string;
+  readonly ranges: readonly XlsxToolbarTableRange[];
+  readonly stopIfTrue?: boolean;
+  readonly rule: Readonly<Record<string, unknown>>;
+  /** A CF rule installed from an Excel linked x14 rule (a data bar and its
+   *  extras): the save keeps it verbatim, so it cannot be edited in place. */
+  readonly linked?: boolean;
 }
 
 /** A 0-based inclusive rectangle (a table's area or a selection's span). */
@@ -86,6 +119,8 @@ export interface XlsxToolbarGroupProps {
   onOpenPageSetup?: () => void;
   /** Prints the document through the host print path. */
   onPrint?: () => void;
+  /** UNI-952: a print run is pending (the Print button shows busy). */
+  printBusy?: boolean;
   /** Downloads the active sheet as CSV. */
   onExportCsv?: () => void;
   /** The renderer host for the groups that must read cells (AutoSum's guess).
@@ -93,6 +128,9 @@ export interface XlsxToolbarGroupProps {
   host?: XlsxGridHostPort;
   /** The mounted workbook id (`file-<sha256>`); null without a live grid. */
   unitId?: string | null;
+  /** The open document this toolbar drives; keys per-document chrome state
+   *  such as the last applied number format (UNI-957). */
+  documentKey?: string;
   /** The active sheet's live name; the groups' reads target it. */
   sheetName?: string | null;
   /** Live-name -> live-id resolver (a session rename keeps the id). */
@@ -104,6 +142,17 @@ export interface XlsxToolbarGroupProps {
   /** The live tables of the open workbook; the contextual Table tabs (R4)
    *  show while the selection sits inside one. Absent = no tables. */
   tables?: readonly XlsxToolbarTable[];
+  /** The editor's LIVE workbook snapshot (current values, edits included) for
+   *  the groups that must read a range's values (Data tools). The renderer
+   *  host's readRange serves the open-time model and must not be used for
+   *  that. Absent = no live values (the commands stay disabled). */
+  snapshot?: XlsxWorkbookSnapshot | null;
+  /** Waits for the grid edits still queued for the editor, then answers its
+   *  snapshot as of then (null without one); rejects when a queued edit
+   *  failed. A Data tool plans from it at OK, so a grid edit typed just
+   *  before is never overwritten with an older value (review-design F3).
+   *  Absent = plan from `snapshot`. */
+  readLiveSnapshot?: () => Promise<XlsxWorkbookSnapshot | null>;
 }
 
 /** One entry of the extension seam. A Wave A task adds one group to one tab

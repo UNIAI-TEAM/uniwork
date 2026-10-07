@@ -7,9 +7,11 @@ import type { DocxCommandRuntime } from "../../commands";
 import { DOCX_STYLES_GALLERY } from "../../paragraph/styles-gallery";
 import type { DocxToolbarGroupContext } from "../types";
 import { homeStylesRibbonItems } from "./home-styles";
+import { createDocxDocumentScope } from "../../editor-store";
 
 function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarGroupContext {
   return {
+    docScope: createDocxDocumentScope(),
     editor: {} as unknown as DocxToolbarGroupContext["editor"],
     coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
     format: { paragraphStyle: "heading-2" } as unknown as DocxToolbarGroupContext["format"],

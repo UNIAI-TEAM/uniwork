@@ -1,17 +1,36 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { subscribeCommandRefusals } from "./fire-command";
+import { RuleSetDropNotice } from "./conditional-format/rule-set-drop-notice";
+import { useRuleSetDropRestore, type RuleSetRestoreGrid } from "./conditional-format/use-rule-set-drop-restore";
+import type { XlsxToolbarCommands } from "./toolbar/types";
+import type { XlsxEditorHandle } from "./types";
+import type { XlsxPasteNotice } from "./use-xlsx-editor-clipboard";
 
 export interface XlsxFrameNoticesProps {
   recalcProgress: number | null;
   recalcError: string | null;
   editFailed: boolean;
   onCancelRecalculate: () => void;
+  /** The save coordinator error code; xlsx_rule_sets_dropped shows the drop notice. */
+  saveErrorCode?: string | null;
+  editor?: Pick<XlsxEditorHandle, "droppedRuleSets">;
+  /** The live grid: a drop restores what the grid paints (r3 MA-3). */
+  grid?: RuleSetRestoreGrid;
+  /** An informational notice (a paste kept only its values): neutral, not an error. */
+  pasteNotice?: XlsxPasteNotice | null;
+  /** This document's command port: only its refusals raise the notice. */
+  commands?: XlsxToolbarCommands;
 }
 
-/** The frame subbar notices: recalculation progress and the two inline errors. */
-export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate }: XlsxFrameNoticesProps) {
+/** The frame subbar notices: recalculation progress, the inline errors and the neutral paste notice. */
+export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCancelRecalculate, saveErrorCode, editor, grid, pasteNotice, commands }: XlsxFrameNoticesProps) {
   const { t } = useTranslation();
+  const [commandRefused, setCommandRefused] = useState(false);
+  useEffect(() => subscribeCommandRefusals(() => setCommandRefused(true), commands), [commands]);
+  useRuleSetDropRestore(saveErrorCode, editor, grid);
   return (
     <>
       {recalcProgress !== null ? (
@@ -21,8 +40,21 @@ export function XlsxFrameNotices({ recalcProgress, recalcError, editFailed, onCa
           <button type="button" className="text-primary underline" onClick={onCancelRecalculate} data-testid="xlsx-recalc-cancel">{t("office.xlsx.recalc.cancel")}</button>
         </div>
       ) : null}
+      {pasteNotice ? (
+        <p className="flex items-center gap-2 border-b border-border bg-muted px-3 py-1 text-caption text-muted-foreground" role="status" data-testid="xlsx-paste-notice">
+          <span>{pasteNotice.message}</span>
+          <button type="button" className="text-foreground underline" onClick={pasteNotice.dismiss}>{t("office.xlsx.errors.dismiss")}</button>
+        </p>
+      ) : null}
       {recalcError ? <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-recalc-error">{recalcError}</p> : null}
       {editFailed ? <p className="border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-edit-error">{t("office.xlsx.errors.editFailed")}</p> : null}
+      {commandRefused ? (
+        <p className="flex items-center gap-2 border-b border-destructive/30 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-command-refused">
+          <span>{t("office.xlsx.errors.commandRefused")}</span>
+          <button type="button" className="underline" onClick={() => setCommandRefused(false)}>{t("office.xlsx.errors.dismiss")}</button>
+        </p>
+      ) : null}
+      <RuleSetDropNotice errorCode={saveErrorCode} editor={editor} />
     </>
   );
 }

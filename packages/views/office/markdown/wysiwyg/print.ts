@@ -30,7 +30,7 @@
  * HTML document. Nothing here parses Markdown or touches the saved bytes.
  */
 import { emptyAssetManifest, type AssetManifest } from "@uniwork/office-engine/assets";
-import { buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
+import { buildHtmlPreviewCopy, dropBlockedResourceUrls } from "@uniwork/office-engine/html";
 
 /** Content-Security-Policy for the print copy. Script-free by construction;
  * a caller that lets images resolve through an asset proxy must pass a CSP
@@ -122,6 +122,81 @@ function isDangerousSrcset(value: string): boolean {
   return value.split(",").some((entry) => isDangerousUrl(entry));
 }
 
+/** Page geometry for a copy that brings none of its own (Markdown, plain HTML):
+ * A4 with a real margin, so page 1 is content with a border of white and not
+ * edge-to-edge text. It goes right after the copy's CSP meta (which stays the
+ * first thing in the head) and ahead of the document's own styles, so those
+ * still win. A copy that already carries an `@page` rule (DOCX sections, a
+ * styled HTML file) is left alone. A table or a quote taller than the rest of
+ * a page flows on (a gap of white is worse than a split); a row or a code
+ * block stays whole. */
+const DEFAULT_PAGE_CSS =
+  "@page{size:A4;margin:18mm}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
+  "img,svg,video{max-width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere}" +
+  "h1,h2,h3,h4,h5,h6{break-after:avoid}pre,tr,img,figure{break-inside:avoid}thead{display:table-header-group}";
+
+/** CSS comments and quoted strings: an `@page` inside one is not a rule. */
+const CSS_COMMENT_OR_STRING = /\/\*[\s\S]*?\*\/|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g;
+
+function hasPageRule(style: Element): boolean {
+  return /@page\b/i.test((style.textContent ?? "").replace(CSS_COMMENT_OR_STRING, ""));
+}
+
+/** The editor's reading look (packages/views/editor/styles/prose.css, code.css,
+ * the `.rich-text-editor` table rules) for a copy that brings no styles of its
+ * own: a Markdown document, or an HTML file with no `<style>`. Print is always
+ * light, so the tokens' LIGHT values are written as literals (no `var()`: the
+ * copy has no token sheet), and no font is fetched (the stack only names faces
+ * the system already has; the copy's CSP allows none). Elements, not classes:
+ * the copy's markup carries none. A document that has any `<style>` of its own
+ * keeps exactly that look and gets only the page margins above. */
+const READING_CSS =
+  "body{font-family:Inter,'Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.625;" +
+  "color:#202020;background:#fff;overflow-wrap:break-word}" +
+  "h1,h2,h3,h4,h5,h6{font-weight:600;margin:1rem 0 .5rem;line-height:1.4}" +
+  "h1{font-size:24px;font-weight:700;line-height:1.3;letter-spacing:-.01em;margin-top:1.5rem}" +
+  "h2{font-size:18px;line-height:1.35;margin-top:1.5rem}h3{font-size:15px}h4{font-size:14px}h5{font-size:13px}" +
+  "h6{font-size:12px;color:#646464}" +
+  "body>:first-child{margin-top:0}p{margin:.625rem 0}" +
+  "ul,ol{margin:.5rem 0;padding-left:1.5rem}ul{list-style:disc}ol{list-style:decimal}ul ul{list-style:circle}" +
+  "li{margin:.25rem 0}li::marker{color:#646464}li>p{margin:0}" +
+  "a{color:#0a52e6;text-decoration:underline}" +
+  "hr{border:0;border-top:1px solid #e4e4e7;margin:1.25rem 0}" +
+  "blockquote{margin:.75rem 0;padding:.125rem 0 .125rem 1rem;border-left:3px solid #e4e4e7;color:#646464}" +
+  "code{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.875em;" +
+  "background:#f4f4f5;border-radius:4px;padding:.125em .375em}" +
+  "pre{margin:.75rem 0;padding:.75rem 1rem;background:#f4f4f5;border:1px solid #e4e4e7;border-radius:6px;font-size:13px;line-height:1.5}" +
+  "pre code{background:none;border-radius:0;padding:0;font-size:inherit}" +
+  // Markdown tables carry no presentational attributes; an HTML file's table that sets width or
+  // border (a layout table, a hand-sized one) keeps its own, since element rules beat attributes.
+  "table:not([width]):not([border]){width:100%;border-collapse:collapse;margin:.75rem 0}" +
+  "table:not([width]):not([border]) :is(th,td){border:1px solid #e4e4e7;padding:.375rem .625rem;text-align:left;vertical-align:top}" +
+  "table:not([width]):not([border]) th{background:#f4f4f5;font-weight:600}" +
+  "img{height:auto}";
+
+function insertAfterCsp(doc: Document, ...styles: HTMLStyleElement[]): void {
+  const csp = Array.from(doc.head.querySelectorAll("meta[http-equiv]")).find(
+    (meta) => (meta.getAttribute("http-equiv") ?? "").trim().toLowerCase() === "content-security-policy",
+  );
+  if (csp) csp.after(...styles);
+  else doc.head.prepend(...styles);
+}
+
+function printStyle(doc: Document, marker: string, css: string): HTMLStyleElement {
+  const style = doc.createElement("style");
+  style.setAttribute(marker, "");
+  style.textContent = css;
+  return style;
+}
+
+function addDefaultPageGeometry(doc: Document): void {
+  const authored = Array.from(doc.querySelectorAll("style"));
+  if (authored.some(hasPageRule)) return;
+  const page = printStyle(doc, "data-print-page", DEFAULT_PAGE_CSS);
+  if (authored.length > 0) insertAfterCsp(doc, page);
+  else insertAfterCsp(doc, page, printStyle(doc, "data-print-reading", READING_CSS));
+}
+
 /** The empty document a host with no DOM gets: nothing can be proven safe. */
 const EMPTY_DOCUMENT = "<!DOCTYPE html><html><head></head><body></body></html>";
 
@@ -130,7 +205,9 @@ function stripActiveContent(html: string): string {
   // Print runs in a DOM host; without one no copy can be verified, so the
   // print payload is empty rather than the unverified input.
   if (typeof DOMParser === "undefined") return EMPTY_DOCUMENT;
-  const doc = new DOMParser().parseFromString(html, "text/html");
+  // A blocked reference paints a broken-image icon before its alt text: the
+  // engine's drop pass turns it into the alt text alone.
+  const doc = new DOMParser().parseFromString(dropBlockedResourceUrls(html), "text/html");
   // Exactly the copy's own CSP meta survives. Every other `http-equiv` meta is
   // dropped, including a second CSP meta the document supplied: a weaker
   // document policy must not be able to loosen the copy. The copy writes its
@@ -162,6 +239,7 @@ function stripActiveContent(html: string): string {
       if (URL_ATTRIBUTES.has(name) && isDangerousUrl(attribute.value)) element.removeAttribute(attribute.name);
     }
   }
+  addDefaultPageGeometry(doc);
   return doc.documentElement.outerHTML;
 }
 

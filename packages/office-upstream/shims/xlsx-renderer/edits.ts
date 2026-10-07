@@ -13,12 +13,14 @@ import {
   recordHyperlinkEdit,
   recordTableAdd,
   removeTableAdd,
+  type JournalEntry,
   type StructuralJournalOp,
 } from "../../upstream/apps/sheets/src/renderer/edit-journal";
 import { FILTER_MUTATIONS, REORDER_RANGE_MUTATION, pixelsToCharacterWidth } from "../../upstream/apps/sheets/src/renderer/app-constants";
 import type { SharedFormulaResolver } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import type { LazyWorkbookState, UniverWorksheet } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import type { IExecutionOptions } from "@univerjs/core";
+import type { XlsxRendererRuleSetEdit } from "./rule-set-capture";
 import { t } from "./locale";
 
 export interface XlsxRendererCellEdit {
@@ -126,7 +128,8 @@ export type XlsxRendererEdit =
   | XlsxRendererFilterEdit
   | XlsxRendererTableEdit
   | XlsxRendererHyperlinkEdit
-  | XlsxRendererNotesEdit;
+  | XlsxRendererNotesEdit
+  | XlsxRendererRuleSetEdit;
 
 /** tableId -> {sheetId, name} for a session add, so the delete mutation (which
  *  carries only the tableId) can name the table it cancels. */
@@ -266,6 +269,145 @@ export function ingestCellMutation(
   return [...changed.values()];
 }
 
+// ── validated editor commits ───────────────────────────────────────────────
+//
+// The pinned editor applies a commit first, then validates the cell and, when
+// a stop-style data-validation rule refuses the input, rolls the write back
+// with plain mutations ({value: null, styleReset: true} in journal terms).
+// Journaled as they run, a refused input leaves a value edit and then a reset
+// behind, and the reset wipes the cell's saved format. The gate holds a
+// commit's cell edits until the verdict: accepted edits are emitted as usual,
+// a refusal restores the journal and swallows the rollback, so nothing about
+// the refused write ever reaches the save queue. A plain undo of an accepted
+// write is a later command and is untouched.
+
+export interface ValidatedWriteGate {
+  /** An editor commit on `sheetId` is about to run: hold its cell edits. */
+  begin(state: LazyWorkbookState | null, sheetId: string, cell?: { row: number; column: number }): void;
+  /** Returns the edits that may be emitted now (the held sheet's cell edits are kept back). */
+  capture(edits: XlsxRendererCellEdit[]): XlsxRendererCellEdit[];
+  /** The validation verdict of the pending commit is on its way; call the
+   *  returned function with it, or null when nothing is pending. A verdict
+   *  for another sheet (`sheetId` given and not the pending write's) is not
+   *  the pending write's and gets null too (review-session n-1); so does a
+   *  verdict for another cell when the commit's cell is known (a paste or an
+   *  autofill validates several cells of one sheet in one tick, X2). */
+  awaitVerdict(sheetId?: string, cell?: { row: number; column: number }): ((accepted: boolean) => void) | null;
+  /** True while the rollback of a refused commit on `sheetId` runs. */
+  isRollback(sheetId: string): boolean;
+}
+
+interface PendingValidatedWrite {
+  state: LazyWorkbookState;
+  sheetId: string;
+  cell: { row: number; column: number } | undefined;
+  before: Map<string, JournalEntry> | undefined;
+  held: XlsxRendererCellEdit[];
+  awaited: boolean;
+}
+
+/** The cell an editor commit writes: its set-range-values range is that one
+ *  cell (Univer 0.25.1 `_submitEdit`), and the verdict that matters is the one
+ *  asked for the same cell. Any other shape names no cell. */
+export function editorCommitCell(range: unknown): { row: number; column: number } | undefined {
+  const at = range as Partial<AxisRange> | null | undefined;
+  if (typeof at?.startRow !== "number" || typeof at.startColumn !== "number") return undefined;
+  return at.startRow === at.endRow && at.startColumn === at.endColumn ? { row: at.startRow, column: at.startColumn } : undefined;
+}
+
+export function createValidatedWriteGate(emit: (edits: XlsxRendererCellEdit[]) => void): ValidatedWriteGate {
+  let pending: PendingValidatedWrite | null = null;
+  let rollbackSheetId: string | null = null;
+
+  const settle = (write: PendingValidatedWrite, accepted: boolean): void => {
+    if (pending !== write) return;
+    pending = null;
+    if (accepted) {
+      if (write.held.length > 0) emit(write.held);
+      return;
+    }
+    const cells = write.state.editJournal.cells;
+    if (write.before === undefined) {
+      cells.delete(write.sheetId);
+    } else {
+      const live = cells.get(write.sheetId) ?? new Map<string, JournalEntry>();
+      live.clear();
+      for (const [key, entry] of write.before) live.set(key, entry);
+      cells.set(write.sheetId, live);
+    }
+    // The editor rolls back synchronously once the verdict resolves; the flag
+    // outlives that microtask chain and nothing else.
+    rollbackSheetId = write.sheetId;
+    setTimeout(() => { if (rollbackSheetId === write.sheetId) rollbackSheetId = null; }, 0);
+  };
+
+  return {
+    begin(state, sheetId, cell) {
+      if (pending) settle(pending, true);
+      if (!state) return;
+      const journaled = state.editJournal.cells.get(sheetId);
+      const write: PendingValidatedWrite = {
+        state, sheetId, cell, before: journaled ? new Map(journaled) : undefined, held: [], awaited: false,
+      };
+      pending = write;
+      // The editor asks for the verdict in the same tick as the command; when
+      // it does not (the command was refused), the write stands as accepted.
+      queueMicrotask(() => { if (!write.awaited) settle(write, true); });
+    },
+    capture(edits) {
+      const write = pending;
+      if (!write || edits.length === 0) return edits;
+      const held = edits.filter((edit) => edit.sheetId === write.sheetId);
+      if (held.length === 0) return edits;
+      write.held.push(...held);
+      return edits.filter((edit) => edit.sheetId !== write.sheetId);
+    },
+    awaitVerdict(sheetId, cell) {
+      const write = pending;
+      if (!write || (sheetId !== undefined && sheetId !== write.sheetId)) return null;
+      if (write.cell && cell && (cell.row !== write.cell.row || cell.column !== write.cell.column)) return null;
+      write.awaited = true;
+      return (accepted) => settle(write, accepted);
+    },
+    isRollback: (sheetId) => rollbackSheetId === sheetId,
+  };
+}
+
+/**
+ * Univer composes VALIDATE_CELL interceptors in a flat loop that stops at the
+ * first handler which has not called `next` synchronously. The data-validation
+ * handler is async and calls it only after its awaits, so no interceptor
+ * ordered after it ever runs and none can see the verdict. The verdict is the
+ * promise `onValidateCell` returns to the editor instead: this wraps that
+ * method, asks the gate for its settle function in the same tick (before the
+ * gate's microtask release) and settles it ahead of the editor's own await, so
+ * the editor's rollback runs after the gate knows about the refusal.
+ */
+export interface ValidateCellSource {
+  onValidateCell(...args: unknown[]): unknown;
+}
+
+export function observeValidationVerdicts(source: ValidateCellSource, gate: ValidatedWriteGate): { dispose(): void } {
+  const original = source.onValidateCell;
+  const wrapped = function (this: unknown, ...args: unknown[]): unknown {
+    const verdict = original.apply(this ?? source, args);
+    // Univer 0.25.1: onValidateCell(workbook, worksheet, row, col).
+    const worksheet = args[1] as { getSheetId?: unknown } | null | undefined;
+    const sheetId = typeof worksheet?.getSheetId === "function" ? (worksheet.getSheetId as () => unknown)() : undefined;
+    const [row, column] = [args[2], args[3]];
+    const cell = typeof row === "number" && typeof column === "number" ? { row, column } : undefined;
+    const settle = gate.awaitVerdict(typeof sheetId === "string" ? sheetId : undefined, cell);
+    if (settle) Promise.resolve(verdict).then((accepted) => settle(accepted !== false), () => settle(true));
+    return verdict;
+  };
+  source.onValidateCell = wrapped;
+  return {
+    dispose() {
+      if (source.onValidateCell === wrapped) source.onValidateCell = original;
+    },
+  };
+}
+
 // ── structural (rows/columns) capture ──────────────────────────────────────
 //
 // The pinned Univer has no outline model and the journal keeps no structural
@@ -345,6 +487,7 @@ export function ingestStructuralMutation(
       rowColumn.axis === "row" ? range.endRow - range.startRow + 1 : range.endColumn - range.startColumn + 1;
     if (!Number.isInteger(index) || index < 0 || !Number.isInteger(count) || count <= 0) return [];
     record({ kind: rowColumn.kind, index, count });
+    shiftOutlineLines(state, sheetId, rowColumn.kind, index, count);
     return edits;
   }
   // File units: row heights are points (px * 0.75), column widths character
@@ -402,6 +545,15 @@ const MERGE_MUTATIONS: Readonly<Record<string, "merge-cells" | "unmerge-cells">>
   "sheet.mutation.add-worksheet-merge": "merge-cells",
   "sheet.mutation.remove-worksheet-merge": "unmerge-cells",
 };
+
+/** True when the selection spans exactly one live merge: Excel treats that as a
+ *  single cell. Tolerates a missing or malformed merge list (older facades). */
+export function selectsOneMergedCell(merges: unknown, selection: AxisRange): boolean {
+  if (!Array.isArray(merges)) return false;
+  return merges.some((merge: Partial<AxisRange> | null) =>
+    merge?.startRow === selection.startRow && merge.endRow === selection.endRow &&
+    merge.startColumn === selection.startColumn && merge.endColumn === selection.endColumn);
+}
 
 /** The file merges an unmerge selection removes: every merge rectangle the
  *  selection intersects, the same rule the mutation applies. */
@@ -632,6 +784,31 @@ export function seedColumnOutline(state: LazyWorkbookState | null): void {
   }
 }
 
+/** Row outline levels from the file (the host's `rowOutline` on each sheet,
+ *  UNI-953 F2). The vendored loader seeds a row only when its range streams,
+ *  so an outline action, or its undo, over rows not yet on screen read level
+ *  0 and flattened the file's groups; seeding every grouped row at open, as
+ *  the columns are, makes the action raise from the file's level. Session
+ *  entries are never overridden, and the loader's later per-row seed skips
+ *  the rows this already holds. */
+export function seedRowOutline(state: LazyWorkbookState | null): void {
+  if (!state) return;
+  for (const sheet of state.file.sheets) {
+    const rows = (sheet as { rowOutline?: unknown }).rowOutline;
+    if (!Array.isArray(rows)) continue;
+    for (const entry of rows as Array<{ row?: unknown; outlineLevel?: unknown; collapsed?: unknown }>) {
+      if (typeof entry?.row !== "number" || !Number.isInteger(entry.row) || entry.row < 0) continue;
+      const level = typeof entry.outlineLevel === "number" && Number.isInteger(entry.outlineLevel)
+        ? Math.min(7, Math.max(0, entry.outlineLevel)) : 0;
+      const collapsed = entry.collapsed === true;
+      if (level === 0 && !collapsed) continue;
+      const outline = state.outline.get(sheet.id) ?? { rows: new Map(), cols: new Map() };
+      state.outline.set(sheet.id, outline);
+      if (!outline.rows.has(entry.row)) outline.rows.set(entry.row, { level, collapsed });
+    }
+  }
+}
+
 /** The pinned build's `sheet.command.set-col-is-auto-width` handler emits no
  *  mutation (no interceptor in any bundled package serves its id), so the
  *  toolbar's "use default column width" reset journals the sheet-default
@@ -651,6 +828,15 @@ export function applyColumnDefaultWidth(
   return [{ sheetId, structural }];
 }
 
+/** Whether an outline action can address this span: a known sheet and an
+ *  ordered, non-negative integer span. A valid span can still change nothing
+ *  (ungroup at level 0, group at level 7); callers tell that apart from a
+ *  refused one with this. */
+export function validOutlineSpan(state: LazyWorkbookState | null, sheetId: string, start: number, end: number): boolean {
+  if (!state || !state.file.sheets.some((sheet) => sheet.id === sheetId)) return false;
+  return Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end >= start;
+}
+
 /** Group/ungroup/clear for a selection span. Outline levels have no Univer
  *  model (and no command to undo — genoffice parity), so the controller's
  *  outline commands journal directly here; contiguous runs of equal levels
@@ -663,8 +849,7 @@ export function applyOutlineAction(
   end: number,
   action: XlsxOutlineAction,
 ): XlsxRendererStructuralEdit[] {
-  if (!state || !state.file.sheets.some((sheet) => sheet.id === sheetId)) return [];
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) return [];
+  if (!state || !validOutlineSpan(state, sheetId, start, end)) return [];
   const outline = state.outline.get(sheetId) ?? { rows: new Map(), cols: new Map() };
   state.outline.set(sheetId, outline);
   const kind = axis === "rows" ? ("set-rows-outline" as const) : ("set-cols-outline" as const);
@@ -705,6 +890,210 @@ export function applyOutlineAction(
   }
   closeRun(end);
   return touched ? edits : [];
+}
+
+/** The notice (a `office.xlsx.editor.*` key) shown when Group cannot deepen the
+ *  outline any further, like Excel's refusal at its deepest level. */
+export const OUTLINE_MAX_LEVELS_NOTICE = "appOutlineMaxLevels";
+
+/** What the controller's group / ungroup / clear command needs from its host:
+ *  the journal state, the unit, how edits are emitted (true when any were), how
+ *  the undo entry is pushed and how a refusal is announced. */
+export interface OutlineCommandHost {
+  state: LazyWorkbookState | null;
+  unitId: string | undefined;
+  emit(edits: XlsxRendererStructuralEdit[]): boolean;
+  pushUndo(item: ReturnType<typeof outlineHistoryItem>): void;
+  notice(key: string): void;
+}
+
+/** Runs one group / ungroup / clear. A valid span the action leaves as it is
+ *  (ungroup at level 0, clear on flat lines) succeeds with no edit, so a batch
+ *  that holds it is not read as refused; a Group that cannot deepen any line
+ *  (all at the deepest level) IS refused, with a notice, so a Data tool such as
+ *  Subtotal rolls back instead of finishing without its outline. */
+export function runOutlineCommand(
+  host: OutlineCommandHost,
+  sheetId: string,
+  axis: "rows" | "cols",
+  start: number,
+  end: number,
+  action: XlsxOutlineAction,
+  history: boolean,
+): boolean {
+  const before = outlineLevels(host.state, sheetId, axis, start, end);
+  const ran = host.emit(applyOutlineAction(host.state, sheetId, axis, start, end, action));
+  // Undo/redo replays carry history: false and push nothing.
+  if (ran && history && host.unitId) {
+    host.pushUndo(outlineHistoryItem(host.unitId, sheetId, axis, start, end, action, before));
+  }
+  if (ran) return true;
+  if (!validOutlineSpan(host.state, sheetId, start, end)) return false;
+  if (action !== "group") return true;
+  host.notice(OUTLINE_MAX_LEVELS_NOTICE);
+  return false;
+}
+
+/** The outline group Show / Hide Detail acts on (Excel): when the line
+ *  before `line` sits deeper, `line` is the summary of the group above it and
+ *  that group is the target (summary rows below their detail, Excel's
+ *  default); otherwise a grouped line targets the run around it at or below
+ *  its own level. Null when the line is in no group. */
+export function outlineDetailSpan(
+  state: LazyWorkbookState | null,
+  sheetId: string,
+  axis: "rows" | "cols",
+  line: number,
+): { start: number; end: number } | null {
+  if (!Number.isInteger(line) || line < 0) return null;
+  const outline = state?.outline.get(sheetId);
+  const entries = axis === "rows" ? outline?.rows : outline?.cols;
+  if (!entries) return null;
+  const level = (at: number): number => entries.get(at)?.level ?? 0;
+  const own = level(line);
+  if (line > 0 && level(line - 1) > own) {
+    let start = line - 1;
+    while (start > 0 && level(start - 1) > own) start -= 1;
+    return { start, end: line - 1 };
+  }
+  if (own === 0) return null;
+  let start = line;
+  let end = line;
+  while (start > 0 && level(start - 1) >= own) start -= 1;
+  // Ends at the first shallower line; unseeded lines read level 0 < own.
+  while (level(end + 1) >= own) end += 1;
+  return { start, end };
+}
+
+/** Writes Excel's collapsed flag on a group's summary line, so a reopened file
+ *  shows "+" (Hide Detail) or "-" (Show Detail) beside it. Journalled as an
+ *  outline op at the line's own level with an explicit collapsed, so the
+ *  level survives and the flag is cleared, not just left alone. A line already
+ *  in that state, or past the grid, journals nothing. */
+export function applyOutlineCollapse(
+  state: LazyWorkbookState | null,
+  sheetId: string,
+  axis: "rows" | "cols",
+  line: number,
+  collapsed: boolean,
+): XlsxRendererStructuralEdit[] {
+  if (!state || !validOutlineSpan(state, sheetId, line, line)) return [];
+  if (line >= (axis === "rows" ? 1_048_576 : 16_384)) return [];
+  const outline = state.outline.get(sheetId) ?? { rows: new Map(), cols: new Map() };
+  state.outline.set(sheetId, outline);
+  const entries = axis === "rows" ? outline.rows : outline.cols;
+  const level = entries.get(line)?.level ?? 0;
+  if ((entries.get(line)?.collapsed ?? false) === collapsed) return [];
+  entries.set(line, { level, collapsed });
+  const structural: Extract<StructuralJournalOp, { level: number }> =
+    { kind: axis === "rows" ? "set-rows-outline" : "set-cols-outline", start: line, end: line, level, collapsed };
+  recordStructuralOp(state.editJournal, sheetId, structural, state.file.sheets.find((sheet) => sheet.id === sheetId)?.name);
+  return [{ sheetId, structural }];
+}
+
+/** The Univer undo/redo entry of a collapsed-flag change: undo and redo replay
+ *  the allowlisted collapse command with the opposite and the new value. */
+export function outlineCollapseHistoryItem(
+  unitId: string,
+  sheetId: string,
+  axis: "rows" | "cols",
+  line: number,
+  collapsed: boolean,
+): { unitID: string; undoMutations: XlsxOutlineCollapseStep[]; redoMutations: XlsxOutlineCollapseStep[] } {
+  const step = (value: boolean): XlsxOutlineCollapseStep => ({
+    id: "uniwork.command.set-outline-collapsed",
+    params: { subUnitId: sheetId, axis, start: line, end: line, collapsed: value, history: false },
+  });
+  return { unitID: unitId, undoMutations: [step(!collapsed)], redoMutations: [step(collapsed)] };
+}
+
+export interface XlsxOutlineCollapseStep {
+  id: "uniwork.command.set-outline-collapsed";
+  params: { subUnitId: string; axis: "rows" | "cols"; start: number; end: number; collapsed: boolean; history: false };
+}
+
+/** Outline levels follow their lines through a row/column insert or removal
+ *  (the journal shifts its cells the same way). Inserted lines get an explicit
+ *  level 0, as the saved file will (the gateway writes no level for a new
+ *  row/col), so a later file seed never lends them a shifted neighbour's. */
+function shiftOutlineLines(
+  state: LazyWorkbookState,
+  sheetId: string,
+  kind: "insert-rows" | "remove-rows" | "insert-cols" | "remove-cols",
+  index: number,
+  count: number,
+): void {
+  const outline = state.outline.get(sheetId);
+  if (!outline) return;
+  const entries = kind.endsWith("rows") ? outline.rows : outline.cols;
+  const insert = kind.startsWith("insert");
+  const shifted = new Map<number, { level: number; collapsed: boolean }>();
+  for (const [line, entry] of entries) {
+    if (line < index) shifted.set(line, entry);
+    else if (insert) shifted.set(line + count, entry);
+    else if (line >= index + count) shifted.set(line - count, entry);
+  }
+  if (insert) {
+    for (let line = index; line < index + count; line += 1) shifted.set(line, { level: 0, collapsed: false });
+  }
+  entries.clear();
+  for (const [line, entry] of shifted) entries.set(line, entry);
+}
+
+/** The outline level of every line of the span (0 when none), read before an
+ *  outline action so its undo can restore them. */
+export function outlineLevels(
+  state: LazyWorkbookState | null,
+  sheetId: string,
+  axis: "rows" | "cols",
+  start: number,
+  end: number,
+): number[] {
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start) return [];
+  const outline = state?.outline.get(sheetId);
+  const entries = axis === "rows" ? outline?.rows : outline?.cols;
+  return Array.from({ length: end - start + 1 }, (_, offset) => entries?.get(start + offset)?.level ?? 0);
+}
+
+/** One step of an outline undo/redo entry: the same uniwork outline command,
+ *  marked `history: false` so replaying it pushes no new undo entry. */
+export interface XlsxOutlineHistoryStep {
+  id: string;
+  params: { subUnitId: string; start: number; end: number; action: XlsxOutlineAction; history: false };
+}
+
+/** The Univer undo/redo entry for an outline action that ran over `start..end`
+ *  with `before` the levels it found. Undo replays allowed outline commands
+ *  (clear the span, then one group per level over the lines that were at least
+ *  that deep), so the restoration is journalled like any outline edit and
+ *  passes the command policy; redo replays the action itself. Pushed for the
+ *  workbook unit, it joins an open executeAsOneStep batch. */
+export function outlineHistoryItem(
+  unitId: string,
+  sheetId: string,
+  axis: "rows" | "cols",
+  start: number,
+  end: number,
+  action: XlsxOutlineAction,
+  before: readonly number[],
+): { unitID: string; undoMutations: XlsxOutlineHistoryStep[]; redoMutations: XlsxOutlineHistoryStep[] } {
+  const id = axis === "rows" ? "uniwork.command.set-rows-outline" : "uniwork.command.set-cols-outline";
+  const step = (from: number, to: number, stepAction: XlsxOutlineAction): XlsxOutlineHistoryStep =>
+    ({ id, params: { subUnitId: sheetId, start: from, end: to, action: stepAction, history: false } });
+  const undoMutations = [step(start, end, "clear")];
+  const deepest = Math.max(0, ...before);
+  for (let level = 1; level <= deepest; level += 1) {
+    let runStart = -1;
+    before.forEach((lineLevel, offset) => {
+      if (lineLevel >= level && runStart < 0) runStart = offset;
+      if (lineLevel < level && runStart >= 0) {
+        undoMutations.push(step(start + runStart, start + offset - 1, "group"));
+        runStart = -1;
+      }
+    });
+    if (runStart >= 0) undoMutations.push(step(start + runStart, start + before.length - 1, "group"));
+  }
+  return { unitID: unitId, undoMutations, redoMutations: [step(start, end, action)] };
 }
 
 // ── filter capture (B4: auto filter / advanced filter) ─────────────────────

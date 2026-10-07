@@ -3,14 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import type { PptxRendererModule } from "./canvas/renderer-module";
-import { clearPptxThumbnailCache } from "./canvas/use-pptx-thumbnails";
 import { box, run, shapeNode, slide, tableNode, textLayout } from "./canvas/pptx-render-fixtures";
 import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 
 initI18n();
 beforeEach(async () => {
   await setLocale("en");
-  clearPptxThumbnailCache();
 });
 
 function makeHost(call: ReturnType<typeof vi.fn>): OfficeHost {
@@ -293,14 +291,13 @@ describe("PptxEditor", () => {
 
   it("never shows the UI locale as the deck language (F1)", () => {
     // `document.documentElement.lang` is the app UI locale, not the deck's
-    // language. With no deck-language source wired the bar must show the
-    // unknown mark instead of echoing the UI locale.
+    // language. With no deck-language source wired the bar leaves the
+    // readout out (T12) instead of echoing the UI locale.
     const previous = document.documentElement.lang;
     document.documentElement.lang = "vi";
     renderEditor({ slides: [{ id: "s1" }] });
-    const language = screen.getByTestId("pptx-status-language");
-    expect(language).toHaveTextContent("Language: —");
-    expect(language.textContent ?? "").not.toContain("vi");
+    expect(screen.queryByTestId("pptx-status-language")).toBeNull();
+    expect(screen.getByRole("group", { name: "Presentation status" }).textContent ?? "").not.toContain("Language");
     document.documentElement.lang = previous;
   });
 

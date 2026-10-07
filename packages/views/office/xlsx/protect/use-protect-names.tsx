@@ -77,3 +77,22 @@ export function useXlsxProtectNames(options: XlsxProtectNamesOptions): XlsxProte
 
   return { openProtect: () => setOpen(true), setProtection, applyNames, dialog };
 }
+
+interface XlsxEditorProtectNamesOptions extends Omit<XlsxProtectNamesOptions, "definedNames" | "sheetNames"> {
+  rendererHost?: { readonly file: { readonly definedNames?: readonly RendererWorkbookDefinedName[] | undefined } } | undefined;
+  liveSheets: readonly { readonly name: string }[];
+  snapshot: { readonly sheets: readonly { readonly name: string }[] } | null;
+}
+
+/** The editor's B7 mount, moved here from xlsx-editor.tsx unchanged (its
+ *  line budget). F1/F5: the file's own names seed the manager; the live sheet
+ *  order bounds the scope dropdown. Both come from the open render model /
+ *  mounted grid. */
+export function useEditorProtectNames(options: XlsxEditorProtectNamesOptions): XlsxProtectNamesWiring {
+  const { rendererHost, liveSheets, snapshot, ...rest } = options;
+  return useXlsxProtectNames({
+    ...rest,
+    definedNames: rendererHost?.file.definedNames,
+    sheetNames: (liveSheets.length > 0 ? liveSheets.map((sheet) => sheet.name) : (snapshot?.sheets ?? []).map((sheet) => sheet.name)),
+  });
+}

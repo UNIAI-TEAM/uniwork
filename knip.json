@@ -14,6 +14,9 @@
         "scripts/office-g0/*.ts",
         "docs/office/g3g4/samples/web-launch-ticket.mjs"
       ],
+      "ignoreBinaries": [
+        "rustc"
+      ],
       "ignoreDependencies": [
         "@playwright/test",
         "playwright-core",
@@ -38,6 +41,7 @@
       "entry": [
         "electron-main.ts",
         "main/index.ts",
+        "main/engine-host/child.ts",
         "preload/index.ts",
         "renderer/index.tsx",
         "renderer/styles.css",

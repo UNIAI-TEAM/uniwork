@@ -28,6 +28,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CompositionEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { OfficeTooLargeNotice, openFailureClassOf } from "../too-large-notice";
 import { Clipboard, Copy, Redo2, Undo2 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
@@ -37,7 +38,10 @@ import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import { OfficeFrame } from "../frame";
 import { MarkdownStatusBar } from "./status-bar";
+import { AssetManifestPanel } from "./asset-manifest-panel";
+import { useMarkdownCaret } from "./use-caret-position";
 import type { PreviewSession } from "../source-editor-types";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
 import { buildMarkdownPreviewCopy } from "@uniwork/office-engine/markdown";
 import { MarkdownWysiwygEditor } from "./wysiwyg/editor";
@@ -47,19 +51,18 @@ import { MarkdownTableMenu } from "./wysiwyg/table-menu";
 import { MarkdownFind, type MarkdownFindHandle } from "./wysiwyg/find";
 import { MarkdownOutlinePane } from "./wysiwyg/outline";
 import { MarkdownFrontmatterPanel } from "./wysiwyg/frontmatter";
-import { MarkdownPrintMenuItems } from "./wysiwyg/print-menu";
-import type { MarkdownPrintPort } from "./wysiwyg/print";
+import { MarkdownPrintMenuItems, MarkdownPrintShortcut } from "./wysiwyg/print-menu";
+import { PrintNotice, usePrintNotice } from "./wysiwyg/print-notice";
+import { createBrowserPrintPort } from "../print";
 import type { MarkdownEditorProps, MarkdownOpenOutcome } from "./types";
+import { useOfficeDocumentActive } from "../common/document-active";
 
 /** The two canvases the surface switches between. Visual is the demo default. */
 type MarkdownViewMode = "visual" | "source";
 
 function failureFor(documentKey: string, error: unknown): Extract<MarkdownOpenOutcome, { outcome: "failed" }> {
   return {
-    outcome: "failed",
-    document_id: documentKey,
-    format: "md",
-    failure_class: "engine_error",
+    outcome: "failed", document_id: documentKey, format: "md", failure_class: openFailureClassOf(error),
     message: error instanceof Error ? error.message : String(error),
   } as Extract<MarkdownOpenOutcome, { outcome: "failed" }>;
 }
@@ -78,58 +81,9 @@ function canWrite<TSnapshot>(editor: MarkdownEditorProps<TSnapshot>["editor"]): 
   return Boolean(editor.source?.setText || editor.setText);
 }
 
-/**
- * The web host's print path for this surface (M8: the view calls the INJECTED
- * port, never `window.print()`). The sanitized copy goes into an off-screen
- * frame and only that frame prints, so app chrome never reaches the job.
- */
-const browserPrintPort: MarkdownPrintPort = {
-  print({ html, title }) {
-    if (typeof document === "undefined") return { outcome: "failed", reason: "no_dom" };
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true"); frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-    document.body.append(frame);
-    const view = frame.contentWindow;
-    if (!view?.document) { frame.remove(); return { outcome: "failed", reason: "no_print_frame" }; }
-    view.document.open(); view.document.write(html); view.document.close();
-    view.document.title = title;
-    try { view.focus(); view.print(); } catch { frame.remove(); return { outcome: "failed", reason: "print_blocked" }; }
-    window.setTimeout(() => frame.remove(), 0); return { outcome: "printed" };
-  },
-};
-
-function statusLabel(status: AssetStatus, t: (key: string) => string): string {
-  if (status === "ready") return t("asset.ready");
-  if (status === "missing") return t("asset.missing");
-  if (status === "unauthorised") return t("asset.unauthorised");
-  return t("asset.failed");
-}
-
-function AssetManifestPanel({ manifest, failures }: { manifest: AssetManifestLike; failures?: Readonly<Record<string, AssetStatus | boolean>> }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "office.markdown" });
-  const rows = assetManifestRows(manifest);
-  const extra = Object.entries(failures ?? {}).map(([path, status]) => ({
-    path,
-    assetId: null,
-    status: status === true || status === false ? "failed" as const : status,
-    reason: null,
-  }));
-  if (rows.length === 0 && extra.length === 0) {
-    return <p className="p-3 text-caption text-muted-foreground" data-testid="asset-manifest-empty">{t("asset.empty")}</p>;
-  }
-  return (
-    <ul className="divide-y divide-border" data-testid="asset-manifest">
-      {[...rows, ...extra].map((row, index) => (
-        <li className="flex min-w-0 items-center justify-between gap-2 px-3 py-2 text-caption" key={`${row.path}-${index}`}>
-          <span className="min-w-0 truncate font-mono" title={row.path}>{row.path}</span>
-          <span className={cn("shrink-0", row.status === "ready" ? "text-muted-foreground" : "text-destructive")}>
-            {row.assetId ?? statusLabel(row.status, t)}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
+/** The web host's print path (M8): the shared isolated-frame port, so app
+ * chrome never reaches the job. */
+const browserPrintPort = createBrowserPrintPort();
 
 /** The Markdown document surface: lifecycle + the visual / source canvases. */
 export function MarkdownEditor<TSnapshot = unknown>({
@@ -167,6 +121,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
   const sectionRef = useRef<HTMLElement>(null);
   const findRef = useRef<MarkdownFindHandle>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const caret = useMarkdownCaret(mode, instance, textAreaRef, viewState === "ready");
   const sourceWrapperRef = useRef<HTMLDivElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewSessionRef = useRef<PreviewSession | null>(null);
@@ -194,6 +149,8 @@ export function MarkdownEditor<TSnapshot = unknown>({
   const effectiveTitle = title ?? t("title");
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available" || !canWrite(editor);
   const saving = coordinatorState.state === "saving";
+  // Undo/Redo stay focusable on an empty stack: aria-disabled, blocked in JS.
+  const [undoBlocked, redoBlocked] = [readOnly || saving || !canStepHistory(editor, "undo"), readOnly || saving || !canStepHistory(editor, "redo")];
   // A host-reported failure (prop) or a failed paste/drop upload (recorded here)
   // keeps the document unsavable; a failed asset MUST block Save.
   const failures = useMemo(
@@ -378,8 +335,8 @@ export function MarkdownEditor<TSnapshot = unknown>({
     if (viewState === "ready" && !readOnly && !blockedAsset && !saving) void coordinator.save(entryPoint);
   }, [blockedAsset, coordinator, readOnly, saving, viewState]);
   const history = useCallback((kind: "undo" | "redo") => {
-    if (kind === "undo") editorRef.current.undo?.();
-    else editorRef.current.redo?.();
+    // An empty stack is not a change: no dirty mark, no checkpoint (UNI-954).
+    if (!stepHistory(editorRef.current, kind)) return;
     setText(sourceText(editorRef.current, latestTextRef.current));
     markDirty();
     checkpoint();
@@ -411,21 +368,22 @@ export function MarkdownEditor<TSnapshot = unknown>({
   // preview renderer, then let the sanitizer + port take over. Never the raw
   // source, never `window.print()`.
   const renderPrintHtml = useCallback(() => buildMarkdownPreviewCopy({ source: sourceText(editorRef.current, latestTextRef.current), document_path: "document.md" }), []);
+  const printNotice = usePrintNotice();
   // m3: the section owns Ctrl+S only while focus is inside it; after the find
   // panel closes with Escape, focus falls to `document.body` and the press is
   // lost. This window listener covers that gap - a press inside the landmark is
   // skipped by the containment check AND by the section's `defaultPrevented`.
+  // UNI-957: only while this document is the visible one.
+  const documentActive = useOfficeDocumentActive();
   useEffect(() => {
     const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing) return;
-      if (event.key.toLowerCase() !== "s" || event.defaultPrevented) return;
-      const target = event.target;
-      if (target instanceof Node && sectionRef.current?.contains(target)) return;
+      if (!documentActive || !(event.metaKey || event.ctrlKey) || event.altKey || event.isComposing || event.key.toLowerCase() !== "s" || event.defaultPrevented) return;
+      if (event.target instanceof Node && sectionRef.current?.contains(event.target)) return;
       save("shortcut");
     };
     window.addEventListener("keydown", onWindowKeyDown);
     return () => window.removeEventListener("keydown", onWindowKeyDown);
-  }, [save]);
+  }, [documentActive, save]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
@@ -511,8 +469,8 @@ export function MarkdownEditor<TSnapshot = unknown>({
                 {narrow ? <MarkdownViewModeToggle viewMode={mode} onViewModeChange={setMode} /> : null}
                 {mode === "source" ? (
                   <>
-                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
-                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
+                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} aria-disabled={undoBlocked || undefined} onClick={() => { if (!undoBlocked) history("undo"); }}><Undo2 aria-hidden /></Button>
+                    <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} aria-disabled={redoBlocked || undefined} onClick={() => { if (!redoBlocked) history("redo"); }}><Redo2 aria-hidden /></Button>
                     <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
                     <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
                   </>
@@ -528,12 +486,14 @@ export function MarkdownEditor<TSnapshot = unknown>({
               </aside>
             ) : undefined
           }
-          statusBar={<MarkdownStatusBar state={coordinatorState.state} mode={mode} readOnly={readOnly} joinedBand={assetRowCount > 0} />}
+          statusBar={<MarkdownStatusBar state={coordinatorState.state} mode={mode} readOnly={readOnly} joinedBand={assetRowCount > 0} text={viewState === "ready" ? text : null} caret={caret} />}
           canvasClassName="flex min-h-0 flex-col overflow-hidden"
         >
           {/* M-6/C4: print + export ride the page overflow menu, not a
               floating button over the canvas (C9). Renders nothing itself. */}
-          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
+          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />} />
+          <MarkdownPrintShortcut port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />
+          <PrintNotice notice={printNotice.notice} />
           {/*
             M7 find/replace owns the panel, Ctrl+F (find-only), Ctrl+H (with
             replace) and Escape. It is mounted for BOTH canvases: the visual
@@ -551,7 +511,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
                       the live TipTap instance and render nothing until their
                       trigger fires - a typed `/`, or a selection in a table. */}
                   <MarkdownSlash editor={instance} />
-                  <MarkdownTableMenu editor={instance} />
+                  <MarkdownTableMenu editor={documentActive ? instance : null} />
                   <MarkdownWysiwygEditor
                     documentKey={documentKey}
                     editor={editor}
@@ -602,7 +562,7 @@ export function MarkdownEditor<TSnapshot = unknown>({
             </div>
           </div>
         </OfficeFrame>
-      ) : viewState === "error" && failure ? (
+      ) : viewState === "error" && failure ? failure.failure_class === "too_large" ? <OfficeTooLargeNotice format="md" /> : (
         <Alert className="m-3" variant="destructive" role="alert" data-testid="md-error-state">
           <AlertTitle>{t("errors.title")}</AlertTitle>
           <AlertDescription>{failure.message ?? t("errors.unknown")}</AlertDescription>

@@ -45,9 +45,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { HtmlSourceEditor } from "../source";
+import { HtmlSourceEditor, type HtmlSourceSelection } from "../source";
 import type { AssetManifestLike } from "../../asset-manifest";
-import type { IsolatedPreviewPort, PreviewSession } from "../../source-editor-types";
+import type { IsolatedPreviewPort, PreviewMountOptions, PreviewSession } from "../../source-editor-types";
+import { useOfficeDocumentActiveRef } from "../../common/document-active";
+import { createVisualEditNonce } from "./nonce";
 import { createPreviewEventSink, type HtmlSelection, type PreviewEventSink } from "./selection/model";
 import { HtmlSelectionOverlay } from "./selection/bridge";
 import { HtmlFloatToolbar, type HtmlFloatToolbarCommands } from "./float-toolbar";
@@ -70,6 +72,8 @@ export interface HtmlVisualShellProps {
   /** Fired on a source edit, never mid-IME composition (H1 owns that gate). */
   onChange?(next: string): void;
   onCheckpoint?(): void;
+  /** The source caret / selection moved (status row). */
+  onSourceSelectionChange?(selection: HtmlSourceSelection): void;
   /** The ONLY preview runtime. Absent -> the pane shows "preview unavailable". */
   preview?: IsolatedPreviewPort;
   manifest?: AssetManifestLike | null;
@@ -86,6 +90,26 @@ export interface HtmlVisualShellProps {
   onPreviewSelection?(selection: HtmlSelection | null): void;
   /** The document title: the isolated preview iframe's accessible name. */
   title?: string;
+  /**
+   * The text the isolated preview renders when it differs from `text`: the
+   * sid-stamped copy the inspector and the H3 ops share. The source pane always
+   * shows `text`; this is never written back. Defaults to `text`.
+   */
+  previewText?: string;
+  /**
+   * Ask the preview port for the ADR 0027 visual-edit capability (a per-mount
+   * nonce; the port stays the only place the sandbox/CSP decisions live). The
+   * caller sets it only when the visual-edit flag is on and not presenting or
+   * read-only; absent/false mounts the plain script-free preview. A port that
+   * refuses it falls back to the plain mount.
+   */
+  visualEdit?: boolean;
+  /**
+   * The session nonce the preview is stamped with (the hook creates it, so the
+   * sid attribute name and the port's script nonce are one value). Absent, the
+   * shell makes its own per mount and nothing is stamped under it.
+   */
+  visualEditNonce?: string | null;
   /** Zoom ladder value in percent; scales the preview pane and the overlay math. */
   zoom: number;
   /**
@@ -111,6 +135,12 @@ export interface HtmlVisualShellProps {
    * toolbar is mounted by the shell itself, ahead of these children.
    */
   overlay?: ReactNode;
+  /**
+   * A panel that sits BESIDE the preview (in flow, after it) instead of over
+   * it, so opening it never covers the preview's interactive area or the
+   * float toolbar. Rendered only while a preview is on screen.
+   */
+  sidePanel?: ReactNode;
   className?: string;
 }
 
@@ -120,12 +150,16 @@ function PreviewPane({
   title,
   text,
   manifest,
+  visualEdit,
+  visualEditNonce,
   onSession,
   onEvent,
 }: {
   preview?: IsolatedPreviewPort;
   title: string;
   text: string;
+  visualEdit: boolean;
+  visualEditNonce?: string | null;
   manifest: AssetManifestLike;
   onSession?: (session: PreviewSession | null) => void;
   onEvent?: (event: { type: string }) => void;
@@ -154,14 +188,23 @@ function PreviewPane({
     setState("idle");
     void (async () => {
       try {
-        const session = await preview.mount({
+        const options: PreviewMountOptions & { visualEdit?: { nonce: string } } = {
           container,
           format: "html",
           title,
           text: latestTextRef.current,
           manifest: latestManifestRef.current,
           onEvent: (event) => onEventRef.current?.(event),
-        });
+        };
+        let session: PreviewSession;
+        try {
+          session = await preview.mount(visualEdit ? { ...options, visualEdit: { nonce: visualEditNonce ?? createVisualEditNonce() } } : options);
+        } catch (error) {
+          // A port that does not grant the inspector capability (or a platform
+          // with no nonce source) still gets the plain, script-free preview.
+          if (!visualEdit || !active) throw error;
+          session = await preview.mount(options);
+        }
         if (!active) {
           session.dispose();
           return;
@@ -187,7 +230,7 @@ function PreviewPane({
       sessionRef.current = null;
       onSessionRef.current?.(null);
     };
-  }, [preview, title]);
+  }, [preview, title, visualEdit, visualEditNonce]);
 
   useEffect(() => {
     const session = sessionRef.current;
@@ -229,16 +272,21 @@ export function HtmlVisualShell({
   readOnly = false,
   onChange,
   onCheckpoint,
+  onSourceSelectionChange,
   preview,
   manifest,
   onPreviewSession,
   onPreviewEvent,
   onPreviewSelection,
   title,
+  previewText,
+  visualEditNonce,
+  visualEdit = false,
   zoom,
   floatCommands,
   inlineEdit,
   overlay,
+  sidePanel,
   className,
 }: HtmlVisualShellProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
@@ -285,22 +333,34 @@ export function HtmlVisualShell({
   // text-edit-commit into H3 ops applied through the caller's port. Flag-gated
   // inside the hook (the same H5 flag), so a flag-off build sends nothing.
   const inlineEditController = useHtmlInlineEdit({ sink: previewEvents, selection: previewSelection, port: inlineEdit });
-  const mergedFloatCommands = useMemo<HtmlFloatToolbarCommands>(
-    () => ({ ...inlineEditController.commands, ...floatCommands }),
-    [inlineEditController.commands, floatCommands],
-  );
+  const mergedFloatCommands = useMemo<HtmlFloatToolbarCommands>(() => {
+    const merged: HtmlFloatToolbarCommands = { ...inlineEditController.commands, ...floatCommands };
+    const editText = merged.onEditText;
+    if (!editText) return merged;
+    // The toolbar click leaves focus in the host page; typing only reaches the
+    // contenteditable once the preview frame itself holds focus.
+    return {
+      ...merged,
+      onEditText: () => {
+        canvasRef.current?.querySelector<HTMLIFrameElement>("[data-html-preview-frame] iframe")?.focus();
+        editText();
+      },
+    };
+  }, [inlineEditController.commands, floatCommands]);
 
   // Escape leaves present mode. Bound only while presenting.
   const onViewModeChangeRef = useRef(onViewModeChange);
   onViewModeChangeRef.current = onViewModeChange;
+  // UNI-957: a hidden tab that is still presenting must not answer Escape.
+  const documentActiveRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     if (!presenting) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onViewModeChangeRef.current("preview");
+      if (documentActiveRef.current && event.key === "Escape") onViewModeChangeRef.current("preview");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [presenting]);
+  }, [documentActiveRef, presenting]);
 
   // Present is a dialog: move focus in on open and restore it on close (N2).
   useEffect(() => {
@@ -321,8 +381,10 @@ export function HtmlVisualShell({
         <PreviewPane
           preview={preview}
           title={previewTitle}
-          text={text}
+          text={previewText ?? text}
           manifest={safeManifest}
+          visualEdit={visualEdit}
+          visualEditNonce={visualEditNonce}
           onSession={onPreviewSession}
           onEvent={handlePreviewEvent}
         />
@@ -342,6 +404,7 @@ export function HtmlVisualShell({
         ariaLabel={t("source.label")}
         onChange={(next) => onChange?.(next)}
         onCheckpoint={onCheckpoint}
+        onSelectionChange={onSourceSelectionChange}
       />
     </div>
   ) : null;
@@ -373,6 +436,11 @@ export function HtmlVisualShell({
       >
         {sourcePane}
         {previewPane}
+        {showPreview && sidePanel ? (
+          <div className="max-h-full max-w-full shrink-0 self-end overflow-y-auto lg:self-start" data-testid="html-side-panel">
+            {sidePanel}
+          </div>
+        ) : null}
         {/*
           H5 selection bridge: inert, flag-gated, and only meaningful when a
           preview is on screen. It renders in the same `overlay` slot H6-H8

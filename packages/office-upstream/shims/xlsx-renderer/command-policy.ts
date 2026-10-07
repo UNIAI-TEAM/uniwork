@@ -1,6 +1,7 @@
 import type { IRange } from "@univerjs/core";
 import { FILTER_MUTATIONS } from "../../upstream/apps/sheets/src/renderer/app-constants";
 import type { LazyWorkbookState } from "../../upstream/apps/sheets/src/renderer/univer-state";
+import { isRuleSetCommand, isRuleSetMutation, ruleSetCommandAllowed, ruleSetMutationAllowed } from "./rule-set-policy";
 import {
   CELL_MUTATIONS,
   isSheetMutation,
@@ -87,6 +88,19 @@ const STRUCTURAL_COMMANDS = new Set([
   "sheet.command.insert-row-after",
   "sheet.command.insert-col-before",
   "sheet.command.insert-col-after",
+  // The after/right commands above ignore params and insert the selection's
+  // own span; the multi variants honour `value` like the before commands, so
+  // a whole-axis selection can still insert a bounded count below/right.
+  "sheet.command.insert-multi-rows-after",
+  "sheet.command.insert-multi-cols-right",
+  // Every insert command above delegates to these inner commands through
+  // ICommandService.executeCommand, which fires BeforeCommandExecute again;
+  // default deny would cancel the inner command and the outer one would
+  // resolve false (X04: the insert was a silent no-op).
+  "sheet.command.insert-row",
+  "sheet.command.insert-col",
+  "sheet.command.insert-row-by-range",
+  "sheet.command.insert-col-by-range",
   "sheet.command.remove-row",
   "sheet.command.remove-col",
   "sheet.command.set-row-height",
@@ -105,6 +119,15 @@ const STRUCTURAL_COMMANDS = new Set([
   // command instead.
   "uniwork.command.set-rows-outline",
   "uniwork.command.set-cols-outline",
+  // Show / Hide Detail: runs the allowlisted hidden/visible command on the
+  // outline group the controller finds, which passes this policy again.
+  "uniwork.command.set-outline-detail",
+  // The summary line's collapsed flag, written by Show / Hide Detail and
+  // replayed by its undo/redo entry.
+  "uniwork.command.set-outline-collapsed",
+  // Outline level buttons (1..n): hide/show every group by level through the
+  // allowlisted hidden/visible commands, which pass this policy again.
+  "uniwork.command.set-outline-level",
   "uniwork.command.set-cols-default-width",
 ]);
 
@@ -197,10 +220,25 @@ function structuralCommandAllowed(
 ): boolean {
   const params = event.params as {
     value?: unknown; range?: unknown; ranges?: unknown; start?: unknown; end?: unknown; action?: unknown; subUnitId?: unknown;
+    axis?: unknown; hide?: unknown; collapsed?: unknown;
   } | undefined;
   if (event.id === "uniwork.command.set-rows-outline" || event.id === "uniwork.command.set-cols-outline") {
     return (params?.action === "group" || params?.action === "ungroup" || params?.action === "clear") &&
       structuralAxisCommandOK(params, event.id.includes("rows") ? "row" : "column", state);
+  }
+  if (event.id === "uniwork.command.set-outline-detail") {
+    return (params?.axis === "rows" || params?.axis === "cols") && typeof params.hide === "boolean" &&
+      structuralAxisCommandOK(params, params.axis === "rows" ? "row" : "column", state);
+  }
+  if (event.id === "uniwork.command.set-outline-collapsed") {
+    return (params?.axis === "rows" || params?.axis === "cols") && typeof params.collapsed === "boolean" &&
+      structuralAxisCommandOK(params, params.axis === "rows" ? "row" : "column", state);
+  }
+  if (event.id === "uniwork.command.set-outline-level") {
+    const level = (event.params as { level?: unknown } | undefined)?.level;
+    return (params?.axis === "rows" || params?.axis === "cols") &&
+      typeof level === "number" && Number.isInteger(level) && level >= 1 && level <= 8 &&
+      (params.subUnitId === undefined || (typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId)));
   }
   if (event.id === "uniwork.command.set-cols-default-width") {
     return structuralAxisCommandOK(params, "column", state);
@@ -208,6 +246,21 @@ function structuralCommandAllowed(
   if (event.id === "sheet.command.insert-row-before" || event.id === "sheet.command.insert-col-before") {
     const value = params?.value;
     return value === undefined || (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 10_000);
+  }
+  if (event.id === "sheet.command.insert-multi-rows-after" || event.id === "sheet.command.insert-multi-cols-right") {
+    // The multi commands read `value` unguarded (`params.value || 0`), so the
+    // count is required here, unlike the selection-driven before commands.
+    const value = params?.value;
+    return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 10_000;
+  }
+  if (/^sheet\.command\.insert-(row|col)(-by-range)?$/.test(event.id)) {
+    // Inner insert commands: an in-grid span on the axis (the span bound is the
+    // 100_000 wire ceiling) and, when present, a live sheet of this workbook.
+    const inner = event.params as { unitId?: unknown; subUnitId?: unknown; range?: unknown } | undefined;
+    const axis = event.id.includes("-col") ? "column" : "row";
+    return structuralSpanOK(inner?.range, axis) &&
+      (inner?.unitId === undefined || inner.unitId === `file-${state.file.sha256}`) &&
+      (inner?.subUnitId === undefined || (typeof inner.subUnitId === "string" && liveSheetIds(state).has(inner.subUnitId)));
   }
   if (event.id === "sheet.command.set-row-height" || event.id === "sheet.command.set-worksheet-col-width") {
     return typeof params?.value === "number" && Number.isFinite(params.value) && params.value > 0 && params.value <= 4096;
@@ -912,6 +965,9 @@ export function canExecuteCommand(
     if (NOTE_COMMANDS.has(event.id)) return noteCommandAllowed(event, state);
     if (NOTE_MUTATIONS.has(event.id)) return noteMutationAllowed(event, state);
     if (HYPERLINK_COMMANDS.has(event.id)) return hyperlinkCommandAllowed(event, state);
+    // X01: conditional formatting + data validation (rule-set-policy.ts).
+    if (isRuleSetCommand(event.id)) return ruleSetCommandAllowed(event, state);
+    if (isRuleSetMutation(event.id)) return ruleSetMutationAllowed(event, state);
     return EDIT_COMMANDS.has(event.id);
   }
   const params = event.params as {

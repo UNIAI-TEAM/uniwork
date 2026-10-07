@@ -61,6 +61,8 @@ export interface RendererWorkbookFile {
     columnCount: number;
     hidden?: boolean;
     showFormulas?: boolean;
+    /** UNI-953: the file's grouped rows, seeded into the outline map at open. */
+    rowOutline?: Array<{ row: number; outlineLevel?: number; collapsed?: boolean }>;
   }>;
   styles: unknown[];
 }
@@ -89,6 +91,9 @@ export interface XlsxRendererOptions {
   onDirty?: () => void;
   onEdits?: (edits: XlsxRendererEdit[]) => void;
   onSelectionChange?: (selection: XlsxRendererSelection | null) => void;
+  /** UNI-940 X02: the grid moved under a visual overlay (scroll, zoom,
+   *  sheet switch or any executed command); re-read the cell boxes. */
+  onViewportChange?: () => void;
 }
 
 export interface XlsxRendererCellEdit {
@@ -242,18 +247,126 @@ export interface XlsxRendererHandle {
    *  when the mount is read-only, there is no active range, or the command
    *  policy cancels the command. */
   executeCommand(id: string, params?: unknown): Promise<boolean>;
+  /** UNI-953: several commands as ONE undo entry (a rich paste); resolves to
+   *  how many steps ran (steps.length: all, 0: nothing written), stopping at
+   *  the first refusal; `rollback` takes a partial run back (all or nothing). */
+  executeCommandsAsOneStep(steps: readonly { id: string; params?: unknown }[], options?: { rollback?: boolean }): Promise<number>;
   /** The active range's composed style, or null without an active range. */
   getActiveFormatState(): XlsxRendererFormatState | null;
   /** The live sheet list in tab order (rename/insert/remove/reorder as they
    *  happen). */
   getSheets(): readonly XlsxRendererSheetInfo[];
+  /** r3 MA-3: refuse a dropped CF/DV family of a sheet for the session and
+   *  show the rules the file holds (null: as opened). */
+  restoreRuleSet(
+    sheetId: string,
+    kind: "conditionalFormats" | "dataValidations",
+    rules: readonly { ranges: readonly { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; stopIfTrue?: boolean; rule: Record<string, unknown> }[] | null,
+  ): boolean;
+  /** UNI-953 rule manager: a sheet's live CF / DV rules with their model ids
+   *  (CF `cfId`, DV `uid`; CF in priority order), `linked` on a CF rule
+   *  installed from an Excel linked x14 rule. Null before a workbook loads or
+   *  for an unknown sheet. */
+  readRuleSets(
+    sheetId: string,
+    kind: "conditionalFormats" | "dataValidations",
+  ): { id: string; ranges: { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; stopIfTrue?: boolean; rule: Record<string, unknown>; linked?: true }[] | null;
   setDarkMode(dark: boolean): void;
+  /** Live language change (UNI-953): re-applies the numfmt locale and repaints. */
+  setLocale(lang: "en" | "vi"): void;
   undo(): void;
   redo(): void;
+  /** UNI-953: undo/redo entries on the workbook's stack (Undo/Redo empty state). */
+  getHistory(): { undos: number; redos: number } | null;
+  subscribeHistory(listener: (state: { undos: number; redos: number }) => void): () => void;
   getDirtyGeneration(): number;
   getFontMappings(): readonly XlsxRendererFontMapping[];
   getJournal(): XlsxRendererJournal;
+  /** UNI-940 X02 geometry seam: a cell's box in container pixels on the
+   *  active sheet (null for any other sheet), and the cell under a point. */
+  getCellBox(sheetId: string, row: number, column: number): XlsxRendererCellBox | null;
+  cellAtPoint(sheetId: string, x: number, y: number): XlsxRendererCellHit | null;
+  /** Live values of a range on the active sheet (null for another sheet). */
+  readRangeValues(
+    sheetId: string,
+    range: { startRow: number; endRow: number; startColumn: number; endColumn: number },
+  ): XlsxRendererRangeValues | null;
+  /** UNI-952: composed styles (session edits and conditional-format results
+   *  included), sizes, visibility and merges of a range on the active sheet,
+   *  for print (null for another sheet). */
+  readPrintRange(
+    sheetId: string,
+    range: { startRow: number; endRow: number; startColumn: number; endColumn: number },
+  ): XlsxRendererPrintRange | null;
   dispose(): void;
+}
+
+/** One composed cell style in the renderer-neutral wire shape. Colours are
+ *  hex; null clears (no fill / automatic font colour). */
+export interface XlsxRendererCellStyle {
+  readonly bold?: boolean;
+  readonly italic?: boolean;
+  readonly underline?: boolean;
+  readonly strikethrough?: boolean;
+  readonly fontFamily?: string;
+  readonly fontSize?: number;
+  readonly fontColor?: string | null;
+  readonly fillColor?: string | null;
+  readonly horizontalAlignment?: "left" | "center" | "right" | "justify" | "distributed";
+  readonly verticalAlignment?: "top" | "center" | "bottom";
+  readonly wrapText?: boolean;
+  /** OOXML: 0-90 up, 91-180 down (value-90), 255 stacked. */
+  readonly textRotation?: number;
+  readonly indent?: number;
+  readonly numberFormat?: string;
+  readonly borderTop?: { readonly style: string; readonly color?: string } | null;
+  readonly borderBottom?: { readonly style: string; readonly color?: string } | null;
+  readonly borderLeft?: { readonly style: string; readonly color?: string } | null;
+  readonly borderRight?: { readonly style: string; readonly color?: string } | null;
+}
+
+/** What the grid shows for a range, for print. Sizes are unzoomed sheet
+ *  pixels; hidden includes filtered-out rows. */
+export interface XlsxRendererPrintRange {
+  readonly styles: readonly (readonly (XlsxRendererCellStyle | null)[])[];
+  readonly rows: readonly { readonly height: number; readonly hidden: boolean }[];
+  readonly columns: readonly { readonly width: number; readonly hidden: boolean }[];
+  readonly merges: readonly { readonly startRow: number; readonly endRow: number; readonly startColumn: number; readonly endColumn: number }[];
+  /** UNI-952 D3: data bars and icons the canvas paints (CF view model). */
+  readonly marks: readonly XlsxRendererCellMark[];
+}
+
+/** What a data bar or icon-set rule paints over one cell: the painter's
+ *  percentages and its own icon data: URL. */
+export interface XlsxRendererCellMark {
+  readonly row: number;
+  readonly column: number;
+  readonly dataBar?: { readonly color: string; readonly value: number; readonly startPoint: number; readonly isGradient: boolean };
+  readonly icon?: string;
+  readonly hideValue?: boolean;
+}
+
+/** A cell's box in container pixels (zoom and scroll applied) plus the zoom. */
+export interface XlsxRendererCellBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly zoom: number;
+}
+
+/** Live values of a range (session edits included): raw and displayed. */
+export interface XlsxRendererRangeValues {
+  readonly values: readonly (readonly (string | number | boolean | null)[])[];
+  readonly display: readonly (readonly string[])[];
+}
+
+/** The cell under a container point; offsets are UNZOOMED sheet pixels. */
+export interface XlsxRendererCellHit {
+  readonly row: number;
+  readonly column: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
 }
 
 export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHandle;

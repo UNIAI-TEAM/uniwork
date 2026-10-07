@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { DeploymentProfile } from "../../shared/deployment";
 import { desktopDocumentFormatForMime, desktopDocumentFormatForName, desktopDocumentMimeTypes, desktopMimeTypeForFormat, desktopUntitledName, desktopExtensionsForFormat, type DesktopDocumentFormat } from "../../shared/document-formats";
 import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopLibraryCreateResponse, DesktopOfficeOpenResponse, DesktopOfficeContextResponse, DesktopOfficeSaveResponse, DesktopOfficeJobResponse } from "../../shared/ipc";
+import { sanitizeDesktopPublicFlags } from "../../shared/ipc";
 import type { CredentialStore } from "../auth/credentials";
 import type { DesktopOfficeTransport } from "../ipc";
 import { assertOrigin } from "./auth-transport";
@@ -45,9 +46,23 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
           continue;
         } catch { throw new Error("login_required"); }
       }
-      throw new Error(response.status === 401 ? "login_required" : response.status === 403 ? "forbidden" : "office_request_failed");
+      if (response.status === 401) throw new Error("login_required");
+      throw new Error(await refusalCode(response));
     }
     throw new Error("office_request_failed");
+  }
+  /** A 404 / 403 is permanent only when it is the UniWork API's own answer: the JSON error envelope
+   * `{ error: { code } }` that the server's service-error mapping writes (`not_found` / `forbidden`).
+   * A bare gateway or proxy answer (no body, or a foreign one) stays transient, so a rollout hiccup never
+   * ends a flag-gated reopen. */
+  async function refusalCode(response: Response): Promise<"forbidden" | "office_document_gone" | "office_request_failed"> {
+    if (response.status !== 403 && response.status !== 404) return "office_request_failed";
+    const body: unknown = await response.json().catch(() => undefined);
+    const error = body && typeof body === "object" ? (body as { error?: unknown }).error : undefined;
+    const code = error && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
+    if (response.status === 404 && code === "not_found") return "office_document_gone";
+    if (response.status === 403 && code === "forbidden") return "forbidden";
+    return "office_request_failed";
   }
   async function json(path: string, init?: RequestInit): Promise<unknown> { return (await authRequest(path, init)).json(); }
   /** The download response carries the authoritative format: its Content-Type
@@ -75,7 +90,7 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
     void input.workspaceId;
     const path = `/documents/${encodeURIComponent(input.documentId)}/download${input.version === undefined ? "" : `?version=${input.version}`}`;
     const result = await bytes(path);
-    return { documentId: input.documentId, version: input.version ?? 0, filename: result.filename, mimeType: result.mimeType, dataBase64: Buffer.from(result.data).toString("base64"), checksum: `sha256:${createHash("sha256").update(result.data).digest("hex")}` };
+    return { documentId: input.documentId, version: input.version ?? 0, filename: result.filename, mimeType: result.mimeType, data: result.data, checksum: `sha256:${createHash("sha256").update(result.data).digest("hex")}` };
   }
   return Object.freeze({
     async readDocumentAccess(input: { workspaceId: string; documentId: string }): Promise<"edit" | "none"> {
@@ -105,6 +120,11 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
         return entries(rows).map((workspace) => ({ ...workspace, organizationId: organization.id }));
       }));
       return { deployments: [{ id: options.profile.deploymentId, name: new URL(options.profile.apiOrigin).host }], accounts: [{ id: session.accountId, name: typeof person.display_name === "string" && person.display_name ? person.display_name : "UniWork", ...(typeof person.email === "string" ? { email: person.email } : {}) }], organizations, workspaces: workspaceResults.flat() };
+    },
+    async publicConfig(organizationId?: string) {
+      // Organization-scoped overrides only evaluate when the server is asked for that organization.
+      const raw = await json(organizationId ? `/config?organization_id=${encodeURIComponent(organizationId)}` : "/config");
+      return { flags: sanitizeDesktopPublicFlags(raw && typeof raw === "object" ? (raw as Record<string, unknown>).flags : undefined) };
     },
     async list(input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }): Promise<DesktopLibraryResponse> {
       const endpoint = input.mode === "recent" ? "recent" : "";
@@ -144,7 +164,7 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       const document = toLibraryDocument(body, input.workspaceId);
       if (!document) throw new Error("document_invalid");
       const downloaded = await download({ workspaceId: input.workspaceId, documentId: document.id, version: document.version });
-      return { document, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
+      return { document, data: downloaded.data, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
     },
     download,
     // The server edit-job path for a carried non-docx format (xlsx today).
@@ -171,15 +191,20 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
         job = next && typeof next === "object" ? next as Record<string, unknown> : {};
       }
       const state = typeof job.state === "string" ? job.state : "failed";
-      if (state !== "completed") return { jobId, documentId: input.documentId, state: state as DesktopOfficeJobResponse["state"] };
+      if (state !== "completed") {
+        // Only the rule-set refusal (op positions, no document text) crosses to the renderer.
+        const reason = job.error && typeof job.error === "object" ? (job.error as { reason?: unknown }).reason : undefined;
+        const errorReason = typeof reason === "string" && reason.startsWith("xlsx_rule_sets_dropped:") ? reason.slice(0, 600) : undefined;
+        return { jobId, documentId: input.documentId, state: state as DesktopOfficeJobResponse["state"], ...(errorReason === undefined ? {} : { errorReason }) };
+      }
       const output = await authRequest(`${base}/${encodeURIComponent(jobId)}/output`, { headers: { Accept: "*/*" } });
       const data = new Uint8Array(await output.arrayBuffer());
-      return { jobId, documentId: input.documentId, state: "completed", outputBase64: Buffer.from(data).toString("base64"), outputChecksum: `sha256:${createHash("sha256").update(data).digest("hex")}` };
+      return { jobId, documentId: input.documentId, state: "completed", output: data, outputChecksum: `sha256:${createHash("sha256").update(data).digest("hex")}` };
     },
     async open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse> {
       const [downloaded, document] = await Promise.all([download(input), readDocumentDetail(input)]);
       if (!document) throw new Error("document_invalid");
-      return { document, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
+      return { document, data: downloaded.data, filename: downloaded.filename, mimeType: downloaded.mimeType, checksum: downloaded.checksum };
     },
     /** Metadata-only open: register the context for a format whose editor opens
      *  through the server job and never reads the raw bytes (no byte haul). */
@@ -188,13 +213,13 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       if (!document) throw new Error("document_invalid");
       return { document };
     },
-    async save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse> {
+    async save(input: { workspaceId: string; documentId: string; format: DesktopDocumentFormat; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; data: Uint8Array; checksum: string }): Promise<DesktopOfficeSaveResponse> {
       void input.workspaceId;
       void input.baseVersionId;
-      const bytes = Buffer.from(input.dataBase64, "base64");
+      const bytes = input.data;
       const extension = desktopExtensionsForFormat(input.format)[0];
       const form = new FormData();
-      form.set("file", new Blob([bytes], { type: desktopMimeTypeForFormat(input.format) }), extension ? `document.${extension}` : "document");
+      form.set("file", new Blob([bytes as BlobPart], { type: desktopMimeTypeForFormat(input.format) }), extension ? `document.${extension}` : "document");
       const uploadRaw = await (await authRequest(`/documents/${encodeURIComponent(input.documentId)}/uploads`, { method: "POST", body: form, headers: { "Idempotency-Key": input.idempotencyKey } })).json();
       const upload = uploadRaw && typeof uploadRaw === "object" && "upload" in uploadRaw ? (uploadRaw as { upload: Record<string, unknown> }).upload : uploadRaw as Record<string, unknown>;
       if (!upload || typeof upload.upload_id !== "string") throw new Error("upload_invalid");

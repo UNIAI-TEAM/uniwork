@@ -8,11 +8,13 @@ import { createDocxCommandRuntime, type DocxCommandRuntime } from "../../command
 import { emptyHeaderFooterState } from "../../header-footer/header-footer-state";
 import { DocxToolbarShell } from "../toolbar";
 import type { DocxToolbarGroupContext } from "../types";
+import { createDocxDocumentScope } from "../../editor-store";
 import { InsertHeaderFooterGroup, headerFooterGroupAvailable } from "./insert-header-footer";
 
 function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarGroupContext {
   const runtime = createDocxCommandRuntime(() => null);
   return {
+    docScope: createDocxDocumentScope(),
     editor: {
       format: "docx",
       open: vi.fn(async () => undefined),

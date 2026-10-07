@@ -2,9 +2,10 @@
 
 import { Fragment, type ReactNode } from "react";
 import type { Editor } from "@tiptap/core";
+import { Maximize, MoveHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
-import { OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
+import { OfficeStatusActions, OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
 import { docxEditorCounts } from "./status-counts";
 
 /**
@@ -45,6 +46,9 @@ export interface DocxStatusBarProps {
    *  own step functions; absent keeps the readout text-only. */
   onZoomIn?: () => void;
   onZoomOut?: () => void;
+  /** View buttons (Word's page width / whole page); each shows only when the wiring supplies it. */
+  onFitWidth?: () => void;
+  onFitPage?: () => void;
   /** The shortcuts-help trigger; always the last item of the row (F9). */
   help?: ReactNode;
   className?: string;
@@ -92,7 +96,7 @@ function Readout({ testId, text, className }: { testId: string; text: string; cl
  * hands over the editor; every missing field renders the unknown mark, so the
  * bar is safe to mount before those surfaces exist.
  */
-export function DocxStatusBar({ editor, counts, page, language, zoom, selection, onZoomIn, onZoomOut, help, className }: DocxStatusBarProps) {
+export function DocxStatusBar({ editor, counts, page, language, zoom, selection, onZoomIn, onZoomOut, onFitWidth, onFitPage, help, className }: DocxStatusBarProps) {
   const { t } = useTranslation();
   const unknown = t("office.docx.status.unknown");
   const resolvedCounts = counts ?? (editor ? docxEditorCounts(editor) : null);
@@ -124,7 +128,8 @@ export function DocxStatusBar({ editor, counts, page, language, zoom, selection,
       text: t("office.docx.status.charactersNoSpaces", { value: countText(resolvedCounts?.charactersWithoutSpaces, unknown) }),
       hide: "max-lg:hidden",
     },
-    { testId: "docx-status-language", text: t("office.docx.status.language", { language: languageLabel ?? unknown }), hide: "max-sm:hidden" },
+    // T12: no placeholder slot - a document that declares no language shows no language readout.
+    ...(languageLabel === null ? [] : [{ testId: "docx-status-language", text: t("office.docx.status.language", { language: languageLabel }), hide: "max-sm:hidden" }]),
   ];
 
   return (
@@ -159,6 +164,13 @@ export function DocxStatusBar({ editor, counts, page, language, zoom, selection,
                 />
               </>
             ) : null}
+            <OfficeStatusActions
+              label={t("office.status.viewLabel")}
+              actions={[
+                ...(onFitWidth ? [{ id: "fit-width", label: t("office.status.fitWidth"), icon: <MoveHorizontal aria-hidden />, onClick: onFitWidth }] : []),
+                ...(onFitPage ? [{ id: "fit-page", label: t("office.status.fitPage"), icon: <Maximize aria-hidden />, onClick: onFitPage }] : []),
+              ]}
+            />
             <div data-testid="docx-status-zoom-control">
               <span data-testid="docx-status-zoom" className="contents">
                 <OfficeStatusZoom

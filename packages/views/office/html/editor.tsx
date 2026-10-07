@@ -21,27 +21,34 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { OfficeTooLargeNotice, openFailureClassOf } from "../too-large-notice";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetManifestRows, hasFailedAsset, type AssetManifestLike, type AssetStatus } from "../asset-manifest";
 import type { TextEditorHandle, TextViewState } from "../source-editor-types";
+import { canStepHistory, stepHistory } from "../common/history-step";
 import { OfficeFrame } from "../frame";
 import { HeaderActionsFill } from "../../layout/header-actions-slot";
-import { MarkdownPrintMenuItems } from "../markdown/wysiwyg/print-menu";
+import { MarkdownPrintMenuItems, MarkdownPrintShortcut } from "../markdown/wysiwyg/print-menu";
+import { PrintNotice, usePrintNotice } from "../markdown/wysiwyg/print-notice";
+import { createBrowserPrintPort } from "../print";
 import { HtmlFind, type HtmlFindHandle } from "./find";
 import { HtmlRibbon } from "./ribbon";
 import { HtmlStatusBar } from "./status-bar";
 import { HtmlVisualShell } from "./visual/shell";
+import { useHtmlVisualEdit } from "./visual/use-visual-edit";
+import type { HtmlSourceSelection } from "./source";
 import { HTML_ZOOM_DEFAULT, nextViewMode, type HtmlViewMode } from "./visual/shell-model";
 import type { HtmlEditorProps, HtmlOpenOutcome } from "./types";
+import { useOfficeDocumentActiveRef } from "../common/document-active";
 
 function failureFor(documentKey: string, error: unknown): Extract<HtmlOpenOutcome, { outcome: "failed" }> {
   return {
     outcome: "failed",
     document_id: documentKey,
     format: "html",
-    failure_class: "engine_error",
+    failure_class: openFailureClassOf(error),
     message: error instanceof Error ? error.message : String(error),
   } as Extract<HtmlOpenOutcome, { outcome: "failed" }>;
 }
@@ -95,6 +102,9 @@ function AssetManifestPanel({ rows }: { rows: ReturnType<typeof assetPanelRows> 
   );
 }
 
+/** The web host's print path when the host injects none (same as Markdown). */
+const browserPrintPort = createBrowserPrintPort();
+
 /** The HTML document surface: lifecycle + the view shell. */
 export function HtmlEditor<TSnapshot = unknown>({
   documentKey,
@@ -109,6 +119,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   title,
   className,
   printPort,
+  visualEdit,
   onOpen,
 }: HtmlEditorProps<TSnapshot>) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
@@ -119,6 +130,7 @@ export function HtmlEditor<TSnapshot = unknown>({
   const [coordinatorState, setCoordinatorState] = useState(() => coordinator.getState());
   const [viewMode, setViewMode] = useState<HtmlViewMode>("split");
   const [zoom, setZoom] = useState(HTML_ZOOM_DEFAULT);
+  const [sourceSelection, setSourceSelection] = useState<HtmlSourceSelection | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const disposedRef = useRef(false);
   // The editor landmark owns the mode shortcut. A mode change can unmount the
@@ -245,12 +257,21 @@ export function HtmlEditor<TSnapshot = unknown>({
     if (viewState === "ready" && !readOnly && !blockedAsset && !saving) void coordinator.save(entryPoint);
   }, [blockedAsset, coordinator, readOnly, saving, viewState]);
   const history = useCallback((kind: "undo" | "redo") => {
-    if (kind === "undo") editorRef.current.undo?.();
-    else editorRef.current.redo?.();
+    // An empty stack is not a change: no dirty mark, no checkpoint (UNI-954).
+    if (!stepHistory(editorRef.current, kind)) return;
     setText(sourceText(editorRef.current, ""));
     markDirty();
     checkpoint();
   }, [checkpoint, markDirty]);
+  // The visual editor (H5-H8) is behind the office_html_visual_edit flag AND an
+  // injected host; an applied op re-reads the source the way an undo does.
+  const readEngineText = useCallback(() => sourceText(editorRef.current, ""), []);
+  const onVisualApplied = useCallback(() => {
+    setText(readEngineText());
+    markDirty();
+    checkpoint();
+  }, [checkpoint, markDirty, readEngineText]);
+  const visual = useHtmlVisualEdit({ host: visualEdit, text, readOnly, presenting: viewMode === "present", readText: readEngineText, onApplied: onVisualApplied });
   const cycleView = useCallback(() => {
     // A mode change can unmount the pane that held focus, and the preview
     // iframe or a click on the canvas can leave focus outside the landmark
@@ -264,8 +285,9 @@ export function HtmlEditor<TSnapshot = unknown>({
   const openFind = useCallback(() => findRef.current?.open(false), []);
   // UNI-928 print parity: the source IS HTML, so the "render" step is the
   // source itself - `sanitizePrintCopy` (scripts: false) then builds the
-  // script-free preview copy. Only reached when the host injected a port.
-  const renderPrintHtml = useCallback(() => sourceText(editorRef.current, ""), []);
+  // script-free preview copy handed to the port.
+  const renderPrintHtml = readEngineText;
+  const printNotice = usePrintNotice();
   // After the mode settles, return focus to the landmark when the pane that
   // held it is gone, so one press moves one mode from every mode (C11).
   useEffect(() => {
@@ -308,8 +330,11 @@ export function HtmlEditor<TSnapshot = unknown>({
   // click) the keydown never reaches the section and the press is lost, so the
   // cycle appears to need two presses. This window listener covers exactly that
   // gap; a press inside the landmark still runs the section handler alone.
+  // UNI-957: only the visible document's window listener may cycle its view.
+  const documentActiveRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!documentActiveRef.current) return;
       if (!(event.metaKey || event.ctrlKey) || event.code !== "Backslash") return;
       const target = event.target;
       if (target instanceof Node && rootRef.current?.contains(target)) return;
@@ -318,7 +343,7 @@ export function HtmlEditor<TSnapshot = unknown>({
     };
     window.addEventListener("keydown", onWindowKeyDown);
     return () => window.removeEventListener("keydown", onWindowKeyDown);
-  }, [cycleView]);
+  }, [cycleView, documentActiveRef]);
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     const mod = event.metaKey || event.ctrlKey;
     if (mod && event.code === "Backslash") {
@@ -391,7 +416,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             */
             <HtmlRibbon
               commands={ribbonCommands}
-              state={{ readOnly }}
+              state={{ readOnly, canUndo: canStepHistory(editor, "undo"), canRedo: canStepHistory(editor, "redo") }}
               onFind={openFind}
               viewMode={ribbonViewMode}
               onViewModeChange={onRibbonViewModeChange}
@@ -420,7 +445,7 @@ export function HtmlEditor<TSnapshot = unknown>({
             presenting ? undefined : (
               <HtmlStatusBar
                 text={text}
-                selection={null}
+                selection={viewMode === "preview" ? null : sourceSelection}
                 zoom={zoom}
                 onZoomChange={setZoom}
                 zoomDisabled={viewMode === "source"}
@@ -447,12 +472,11 @@ export function HtmlEditor<TSnapshot = unknown>({
           }
           canvasClassName="flex min-h-0 flex-col overflow-hidden"
         >
-          {/* UNI-928: print rides the page overflow menu (C4), like Markdown.
-              With NO injected port the surface renders no entry at all, so the
-              web host and its tests are unchanged. */}
-          {printPort ? (
-            <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort} renderHtml={renderPrintHtml} title={effectiveTitle} />} />
-          ) : null}
+          {/* UNI-928: print rides the page overflow menu (C4), like Markdown;
+              with no injected port the shared browser port prints. */}
+          <HeaderActionsFill menuItems={<MarkdownPrintMenuItems port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />} />
+          <MarkdownPrintShortcut port={printPort ?? browserPrintPort} renderHtml={renderPrintHtml} title={effectiveTitle} onStart={printNotice.onStart} onOutcome={printNotice.onOutcome} />
+          <PrintNotice notice={printNotice.notice} />
           <HtmlVisualShell
             documentKey={documentKey}
             text={text}
@@ -461,14 +485,16 @@ export function HtmlEditor<TSnapshot = unknown>({
             readOnly={readOnly}
             onChange={onTextChange}
             onCheckpoint={checkpoint}
+            onSourceSelectionChange={setSourceSelection}
             preview={preview}
             manifest={manifest}
             title={effectiveTitle}
             zoom={zoom}
             className="min-h-0 flex-1"
+            {...visual}
           />
         </OfficeFrame>
-      ) : viewState === "error" && failure ? (
+      ) : viewState === "error" && failure ? failure.failure_class === "too_large" ? <OfficeTooLargeNotice format="html" /> : (
         <Alert className="m-3" variant="destructive" role="alert" data-testid="html-error-state">
           <AlertTitle>{t("errors.title")}</AlertTitle>
           <AlertDescription>{failure.message ?? t("errors.unknown")}</AlertDescription>

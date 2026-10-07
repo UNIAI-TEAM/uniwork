@@ -11,6 +11,8 @@ import type { XlsxNotesOp } from "./ops-notes.ts";
 import type { XlsxTableAddOp, XlsxTableRemoveOp } from "./tables.ts";
 import type { XlsxSheetProtectionOp } from "./ops-protection.ts";
 import type { XlsxDefinedNamesOp } from "./ops-names.ts";
+import type { XlsxRuleSetOp } from "./ops-cf-dv.ts";
+import type { XlsxFileVisualMoveOp, XlsxFileVisualRemoveOp, XlsxVisualMoveOp, XlsxVisualRemoveOp, XlsxVisualSetOp } from "./ops-visuals.ts";
 export class XlsxOpError extends Error {
   readonly opName: string;
   readonly field: string;
@@ -300,7 +302,9 @@ export function groupXlsxFilterStates(ops: readonly XlsxEditOp[]): XlsxSheetFilt
  *  (add/duplicate default to the end). */
 export type XlsxSheetOp =
   | { readonly kind: "add_sheet"; readonly name: string; readonly index?: number | undefined }
-  | { readonly kind: "duplicate_sheet"; readonly sheetName: string; readonly name: string; readonly index?: number | undefined }
+  // `sources`: the duplicate's wire position, stamped like a rule-set op, so
+  // the copy's inherited rule sets name the copy, not its source (r4 R4-2).
+  | { readonly kind: "duplicate_sheet"; readonly sheetName: string; readonly name: string; readonly index?: number | undefined; readonly sources?: readonly number[] }
   | { readonly kind: "rename_sheet"; readonly sheetName: string; readonly newName: string }
   | { readonly kind: "remove_sheet"; readonly sheetName: string }
   | { readonly kind: "reorder_sheet"; readonly sheetName: string; readonly index: number }
@@ -329,6 +333,12 @@ export type XlsxEditOp =
   | XlsxNotesOp
   | XlsxSheetProtectionOp
   | XlsxDefinedNamesOp
+  | XlsxRuleSetOp
+  | XlsxVisualSetOp
+  | XlsxVisualMoveOp
+  | XlsxVisualRemoveOp
+  | XlsxFileVisualMoveOp
+  | XlsxFileVisualRemoveOp
   | XlsxSheetOp;
 
 /** The gateway argument slot an op kind feeds. `cellEdits` is

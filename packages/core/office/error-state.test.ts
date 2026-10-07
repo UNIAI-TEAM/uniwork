@@ -88,4 +88,28 @@ describe("office error dispatch", () => {
     expect(dispatchOfficeError({ code: "malformed_serialized_output" })).toMatchObject({ state: "error", action: "retry", ambiguous: false });
     expect(dispatchOfficeError({ code: "stale_generation" })).toMatchObject({ state: "error", action: "keep_draft" });
   });
+
+  it("keeps a dropped-rule-set save refusal non-terminal and not automatically retried", () => {
+    expect(dispatchOfficeError({ code: "xlsx_rule_sets_dropped", errorClass: "engine" })).toMatchObject({ state: "error", action: "retry", retryable: false, ambiguous: false });
+  });
+
+  it.each([
+    ["file_locked", "retry", true],
+    ["file_write_failed", "retry", true],
+    ["file_replace_failed", "retry", true],
+    ["file_save_in_progress", "retry", true],
+    ["file_checkpoint_failed", "retry", true],
+    ["file_insufficient_memory", "keep_draft", false],
+    ["file_changed_on_disk", "keep_draft", false],
+    ["file_not_found", "keep_draft", false],
+    ["file_session_revoked", "keep_draft", false],
+    ["file_access_denied", "stop", false],
+    ["file_invalid_path", "stop", false],
+    ["file_handle_invalid", "stop", false],
+    ["file_engine_unavailable", "stop", false],
+    ["file_failed", "stop", false],
+    ["file_read_failed", "stop", false],
+  ] as const)("keeps %s on the error state with %s so the banner shows its reason", (code, action, retryable) => {
+    expect(dispatchOfficeError({ code })).toMatchObject({ state: "error", action, retryable, ambiguous: false });
+  });
 });

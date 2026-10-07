@@ -13,6 +13,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOfficeDocumentActiveRef } from "../common/document-active";
 import type { PptxCanvasContent } from "./canvas/pptx-canvas-surface";
 import { PptxPresenterView } from "./show";
 import { applyShowNavAction, isShowActivationKey, isShowInteractiveTarget, resolveShowNavAction } from "./show/show-nav";
@@ -55,6 +56,7 @@ export function PptxPresenter({
   const { t } = useTranslation(undefined, { keyPrefix: "office.pptx" });
   const closeRef = useRef<HTMLButtonElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const activeRef = useOfficeDocumentActiveRef();
   // WIRE-CANVAS-BIND F1: the presenter is the only mounted show surface, so the
   // full nav contract (not Escape alone) lives here. Focus goes to the surface
   // itself - never the "Close presenter" button - so Space/Enter advance the
@@ -63,6 +65,8 @@ export function PptxPresenter({
     if (!open) return;
     surfaceRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
+      // UNI-957: a presenter behind a hidden desktop tab ignores the visible deck's keys.
+      if (!activeRef.current) return;
       if (isShowActivationKey(event.key) && isShowInteractiveTarget(event.target)) return;
       const action = resolveShowNavAction(event.key);
       if (!action) return;
@@ -76,7 +80,7 @@ export function PptxPresenter({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, onIndexChange, open, selectedIndex, slideCount]);
+  }, [activeRef, onClose, onIndexChange, open, selectedIndex, slideCount]);
   if (!open) return null;
   return (
     <div ref={surfaceRef} tabIndex={-1} className={cn("fixed inset-0 z-50 outline-none", className)} data-pptx-presenter>

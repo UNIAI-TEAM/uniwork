@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidTableName, nextTableName, tableNameTaken } from "./table-names";
+import { nextTableName, tableNameTaken } from "./table-names";
 import type { XlsxToolbarTable } from "./types";
 
 const range = { startRow: 0, endRow: 2, startColumn: 0, endColumn: 1 };
@@ -21,16 +21,6 @@ describe("table names", () => {
 
   it("does not count unrelated names towards the sequence", () => {
     expect(nextTableName([table("A", "Sales"), table("A", "Budget")])).toBe("Table1");
-  });
-
-  it("validates the OOXML name grammar the gateway enforces", () => {
-    expect(isValidTableName("Sales_2026")).toBe(true);
-    expect(isValidTableName("_x.y")).toBe(true);
-    expect(isValidTableName("")).toBe(false);
-    expect(isValidTableName("1Sales")).toBe(false);
-    expect(isValidTableName("has space")).toBe(false);
-    expect(isValidTableName("A1")).toBe(false);
-    expect(isValidTableName("x".repeat(256))).toBe(false);
   });
 
   it("detects a taken name case-insensitively", () => {

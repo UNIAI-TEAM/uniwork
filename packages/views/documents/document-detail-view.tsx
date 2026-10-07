@@ -1,11 +1,10 @@
 "use client";
 
-import { FileWarning, FolderX, RotateCw, ShieldAlert, XCircle } from "lucide-react";
+import { FolderX, RotateCw, ShieldAlert, XCircle } from "lucide-react";
 import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
-import { useFlag } from "@uniwork/core/feature-flags";
 import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -13,6 +12,7 @@ import { CollectionPageState } from "../layout/collection-page";
 import { DocumentActionsMenu } from "./document-actions-menu";
 import { DocumentCommentsPanel } from "./document-comments-panel";
 import { DocumentCommentsProvider } from "./document-comments-context";
+import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { DocumentWorkspace } from "./document-workspace";
 
 export interface DocumentDetailViewProps {
@@ -53,7 +53,8 @@ export function DocumentDetailView({
   officeEditorHost,
 }: DocumentDetailViewProps) {
   const { t } = useTranslation();
-  const enabled = useFlag("documents", false);
+  const { gate, retry: retryGate } = useDocumentsGate();
+  const enabled = gate === "on";
   const query = useDocument(wsId, documentId, { enabled });
   const error = query.error;
   // error_class first, then the stable code, then the status: a 403 that
@@ -66,16 +67,8 @@ export function DocumentDetailView({
     </Button>
   );
 
-  if (!enabled) {
-    return (
-      <CollectionPageState
-        className="mx-auto w-full max-w-3xl"
-        icon={FileWarning}
-        title={t("documents.page.off_title")}
-        description={t("documents.page.off_description")}
-        role="status"
-      />
-    );
+  if (gate !== "on") {
+    return <DocumentsGateState gate={gate} retry={retryGate} className="mx-auto w-full max-w-3xl" />;
   }
 
   if (query.isPending) {

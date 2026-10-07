@@ -1,1 +1,1 @@
-export { HtmlSourceEditor, type HtmlSourceEditorProps } from "./editor";
+export { HtmlSourceEditor, type HtmlSourceEditorProps, type HtmlSourceSelection } from "./editor";

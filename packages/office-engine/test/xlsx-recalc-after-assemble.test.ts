@@ -10,11 +10,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bindXlsxGateway, createXlsxAdapter, readXlsxRenderModel, type XlsxRecalcEdit, type XlsxRecalcPort, type XlsxRecalcRead } from "../src/xlsx";
+import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 import { a1ToRowColumn } from "../src/xlsx/ops-shared";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
-const ARTIFACT = join(REPO, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets");
 const KITCHEN_SINK = "xlsx-kitchen-sink.xlsx";
 const COMPAT_EDIT = "xlsx-compatibility-edit.xlsx";
@@ -103,7 +103,7 @@ const cellXml = (xml: string, address: string): string =>
 const cachedValue = (xml: string, address: string): string | undefined =>
   /<v>([^<]*)<\/v>/.exec(cellXml(xml, address))?.[1];
 
-describe.skipIf(!existsSync(ARTIFACT))("xlsx recalc over the produced bytes (R3-1)", () => {
+describeWithPatchedGateway("xlsx recalc over the produced bytes (R3-1)", () => {
   it("refreshes every formula cache after a sort, new formula, add + rename sheet save", async () => {
     const engine = await load();
     const recalc = answeringRecalc(engine);

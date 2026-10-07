@@ -12,11 +12,11 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { applyXlsxEditBytes, bindXlsxGateway, createXlsxAdapter, type XlsxRecalcPort, type XlsxWorkbookSnapshot } from "../src/xlsx";
+import { applyXlsxEditBytes, bindXlsxGateway, createXlsxAdapter, readXlsxRenderModel, type XlsxRecalcPort, type XlsxWorkbookSnapshot } from "../src/xlsx";
+import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
-const ARTIFACT = join(REPO, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets");
 const KITCHEN_SINK = "xlsx-kitchen-sink.xlsx";
 const COMPAT_EDIT = "xlsx-compatibility-edit.xlsx";
@@ -74,7 +74,7 @@ const rowXml = (xml: string, rowNumber: number): string =>
 const colXml = (xml: string, column: number): string =>
   new RegExp(`<col min="${column}" max="${column}"[^>]*/>`).exec(xml)?.[0] ?? "";
 
-describe.skipIf(!existsSync(ARTIFACT))("xlsx structural ops on the real gateway", () => {
+describeWithPatchedGateway("xlsx structural ops on the real gateway", () => {
   it("insert_rows shifts values, rewrites formulas and moves ranged features", async () => {
     const engine = await load();
     const recalc = recordingRecalc();
@@ -199,5 +199,150 @@ describe.skipIf(!existsSync(ARTIFACT))("xlsx structural ops on the real gateway"
     await expect(
       applyXlsxEditBytes(engine, undefined, fixture(COMPAT_EDIT), ops, "test-build"),
     ).rejects.toMatchObject({ code: "engine_result_invalid" });
+  });
+});
+
+describeWithPatchedGateway("xlsx row outline levels across inserted rows", () => {
+  it("an outline set before and after insert_rows survives save and reopen at the final rows", async () => {
+    const engine = await load();
+    // The Subtotal shape: a group, a row inserted inside it, then levels on
+    // rows below the inserted one (journal order = final coordinates).
+    const saved = await savedWith(engine, COMPAT_EDIT, [
+      { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 1, end: 3, level: 1 } },
+      { op: "insert_rows", target: { sheet: "Data" }, attributes: { index: 2, count: 1 } },
+      { op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start: 5, end: 6, level: 2 } },
+    ]);
+    const reopened = await readXlsxRenderModel(engine, saved.bytes);
+    const data = reopened.sheets.find((sheet) => sheet.name === "Data");
+    if (!data) throw new Error("Data sheet missing");
+    const level = (row: number) => data.rowsMeta.find((meta) => meta.row === row)?.outlineLevel ?? 0;
+    // Rows 1-3 were grouped; the inserted row 2 has no level, the old rows 2-3
+    // moved to 3-4 with theirs; rows 5-6 carry the level set after the insert.
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map(level)).toEqual([0, 1, 0, 1, 1, 2, 2, 0]);
+    expect(await sheetXml(engine, saved.bytes)).toContain('outlineLevelRow="2"');
+  });
+});
+
+describeWithPatchedGateway("xlsx file row groups through a session outline action", () => {
+  async function savedFrom(engine: Gateway, bytes: Uint8Array, ops: readonly Record<string, unknown>[]) {
+    const adapter = createXlsxAdapter({ engine });
+    const opened = await adapter.open({ bytes, format: "xlsx", document_id: "outline-roundtrip" });
+    if (opened.outcome !== "opened") throw new Error("reopen_failed");
+    adapter.edit(opened.document_model_ref, ops);
+    const saved = await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    adapter.release(opened.document_model_ref);
+    return saved.bytes;
+  }
+  const levels = async (engine: Gateway, bytes: Uint8Array) => {
+    const data = (await readXlsxRenderModel(engine, bytes)).sheets.find((sheet) => sheet.name === "Data");
+    if (!data) throw new Error("Data sheet missing");
+    return Array.from({ length: 10 }, (_, row) => data.rowsMeta.find((meta) => meta.row === row)?.outlineLevel ?? 0);
+  };
+  const outline = (start: number, end: number, level: number) =>
+    ({ op: "set_rows_outline", target: { sheet: "Data" }, attributes: { start, end, level } });
+
+  it("Nhóm over a file's row group, then its undo, keeps the file's groups through save and reopen (review-design F2)", async () => {
+    const engine = await load();
+    // The file: rows 2-4 and row 8 grouped at level 1.
+    const file = (await savedWith(engine, COMPAT_EDIT, [outline(2, 4, 1), outline(8, 8, 1)])).bytes;
+    expect(await levels(engine, file)).toEqual([0, 0, 1, 1, 1, 0, 0, 0, 1, 0]);
+    // Group rows 1-5 as the renderer journals it once the file levels are
+    // seeded (edits.ts applyOutlineAction): one op per run, raised from the
+    // file's level. Row 8, outside the span, is never written.
+    const grouped = await savedFrom(engine, file, [outline(1, 1, 1), outline(2, 4, 2), outline(5, 5, 1)]);
+    expect(await levels(engine, grouped)).toEqual([0, 1, 2, 2, 2, 1, 0, 0, 1, 0]);
+    // Ctrl+Z replays outlineHistoryItem(before = the file's levels): clear the
+    // span, then group rows 2-4 back to level 1.
+    const undone = await savedFrom(engine, grouped, [outline(1, 5, 0), outline(2, 4, 1)]);
+    expect(await levels(engine, undone)).toEqual([0, 0, 1, 1, 1, 0, 0, 0, 1, 0]);
+  });
+});
+
+describeWithPatchedGateway("xlsx Hide / Show Detail writes Excel's collapsed flag on the summary line", () => {
+  const rowsOf = async (engine: Gateway, bytes: Uint8Array) => {
+    const data = (await readXlsxRenderModel(engine, bytes)).sheets.find((sheet) => sheet.name === "Data");
+    if (!data) throw new Error("Data sheet missing");
+    return data;
+  };
+  const colSpanXml = (xml: string, min: number, max: number): string =>
+    new RegExp(`<col min="${min}" max="${max}"[^>]*/>`).exec(xml)?.[0] ?? "";
+  const rowOp = (op: string, attributes: Record<string, unknown>) => ({ op, target: { sheet: "Data" }, attributes });
+  const reopenWith = async (engine: Gateway, bytes: Uint8Array, ops: readonly Record<string, unknown>[]) => {
+    const adapter = createXlsxAdapter({ engine });
+    const opened = await adapter.open({ bytes, format: "xlsx", document_id: "collapsed-roundtrip" });
+    if (opened.outcome !== "opened") throw new Error("reopen_failed");
+    adapter.edit(opened.document_model_ref, ops);
+    const saved = await adapter.serialize({ document_model_ref: opened.document_model_ref, format: "xlsx" });
+    adapter.release(opened.document_model_ref);
+    return saved.bytes;
+  };
+
+  it("Hide Detail on a row group saves collapsed=1 on the row after it, keeping its level; Show Detail clears it", async () => {
+    const engine = await load();
+    // The group (rows 2-4, level 1) and the hide, then the renderer's collapse op
+    // on the summary row 5 (edits.ts applyOutlineCollapse: its own level, explicit flag).
+    const hidden = (await savedWith(engine, COMPAT_EDIT, [
+      rowOp("set_rows_outline", { start: 1, end: 3, level: 1 }),
+      rowOp("set_rows_hidden", { start: 1, end: 3, hidden: true }),
+      rowOp("set_rows_outline", { start: 4, end: 4, level: 0, collapsed: true }),
+    ])).bytes;
+    const xml = await sheetXml(engine, hidden);
+    expect(rowXml(xml, 5)).toContain('collapsed="1"');
+    expect(rowXml(xml, 2)).toContain('hidden="1"');
+    expect(rowXml(xml, 2)).toContain('outlineLevel="1"');
+    expect(rowXml(xml, 2)).not.toContain("collapsed");
+    expect(rowXml(xml, 5)).not.toContain("hidden");
+    // Reopened: the host sees the flag on the summary row and the file's levels on the group.
+    const reopened = await rowsOf(engine, hidden);
+    const meta = (row: number) => reopened.rowsMeta.find((entry) => entry.row === row);
+    expect(meta(4)?.collapsed).toBe(true);
+    expect([1, 2, 3].map((row) => [meta(row)?.outlineLevel, meta(row)?.hidden])).toEqual([[1, true], [1, true], [1, true]]);
+    // Show Detail from the reopened file: visible again, and the explicit false removes the attribute.
+    const shown = await reopenWith(engine, hidden, [
+      rowOp("set_rows_hidden", { start: 1, end: 3, hidden: false }),
+      rowOp("set_rows_outline", { start: 4, end: 4, level: 0, collapsed: false }),
+    ]);
+    const shownXml = await sheetXml(engine, shown);
+    expect(rowXml(shownXml, 5)).not.toContain("collapsed");
+    expect(rowXml(shownXml, 2)).not.toContain("hidden");
+    expect(rowXml(shownXml, 2)).toContain('outlineLevel="1"');
+  });
+
+  it("a summary row that is itself grouped keeps its level when the flag is written", async () => {
+    const engine = await load();
+    const saved = (await savedWith(engine, COMPAT_EDIT, [
+      rowOp("set_rows_outline", { start: 1, end: 3, level: 2 }),
+      rowOp("set_rows_outline", { start: 4, end: 4, level: 1, collapsed: true }),
+    ])).bytes;
+    const xml = await sheetXml(engine, saved);
+    expect(rowXml(xml, 5)).toContain('outlineLevel="1"');
+    expect(rowXml(xml, 5)).toContain('collapsed="1"');
+  });
+
+  it("Hide Detail on a column group saves collapsed=1 on the column after it; Show Detail clears it", async () => {
+    const engine = await load();
+    const hidden = (await savedWith(engine, COMPAT_EDIT, [
+      rowOp("set_cols_outline", { start: 1, end: 2, level: 1 }),
+      rowOp("set_cols_hidden", { start: 1, end: 2, hidden: true }),
+      rowOp("set_cols_outline", { start: 3, end: 3, level: 0, collapsed: true }),
+    ])).bytes;
+    const xml = await sheetXml(engine, hidden);
+    // One <col> spans the group (columns B-C), the summary column D carries only the flag.
+    expect(colXml(xml, 4)).toContain('collapsed="1"');
+    expect(colSpanXml(xml, 2, 3)).toContain('hidden="1"');
+    expect(colSpanXml(xml, 2, 3)).toContain('outlineLevel="1"');
+    expect(colSpanXml(xml, 2, 3)).not.toContain("collapsed");
+    const reopened = await rowsOf(engine, hidden);
+    const column = (index: number) => reopened.columnWidths.find((span) => span.startColumn <= index && index <= span.endColumn);
+    expect(column(3)?.collapsed).toBe(true);
+    expect(column(1)?.outlineLevel).toBe(1);
+    const shown = await reopenWith(engine, hidden, [
+      rowOp("set_cols_hidden", { start: 1, end: 2, hidden: false }),
+      rowOp("set_cols_outline", { start: 3, end: 3, level: 0, collapsed: false }),
+    ]);
+    const shownXml = await sheetXml(engine, shown);
+    expect(shownXml).not.toContain('collapsed="1"');
+    expect(colSpanXml(shownXml, 2, 3)).not.toContain("hidden");
+    expect(colSpanXml(shownXml, 2, 3)).toContain('outlineLevel="1"');
   });
 });

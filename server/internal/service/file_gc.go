@@ -612,7 +612,7 @@ func (s *FileService) judgeCleanup(ctx context.Context, q *db.Queries, cands []g
 			continue
 		}
 		id := files.FileID(c.file.ID)
-		if namedByLegacyLocator(c.file.ObjectKey, legacy) {
+		if s.heldByLegacyLocator(c.file.ObjectKey, legacy) {
 			out[i] = s.quarantine(c, "legacy_locator_shared", now)
 			continue
 		}
@@ -627,6 +627,18 @@ func (s *FileService) judgeCleanup(ctx context.Context, q *db.Queries, cands []g
 		}
 	}
 	return out, nil
+}
+
+// heldByLegacyLocator reports whether a legacy locator names the key, with
+// or without this environment's root: a legacy reader that prepends
+// S3_KEY_PREFIX itself reaches the same object from the shorter form. The
+// shorter form still ends in the file id, so it names no other object.
+func (s *FileService) heldByLegacyLocator(key string, legacy []string) bool {
+	if namedByLegacyLocator(key, legacy) {
+		return true
+	}
+	rel := strings.TrimPrefix(key, s.keyRoot)
+	return rel != key && namedByLegacyLocator(rel, legacy)
 }
 
 // namedByLegacyLocator reports whether a legacy locator is the key itself or
@@ -732,17 +744,22 @@ func (s *FileService) retryBackoff(job db.FileJob, now time.Time) time.Time {
 
 // managedLocator is the allowlist (plan T5): only an object FileService
 // minted for this very row may be deleted - the configured storage and
-// bucket, a v1 key under the row's tenant (and the session's purpose prefix
-// when the session is known) that ends in the row's own id. Legacy, G0,
-// shared or unknown objects never match and are held.
+// bucket, a v1 key under this environment's key root and the row's tenant
+// (and the session's purpose prefix when the session is known) that ends in
+// the row's own id. Legacy, G0, shared, another environment's or unknown
+// objects never match and are held.
 func (s *FileService) managedLocator(file db.File, sess db.FileUploadSession, sessOK bool) (bool, string) {
 	if storage.Backend(file.Storage) != s.backend || file.Bucket.String != s.bucket {
 		return false, "foreign_storage"
 	}
 	key := file.ObjectKey
-	base := "v1/users/"
+	// Only this environment's root: another environment sharing the bucket
+	// keeps its objects under its own root, and a key at the bucket root is
+	// not ours either once a root is set.
+	v1 := s.keyRoot + storage.FileServiceKeyPrefix
+	base := v1 + "users/"
 	if file.OrganizationID.Valid {
-		base = "v1/orgs/" + file.OrganizationID.String + "/"
+		base = v1 + "orgs/" + file.OrganizationID.String + "/"
 	}
 	if !strings.HasPrefix(key, base) || !strings.Contains(key, "/"+file.ID+"/original") {
 		return false, "unmanaged_locator"
@@ -762,12 +779,12 @@ func (s *FileService) managedLocator(file db.File, sess db.FileUploadSession, se
 		return false, "unmanaged_locator"
 	}
 	scope := sessionScope(sess)
-	prefix := "v1/users/" + scope.UserID + "/"
+	prefix := v1 + "users/" + scope.UserID + "/"
 	switch {
 	case scope.OrganizationID != "" && scope.WorkspaceID != "":
-		prefix = "v1/orgs/" + scope.OrganizationID + "/workspaces/" + scope.WorkspaceID + "/"
+		prefix = v1 + "orgs/" + scope.OrganizationID + "/workspaces/" + scope.WorkspaceID + "/"
 	case scope.OrganizationID != "":
-		prefix = "v1/orgs/" + scope.OrganizationID + "/"
+		prefix = v1 + "orgs/" + scope.OrganizationID + "/"
 	}
 	prefix += spec.Prefix + "/"
 	if !strings.HasPrefix(key, prefix) || !strings.HasSuffix(key, "/"+file.ID+"/original"+spec.Policy.ObjectKeySuffix) {

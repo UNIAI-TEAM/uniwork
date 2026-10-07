@@ -8,10 +8,12 @@ import type { TextDocumentEngine } from "@uniwork/office-engine/assets";
 import { sha256Hex } from "@uniwork/office-contracts";
 import { useSession } from "@uniwork/core/auth";
 import { getOfficeCapabilities, type OfficeCapabilities } from "@uniwork/core/api/endpoints/office";
-import type { OfficeCapabilityEntry, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
+import { isOfficeTooLarge, type OfficeCapabilityEntry, type OfficeIdentity, type StableSnapshot } from "@uniwork/core/office";
 import { HtmlEditor, MarkdownEditor, type HtmlEditorProps, type IsolatedPreviewPort, type MarkdownEditorProps, type TextEditorHandle, type TextOpenFailure, type TextOpenOutcome } from "@uniwork/views/office";
 import { createOfficeEditorSession, type BrowserOfficeDraftOptions, type OfficeEditorSession } from "./editor-host-core";
 import { OfficeEditorHost, type OfficeEditorHostProps, type OfficeFormatAdapter } from "./editor-host";
+import { buildHtmlParseMap } from "./html-parse-map";
+import { createHtmlVisualEditHost } from "./html-visual-host";
 import { createTextDocumentsTransport, createTextSaveTransport, TEXT_ENGINE_NAME, type TextDocumentSnapshot, type TextDocumentsTransport, type TextFormat } from "./text-save-transport";
 import { renderMarkdownPreview } from "./markdown-preview-copy";
 import { createHttpPreviewAssetProxy, createOfficePreviewPort } from "./preview-port";
@@ -70,13 +72,13 @@ function encodeSource(text: string, bom: boolean): Uint8Array {
  *   * no unclosed-fence tolerance (a fence that never closes hides the rest)
  *   * no overlap-ambiguity detection: `validatePatchSet` checks only staleness,
  *     dropping the fake's own bounds/overlap checks
- *   * `buildParseMap` always returns an empty map
  *
  * Impact is ≈zero today: `scanReferences` only feeds `snapshot.references`
  * (unused by this adapter) and the manifest panel, which web never populates.
  * A browser build of the vendored modules MUST land BEFORE M5 (asset carry)
- * or H3+ (`applyPatchSet` / parse map / data-sid) rely on this binding, or an
- * under/over-scan and an always-empty parse map will silently corrupt.
+ * relies on this binding, or an under/over-scan will silently corrupt. (The
+ * HTML parse map is no longer part of that gap: it is the parse5 port in
+ * `html-parse-map.ts`, which the visual editor needs for H3 ops.)
  *
  * Until then, the web host binds a deliberately narrow, browser-safe upstream
  * over the same contract:
@@ -84,8 +86,9 @@ function encodeSource(text: string, bom: boolean): Uint8Array {
  *   * Markdown - `![alt](dest)` and inline `<img src>` outside code fences and
  *     inline code. This is the same scan the engine's own unit fake models.
  *   * HTML - `<img src>` only, matching upstream's `extractDocumentImageSources`
- *     (apps/html/src/main/asset-lifecycle.ts:851). The parse map is empty: the
- *     web surface edits raw source, so no edit path compiles to source patches.
+ *     (apps/html/src/main/asset-lifecycle.ts:851). The parse map is the real
+ *     parse5 one (`buildHtmlParseMap`): the visual editor (flag
+ *     `office_html_visual_edit`) compiles its edits to source patches over it.
  *
  * A limited scan can only under-carry assets; it can never rewrite the text a
  * save writes, because every save serialises the raw source.
@@ -136,7 +139,7 @@ function htmlImageSources(html: string): string[] {
 
 function bindHtml(): HtmlUpstream {
   return {
-    buildParseMap: (text: string, version: number, previous?: UpstreamParseMap | null): UpstreamParseMap => previous ?? { version, elements: [], bySid: new Map(), errorCount: 0 },
+    buildParseMap: (text: string, version: number, previous?: UpstreamParseMap | null): UpstreamParseMap => buildHtmlParseMap(text, version, previous ?? null),
     validatePatchSet: (set: UpstreamPatchSet, currentVersion: number): UpstreamPatchError | null => (set.baseVersion === currentVersion ? null : { kind: "stale", baseVersion: set.baseVersion, currentVersion }),
     applyPatches: (text: string, patches: readonly UpstreamPatch[]) => [...patches].sort((left, right) => left.from - right.from || left.to - right.to).reverse().reduce((out, patch) => out.slice(0, patch.from) + patch.text + out.slice(patch.to), text),
     isDocEmpty: (text) => !/<(?:img|svg|video|audio|canvas|iframe|picture|object|embed)\b/i.test(text) && text.replace(/<(title|script|style)[^>]*>[\s\S]*?<\/\1>/gi, "").replace(/<[^>]*>/g, "").trim() === "",
@@ -168,8 +171,8 @@ export interface TextFormatAdapter {
 }
 
 function openFailure(documentId: string, format: TextFormat, error: unknown): TextOpenFailure {
-  const cause = error as { failureClass?: string; message?: string };
-  return { outcome: "failed", document_id: documentId, format, failure_class: (cause.failureClass as TextOpenFailure["failure_class"]) ?? "engine_error", message: cause.message ?? "text_open_failed" };
+  const cause = error as { failureClass?: string; code?: string; kind?: string; message?: string };
+  return { outcome: "failed", document_id: documentId, format, failure_class: (cause.failureClass as TextOpenFailure["failure_class"]) ?? (isOfficeTooLarge(cause) ? "too_large" : "engine_error"), message: cause.message ?? "text_open_failed" };
 }
 
 /** The engine-backed handle: `source` is the ONE text source the views read. */
@@ -248,6 +251,8 @@ function createTextHandle(options: { engine: TextEngine; format: TextFormat; doc
       if (ref) options.engine.replaceText(ref, text);
       emit();
     },
+    canUndo: () => past.length > 0,
+    canRedo: () => future.length > 0,
     async dispose() {
       if (disposed) return;
       disposed = true;
@@ -367,7 +372,13 @@ export function createTextFormatAdapter(options: TextFormatAdapterOptions): Text
   };
   const editorView = options.format === "md"
     ? createElement(MarkdownEditor<TextDocumentSnapshot>, { ...viewProps, capability: { ...capability, format: "md" }, open: open as MarkdownEditorProps<TextDocumentSnapshot>["open"] })
-    : createElement(HtmlEditor<TextDocumentSnapshot>, { ...viewProps, capability: { ...capability, format: "html" }, open: open as HtmlEditorProps<TextDocumentSnapshot>["open"] });
+    : createElement(HtmlEditor<TextDocumentSnapshot>, {
+      ...viewProps,
+      capability: { ...capability, format: "html" },
+      open: open as HtmlEditorProps<TextDocumentSnapshot>["open"],
+      // The visual editor host (ADR 0027): inert unless the office_html_visual_edit flag is on.
+      visualEdit: "parseMap" in engine ? createHtmlVisualEditHost({ engine, ref: () => { const outcome = editor.openOutcome(); return outcome?.outcome === "opened" ? outcome.document_model_ref : null; }, setText: (next: string) => editor.setText?.(next), upstream: bindHtml() }) : undefined,
+    });
   return {
     session, editor, capability, open, editorView,
     async onRecoverSnapshot(snapshot) {

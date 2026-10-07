@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useOfficeRibbonCollapsed } from "@uniwork/core/office/ribbon-preferences";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOfficeDocumentActiveRef } from "../common/document-active";
 import { planRibbonStages, ribbonStepCount, textMeasure } from "./layout";
 import { RibbonGroupButton, RibbonGroupView } from "./ribbon-group";
 import { RibbonTabRow } from "./ribbon-tab-row";
@@ -96,15 +97,18 @@ export function OfficeRibbon({
   );
 
   // Ctrl+F1 toggles the ribbon, like Office on Windows; key repeat does not.
+  // A document kept mounted in a hidden desktop tab leaves the key alone (UNI-957).
+  const activeRef = useOfficeDocumentActiveRef();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (!activeRef.current) return;
       if (event.key !== "F1" || !event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
       event.preventDefault();
       toggleCollapsed();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleCollapsed]);
+  }, [toggleCollapsed, activeRef]);
 
   // A peeked body closes on a press outside the ribbon (its own popups count
   // as inside), on Escape and when the window loses focus.

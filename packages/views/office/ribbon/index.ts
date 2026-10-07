@@ -1,4 +1,5 @@
 export { OfficeRibbon, type OfficeRibbonProps } from "./office-ribbon";
+export { useRibbonPanelClose } from "./panel-close";
 export { RIBBON_TOGGLE_SHORTCUT } from "./ribbon-tab-row";
 export type {
   RibbonAccent,

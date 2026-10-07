@@ -58,7 +58,7 @@ async function localHarness() {
     bind(metadata);
     const session = createByteDocumentSession(bridge,
       { ...docxIdentity, documentId: metadata.handle, baseVersionId: metadata.checksum, baseRevision: String(Math.trunc(metadata.modifiedAtMs)) },
-      { format: "docx", localHandle: metadata.handle, checksum: metadata.checksum, dataBase64: Buffer.from(await registry.read(metadata.handle)).toString("base64") });
+      { format: "docx", localHandle: metadata.handle, checksum: metadata.checksum, data: Uint8Array.from(Buffer.from(await registry.read(metadata.handle))) });
     await session.openEditor();
     return { session, store, registry, active: () => active! };
   }

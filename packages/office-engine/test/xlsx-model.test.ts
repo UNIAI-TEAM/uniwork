@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { bindXlsxGateway, createXlsxAdapter, createXlsxSessionModel, parseXlsxOps, readXlsxRenderModel, type XlsxWorkbookSnapshot } from "../src/xlsx";
+import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 import { createFakeRecalc, createFakeXlsxEngine, makeFakeXlsxBytes } from "./fake-xlsx-engine";
 
 const snapshot = (): XlsxWorkbookSnapshot => ({ revision: 0, sheets: [{ id: "sheet-1", name: "Data", cells: { A1: { value: 2 }, B1: { value: 4, formula: "=A1*2" } } }] });
@@ -260,10 +261,9 @@ describe("XLSX table journal drain (FIX-B9-1)", () => {
 });
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const artifact = join(repo, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
-describe.skipIf(!existsSync(artifact))("XLSX real gateway cell folding", () => {
+describeWithPatchedGateway("XLSX real gateway cell folding", () => {
   it.each(["value_then_style", "style_then_value"])("persists value and OOXML style through fresh reopen: %s", async (order) => {
-    const module = await import(pathToFileURL(artifact).href);
+    const module = await import(pathToFileURL(ARTIFACT).href);
     const engine = bindXlsxGateway(module as never);
     const adapter = createXlsxAdapter({ engine });
     const opened = await adapter.open({ bytes: new Uint8Array(readFileSync(join(repo, "docs", "office", "g0", "fixtures", "files", "sheets", "xlsx-compatibility-edit.xlsx"))), format: "xlsx", document_id: "real-folding" });
@@ -288,7 +288,7 @@ describe.skipIf(!existsSync(artifact))("XLSX real gateway cell folding", () => {
     // Demo step 1: edit a cell value, apply number format (currency), save, reopen.
     // The existing case above covers a plain "0.00" code; this pins the catalog's
     // real currency pattern (a quoted VND sign) through the OOXML numFmt round trip.
-    const module = await import(pathToFileURL(artifact).href);
+    const module = await import(pathToFileURL(ARTIFACT).href);
     const engine = bindXlsxGateway(module as never);
     const adapter = createXlsxAdapter({ engine });
     const opened = await adapter.open({ bytes: new Uint8Array(readFileSync(join(repo, "docs", "office", "g0", "fixtures", "files", "sheets", "xlsx-compatibility-edit.xlsx"))), format: "xlsx", document_id: "real-currency" });

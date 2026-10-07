@@ -10,9 +10,9 @@ vi.mock("@uniwork/core/feature-flags", () => ({
   useFlag: vi.fn((key: string, fallback: boolean) => (key === "office_engine" ? true : fallback)),
 }));
 
-initI18n();
+const { t } = initI18n();
 
-function docxDocument(): Document {
+function docxDocument(over: Record<string, unknown> = {}): Document {
   const parsed = DocumentSchema.parse({
     id: "d1",
     workspace_id: "ws1",
@@ -32,6 +32,7 @@ function docxDocument(): Document {
     },
     created_at: "2026-09-28T03:00:00Z",
     updated_at: "2026-09-28T03:00:00Z",
+    ...over,
   });
   return {
     ...parsed,
@@ -76,5 +77,36 @@ describe("DocumentWorkspace header slot", () => {
     expect(labels.indexOf("office-save")).toBeGreaterThanOrEqual(0);
     expect(labels.indexOf("office-save")).toBeLessThan(labels.indexOf("page-menu"));
     expect(labels.at(-1)).toBe("page-menu");
+  });
+
+  it("keeps the editor out of the workspace when the organization turns the format off", async () => {
+    requestMock.mockImplementation((path: string) => Promise.resolve(path === "/api/v1/config?organization_id=org1" ? { flags: { office_engine: true, office_docx: false } } : {}));
+    render(wrapWithNav(
+      <DocumentWorkspace
+        wsId="ws1"
+        doc={docxDocument({ organization_id: "org1" })}
+        libraryHref="/acme/doi/documents"
+        refetch={vi.fn(() => Promise.resolve({}))}
+        officeEditorHost={FakeOfficeHost}
+      />,
+    ));
+    // The card names the cause only once the organization's answer has settled.
+    expect(await screen.findByText(t("documents.file.office_off_title", { format: "DOCX" }))).toBeInTheDocument();
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/config?organization_id=org1", expect.anything());
+    expect(screen.queryByTestId("office-host")).toBeNull();
+  });
+
+  it("mounts the editor in the workspace when the organization's answer has the format on (control)", async () => {
+    requestMock.mockImplementation((path: string) => Promise.resolve(path === "/api/v1/config?organization_id=org1" ? { flags: { office_engine: true, office_docx: true } } : {}));
+    render(wrapWithNav(
+      <DocumentWorkspace
+        wsId="ws1"
+        doc={docxDocument({ organization_id: "org1" })}
+        libraryHref="/acme/doi/documents"
+        refetch={vi.fn(() => Promise.resolve({}))}
+        officeEditorHost={FakeOfficeHost}
+      />,
+    ));
+    expect(await screen.findByTestId("office-host")).toBeInTheDocument();
   });
 });

@@ -20,7 +20,15 @@ export interface XlsxRenderConditionalRule {
   iconSetName?: string;
   iconReverse: boolean;
   showValue: boolean;
+  /** The rule is the classic half of an Excel linked x14 rule (its extLst
+   *  names an x14:id). Gateway patch 0011 keeps such a rule verbatim by its
+   *  areas and family, so an in-place edit of it cannot be saved (review
+   *  dvcf B2): the CF manager offers no Edit for it. */
+  linked?: true;
 }
+
+/** An extLst element naming the x14 rule a classic cfRule is linked to. */
+const LINKED_ID = /<(?:\w+:)?id\b[^>]*>[^<]+</;
 
 export function parseConditionalRules(
   xml: string,
@@ -64,6 +72,7 @@ export function parseConditionalRules(
         ...(icon && attribute(icon.tag, "iconSet") ? { iconSetName: attribute(icon.tag, "iconSet")! } : {}),
         iconReverse: icon ? flag(icon.tag, "reverse") : false,
         showValue: !/^(0|false)$/.test(attribute(icon?.tag ?? bar?.tag ?? "", "showValue") ?? ""),
+        ...(elements(rule.body, "extLst").some((ext) => LINKED_ID.test(ext.body)) ? { linked: true as const } : {}),
       });
     }
   }

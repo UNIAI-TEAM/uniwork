@@ -45,9 +45,18 @@ it("captures N while the next edit remains N+1 with live undo/redo", async () =>
     expect(snapshot.generation).toBe(1);
     expect(editor.getDirtyGeneration()).toBe(2);
     expect((await parseDocx(snapshot.value)).blocks[0]).toMatchObject({ type: "heading", level: 2 });
+    expect(editor.canUndo?.()).toBe(true);
+    expect(editor.canRedo?.()).toBe(false);
     editor.undo?.();
     // Adjacent toolbar transactions share the normal TipTap undo group.
     expect(editor.commands?.getState().headingLevel).toBe(1);
+    // Back at the opened document: the history reports it has nothing to undo
+    // and an extra undo leaves the generation alone (UNI-954).
+    expect(editor.canUndo?.()).toBe(false);
+    expect(editor.canRedo?.()).toBe(true);
+    const generation = editor.getDirtyGeneration();
+    editor.undo?.();
+    expect(editor.getDirtyGeneration()).toBe(generation);
     editor.redo?.();
     expect(editor.commands?.getState().headingLevel).toBe(3);
   } finally { await editor.dispose(); }
@@ -68,4 +77,15 @@ it("refuses a snapshot when disposal happens during asynchronous capture", async
   const assertion = expect(pending).rejects.toThrow("docx_editor_disposed");
   await editor.dispose();
   await assertion;
+});
+
+it("does not refuse a document above the 64 MiB server input bound", async () => {
+  // Zeros are not a package, so a host that got past the size gate reports a
+  // corrupt/not-office file; the server bound would report too_large.
+  const editor = createDesktopDocxSurface({ documentId: "doc", readBytes: async () => new Uint8Array(65 * 1024 * 1024) });
+  try {
+    const outcome = await editor.open().then(() => "opened", (error: unknown) => error);
+    expect(JSON.stringify(outcome, Object.getOwnPropertyNames(outcome as object))).not.toContain("too_large");
+    expect(outcome).not.toBe("opened");
+  } finally { await editor.dispose(); }
 });

@@ -3,7 +3,7 @@ import { CfbError, readCompoundStreams } from "./cfb.ts";
 import { writeDocxPackage } from "./docx-write.ts";
 import { OdfError, readOdfTextPackage } from "./odt.ts";
 import { writeXlsxPackage } from "./xlsx-write.ts";
-import { ZipError } from "./zip.ts";
+import { ZipError, type ZipBoundMode } from "./zip.ts";
 
 // Q7 conversion engine (G2-07b / UNI-690): legacy/ODF -> OOXML, node-only.
 // The converters are deliberately small and honest: they carry the content
@@ -83,9 +83,9 @@ export function convertLegacySpreadsheet(bytes: Uint8Array): ConversionResult {
 }
 
 /** .odt (ODF text) -> .docx. The source bytes are never modified. */
-export function convertOdfText(bytes: Uint8Array): ConversionResult {
+export function convertOdfText(bytes: Uint8Array, zipBounds?: ZipBoundMode): ConversionResult {
   try {
-    const paragraphs = readOdfTextPackage(bytes);
+    const paragraphs = readOdfTextPackage(bytes, zipBounds);
     const result: ConversionResult = {
       sourceFormat: "odt",
       targetFormat: "docx",

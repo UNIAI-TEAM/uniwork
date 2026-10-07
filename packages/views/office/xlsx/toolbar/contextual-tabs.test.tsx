@@ -85,4 +85,15 @@ describe("Table Layout tab", () => {
     (items(layout).find((item) => item.id === "table-layout-merge") as RibbonButtonItem).onExecute();
     expect(execute).toHaveBeenCalledWith("sheet.command.add-worksheet-merge-all", { selections: [{ startRow: 1, endRow: 1, startColumn: 1, endColumn: 1 }] });
   });
+
+  it("inserts below/right through the multi-after commands with a count", () => {
+    const execute = vi.fn(() => true);
+    const layout = xlsxContextualTabs(props({ commands: { execute } })).find((tab) => tab.id === "table-layout")!;
+    const menuItem = (menuId: string, entryId: string) =>
+      (items(layout).find((item) => item.id === menuId) as unknown as { menu: { id: string; onSelect: () => void }[] }).menu.find((entry) => entry.id === entryId)!;
+    menuItem("table-layout-rows-menu", "table-layout-row-below").onSelect();
+    menuItem("table-layout-columns-menu", "table-layout-col-right").onSelect();
+    expect(execute).toHaveBeenCalledWith("sheet.command.insert-multi-rows-after", { value: 1 });
+    expect(execute).toHaveBeenCalledWith("sheet.command.insert-multi-cols-right", { value: 1 });
+  });
 });

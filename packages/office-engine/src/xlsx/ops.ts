@@ -21,6 +21,8 @@ import { parseSetHyperlink } from "./ops-hyperlinks.ts";
 import { parseSetNotes } from "./ops-notes.ts";
 import { parseSetSheetProtection } from "./ops-protection.ts";
 import { parseSetDefinedNames } from "./ops-names.ts";
+import { parseSetConditionalFormats, parseSetDataValidations } from "./ops-cf-dv.ts";
+import { parseSetVisual, parseRemoveVisual } from "./ops-visuals.ts";
 
 export {
   XlsxOpError,
@@ -59,6 +61,26 @@ export type { XlsxSheetProtectionOp, XlsxSheetProtectionState } from "./ops-prot
 export { groupXlsxDefinedNamesState, isXlsxDefinedNamesOp, DEFINED_NAMES_OP_KIND } from "./ops-names.ts";
 export type { XlsxDefinedNamesOp, XlsxDefinedNamesState, XlsxDefinedNameEntry } from "./ops-names.ts";
 export { isXlsxNotesOp, groupXlsxNoteStates, NOTES_OP_KIND } from "./ops-notes.ts";
+export {
+  XLSX_VISUAL_IMAGE_TYPES,
+  XLSX_VISUAL_MAX_IMAGE_BYTES,
+  groupXlsxVisualAdditions,
+  isXlsxVisualOp,
+  shiftXlsxVisualAnchor,
+} from "./ops-visuals.ts";
+export type {
+  XlsxSheetVisualAddition,
+  XlsxVisualAnchor,
+  XlsxVisualChart,
+  XlsxVisualChartSeries,
+  XlsxVisualChartType,
+  XlsxVisualImage,
+  XlsxVisualImageType,
+  XlsxVisualSetOp,
+  XlsxVisualShape,
+  XlsxVisualShapeType,
+  XlsxVisualStructuralShift,
+} from "./ops-visuals.ts";
 
 /** The bound wire vocabulary, in the order the unknown-op message lists it.
  *  A later op kind appends its entry here (with its typed op in XlsxEditOp
@@ -94,6 +116,10 @@ export const XLSX_OP_KINDS: readonly XlsxOpKind[] = [
   { wireName: "set_notes", slot: "noteStates", parse: parseSetNotes },
   { wireName: "set_sheet_protection", slot: "sheetProtections", parse: parseSetSheetProtection },
   { wireName: "set_defined_names", slot: "definedNamesState", parse: parseSetDefinedNames },
+  { wireName: "set_conditional_formats", slot: "cfStates", parse: parseSetConditionalFormats },
+  { wireName: "set_data_validations", slot: "dvStates", parse: parseSetDataValidations },
+  { wireName: "set_visual", slot: "visualAdditions", parse: parseSetVisual },
+  { wireName: "remove_visual", slot: "visualAdditions", parse: parseRemoveVisual },
 ];
 
 const OP_KIND_BY_NAME: ReadonlyMap<string, XlsxOpKind> = new Map(XLSX_OP_KINDS.map((kind) => [kind.wireName, kind]));
@@ -113,13 +139,13 @@ const OP_KIND_BY_NAME: ReadonlyMap<string, XlsxOpKind> = new Map(XLSX_OP_KINDS.m
 export function parseXlsxOps(
   edits: unknown[],
   sheets: XlsxSheetResolver,
-  onOp?: (op: XlsxEditOp) => void,
+  onOp?: (op: XlsxEditOp, index: number) => void,
 ): XlsxEditOp[] {
   if (edits.length > ENGINE_LIMITS.max_edit_ops) {
     throw new XlsxOpError("<edits>", "", `at most ${ENGINE_LIMITS.max_edit_ops} ops per job`);
   }
   const ops: XlsxEditOp[] = [];
-  for (const item of edits) {
+  for (const [index, item] of edits.entries()) {
     if (!isDict(item)) throw new XlsxOpError("<item>", "", "object required");
     const op = str(item.op, "<item>", "op");
     const kind = OP_KIND_BY_NAME.get(op);
@@ -129,7 +155,7 @@ export function parseXlsxOps(
     }
     for (const parsed of kind.parse(item, op, sheets)) {
       ops.push(parsed);
-      onOp?.(parsed);
+      onOp?.(parsed, index);
     }
   }
   return ops;

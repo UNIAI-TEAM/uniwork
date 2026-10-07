@@ -40,6 +40,44 @@ import {
 export const PATCHES_DIR = path.join(PACKAGE_DIR, 'patches');
 export const DEFAULT_OUT = path.join(REPO_ROOT, '.go-tmp', 'office-upstream-build');
 export const BUILD_RECORD_KIND = 'uniwork-office-upstream-build-record';
+// The native step copies the release sidecar here (<out>/native/xlsx-sidecar[.exe]).
+const NATIVE_OUT_DIR = 'native';
+
+/**
+ * The dir cargo writes to for a crate: CARGO_TARGET_DIR when set, else
+ * <crate>/target. A relative CARGO_TARGET_DIR resolves against the repo root
+ * (the desktop build's rule); the resolved value is also handed to cargo so
+ * both agree, whatever cwd cargo runs in.
+ */
+function cargoTargetDir(crateDir, env = process.env) {
+  const configured = env.CARGO_TARGET_DIR?.trim();
+  return configured ? path.resolve(REPO_ROOT, configured) : path.join(crateDir, 'target');
+}
+
+/** The Rust target triple a cargo build produces: CARGO_BUILD_TARGET when set
+ *  (a cross build), else the host line of `rustc -vV`; null when neither says. */
+export function rustTargetTriple(env = process.env, rustcVersionOutput = () => spawnSync('rustc', ['-vV'], { encoding: 'utf8' }).stdout) {
+  const configured = env.CARGO_BUILD_TARGET?.trim();
+  if (configured) return configured;
+  return /^host:\s*(\S+)/m.exec(rustcVersionOutput() ?? '')?.[1] ?? null;
+}
+
+/** A triple's CPU as Node names it (`process.arch` values, what packaging
+ *  compares); null for one this script does not know. */
+function nodeArchOfTriple(triple) {
+  const cpu = triple?.split('-')[0];
+  if (cpu === 'x86_64') return 'x64';
+  if (cpu === 'aarch64' || cpu === 'arm64') return 'arm64';
+  if (cpu === 'i686' || cpu === 'i586') return 'ia32';
+  if (cpu?.startsWith('armv7')) return 'arm';
+  return null;
+}
+
+/** The target the native record attests: the triple and its Node arch. */
+export function nativeTarget(env = process.env, rustcVersionOutput) {
+  const triple = rustTargetTriple(env, rustcVersionOutput);
+  return { triple, arch: nodeArchOfTriple(triple) };
+}
 
 // Heavy/native/browser-host deps stay external to the engine bundles: they are
 // resolved by the adapter lanes (G2-03..06) from the real install, and bundling
@@ -250,6 +288,7 @@ export async function run({ out, skipInstall, withNative, keep }) {
   const problems = checkVendored(manifest);
   if (problems.length) fail(record, 'provenance', JSON.stringify(problems.slice(0, 5)));
   record.steps.push({ step: 'provenance', status: 'pass', detail: `${provenance.fileCount} files match ${provenance.upstream.pinnedCommit.slice(0, 12)}` });
+  record.vendoredFilesDigest = provenance.integrity?.filesDigest ?? null;
 
   const scratch = path.resolve(out || DEFAULT_OUT);
   const scratchUpstream = path.join(scratch, 'upstream');
@@ -344,6 +383,20 @@ export async function run({ out, skipInstall, withNative, keep }) {
       record.artifacts.push({ package: name, entry: entryRel, status: 'fail', detail: String(e.message || e).split('\n').slice(0, 3).join(' | ') });
     }
   }
+  // Patch 0010's and 0013's capability markers must survive bundling: hosts
+  // refuse an xlsx gateway bundle without them (packages/office-engine/src/xlsx/vendor.ts).
+  const xlsxGateway = record.artifacts.find((a) => a.status === 'built' && a.out === 'dist/xlsx-gateway.mjs');
+  if (xlsxGateway) {
+    const bundle = fs.readFileSync(path.join(distDir, 'xlsx-gateway.mjs'), 'utf8');
+    const lost = [
+      ['0010', /\bUNIWORK_XLSX_VISUAL_ADDITIONS\b/, 'UNIWORK_XLSX_VISUAL_ADDITIONS'],
+      ['0013', /\bUNIWORK_XLSX_VISUAL_EDITS\b/, 'UNIWORK_XLSX_VISUAL_EDITS'],
+      ['0013', /\bUNIWORK_XLSX_VISUAL_READ_BUDGET\b/, 'UNIWORK_XLSX_VISUAL_READ_BUDGET'],
+    ].filter(([, pattern]) => !pattern.test(bundle));
+    if (lost.length > 0) {
+      Object.assign(xlsxGateway, { status: 'fail', detail: lost.map(([patch, , marker]) => `patch ${patch} marker ${marker} missing from the bundle`).join('; ') });
+    }
+  }
   const built = record.artifacts.filter((a) => a.status === 'built').length;
   const failed = record.artifacts.filter((a) => a.status === 'fail');
   record.steps.push({ step: 'bundle', status: failed.length ? 'fail' : 'pass', detail: `${built}/${order.length} built` + (failed.length ? ' - ' + failed.map((f) => f.package).join(', ') : '') });
@@ -355,18 +408,42 @@ export async function run({ out, skipInstall, withNative, keep }) {
   // checksums the lane is required to ship: Cargo.toml + Cargo.lock pin the
   // crate graph, main.rs is the NDJSON protocol endpoint, and the release
   // binary is the artifact the runtime stage ships.
+  // A binary left in <out>/native by an earlier run must never sit next to a
+  // record that did not build it.
+  const nativeOut = path.join(scratch, NATIVE_OUT_DIR);
+  fs.rmSync(nativeOut, { recursive: true, force: true });
   const cargo = spawnSync('cargo', ['--version'], { encoding: 'utf8' });
   if (withNative && cargo.status === 0) {
     const engineDir = path.join(scratchUpstream, 'apps', 'sheets', 'native', 'xlsx-engine');
-    const rs = spawnSync('cargo', ['build', '--release'], { cwd: engineDir, encoding: 'utf8', timeout: 20 * 60 * 1000 });
+    const cargoEnv = process.env.CARGO_TARGET_DIR?.trim() ? { ...process.env, CARGO_TARGET_DIR: cargoTargetDir(engineDir) } : process.env;
+    const rs = spawnSync('cargo', ['build', '--release'], { cwd: engineDir, env: cargoEnv, encoding: 'utf8', timeout: 20 * 60 * 1000 });
     record.steps.push({ step: 'native', status: rs.status === 0 ? 'pass' : 'fail', detail: rs.status === 0 ? cargo.stdout.trim() : (rs.stderr || 'cargo build failed').slice(-500) });
     if (rs.status !== 0) {
+      // Recorded so a consumer can tell "this build's native step failed" from
+      // "no native step ran": a failed build has no binary to attest.
+      record.native = { status: 'fail' };
       record.verdict = 'fail';
     } else {
-      const binaryPath = path.join(engineDir, 'target', 'release', process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar');
+      // Cargo honours CARGO_TARGET_DIR (a short dir on Windows, where MSVC's
+      // link.exe hits MAX_PATH under a deep worktree); copy the binary to a
+      // fixed place in the scratch tree so staging finds it without that env.
+      const sidecarName = process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar';
+      // A cross build (CARGO_BUILD_TARGET) lands under <target>/<triple>/release.
+      const { triple, arch } = nativeTarget();
+      const builtPath = path.join(cargoTargetDir(engineDir), ...(process.env.CARGO_BUILD_TARGET?.trim() ? [triple] : []), 'release', sidecarName);
+      const binaryPath = path.join(nativeOut, sidecarName);
+      fs.mkdirSync(nativeOut, { recursive: true });
+      fs.copyFileSync(builtPath, binaryPath);
       const protocolSrc = path.join(engineDir, 'src', 'main.rs');
       const versionMatch = fs.existsSync(protocolSrc) ? /PROTOCOL_VERSION(?::\s*u8)?\s*=\s*(\d+)/.exec(fs.readFileSync(protocolSrc, 'utf8')) : null;
       record.native = {
+        status: 'pass',
+        // The sidecar's CPU is the cargo target's (CARGO_BUILD_TARGET, else
+        // rustc's host), not Node's: x64 Node on Windows-on-ARM still builds
+        // for the toolchain's host. null when the triple is unknown, which
+        // packaging reads as "no architecture recorded".
+        arch,
+        triple,
         cargo: cargo.stdout.trim(),
         crate: {
           manifest: 'apps/sheets/native/xlsx-engine/Cargo.toml',
@@ -380,6 +457,7 @@ export async function run({ out, skipInstall, withNative, keep }) {
     }
   } else {
     record.steps.push({ step: 'native', status: 'not-attempted', detail: withNative ? 'cargo not on PATH' : 'requires --with-native (rust toolchain)' });
+    record.native = { status: 'not-attempted' };
   }
   return { record, scratch, distDir };
 }

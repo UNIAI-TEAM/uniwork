@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CircleHelp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
-import { OfficeStatusBar, OfficeStatusZoom } from "../frame";
+import { OfficeStatusBar, OfficeStatusZoom, textCaret } from "../frame";
 import {
   clampZoom,
   HTML_ZOOM_DEFAULT,
@@ -23,6 +23,30 @@ const SHORTCUT_ROWS: readonly { id: string; labelKey: string; keys: string }[] =
   { id: "mode", labelKey: "office.html.view.label", keys: "Ctrl+\\" },
 ];
 
+/** How long a zoom step stays in the live region before it is emptied again. */
+const ZOOM_ANNOUNCE_MS = 1500;
+
+/**
+ * The zoom value to announce: set when the level CHANGES (never on mount), then
+ * cleared, so the live region carries no text at rest.
+ */
+function useZoomAnnouncement(level: number | null): number | null {
+  const [announced, setAnnounced] = useState<number | null>(null);
+  const previous = useRef(level);
+  useEffect(() => {
+    if (previous.current === level) return undefined;
+    previous.current = level;
+    if (level === null) {
+      setAnnounced(null);
+      return undefined;
+    }
+    setAnnounced(level);
+    const timer = setTimeout(() => setAnnounced(null), ZOOM_ANNOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [level]);
+  return announced;
+}
+
 /**
  * The HTML status row (F1/F8): one shared `OfficeStatusBar` carrying the source
  * figures on the left, the selection info and the zoom ladder on the right, and
@@ -39,7 +63,8 @@ export function HtmlStatusBar({
   joinedBand = false,
 }: {
   text: string;
-  selection?: { from: number; to: number } | null;
+  /** Source selection; `head` (the caret) adds the "Ln, Col" readout. */
+  selection?: { from: number; to: number; head?: number } | null;
   zoom: number;
   onZoomChange: (percent: number) => void;
   zoomDisabled: boolean;
@@ -49,6 +74,8 @@ export function HtmlStatusBar({
   const [helpOpen, setHelpOpen] = useState(false);
   const { length, lines, selection: activeSelection } = htmlStatusFigures(text, selection);
   const clamped = clampZoom(zoom);
+  const zoomAnnouncement = useZoomAnnouncement(zoomDisabled ? null : clamped);
+  const caret = selection && typeof selection.head === "number" ? textCaret(text, selection.head) : null;
   return (
     <>
       <OfficeStatusBar
@@ -65,6 +92,7 @@ export function HtmlStatusBar({
         }
         end={
           <span className="flex items-center gap-2" data-testid="html-status-right">
+            {caret ? <span className="tabular-nums" data-testid="html-status-position">{t("office.status.position", { line: caret.line, column: caret.column })}</span> : null}
             <span data-testid="html-status-selection">
               {activeSelection
                 ? t("office.html.status.selection", { from: activeSelection.from, to: activeSelection.to })
@@ -84,10 +112,11 @@ export function HtmlStatusBar({
               m2: the shared `OfficeStatusZoom` carries no live region, so a step
               is silent. The old local `html-zoom-value` announced it; mirror the
               value here instead of editing the shared frame. The region stays
-              mounted and only its text changes, so every step is announced.
+              mounted and only its text changes, so every step is announced; it
+              is empty at rest (T12), so the visible value is not spelled twice.
             */}
             <span className="sr-only" role="status" aria-live="polite" data-testid="html-zoom-live">
-              {zoomDisabled ? "" : t("office.html.zoom.level", { percent: clamped })}
+              {zoomAnnouncement === null ? "" : t("office.html.zoom.level", { percent: zoomAnnouncement })}
             </span>
           </span>
         }

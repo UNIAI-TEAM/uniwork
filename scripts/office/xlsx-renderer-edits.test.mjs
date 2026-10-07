@@ -36,9 +36,9 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('module', 'exports', bundled.outputFiles[0].text)(module, module.exports);
 const { createEditJournal, ingestCellMutation, ingestStructuralMutation, ingestSheetMutation, ingestFilterMutation,
-  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, seedColumnOutline, liveSessionSheets,
+  snapshotSheetFilter, applyColumnDefaultWidth, applyOutlineAction, runOutlineCommand, outlineLevels, outlineHistoryItem, outlineDetailSpan, seedColumnOutline, seedRowOutline, liveSessionSheets,
   sheetNameShapeOK, canExecuteCommand, canEditRange, parseCellText, ingestTableMutation,
-  sessionTableIdForName, ingestSortMutation, recordSetRangeValues } = module.exports;
+  sessionTableIdForName, ingestSortMutation, recordSetRangeValues, createValidatedWriteGate, observeValidationVerdicts, editorCommitCell } = module.exports;
 const cellRange = (row = 0, column = 0) => ({ startRow: row, endRow: row, startColumn: column, endColumn: column });
 function state() {
   return {
@@ -107,6 +107,200 @@ test('bound grid mutations emit typed values and formulas through the vendored j
     { sheetId: 's1', row: 0, column: 3, writeValue: true, value: null, formula: '=SUM(A1:B1)' },
     { sheetId: 's1', row: 0, column: 4, writeValue: true, value: null, styleReset: true },
   ]);
+});
+
+/** The editor commit as the controller drives it: begin before the write,
+ *  capture every ingest, settle with the validation verdict. */
+function validatedCommit(model, gate, cellValue, verdict) {
+  gate.begin(model, 's1');
+  const emitted = gate.capture(ingestCellMutation(model, mutation(cellValue), gate.isRollback('s1')));
+  gate.awaitVerdict()(verdict);
+  return emitted;
+}
+
+test('a data-validation refusal journals and emits nothing, not even the rollback that follows', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  // The refused cell already carries a session style; the other cell an edit.
+  ingestCellMutation(model, mutation({ 0: { 0: { s: { bl: 1 } }, 1: { v: 5 } } }));
+  const journaled = JSON.stringify([...model.editJournal.cells.get('s1')]);
+  assert.deepEqual(validatedCommit(model, gate, { 0: { 0: { v: 'Xyz' } } }, false), []);
+  assert.equal(gate.isRollback('s1'), true);
+  // Univer rolls the refused write back with {value: null, s: null}.
+  const rollback = ingestCellMutation(model, mutation({ 0: { 0: { v: null, s: null } } }), gate.isRollback('s1'));
+  assert.deepEqual(rollback, []);
+  assert.deepEqual(emitted, []);
+  assert.equal(JSON.stringify([...model.editJournal.cells.get('s1')]), journaled);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(gate.isRollback('s1'), false);
+});
+
+test('a refusal on a sheet with no earlier edit leaves its journal untouched', () => {
+  const model = state();
+  const gate = createValidatedWriteGate(() => assert.fail('nothing may be emitted'));
+  validatedCommit(model, gate, { 0: { 0: { v: 'Xyz' } } }, false);
+  assert.equal(model.editJournal.cells.has('s1'), false);
+});
+
+test('an accepted validated commit emits its edits at the verdict and a later undo still journals', () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  assert.deepEqual(validatedCommit(model, gate, { 0: { 0: { v: 'Mot' } } }, true), []);
+  assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
+  assert.equal(gate.isRollback('s1'), false);
+  const undo = ingestCellMutation(model, mutation({ 0: { 0: { v: null, s: null } } }), gate.isRollback('s1'));
+  assert.equal(undo.length, 1);
+  assert.equal(undo[0].value, null);
+  assert.equal(undo[0].styleReset, true);
+});
+
+test('a commit whose verdict never comes, or a newer commit, releases the held edits as accepted', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 1 } } }))), []);
+  await Promise.resolve();
+  assert.equal(emitted.length, 1);
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 1: { v: 2 } } }))), []);
+  gate.awaitVerdict();
+  gate.begin(model, 's1');
+  assert.deepEqual(emitted.map((edit) => edit.column), [0, 1]);
+  assert.equal(gate.awaitVerdict() !== null, true);
+});
+
+/** Univer's flat composeInterceptors + an async DV-like handler: the handler
+ *  calls next only after awaits, so a later interceptor never runs. The
+ *  editor's _submitEdit awaits onValidateCell, then rolls back on false. */
+function editorFlow(gate, verdict, steps) {
+  const service = {
+    onValidateCell() {
+      return (async () => { for (let i = 0; i < steps; i += 1) await null; return verdict; })();
+    },
+  };
+  observeValidationVerdicts(service, gate);
+  return service;
+}
+
+test('the verdict is observed from onValidateCell although the async DV handler answers many ticks later', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  ingestCellMutation(model, mutation({ 0: { 0: { s: { bl: 1 } } } }));
+  const journaled = JSON.stringify([...model.editJournal.cells.get('s1')]);
+  const service = editorFlow(gate, false, 6);
+  // _submitEdit: write (begin + capture), then await onValidateCell, then rollback.
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Xyz' } } }))), []);
+  const accepted = await service.onValidateCell();
+  assert.equal(accepted, false);
+  const rollback = ingestCellMutation(model, mutation({ 0: { 0: { v: null, s: null } } }), gate.isRollback('s1'));
+  assert.deepEqual(rollback, []);
+  assert.deepEqual(emitted, []);
+  assert.equal(JSON.stringify([...model.editJournal.cells.get('s1')]), journaled);
+});
+
+test('an accepted verdict observed from onValidateCell emits the held edits once', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  const service = editorFlow(gate, true, 6);
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Mot' } } }))), []);
+  assert.equal(await service.onValidateCell(), true);
+  assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
+});
+
+test('a validation of another sheet does not settle the pending write (review-session n-1)', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  const sheet = (id) => ({ getSheetId: () => id });
+  const service = { onValidateCell(_workbook, worksheet) { return Promise.resolve(worksheet.getSheetId() === 's1'); } };
+  observeValidationVerdicts(service, gate);
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Mot' } } }))), []);
+  // Another sheet's refusal in the same tick is not this write's verdict:
+  // without the sheet check it would take the settle and roll s1 back.
+  const other = service.onValidateCell({}, sheet('s2'), 0, 0);
+  const own = service.onValidateCell({}, sheet('s1'), 0, 0);
+  assert.equal(await other, false);
+  assert.equal(await own, true);
+  assert.equal(gate.isRollback('s1'), false);
+  assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
+});
+
+test('a validation of another cell of the same sheet does not settle the pending write (review-delta-r2 X2)', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  const sheet = { getSheetId: () => 's1' };
+  // A paste or an autofill validates several cells of one sheet in one tick;
+  // only the committed cell A1 (0, 0) is refused here as the pending write's.
+  const service = { onValidateCell(_workbook, _worksheet, row, column) { return Promise.resolve(!(row === 5 && column === 5)); } };
+  observeValidationVerdicts(service, gate);
+  gate.begin(model, 's1', { row: 0, column: 0 });
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Mot' } } }))), []);
+  const other = service.onValidateCell({}, sheet, 5, 5);
+  const own = service.onValidateCell({}, sheet, 0, 0);
+  assert.equal(await other, false);
+  assert.equal(await own, true);
+  assert.equal(gate.isRollback('s1'), false);
+  assert.deepEqual(emitted, [{ sheetId: 's1', row: 0, column: 0, writeValue: true, value: 'Mot' }]);
+});
+
+test('an editor commit names its cell only when its range is exactly one cell (review-delta-r2 X2)', () => {
+  assert.deepEqual(editorCommitCell({ startRow: 3, endRow: 3, startColumn: 4, endColumn: 4 }), { row: 3, column: 4 });
+  assert.equal(editorCommitCell({ startRow: 3, endRow: 4, startColumn: 4, endColumn: 4 }), undefined);
+  assert.equal(editorCommitCell({ startRow: 3, endRow: 3 }), undefined);
+  assert.equal(editorCommitCell(undefined), undefined);
+  assert.equal(editorCommitCell('A1'), undefined);
+});
+
+test('a pending write without a known cell keeps taking the first verdict of its sheet (review-delta-r2 X2)', async () => {
+  const model = state();
+  const emitted = [];
+  const gate = createValidatedWriteGate((edits) => emitted.push(...edits));
+  const service = { onValidateCell() { return Promise.resolve(true); } };
+  observeValidationVerdicts(service, gate);
+  gate.begin(model, 's1');
+  assert.deepEqual(gate.capture(ingestCellMutation(model, mutation({ 0: { 0: { v: 'Mot' } } }))), []);
+  await service.onValidateCell({}, { getSheetId: () => 's1' }, 4, 4);
+  assert.equal(emitted.length, 1);
+});
+
+test('observeValidationVerdicts leaves a validation with no pending commit alone and restores on dispose', async () => {
+  const model = state();
+  const gate = createValidatedWriteGate(() => assert.fail('nothing to emit'));
+  const calls = [];
+  const service = { onValidateCell(...args) { calls.push(args); return Promise.resolve(true); } };
+  const original = service.onValidateCell;
+  const handle = observeValidationVerdicts(service, gate);
+  assert.equal(await service.onValidateCell('a'), true);
+  assert.deepEqual(calls, [['a']]);
+  handle.dispose();
+  assert.equal(service.onValidateCell, original);
+});
+
+test('Group at the deepest level is refused with a notice; ungroup and clear no-ops still succeed (review-delta-r2 X1)', () => {
+  const model = state();
+  const notices = [];
+  const pushed = [];
+  const host = { state: model, unitId: 'u', emit: (edits) => edits.length > 0, pushUndo: (item) => pushed.push(item), notice: (key) => notices.push(key) };
+  const run = (from, to, action, history = true) => runOutlineCommand(host, 's1', 'rows', from, to, action, history);
+  assert.equal(run(0, 1, 'ungroup'), true, 'ungroup at level 0 is a no-op success');
+  assert.equal(run(0, 1, 'clear'), true, 'clear writes level 0 and succeeds');
+  assert.deepEqual(notices, []);
+  for (let level = 1; level <= 7; level += 1) assert.equal(run(0, 1, 'group'), true);
+  assert.equal(pushed.length, 8, 'the clear and each of the seven groups pushed one undo entry; the no-op ungroup none');
+  assert.equal(run(0, 1, 'group'), false, 'the eighth level is refused');
+  assert.deepEqual(notices, ['appOutlineMaxLevels']);
+  assert.equal(run(5, 4, 'group'), false, 'a malformed span is refused without the notice');
+  assert.equal(run(0, 1, 'group', false), false);
+  assert.deepEqual(notices, ['appOutlineMaxLevels', 'appOutlineMaxLevels']);
 });
 
 test('viewport, selection, load, calculation, other workbooks and no-op writes emit no edits', () => {
@@ -207,6 +401,32 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(canExecuteCommand({ id: 'sheet.command.insert-row-after' }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'sheet.command.insert-col-before', params: { value: 3 } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'sheet.command.insert-col-after' }, model, false), true);
+  // Multi-after: the count is required and bounded (the command reads it unguarded).
+  for (const id of ['sheet.command.insert-multi-rows-after', 'sheet.command.insert-multi-cols-right']) {
+    assert.equal(canExecuteCommand({ id, params: { value: 3 } }, model, false), true, `${id} count`);
+    assert.equal(canExecuteCommand({ id, params: { value: 10_000 } }, model, false), true, `${id} ceiling`);
+    assert.equal(canExecuteCommand({ id }, model, false), false, `${id} no count`);
+    assert.equal(canExecuteCommand({ id, params: { value: 0 } }, model, false), false, `${id} zero`);
+    assert.equal(canExecuteCommand({ id, params: { value: 10_001 } }, model, false), false, `${id} over ceiling`);
+    assert.equal(canExecuteCommand({ id, params: { value: 1.5 } }, model, false), false, `${id} fraction`);
+    assert.equal(canExecuteCommand({ id, params: { value: 2 } }, model, true), false, `${id} readOnly`);
+  }
+  // X04: the insert commands above delegate to these inner commands, which
+  // fire the same gate again; a refusal here made every insert a silent no-op.
+  for (const [id, axis] of [['sheet.command.insert-row', 'row'], ['sheet.command.insert-row-by-range', 'row'],
+    ['sheet.command.insert-col', 'column'], ['sheet.command.insert-col-by-range', 'column']]) {
+    const span = (start, end) => (axis === 'row' ? range(start, end) : range(0, 0, start, end));
+    const inner = (params) => ({ id, params: { unitId: 'file-sha', subUnitId: 's1', direction: 0, ...params } });
+    assert.equal(canExecuteCommand(inner({ range: span(2, 4) }), model, false), true, `${id} span`);
+    assert.equal(canExecuteCommand({ id, params: { range: span(2, 4) } }, model, false), true, `${id} no unit/sheet`);
+    assert.equal(canExecuteCommand(inner({ range: span(2, 4) }), model, true), false, `${id} readOnly`);
+    assert.equal(canExecuteCommand({ id }, model, false), false, `${id} no params`);
+    assert.equal(canExecuteCommand(inner({ range: span(4, 2) }), model, false), false, `${id} reversed`);
+    assert.equal(canExecuteCommand(inner({ range: span(0, 100_000) }), model, false), false, `${id} over ceiling`);
+    assert.equal(canExecuteCommand(inner({ range: 'x' }), model, false), false, `${id} bad range`);
+    assert.equal(canExecuteCommand(inner({ range: span(2, 4), unitId: 'other' }), model, false), false, `${id} other unit`);
+    assert.equal(canExecuteCommand(inner({ range: span(2, 4), subUnitId: 'ghost' }), model, false), false, `${id} ghost sheet`);
+  }
   assert.equal(canExecuteCommand({ id: 'sheet.command.remove-row', params: { range: range(1, 2) } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'sheet.command.remove-row', params: { range: range(2, 1) } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'sheet.command.remove-col' }, model, false), true);
@@ -236,6 +456,33 @@ test('row/column structure commands and mutations pass only with a bounded span'
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 99999, action: 'group' } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 100000, action: 'group' } }, model, false), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-rows-outline', params: { start: 0, end: 2, action: 'group', subUnitId: 'ghost' } }, model, false), false);
+  // Show / Hide Detail: axis enum, boolean hide, an in-grid span, a known sheet.
+  const detail = (params) => canExecuteCommand({ id: 'uniwork.command.set-outline-detail', params }, model, false);
+  assert.equal(detail({ axis: 'rows', start: 2, end: 2, hide: true }), true);
+  assert.equal(detail({ axis: 'cols', start: 1, end: 3, hide: false, subUnitId: 's1' }), true);
+  assert.equal(detail({ axis: 'sheet', start: 2, end: 2, hide: true }), false);
+  assert.equal(detail({ start: 2, end: 2, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 2, end: 2, hide: 'yes' }), false);
+  assert.equal(detail({ axis: 'rows', start: 2, end: 2 }), false);
+  assert.equal(detail({ axis: 'rows', start: -1, end: 2, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 1.5, end: 2, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 3, end: 2, hide: true }), false);
+  assert.equal(detail({ axis: 'cols', start: 0, end: 16384, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 0, end: 1_048_576, hide: true }), false);
+  assert.equal(detail({ axis: 'rows', start: 2, end: 2, hide: true, subUnitId: 'ghost' }), false);
+  assert.equal(detail(undefined), false);
+  assert.equal(canExecuteCommand({ id: 'uniwork.command.set-outline-detail', params: { axis: 'rows', start: 2, end: 2, hide: true } }, model, true), false);
+  // The summary line's collapsed flag (Hide Detail and its undo): axis enum, boolean flag, one in-grid line, a known sheet.
+  const collapsed = (params, readOnly = false) => canExecuteCommand({ id: 'uniwork.command.set-outline-collapsed', params }, model, readOnly);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5, collapsed: true }), true);
+  assert.equal(collapsed({ axis: 'cols', start: 3, end: 3, collapsed: false, subUnitId: 's1', history: false }), true);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5 }), false);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5, collapsed: 1 }), false);
+  assert.equal(collapsed({ axis: 'sheet', start: 5, end: 5, collapsed: true }), false);
+  assert.equal(collapsed({ axis: 'cols', start: 16384, end: 16384, collapsed: true }), false);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5, collapsed: true, subUnitId: 'ghost' }), false);
+  assert.equal(collapsed({ axis: 'rows', start: 5, end: 5, collapsed: true }, true), false);
+  assert.equal(collapsed(undefined), false);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2 } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 1, end: 2, subUnitId: 's1' } }, model, false), true);
   assert.equal(canExecuteCommand({ id: 'uniwork.command.set-cols-default-width', params: { start: 2, end: 1 } }, model, false), false);
@@ -526,6 +773,140 @@ test('outline actions shift runs of levels, clamp at the bounds and clear', () =
   assert.deepEqual(applyOutlineAction(null, 's1', 'rows', 0, 1, 'group'), []);
 });
 
+test('Show / Hide Detail targets the outline group of a line or the group a summary line closes', () => {
+  const model = state();
+  // Rows 1-3 at level 1 with rows 2-3 at level 2; row 4 is the level-1 summary
+  // (level 0 below a group); row 6 is a lone level-1 line.
+  applyOutlineAction(model, 's1', 'rows', 1, 3, 'group');
+  applyOutlineAction(model, 's1', 'rows', 2, 3, 'group');
+  applyOutlineAction(model, 's1', 'rows', 6, 6, 'group');
+  // A detail line: the run around it at or below its own level.
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 1), { start: 1, end: 3 });
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 3), { start: 2, end: 3 });
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 6), { start: 6, end: 6 });
+  // A summary line (summary below detail, the Excel default) closes the group above it.
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 4), { start: 1, end: 3 });
+  assert.deepEqual(outlineDetailSpan(model, 's1', 'rows', 7), { start: 6, end: 6 });
+  // Not grouped at all, an unknown sheet, an axis without levels: no group.
+  assert.equal(outlineDetailSpan(model, 's1', 'rows', 0), null);
+  assert.equal(outlineDetailSpan(model, 's1', 'rows', 9), null);
+  assert.equal(outlineDetailSpan(model, 'ghost', 'rows', 1), null);
+  assert.equal(outlineDetailSpan(model, 's1', 'cols', 1), null);
+  assert.equal(outlineDetailSpan(model, 's1', 'rows', -1), null);
+  assert.equal(outlineDetailSpan(null, 's1', 'rows', 1), null);
+});
+
+test('outline levels follow their rows and columns through inserts and removals', () => {
+  const model = state();
+  const structural = (id, range) => ({ id, type: 2, params: { unitId: 'file-sha', subUnitId: 's1', range } });
+  const rows = () => outlineLevels(model, 's1', 'rows', 0, 8);
+  applyOutlineAction(model, 's1', 'rows', 2, 4, 'group');
+  applyOutlineAction(model, 's1', 'rows', 3, 3, 'group');
+  applyOutlineAction(model, 's1', 'rows', 6, 6, 'group');
+  assert.deepEqual(rows(), [0, 0, 1, 2, 1, 0, 1, 0, 0]);
+  // Two rows inserted at 3: the grouped rows below move down, the new rows sit at 0.
+  ingestStructuralMutation(model, structural('sheet.mutation.insert-row', { startRow: 3, endRow: 4, startColumn: 0, endColumn: 9 }));
+  assert.deepEqual(rows(), [0, 0, 1, 0, 0, 2, 1, 0, 1]);
+  // Removing rows 2-3 drops their levels and pulls the rest up.
+  ingestStructuralMutation(model, structural('sheet.mutation.remove-rows', { startRow: 2, endRow: 3, startColumn: 0, endColumn: 9 }));
+  assert.deepEqual(rows(), [0, 0, 0, 2, 1, 0, 1, 0, 0]);
+  // Columns shift on their own axis only.
+  applyOutlineAction(model, 's1', 'cols', 1, 1, 'group');
+  ingestStructuralMutation(model, structural('sheet.mutation.insert-col', { startRow: 0, endRow: 19, startColumn: 0, endColumn: 0 }));
+  assert.deepEqual(outlineLevels(model, 's1', 'cols', 0, 3), [0, 0, 1, 0]);
+  ingestStructuralMutation(model, structural('sheet.mutation.remove-col', { startRow: 0, endRow: 19, startColumn: 2, endColumn: 2 }));
+  assert.deepEqual(outlineLevels(model, 's1', 'cols', 0, 3), [0, 0, 0, 0]);
+  assert.deepEqual(rows(), [0, 0, 0, 2, 1, 0, 1, 0, 0]);
+  // A seeded file level never lands on an inserted column.
+  model.file.sheets[0].columnWidths = [{ startColumn: 5, endColumn: 5, hidden: false, outlineLevel: 3 }];
+  ingestStructuralMutation(model, structural('sheet.mutation.insert-col', { startRow: 0, endRow: 19, startColumn: 5, endColumn: 5 }));
+  seedColumnOutline(model);
+  assert.equal(outlineLevels(model, 's1', 'cols', 5, 5)[0], 0);
+  assert.deepEqual(outlineLevels(model, 's1', 'rows', 3, 2), []);
+});
+
+test('an outline history entry restores the previous levels with allowed outline commands', () => {
+  const step = (start, end, action) => ({
+    id: 'uniwork.command.set-rows-outline', params: { subUnitId: 's1', start, end, action, history: false },
+  });
+  assert.deepEqual(outlineHistoryItem('file-sha', 's1', 'rows', 1, 5, 'group', [0, 1, 2, 1, 0]), {
+    unitID: 'file-sha',
+    undoMutations: [step(1, 5, 'clear'), step(2, 4, 'group'), step(3, 3, 'group')],
+    redoMutations: [step(1, 5, 'group')],
+  });
+  const cols = outlineHistoryItem('file-sha', 's1', 'cols', 0, 1, 'ungroup', [1, 1]);
+  assert.equal(cols.undoMutations[0].id, 'uniwork.command.set-cols-outline');
+  assert.deepEqual(cols.undoMutations.map((entry) => [entry.params.start, entry.params.end, entry.params.action]), [[0, 1, 'clear'], [0, 1, 'group']]);
+  // Every replayed step passes the command policy.
+  const model = state();
+  for (const entry of [...cols.undoMutations, ...cols.redoMutations]) {
+    assert.equal(canExecuteCommand({ id: entry.id, type: 0, params: entry.params }, model, false), true);
+  }
+});
+
+test('real Univer undo/redo of an outline action restores the levels and journals the restoration', async () => {
+  const require = createRequire(path.join(REPO_ROOT, 'packages/office-upstream/package.json'));
+  const { Univer, LogLevel, ICommandService, IUndoRedoService, IUniverInstanceService } = require('@univerjs/core');
+  const { UniverSheetsPlugin } = require('@univerjs/sheets');
+  const { FUniver } = require('@univerjs/core/facade');
+  require('@univerjs/sheets/facade');
+  const univer = new Univer({ logLevel: LogLevel.ERROR, locale: 'enUS', locales: { enUS: {} } });
+  univer.registerPlugin(UniverSheetsPlugin);
+  const api = FUniver.newAPI(univer);
+  const model = state();
+  const emitted = [];
+  const refused = [];
+  const workbook = api.createWorkbook({ id: 'file-sha', sheetOrder: ['s1'], sheets: { s1: { id: 's1', name: 'Data', rowCount: 20, columnCount: 10 } } });
+  const injector = univer.__getInjector();
+  injector.get(IUniverInstanceService).focusUnit(workbook.getId());
+  const undoRedo = injector.get(IUndoRedoService);
+  // The controller's runOutline (controller.ts), over the same edits.ts helpers.
+  const registration = injector.get(ICommandService).registerCommand({
+    id: 'uniwork.command.set-rows-outline', type: 0,
+    handler: (_accessor, p) => {
+      const before = outlineLevels(model, p.subUnitId, 'rows', p.start, p.end);
+      const edits = applyOutlineAction(model, p.subUnitId, 'rows', p.start, p.end, p.action);
+      emitted.push(...edits);
+      if (edits.length > 0 && p.history !== false) {
+        undoRedo.pushUndoRedo(outlineHistoryItem('file-sha', p.subUnitId, 'rows', p.start, p.end, p.action, before));
+      }
+      return edits.length > 0;
+    },
+  });
+  const gate = api.addEvent(api.Event.BeforeCommandExecute, (event) => {
+    if (!canExecuteCommand(event, model, false)) {
+      refused.push(event.id);
+      event.cancel = true;
+    }
+  });
+  const levels = () => outlineLevels(model, 's1', 'rows', 0, 4);
+  try {
+    assert.equal(await api.executeCommand('uniwork.command.set-rows-outline', { subUnitId: 's1', start: 1, end: 3, action: 'group' }), true);
+    assert.equal(await api.executeCommand('uniwork.command.set-rows-outline', { subUnitId: 's1', start: 2, end: 2, action: 'group' }), true);
+    assert.deepEqual(levels(), [0, 1, 2, 1, 0]);
+    emitted.length = 0;
+    await api.undo();
+    assert.deepEqual(levels(), [0, 1, 1, 1, 0], JSON.stringify(refused));
+    // The restoration is journalled: the span cleared, then regrouped to level 1.
+    assert.deepEqual(emitted.map((edit) => edit.structural), [
+      { kind: 'set-rows-outline', start: 2, end: 2, level: 0 },
+      { kind: 'set-rows-outline', start: 2, end: 2, level: 1 },
+    ]);
+    assert.deepEqual(model.editJournal.structuralOps.get('s1').at(-1), { kind: 'set-rows-outline', start: 2, end: 2, level: 1 });
+    await api.undo();
+    assert.deepEqual(levels(), [0, 0, 0, 0, 0]);
+    await api.redo();
+    assert.deepEqual(levels(), [0, 1, 1, 1, 0]);
+    await api.redo();
+    assert.deepEqual(levels(), [0, 1, 2, 1, 0]);
+    assert.deepEqual(refused, []);
+  } finally {
+    gate.dispose();
+    registration.dispose();
+    univer.dispose();
+  }
+});
+
 test('default column width journals one null set-col-size op for the span', () => {
   const model = state();
   assert.deepEqual(applyColumnDefaultWidth(model, 's1', 1, 2), [
@@ -538,6 +919,24 @@ test('default column width journals one null set-col-size op for the span', () =
   assert.deepEqual(applyColumnDefaultWidth(model, 'ghost', 0, 1), []);
   assert.deepEqual(applyColumnDefaultWidth(null, 's1', 0, 1), []);
   assert.equal(model.editJournal.structuralOps.get('s1').length, 1);
+});
+
+test('file row outline levels seed the outline map, clamp and stay below session edits', () => {
+  const model = state();
+  model.file.sheets[0].rowOutline = [
+    { row: 2, outlineLevel: 1 }, { row: 3, outlineLevel: 9, collapsed: true }, { row: 5, collapsed: true },
+    { row: 6, outlineLevel: 0 }, { row: -1, outlineLevel: 1 }, { row: 1.5, outlineLevel: 1 }, null,
+  ];
+  applyOutlineAction(model, 's1', 'rows', 2, 2, 'group');
+  seedRowOutline(model);
+  const rows = model.outline.get('s1').rows;
+  // The session group on row 2 owns its entry; the file never overrides it.
+  assert.deepEqual([...rows.entries()].sort(([a], [b]) => a - b), [
+    [2, { level: 1, collapsed: false }],
+    [3, { level: 7, collapsed: true }],
+    [5, { level: 0, collapsed: true }],
+  ]);
+  seedRowOutline(null);
 });
 
 test('file column outline levels seed the outline map and stay below session edits', () => {

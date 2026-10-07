@@ -3,24 +3,20 @@
 // so every call here is queued behind chainPdfium: the module is one global
 // heap and a render must not interleave with an edit. Nothing here writes back
 // to the document — the input bytes are only read, and every pdfium pointer is
-// released in a finally block.
+// released in a finally block, except the one retained document kept loaded
+// for the next page (released through releaseLoadedPdf).
 import { PdfPasswordError, PdfTypedError } from "../pdf/adapter.ts";
 import { encodeBgraToPng } from "../pdf/codec.ts";
-import { chainPdfium, FPDF_BITMAP_BGRA, FPDF_ERR_PASSWORD, FPDF_ERR_SECURITY, loadPdfium, PdfOpenError, withDocument, type Pdfium } from "../pdf/pdfium.ts";
+import { chainPdfium, closeDocument, FPDF_BITMAP_BGRA, FPDF_ERR_PASSWORD, FPDF_ERR_SECURITY, loadPdfium, openDocument, PdfOpenError, type OpenedDocument, type Pdfium } from "../pdf/pdfium.ts";
 
-/** Open `bytes` in pdfium and run `fn`, mapping a load failure to the same
- * typed refusal the open/edit lane answers: a password wall is
- * PdfPasswordError (so the host can return it as data), a security handler a
- * password cannot satisfy is a named refusal, and any other load failure is
- * corruption. A heap failure is engine-side and rethrows. */
-async function withRenderedDocument<T>(
-  m: Pdfium,
-  bytes: Uint8Array,
-  password: string | undefined,
-  fn: (doc: number) => Promise<T>,
-): Promise<T> {
+/** Load `bytes` in pdfium, mapping a load failure to the same typed refusal
+ * the open/edit lane answers: a password wall is PdfPasswordError (so the host
+ * can return it as data), a security handler a password cannot satisfy is a
+ * named refusal, and any other load failure is corruption. A heap failure is
+ * engine-side and rethrows. */
+function openRenderedDocument(m: Pdfium, bytes: Uint8Array, password: string | undefined): OpenedDocument {
   try {
-    return await withDocument(m, bytes, fn, password);
+    return openDocument(m, bytes, password);
   } catch (error) {
     if (error instanceof PdfOpenError) {
       if (error.detail === FPDF_ERR_PASSWORD) throw new PdfPasswordError(password === undefined ? "required" : "wrong");
@@ -30,6 +26,58 @@ async function withRenderedDocument<T>(
     }
     throw error;
   }
+}
+
+/** The one retained document kept loaded across chainPdfium turns, so a print
+ * walking N pages of one document parses it once instead of N times. It is
+ * keyed by the host's retained handle, whose bytes never change. Only one is
+ * kept, which bounds the extra wasm heap to one document. */
+let loaded: { readonly key: string; readonly opened: OpenedDocument } | null = null;
+
+function closeLoaded(m: Pdfium): void {
+  if (!loaded) return;
+  const { opened } = loaded;
+  loaded = null;
+  closeDocument(m, opened);
+}
+
+/** Free the loaded document: the one `key` names, or whichever is loaded when
+ * `key` is omitted. Queued behind chainPdfium like every other heap use. */
+export function releaseLoadedPdf(key?: string): Promise<void> {
+  return chainPdfium(async () => {
+    if (!loaded || (key !== undefined && loaded.key !== key)) return;
+    closeLoaded(await loadPdfium());
+  });
+}
+
+/** Test seam: the key of the loaded document, if any. */
+export function loadedPdfKeyForTests(): string | null {
+  return loaded?.key ?? null;
+}
+
+/** Run `fn` on `bytes` loaded in pdfium. With a `retainedKey` the document
+ * stays loaded for the next call with that key (replacing any other loaded
+ * one); without one it is closed when `fn` settles. */
+async function withRenderedDocument<T>(
+  m: Pdfium,
+  bytes: Uint8Array,
+  password: string | undefined,
+  fn: (doc: number) => Promise<T>,
+  retainedKey?: string,
+): Promise<T> {
+  if (retainedKey === undefined) {
+    const opened = openRenderedDocument(m, bytes, password);
+    try {
+      return await fn(opened.doc);
+    } finally {
+      closeDocument(m, opened);
+    }
+  }
+  if (loaded?.key !== retainedKey) {
+    closeLoaded(m);
+    loaded = { key: retainedKey, opened: openRenderedDocument(m, bytes, password) };
+  }
+  return await fn(loaded.opened.doc);
 }
 
 /** pdfium render flag: draw page annotations (FPDF_ANNOT). */
@@ -49,6 +97,7 @@ export function renderPdfPagePng(
   pageIndex: number,
   scale: number,
   password?: string,
+  retainedKey?: string,
 ): Promise<{ pngBase64: string; width: number; height: number } | null> {
   return chainPdfium(async () => {
     const m = await loadPdfium();
@@ -99,7 +148,7 @@ export function renderPdfPagePng(
       } finally {
         m._FPDF_ClosePage(page);
       }
-    });
+    }, retainedKey);
   });
 }
 
@@ -300,7 +349,7 @@ function readPageText(
 export function readPdfTextRange(
   bytes: Uint8Array,
   pageIndex: number,
-  options: { pageLimit?: number; geometry?: boolean; password?: string } = {},
+  options: { pageLimit?: number; geometry?: boolean; password?: string; retainedKey?: string } = {},
 ): Promise<{ pageCount: number; pages: DesktopPdfTextPage[] } | null> {
   return chainPdfium(async () => {
     const m = await loadPdfium();
@@ -315,6 +364,6 @@ export function readPdfTextRange(
         pages.push({ page: index + 1, width: read.width, height: read.height, text: read.text, charBoxes: read.charBoxes });
       }
       return { pageCount, pages };
-    });
+    }, options.retainedKey);
   });
 }

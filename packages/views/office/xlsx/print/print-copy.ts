@@ -1,0 +1,227 @@
+// UNI-952 (D-xlsx): the print copy of one sheet - a self-contained,
+// script-free HTML document (CSP: inline styles and data: images only) whose
+// pages are the sheet's pages. Cell text is always escaped; every style value
+// passes print-styles' whitelists. Page geometry (@page size and margins,
+// scale, breaks) comes from the resolved page setup; see print-layout.
+// D2: each area of a multi-area print area starts on a page of its own, in
+// order, at one shared scale; title columns repeat beside title rows; the
+// header/footer sits in the page margin boxes (print-header-footer); pictures
+// (when the collector supplies them) are placed absolutely by their anchor.
+// D3: data bars and icons (print-marks) print inside their cells; charts,
+// pictures and shapes (print-visuals) print over the page body they overlap.
+// Each page's table and visuals sit in one .sheet box, which is what the
+// centring options move, so visuals stay on their cells (R8).
+import type { XlsxRenderStyle } from "@uniwork/office-engine/xlsx";
+import { DocxPrintHfImageDefs } from "../../docx/export/docx-print-hf-image";
+import { PRINT_COPY_CSP } from "../../markdown/wysiwyg/print";
+import { columnLabel } from "../xlsx-editor-model";
+import { CELL_PADDING, renderRows } from "./print-cells";
+import { headerFooterRules, type XlsxPrintHeaderContext } from "./print-header-footer";
+import { markRules, type XlsxPrintMark } from "./print-marks";
+import { effectiveScale, layoutPrintPages, printableArea, type XlsxPrintGeometry, type XlsxPrintPage } from "./print-layout";
+import type { XlsxPrintRange, XlsxResolvedPrintSetup } from "./print-setup";
+import { cssFontFamily, escapeHtml, round, rotationDeclarations, styleDeclarations } from "./print-styles";
+import { renderPagePictures, VISUAL_RULES, XlsxPrintOffsets, type XlsxPrintPicture } from "./print-visuals";
+
+/** One printed cell: its text as displayed and how General aligns it. */
+export interface XlsxPrintCell {
+  readonly text: string;
+  readonly kind: "text" | "number" | "boolean" | "error";
+  readonly styleIndex?: number | undefined;
+}
+
+/** Everything one print run reads, collected from the live workbook. Lengths
+ *  in points. `cells` is keyed `${row}:${column}` (0-based). */
+export interface XlsxPrintSheet {
+  readonly title: string;
+  readonly setup: XlsxResolvedPrintSetup;
+  /** The ranges to print, in order: the print area's areas, else the used range. */
+  readonly areas: readonly XlsxPrintRange[];
+  readonly cells: ReadonlyMap<string, XlsxPrintCell>;
+  readonly styles: readonly XlsxRenderStyle[];
+  readonly columns: ReadonlyMap<number, { readonly width?: number | undefined; readonly hidden?: boolean | undefined }>;
+  readonly rows: ReadonlyMap<number, { readonly height?: number | undefined; readonly hidden?: boolean | undefined }>;
+  readonly defaultColumnWidth: number;
+  readonly defaultRowHeight: number;
+  readonly merges: readonly XlsxPrintRange[];
+  readonly defaultFont?: { readonly family?: string | undefined; readonly size?: number | undefined } | undefined;
+  readonly rightToLeft?: boolean | undefined;
+  /** The values header/footer field codes print (&A, &F, &D, &T). */
+  readonly headerContext?: XlsxPrintHeaderContext | undefined;
+  readonly pictures?: readonly XlsxPrintPicture[] | undefined;
+  /** Data bars / icons the grid paints, keyed like `cells`. */
+  readonly marks?: ReadonlyMap<string, XlsxPrintMark> | undefined;
+}
+
+type XlsxPrintCopyResult =
+  | { readonly ok: true; readonly html: string; readonly pages: number }
+  | { readonly ok: false; readonly reason: "print_too_large" };
+
+/** The desktop host refuses a bigger copy; refuse it here first. */
+const MAX_COPY_BYTES = 16 * 1024 * 1024;
+/** More cells than this cannot make a copy under the byte cap. */
+export const MAX_PRINT_CELLS = 400_000;
+const GRIDLINE = "0.5pt solid #c0c0c0";
+const DEFAULT_FONT_SIZE = 11;
+
+function geometryOf(sheet: XlsxPrintSheet, range: XlsxPrintRange): XlsxPrintGeometry {
+  const { setup } = sheet;
+  const visibleColumn = (index: number): { index: number; width: number } | null => {
+    const column = sheet.columns.get(index);
+    const width = column?.width ?? sheet.defaultColumnWidth;
+    return column?.hidden || width <= 0 ? null : { index, width };
+  };
+  const visibleRow = (index: number): { index: number; height: number } | null => {
+    const row = sheet.rows.get(index);
+    const height = row?.height ?? sheet.defaultRowHeight;
+    return row?.hidden || height <= 0 ? null : { index, height };
+  };
+  const collect = <T,>(start: number, end: number, visible: (index: number) => T | null): T[] => {
+    const out: T[] = [];
+    for (let index = start; index <= end; index += 1) {
+      const item = visible(index);
+      if (item) out.push(item);
+    }
+    return out;
+  };
+  const digits = String(range.endRow + 1).length;
+  return {
+    columns: collect(range.startColumn, range.endColumn, visibleColumn),
+    rows: collect(range.startRow, range.endRow, visibleRow),
+    titleRows: setup.titleRows ? collect(setup.titleRows.start, setup.titleRows.end, visibleRow) : [],
+    titleColumns: setup.titleColumns ? collect(setup.titleColumns.start, setup.titleColumns.end, visibleColumn) : [],
+    headingWidth: setup.headings ? Math.max(24, digits * 7 + 10) : 0,
+    headingHeight: setup.headings ? sheet.defaultRowHeight : 0,
+  };
+}
+
+/** Sheet offsets (pt at 100%, hidden = 0) of every row and column, shared by
+ *  the pages of one copy so visuals land on the same cells as the table. */
+interface XlsxSheetOffsets {
+  readonly columns: XlsxPrintOffsets;
+  readonly rows: XlsxPrintOffsets;
+}
+
+function renderPage(sheet: XlsxPrintSheet, page: XlsxPrintPage, scale: number, geometry: XlsxPrintGeometry, usedStyles: Set<number>, offsets: XlsxSheetOffsets): string {
+  const widths = new Map([...geometry.columns, ...geometry.titleColumns].map((column) => [column.index, column.width]));
+  const widthOf = (column: number): number => widths.get(column) ?? sheet.defaultColumnWidth;
+  const columns = [...page.titleColumns, ...page.columns];
+  const headings = sheet.setup.headings;
+  let colgroup = headings ? `<col style="width:${round(geometry.headingWidth * scale)}pt">` : "";
+  let tableWidth = headings ? geometry.headingWidth : 0;
+  for (const column of columns) {
+    tableWidth += widthOf(column);
+    colgroup += `<col style="width:${round(widthOf(column) * scale)}pt">`;
+  }
+  let head = "";
+  if (headings) {
+    head += `<tr class="ch" style="height:${round(geometry.headingHeight * scale)}pt"><th></th>`;
+    for (const column of columns) head += `<th>${escapeHtml(columnLabel(column))}</th>`;
+    head += "</tr>";
+  }
+  const rowsInput = { columns, widths, scale, usedStyles };
+  if (page.titleRows.length > 0) head += renderRows(sheet, { ...rowsInput, rows: page.titleRows });
+  const body = renderRows(sheet, { ...rowsInput, rows: page.rows });
+  const heightOf = (row: number): number => sheet.rows.get(row)?.height ?? sheet.defaultRowHeight;
+  const sum = (items: readonly number[], size: (item: number) => number): number => items.reduce((total, item) => total + size(item), 0);
+  const first = { column: page.columns[0], row: page.rows[0] };
+  const last = { column: page.columns[page.columns.length - 1], row: page.rows[page.rows.length - 1] };
+  const pictures = first.column === undefined || first.row === undefined || last.column === undefined || last.row === undefined ? "" : renderPagePictures(sheet.pictures ?? [], {
+    x: offsets.columns.at(first.column),
+    y: offsets.rows.at(first.row),
+    width: offsets.columns.at(last.column + 1) - offsets.columns.at(first.column),
+    height: offsets.rows.at(last.row + 1) - offsets.rows.at(first.row),
+    left: geometry.headingWidth + sum(page.titleColumns, widthOf),
+    top: geometry.headingHeight + sum(page.titleRows, heightOf),
+  }, scale, sheet.rightToLeft === true);
+  const direction = sheet.rightToLeft ? ` dir="rtl"` : "";
+  const width = `width:${round(tableWidth * scale)}pt`;
+  return `<section class="page"><div class="sheet" style="${width}"><table${direction} style="${width}"><colgroup>${colgroup}</colgroup>` +
+    `${head === "" ? "" : `<thead>${head}</thead>`}<tbody>${body}</tbody></table>${pictures}</div></section>`;
+}
+
+function stylesheet(sheet: XlsxPrintSheet, scale: number, usedStyles: ReadonlySet<number>): string {
+  const { setup } = sheet;
+  const margins = setup.margins;
+  const fontSize = round((sheet.defaultFont?.size ?? DEFAULT_FONT_SIZE) * scale);
+  const family = cssFontFamily(sheet.defaultFont?.family) ?? "Calibri, Arial, sans-serif";
+  // Header/footer pictures are defined once on :root and referenced from the margin boxes.
+  const images = new DocxPrintHfImageDefs();
+  const headerFooter = headerFooterRules(setup.headerFooter, sheet.headerContext ?? { sheetName: "", fileName: sheet.title, date: "", time: "" }, {
+    header: margins.header ?? 0.3,
+    footer: margins.footer ?? 0.3,
+    marginTop: margins.top,
+    marginBottom: margins.bottom,
+    scale,
+    fontFamily: family,
+    images,
+  });
+  const imageRule = images.rootRule();
+  const rules = [
+    `@page{size:${round(setup.paper.width)}in ${round(setup.paper.height)}in;margin:${round(margins.top)}in ${round(margins.right)}in ${round(margins.bottom)}in ${round(margins.left)}in}`,
+    ...headerFooter,
+    ...(imageRule === null ? [] : [imageRule]),
+    "html,body{margin:0;padding:0;background:#ffffff}",
+    "*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
+    ".page{position:relative;break-after:page}",
+    ".page:last-child{break-after:auto}",
+    ...VISUAL_RULES,
+    `table{border-collapse:collapse;table-layout:fixed;font-family:${family};font-size:${fontSize}pt;color:#000000}`,
+    `td{padding:0 ${round(CELL_PADDING * scale)}pt;overflow:hidden;white-space:nowrap;vertical-align:bottom;line-height:1.15}`,
+    "td.ov{position:relative;overflow:visible}",
+    `.ox{position:absolute;top:0;bottom:0;display:flex;overflow:hidden;white-space:nowrap;padding:0 ${round(CELL_PADDING * scale)}pt}`,
+    "td.n{text-align:right}",
+    "td.c{text-align:center}",
+    `th{font-weight:400;font-size:${fontSize}pt;text-align:center;background:#f2f2f2;border:0.5pt solid #9e9e9e;overflow:hidden;white-space:nowrap}`,
+  ];
+  if (setup.horizontalCentered) rules.push(".sheet{margin:0 auto}");
+  if (setup.verticalCentered) {
+    rules.push(`.page{display:flex;flex-direction:column;justify-content:center;height:${round(printableArea(setup).height - 2)}pt}`);
+  }
+  if (setup.gridlines) rules.push(`td{border:${GRIDLINE}}`);
+  if (sheet.marks && sheet.marks.size > 0) rules.push(...markRules(scale));
+  for (const index of [...usedStyles].sort((left, right) => left - right)) {
+    const style = sheet.styles[index]!;
+    const declarations = styleDeclarations(style, scale);
+    if (declarations.length > 0) rules.push(`td.s${index}{${declarations.join(";")}}`);
+    const rotation = rotationDeclarations(style);
+    if (rotation.length > 0) rules.push(`td.s${index}>.rt{${rotation.join(";")}}`);
+  }
+  return rules.join("\n");
+}
+
+/** Build the print copy of one sheet. */
+export function buildXlsxPrintCopy(sheet: XlsxPrintSheet): XlsxPrintCopyResult {
+  const geometries = sheet.areas.map((area) => geometryOf(sheet, area));
+  const cellCount = geometries.reduce((total, geometry) =>
+    total + (geometry.columns.length + geometry.titleColumns.length) * (geometry.rows.length + geometry.titleRows.length), 0);
+  if (cellCount > MAX_PRINT_CELLS) return { ok: false, reason: "print_too_large" };
+  // One scale for the whole copy (fonts are one stylesheet): the smallest any
+  // area needs (a fixed scale is the same for every area).
+  const scale = geometries.length === 0 ? 1 : Math.min(...geometries.map((geometry) => effectiveScale(sheet.setup, geometry)));
+  const usedStyles = new Set<number>();
+  // Sheet offsets with the same sizes the pages print (hidden = 0).
+  const offsets: XlsxSheetOffsets = {
+    columns: new XlsxPrintOffsets((column) => {
+      const entry = sheet.columns.get(column);
+      return entry?.hidden ? 0 : Math.max(0, entry?.width ?? sheet.defaultColumnWidth);
+    }),
+    rows: new XlsxPrintOffsets((row) => {
+      const entry = sheet.rows.get(row);
+      return entry?.hidden ? 0 : Math.max(0, entry?.height ?? sheet.defaultRowHeight);
+    }),
+  };
+  let pageCount = 0;
+  let pages = "";
+  for (const geometry of geometries) {
+    const layout = layoutPrintPages(sheet.setup, geometry, scale);
+    pageCount += layout.pages.length;
+    pages += layout.pages.map((page) => renderPage(sheet, page, scale, geometry, usedStyles, offsets)).join("");
+  }
+  const html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
+    `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(PRINT_COPY_CSP)}">` +
+    `<title>${escapeHtml(sheet.title)}</title><style>${stylesheet(sheet, scale, usedStyles)}</style></head>` +
+    `<body>${pages}</body></html>`;
+  if (new TextEncoder().encode(html).length > MAX_COPY_BYTES) return { ok: false, reason: "print_too_large" };
+  return { ok: true, html, pages: pageCount };
+}

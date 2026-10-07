@@ -72,6 +72,68 @@ describe("createPdfRenderSession", () => {
     }
   });
 
+  it("honours an explicit pixelRatio of 1 on a HiDPI display and keys the cache by it", async () => {
+    const s = setup();
+    vi.stubGlobal("devicePixelRatio", 3);
+    try {
+      const session = await createPdfRenderSession(new Uint8Array(1), s.deps);
+      await session.renderPage({ ...request, scale: 2, pixelRatio: 1 });
+      expect(s.docs[0].renderPage).toHaveBeenLastCalledWith(0, { scale: 2 });
+      await session.renderPage({ ...request, scale: 2, pixelRatio: 1 });
+      expect(s.docs[0].renderPage).toHaveBeenCalledTimes(1);
+      // The on-screen request (no ratio) still renders at display density, in its own entry.
+      await session.renderPage({ ...request, scale: 2 });
+      expect(s.docs[0].renderPage).toHaveBeenCalledTimes(2);
+      expect(s.docs[0].renderPage).toHaveBeenLastCalledWith(0, { scale: 6 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps no uncached render and hands its url back for the caller to release", async () => {
+    const s = setup();
+    const session = await createPdfRenderSession(new Uint8Array(1), s.deps);
+    const printed = await session.renderPage({ ...request, scale: 2, cache: false });
+    expect(printed.src).toBe("blob:0");
+    expect(s.revokeImageUrl).not.toHaveBeenCalled();
+    printed.release?.();
+    printed.release?.();
+    expect(s.revokeImageUrl).toHaveBeenCalledTimes(1);
+    expect(s.revokeImageUrl).toHaveBeenCalledWith("blob:0");
+    // Nothing was stored: the same request renders again, and so does a cached one.
+    await session.renderPage({ ...request, scale: 2, cache: false });
+    const viewed = await session.renderPage({ ...request, scale: 2 });
+    expect(viewed.src).toBe("blob:2");
+    expect(viewed.release).toBeUndefined();
+    expect(s.docs[0].renderPage).toHaveBeenCalledTimes(3);
+    // An edit revokes only what the cache holds, never the print urls again.
+    await session.replaceBytes(new Uint8Array(2));
+    await Promise.resolve();
+    expect(s.revokeImageUrl.mock.calls.map(([url]) => url)).toEqual(["blob:0", "blob:2"]);
+  });
+
+  it("serves an uncached request from a cached entry without letting it revoke the viewer's url", async () => {
+    const s = setup();
+    const session = await createPdfRenderSession(new Uint8Array(1), s.deps);
+    await session.renderPage({ ...request, pixelRatio: 1 });
+    const printed = await session.renderPage({ ...request, pixelRatio: 1, cache: false });
+    expect(printed.src).toBe("blob:0");
+    expect(printed.release).toBeUndefined();
+    expect(s.docs[0].renderPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("revokes an uncached render that is aborted before it is returned", async () => {
+    const s = setup();
+    const controller = new AbortController();
+    s.toImageUrl.mockImplementationOnce(async () => {
+      controller.abort();
+      return "blob:aborted";
+    });
+    const session = await createPdfRenderSession(new Uint8Array(1), s.deps);
+    await expect(session.renderPage({ ...request, cache: false, signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    expect(s.revokeImageUrl).toHaveBeenCalledWith("blob:aborted");
+  });
+
   it("keys the cache by device pixel ratio so a density change re-renders", async () => {
     const s = setup();
     vi.stubGlobal("devicePixelRatio", 1);

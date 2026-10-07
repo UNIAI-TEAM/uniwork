@@ -17,7 +17,7 @@
  * are numbers produced by `geometry.ts` (clamped), plus the fixed palette's own
  * swatch fills.
  *
- * The whole surface is behind the SAME flag H5 uses (`HTML_SELECTION_FLAG`,
+ * The whole surface is behind the SAME flag H5 uses (`OFFICE_HTML_VISUAL_EDIT_FLAG`,
  * default OFF) and renders nothing when the flag is off or no renderable rect
  * is known, so a flag-off build is behaviourally identical to before H6.
  *
@@ -36,7 +36,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import { Separator } from "@uniwork/ui/components/ui/separator";
 import { Toggle } from "@uniwork/ui/components/ui/toggle";
 import { useFlag } from "@uniwork/core/feature-flags";
-import { HTML_SELECTION_FLAG, type HtmlSelection } from "../selection/model";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection } from "../selection/model";
 import { floatAnchor, renderableRect, selectionBox } from "./geometry";
 
 /** The preview frame's structural hook, the same one H5 probes. Kept as a
@@ -63,6 +63,11 @@ const TEXT_COLOURS = [
 ] as const;
 
 type TextColourId = (typeof TEXT_COLOURS)[number]["id"];
+
+/** The document colour a palette id paints (`null` = inherit). */
+export function textColourValue(id: TextColourId): string | null {
+  return TEXT_COLOURS.find((colour) => colour.id === id)?.value ?? null;
+}
 
 /** Every action the toolbar can raise; all optional so a caller wires what it has. */
 export interface HtmlFloatToolbarCommands {
@@ -139,7 +144,7 @@ function ToolbarButton({ label, testId, disabled, onClick, children }: { label: 
 
 export function HtmlFloatToolbar({ selection, canvasRef, scrollRef, zoom = 100, commands = {}, state = {} }: HtmlFloatToolbarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html.float" });
-  const enabled = useFlag(HTML_SELECTION_FLAG, false);
+  const enabled = useFlag(OFFICE_HTML_VISUAL_EDIT_FLAG, false);
   const [offset, setOffset] = useState<Offset>(ZERO);
   const rect = renderableRect(selection);
   const rectKey = rect === null ? null : `${rect.x}:${rect.y}:${rect.width}:${rect.height}`;
@@ -182,7 +187,7 @@ export function HtmlFloatToolbar({ selection, canvasRef, scrollRef, zoom = 100, 
       data-float-placement={anchor.placement}
       data-selection-sid={selection?.sid ?? undefined}
       style={style}
-      className="pointer-events-auto absolute z-20 flex min-h-9 items-center gap-0.5 rounded-lg bg-surface-raised p-1 text-body text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
+      className="pointer-events-auto absolute z-30 flex min-h-9 w-max max-w-full flex-nowrap whitespace-nowrap items-center gap-0.5 rounded-lg bg-surface-raised p-1 text-body text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
     >
       <Toggle
         variant="toolbar"

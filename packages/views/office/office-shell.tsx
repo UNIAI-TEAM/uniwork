@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { Expand, Minimize2, PanelRight, Save, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OfficeState, SaveCoordinatorState } from "@uniwork/core/office";
@@ -9,6 +9,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { BreadcrumbHeader, type BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../layout/header-actions-slot";
 import { PAGE_TOOLBAR } from "../layout/page-header";
+import { OfficePrintShortcutScope } from "./print/shortcut";
 import { SaveStatus, type OfficeSaveStatusKind } from "./save-status";
 
 export interface OfficeSaveCoordinatorLike {
@@ -81,19 +82,23 @@ function useCoordinatorState(coordinator?: OfficeSaveCoordinatorLike, provided?:
   return state;
 }
 
+// The server and the hydration pass both read `false`, so SSR markup and the
+// first client render agree; the real match applies right after hydration.
 function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() => typeof window !== "undefined" && window.matchMedia?.(query).matches === true);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const media = window.matchMedia(query);
-    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
-    setMatches(media.matches);
-    media.addEventListener?.("change", onChange);
-    return () => media.removeEventListener?.("change", onChange);
-  }, [query]);
-
-  return matches;
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      if (typeof window === "undefined" || !window.matchMedia) return () => undefined;
+      const media = window.matchMedia(query);
+      media.addEventListener?.("change", onChange);
+      return () => media.removeEventListener?.("change", onChange);
+    },
+    [query],
+  );
+  const getSnapshot = useCallback(
+    () => typeof window !== "undefined" && window.matchMedia?.(query).matches === true,
+    [query],
+  );
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
 
 function useDarkTheme(): boolean {
@@ -253,7 +258,7 @@ export function OfficeShell({
     </div>
   );
 
-  return (
+  const shell = (
     <div
       ref={shellRef}
       className={cn("flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground", fullscreen && "fixed inset-0 z-40", className)}
@@ -269,7 +274,8 @@ export function OfficeShell({
           status={saveStatus}
           coordinatorState={coordinatorState}
           destination={saveDestination}
-          className="mx-4 my-2 w-auto"
+          className={saveStatusValue === "error" ? "w-auto" : "mx-4 my-2 w-auto"}
+          inline
         />
       ) : null}
       {toolbar ? <div className={cn(PAGE_TOOLBAR, "border-b border-border bg-muted/20")}>
@@ -323,4 +329,7 @@ export function OfficeShell({
       </div>
     </div>
   );
+
+  // Ctrl/Cmd+P anywhere on the page runs the open document's Print (UNI-952).
+  return <OfficePrintShortcutScope rootRef={shellRef}>{shell}</OfficePrintShortcutScope>;
 }

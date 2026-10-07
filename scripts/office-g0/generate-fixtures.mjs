@@ -433,6 +433,10 @@ const X_STYLES = DECL + '<styleSheet xmlns="' + NS_S + '">' +
   '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/></cellXfs>' +
   '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
 
+/** X_STYLES plus xf 4 = built-in numFmtId 4 (#,##0.00); xf 1 is the custom #,##0. Only the number-format fixture uses it, so no other fixture changes. */
+const X_STYLES_NUMFMT = X_STYLES.replace('<cellXfs count="4">', '<cellXfs count="5">')
+  .replace('</cellXfs>', '<xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>');
+
 function xSharedStrings(values) {
   const uniq = [];
   for (const v of values) if (!uniq.includes(v)) uniq.push(v);
@@ -508,8 +512,8 @@ async function buildXlsx(ctx) {
     const r = i + 2;
     return [
       xCell('A' + r, { sharedIndex: si(label) }),
-      xCell('B' + r, { number: 1250000000 + i * 160000000 }),
-      xCell('C' + r, { number: 780000000 + i * 40000000 }),
+      xCell('B' + r, ctx.numberFormats ? { number: 1250000000 + i * 160000000, style: 1 } : { number: 1250000000 + i * 160000000 }),
+      xCell('C' + r, ctx.numberFormats ? { number: 1234.5 + i * 1000, style: 4 } : { number: 780000000 + i * 40000000 }),
     ];
   });
   if (ctx.formulas !== false) {
@@ -561,7 +565,7 @@ async function buildXlsx(ctx) {
   parts['xl/workbook.xml'] = xWorkbook(names, defined);
   parts['xl/_rels/workbook.xml.rels'] = xWorkbookRels(names.length, { chart: !!ctx.chart, vba: !!ctx.vba });
   names.forEach((_, i) => { parts['xl/worksheets/sheet' + (i + 1) + '.xml'] = sheets[i]; });
-  parts['xl/styles.xml'] = X_STYLES;
+  parts['xl/styles.xml'] = ctx.numberFormats ? X_STYLES_NUMFMT : X_STYLES;
   if (ctx.chart) {
     parts['xl/charts/chart1.xml'] = xChartXml();
     parts['xl/drawings/drawing1.xml'] = DECL + '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="' + NS_A + '"/>';
@@ -1115,6 +1119,7 @@ const BUILDERS = {
   'F-DOCX-CAPTABLE-FLOAT': { kind: 'copied' },
   'F-XLSX-VI': { kind: 'file', build: (ctx) => buildXlsx(Object.assign({ multiSheet: true, chart: true }, ctx)) },
   'F-XLSX-KITCHEN': { kind: 'file', build: () => buildXlsx({ multiSheet: true, chart: true, kitchen: true }) },
+  'F-XLSX-NUMFMT': { kind: 'file', build: () => buildXlsx({ multiSheet: false, chart: false, formulas: false, numberFormats: true }) },
   'F-XLSX-BASIC': { kind: 'file', build: () => buildXlsx({ multiSheet: false, chart: false, customXml: true }) },
   'F-XLSX-EDIT': { kind: 'file', build: () => buildXlsx({ multiSheet: false, chart: false, formulas: false, sparse: true }) },
   'F-XLSX-SHEETS': { kind: 'file', build: () => buildXlsx({ multiSheet: true, chart: false }) },

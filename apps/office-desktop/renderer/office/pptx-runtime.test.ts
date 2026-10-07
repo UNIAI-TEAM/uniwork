@@ -35,6 +35,7 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
       return ops.runTxn(opened, request);
     },
     getSlideNotes: () => "",
+    parseMasterPart: () => null,
     buildRenderSlide: () => ({ nodes: [] }),
     HeuristicMetrics: class HeuristicMetrics {},
   };
@@ -66,6 +67,15 @@ describe("desktop PPTX session runtime", () => {
     const mixed = await runtime.edit(ref, [hide(true), box(2), box(3)]);
     expect(mixed.createdIds).toHaveLength(2);
     expect(await runtime.edit(ref, [hide(false)])).toEqual({ revision: 5 });
+  });
+
+  it("opens a deck above the 64 MiB server input bound (a local file is not size-capped)", async () => {
+    const runtime = createWebPptxSessionRuntime({ documentId: "doc" });
+    const base = makeFakePptxBytes();
+    const big = new Uint8Array(65 * 1024 * 1024);
+    big.set(base);
+    const result = await runtime.open({ bytes: big, documentId: "doc" });
+    expect(result.failure_class).not.toBe("too_large");
   });
 
   it("reads the live package's slide layouts and refuses after release", async () => {

@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DocxCommandRuntime } from "../../commands";
 import type { DocxToolbarGroupContext } from "../types";
 import { InsertNotesGroup } from "./insert-notes";
+import { createDocxDocumentScope } from "../../editor-store";
 
 const popoverState = vi.hoisted(() => ({
   open: false,
@@ -57,6 +58,7 @@ function renderGroup(options: { commands?: DocxCommandRuntime; readOnly?: boolea
   popoverState.open = false;
   const commands = "commands" in options ? options.commands : runtime();
   const props: DocxToolbarGroupContext = {
+    docScope: createDocxDocumentScope(),
     editor: {} as unknown as DocxToolbarGroupContext["editor"],
     coordinator: {} as unknown as DocxToolbarGroupContext["coordinator"],
     format: { docxNotes: options.notes ?? NOTES } as unknown as DocxToolbarGroupContext["format"],

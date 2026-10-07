@@ -264,7 +264,7 @@ func main() {
 	// never meet a file_id column it cannot ask about. GC stays at its zero
 	// value (dry_run): it reports and never deletes.
 	fileSvc, err := service.NewFileService(service.FileServiceOptions{
-		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(),
+		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(), KeyRoot: storageCfg.KeyRoot,
 		ReferenceProviders: service.FileReferenceProviders(chatSvc, meetingSvc),
 		// storage.bytes reservations for the Document purposes (G1-03): the
 		// hook ignores every other purpose.

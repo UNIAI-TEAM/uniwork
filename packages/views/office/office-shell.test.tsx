@@ -1,12 +1,21 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { createOfficeSaveCoordinator, type DraftAdapter, type EditorHandle, type OfficeIdentity, type StableSnapshot } from "@uniwork/core/office";
 import { createFakeOfficeTransport } from "../../core/office/test-fakes";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { OfficeShell, type OfficeSaveCoordinatorLike } from "./office-shell";
+import { PRINT_PLATFORMS, pressPrintChord, stubPrintPlatform } from "../test/print-chord";
+import { useOfficePrintShortcut } from "./print/shortcut";
 
 initI18n();
+
+function PrintingView({ run }: { run: () => void }) {
+  useOfficePrintShortcut(run);
+  return <div data-testid="canvas" />;
+}
 
 function coordinator(state: "ready" | "saving" | "saved" | "dirty"): OfficeSaveCoordinatorLike {
   return {
@@ -177,6 +186,29 @@ describe("OfficeShell", () => {
     );
     expect(screen.getByRole("complementary")).toHaveAttribute("data-panel-mode", mode);
     unmount();
+    vi.unstubAllGlobals();
+  });
+
+  it("renders the server snapshot as drawer and hydrates a wide viewport without a mismatch", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: true,
+      media: "(min-width: 1024px)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })));
+    const tree = <OfficeShell title="Document" editor={<div />} panel={<div />} panelOpen />;
+    const html = renderToString(tree);
+    expect(html).toContain('data-panel-mode="drawer"');
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const root = hydrateRoot(container, tree);
+    await waitFor(() => expect(container.querySelector("[data-panel-mode]")).toHaveAttribute("data-panel-mode", "static"));
+    expect(errors).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+    errors.mockRestore();
     vi.unstubAllGlobals();
   });
 
@@ -375,6 +407,70 @@ describe("OfficeShell", () => {
     );
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
+
+  // The shell is shared by all six formats: only a failed save is the one-line
+  // strip (9de552bb); every other in-shell banner keeps its card and margins.
+  it.each(["permission", "conflict", "blocked", "readonly", "incompatible"] as const)(
+    "keeps the %s banner a margined card in the shell",
+    (saveStatus) => {
+      const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveStatus={saveStatus} />);
+      const banner = container.querySelector("[data-office-shell] > [role=alert]");
+      expect(banner).not.toBeNull();
+      expect(banner!.className).toContain("mx-4 my-2 w-auto");
+      expect(banner!.className).not.toContain("border-b");
+      expect(banner).not.toHaveAttribute("data-testid", "office-save-error");
+    },
+  );
+
+  it.each(["ready", "dirty", "saving", "saved"] as const)("renders no save banner for %s", (saveStatus) => {
+    const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveStatus={saveStatus} />);
+    expect(container.querySelector("[data-office-shell] > [role=alert]")).toBeNull();
+    expect(container.querySelector("[data-office-shell] > [role=status]")).toBeNull();
+  });
+
+  it("renders a failed save as the one-line strip without the card margins", () => {
+    const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveStatus="error" />);
+    const strip = screen.getByTestId("office-save-error");
+    expect(strip.parentElement).toBe(container.querySelector("[data-office-shell]"));
+    expect(strip.className).toContain("border-b");
+    expect(strip.className).not.toContain("mx-4");
+    expect(strip.className).not.toContain("my-2");
+  });
+
+  it("routes Ctrl/Cmd+P from the page header to the open document's print, not the app window", () => {
+    const run = vi.fn();
+    render(
+      <HeaderActionsSlotProvider>
+        <header data-testid="page-header"><button type="button">menu</button><HeaderActionsSlot /></header>
+        <OfficeShell embedded title="Report.docx" editor={<PrintingView run={run} />} />
+      </HeaderActionsSlotProvider>,
+    );
+    const handled = pressPrintChord(screen.getByRole("button", { name: "menu" }));
+    expect(handled).toBe(false);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(PRINT_PLATFORMS)("prints only the active document when a hidden tab's shell is also mounted (%s)", (platform) => {
+    const restore = stubPrintPlatform(platform);
+    const hiddenRun = vi.fn();
+    const activeRun = vi.fn();
+    render(<>
+      <div hidden inert><OfficeShell title="Old.xlsx" editor={<PrintingView run={hiddenRun} />} /></div>
+      <OfficeShell title="Open.pptx" editor={<PrintingView run={activeRun} />} />
+    </>);
+    try {
+      pressPrintChord(document.body);
+      expect(activeRun).toHaveBeenCalledTimes(1);
+      expect(hiddenRun).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  it("leaves Ctrl+P to the platform when the open document cannot print", () => {
+    render(<OfficeShell title="Document" editor={<div />} />);
+    expect(pressPrintChord(document.body)).toBe(true);
   });
 
   it("renders the editor edge to edge", () => {

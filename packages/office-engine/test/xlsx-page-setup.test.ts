@@ -18,10 +18,10 @@ import {
   XlsxOpError,
   type XlsxWorkbookSnapshot,
 } from "../src/xlsx";
+import { ARTIFACT, describeWithPatchedGateway } from "./xlsx-patched-gateway";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
-const ARTIFACT = join(REPO, ".go-tmp", "office-upstream-build", "dist", "xlsx-gateway.mjs");
 const FIXTURES = join(REPO, "docs", "office", "g0", "fixtures", "files", "sheets");
 const COMPAT_EDIT = "xlsx-compatibility-edit.xlsx";
 
@@ -164,7 +164,7 @@ describe("XLSX page-setup ops in the session model", () => {
   });
 });
 
-describe.skipIf(!existsSync(ARTIFACT))("xlsx page setup on the real gateway", () => {
+describeWithPatchedGateway("xlsx page setup on the real gateway", () => {
   it("writes orientation, margins, print area/titles and breaks, and the file reopens", async () => {
     const engine = await load();
     const saved = await saveOps(engine, fixture(COMPAT_EDIT), [

@@ -10,7 +10,9 @@ import { toA1, type XlsxFilterOp, type XlsxHyperlinkOp, type XlsxNotesOp, type X
 import { type XlsxPageSetupOp } from "./page-setup.ts";
 import { type XlsxDefinedNamesOp } from "./ops-names.ts";
 import { type XlsxTableAddOp } from "./tables.ts";
+import { type XlsxVisualEntry } from "./ops-visuals.ts";
 import { type XlsxSheetProtectionOp } from "./ops-protection.ts";
+import { type XlsxRuleSetEntry } from "./ops-cf-dv.ts";
 
 /** The vendored gateway's SheetEditPlan, rebuilt from the model's final sheet
  *  state at save time (xlsx-sheets.ts SheetEditPlan). `order` is the COMPLETE
@@ -50,11 +52,14 @@ export interface RemovedSheetState {
   readonly filter?: XlsxFilterOp | undefined;
   readonly pageSetup?: XlsxPageSetupOp | undefined;
   readonly tables?: readonly XlsxTableAddOp[] | undefined;
+  readonly visuals?: readonly XlsxVisualEntry[] | undefined;
   readonly protection?: XlsxSheetProtectionOp | undefined;
   /** Per-cell hyperlink ops set aside at removal (address -> op). */
   readonly hyperlinks?: readonly XlsxHyperlinkOp[] | undefined;
   /** The whole-sheet note snapshot set aside at removal. */
   readonly notes?: XlsxNotesOp | undefined;
+  /** The CF/DV rule-set snapshots set aside at removal (X01). */
+  readonly ruleSets?: XlsxRuleSetEntry | undefined;
   /** Tab position at removal: an undo re-insert with no explicit index lands
    *  back where the sheet was instead of at the end of the strip. */
   readonly index: number;
@@ -67,10 +72,12 @@ export interface ModelCheckpoint {
   readonly filters: Map<string, XlsxFilterOp>;
   readonly pageSetups: Map<string, XlsxPageSetupOp>;
   readonly tables: XlsxTableAddOp[];
+  readonly visuals: XlsxVisualEntry[];
   readonly sheetProtections: Map<string, XlsxSheetProtectionOp>;
   readonly definedNames: XlsxDefinedNamesOp | undefined;
   readonly hyperlinks: Map<string, Map<string, XlsxHyperlinkOp>>;
   readonly notes: Map<string, XlsxNotesOp>;
+  readonly ruleSets: Map<string, XlsxRuleSetEntry>;
   readonly sheetStates: ModelSheetState[];
   readonly removedOriginals: string[];
   readonly removedStates: Map<string, RemovedSheetState>;

@@ -11,7 +11,15 @@
 // lane's cloud-only vitest rule).
 import { describe, expect, it } from "vitest";
 import { createPptxAdapter, type PptxEdit, pptxEditKinds } from "../src/pptx";
-import { createFakePptxEngine, createFakePptxOps, decodeFakePptx } from "./fake-pptx-engine";
+import {
+  createFakePptxEngine,
+  createFakePptxOps,
+  decodeFakePptx,
+  FAKE_LAYOUT_PART,
+  FAKE_MASTER_PART,
+  fakeMasterFixture,
+  xmlMasterFixture,
+} from "./fake-pptx-engine";
 import { makeFakePptxBytes, para } from "./fake-pptx-fixtures";
 
 const DECLARED_KINDS: PptxEdit["op"][] = [
@@ -81,6 +89,17 @@ const DECLARED_KINDS: PptxEdit["op"][] = [
   "add_smartart",
   "add_model3d",
   "add_connector",
+  // Slide master / layout part edits (B6 wire).
+  "master_edit_text",
+  "master_set_transform",
+  "master_set_fill",
+  "master_set_stroke",
+  "master_delete_element",
+  // Part-XML master edits (T01).
+  "master_rename",
+  "master_add_placeholder",
+  "master_remove_placeholder",
+  "master_set_text_style",
 ];
 
 const errCode = (fn: () => unknown): string => {
@@ -113,6 +132,15 @@ const GROUP_DECK: Parameters<typeof makeFakePptxBytes>[0] = {
 /** Per-kind fixture override (only the kinds whose target the deck lacks). */
 const FIXTURE_FOR: Partial<Record<PptxEdit["op"], Parameters<typeof makeFakePptxBytes>[0]>> = {
   ungroup_element: GROUP_DECK,
+  master_edit_text: fakeMasterFixture(),
+  master_set_transform: fakeMasterFixture(),
+  master_set_fill: fakeMasterFixture(),
+  master_set_stroke: fakeMasterFixture(),
+  master_delete_element: fakeMasterFixture(),
+  master_rename: xmlMasterFixture(),
+  master_add_placeholder: xmlMasterFixture(),
+  master_remove_placeholder: xmlMasterFixture(),
+  master_set_text_style: xmlMasterFixture(),
 };
 
 /** One valid edit per declared kind, in registry order. Each is applied on a
@@ -232,6 +260,17 @@ const ONE_OF_EACH: PptxEdit[] = [
     hPx: 90,
   },
   { op: "add_connector", slideIndex: 0, elementIds: ["t1", "s1"], kind: "elbow", arrow: "end" },
+  // Slide master / layout parts (B6 wire): part-addressed, not slide-addressed.
+  { op: "master_edit_text", part: FAKE_MASTER_PART, elementId: "m_title", paragraphs: [para("Master title")] },
+  { op: "master_set_transform", part: FAKE_LAYOUT_PART, elementId: "l_title", xPx: 10, yPx: 10, wPx: 100, hPx: 50 },
+  { op: "master_set_fill", part: FAKE_MASTER_PART, elementId: "m_body", fill: "#112233" },
+  { op: "master_set_stroke", part: FAKE_MASTER_PART, elementId: "m_logo", stroke: { color: "#112233", widthEmu: 12700 } },
+  { op: "master_delete_element", part: FAKE_MASTER_PART, elementId: "m_logo" },
+  // Part-XML master edits (T01): addressed by part + placeholder slot.
+  { op: "master_rename", part: FAKE_LAYOUT_PART, name: "Renamed" },
+  { op: "master_add_placeholder", part: FAKE_LAYOUT_PART, placeholder: "body", xPx: 10, yPx: 10, wPx: 100, hPx: 50 },
+  { op: "master_remove_placeholder", part: FAKE_MASTER_PART, placeholder: "dt" },
+  { op: "master_set_text_style", part: FAKE_MASTER_PART, placeholder: "title", sizePt: 40 },
 ];
 
 describe("pptx edit-kind registry", () => {
@@ -334,6 +373,19 @@ describe("pptx edit-kind registry", () => {
       expect(created?.type).toBe("smartart");
       expect(created?.layout).toBe("process");
     }
+  });
+
+  it("round-trips a master edit: edit -> savePptx -> reopen -> the master part shows the change", async () => {
+    const { adapter, ref } = await openModel(fakeMasterFixture());
+    adapter.edit(ref, { op: "master_set_fill", part: FAKE_MASTER_PART, elementId: "m_body", fill: "#112233" });
+    adapter.edit(ref, { op: "master_edit_text", part: FAKE_LAYOUT_PART, elementId: "l_title", paragraphs: [para("Saved")] });
+    const saved = await adapter.serialize({ document_model_ref: ref, format: "pptx" });
+    const reopened = await adapter.open({ bytes: saved.bytes, format: "pptx", document_id: "registry-reopen" });
+    if (reopened.outcome !== "opened") throw new Error("reopen failed");
+    const body = adapter.masterElements(reopened.document_model_ref, FAKE_MASTER_PART).find((e) => e.id === "m_body");
+    expect(body?.fill).toBe("#112233");
+    const title = adapter.masterElements(reopened.document_model_ref, FAKE_LAYOUT_PART).find((e) => e.id === "l_title");
+    expect(title?.text).toBe("Saved");
   });
 
   it("refuses an unregistered kind with a typed error instead of ignoring it", async () => {

@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { createRef } from "react";
+import { setLocale } from "@uniwork/core/i18n";
 import { describe, expect, it, vi } from "vitest";
 import { XlsxGridSurface, type XlsxGridHandle, type XlsxRendererModule } from "./xlsx-grid-surface";
 import type { XlsxGridHostPort } from "./xlsx-grid-surface";
@@ -37,6 +38,7 @@ function fakeModule() {
     executeCommand: vi.fn(() => true),
     getActiveFormatState: vi.fn(() => null),
     setDarkMode: vi.fn(),
+    setLocale: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
     getDirtyGeneration: vi.fn(() => 0),
@@ -65,6 +67,19 @@ describe("XlsxGridSurface", () => {
     expect(options.current?.container).toBeInstanceOf(HTMLElement);
     expect(handle.loadWorkbook).toHaveBeenCalledWith(file);
     expect(ref.current?.getDirtyGeneration()).toBe(0);
+  });
+
+  it("marks the grid surface and forwards the renderer's cell-edit state (null without the port, review r3 F1/F2)", async () => {
+    const { module, handle } = fakeModule();
+    const ref = createRef<XlsxGridHandle>();
+    const onReady = vi.fn();
+    render(<XlsxGridSurface ref={ref} documentKey="doc-edit" host={host} loadModule={async () => module} onReady={onReady} />);
+    expect(screen.getByTestId("xlsx-grid-surface")).toHaveAttribute("data-xlsx-grid-surface");
+    expect(ref.current?.isCellEditing?.()).toBeNull();
+    await waitFor(() => expect(onReady).toHaveBeenCalled());
+    expect(ref.current?.isCellEditing?.()).toBeNull();
+    handle.isCellEditing = vi.fn(() => true);
+    expect(ref.current?.isCellEditing?.()).toBe(true);
   });
 
   it("routes the renderer callbacks back to the host", async () => {
@@ -97,6 +112,61 @@ describe("XlsxGridSurface", () => {
     expect(handle.setDarkMode).toHaveBeenLastCalledWith(true);
     expect(handle.dispose).not.toHaveBeenCalled();
     expect(handle.loadWorkbook).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a history listener on the live renderer across a renderer swap (review-session n-3)", async () => {
+    type Listener = (state: { undos: number; redos: number }) => void;
+    const renderers: { listeners: Set<Listener>; dispose: ReturnType<typeof vi.fn> }[] = [];
+    const module: XlsxRendererModule = {
+      installXlsxRendererStyles: vi.fn(),
+      createXlsxRenderer: vi.fn(() => {
+        const listeners = new Set<Listener>();
+        const renderer = { listeners, dispose: vi.fn() };
+        renderers.push(renderer);
+        return {
+          ...fakeModule().handle,
+          dispose: renderer.dispose,
+          getHistory: () => ({ undos: renderers.length - 1, redos: 0 }),
+          subscribeHistory: (listener: Listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+        };
+      }),
+    };
+    const ref = createRef<XlsxGridHandle>();
+    const onReady = vi.fn();
+    const { rerender } = render(<XlsxGridSurface ref={ref} documentKey="swap-doc" host={host} loadModule={async () => module} onReady={onReady} />);
+    await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    const seen: { undos: number; redos: number }[] = [];
+    const unsubscribe = ref.current!.subscribeHistory!((state) => seen.push(state));
+    act(() => { for (const listener of renderers[0]!.listeners) listener({ undos: 3, redos: 0 }); });
+    // A readOnly flip recreates the renderer while the editor stays ready.
+    rerender(<XlsxGridSurface ref={ref} documentKey="swap-doc" host={host} readOnly loadModule={async () => module} onReady={onReady} />);
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(2));
+    expect(renderers[0]!.dispose).toHaveBeenCalled();
+    expect(renderers[0]!.listeners.size).toBe(0);
+    act(() => { for (const listener of renderers[1]!.listeners) listener({ undos: 0, redos: 1 }); });
+    // The new renderer announces its own stack, then its pushes reach the listener.
+    expect(seen).toEqual([{ undos: 3, redos: 0 }, { undos: 1, redos: 0 }, { undos: 0, redos: 1 }]);
+    unsubscribe();
+    act(() => { for (const listener of renderers[1]!.listeners) listener({ undos: 5, redos: 0 }); });
+    expect(seen).toHaveLength(3);
+  });
+
+  it("moves the numfmt locale on a live language change without reloading the workbook", async () => {
+    const { module, handle } = fakeModule();
+    const original = document.documentElement.lang === "en" ? "en" : "vi";
+    try {
+      await act(async () => { await setLocale("vi"); });
+      render(<XlsxGridSurface documentKey="lang-doc" host={host} loadModule={async () => module} />);
+      await waitFor(() => expect(handle.loadWorkbook).toHaveBeenCalledOnce());
+      await act(async () => { await setLocale("en"); });
+      expect(handle.setLocale).toHaveBeenLastCalledWith("en");
+      await act(async () => { await setLocale("vi"); });
+      expect(handle.setLocale).toHaveBeenLastCalledWith("vi");
+      expect(handle.loadWorkbook).toHaveBeenCalledOnce();
+      expect(handle.dispose).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => { await setLocale(original); });
+    }
   });
 
   it("forwards commands to the artifact handle and reports its boolean result", async () => {

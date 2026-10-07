@@ -10,6 +10,7 @@ export type RendererBridge = Readonly<{
   onSessionChanged(listener: (metadata: DesktopSessionMetadata) => void): () => void;
   onLaunchRequested?(listener: (event: { documentId: string; operation: "view" | "edit"; version?: number }) => void): () => void;
   onOfficeSaveRequested?(listener: (event: { documentId: string }) => void): () => void;
+  onOfficePrintRequested?(listener: () => void): () => void;
   onLeaveRequested?(listener: (event: { requestId: string; reason: "close" | "logout" | "update" }) => void): () => void;
   onLeaveExpired?(listener: (event: { requestId: string }) => void): () => void;
   openDroppedFile?(file: File): Promise<unknown>;

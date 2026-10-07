@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { createIpcDispatcher, validateIpcRequest } from "./ipc";
 import { DESKTOP_DOCUMENT_FORMATS } from "./document-formats";
-import { desktopLibraryResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema } from "./ipc";
+import { desktopLibraryResponseSchema, desktopOfficeContextResponseSchema, desktopOfficeOpenResponseSchema, desktopPublicConfigResponseSchema, sanitizeDesktopPublicFlags } from "./ipc";
 
 const sender = { senderId: 1, expectedSenderId: 1, frameId: 0, expectedFrameId: 0, origin: "uniwork-office-app://app", expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const tabs = { sessionGeneration: sender.sessionGeneration, documentIds: ["a", "b"], activeDocumentId: "b" };
@@ -21,7 +21,7 @@ it("validates tab membership, uniqueness, opaque ids, maximum eight and live IPC
 });
 
 it("requires document id on checkpoint and recovery but keeps account-level list/discard", () => {
-  const checkpoint = { sessionGeneration: sender.sessionGeneration, draftId: "draft", generation: 1, dataBase64: "b2s=" };
+  const checkpoint = { sessionGeneration: sender.sessionGeneration, draftId: "draft", generation: 1, data: Uint8Array.from(Buffer.from("b2s=", "base64")) };
   const recovery = { sessionGeneration: sender.sessionGeneration, draftId: "draft", currentBase: { version: "1", revision: "1" } };
   expect(() => validateIpcRequest("desktop:draft-checkpoint", checkpoint, sender)).toThrow();
   expect(() => validateIpcRequest("desktop:draft-recover", recovery, sender)).toThrow();
@@ -53,7 +53,7 @@ it("refuses a library response whose format is outside the desktop format table"
 });
 
 it("accepts a pptx open response mime type and refuses a foreign one", async () => {
-  const pptx = { document: libraryRow("pptx"), dataBase64: "aGVsbG8=", filename: "Deck.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", checksum: `sha256:${"a".repeat(64)}` };
+  const pptx = { document: libraryRow("pptx"), data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")), filename: "Deck.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", checksum: `sha256:${"a".repeat(64)}` };
   const dispatch = createIpcDispatcher({ "desktop:office-open": () => pptx }, sender);
   await expect(dispatch("desktop:office-open", { sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1" })).resolves.toMatchObject({ document: { format: "pptx" } });
   const foreign = createIpcDispatcher({ "desktop:office-open": () => ({ ...pptx, mimeType: "text/plain" }) }, sender);
@@ -73,7 +73,7 @@ it("carries docx, pdf, md, html, xlsx and pptx through the widened library and o
 
 it("accepts a carried MIME type on an office-open response and refuses others", () => {
   const document = { id: "01J8X4DOC0N1P2Q3R4S5T6U7", workspaceId: "ws-1", title: "Plan.xlsx", kind: "file", format: "xlsx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
-  const response = { document, dataBase64: "aGVsbG8=", filename: "Plan.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", checksum: `sha256:${"a".repeat(64)}` };
+  const response = { document, data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")), filename: "Plan.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", checksum: `sha256:${"a".repeat(64)}` };
   expect(desktopOfficeOpenResponseSchema.safeParse(response).success).toBe(true);
   expect(desktopOfficeOpenResponseSchema.safeParse({ ...response, mimeType: "text/plain" }).success).toBe(false);
 });
@@ -81,12 +81,12 @@ it("accepts a carried MIME type on an office-open response and refuses others", 
 it("validates the metadata-only office-context open surface", () => {
   const document = { id: "01J8X4DOC0N1P2Q3R4S5T6U7", workspaceId: "ws-1", title: "Plan.xlsx", kind: "file", format: "xlsx", version: 1, revision: "9", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
   expect(desktopOfficeContextResponseSchema.safeParse({ document }).success).toBe(true);
-  expect(desktopOfficeContextResponseSchema.safeParse({ document, dataBase64: "aGVsbG8=" }).success).toBe(false);
+  expect(desktopOfficeContextResponseSchema.safeParse({ document, data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")) }).success).toBe(false);
   expect(() => validateIpcRequest("desktop:office-context", { sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1" }, sender)).not.toThrow();
 });
 
 it("requires a carried format on an office-save request", () => {
-  const save = (format: string) => ({ sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1", format, intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}` });
+  const save = (format: string) => ({ sessionGeneration: sender.sessionGeneration, workspaceId: "ws-1", documentId: "doc-1", format, intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", data: Uint8Array.from(Buffer.from("aGVsbG8=", "base64")), checksum: `sha256:${"a".repeat(64)}` });
   for (const format of ["docx", "xlsx", "pptx"]) expect(() => validateIpcRequest("desktop:office-save", save(format), sender)).not.toThrow();
   expect(() => validateIpcRequest("desktop:office-save", save("txt"), sender)).toThrow();
 });
@@ -107,4 +107,26 @@ it("validates the office-job request surface in main", () => {
   expect(() => validateIpcRequest("desktop:office-job", job({ format: "docx" }), sender)).not.toThrow();
   expect(() => validateIpcRequest("desktop:office-job", job({ format: "txt" }), sender)).toThrow();
   expect(() => validateIpcRequest("desktop:office-job", job({ format: undefined }), sender)).toThrow();
+});
+
+it("accepts an optional organization id on the public-config request and nothing else", () => {
+  const request = { sessionGeneration: "session_1234" };
+  expect(() => validateIpcRequest("desktop:public-config", request, sender)).not.toThrow();
+  expect(() => validateIpcRequest("desktop:public-config", { ...request, organizationId: "org-1" }, sender)).not.toThrow();
+  expect(() => validateIpcRequest("desktop:public-config", { ...request, organizationId: "" }, sender)).toThrow();
+  expect(() => validateIpcRequest("desktop:public-config", { ...request, extra: 1 }, sender)).toThrow();
+});
+
+it("keeps the Office flags when a public flag catalogue runs past the cap (R4-7)", () => {
+  // 200 other flags listed first: an insertion-order cut at 128 would drop every office_* key.
+  const raw: Record<string, unknown> = Object.fromEntries(Array.from({ length: 200 }, (_, index) => [`flag_${index}`, true]));
+  Object.assign(raw, { office_docx: false, office_engine: true, "Bad-Key": true, office_pdf: "yes" });
+  const flags = sanitizeDesktopPublicFlags(raw);
+  expect(Object.keys(flags)).toHaveLength(128);
+  expect(flags.office_engine).toBe(true);
+  expect(flags.office_docx).toBe(false);
+  expect(Object.keys(flags).slice(0, 2)).toEqual(["office_engine", "office_docx"]);
+  expect(flags).not.toHaveProperty("Bad-Key");
+  expect(flags).not.toHaveProperty("office_pdf");
+  expect(desktopPublicConfigResponseSchema.safeParse({ flags }).success).toBe(true);
 });

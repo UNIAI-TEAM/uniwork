@@ -170,6 +170,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`${t("office.xlsx.sheets.unhide")}: ${tab.name}`}
+                title={`${t("office.xlsx.sheets.unhide")}: ${tab.name}`}
                 aria-disabled={blocked || undefined}
                 onClick={() => { if (!blocked) onAction({ kind: "set-hidden", sheet: tab.name, hidden: false }); }}
               >
@@ -185,6 +186,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           variant="toolbar"
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.add")}
+          title={t("office.xlsx.sheets.add")}
           aria-disabled={!canEdit || undefined}
           onClick={() => { if (canEdit) onAction({ kind: "add", name: uniqueSheetName(t("office.xlsx.sheets.defaultName"), tabs.map((tab) => tab.name)) }); }}
           data-testid="xlsx-sheet-add"
@@ -217,6 +219,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
             variant="toolbar"
             size="icon-sm"
             aria-label={t("office.xlsx.sheets.rename")}
+            title={t("office.xlsx.sheets.rename")}
             aria-disabled={blocked || undefined}
             onClick={startRename}
             data-testid="xlsx-sheet-rename"
@@ -230,6 +233,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           variant="toolbar"
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.duplicate")}
+          title={t("office.xlsx.sheets.duplicate")}
           aria-disabled={blocked || undefined}
           onClick={duplicateActive}
           data-testid="xlsx-sheet-duplicate"
@@ -242,6 +246,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           variant="toolbar"
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.moveLeft")}
+          title={t("office.xlsx.sheets.moveLeft")}
           aria-disabled={!canMoveLeft || undefined}
           onClick={() => moveActive(-1)}
           data-testid="xlsx-sheet-move-left"
@@ -254,6 +259,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           variant="toolbar"
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.moveRight")}
+          title={t("office.xlsx.sheets.moveRight")}
           aria-disabled={!canMoveRight || undefined}
           onClick={() => moveActive(1)}
           data-testid="xlsx-sheet-move-right"
@@ -266,6 +272,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           variant="toolbar"
           size="icon-sm"
           aria-label={t("office.xlsx.sheets.hide")}
+          title={t("office.xlsx.sheets.hide")}
           aria-disabled={!canHide || undefined}
           onClick={hideActive}
           data-testid="xlsx-sheet-hide"
@@ -278,6 +285,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
           variant="toolbar"
           size="icon-sm"
           aria-label={confirming ? t("office.xlsx.sheets.confirmRemove") : t("office.xlsx.sheets.remove")}
+          title={confirming ? t("office.xlsx.sheets.confirmRemove") : t("office.xlsx.sheets.remove")}
           aria-disabled={!canRemove || undefined}
           data-confirming={confirming || undefined}
           onClick={removeActive}
@@ -295,6 +303,7 @@ export function XlsxSheetTabs({ tabs, activeSheet, canEdit, onSelect, onAction }
                 variant="toolbar"
                 size="icon-sm"
                 aria-label={t("office.xlsx.sheets.actions")}
+                title={t("office.xlsx.sheets.actions")}
                 className="sm:hidden"
                 data-testid="xlsx-sheet-actions-menu"
               >

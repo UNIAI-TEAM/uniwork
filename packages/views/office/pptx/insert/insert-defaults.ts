@@ -18,6 +18,9 @@ type AddElementEdit = Extract<PptxEdit, { op: "add_element" }>;
 const PPTX_INSERT_DEFAULT_FILL = "#4472C4";
 const PPTX_INSERT_DEFAULT_OUTLINE = { color: "#2F528F", widthPt: 1 } as const;
 
+/** The look a connector gets when the pane is untouched: the vendored 1pt black stroke, which add_connector writes itself. */
+export const PPTX_CONNECTOR_DEFAULT_LINE = { color: "#000000", widthPt: 1, dash: "solid" } as const;
+
 /** An inserted gallery shape with a visible default style. */
 export function insertShapeEdit(slideIndex: number, prst: string): AddElementEdit {
   const box = defaultInsertBox(prst);

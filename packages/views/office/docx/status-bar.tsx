@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { getDocxLiveEditor, subscribeDocxLiveEditor } from "./editor-store";
+import { useEffect, useState, type ReactNode } from "react";
+import { useDocxScopeValue } from "./editor-store";
 import { docxEditorCounts, readDocxPagePosition, type DocxPagePosition } from "./status";
 import { DocxStatusBar as DocxStatusBarView } from "./status/status-bar";
 import type { DocxToolbarGroupContext } from "./toolbar/types";
-import { getDocxZoomController, useDocxEffectiveZoomPercent } from "./view";
+import { useDocxEffectiveZoomPercent } from "./view";
 import { useDocxViewSurface } from "./view/surface-targets";
 
 /**
@@ -40,10 +40,11 @@ export function readDocumentLang(root: HTMLElement | null, surface: HTMLElement 
  * Nothing here reaches into the save path; a host with no mounted document
  * surface leaves every readout on its unknown mark.
  */
-export function DocxStatusBar({ selection, help }: Pick<DocxToolbarGroupContext, "selection"> & { help?: ReactNode }) {
-  const live = useSyncExternalStore(subscribeDocxLiveEditor, getDocxLiveEditor, getDocxLiveEditor);
-  const surface = useDocxViewSurface();
-  const controller = getDocxZoomController();
+export function DocxStatusBar({ selection, help, docScope }: Pick<DocxToolbarGroupContext, "selection" | "docScope"> & { help?: ReactNode }) {
+  const scope = docScope;
+  const live = useDocxScopeValue(scope.editor);
+  const surface = useDocxViewSurface(scope);
+  const controller = scope.zoom;
   const zoom = useDocxEffectiveZoomPercent(controller);
   const [page, setPage] = useState<DocxPagePosition | null>(null);
   // Counts change on every transaction; the revision just re-renders the bar.
@@ -80,6 +81,8 @@ export function DocxStatusBar({ selection, help }: Pick<DocxToolbarGroupContext,
       selection={selection ? { from: selection.from, to: selection.to } : null}
       onZoomIn={surface ? () => controller.zoomIn() : undefined}
       onZoomOut={surface ? () => controller.zoomOut() : undefined}
+      onFitWidth={surface ? () => controller.fit("width") : undefined}
+      onFitPage={surface ? () => controller.fit("page") : undefined}
       help={help}
     />
   );

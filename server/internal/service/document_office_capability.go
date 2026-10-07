@@ -651,6 +651,9 @@ func validateOfficeJobEdits(operation office.Operation, edits []office.EditOp) e
 			return ErrOfficeJobInvalid
 		}
 	}
+	if !officeVisualEditsOrdered(edits) {
+		return ErrOfficeJobInvalid
+	}
 	return nil
 }
 
@@ -724,6 +727,15 @@ var officeEditValidators = map[string]func(office.EditOp) bool{
 	// section from the editor model. Names follow Excel's grammar;
 	// preserveNames lists names the editor cannot model and keeps verbatim.
 	"set_defined_names": officeSetDefinedNamesValid,
+	// Visuals (B8): set_visual adds or replaces one session chart, picture or
+	// shape (document_office_visuals.go); remove_visual cancels it by id.
+	"set_visual":    officeSetVisualValid,
+	"remove_visual": officeRemoveVisualValid,
+	// Conditional formatting + data validation (X01): whole-sheet declarative
+	// snapshots of the editor's rule model (Univer rule JSON the gateway maps
+	// to OOXML); an empty rules list removes every rule on the sheet.
+	"set_conditional_formats": officeRuleSetValid(officeCfRuleTypes, true, officeCfRuleBodyOK),
+	"set_data_validations":    officeRuleSetValid(officeDvRuleTypes, false, officeDvRuleBodyOK),
 }
 
 // OOXML grid bounds (ECMA-376): rows 1..1048576, columns A..XFD, mirroring
@@ -2077,4 +2089,92 @@ func officeRemoveTableValid(edit office.EditOp) bool {
 		return false
 	}
 	return officeTableNameOK(attributes["name"])
+}
+
+// Conditional formatting + data validation (X01). set_conditional_formats and
+// set_data_validations carry the whole-sheet rule snapshot: at most 1000
+// rules, each with 1..1000 ordered in-grid areas and a Univer rule object of a
+// type the gateway can write, at most 64 KiB serialized, and the whole op at
+// most 512 KiB. Bounds mirror the ops-cf-dv.ts parser; the gateway stays the
+// authority on formulas, colours and styles; the inner allowlists live in
+// document_office_capability_rulesets.go.
+const (
+	maxOfficeRuleSetRules     = 1_000
+	maxOfficeRuleSetAreas     = 1_000
+	maxOfficeRuleSetRuleBytes = 64 << 10
+	maxOfficeRuleSetBytes     = 512 << 10
+)
+
+var (
+	officeCfRuleTypes = map[string]bool{"highlightCell": true, "colorScale": true, "dataBar": true, "iconSet": true}
+	officeDvRuleTypes = map[string]bool{
+		"any": true, "none": true, "whole": true, "decimal": true, "list": true,
+		"date": true, "time": true, "textLength": true, "custom": true, "checkbox": true,
+	}
+)
+
+// officeRuleSetValid builds the validator for one rule-set op: a sheet-ref
+// target plus exactly one `rules` array. withStopIfTrue admits the CF rule's
+// optional boolean stopIfTrue.
+func officeRuleSetValid(types map[string]bool, withStopIfTrue bool, bodyOK officeRuleBodyCheck) func(office.EditOp) bool {
+	return func(edit office.EditOp) bool {
+		// No stray top-level fields: the op needs only target + attributes (n4).
+		if edit.Text != "" || len(edit.Style) > 0 || len(edit.Range) > 0 {
+			return false
+		}
+		if !officeRangeTargetOK(edit.Target) || len(edit.Attributes) > maxOfficeRuleSetBytes {
+			return false
+		}
+		attributes, ok := officeStructuralAttributes(edit.Attributes)
+		if !ok || len(attributes) != 1 {
+			return false
+		}
+		var rules []map[string]json.RawMessage
+		if json.Unmarshal(attributes["rules"], &rules) != nil || rules == nil || len(rules) > maxOfficeRuleSetRules {
+			return false
+		}
+		for _, rule := range rules {
+			if !officeRuleSetRuleOK(rule, types, withStopIfTrue, bodyOK) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// officeRuleBodyCheck validates the inner rule object of an allowed type.
+type officeRuleBodyCheck func(ruleType string, body map[string]json.RawMessage) bool
+
+func officeRuleSetRuleOK(rule map[string]json.RawMessage, types map[string]bool, withStopIfTrue bool, bodyOK officeRuleBodyCheck) bool {
+	for name := range rule {
+		if name != "ranges" && name != "rule" && (name != "stopIfTrue" || !withStopIfTrue) {
+			return false
+		}
+	}
+	if raw, present := rule["stopIfTrue"]; present && string(raw) != "true" && string(raw) != "false" {
+		return false
+	}
+	var areas []map[string]json.RawMessage
+	if json.Unmarshal(rule["ranges"], &areas) != nil || len(areas) < 1 || len(areas) > maxOfficeRuleSetAreas {
+		return false
+	}
+	for _, area := range areas {
+		startRow, okStartRow := officeGridIndex(area["startRow"], maxOfficeEditRows)
+		endRow, okEndRow := officeGridIndex(area["endRow"], maxOfficeEditRows)
+		startColumn, okStartColumn := officeGridIndex(area["startColumn"], maxOfficeEditColumns)
+		endColumn, okEndColumn := officeGridIndex(area["endColumn"], maxOfficeEditColumns)
+		if !okStartRow || !okEndRow || !okStartColumn || !okEndColumn || startRow > endRow || startColumn > endColumn {
+			return false
+		}
+	}
+	body := rule["rule"]
+	if len(body) == 0 || len(body) > maxOfficeRuleSetRuleBytes {
+		return false
+	}
+	var shape map[string]json.RawMessage
+	if json.Unmarshal(body, &shape) != nil || shape == nil {
+		return false
+	}
+	var ruleType string
+	return json.Unmarshal(shape["type"], &ruleType) == nil && types[ruleType] && bodyOK(ruleType, shape)
 }

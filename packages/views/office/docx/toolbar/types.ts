@@ -1,6 +1,8 @@
 import type { ComponentType } from "react";
+import type { OfficePrintPort } from "../../print";
 import type { RibbonItem } from "../../ribbon";
 import type { DocxCommandRuntime, DocxRuntimeFormatState } from "../commands";
+import type { DocxDocumentScope } from "../editor-store";
 import type { DocxEditorHandle, DocxSaveCoordinator, DocxSelection } from "../types";
 
 export type DocxToolbarTabId = "home" | "insert" | "layout" | "review" | "view";
@@ -30,6 +32,12 @@ export interface DocxToolbarGroupContext {
   onUndo: () => void;
   onRedo: () => void;
   onSave?: () => void;
+  /** UNI-952: the injected print port and the printed title. Absent = the host
+   * cannot print, so no Print entry is offered anywhere. */
+  print?: { port: OfficePrintPort; title: string };
+  /** UNI-957: this document's scope (live editor, Find, zoom, ribbon dialogs)
+   *  for plain-data builders that cannot call hooks. DocxEditor always sets it. */
+  docScope: DocxDocumentScope;
 }
 
 export interface DocxToolbarGroup {

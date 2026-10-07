@@ -240,20 +240,3 @@ export function createDocxZoomController(): DocxZoomController {
     },
   };
 }
-
-let sharedController: DocxZoomController | null = null;
-
-/** The one controller the DOCX view shares: the View tab's zoom group and the
- *  chrome mount must drive the same surface, and a toolbar group only receives
- *  DocxToolbarGroupContext — no controller prop.
- *
- *  Scope: a module-level singleton bound to the FIRST canvas in the document
- *  (the chrome resolves `[data-testid="docx-canvas"]`, see ./surface-targets).
- *  That is sound while one DOCX editor is mounted per page; a host that renders
- *  two at once (split view, tests) must build one controller per editor with
- *  `createDocxZoomController` and hand it to `DocxViewChrome`/`DocxZoomControl`
- *  instead of sharing this one. */
-export function getDocxZoomController(): DocxZoomController {
-  sharedController ??= createDocxZoomController();
-  return sharedController;
-}

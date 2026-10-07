@@ -115,7 +115,11 @@ func runCmd(ctx context.Context, cmd string, args []string) error {
 	}
 	defer pool.Close()
 
-	eng := backfill.New(db.New(pool), backfill.ResolverFromEnv())
+	resolver, err := backfill.ResolverFromEnv()
+	if err != nil {
+		return err
+	}
+	eng := backfill.New(db.New(pool), resolver)
 	opts := backfill.Options{
 		Cohorts:      splitList(*f.cohort),
 		BatchSize:    int32(*f.batch),

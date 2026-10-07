@@ -72,10 +72,10 @@ describe("pptxRibbonTabs", () => {
     expect(pptxGroupPriority(1)).toBe(5);
     expect(pptxGroupPriority(2)).toBe(0);
     const home = tabs[0]!;
-    expect(home.groups.map((group) => group.id)).toEqual(["slides", "drawing", "editing", "file"]);
-    expect(home.groups.map((group) => group.priority)).toEqual([10, 5, 0, 0]);
-    // Injected groups join the ranking once the editor fills them.
-    const filled = pptxRibbonTabs(commands, { groupItems: { font: [button("font-bold")] } });
+    expect(home.groups.map((group) => group.id)).toEqual(["drawing", "editing", "file"]);
+    expect(home.groups.map((group) => group.priority)).toEqual([10, 5, 0]);
+    // Injected groups (Slides, Font) join the ranking once the editor fills them.
+    const filled = pptxRibbonTabs(commands, { groupItems: { slides: [button("new-slide", "large")], font: [button("font-bold")] } });
     expect(filled[0]!.groups.map((group) => group.id)).toEqual(["slides", "font", "drawing", "editing", "file"]);
     expect(filled[0]!.groups.map((group) => group.priority)).toEqual([10, 5, 0, 0, 0]);
   });
@@ -136,7 +136,7 @@ describe("pptxRibbonTabs", () => {
 
   it("regroups Insert into Office-like groups with one large item each", () => {
     const insert = tabs.find((tab) => tab.id === "insert")!;
-    expect(insert.groups.map((group) => group.id)).toEqual(["slides", "tables", "images", "text", "media"]);
+    expect(insert.groups.map((group) => group.id)).toEqual(["tables", "images", "text", "media"]);
     expect(insert.groups.find((group) => group.id === "images")!.items.map((item) => [item.id, item.size])).toEqual([
       ["panel-insert", "large"],
       ["charts", "small"],
@@ -153,6 +153,20 @@ describe("pptxRibbonTabs", () => {
     const shapes = insert.groups.find((group) => group.id === "images")!.items.find((item) => item.id === "panel-insert")!;
     expect(shapes.icon).toBe(Shapes);
     expect(shapes.icon).not.toBe(Image);
+  });
+
+  it("puts Slide master in its own captioned View group: a large toggle that reflects pressedCommands", () => {
+    const view = tabs.find((tab) => tab.id === "view")!;
+    expect(view.groups.map((group) => group.labelKey)).toEqual(["office.pptx.groups.views", "office.pptx.groups.master"]);
+    expect(view.groups.map((group) => group.priority)).toEqual([10, 5]);
+    const master = view.groups[1]!.items[0]!;
+    expect(master).toMatchObject({ id: "slideMaster", kind: "toggle", size: "large", disabled: false, pressed: false, labelKey: "office.pptx.commands.slideMaster" });
+    const seen: string[] = [];
+    const wired = pptxRibbonTabs(commands, { pressedCommands: ["slideMaster"], onCommand: (id) => seen.push(id) });
+    const pressed = wired.find((tab) => tab.id === "view")!.groups[1]!.items[0]!;
+    expect(pressed.kind === "toggle" && pressed.pressed).toBe(true);
+    if (pressed.kind === "toggle") pressed.onExecute();
+    expect(seen).toEqual(["slideMaster"]);
   });
 
   it("gates the four contextual tabs on the selection flags (R4), chart included", () => {
@@ -212,13 +226,24 @@ describe("pptxRibbonTabs", () => {
     expect(onOpenPanel).not.toHaveBeenCalled();
   });
 
+  it("puts the editor's New slide button in the Home and Insert Slides groups, and the sorter only on View (UNI-958)", () => {
+    const wired = pptxRibbonTabs(commands, { groupItems: { slides: [button("new-slide", "large")] } });
+    for (const id of ["home", "insert"]) {
+      const tab = wired.find((entry) => entry.id === id)!;
+      expect(tab.groups[0]!.id, id).toBe("slides");
+      expect(tab.groups[0]!.items.map((entry) => entry.id), id).toEqual(["new-slide"]);
+    }
+    const sorterTabs = wired.filter((tab) => itemsOf(tab).some((entry) => entry.id.endsWith("sorter"))).map((tab) => tab.id);
+    expect(sorterTabs).toEqual(["view"]);
+  });
+
   it("keeps item ids unique inside every tab, and puts the view panel before the command", () => {
     const wired = pptxRibbonTabs(commands, { contextual: ALL_CONTEXT });
     for (const tab of wired) {
       const ids = itemsOf(tab).map((item) => item.id);
       expect(new Set(ids).size, tab.id).toBe(ids.length);
     }
-    expect(itemsOf(wired.find((tab) => tab.id === "view")!).map((item) => item.id)).toEqual(["panel-sorter"]);
+    expect(itemsOf(wired.find((tab) => tab.id === "view")!).map((item) => item.id)).toEqual(["panel-sorter", "slideMaster"]);
   });
 
   it("opens the matching panel from a group launcher, and never when it is disabled", () => {

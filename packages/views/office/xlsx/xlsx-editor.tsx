@@ -11,7 +11,9 @@ import { XlsxFindPanel } from "./find/find-panel";
 import { XlsxAdvancedFilterDialog } from "./filter/advanced-filter-dialog";
 import { XlsxFunctionLibraryMount } from "./formulas/function-library";
 import { useXlsxPageSetup } from "./page-setup/use-page-setup";
-import { useXlsxProtectNames } from "./protect/use-protect-names";
+import { useEditorProtectNames } from "./protect/use-protect-names";
+import { XlsxVisualsProvider, useXlsxVisuals } from "./visuals/use-xlsx-visuals";
+import { useVisualUndo } from "./visuals/use-visual-undo";
 import { XlsxGridSurface, type XlsxGridHandle } from "./xlsx-grid-surface";
 import { xlsxSelectionFromGrid } from "./selection-mapping";
 import { useXlsxContextMenu } from "./context-menu/use-context-menu";
@@ -25,7 +27,7 @@ import { XlsxFrameStatusBar, XlsxSheetTabsRow } from "./toolbar/status-area";
 import { useXlsxViewEcho } from "./toolbar/view-echo";
 import { OfficeFrame } from "../frame";
 import { useXlsxGridFormat } from "./toolbar/use-xlsx-grid-format";
-import { cellText, isSnapshot, snapshotForEditor } from "./xlsx-editor-model";
+import { cellText, isSnapshot, snapshotForEditor, visualsFrozen } from "./xlsx-editor-model";
 import { useXlsxGridEdits } from "./use-xlsx-grid-edits";
 import { isFailure, unexpectedFailure } from "./xlsx-editor-failure";
 import { useXlsxEditorSelection } from "./use-xlsx-editor-selection";
@@ -58,7 +60,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   onViewStateChange,
   onSelectionChange,
   registerSavePreparation,
-  saveDestination = "cloud",
+  saveDestination = "cloud", printPort,
 }: XlsxEditorProps<TSnapshot>) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<XlsxViewState>("opening");
@@ -245,7 +247,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // FIX-EDITOR-SPLIT (UNI-926): cell commit, undo/redo, save preparation and
   // recalculation live in ./use-xlsx-editor-edits, which also owns markDirty.
-  const { markDirty, commitCell, undo, redo, prepareSave, save, recalculate, cancelRecalculate } = useXlsxEditorEdits({
+  const { markDirty, commitCell, undo: gridUndo, redo: gridRedo, canUndo: gridCanUndo, canRedo: gridCanRedo, gridUndos, gridDropped, prepareSave, save, recalculate, cancelRecalculate } = useXlsxEditorEdits({
     editor,
     coordinator,
     rendererHost,
@@ -285,7 +287,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
 
   // FIX-EDITOR-SPLIT (UNI-926): copy / paste / cut, the clipboard failure
   // handler and the folded permissions live in ./use-xlsx-editor-clipboard.
-  const { copy, paste, cut, clipboardFailure, clipboardPermissions } = useXlsxEditorClipboard({
+  const { copy, paste, cut, clipboardFailure, clipboardPermissions, pasteNotice } = useXlsxEditorClipboard({
     editor,
     permissions,
     selection,
@@ -324,41 +326,39 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     onFind: () => setFindOpen(true),
   });
 
+  // F1/F4: resolve the active sheet through the LIVE name before any action
+  // reads it. A session rename keeps the grid id but changes the name, so the
+  // raw activeSheet may already have fallen back to sheets[0]. Page setup,
+  // print, protect, name and visual actions read this resolved value.
+  const resolvedActiveSheet = (activeSheetId !== null ? liveSheets.find((sheet) => sheet.id === activeSheetId)?.name : undefined) ?? activeSheet;
+
+  // Charts, pictures and shapes (UNI-940 X02): the hook owns the overlay and
+  // the set_visual / remove_visual ops; see visuals/.
+  const visuals = useXlsxVisuals({ gridRef, gridReady, selection, canEdit, editor, savedGeneration: coordinatorState.lastSavedGeneration, saving: visualsFrozen(coordinatorState), gridUndos, gridDropped, snapshot, fileVisuals: rendererHost?.fileVisuals, onApplied: markDirty, onError: setRecalcError, activeSheetId, activeSheetName: resolvedActiveSheet, sheets: liveSheets.length > 0 ? liveSheets : rendererHost?.file.sheets ?? [] });
+
   // Page Setup, Print and Export CSV (C2): the hook owns the dialog state,
   // the set_page_setup op and the two host actions; see page-setup/.
   const pageSetup = useXlsxPageSetup({
     host: rendererHost,
     selection,
-    activeSheet,
+    activeSheet: resolvedActiveSheet,
     readOnly,
     canEdit,
     edit: editor.edit,
     getSnapshot: editor.getWorkbookSnapshot,
     onApplied: () => { markDirty(); refreshSnapshot(); },
-    onError: setRecalcError,
+    onError: setRecalcError, printPort, title: effectiveTitle, getGrid: () => gridRef.current, getVisuals: () => visuals.getPrintableVisuals, resolveSheetId: gridSheetId,
   });
-
-  // F1/F4: resolve the active sheet through the LIVE name before any action
-  // reads it. A session rename keeps the grid id but changes the name, so the
-  // raw activeSheet may already have fallen back to sheets[0] - the hazard
-  // useXlsxPageSetup shields with selection?.sheet. Protect/name actions read
-  // this resolved value so they cannot aim at the wrong sheet.
-  const resolvedActiveSheet = (activeSheetId !== null ? liveSheets.find((sheet) => sheet.id === activeSheetId)?.name : undefined) ?? activeSheet;
 
   // Sheet protection + the name manager (B7): the hook owns the dialog state
   // and the two new ops; see protect/.
-  const protectNames = useXlsxProtectNames({
-    activeSheet: resolvedActiveSheet,
-    readOnly,
-    canEdit,
-    // F1/F5: the file's own names seed the manager; the live sheet order bounds
-    // the scope dropdown. Both come from the open render model / mounted grid.
-    definedNames: rendererHost?.file.definedNames,
-    sheetNames: (liveSheets.length > 0 ? liveSheets.map((sheet) => sheet.name) : (snapshot?.sheets ?? []).map((sheet) => sheet.name)),
-    edit: editor.edit,
-    onApplied: () => { markDirty(); refreshSnapshot(); },
-    onError: setRecalcError,
+  const protectNames = useEditorProtectNames({
+    activeSheet: resolvedActiveSheet, readOnly, canEdit, rendererHost, liveSheets, snapshot, edit: editor.edit,
+    onApplied: () => { markDirty(); refreshSnapshot(); }, onError: setRecalcError,
   });
+
+  // Visual steps are not on the grid's stack; the grid keeps Ctrl+Z only during a cell edit (r3 F2).
+  const { canUndo, canRedo, undo, redo } = useVisualUndo(visuals.history, { canUndo: gridCanUndo, canRedo: gridCanRedo, undo: gridUndo, redo: gridRedo, isCellEditing: visuals.isCellEditing }, { rootRef, documentKey });
 
   // FIX-EDITOR-SPLIT (UNI-926): the JSX key handler and the capture-phase
   // Ctrl/Cmd+S shortcut live in ./use-xlsx-editor-keyboard.
@@ -390,7 +390,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     documentKey,
     canFind: rendererHost !== undefined,
     canEdit,
-    canRedo: gridReady || typeof editor.redo === "function",
+    canRedo,
     sheets: sheetTabInfos,
     activeSheet: resolvedActiveSheet,
     defaultSheetName: t("office.xlsx.sheets.defaultName"),
@@ -413,6 +413,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       </header> : <span className="sr-only" data-testid="xlsx-open-state" role="status">{visibleState === "opening" ? t("office.xlsx.state.opening") : visibleState === "ready" ? saveStateLabel : t("office.xlsx.state.error")}</span>}
       {viewState === "ready" ? (
         <>
+          <XlsxVisualsProvider visuals={visuals}>
           <OfficeFrame
             data-testid="xlsx-frame"
             canvasClassName="overflow-hidden"
@@ -426,8 +427,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 readOnly={readOnly || rendererLoading}
                 permissions={clipboardPermissions}
                 selection={selection}
-                canUndo={gridReady || typeof editor.undo === "function"}
-                canRedo={gridReady || typeof editor.redo === "function"}
+                canUndo={canUndo}
+                canRedo={canRedo}
                 canRecalculate={recalcController !== undefined}
                 canFormat={gridReady && selection !== null}
                 commands={gridCommands}
@@ -446,12 +447,12 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                 onOpenAdvancedFilter={rendererHost ? () => setAdvancedFilterOpen(true) : undefined}
                 onOpenProtect={rendererHost ? protectNames.openProtect : undefined}
                 onOpenPageSetup={rendererHost ? pageSetup.openPageSetup : undefined}
-                onPrint={rendererHost ? pageSetup.print : undefined}
+                onPrint={rendererHost ? pageSetup.print : undefined} printBusy={pageSetup.printBusy}
                 onExportCsv={rendererHost ? pageSetup.exportCsv : undefined}
                 host={rendererHost}
-                unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null}
+                unitId={rendererHost ? `file-${rendererHost.file.sha256}` : null} documentKey={documentKey}
                 sheetName={selection?.sheet ?? activeSheet}
-                tables={tables} resolveSheetId={gridSheetId}
+                tables={tables} resolveSheetId={gridSheetId} snapshot={snapshot} readLiveSnapshot={gridEdits.readLiveSnapshot}
                 onOpenFunctionLibrary={rendererHost ? () => setFunctionLibraryOpen(true) : undefined}
                 onOpenShortcuts={rendererHost ? () => setShortcutsOpen(true) : undefined}
                 onSave={() => save("button")}
@@ -471,7 +472,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   <XlsxFindPanel documentKey={documentKey} host={rendererHost} commands={gridCommands} selection={selection}
                     sheetName={selection?.sheet ?? activeSheet} dirtyGeneration={coordinatorState.dirtyGeneration} readOnly={readOnly} onClose={() => setFindOpen(false)} />
                 ) : null}
-                <XlsxFrameNotices recalcProgress={recalcProgress} recalcError={recalcError} editFailed={Boolean(gridEdits.error)} onCancelRecalculate={cancelRecalculate} />
+                <XlsxFrameNotices recalcProgress={recalcProgress} recalcError={recalcError} editFailed={Boolean(gridEdits.error)} onCancelRecalculate={cancelRecalculate} saveErrorCode={coordinatorState.error?.code} editor={editor} grid={gridRef} pasteNotice={pasteNotice} commands={gridCommands} />
               </>
             }
             bottom={
@@ -506,6 +507,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
                   dark={dark}
                   readOnly={readOnly || !canEdit}
                   onContextMenu={contextMenu.open}
+                  overlay={visuals.overlay} onViewportChange={visuals.onViewportChange}
                   onEdits={(edits) => { gridEdits.onEdits(edits); onTableEdits(edits); refreshFormatState(); refreshSheets(); }}
                   onReady={() => { setGridReady(true); refreshFormatState(); refreshSheets(); }}
                   onFailure={(message) => {
@@ -544,6 +546,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
               )}
             </div>
           </OfficeFrame>
+          </XlsxVisualsProvider>
           {rendererHost && advancedFilterOpen ? (
             <XlsxAdvancedFilterDialog
               documentKey={documentKey}

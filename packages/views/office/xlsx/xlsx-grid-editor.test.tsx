@@ -78,9 +78,14 @@ describe("XlsxEditor live grid commands", () => {
     fireEvent.click(toolbar.getByRole("button", { name: /^Sao chép ô/ }));
     expect(handle.clipboard?.writeText).toHaveBeenCalledWith("2\t\n\t");
     grid.handle.setCellText.mockClear();
+    grid.handle.executeCommand.mockClear();
     fireEvent.click(toolbar.getByRole("button", { name: /^Dán/ }));
-    await waitFor(() => expect(grid.handle.setCellText).toHaveBeenCalledTimes(4));
-    expect(grid.handle.setCellText.mock.calls).toEqual([["sheet-1", 0, 0, "3"], ["sheet-1", 0, 1, "4"], ["sheet-1", 1, 0, "5"], ["sheet-1", 1, 1, "6"]]);
+    // UNI-953 MINOR-4: the whole paste is one set-range-values (one undo step).
+    const cell = (v: number) => ({ f: null, p: null, si: null, v, t: 2 });
+    await waitFor(() => expect(grid.handle.executeCommand).toHaveBeenCalledWith("sheet.command.set-range-values", expect.objectContaining({
+      subUnitId: "sheet-1", value: { 0: { 0: cell(3), 1: cell(4) }, 1: { 0: cell(5), 1: cell(6) } },
+    })));
+    expect(grid.handle.setCellText).not.toHaveBeenCalled();
   });
 
   it("shows indeterminate Save progress and cancels the actual coordinator", async () => {
@@ -156,6 +161,38 @@ describe("XlsxEditor live grid commands", () => {
     fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
     expect(grid.handle.undo).toHaveBeenCalled();
     expect(grid.handle.redo).toHaveBeenCalled();
+  });
+
+  // UNI-953 item 9: Undo/Redo follow the grid's stack, updated on every command.
+  it("aria-disables Undo/Redo on an empty grid stack and blocks them without marking dirty", async () => {
+    let listener: ((state: { undos: number; redos: number }) => void) | null = null;
+    const history = Object.assign(grid.handle, {
+      getHistory: () => ({ undos: 0, redos: 0 }),
+      subscribeHistory: (next: (state: { undos: number; redos: number }) => void) => { listener = next; return () => { listener = null; }; },
+    });
+    grid.handle.undo.mockClear();
+    grid.handle.redo.mockClear();
+    try {
+      const { coordinator } = setup();
+      await screen.findByTestId("live-grid");
+      const undo = screen.getByRole("button", { name: "Hoàn tác" });
+      const redo = screen.getByRole("button", { name: "Làm lại" });
+      await waitFor(() => expect(undo).toHaveAttribute("aria-disabled", "true"));
+      expect(redo).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(undo);
+      fireEvent.click(redo);
+      expect(grid.handle.undo).not.toHaveBeenCalled();
+      expect(grid.handle.redo).not.toHaveBeenCalled();
+      expect(coordinator.markDirty).not.toHaveBeenCalled();
+      act(() => listener?.({ undos: 1, redos: 0 }));
+      expect(undo).not.toHaveAttribute("aria-disabled");
+      expect(redo).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(undo);
+      expect(grid.handle.undo).toHaveBeenCalledOnce();
+    } finally {
+      delete (history as Partial<typeof history>).getHistory;
+      delete (history as Partial<typeof history>).subscribeHistory;
+    }
   });
 
   it("runs Home formatting commands on the live grid and mirrors the active format state", async () => {

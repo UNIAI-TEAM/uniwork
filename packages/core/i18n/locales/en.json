@@ -7361,8 +7361,14 @@
       "upload_file": "Upload file",
       "off_title": "Documents are off",
       "off_description": "Documents are not enabled for this workspace.",
+      "checking_title": "Checking whether documents are available…",
+      "unknown_title": "Could not check whether documents are available",
+      "unknown_description": "The configuration did not load, so we don't know if documents are enabled for this workspace. Try again.",
+      "unknown_retry": "Try again",
       "create_failed": "Could not create the page",
-      "upload_failed": "Could not upload the file"
+      "upload_failed": "Could not upload the file",
+      "tab_title": "{{title}} · UniWork",
+      "office_tab_title": "{{title}} · UniWork Office"
     },
     "library": {
       "count_label": "documents",
@@ -7581,6 +7587,13 @@
       "unknown_reason": "other",
       "no_web_editor_title": "Not editable in the browser yet",
       "no_web_editor_description": "UniWork Office opens this format in a later step. For now, download it or upload a new version.",
+      "office_off_title": "{{format}} editing is turned off",
+      "office_off_description": "Editing {{format}} files is turned off for this organization. You can still download the file or upload a new version.",
+      "office_checking": "Checking whether {{format}} editing is available for this organization…",
+      "office_unknown_title": "Couldn't check {{format}} editing",
+      "office_unknown_description": "The organization's editor settings did not load, so the file stays here for now. Try again, or download the file.",
+      "office_unknown_retry": "Try again",
+      "readonly_hint": "You have view access to this file: you can download it, but not upload a new version.",
       "upload_failed": "Could not upload the file",
       "commit_failed": "Could not save the new version",
       "missing_file": "This document has no file yet."
@@ -7969,7 +7982,15 @@
     }
   },
   "office": {
+    "too_large": {
+      "title": "File is too large to edit on the web",
+      "description": "This {{format}} file exceeds the browser size limit. Open it in the UniWork Office desktop app to keep working — the app has no file size limit.",
+      "download": "Download",
+      "download_failed": "The file could not be downloaded. Try again."
+    },
     "common": {
+      "print": "Print",
+      "printTooLarge": "This document is too large to print.",
       "chrome": {
         "undo": "Undo",
         "redo": "Redo",
@@ -8004,7 +8025,13 @@
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
       "zoomReset": "Reset zoom",
-      "zoomValue": "{{value}}%"
+      "zoomValue": "{{value}}%",
+      "viewLabel": "View",
+      "fitWidth": "Fit to width",
+      "fitPage": "Fit to page",
+      "position": "Ln {{line}}, Col {{column}}",
+      "characters": "Characters: {{value}}",
+      "lines": "Lines: {{value}}"
     },
     "docx": {
       "title": "DOCX document",
@@ -8301,6 +8328,8 @@
       "export": {
         "menuLabel": "Export and print",
         "print": "Print",
+        "printBusy": "A print dialog is already open. Finish or close it first.",
+        "printFailed": "Could not print the document. Try again.",
         "html": "Export HTML",
         "fileName": "document",
         "documentTitle": "Document",
@@ -9213,7 +9242,34 @@
       },
       "correlation": "Correlation id: {{id}}",
       "reason": {
-        "xlsx_recalc_unavailable": "This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept."
+        "xlsx_recalc_unavailable": "This UniWork Office build does not include the formula engine, so a workbook with formulas cannot be saved on this computer yet. Your changes are kept.",
+        "file_invalid_path": "The location of this file is not valid. Open it again from your files.",
+        "file_not_found": "The file was not found. It may have been moved or deleted.",
+        "file_access_denied": "UniWork Office cannot use this file because it is a shortcut or link. Open the original file instead.",
+        "file_locked": "The file is in use by another program. Close it there, then try again.",
+        "file_changed_on_disk": "The file changed on this computer after you opened it. Your changes are kept: save under a new name or open the file again.",
+        "file_handle_invalid": "This file is no longer open in UniWork Office. Open it again.",
+        "file_session_revoked": "The session changed while the file was being handled. Check whether the file was saved, then try again.",
+        "file_write_failed": "The file could not be written. Check the free space and permissions, then try again. Your changes are kept.",
+        "file_replace_failed": "The file could not be replaced with the new version. Close it in other programs, then try again. Your changes are kept.",
+        "file_too_large": "The file is too large for UniWork Office to handle.",
+        "file_insufficient_memory": "This computer does not have enough memory to open this file. Close other apps, then try again.",
+        "file_read_failed": "The file could not be read. Check that you have permission to open it, then try again.",
+        "file_checkpoint_failed": "Your changes could not be protected on this computer first, so the file was not saved. Try again.",
+        "file_save_in_progress": "Another save is still running. Wait for it to finish, then try again.",
+        "file_engine_unavailable": "This UniWork Office build cannot process this file type on this computer yet.",
+        "file_failed": "The file could not be processed. Try again.",
+        "unknown": "Something went wrong while saving. Try again in a few minutes.",
+        "office_unknown_error": "Something went wrong while saving. Try again in a few minutes.",
+        "engine_result_invalid": "The save result was not valid. Try again.",
+        "engine_crashed": "The file processor stopped midway. Try again.",
+        "engine_overloaded": "The system is busy. Try again in a few minutes.",
+        "engine_checksum_mismatch": "The saved data did not match. Try again.",
+        "request_aborted": "The save was interrupted. Try again.",
+        "stale_generation": "A newer version of this change exists. Save again."
+      },
+      "fix": {
+        "xlsx_recalc_unavailable": "Install the latest UniWork Office, which includes the formula engine, or upload the workbook to UniWork and save it there."
       },
       "short": {
         "checkpoint": "Draft on this device",
@@ -9428,6 +9484,7 @@
             "copy": "Copy"
           },
           "cellsItems": {
+            "insertRowsCols": "Insert rows/columns",
             "insert": "Insert",
             "delete": "Delete",
             "format": "Format"
@@ -9454,6 +9511,63 @@
       "selection": {
         "none": "No cell selected",
         "range": "{{sheet}}!{{address}}"
+      },
+      "visuals": {
+        "groups": { "illustrations": "Illustrations" },
+        "chartTypes": {
+          "column": "Column",
+          "bar": "Bar",
+          "line": "Line",
+          "area": "Area",
+          "pie": "Pie",
+          "doughnut": "Doughnut"
+        },
+        "chartTypesInline": {
+          "column": "Column",
+          "bar": "Bar",
+          "line": "Line",
+          "area": "Area",
+          "pie": "Pie",
+          "doughnut": "Doughnut"
+        },
+        "shapeTypes": {
+          "rect": "Rectangle",
+          "roundRect": "Rounded rectangle",
+          "ellipse": "Oval",
+          "triangle": "Triangle",
+          "rightArrow": "Right arrow",
+          "leftArrow": "Left arrow",
+          "line": "Line"
+        },
+        "chart": { "needsRange": "Select a range of at least two cells to insert a chart." },
+        "picture": { "insert": "Pictures", "label": "Choose a picture from this device" },
+        "shape": { "insert": "Shapes" },
+        "item": {
+          "chart": "{{type}} chart {{title}}",
+          "shape": "Shape: {{type}}",
+          "picture": "Picture",
+          "roleDescription": "drawing object",
+          "keyboardHelp": "Arrow keys move it, Shift + arrow keys resize it, Delete removes it, Esc returns to the sheet.",
+          "delete": "Delete {{name}}",
+          "fileReadOnly": "This drawing is anchored in a way the editor cannot move yet. It is shown as it is in the file.",
+          "unavailable": "Drawings cannot be edited right now: the document is read-only or a save is in progress.",
+          "fileChart": "Chart {{title}}",
+          "kindChart": "Chart",
+          "kindShape": "Shape"
+        },
+        "placeholder": {
+          "chart": "This chart type has no preview here yet.",
+          "picture": "This picture is too large to preview here."
+        },
+        "errors": {
+          "noChartData": "The selected range has no numbers to chart.",
+          "chartClipped": "The chart uses only the first 1,000 rows and 24 series of the selection.",
+          "picture": {
+            "type": "Only PNG, JPEG or GIF pictures can be inserted.",
+            "size": "Pictures can be at most 512 KB.",
+            "unreadable": "This picture could not be read."
+          }
+        }
       },
       "capabilityPending": "This feature is not available yet.",
       "clipboardUnavailable": "Clipboard access is unavailable in this browser.",
@@ -9528,6 +9642,10 @@
         "groupCols": "Group columns",
         "ungroupCols": "Ungroup columns",
         "clearOutline": "Clear outline",
+        "group": "Group",
+        "ungroup": "Ungroup",
+        "showDetail": "Show Detail",
+        "hideDetail": "Hide Detail",
         "mergeCells": "Merge cells",
         "mergeAcross": "Merge across",
         "unmergeCells": "Unmerge cells",
@@ -9540,6 +9658,9 @@
         "toggle": "Toggle filter",
         "clear": "Clear filter",
         "advanced": "Advanced filter…",
+        "clearShort": "Clear",
+        "reapply": "Reapply",
+        "advancedShort": "Advanced…",
         "dialog": {
           "title": "Advanced filter",
           "close": "Close advanced filter",
@@ -9569,12 +9690,107 @@
           "lessThanOrEqual": "Less than or equal"
         }
       },
+      "dataValidation": {
+        "groups": {
+          "data": "Data Tools"
+        },
+        "open": "Data Validation…",
+        "clear": "Clear validation",
+        "manage": "Manage validation rules",
+        "dialog": {
+          "title": "Data Validation",
+          "close": "Close data validation",
+          "range": "Applies to",
+          "allow": "Allow",
+          "source": "Source",
+          "sourceHint": "Separate items with commas",
+          "operator": "Data",
+          "value": "Value",
+          "minimum": "Minimum",
+          "maximum": "Maximum",
+          "errorSection": "Error message",
+          "errorStyle": "Style",
+          "errorTitle": "Title (optional)",
+          "errorMessage": "Message (optional)",
+          "apply": "Apply",
+          "cancel": "Cancel"
+        },
+        "errorStyles": {
+          "stop": "Stop",
+          "warning": "Warning",
+          "information": "Information"
+        },
+        "errorStyleHints": {
+          "stop": "Rejects the value.",
+          "warning": "Asks whether to keep the value.",
+          "information": "Shows a notice and keeps the value."
+        },
+        "manager": {
+          "title": "Manage validation rules",
+          "description": "Data validation rules on this sheet.",
+          "scope": "Show rules for",
+          "scopeSelection": "This selection",
+          "scopeSheet": "This sheet",
+          "list": "Data validation rules",
+          "empty": {
+            "selection": "No validation rules apply to the selected cells.",
+            "sheet": "This sheet has no data validation rules."
+          },
+          "appliesTo": "Applies to {{areas}}",
+          "errorStyle": "Error style: {{style}}",
+          "edit": "Edit validation rule: {{rule}}",
+          "editTitle": "Edit rule",
+          "editUnsupported": "This kind of rule can't be edited here. Delete it and add a new one, or edit it in Excel.",
+          "delete": "Delete validation rule: {{rule}}",
+          "deleteTitle": "Delete rule",
+          "done": "Done",
+          "unavailable": "Rules can't be listed here yet.",
+          "rules": {
+            "list": "List: {{items}}",
+            "value": "{{type}} {{operator}} {{value}}",
+            "range": "{{type}} {{operator}} {{min}} and {{max}}",
+            "other": "Other rule ({{type}})"
+          }
+        },
+        "types": {
+          "list": "List",
+          "whole": "Whole number",
+          "decimal": "Decimal",
+          "date": "Date"
+        },
+        "operators": {
+          "between": "between",
+          "notBetween": "not between",
+          "equal": "equal to",
+          "notEqual": "not equal to",
+          "greaterThan": "greater than",
+          "greaterThanOrEqual": "greater than or equal to",
+          "lessThan": "less than",
+          "lessThanOrEqual": "less than or equal to"
+        },
+        "errors": {
+          "listEmpty": "Enter at least one item.",
+          "listEmptyItem": "Items cannot be empty. Remove the extra comma.",
+          "listBadChar": "Items cannot contain double quotes.",
+          "listTooLong": "The list can hold at most 255 characters.",
+          "numberRequired": "Enter a number.",
+          "wholeRequired": "Enter a whole number.",
+          "dateRequired": "Enter a valid date.",
+          "rangeOrder": "The maximum must not be less than the minimum.",
+          "titleTooLong": "The title can hold at most 32 characters.",
+          "messageTooLong": "The message can hold at most 255 characters.",
+          "x14Sheet": "This sheet has Excel extended data validation that can't be edited here yet. Edit its validation in Excel.",
+          "refused": "The rule wasn't applied. This sheet has rules this editor can't save, or its existing rules are still loading: open the sheet and try again. If it still fails, the sheet keeps its rules as they are in the file; save and reopen the file to try again."
+        }
+      },
       "sort": {
         "groups": {
           "data": "Sort"
         },
         "ascending": "Sort ascending",
         "descending": "Sort descending",
+        "ascendingShort": "Sort A to Z",
+        "descendingShort": "Sort Z to A",
         "custom": "Custom sort…",
         "limitExceeded": "This range is too large to sort. Each save sorts at most {{limit}} cells; select a smaller range.",
         "applyFailed": "The sort could not be applied here. Select the range and try again.",
@@ -9589,6 +9805,214 @@
           "note": "Single-level sort. Multi-level sort is not available yet.",
           "apply": "Apply",
           "cancel": "Cancel"
+        }
+      },
+      "styles": {
+        "formatAsTable": "Format as Table",
+        "cellStyles": "Cell Styles",
+        "cellStylesNote": "Styles are saved as ordinary cell formatting.",
+        "limitExceeded": "The selection is too large to style. Select at most {{limit}} cells.",
+        "presets": {
+          "normal": "Normal",
+          "good": "Good",
+          "bad": "Bad",
+          "neutral": "Neutral",
+          "input": "Input",
+          "calculation": "Calculation",
+          "title": "Title",
+          "heading1": "Heading 1",
+          "heading2": "Heading 2"
+        }
+      },
+      "dataTools": {
+        "textToColumns": "Text to Columns",
+        "removeDuplicates": "Remove Duplicates",
+        "subtotal": "Subtotal",
+        "common": {
+          "ok": "OK",
+          "cancel": "Cancel",
+          "close": "Close",
+          "failed": "This could not be done here. Select the range again and retry.",
+          "limitExceeded": "The selection is too large. One save edits at most {{limit}} cells; select a smaller range.",
+          "hasHeader": "My data has headers",
+          "column": "Column {{column}}"
+        },
+        "removeDuplicatesDialog": {
+          "title": "Remove Duplicates",
+          "description": "Select one or more columns that contain duplicates.",
+          "columns": "Columns",
+          "selectAll": "Select All",
+          "unselectAll": "Unselect All",
+          "noColumns": "Select at least one column.",
+          "needRows": "Select a range with at least two rows.",
+          "formulas": "The selection contains formulas. Remove Duplicates works on ranges of values only.",
+          "formatNote": "Cell formatting stays in place; only the values move up.",
+          "result_one": "{{removed}} duplicate values found and removed; {{kept}} unique values remain.",
+          "result_other": "{{removed}} duplicate values found and removed; {{kept}} unique values remain.",
+          "resultNone": "No duplicate values found."
+        },
+        "subtotalDialog": {
+          "title": "Subtotal",
+          "description": "Insert a subtotal row under each group of rows that share a value, and outline the groups.",
+          "atEachChange": "At each change in",
+          "useFunction": "Use function",
+          "addTo": "Add subtotal to",
+          "functions": {
+            "sum": "Sum",
+            "count": "Count",
+            "average": "Average",
+            "max": "Max",
+            "min": "Min",
+            "product": "Product"
+          },
+          "groupLabel": "{{value}} {{function}}",
+          "grandLabel": "Grand {{function}}",
+          "needRows": "Select a list with a header row and at least one data row.",
+          "noColumns": "Select at least one column to subtotal.",
+          "note": "Rows are inserted across the whole sheet, as in Excel."
+        },
+        "textToColumnsDialog": {
+          "title": "Convert Text to Columns",
+          "description": "Split the text of each selected cell into columns at the delimiters you choose.",
+          "delimiters": "Delimiters",
+          "tab": "Tab",
+          "semicolon": "Semicolon",
+          "comma": "Comma",
+          "space": "Space",
+          "other": "Other",
+          "otherInput": "Other delimiter",
+          "otherPlaceholder": "Char",
+          "consecutive": "Treat consecutive delimiters as one",
+          "preview": "Data preview",
+          "overwrite": "Cells to the right already hold data and will be replaced.",
+          "singleColumn": "Select a single column to split.",
+          "noDelimiter": "Choose at least one delimiter."
+        }
+      },
+      "conditionalFormat": {
+        "dropped": {
+          "title": "Some rules could not be saved and were left out.",
+          "item": "{{family}}: sheet {{sheet}}",
+          "itemRules_one": "{{family}}: sheet {{sheet}} ({{count}} rule)",
+          "itemRules_other": "{{family}}: sheet {{sheet}} ({{count}} rules)",
+          "familyConditionalFormats": "Conditional formatting",
+          "familyDataValidations": "Data validation",
+          "more": "+{{count}} more",
+          "saveAgain": "Press Save again to save your other changes. The rules stay in the file as they were."
+        },
+        "groups": {
+          "home": "Styles"
+        },
+        "menu": {
+          "label": "Conditional Formatting",
+          "greaterThan": "Greater Than…",
+          "lessThan": "Less Than…",
+          "between": "Between…",
+          "containsText": "Text that Contains…",
+          "duplicateValues": "Duplicate Values…",
+          "uniqueValues": "Unique Values…",
+          "clearSelection": "Clear Rules from Selected Cells",
+          "clearSheet": "Clear Rules from Entire Sheet",
+          "manage": "Manage Rules…"
+        },
+        "titles": {
+          "greaterThan": "Greater Than",
+          "lessThan": "Less Than",
+          "between": "Between",
+          "containsText": "Text that Contains",
+          "duplicateValues": "Duplicate Values",
+          "uniqueValues": "Unique Values"
+        },
+        "descriptions": {
+          "greaterThan": "Format cells that are GREATER THAN:",
+          "lessThan": "Format cells that are LESS THAN:",
+          "between": "Format cells that are BETWEEN:",
+          "containsText": "Format cells that contain the text:",
+          "duplicateValues": "Format cells that contain:",
+          "uniqueValues": "Format cells that contain:"
+        },
+        "dialog": {
+          "close": "Close",
+          "cancel": "Cancel",
+          "ok": "OK",
+          "value": "Value",
+          "minimum": "Minimum",
+          "maximum": "Maximum",
+          "and": "and",
+          "text": "Text",
+          "duplicate": "Duplicate values",
+          "unique": "Unique values",
+          "duplicateHint": "Cells whose value appears more than once in the selection",
+          "uniqueHint": "Cells whose value appears only once in the selection",
+          "with": "with",
+          "sample": "AaBbCc"
+        },
+        "manager": {
+          "title": "Manage Rules",
+          "description": "Conditional formatting rules, in priority order: the first rule applies first.",
+          "scope": "Show rules for",
+          "scopeSelection": "This selection",
+          "scopeSheet": "This sheet",
+          "list": "Conditional formatting rules",
+          "empty": {
+            "selection": "No rules apply to the selected cells.",
+            "sheet": "This sheet has no conditional formatting rules."
+          },
+          "appliesTo": "Applies to {{areas}}",
+          "edit": "Edit rule: {{rule}}",
+          "editTitle": "Edit rule",
+          "editUnsupported": "This kind of rule can't be edited here. Delete it and add a new one, or edit it in Excel.",
+          "editLinked": "This rule carries Excel-only settings (such as a data bar's extras) that are saved as they are, so it can't be edited here. Delete it and add a new one, or edit it in Excel.",
+          "moveUp": "Move rule up: {{rule}}",
+          "moveUpTitle": "Move up",
+          "moveDown": "Move rule down: {{rule}}",
+          "moveDownTitle": "Move down",
+          "delete": "Delete rule: {{rule}}",
+          "deleteTitle": "Delete rule",
+          "done": "Done",
+          "unavailable": "Rules can't be listed here yet.",
+          "rules": {
+            "number": {
+              "greaterThan": "Cell value is greater than {{value}}",
+              "greaterThanOrEqual": "Cell value is greater than or equal to {{value}}",
+              "lessThan": "Cell value is less than {{value}}",
+              "lessThanOrEqual": "Cell value is less than or equal to {{value}}",
+              "equal": "Cell value is equal to {{value}}",
+              "notEqual": "Cell value is not equal to {{value}}",
+              "between": "Cell value is between {{min}} and {{max}}",
+              "notBetween": "Cell value is not between {{min}} and {{max}}"
+            },
+            "text": {
+              "containsText": "Text contains “{{value}}”",
+              "notContainsText": "Text does not contain “{{value}}”",
+              "beginsWith": "Text begins with “{{value}}”",
+              "endsWith": "Text ends with “{{value}}”",
+              "equal": "Text is exactly “{{value}}”"
+            },
+            "duplicateValues": "Duplicate values",
+            "uniqueValues": "Unique values",
+            "formula": "Formula rule",
+            "dataBar": "Data bars",
+            "colorScale": "Color scale",
+            "iconSet": "Icon set",
+            "other": "Other rule ({{type}})"
+          }
+        },
+        "styles": {
+          "current": "Current format",
+          "lightRedDarkRed": "Light red fill with dark red text",
+          "yellowDarkYellow": "Yellow fill with dark yellow text",
+          "greenDarkGreen": "Green fill with dark green text",
+          "lightRedFill": "Light red fill",
+          "redText": "Red text"
+        },
+        "errors": {
+          "invalidNumber": "Enter a valid number.",
+          "invalidRange": "The minimum must not be greater than the maximum.",
+          "emptyText": "Enter the text to look for.",
+          "textTooLong": "The text can be at most 255 characters.",
+          "x14Sheet": "This sheet has Excel extended conditional formatting (such as data bars) that can't be edited here yet. Edit its rules in Excel.",
+          "refused": "The rule wasn't applied. This sheet has rules this editor can't save, or its existing rules are still loading: open the sheet and try again. If it still fails, the sheet keeps its rules as they are in the file; save and reopen the file to try again."
         }
       },
       "table": {
@@ -9617,6 +10041,7 @@
         },
         "insert": "Insert link",
         "note": "Insert note",
+        "noteShort": "Note",
         "dialog": {
           "linkTitle": "Insert link",
           "noteTitle": "Insert note",
@@ -9714,8 +10139,11 @@
         }
       },
       "export": {
-        "print": "Print",
         "csv": "Export CSV"
+      },
+      "print": {
+        "busy": "A print dialog is already open. Finish or close it first.",
+        "failed": "The sheet could not be printed."
       },
       "sheets": {
         "label": "Workbook sheets",
@@ -9847,9 +10275,7 @@
         "partialHint": "Part of the selection is outside the read window, so the totals cover only the cells that were read.",
         "sum": "Sum: {{value}}",
         "average": "Average: {{value}}",
-        "count": "Count: {{value}}",
-        "min": "Min: {{value}}",
-        "max": "Max: {{value}}"
+        "count": "Count: {{value}}"
       },
       "recalc": {
         "progress": "Recalculating ({{progress}}%)",
@@ -9875,7 +10301,11 @@
         "capabilityUnavailable": "XLSX editing is not available here.",
         "rendererFailed": "This workbook could not be displayed. Try opening it again.",
         "editFailed": "This edit could not be applied. Reopen the workbook before saving.",
-        "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again."
+        "commandRefused": "The row or column change could not be applied. Check the selection and try again.",
+        "dismiss": "Dismiss",
+        "clipboardFailed": "Clipboard access failed. Check your browser permissions and try again.",
+        "richPasteValuesOnly": "Formatting could not be kept for this paste, so only the values were pasted.",
+        "richPasteMergesSkipped": "Merged cells could not be kept for this paste. The values and formatting were pasted."
       },
       "find": {
         "title": "Find and replace",
@@ -9976,6 +10406,13 @@
         }
       },
       "editor": {
+        "dvInfoCancel": "Cancel",
+        "dvInfoOk": "OK",
+        "dvInfoTitle": "Information",
+        "dvInvalidMessage": "This value does not match the data validation rule for this cell.",
+        "dvWarningNo": "No",
+        "dvWarningTitle": "Keep this value?",
+        "dvWarningYes": "Yes",
         "appClosureActive": "{{count}} formulas recalculate live (closure mode); the rest of the workbook streams on demand.",
         "appColorFiltersUnsaveable": "Color filters cannot be saved as XLSX yet — clear them before saving.",
         "appColumnLabel": "Column {{col}}",
@@ -9994,7 +10431,20 @@
         "appRecalcPartial": "Formulas recalculated from your edits — {{count}} kept cached values (functions the fallback engine lacks).",
         "appSheetStillIndexing": "The sheet is still indexing — try again in a moment.",
         "appAreaStreaming": "This part of the sheet is still loading — try again in a moment.",
-        "appStreamingRows": "Streaming {{name}}: {{rows}} rows available."
+        "appOutlineMaxLevels": "An outline has at most 7 levels, and these lines are already at the deepest one.",
+        "outlineLevelsBar": "Outline levels",
+        "outlineLevelsRows": "Row levels",
+        "outlineLevelsCols": "Column levels",
+        "outlineLevelShowRows": "Show rows up to level {{level}}",
+        "outlineLevelShowCols": "Show columns up to level {{level}}",
+        "appStreamingRows": "Streaming {{name}}: {{rows}} rows available.",
+        "dvRejectTitle": "Invalid value",
+        "dvRejectOk": "OK",
+        "dvRejectClose": "Close",
+        "dvInvalidHint": "Invalid value:",
+        "dvListError": "Choose a value from the list.",
+        "dvListDropdown": "Choose a value",
+        "dvListEdit": "Edit"
       }
     },
     "markdown": {
@@ -10160,7 +10610,9 @@
         "notAvailable": "Printing is not supported here yet.",
         "exportPdf": "Export PDF",
         "exportDocx": "Export DOCX",
-        "exportNotAvailable": "This export format is not supported yet."
+        "exportNotAvailable": "This export format is not supported yet.",
+        "busy": "A print dialog is already open. Finish or close it first.",
+        "failed": "Could not print the document. Try again."
       },
       "view": {
         "label": "View mode",
@@ -10239,6 +10691,9 @@
         "imageUrlRefused": "This image URL cannot be inserted",
         "imageUrlInsert": "Insert",
         "hr": "Divider"
+      },
+      "visual": {
+        "refused": "That change can't be applied to this element."
       },
       "float": {
         "label": "Quick edit",
@@ -10345,10 +10800,12 @@
         "edit_text_select": "Select a text box or shape to edit its text",
         "export_pdf_unbound": "PDF export is not available in this app",
         "print_unbound": "Printing is not available in this app",
+        "print_preparing": "Preparing the print copy…",
         "edit_unbound": "This presentation cannot be edited here",
         "layouts_pending": "Masters and layouts are not supported yet",
         "embedded_fonts_pending": "Embedded fonts are not supported yet",
-        "render_fidelity_pending": "Render fidelity is measured against the reference renderer"
+        "render_fidelity_pending": "Render fidelity is measured against the reference renderer",
+        "master_view": "Close the master view to edit slides"
       },
       "colors": {
         "black": "Black",
@@ -10514,7 +10971,12 @@
         "characters": "Characters: {{value}}",
         "language": "Language: {{language}}",
         "selection": "Selected: {{value}}",
-        "selection_none": "No selection"
+        "selection_none": "No selection",
+        "notes": "Notes",
+        "viewLabel": "View",
+        "viewNormal": "Normal",
+        "viewSorter": "Slide sorter",
+        "viewShow": "Slide show"
       },
       "tabs": {
         "home": "Home",
@@ -10555,7 +11017,8 @@
         "animations": "Animations",
         "show": "Slide Show",
         "review": "Review",
-        "view": "View"
+        "view": "View",
+        "master": "Master views"
       },
       "state": {
         "opening": "Opening presentation…"
@@ -10581,7 +11044,85 @@
         "undo": "Undo",
         "redo": "Redo",
         "presenter": "Present",
-        "fullscreen": "Fullscreen"
+        "fullscreen": "Fullscreen",
+        "slideMaster": "Slide master"
+      },
+      "masters": {
+        "title": "Slide master",
+        "close": "Close master view",
+        "loading": "Loading the slide master...",
+        "unbound": "Slide master changes are not connected to this editor yet.",
+        "busy": "Applying...",
+        "parts_label": "Masters and layouts",
+        "parts_empty": "This presentation has no slide master or layouts.",
+        "kind_master": "Master",
+        "kind_layout": "Layout",
+        "elements_label": "Elements",
+        "no_part": "Select a master or layout to edit it.",
+        "elements_empty": "This part has no elements.",
+        "no_element": "Select an element to edit it.",
+        "inspector_label": "Element properties",
+        "text_label": "Text",
+        "text_placeholder": "Text shown on the master",
+        "text_apply": "Apply text",
+        "position_label": "Position and size (px)",
+        "x": "X",
+        "y": "Y",
+        "w": "Width",
+        "h": "Height",
+        "box_invalid": "Enter valid numbers; width and height must be at least 1.",
+        "box_apply": "Apply position",
+        "fill_label": "Fill colour",
+        "fill_apply": "Apply fill",
+        "fill_clear": "No fill",
+        "stroke_label": "Outline colour",
+        "stroke_width": "Outline width (pt)",
+        "stroke_width_invalid": "Outline width must be a number from 0 to {{max}}.",
+        "stroke_apply": "Apply outline",
+        "stroke_clear": "No outline",
+        "color_hex": "Hex colour",
+        "color_invalid": "Enter a colour like #4472C4.",
+        "delete": "Delete element",
+        "rename_layout": "Layout name",
+        "rename_master": "Master name",
+        "rename_apply": "Rename",
+        "add_placeholder_label": "Add placeholder",
+        "add_placeholder": "Add",
+        "placeholder_title": "Title",
+        "placeholder_body": "Content",
+        "placeholder_pic": "Picture",
+        "placeholder_chart": "Chart",
+        "placeholder_tbl": "Table",
+        "placeholder_dt": "Date",
+        "placeholder_ftr": "Footer",
+        "placeholder_sldnum": "Slide number",
+        "text_style_label": "Placeholder text style",
+        "font_size": "Size (pt)",
+        "font_color": "Text colour",
+        "font_name": "Font",
+        "bold": "Bold",
+        "italic": "Italic",
+        "text_style_invalid": "Enter a size from 1 to 400 and a colour like #1F4E79.",
+        "text_style_apply": "Apply text style",
+        "placeholder_ctrtitle": "Centered title",
+        "placeholder_subtitle": "Subtitle",
+        "placeholder_obj": "Object",
+        "placeholder_clipart": "Clip art",
+        "placeholder_dgm": "Diagram",
+        "placeholder_media": "Media",
+        "placeholder_sldimg": "Slide image",
+        "placeholder_hdr": "Header",
+        "placeholder_other": "Placeholder",
+        "type_text": "Text box",
+        "type_shape": "Shape",
+        "type_picture": "Picture",
+        "type_group": "Group",
+        "type_table": "Table",
+        "type_chart": "Chart",
+        "type_passthrough": "Embedded object",
+        "type_other": "Element",
+        "text_style_applied": "Text style applied.",
+        "preview_label": "{{kind}}: {{name}} (simplified preview)"
       },
       "context": {
         "chart": "Chart Design",
@@ -10601,6 +11142,7 @@
         "reason_unavailable": "Unavailable on this surface",
         "reason_readonly": "This presentation is read-only",
         "reason_no_slide": "Select a slide first",
+        "reason_master_view": "Close the master view to edit slides",
         "reason_pending": "Wait for the current change to finish",
         "reason_no_selection": "Select an element first",
         "reason_clipboard_unbound": "Copy and paste are not supported by this presentation engine yet",
@@ -10623,6 +11165,8 @@
         "edit_text": "Edit the selected text",
         "select_all": "Select every element",
         "delete_selection": "Delete the selection",
+        "delete_slide": "Delete the slide (in the slide list)",
+        "type_to_edit": "Type to replace the selected text",
         "next_slide": "Next slide",
         "previous_slide": "Previous slide",
         "dismiss": "Clear the selection",
@@ -10632,7 +11176,7 @@
         "title": "Print presentation",
         "slide_label": "Slide {{index}}",
         "failed": "The presentation could not be printed.",
-        "blocked": "The browser blocked the print window. Allow pop-ups and try again."
+        "busy": "A print dialog is already open. Finish or close it first."
       },
       "charts": {
         "title": "Charts",
@@ -10964,6 +11508,17 @@
           "to_label": "End shape",
           "shape_n": "Shape {{n}}",
           "pick_shape": "Choose a shape",
+          "from_side_label": "Start side",
+          "to_side_label": "End side",
+          "side": {
+            "auto": "Auto",
+            "top": "Top",
+            "right": "Right",
+            "bottom": "Bottom",
+            "left": "Left"
+          },
+          "apply_line": "Apply line to selected connector",
+          "apply_line_hint": "Select a connector on the slide to restyle its line.",
           "arrow_label": "Arrowheads",
           "arrow": {
             "none": "None",
@@ -11415,6 +11970,7 @@
         "undo": "Undo",
         "redo": "Redo",
         "thumbnailsLabel": "Page thumbnails",
+        "showThumbnails": "Show page thumbnails", "hideThumbnails": "Hide page thumbnails",
         "thumbnailPage": "Page {{page}}",
         "statusBarLabel": "PDF status bar",
         "statusBarPage": "Page {{page}} / {{total}}",
@@ -11668,8 +12224,9 @@
         "kind": { "text": "Text", "checkbox": "Checkbox", "radio": "Radio", "choice": "Choice" }
       },
       "print": {
-        "action": "Print", "preparing": "Printing…",
-        "failed": "The document could not be printed."
+        "preparing": "Printing…",
+        "failed": "The document could not be printed.",
+        "busy": "A print dialog is already open. Finish or close it first."
       },
       "export": {
         "pages": "Export pages as PNG", "progress": "Exporting page {{page}} / {{total}}…",
@@ -11689,6 +12246,7 @@
         "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again.",
         "editRejected": "The PDF cannot take this value. Check it and try again.",
         "unsupportedInBrowser": "This edit is not available in the browser yet.",
+        "unsupportedPagesInBrowser": "Insert, extract and merge pages are not available in the browser yet.",
         "editSkipped": "Part of this edit was skipped because the browser cannot apply it.",
         "formValueRejected": "This field cannot store the characters you typed (for example Vietnamese accents): its form font does not support them. The value was not saved.",
         "formsFailed": "The form fields could not be read from this PDF.",
@@ -11728,6 +12286,7 @@
       "documentCount_other": "{{count}} documents",
       "limit": "All 8 document tabs are open. Close a tab to open another document.",
       "checkpointFailed": "Changes could not be protected locally. Keep this tab open to avoid losing changes.",
+      "checkpointFailedNamed": "Changes to {{titles}} could not be protected locally. Keep the tab open to avoid losing changes.",
       "sessionError": "Document tabs could not be synchronized. Retry before continuing.",
       "dismissAlert": "Dismiss message"
     },
@@ -11780,6 +12339,9 @@
       "emptySearchDescription": "No documents match your search.",
       "fileOpenQueued": "The file will open after you close the current document.",
       "actionError": "The action could not be completed. Try again.",
+      "printPreviewHint": "The Windows print dialog may show no preview. The printed pages are still correct.",
+      "printLandscapeHint": "This document is landscape: choose Landscape under Orientation in the print dialog so the pages are not turned.",
+      "printMixedOrientationHint": "This document mixes portrait and landscape pages. The pages that do not match the orientation you choose are turned to fit the sheet; to print the landscape pages upright, print them separately with Landscape chosen under Orientation.",
       "back": "Back to library",
       "untitled": "Untitled.docx",
       "saveLocal": "Save file",
@@ -11791,6 +12353,14 @@
       "updated": "Updated {{time}}",
       "contentPending": "DOCX content editing is not available yet. You can save and reopen the file.",
       "draftRecovered": "The selected draft was restored.",
+      "featureOffTitle": "{{format}} editing is turned off",
+      "featureOffDescription": "Editing {{format}} files is turned off for your organization, so this file is view-only.",
+      "flagsUnknownTitle": "{{format}} editing isn't available yet",
+      "flagsUnknownDescription": "This file is view-only for now while your organization's editor settings are checked. It becomes editable once the check succeeds.",
+      "viewOnlyTitle": "{{format}} file is view-only for you",
+      "viewOnlyDescription": "Your access to this file changed, so it stays view-only. Ask the owner for edit access, then open it again.",
+      "goneTitle": "This {{format}} file is no longer available",
+      "goneDescription": "The file was deleted or moved, so it can't be edited here. Close this tab and open it again from the library.",
       "format": {
         "label": "Format",
         "all": "All formats",
@@ -11817,7 +12387,7 @@
       "untitledMarkdown": "Untitled.md",
       "untitledHtml": "Untitled.html",
       "empty": "No files on this device yet",
-      "emptyDescription": "Open a DOCX, PDF, Markdown or HTML file from this device or create a new document. You can sign in later to use your UniWork library.",
+      "emptyDescription": "Open a {{formats}} file from this device or create a new document. You can sign in later to use your UniWork library.",
       "error": "Recent files could not be loaded.",
       "retry": "Retry",
       "missing": "File not found",
@@ -11825,7 +12395,7 @@
       "removeNamed": "Remove {{name}} from the list",
       "openNamed": "Open {{name}}",
       "updated": "Last opened {{time}}",
-      "unsupported": "Only DOCX, XLSX, PPTX, PDF, Markdown and HTML files on this device are supported.",
+      "unsupported": "Only {{formats}} files on this device are supported.",
       "saveAs": "Save as…",
       "leaveSave": "Save on this device",
       "home": "Back to on-device home"

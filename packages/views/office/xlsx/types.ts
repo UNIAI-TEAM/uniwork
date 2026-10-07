@@ -6,8 +6,10 @@ import type {
   SaveCoordinatorState,
   StableSnapshot,
 } from "@uniwork/core/office";
+import type { OfficePrintPort } from "../print";
 import type { XlsxGridHostPort } from "./xlsx-grid-surface";
 import type { XlsxRangeType } from "./selection-mapping";
+import type { XlsxDroppedRuleSet } from "./conditional-format/rule-set-drops";
 import type {
   XlsxCellState,
   XlsxRecalcCell,
@@ -24,6 +26,9 @@ export interface XlsxSelection {
   /** Univer RANGE_TYPE from the live grid (see selection-mapping.ts); absent
    *  for fallback-surface and host-set selections. */
   rangeType?: XlsxRangeType;
+  /** The live grid selects exactly one merged cell (its range spans the
+   *  merge); Excel treats that as a single cell. */
+  merged?: true;
 }
 
 export interface XlsxSelectionPort {
@@ -61,6 +66,9 @@ export type XlsxEditorHandle<TSnapshot = XlsxWorkbookSnapshot> = EditorHandle<TS
     /** Notify the view when a host-side recovery replaces the live snapshot. */
     subscribeSnapshot?(listener: (snapshot: XlsxWorkbookSnapshot) => void): () => void;
     cancel?: (reason?: string) => Promise<void> | void;
+    /** X01 r2: the CF/DV rule sets the last save dropped (named by the engine
+     *  refusal xlsx_rule_sets_dropped); empty after a successful save. */
+    droppedRuleSets?(): readonly XlsxDroppedRuleSet[];
   };
 
 export interface XlsxOpenSuccess {
@@ -129,6 +137,9 @@ export interface XlsxEditorProps<TSnapshot = XlsxWorkbookSnapshot> {
   /** Where a confirmed save lands. Defaults to cloud; the desktop passes local
    *  for a file on disk so the label does not claim a UniWork receipt. */
   saveDestination?: "cloud" | "local";
+  /** UNI-952: the host print port. Undefined = the web browser port; null =
+   *  this host cannot print (no Print entry is shown). */
+  printPort?: OfficePrintPort | null;
 }
 
 export type XlsxViewState = "opening" | "ready" | "error";

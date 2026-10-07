@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxGridHostPort } from "../xlsx-grid-surface";
 import type { XlsxSelection } from "../types";
-import { summarizeRead, summarizeSelectionFromSnapshot, summaryReadRequest, type XlsxSelectionSummary } from "./selection-summary";
+import { isSingleCellSelection, summarizeRead, summarizeSelectionFromSnapshot, summaryReadRequest, type XlsxSelectionSummary } from "./selection-summary";
 
 export type XlsxSummaryState =
   | { kind: "empty" }
@@ -60,7 +60,7 @@ export function useXlsxSelectionSummary({
   const tokenRef = useRef(0);
   const selectionKey = selection === null
     ? null
-    : `${documentKey}\u0000${selection.sheet}\u0000${selection.address}\u0000${selection.endAddress ?? ""}`;
+    : `${documentKey}\u0000${selection.sheet}\u0000${selection.address}\u0000${selection.endAddress ?? ""}\u0000${selection.merged === true}`;
 
   useEffect(() => {
     const token = ++tokenRef.current;
@@ -91,6 +91,12 @@ export function useXlsxSelectionSummary({
     const request = summaryReadRequest(current, sheet);
     if (!request) {
       setState({ kind: "empty" });
+      setPending(false);
+      return undefined;
+    }
+    // A single cell shows no statistics, so there is nothing to read.
+    if (isSingleCellSelection(current)) {
+      setState({ kind: "ready", summary: { kind: "empty" }, partial: false });
       setPending(false);
       return undefined;
     }

@@ -9,7 +9,8 @@
  * Sorter -> PptxSorterPanel, Tables -> PptxTablesPanel, Charts -> PptxChartsPanel,
  * Format -> PptxFormatPanel, Links -> PptxLinkEditor,
  * Notes -> PptxNotesPane, Comments -> PptxCommentsPanel,
- * Header/footer -> PptxHeaderFooterPanel, Media -> PptxMediaPanel.
+ * Header/footer -> PptxHeaderFooterPanel, Media -> PptxMediaPanel,
+ * Masters -> MastersPanel (View > Slide master).
  *
  * It owns no write path. Every panel port is passed in; when a port is absent the
  * panel renders its own honest disabled state. Panels with a per-edit port route
@@ -18,7 +19,7 @@
  * the transport or the save coordinator directly.
  */
 import type { ReactNode } from "react";
-import type { FormatEdit, HeaderFooterEdit, MediaEdit, NotesCommentEdit, PptxEdit, PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
+import type { FormatEdit, HeaderFooterEdit, MasterEdit, MediaEdit, NotesCommentEdit, PptxEdit, PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
 import type { PptxNodeBox } from "./canvas/render-tree";
 import type { PptxSlideView } from "./slide-rail";
 import type { PptxAnimationEntry } from "./animations";
@@ -26,6 +27,7 @@ import type { PptxComment } from "./comments/comments-panel-state";
 import { PptxCommentsPanel } from "./comments/comments-panel";
 import type { PptxHeaderFooterSettings } from "./headerfooter/headerfooter-model";
 import { PptxHeaderFooterPanel } from "./headerfooter";
+import { MastersPanel, type MasterPanelProps } from "./masters";
 import { PptxMediaPanel } from "./media";
 import { PptxNotesPane } from "./notes/notes-pane";
 import type { PptxRibbonContextualSelection } from "./pptx-ribbon";
@@ -35,6 +37,7 @@ import { PptxDesignPanel } from "./design";
 import { PptxFormatPanel } from "./format";
 import { PptxInsertPanel } from "./insert";
 import type { PptxInsertConnectorRequest, PptxInsertElementRef } from "./insert/insert-model";
+import { connectorInsertEdit } from "./insert/connector-model";
 import { PptxTextFormatPanel, type PptxTextFormatPanelProps } from "./text/pptx-text-format-panel";
 import { PptxLinkEditor } from "./links";
 import { PptxSorterPanel } from "./sorter";
@@ -58,7 +61,8 @@ export type PptxPanelKind =
   | "notes"
   | "comments"
   | "headerfooter"
-  | "media";
+  | "media"
+  | "masters";
 
 /**
  * Every edit a panel can emit. The engine registers only the base kinds in the
@@ -67,7 +71,7 @@ export type PptxPanelKind =
  * once, in `buildPptxPanel`'s fallback. When the engine registers them the cast
  * becomes a no-op; it is never a second write path.
  */
-export type PptxPanelEdit = PptxEdit | FormatEdit | NotesCommentEdit | HeaderFooterEdit | MediaEdit;
+export type PptxPanelEdit = PptxEdit | FormatEdit | NotesCommentEdit | HeaderFooterEdit | MediaEdit | MasterEdit;
 
 /** The deck data the newly mounted panels read; all optional so a host that
  *  cannot supply one leaves the panel honestly disabled/empty. */
@@ -202,6 +206,11 @@ export function pptxPanelForTab(tab: PptxTabId | string): PptxPanelKind | null {
   }
 }
 
+const noop = () => undefined;
+
+/** The masters panel when the host supplies no deck reader: empty and unbound. */
+const UNBOUND_MASTERS: MasterPanelProps = { parts: [], activePart: null, onSelectPart: noop, elements: [], selectedElementId: null, onSelectElement: noop, status: "unbound" };
+
 export interface PptxPanelHostProps {
   panel: PptxPanelKind;
   /** One committed edit per call (a registered PptxEdit kind, or a committed
@@ -224,6 +233,9 @@ export interface PptxPanelHostProps {
    *  editor; the layout list feeds "New slide". Absent keeps them inert. */
   onSelectSlide?: (index: number) => void;
   loadLayouts?: () => Promise<readonly PptxSorterLayout[]>;
+  /** Slide master panel state (parts, elements, selection, edit port). Absent =
+   *  the masters panel renders its honest unbound state. */
+  masters?: MasterPanelProps;
   className?: string;
 }
 
@@ -240,6 +252,7 @@ export function PptxPanelHost({
   slides = [],
   data = {},
   selection,
+  masters,
   className,
 }: PptxPanelHostProps) {
   // W5 review F14: element ids repeat across slides, so the slide is part of the key.
@@ -262,7 +275,7 @@ export function PptxPanelHost({
                 // The connector request rides the registered add_connector edit (vendored addConnector,
                 // glued to both shapes); the picker already validated the pair.
                 onInsertConnector: (request: PptxInsertConnectorRequest) =>
-                  onApplyEdit({ op: "add_connector", slideIndex: request.slideIndex, elementIds: [request.from, request.to], kind: request.kind, arrow: request.arrow }),
+                  onApplyEdit(connectorInsertEdit(request)),
               }
             : {})}
           className={className}
@@ -396,6 +409,8 @@ export function PptxPanelHost({
           className={className}
         />
       );
+    case "masters":
+      return <MastersPanel {...(masters ?? UNBOUND_MASTERS)} className={className} />;
     default:
       return null;
   }
@@ -451,20 +466,30 @@ export interface PptxPanelNodeOptions {
    *  editor; the layout list feeds "New slide". Absent keeps them inert. */
   onSelectSlide?: (index: number) => void;
   loadLayouts?: () => Promise<readonly PptxSorterLayout[]>;
+  masters?: MasterPanelProps;
   /** Wrapper to use; defaults to the aside. Callers pass `pptxPanelPlacement(kind)`. */
   placement?: "aside" | "bottom";
+}
+
+/** The one edit channel every panel routes to: the host `onApplyEdit`, else the
+ *  handle edit port. The cast is the single one of the seam (see PptxPanelEdit). */
+export function resolvePanelApplyEdit(
+  onApplyEdit: ((edit: PptxPanelEdit) => Promise<unknown>) | undefined,
+  edit: ((edits: readonly PptxEdit[]) => Promise<unknown>) | undefined,
+): ((edit: PptxPanelEdit) => Promise<unknown>) | undefined {
+  return onApplyEdit ?? (edit ? (one: PptxPanelEdit) => edit([one as PptxEdit]) : undefined);
 }
 
 /** Compose the active panel node (with its aside wrapper) or null. Pure: the
  *  caller passes every port; a missing port leaves the panel honestly disabled. */
 export function buildPptxPanel(options: PptxPanelNodeOptions): ReactNode {
-  const { panelKind, onApplyEdit, onApplyEdits, edit, onError, slideIndex = 0, slides = [], data, selection, onSelectSlide, loadLayouts, placement } = options;
+  const { panelKind, onApplyEdit, onApplyEdits, edit, onError, slideIndex = 0, slides = [], data, selection, onSelectSlide, loadLayouts, masters, placement } = options;
   const Wrapper = placement === "bottom" ? PptxPanelBottom : PptxPanelAside;
   if (!panelKind) return null;
   // The ONE cast of the whole seam: the engine has not registered every panel
   // union in `PptxEdit` yet (WIRE-KINDS owns that), so the committed edit is
   // handed to the same generic handle edit port every other kind uses.
-  const applyEdit = onApplyEdit ?? (edit ? (one: PptxPanelEdit) => edit([one as PptxEdit]) : undefined);
+  const applyEdit = resolvePanelApplyEdit(onApplyEdit, edit);
   const applyEdits = onApplyEdits ?? (edit ? (list: readonly PptxPanelEdit[]) => edit(list as readonly PptxEdit[]) : undefined);
   return (
     <Wrapper>
@@ -481,6 +506,7 @@ export function buildPptxPanel(options: PptxPanelNodeOptions): ReactNode {
         {...(selection ? { selection } : {})}
         {...(onSelectSlide ? { onSelectSlide } : {})}
         {...(loadLayouts ? { loadLayouts } : {})}
+        {...(masters ? { masters } : {})}
       />
     </Wrapper>
   );

@@ -3,6 +3,7 @@ import { EditorView } from "@codemirror/view";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { HtmlEditor } from "./editor";
+import { OfficeShell } from "../office-shell";
 import { HtmlVisualShell } from "./visual/shell";
 import { HeaderActionsMenuItems, HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -10,7 +11,8 @@ import { MarkdownEditor } from "../markdown/editor";
 import type { HtmlEditorHandle, HtmlOpenOutcome } from "./types";
 import type { MarkdownEditorHandle, MarkdownOpenOutcome } from "../markdown/types";
 import type { IsolatedPreviewPort, PreviewMountOptions } from "../source-editor-types";
-import type { MarkdownPrintPort } from "../markdown/wysiwyg/print";
+import type { MarkdownPrintOutcome, MarkdownPrintPort } from "../markdown/wysiwyg/print";
+import { PRINT_PLATFORMS, pressPrintChord, stubPrintPlatform } from "../../test/print-chord";
 
 initI18n();
 beforeEach(async () => { await setLocale("en"); });
@@ -91,6 +93,16 @@ describe("HtmlEditor", () => {
     await renderReady();
     await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
     expect(screen.queryByTestId("html-source")).toBeNull();
+  });
+
+  it("shows the source caret position in the footer and clears it when the source pane is hidden (T12)", async () => {
+    const { container } = await renderReady();
+    await waitFor(() => expect(screen.getByTestId("html-codemirror")).toBeInTheDocument());
+    // Line 3 of SOURCE starts at offset 34 (15 + 1 + 17 + 1 chars before it).
+    cmView(container).dispatch({ selection: { anchor: 36 } });
+    await waitFor(() => expect(screen.getByTestId("html-status-position")).toHaveTextContent("Ln 3, Col 3"));
+    pressCycle(container); // split -> preview: no source pane
+    await waitFor(() => expect(screen.queryByTestId("html-status-position")).toBeNull());
   });
 
   it("renders the Markdown WYSIWYG surface (M-WIRE) and not CodeMirror", async () => {
@@ -196,6 +208,26 @@ describe("HtmlEditor", () => {
     expect(ribbon!.querySelector("[data-ribbon-quick-access]")).not.toBeNull();
     expect(ribbon!.querySelector("[data-ribbon-trailing]")).not.toBeNull();
     expect(ribbon!.querySelector('[data-ribbon-tab="home"]')).not.toBeNull();
+  });
+
+  it("marks dirty and checkpoints only when an undo/redo step moved the source (UNI-954)", async () => {
+    const { editor, coordinator, container } = await renderReady();
+    const section = container.querySelector('[data-testid="html-editor"]') as HTMLElement;
+    coordinator.markDirty.mockClear();
+    coordinator.checkpoint.mockClear();
+    // The handle's generation stays put: both stacks are empty.
+    fireEvent.keyDown(section, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(section, { key: "y", ctrlKey: true });
+    expect(editor.undo).toHaveBeenCalledTimes(1);
+    expect(editor.redo).toHaveBeenCalledTimes(1);
+    expect(coordinator.markDirty).not.toHaveBeenCalled();
+    expect(coordinator.checkpoint).not.toHaveBeenCalled();
+    let generation = 1;
+    editor.getDirtyGeneration = () => generation;
+    vi.mocked(editor.undo!).mockImplementation(() => { generation += 1; });
+    fireEvent.keyDown(section, { key: "z", ctrlKey: true });
+    expect(coordinator.markDirty).toHaveBeenCalledWith(2);
+    expect(coordinator.checkpoint).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -802,6 +834,19 @@ describe("HtmlEditor mounts the shared Office frame (F1/F2/F8)", () => {
     expect(container.querySelectorAll("[data-office-status-bar]")).toHaveLength(0);
   });
 
+  it("renders the shared too-large notice when the open is too_large (UNI-956)", async () => {
+    const editor: HtmlEditorHandle = {
+      format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(async () => ({ generation: 1, fingerprint: "fp", value: { source: SOURCE } })),
+      undo: vi.fn(), redo: vi.fn(), dispose: vi.fn(), cancel: vi.fn(),
+      source: { getText: () => SOURCE, setText: () => undefined },
+    };
+    const outcome = { outcome: "failed", document_id: "doc", format: "html", failure_class: "too_large" } as HtmlOpenOutcome;
+    render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} />);
+    await waitFor(() => expect(screen.getByTestId("office-too-large")).toBeInTheDocument());
+    expect(screen.queryByTestId("html-error-state")).toBeNull();
+  });
+
   it("keeps the open and error states rendering outside the frame", async () => {
     const editor: HtmlEditorHandle = {
       format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
@@ -870,12 +915,12 @@ describe("HtmlEditor find (UNI-928)", () => {
 });
 
 /**
- * UNI-928 print parity: HtmlEditor gains a Print entry ONLY when the host
- * injects a print port. The default (no port) keeps today's behaviour: no
- * entry at all, so apps/web and its tests are unchanged.
+ * UNI-928/UNI-952 print parity: HtmlEditor always offers Print in the page
+ * menu. A host that injects a port (desktop) gets that port; with none, the
+ * shared isolated-frame browser port is used, exactly like Markdown.
  */
 describe("HtmlEditor print entry (UNI-928 parity)", () => {
-  function renderWithMenu(printPort?: MarkdownPrintPort) {
+  function renderWithMenu(printPort?: MarkdownPrintPort, shell = false) {
     let source = SOURCE;
     const editor: HtmlEditorHandle = {
       format: "html", open: vi.fn(async () => undefined), getDirtyGeneration: () => 1,
@@ -885,19 +930,47 @@ describe("HtmlEditor print entry (UNI-928 parity)", () => {
       getAssetManifest: () => ({ entries: [] }),
     };
     const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
+    const view = <HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} printPort={printPort} />;
     return render(
       <HeaderActionsSlotProvider>
         <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu>
-        <HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={makeCoordinator()} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} printPort={printPort} />
+        {shell ? <OfficeShell embedded title="Doc" editor={view} /> : view}
       </HeaderActionsSlotProvider>,
     );
   }
 
-  it("offers NO Print entry when no port is injected (default unchanged)", async () => {
-    renderWithMenu();
-    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
-    const menu = await screen.findByRole("menu");
-    expect(within(menu).queryByRole("menuitem", { name: "Print" })).toBeNull();
+  it("offers Print through the shared browser port when no port is injected, never window.print()", async () => {
+    const windowPrint = vi.fn();
+    const original = window.print;
+    window.print = windowPrint;
+    const frames: HTMLIFrameElement[] = [];
+    const append = document.body.append.bind(document.body);
+    const spy = vi.spyOn(document.body, "append").mockImplementation((...nodes: (Node | string)[]) => {
+      for (const node of nodes) if (node instanceof HTMLIFrameElement) frames.push(node);
+      append(...nodes);
+    });
+    try {
+      renderWithMenu();
+      await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+      const menu = await screen.findByRole("menu");
+      const item = within(menu).getByRole("menuitem", { name: "Print" });
+      const framePrint = vi.fn();
+      // The default port prints an off-screen frame: stub its window.print.
+      const create = document.createElement.bind(document);
+      const createSpy = vi.spyOn(document, "createElement").mockImplementation(((tag: string, options?: ElementCreationOptions) => {
+        const el = create(tag, options);
+        if (tag === "iframe") Object.defineProperty(el, "contentWindow", { get: () => ({ document: { open() {}, write() {}, close() {}, title: "" }, focus() {}, print: framePrint }) });
+        return el;
+      }) as typeof document.createElement);
+      fireEvent.click(item);
+      await waitFor(() => expect(framePrint).toHaveBeenCalledTimes(1));
+      expect(frames).toHaveLength(1);
+      expect(windowPrint).not.toHaveBeenCalled();
+      createSpy.mockRestore();
+    } finally {
+      spy.mockRestore();
+      window.print = original;
+    }
   });
 
   it("renders the Print entry and calls the injected port with the sanitized copy", async () => {
@@ -928,6 +1001,43 @@ describe("HtmlEditor print entry (UNI-928 parity)", () => {
     } finally {
       window.print = original;
     }
+  });
+
+  it.each(PRINT_PLATFORMS)("prints the same copy on the print chord from the page menu (outside the editor), never the app window (%s)", async (platform) => {
+    const restore = stubPrintPlatform(platform);
+    const windowPrint = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    const calls: string[] = [];
+    try {
+      renderWithMenu({ print(request) { calls.push(request.html); return { outcome: "printed" }; } }, true);
+      await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+      const menu = await screen.findByRole("menu");
+      expect(pressPrintChord(menu)).toBe(false);
+      await waitFor(() => expect(calls).toHaveLength(1));
+      expect(calls[0]).toContain("Keep");
+      expect(calls[0]).not.toMatch(/<script/i);
+      expect(windowPrint).not.toHaveBeenCalled();
+    } finally {
+      windowPrint.mockRestore();
+      restore();
+    }
+  });
+
+  it("shows the print outcome itself: busy/timeout -> neutral status, failure -> generic, cancelled silent", async () => {
+    const outcomes: MarkdownPrintOutcome[] = [
+      { outcome: "failed", reason: "print_timeout" },
+      { outcome: "failed", reason: "print_blocked" },
+      { outcome: "cancelled" },
+    ];
+    renderWithMenu({ print: () => outcomes.shift()! });
+    await waitFor(() => expect(screen.getByTestId("html-shell")).toBeInTheDocument());
+    const menu = await screen.findByRole("menu");
+    const print = () => fireEvent.click(within(menu).getByRole("menuitem", { name: "Print" }));
+    print();
+    expect(await screen.findByText("A print dialog is already open. Finish or close it first.")).toBeInTheDocument();
+    print();
+    expect(await screen.findByText("Could not print the document. Try again.")).toBeInTheDocument();
+    print();
+    await waitFor(() => expect(screen.queryByText("Could not print the document. Try again.")).toBeNull());
   });
 
   it("sanitizes a hostile HTML source before it reaches the injected port", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, DollarSign, DecimalsArrowLeft, DecimalsArrowRight, Percent } from "lucide-react";
-import { useState, type KeyboardEvent } from "react";
+import { useCallback, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -20,7 +20,9 @@ import {
 } from "./catalog";
 import { appliedFormatKey, readAppliedPattern, recordAppliedFormat, useAppliedPattern } from "./applied-format";
 import { autoFitColumnsAfterFormat, moreDecimals } from "./auto-fit-width";
+import { useFileNumberFormat } from "./file-format";
 import { fireCommand } from "../fire-command";
+import { useCloseOnOutsidePointerDown } from "../toolbar/use-close-on-outside-pointerdown";
 
 const CUSTOM_ERROR_KEYS: Record<XlsxCustomFormatError, string> = {
   empty: "office.xlsx.toolbar.groups.numberFormat.customError.empty",
@@ -46,7 +48,7 @@ function applyPatternTo(context: XlsxToolbarGroupProps, pattern: string): void {
   const cells = selectionFormatCells(context.selection);
   if (isBlocked(context) || !cells) return;
   fireCommand(context.commands, XLSX_NUMBER_FORMAT_COMMANDS.set, numberFormatCommandParams(cells, pattern));
-  recordAppliedFormat(appliedFormatKey(context.unitId, context.selection), pattern);
+  recordAppliedFormat(appliedFormatKey(context.documentKey, context.selection), pattern);
   void autoFitColumnsAfterFormat(context, pattern);
 }
 
@@ -73,7 +75,7 @@ export function xlsxNumberRibbonItems(context: XlsxToolbarGroupProps): readonly 
     fireCommand(context.commands, command);
     if (!widen) return;
     // The port cannot read the format back: widen from the last applied one.
-    const base = readAppliedPattern(appliedFormatKey(context.unitId, context.selection)) ?? "0";
+    const base = readAppliedPattern(appliedFormatKey(context.documentKey, context.selection)) ?? "0";
     void autoFitColumnsAfterFormat(context, moreDecimals(base));
   };
   return [
@@ -122,9 +124,13 @@ function XlsxNumberFormatPicker(context: XlsxToolbarGroupProps) {
   const [open, setOpen] = useState(false);
   const [customDraft, setCustomDraft] = useState("");
   const [customError, setCustomError] = useState<XlsxCustomFormatError | null>(null);
-  const { selection, unitId } = context;
+  const { selection, documentKey } = context;
   const blocked = isBlocked(context);
-  const applied = useAppliedPattern(appliedFormatKey(unitId, selection));
+  const sessionPattern = useAppliedPattern(appliedFormatKey(documentKey, selection));
+  const filePattern = useFileNumberFormat(context);
+  const applied = sessionPattern ?? filePattern;
+  const closePopover = useCallback(() => setOpen(false), []);
+  const finalFocus = useCloseOnOutsidePointerDown(open, closePopover);
 
   const applyPattern = (pattern: string) => {
     if (blocked) return;
@@ -183,7 +189,7 @@ function XlsxNumberFormatPicker(context: XlsxToolbarGroupProps) {
           <ChevronDown aria-hidden className="shrink-0" />
         </span>
       </PopoverTrigger>
-      <PopoverContent
+      <PopoverContent finalFocus={finalFocus}
         role="dialog"
         aria-label={t("office.xlsx.toolbar.groups.numberFormat.gallery")}
         align="start"

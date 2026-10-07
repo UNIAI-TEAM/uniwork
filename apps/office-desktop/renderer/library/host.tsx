@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { incomingBytes } from "../office/bytes";
 import { desktopLibraryDownloadResponseSchema, type DesktopLibraryDocument, type DesktopSessionMetadata } from "../../shared/ipc";
 import type { DesktopDocumentFormat } from "../../shared/document-formats";
 import type { RendererBridge } from "../app";
@@ -57,8 +58,8 @@ export function LibraryHost({ bridge, scope, onOpen, onCreate, onOpenLocal }: { 
         setDownloadError(false);
         void bridge.call("desktop:library-download", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }).then((raw) => {
           const result = desktopLibraryDownloadResponseSchema.parse(raw);
-          const bytes = Uint8Array.from(atob(result.dataBase64), (character) => character.charCodeAt(0));
-          const url = URL.createObjectURL(new Blob([bytes], { type: result.mimeType }));
+          const bytes = incomingBytes(result.data);
+          const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: result.mimeType }));
           const link = window.document.createElement("a"); link.href = url; link.download = result.filename;
           window.document.body.append(link); link.click(); link.remove();
           window.setTimeout(() => URL.revokeObjectURL(url), 1000);

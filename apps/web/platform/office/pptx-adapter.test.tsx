@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, createElement, isValidElement, StrictMode, useEffect, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { OfficeEditorHost } from "./editor-host";
 import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import { pptxSessionDivergedError, type PptxEdit } from "@uniwork/office-engine/pptx";
@@ -24,6 +25,9 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", () => ({
   // (an optional member); the mock must carry it or the import throws before
   // any test runs. The suite drives a fake runtime, so it is never called.
   getSlideNotes: () => "",
+  // Same optional-member read for the Masters panel parser (never called here:
+  // the suite drives a fake runtime).
+  parseMasterPart: () => null,
   // The real shared canvas (r6 d7768245) mounts PptxEditor, whose deck renderer
   // reads these three optional accessors off the artifact namespace
   // (deck-renderer.ts:89-91). The mock must carry them or the access throws
@@ -103,6 +107,12 @@ function runtime(): PptxSessionRuntime & { edits: PptxEdit[][]; released: string
     redo: vi.fn(async () => true),
     serialize: vi.fn(async () => ({ bytes: new Uint8Array([80, 75, 3, 4]), checksum: "sha256-output", warnings: [] })),
     slides: vi.fn(slides),
+    masterParts: vi.fn(() => [{ partPath: "ppt/slideMasters/slideMaster1.xml", kind: "master" as const, name: "Office Theme" }]),
+    masterElements: vi.fn((_ref: string, partPath: string) => (
+      partPath === "ppt/slideMasters/slideMaster1.xml"
+        ? [{ id: "m1", type: "text", label: "title", box: { x: 10, y: 20, w: 300, h: 80 }, fill: null }]
+        : []
+    )),
     deck: vi.fn(() => ({ slides: [{ id: "s1", elements: [{ id: "e1", type: "text", text: { paragraphs: [{ runs: [{ text: "Title" }] }] } }] }], size: { cx: 12192000, cy: 6858000 } })),
     release: vi.fn(async (ref) => { released.push(ref); }),
   };
@@ -181,6 +191,17 @@ describe("web PPTX format adapter", () => {
     expect(second.fingerprint).not.toBe(first.fingerprint);
     expect(adapter.editor.getDirtyGeneration()).toBe(1);
     await adapter.session.dispose();
+  });
+
+  it("keeps the engine's too_large class and maps a server upload_bounds error to it (UNI-956)", async () => {
+    const engine = runtime();
+    vi.mocked(engine.open).mockResolvedValueOnce({ outcome: "failed", document_id: "doc", failure_class: "too_large", message: "input exceeds the byte bound" });
+    const first = createPptxFormatAdapter(options(engine, documents()));
+    expect(await first.open.open()).toMatchObject({ outcome: "failed", failure_class: "too_large" });
+    const second = runtime();
+    vi.mocked(second.open).mockRejectedValueOnce(Object.assign(new Error("payload"), { code: "upload_bounds", kind: "byte_bound" }));
+    const adapter = createPptxFormatAdapter(options(second, documents()));
+    expect(await adapter.open.open()).toMatchObject({ outcome: "failed", failure_class: "too_large" });
   });
 
   it("preserves the native failure class and engine detail on open", async () => {
@@ -321,6 +342,49 @@ describe("web PPTX format adapter", () => {
     await adapter.session.dispose();
   });
 
+  it("hands the surface the document title, which names the print job", async () => {
+    const adapter = createPptxFormatAdapter({ ...options(runtime(), documents()), title: "Quarterly deck.pptx" });
+    expect((adapter.editorView as ReactElement<{ title?: string }>).props.title).toBe("Quarterly deck.pptx");
+    await adapter.session.dispose();
+  });
+
+  it("reads master parts and elements off the live session and yields [] before open, after dispose or when unbound", async () => {
+    type MasterProps = { masterParts: () => readonly unknown[]; masterElements: (partPath: string) => readonly unknown[] };
+    const engine = runtime();
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    const props = (adapter.editorView as ReactElement<MasterProps>).props;
+    // Before open there is no model ref: no runtime call, an empty list.
+    expect(props.masterParts()).toEqual([]);
+    expect(props.masterElements("ppt/slideMasters/slideMaster1.xml")).toEqual([]);
+    expect(engine.masterParts).not.toHaveBeenCalled();
+
+    await adapter.open.open();
+    expect(props.masterParts()).toEqual([{ partPath: "ppt/slideMasters/slideMaster1.xml", kind: "master", name: "Office Theme" }]);
+    expect(engine.masterParts).toHaveBeenCalledWith("model-1");
+    expect(props.masterElements("ppt/slideMasters/slideMaster1.xml")).toEqual([
+      { id: "m1", type: "text", label: "title", box: { x: 10, y: 20, w: 300, h: 80 }, fill: null },
+    ]);
+    expect(engine.masterElements).toHaveBeenCalledWith("model-1", "ppt/slideMasters/slideMaster1.xml");
+
+    await adapter.session.dispose();
+    // A disposed session never reaches the freed engine ref.
+    vi.mocked(engine.masterParts!).mockClear();
+    expect(props.masterParts()).toEqual([]);
+    expect(props.masterElements("ppt/slideMasters/slideMaster1.xml")).toEqual([]);
+    expect(engine.masterParts).not.toHaveBeenCalled();
+
+    // A runtime that predates the reads degrades to [] instead of throwing.
+    const bare = runtime();
+    delete (bare as Partial<PptxSessionRuntime>).masterParts;
+    delete (bare as Partial<PptxSessionRuntime>).masterElements;
+    const bareAdapter = createPptxFormatAdapter(options(bare, documents()));
+    await bareAdapter.open.open();
+    const bareProps = (bareAdapter.editorView as ReactElement<MasterProps>).props;
+    expect(bareProps.masterParts()).toEqual([]);
+    expect(bareProps.masterElements("ppt/slideMasters/slideMaster1.xml")).toEqual([]);
+    await bareAdapter.session.dispose();
+  });
+
   it("mounts the real shared canvas once the deck is bound and republishes the revision per edit", async () => {
     const engine = runtime();
     const adapter = createPptxFormatAdapter(options(engine, documents()));
@@ -357,12 +421,14 @@ describe("web PPTX format adapter", () => {
     const container = document.createElement("div");
     document.body.append(container);
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    function Host(): ReactElement {
-      useEffect(() => () => { void adapter.session.dispose(); }, []);
-      return adapter.editorView as ReactElement;
-    }
+    // T10: the shared host is the only StrictMode mechanism (its dispose is
+    // deferred past the replayed mount); the adapter disposes when asked.
+    const officeDocument = {
+      id: identity.documentId, workspace_id: identity.workspaceId, organization_id: identity.organizationId, kind: "file", title: "Office document", revision: "1", current_version: 1,
+      file: { file_id: "file", version_id: "version-1", version: 1, filename: "document.pptx", mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation", size_bytes: 3, checksum_sha256: "sha256:file" },
+    } as never;
     let root!: Root;
-    await act(async () => { root = createRoot(container); root.render(createElement(StrictMode, null, createElement(Host))); });
+    await act(async () => { root = createRoot(container); root.render(createElement(StrictMode, null, createElement(OfficeEditorHost, { document: officeDocument, wsId: identity.workspaceId, readonly: false, formatAdapter: adapter as never }))); });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
     return { container, root };
   }
@@ -399,16 +465,24 @@ describe("web PPTX format adapter", () => {
     container.remove();
   });
 
-  it("makes session dispose idempotent and lets a later open cancel a pending disposal", async () => {
+  it("renders the shared too-large notice when the open is too_large (UNI-956)", async () => {
+    const engine = runtime();
+    vi.mocked(engine.open).mockResolvedValue({ outcome: "failed", document_id: "doc", failure_class: "too_large", message: "input exceeds the byte bound" });
+    const adapter = createPptxFormatAdapter(options(engine, documents()));
+    const { container, root } = await mountStrict(adapter);
+    expect(container.querySelector("[data-testid=office-too-large]")).not.toBeNull();
+    expect(container.querySelector("[data-pptx-open-state=error]")).toBeNull();
+    await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    container.remove();
+  });
+
+  it("makes session dispose idempotent and releases the model once", async () => {
     const engine = runtime();
     const adapter = createPptxFormatAdapter(options(engine, documents()));
     await adapter.open.open();
     const first = adapter.session.dispose();
     expect(adapter.session.dispose()).toBe(first);
-    await adapter.open.open();
     await first;
-    expect(engine.released).toEqual([]);
-    await adapter.session.dispose();
     await adapter.session.dispose();
     expect(engine.released).toEqual(["model-1"]);
   });
@@ -492,6 +566,90 @@ describe("web PPTX format adapter", () => {
     expect(adapter.editor.getDirtyGeneration()).toBe(0);
     expect(await adapter.session.coordinator.save("button")).toEqual({ accepted: false, reason: "readonly" });
     expect(files.uploaded).toHaveLength(0);
+    await adapter.session.dispose();
+  });
+});
+
+describe("web PPTX adapter: the commit's journal rebase is a marked rebase window (T09 r2)", () => {
+  // r3 contract: a capture that outlived the bound writes while the Save hangs,
+  // under the identity bound at that moment. A capture straddling either edge
+  // of the rebase step is retaken, so a pre-rebase journal never lands under
+  // the moved base. A retake that runs wholly inside the step reads the
+  // post-rebase tail and writes it under the pre-save base: a conflict-only
+  // row, disclosed in r3. Every step below waits on a promise or a recorded
+  // row, never on which of a digest and a timer resolves first.
+  it("retakes a timed-out capture that straddles the start of setBaseRevision; the retake inside the step writes the tail under the pre-save base", async () => {
+    const engine = runtime();
+    // A base-relative journal: setBaseRevision drops the prefix the Save holds.
+    let journal: PptxEdit[] = [];
+    let saved = 0;
+    vi.mocked(engine.edit).mockImplementation(async (_ref, batch) => { journal.push(...batch); return { revision: journal.length }; });
+    vi.mocked(engine.snapshot).mockImplementation(() => ({ revision: journal.length, edits: [...journal] as never }));
+    vi.mocked(engine.serialize).mockImplementation(async () => { saved = journal.length; return { bytes: new Uint8Array([80, 75, 3, 4]), checksum: "sha256-output", warnings: [] }; });
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
+    let endStep!: () => void;
+    const stepHeld = new Promise<void>((resolve) => { endStep = resolve; });
+    let stepEntered = false;
+    engine.setBaseRevision = vi.fn(async () => {
+      stepEntered = true;
+      journal = journal.slice(saved);
+      // The first capture, holding the pre-rebase journal, resolves inside the step.
+      releaseRead();
+      await stepHeld;
+    });
+    const files = documents();
+    let finishCommit!: () => void;
+    const commitHeld = new Promise<void>((resolve) => { finishCommit = resolve; });
+    const commit = files.commit;
+    files.commit = vi.fn(async (...args: Parameters<typeof commit>) => { await commitHeld; return commit(...args); });
+    const store = draftStore();
+    const editsOf = (ciphertext: Uint8Array) => (JSON.parse(new TextDecoder().decode(ciphertext)) as { value: { edits: unknown[] } }).value.edits.length;
+    const rows: Array<{ base: string; edits: number }> = [];
+    const rebased: Array<{ base: string; edits: number }> = [];
+    vi.mocked(store.checkpointEncrypted).mockImplementation(async (request) => {
+      rows.push({ base: request.snapshot.identity.base.revision, edits: editsOf(request.snapshot.ciphertext) });
+      return { status: "stored", metadata: {} } as never;
+    });
+    vi.mocked(store.rebaseEncrypted).mockImplementation(async (request) => {
+      rebased.push({ base: request.snapshot.identity.base.revision, edits: editsOf(request.snapshot.ciphertext) });
+      return { status: "stored", metadata: {} } as never;
+    });
+    const keys = keyProvider();
+    vi.mocked(keys.encrypt).mockImplementation(async ({ plaintext }) => ({ ciphertext: plaintext, wrappedKey: new Uint8Array([1]), checksum: "sha256:1" }));
+    const opts = { ...options(engine, files), draftStore: store, keyProvider: keys, saveSettleMaxWaitMs: 5 };
+    const adapter = createPptxFormatAdapter(opts);
+    await adapter.open.open();
+    await adapter.editor.edit([{ op: "delete_slide", slideIndex: 0 }]);
+    const saving = adapter.session.coordinator.save("button");
+    await vi.waitFor(() => expect(files.commit).toHaveBeenCalledOnce());
+    await adapter.editor.edit([{ op: "set_slide_hidden", slideIndex: 0, hidden: true }]);
+    // The checkpoint's capture starts once the bound runs out and reads the
+    // pre-rebase journal (both edits), then is held until the step has begun.
+    const capture = adapter.session.editor.captureSnapshot.bind(adapter.session.editor);
+    let reads = 0;
+    adapter.session.editor.captureSnapshot = async () => { reads += 1; const value = await capture(); if (reads === 1) await readGate; return value; };
+    const checkpointing = adapter.session.checkpoint();
+    await vi.waitFor(() => expect(reads).toBe(1));
+    expect(rows).toEqual([]);
+    finishCommit();
+    // The step is held open: the first capture straddled its start and is
+    // retaken; the retake reads the tail and writes inside the step, under
+    // the identity still bound (the pre-save base).
+    await vi.waitFor(() => expect(rows).toHaveLength(1));
+    await checkpointing;
+    expect(stepEntered).toBe(true);
+    expect(reads).toBe(2);
+    expect(rows).toEqual([{ base: "1", edits: 1 }]);
+    endStep();
+    await expect(saving).resolves.toMatchObject({ accepted: true });
+    // The Save's own draft rebase carries the unsaved tail to the saved base,
+    // and a later checkpoint writes there too. No pre-rebase journal (two
+    // edits) ever lands under the moved base.
+    expect(rebased).toEqual([{ base: "2", edits: 1 }]);
+    await adapter.session.checkpoint();
+    expect(rows.at(-1)).toEqual({ base: "2", edits: 1 });
+    expect([...rows, ...rebased].filter((row) => row.base === "2" && row.edits !== 1)).toEqual([]);
     await adapter.session.dispose();
   });
 });

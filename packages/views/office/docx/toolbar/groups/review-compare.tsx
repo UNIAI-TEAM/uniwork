@@ -13,13 +13,15 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import type { RibbonItem } from "../../../ribbon";
 import { DocxCompareDialog } from "../../compare/compare-dialog";
 import type { DocxToolbarGroupContext } from "../types";
-import { createRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
+import { scopedRibbonOpenStore, registerRibbonDialogHost, ribbonHostItem, useRibbonOpen } from "./ribbon-open-store";
 
 /** Shared open state of the compare dialog. */
-const compareDialog = createRibbonOpenStore();
+const compareDialogFor = scopedRibbonOpenStore();
 
 /** The typed ribbon items for the Review > compare group. */
-export function reviewCompareRibbonItems({ format, commands }: DocxToolbarGroupContext): readonly RibbonItem[] {
+export function reviewCompareRibbonItems(context: DocxToolbarGroupContext): readonly RibbonItem[] {
+  const { format, commands } = context;
+  const compareDialog = compareDialogFor(context.docScope);
   // Both halves matter: without a command runtime the dialog has no live-text
   // reader, and every compared block would read as "added".
   const ready = format?.docxCompareReady === true && commands != null;
@@ -40,7 +42,8 @@ export function reviewCompareRibbonItems({ format, commands }: DocxToolbarGroupC
 
 /** Review > Compare: the typed items live on the registry entry; this component
  * owns the dialog and is mounted by `RibbonDialogHosts`. */
-export function ReviewCompareGroup({ format, commands }: DocxToolbarGroupContext) {
+export function ReviewCompareGroup({ format, commands, docScope: scope }: DocxToolbarGroupContext) {
+  const compareDialog = compareDialogFor(scope);
   const { t } = useTranslation();
   const [open] = useRibbonOpen(compareDialog);
   const ready = format?.docxCompareReady === true && commands != null;

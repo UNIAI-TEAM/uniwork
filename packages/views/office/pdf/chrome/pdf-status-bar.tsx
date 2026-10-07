@@ -1,9 +1,11 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, type Ref } from "react";
+import { Maximize, MoveHorizontal, PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
+import { OfficeStatusActions, OfficeStatusBar, OfficeStatusZoom } from "../../frame/office-status-bar";
 
 /** Counts the PDF chrome can show on the left of the status bar (C10). */
 export interface PdfStatusCounts {
@@ -34,6 +36,15 @@ export interface PdfStatusBarProps {
   /** Zoom as a fraction (1 = 100%). */
   zoom: number;
   onZoomChange?: (zoom: number) => void;
+  /** Below the sm breakpoint the thumbnail rail is hidden; when a host passes the
+   *  toggle, the bar shows the button that opens it (hidden from sm up). */
+  onRailToggle?: () => void;
+  railOpen?: boolean;
+  /** The toggle button, so the host can return focus to it when the rail closes. */
+  railToggleRef?: Ref<HTMLButtonElement>;
+  /** Fit buttons: each shows only when the host can measure the pane. */
+  onFitWidth?: () => void;
+  onFitPage?: () => void;
   /** The shortcuts-help trigger; always the last item of the row (F9). */
   help?: ReactNode;
   className?: string;
@@ -54,6 +65,11 @@ export function PdfStatusBar({
   selection,
   zoom,
   onZoomChange,
+  onRailToggle,
+  railOpen = false,
+  railToggleRef,
+  onFitWidth,
+  onFitPage,
   help,
   className,
   minZoom = 0.25,
@@ -85,6 +101,16 @@ export function PdfStatusBar({
         labelKey="office.pdf.chrome.statusBarLabel"
         start={
           <div className="flex min-w-0 items-center gap-x-2" data-testid="pdf-status-left">
+            {onRailToggle ? (
+              <Button
+                ref={railToggleRef} type="button" variant="ghost" size="icon-xs" className="sm:hidden" data-testid="pdf-rail-toggle"
+                aria-label={t(railOpen ? "office.pdf.chrome.hideThumbnails" : "office.pdf.chrome.showThumbnails")}
+                title={t(railOpen ? "office.pdf.chrome.hideThumbnails" : "office.pdf.chrome.showThumbnails")}
+                onClick={onRailToggle}
+              >
+                <PanelLeft aria-hidden />
+              </Button>
+            ) : null}
             {left.map((item, index) => (
               <Fragment key={item.testId}>
                 {index > 0 ? (
@@ -106,6 +132,13 @@ export function PdfStatusBar({
                 {selection}
               </span>
             ) : null}
+            <OfficeStatusActions
+              label={t("office.status.viewLabel")}
+              actions={[
+                ...(onFitWidth ? [{ id: "fit-width", label: t("office.status.fitWidth"), icon: <MoveHorizontal aria-hidden />, onClick: onFitWidth }] : []),
+                ...(onFitPage ? [{ id: "fit-page", label: t("office.status.fitPage"), icon: <Maximize aria-hidden />, onClick: onFitPage }] : []),
+              ]}
+            />
             <div data-testid="pdf-status-zoom">
               <OfficeStatusZoom
                 value={Math.round(zoom * 100)}

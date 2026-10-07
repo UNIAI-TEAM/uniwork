@@ -182,6 +182,25 @@ describe("web Markdown/HTML format adapter", () => {
     await created.session.dispose();
   });
 
+  it("reports canUndo/canRedo and leaves the generation alone on an empty stack (UNI-954)", async () => {
+    const { adapter: created } = adapter("md");
+    await created.open.open();
+    expect(created.editor.canUndo?.()).toBe(false);
+    expect(created.editor.canRedo?.()).toBe(false);
+    created.editor.undo?.();
+    created.editor.redo?.();
+    expect(created.editor.getDirtyGeneration()).toBe(0);
+    created.editor.source?.setText("changed");
+    expect(created.editor.canUndo?.()).toBe(true);
+    created.editor.undo?.();
+    expect(created.editor.canUndo?.()).toBe(false);
+    expect(created.editor.canRedo?.()).toBe(true);
+    const generation = created.editor.getDirtyGeneration();
+    created.editor.undo?.();
+    expect(created.editor.getDirtyGeneration()).toBe(generation);
+    await created.session.dispose();
+  });
+
   it("replaying a retained intent serializes its own snapshot without rewinding the live editor", async () => {
     const source = "first line\n";
     const { adapter: created, files } = adapter("md", new TextEncoder().encode(source));
@@ -268,6 +287,13 @@ describe("web Markdown/HTML format adapter", () => {
     await created.session.dispose();
   });
 
+  it.each(["md", "html"] as const)("maps a too-large source to the too_large failure class (%s, UNI-956)", async (format) => {
+    const { adapter: created, files } = adapter(format);
+    vi.mocked(files.read).mockRejectedValueOnce(Object.assign(new Error("too big"), { code: "file_too_large" }));
+    expect(await created.open.open()).toMatchObject({ outcome: "failed", failure_class: "too_large", format });
+    await created.session.dispose();
+  });
+
   it("reports a corrupted source as a typed open failure, never a blank", async () => {
     const { adapter: created } = adapter("md", new Uint8Array([0xc3, 0x28]));
     expect(await created.open.open()).toMatchObject({ outcome: "failed", failure_class: "corrupted", format: "md" });
@@ -327,5 +353,45 @@ describe("web Markdown/HTML format adapter", () => {
     expect(container.querySelector(`[data-testid="${format}-editor"]`)).not.toBeNull();
     await act(async () => { root.unmount(); await new Promise((resolve) => setTimeout(resolve, 20)); });
     container.remove();
+  });
+});
+
+describe("web HTML visual-edit host (office_html_visual_edit)", () => {
+  const PAGE = "<!doctype html><html><head><title>T</title></head><body><main><p>One</p><p>Two</p></main></body></html>";
+  type VisualHost = { parseMap(text: string): { elements: Array<{ sid: number; tag: string }> }; revision(): number; applyPatchSet(set: unknown): void };
+  const hostOf = (created: { editorView: unknown }) => (created.editorView as { props: { visualEdit?: VisualHost } }).props.visualEdit;
+
+  it("hands the HTML view a host with a real parse map; Markdown gets none", async () => {
+    const html = adapter("html", new TextEncoder().encode(PAGE)).adapter;
+    await html.open.open();
+    const host = hostOf(html)!;
+    expect(host.parseMap(PAGE).elements.map((element) => element.tag)).toEqual(["html", "head", "title", "body", "main", "p", "p"]);
+    expect(hostOf(adapter("md").adapter)).toBeUndefined();
+  });
+
+  it("a visual edit is an ordinary text edit: dirty, undoable, and in the saved bytes", async () => {
+    const created = adapter("html", new TextEncoder().encode(PAGE)).adapter;
+    await created.open.open();
+    const host = hostOf(created)!;
+    const first = host.parseMap(PAGE).elements.find((element) => element.tag === "p")!;
+    const range = PAGE.indexOf("<p>One</p>");
+    expect(first.sid).toBeGreaterThan(0);
+    const dirtyBefore = created.editor.getDirtyGeneration();
+    host.applyPatchSet({ patches: [{ from: range + 3, to: range + 6, text: "Uno" }], baseVersion: host.revision(), origin: "inspector", label: "set_text" });
+    expect(created.editor.source?.getText()).toContain("<p>Uno</p>");
+    expect(created.editor.getDirtyGeneration()).toBeGreaterThan(dirtyBefore);
+    const snapshot = await created.editor.captureSnapshot();
+    const serialized = await (created as unknown as { editor: { serializeSnapshot(s: unknown): Promise<{ bytes: Uint8Array; checksum: string }> } }).editor.serializeSnapshot(snapshot);
+    expect(new TextDecoder().decode(serialized.bytes)).toContain("<p>Uno</p>");
+    created.editor.undo?.();
+    expect(created.editor.source?.getText()).toBe(PAGE);
+  });
+
+  it("a stale base revision changes nothing", async () => {
+    const created = adapter("html", new TextEncoder().encode(PAGE)).adapter;
+    await created.open.open();
+    const host = hostOf(created)!;
+    expect(() => host.applyPatchSet({ patches: [{ from: 0, to: 0, text: "x" }], baseVersion: host.revision() + 7, origin: "inspector", label: "t" })).toThrow();
+    expect(created.editor.source?.getText()).toBe(PAGE);
   });
 });

@@ -1,11 +1,11 @@
 "use client";
 
 import { cancelOfficeJob, downloadOfficeJobOutput, getOfficeJob, startOfficeJob, type OfficeEditOp, type OfficeJobError } from "@uniwork/core/api/endpoints/office";
-import { dispatchOfficeError } from "@uniwork/core/office";
+import { dispatchOfficeError, isOfficeTooLarge } from "@uniwork/core/office";
 import { isXlsxWorkbookSnapshot, type XlsxRenderModel, type XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
 import { cloneSnapshot, stableJson } from "./xlsx-adapter-data";
-import { applyXlsxJournalToSnapshot, diffXlsxSnapshotsToOperations, withPendingOps, withoutPendingOps } from "@uniwork/views/office/xlsx";
+import { applyXlsxJournalToSnapshot, diffXlsxSnapshotsToOperations, parseRuleSetDrops, pendingDropIndexes, planRuleSetDrops, ruleSetDropMessage, ruleSetHistory, ruleSetsDroppedError, withPendingOps, withoutOperationsAt, withoutPendingOps, type XlsxDroppedRuleSet } from "@uniwork/views/office/xlsx";
 
 /** Required renderer fields: an older engine must fail clearly instead of
  * silently mounting the legacy value-only table. */
@@ -79,6 +79,10 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
   let pending: { revision: number; operation: unknown }[] = [];
   let lastCommit: { intentId: string; revision: string } | null = null;
   const candidates = new Map<string, { baseRevision: string; snapshot: XlsxWorkbookSnapshot; operations: OfficeEditOp[]; output?: XlsxRuntimeSerializedOutput; running?: Promise<XlsxRuntimeSerializedOutput> }>();
+  let dropped: XlsxDroppedRuleSet[] = [];
+  // The rule-set and sheet ops this session already committed, oldest first:
+  // all a rule-set restore reads (r4 R4-1), never cell batches or pictures.
+  let committedOps: unknown[] = [];
   let activeJob: string | null = null;
   let disposed = false;
 
@@ -148,7 +152,7 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
           snapshot: cloneSnapshot(snapshot),
           ...(opened.renderModel === undefined ? {} : { renderModel: opened.renderModel }),
         };
-      } catch (error) { return { outcome: "failed", document_id: input.documentId, failure_class: "engine_error", message: error instanceof Error ? error.message : String(error) }; }
+      } catch (error) { return { outcome: "failed", document_id: input.documentId, failure_class: isOfficeTooLarge(error as { code?: string; kind?: string }) ? "too_large" : "engine_error", message: error instanceof Error ? error.message : String(error) }; }
     },
     async edit(_ref, operations) {
       if (!snapshot) throw new Error("xlsx_runtime_not_open");
@@ -192,24 +196,51 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
       }
       try {
         const output = captured.output ?? await captured.running!;
+        dropped = [];
         return { ...output, bytes: output.bytes.slice() };
+      } catch (error) {
+        // X01 review r2: the engine refused journalled rule sets. Drop exactly
+        // the named ops (candidate, pending list and the live op stream) so the
+        // next explicit Save of this intent re-runs without them; every other
+        // edit stays pending. A malformed payload names nothing: drop nothing.
+        const refusals = parseRuleSetDrops(ruleSetDropMessage(error));
+        if (!refusals) throw error;
+        const later = pending.filter((entry) => entry.revision > captured.snapshot.revision).map((entry) => entry.operation);
+        const plan = planRuleSetDrops(refusals, captured.operations, committedOps, later);
+        dropped = plan.drops;
+        const queued = pendingDropIndexes(plan, captured.operations.length);
+        captured.operations = withoutOperationsAt(captured.operations, plan.indexes);
+        // R4-3: later snapshots of a refused sheet go too, so one Save converges.
+        pending = withoutOperationsAt(pending, queued);
+        const live = (snapshot as { pendingOps?: readonly unknown[] } | null)?.pendingOps;
+        if (snapshot && Array.isArray(live)) {
+          const kept = withoutOperationsAt(live, queued);
+          snapshot = kept.length ? withPendingOps(withoutPendingOps(snapshot), kept) : withoutPendingOps(snapshot);
+        }
+        throw ruleSetsDroppedError();
       } finally { captured.running = undefined; }
     },
+    droppedRuleSets() { return dropped.map((entry) => ({ ...entry })); },
     async release() {
       disposed = true;
       if (activeJob) await cancelOfficeJob(options.documentId, activeJob).catch(() => undefined);
-      snapshot = null; committed = null; pending = []; candidates.clear(); activeJob = null;
+      snapshot = null; committed = null; pending = []; committedOps = []; candidates.clear(); activeJob = null;
     },
+    releaseSave(intentId) { candidates.delete(intentId); },
     setBaseRevision(revision, intentId) {
       if (lastCommit?.intentId === intentId && lastCommit.revision === revision) return;
       const candidate = candidates.get(intentId);
       if (!candidate?.output || candidate.baseRevision !== baseRevision) throw new Error("xlsx_commit_candidate_missing");
       if (!/^\d+$/.test(revision) || BigInt(revision) <= BigInt(baseRevision)) throw new Error("xlsx_commit_revision_invalid");
       // F4: the committed base is the file the save just wrote, so it carries
-      // no pending stream; the live snapshot drops the ops it just saved.
+      // no pending stream; the live snapshot drops the ops it just saved and
+      // keeps the ones typed after the save's snapshot (a draft taken now must
+      // still recover them).
       committed = withoutPendingOps(cloneSnapshot(candidate.snapshot));
-      snapshot = snapshot === null ? null : withoutPendingOps(snapshot);
       pending = pending.filter((entry) => entry.revision > candidate.snapshot.revision);
+      const kept = pending.map((entry) => entry.operation);
+      snapshot = snapshot === null ? null : kept.length ? withPendingOps(snapshot, kept) : withoutPendingOps(snapshot);
+      committedOps.push(...ruleSetHistory(candidate.operations));
       baseRevision = revision;
       lastCommit = { intentId, revision };
       candidates.clear();

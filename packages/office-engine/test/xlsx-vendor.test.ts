@@ -3,6 +3,7 @@
 // empty) argument reproduces the exact call this lane made before the slots
 // existed.
 import { describe, expect, it } from "vitest";
+import { EngineBoundaryError } from "@uniwork/office-contracts";
 import type { XlsxCellEdit, XlsxMutation } from "../src/xlsx/engine";
 import { bindXlsxGateway } from "../src/xlsx/vendor";
 
@@ -30,12 +31,73 @@ function fakeGateway() {
       return mutation();
     },
     assertOnlyTouchedEntriesChanged: () => undefined,
+    UNIWORK_XLSX_VISUAL_ADDITIONS: true as const,
+    readEntriesBase64: async (_buffer: Uint8Array, paths: readonly string[], maxBytes: number, maxTotalBytes: number) => {
+      calls.push(["readEntriesBase64", paths, maxBytes, maxTotalBytes]);
+      return Object.fromEntries(paths.map((path) => [path, "AAAA"]));
+    },
+    UNIWORK_XLSX_VISUAL_EDITS: true as const,
+    UNIWORK_XLSX_VISUAL_READ_BUDGET: true as const,
   };
   return { mod, calls };
 }
 
 const source = new Uint8Array([80, 75, 3, 4]);
 const edits: XlsxCellEdit[] = [{ sheetName: "Data", row: 0, column: 0, writeValue: true, cell: { value: 1 } }];
+
+describe("bindXlsxGateway capability marker (patch 0010)", () => {
+  it("refuses a bundle built without patch 0010 instead of shifting formulaValues", () => {
+    const { mod } = fakeGateway();
+    const { UNIWORK_XLSX_VISUAL_ADDITIONS: _marker, ...old } = mod;
+    expect(() => bindXlsxGateway(old)).toThrow(EngineBoundaryError);
+    let refused: unknown;
+    try {
+      bindXlsxGateway(old);
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toMatchObject({ code: "engine_incompatible", fields: { detail: expect.stringMatching(/patch 0010.*build-upstream.mjs/) } });
+    expect(() => bindXlsxGateway({ ...old, UNIWORK_XLSX_VISUAL_ADDITIONS: "yes" } as never)).toThrow(EngineBoundaryError);
+  });
+
+  it("binds a bundle that exports the marker", () => {
+    expect(() => bindXlsxGateway(fakeGateway().mod)).not.toThrow();
+  });
+});
+
+describe("bindXlsxGateway capability marker (patch 0013)", () => {
+  it("refuses a bundle built without patch 0013 instead of dropping file-visual edits", () => {
+    const { mod } = fakeGateway();
+    const { UNIWORK_XLSX_VISUAL_EDITS: _marker, ...old } = mod;
+    let refused: unknown;
+    try {
+      bindXlsxGateway(old);
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toMatchObject({ code: "engine_incompatible", fields: { detail: expect.stringMatching(/patch 0013.*build-upstream.mjs/) } });
+    const { readEntriesBase64: _reader, ...noReader } = mod;
+    expect(() => bindXlsxGateway(noReader)).toThrow(EngineBoundaryError);
+  });
+
+  it("refuses a 0013 bundle whose reader predates the workbook budget (review-visuals V1)", () => {
+    const { UNIWORK_XLSX_VISUAL_READ_BUDGET: _budget, ...old } = fakeGateway().mod;
+    let refused: unknown;
+    try {
+      bindXlsxGateway(old);
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toMatchObject({ code: "engine_incompatible", fields: { detail: expect.stringMatching(/read budget.*build-upstream.mjs/) } });
+  });
+
+  it("reads picture bytes through readEntriesBase64 with the caller's cap and workbook budget", async () => {
+    const { mod, calls } = fakeGateway();
+    const read = await bindXlsxGateway(mod).readEntriesBase64?.(source, ["xl/media/image1.png"], 1024, 4096);
+    expect(read).toEqual({ "xl/media/image1.png": "AAAA" });
+    expect(calls[0]).toEqual(["readEntriesBase64", ["xl/media/image1.png"], 1024, 4096]);
+  });
+});
 
 describe("bindXlsxGateway applyCellEdits arguments", () => {
   it("passes an absent XlsxGatewayArguments exactly as the pre-slot call", async () => {
@@ -44,7 +106,7 @@ describe("bindXlsxGateway applyCellEdits arguments", () => {
     await bound.applyCellEdits(source, edits);
     expect(calls).toHaveLength(1);
     const args = calls[0]!;
-    expect(args).toHaveLength(15);
+    expect(args).toHaveLength(17);
     expect(Array.from(args[0] as Uint8Array)).toEqual([80, 75, 3, 4]);
     expect(args[1]).toBe(edits);
     expect(args[2]).toEqual([]); // structuralOps
@@ -59,7 +121,9 @@ describe("bindXlsxGateway applyCellEdits arguments", () => {
     expect(args[11]).toEqual([]); // pageSetupStates
     expect(args[12]).toEqual([]); // noteStates
     expect(args[13]).toEqual([]); // tableAdditions
-    expect(args[14]).toEqual([]); // formulaValues default
+    expect(args[14]).toEqual([]); // visualAdditions (patch 0010)
+    expect(args[15]).toEqual([]); // formulaValues default
+    expect(args[16]).toEqual([]); // visualEdits (patch 0013, appended after formulaValues)
   });
 
   it("routes every filled slot to its upstream position and keeps the tail call shape", async () => {
@@ -77,7 +141,9 @@ describe("bindXlsxGateway applyCellEdits arguments", () => {
     const pageSetupStates = [{ sheetName: "Data" }];
     const noteStates = [{ sheetName: "Data" }];
     const tableAdditions = [{ sheetName: "Data", name: "Sales" }];
+    const visualAdditions = [{ sheetName: "Data", shape: { shapeType: "rect" } }];
     const formulaValues = [{ sheetName: "Data", cells: [] }];
+    const visualEdits = [{ drawingPath: "xl/drawings/drawing1.xml", drawingIndex: 0, remove: true }];
     await bound.applyCellEdits(source, edits, formulaValues, {
       structuralOps,
       chartEdits,
@@ -91,9 +157,11 @@ describe("bindXlsxGateway applyCellEdits arguments", () => {
       pageSetupStates,
       noteStates,
       tableAdditions,
+      visualAdditions,
+      visualEdits,
     });
     const args = calls[0]!;
-    expect(args).toHaveLength(15);
+    expect(args).toHaveLength(17);
     expect(args[2]).toBe(structuralOps);
     expect(args[3]).toBe(chartEdits);
     expect(args[4]).toBe(sheetPlan);
@@ -106,7 +174,9 @@ describe("bindXlsxGateway applyCellEdits arguments", () => {
     expect(args[11]).toBe(pageSetupStates);
     expect(args[12]).toBe(noteStates);
     expect(args[13]).toBe(tableAdditions);
-    expect(args[14]).toBe(formulaValues);
+    expect(args[14]).toBe(visualAdditions);
+    expect(args[15]).toBe(formulaValues);
+    expect(args[16]).toBe(visualEdits);
   });
 
   it("treats explicitly empty slots as the same defaults", async () => {
@@ -128,6 +198,8 @@ describe("bindXlsxGateway applyCellEdits arguments", () => {
     const args = calls[0]!;
     expect(args.slice(2, 13)).toEqual([[], [], undefined, [], [], [], [], [], null, [], []]);
     expect(args[13]).toEqual([]); // tableAdditions
-    expect(args[14]).toEqual([]); // formulaValues
+    expect(args[14]).toEqual([]); // visualAdditions
+    expect(args[15]).toEqual([]); // formulaValues
+    expect(args[16]).toEqual([]); // visualEdits
   });
 });

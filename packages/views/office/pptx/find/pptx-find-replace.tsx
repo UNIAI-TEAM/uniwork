@@ -39,9 +39,12 @@ import {
   planFind,
   replaceAllEdit,
   replaceOneEdit,
+  resumeHitIndex,
+  resumePositionAfterReplace,
   stepHitIndex,
   type PptxFindHit,
   type PptxFindReplaceEdit,
+  type PptxFindResumePosition,
   type PptxFindTextTarget,
 } from "./pptx-find-model";
 
@@ -94,10 +97,10 @@ export function PptxFindReplacePanel({
   // R3 F-1: one hit per occurrence, so a run holding the query twice counts 2.
   const hits = useMemo(() => findOccurrences(texts, query, matchCase), [texts, query, matchCase]);
 
-  // After Replace (one) the deck moves and the plan is rebuilt: the occurrence
-  // that was replaced dropped out, so the next remaining one sits at the same
-  // position (its offset recomputed from the edited run), wrapping past the end.
-  const resumeAtRef = useRef<number | null>(null);
+  // After Replace (one) the deck moves and the plan is rebuilt. The text just
+  // written can match the query itself (replace a with aa), so the scan resumes
+  // at the first hit past it - the next remaining one - wrapping past the end.
+  const resumeAtRef = useRef<PptxFindResumePosition | null>(null);
 
   // A new query or a changed deck invalidates the active hit; entering the list
   // at the first match keeps Next/Prev honest without a separate "search" step.
@@ -105,7 +108,7 @@ export function PptxFindReplacePanel({
     const resumeAt = resumeAtRef.current;
     resumeAtRef.current = null;
     const total = hits.length;
-    setHitIndex(resumeAt !== null && resumeAt < total ? resumeAt : clampHitIndex(PPTX_FIND_UNSET_HIT, total));
+    setHitIndex(resumeAt !== null ? resumeHitIndex(hits, resumeAt) : clampHitIndex(PPTX_FIND_UNSET_HIT, total));
   }, [hits]);
 
   // X4fix F6: Escape closes from any control in the panel, not only the query.
@@ -149,7 +152,9 @@ export function PptxFindReplacePanel({
     try {
       // Replace (one) advances: the plan effect resumes at this position once
       // the edited deck arrives. Replace all starts over at the first hit.
-      resumeAtRef.current = edit.occurrence !== undefined || edit.firstOnly === true ? hitIndex : null;
+      resumeAtRef.current = edit.occurrence !== undefined || edit.firstOnly === true
+        ? resumePositionAfterReplace(hits, hitIndex, texts, edit.replace)
+        : null;
       await onFindReplace(edit);
     } catch (error) {
       resumeAtRef.current = null;

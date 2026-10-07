@@ -12,8 +12,8 @@ function makeBridge(openOutput: unknown = { snapshot, render_model: renderModel 
   return {
     call: vi.fn(async (channel: string, payload: Record<string, unknown>) => {
       if (channel === "desktop:office-job") {
-        if (payload.operation === "open") return { jobId: "job-open", documentId: "doc-x", state: "completed", outputBase64: encode(openOutput) };
-        return { jobId: "job-edit", documentId: "doc-x", state: "completed", outputBase64: Buffer.from([1, 2, 3]).toString("base64"), outputChecksum: `sha256:${"a".repeat(64)}` };
+        if (payload.operation === "open") return { jobId: "job-open", documentId: "doc-x", state: "completed", output: Uint8Array.from(Buffer.from(encode(openOutput), "base64")) };
+        return { jobId: "job-edit", documentId: "doc-x", state: "completed", output: Uint8Array.from(Buffer.from([1, 2, 3])), outputChecksum: `sha256:${"a".repeat(64)}` };
       }
       if (channel === "desktop:office-save") return { documentId: "doc-x", intentId: payload.intentId, idempotencyKey: payload.idempotencyKey, versionId: "version-2", revision: "3", checksum: payload.checksum };
       if (channel === "desktop:draft-list") return { drafts: [] };
@@ -64,5 +64,63 @@ describe("desktop xlsx session", () => {
     session.coordinator.markDirty(session.editor.getDirtyGeneration());
     expect(await session.keepDraft()).toBe(true);
     expect(bridge.call).toHaveBeenCalledWith("desktop:draft-checkpoint", expect.objectContaining({ documentId: "doc-x" }));
+  });
+
+  it("re-captures a checkpoint whose capture resolved after the Save, so the row under the new base is post-save (T09 settle gate)", async () => {
+    const bridge = makeBridge();
+    const base = bridge.call.getMockImplementation()!;
+    let saveEntered = false;
+    let releaseSave!: () => void;
+    bridge.call.mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+      if (channel !== "desktop:office-save") return base(channel, payload);
+      saveEntered = true;
+      await new Promise<void>((resolve) => { releaseSave = resolve; });
+      return base(channel, payload);
+    });
+    const session = createDesktopXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "2", baseVersionId: "1" });
+    await session.open.open();
+    const editA1 = async (value: number) => { await session.editor.edit?.([{ ...editOp, attributes: { value } }]); session.coordinator.markDirty(session.editor.getDirtyGeneration()); };
+    await editA1(7);
+    const saving = session.coordinator.save("button");
+    await vi.waitFor(() => expect(saveEntered).toBe(true));
+    await editA1(8);
+    // The checkpoint's capture reads edit 8 now but resolves after the Save.
+    const capture = session.editor.captureSnapshot.bind(session.editor);
+    let held = false;
+    let releaseCapture!: () => void;
+    const hold = new Promise<void>((resolve) => { releaseCapture = resolve; });
+    session.editor.captureSnapshot = async () => { const value = await capture(); session.editor.captureSnapshot = capture; held = true; await hold; return value; };
+    const checkpointing = session.coordinator.checkpoint();
+    await vi.waitFor(() => expect(held).toBe(true));
+    releaseSave();
+    await expect(saving).resolves.toMatchObject({ accepted: true });
+    await editA1(9);
+    releaseCapture();
+    await checkpointing;
+    const rows = bridge.call.mock.calls.filter(([channel, payload]) => channel === "desktop:draft-checkpoint" && (payload as { draftId: string }).draftId === "doc-x:version-2:3");
+    expect(rows).toHaveLength(1);
+    const stored = JSON.parse(Buffer.from((rows[0]![1] as { data: Uint8Array }).data).toString("utf8")) as { value: { sheets: Array<{ cells: { A1: unknown } }> } };
+    expect(stored.value.sheets[0]?.cells.A1).toEqual({ value: 9 });
+  });
+
+  it("releases a blocked Save at once and retries it as a fresh intent with a fresh candidate (T09)", async () => {
+    const bridge = makeBridge();
+    const base = bridge.call.getMockImplementation()!;
+    let refuse = true;
+    bridge.call.mockImplementation(async (channel, payload) => {
+      if (channel === "desktop:office-save" && refuse) { refuse = false; throw Object.assign(new Error("quota_exceeded"), { code: "quota_exceeded" }); }
+      return base(channel, payload);
+    });
+    const session = createDesktopXlsxSession({ bridge: bridge as never, identity, title: "Budget.xlsx", canSave: true, baseRevision: "2", baseVersionId: "1" });
+    await session.open.open();
+    await session.editor.edit?.([editOp]);
+    session.coordinator.markDirty(session.editor.getDirtyGeneration());
+    await expect(session.coordinator.save("button")).resolves.toEqual({ accepted: false, reason: "blocked" });
+    await expect(session.coordinator.retry()).resolves.toMatchObject({ accepted: true });
+    const saves = bridge.call.mock.calls.filter(([channel]) => channel === "desktop:office-save").map(([, payload]) => payload);
+    expect(saves).toHaveLength(2);
+    expect(saves[1]?.idempotencyKey).not.toBe(saves[0]?.idempotencyKey);
+    const edits = bridge.call.mock.calls.filter(([channel, payload]) => channel === "desktop:office-job" && payload.operation === "edit");
+    expect(edits).toHaveLength(2);
   });
 });

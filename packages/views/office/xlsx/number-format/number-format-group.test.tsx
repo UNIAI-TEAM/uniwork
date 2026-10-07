@@ -75,6 +75,22 @@ describe("XlsxNumberFormatGroup", () => {
     expect(screen.queryByTestId("xlsx-number-format-gallery")).not.toBeInTheDocument();
   });
 
+  // UNI-953 item 8: the first grid pointerdown closes the gallery and still
+  // reaches the grid, so a drag started there selects its whole range.
+  it("closes the gallery on the first outside pointerdown and lets it through", async () => {
+    const seen: boolean[] = [];
+    render(
+      <>
+        <XlsxNumberFormatGroup {...groupProps()} />
+        <div data-testid="grid" onPointerDown={(event) => seen.push(event.defaultPrevented)} />
+      </>,
+    );
+    await openGallery();
+    fireEvent.pointerDown(screen.getByTestId("grid"));
+    expect(seen).toEqual([false]);
+    await waitFor(() => expect(screen.queryByTestId("xlsx-number-format-gallery")).not.toBeInTheDocument());
+  });
+
   it("applies every preset to the whole selection through the pinned set command", async () => {
     const execute = vi.fn(() => true);
     render(
@@ -214,18 +230,38 @@ describe("number quick formats", () => {
   });
 
   it("shows General, then the last applied format name while the same cell stays selected", async () => {
-    render(<XlsxNumberFormatGroup {...groupProps({ unitId: "file-name-test", selection: { sheet: "Data", address: "F6" } })} />);
+    render(<XlsxNumberFormatGroup {...groupProps({ documentKey: "doc-name-test", selection: { sheet: "Data", address: "F6" } })} />);
     const trigger = screen.getByTestId("xlsx-number-format-trigger");
     expect(trigger).toHaveTextContent("Chung");
     fireEvent.click(ribbonItem("number-percent"));
     await waitFor(() => expect(trigger).toHaveTextContent("Phần trăm"));
   });
 
+  it("reads the opened file's own format for the selected cell (reopen after save)", async () => {
+    const host = {
+      file: { sessionId: "s1", sheets: [{ id: "sh1", name: "Data" }], styles: [{ numberFormat: undefined }, { numberFormat: "0%" }] },
+      readRange: vi.fn(async () => ({ cells: [{ row: 1, column: 1, value: 0.5, styleIndex: 1 }] })),
+    } as unknown as NonNullable<XlsxToolbarGroupProps["host"]>;
+    render(<XlsxNumberFormatGroup {...groupProps({ host, unitId: "file-reopen", selection: { sheet: "Data", address: "B2" } })} />);
+    await waitFor(() => expect(screen.getByTestId("xlsx-number-format-trigger")).toHaveTextContent("Phần trăm"));
+    expect(host.readRange).toHaveBeenCalledWith({ sessionId: "s1", sheetId: "sh1", range: { startRow: 1, endRow: 1, startColumn: 1, endColumn: 1 } });
+  });
+
+  it("keeps General for a file cell without a number format", async () => {
+    const host = {
+      file: { sessionId: "s1", sheets: [{ id: "sh1", name: "Data" }], styles: [{ numberFormat: "General" }] },
+      readRange: vi.fn(async () => ({ cells: [{ row: 1, column: 1, value: 1, styleIndex: 0 }] })),
+    } as unknown as NonNullable<XlsxToolbarGroupProps["host"]>;
+    render(<XlsxNumberFormatGroup {...groupProps({ host, unitId: "file-reopen-2", selection: { sheet: "Data", address: "B2" } })} />);
+    await waitFor(() => expect(host.readRange).toHaveBeenCalled());
+    expect(screen.getByTestId("xlsx-number-format-trigger")).toHaveTextContent("Chung");
+  });
+
   it("reads General again for a different selection", () => {
-    render(<XlsxNumberFormatGroup {...groupProps({ unitId: "file-name-test-2", selection: { sheet: "Data", address: "G7" } })} />);
+    render(<XlsxNumberFormatGroup {...groupProps({ documentKey: "doc-name-test-2", selection: { sheet: "Data", address: "G7" } })} />);
     fireEvent.click(ribbonItem("number-currency"));
     cleanup();
-    render(<XlsxNumberFormatGroup {...groupProps({ unitId: "file-name-test-2", selection: { sheet: "Data", address: "H8" } })} />);
+    render(<XlsxNumberFormatGroup {...groupProps({ documentKey: "doc-name-test-2", selection: { sheet: "Data", address: "H8" } })} />);
     expect(screen.getByTestId("xlsx-number-format-trigger")).toHaveTextContent("Chung");
   });
 });

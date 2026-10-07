@@ -6,16 +6,17 @@
 // to the shell it replaces; the state setters and refs it closed over move to
 // options.
 
-import { useCallback, useMemo, type MutableRefObject } from "react";
+import { useCallback, useMemo, useState, type MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
-import { toA1Address } from "./xlsx-render-model-bridge";
 import type { XlsxGridHandle, XlsxGridHostPort } from "./xlsx-grid-surface";
-import { clipboardCells, selectionClipboardText } from "./xlsx-clipboard";
+import { clipboardCells, clipboardRows, selectionClipboardText } from "./xlsx-clipboard";
+import { parseClipboardHtmlTable, planRichPaste } from "./xlsx-clipboard-rich";
+import { fallbackPasteOps, gridPasteSteps, readPasteClipboard, type XlsxPasteStep } from "./xlsx-clipboard-paste";
 import { XLSX_CONTEXT_CLEAR_CONTENT_COMMAND } from "./context-menu/menu-items";
 import { foldClipboardPermissions } from "./context-menu/use-context-menu";
 import type { XlsxToolbarCommands } from "./toolbar/types";
-import { addressParts, cellEditOperation } from "./xlsx-editor-model";
+import { addressParts } from "./xlsx-editor-model";
 import type { XlsxEditorHandle, XlsxEditorPermissions, XlsxSelection } from "./types";
 
 export interface XlsxEditorClipboardOptions<TSnapshot = XlsxWorkbookSnapshot> {
@@ -38,12 +39,34 @@ export interface XlsxEditorClipboardOptions<TSnapshot = XlsxWorkbookSnapshot> {
   setRecalcError: (message: string) => void;
 }
 
+/** A neutral frame notice: the paste worked, but something was not kept. */
+export interface XlsxPasteNotice {
+  message: string;
+  dismiss: () => void;
+}
+
 export interface XlsxEditorClipboardWiring {
   copy: () => Promise<void>;
   paste: () => Promise<void>;
   cut: () => Promise<void>;
   clipboardFailure: () => void;
   clipboardPermissions: XlsxEditorPermissions;
+  /** MINOR-5: rich-paste degradation goes to this info slot, never the red
+   *  error banner - the paste itself succeeded. */
+  pasteNotice: XlsxPasteNotice | null;
+}
+
+/** Runs the steps as one undo entry when the grid can batch; a handle
+ *  without the batch member (a test double) runs them one by one. Resolves to
+ *  how many steps ran, stopping at the first refusal. */
+async function runSteps(grid: XlsxGridHandle | null, commands: XlsxToolbarCommands, steps: readonly XlsxPasteStep[]): Promise<number> {
+  if (grid?.executeCommandsAsOneStep) return grid.executeCommandsAsOneStep(steps);
+  let ran = 0;
+  for (const step of steps) {
+    if (!(await commands.execute(step.id, step.params))) break;
+    ran += 1;
+  }
+  return ran;
 }
 
 export function useXlsxEditorClipboard<TSnapshot = XlsxWorkbookSnapshot>(
@@ -69,6 +92,7 @@ export function useXlsxEditorClipboard<TSnapshot = XlsxWorkbookSnapshot>(
     setRecalcError,
   } = options;
   const { t } = useTranslation();
+  const [pasteNoticeMessage, setPasteNoticeMessage] = useState<string | null>(null);
 
   const copy = useCallback(async () => {
     if (!selection || permissions.canCopy === false || !editor.clipboard?.writeText) return;
@@ -76,23 +100,56 @@ export function useXlsxEditorClipboard<TSnapshot = XlsxWorkbookSnapshot>(
   }, [editor, permissions.canCopy, selection, snapshot]);
 
   const paste = useCallback(async () => {
-    if (!selection || !canEdit || permissions.canPaste === false || !editor.clipboard?.readText) return;
+    const port = editor.clipboard;
+    if (!selection || !canEdit || permissions.canPaste === false || !port?.readText) return;
     const session = mountRef.current;
-    const text = await editor.clipboard.readText();
+    const readText = port.readText.bind(port);
+    // NIT-1: one clipboard read gives both the plain text and the HTML.
+    const { text, html } = await readPasteClipboard({ readText });
     if (disposedRef.current || mountRef.current !== session) return;
     const cells = clipboardCells(selection, text);
     setFormulaDraft(cells[0]?.text ?? "");
-    const gridSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === selection.sheet);
+    setPasteNoticeMessage(null);
     const position = addressParts(selection.address);
-    if (gridReady && gridSheet && position) {
-      for (const cell of cells) gridRef.current?.setCellText(gridSheet.id, cell.row, cell.column, cell.text);
+    if (!position) return;
+    const rows = clipboardRows(text);
+    const table = parseClipboardHtmlTable(html);
+    const planned = table ? planRichPaste(position, table, rows) : null;
+    const plan = planned === "over-limit" ? null : planned;
+    const valuesOnly = t("office.xlsx.errors.richPasteValuesOnly");
+    if (planned === "over-limit") setPasteNoticeMessage(valuesOnly);
+    const gridSheet = rendererHost?.file.sheets.find((sheet) => sheet.name === selection.sheet);
+    if (gridReady && gridSheet && rendererHost) {
+      // MINOR-4: one set-range-values (values with their styles) plus the
+      // merges, run as ONE undo step.
+      const steps = gridPasteSteps(`file-${rendererHost.file.sha256}`, gridSheet.id, position, rows, plan);
+      const ran = await runSteps(gridRef.current, gridCommands, steps);
+      if (ran < steps.length) {
+        if (disposedRef.current || mountRef.current !== session) return;
+        if (ran === 0) {
+          // Nothing was written: a refusal (say a protected cell in the range)
+          // falls back to the per-cell writes, which skip what may not be edited.
+          for (const cell of cells) gridRef.current?.setCellText(gridSheet.id, cell.row, cell.column, cell.text);
+          if (plan) setPasteNoticeMessage(valuesOnly);
+        } else {
+          // F-P2: the values and styles landed (one undo entry) and a merge was
+          // refused. Writing the cells again would double the work and add one
+          // undo entry per cell, so the paste stands and the notice says so.
+          setPasteNoticeMessage(t("office.xlsx.errors.richPasteMergesSkipped"));
+        }
+      }
       await gridEdits.flush();
       return;
     }
-    await editor.edit?.(cells.map((cell) => cellEditOperation(selection.sheet, toA1Address(cell.row, cell.column), cell.text)));
+    // The fallback surface: values, styles and merges in one edit batch.
+    await editor.edit?.(fallbackPasteOps(selection.sheet, position, rows, plan));
     markDirty();
     refreshSnapshot();
-  }, [canEdit, disposedRef, editor, gridEdits, gridReady, gridRef, markDirty, mountRef, permissions.canPaste, refreshSnapshot, rendererHost, selection, setFormulaDraft]);
+  }, [canEdit, disposedRef, editor, gridCommands, gridEdits, gridReady, gridRef, markDirty, mountRef, permissions.canPaste, refreshSnapshot, rendererHost, selection, setFormulaDraft, t]);
+  const pasteNotice = useMemo<XlsxPasteNotice | null>(
+    () => (pasteNoticeMessage ? { message: pasteNoticeMessage, dismiss: () => setPasteNoticeMessage(null) } : null),
+    [pasteNoticeMessage],
+  );
   const clipboardFailure = useCallback(() => {
     if (!disposedRef.current) setRecalcError(t("office.xlsx.errors.clipboardFailed"));
   }, [disposedRef, setRecalcError, t]);
@@ -115,5 +172,5 @@ export function useXlsxEditorClipboard<TSnapshot = XlsxWorkbookSnapshot>(
     [editor.clipboard, permissions],
   );
 
-  return { copy, paste, cut, clipboardFailure, clipboardPermissions };
+  return { copy, paste, cut, clipboardFailure, clipboardPermissions, pasteNotice };
 }

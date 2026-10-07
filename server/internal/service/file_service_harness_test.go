@@ -291,6 +291,13 @@ func (c *countingQuota) reserved(id files.FileID) int64 {
 
 func newFileHarness(t *testing.T, backend fileBackend, registry *files.Registry) *fileHarness {
 	t.Helper()
+	return newFileHarnessUnder(t, backend, registry, "")
+}
+
+// newFileHarnessUnder mints every key under the given environment root
+// (S3_KEY_PREFIX in the "x/" form).
+func newFileHarnessUnder(t *testing.T, backend fileBackend, registry *files.Registry, keyRoot string) *fileHarness {
+	t.Helper()
 	pool := testutil.DB(t)
 	clock := newFileTestClock()
 	store := newSwitchStore(backend.build(t))
@@ -316,7 +323,7 @@ func newFileHarness(t *testing.T, backend fileBackend, registry *files.Registry)
 	}
 	quota := &countingQuota{calls: map[files.FileID]int64{}}
 	svc, err := NewFileService(FileServiceOptions{
-		Pool: pool, Store: store, Bucket: backend.bucket,
+		Pool: pool, Store: store, Bucket: backend.bucket, KeyRoot: keyRoot,
 		Registry: registry, Signer: signer, Quota: quota, Clock: clock.Now, SpoolDir: t.TempDir(),
 	})
 	if err != nil {

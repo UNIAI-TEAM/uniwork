@@ -3,41 +3,47 @@
 > **Trạng thái:** in-progress (UNI-819). Bản dev/beta chưa ký. Nguồn rollback: plan §8.2
 > (`docs/superpowers/plans/2026-09-27-office-g3-g4.md`).
 
-Ngắn gọn. Làm theo thứ tự. Chỗ nào ghi "Chưa có" là repo chưa có thứ đó.
+Ngắn gọn. Làm theo thứ tự. Chỗ nào ghi "Chưa có" là repo chưa có thứ đó. Ô đã tick là phần repo đã cung cấp; ô trống là việc DevOps làm trên môi trường thật.
 
 ## Hiện còn thiếu để chạy production
 
 Đã kiểm trong repo. Làm xong các mục này mới deploy Office lên production.
 
-**A. `office-engine` chưa có trên Helm.**
-`deploy/app/uniwork/templates/` chỉ có `deployment-be.yaml` và `deployment-fe.yaml`. Engine chỉ có ở docker compose profile `office` và `apps/office-engine/Dockerfile`. Sidecar XLSX nằm **trong** image engine, không phải dịch vụ riêng. DevOps làm:
+**A. `office-engine` trên Helm: luôn bật production; DevOps còn Secret + node.**
+Chart `deploy/app/uniwork/` luôn deploy engine (`officeEngine.enabled: true`). Non-secret env:
+`deploy/app/env/uniwork-office-engine.env` (origins/workers). CIDR kho file: `networkPolicy.officeEngineFileStore`
+trong `values.yaml`. Jenkins luôn build image + pin digest — **không** còn param `OFFICE_ENGINE_ENABLED` /
+`OUTPUT_ORIGINS` / `VALUES_FILE`. Quyền container giống compose. Sidecar XLSX nằm **trong** image engine.
 
-- [ ] Build và push image từ `apps/office-engine/Dockerfile` (build từ gốc repo).
-- [ ] Thêm Deployment + Service **riêng tư** (không ra edge), cổng `8090`, cùng quyền như compose: bỏ hết capability trừ `CHOWN SETUID SETGID KILL DAC_OVERRIDE FOWNER`, `no-new-privileges`, root filesystem chỉ đọc, tmpfs `/tmp` 512m, bộ nhớ 2g, 2 cpu, `pids_limit` 256.
-- [ ] Tạo Secret chứa `OFFICE_ENGINE_SERVICE_TOKEN` và `OFFICE_ENGINE_GRANT_KEY` (>= 32 ký tự, khác nhau).
-- [ ] Đặt `OFFICE_ENGINE_OUTPUT_ORIGINS` = origin kho file.
-- [ ] Mở NetworkPolicy: chỉ BE gọi engine; engine chỉ ra kho file.
-- [ ] Phía BE: thêm `OFFICE_ENGINE_URL` vào `deploy/app/env/uniwork-be.env`, thêm hai khóa trên vào Secret của BE (hiện file env này **chưa có** biến Office nào).
-- [ ] Thêm `DESKTOP_AUTH_*` vào `uniwork-be.env` (hiện **chưa có**; xem mục 3.2).
+- [x] Pipeline production-app build/push `uniwork-office-engine` + digest (cùng BE/FE).
+- [x] Deployment + Service **riêng tư**, cổng `8090` (`deployment-office-engine.yaml`, `service-office-engine.yaml`).
+- [x] Env non-secret: `uniwork-office-engine.env` + CIDR CMC S3 trong `values.yaml`.
+- [ ] Node chạy engine đặt `podPidsLimit: 256` (kubelet); pod spec không có trường này.
+- [ ] Tạo Secret `uniwork-office-engine` chứa `OFFICE_ENGINE_SERVICE_TOKEN` và `OFFICE_ENGINE_GRANT_KEY` (>= 32 ký tự, khác nhau). Xem `deploy/app/env/README.md`.
+- [x] NetworkPolicy: chỉ `uniwork-be` gọi engine; engine ra DNS + CIDR kho file.
+- [x] BE: `OFFICE_ENGINE_URL` để trống trong `uniwork-be.env`; chart set URL in-cluster. Timeout/job knobs trong `uniwork-be.env`.
+- [x] `DESKTOP_AUTH_*` đã có trong `uniwork-be.env` (xem mục 3.2).
 - [ ] Sau deploy chạy mục 4.
 
 **B. Origin xem trước: ĐÃ nối sẵn.** `deploy/edge/{route,certificate,apisix-tls}.yaml` có `preview.unicomhub.com`; `PREVIEW_ORIGIN` có trong `uniwork-be.env`; Secret `uniwork-preview` (khóa `PREVIEW_CAPABILITY_SECRET`) khai trong `values.yaml`. Chỉ cần tạo Secret thật.
 
-**C. Bản cài desktop: không có CI build.** `.github/workflows/ci.yml` không build hay upload bản cài. DevOps làm tay:
+**C. Bản cài desktop: có workflow build chưa ký, DevOps vẫn tải lên và điền link.**
+`.github/workflows/office-desktop-installers.yml` (chạy tay: Run workflow, chọn `channel` `dev`/`beta`; hoặc đẩy tag `office-desktop-v<version>-<dev|beta>.<số build>`) build Windows x64 (`-setup.exe`, `.zip`) và Linux x64 (`.deb`, `.AppImage`) **chưa ký**, ghi `SHA256SUMS-<nền tảng>.txt`, gắn vào release và in dòng `OFFICE_INSTALLER_<KÊNH>_URLS=…` ở job summary. `scripts/office/installer-urls.mjs` tạo cùng giá trị đó từ thư mục file (dùng khi copy file sang host khác). macOS `.dmg` **không** có trong workflow (cần máy Mac, chạy tay `package:macos`). Chi tiết: [desktop-packaging.md](desktop-packaging.md) mục "CI installers and `OFFICE_INSTALLER_*_URLS`".
 
-- [ ] Build: `pnpm --filter @uniwork/office-desktop package` (mục 5.1; macOS cần máy Mac).
-- [ ] Ghi SHA-256 từng file.
-- [ ] Upload lên một host HTTPS.
-- [ ] Điền link vào `OFFICE_INSTALLER_DEV_URLS` / `BETA_URLS` / `STABLE_URLS` của BE (JSON theo nền tảng, ví dụ `{"win32-x64":"https://…-setup.exe","linux-x64-deb":"https://….deb"}`). Xem `.env.example`.
-- [ ] `GET /api/v1/config` trả link này. Để trống = web hiện "chưa có bản tải"; không thay kênh khác.
-- [ ] Bản build **chưa ký**: có cảnh báo SmartScreen/Gatekeeper; **không** tự cập nhật.
+- [x] Workflow build + SHA-256 + script tạo JSON link (không còn "CI không build").
+- [ ] Chạy workflow cho kênh `dev`/`beta` và kiểm job pass (mục XLSX sidecar bắt buộc).
+- [ ] Release/host phải tải được công khai bằng HTTPS (server không gửi thông tin đăng nhập). Repo riêng: copy file sang host HTTPS rồi chạy `installer-urls.mjs`.
+- [ ] Điền JSON vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` của BE (`deploy/app/env/uniwork-be.env`, không phải Secret), ví dụ `{"win32-x64":"https://…-setup.exe","linux-x64-deb":"https://….deb"}`, rồi khởi động lại BE. Xem `.env.example`. `uniwork-be.env` đã có sẵn ba dòng (để trống).
+- [ ] `GET /api/v1/config` trả link này (`office_installers.<kênh>` có `unsigned: true`). Để trống = web hiện "chưa có bản tải"; không thay kênh khác.
+- [ ] macOS: build trên máy Mac và thêm file vào cùng release (chưa có).
+- [ ] Bản build **chưa ký**: có cảnh báo SmartScreen/Gatekeeper; **không** tự cập nhật. Ký mã/notarization vẫn ở backlog.
 
 ## 1. Office gồm những phần nào
 
 | Phần | Chạy ở đâu | Cần gì |
 | --- | --- | --- |
 | Trình soạn web DOCX, XLSX, PPTX, PDF, MD, HTML | Trình duyệt, trong `apps/web` (code ở `packages/views/office/`) | Cờ `office_engine` bật; file lưu qua kho file (MinIO/S3) |
-| Máy xử lý Office (`office-engine`) | Container riêng, cổng `8090`, chỉ Go gọi | 2 khóa bí mật; địa chỉ kho file; `docker compose --profile office` |
+| Máy xử lý Office (`office-engine`) | Container riêng, cổng `8090`, chỉ Go gọi | 2 khóa bí mật; `uniwork-office-engine.env` (origins); Helm luôn bật production |
 | Máy tính lại XLSX (`xlsx-sidecar`) | Nằm trong cùng image `office-engine`, do engine tự chạy | Không cần cấu hình riêng (`UNIWORK_XLSX_ASSETS` đã đặt trong image) |
 | Khung xem trước MD/HTML | Origin riêng `preview.<host>`, cùng tiến trình Go | `PREVIEW_ORIGIN`, `PREVIEW_CAPABILITY_SECRET`, DNS + chứng chỉ riêng |
 | Server Go | Như hiện tại | Migration, env, kho file |
@@ -85,7 +91,19 @@ Server Go (mọi biến đã có trong `.env.example`):
 | `DESKTOP_AUTH_CODE_TTL`, `DESKTOP_AUTH_ATTEMPT_TTL` | Hạn mã đăng nhập (120s) và lượt thử (10m) |
 | `OFFICE_INSTALLER_{DEV,BETA,STABLE}_URLS` | Link tải bản cài theo nền tảng (JSON). `_URL` số ít là kiểu cũ, bỏ sau 2026-11-02 |
 | `FEATURE_FLAGS_FILE` | File YAML cờ; có thể ghi đè bằng `FF_<TÊN_CỜ>` |
+| `FF_DOCUMENTS`, `FF_OFFICE_ENGINE` | Bật/tắt cờ cho **cả môi trường** (`true`/`false`; `false` là công tắc khẩn). Office cần **cả hai** bật. Bật theo từng tổ chức thì dùng override trong `/admin` (mục 3.6) |
+| `FF_OFFICE_DOCX` … `FF_OFFICE_HTML`, `FF_OFFICE_HTML_VISUAL_EDIT` | Tắt riêng từng định dạng (mặc định bật; sửa HTML trực quan mặc định tắt) |
 | `MINIO_*` hoặc `S3_*` (`STORAGE_BACKEND`) | Kho file |
+| `S3_KEY_PREFIX` | Thư mục gốc theo môi trường trong kho dùng chung (`<env>/v1/...`, UNI-947); mỗi môi trường một giá trị khác nhau |
+| `MINIO_PUBLIC_ENDPOINT` | Địa chỉ MinIO mà **trình duyệt** tới được, dùng khi ký URL tải thẳng. Bỏ trống khi dùng S3 |
+
+Không phải biến của server, nhưng cần khi triển khai:
+
+| Biến | Đặt ở đâu | Nghĩa |
+| --- | --- | --- |
+| `OFFICE_ENGINE_DIGEST` | Đầu vào bắt buộc của `ci/scripts/rollout-uniwork.sh` (Jenkins tự ghi vào `target/rollout.env`) | Digest `sha256:…` của image `uniwork-office-engine`. Engine **luôn** được deploy cùng BE/FE; không còn công tắc bật/tắt engine khi rollout |
+| `OFFICE_ENGINE_OUTPUT_ORIGINS`, `OFFICE_ENGINE_MAX_WORKERS`, `OFFICE_ENGINE_MAX_QUEUE`, `OFFICE_ENGINE_FAULT_OPERATIONS` | `deploy/app/env/uniwork-office-engine.env` (ConfigMap của engine) | Origin kho file engine được đọc/ghi (CMC S3), số việc chạy cùng lúc, hàng chờ; `FAULT_OPERATIONS` luôn `0` ngoài test |
+| `MINIO_API_CORS_ALLOW_ORIGIN` | Biến của **container MinIO** | Origin trình duyệt được gọi thẳng vào MinIO (`FRONTEND_ORIGIN`, `PREVIEW_ORIGIN`, cách nhau dấu phẩy). Không đặt = MinIO nhận **mọi** origin; production nên đặt. Chi tiết: [bucket-cors.md](bucket-cors.md) |
 
 Web (đặt **lúc build**, vì Next nhúng cứng): `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WS_URL`, `NEXT_PUBLIC_APP_URL`.
 Không có biến `NEXT_PUBLIC_*` riêng cho Office.
@@ -107,12 +125,15 @@ Sidecar XLSX: không có biến riêng cần đặt.
 1. `docker compose --profile office build office-engine`
 2. `docker compose --profile office up -d office-engine`
 3. Giá trị mặc định trong compose chỉ để dev. Nơi dùng chung phải đặt khóa thật.
+4. Trên Kubernetes dùng chart Helm thay compose: bật `officeEngine.enabled`, xem mục A ở đầu file.
+
+**Bundle gateway XLSX phải build lại với patch 0010** (`packages/office-upstream/patches/0010-xlsx-visual-additions.patch`, UNI-940 X02). Patch này thêm tham số `visualAdditions` vào `applyCellEditsToXlsx` và xuất cờ `UNIWORK_XLSX_VISUAL_ADDITIONS`; `bindXlsxGateway` từ chối bundle không có cờ này, nên một `xlsx-gateway.mjs` build trước patch sẽ lỗi ngay khi bind chứ không lưu sai. Mọi nơi đóng gói gateway (image `office-engine`, `dist/xlsx-assets` của bản cài desktop, bản dev tại `.go-tmp/office-upstream-build`) phải chạy lại `node scripts/office/build-upstream.mjs` rồi build lại image/bản cài; không copy bundle cũ sang. Kiểm: `grep -c UNIWORK_XLSX_VISUAL_ADDITIONS <đường dẫn>/xlsx-gateway.mjs` phải >= 1.
 
 ### 3.4 Kho file (MinIO/S3)
 
 - Trình duyệt phải gọi được địa chỉ kho (`MINIO_PUBLIC_ENDPOINT` nếu khác địa chỉ nội bộ).
 - `OFFICE_ENGINE_OUTPUT_ORIGINS` = origin kho file mà engine nhìn thấy.
-- Cấu hình CORS của bucket: Chưa có — repo không có file hay bước CORS cho bucket. Xem `docs/superpowers/specs/2026-09-22-shared-file-service-design.md` (mục lỗi browser không tới được MinIO).
+- CORS của bucket: xem [bucket-cors.md](bucket-cors.md) (quy tắc, `deploy/app/storage-cors.example.json`, cách áp trên S3 và MinIO). MinIO của compose không có CORS theo bucket: đặt `MINIO_API_CORS_ALLOW_ORIGIN` cho container MinIO. Lỗi browser không tới được MinIO: `docs/superpowers/specs/2026-09-22-shared-file-service-design.md`.
 - Mục đích file `document_file` do FileService quản lý. Nếu job báo `file_purpose_disabled` thì mục đích này chưa mở ở bản đang chạy.
 
 ### 3.5 Origin xem trước
@@ -127,10 +148,12 @@ Sidecar XLSX: không có biến riêng cần đặt.
 | Cờ | Mặc định | Làm gì |
 | --- | --- | --- |
 | `documents` | tắt | Tài liệu trong workspace |
-| `office_engine` | tắt | Bật trình soạn Office cho cả web và desktop host |
+| `office_engine` | tắt | Công tắc tổng: bật trình soạn Office cho cả web và desktop host |
+| `office_docx` `office_xlsx` `office_pptx` `office_pdf` `office_markdown` `office_html` | bật | Cho phép sửa riêng từng định dạng (cần `office_engine` bật) |
+| `office_html_visual_edit` | tắt | Sửa HTML trực quan (chưa có giao diện) |
 
 1. Bật `documents` rồi `office_engine`: đặt trong file YAML (`FEATURE_FLAGS_FILE`) hoặc `FF_OFFICE_ENGINE=true`.
-2. Tắt/bật **riêng từng định dạng** (DOCX/XLSX/PPTX/PDF/MD/HTML): Chưa có — chỉ có một cờ `office_engine` cho tất cả.
+2. Tắt/bật **riêng từng định dạng**: mỗi định dạng có cờ riêng, mặc định **bật** — `office_docx`, `office_xlsx`, `office_pptx`, `office_pdf`, `office_markdown`, `office_html`. Một định dạng chỉ sửa được khi `office_engine` **và** cờ của nó cùng bật. Để tắt một định dạng: `FF_OFFICE_DOCX=false` (đổi tên theo cờ) hoặc override trong file/org. Tệp định dạng đó mở ở màn xem/tải như khi tắt `office_engine`, không mở trình soạn; các định dạng khác không đổi. Web đọc `GET /api/v1/config` theo tổ chức của tài liệu, nên override theo org có hiệu lực. Desktop đọc cùng các cờ này theo tổ chức đang chọn (lấy sau khi chọn tổ chức, đọc lại khi đổi tổ chức hoặc tài khoản; nếu lỗi thì thử lại ngay một lần, sau đó tự thử lại theo khoảng tăng dần tới 5 phút, ngay khi cửa sổ được focus hoặc có mạng lại, và trước mỗi lần mở tài liệu cloud): tài liệu cloud thuộc định dạng bị tắt, hoặc khi chưa đọc được cấu hình, mở ở chế độ chỉ xem. Tab chỉ xem ghi rõ lý do: định dạng bị tổ chức tắt, hoặc chưa đọc được cấu hình. Khi được phép, tab được đọc lại tài liệu mới nhất rồi mới chuyển sang sửa (chưa có chỉnh sửa nào trong chế độ chỉ xem nên không mất dữ liệu). Tệp cục bộ không bị cờ chặn. Web: đổi cờ có hiệu lực ở lần làm mới cấu hình tiếp theo (tối đa ~5 phút hoặc khi quay lại tab). Trình soạn đang mở không bị đóng khi làm mới lỗi; chỉ đóng khi câu trả lời mới nói tắt, và nếu đang có thay đổi chưa lưu thì hiện hộp thoại Lưu / giữ bản nháp / bỏ trước. Trong lúc chưa đọc được cấu hình, thẻ tệp ghi "đang kiểm tra" hoặc "chưa kiểm tra được" (có nút Thử lại), không ghi "đang tắt".
 3. Cờ chỉ ẩn tính năng, không cấp quyền.
 
 ## 4. Kiểm tra sau deploy
@@ -165,7 +188,7 @@ Sidecar XLSX: không có biến riêng cần đặt.
 
 ### 5.2 Phát cho người dùng
 
-1. Đặt link tải vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` (chỉ HTTPS).
+1. Đặt link tải vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` (chỉ HTTPS). Workflow `office-desktop-installers.yml` in sẵn giá trị này; xem mục C ở đầu file.
 2. Người dùng đăng nhập, bấm Tải trên web. Server trả gói có kèm hồ sơ deployment.
 3. Không có hồ sơ deployment thì app báo `no_deployment_profile`. Tải lại từ web.
 
@@ -186,13 +209,24 @@ Chi tiết: `desktop-install-macos-ubuntu.md`.
 - Đăng xuất thiết bị: `POST /auth/desktop/logout`.
 - Dùng lại refresh token cũ: server trả 401 `refresh_reused` và tự thu hồi thiết bị đó.
 - Thu hồi thiết bị xong, lần gọi tiếp theo bị chặn ngay (`device_revoked`).
-- Thu hồi thay người dùng bằng công cụ vận hành (CLI/admin): Chưa có — chỉ chủ tài khoản thu hồi được.
+- Thu hồi thay người dùng bằng công cụ vận hành (chạy trên máy chủ, cần `DATABASE_URL`):
+  `uniwork-admin revoke-desktop-device --user-id <id người dùng> --device-id <id thiết bị> --reason "<lý do, ít nhất 10 ký tự>"`.
+  Lệnh thu hồi cả họ phiên của thiết bị đó, nên lần refresh tiếp theo bị chặn (`device_revoked`). Id thiết bị lấy từ `GET /auth/desktop/devices` của chủ tài khoản, hoặc từ bảng `device_sessions`.
+  Id không có, hoặc thiết bị không thuộc người dùng đó: lệnh báo lỗi, thoát mã khác 0, không ghi gì. Thiết bị đã thu hồi từ trước: lệnh báo "already revoked", không ghi thêm. Mỗi lần thu hồi thật ghi một dòng `admin_actions` (actor `cli`) và một dòng `audit_events` (`desktop_device.revoked`) cùng mã trace.
+
+### 5.5 Giới hạn dung lượng tệp (UNI-956)
+
+- **Web giữ giới hạn.** Engine dùng chung trên server giữ `ENGINE_LIMITS` (đầu vào 64 MiB, đầu ra 128 MiB) và giới hạn model mở XLSX 16 MiB. Vượt giới hạn nào thì job trả lỗi có kiểu `upload_bounds` (413, `byte_bound`), kể cả giới hạn model XLSX (`reason: xlsx_open_model_too_large`), engine trong trình duyệt trả `failure_class: too_large`. Web không báo lỗi engine chung chung nữa: cả sáu định dạng (DOCX, XLSX, PPTX, PDF, MD, HTML) hiện cùng một thông báo "tệp quá lớn để chỉnh sửa trên web", nút chính là **Mở trong UniWork Office** (đúng luồng launch ticket ở header), nút phụ là **Tải xuống**.
+- **App desktop không giới hạn dung lượng tệp làm việc.** Tệp cục bộ mở, lưu, ghi đè nguyên tử không có trần dung lượng; các đường engine cục bộ chạy không có `max_input_bytes` và không có giới hạn model 16 MiB. Giá trị trong `packages/office-contracts/src/limits.ts` không đổi vì đó là hợp đồng với server (Go cũng dùng).
+- **Web kiểm tra trước khi tải.** Mọi đường mở trên web đọc `size_bytes` từ `GET /documents/{id}/download?meta=1` trước; vượt 64 MiB thì hiện ngay thông báo trên, không tải tệp. Giới hạn model XLSX 16 MiB không đoán được từ dung lượng tệp, nên chỉ biết sau khi tải và chạy job (lỗi `upload_bounds` / `xlsx_open_model_too_large`).
+- **Vẫn chặn tệp độc hại.** Trước khi đưa DOCX/PPTX/XLSX cho parser, desktop quét central directory của zip (không giải nén): quá 20.000 entry, tổng kích thước khai báo vượt max(16 MiB, 100 × dung lượng tệp), entry trên 1 MiB có tỉ lệ nén quá 100:1, zip64, hoặc central directory nằm ngoài tệp thì từ chối (`corrupted`, `zip_bomb`). Áp dụng cho cả tệp trên máy lẫn tài liệu cloud mở trong app.
+- **Hết bộ nhớ.** Engine XLSX và PDF cục bộ chạy trong một `utilityProcess` riêng. Heap JS của process đó tối đa khoảng 4 GiB: Electron build V8 với pointer compression nên heap bị chặn ở mức này dù cờ `--max-old-space-size` đặt cao hơn (máy ít RAM thì dùng 75% RAM, tối thiểu 2 GiB). Byte của tệp nằm ngoài heap (ArrayBuffer, bộ nhớ wasm) nên chỉ bị giới hạn bởi RAM của máy. Process đó hết bộ nhớ hay thoát giữa chừng thì main trả lỗi có kiểu `insufficient_memory`, và người dùng thấy "Máy không đủ bộ nhớ để mở tệp này." ở cả XLSX lẫn PDF. Các cửa sổ khác vẫn chạy, lần gọi sau tạo process mới. Một process phục vụ mọi cửa sổ, nên khi một tệp làm nó sập thì các lệnh engine đang chạy dở của tab khác cũng nhận cùng lỗi đó. Chưa có hạn giờ cho mỗi lệnh: engine bị treo (không phải hết bộ nhớ) thì lệnh đó chờ mãi, nhưng main không bị treo. Lỗi cấp phát bắt được (đọc tệp, giải mã trong renderer) cũng trả cùng mã. DOCX/PPTX chạy trong renderer: hết heap ở đó chỉ làm sập renderer của cửa sổ đó, main vẫn chạy (chưa có thông báo có kiểu cho trường hợp này).
 
 ## 6. Khi có sự cố / rollback
 
 Nguyên tắc (plan §8.2):
 
-1. **Tắt sửa, giữ xem.** Tắt cờ `office_engine` (`FF_OFFICE_ENGINE=false` hoặc override trong file/org). Tài liệu đã lưu vẫn xem, tải, xem lịch sử theo quyền. Tắt riêng từng định dạng: Chưa có.
+1. **Tắt sửa, giữ xem.** Tắt cờ `office_engine` (`FF_OFFICE_ENGINE=false` hoặc override trong file/org). Tài liệu đã lưu vẫn xem, tải, xem lịch sử theo quyền. Tắt riêng một định dạng: đặt cờ của nó về `false` (ví dụ `FF_OFFICE_DOCX=false`), các định dạng còn lại vẫn sửa được (mục 3.6).
 2. **Không xóa nháp.** Giữ nguyên nháp mã hóa, khóa, và store. Rollback không được làm mất nháp.
 3. **Không down migration.** Không chạy `make migrate-down` trên production.
 4. **Không xóa blob.** FileService tự giữ staged/claim/GC. Không dọn tay kho file.
@@ -218,7 +252,7 @@ Nói gì với người dùng:
 | `failed` `output_limit` | Kết quả lớn hơn mức cho phép | Kiểm `max_bytes` của FileService (trần 50 MiB) |
 | `file_purpose_disabled` | Mục đích `document_file` chưa mở | Cập nhật bản server có mục này |
 | `501 unsupported_operation` | Thao tác chưa gắn (convert luôn thế) | Bình thường |
-| Office job báo chưa cấu hình | `OFFICE_ENGINE_URL` trống | Đặt địa chỉ engine |
+| Office job báo chưa cấu hình | `OFFICE_ENGINE_URL` trống | Compose: đặt địa chỉ engine. Helm: bật `officeEngine.enabled: true` (chart tự đặt URL; giữ `OFFICE_ENGINE_URL` trống trong `uniwork-be.env`) và tạo Secret `uniwork-office-engine` |
 | Có tiến trình worker khi không có job | Tiến trình kẹt | Lấy `/metrics` + log, restart container |
 | Server không lên, nhắc `PREVIEW_*` | Thiếu/sai biến xem trước | Sửa theo bảng ở `preview-origin.md` |
 | Xem trước lỗi sau reverse proxy | Redirect hoặc alias origin app | Bỏ redirect; dùng host riêng |
@@ -231,6 +265,7 @@ Nói gì với người dùng:
 
 - [RUNBOOK_OFFICE_ENGINE.md](../../ops/RUNBOOK_OFFICE_ENGINE.md): engine, giới hạn, XLSX sidecar
 - [preview-origin.md](preview-origin.md): origin xem trước MD/HTML
+- [bucket-cors.md](bucket-cors.md): CORS của kho file (S3/MinIO)
 - [desktop-packaging.md](desktop-packaging.md): đóng gói, cập nhật, rollback nháp
 - [desktop-install-macos-ubuntu.md](desktop-install-macos-ubuntu.md): cài macOS, Ubuntu
 - [desktop-auth-contract.md](desktop-auth-contract.md): đăng nhập, thiết bị, thu hồi

@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowDownToLine, ArrowUpToLine, Columns3, Rows3, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowDownToLine, ArrowUpToLine, Columns3, Rows3 } from "lucide-react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -10,7 +10,7 @@ import type { XlsxSelection } from "../types";
 import { XLSX_RANGE_TYPE, type XlsxRangeType } from "../selection-mapping";
 import type { XlsxToolbarGroupProps } from "./types";
 import { fireCommand } from "../fire-command";
-import { XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
+import { XLSX_SMALL_BUTTON_CLASS } from "./group-layout";
 
 /** The insert commands' count ceiling (Univer's own menu cap), mirrored by
  *  the renderer policy's param validation. */
@@ -69,18 +69,49 @@ export function normalizeRowColCount(value: string): number | null {
   return parsed >= 1 && parsed <= XLSX_STRUCTURE_MAX_COUNT ? parsed : null;
 }
 
-/** Insert tab: insert/delete rows and columns for the selection's span. The
- *  count input drives the "before" inserts; the "after" commands insert the
- *  selection's own height/width (Univer's semantics). */
-export function XlsxStructureInsertGroup({ readOnly = false, selection, commands }: XlsxToolbarGroupProps) {
+/** One labelled insert command: icon + the full command text, which is also
+ *  its accessible name and tooltip (design review X2: no unlabeled cluster). */
+function InsertButton({ label, icon, blocked, testId, onClick }: {
+  label: string;
+  icon: ReactNode;
+  blocked: boolean;
+  testId: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="toolbar"
+      size="sm"
+      className={XLSX_SMALL_BUTTON_CLASS}
+      title={label}
+      aria-disabled={blocked || undefined}
+      data-testid={testId}
+      onClick={onClick}
+    >
+      {icon}
+      <span>{label}</span>
+    </Button>
+  );
+}
+
+/** Home > Cells > "Insert rows/columns" (design review X2, Excel's Cells >
+ *  Insert): a count per axis and the four labelled insert commands. The count
+ *  drives every insert: the "after" buttons ride Univer's multi-after
+ *  commands, since insert-row-after / insert-col-after ignore params and
+ *  insert the selection's own span. Deleting lives in the sibling Delete
+ *  menu. `onDone` closes the menu hosting the form after a command runs. */
+export function XlsxStructureInsertGroup({ readOnly = false, selection, commands, onDone }: XlsxToolbarGroupProps & { onDone?: () => void }) {
   const { t } = useTranslation();
+  const rowCountId = useId();
+  const colCountId = useId();
   const span = selectionSpan(selection);
   const blocked = readOnly || !commands || !span;
   const defaults = span ? insertCounts(span, selection?.rangeType) : null;
   const rowSpan = defaults?.rows ?? 0;
   const colSpan = defaults?.columns ?? 0;
-  const [rowCountDraft, setRowCountDraft] = useState("1");
-  const [colCountDraft, setColCountDraft] = useState("1");
+  const [rowCountDraft, setRowCountDraft] = useState(() => String(rowSpan > 0 ? rowSpan : 1));
+  const [colCountDraft, setColCountDraft] = useState(() => String(colSpan > 0 ? colSpan : 1));
 
   useEffect(() => {
     if (rowSpan > 0) setRowCountDraft(String(rowSpan));
@@ -91,114 +122,60 @@ export function XlsxStructureInsertGroup({ readOnly = false, selection, commands
 
   const rowCount = normalizeRowColCount(rowCountDraft) ?? defaults?.rows ?? 1;
   const colCount = normalizeRowColCount(colCountDraft) ?? defaults?.columns ?? 1;
-  const run = (id: string, params?: unknown) => {
+  const run = (id: string, params?: unknown) => () => {
     if (blocked) return;
     fireCommand(commands, id, params);
+    onDone?.();
   };
-  const removeParams = span === null ? undefined : {
-    range: { startRow: span.startRow, endRow: span.endRow, startColumn: span.startColumn, endColumn: span.endColumn },
-  };
+  const countField = (id: string, labelKey: string, icon: ReactNode, draft: string, setDraft: (value: string) => void, settled: number) => (
+    <div className="flex items-center gap-1.5 px-1.5">
+      {icon}
+      <label htmlFor={id} className="flex-1 text-caption text-muted-foreground">{t(labelKey)}</label>
+      <Input
+        id={id}
+        className="h-6 w-16 px-1 text-center text-caption"
+        inputMode="numeric"
+        disabled={blocked}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => setDraft(String(settled))}
+      />
+    </div>
+  );
 
   return (
-    <XlsxGroupBody>
-      <XlsxGroupRows>
-        <XlsxGroupRow>
-      <Rows3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-      <Input
-        className="h-6 w-11 px-1 text-center text-caption"
-        inputMode="numeric"
-        aria-label={t("office.xlsx.structure.rowCount")}
-        disabled={blocked}
-        value={rowCountDraft}
-        onChange={(event) => setRowCountDraft(event.target.value)}
-        onBlur={() => setRowCountDraft(String(rowCount))}
+    <div className="flex w-60 flex-col gap-1" data-testid="xlsx-insert-rows-cols">
+      {countField(rowCountId, "office.xlsx.structure.rowCount", <Rows3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />, rowCountDraft, setRowCountDraft, rowCount)}
+      <InsertButton
+        label={t("office.xlsx.structure.insertRowsAbove", { count: rowCount })}
+        icon={<ArrowUpToLine aria-hidden />}
+        blocked={blocked}
+        testId="xlsx-cells-insert-rows-above"
+        onClick={run("sheet.command.insert-row-before", { value: rowCount })}
       />
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        className={XLSX_ICON_BUTTON_CLASS}
-        aria-label={t("office.xlsx.structure.insertRowsAbove", { count: rowCount })}
-        title={t("office.xlsx.structure.insertRowsAbove", { count: rowCount })}
-        aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.insert-row-before", { value: rowCount })}
-      >
-        <ArrowUpToLine aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        className={XLSX_ICON_BUTTON_CLASS}
-        aria-label={t("office.xlsx.structure.insertRowsBelow")}
-        title={t("office.xlsx.structure.insertRowsBelow")}
-        aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.insert-row-after")}
-      >
-        <ArrowDownToLine aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        className={XLSX_ICON_BUTTON_CLASS}
-        aria-label={t("office.xlsx.structure.deleteRows")}
-        title={t("office.xlsx.structure.deleteRows")}
-        aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.remove-row", removeParams)}
-      >
-        <Trash2 aria-hidden />
-      </Button>
-        </XlsxGroupRow>
-        <XlsxGroupRow>
-      <Columns3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-      <Input
-        className="h-6 w-11 px-1 text-center text-caption"
-        inputMode="numeric"
-        aria-label={t("office.xlsx.structure.colCount")}
-        disabled={blocked}
-        value={colCountDraft}
-        onChange={(event) => setColCountDraft(event.target.value)}
-        onBlur={() => setColCountDraft(String(colCount))}
+      <InsertButton
+        label={t("office.xlsx.structure.insertRowsBelow")}
+        icon={<ArrowDownToLine aria-hidden />}
+        blocked={blocked}
+        testId="xlsx-cells-insert-rows-below"
+        onClick={run("sheet.command.insert-multi-rows-after", { value: rowCount })}
       />
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        className={XLSX_ICON_BUTTON_CLASS}
-        aria-label={t("office.xlsx.structure.insertColsLeft", { count: colCount })}
-        title={t("office.xlsx.structure.insertColsLeft", { count: colCount })}
-        aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.insert-col-before", { value: colCount })}
-      >
-        <ArrowUpToLine aria-hidden className="-rotate-90" />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        className={XLSX_ICON_BUTTON_CLASS}
-        aria-label={t("office.xlsx.structure.insertColsRight")}
-        title={t("office.xlsx.structure.insertColsRight")}
-        aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.insert-col-after")}
-      >
-        <ArrowDownToLine aria-hidden className="-rotate-90" />
-      </Button>
-      <Button
-        type="button"
-        variant="toolbar"
-        size="icon-sm"
-        className={XLSX_ICON_BUTTON_CLASS}
-        aria-label={t("office.xlsx.structure.deleteCols")}
-        title={t("office.xlsx.structure.deleteCols")}
-        aria-disabled={blocked || undefined}
-        onClick={() => run("sheet.command.remove-col", removeParams)}
-      >
-        <Trash2 aria-hidden />
-      </Button>
-        </XlsxGroupRow>
-      </XlsxGroupRows>
-    </XlsxGroupBody>
+      <div className="my-0.5 border-t border-border" />
+      {countField(colCountId, "office.xlsx.structure.colCount", <Columns3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />, colCountDraft, setColCountDraft, colCount)}
+      <InsertButton
+        label={t("office.xlsx.structure.insertColsLeft", { count: colCount })}
+        icon={<ArrowUpToLine aria-hidden className="-rotate-90" />}
+        blocked={blocked}
+        testId="xlsx-cells-insert-cols-left"
+        onClick={run("sheet.command.insert-col-before", { value: colCount })}
+      />
+      <InsertButton
+        label={t("office.xlsx.structure.insertColsRight")}
+        icon={<ArrowDownToLine aria-hidden className="-rotate-90" />}
+        blocked={blocked}
+        testId="xlsx-cells-insert-cols-right"
+        onClick={run("sheet.command.insert-multi-cols-right", { value: colCount })}
+      />
+    </div>
   );
 }

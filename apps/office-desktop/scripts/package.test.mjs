@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, parse, resolve, win32 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { test } from "node:test";
-import { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCUMENT_MIME_TYPES, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } from "./package.mjs";
+import { BRAND_ICONS, DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCUMENT_MIME_TYPES, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } from "./package.mjs";
 import { LINUX_BUILDER_DIGEST, LINUX_BUILDER_IMAGE, assertPinnedImage, dockerExecutable, dockerRunArguments } from "./package-linux-docker.mjs";
 import { deriveBuildMetadata, DeploymentProfileError, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 import identity from "../identity.json" with { type: "json" };
@@ -17,7 +17,7 @@ const appDirectory = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // The staging module is loaded directly (it has no TS imports, unlike
 // package.mjs) so the staging contract is asserted on the real implementation.
-const { XLSX_ASSETS_DIRECTORY, XLSX_GATEWAY_FILE, stageXlsxAssets, resolveXlsxAssetSources, xlsxSidecarFile } = await import(pathToFileURL(join(appDirectory, "scripts", "xlsx-assets.mjs")).href);
+const { REQUIRE_SIDECAR_ENV, SKIP_NATIVE_BUILD_ENV, XLSX_ASSETS_DIRECTORY, XLSX_GATEWAY_FILE, ensureXlsxAssets, locateCargo, missingSidecarWarning, nativeTargetDirectory, prepareXlsxAssets, stageXlsxAssets, resolveXlsxAssetSources, xlsxSidecarFile } = await import(pathToFileURL(join(appDirectory, "scripts", "xlsx-assets.mjs")).href);
 
 function findBash() {
   for (const candidate of ["bash", "C:/Program Files/Git/bin/bash.exe", "C:/Program Files (x86)/Git/bin/bash.exe"]) {
@@ -33,7 +33,14 @@ test("Windows x64 dev package is explicitly labelled and installs per-user", () 
   assert.equal(config.appId, "com.uniwork.office.dev");
   assert.match(config.artifactName, /uniwork-office-test_0\.1\.0-dev\.42_unsigned_win32_x64\.zip$/);
   assert.equal(config.publish, null);
-  assert.equal(config.win.signAndEditExecutable, false);
+  // Unsigned, but the exe still gets the brand icon and version strings.
+  assert.equal(config.win.signExecutable, false);
+  assert.equal(config.win.signAndEditExecutable, undefined);
+  assert.equal(config.win.icon, BRAND_ICONS.windows);
+  assert.equal(config.nsis.installerIcon, BRAND_ICONS.windows);
+  assert.equal(config.nsis.uninstallerIcon, BRAND_ICONS.windows);
+  assert.equal(config.nsis.uninstallDisplayName, config.nsis.shortcutName);
+  assert.equal(config.forceCodeSigning, false);
   assert.deepEqual(config.fileAssociations.map((association) => association.ext), Object.values(formatTable.formats).flatMap((format) => format.extensions));
   assert.deepEqual(config.win.target, [{ target: "zip", arch: ["x64"] }, { target: "nsis", arch: ["x64"] }]);
   assert.equal(config.nsis.oneClick, true);
@@ -49,6 +56,12 @@ test("Windows x64 dev package is explicitly labelled and installs per-user", () 
   assert.ok(config.files.includes("!node_modules/**"));
   assert.ok(config.files.includes("!dist/**/*.map"));
   assert.throws(() => createPackagerConfig({ platform: "win32", arch: "arm64" }), /unsupported/);
+});
+
+test("every platform package carries the UniWork Office icon", () => {
+  for (const file of [BRAND_ICONS.windows, BRAND_ICONS.macos, join(BRAND_ICONS.linux, "512x512.png"), join(BRAND_ICONS.linux, "16x16.png")]) assert.ok(existsSync(file), file);
+  assert.equal(createPackagerConfig({ platform: "darwin", arch: "arm64", channel: "dev" }).mac.icon, BRAND_ICONS.macos);
+  assert.equal(createPackagerConfig({ platform: "linux", arch: "x64", channel: "dev" }).linux.icon, BRAND_ICONS.linux);
 });
 
 test("beta and stable share install identity while dev is isolated", () => {
@@ -472,5 +485,303 @@ test("the missing-gateway error names the directory that was actually searched",
         return true;
       },
     );
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+// UNI-940 X06 - every desktop build ships the gateway + recalc sidecar when it can build them.
+function xlsxScratch(prefix) {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  const buildDir = join(root, ".go-tmp", "office-upstream-build");
+  mkdirSync(join(buildDir, "dist"), { recursive: true });
+  const dist = join(root, "dist");
+  mkdirSync(dist, { recursive: true });
+  return { root, buildDir, dist };
+}
+
+// A stand-in for build-upstream.mjs --with-native: writes the gateway and the
+// <out>/native sidecar exactly where the real script leaves them.
+function fakeUpstreamBuild(calls, { status = 0, sidecar = true } = {}) {
+  return (command, args, options) => {
+    calls.push({ command, args, options });
+    const out = args[args.indexOf("--out") + 1];
+    mkdirSync(join(out, "dist"), { recursive: true });
+    writeFileSync(join(out, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+    if (sidecar) {
+      mkdirSync(join(out, "native"), { recursive: true });
+      writeFileSync(join(out, "native", xlsxSidecarFile("win32")), "MZ-sidecar");
+    }
+    return { status };
+  };
+}
+
+test("cargo is found on PATH first, then in the rustup home a --no-modify-path install leaves off PATH", () => {
+  // Windows-flavoured paths, spelled with win32 explicitly so the answer is the same on a POSIX host (the cloud runner) and on Windows.
+  const onPath = win32.normalize("C:/tools/rust/bin");
+  const home = win32.normalize("C:/Users/dev");
+  const both = new Set([win32.join(onPath, "cargo.exe"), win32.join(home, ".cargo", "bin", "cargo.exe")]);
+  assert.equal(locateCargo({ platform: "win32", environment: { Path: onPath, USERPROFILE: home }, exists: (file) => both.has(file) }), win32.join(onPath, "cargo.exe"));
+  const homeOnly = new Set([win32.join(home, ".cargo", "bin", "cargo.exe")]);
+  assert.equal(locateCargo({ platform: "win32", environment: { Path: onPath, USERPROFILE: home }, exists: (file) => homeOnly.has(file) }), win32.join(home, ".cargo", "bin", "cargo.exe"));
+  assert.equal(locateCargo({ platform: "linux", environment: { PATH: "", HOME: "/home/dev", CARGO_HOME: "/opt/cargo" }, exists: (file) => file === "/opt/cargo/bin/cargo" }), "/opt/cargo/bin/cargo");
+  assert.equal(locateCargo({ platform: "win32", environment: { Path: onPath, USERPROFILE: home }, exists: () => false }), null);
+});
+
+test("locateCargo splits PATH with the delimiter of the target platform, not of the host", () => {
+  // A drive letter's colon must not split a win32 PATH (the host delimiter on POSIX is ':'), and a POSIX PATH must not split on ';' or keep its colons joined (the host delimiter on Windows is ';').
+  const winPath = `${win32.normalize("C:/tools/rust/bin")};${win32.normalize("D:/other/bin")}`;
+  const second = win32.join(win32.normalize("D:/other/bin"), "cargo.exe");
+  assert.equal(locateCargo({ platform: "win32", environment: { Path: winPath, USERPROFILE: win32.normalize("C:/Users/dev") }, exists: (file) => file === second }), second);
+  const posixPath = "/usr/local/bin:/opt/rust/bin";
+  assert.equal(locateCargo({ platform: "linux", environment: { PATH: posixPath, HOME: "/home/dev" }, exists: (file) => file === "/opt/rust/bin/cargo" }), "/opt/rust/bin/cargo");
+  assert.equal(locateCargo({ platform: "darwin", environment: { PATH: posixPath, HOME: "/Users/dev" }, exists: (file) => file === "/Users/dev/.cargo/bin/cargo" }), "/Users/dev/.cargo/bin/cargo");
+});
+
+test("the Windows native build gets a short per-worktree CARGO_TARGET_DIR inside the workspace unless one is set", () => {
+  // Windows paths on purpose (win32.*), so the case runs the same on a POSIX host.
+  const workspace = win32.normalize("C:/ws/.uniwork-dev");
+  const first = win32.join(workspace, "worktrees", "dev-uniwork", "feature-UNI-940-office-parity-fu-xlsx-mdhtml");
+  const second = win32.join(workspace, "worktrees", "dev-uniwork", "feature-UNI-941-other");
+  const target = nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: {} });
+  // Inside the workspace (next to worktrees/), never a drive-root dir, short enough for MSVC MAX_PATH.
+  assert.equal(win32.dirname(target), workspace);
+  assert.match(target.slice(workspace.length + 1), /^ct-[0-9a-f]{8}$/);
+  assert.notEqual(win32.dirname(target), win32.parse(target).root);
+  assert.ok(target.length - win32.parse(target).root.length < 40, `short target dir: ${target}`);
+  // Stable per checkout, different per worktree.
+  assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: {} }), target);
+  assert.notEqual(nativeTargetDirectory({ repositoryRoot: second, platform: "win32", environment: {} }), target);
+  // A checkout outside a .uniwork-dev workspace keeps it under its own .go-tmp (still no drive root).
+  const plain = win32.normalize("C:/src/uniwork");
+  assert.equal(nativeTargetDirectory({ repositoryRoot: plain, platform: "win32", environment: {} }), win32.join(plain, ".go-tmp", "ct"));
+  // An explicit CARGO_TARGET_DIR wins; a relative one resolves against the repo root.
+  assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: { CARGO_TARGET_DIR: "D:/t940" } }), win32.normalize("D:/t940"));
+  assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "win32", environment: { CARGO_TARGET_DIR: "tgt" } }), win32.join(first, "tgt"));
+  assert.equal(nativeTargetDirectory({ repositoryRoot: first, platform: "linux", environment: {} }), null);
+  // A POSIX target with an explicit dir resolves with POSIX rules even when the host is Windows.
+  assert.equal(nativeTargetDirectory({ repositoryRoot: "/src/uniwork", platform: "linux", environment: { CARGO_TARGET_DIR: "tgt" } }), "/src/uniwork/tgt");
+});
+
+test("staging resolves a relative CARGO_TARGET_DIR against the repo root, like the native build", () => {
+  const { root, buildDir } = xlsxScratch("uniwork-xlsx-relative-target-");
+  try {
+    writeFileSync(join(buildDir, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+    mkdirSync(join(root, "tgt", "release"), { recursive: true });
+    writeFileSync(join(root, "tgt", "release", xlsxSidecarFile("win32")), "MZ-sidecar");
+    const sources = resolveXlsxAssetSources({ repositoryRoot: root, platform: "win32", environment: { CARGO_TARGET_DIR: "tgt" } });
+    assert.equal(sources.sidecar, join(root, "tgt", "release", xlsxSidecarFile("win32")));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("with cargo available the build runs build-upstream --with-native and stages gateway + sidecar", async () => {
+  const { root, buildDir, dist } = xlsxScratch("uniwork-xlsx-ensure-");
+  const calls = [];
+  try {
+    const cargo = join(root, "cargo-home", "bin", "cargo.exe");
+    const { attempt, staged } = await prepareXlsxAssets({
+      repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { Path: "/usr/bin" },
+      ensure: (options) => ensureXlsxAssets({ ...options, hostPlatform: "win32", locate: () => cargo, spawn: fakeUpstreamBuild(calls), log: () => {} }),
+    });
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].args.slice(1, 4), ["--with-native", "--out", buildDir]);
+    assert.match(calls[0].args[0].replaceAll("\\", "/"), /scripts\/office\/build-upstream\.mjs$/);
+    assert.ok(!calls[0].args.includes("--skip-install"), "a fresh scratch tree installs the upstream deps");
+    assert.equal(calls[0].options.env.CARGO_TARGET_DIR, nativeTargetDirectory({ repositoryRoot: root, platform: "win32", environment: {} }));
+    assert.notEqual(dirname(calls[0].options.env.CARGO_TARGET_DIR), parse(root).root, "never a drive-root dir");
+    assert.ok(calls[0].options.env.Path.startsWith(join(root, "cargo-home", "bin")), "cargo's dir leads the child PATH");
+    assert.equal(calls[0].options.env.PATH, undefined, "the existing PATH key is reused, not duplicated");
+    assert.equal(attempt.reason, "built");
+    assert.equal(staged.sidecar?.file.endsWith("xlsx-sidecar.exe"), true);
+    assert.ok(existsSync(join(dist, XLSX_ASSETS_DIRECTORY, "xlsx-sidecar.exe")));
+    // The staged-assets.json contract (UNI-944) is unchanged.
+    const manifest = JSON.parse(readFileSync(join(dist, XLSX_ASSETS_DIRECTORY, "staged-assets.json"), "utf8"));
+    assert.deepEqual(Object.keys(manifest), ["schemaVersion", "platform", "gateway", "sidecar", "buildRecord"]);
+    assert.equal(manifest.schemaVersion, 1);
+    assert.deepEqual(Object.keys(manifest.sidecar), ["file", "bytes", "sha256"]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("nothing is built when both assets exist, an explicit asset dir is set, the target is foreign or cargo is absent", () => {
+  const { root, buildDir } = xlsxScratch("uniwork-xlsx-ensure-skip-");
+  const calls = [];
+  const spawn = fakeUpstreamBuild(calls);
+  const run = (environment, extra = {}) => ensureXlsxAssets({ repositoryRoot: root, platform: "win32", hostPlatform: "win32", environment, locate: () => "cargo.exe", spawn, log: () => {}, ...extra });
+  try {
+    assert.equal(run({}, { locate: () => null }).reason, "no-cargo");
+    assert.equal(run({}, { hostPlatform: "linux" }).reason, "cross-platform");
+    assert.equal(run({ OFFICE_DESKTOP_XLSX_ASSETS: join(root, "elsewhere") }).reason, "explicit");
+    assert.equal(calls.length, 0);
+    writeFileSync(join(buildDir, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+    mkdirSync(join(buildDir, "native"), { recursive: true });
+    writeFileSync(join(buildDir, "native", "xlsx-sidecar.exe"), "MZ-sidecar");
+    assert.equal(run({}).reason, "present");
+    assert.equal(calls.length, 0);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("an existing upstream install is reused and a failed native build still stages the gateway", async () => {
+  const { root, buildDir, dist } = xlsxScratch("uniwork-xlsx-ensure-fail-");
+  mkdirSync(join(buildDir, "upstream", "node_modules"), { recursive: true });
+  const calls = [];
+  try {
+    const { attempt, staged } = await prepareXlsxAssets({
+      repositoryRoot: root, distDirectory: dist, platform: "win32", environment: {},
+      ensure: (options) => ensureXlsxAssets({ ...options, hostPlatform: "win32", locate: () => "cargo.exe", spawn: fakeUpstreamBuild(calls, { status: 1, sidecar: false }), log: () => {} }),
+    });
+    assert.ok(calls[0].args.includes("--skip-install"));
+    assert.equal(attempt.ok, false);
+    assert.match(attempt.reason, /build-upstream failed \(exit 1\)/);
+    assert.equal(staged.sidecar, null);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1 fails build and package with an actionable message when the sidecar would be null", async () => {
+  assert.equal(REQUIRE_SIDECAR_ENV, "OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR");
+  const { root, buildDir, dist } = xlsxScratch("uniwork-xlsx-require-");
+  writeFileSync(join(buildDir, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+  const noCargo = (options) => ensureXlsxAssets({ ...options, hostPlatform: "win32", locate: () => null, log: () => {} });
+  const required = { [REQUIRE_SIDECAR_ENV]: "1" };
+  try {
+    await assert.rejects(
+      () => prepareXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: required, ensure: noCargo }),
+      (error) => /OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1/.test(error.message) && /xlsx-sidecar\.exe/.test(error.message) && /cargo was found neither/.test(error.message) && /rustup/.test(error.message) && /build-upstream\.mjs --with-native/.test(error.message) && /OFFICE_DESKTOP_XLSX_ASSETS/.test(error.message),
+    );
+    assert.ok(!existsSync(join(dist, XLSX_ASSETS_DIRECTORY)), "the gate fails before anything is staged");
+    // The package step (build: false) applies the same gate.
+    await assert.rejects(
+      () => prepareXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: required, build: false }),
+      /desktop build step did not produce it/,
+    );
+    // Without the flag today's behaviour stands: gateway staged, sidecar null.
+    const { staged } = await prepareXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: {}, ensure: noCargo });
+    assert.equal(staged.sidecar, null);
+    // A dev build without a gateway skips staging instead of failing...
+    rmSync(join(buildDir, "dist", XLSX_GATEWAY_FILE));
+    const devBuild = await prepareXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: {}, ensure: noCargo, requireGateway: false });
+    assert.equal(devBuild.staged, null);
+    // ...but not when the sidecar is required.
+    await assert.rejects(
+      () => prepareXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: required, ensure: noCargo, requireGateway: false }),
+      /OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1/,
+    );
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("REQUIRE_XLSX_SIDECAR=1: a failed native build never stages a stale sidecar from a shared CARGO_TARGET_DIR", async () => {
+  const { root, dist } = xlsxScratch("uniwork-xlsx-stale-target-");
+  const stale = join(root, "shared-target");
+  mkdirSync(join(stale, "release"), { recursive: true });
+  writeFileSync(join(stale, "release", xlsxSidecarFile("win32")), "MZ-stale-from-another-commit");
+  const calls = [];
+  const failing = (options) => ensureXlsxAssets({ ...options, hostPlatform: "win32", locate: () => "cargo.exe", spawn: fakeUpstreamBuild(calls, { status: 1, sidecar: false }), log: () => {} });
+  try {
+    await assert.rejects(
+      () => prepareXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { [REQUIRE_SIDECAR_ENV]: "1", CARGO_TARGET_DIR: stale }, ensure: failing }),
+      (error) => /OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1/.test(error.message) && /build-upstream failed \(exit 1\)/.test(error.message),
+    );
+    assert.equal(calls.length, 1, "the native build was attempted");
+    assert.ok(!existsSync(join(dist, XLSX_ASSETS_DIRECTORY)), "nothing is staged after a failed required build");
+    // Without the flag the stale candidate still stages, but the operator is warned it is unattested.
+    const lines = [];
+    const staged = await stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { CARGO_TARGET_DIR: stale }, log: (line) => lines.push(line) });
+    assert.equal(staged.sidecar?.file.endsWith("xlsx-sidecar.exe"), true);
+    assert.ok(lines.some((line) => /not attested|no successful native build/.test(line)), `warns about provenance: ${lines.join(" | ")}`);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("REQUIRE_XLSX_SIDECAR=1 stages a sidecar only when this build's native step attests its sha256", async () => {
+  const { createHash } = await import("node:crypto");
+  const { root, buildDir, dist } = xlsxScratch("uniwork-xlsx-attested-");
+  const body = "MZ-fresh-sidecar";
+  const sha = createHash("sha256").update(body).digest("hex");
+  writeFileSync(join(buildDir, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+  mkdirSync(join(buildDir, "native"), { recursive: true });
+  writeFileSync(join(buildDir, "native", xlsxSidecarFile("win32")), body);
+  const environment = { [REQUIRE_SIDECAR_ENV]: "1" };
+  const stage = () => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment, log: () => {} });
+  const record = (native) => writeFileSync(join(buildDir, "build-record.json"), JSON.stringify({ kind: "uniwork-office-upstream-build-record", ...(native ? { native } : {}) }));
+  try {
+    // No build record at all: nothing attests the binary.
+    await assert.rejects(stage, /OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1.*provenance|provenance.*OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR=1/s);
+    // A record of a failed or absent native step attests nothing.
+    record({ status: "fail" });
+    await assert.rejects(stage, /provenance/);
+    record(undefined);
+    await assert.rejects(stage, /provenance/);
+    // A record whose native step passed and whose sha256 matches stages.
+    record({ status: "pass", binary: { path: "native/xlsx-sidecar.exe", sha256: sha } });
+    const staged = await stage();
+    assert.equal(staged.sidecar.sha256, sha);
+    // A passing record for different bytes still fails (existing mismatch check).
+    record({ status: "pass", binary: { sha256: "0".repeat(64) } });
+    await assert.rejects(stage, /sha256 mismatch/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("a sidecar built for another CPU architecture is refused under REQUIRE and warned about otherwise (UNI-953 N2)", async () => {
+  const { createHash } = await import("node:crypto");
+  const { root, buildDir, dist } = xlsxScratch("uniwork-xlsx-arch-");
+  const body = "MZ-x64-sidecar";
+  const sha = createHash("sha256").update(body).digest("hex");
+  writeFileSync(join(buildDir, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+  mkdirSync(join(buildDir, "native"), { recursive: true });
+  writeFileSync(join(buildDir, "native", xlsxSidecarFile("win32")), body);
+  const record = (native) => writeFileSync(join(buildDir, "build-record.json"), JSON.stringify({ kind: "uniwork-office-upstream-build-record", native }));
+  const stage = (arches, environment = {}, log = () => {}) => stageXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", arches, environment, log });
+  try {
+    record({ status: "pass", arch: "x64", binary: { sha256: sha } });
+    assert.equal((await stage(["x64"], { [REQUIRE_SIDECAR_ENV]: "1" })).sidecar.sha256, sha, "the matching architecture stages");
+    await assert.rejects(
+      () => stage(["x64", "arm64"], { [REQUIRE_SIDECAR_ENV]: "1" }),
+      (error) => /built for x64/.test(error.message) && /arm64/.test(error.message) && /--arch/.test(error.message),
+    );
+    // Without the flag the wrong-architecture sidecar still stages, with a warning.
+    const lines = [];
+    assert.ok((await stage(["arm64"], {}, (line) => lines.push(line))).sidecar);
+    assert.ok(lines.some((line) => /built for x64/.test(line)), `warns about the architecture: ${lines.join(" | ")}`);
+    // A record from before the architecture was recorded has nothing to compare.
+    record({ status: "pass", binary: { sha256: sha } });
+    assert.ok((await stage(["arm64"], { [REQUIRE_SIDECAR_ENV]: "1" })).sidecar);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("OFFICE_DESKTOP_SKIP_NATIVE_BUILD=1 stops the auto-build; the REQUIRE message names why and how", async () => {
+  assert.equal(SKIP_NATIVE_BUILD_ENV, "OFFICE_DESKTOP_SKIP_NATIVE_BUILD");
+  const { root, buildDir, dist } = xlsxScratch("uniwork-xlsx-skip-native-");
+  const calls = [];
+  const ensure = (environment) => ensureXlsxAssets({ repositoryRoot: root, platform: "win32", hostPlatform: "win32", environment, locate: () => "cargo.exe", spawn: fakeUpstreamBuild(calls), log: () => {} });
+  try {
+    assert.equal(ensure({ [SKIP_NATIVE_BUILD_ENV]: "1" }).reason, "skipped");
+    assert.equal(calls.length, 0, "no cargo, no npm install");
+    assert.equal(ensure({ [SKIP_NATIVE_BUILD_ENV]: "0" }).attempted, true, "only 1 opts out");
+    calls.length = 0;
+    rmSync(join(buildDir, "native"), { recursive: true, force: true });
+    await assert.rejects(
+      () => prepareXlsxAssets({ repositoryRoot: root, distDirectory: dist, platform: "win32", environment: { [SKIP_NATIVE_BUILD_ENV]: "1", [REQUIRE_SIDECAR_ENV]: "1" }, ensure: (options) => ensureXlsxAssets({ ...options, hostPlatform: "win32", locate: () => "cargo.exe", spawn: fakeUpstreamBuild(calls), log: () => {} }) }),
+      (error) => /OFFICE_DESKTOP_SKIP_NATIVE_BUILD=1/.test(error.message),
+    );
+    assert.equal(calls.length, 0);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("the missing-sidecar messages tell a failed build from a missing toolchain", async () => {
+  const { missingRequiredSidecarError } = await import(pathToFileURL(join(appDirectory, "scripts", "xlsx-assets.mjs")).href);
+  const built = missingRequiredSidecarError({ platform: "win32", attempt: { reason: "built" } }).message;
+  assert.match(built, /finished but did not produce it/);
+  assert.doesNotMatch(built, /: built\./);
+  assert.match(missingSidecarWarning({ platform: "win32", attempt: { reason: "no-cargo" } }), /Install the Rust toolchain/);
+  const failed = missingSidecarWarning({ platform: "win32", attempt: { reason: "build-upstream failed (exit 1)" } });
+  assert.match(failed, /build-upstream failed \(exit 1\)/);
+  assert.doesNotMatch(failed, /Install the Rust toolchain/, "a failed build is not fixed by installing what is already installed");
+  assert.match(missingSidecarWarning({ platform: "win32", attempt: { reason: "skipped" } }), /OFFICE_DESKTOP_SKIP_NATIVE_BUILD/);
+});
+
+test("staging finds the sidecar build-upstream copied to <out>/native", () => {
+  const { root, buildDir } = xlsxScratch("uniwork-xlsx-native-out-");
+  try {
+    writeFileSync(join(buildDir, "dist", XLSX_GATEWAY_FILE), "// gateway\n");
+    mkdirSync(join(buildDir, "native"), { recursive: true });
+    writeFileSync(join(buildDir, "native", "xlsx-sidecar"), "ELF-sidecar");
+    const sources = resolveXlsxAssetSources({ repositoryRoot: root, platform: "linux", environment: {} });
+    assert.equal(sources.sidecar, join(buildDir, "native", "xlsx-sidecar"));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

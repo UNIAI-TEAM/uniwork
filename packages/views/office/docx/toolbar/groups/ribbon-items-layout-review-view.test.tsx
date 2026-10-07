@@ -1,7 +1,7 @@
 // UNI-924 W-H: the Layout / Review / View groups now publish typed ribbon items.
 // These tests read each typed item and prove its action still runs the same
 // command the pre-typed toolbar entry ran (no command lost in the migration).
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RibbonItem } from "../../../ribbon";
 import type { DocxCommandRuntime } from "../../commands";
@@ -14,9 +14,11 @@ import { reviewCommentsRibbonItems } from "./review-comments";
 import { reviewCompareRibbonItems } from "./review-compare";
 import { reviewTrackChangesRibbonItems } from "./review-track-changes";
 import { viewNavigationRibbonItems } from "./view-navigation";
+import { createDocxDocumentScope } from "../../editor-store";
 
 function context(overrides: Partial<DocxToolbarGroupContext> = {}): DocxToolbarGroupContext {
   return {
+    docScope: createDocxDocumentScope(),
     editor: {} as DocxToolbarGroupContext["editor"],
     coordinator: {} as DocxToolbarGroupContext["coordinator"],
     format: null,
@@ -110,18 +112,25 @@ describe("View tab typed ribbon items", () => {
     fireEvent.click(screen.getByTestId("docx-navigation-ribbon-toggle"));
   });
 
-  it("runs print / HTML / PDF from the export dropdown", () => {
+  it("runs print / HTML / PDF from the export dropdown", async () => {
     const commands = {
-      printDocx: vi.fn(() => true),
+      getState: vi.fn(() => ({ docxPageSetup: null, docxHeaderFooter: null })),
+      docxPrintHeaderFooterSource: vi.fn(() => null),
+      listDocxHeaderFooterEdits: vi.fn(() => []),
+      buildDocxPrintCopy: vi.fn(() => "<html></html>"),
       downloadDocxHtml: vi.fn(() => true),
     } as unknown as DocxCommandRuntime;
-    const items = docxExportRibbonItems(context({ commands, format: { docxExportReady: true } as never }));
+    // UNI-952: Print prints the document copy through the injected port.
+    const print = vi.fn(async () => ({ outcome: "printed" as const }));
+    const items = docxExportRibbonItems(
+      context({ commands, format: { docxExportReady: true } as never, print: { port: { print }, title: "Tài liệu" } }),
+    );
     const dropdown = itemById(items, "export");
     if (dropdown.kind !== "dropdown") throw new Error("expected dropdown");
     expect(dropdown.size).toBe("large");
     dropdown.menu[0]!.onSelect();
     dropdown.menu[1]!.onSelect();
-    expect(commands.printDocx).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(print).toHaveBeenCalledWith({ html: "<html></html>", title: "Tài liệu" }));
     expect(commands.downloadDocxHtml).toHaveBeenCalledTimes(1);
     // F2: the command takes LITERAL strings, so the typed path must pass the
     // translated file name/title, not the raw i18n keys.

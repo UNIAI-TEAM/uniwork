@@ -7,6 +7,7 @@ import { CollectionPageHeader } from "@uniwork/views/layout/collection-page";
 import { desktopDocumentFormatForName, type DesktopDocumentFormat } from "../shared/document-formats";
 import type { RecentFile } from "../shared/ipc";
 import { CreateDocumentMenu } from "./create-document-menu";
+import { supportedFormatsLabel } from "./supported-formats";
 
 const HomeIcon: ComponentProps<typeof CollectionPageHeader>["icon"] = forwardRef((props, ref) => (
   <svg ref={ref} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /></svg>
@@ -37,9 +38,9 @@ export function LocalHomeView({ files, error = false, busy = false, onOpen, onCr
       <CollectionPageHeader icon={HomeIcon} title={t("title")} count={loading || error ? undefined : rows.length} countLabel={t("count", { count: rows.length })} actions={rows.length > 0 || loading || error ? actions : undefined} className="flex-wrap" />
       <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 pb-6">
         {error ? (
-          <div className="flex flex-col gap-3" role="alert">
+          <div className="flex flex-col items-start gap-3" role="alert">
             <p className="text-body text-muted-foreground">{t("error")}</p>
-            <Button type="button" variant="outline" onClick={onRetry}>{t("retry")}</Button>
+            <Button type="button" size="sm" variant="outline" onClick={onRetry}>{t("retry")}</Button>
           </div>
         ) : loading ? (
           <Skeleton className="h-24 w-full" />
@@ -47,18 +48,18 @@ export function LocalHomeView({ files, error = false, busy = false, onOpen, onCr
           <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center" role="status">
             <DocumentTypeIcon format="file" className="size-12 text-muted-foreground" />
             <h2 className="text-title font-semibold">{t("empty")}</h2>
-            <p className="max-w-sm text-body text-muted-foreground">{t("emptyDescription")}</p>
+            <p className="max-w-sm text-body text-muted-foreground">{t("emptyDescription", { formats: supportedFormatsLabel(i18n.language) })}</p>
             {actions}
           </div>
         ) : (
-          <ul aria-label={t("title")} className="flex flex-col gap-2">
+          <ul aria-label={t("title")} className="flex flex-col gap-1">
             {rows.map((file) => (
-              <li key={file.id} data-recent-file={file.id} data-missing={file.missing} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3">
-                <button type="button" className={`flex min-w-0 flex-1 items-center gap-3 rounded-control p-2 text-left enabled:hover:bg-muted ${file.missing ? "opacity-60" : ""}`} aria-label={t("openNamed", { name: file.name })} disabled={file.missing || busy} onClick={() => onOpenRecent(file.id)}>
-                  <DocumentTypeIcon format={desktopDocumentFormatForName(file.name) ?? "file"} className="size-8 shrink-0 text-primary" />
+              <li key={file.id} data-recent-file={file.id} data-missing={file.missing} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-2 py-1">
+                <button type="button" className={`flex min-w-0 flex-1 items-center gap-3 rounded-control px-2 py-1 text-left pointer-coarse:min-h-11 enabled:hover:bg-muted ${file.missing ? "opacity-60" : ""}`} aria-label={t("openNamed", { name: file.name })} disabled={file.missing || busy} onClick={() => onOpenRecent(file.id)}>
+                  <DocumentTypeIcon format={desktopDocumentFormatForName(file.name) ?? "file"} className="size-6 shrink-0 text-primary" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-body text-foreground">{file.name}</span>
-                    <span className="mt-1 block truncate text-caption text-muted-foreground">{file.directory ? `${file.directory} · ` : ""}{t("updated", { time: time(file.updatedAt) })}</span>
+                    <span className="block truncate text-caption text-muted-foreground">{file.directory ? `${file.directory} · ` : ""}{t("updated", { time: time(file.updatedAt) })}</span>
                   </span>
                 </button>
                 {file.missing ? <span className="shrink-0 text-caption text-muted-foreground">{t("missing")}</span> : null}
