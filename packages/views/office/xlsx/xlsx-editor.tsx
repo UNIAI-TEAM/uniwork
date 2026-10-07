@@ -332,6 +332,10 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   // print, protect, name and visual actions read this resolved value.
   const resolvedActiveSheet = (activeSheetId !== null ? liveSheets.find((sheet) => sheet.id === activeSheetId)?.name : undefined) ?? activeSheet;
 
+  // Charts, pictures and shapes (UNI-940 X02): the hook owns the overlay and
+  // the set_visual / remove_visual ops; see visuals/.
+  const visuals = useXlsxVisuals({ gridRef, gridReady, selection, canEdit, editor, savedGeneration: coordinatorState.lastSavedGeneration, saving: visualsFrozen(coordinatorState), gridUndos, gridDropped, snapshot, fileVisuals: rendererHost?.fileVisuals, onApplied: markDirty, onError: setRecalcError, activeSheetId, activeSheetName: resolvedActiveSheet, sheets: liveSheets.length > 0 ? liveSheets : rendererHost?.file.sheets ?? [] });
+
   // Page Setup, Print and Export CSV (C2): the hook owns the dialog state,
   // the set_page_setup op and the two host actions; see page-setup/.
   const pageSetup = useXlsxPageSetup({
@@ -343,7 +347,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     edit: editor.edit,
     getSnapshot: editor.getWorkbookSnapshot,
     onApplied: () => { markDirty(); refreshSnapshot(); },
-    onError: setRecalcError, printPort, title: effectiveTitle, getGrid: () => gridRef.current, resolveSheetId: gridSheetId,
+    onError: setRecalcError, printPort, title: effectiveTitle, getGrid: () => gridRef.current, getVisuals: () => visuals.getPrintableVisuals, resolveSheetId: gridSheetId,
   });
 
   // Sheet protection + the name manager (B7): the hook owns the dialog state
@@ -352,10 +356,6 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     activeSheet: resolvedActiveSheet, readOnly, canEdit, rendererHost, liveSheets, snapshot, edit: editor.edit,
     onApplied: () => { markDirty(); refreshSnapshot(); }, onError: setRecalcError,
   });
-
-  // Charts, pictures and shapes (UNI-940 X02): the hook owns the overlay and
-  // the set_visual / remove_visual ops; see visuals/.
-  const visuals = useXlsxVisuals({ gridRef, gridReady, selection, canEdit, editor, savedGeneration: coordinatorState.lastSavedGeneration, saving: visualsFrozen(coordinatorState), gridUndos, gridDropped, snapshot, fileVisuals: rendererHost?.fileVisuals, onApplied: markDirty, onError: setRecalcError, activeSheetId, activeSheetName: resolvedActiveSheet, sheets: liveSheets.length > 0 ? liveSheets : rendererHost?.file.sheets ?? [] });
 
   // Visual steps are not on the grid's stack; the grid keeps Ctrl+Z only during a cell edit (r3 F2).
   const { canUndo, canRedo, undo, redo } = useVisualUndo(visuals.history, { canUndo: gridCanUndo, canRedo: gridCanRedo, undo: gridUndo, redo: gridRedo, isCellEditing: visuals.isCellEditing }, { rootRef, documentKey });

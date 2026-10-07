@@ -33,7 +33,8 @@ export interface XlsxPrintableVisual {
   readonly box: XlsxVisualBox | null;
   /** null: a chart type or picture with no preview (print a frame with `title`). */
   readonly image: XlsxPrintableImage | null;
-  readonly title?: string | undefined;
+  /** The chart or picture title, else the kind (print's alt text and frame label). */
+  readonly title: string;
 }
 
 /** Sizes read from the live grid: each cell box's own width/height is
@@ -107,7 +108,7 @@ export function printableVisuals(
     order.set(visual.sheetId, zIndex + 1);
     const metrics = metricsFor(visual.sheetId);
     const box = metrics ? printBox(visual, metrics) : null;
-    const title = visual.chart?.title ?? visual.title;
+    const title = visual.chart?.title || visual.title || visualKind(visual);
     out.push({
       sheetId: visual.sheetId,
       sheetName: sheet.name,
@@ -115,8 +116,8 @@ export function printableVisuals(
       zIndex,
       anchor: visual.anchor,
       box,
-      image: printImage(visual, box, title ?? visualKind(visual)),
-      ...(title ? { title } : {}),
+      image: printImage(visual, box, title),
+      title,
     });
   }
   return out;

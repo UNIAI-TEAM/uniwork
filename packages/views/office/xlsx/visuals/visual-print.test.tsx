@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { gridSheetMetrics, printBox, printableVisuals, type XlsxPrintSheetMetrics } from "./visual-print";
 import type { XlsxEditorVisual, XlsxVisualGeometry } from "./visual-model";
+import { collectPrintPictures } from "../print/print-visuals";
 
 const ANCHOR = { fromRow: 1, fromColumn: 2, fromRowOffset: 9525 * 4, fromColumnOffset: 9525 * 10, toRow: 3, toColumn: 4, toRowOffset: 0, toColumnOffset: 9525 * 6 };
 /** Columns 64 px, rows 20 px, column 3 hidden. */
@@ -38,6 +39,22 @@ describe("printableVisuals", () => {
     const list = printableVisuals(visuals, SHEETS, (id) => (id === "s1" ? METRICS : null));
     const shape = list.find((entry) => entry.sheetId === "s2");
     expect(shape).toMatchObject({ kind: "shape", sheetName: "Report", zIndex: 0, box: null, image: { type: "svg" } });
+  });
+
+  it("feeds print's collector as its source: an untitled visual is labelled by its kind", () => {
+    const pictures = collectPrintPictures({
+      source: (sheetId, metricsFor) => printableVisuals(visuals, SHEETS, metricsFor ?? (() => METRICS), sheetId),
+      sheetIds: ["s1"],
+      columnWidth: () => 48,
+      rowHeight: () => 15,
+      // No defaultView: jsdom's getComputedStyle throws on the chart SVG's nodes.
+      document: document.implementation.createHTMLDocument(""),
+    });
+    expect(pictures.map((picture) => [picture.title, picture.src?.slice(0, 22) ?? null])).toEqual([
+      ["Doanh thu", "data:image/svg+xml;cha"],
+      ["picture", null],
+      ["picture", "data:image/png;base64,"],
+    ]);
   });
 
   it("reads 100% sizes from the live grid's cell boxes, independent of zoom", () => {
