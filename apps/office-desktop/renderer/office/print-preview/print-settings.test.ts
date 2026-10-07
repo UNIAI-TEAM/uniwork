@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { desktopPrintOptionsSchema, desktopPrintSavePdfRequestSchema } from "../../../shared/ipc-print";
-import { buildPrintOptions, buildSavePdfOptions, PAPER_IDS, paperPageSize, parseCopies, parsePageRange, resolveDestination, resolveRange, SAVE_PDF_DESTINATION } from "./print-settings";
+import { buildPrintOptions, buildSavePdfOptions, initialPrintForm, PAPER_IDS, paperPageSize, parseCopies, parsePageRange, resolveDestination, resolveRange, SAVE_PDF_DESTINATION } from "./print-settings";
 
 const A4 = { width: 210_000, height: 297_000 };
 
@@ -65,17 +65,31 @@ describe("paper sizes", () => {
 });
 
 describe("buildPrintOptions", () => {
-  const base = { landscape: false, pageSize: A4, deviceName: "Office Laser", copies: 1, range: { kind: "all" } as const, color: true, duplex: "simplex" } as const;
+  const base = { landscape: false, pageSize: A4, deviceName: "Office Laser", copies: 1, range: { kind: "all" } as const, color: "default", duplex: "default" } as const;
 
   it("names the printer, prints silently and omits pageRanges for all pages", () => {
     const options = buildPrintOptions(base);
-    expect(options).toEqual({ landscape: false, pageSize: A4, silent: true, deviceName: "Office Laser", copies: 1, color: true, duplexMode: "simplex" });
+    expect(options).toEqual({ landscape: false, pageSize: A4, silent: true, deviceName: "Office Laser", copies: 1 });
     expect("pageRanges" in options).toBe(false);
     expect(desktopPrintOptionsSchema.safeParse(options).success).toBe(true);
   });
 
+  it("leaves colour and duplex to the printer unless the user chose them", () => {
+    const untouched = buildPrintOptions(base);
+    expect("color" in untouched).toBe(false);
+    expect("duplexMode" in untouched).toBe(false);
+    expect(buildPrintOptions({ ...base, color: "color" })).toMatchObject({ color: true });
+    expect("duplexMode" in buildPrintOptions({ ...base, color: "color" })).toBe(false);
+    expect(buildPrintOptions({ ...base, duplex: "simplex" })).toMatchObject({ duplexMode: "simplex" });
+    expect("color" in buildPrintOptions({ ...base, duplex: "simplex" })).toBe(false);
+  });
+
+  it("starts the form on the printer defaults", () => {
+    expect(initialPrintForm({ landscape: false, pageSize: A4 })).toMatchObject({ color: "default", duplex: "default" });
+  });
+
   it("carries orientation, paper, copies, colour, duplex and the resolved spans", () => {
-    const options = buildPrintOptions({ ...base, landscape: true, pageSize: { width: 297_000, height: 420_000 }, copies: 12, color: false, duplex: "shortEdge", range: { kind: "ranges", ranges: [{ from: 0, to: 2 }, { from: 4, to: 4 }] } });
+    const options = buildPrintOptions({ ...base, landscape: true, pageSize: { width: 297_000, height: 420_000 }, copies: 12, color: "mono", duplex: "shortEdge", range: { kind: "ranges", ranges: [{ from: 0, to: 2 }, { from: 4, to: 4 }] } });
     expect(options).toMatchObject({ landscape: true, pageSize: { width: 297_000, height: 420_000 }, copies: 12, color: false, duplexMode: "shortEdge", pageRanges: [{ from: 0, to: 2 }, { from: 4, to: 4 }] });
     expect(desktopPrintOptionsSchema.parse(options)).toEqual(options);
   });

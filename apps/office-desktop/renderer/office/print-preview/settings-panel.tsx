@@ -7,7 +7,7 @@ import { Select } from "@uniwork/ui/components/ui/select";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DesktopPrinter } from "../../../shared/ipc";
-import { PAPER_IDS, SAVE_PDF_DESTINATION, parseCopies, type Destination, type DuplexChoice, type PaperId, type PrintForm, type RangeMode, type RangeResolution } from "./print-settings";
+import { PAPER_IDS, SAVE_PDF_DESTINATION, parseCopies, type ColorChoice, type Destination, type DuplexChoice, type PaperId, type PrintForm, type RangeMode, type RangeResolution } from "./print-settings";
 import type { PrintersState } from "./use-print-data";
 
 /** One radio with its visible text; Base UI names the radio from the wrapping label.
@@ -115,7 +115,8 @@ export function SettingsPanel({ form, onChange, printers, destination, range, pa
     </div>
 
     <Group legend={t("color")}>{(labelId) =>
-      <RadioGroup aria-labelledby={labelId} value={form.color ? "color" : "mono"} onValueChange={(value) => onChange({ color: value === "color" })}>
+      <RadioGroup aria-labelledby={labelId} value={form.color} onValueChange={(value) => onChange({ color: value as ColorChoice })}>
+        <Choice value="default" label={t("colorDefault")} disabled={!printing} />
         <Choice value="color" label={t("colorColor")} disabled={!printing} />
         <Choice value="mono" label={t("colorMono")} disabled={!printing} />
       </RadioGroup>}
@@ -124,7 +125,7 @@ export function SettingsPanel({ form, onChange, printers, destination, range, pa
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={duplexId}>{t("duplex")}</Label>
       <Select
-        items={[{ value: "simplex", label: t("duplexSimplex") }, { value: "longEdge", label: t("duplexLongEdge") }, { value: "shortEdge", label: t("duplexShortEdge") }]}
+        items={[{ value: "default", label: t("duplexDefault") }, { value: "simplex", label: t("duplexSimplex") }, { value: "longEdge", label: t("duplexLongEdge") }, { value: "shortEdge", label: t("duplexShortEdge") }]}
         value={form.duplex}
         disabled={!printing}
         onValueChange={(value) => { if (typeof value === "string") onChange({ duplex: value as DuplexChoice }); }}

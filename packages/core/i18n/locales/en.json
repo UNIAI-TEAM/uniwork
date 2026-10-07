@@ -12127,7 +12127,7 @@
   },
   "officeDesktop": {
     "print": {
-      "title": "Print “{{title}}”",
+      "title": "Print “{{title}}” – UniWork Office",
       "description": "Choose a printer and the print settings. The preview shows the pages as they will print.",
       "close": "Close",
       "settings": "Print settings",
@@ -12140,7 +12140,7 @@
       "copiesInvalid": "Enter a whole number from 1 to 999.",
       "range": "Pages",
       "rangeAll": "All pages",
-      "rangeCurrent": "Current page",
+      "rangeCurrent": "Page shown",
       "rangeCustom": "Page range",
       "rangeCustomLabel": "Pages to print",
       "rangeCustomPlaceholder": "e.g. 1-3, 5",
@@ -12161,9 +12161,11 @@
         "tabloid": "Tabloid (11 × 17 in)"
       },
       "color": "Colour",
+      "colorDefault": "Printer default",
       "colorColor": "Colour",
       "colorMono": "Black and white",
       "duplex": "Sides",
+      "duplexDefault": "Printer default",
       "duplexSimplex": "One-sided",
       "duplexLongEdge": "Two-sided, flip on long edge",
       "duplexShortEdge": "Two-sided, flip on short edge",

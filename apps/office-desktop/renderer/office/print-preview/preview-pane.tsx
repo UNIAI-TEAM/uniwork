@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -27,14 +27,20 @@ export function PreviewPane({ state, busy, geometry, current, onCurrentChange }:
   const { width, height } = geometry.pageSize;
   const aspect = geometry.landscape ? height / width : width / height;
 
+  const ready = state.phase === "ready" ? state.document : null;
+  const pageCount = ready?.pageCount ?? 0;
+  // Spoken only when a button moves the page; the visible "Page x / y" also
+  // changes on every scroll step and would otherwise be read out each time.
+  const [announcement, setAnnouncement] = useState("");
+  useEffect(() => { setAnnouncement(""); }, [ready?.id]);
+
   const go = (pageIndex: number): void => {
+    setAnnouncement(t("pageOf", { current: pageIndex + 1, total: pageCount }));
     onCurrentChange(pageIndex);
     const slot = scrollerRef.current?.querySelector<HTMLElement>(`[data-page-index="${pageIndex}"]`);
     slot?.scrollIntoView?.({ block: "nearest" });
   };
 
-  const ready = state.phase === "ready" ? state.document : null;
-  const pageCount = ready?.pageCount ?? 0;
   const showFailure = state.phase === "failed" && !busy;
   const showSpinner = !ready && !showFailure;
 
@@ -43,7 +49,8 @@ export function PreviewPane({ state, busy, geometry, current, onCurrentChange }:
       <span>{ready ? t("pageCount", { count: pageCount }) : null}</span>
       {ready ? <div className="flex items-center gap-1">
         <Button type="button" variant="ghost" size="icon-sm" aria-label={t("previousPage")} title={t("previousPage")} disabled={current <= 0} onClick={() => go(current - 1)}><Chevron direction="left" /></Button>
-        <span aria-live="polite">{t("pageOf", { current: current + 1, total: pageCount })}</span>
+        <span>{t("pageOf", { current: current + 1, total: pageCount })}</span>
+        <span className="sr-only" aria-live="polite">{announcement}</span>
         <Button type="button" variant="ghost" size="icon-sm" aria-label={t("nextPage")} title={t("nextPage")} disabled={current >= pageCount - 1} onClick={() => go(current + 1)}><Chevron direction="right" /></Button>
       </div> : null}
     </div>

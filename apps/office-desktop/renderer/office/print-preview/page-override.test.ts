@@ -33,3 +33,12 @@ describe("withChosenSheet", () => {
     expect(rules).not.toMatch(/margin|content|page:auto/);
   });
 });
+
+describe("named pages", () => {
+  it("reads page names from style elements only, never from the body text", () => {
+    const prose = copy.replace("<p>x</p>", "<p>Write @page foo { size: 1mm 1mm } in a rule</p>");
+    const rules = new DOMParser().parseFromString(withChosenSheet(prose, { ...a4, landscape: true }, a4), "text/html").head.querySelector("style[data-print-sheet]")?.textContent ?? "";
+    expect(rules).not.toContain("foo");
+    expect(rules).toContain("@page sec1{size:297mm 210mm}");
+  });
+});

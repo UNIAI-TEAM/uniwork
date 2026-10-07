@@ -12103,7 +12103,7 @@
   },
   "officeDesktop": {
     "print": {
-      "title": "In “{{title}}”",
+      "title": "In “{{title}}” – UniWork Office",
       "description": "Chọn máy in và cài đặt in. Bản xem trước cho thấy các trang đúng như khi in ra.",
       "close": "Đóng",
       "settings": "Cài đặt in",
@@ -12116,7 +12116,7 @@
       "copiesInvalid": "Nhập số nguyên từ 1 đến 999.",
       "range": "Trang in",
       "rangeAll": "Tất cả các trang",
-      "rangeCurrent": "Trang hiện tại",
+      "rangeCurrent": "Trang đang xem",
       "rangeCustom": "Phạm vi trang",
       "rangeCustomLabel": "Các trang cần in",
       "rangeCustomPlaceholder": "ví dụ 1-3, 5",
@@ -12137,9 +12137,11 @@
         "tabloid": "Tabloid (11 × 17 in)"
       },
       "color": "Màu sắc",
+      "colorDefault": "Theo máy in",
       "colorColor": "In màu",
       "colorMono": "Đen trắng",
       "duplex": "Số mặt in",
+      "duplexDefault": "Theo máy in",
       "duplexSimplex": "Một mặt",
       "duplexLongEdge": "Hai mặt, lật theo cạnh dài",
       "duplexShortEdge": "Hai mặt, lật theo cạnh ngắn",

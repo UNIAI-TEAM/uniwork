@@ -1,4 +1,4 @@
-import { desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, type DesktopIpcRequest, type DesktopPrinter, type DesktopPrintGeometry } from "../../../shared/ipc";
+import { desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, PRINT_HTML_MAX_BYTES, type DesktopIpcRequest, type DesktopPrinter, type DesktopPrintGeometry } from "../../../shared/ipc";
 import { createPdfEngineSession } from "../pdf-engine-session";
 import { withChosenSheet } from "./page-override";
 import type { PrintPreviewBridge, PrintPreviewJob } from "./types";
@@ -16,7 +16,7 @@ const SESSION_GENERATION = "desktop-dev-session";
  * dialogs (or a dialog and an open PDF tab) from replacing each other's PDF. */
 const ENGINE_HANDLE = "print-preview";
 /** Thumbnails are small: the engine scale of a point-sized page. */
-export const THUMBNAIL_SCALE = 0.6;
+const THUMBNAIL_SCALE = 0.6;
 
 export interface PreviewImage {
   readonly src: string;
@@ -67,9 +67,14 @@ export async function loadPrinters(bridge: PrintPreviewBridge): Promise<DesktopP
 
 /** Lay the copy out at `geometry` and open the resulting PDF in the engine. */
 export async function loadPreviewDocument(bridge: PrintPreviewBridge, job: PrintPreviewJob, geometry: DesktopPrintGeometry): Promise<PreviewOutcome> {
+  // The sheet override adds a few hundred bytes to a copy the port already
+  // capped, so a copy at the cap is refused here with main's own typed reason,
+  // not by the call failing validation as a generic "unavailable".
+  const html = withChosenSheet(job.html, geometry, job.geometry);
+  if (new TextEncoder().encode(html).byteLength > PRINT_HTML_MAX_BYTES) return { kind: "failed", reason: "print_preview_too_large" };
   let pdf: Uint8Array | ArrayBuffer;
   try {
-    const raw = await bridge.call("desktop:print-preview", { sessionGeneration: SESSION_GENERATION, title: job.title, html: withChosenSheet(job.html, geometry, job.geometry), options: geometry });
+    const raw = await bridge.call("desktop:print-preview", { sessionGeneration: SESSION_GENERATION, title: job.title, html, options: geometry });
     const parsed = desktopPrintPreviewResponseSchema.safeParse(raw);
     if (!parsed.success) return { kind: "failed", reason: "print_unavailable" };
     if (parsed.data.outcome === "failed") return { kind: "failed", reason: parsed.data.reason };

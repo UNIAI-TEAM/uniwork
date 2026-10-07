@@ -5,10 +5,13 @@ function sameGeometry(a: DesktopPrintGeometry, b: DesktopPrintGeometry): boolean
 }
 
 /** The named pages the copy declares (`@page sec2 { ... }`, one per DOCX
- * section or slide), each once. */
+ * section or slide), each once. Only the contents of `<style>` elements are
+ * read, so body text that happens to say "@page foo" adds nothing. */
 function namedPages(html: string): string[] {
   const names = new Set<string>();
-  for (const match of html.matchAll(/@page\s+(-?[A-Za-z_][\w-]*)/g)) if (match[1]) names.add(match[1]);
+  for (const style of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)) {
+    for (const match of (style[1] ?? "").matchAll(/@page\s+(-?[A-Za-z_][\w-]*)/g)) if (match[1]) names.add(match[1]);
+  }
   return [...names];
 }
 

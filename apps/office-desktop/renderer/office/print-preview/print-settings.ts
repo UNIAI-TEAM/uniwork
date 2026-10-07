@@ -58,7 +58,7 @@ export function parsePageRange(text: string, pageCount: number): PageRange[] | n
   return ranges;
 }
 
-export const MAX_COPIES = 999;
+const MAX_COPIES = 999;
 
 /** A whole number of copies, 1..999; null for anything else (blank, 0, 2.5, 1000). */
 export function parseCopies(text: string): number | null {
@@ -87,7 +87,10 @@ export function resolveRange(mode: RangeMode, customText: string, currentPage: n
   return { kind: "invalid", reason: parsePageRange(customText, Number.MAX_SAFE_INTEGER) ? "bounds" : "syntax" };
 }
 
-export type DuplexChoice = "simplex" | "longEdge" | "shortEdge";
+/** `default` leaves the setting to the printer's own driver defaults: the key is
+ * not sent, so a user who touches neither gets what the printer would do. */
+export type ColorChoice = "default" | "color" | "mono";
+export type DuplexChoice = "default" | "simplex" | "longEdge" | "shortEdge";
 
 export interface PrintSettingsInput {
   readonly landscape: boolean;
@@ -95,7 +98,7 @@ export interface PrintSettingsInput {
   readonly deviceName: string;
   readonly copies: number;
   readonly range: RangeResolution;
-  readonly color: boolean;
+  readonly color: ColorChoice;
   readonly duplex: DuplexChoice;
 }
 
@@ -110,8 +113,9 @@ export function buildPrintOptions(input: PrintSettingsInput): DesktopPrintOption
     silent: true,
     deviceName: input.deviceName,
     copies: input.copies,
-    color: input.color,
-    duplexMode: input.duplex,
+    // Left out unless the user chose: an explicit value would override a driver default (duplex, mono).
+    ...(input.color === "default" ? {} : { color: input.color === "color" }),
+    ...(input.duplex === "default" ? {} : { duplexMode: input.duplex }),
   };
   if (input.range.kind !== "ranges") return options;
   return { ...options, pageRanges: input.range.ranges.map((range) => ({ from: range.from, to: range.to })) };
@@ -168,11 +172,11 @@ export interface PrintForm {
   readonly customRange: string;
   readonly landscape: boolean;
   readonly paper: PaperId;
-  readonly color: boolean;
+  readonly color: ColorChoice;
   readonly duplex: DuplexChoice;
 }
 
 /** The dialog opens on the document's own orientation and paper. */
 export function initialPrintForm(geometry: DesktopPrintGeometry): PrintForm {
-  return { deviceName: "", copies: "1", rangeMode: "all", customRange: "", landscape: geometry.landscape, paper: "document", color: true, duplex: "simplex" };
+  return { deviceName: "", copies: "1", rangeMode: "all", customRange: "", landscape: geometry.landscape, paper: "document", color: "default", duplex: "default" };
 }
