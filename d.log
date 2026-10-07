@@ -1,0 +1,10 @@
+$ set -a && . ./.env && set +a && cd server && go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+=== Symbol Results ===
+
+No vulnerabilities found.
+
+Your code is affected by 0 vulnerabilities.
+This scan also found 4 vulnerabilities in packages you import and 6
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.
