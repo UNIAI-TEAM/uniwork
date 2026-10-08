@@ -2202,6 +2202,8 @@
     "empty_title": "Chưa có cuộc họp nào",
     "empty_description": "Tạo cuộc họp đầu tiên để cả nhóm cùng thấy lịch chung.",
     "meetingTitle": "Tiêu đề",
+    "project": "Dự án",
+    "projectNone": "Không thuộc dự án",
     "startsAt": "Bắt đầu",
     "endsAt": "Kết thúc",
     "join": "Vào phòng họp",

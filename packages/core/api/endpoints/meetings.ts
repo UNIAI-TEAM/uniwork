@@ -59,6 +59,8 @@ export interface CreateMeetingBody {
   timezone?: string;
   allow_join_request?: boolean;
   attendee_user_ids?: string[];
+  /** Optional project; "" on update clears it (C-11 §9.1 V2). */
+  project_id?: string;
 }
 
 export interface UpdateMeetingBody {
@@ -70,6 +72,8 @@ export interface UpdateMeetingBody {
   allow_join_request?: boolean;
   /** Minimum attendance 1–100; 0 clears it. */
   quorum_percent?: number;
+  /** Optional project; "" on update clears it (C-11 §9.1 V2). */
+  project_id?: string;
 }
 
 export interface MeetingListFilters {

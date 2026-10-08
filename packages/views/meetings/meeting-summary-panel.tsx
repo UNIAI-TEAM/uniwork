@@ -137,7 +137,7 @@ export function MeetingSummaryPanel({
   }
 
   function onCreateTasks() {
-    const items = buildSummaryTaskItems(actionItems, picked, assigneeOverrides);
+    const items = buildSummaryTaskItems(actionItems, picked, assigneeOverrides, meeting.project_id || undefined);
     if (items.length === 0) return;
     createTasks.mutate(items, {
       onSuccess: (ids) => {

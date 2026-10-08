@@ -2203,6 +2203,8 @@
     "empty_title": "No meetings yet",
     "empty_description": "Create the first meeting so the whole team sees a shared schedule.",
     "meetingTitle": "Title",
+    "project": "Project",
+    "projectNone": "No project",
     "startsAt": "Starts",
     "endsAt": "Ends",
     "join": "Join meeting",
