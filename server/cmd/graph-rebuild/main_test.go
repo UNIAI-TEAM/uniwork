@@ -14,8 +14,15 @@ import (
 
 func TestUsage(t *testing.T) {
 	for _, args := range [][]string{nil, {"--org", "o", "--all"}, {"--all", "--format", "xml"}} {
-		if err := run(context.Background(), args, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "usage") {
+		err := run(context.Background(), args, &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), "usage") {
 			t.Errorf("args %v: err = %v", args, err)
+		}
+		// --all ignores the per-organization flag: while graph is on for some
+		// organizations only, a weekly --all --verify fails on every flag-off
+		// one and an apply builds graphs the marker never refreshes.
+		if err != nil && !strings.Contains(err.Error(), "--all only once graph is enabled globally") {
+			t.Errorf("args %v: usage does not say when --all is safe: %v", args, err)
 		}
 	}
 }

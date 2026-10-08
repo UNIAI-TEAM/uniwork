@@ -3,9 +3,15 @@
 //	graph-rebuild --org <organization id> [--verify] [--format text|json]
 //	graph-rebuild --all [--verify] [--format text|json]
 //
-// --verify writes nothing and exits 1 when any drift is found. An --org id
-// that does not exist, or any positional argument, is an error. Like cmd/seed
-// and cmd/uniwork-admin it reads only DATABASE_URL.
+// --verify writes nothing and exits 1 when any drift is found. It is
+// meaningful only once graph_dirty for the organization has drained, since a
+// row still waiting for the worker reads as drift. --all ignores the
+// per-organization graph flag, so it is only for after graph is enabled
+// globally: before that, every flag-off organization reports all its sources
+// as missing, and an apply builds graphs the marker never refreshes. Until
+// then the weekly --verify runs per enabled organization with --org. An --org
+// id that does not exist, or any positional argument, is an error. Like
+// cmd/seed and cmd/uniwork-admin it reads only DATABASE_URL.
 package main
 
 import (
@@ -30,7 +36,7 @@ func main() {
 	}
 }
 
-const usage = "usage: graph-rebuild (--org <id> | --all) [--verify] [--format text|json]"
+const usage = "usage: graph-rebuild (--org <id> | --all) [--verify] [--format text|json]; --all only once graph is enabled globally, until then --org per enabled organization"
 
 func run(ctx context.Context, args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("graph-rebuild", flag.ContinueOnError)

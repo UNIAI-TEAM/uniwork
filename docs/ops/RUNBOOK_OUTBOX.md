@@ -134,6 +134,7 @@ Khi nào chạy `graph-rebuild`:
 - Sau sự cố: worker đứng lâu, flag bị tắt rồi bật lại, dữ liệu nguồn sửa tay
   trong DB.
 - Định kỳ hàng tuần với `--verify`, để bắt tên đổi mà không phát sự kiện.
+  Chạy riêng cho từng tổ chức đang bật `graph`, bằng `--org <id>`.
 
 Lệnh trong pod API (binary nằm sẵn trong image, chỉ đọc `DATABASE_URL`):
 
@@ -142,8 +143,30 @@ graph-rebuild --org <id> --verify
 ```
 
 `--verify` không ghi gì, in `drift=<n>` cho từng tổ chức và thoát 1 khi lệch.
+Kết quả chỉ có nghĩa khi `graph_dirty` của tổ chức đó đã rút hết: dòng còn chờ
+worker cũng hiện thành lệch. Chạy khi câu này trả 0:
+
+```sql
+SELECT count(*) FROM graph_dirty WHERE organization_id = '<id>';
+```
+
 Lệch thì chạy lại không có `--verify` để ghi, rồi `--verify` lần nữa phải ra
-`drift=0`. `--all` thay `--org <id>` cho mọi tổ chức.
+`drift=0`.
+
+Khi flag còn tắt toàn cục (mặc định của lát 1), tổ chức đang bật `graph` là
+tổ chức có override bật: xem ở `/admin/flags`, hoặc
+
+```sql
+SELECT scope_id FROM feature_flag_overrides
+WHERE flag_key = 'graph' AND scope_type = 'organization' AND enabled
+  AND (expires_at IS NULL OR expires_at > now());
+```
+
+`--all` thay `--org <id>` cho mọi tổ chức và không xét flag, nên chỉ dùng sau
+khi `graph` đã bật toàn cục. Trước đó, tổ chức tắt flag không có đồ thị:
+`--all --verify` đếm mọi nguồn của nó là thiếu và tuần nào cũng thoát 1, còn
+`--all` không `--verify` dựng đồ thị cho cả những tổ chức này mà marker không bao
+giờ cập nhật, nên tuần sau lại lệch.
 
 ## Bản xuất nhật ký treo
 

@@ -18,7 +18,7 @@
 
 - Lỗi do một bản ghi nguồn hỏng: sửa nguồn; dòng bẩn tự chạy lại theo lịch lùi (tối đa 5 phút).
 - Worker không chạy: khởi động lại pod API (worker chạy cùng server).
-- Tồn đọng lớn sau sự cố: `graph-rebuild --org <id>` cho tổ chức bị ảnh hưởng, rồi `graph-rebuild --org <id> --verify` phải in `drift=0`.
+- Tồn đọng lớn sau sự cố: `graph-rebuild --org <id>` cho tổ chức bị ảnh hưởng, rồi khi `graph_dirty` của tổ chức đó đã rút hết, `graph-rebuild --org <id> --verify` phải in `drift=0` (dòng còn chờ worker cũng hiện thành lệch). Không dùng `--all` khi `graph` chưa bật toàn cục: xem mục "Work Graph: dòng bẩn và rebuild" trong [RUNBOOK_OUTBOX](../ops/RUNBOOK_OUTBOX.md).
 - Tắt khẩn: đặt override global `graph=false` và gỡ override theo tổ chức; marker ngừng đánh dấu. Bật lại thì chạy rebuild cho các tổ chức đã bật.
 
 ## Leo thang
