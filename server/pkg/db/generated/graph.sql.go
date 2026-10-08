@@ -353,6 +353,49 @@ func (q *Queries) GraphListOrganizations(ctx context.Context) ([]string, error) 
 	return items, nil
 }
 
+const graphListPeersOfEdgesClosedSince = `-- name: GraphListPeersOfEdgesClosedSince :many
+SELECT DISTINCT p.node_type AS peer_type, p.source_id AS peer_source_id
+FROM graph_edges e
+JOIN graph_nodes p ON p.id = CASE WHEN e.from_node = $1::text THEN e.to_node ELSE e.from_node END
+WHERE e.organization_id = $2
+  AND (e.from_node = $1::text OR e.to_node = $1::text)
+  AND e.origin = 'SYSTEM' AND e.valid_to >= $3::timestamptz
+`
+
+type GraphListPeersOfEdgesClosedSinceParams struct {
+	NodeID         string             `json:"node_id"`
+	OrganizationID string             `json:"organization_id"`
+	Since          pgtype.Timestamptz `json:"since"`
+}
+
+type GraphListPeersOfEdgesClosedSinceRow struct {
+	PeerType     string `json:"peer_type"`
+	PeerSourceID string `json:"peer_source_id"`
+}
+
+// The other ends of the SYSTEM edges at a node that closed at or after
+// since: when a deleted node comes back, the owners of the edges its
+// deletion closed re-project to reopen them.
+func (q *Queries) GraphListPeersOfEdgesClosedSince(ctx context.Context, arg GraphListPeersOfEdgesClosedSinceParams) ([]GraphListPeersOfEdgesClosedSinceRow, error) {
+	rows, err := q.db.Query(ctx, graphListPeersOfEdgesClosedSince, arg.NodeID, arg.OrganizationID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GraphListPeersOfEdgesClosedSinceRow{}
+	for rows.Next() {
+		var i GraphListPeersOfEdgesClosedSinceRow
+		if err := rows.Scan(&i.PeerType, &i.PeerSourceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const graphLockNode = `-- name: GraphLockNode :exec
 
 SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))

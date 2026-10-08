@@ -350,3 +350,86 @@ func TestProjectKeepsAnOpenEdgeToARevivedPeer(t *testing.T) {
 		t.Fatal("the actor's node is live again")
 	}
 }
+
+// linkedThread makes a public channel with one thread linked to a new task
+// and projects them.
+func (f *fixture) linkedThread(t *testing.T, name string) (room, task string) {
+	t.Helper()
+	ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{Name: name, Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task = f.linkTask(t, ch.ID, "Bàn trong "+name)
+	f.sync(t)
+	eq(t, "linked", f.openEdges(t, graph.NodeTask, task), []string{"DISCUSSED_IN>THREAD:" + ch.ID})
+	return ch.ID, task
+}
+
+// linkTask posts a thread in room and links it to a new task.
+func (f *fixture) linkTask(t *testing.T, room, title string) string {
+	t.Helper()
+	root, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, room, service.SendChatMessageInput{Body: title})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: title})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.chat.SyncThreadTask(f.ctx, f.owner.ID, f.wsID, root.ID, service.SyncThreadTaskInput{TaskID: task.ID, Direction: "both"}); err != nil {
+		t.Fatal(err)
+	}
+	return task.ID
+}
+
+func (f *fixture) dirty(t *testing.T, ref NodeRef) bool {
+	t.Helper()
+	return f.count(t, `SELECT count(*) FROM graph_dirty WHERE organization_id = $1 AND node_type = $2 AND source_id = $3`,
+		f.orgID, string(ref.Type), ref.SourceID) == 1
+}
+
+// Deleting a node closes the edges at both ends, whoever owns them; only
+// their owners' projections reopen them. Unarchiving a channel brings its
+// THREAD back, and the tasks discussed in it must be marked to follow.
+func TestRevivedNodeMarksTheOwnersOfEdgesItsDeletionClosed(t *testing.T) {
+	f := newFixture(t)
+	room, task := f.linkedThread(t, "luu-tru")
+	if err := f.chat.ArchiveChannel(f.ctx, f.owner.ID, f.wsID, room); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	eq(t, "after archive", f.openEdges(t, graph.NodeTask, task), []string{})
+
+	if err := f.chat.UnarchiveChannel(f.ctx, f.owner.ID, f.wsID, room); err != nil {
+		t.Fatal(err)
+	}
+	f.project(t, NodeRef{Type: graph.NodeThread, SourceID: room}, outboxEvent("ev-unarchive"))
+	if !f.dirty(t, NodeRef{Type: graph.NodeTask, SourceID: task}) {
+		t.Fatal("the revived thread did not mark the task that owns its closed DISCUSSED_IN")
+	}
+	f.sync(t)
+	eq(t, "after unarchive", f.openEdges(t, graph.NodeTask, task), []string{"DISCUSSED_IN>THREAD:" + room})
+}
+
+// A node can also come back through another node's projection (resolvePeer)
+// before its own runs, which then finds it live: that revival marks the
+// owners too.
+func TestPeerRevivedByAnotherProjectionMarksTheOwnersOfItsClosedEdges(t *testing.T) {
+	f := newFixture(t)
+	room, first := f.linkedThread(t, "mo-lai")
+	if err := f.chat.ArchiveChannel(f.ctx, f.owner.ID, f.wsID, room); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	if err := f.chat.UnarchiveChannel(f.ctx, f.owner.ID, f.wsID, room); err != nil {
+		t.Fatal(err)
+	}
+	second := f.linkTask(t, room, "Việc mới trong kênh")
+	f.project(t, NodeRef{Type: graph.NodeTask, SourceID: second}, outboxEvent("ev-link-second"))
+	eq(t, "second task", f.openEdges(t, graph.NodeTask, second), []string{"DISCUSSED_IN>THREAD:" + room})
+	if !f.dirty(t, NodeRef{Type: graph.NodeTask, SourceID: first}) {
+		t.Fatal("reviving the thread through a peer did not mark the first task")
+	}
+	f.sync(t)
+	eq(t, "first task", f.openEdges(t, graph.NodeTask, first), []string{"DISCUSSED_IN>THREAD:" + room})
+}

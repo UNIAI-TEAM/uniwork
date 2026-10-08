@@ -48,6 +48,17 @@ WHERE e.organization_id = sqlc.arg(organization_id)
   AND (e.from_node = sqlc.arg(node_id)::text OR e.to_node = sqlc.arg(node_id)::text)
   AND e.origin = 'SYSTEM' AND e.valid_to IS NULL;
 
+-- name: GraphListPeersOfEdgesClosedSince :many
+-- The other ends of the SYSTEM edges at a node that closed at or after
+-- since: when a deleted node comes back, the owners of the edges its
+-- deletion closed re-project to reopen them.
+SELECT DISTINCT p.node_type AS peer_type, p.source_id AS peer_source_id
+FROM graph_edges e
+JOIN graph_nodes p ON p.id = CASE WHEN e.from_node = sqlc.arg(node_id)::text THEN e.to_node ELSE e.from_node END
+WHERE e.organization_id = sqlc.arg(organization_id)
+  AND (e.from_node = sqlc.arg(node_id)::text OR e.to_node = sqlc.arg(node_id)::text)
+  AND e.origin = 'SYSTEM' AND e.valid_to >= sqlc.arg(since)::timestamptz;
+
 -- name: GraphOpenEdge :exec
 INSERT INTO graph_edges (id, organization_id, from_node, to_node, edge_type, origin, valid_from,
                          evidence_kind, evidence_id, actor_kind, actor_id, attrs)

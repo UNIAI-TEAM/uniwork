@@ -101,6 +101,9 @@ func reconcile(ctx context.Context, q *db.Queries, org string, ref NodeRef, ev E
 			return drift, err
 		}
 		nodeID = row.ID
+		if err := markPeersOfClosedEdges(ctx, q, org, cur, ev); err != nil {
+			return drift, err
+		}
 	} else if !live {
 		drift.MissingEdges += len(want.Edges)
 		drift.MissingFacts += len(want.Facts)
@@ -320,7 +323,35 @@ func resolvePeer(ctx context.Context, q *db.Queries, org string, ref NodeRef, ev
 			return "", false, err
 		}
 	}
+	// A peer this brings back (n was a deleted row; zero when there was none)
+	// is live by the time its own projection runs, so its revival marks here.
+	if err := markPeersOfClosedEdges(ctx, q, org, n, ev); err != nil {
+		return "", false, err
+	}
 	return row.ID, true, nil
+}
+
+// markPeersOfClosedEdges runs when a deleted node (prev, as read before the
+// upsert) comes back to life: deleteNode closed the edges at both ends, and
+// only an edge's owner reopens it, so the other ends of the edges closed
+// since the deletion are marked dirty (a peer that owns none of them projects
+// to no change). Only on the outbox path: a rebuild projects every node
+// anyway.
+func markPeersOfClosedEdges(ctx context.Context, q *db.Queries, org string, prev db.GraphNode, ev EventInfo) error {
+	if !prev.DeletedAt.Valid || ev.EvidenceKind != EvidenceOutboxEvent {
+		return nil
+	}
+	rows, err := q.GraphListPeersOfEdgesClosedSince(ctx, db.GraphListPeersOfEdgesClosedSinceParams{
+		OrganizationID: org, NodeID: prev.ID, Since: prev.DeletedAt,
+	})
+	if err != nil {
+		return err
+	}
+	peers := make([]NodeRef, 0, len(rows))
+	for _, r := range rows {
+		peers = append(peers, NodeRef{Type: graph.NodeType(r.PeerType), SourceID: r.PeerSourceID})
+	}
+	return markDirty(ctx, q, org, peers, ev)
 }
 
 func upsertNode(ctx context.Context, q *db.Queries, org string, n NodeState) (db.GraphNode, error) {
