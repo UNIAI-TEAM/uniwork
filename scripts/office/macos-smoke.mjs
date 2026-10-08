@@ -107,6 +107,8 @@ async function clickPrintMenuItem(app) {
 const dialogOf = (page) => page.getByRole("dialog");
 const dialogOpens = (page, timeout) => dialogOf(page).first().waitFor({ state: "visible", timeout }).then(() => true, () => false);
 
+const dialogIsOpen = async (page) => (await dialogOf(page).count()) > 0 && await dialogOf(page).first().isVisible();
+
 async function cancelDialog(page) {
   if (!(await dialogOf(page).count())) return;
   await page.getByRole("button", { name: /^(Cancel|Hủy)$/ }).click().catch(() => undefined);
@@ -192,10 +194,12 @@ async function scenario(session, name, { keystrokes }) {
       await cancelDialog(page);
       record(`${label}: repeat menu click after a closed dialog`, modifier === "clicked" ? "PASS" : "FAIL", { result: modifier });
 
+      const closedBeforePlaywright = !(await dialogIsOpen(page));
       const playwrightKey = await (async () => { await page.keyboard.press("Meta+p"); return dialogOpens(page, 5_000); })();
-      record(`${label}: Playwright Meta+P reaches the shortcut`, playwrightKey ? "PASS" : "INFO", { opened: playwrightKey, note: "CDP key events may bypass before-input-event; informational" });
+      record(`${label}: Playwright Meta+P reaches the shortcut`, playwrightKey && closedBeforePlaywright ? "PASS" : "INFO", { opened: playwrightKey, closedBefore: closedBeforePlaywright, note: "CDP key events may bypass before-input-event; informational" });
       await cancelDialog(page);
 
+      const closedBeforeSend = !(await dialogIsOpen(page));
       const sendInput = await (async () => {
         await app.evaluate(({ BrowserWindow }) => {
           const contents = BrowserWindow.getAllWindows()[0].webContents;
@@ -204,12 +208,13 @@ async function scenario(session, name, { keystrokes }) {
         });
         return dialogOpens(page, 5_000);
       })();
-      record(`${label}: webContents.sendInputEvent Cmd+P reaches the shortcut`, sendInput ? "PASS" : "INFO", { opened: sendInput });
+      record(`${label}: webContents.sendInputEvent Cmd+P reaches the shortcut`, sendInput && closedBeforeSend ? "PASS" : "INFO", { opened: sendInput, closedBefore: closedBeforeSend });
       await cancelDialog(page);
 
+      const closedBeforeReal = !(await dialogIsOpen(page));
       const real = await realKeystroke(app, page);
       if (real.sent) await shot(page, `${name}-05-real-cmd-p`);
-      record(`${label}: real Cmd+P keystroke (System Events)`, real.sent ? (real.opened ? "PASS" : "INFO") : "INFO", { ...real, note: "recorded, not gated: a headless runner has no accessibility permission" });
+      record(`${label}: real Cmd+P keystroke (System Events)`, real.sent && real.opened && closedBeforeReal ? "PASS" : "INFO", { ...real, closedBefore: closedBeforeReal, note: "recorded, not gated: a headless runner has no accessibility permission" });
       await cancelDialog(page);
     }
   } finally {
