@@ -14,9 +14,11 @@ import { resolveLocalXlsxAssetsDir } from "./main/xlsx-engine";
 import { createLocalEngineHost } from "./main/engine-host/remote";
 import { createHttpExchangePort, createLaunchBridge } from "./main/deep-links";
 import { resolveDeploymentProfile } from "./shared/deployment";
-import { createSecureCredentialStore } from "./main/credentials/secure-store";
+import { createSecureCredentialStore, wipeDeploymentCredentials } from "./main/credentials/secure-store";
+import { createProfileImport } from "./main/deployment/import-profile";
 import { createSystemBrowserLauncher } from "./main/auth/browser";
 import { NativeLoginManager } from "./main/auth/manager";
+import { resolveProfileOutcome } from "./main/auth/no-profile";
 import { createHttpAuthTransport } from "./main/transport/auth-transport";
 import { createHttpOfficeTransport } from "./main/transport/office-transport";
 import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
@@ -72,13 +74,20 @@ async function startElectronHost(): Promise<void> {
   // Name, AppUserModelId (the installer shortcut's), About panel, dev dock icon;
   // after ready the same seam opens the window and owns theme and language.
   const desktopShell = startDesktopShell({ app, nativeTheme, BrowserWindow, platform: process.platform, iconPath: BRAND_ICON_PATH });
-  const deploymentResolution = resolveDeploymentProfile({
-    installedProfilePath: app.isPackaged ? join(process.resourcesPath, "deployment-profile.json") : undefined,
+  // A packaged app with no usable profile still starts: the auth channels
+  // answer a typed no_deployment_profile state and local files keep working.
+  const installedProfilePath = app.isPackaged ? join(process.resourcesPath, "deployment-profile.json") : undefined;
+  const resolveProfile = () => resolveDeploymentProfile({
+    installedProfilePath,
     userDataDirectory: app.getPath("userData"),
     buildChannel: DESKTOP_IDENTITY_MANIFEST.build.channel,
     env: app.isPackaged && !SMOKE_MODE ? {} : process.env,
   });
-  const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
+  const profileOutcome = resolveProfileOutcome(resolveProfile, { packaged: app.isPackaged });
+  const deploymentProfile = "profile" in profileOutcome ? profileOutcome.profile : undefined;
+  const noDeploymentProfile = "reason" in profileOutcome ? profileOutcome.reason : undefined;
+  // The reason word is a diagnostic: no path, profile field or user name.
+  if (noDeploymentProfile) process.stderr.write(`office-desktop: no deployment profile (${noDeploymentProfile})\n`);
   await app.whenReady();
   const draftKeyStore = createSafeStorageDraftKeyStore({
     userDataDirectory: app.getPath("userData"),
@@ -107,7 +116,7 @@ async function startElectronHost(): Promise<void> {
   const credentials = deploymentProfile ? createSecureCredentialStore({
     userDataDirectory: app.getPath("userData"),
     channel: DESKTOP_IDENTITY_MANIFEST.build.channel,
-    deploymentId: deploymentProfile.deploymentId,
+    profile: deploymentProfile,
     safeStorage,
   }) : undefined;
   const authManager = deploymentProfile && credentials ? new NativeLoginManager({
@@ -169,6 +178,39 @@ async function startElectronHost(): Promise<void> {
     onTimeout: (requestId) => { window.webContents.send("desktop:leave-expired", leaveExpiredEventSchema.parse({ requestId })); },
   });
   let closeApproved = false;
+  // "Choose configuration file" / "Reset connection": main owns the picker and
+  // both confirmations (default Cancel); a settled change restarts the app
+  // through the one leave dialog so unsaved local work is never dropped.
+  const deploymentImport = createProfileImport({
+    userDataDirectory: app.getPath("userData"),
+    buildChannel: DESKTOP_IDENTITY_MANIFEST.build.channel,
+    installedProfilePath,
+    isConfigured: () => { try { return !("kind" in resolveProfile()); } catch { return false; } },
+    pickFile: async () => {
+      const result = await dialog.showOpenDialog(window, { title: t("officeDesktop.native.profile.pickTitle"), defaultPath: app.getPath("downloads"), properties: ["openFile"], filters: [{ name: t("officeDesktop.native.profile.pickFilter"), extensions: ["json"] }] });
+      return result.canceled ? undefined : result.filePaths[0];
+    },
+    confirmImport: async ({ host, rawHost, deploymentId }) => (await dialog.showMessageBox(window, {
+      type: "question", title: formatWindowTitle("dialog", t("officeDesktop.native.profile.importTitle")),
+      message: t("officeDesktop.native.profile.importMessage", { host }), detail: t("officeDesktop.native.profile.importDetail", { rawHost, deploymentId }),
+      buttons: [t("officeDesktop.native.profile.cancel"), t("officeDesktop.native.profile.connect")], defaultId: 0, cancelId: 0, noLink: true,
+    })).response === 1,
+    confirmReset: async (current) => (await dialog.showMessageBox(window, {
+      type: "warning", title: formatWindowTitle("dialog", t("officeDesktop.native.profile.resetTitle")),
+      message: current ? t("officeDesktop.native.profile.resetMessage", { host: current.host }) : t("officeDesktop.native.profile.resetMessageUnknown"), detail: t(current ? "officeDesktop.native.profile.resetDetail" : "officeDesktop.native.profile.resetDetailUnknown"),
+      buttons: [t("officeDesktop.native.profile.cancel"), t("officeDesktop.native.profile.reset")], defaultId: 0, cancelId: 0, noLink: true,
+    })).response === 1,
+    wipeCredentials: (deploymentId) => wipeDeploymentCredentials({ userDataDirectory: app.getPath("userData"), channel: DESKTOP_IDENTITY_MANIFEST.build.channel, deploymentId }),
+    signOut: async () => authManager?.logout(),
+    relaunch: async () => {
+      const outcome = await leave.request("close");
+      if (!outcome.proceeded) return false;
+      closeApproved = true;
+      app.relaunch();
+      app.quit();
+      return true;
+    },
+  });
   window.on("close", (event) => {
     if (closeApproved || SMOKE_MODE) return;
     event.preventDefault();
@@ -209,6 +251,8 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: launchEvents.createDeepLinkSystem(), bridge: launchBridge },
     authManager,
+    ...(noDeploymentProfile ? { noDeploymentProfile } : {}),
+    deploymentImport,
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
     localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: engineHost.xlsx, ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: documentSession.localOpenContext, checkpoint: documentSession.localCheckpoint, onSaveConfirmed: documentSession.noteConfirmedLocalSave, onSaveAsConfirmed: documentSession.noteConfirmedLocalRebind,
       pickOpen: async () => {

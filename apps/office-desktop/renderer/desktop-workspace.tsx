@@ -7,6 +7,7 @@ import { desktopFileResponseSchema, desktopLibraryContextResponseSchema, desktop
 import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, desktopDocumentFormatForName, desktopDocumentFormatSpec, type DesktopDocumentFormat } from "../shared/document-formats";
 import type { RendererBridge } from "./app";
 import { LoginScreen } from "./login-screen";
+import type { LoginConnection } from "./connection-actions";
 import type { LoginScreenState } from "./login";
 import { LibraryHost } from "./library/host";
 import { LibraryPicker, type LibraryPickerSelection } from "./library/picker";
@@ -51,6 +52,7 @@ export interface DesktopWorkspaceProps {
   mode: "login" | "local" | "signed-in";
   metadata?: SignedInMetadata;
   loginState: LoginScreenState;
+  loginConnection?: LoginConnection;
   /** Named cause of a locked store, forwarded to the sign-in card. */
   loginLockedReason?: "keyring";
   onLoginStart: () => void;
@@ -63,7 +65,7 @@ export interface DesktopWorkspaceProps {
 /** The one window that owns document tabs in both modes. Cloud tabs belong to
  * the signed-in account; local device tabs and their protected drafts survive
  * sign-in and sign-out because this component never unmounts for a mode change. */
-export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLockedReason, onLoginStart, onLoginCancel, onUseLocal, onSignIn, onLogout }: DesktopWorkspaceProps) {
+export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginConnection, loginLockedReason, onLoginStart, onLoginCancel, onUseLocal, onSignIn, onLogout }: DesktopWorkspaceProps) {
   const { t, i18n } = useTranslation();
   const signedIn = mode === "signed-in" && Boolean(metadata);
   const tabs = useDocumentTabs(bridge);
@@ -436,7 +438,7 @@ export function DesktopWorkspace({ bridge, mode, metadata, loginState, loginLock
     {mode === "login" ? <div ref={loginCardRef} tabIndex={-1} className="relative flex h-full min-h-0 flex-col outline-none" aria-label={t("officeDesktop.login.title")}>
       <DesktopTabStrip signedOut tabs={[]} activeTabId={null} onSelect={noop} onClose={noop} onCreate={noop} onOpenLocal={noop} onSignOut={noop} />
       {alerts}
-      <LoginScreen state={loginState} lockedReason={loginLockedReason} onStart={onLoginStart} onCancel={onLoginCancel} onUseLocal={onUseLocal} />
+      <LoginScreen state={loginState} lockedReason={loginLockedReason} onStart={onLoginStart} onCancel={onLoginCancel} onUseLocal={onUseLocal} connection={loginConnection} />
       {leaveDialog}
     </div> : null}
   </>;

@@ -41,6 +41,19 @@ describe("config endpoints", () => {
     expect((await getPublicConfig()).office_deployment_id).toBe("default");
   });
 
+  it("getPublicConfig carries the server's office channel and drops a drifted one (no installer, never another channel)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_channel: "dev" }));
+    expect((await getPublicConfig()).office_channel).toBe("dev");
+    for (const drifted of ["", "nightly", 42, null, { channel: "stable" }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ flags: { a: true }, rum_sample_rate: 0.5, office_channel: drifted }));
+      const cfg = await getPublicConfig();
+      expect(cfg.office_channel).toBeUndefined();
+      expect(cfg.flags).toEqual({ a: true });
+    }
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0 }));
+    expect((await getPublicConfig()).office_channel).toBeUndefined();
+  });
+
   it("getPublicConfig leaves the deployment id undefined when the server never advertises one (fail closed)", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0 }));
     expect((await getPublicConfig()).office_deployment_id).toBeUndefined();

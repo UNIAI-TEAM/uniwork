@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Logo } from "@uniwork/ui/brand";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { LoginScreenState } from "./login";
+import { ImportProfileAction, ResetConnectionAction, type LoginConnection } from "./connection-actions";
 
 export interface LoginScreenProps {
   state: LoginScreenState;
@@ -11,6 +12,8 @@ export interface LoginScreenProps {
   onCancel: () => void;
   /** Enter the local home (open file, new document, recents) without signing in. */
   onUseLocal?: () => void;
+  /** Main-owned "choose configuration file" and "reset connection". */
+  connection?: LoginConnection;
 }
 
 const MESSAGE_KEY: Record<LoginScreenState, string> = {
@@ -22,6 +25,7 @@ const MESSAGE_KEY: Record<LoginScreenState, string> = {
   locked: "locked",
   "login-required": "required",
   expired: "expired",
+  "no-deployment-profile": "noDeploymentProfile",
 };
 
 /** The centred sign-in card shown before a workspace is reached. The desktop
@@ -29,9 +33,13 @@ const MESSAGE_KEY: Record<LoginScreenState, string> = {
  * browser, where the real credential form lives. One secondary action enters
  * the local home without any account; that home already offers Open file,
  * New document and recents, so the card does not repeat them. */
-export function LoginScreen({ state, lockedReason, onStart, onCancel, onUseLocal }: LoginScreenProps) {
+export function LoginScreen({ state, lockedReason, onStart, onCancel, onUseLocal, connection }: LoginScreenProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.login" });
   const pending = state === "pending";
+  // Without a deployment profile sign in cannot succeed, so the card offers no
+  // sign-in action and no retry: only choosing the configuration file that came
+  // with the download (main opens the picker) and the local files path remain.
+  const noProfile = state === "no-deployment-profile";
   const messageKey = state === "locked" && lockedReason === "keyring" ? "lockedKeyring" : MESSAGE_KEY[state];
   return (
     <div className="flex h-full min-h-0 items-center justify-center bg-background p-6" data-login-state={state}>
@@ -41,7 +49,12 @@ export function LoginScreen({ state, lockedReason, onStart, onCancel, onUseLocal
           <h1 className="text-title font-semibold text-foreground">{t("title")}</h1>
           <p className="text-body text-muted-foreground">{t(messageKey)}</p>
         </div>
-        {pending ? (
+        {noProfile ? (
+          <div className="flex w-full flex-col gap-3">
+            {connection?.importProfile ? <ImportProfileAction importProfile={connection.importProfile} /> : null}
+            <p className="text-caption text-muted-foreground">{t("noDeploymentProfileHint")}</p>
+          </div>
+        ) : pending ? (
           <Button variant="outline" className="w-full" onClick={onCancel}>
             {t("cancel")}
           </Button>
@@ -51,15 +64,18 @@ export function LoginScreen({ state, lockedReason, onStart, onCancel, onUseLocal
               {t("start")}
             </Button>
             <p className="text-caption text-muted-foreground">{t("startHint")}</p>
+            {connection?.resetConnection && state !== "signed-in" ? <ResetConnectionAction resetConnection={connection.resetConnection} /> : null}
           </div>
         )}
         {!pending && onUseLocal ? (
           <>
-            <div className="flex w-full items-center gap-3 text-caption text-muted-foreground" data-login-divider>
-              <span aria-hidden className="h-px flex-1 bg-border" />
-              <span>{t("or")}</span>
-              <span aria-hidden className="h-px flex-1 bg-border" />
-            </div>
+            {noProfile ? null : (
+              <div className="flex w-full items-center gap-3 text-caption text-muted-foreground" data-login-divider>
+                <span aria-hidden className="h-px flex-1 bg-border" />
+                <span>{t("or")}</span>
+                <span aria-hidden className="h-px flex-1 bg-border" />
+              </div>
+            )}
             <div className="flex w-full flex-col gap-2">
               <Button variant="outline" className="w-full" onClick={onUseLocal}>{t("useLocal")}</Button>
               <p className="text-caption text-muted-foreground">{t("localNote")}</p>

@@ -69,3 +69,10 @@ it("announces the collection count alongside its title and header actions", () =
   expect(screen.getByRole("button", { name: "Tài liệu mới" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Mở tệp trên máy" })).toBeInTheDocument();
 });
+
+it("tells the member why cloud documents cannot be opened while the server engine is down", () => {
+  const { rerender } = render(<LibraryView mode="list" documents={[row]} engineAvailable={false} />);
+  expect(screen.getByRole("status")).toHaveTextContent("Hiện chưa mở được tài liệu trên đám mây");
+  rerender(<LibraryView mode="list" documents={[row]} engineAvailable />);
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});

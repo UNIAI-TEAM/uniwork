@@ -28,14 +28,14 @@ trong `values.yaml`. Jenkins luôn build image + pin digest — **không** còn 
 **B. Origin xem trước: ĐÃ nối sẵn.** `deploy/edge/{route,certificate,apisix-tls}.yaml` có `preview.unicomhub.com`; `PREVIEW_ORIGIN` có trong `uniwork-be.env`; Secret `uniwork-preview` (khóa `PREVIEW_CAPABILITY_SECRET`) khai trong `values.yaml`. Chỉ cần tạo Secret thật.
 
 **C. Bản cài desktop: có workflow build chưa ký, DevOps vẫn tải lên và điền link.**
-`.github/workflows/office-desktop-installers.yml` (chạy tay: Run workflow, chọn `channel` `dev`/`beta`; hoặc đẩy tag `office-desktop-v<version>-<dev|beta>.<số build>`) build Windows x64 (`-setup.exe`, `.zip`) và Linux x64 (`.deb`, `.AppImage`) **chưa ký**, ghi `SHA256SUMS-<nền tảng>.txt`, gắn vào release và in dòng `OFFICE_INSTALLER_<KÊNH>_URLS=…` ở job summary. `scripts/office/installer-urls.mjs` tạo cùng giá trị đó từ thư mục file (dùng khi copy file sang host khác). macOS `.dmg` **không** có trong workflow (cần máy Mac, chạy tay `package:macos`). Chi tiết: [desktop-packaging.md](desktop-packaging.md) mục "CI installers and `OFFICE_INSTALLER_*_URLS`".
+`.github/workflows/office-desktop-installers.yml` (chạy tay: Run workflow, chọn `channel` `dev`/`beta`; hoặc đẩy tag `office-desktop-v<version>-<dev|beta>.<số build>`) build Windows x64 (`-setup.exe`, `.zip`), Linux x64 (`.deb`, `.AppImage`) và macOS arm64 (`.dmg`) **chưa ký**, ghi `SHA256SUMS-<nền tảng>.txt`. Chỉ lần chạy có publish (tag, hoặc `publish=true`) mới gắn vào release và in dòng `OFFICE_INSTALLER_<KÊNH>_URLS=…` ở job summary; lần chạy chỉ build (`publish=false`, hoặc nhánh probe `ci/office-desktop-installers-probe`) chỉ để file ở artifact, khi đó tải về và chạy `installer-urls.mjs`. macOS Intel (x64) chưa được build. Các bước vận hành đầy đủ theo thứ tự: [desktop-packaging.md](desktop-packaging.md) mục "Operator steps: distribute a desktop build through UniWork".
 
 - [x] Workflow build + SHA-256 + script tạo JSON link (không còn "CI không build").
-- [ ] Chạy workflow cho kênh `dev`/`beta` và kiểm job pass (mục XLSX sidecar bắt buộc).
-- [ ] Release/host phải tải được công khai bằng HTTPS (server không gửi thông tin đăng nhập). Repo riêng: copy file sang host HTTPS rồi chạy `installer-urls.mjs`.
+- [ ] Chạy workflow cho kênh `dev`/`beta` và kiểm job pass (mục XLSX sidecar bắt buộc). `workflow_dispatch` chỉ thấy file khi nó đã nằm trên nhánh mặc định của repo.
+- [ ] Link phải tải được công khai bằng HTTPS và trả 200 trực tiếp (server không theo redirect; link 302 của GitHub release không đủ cho route tải bundle). Repo riêng: copy file sang host HTTPS rồi chạy `installer-urls.mjs`.
 - [ ] Điền JSON vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` của BE (`deploy/app/env/uniwork-be.env`, không phải Secret), ví dụ `{"win32-x64":"https://…-setup.exe","linux-x64-deb":"https://….deb"}`, rồi khởi động lại BE. Xem `.env.example`. `uniwork-be.env` đã có sẵn ba dòng (để trống).
 - [ ] `GET /api/v1/config` trả link này (`office_installers.<kênh>` có `unsigned: true`). Để trống = web hiện "chưa có bản tải"; không thay kênh khác.
-- [ ] macOS: build trên máy Mac và thêm file vào cùng release (chưa có).
+- [x] macOS arm64 `.dmg` do workflow build (runner macOS). Intel (x64) chưa có; `darwin-x64` chưa được build.
 - [ ] Bản build **chưa ký**: có cảnh báo SmartScreen/Gatekeeper; **không** tự cập nhật. Ký mã/notarization vẫn ở backlog.
 
 ## 1. Office gồm những phần nào
@@ -188,9 +188,16 @@ Sidecar XLSX: không có biến riêng cần đặt.
 
 ### 5.2 Phát cho người dùng
 
-1. Đặt link tải vào `OFFICE_INSTALLER_DEV_URLS` / `OFFICE_INSTALLER_BETA_URLS` (chỉ HTTPS). Workflow `office-desktop-installers.yml` in sẵn giá trị này; xem mục C ở đầu file.
-2. Người dùng đăng nhập, bấm Tải trên web. Server trả gói có kèm hồ sơ deployment.
-3. Không có hồ sơ deployment thì app báo `no_deployment_profile`. Tải lại từ web.
+Tóm tắt thứ tự (chi tiết và lệnh mẫu: [desktop-packaging.md](desktop-packaging.md) mục "Operator steps"):
+
+1. Chạy workflow `office-desktop-installers.yml` cho kênh `dev` hoặc `beta`, ghi lại run id.
+2. `gh run download <run id>` ngay (artifact hết hạn), kiểm từng `SHA256SUMS-<nền tảng>.txt`.
+3. Đưa bản cài lên kho công khai (bucket chỉ chứa bản cài, đọc ẩn danh). Mỗi link phải trả 200 trực tiếp.
+4. `node scripts/office/installer-urls.mjs --channel <kênh> --base-url <base> --dir <thư mục phẳng>`, điền `OFFICE_INSTALLER_<KÊNH>_URLS` (chỉ HTTPS; `http://localhost` chỉ cho dev). Đặt bộ `DESKTOP_AUTH_*` của kênh (dev: `DESKTOP_AUTH_CLIENT_ID=uniwork-office-dev`; beta: thêm `OFFICE_DESKTOP_CHANNEL=beta`). Khởi động lại BE, rồi kiểm `GET /api/v1/config` (`office_channel`, `office_installers`).
+5. Người dùng bấm Tải trên web, giải nén cả ba tệp (bản cài, `deployment-profile.json`, `README.txt`) vào một thư mục. Windows: chạy Setup từ thư mục đó. macOS/Linux: cài và mở app; ở màn hình chưa có hồ sơ, bấm **"Chọn tệp cấu hình…"**, chọn `deployment-profile.json`, xác nhận **"Kết nối UniWork Office với <host>?"** (mặc định là Hủy).
+6. Đổi site: trên màn hình đăng nhập của hồ sơ đã nhập, bấm **"Đặt lại kết nối"** (xóa hồ sơ và phiên đăng nhập của deployment đó).
+
+Không có hồ sơ deployment thì app báo `no_deployment_profile`. Tải lại từ web (macOS/Linux: rồi chọn tệp cấu hình).
 
 ### 5.3 Người dùng sẽ thấy gì
 

@@ -88,3 +88,54 @@ func (c Config) OfficeInstallers(channel string) ([]OfficeInstaller, error) {
 	}
 	return items, nil
 }
+
+// OfficeDesktopClientID is the public desktop client that serves a channel:
+// the dev build is a separate app with its own scheme, stable and beta share one.
+func OfficeDesktopClientID(channel string) string {
+	if channel == "dev" {
+		return "uniwork-office-dev"
+	}
+	return "uniwork-office"
+}
+
+// OfficeDesktopChannel is the one desktop channel this deployment serves, the
+// single source the web reads before offering a download or a launch. The
+// configured desktop client decides it (uniwork-office-dev is dev,
+// uniwork-office is stable unless OFFICE_DESKTOP_CHANNEL=beta); an unknown
+// client serves no channel. Load has already refused a setting that
+// contradicts the client, so no other channel is ever substituted.
+func (c Config) OfficeDesktopChannel() string {
+	switch strings.TrimSpace(c.DesktopAuthClientID) {
+	case OfficeDesktopClientID("dev"):
+		return "dev"
+	case OfficeDesktopClientID("stable"):
+		if c.OfficeDesktopChannelSetting == "beta" {
+			return "beta"
+		}
+		return "stable"
+	default:
+		return ""
+	}
+}
+
+// OfficeDesktopBindingHint names the settings that bind a channel's desktop
+// client, for the operator reading a refusal or a startup error.
+func OfficeDesktopBindingHint(channel string) string {
+	client := OfficeDesktopClientID(channel)
+	return fmt.Sprintf("channel %s needs DESKTOP_AUTH_CLIENT_ID=%s, DESKTOP_AUTH_REDIRECT_URIS=%s://auth/callback and exactly one DESKTOP_AUTH_DEPLOYMENT_IDS value", channel, client, client)
+}
+
+func (c Config) validateOfficeDesktopChannel() error {
+	setting := c.OfficeDesktopChannelSetting
+	switch setting {
+	case "":
+		return nil
+	case "dev", "beta", "stable":
+	default:
+		return fmt.Errorf("OFFICE_DESKTOP_CHANNEL must be stable, beta or dev, got %q", setting)
+	}
+	if strings.TrimSpace(c.DesktopAuthClientID) != OfficeDesktopClientID(setting) {
+		return fmt.Errorf("OFFICE_DESKTOP_CHANNEL=%s does not match DESKTOP_AUTH_CLIENT_ID=%q: %s", setting, c.DesktopAuthClientID, OfficeDesktopBindingHint(setting))
+	}
+	return nil
+}

@@ -19,7 +19,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
-	for _, k := range []string{"APP_ENV", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM"} {
+	for _, k := range []string{"APP_ENV", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "OFFICE_DESKTOP_CHANNEL"} {
 		t.Setenv(k, "")
 	}
 }

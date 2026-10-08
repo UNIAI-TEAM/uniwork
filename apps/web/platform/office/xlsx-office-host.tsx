@@ -8,7 +8,7 @@ import { OfficeShell } from "@uniwork/views/office/office-shell";
 import type { Document } from "@uniwork/core/types/document";
 import { useSession } from "@uniwork/core/auth";
 import { getOfficeCapabilities } from "@uniwork/core/api/endpoints/office";
-import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
+import { useOfficeDeploymentBinding } from "./deployment-binding";
 import type { OfficeCapabilityEntry } from "@uniwork/core/office";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { OfficeEditorHost, type OfficeEditorHostProps, type OfficeFormatAdapter } from "./editor-host";
@@ -35,17 +35,8 @@ export function XlsxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement
   unavailable.current = t("office.xlsx.errors.capabilityUnavailable");
   // Undefined (never guessed) until the server advertises a binding; the
   // desktop open action fails closed on an id it was never given.
-  const [officeDeploymentId, setOfficeDeploymentId] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    let active = true;
-    void getPublicConfig(document.organization_id).then((config) => {
-      if (active) setOfficeDeploymentId(config.office_deployment_id);
-    }).catch(() => {
-      // Config unavailable: stay closed rather than guess a deployment id.
-    });
-    return () => { active = false; };
-  }, [document.organization_id]);
+  // One config read serves this host and OfficeEditorHost (channel + id).
+  const officeBinding = useOfficeDeploymentBinding(document.organization_id);
 
   useEffect(() => {
     let active = true;
@@ -112,7 +103,7 @@ export function XlsxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement
   }, [capability, scopeKey]);
 
   const adapter = loaded?.key === scopeKey && loaded.capability === capability ? loaded.adapter : undefined;
-  if (!isXlsx) return <OfficeEditorHost {...props} officeDeploymentId={officeDeploymentId} />;
+  if (!isXlsx) return <OfficeEditorHost {...props} officeBinding={officeBinding} />;
   const pending = !capability || (["available", "readonly"].includes(capability.status) && !adapter);
   const loadingView = pending ? <div className="flex min-h-64 flex-col gap-3 rounded-panel border border-border bg-background p-4" role="status" aria-live="polite" aria-busy="true">
     <p className="text-body text-muted-foreground">{t("office.xlsx.state.opening")}</p>
@@ -124,5 +115,5 @@ export function XlsxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement
   if (pending) return <div className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", props.className)} data-office-editor-host>
     <OfficeShell title={document.title} breadcrumbs={props.breadcrumbs} editor={loadingView} editorReady={false} className="min-h-[20rem]" />
   </div>;
-  return <OfficeEditorHost<XlsxWorkbookSnapshot> {...(props as OfficeEditorHostProps<XlsxWorkbookSnapshot>)} officeDeploymentId={officeDeploymentId} formatAdapter={adapter} capability={capability ?? undefined} />;
+  return <OfficeEditorHost<XlsxWorkbookSnapshot> {...(props as OfficeEditorHostProps<XlsxWorkbookSnapshot>)} officeBinding={officeBinding} formatAdapter={adapter} capability={capability ?? undefined} />;
 }

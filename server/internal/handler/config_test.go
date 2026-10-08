@@ -67,6 +67,36 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 	}
 }
 
+// The web asks the deployment's own channel for its installer; the server
+// decides it from the desktop client it binds, never from which channel
+// happens to have installers.
+func TestConfigPublishesOfficeChannel(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  config.Config
+		want string
+	}{
+		{"dev client", config.Config{DesktopAuthClientID: "uniwork-office-dev", OfficeInstallerStableURLs: `{"win32-x64":"https://downloads.test/stable.exe"}`}, "dev"},
+		{"stable client", config.Config{DesktopAuthClientID: "uniwork-office", OfficeInstallerDevURLs: `{"win32-x64":"https://downloads.test/dev.exe"}`}, "stable"},
+		{"beta setting", config.Config{DesktopAuthClientID: "uniwork-office", OfficeDesktopChannelSetting: "beta"}, "beta"},
+		{"unknown client", config.Config{DesktopAuthClientID: "other"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			New(Deps{Cfg: tc.cfg, Log: slog.Default()}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/config", nil))
+			var out struct {
+				OfficeChannel *string `json:"office_channel"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+				t.Fatal(err)
+			}
+			if rec.Code != http.StatusOK || out.OfficeChannel == nil || *out.OfficeChannel != tc.want {
+				t.Fatalf("status %d office_channel = %v, want %q", rec.Code, out.OfficeChannel, tc.want)
+			}
+		})
+	}
+}
+
 func TestConfigPublishesOfficeInstallers(t *testing.T) {
 	for _, tc := range []struct {
 		name string

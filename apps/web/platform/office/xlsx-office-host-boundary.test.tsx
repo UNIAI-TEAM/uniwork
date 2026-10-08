@@ -5,10 +5,10 @@ import type { Document } from "@uniwork/core/types/document";
 import type { OfficeCapabilityEntry } from "@uniwork/core/office";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 
-const mocks = vi.hoisted(() => ({ capabilities: vi.fn(), adapter: vi.fn(), checkpoint: vi.fn(), save: vi.fn() }));
+const mocks = vi.hoisted(() => ({ capabilities: vi.fn(), adapter: vi.fn(), checkpoint: vi.fn(), save: vi.fn(), config: vi.fn() }));
 vi.mock("@uniwork/core/auth", () => ({ useSession: () => ({ user: { id: "account" } }) }));
 vi.mock("@uniwork/core/api/endpoints/office", () => ({ getOfficeCapabilities: mocks.capabilities }));
-vi.mock("@uniwork/core/api/endpoints/config", () => ({ getPublicConfig: async () => ({}) }));
+vi.mock("@uniwork/core/api/endpoints/config", () => ({ getPublicConfig: mocks.config }));
 vi.mock("./xlsx-runtime", () => ({ createWebXlsxSessionRuntime: () => ({}) }));
 vi.mock("./xlsx-adapter", () => ({ createXlsxFormatAdapter: mocks.adapter, createXlsxDocumentsTransport: () => ({}) }));
 // The real OfficeEditorHost and OfficeShell must remain in this regression.
@@ -24,6 +24,7 @@ initI18n();
 beforeEach(async () => {
   await setLocale("en");
   vi.resetAllMocks();
+  mocks.config.mockResolvedValue({ office_deployment_id: "deployment", office_channel: "dev" });
   mocks.adapter.mockImplementation(({ capability }: { capability: OfficeCapabilityEntry }) => ({ capability,
     editorView: createElement("div", { role: "grid", tabIndex: 0 }),
     session: {
@@ -58,6 +59,12 @@ describe("XLSX loading/readonly composition across the real Shared host", () => 
     expect(mocks.save).not.toHaveBeenCalled();
     expect(mocks.checkpoint).not.toHaveBeenCalled();
     observer.disconnect();
+  });
+  it("reads GET /api/v1/config once for the format host and the shared host together", async () => {
+    mocks.capabilities.mockResolvedValue(capabilities);
+    await render();
+    expect(container.querySelector('[role="grid"]')).toBeTruthy();
+    expect(mocks.config).toHaveBeenCalledTimes(1);
   });
   it.each([null, { ...capabilities, documentId: "other" }, { ...capabilities, operations: [] }])("keeps actual unavailable responses refused", async value => {
     mocks.capabilities.mockResolvedValue(value);

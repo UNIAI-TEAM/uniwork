@@ -1,0 +1,176 @@
+# UNI-961 / UNI-966 macOS smoke on a GitHub-hosted macOS 14 (Apple Silicon) runner.
+#
+# profile (UNI-966, the default): builds the UNSIGNED darwin-arm64 dmg from the
+# dispatched commit (channel dev, xlsx sidecar NOT required: this smoke never saves a
+# formula workbook), runs the server's own bundle code on it
+# (server/internal/service TestOfficeDesktopBundleWriteFixture) to write the
+# bundle.zip a browser download receives - dmg + deployment-profile.json with a
+# stub https origin + README - and uploads it as the `office-desktop-bundle`
+# artifact (no release, no asset, no secret). scripts/office/macos-profile-smoke.mjs
+# then unzips it with ditto, quarantines both files, mounts the dmg, installs the
+# app, imports the profile through the no-profile card, restarts, and proves
+# auth-config, diagnostics and Sign in all point at the stub origin.
+#
+# print (UNI-961): smokes the dmg of an installers run (installer_run_id) with
+# scripts/office/macos-smoke.mjs: File > Print, the in-app print dialog, Save as PDF.
+#
+# Manual dispatch only; never a merge gate. Profile mode was proven green on
+# run 37726314116 (19/19, pushed from the lane branch feature/UNI-966-office-w4-desktop-dist
+# while that branch still carried a push trigger); dispatch it again on the branch to re-run.
+# Not covered: Gatekeeper on a user download (Playwright execs the binary in
+# place), signing and notarization (certificates are parked backlog).
+name: Office desktop macOS smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: profile (build from this commit, bundle, import) or print (an installers run's dmg)
+        type: choice
+        options: [profile, print]
+        default: profile
+      installer_run_id:
+        description: print mode only - installers workflow run whose office-desktop-darwin-arm64 artifact is smoked
+        default: "37652934657"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read # print mode downloads an artifact of another workflow run
+
+env:
+  NODE_VERSION: "22"
+  GO_VERSION: "1.27.0"
+  MODE: ${{ inputs.mode || 'profile' }}
+  INSTALLER_RUN_ID: ${{ inputs.installer_run_id || '37652934657' }}
+  STUB_HOST: uniwork-smoke.example.test
+  STUB_ORIGIN: https://uniwork-smoke.example.test:8443
+
+jobs:
+  smoke:
+    runs-on: macos-14
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      UNIWORK_OFFICE_CHANNEL: dev
+      UNIWORK_OFFICE_BUILD_NUMBER: ${{ github.run_number }}
+      OFFICE_DESKTOP_OUTPUT: ${{ github.workspace }}/.office-out
+      OFFICE_DESKTOP_SKIP_NATIVE_BUILD: "1"
+      OFFICE_DESKTOP_REQUIRE_XLSX_SIDECAR: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: mkdir -p evidence
+
+      # ---- profile mode: build, bundle, import.
+      - if: env.MODE == 'profile'
+        run: pnpm install --frozen-lockfile
+      - if: env.MODE == 'profile'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+      - name: Build the unsigned darwin-arm64 dmg from this commit (no xlsx sidecar)
+        if: env.MODE == 'profile'
+        run: |
+          set -euo pipefail
+          node scripts/office/build-upstream.mjs --out .go-tmp/office-upstream-build
+          pnpm --filter @uniwork/office-desktop package --arch arm64
+          dmg="$(ls "$OFFICE_DESKTOP_OUTPUT"/*_unsigned_*.dmg)"
+          shasum -a 256 "$dmg" | tee evidence/dmg-sha256.txt
+          echo "OFFICE_DMG=$dmg" >> "$GITHUB_ENV"
+      - name: Write bundle.zip with the server's own bundle code
+        if: env.MODE == 'profile'
+        working-directory: server
+        run: |
+          set -euo pipefail
+          OFFICE_BUNDLE_INSTALLER="$OFFICE_DMG" OFFICE_BUNDLE_OUT="$GITHUB_WORKSPACE/bundle/bundle.zip" OFFICE_BUNDLE_ORIGIN="$STUB_ORIGIN" \
+            bash -c 'mkdir -p "$(dirname "$OFFICE_BUNDLE_OUT")" && go test ./internal/service -run "^TestOfficeDesktopBundleWriteFixture$" -count=1 -v' | tee ../evidence/bundle-go-test.log
+          cd "$GITHUB_WORKSPACE/bundle"
+          shasum -a 256 bundle.zip | tee "$GITHUB_WORKSPACE/evidence/bundle-sha256.txt"
+          unzip -l bundle.zip | tee "$GITHUB_WORKSPACE/evidence/bundle-entries.txt"
+          unzip -p bundle.zip deployment-profile.json | tee "$GITHUB_WORKSPACE/evidence/bundle-profile.json"
+      - uses: actions/upload-artifact@v4
+        if: env.MODE == 'profile'
+        with:
+          name: office-desktop-bundle
+          path: bundle/bundle.zip
+          if-no-files-found: error
+          retention-days: 7
+      - name: Stub origin - hosts entry and a self-signed certificate
+        if: env.MODE == 'profile'
+        run: |
+          set -euo pipefail
+          echo "127.0.0.1 $STUB_HOST" | sudo tee -a /etc/hosts
+          mkdir -p stub
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=$STUB_HOST" \
+            -addext "subjectAltName=DNS:$STUB_HOST" -keyout stub/key.pem -out stub/cert.pem
+      - name: Install from the bundle and import the profile
+        if: env.MODE == 'profile'
+        run: |
+          set -euo pipefail
+          node scripts/office/macos-profile-smoke.mjs --bundle bundle/bundle.zip --out "$PWD/evidence/run" \
+            --cert stub/cert.pem --key stub/key.pem 2>&1 | tee evidence/smoke.log
+
+      # ---- print mode: the UNI-961 smoke of an installers run's dmg.
+      - if: env.MODE == 'print'
+        run: pnpm install --frozen-lockfile --filter ./e2e
+      - uses: actions/download-artifact@v4
+        if: env.MODE == 'print'
+        with:
+          name: office-desktop-darwin-arm64
+          path: installer
+          repository: ${{ github.repository }}
+          run-id: ${{ env.INSTALLER_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Mount the dmg and copy the app out
+        if: env.MODE == 'print'
+        run: |
+          set -euo pipefail
+          ls -l installer | tee evidence/installer-files.txt
+          (cd installer && shasum -a 256 -c SHA256SUMS-darwin-arm64.txt) | tee evidence/sha256-check.txt
+          mkdir -p work
+          dmg="$(ls installer/*.dmg)"
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint /tmp/office-dmg | tee evidence/hdiutil-attach.txt
+          bundles=(/tmp/office-dmg/*.app)
+          [ -d "${bundles[0]}" ] || { echo "::error::no .app inside the dmg"; exit 1; }
+          ditto "${bundles[0]}" "work/$(basename "${bundles[0]}")"
+          hdiutil detach /tmp/office-dmg
+          app="$(ls -d work/*.app)"
+          echo "OFFICE_APP=$PWD/$app" >> "$GITHUB_ENV"
+      - name: Launch the app and drive Print
+        if: env.MODE == 'print'
+        run: |
+          set -euo pipefail
+          node scripts/office/macos-smoke.mjs --app "$OFFICE_APP" --out "$PWD/evidence/run" \
+            --docx "$PWD/docs/office/g0/fixtures/files/docs/docx-simple.docx" \
+            --xlsx "$PWD/packages/office-engine/test/fixtures/xlsx-visuals/xlsx-excel-visuals.xlsx" 2>&1 | tee evidence/smoke.log
+      - name: Render the saved PDFs to PNG (best effort)
+        if: always() && env.MODE == 'print'
+        run: |
+          for pdf in evidence/run/*.pdf; do
+            [ -f "$pdf" ] || continue
+            sips -s format png "$pdf" --out "${pdf%.pdf}-page1.png" || true
+          done
+
+      - name: Runner facts
+        if: always()
+        run: |
+          { sw_vers; uname -m; node --version; } > evidence/runner.txt 2>&1 || true
+          rm -rf evidence/run/work
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-smoke-evidence
+          path: evidence
+          if-no-files-found: error
+          retention-days: 14

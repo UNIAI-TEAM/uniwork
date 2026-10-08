@@ -59,12 +59,12 @@ describe("OfficeInstallPrompt", () => {
   it("shows a supported OS with no channel artifact as an unavailable selectable card", () => {
     render(<OfficeInstallPrompt {...props({ installers: [option("win32-x64")], platformHint: { platform: "darwin-arm64", confidence: "uncertain" } })} />);
     expect(screen.getByRole("radio", { name: "macOS" })).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByText("No macOS build in this channel yet.")).toBeInTheDocument();
+    expect(screen.getByText("No macOS installer is available yet.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Download for macOS" })).toBeDisabled();
     fireEvent.click(screen.getByRole("radio", { name: "Windows" }));
     expect(screen.getByRole("button", { name: "Download for Windows" })).not.toBeDisabled();
     fireEvent.click(screen.getByRole("radio", { name: "macOS" }));
-    expect(screen.getByText("No macOS build in this channel yet.")).toBeInTheDocument();
+    expect(screen.getByText("No macOS installer is available yet.")).toBeInTheDocument();
   });
   it("changes cards and chips with supported data and keeps a single chip visible", () => {
     const p = props({ installers: [option("linux-x64-appimage")], supportedPlatforms: ["linux-x64-appimage"] });
@@ -78,12 +78,23 @@ describe("OfficeInstallPrompt", () => {
     const p = props({ channel: "stable", installers: [...DESKTOP_PLATFORMS.map(option), { ...option("win32-x64"), platform: "unknown" } as unknown as OfficeInstallerOption], reason: "error" });
     const view = render(<OfficeInstallPrompt {...p} />);
     expect(screen.getByText("Install link unavailable")).toBeInTheDocument();
+    // A status line, not a bordered field-like box.
+    expect(screen.getByText("Install link unavailable").closest("[data-slot=alert]")).toBeNull();
+    expect(screen.getByText("Install link unavailable")).toHaveAttribute("role", "status");
     expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open again" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Not now" })).toHaveFocus());
     view.rerender(<OfficeInstallPrompt {...p} reason="download" />);
-    expect(screen.getByText("This channel has no installer yet. Try again later.")).toBeInTheDocument();
+    expect(screen.getByText("The desktop installer isn't available yet. Try again later.")).toBeInTheDocument();
     expect(screen.queryByText("Choose the operating system and format that fits your computer.")).not.toBeInTheDocument();
+  });
+  it("keeps the download live region rendered, collapsed not display:none, so the later text is announced", () => {
+    render(<OfficeInstallPrompt {...props()} />);
+    const region = document.querySelector<HTMLElement>('p[role="status"]');
+    expect(region).not.toBeNull();
+    expect(region).toBeEmptyDOMElement();
+    expect(region!.className).toContain("empty:sr-only");
+    expect(region!.className).not.toContain("empty:hidden");
   });
   it("locks both groups while downloading, reports success and opens the instructions", async () => {
     let finish!: () => void;
@@ -96,6 +107,10 @@ describe("OfficeInstallPrompt", () => {
     finish();
     await screen.findByText(/Download started:/);
     expect(screen.getByText("UniWork-Office.zip")).toBeInTheDocument();
+    // The note takes its own row above the buttons instead of wrapping beside them.
+    const note = screen.getByText(/Download started:/);
+    expect(note.querySelector("button")).toBeNull();
+    expect(note.nextElementSibling).toContainElement(screen.getByRole("button", { name: "Not now" }));
     expect(screen.getByRole("button", { name: "After downloading" })).toHaveAttribute("aria-expanded", "true");
   });
   it("keeps the selected artifact on download failure and retries it", async () => {

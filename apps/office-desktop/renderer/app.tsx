@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, localStateResponseSchema } from "../shared/ipc";
+import { desktopAuthConfigResponseSchema, desktopDeploymentImportResponseSchema, desktopDeploymentResetResponseSchema, desktopNoDeploymentProfileSchema, desktopSessionMetadataSchema, localStateResponseSchema } from "../shared/ipc";
 import type { DesktopIpcChannel, DesktopIpcRequest, DesktopSessionMetadata } from "../shared/ipc";
 import { createLoginController, loginStateFromMetadata, type LoginScreenState } from "./login";
 import { DesktopWorkspace, type SignedInMetadata } from "./desktop-workspace";
+import type { LoginConnection } from "./connection-actions";
 
 const SESSION_GENERATION = "desktop-dev-session";
 export type RendererBridge = Readonly<{
@@ -18,7 +19,8 @@ export type RendererBridge = Readonly<{
   onLoginRequested?(listener: (event: { reason: "signed_out" | "deployment_mismatch" | "account_mismatch" }) => void): () => void;
 }>;
 function isSessionMetadata(value: unknown): value is DesktopSessionMetadata { return desktopSessionMetadataSchema.safeParse(value).success; }
-function isAuthConfig(value: unknown): value is { clientId: string; deploymentId: string } { return desktopAuthConfigResponseSchema.safeParse(value).success; }
+function isAuthConfig(value: unknown): value is { clientId: string; deploymentId: string; resettable?: boolean } { return desktopAuthConfigResponseSchema.safeParse(value).success; }
+function isNoDeploymentProfile(value: unknown): value is { importable?: boolean } { return desktopNoDeploymentProfileSchema.safeParse(value).success; }
 function requestedLocalState(value: unknown): boolean { const parsed = localStateResponseSchema.safeParse(value); return parsed.success && parsed.data.localMode; }
 
 /** Top-level renderer app. The host reports a session and a per-device mode
@@ -31,6 +33,12 @@ export function App({ bridge }: { bridge: RendererBridge }) {
   const [localMode, setLocalMode] = useState(false);
   const [loginPrompt, setLoginPrompt] = useState(false);
   const [booted, setBooted] = useState(false);
+  // Main answered the auth channels with no_deployment_profile: sign in cannot
+  // succeed on this install, so the card shows its own state and never a retry.
+  const [noProfile, setNoProfile] = useState(false);
+  const [importable, setImportable] = useState(true);
+  // The profile in use was imported by the user, so the card may offer a reset.
+  const [resettable, setResettable] = useState(false);
   const controllerRef = useRef<ReturnType<typeof createLoginController> | undefined>(undefined);
   const metadataRef = useRef<DesktopSessionMetadata | undefined>(undefined);
 
@@ -65,8 +73,15 @@ export function App({ bridge }: { bridge: RendererBridge }) {
         bridge.call("desktop:local-state", { sessionGeneration: SESSION_GENERATION }),
       ]);
       setLocalMode(local.status === "fulfilled" ? requestedLocalState(local.value) : false);
+      if (config.status === "fulfilled" && isNoDeploymentProfile(config.value)) {
+        setNoProfile(true);
+        setImportable(config.value.importable !== false);
+        setBooted(true);
+        return;
+      }
       if (config.status === "fulfilled" && isAuthConfig(config.value)) {
         controllerRef.current = createLoginController(bridge, SESSION_GENERATION, config.value.clientId, config.value.deploymentId);
+        setResettable(config.value.resettable === true);
         unsubscribeController = controllerRef.current.subscribe(setState);
         if (session.status === "fulfilled" && isSessionMetadata(session.value)) {
           metadataRef.current = session.value;
@@ -88,6 +103,19 @@ export function App({ bridge }: { bridge: RendererBridge }) {
     void bridge.call("desktop:local-mode", { sessionGeneration: SESSION_GENERATION, local: true }).catch(() => undefined);
   };
   const signedIn = state === "signed-in" && metadata?.status === "signed-in" && Boolean(metadata.accountId) && Boolean(metadata.deploymentId);
+  const loginState: LoginScreenState = noProfile ? "no-deployment-profile" : state;
+  // Main runs the picker and the confirmation; an unexpected answer reads as a
+  // failure, never as success.
+  const loginConnection: LoginConnection = {
+    ...(noProfile && importable ? { importProfile: async () => {
+      const parsed = desktopDeploymentImportResponseSchema.safeParse(await bridge.call("desktop:deployment-import", { sessionGeneration: SESSION_GENERATION }));
+      return parsed.success ? parsed.data.status : "unavailable";
+    } } : {}),
+    ...(resettable && !noProfile ? { resetConnection: async () => {
+      const parsed = desktopDeploymentResetResponseSchema.safeParse(await bridge.call("desktop:deployment-reset", { sessionGeneration: SESSION_GENERATION }));
+      return parsed.success ? parsed.data.status : "unavailable";
+    } } : {}),
+  };
   const mode = signedIn ? "signed-in" : localMode && !loginPrompt ? "local" : "login";
   // No card before the init triplet settles: a remembered-local device must
   // not flash the sign-in card before the local home.
@@ -97,11 +125,13 @@ export function App({ bridge }: { bridge: RendererBridge }) {
       bridge={bridge}
       mode={mode}
       metadata={signedIn ? (metadata as SignedInMetadata) : undefined}
-      loginState={state}
+      loginState={loginState}
+      loginConnection={loginConnection}
       loginLockedReason={metadata?.lockedReason}
       onLoginStart={() => {
         // Without a resolved auth binding the flow cannot start: surface the
         // error state instead of a silent no-op.
+        if (noProfile) return;
         if (!controllerRef.current) { setState("error"); return; }
         setState("pending");
         void controllerRef.current.start().then(setState);

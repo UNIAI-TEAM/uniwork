@@ -4,6 +4,7 @@ import { parseWithFallback } from "../schema";
 import type { CapabilityState } from "../../capabilities/types";
 import { officeInstallerOptions } from "./office-desktop";
 import type { OfficeInstallerOption } from "../../office/desktop-platform";
+import type { OfficeChannel } from "../../office/desktop-handoff";
 
 /**
  * GET /api/v1/config (F-11): the public feature flags for the caller's
@@ -39,6 +40,8 @@ const ConfigSchema = z.object({
   office_installer_urls: OfficeInstallerURLsSchema.optional(),
   office_installers: InstallerChannelsSchema.optional(),
   office_deployment_id: z.string().trim().min(1).optional(),
+  // Lenient on the wire; anything but a known channel reads as "none".
+  office_channel: z.string().optional().catch(undefined),
 });
 
 export interface PublicConfig {
@@ -49,6 +52,10 @@ export interface PublicConfig {
   office_installers?: { dev: OfficeInstallerOption[]; beta: OfficeInstallerOption[]; stable: OfficeInstallerOption[] };
   /** Server-selected deployment binding for Office launch tickets. */
   office_deployment_id?: string;
+  /** The deployment's own desktop channel, decided by the server. Undefined
+   * means the server named none: the web offers no installer rather than
+   * asking another channel. */
+  office_channel?: OfficeChannel;
 }
 
 // No guessed fallback here: an id the server never advertised must leave the
@@ -58,7 +65,8 @@ const EMPTY: PublicConfig = {
   office_installers: { dev: [], beta: [], stable: [] },
 };
 
-type WireConfig = Omit<PublicConfig, "office_installers"> & {
+type WireConfig = Omit<PublicConfig, "office_installers" | "office_channel"> & {
+  office_channel?: string;
   office_installer_urls?: z.infer<typeof OfficeInstallerURLsSchema>;
   office_installers?: z.infer<typeof InstallerChannelsSchema>;
 };
@@ -82,7 +90,12 @@ export async function getPublicConfig(organizationId?: string): Promise<PublicCo
     work_management_capabilities: parsed.work_management_capabilities,
     office_installers: channels,
     office_deployment_id: parsed.office_deployment_id,
+    office_channel: officeChannel(parsed.office_channel),
   };
+}
+
+function officeChannel(value: string | undefined): OfficeChannel | undefined {
+  return value === "dev" || value === "beta" || value === "stable" ? value : undefined;
 }
 
 export type WebVitalName = "lcp" | "inp" | "cls" | "ttfb";

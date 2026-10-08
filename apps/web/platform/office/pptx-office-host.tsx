@@ -16,7 +16,7 @@ import { OfficeShell } from "@uniwork/views/office/office-shell";
 import type { Document } from "@uniwork/core/types/document";
 import { useSession } from "@uniwork/core/auth";
 import { getOfficeCapabilities, type OfficeCapabilities } from "@uniwork/core/api/endpoints/office";
-import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
+import { useOfficeDeploymentBinding } from "./deployment-binding";
 import type { OfficeCapabilityEntry } from "@uniwork/core/office";
 import { OfficeEditorHost, type OfficeEditorHostProps } from "./editor-host";
 import { createPptxDocumentsTransport } from "./pptx-save-transport";
@@ -47,22 +47,13 @@ export function PptxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement
   const [negotiated, setNegotiated] = useState<{ key: string; entry: OfficeCapabilityEntry } | null>(null);
   const [loaded, setLoaded] = useState<{ key: string; capability: OfficeCapabilityEntry; adapter?: PptxFormatAdapter } | null>(null);
   // Undefined (never guessed) until the server advertises a binding; the
-  // desktop open action fails closed on an id it was never given.
-  const [officeDeploymentId, setOfficeDeploymentId] = useState<string | undefined>(undefined);
+  // desktop open action fails closed on an id it was never given. One config
+  // read serves this host and OfficeEditorHost (channel + id).
+  const officeBinding = useOfficeDeploymentBinding(document.organization_id);
   const sessionInput = useRef({ document, accountId, readonly, wsId });
   sessionInput.current = { document, accountId, readonly, wsId };
   const unavailable = useRef(t("office.pptx.errors.capabilityUnavailable"));
   unavailable.current = t("office.pptx.errors.capabilityUnavailable");
-
-  useEffect(() => {
-    let active = true;
-    void getPublicConfig(document.organization_id).then((config) => {
-      if (active) setOfficeDeploymentId(config.office_deployment_id);
-    }).catch(() => {
-      // Config unavailable: stay closed rather than guess a deployment id.
-    });
-    return () => { active = false; };
-  }, [document.organization_id]);
 
   useEffect(() => {
     if (!isPptx) {
@@ -142,7 +133,7 @@ export function PptxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement
     return () => { active = false; void adapter?.session.dispose(); };
   }, [negotiated, scopeKey]);
 
-  if (!isPptx) return <OfficeEditorHost {...props} officeDeploymentId={officeDeploymentId} />;
+  if (!isPptx) return <OfficeEditorHost {...props} officeBinding={officeBinding} />;
 
   const capability = negotiated?.key === scopeKey ? negotiated.entry : null;
   const current = loaded?.key === scopeKey ? loaded : null;
@@ -166,7 +157,7 @@ export function PptxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement
   return (
     <OfficeEditorHost<PptxDeckSnapshot>
       {...(props as OfficeEditorHostProps<PptxDeckSnapshot>)}
-      officeDeploymentId={officeDeploymentId}
+      officeBinding={officeBinding}
       formatAdapter={current?.adapter}
       capability={current?.capability ?? capability ?? undefined}
     />

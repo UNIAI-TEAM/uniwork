@@ -16,6 +16,22 @@ import (
 
 const desktopInstallerMaxBytes int64 = 512 << 20
 
+// officeDesktopBundleReadme travels in every bundle. Windows Setup copies the
+// profile sitting next to it; macOS and Linux have no install hook, so the
+// user picks the profile once from the app's no-profile card. The button
+// label matches officeDesktop.login.importProfile in the desktop locales.
+const officeDesktopBundleReadme = "UniWork Office\r\n" +
+	"\r\n" +
+	"Tiếng Việt\r\n" +
+	"- Windows: giải nén tất cả các tệp vào cùng một thư mục, rồi chạy tệp cài đặt.\r\n" +
+	"- macOS, Linux: cài UniWork Office (macOS: mở tệp .dmg và kéo ứng dụng vào Applications). Lần đầu mở ứng dụng, bấm \"Chọn tệp cấu hình…\" và chọn tệp deployment-profile.json trong thư mục này.\r\n" +
+	"- Tệp deployment-profile.json liên kết UniWork Office với site UniWork của bạn. Không sửa tệp này.\r\n" +
+	"\r\n" +
+	"English\r\n" +
+	"- Windows: extract all the files to the same folder, then run Setup.\r\n" +
+	"- macOS, Linux: install UniWork Office (macOS: open the .dmg and drag the app to Applications). On first launch, click \"Choose configuration file…\" and pick deployment-profile.json from this folder.\r\n" +
+	"- deployment-profile.json links UniWork Office to your UniWork site. Do not edit it.\r\n"
+
 // A staged bundle owns its temporary installer. The handler closes it after
 // streaming, including on a disconnected browser. No account token is sent to
 // the configured release server, and redirects cannot widen its authority.
@@ -101,6 +117,13 @@ func (b *OfficeDesktopBundle) WriteZipTo(w io.Writer) error {
 		ClientID     string `json:"clientId"`
 		Channel      string `json:"channel"`
 	}{b.profile.DeploymentID, b.profile.ServerOrigin, b.profile.ClientID, b.profile.Channel}); err != nil {
+		return err
+	}
+	readme, err := archive.Create("README.txt")
+	if err != nil {
+		return err
+	}
+	if _, err := io.WriteString(readme, officeDesktopBundleReadme); err != nil {
 		return err
 	}
 	return archive.Close()

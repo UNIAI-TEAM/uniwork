@@ -102,6 +102,8 @@ export function LibraryView({
           {actions}
         </div>
       ) : (
+        <>
+        {engineAvailable ? null : <p role="status" className="text-body text-muted-foreground">{t("engineUnavailable")}</p>}
         <ul aria-label={t("title")} className="flex flex-col gap-2">
           {documents.map((document) => (
             <li
@@ -123,6 +125,7 @@ export function LibraryView({
             </li>
           ))}
         </ul>
+        </>
       )}
       </div>
     </div>

@@ -72,6 +72,18 @@ test("the base URL must be https without credentials, query or fragment", () => 
   assert.equal(buildInstallerUrls({ channel: "dev", baseUrl: `${BASE}/`, files: [DEV_FILES[2]] })["linux-x64-deb"], `${BASE}/${DEV_FILES[2]}`);
 });
 
+test("http is accepted only on a loopback host and only for dev, as the server does", () => {
+  const BETA_FILE = DEV_FILES[2].replace("dev.7", "beta.7");
+  for (const host of ["localhost:9000", "127.0.0.1:9000", "[::1]:9000"]) {
+    const baseUrl = `http://${host}/office-installers/dev/0.1.0-dev.7`;
+    assert.equal(buildInstallerUrls({ channel: "dev", baseUrl, files: [DEV_FILES[2]] })["linux-x64-deb"], `${baseUrl}/${DEV_FILES[2]}`, host);
+    assert.throws(() => buildInstallerUrls({ channel: "beta", baseUrl, files: [BETA_FILE] }), /base URL/, `beta on ${host}`);
+  }
+  for (const baseUrl of ["http://downloads.test/a", "http://192.168.1.10:9000/a", "http://localhost.example.test/a", "http://user:pw@localhost:9000/a", "ftp://localhost/a"]) {
+    assert.throws(() => buildInstallerUrls({ channel: "dev", baseUrl, files: DEV_FILES }), /base URL/, baseUrl);
+  }
+});
+
 test("argument parsing rejects unknown and incomplete input", () => {
   assert.deepEqual(parseInstallerUrlArguments(["--channel", "dev", "--base-url", BASE, "--files", "a,b"]), { channel: "dev", baseUrl: BASE, files: "a,b" });
   assert.throws(() => parseInstallerUrlArguments(["--channel", "dev"]), /usage/);

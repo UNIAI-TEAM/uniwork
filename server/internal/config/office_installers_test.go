@@ -92,3 +92,45 @@ func TestOfficeInstallerURLsFromCIJob(t *testing.T) {
 		t.Fatalf("stable must stay empty: %+v %v", stable, err)
 	}
 }
+
+func TestOfficeDesktopChannelFollowsTheDesktopClient(t *testing.T) {
+	for _, tc := range []struct{ client, setting, want string }{
+		{"uniwork-office-dev", "", "dev"},
+		{"uniwork-office-dev", "dev", "dev"},
+		{"uniwork-office", "", "stable"},
+		{"uniwork-office", "stable", "stable"},
+		{"uniwork-office", "beta", "beta"},
+		{"someone-else", "", ""},
+	} {
+		cfg := Config{DesktopAuthClientID: tc.client, OfficeDesktopChannelSetting: tc.setting}
+		if err := cfg.validateOfficeDesktopChannel(); err != nil {
+			t.Fatalf("%s/%s rejected: %v", tc.client, tc.setting, err)
+		}
+		if got := cfg.OfficeDesktopChannel(); got != tc.want {
+			t.Fatalf("%s/%s = %q, want %q", tc.client, tc.setting, got, tc.want)
+		}
+	}
+}
+
+func TestLoadRefusesAnOfficeChannelTheClientCannotServe(t *testing.T) {
+	for _, tc := range []struct{ client, setting, wantInError string }{
+		{"uniwork-office", "dev", "DESKTOP_AUTH_CLIENT_ID=uniwork-office-dev"},
+		{"uniwork-office-dev", "beta", "DESKTOP_AUTH_REDIRECT_URIS=uniwork-office://auth/callback"},
+		{"uniwork-office", "nightly", "must be stable, beta or dev"},
+	} {
+		setRequired(t)
+		t.Setenv("DESKTOP_AUTH_CLIENT_ID", tc.client)
+		t.Setenv("OFFICE_DESKTOP_CHANNEL", tc.setting)
+		if _, err := Load(); err == nil || !strings.Contains(err.Error(), tc.wantInError) {
+			t.Fatalf("%s/%s: err = %v, want it to name %q", tc.client, tc.setting, err, tc.wantInError)
+		}
+	}
+	setRequired(t)
+	t.Setenv("DESKTOP_AUTH_CLIENT_ID", "uniwork-office-dev")
+	t.Setenv("DESKTOP_AUTH_REDIRECT_URIS", "uniwork-office-dev://auth/callback")
+	t.Setenv("OFFICE_DESKTOP_CHANNEL", "")
+	cfg, err := Load()
+	if err != nil || cfg.OfficeDesktopChannel() != "dev" {
+		t.Fatalf("dev client: channel %q err %v", cfg.OfficeDesktopChannel(), err)
+	}
+}

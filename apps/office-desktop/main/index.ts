@@ -4,7 +4,10 @@ import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
 import type { NativeLoginManager } from "./auth/manager";
-import { launchRequestedEventSchema, desktopSessionMetadataSchema, officeSaveRequestedEventSchema } from "../shared/ipc";
+import { createNoProfileAuthIpcHandlers } from "./auth/no-profile";
+import { desktopDeploymentImportResponseSchema, desktopDeploymentResetResponseSchema, type NoDeploymentProfileReason } from "../shared/ipc-auth";
+import type { ProfileImportFlow } from "./deployment/import-profile";
+import { launchRequestedEventSchema, desktopSessionMetadataSchema, officeSaveRequestedEventSchema, type DesktopIpcRequest } from "../shared/ipc";
 import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
 import type { DeploymentProfile } from "../shared/deployment";
 import { createDesktopLifecycleCoordinator, type DesktopLifecycleOptions } from "./lifecycle";
@@ -41,6 +44,10 @@ export type DesktopHostOptions = {
   allowedExternalHosts?: readonly string[];
   openSystemBrowser?: (url: string) => void;
   authManager?: NativeLoginManager;
+  /** Set when no usable deployment profile is installed: the auth channels stay registered and answer a typed no_deployment_profile state. */
+  noDeploymentProfile?: NoDeploymentProfileReason;
+  /** Main-owned "choose configuration file" and "reset connection" flows. */
+  deploymentImport?: ProfileImportFlow;
   localFiles?: FileIpcOptions;
   drafts?: DraftIpcOptions;
   /** Device-scoped local-mode state and the encrypted recent-file list. */
@@ -66,6 +73,13 @@ export type DesktopHostOptions = {
   /** OS theme and language the renderer starts from. */
   appearance?: AppearanceOptions;
 };
+
+function createDeploymentIpcHandlers(flow: ProfileImportFlow) {
+  return {
+    "desktop:deployment-import": async (_request: DesktopIpcRequest<"desktop:deployment-import">) => desktopDeploymentImportResponseSchema.parse(await flow.importProfile()),
+    "desktop:deployment-reset": async (_request: DesktopIpcRequest<"desktop:deployment-reset">) => desktopDeploymentResetResponseSchema.parse(await flow.resetConnection()),
+  };
+}
 
 function authCallbackFromArgv(argv: readonly unknown[]): string | undefined {
   const callbacks = Object.values(DESKTOP_IDENTITY_MANIFEST.channelProfiles).map((profile) => profile.authCallback);
@@ -93,10 +107,12 @@ export function createDesktopHost(options: DesktopHostOptions) {
   });
   options.window.setUserDataDirectory(options.userDataDirectory ?? DESKTOP_IDENTITY.userDataNamespace);
   const authHandlers = options.authManager ? createAuthIpcHandlers(options.authManager) : undefined;
+  const noProfileHandlers = !authHandlers && options.noDeploymentProfile ? createNoProfileAuthIpcHandlers(options.noDeploymentProfile) : undefined;
   const handlers = {
     ...options.handlers,
     "desktop:diagnostics": createDiagnosticsIpcHandler(options.deploymentProfile),
-    ...(authHandlers ?? {}),
+    ...(authHandlers ?? noProfileHandlers ?? {}),
+    ...(options.deploymentImport ? createDeploymentIpcHandlers(options.deploymentImport) : {}),
     ...(options.localFiles ? createFileIpcHandlers(options.localFiles) : {}),
     ...(options.drafts ? createDraftIpcHandlers(options.drafts) : {}),
     ...(options.local ? createLocalIpcHandlers(options.local) : {}),
@@ -104,6 +120,14 @@ export function createDesktopHost(options: DesktopHostOptions) {
     ...(options.leave ? createLeaveIpcHandler(options.leave) : {}),
     ...(options.appearance ? createAppearanceIpcHandler(options.appearance) : {}),
   };
+  if (authHandlers && options.deploymentImport) {
+    const flow = options.deploymentImport;
+    handlers["desktop:auth-config"] = (request: DesktopIpcRequest<"desktop:auth-config">) => ({ ...authHandlers["desktop:auth-config"](request), resettable: flow.isImported() });
+  }
+  if (noProfileHandlers && options.deploymentImport) {
+    const flow = options.deploymentImport;
+    handlers["desktop:auth-config"] = (request: DesktopIpcRequest<"desktop:auth-config">) => ({ ...noProfileHandlers["desktop:auth-config"](request), importable: flow.canImport() });
+  }
   if (options.leave && options.authManager && authHandlers) {
     // Logout is a leave action like close and update: the ONE dialog decides
     // first, and only a proceeded answer drops the session. A refused or
