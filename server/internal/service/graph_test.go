@@ -3,8 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -24,10 +27,13 @@ func (d *graphDrops) IncGraphLayer2Dropped(nodeType string) { d.n[nodeType]++ }
 
 type graphWorld struct {
 	ctx           context.Context
+	pool          *pgxpool.Pool
 	q             *db.Queries
 	svc           *GraphService
+	ws            *WorkspaceService
 	tasks         *TaskService
 	chat          *ChatService
+	meetings      *MeetingService
 	drops         *graphDrops
 	owner, member db.User
 	orgID, wsID   string
@@ -42,8 +48,9 @@ func newGraphWorld(t *testing.T) *graphWorld {
 	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	orgs := NewOrganizationService(pool, q)
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
-	w := &graphWorld{ctx: ctx, q: q, tasks: NewTaskService(pool, q, ws, nil), chat: NewChatService(pool, q, ws, NopPublisher{}),
-		drops: &graphDrops{n: map[string]int{}}}
+	w := &graphWorld{ctx: ctx, pool: pool, q: q, ws: ws, tasks: NewTaskService(pool, q, ws, nil), chat: NewChatService(pool, q, ws, NopPublisher{}),
+		meetings: NewMeetingService(pool, q, ws, NopPublisher{}, nil, MeetingRuntime{}),
+		drops:    &graphDrops{n: map[string]int{}}}
 	w.chat.SetTasks(w.tasks)
 	w.svc = NewGraphService(q, orgs, ws, w.chat)
 	w.svc.SetFlags(graphFlagsOn(true))
@@ -295,5 +302,257 @@ func TestGraphNeighborsPagesAndFilters(t *testing.T) {
 		if !errors.As(err, &ve) {
 			t.Fatalf("%+v err = %v", bad, err)
 		}
+	}
+}
+
+// otherWorkspace adds workspace B to the organization. The owner, an
+// organization owner, reads every workspace; the member is only in A.
+func (w *graphWorld) otherWorkspace(t *testing.T) string {
+	t.Helper()
+	v, err := w.ws.CreateInOrg(w.ctx, w.owner.ID, w.orgID, "Graph Read B", "graph-read-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v.Workspace.ID
+}
+
+// ownerWork is a task, a project and a meeting in one workspace, each linked
+// to the owner's ACTOR (OWNED_BY, OWNED_BY as lead, PARTICIPATED_IN as host).
+func (w *graphWorld) ownerWork(t *testing.T, workspaceID, label string) map[string]string {
+	t.Helper()
+	task, err := w.tasks.Create(w.ctx, Human(w.owner.ID), workspaceID, CreateTaskInput{Title: "Việc " + label, AssigneeID: &w.owner.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lead := "member"
+	project, err := w.tasks.CreateProject(w.ctx, Human(w.owner.ID), workspaceID, CreateProjectInput{Title: "Dự án " + label, LeadType: &lead, LeadID: &w.owner.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	meeting, err := w.meetings.CreateInstant(w.ctx, w.owner.ID, workspaceID, "Họp "+label)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return map[string]string{"TASK": task.ID, "PROJECT": project.ID, "MEETING": meeting.ID}
+}
+
+// neighbors is the nodes a user sees one step from a node, read through
+// workspace A. It reads an hour ahead: a meeting's PARTICIPATED_IN starts at
+// its starts_at, which Go wrote, and the DB clock may run behind Go's.
+func (w *graphWorld) neighbors(t *testing.T, userID, nodeType, nodeID string) map[string]GraphNodeView {
+	t.Helper()
+	page, err := w.svc.Neighbors(w.ctx, userID, w.wsID, nodeType, nodeID, GraphNeighborsQuery{At: time.Now().Add(time.Hour), Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]GraphNodeView{}
+	for _, it := range page.Items {
+		out[it.Node.ID] = it.Node
+	}
+	return out
+}
+
+// historyNodes is the peers a user sees in a node's History, read through
+// workspace A.
+func (w *graphWorld) historyNodes(t *testing.T, userID, nodeType, nodeID string) map[string]GraphNodeView {
+	t.Helper()
+	h, err := w.svc.History(w.ctx, userID, w.wsID, nodeType, nodeID, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]GraphNodeView{}
+	for _, it := range h.Items {
+		if it.Node != nil {
+			out[it.Node.ID] = *it.Node
+		}
+	}
+	return out
+}
+
+// aroundOwner is the two ways a user reads what surrounds the owner's ACTOR,
+// an organization-wide node every member may open.
+func (w *graphWorld) aroundOwner(t *testing.T) map[string]func(userID string) map[string]GraphNodeView {
+	return map[string]func(string) map[string]GraphNodeView{
+		"Neighbors": func(u string) map[string]GraphNodeView { return w.neighbors(t, u, "ACTOR", w.owner.ID) },
+		"History":   func(u string) map[string]GraphNodeView { return w.historyNodes(t, u, "ACTOR", w.owner.ID) },
+	}
+}
+
+// requireHiddenRoots: every node is ErrNotFound as a root for the user, in
+// Neighbors and in History, the same answer as a node that does not exist.
+func (w *graphWorld) requireHiddenRoots(t *testing.T, userID string, nodes map[string]string) {
+	t.Helper()
+	for typ, id := range nodes {
+		if _, err := w.svc.Neighbors(w.ctx, userID, w.wsID, typ, id, GraphNeighborsQuery{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("Neighbors on the %s %s through A: err = %v, want ErrNotFound", typ, id, err)
+		}
+		if _, err := w.svc.History(w.ctx, userID, w.wsID, typ, id, time.Time{}, time.Time{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("History on the %s %s through A: err = %v, want ErrNotFound", typ, id, err)
+		}
+	}
+}
+
+// A member of workspace A alone reads nothing of workspace B in the same
+// organization: not around an organization-wide ACTOR (Neighbors or
+// History), and not as a root. Layer 1 (each workspace clause in
+// graph_read.sql) refuses on its own, so layer 2 counts no drop.
+func TestGraphReadsStopAtTheWorkspaceBoundary(t *testing.T) {
+	w := newGraphWorld(t)
+	wsB := w.otherWorkspace(t)
+	inA := w.ownerWork(t, w.wsID, "bên A")
+	inB := w.ownerWork(t, wsB, "bên B")
+	w.rebuild(t)
+
+	// The owner reads every workspace: the B nodes are projected and linked
+	// to the owner's ACTOR, so what the member misses below is hidden, not
+	// absent.
+	for view, read := range w.aroundOwner(t) {
+		all := read(w.owner.ID)
+		for _, nodes := range []map[string]string{inA, inB} {
+			for typ, id := range nodes {
+				if _, ok := all[id]; !ok {
+					t.Fatalf("%s: the owner does not see the %s %s: %v", view, typ, id, all)
+				}
+			}
+		}
+	}
+	for typ, id := range inB {
+		if _, err := w.svc.Neighbors(w.ctx, w.owner.ID, w.wsID, typ, id, GraphNeighborsQuery{}); err != nil {
+			t.Fatalf("the owner reads the %s in B: %v", typ, err)
+		}
+	}
+
+	w.drops.n = map[string]int{}
+	for view, read := range w.aroundOwner(t) {
+		seen := read(w.member.ID)
+		for typ, id := range inA {
+			if _, ok := seen[id]; !ok {
+				t.Fatalf("%s: the member does not see the %s in A: %v", view, typ, seen)
+			}
+		}
+		for id, n := range seen {
+			if n.WorkspaceID == wsB {
+				t.Fatalf("%s: the member sees the %s %s %q of workspace B", view, n.Type, id, n.Title)
+			}
+		}
+	}
+	w.requireHiddenRoots(t, w.member.ID, inB)
+	if len(w.drops.n) != 0 {
+		t.Fatalf("layer 1 let workspace B through to layer 2: drops = %v", w.drops.n)
+	}
+}
+
+// A node moved to workspace B with no event and no re-projection still sits
+// in A in graph_nodes, so layer 1 admits it. Layer 2 reads the module's own
+// row and drops it, around the ACTOR (Neighbors and History) and as a root,
+// and counts each drop.
+func TestGraphLayerTwoDropsNodesMovedToAnotherWorkspace(t *testing.T) {
+	w := newGraphWorld(t)
+	wsB := w.otherWorkspace(t)
+	moved := w.ownerWork(t, w.wsID, "sắp chuyển")
+	w.rebuild(t)
+	for view, read := range w.aroundOwner(t) {
+		before := read(w.member.ID)
+		for typ, id := range moved {
+			if _, ok := before[id]; !ok {
+				t.Fatalf("%s: the member does not see the %s before the move: %v", view, typ, before)
+			}
+		}
+	}
+
+	for table, id := range map[string]string{"tasks": moved["TASK"], "projects": moved["PROJECT"], "meetings": moved["MEETING"]} {
+		if _, err := w.pool.Exec(w.ctx, `UPDATE `+table+` SET workspace_id = $1 WHERE id = $2`, wsB, id); err != nil {
+			t.Fatalf("move %s: %v", table, err)
+		}
+	}
+
+	for view, read := range w.aroundOwner(t) {
+		w.drops.n = map[string]int{}
+		after := read(w.member.ID)
+		for typ, id := range moved {
+			if n, ok := after[id]; ok {
+				t.Fatalf("%s: the member still sees the %s %q moved to B", view, typ, n.Title)
+			}
+		}
+		if want := map[string]int{"TASK": 1, "PROJECT": 1, "MEETING": 1}; !maps.Equal(w.drops.n, want) {
+			t.Fatalf("%s: layer 2 drops around the ACTOR = %v, want %v", view, w.drops.n, want)
+		}
+	}
+
+	w.drops.n = map[string]int{}
+	w.requireHiddenRoots(t, w.member.ID, moved)
+	if want := map[string]int{"TASK": 2, "PROJECT": 2, "MEETING": 2}; !maps.Equal(w.drops.n, want) {
+		t.Fatalf("layer 2 drops on the roots = %v, want %v", w.drops.n, want)
+	}
+}
+
+// privateOriginTask is a task made from a message in a new private room
+// whose members, besides the owner, are the given users.
+func (w *graphWorld) privateOriginTask(t *testing.T, name string, members []string) (roomID, taskID string) {
+	t.Helper()
+	ch, err := w.chat.CreateChannel(w.ctx, w.owner.ID, w.wsID, CreateChannelInput{Name: name, Visibility: "private", MemberUserIDs: members})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := w.chat.SendRoomMessage(w.ctx, w.owner.ID, w.wsID, ch.ID, SendChatMessageInput{Body: "chốt giá trong phòng " + name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := w.chat.CreateTaskFromMessage(w.ctx, w.owner.ID, w.wsID, msg.ID, CreateTaskFromMessageInput{Title: "Việc từ " + name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ch.ID, task.ID
+}
+
+// originRooms is the ORIGINATED_FROM peers a user sees in a task's History.
+func (w *graphWorld) originRooms(t *testing.T, userID, taskID string) []string {
+	t.Helper()
+	h, err := w.svc.History(w.ctx, userID, w.wsID, "TASK", taskID, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, it := range h.Items {
+		if it.EdgeType == "ORIGINATED_FROM" {
+			out = append(out, it.Node.ID)
+		}
+	}
+	return out
+}
+
+// A task's Timeline names the private room it came from only to the room's
+// members. Layer 1 (reader_ids) hides it from a workspace member who was
+// never in the room, with no layer-2 drop; layer 2 hides it from a member
+// removed after the projection ran (a kick writes no event).
+func TestGraphHistoryHidesAPrivateOriginRoomFromNonMembers(t *testing.T) {
+	w := newGraphWorld(t)
+	room, task := w.privateOriginTask(t, "kín", nil)
+	kickedRoom, kickedTask := w.privateOriginTask(t, "kín hai", []string{w.member.ID})
+	w.rebuild(t)
+	if got := w.originRooms(t, w.owner.ID, task); len(got) != 1 || got[0] != room {
+		t.Fatalf("the owner's origin rooms = %v, want [%s]", got, room)
+	}
+
+	w.drops.n = map[string]int{}
+	if got := w.originRooms(t, w.member.ID, task); len(got) != 0 {
+		t.Fatalf("a member never in the room sees it in the Timeline: %v", got)
+	}
+	if len(w.drops.n) != 0 {
+		t.Fatalf("layer 1 let the private room through to layer 2: drops = %v", w.drops.n)
+	}
+
+	if got := w.originRooms(t, w.member.ID, kickedTask); len(got) != 1 || got[0] != kickedRoom {
+		t.Fatalf("the member's origin rooms before the kick = %v, want [%s]", got, kickedRoom)
+	}
+	if err := w.q.LeaveChatRoomMember(w.ctx, db.LeaveChatRoomMemberParams{RoomID: kickedRoom, UserID: w.member.ID}); err != nil {
+		t.Fatal(err)
+	}
+	w.drops.n = map[string]int{}
+	if got := w.originRooms(t, w.member.ID, kickedTask); len(got) != 0 {
+		t.Fatalf("the member still sees the room in the Timeline after the kick: %v", got)
+	}
+	if want := map[string]int{"THREAD": 1}; !maps.Equal(w.drops.n, want) {
+		t.Fatalf("layer 2 drops = %v, want %v", w.drops.n, want)
 	}
 }
