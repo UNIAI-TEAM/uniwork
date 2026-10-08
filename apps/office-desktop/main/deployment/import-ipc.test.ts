@@ -8,7 +8,7 @@ const windowPreferences = { sandbox: true, contextIsolation: true, nodeIntegrati
 const request = { sessionGeneration: "session_1234" };
 
 function flow(overrides: Partial<ProfileImportFlow> = {}): ProfileImportFlow {
-  return { importProfile: vi.fn(async () => ({ status: "imported" as const })), resetConnection: vi.fn(async () => ({ status: "reset" as const })), isImported: () => true, ...overrides };
+  return { importProfile: vi.fn(async () => ({ status: "imported" as const })), resetConnection: vi.fn(async () => ({ status: "reset" as const })), isImported: () => true, canImport: () => true, ...overrides };
 }
 
 function host(options: { deploymentImport?: ProfileImportFlow; authManager?: NativeLoginManager } = {}) {
@@ -47,5 +47,16 @@ describe("deployment import IPC", () => {
     const authManager = { getBinding: () => ({ clientId: "uniwork-office-dev", deploymentId: "uniwork-vn" }) } as unknown as NativeLoginManager;
     await expect(host({ authManager, deploymentImport: flow() }).dispatch("desktop:auth-config", request)).resolves.toEqual({ clientId: "uniwork-office-dev", deploymentId: "uniwork-vn", resettable: true });
     await expect(host({ authManager, deploymentImport: flow({ isImported: () => false }) }).dispatch("desktop:auth-config", request)).resolves.toEqual({ clientId: "uniwork-office-dev", deploymentId: "uniwork-vn", resettable: false });
+  });
+
+  it("tells the no-profile card whether choosing a file can take effect", async () => {
+    await expect(host({ deploymentImport: flow() }).dispatch("desktop:auth-config", request)).resolves.toEqual({ state: "no_deployment_profile", reason: "missing", importable: true });
+    await expect(host({ deploymentImport: flow({ canImport: () => false }) }).dispatch("desktop:auth-config", request)).resolves.toEqual({ state: "no_deployment_profile", reason: "missing", importable: false });
+  });
+
+  it("passes restart_required through on both channels", async () => {
+    const desktop = host({ deploymentImport: flow({ importProfile: async () => ({ status: "restart_required" }), resetConnection: async () => ({ status: "restart_required" }) }) });
+    await expect(desktop.dispatch("desktop:deployment-import", request)).resolves.toEqual({ status: "restart_required" });
+    await expect(desktop.dispatch("desktop:deployment-reset", request)).resolves.toEqual({ status: "restart_required" });
   });
 });

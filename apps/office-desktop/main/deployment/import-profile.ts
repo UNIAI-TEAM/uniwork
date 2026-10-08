@@ -6,8 +6,13 @@ import { DeploymentProfileResolutionError, USER_DATA_PROFILE_FILE, parseDeployme
 /** A deployment profile is four short fields; anything bigger is not one. */
 export const MAX_PROFILE_BYTES = 4096;
 
-export type ProfileImportResult = Readonly<{ status: "imported" | "cancelled" | "already_configured" | "invalid" | "channel_mismatch" | "unavailable" }>;
-export type ConnectionResetResult = Readonly<{ status: "reset" | "cancelled" | "not_imported" | "unavailable" }>;
+/** How long a reset waits for the server logout before it wipes anyway. */
+const SIGN_OUT_TIMEOUT_MS = 5000;
+
+/** `restart_required`: the change is on disk but the leave dialog kept the app
+ * running (unsaved local work); the next import/reset call asks again. */
+export type ProfileImportResult = Readonly<{ status: "imported" | "restart_required" | "cancelled" | "already_configured" | "invalid" | "channel_mismatch" | "unavailable" }>;
+export type ConnectionResetResult = Readonly<{ status: "reset" | "restart_required" | "cancelled" | "not_imported" | "unavailable" }>;
 
 /** What the confirmation names: the host as the user reads it (IDN decoded)
  * and as it is spelled on the wire, so a punycode look-alike shows both. */
@@ -45,9 +50,13 @@ export type ProfileImportOptions = Readonly<{
   confirmImport(confirmation: ProfileConfirmation): Promise<boolean>;
   confirmReset(confirmation: ProfileConfirmation | undefined): Promise<boolean>;
   wipeCredentials(deploymentId: string): void;
+  /** Best-effort server logout of the session in use, before a reset wipes
+   * it; a failure or a slow server never blocks the wipe. */
+  signOut?(): Promise<unknown>;
   /** Called after a settled import or reset; the host restarts so the
-   * resolver, the credential store and the auth channels start over. */
-  relaunch(): void;
+   * resolver, the credential store and the auth channels start over. False
+   * when the leave dialog kept the app running. */
+  relaunch(): Promise<boolean>;
   fileSystem?: ImportFileSystem;
 }>;
 
@@ -66,13 +75,23 @@ export function profileConfirmation(profile: Pick<DeploymentProfile, "apiOrigin"
  * userData and a relaunch. Replacing a working profile needs the explicit
  * reset, which also wipes that deployment's stored sessions.
  */
-export function createProfileImport(options: ProfileImportOptions): Readonly<{ importProfile(): Promise<ProfileImportResult>; resetConnection(): Promise<ConnectionResetResult>; isImported(): boolean }> {
+export function createProfileImport(options: ProfileImportOptions): Readonly<{ importProfile(): Promise<ProfileImportResult>; resetConnection(): Promise<ConnectionResetResult>; isImported(): boolean; canImport(): boolean }> {
   const fs = options.fileSystem ?? nodeFileSystem;
   const target = join(options.userDataDirectory, USER_DATA_PROFILE_FILE);
   const installerOwned = () => Boolean(options.installedProfilePath && fs.existsSync(options.installedProfilePath));
+  // Set once an import or reset is on disk; the running app still serves the
+  // old state until it restarts, so every later call only retries the restart.
+  let committed: "imported" | "reset" | undefined;
+
+  async function restart<S extends "imported" | "reset">(settled: S): Promise<Readonly<{ status: S | "restart_required" }>> {
+    committed = settled;
+    const restarting = await options.relaunch().catch(() => false);
+    return { status: restarting ? settled : "restart_required" };
+  }
 
   async function importProfile(): Promise<ProfileImportResult> {
-    if (options.isConfigured() || installerOwned()) return { status: "already_configured" };
+    if (committed === "imported") return restart(committed);
+    if (committed || options.isConfigured() || installerOwned()) return { status: "already_configured" };
     const picked = await options.pickFile();
     if (!picked) return { status: "cancelled" };
     let profile: DeploymentProfile;
@@ -86,20 +105,20 @@ export function createProfileImport(options: ProfileImportOptions): Readonly<{ i
     if (options.isConfigured() || installerOwned()) return { status: "already_configured" };
     try { writeAtomically(fs, target, `${JSON.stringify(profile, null, 2)}\n`); }
     catch { return { status: "unavailable" }; }
-    options.relaunch();
-    return { status: "imported" };
+    return restart("imported");
   }
 
   async function resetConnection(): Promise<ConnectionResetResult> {
-    if (installerOwned() || !fs.existsSync(target)) return { status: "not_imported" };
+    if (committed === "reset") return restart(committed);
+    if (committed || installerOwned() || !fs.existsSync(target)) return { status: "not_imported" };
     const current = readImportedIdentity(fs, target);
     if (!(await options.confirmReset(current))) return { status: "cancelled" };
+    if (current && options.signOut) await signOutWithin(options.signOut, SIGN_OUT_TIMEOUT_MS);
     try {
       if (current) options.wipeCredentials(current.deploymentId);
       fs.rmSync(target, { force: true });
     } catch { return { status: "unavailable" }; }
-    options.relaunch();
-    return { status: "reset" };
+    return restart("reset");
   }
 
   return Object.freeze({
@@ -107,7 +126,18 @@ export function createProfileImport(options: ProfileImportOptions): Readonly<{ i
     resetConnection,
     /** True while the profile in use is one the user imported. */
     isImported: () => !installerOwned() && fs.existsSync(target),
+    /** False when an installer-owned profile exists (even an unusable one):
+     * an import could never take effect, only a reinstall can. */
+    canImport: () => !installerOwned(),
   });
+}
+
+async function signOutWithin(signOut: () => Promise<unknown>, timeoutMs: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([signOut().catch(() => undefined), new Promise<void>((done) => { timer = setTimeout(done, timeoutMs); })]);
+  } catch { /* a throwing signOut never blocks the wipe */ }
+  finally { if (timer !== undefined) clearTimeout(timer); }
 }
 
 export type ProfileImportFlow = ReturnType<typeof createProfileImport>;

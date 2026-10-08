@@ -20,7 +20,7 @@ export type RendererBridge = Readonly<{
 }>;
 function isSessionMetadata(value: unknown): value is DesktopSessionMetadata { return desktopSessionMetadataSchema.safeParse(value).success; }
 function isAuthConfig(value: unknown): value is { clientId: string; deploymentId: string; resettable?: boolean } { return desktopAuthConfigResponseSchema.safeParse(value).success; }
-function isNoDeploymentProfile(value: unknown): boolean { return desktopNoDeploymentProfileSchema.safeParse(value).success; }
+function isNoDeploymentProfile(value: unknown): value is { importable?: boolean } { return desktopNoDeploymentProfileSchema.safeParse(value).success; }
 function requestedLocalState(value: unknown): boolean { const parsed = localStateResponseSchema.safeParse(value); return parsed.success && parsed.data.localMode; }
 
 /** Top-level renderer app. The host reports a session and a per-device mode
@@ -36,6 +36,7 @@ export function App({ bridge }: { bridge: RendererBridge }) {
   // Main answered the auth channels with no_deployment_profile: sign in cannot
   // succeed on this install, so the card shows its own state and never a retry.
   const [noProfile, setNoProfile] = useState(false);
+  const [importable, setImportable] = useState(true);
   // The profile in use was imported by the user, so the card may offer a reset.
   const [resettable, setResettable] = useState(false);
   const controllerRef = useRef<ReturnType<typeof createLoginController> | undefined>(undefined);
@@ -74,6 +75,7 @@ export function App({ bridge }: { bridge: RendererBridge }) {
       setLocalMode(local.status === "fulfilled" ? requestedLocalState(local.value) : false);
       if (config.status === "fulfilled" && isNoDeploymentProfile(config.value)) {
         setNoProfile(true);
+        setImportable(config.value.importable !== false);
         setBooted(true);
         return;
       }
@@ -105,7 +107,7 @@ export function App({ bridge }: { bridge: RendererBridge }) {
   // Main runs the picker and the confirmation; an unexpected answer reads as a
   // failure, never as success.
   const loginConnection: LoginConnection = {
-    ...(noProfile ? { importProfile: async () => {
+    ...(noProfile && importable ? { importProfile: async () => {
       const parsed = desktopDeploymentImportResponseSchema.safeParse(await bridge.call("desktop:deployment-import", { sessionGeneration: SESSION_GENERATION }));
       return parsed.success ? parsed.data.status : "unavailable";
     } } : {}),

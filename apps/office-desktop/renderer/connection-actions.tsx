@@ -14,6 +14,7 @@ export type LoginConnection = Readonly<{
 
 const IMPORT_MESSAGE: Partial<Record<DesktopDeploymentImportStatus, string>> = {
   imported: "importRestarting",
+  restart_required: "restartRequired",
   invalid: "importInvalid",
   channel_mismatch: "importChannelMismatch",
   already_configured: "importAlreadyConfigured",
@@ -29,6 +30,9 @@ export function ImportProfileAction({ importProfile }: { importProfile: NonNulla
     importProfile().then(setStatus, () => setStatus("unavailable"));
   };
   const messageKey = status && status !== "busy" ? IMPORT_MESSAGE[status] : undefined;
+  // A saved change whose restart the leave dialog refused is progress, not an
+  // error; the button stays usable and asks main to restart again.
+  const progress = status === "imported" || status === "restart_required";
   return (
     <div className="flex w-full flex-col gap-2" data-import-status={status ?? "idle"}>
       <Button className="w-full" onClick={choose} disabled={status === "busy" || status === "imported"}>
@@ -36,7 +40,7 @@ export function ImportProfileAction({ importProfile }: { importProfile: NonNulla
       </Button>
       <p className="text-caption text-muted-foreground">{t("importProfileHint")}</p>
       {messageKey ? (
-        <p className={status === "imported" ? "text-caption text-muted-foreground" : "text-caption text-destructive"} role={status === "imported" ? "status" : "alert"}>{t(messageKey)}</p>
+        <p className={progress ? "text-caption text-muted-foreground" : "text-caption text-destructive"} role={progress ? "status" : "alert"}>{t(messageKey)}</p>
       ) : null}
     </div>
   );
@@ -56,6 +60,7 @@ export function ResetConnectionAction({ resetConnection }: { resetConnection: No
         {t("resetConnection")}
       </Button>
       {status === "reset" ? <p className="text-caption text-muted-foreground" role="status">{t("importRestarting")}</p> : null}
+      {status === "restart_required" ? <p className="text-caption text-muted-foreground" role="status">{t("restartRequired")}</p> : null}
       {status === "unavailable" || status === "not_imported" ? <p className="text-caption text-destructive" role="alert">{t("resetFailed")}</p> : null}
     </div>
   );

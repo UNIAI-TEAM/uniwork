@@ -197,19 +197,18 @@ async function startElectronHost(): Promise<void> {
     })).response === 1,
     confirmReset: async (current) => (await dialog.showMessageBox(window, {
       type: "warning", title: formatWindowTitle("dialog", t("officeDesktop.native.profile.resetTitle")),
-      message: current ? t("officeDesktop.native.profile.resetMessage", { host: current.host }) : t("officeDesktop.native.profile.resetMessageUnknown"), detail: t("officeDesktop.native.profile.resetDetail"),
+      message: current ? t("officeDesktop.native.profile.resetMessage", { host: current.host }) : t("officeDesktop.native.profile.resetMessageUnknown"), detail: t(current ? "officeDesktop.native.profile.resetDetail" : "officeDesktop.native.profile.resetDetailUnknown"),
       buttons: [t("officeDesktop.native.profile.cancel"), t("officeDesktop.native.profile.reset")], defaultId: 0, cancelId: 0, noLink: true,
     })).response === 1,
     wipeCredentials: (deploymentId) => wipeDeploymentCredentials({ userDataDirectory: app.getPath("userData"), channel: DESKTOP_IDENTITY_MANIFEST.build.channel, deploymentId }),
-    relaunch: () => {
-      setImmediate(() => {
-        void leave.request("close").then((outcome) => {
-          if (!outcome.proceeded) return;
-          closeApproved = true;
-          app.relaunch();
-          app.quit();
-        });
-      });
+    signOut: async () => authManager?.logout(),
+    relaunch: async () => {
+      const outcome = await leave.request("close");
+      if (!outcome.proceeded) return false;
+      closeApproved = true;
+      app.relaunch();
+      app.quit();
+      return true;
     },
   });
   window.on("close", (event) => {

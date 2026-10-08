@@ -124,6 +124,10 @@ export function createDesktopHost(options: DesktopHostOptions) {
     const flow = options.deploymentImport;
     handlers["desktop:auth-config"] = (request: DesktopIpcRequest<"desktop:auth-config">) => ({ ...authHandlers["desktop:auth-config"](request), resettable: flow.isImported() });
   }
+  if (noProfileHandlers && options.deploymentImport) {
+    const flow = options.deploymentImport;
+    handlers["desktop:auth-config"] = (request: DesktopIpcRequest<"desktop:auth-config">) => ({ ...noProfileHandlers["desktop:auth-config"](request), importable: flow.canImport() });
+  }
   if (options.leave && options.authManager && authHandlers) {
     // Logout is a leave action like close and update: the ONE dialog decides
     // first, and only a proceeded answer drops the session. A refused or

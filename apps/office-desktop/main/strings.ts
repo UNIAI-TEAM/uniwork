@@ -52,6 +52,7 @@ const vi = {
   "officeDesktop.native.profile.resetMessage": "Ngắt kết nối khỏi {{host}}?",
   "officeDesktop.native.profile.resetMessageUnknown": "Xóa tệp cấu hình đã chọn?",
   "officeDesktop.native.profile.resetDetail": "Phiên đăng nhập lưu trên máy này cũng bị xóa. UniWork Office sẽ khởi động lại để bạn chọn tệp cấu hình khác.",
+  "officeDesktop.native.profile.resetDetailUnknown": "Tệp cấu hình này bị hỏng nên không xác định được site UniWork; phiên đăng nhập đã lưu trên máy (nếu có) được giữ nguyên. UniWork Office sẽ khởi động lại để bạn chọn tệp cấu hình khác.",
   "officeDesktop.native.profile.reset": "Đặt lại",
 } as const;
 
@@ -95,6 +96,7 @@ const en: Record<MainStringKey, string> = {
   "officeDesktop.native.profile.resetMessage": "Disconnect from {{host}}?",
   "officeDesktop.native.profile.resetMessageUnknown": "Remove the chosen configuration file?",
   "officeDesktop.native.profile.resetDetail": "The sign-in saved on this computer is removed too. UniWork Office will restart so you can choose another configuration file.",
+  "officeDesktop.native.profile.resetDetailUnknown": "This configuration file is damaged, so its UniWork site can't be identified; any sign-in saved on this computer is kept. UniWork Office will restart so you can choose another configuration file.",
   "officeDesktop.native.profile.reset": "Reset",
 };
 

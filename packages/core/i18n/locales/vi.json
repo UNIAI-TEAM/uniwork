@@ -12211,6 +12211,7 @@
       "importProfile": "Chọn tệp cấu hình…",
       "importProfileHint": "Chọn tệp deployment-profile.json đi kèm bản UniWork Office bạn đã tải về.",
       "importRestarting": "Đang khởi động lại UniWork Office…",
+      "restartRequired": "Đã lưu thay đổi nhưng UniWork Office chưa khởi động lại. Bấm lại để khởi động lại, hoặc tự đóng rồi mở lại ứng dụng.",
       "importInvalid": "Tệp này không phải tệp cấu hình UniWork Office. Chọn lại tệp deployment-profile.json.",
       "importChannelMismatch": "Tệp cấu hình này dành cho một bản UniWork Office khác. Tải lại UniWork Office từ site UniWork của bạn.",
       "importAlreadyConfigured": "Bản UniWork Office này đã được liên kết với một site UniWork.",

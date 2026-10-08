@@ -12235,6 +12235,7 @@
       "importProfile": "Choose configuration file…",
       "importProfileHint": "Choose the deployment-profile.json file that came with your UniWork Office download.",
       "importRestarting": "Restarting UniWork Office…",
+      "restartRequired": "The change is saved, but UniWork Office hasn't restarted. Click again to restart, or close and reopen the app.",
       "importInvalid": "This isn't a UniWork Office configuration file. Choose deployment-profile.json again.",
       "importChannelMismatch": "This configuration file is for a different edition of UniWork Office. Download UniWork Office again from your UniWork site.",
       "importAlreadyConfigured": "This copy of UniWork Office is already linked to a UniWork site.",

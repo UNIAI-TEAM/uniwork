@@ -322,6 +322,21 @@ it("asks main to import a profile from the no-profile card, sending no path or c
   expect(screen.queryByRole("button", { name: i18n.t("officeDesktop.login.resetConnection") })).toBeNull();
 });
 
+it("offers no file choice when the installer owns an unusable profile, only the download-again guidance", async () => {
+  const calls: string[] = [];
+  const { bridge } = makeBridge(vi.fn(async (channel: string) => {
+    calls.push(channel);
+    if (channel === "desktop:auth-config") return { state: "no_deployment_profile", reason: "invalid", importable: false };
+    if (channel === "desktop:local-state") return { localMode: false };
+    return { status: "signed-out" };
+  }) as RendererBridge["call"]);
+  const { container } = render(<App bridge={bridge} />);
+  await waitFor(() => expect(container.querySelector("[data-login-state='no-deployment-profile']")).not.toBeNull());
+  expect(screen.queryByRole("button", { name: i18n.t("officeDesktop.login.importProfile") })).toBeNull();
+  expect(screen.getByText(i18n.t("officeDesktop.login.noDeploymentProfileHint"))).toBeInTheDocument();
+  expect(calls).not.toContain("desktop:deployment-import");
+});
+
 it("offers reset only for an imported profile and treats an unexpected answer as a failure", async () => {
   for (const resettable of [false, true]) {
     const { bridge } = makeBridge(vi.fn(async (channel: string) => {
