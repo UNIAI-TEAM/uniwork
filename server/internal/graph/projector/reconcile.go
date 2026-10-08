@@ -346,9 +346,19 @@ func deleteNode(ctx context.Context, q *db.Queries, org, nodeID string, ref Node
 	return q.GraphMarkNodeDeleted(ctx, db.GraphMarkNodeDeletedParams{OrganizationID: org, ID: nodeID, At: at})
 }
 
+// nodeDiffers compares every column GraphUpsertNode's IS DISTINCT FROM
+// compares (bar deleted_at, which reconcile handles as live), so Verify
+// counts what Project rewrites.
 func nodeDiffers(cur db.GraphNode, n NodeState) bool {
 	return textOf(cur.WorkspaceID) != n.WorkspaceID || cur.Subtype != n.Subtype || cur.Title != n.Title ||
-		cur.Status != n.Status || cur.Visibility != n.Visibility || !slices.Equal(cur.ReaderIds, sortedUnique(n.ReaderIDs))
+		cur.Status != n.Status || cur.Visibility != n.Visibility || !slices.Equal(cur.ReaderIds, sortedUnique(n.ReaderIDs)) ||
+		!sameTime(cur.OccurredAt, n.OccurredAt) || !sameTime(cur.SourceUpdatedAt, n.SourceUpdatedAt)
+}
+
+// sameTime matches optTime: a zero time is stored as NULL, anything else is
+// compared as an instant.
+func sameTime(cur pgtype.Timestamptz, t time.Time) bool {
+	return cur.Valid == !t.IsZero() && (!cur.Valid || cur.Time.Equal(t))
 }
 
 func factPrecision(f db.GraphNodeFact) string {
