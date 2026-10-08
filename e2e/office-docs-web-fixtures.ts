@@ -13,8 +13,8 @@ import { createRecordingAccount, type RecordingAccount } from "./meeting-recordi
  * stored, not what the page shows.
  */
 const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
-export const DOCX_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-simple.docx");
-export const PIN_FILE = resolve(repoRoot, "apps/web/platform/office-frame/docs.pin.json");
+const DOCX_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-simple.docx");
+const PIN_FILE = resolve(repoRoot, "apps/web/platform/office-frame/docs.pin.json");
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 export interface DocsWebPin {

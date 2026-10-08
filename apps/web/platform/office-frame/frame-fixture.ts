@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { sha256Hex } from "./frame-bundle.mjs";
 
-export const CSP = "default-src 'self'; script-src 'self'; frame-ancestors 'self'";
+const CSP = "default-src 'self'; script-src 'self'; frame-ancestors 'self'";
 
 export interface FixtureOptions {
   version?: string;

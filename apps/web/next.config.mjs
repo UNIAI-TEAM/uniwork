@@ -1,4 +1,3 @@
-import { frameUrl } from "./platform/office-frame/frame-bundle.mjs";
 import { officeFrameHeaderRules, readPin } from "./platform/office-frame/frame-headers.mjs";
 
 // The Docs web frame (UNI-1013) is served from public/office-frame/docs/<version>/;
@@ -8,7 +7,8 @@ const framePin = readPin();
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@uniwork/ui", "@uniwork/core", "@uniwork/views"],
-  env: { NEXT_PUBLIC_OFFICE_DOCS_FRAME_URL: framePin ? frameUrl(framePin) : "" },
+  // Inlined for platform/office-frame/docs-frame-host.tsx; empty without a pin.
+  env: { NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION: framePin?.version ?? "" },
   headers: async () => officeFrameHeaderRules(framePin),
 };
 export default nextConfig;

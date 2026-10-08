@@ -209,8 +209,3 @@ export function assertMatchesPin(pin, manifest, manifestSha256) {
   if (manifestSha256 !== pin.manifestSha256) problems.push("manifest.json digest differs from the pin");
   if (problems.length) throw new Error(`bundle is not the pinned build (${problems.join("; ")}); re-pin deliberately with --pin`);
 }
-
-/** @param {FramePin} pin */
-export function frameUrl(pin) {
-  return `${FRAME_URL_ROOT}/${pin.version}/${pin.entry}`;
-}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertMatchesPin, assertSafeBundlePath, assertSafeVersion, buildPin, enforceFrameAncestors,
-  frameUrl, parseCspManifest, parseManifest, parsePin, sha256Hex,
+  parseCspManifest, parseManifest, parsePin, sha256Hex,
 } from "./frame-bundle.mjs";
 
 const sha = sha256Hex("x");
@@ -84,9 +84,8 @@ describe("pin", () => {
   const m = parseManifest(manifest());
   const headers = parseCspManifest({ policy: "default-src 'self'" });
   const pin = buildPin(m, sha, headers);
-  it("round-trips through parsePin and names the frame URL", () => {
+  it("round-trips through parsePin", () => {
     expect(parsePin(JSON.parse(JSON.stringify(pin)))).toEqual(pin);
-    expect(frameUrl(pin)).toBe("/office-frame/docs/0.1.0-abc1234/index.html");
   });
   it.each([
     ["schema", { ...pin, schema: 2 }], ["version", { ...pin, version: "a/b" }], ["gitSha", { ...pin, gitSha: "?" }],

@@ -62,14 +62,21 @@ must-revalidate`. With no pin the paths get `default-src 'none'; frame-ancestors
 'self'`. `office-frame` is a reserved slug (an organization named that would
 otherwise inherit these headers).
 
-## Flag wiring
+## Flag wiring and host
 
-`platform/office-frame/docs-web-frame.ts` (`useDocsWebFrame(organizationId)`):
-the pinned URL is inlined as `NEXT_PUBLIC_OFFICE_DOCS_FRAME_URL`; the flag is
-read from the organization's own `GET /api/v1/config?organization_id=`
-(organization overrides evaluate only when the organization is named). Off
-without a pinned URL, with `office_engine` or `office_docx` off, on any error;
-`loading` until the answer arrives so the G3 editor never flashes first.
+`next.config.mjs` inlines the pinned version as
+`NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION` (empty without a pin).
+`platform/office/document-office-host.tsx` routes a docx through
+`platform/office-frame/docs-frame-host.tsx`: with no pinned version it is the
+G3 host alone; otherwise `DocxOpenSwitch` (`packages/views/office/frame`)
+reads `office_docs_web` for the document's organization
+(`useOfficeDocsWebEnabled`, the organization-scoped `GET /api/v1/config`) and
+mounts `OfficeDocsFrame` only on a settled "on", the G3 host on anything else.
+`platform/office-frame/docs-frame-api.ts` is the `DocsFrameApi` the frame's
+`api.*` requests go through: open/save/recents/image upload on the
+`/api/v1/office-frame/*` routes with the document-scoped frame token; save-as,
+export and attachments answer a typed `unsupported` until a server endpoint
+exists.
 
 ## Moving the frame to its own origin later
 
