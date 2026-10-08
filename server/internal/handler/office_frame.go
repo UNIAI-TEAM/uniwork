@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
@@ -106,7 +107,27 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 		h.mapServiceError(w, err)
 		return
 	}
+	// The flag is organization-scoped, so it is read for the organization the
+	// document belongs to (the frame routes read it from the token the same
+	// way). Mint only signs: nothing is written or audited before this point,
+	// and a caller the ACL refuses never reaches it, so the answer reveals
+	// nothing a non-member could not already see.
+	if !officeDocsWebEnabled(r.Context(), h.FeatureFlags, t.Claims) {
+		respondError(w, http.StatusNotFound, "feature_disabled", "feature is disabled")
+		return
+	}
 	respondOfficeJSON(w, http.StatusCreated, officeFrameTokenSDO(t, time.Now()))
+}
+
+// officeDocsWebEnabled evaluates office_docs_web for the user, workspace and
+// organization a frame token is bound to.
+func officeDocsWebEnabled(ctx context.Context, flags *featureflag.Service, claims service.OfficeFrameClaims) bool {
+	def := false
+	if f, ok := featureflags.Lookup("office_docs_web"); ok {
+		def = f.Default
+	}
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: claims.UserID, WorkspaceID: claims.WorkspaceID, OrganizationID: claims.OrganizationID})
+	return flags.IsEnabled(ctx, "office_docs_web", def)
 }
 
 // refreshOfficeFrameToken is POST /office-frame/token.

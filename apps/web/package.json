@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/copy-pdfium-wasm.mjs && sh -c 'next dev --port \"${FRONTEND_PORT:-3000}\"'",
-    "build": "node scripts/copy-pdfium-wasm.mjs && next build",
+    "dev": "node scripts/copy-pdfium-wasm.mjs && node scripts/office-frame-sync.mjs --ensure && sh -c 'next dev --port \"${FRONTEND_PORT:-3000}\"'",
+    "build": "node scripts/copy-pdfium-wasm.mjs && node scripts/office-frame-sync.mjs --ensure && next build",
     "start": "next start",
+    "office-frame:sync": "node scripts/office-frame-sync.mjs",
+    "office-frame:check": "node scripts/office-frame-sync.mjs --check",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run --passWithNoTests=false --coverage"

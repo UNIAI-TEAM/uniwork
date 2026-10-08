@@ -168,8 +168,12 @@ describe("OfficeDocsFrame", () => {
     const frame = fakeFrame();
     await boot(frame);
     expect(frame.sent("request", "init")[0]?.payload).toMatchObject({ capabilities: { saveAs: true } });
+    await frame.event("dirty", { dirty: true });
     const id = frame.request("api.saveAs", { name: "Copy", data: new ArrayBuffer(2) });
     await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true, file: copy }));
+    // The page follows the copy right away: the unsaved edits live in the copy, so no leave dialog.
+    await expect(leaveGuardAllows("/documents/doc-2")).resolves.toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(saveAs).toHaveBeenCalledWith(expect.objectContaining({ name: "Copy" }), expect.objectContaining({ documentId: "doc-1", token: "tok-1" }));
     expect(frame.sent("event", "token.update").at(-1)?.payload).toMatchObject({ token: "copy-tok" });
     expect(onSavedAs).toHaveBeenCalledWith("doc-2");

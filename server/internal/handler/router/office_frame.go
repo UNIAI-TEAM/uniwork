@@ -27,7 +27,10 @@ import (
 //	POST   /api/v1/office-frame/documents/{documentID}/assets/sign
 //	GET    /api/v1/office-frame/documents/{documentID}/assets/{assetID} (bytes; HEAD)
 func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
-	d := r.With(mw.RequireFeatureFlag(flags, "documents"), mw.RequireFeatureFlag(flags, "office_docs_web"))
+	// office_docs_web is not a middleware here: the flag is organization-scoped
+	// and only the document names its organization, so mintOfficeFrameToken
+	// evaluates it for that organization once the ACL check has found it.
+	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 	d.Post("/documents/{documentID}/office/frame-token", h.MintOfficeFrameToken, apiOp{
 		summary: "Mint an Office Docs frame token",
 		description: "Host page only: checks the live ACL of a DOCX file document and returns a server-signed token (10 min) bound to this document, its workspace and the caller. " +

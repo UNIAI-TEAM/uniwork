@@ -20,6 +20,8 @@ vi.mock("next/dynamic", () => ({
   },
 }));
 vi.mock("./docx-office-host", () => ({ DocxOfficeEditorHost: Object.assign(() => null, { __name: "docx" }) }));
+// A .docx goes through the Docs-frame switch (UNI-1013), which falls back to the G3 host.
+vi.mock("../office-frame/docs-frame-host", () => ({ DocxFrameOrG3Host: Object.assign(() => null, { __name: "docx-frame-switch" }) }));
 vi.mock("./xlsx-office-host", () => ({ XlsxOfficeEditorHost: Object.assign(() => null, { __name: "xlsx" }) }));
 vi.mock("./pdf-office-host", () => ({ PdfOfficeEditorHost: Object.assign(() => null, { __name: "pdf" }) }));
 vi.mock("./pptx-office-host", () => ({ PptxOfficeEditorHost: Object.assign(() => null, { __name: "pptx" }) }));
@@ -50,7 +52,7 @@ async function route(document: Document) {
 
 describe("document office host routing", () => {
   it.each([
-    ["report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"],
+    ["report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx-frame-switch"],
     ["book.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"],
     ["paper.pdf", "application/pdf", "pdf"],
     ["notes.md", "text/markdown", "md"],

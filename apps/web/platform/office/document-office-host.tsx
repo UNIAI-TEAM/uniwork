@@ -17,6 +17,7 @@ function LoadingEditor() {
 }
 
 const DocxHost = dynamic(() => import("./docx-office-host").then((module) => module.DocxOfficeEditorHost), { ssr: false, loading: LoadingEditor });
+const DocxFrameHost = dynamic(() => import("../office-frame/docs-frame-host").then((module) => module.DocxFrameOrG3Host), { ssr: false, loading: LoadingEditor });
 const PdfHost = dynamic(() => import("./pdf-office-host").then((module) => module.PdfOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const XlsxHost = dynamic(() => import("./xlsx-office-host").then((module) => module.XlsxOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const MarkdownHost = dynamic(() => import("./md-html-adapter").then((module) => module.MarkdownOfficeEditorHost), { ssr: false, loading: LoadingEditor });
@@ -40,7 +41,8 @@ export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
   useOfficeTabTitle(props.document.title);
   const format = detectDocumentFormat(props.document);
   if (format === "pdf") return <PdfHost {...props} />;
-  if (format === "docx") return <DocxHost {...props} />;
+  // UNI-1013: the genoffice Docs frame when office_docs_web is on; the G3 host otherwise.
+  if (format === "docx") return <DocxFrameHost {...props} fallback={<DocxHost {...props} />} />;
   if (format === "xlsx") return <XlsxHost {...props} />;
   if (format === "md") return <MarkdownHost {...props} />;
   if (format === "html") return <HtmlHost {...props} />;
