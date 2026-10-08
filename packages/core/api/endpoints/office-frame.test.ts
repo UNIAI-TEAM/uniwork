@@ -140,4 +140,59 @@ describe("Office Docs frame endpoints", () => {
     f.mockResolvedValueOnce(new Response("not json", { status: 200 }));
     await expect(client.open(docId)).resolves.toBeNull();
   });
+
+  describe("exportPdf", () => {
+    const pdf = (body = "%PDF-1.7 bytes", type = "application/pdf") => new Response(body, { status: 200, headers: { "Content-Type": type } });
+    const setup = () => {
+      const f = vi.fn<typeof fetch>();
+      return { f, client: createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "http://frame.test" }) };
+    };
+
+    it("posts the live docx as 'file' with the frame token and an Idempotency-Key, and returns the PDF bytes", async () => {
+      const { f, client } = setup();
+      f.mockResolvedValueOnce(pdf());
+      const out = await client.exportPdf(docId, { file: new Blob(["docx"]) }, "k-exp");
+      expect(new TextDecoder().decode(out!)).toBe("%PDF-1.7 bytes");
+      const [url, init] = f.mock.calls[0] ?? [];
+      expect(String(url)).toBe(`http://frame.test/api/v1/office-frame/documents/${docId}/export/pdf`);
+      expect(init?.method).toBe("POST");
+      expect(init?.credentials).toBe("omit");
+      const headers = init?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe("Bearer oft1.frame");
+      expect(headers["Idempotency-Key"]).toBe("k-exp");
+      expect(headers["Content-Type"]).toBeUndefined();
+      const form = init?.body as FormData;
+      expect(form.get("file")).toBeInstanceOf(Blob);
+      expect(form.get("version")).toBeNull();
+    });
+
+    it("asks for a stored version when there are no live bytes", async () => {
+      const { f, client } = setup();
+      f.mockResolvedValueOnce(pdf()).mockResolvedValueOnce(pdf());
+      await client.exportPdf(docId, { version: 3 });
+      await client.exportPdf(docId, {});
+      const first = f.mock.calls[0]?.[1]?.body as FormData;
+      const second = f.mock.calls[1]?.[1]?.body as FormData;
+      expect([first.get("version"), first.get("file")]).toEqual(["3", null]);
+      expect([...second.keys()]).toEqual([]);
+    });
+
+    it("degrades a 200 that is not a PDF (wrong type or wrong bytes) to null", async () => {
+      const { f, client } = setup();
+      f.mockResolvedValueOnce(pdf("%PDF-1.7", "application/json"))
+        .mockResolvedValueOnce(pdf("<html>oops</html>"))
+        .mockResolvedValueOnce(pdf(""));
+      for (let i = 0; i < 3; i += 1) await expect(client.exportPdf(docId, {})).resolves.toBeNull();
+    });
+
+    it("rejects 501, 504 and 413 as ApiErrors carrying status and code", async () => {
+      const { f, client } = setup();
+      f.mockResolvedValueOnce(json({ error: { code: "unsupported_operation", message: "no renderer" } }, 501))
+        .mockResolvedValueOnce(new Response("gateway timeout", { status: 504 }))
+        .mockResolvedValueOnce(json({ error: { code: "payload_too_large", message: "big" } }, 413));
+      await expect(client.exportPdf(docId, {})).rejects.toMatchObject({ status: 501, code: "unsupported_operation" });
+      await expect(client.exportPdf(docId, {})).rejects.toMatchObject({ status: 504, code: "internal" });
+      await expect(client.exportPdf(docId, {})).rejects.toMatchObject({ status: 413, code: "payload_too_large" });
+    });
+  });
 });

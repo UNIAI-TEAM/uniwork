@@ -124,7 +124,25 @@ export interface OfficeFrameClient {
   recents(documentId: string, limit?: number): Promise<OfficeFrameRecents>;
   uploadAsset(documentId: string, file: Blob, filename: string, idempotencyKey?: string): Promise<OfficeFrameAsset | null>;
   signAssets(documentId: string, assetIds: string[]): Promise<OfficeFrameAssetUrls>;
+  /**
+   * PDF of the live bytes (`file`, the editor's unsaved docx) or of a stored
+   * `version` (default: current). Null when a 200 is not a PDF. 501
+   * unsupported_operation (no renderer), 504 and 413 reject as ApiError.
+   */
+  exportPdf(documentId: string, input: OfficeFramePdfInput, idempotencyKey?: string): Promise<ArrayBuffer | null>;
 }
+
+export interface OfficeFramePdfInput {
+  file?: Blob;
+  version?: number;
+  signal?: AbortSignal;
+}
+
+/** A PDF answer is the declared type AND the bytes ("%PDF-"); anything else is drift. */
+const officeFramePdfSchema = z.object({
+  content_type: z.string().regex(/^application\/pdf\b/i),
+  magic: z.literal("%PDF-"),
+});
 
 /** The frame-side caller: Bearer frame token, no cookies, contract-checked. */
 export function createOfficeFrameClient(options: OfficeFrameClientOptions): OfficeFrameClient {
@@ -199,6 +217,19 @@ export function createOfficeFrameClient(options: OfficeFrameClientOptions): Offi
     async uploadAsset(documentId, file, filename, idempotencyKey) {
       const raw = await json(`${docPath(documentId)}/assets`, { method: "POST", body: form(file, filename), idempotencyKey });
       return parseWithFallback<OfficeFrameAsset | null>(raw, officeFrameAssetSchema, null, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/assets" });
+    },
+    async exportPdf(documentId, input, idempotencyKey) {
+      const body = new FormData();
+      if (input.file) body.append("file", input.file, "document.docx");
+      else if (input.version !== undefined) body.append("version", String(input.version));
+      const res = await send(`${docPath(documentId)}/export/pdf`, { method: "POST", body, idempotencyKey, signal: input.signal });
+      const bytes = await res.arrayBuffer();
+      const answer = {
+        content_type: res.headers.get("Content-Type") ?? "",
+        magic: String.fromCharCode(...new Uint8Array(bytes, 0, Math.min(5, bytes.byteLength))),
+      };
+      const pdf = parseWithFallback(answer, officeFramePdfSchema, null, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/export/pdf" });
+      return pdf ? bytes : null;
     },
     async signAssets(documentId, assetIds) {
       const raw = await json(`${docPath(documentId)}/assets/sign`, { method: "POST", body: JSON.stringify({ asset_ids: assetIds }) });
