@@ -58,6 +58,32 @@ it("names a deleted subtask without linking to a page that is gone", async () =>
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
 });
 
+it("names statuses the way the status pill does, not by their seeded English names", async () => {
+  // Built-ins are seeded with English names (task_status_catalog.go); a custom
+  // status shows its own name.
+  const status = (key: string, name: string, isSystem: boolean, position: number) => ({
+    id: `s-${key}`, organization_id: "o1", workspace_id: "w1", key, name, description: "", category: isSystem ? key : "in_progress",
+    color: "", is_system: isSystem, position, created_at: "2026-08-25T00:00:00Z", updated_at: "2026-08-25T00:00:00Z",
+  });
+  requestMock.mockImplementation((path: unknown) => {
+    const p = String(path);
+    if (p.startsWith("/api/v1/config")) return Promise.resolve({ flags: { graph_ui: true }, rum_sample_rate: 0, work_management_capabilities: {} });
+    if (p.endsWith("/task-statuses")) {
+      return Promise.resolve({ statuses: [status("todo", "Todo", true, 1), status("in_progress", "In Progress", true, 2), status("waiting_client", "Chờ khách", false, 3)], categories: [], total: 3 });
+    }
+    if (p.includes("/history")) {
+      return Promise.resolve({ node: null, items: [
+        { kind: "fact", fact_type: "status", valid_from: "2026-10-03T02:00:00Z", valid_to: "2026-10-05T02:00:00Z", value: "waiting_client" },
+        { kind: "fact", fact_type: "status", valid_from: "2026-10-05T02:00:00Z", value: "in_progress", previous: "todo" },
+      ] });
+    }
+    return Promise.resolve({});
+  });
+  render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={me}><NodeHistorySection workspaceId="w1" nodeType="TASK" nodeId="t1" /></WorkspaceProvider>));
+  expect(await screen.findByText("Trạng thái Cần làm → Đang làm")).toBeInTheDocument();
+  expect(screen.getByText("Trạng thái Chờ khách")).toBeInTheDocument();
+});
+
 it("shows the empty state when the node is not projected yet", async () => {
   requestMock.mockImplementation((path: unknown) => {
     const p = String(path);

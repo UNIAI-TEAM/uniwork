@@ -4,10 +4,10 @@ import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api/http";
 import { useGraphHistory, useGraphUI } from "@uniwork/core/graph";
-import { useTaskStatuses } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
+import { useStatusCatalog } from "../tasks/pickers/status-catalog";
 import { graphNodeHref, historySentence, historyWhen } from "./graph-labels";
 
 /**
@@ -21,9 +21,11 @@ export function NodeHistorySection({ workspaceId, nodeType, nodeId }: { workspac
   const { workspace } = useWorkspace();
   const ui = useGraphUI(workspace.organization_id);
   const query = useGraphHistory(workspaceId, nodeType, nodeId, { enabled: ui === "on" });
-  const statuses = useTaskStatuses(workspaceId);
+  // The status pill's resolver: built-ins read through tasks.status_*, a
+  // custom status by its name, archived ones too; same query key, no request.
+  const { optionOf } = useStatusCatalog(workspaceId);
   if (ui !== "on") return null;
-  const statusName = (key: string) => statuses.data?.statuses.find((s) => s.key === key)?.name ?? key;
+  const statusName = (key: string) => optionOf(key).label;
   const label = (key: string, vars?: Record<string, string>) => t(key, vars);
   const items = [...(query.data?.items ?? [])].reverse();
   const missing = query.error instanceof ApiError && query.error.status === 404;
