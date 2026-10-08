@@ -29,7 +29,9 @@ type OfficeFrameService struct {
 }
 
 // OfficeFrameTokenTTL is the lifetime of a frame token and of a signed image
-// URL. The frame refreshes before it ends.
+// URL. There is no token-to-token renewal: before it ends the frame sends the
+// protocol's token.refresh and the host re-mints with its session, so a token
+// never outlives the session that minted it by more than one TTL.
 const OfficeFrameTokenTTL = 10 * time.Minute
 
 const (
@@ -137,19 +139,6 @@ func (s *OfficeFrameService) Mint(ctx context.Context, actor Actor, documentID s
 		return OfficeFrameToken{}, err
 	}
 	return OfficeFrameToken{Token: token, ExpiresAt: time.UnixMilli(claims.ExpiresAt).UTC(), Claims: claims, CanEdit: d.Access.Level.rank() >= DocumentLevelEdit.rank()}, nil
-}
-
-// Refresh mints a fresh token for the same document after rechecking access.
-// A document moved to another workspace since the first mint is refused.
-func (s *OfficeFrameService) Refresh(ctx context.Context, claims OfficeFrameClaims) (OfficeFrameToken, error) {
-	next, err := s.Mint(ctx, Human(claims.UserID), claims.DocumentID)
-	if err != nil {
-		return OfficeFrameToken{}, err
-	}
-	if next.Claims.WorkspaceID != claims.WorkspaceID || next.Claims.OrganizationID != claims.OrganizationID {
-		return OfficeFrameToken{}, ErrNotFound
-	}
-	return next, nil
 }
 
 // Verify checks signature, version and lifetime. It does not touch the

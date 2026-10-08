@@ -112,8 +112,10 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 	// way). Mint only signs: nothing is written or audited before this point,
 	// and a caller the ACL refuses never reaches it, so the answer reveals
 	// nothing a non-member could not already see.
+	// 403 feature_disabled, not 404: the host must tell "the frame is off for
+	// this organization" (fall back to the G3 editor) from "no such document".
 	if !officeDocsWebEnabled(r.Context(), h.FeatureFlags, t.Claims) {
-		respondError(w, http.StatusNotFound, "feature_disabled", "feature is disabled")
+		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
 		return
 	}
 	respondOfficeJSON(w, http.StatusCreated, officeFrameTokenSDO(t, time.Now()))
@@ -128,16 +130,6 @@ func officeDocsWebEnabled(ctx context.Context, flags *featureflag.Service, claim
 	}
 	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: claims.UserID, WorkspaceID: claims.WorkspaceID, OrganizationID: claims.OrganizationID})
 	return flags.IsEnabled(ctx, "office_docs_web", def)
-}
-
-// refreshOfficeFrameToken is POST /office-frame/token.
-func (h *handlers) refreshOfficeFrameToken(w http.ResponseWriter, r *http.Request) {
-	t, err := h.OfficeFrame.Refresh(r.Context(), officeFrameClaims(r))
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	respondOfficeJSON(w, http.StatusOK, officeFrameTokenSDO(t, time.Now()))
 }
 
 // openOfficeFrameDocument is GET /office-frame/documents/{documentID}.

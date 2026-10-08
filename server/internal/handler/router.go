@@ -595,7 +595,6 @@ func New(d Deps) http.Handler {
 		GetPreviewAsset:         h.getPreviewAsset,
 
 		MintOfficeFrameToken:     h.mintOfficeFrameToken,
-		RefreshOfficeFrameToken:  h.refreshOfficeFrameToken,
 		OpenOfficeFrameDocument:  h.openOfficeFrameDocument,
 		GetOfficeFrameContent:    h.getOfficeFrameContent,
 		UploadOfficeFrameFile:    h.uploadOfficeFrameFile,
