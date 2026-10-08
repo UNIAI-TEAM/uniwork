@@ -1,0 +1,1 @@
+$ pnpm --filter @uniwork/core exec eslint feature-flags --max-warnings 0

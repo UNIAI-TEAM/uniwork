@@ -1,0 +1,1 @@
+$ pnpm --filter @uniwork/office-desktop exec tsc --noEmit

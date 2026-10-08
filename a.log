@@ -1,0 +1,2 @@
+$ cd server && gofmt -l ./internal/featureflags && go vet ./internal/featureflags && go test ./internal/featureflags
+ok  	github.com/unicomhub/uniwork/server/internal/featureflags	0.002s
