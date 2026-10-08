@@ -26,6 +26,7 @@ type fixture struct {
 	ctx      context.Context
 	pool     *pgxpool.Pool
 	q        *db.Queries
+	auth     *service.AuthService
 	ws       *service.WorkspaceService
 	tasks    *service.TaskService
 	meetings *service.MeetingService
@@ -57,7 +58,7 @@ func newFixture(t *testing.T) *fixture {
 	auth := service.NewAuthService(pool, q, minter, time.Hour, nil)
 	orgs := service.NewOrganizationService(pool, q)
 	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, fakeOutbox{})
-	f := &fixture{ctx: ctx, pool: pool, q: q, ws: ws,
+	f := &fixture{ctx: ctx, pool: pool, q: q, auth: auth, ws: ws,
 		tasks:    service.NewTaskService(pool, q, ws, nil),
 		meetings: service.NewMeetingService(pool, q, ws, service.NopPublisher{}, nil, service.MeetingRuntime{}),
 		chat:     service.NewChatService(pool, q, ws, service.NopPublisher{}),

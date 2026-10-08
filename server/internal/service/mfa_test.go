@@ -198,4 +198,18 @@ func TestDeleteAccountAnonymisesAndKeepsAudit(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("user.deleted audit rows: %d, want 1", n)
 	}
+	// The organization sees the deactivation as its own row and event, as
+	// if an admin had deactivated the member (the Work Graph listens to it).
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND resource_id = $2 AND action = 'member.deactivated'`, f.orgID, f.member.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("member.deactivated audit rows: %d, want 1", n)
+	}
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE organization_id = $1 AND topic = 'member.deactivated' AND payload::jsonb->>'user_id' = $2`, f.orgID, f.member.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("member.deactivated outbox rows: %d, want 1", n)
+	}
 }

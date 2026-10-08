@@ -169,3 +169,32 @@ func TestChannelVisibilityChangeReachesTheGraph(t *testing.T) {
 		t.Fatalf("visibility = %s, want members", vis)
 	}
 }
+
+// Account deletion (Nghị định 13) anonymises the user and deactivates every
+// membership. The ACTOR node in each organization must follow: a task
+// assigned to the deleted person keeps its OWNED_BY edge, but the Related
+// panel and the Timeline read graph_nodes.title, so a stale node would keep
+// the real name readable to the whole workspace.
+func TestAccountDeletionReachesTheActorNode(t *testing.T) {
+	f := newFixture(t)
+	task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "Giao cho thành viên", AssigneeID: &f.member.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	eq(t, "edges", f.openEdges(t, graph.NodeTask, task.ID), []string{"OWNED_BY>ACTOR:" + f.member.ID})
+	if err := f.auth.DeleteAccount(f.ctx, f.member.ID, service.DeleteAccountInput{Password: "password123"}); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	var title, status string
+	if err := f.pool.QueryRow(f.ctx, `SELECT title, status FROM graph_nodes
+		WHERE organization_id = $1 AND node_type = $2 AND source_id = $3 AND deleted_at IS NULL`,
+		f.orgID, string(graph.NodeActor), f.member.ID).Scan(&title, &status); err != nil {
+		t.Fatal(err)
+	}
+	// service.deletedDisplayName, the placeholder AnonymizeUser writes.
+	if title != "Người dùng đã xóa" || status != "deactivated" {
+		t.Fatalf("actor node = (%q, %q), want (%q, %q)", title, status, "Người dùng đã xóa", "deactivated")
+	}
+}

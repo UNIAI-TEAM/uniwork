@@ -94,6 +94,12 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}); err != nil {
 		return err
 	}
+	// Read before the update: these are the organizations whose membership
+	// this deletion switches off, and each one records it as Deactivate does.
+	memberships, err := qtx.ListOrganizationsForUser(ctx, userID)
+	if err != nil {
+		return err
+	}
 	if err := qtx.DeactivateAllOrganizationMembershipsForUser(ctx, pgtype.Text{String: userID, Valid: true}); err != nil {
 		return err
 	}
@@ -111,6 +117,28 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 		Action: audit.ActionUserDeleted, ResourceType: "user", ResourceID: userID,
 	}); err != nil {
 		return err
+	}
+	// user.deleted sits on the credential sentinel, which no organization
+	// reads. Each organization gets the member.deactivated row and event an
+	// admin's Deactivate writes: its admins see why the member went, and the
+	// Work Graph marker re-reads the ACTOR node, so the real name does not
+	// outlive the erasure in graph_nodes.title.
+	for _, m := range memberships {
+		if m.DeactivatedAt.Valid {
+			continue
+		}
+		if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+			OrganizationID: m.ID,
+			Actor:          audit.User(userID),
+			Action:         audit.ActionMemberDeactivated,
+			ResourceType:   "organization_member", ResourceID: userID,
+			Changes:  audit.Diff(map[string]any{"status": MemberStatusActive}, map[string]any{"status": MemberStatusDeactivated}),
+			Metadata: map[string]any{"sessions_revoked": true, "reason": "account_deleted"},
+		}, audit.Event{Topic: "member.deactivated", Payload: map[string]string{
+			"organization_id": m.ID, "user_id": userID,
+		}}); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }
