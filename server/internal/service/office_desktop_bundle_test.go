@@ -108,6 +108,17 @@ func TestOfficeDesktopBundleReadmeExplainsBothPlatforms(t *testing.T) {
 			t.Errorf("README misses %q:\n%s", want, text)
 		}
 	}
+	// The zip holds three entries (installer, profile, README), so "both" is wrong.
+	for _, stale := range []string{"cả hai", "both files"} {
+		if strings.Contains(text, stale) {
+			t.Errorf("README still counts two files (%q):\n%s", stale, text)
+		}
+	}
+	for _, want := range []string{"tất cả các tệp", "all the files"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("README misses %q:\n%s", want, text)
+		}
+	}
 	if strings.Contains(text, "https://uniwork.example.vn") || strings.Contains(text, "fixture") {
 		t.Error("README must stay generic: no origin or deployment id")
 	}

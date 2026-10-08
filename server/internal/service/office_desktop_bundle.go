@@ -23,12 +23,12 @@ const desktopInstallerMaxBytes int64 = 512 << 20
 const officeDesktopBundleReadme = "UniWork Office\r\n" +
 	"\r\n" +
 	"Tiếng Việt\r\n" +
-	"- Windows: giải nén cả hai tệp vào cùng một thư mục, rồi chạy tệp cài đặt.\r\n" +
+	"- Windows: giải nén tất cả các tệp vào cùng một thư mục, rồi chạy tệp cài đặt.\r\n" +
 	"- macOS, Linux: cài UniWork Office (macOS: mở tệp .dmg và kéo ứng dụng vào Applications). Lần đầu mở ứng dụng, bấm \"Chọn tệp cấu hình…\" và chọn tệp deployment-profile.json trong thư mục này.\r\n" +
 	"- Tệp deployment-profile.json liên kết UniWork Office với site UniWork của bạn. Không sửa tệp này.\r\n" +
 	"\r\n" +
 	"English\r\n" +
-	"- Windows: extract both files to the same folder, then run Setup.\r\n" +
+	"- Windows: extract all the files to the same folder, then run Setup.\r\n" +
 	"- macOS, Linux: install UniWork Office (macOS: open the .dmg and drag the app to Applications). On first launch, click \"Choose configuration file…\" and pick deployment-profile.json from this folder.\r\n" +
 	"- deployment-profile.json links UniWork Office to your UniWork site. Do not edit it.\r\n"
 

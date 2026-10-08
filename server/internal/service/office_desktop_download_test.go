@@ -1,8 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -93,10 +96,25 @@ func TestOfficeDesktopDownloadDeploymentChannel(t *testing.T) {
 	cfg.OfficeInstallerStableURL = ""
 	cfg.OfficeInstallerDevURLs = `{"win32-x64":"http://localhost:9000/office-installers/dev/office_unsigned_win32_x64-setup.exe"}`
 	cfg.APIPublicURL = "http://localhost:8080"
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
 	_, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.memberA.ID, f.orgA, "dev")
+	slog.SetDefault(previous)
 	var ce CodedError
-	if !errors.As(err, &ce) || ce.Code != "office_download_unavailable" || !strings.Contains(ce.Msg, "DESKTOP_AUTH_CLIENT_ID=uniwork-office-dev") || !strings.Contains(ce.Msg, "DESKTOP_AUTH_REDIRECT_URIS=uniwork-office-dev://auth/callback") || !strings.Contains(ce.Msg, "DESKTOP_AUTH_DEPLOYMENT_IDS") {
+	if !errors.As(err, &ce) || ce.Code != "office_download_unavailable" {
 		t.Fatalf("dev installers with the stable client: %v", err)
+	}
+	// The member gets a short answer; the settings to change go to the log.
+	for _, leaked := range []string{"DESKTOP_AUTH", "uniwork-office"} {
+		if strings.Contains(ce.Msg, leaked) {
+			t.Fatalf("client message carries operator detail %q: %s", leaked, ce.Msg)
+		}
+	}
+	for _, want := range []string{"DESKTOP_AUTH_CLIENT_ID=uniwork-office-dev", "DESKTOP_AUTH_REDIRECT_URIS=uniwork-office-dev://auth/callback", "DESKTOP_AUTH_DEPLOYMENT_IDS"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("operator hint missing %q from the log: %s", want, logs.String())
+		}
 	}
 	cfg.DesktopAuthClientID = "uniwork-office-dev"
 	out, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.memberA.ID, f.orgA, "")
@@ -106,6 +124,26 @@ func TestOfficeDesktopDownloadDeploymentChannel(t *testing.T) {
 	cfg.DesktopAuthClientID = "uniwork-office"
 	if _, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.memberA.ID, f.orgA, ""); err == nil {
 		t.Fatal("a stable deployment was handed the dev installer")
+	}
+}
+
+// A deployment whose desktop client is unknown serves no channel; asking for
+// "the deployment's channel" is unavailable (503), not a malformed request.
+func TestOfficeDesktopDownloadUnknownClientIsUnavailable(t *testing.T) {
+	f := newAuditServiceFixture(t)
+	cfg := desktopDownloadConfig()
+	cfg.DesktopAuthClientID = "some-other-client"
+	_, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.memberA.ID, f.orgA, "")
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "office_download_unavailable" || ce.Status != http.StatusServiceUnavailable {
+		t.Fatalf("empty channel with an unknown client: %v", err)
+	}
+	if _, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.ownerB.ID, f.orgA, ""); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("channel availability leaked to a non-member: %v", err)
+	}
+	var bad CodedError
+	if _, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.memberA.ID, f.orgA, "invalid"); errors.As(err, &bad) && bad.Status == http.StatusServiceUnavailable {
+		t.Fatalf("an explicit bad channel must stay a bad request: %v", err)
 	}
 }
 

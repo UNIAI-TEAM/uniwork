@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -48,6 +49,11 @@ func (s *OfficeDesktopDownloadService) Get(ctx context.Context, userID, organiza
 	// No channel asked means the deployment's own channel, never a guess.
 	if channel == "" {
 		channel = s.cfg.OfficeDesktopChannel()
+	}
+	if channel == "" {
+		// The deployment's desktop client is unknown, so it serves no channel:
+		// the same "unavailable" as every other unconfigured case, not a bad request.
+		return out, coded(http.StatusServiceUnavailable, "office_download_unavailable", "desktop download is not configured")
 	}
 	if channel != "dev" && channel != "beta" && channel != "stable" {
 		return out, Invalid("channel must be stable, beta, or dev")
@@ -101,9 +107,13 @@ func (s *OfficeDesktopDownloadService) Get(ctx context.Context, userID, organiza
 	}
 	clientID := config.OfficeDesktopClientID(channel)
 	if s.cfg.DesktopAuthClientID != clientID || len(s.cfg.DesktopAuthDeploymentIDs) != 1 || strings.TrimSpace(s.cfg.DesktopAuthDeploymentIDs[0]) == "" {
-		// Name the settings: the operator who reads this has installers
-		// configured but a desktop client bound to a different channel.
-		return out, coded(http.StatusServiceUnavailable, "office_download_unavailable", "desktop client or deployment binding is ambiguous: "+config.OfficeDesktopBindingHint(channel))
+		// The operator has installers configured but a desktop client bound
+		// to a different channel: name the settings in the server log, and
+		// keep the answer to the member short. Ids only, no user data.
+		slog.Warn("office desktop download unavailable: client or deployment binding does not match the channel",
+			"channel", channel, "configured_client_id", s.cfg.DesktopAuthClientID,
+			"deployment_ids", len(s.cfg.DesktopAuthDeploymentIDs), "hint", config.OfficeDesktopBindingHint(channel))
+		return out, coded(http.StatusServiceUnavailable, "office_download_unavailable", "desktop client or deployment binding is not configured for this channel")
 	}
 	deploymentID := s.cfg.DesktopAuthDeploymentIDs[0]
 	if !asciiAlphaNumeric(deploymentID[0]) || len(deploymentID) > 128 || strings.IndexFunc(deploymentID, func(r rune) bool {
