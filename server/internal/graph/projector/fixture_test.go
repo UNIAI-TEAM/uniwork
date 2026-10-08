@@ -114,11 +114,24 @@ func (f *fixture) register(t *testing.T, auth *service.AuthService, email, name 
 	return u
 }
 
-// sync drains the outbox through the marker, then the worker, until neither
-// has anything left (projecting one node may mark its peers).
+const (
+	// syncTimeout bounds sync, so a graph that never settles fails the test.
+	syncTimeout = 10 * time.Second
+	// syncPoll is how long sync waits after a pass that claimed nothing while
+	// the organization still has rows waiting.
+	syncPoll = 10 * time.Millisecond
+)
+
+// sync delivers the outbox through the marker and drains the worker until the
+// organization has no outbox row left to deliver and no dirty node (projecting
+// one node may mark its peers). A pass that claims nothing does not mean that:
+// a claim takes a row only once available_at <= now() on the DB clock, and the
+// colima clock can step back by tens of ms, so a row written just before sync
+// may not be claimable yet. sync then polls until it is.
 func (f *fixture) sync(t *testing.T) {
 	t.Helper()
-	for round := 0; round < 10; round++ {
+	deadline := time.Now().Add(syncTimeout)
+	for {
 		if err := f.disp.Process(f.ctx, 500); err != nil {
 			t.Fatal(err)
 		}
@@ -126,6 +139,7 @@ func (f *fixture) sync(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		waiting := fmt.Sprintf("the last pass still projected %d node(s)", n)
 		if n == 0 {
 			// Drain logs a failed projection and reschedules it; fail here so
 			// the test reports the error, not the edge it left missing.
@@ -137,10 +151,72 @@ func (f *fixture) sync(t *testing.T) {
 			if failed != "" {
 				t.Fatalf("projection failed: %s", failed)
 			}
-			return
+			if waiting = f.unsettled(t); waiting == "" {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("graph did not settle in %s; still waiting: %s", syncTimeout, waiting)
+		}
+		if n == 0 {
+			time.Sleep(syncPoll)
 		}
 	}
-	t.Fatal("graph did not settle in 10 rounds")
+}
+
+// unsettled names the organization's outbox rows not yet delivered and its
+// dirty nodes, each with how long until a claim can take it; "" when none.
+func (f *fixture) unsettled(t *testing.T) string {
+	t.Helper()
+	var waiting string
+	if err := f.pool.QueryRow(f.ctx, `
+		SELECT COALESCE(string_agg(w, '; '), '') FROM (
+			SELECT format('outbox %s %s %s, claimable in %s ms%s', topic, id, status,
+				round(extract(epoch FROM available_at - now()) * 1000),
+				COALESCE(', last error: ' || last_error, '')) AS w
+			FROM outbox_events WHERE organization_id = $1 AND status IN ('PENDING', 'PROCESSING')
+			UNION ALL
+			SELECT format('graph_dirty %s %s, claimable in %s ms', node_type, source_id,
+				round(extract(epoch FROM available_at - now()) * 1000))
+			FROM graph_dirty WHERE organization_id = $1
+		) pending`, f.orgID).Scan(&waiting); err != nil {
+		t.Fatal(err)
+	}
+	return waiting
+}
+
+// sync must not call the graph settled while a row of the organization is
+// still waiting. A claim takes a row only once available_at <= now() on the
+// DB clock, and the colima clock can step back by tens of ms, so a row
+// written just before sync can be skipped by every claim of a pass. Each case
+// moves the rows a little into the future to stand for that step.
+func TestSyncWaitsForRowsNotClaimableYet(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		mark  bool // deliver the outbox first, so the wait is on graph_dirty
+		stage string
+	}{
+		{"outbox", false, `UPDATE outbox_events SET available_at = now() + interval '500 milliseconds'
+			WHERE organization_id = $1 AND status = 'PENDING'`},
+		{"graph_dirty", true, `UPDATE graph_dirty SET available_at = now() + interval '500 milliseconds'
+			WHERE organization_id = $1`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "Chưa tới lượt", AssigneeID: &f.member.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.mark {
+				if err := f.disp.Process(f.ctx, 500); err != nil {
+					t.Fatal(err)
+				}
+			}
+			f.exec(t, c.stage, f.orgID)
+			f.sync(t)
+			eq(t, "edges", f.openEdges(t, graph.NodeTask, task.ID), []string{"OWNED_BY>ACTOR:" + f.member.ID})
+		})
+	}
 }
 
 // openEdges lists a node's open edges as "TYPE>PEER_TYPE:peer" (outgoing) or
