@@ -67,6 +67,7 @@ test('the built xlsx artifact carries its contract symbols', () => {
       'export function applyHostNumfmtLocale(',
       'export function noteFormulaStreamChunk(runtime: UniverRuntime): void',
       'fn fill_col_widths(source: Vec<u8>) -> Vec<u8>',
+      "fn find_start_tag<'a>(text: &'a str, local: &str, from: usize) -> Option<(usize, &'a str)>",
     ],
     'the build records the enforced patched symbols',
   );
