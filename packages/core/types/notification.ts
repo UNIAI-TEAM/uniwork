@@ -8,6 +8,7 @@ export const NOTIFICATION_KINDS = [
   "mentioned",
   "meeting_invited",
   "meeting_starting",
+  "meeting_summary_reminder",
   "member_added",
   "role_changed",
   "audit_export_ready",

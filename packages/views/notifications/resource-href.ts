@@ -8,7 +8,10 @@ export function resourceHref(n: Notification, workspace: Workspace): string {
     case "task":
       return ws.task(n.resource_id);
     case "meeting":
-      return ws.meeting(n.resource_id);
+      // The summary reminder lands on the summary panel (use-meeting-section-deep-link).
+      return n.kind === "meeting_summary_reminder"
+        ? `${ws.meeting(n.resource_id)}?section=summary`
+        : ws.meeting(n.resource_id);
     case "audit_export":
       return `${ws.settings()}?tab=audit`;
     case "chat_message": {
