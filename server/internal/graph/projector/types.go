@@ -107,8 +107,9 @@ type EventInfo struct {
 	ActorKind    string
 	ActorID      string
 	// fresh is set by reconcile when this projection brings the node to life
-	// (no live row, or a row with no open edge or fact yet): openAt may then
-	// date its new edges and facts by the source, not by the event or today.
+	// (no live row, or a row with no open edge or fact yet that, on the
+	// worker path, was created after the event): openAt may then date its
+	// new edges and facts by the source, not by the event or today.
 	fresh bool
 }
 

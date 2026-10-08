@@ -85,10 +85,13 @@ func reconcile(ctx context.Context, q *db.Queries, org string, ref NodeRef, ev E
 		drift.ChangedNodes++
 	}
 	ev.fresh = !live
-	if live {
-		// A node resolvePeer created moments ago (in this rebuild, or for an
-		// event about another node) has a row but no open edges or facts:
-		// its history is dated by the source too.
+	// A node resolvePeer created moments ago (in this rebuild, or for an
+	// event about another node) has a row but no open edges or facts: its
+	// history is dated by the source too. On the worker path the row must
+	// also be newer than the event (both DB clock): an old node can be bare
+	// in steady state (a member with no department, a top-level team), and
+	// its first edge is a change dated by its event.
+	if live && (ev.EvidenceKind != EvidenceOutboxEvent || cur.CreatedAt.Time.After(ev.At)) {
 		bare, err := bareNode(ctx, q, org, cur.ID, ref.Type)
 		if err != nil {
 			return drift, err

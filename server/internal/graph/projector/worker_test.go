@@ -121,6 +121,49 @@ func TestWorkerBackfillsANodeWhoseSourcePredatesTheGraph(t *testing.T) {
 	}
 }
 
+// A node the graph has held for a while can still be bare: a member with no
+// department, a top-level team. Its first edge is a change that happens now,
+// so it is dated by its event with no backfill, not by the source's time
+// (the membership's start), which would show the member in the team before
+// they joined it. Only a stub newer than its event (resolvePeer, above)
+// counts as brought to life by the worker.
+func TestWorkerDatesTheFirstEdgeOfAnOldBareNodeByItsEvent(t *testing.T) {
+	f := newFixture(t)
+	f.sync(t)
+	eq(t, "actor edges before", f.openEdges(t, graph.NodeActor, f.member.ID), []string{})
+	// The actor node and the membership have existed for a day.
+	f.exec(t, `UPDATE graph_nodes SET created_at = created_at - interval '1 day'
+		WHERE organization_id = $1 AND node_type = 'ACTOR' AND source_id = $2`, f.orgID, f.member.ID)
+	f.exec(t, `UPDATE organization_members SET created_at = created_at - interval '1 day' WHERE organization_id = $1 AND user_id = $2`,
+		f.orgID, f.member.ID)
+	dept, err := f.depts.Create(f.ctx, f.owner.ID, f.orgID, service.DepartmentInput{Name: ptr("Kinh doanh"), Code: ptr("KD")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	if _, err := f.people.UpdateProfile(f.ctx, f.owner.ID, f.orgID, f.member.ID, service.ProfileInput{DepartmentID: &dept.ID}); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	eq(t, "actor edges", f.openEdges(t, graph.NodeActor, f.member.ID), []string{"BELONGS_TO>TEAM:" + dept.ID})
+	var backfill, atEvent, atMembership bool
+	var kind string
+	if err := f.pool.QueryRow(f.ctx, `
+		SELECT COALESCE((e.attrs->>'backfill')::boolean, false), e.evidence_kind,
+		       e.valid_from = o.created_at, e.valid_from = m.created_at
+		FROM graph_edges e JOIN graph_nodes n ON n.id = e.from_node
+		JOIN organization_members m ON m.organization_id = n.organization_id AND m.user_id = n.source_id
+		LEFT JOIN outbox_events o ON o.id = e.evidence_id
+		WHERE e.organization_id = $1 AND e.edge_type = 'BELONGS_TO' AND n.node_type = 'ACTOR' AND n.source_id = $2
+		  AND e.valid_to IS NULL`, f.orgID, f.member.ID).Scan(&backfill, &kind, &atEvent, &atMembership); err != nil {
+		t.Fatal(err)
+	}
+	if backfill || kind != EvidenceOutboxEvent || !atEvent {
+		t.Fatalf("actor BELONGS_TO: backfill = %v, evidence_kind = %s, valid_from = the event's time: %v (= the membership's: %v)",
+			backfill, kind, atEvent, atMembership)
+	}
+}
+
 // A source created while the flag is on is dated by its own event: no
 // backfill, valid_from = the outbox row's time.
 func TestWorkerDatesANewSourceByItsEvent(t *testing.T) {
