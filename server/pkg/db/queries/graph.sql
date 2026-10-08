@@ -11,7 +11,9 @@ WHERE organization_id = sqlc.arg(organization_id) AND node_type = sqlc.arg(node_
 
 -- name: GraphUpsertNode :one
 -- Returns no row when nothing changed: the caller reads the node instead, so
--- a re-projection does not touch updated_at.
+-- a re-projection does not touch updated_at. source_updated_at is written but
+-- not compared: activity (a message, a reorder) bumps the source's updated_at
+-- without anything in the node changing.
 INSERT INTO graph_nodes (id, organization_id, workspace_id, node_type, subtype, source_id, title, status,
                          visibility, reader_ids, occurred_at, source_updated_at)
 VALUES (sqlc.arg(id), sqlc.arg(organization_id), sqlc.narg(workspace_id), sqlc.arg(node_type), sqlc.arg(subtype),
@@ -25,10 +27,10 @@ ON CONFLICT (organization_id, node_type, source_id) DO UPDATE SET
   occurred_at = EXCLUDED.occurred_at, source_updated_at = EXCLUDED.source_updated_at,
   deleted_at = NULL, updated_at = now()
 WHERE (graph_nodes.workspace_id, graph_nodes.subtype, graph_nodes.title, graph_nodes.status, graph_nodes.visibility,
-       graph_nodes.reader_ids, graph_nodes.occurred_at, graph_nodes.source_updated_at, graph_nodes.deleted_at)
+       graph_nodes.reader_ids, graph_nodes.occurred_at, graph_nodes.deleted_at)
   IS DISTINCT FROM
       (EXCLUDED.workspace_id, EXCLUDED.subtype, EXCLUDED.title, EXCLUDED.status, EXCLUDED.visibility,
-       EXCLUDED.reader_ids, EXCLUDED.occurred_at, EXCLUDED.source_updated_at, NULL::timestamptz)
+       EXCLUDED.reader_ids, EXCLUDED.occurred_at, NULL::timestamptz)
 RETURNING *;
 
 -- name: GraphMarkNodeDeleted :exec

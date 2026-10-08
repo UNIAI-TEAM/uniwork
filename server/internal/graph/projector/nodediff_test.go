@@ -11,7 +11,8 @@ import (
 )
 
 // nodeDiffers must see every column GraphUpsertNode compares, so Verify
-// counts what Project rewrites.
+// counts what Project rewrites. source_updated_at is compared by neither:
+// activity bumps it without the node changing.
 func TestNodeDiffersComparesTheTimes(t *testing.T) {
 	occurred := time.Date(2026, 10, 20, 9, 30, 0, 123456000, time.UTC)
 	updated := time.Date(2026, 10, 21, 8, 0, 0, 654321000, time.UTC)
@@ -42,25 +43,33 @@ func TestNodeDiffersComparesTheTimes(t *testing.T) {
 		t.Error("node differing only in occurred_at not reported")
 	}
 
+	// A message or a reorder moves the source's updated_at and nothing else.
 	touched := want
-	touched.SourceUpdatedAt = updated.Add(time.Microsecond)
-	if !nodeDiffers(row(), touched) {
-		t.Error("node differing only in source_updated_at not reported")
+	touched.SourceUpdatedAt = updated.Add(time.Hour)
+	if nodeDiffers(row(), touched) {
+		t.Error("node differing only in source_updated_at reported as changed")
 	}
-
-	// A workspace member has no source_updated_at: the zero time is stored
-	// as NULL, and the two are the same state.
-	member := want
-	member.SourceUpdatedAt = time.Time{}
+	unset := want
+	unset.SourceUpdatedAt = time.Time{}
 	stored := row()
 	stored.SourceUpdatedAt = pgtype.Timestamptz{}
-	if nodeDiffers(stored, member) {
-		t.Error("zero source_updated_at vs NULL column reported as changed")
+	if nodeDiffers(stored, want) || nodeDiffers(row(), unset) {
+		t.Error("source_updated_at set on one side only reported as changed")
+	}
+
+	// occurred_at keeps the NULL rule: the zero time is stored as NULL, and
+	// the two are the same state.
+	undated := want
+	undated.OccurredAt = time.Time{}
+	stored = row()
+	stored.OccurredAt = pgtype.Timestamptz{}
+	if nodeDiffers(stored, undated) {
+		t.Error("zero occurred_at vs NULL column reported as changed")
 	}
 	if !nodeDiffers(stored, want) {
-		t.Error("NULL column vs a set source_updated_at not reported")
+		t.Error("NULL column vs a set occurred_at not reported")
 	}
-	if !nodeDiffers(row(), member) {
-		t.Error("set column vs a zero source_updated_at not reported")
+	if !nodeDiffers(row(), undated) {
+		t.Error("set column vs a zero occurred_at not reported")
 	}
 }

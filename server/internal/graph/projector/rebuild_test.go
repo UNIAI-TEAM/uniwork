@@ -3,6 +3,7 @@ package projector
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/graph"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -52,6 +53,64 @@ func TestRebuildVerifyFindsNoDriftAfterTheWorker(t *testing.T) {
 		t.Fatalf("verify after apply = %+v", rep.Drift)
 	}
 	eq(t, "task edges", f.openEdges(t, graph.NodeTask, task.ID), []string{"BELONGS_TO>PROJECT:" + p.ID, "OWNED_BY>ACTOR:" + f.member.ID})
+}
+
+// A message bumps chat_rooms.updated_at and emits no event the marker takes.
+// The THREAD node is still right, so verify finds no drift and an apply
+// rewrites nothing; a real change still refreshes source_updated_at.
+func TestRoomActivityIsNotDrift(t *testing.T) {
+	f := newFixture(t)
+	ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{Name: "hoat-dong", Visibility: "public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	ref := NodeRef{Type: graph.NodeThread, SourceID: ch.ID}
+	nodeTimes := func() (updated, sourceUpdated time.Time) {
+		t.Helper()
+		if err := f.pool.QueryRow(f.ctx, `SELECT updated_at, source_updated_at FROM graph_nodes
+			WHERE organization_id = $1 AND node_type = 'THREAD' AND source_id = $2`, f.orgID, ch.ID).Scan(&updated, &sourceUpdated); err != nil {
+			t.Fatal(err)
+		}
+		return updated, sourceUpdated
+	}
+	before, _ := nodeTimes()
+
+	if _, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{Body: "chào cả nhà"}); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	// The message must have moved the room past what the node holds, or
+	// this test proves nothing.
+	if n := f.count(t, `SELECT count(*) FROM chat_rooms r JOIN graph_nodes n ON n.source_id = r.id
+		WHERE n.organization_id = $1 AND n.node_type = 'THREAD' AND r.id = $2 AND r.updated_at > n.source_updated_at`, f.orgID, ch.ID); n != 1 {
+		t.Fatal("sending a message did not bump chat_rooms.updated_at past the node's source_updated_at")
+	}
+	if d := f.verify(t, ref); d.Total() != 0 {
+		t.Fatalf("verify after a message = %+v, want no drift", d)
+	}
+	rep, err := RebuildOrg(f.ctx, f.pool, f.q, f.orgID, RebuildOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Drift.Total() != 0 {
+		t.Fatalf("apply after a message = %+v, want no drift", rep.Drift)
+	}
+	if after, _ := nodeTimes(); !after.Equal(before) {
+		t.Fatalf("apply rewrote the node: updated_at %v -> %v", before, after)
+	}
+
+	// A rename is a real change: the node is rewritten, source_updated_at with it.
+	name := "doi-ten"
+	if _, err := f.chat.UpdateChannel(f.ctx, f.owner.ID, f.wsID, ch.ID, service.UpdateChannelInput{Name: &name}); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	if n := f.count(t, `SELECT count(*) FROM chat_rooms r JOIN graph_nodes n ON n.source_id = r.id
+		WHERE n.organization_id = $1 AND n.node_type = 'THREAD' AND r.id = $2
+		  AND n.title = r.name AND n.source_updated_at = r.updated_at`, f.orgID, ch.ID); n != 1 {
+		t.Fatal("rename did not rewrite the node's title and source_updated_at")
+	}
 }
 
 // An organization whose events were never marked (flag off) is backfilled by

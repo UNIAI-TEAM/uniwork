@@ -382,11 +382,14 @@ func deleteNode(ctx context.Context, q *db.Queries, org, nodeID string, ref Node
 
 // nodeDiffers compares every column GraphUpsertNode's IS DISTINCT FROM
 // compares (bar deleted_at, which reconcile handles as live), so Verify
-// counts what Project rewrites.
+// counts what Project rewrites. source_updated_at is in neither: rooms,
+// departments and meetings bump updated_at on activity no marked event
+// follows (a message, a reorder, a host transfer), so comparing it would
+// report a correct node as drift. It is still written with any other change.
 func nodeDiffers(cur db.GraphNode, n NodeState) bool {
 	return textOf(cur.WorkspaceID) != n.WorkspaceID || cur.Subtype != n.Subtype || cur.Title != n.Title ||
 		cur.Status != n.Status || cur.Visibility != n.Visibility || !slices.Equal(cur.ReaderIds, sortedUnique(n.ReaderIDs)) ||
-		!sameTime(cur.OccurredAt, n.OccurredAt) || !sameTime(cur.SourceUpdatedAt, n.SourceUpdatedAt)
+		!sameTime(cur.OccurredAt, n.OccurredAt)
 }
 
 // sameTime matches optTime: a zero time is stored as NULL, anything else is
