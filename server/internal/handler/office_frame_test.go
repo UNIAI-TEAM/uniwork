@@ -262,3 +262,113 @@ func TestOfficeFrameImagesAreSignedPerAsset(t *testing.T) {
 		t.Fatalf("sign unknown asset = %d %v", res.StatusCode, out)
 	}
 }
+
+// setOfficeDocsWebFor writes the office_docs_web override of one organization.
+func setOfficeDocsWebFor(t *testing.T, q *db.Queries, organizationID string, enabled bool) {
+	t.Helper()
+	if _, err := q.UpsertFlagOverride(context.Background(), db.UpsertFlagOverrideParams{
+		ID: util.NewID(), FlagKey: "office_docs_web", ScopeType: featureflags.ScopeOrganization,
+		ScopeID: organizationID, Enabled: enabled, Note: "office frame org scope test", CreatedBy: "test",
+	}); err != nil {
+		t.Fatalf("set office_docs_web for %s: %v", organizationID, err)
+	}
+	if testFlagOverrides != nil {
+		testFlagOverrides.Invalidate()
+	}
+}
+
+// saveThroughFrame stages and commits one edit with a frame token.
+func (w *officeWorld) saveThroughFrame(t *testing.T, documentID, token, marker string) int {
+	t.Helper()
+	base := "/api/v1/office-frame/documents/" + documentID
+	res, opened := doJSON(t, w.srv, "GET", base, token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("open = %d %v", res.StatusCode, opened)
+	}
+	res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", token, nil, "plan.docx", frameDocx(t, marker), nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("upload = %d %s", res.StatusCode, raw)
+	}
+	var up struct {
+		UploadID string `json:"upload_id"`
+	}
+	_ = json.Unmarshal(raw, &up)
+	res, _ = doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", token, map[string]string{"Idempotency-Key": "org-scope-" + marker},
+		map[string]string{"upload_id": up.UploadID, "base_revision": opened["revision"].(string)})
+	return res.StatusCode
+}
+
+// The flag is organization-scoped: an override for one organization opens the
+// mint route and the frame routes for its documents, and another organization
+// stays closed, both at mint and, for a token minted while it was open, on
+// every later frame call.
+func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	setOfficeDocsWebFor(t, w.q, w.orgID, true)
+
+	documentID := w.createDocx(t, "plan.docx", frameDocx(t, "a"))
+	token := w.mintFrameToken(t, documentID)["token"].(string)
+	base := "/api/v1/office-frame/documents/" + documentID
+	if res, out := doJSON(t, w.srv, "GET", base, token, nil); res.StatusCode != 200 {
+		t.Fatalf("open under the org override = %d %v", res.StatusCode, out)
+	}
+	if code := w.saveThroughFrame(t, documentID, token, "org-a-edit"); code != 200 {
+		t.Fatalf("save under the org override = %d", code)
+	}
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/office-frame/token", token, nil); res.StatusCode != 200 {
+		t.Fatalf("refresh under the org override = %d %v", res.StatusCode, out)
+	}
+
+	// Another organization, same server, no override: closed.
+	other := w.outsiderToken(t)
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/orgs", other, map[string]string{"name": "Other Org", "slug": "other-org"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create other org: %d %v", res.StatusCode, out)
+	}
+	otherOrg := out["organization"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/orgs/"+otherOrg+"/workspaces", other, map[string]string{"name": "Other WS", "slug": "other-ws"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create other ws: %d %v", res.StatusCode, out)
+	}
+	otherWS := out["workspace"].(map[string]any)["id"].(string)
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+otherWS+"/documents/files", other, nil, "other.docx", frameDocx(t, "b"), nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("create other docx: %d %s", res.StatusCode, raw)
+	}
+	var created struct {
+		Document struct {
+			ID string `json:"id"`
+		} `json:"document"`
+	}
+	_ = json.Unmarshal(raw, &created)
+	otherDoc := created.Document.ID
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+otherDoc+"/office/frame-token", other, nil)
+	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "feature_disabled" {
+		t.Fatalf("mint in the organization without the override = %d %v", res.StatusCode, out)
+	}
+
+	// A token minted while the other organization was open stops working when
+	// its override is switched off, on every frame route.
+	setOfficeDocsWebFor(t, w.q, otherOrg, true)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+otherDoc+"/office/frame-token", other, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("mint with the other org's override = %d %v", res.StatusCode, out)
+	}
+	otherToken := out["token"].(string)
+	setOfficeDocsWebFor(t, w.q, otherOrg, false)
+	for _, call := range []struct{ method, path string }{
+		{"GET", "/api/v1/office-frame/documents/" + otherDoc},
+		{"GET", "/api/v1/office-frame/documents/" + otherDoc + "/recents"},
+		{"POST", "/api/v1/office-frame/token"},
+	} {
+		res, out := doJSON(t, w.srv, call.method, call.path, otherToken, nil)
+		if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "feature_disabled" {
+			t.Fatalf("%s %s with the override off = %d %v", call.method, call.path, res.StatusCode, out)
+		}
+	}
+
+	// The first organization is unaffected by the other one's switch.
+	if res, out := doJSON(t, w.srv, "GET", base, token, nil); res.StatusCode != 200 {
+		t.Fatalf("org A after org B was switched off = %d %v", res.StatusCode, out)
+	}
+}

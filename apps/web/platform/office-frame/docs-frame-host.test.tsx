@@ -3,7 +3,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Document } from "@uniwork/core/types/document";
 
-const mocks = vi.hoisted(() => ({ switchProps: vi.fn(), frameProps: vi.fn() }));
+const mocks = vi.hoisted(() => ({ switchProps: vi.fn(), frameProps: vi.fn(), push: vi.fn() }));
+vi.mock("@uniwork/views/layout/workspace-context", () => ({ useWorkspace: () => ({ workspace: { organization_slug: "acme", slug: "ops" } }) }));
+vi.mock("@uniwork/views/navigation", () => ({ useNavigation: () => ({ push: mocks.push }) }));
 vi.mock("@uniwork/views/office", () => ({
   DocxOpenSwitch: (props: { organizationId?: string; docsFrame: ReactNode; fallback: ReactNode }) => {
     mocks.switchProps(props);
@@ -21,6 +23,7 @@ let container: HTMLDivElement;
 beforeEach(() => {
   mocks.switchProps.mockReset();
   mocks.frameProps.mockReset();
+  mocks.push.mockReset();
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -49,8 +52,17 @@ describe("DocxFrameOrG3Host", () => {
     await mount();
     expect(mocks.switchProps.mock.calls[0]![0].organizationId).toBe("org-1");
     expect(mocks.frameProps).toHaveBeenCalledWith(expect.objectContaining({
-      wsId: "ws-1", documentId: "doc-1", title: "Spec", frameVersion: "0.1.0-abc1234", readonly: false, className: "c", api: expect.any(Object),
+      wsId: "ws-1", documentId: "doc-1", title: "Spec", frameVersion: "0.1.0-abc1234", readonly: false, className: "c",
     }));
+    // The core createDocsFrameApi default serves the frame; the host injects none.
+    expect(mocks.frameProps.mock.calls[0]![0]).not.toHaveProperty("api");
     expect(container.querySelector('[data-testid="g3"]')).not.toBeNull();
+  });
+
+  it("follows a save-as copy by navigating to the new document in the same workspace", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "0.1.0-abc1234");
+    await mount();
+    (mocks.frameProps.mock.calls[0]![0] as { onSavedAs: (id: string) => void }).onSavedAs("copy-9");
+    expect(mocks.push).toHaveBeenCalledWith("/acme/ops/documents/copy-9");
   });
 });
