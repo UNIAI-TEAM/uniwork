@@ -1,0 +1,2 @@
+$ cd server && go test -count=1 ./internal/handler -run 'TestConfig|TestOfficeDesktop|TestIsolationMatrix|TestEveryBodyIDFieldHasAReferenceCase'
+ok  	github.com/unicomhub/uniwork/server/internal/handler	108.795s

@@ -1,0 +1,1 @@
+$ pnpm --filter @uniwork/core exec eslint api/endpoints/config.ts api/endpoints/config.test.ts --max-warnings 0

@@ -1,0 +1,1 @@
+$ cd server && gofmt -l internal/config internal/handler internal/service
