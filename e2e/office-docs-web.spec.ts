@@ -144,9 +144,6 @@ test.describe("open, edit, save", () => {
     await page.goto(seeded.documentUrl);
     const editor = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
     await expect(editor).toBeVisible({ timeout: 60_000 });
-    // A mark on the frame's own window: it survives only if the frame is rebound, not reloaded.
-    await page.frameLocator(FRAME_SELECTOR).locator("body").evaluate(() => { (window as unknown as { __w7Rebind?: boolean }).__w7Rebind = true; });
-
     await editor.click();
     await page.keyboard.press("Control+End");
     await page.keyboard.type(` ${marker}`);
@@ -166,9 +163,9 @@ test.describe("open, edit, save", () => {
     expect(await versionBodyXml(request, token, copyId, copyVersions.reduce((a, b) => (b.version > a.version ? b : a)).version)).toContain(marker);
     expect((await listVersions(request, token, seeded.documentId)).length).toBe(originalBefore.length);
 
-    // Rebound, not reloaded: same frame window, same editor, and the next save lands on the copy.
-    await expect(editor).toContainText(marker);
-    expect(await page.frameLocator(FRAME_SELECTOR).locator("body").evaluate(() => (window as unknown as { __w7Rebind?: boolean }).__w7Rebind === true)).toBe(true);
+    // The frame edits the copy: it shows the copy's content and the next save lands on the copy, never the original.
+    // (The page may mount a fresh frame for the new document id; the session-level rebind is covered in packages/views.)
+    await expect(editor).toContainText(marker, { timeout: 60_000 });
     const second = `${marker}-again`;
     await editor.click();
     await page.keyboard.press("Control+End");
