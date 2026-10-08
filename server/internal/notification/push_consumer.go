@@ -129,6 +129,10 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	case "task":
 		return base + "/tasks/" + n.ResourceID, nil
 	case "meeting":
+		if n.Kind == KindMeetingSummaryReminder {
+			// Lands on the summary panel (use-meeting-section-deep-link.ts).
+			return base + "/meetings/" + n.ResourceID + "?section=summary", nil
+		}
 		return base + "/meetings/" + n.ResourceID, nil
 	case "audit_export":
 		return base + "/settings?tab=audit", nil
