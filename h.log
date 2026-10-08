@@ -1,0 +1,9 @@
+$ node scripts/office/build-xlsx-browser.mjs
+{
+ "ok": true,
+ "bytes": 14785121,
+ "gzipBytes": 3874731,
+ "sha256": "416e27519367ceda11787efad2b527e2f24622ec7fb185423dd9805ef426d17e",
+ "inputs": 74,
+ "styles": 9
+}

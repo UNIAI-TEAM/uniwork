@@ -1,0 +1,3 @@
+$ test "$(git rev-parse HEAD)" = 122e5d79db02cd19a48d3849c16df032403e1e0c && git status --porcelain=v1 --untracked-files=all && node --version && pnpm --version
+v22.14.0
+10.28.2

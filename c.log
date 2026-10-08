@@ -1,0 +1,47 @@
+$ pnpm exec turbo typecheck --filter=@uniwork/core --filter=@uniwork/office-desktop --filter=@uniwork/views --filter=@uniwork/office-engine --filter=@uniwork/web --force
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/office-desktop, @uniwork/office-engine, @uniwork/views, @uniwork/web
+   • Running typecheck in 5 packages
+   • Remote caching disabled
+
+@uniwork/ui:typecheck: cache bypass, force executing a788aba46170d790
+@uniwork/office-contracts:typecheck: cache bypass, force executing 98bcd7d247877a48
+@uniwork/ui:typecheck: 
+@uniwork/ui:typecheck: > @uniwork/ui@0.0.0 typecheck /workspace/packages/ui
+@uniwork/ui:typecheck: > tsc --noEmit
+@uniwork/ui:typecheck: 
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-contracts:typecheck: > @uniwork/office-contracts@0.0.0 typecheck /workspace/packages/office-contracts
+@uniwork/office-contracts:typecheck: > tsc --noEmit
+@uniwork/office-contracts:typecheck: 
+@uniwork/office-engine:typecheck: cache bypass, force executing a6f054ffefb9f826
+@uniwork/office-engine:typecheck: 
+@uniwork/office-engine:typecheck: > @uniwork/office-engine@0.0.0 typecheck /workspace/packages/office-engine
+@uniwork/office-engine:typecheck: > tsc --noEmit
+@uniwork/office-engine:typecheck: 
+@uniwork/core:typecheck: cache bypass, force executing 7f5e46a2a41ccb62
+@uniwork/core:typecheck: 
+@uniwork/core:typecheck: > @uniwork/core@0.0.0 typecheck /workspace/packages/core
+@uniwork/core:typecheck: > tsc --noEmit
+@uniwork/core:typecheck: 
+@uniwork/views:typecheck: cache bypass, force executing d483860983a640b0
+@uniwork/views:typecheck: 
+@uniwork/views:typecheck: > @uniwork/views@0.0.0 typecheck /workspace/packages/views
+@uniwork/views:typecheck: > tsc --noEmit
+@uniwork/views:typecheck: 
+@uniwork/web:typecheck: cache bypass, force executing 53b242003f059d59
+@uniwork/office-desktop:typecheck: cache bypass, force executing 5b1e3a6f69a5940a
+@uniwork/office-desktop:typecheck: 
+@uniwork/office-desktop:typecheck: > @uniwork/office-desktop@0.1.0 typecheck /workspace/apps/office-desktop
+@uniwork/office-desktop:typecheck: > tsc --noEmit
+@uniwork/office-desktop:typecheck: 
+@uniwork/web:typecheck: 
+@uniwork/web:typecheck: > @uniwork/web@0.0.0 typecheck /workspace/apps/web
+@uniwork/web:typecheck: > tsc --noEmit
+@uniwork/web:typecheck: 
+
+ Tasks:    7 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    1m33.503s 
+
