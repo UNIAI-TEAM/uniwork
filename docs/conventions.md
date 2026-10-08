@@ -163,6 +163,7 @@ fails on drift. One flat namespace, keys nested by section:
 | Concept | vi | en | Note |
 | --- | --- | --- | --- |
 | task (the unit of work) | **công việc** / **việc** | Task | `tasks.title = "Công việc"`, `tasks.new = "Việc mới"` |
+| subtask | **công việc con** | Sub-task | `tasks.detail.child_of = "Công việc con của"`; always the full term, never the short "việc con", even where "việc" alone stands for the task |
 | meeting | **cuộc họp** | Meeting | `meetings.title = "Cuộc họp"` |
 | workspace | **workspace** | Workspace | kept in English in vi copy: `workspace.create = "Tạo workspace"` |
 | organization | **tổ chức** | Organization | `"tên tổ chức không được để trống"` |

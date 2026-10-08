@@ -54,8 +54,25 @@ it("names a deleted subtask without linking to a page that is gone", async () =>
     return Promise.resolve({});
   });
   render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={me}><NodeHistorySection workspaceId="w1" nodeType="TASK" nodeId="t1" /></WorkspaceProvider>));
-  expect(await screen.findByText("Viết báo cáo là việc con của việc này")).toBeInTheDocument();
+  expect(await screen.findByText("Viết báo cáo là công việc con của việc này")).toBeInTheDocument();
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
+});
+
+it("calls the task a sub-task of its parent with the product's term", async () => {
+  const parent = { type: "TASK", id: "t0", subtype: "", title: "Ra mắt quý 4", status: "", workspace_id: "w1", workspace_slug: "team", deleted: false };
+  requestMock.mockImplementation((path: unknown) => {
+    const p = String(path);
+    if (p.startsWith("/api/v1/config")) return Promise.resolve({ flags: { graph_ui: true }, rum_sample_rate: 0, work_management_capabilities: {} });
+    if (p.endsWith("/task-statuses")) return Promise.resolve({ statuses: [], categories: [], total: 0 });
+    if (p.includes("/history")) {
+      return Promise.resolve({ node: null, items: [
+        { kind: "edge", edge_type: "BELONGS_TO", direction: "out", valid_from: "2026-10-03T02:00:00Z", node: parent },
+      ] });
+    }
+    return Promise.resolve({});
+  });
+  render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={me}><NodeHistorySection workspaceId="w1" nodeType="TASK" nodeId="t1" /></WorkspaceProvider>));
+  expect(await screen.findByRole("link", { name: "Là công việc con của Ra mắt quý 4" })).toHaveAttribute("href", "/org/team/tasks/t0");
 });
 
 it("names statuses the way the status pill does, not by their seeded English names", async () => {
