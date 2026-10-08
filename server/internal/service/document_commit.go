@@ -290,6 +290,11 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 				// accepted only as a new document (POST .../copies, Q7).
 				return errOfficeUploadInvalid("office_job_convert_copy_only")
 			}
+			if job.Operation == string(office.OperationExport) {
+				// An export (UNI-1013) is a rendering for download, never a
+				// version of its source.
+				return errOfficeUploadInvalid("office_job_export_not_a_version")
+			}
 			if locked.Revision != job.BaseRevision || locked.FileVersionID.String != job.BaseVersionID {
 				return errDocumentVersionConflict(locked.Revision)
 			}

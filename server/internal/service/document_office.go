@@ -152,10 +152,16 @@ type OfficeJobInput struct {
 	Deadline         time.Duration
 	DocumentModelRef string
 	Edits            []office.EditOp
-	// TargetFormat is a convert job's output format; it must be the one
-	// target office.ConvertTargets names for Format. Empty for every other
-	// operation.
+	// TargetFormat is a convert or export job's output format; it must be
+	// the one target office.ConvertTargets (or office.ExportTargets) names for
+	// Format. Empty for every other operation.
 	TargetFormat office.Format
+
+	// exportBound and input are set only by ExportFramePDF (UNI-1013): the
+	// public job route keeps refusing export, and input, when set, replaces
+	// the base version's bytes with the frame's unsaved edit of that base.
+	exportBound bool
+	input       *officeInput
 }
 
 // documentFileMaxBytes is the DocumentFile policy cap: the most a base
@@ -197,10 +203,11 @@ func validOfficeOperation(op office.Operation) bool {
 	return false
 }
 
-// Opening only materializes a read-only model of the authorized base version.
-// Every other operation retains the document edit gate.
+// Opening only materializes a read-only model of the authorized base version,
+// and an export renders one for a reader (UNI-1013). Every other operation
+// retains the document edit gate.
 func officeJobRequiredLevel(operation office.Operation) DocumentLevel {
-	if operation == office.OperationOpen {
+	if operation == office.OperationOpen || operation == office.OperationExport {
 		return DocumentLevelView
 	}
 	return DocumentLevelEdit
@@ -212,9 +219,9 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	if s.engine == nil {
 		return db.OfficeJob{}, office.ErrNotConfigured
 	}
-	if in.Operation == office.OperationExport {
-		// No format lane binds export yet; refuse before a row or an output
-		// intent exists instead of persisting a job the engine must refuse.
+	if in.Operation == office.OperationExport && !in.exportBound {
+		// Export is bound only behind the Docs web frame (ExportFramePDF);
+		// refuse it here before a row or an output intent exists.
 		return db.OfficeJob{}, officeErr("unsupported_operation", "export_not_bound")
 	}
 	key := strings.TrimSpace(in.IdempotencyKey)
@@ -237,7 +244,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
 	}
-	input, format, err := s.loadBase(ctx, in)
+	input, format, err := s.jobInput(ctx, in)
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
@@ -385,8 +392,13 @@ func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.
 	if officeFingerprint(in, row.InputChecksum, row.InputLength) != row.PayloadFingerprint {
 		return db.OfficeJob{}, officeErr("payload_fingerprint_mismatch", "")
 	}
+	// Supplied bytes are not covered by the base: they must be the ones the
+	// key first ran with.
+	if in.input != nil && in.input.checksum != row.InputChecksum {
+		return db.OfficeJob{}, officeErr("payload_fingerprint_mismatch", "input_changed")
+	}
 	if row.State == string(office.JobAccepted) && !row.DispatchedAt.Valid && s.now().Before(row.DeadlineAt.Time) {
-		input, _, err := s.loadBase(ctx, in)
+		input, _, err := s.jobInput(ctx, in)
 		if err != nil {
 			return row, err
 		}
@@ -409,6 +421,16 @@ func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.
 type officeInput struct {
 	bytes    []byte
 	checksum string
+}
+
+// jobInput checks the base like loadBase and answers the bytes the engine
+// works on: the base version's, or the supplied edit of that base.
+func (s *DocumentOfficeService) jobInput(ctx context.Context, in OfficeJobInput) (officeInput, office.Format, error) {
+	input, format, err := s.loadBase(ctx, in)
+	if err != nil || in.input == nil {
+		return input, format, err
+	}
+	return *in.input, format, nil
 }
 
 func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope, id files.FileID, want pgtype.Text) (officeInput, error) {
@@ -463,6 +485,12 @@ func officeFingerprint(in OfficeJobInput, checksum string, length int64) string 
 // the source converts to, and a target on any other operation. It runs before
 // any mutation.
 func checkConvertPair(in OfficeJobInput) error {
+	if in.Operation == office.OperationExport {
+		if want, ok := office.ExportTargets[in.Format]; !ok || in.TargetFormat != want {
+			return officeErr("unsupported_operation", "export_pair_not_bound")
+		}
+		return nil
+	}
 	if in.Operation != office.OperationConvert {
 		if in.TargetFormat != "" {
 			return ErrOfficeJobInvalid
@@ -513,7 +541,7 @@ func (s *DocumentOfficeService) envelope(row db.OfficeJob, in OfficeJobInput, in
 		"input_length":    len(input.bytes),
 	}
 	switch office.Operation(row.Operation) {
-	case office.OperationConvert:
+	case office.OperationConvert, office.OperationExport:
 		// The convert allowlist has no base_* keys: the source version id is
 		// the grant's base, and the committed source is never overwritten.
 		payload = map[string]any{

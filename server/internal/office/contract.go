@@ -44,6 +44,14 @@ var ConvertTargets = map[Format]Format{
 	FormatODT: FormatDOCX,
 }
 
+// ExportTargets is the one rendered target each format exports to (UNI-1013:
+// DOCX renders to PDF through the Docs web renderer). Like ConvertTargets, a
+// pair outside it is never submitted and the engine's capability row decides
+// whether the running build binds it.
+var ExportTargets = map[Format]Format{
+	FormatDOCX: FormatPDF,
+}
+
 // ReadableEngineVersions are the engine builds whose committed output the
 // trusted build reads back. A version stamped by any other build (a newer
 // engine that wrote before a rollback) is not opened, edited, serialized or

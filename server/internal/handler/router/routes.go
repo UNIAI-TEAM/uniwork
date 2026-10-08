@@ -470,6 +470,8 @@ type Routes struct {
 	UploadOfficeFrameAsset   http.HandlerFunc
 	SignOfficeFrameAssets    http.HandlerFunc
 	GetOfficeFrameAsset      http.HandlerFunc
+	// PDF export of the frame's document (UNI-1013, W8).
+	ExportOfficeFramePDF http.HandlerFunc
 
 	// Document comments + favorites (G1-07, UNI-681; lane 07b).
 	ListDocumentComments          http.HandlerFunc

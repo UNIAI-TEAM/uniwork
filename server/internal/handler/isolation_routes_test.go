@@ -366,6 +366,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/office-frame/documents/{documentID}/versions/commit":                                     {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
 	"POST /api/v1/office-frame/documents/{documentID}/assets":                                              {body: isoFile("dot.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":                                         {body: isoFrameSign},
+	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                                          {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil)},
 	"POST /api/v1/documents/{documentID}/versions":                                                         {body: isoJSON(map[string]any{"label": "v"})},
 	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                                          {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
 	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                                 {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
