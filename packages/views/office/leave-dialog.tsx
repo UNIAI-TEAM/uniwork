@@ -24,7 +24,8 @@ export interface LeaveDialogProps {
   saving?: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: () => Promise<boolean>;
-  onKeepDraft: () => Promise<boolean>;
+  /** Absent when the editor has no device draft store (the Docs frame): no "keep" choice. */
+  onKeepDraft?: () => Promise<boolean>;
   onDiscard: () => Promise<boolean>;
   onChoice?: (choice: LeaveChoice) => void;
   /** Overrides the account save wording for a leave set that saves to the
@@ -120,9 +121,11 @@ export function LeaveDialog({
           <Button type="button" onClick={() => void run("save", onSave)} disabled={Boolean(pending) || saving}>
             {pending === "save" ? t("working") : (saveLabel ?? t("save"))}
           </Button>
-          <Button type="button" variant="outline" onClick={() => void run("keep", onKeepDraft)} disabled={Boolean(pending)}>
-            {pending === "keep" ? t("working") : t("keep")}
-          </Button>
+          {onKeepDraft ? (
+            <Button type="button" variant="outline" onClick={() => void run("keep", onKeepDraft)} disabled={Boolean(pending)}>
+              {pending === "keep" ? t("working") : t("keep")}
+            </Button>
+          ) : null}
           <Button type="button" variant="destructive" onClick={() => void run("discard", onDiscard)} disabled={Boolean(pending)}>
             {pending === "discard" ? t("working") : t("discard")}
           </Button>
