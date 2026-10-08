@@ -193,7 +193,7 @@ test('the level bar shows 1..max+1 buttons per outlined axis, labels them and sh
   assert.equal(container.children[1], grid, 'the strip sits above the grid');
   assert.equal(strip.hidden, false);
   assert.equal(strip.getAttribute('aria-label'), 'en:outlineLevelsBar');
-  assert.equal(grid.style.height, 'calc(100% - var(--uniwork-outline-bar-height))');
+  assert.equal(grid.style.height, 'calc(100% - var(--uniwork-outline-bar-height) - calc(1 * var(--uniwork-outline-level-width) + 4px))');
   assert.ok(document.getElementById('uniwork-xlsx-outline-levels-style').textContent.includes('var(--color-border)'));
   const [rows, cols] = strip.children;
   assert.equal(rows.getAttribute('aria-label'), 'en:outlineLevelsRows');

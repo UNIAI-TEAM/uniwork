@@ -227,7 +227,9 @@ export function mountController(options = {}, environment = {}) {
     classList: { add: (value) => classes.add(value), remove: (value) => classes.delete(value) },
     // The DV hint stylesheet and the dialog relabel look the document up.
     ownerDocument: { createElement: element, fonts: environment.fonts, getElementById: () => null,
-      head: { appendChild() {} }, querySelectorAll: () => [] }, appendChild() {},
+      head: { appendChild() {} }, querySelectorAll: () => [] },
+    // The outline gutters (outline-gutter.ts) are appended; tests find them here.
+    appendChild: (child) => { (h.appended ??= []).push(child); return child; },
     insertBefore: (child) => { h.outlineBar = child; return child; } };
   const handle = createXlsxRenderer({ container, host: { async readRange() { return {}; } }, ...options });
   return {

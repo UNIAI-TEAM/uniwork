@@ -69,7 +69,10 @@ import {
 } from "./edits";
 import { getLang, t } from "./locale";
 import { createOutlineLevelBar } from "./outline-bar";
-import { outlineMaxLevels, runOutlineLevel } from "./outline-levels";
+import { outlineMaxLevels, runOutlineLevel, type OutlineAxis, type OutlineLevelHost } from "./outline-levels";
+import { layoutOutlineBrackets, runOutlineGroup } from "./outline-brackets";
+import { createOutlineGutters } from "./outline-gutter";
+import { createOutlineMeasure } from "./outline-measure";
 import { sharedFormulaResolverFor } from "../../upstream/apps/sheets/src/renderer/shared-formula-journal";
 import { installAutofitLinePitch } from "../../upstream/apps/sheets/src/renderer/autofit-line-pitch";
 import { installAutofitWrapBudget } from "../../upstream/apps/sheets/src/renderer/autofit-wrap-budget";
@@ -598,43 +601,62 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     type: CommandType.COMMAND,
     handler: (_accessor, params) => runColumnDefaultWidth(params),
   }));
-  // Outline level buttons (Excel's 1..n): one click hides/shows every group
-  // by level and writes the summary flags, as one undo step (outline-levels.ts).
-  const runOutlineLevelCommand = (params: unknown): boolean => {
-    const p = params as { subUnitId?: string; axis?: string; level?: number } | undefined;
-    if (journalSuppression.active || !p || typeof p.level !== "number") return false;
+  // Outline level buttons (Excel's 1..n) and per-group brackets (+ / -): a
+  // click hides/shows every group by level, or one group, and writes the
+  // summary flags, as one undo step (outline-levels.ts, outline-brackets.ts).
+  const runOutlineClick = (params: unknown, run: (host: OutlineLevelHost, sheetId: string, axis: OutlineAxis) => boolean): boolean => {
+    const p = params as { subUnitId?: string; axis?: string } | undefined;
+    if (journalSuppression.active || !p) return false;
     if (p.axis !== "rows" && p.axis !== "cols") return false;
     const axis = p.axis;
-    const level = p.level;
     const workbook = runtime.univerAPI.getActiveWorkbook();
     const sheetId = p.subUnitId ?? workbook?.getActiveSheet()?.getSheetId();
     const sheet = sheetId ? workbook?.getSheetBySheetId(sheetId)?.getSheet() : undefined;
     if (!workbook || !sheetId || !sheet) return false;
-    return inOneUndoStep(workbook.getId(), () => runOutlineLevel({
+    return inOneUndoStep(workbook.getId(), () => run({
       state: lazyWorkbookRef.current,
       unitId: workbook.getId(),
       isHidden: (line) => axis === "rows" ? !sheet.getRowRawVisible(line) : !sheet.getColVisible(line),
       execute: (id, commandParams) => runtime.univerAPI.syncExecuteCommand(id, commandParams) === true,
       emit: emitStructuralEdits,
       pushUndo: (item) => runtime.univer.__getInjector().get(IUndoRedoService).pushUndoRedo(item),
-    }, sheetId, axis, level));
+    }, sheetId, axis));
   };
   disposables.push(commandService.registerCommand({
     id: "uniwork.command.set-outline-level",
     type: CommandType.COMMAND,
-    handler: (_accessor, params) => runOutlineLevelCommand(params),
+    handler: (_accessor, params) => {
+      const level = (params as { level?: unknown } | undefined)?.level;
+      return typeof level === "number" && runOutlineClick(params, (host, sheetId, axis) => runOutlineLevel(host, sheetId, axis, level));
+    },
   }));
+  disposables.push(commandService.registerCommand({
+    id: "uniwork.command.set-outline-group",
+    type: CommandType.COMMAND,
+    handler: (_accessor, params) => {
+      const p = params as { start?: unknown; level?: unknown; collapse?: unknown } | undefined;
+      if (typeof p?.start !== "number" || typeof p.level !== "number" || typeof p.collapse !== "boolean") return false;
+      const { start, level, collapse } = p as { start: number; level: number; collapse: boolean };
+      return runOutlineClick(params, (host, sheetId, axis) => runOutlineGroup(host, sheetId, axis, start, level, collapse));
+    },
+  }));
+  const runOutlineUi = (id: string, params: object): void => {
+    const workbook = runtime.univerAPI.getActiveWorkbook();
+    const subUnitId = workbook?.getActiveSheet()?.getSheetId();
+    if (workbook && subUnitId) void runtime.univerAPI.executeCommand(id, { unitId: workbook.getId(), subUnitId, ...params });
+  };
   const outlineBar = options.readOnly ? null : createOutlineLevelBar({
     container, grid: univerHost, label: t,
-    onLevel: (axis, level) => {
-      const workbook = runtime.univerAPI.getActiveWorkbook();
-      const subUnitId = workbook?.getActiveSheet()?.getSheetId();
-      if (workbook && subUnitId) void runtime.univerAPI.executeCommand("uniwork.command.set-outline-level", { unitId: workbook.getId(), subUnitId, axis, level });
-    },
+    onLevel: (axis, level) => runOutlineUi("uniwork.command.set-outline-level", { axis, level }),
+  });
+  const outlineGutters = options.readOnly ? null : createOutlineGutters({
+    container, label: t,
+    onToggle: (axis, start, level, collapse) => runOutlineUi("uniwork.command.set-outline-group", { axis, start, level, collapse }),
   });
   let outlineBarQueued = false;
-  // Any command can change the levels (group, undo, insert/remove lines), a
-  // sheet switch changes the sheet; one microtask reads them once per burst.
+  // Any command can change the levels (group, undo, insert/remove lines) or
+  // move the lines (hide, size, zoom, freeze), a sheet switch changes the
+  // sheet, a scroll moves the brackets; one microtask reads them per burst.
   const scheduleOutlineBar = (): void => {
     if (!outlineBar || outlineBarQueued) return;
     outlineBarQueued = true;
@@ -642,12 +664,28 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       outlineBarQueued = false;
       if (disposed) return;
       const sheetId = runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
-      outlineBar.update(outlineMaxLevels(lazyWorkbookRef.current, sheetId));
+      const levels = outlineMaxLevels(lazyWorkbookRef.current, sheetId);
+      outlineBar.update(levels);
+      const measure = sheetId && (levels.rows > 0 || levels.cols > 0) ? createOutlineMeasure(runtime, geometry, sheetId) : null;
+      const brackets = (axis: OutlineAxis) => measure ? layoutOutlineBrackets(lazyWorkbookRef.current, sheetId, axis, measure) : [];
+      outlineGutters?.update({
+        rows: { levels: levels.rows, brackets: brackets("rows") },
+        cols: { levels: levels.cols, brackets: brackets("cols") },
+      });
     });
   };
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, scheduleOutlineBar));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.ActiveSheetChanged, scheduleOutlineBar));
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, scheduleOutlineBar));
   if (outlineBar) disposables.push(outlineBar);
+  if (outlineGutters) disposables.push(outlineGutters);
+  // The grid's box changes when the strip or a gutter appears (and with the
+  // window); the canvas follows a frame later, so the brackets re-measure then.
+  if (outlineGutters && typeof ResizeObserver !== "undefined") {
+    const resized = new ResizeObserver(scheduleOutlineBar);
+    resized.observe(univerHost);
+    disposables.push({ dispose: () => resized.disconnect() });
+  }
   // Hyperlinks (B6): the pinned Univer 0.25.1 has no spreadsheet hyperlink
   // command, so UniWork registers one. It mirrors the vendored applyAiHyperlink
   // (journal + link styling) and emits the per-cell edit so the host persists

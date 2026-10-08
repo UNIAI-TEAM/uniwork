@@ -12,9 +12,9 @@ type OutlineEntries = ReadonlyMap<number, { level: number; collapsed: boolean }>
 export type OutlineAxis = "rows" | "cols";
 
 /** Lines per axis on a sheet (Excel's grid), the bound a summary line obeys. */
-const AXIS_LINES: Record<OutlineAxis, number> = { rows: 1_048_576, cols: 16_384 };
+export const AXIS_LINES: Record<OutlineAxis, number> = { rows: 1_048_576, cols: 16_384 };
 
-function entriesFor(state: LazyWorkbookState | null, sheetId: string, axis: OutlineAxis): OutlineEntries | undefined {
+export function entriesFor(state: LazyWorkbookState | null, sheetId: string, axis: OutlineAxis): OutlineEntries | undefined {
   const outline = state?.outline.get(sheetId);
   return axis === "rows" ? outline?.rows : outline?.cols;
 }
@@ -108,19 +108,25 @@ function axisRanges(axis: OutlineAxis, spans: ReadonlyArray<{ start: number; end
     : { startRow: 0, endRow: 0, startColumn: start, endColumn: end, rangeType: 2 });
 }
 
-/** Runs one level click: hide, then show, then the summary flags, every
- *  change journalled (the hidden/visible commands through the mutation
- *  channel, the flags as outline ops) with one undo entry for the flags. The
- *  caller folds the whole click into one undo step. A sheet without an
- *  outline on the axis, or a level past the last button, changes nothing.
- *  False only when a hidden/visible command is refused. */
+/** Runs one level click: hide, then show, then the summary flags (see
+ *  runOutlinePlan). A sheet without an outline on the axis, or a level past
+ *  the last button, changes nothing. False only when a hidden/visible command
+ *  is refused. */
 export function runOutlineLevel(host: OutlineLevelHost, sheetId: string, axis: OutlineAxis, level: number): boolean {
   if (!Number.isInteger(level) || level < 1 || level > 8) return false;
   if (!host.state?.file.sheets.some((sheet) => sheet.id === sheetId)) return false;
   const entries = entriesFor(host.state, sheetId, axis);
   const max = outlineMaxLevel(entries);
   if (max === 0) return true;
-  const plan = planOutlineLevel(entries, Math.min(level, max + 1), axis, host.isHidden);
+  return runOutlinePlan(host, sheetId, axis, planOutlineLevel(entries, Math.min(level, max + 1), axis, host.isHidden));
+}
+
+/** Applies a level or group plan: hide, then show, then the summary flags,
+ *  every change journalled (the hidden/visible commands through the mutation
+ *  channel, the flags as outline ops) with one undo entry for the flags. The
+ *  caller folds the whole click into one undo step. False only when a
+ *  hidden/visible command is refused. */
+export function runOutlinePlan(host: OutlineLevelHost, sheetId: string, axis: OutlineAxis, plan: OutlineLevelPlan): boolean {
   for (const [spans, ids] of [[plan.hide, HIDE_COMMAND], [plan.show, SHOW_COMMAND]] as const) {
     if (spans.length === 0) continue;
     if (!host.execute(ids[axis], { unitId: host.unitId, subUnitId: sheetId, ranges: axisRanges(axis, spans) })) return false;

@@ -128,6 +128,8 @@ const STRUCTURAL_COMMANDS = new Set([
   // Outline level buttons (1..n): hide/show every group by level through the
   // allowlisted hidden/visible commands, which pass this policy again.
   "uniwork.command.set-outline-level",
+  // Outline group brackets (+ / -): hide/show one group the same way.
+  "uniwork.command.set-outline-group",
   "uniwork.command.set-cols-default-width",
 ]);
 
@@ -239,6 +241,12 @@ function structuralCommandAllowed(
     return (params?.axis === "rows" || params?.axis === "cols") &&
       typeof level === "number" && Number.isInteger(level) && level >= 1 && level <= 8 &&
       (params.subUnitId === undefined || (typeof params.subUnitId === "string" && liveSheetIds(state).has(params.subUnitId)));
+  }
+  if (event.id === "uniwork.command.set-outline-group") {
+    const group = event.params as { level?: unknown; collapse?: unknown } | undefined;
+    return (params?.axis === "rows" || params?.axis === "cols") && typeof group?.collapse === "boolean" &&
+      typeof group.level === "number" && Number.isInteger(group.level) && group.level >= 1 && group.level <= 7 &&
+      structuralAxisCommandOK({ ...params, end: params.start }, params.axis === "rows" ? "row" : "column", state);
   }
   if (event.id === "uniwork.command.set-cols-default-width") {
     return structuralAxisCommandOK(params, "column", state);

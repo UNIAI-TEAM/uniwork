@@ -3,8 +3,12 @@
 // the column header). The pinned Univer draws no outline bar, so this is a
 // DOM strip the controller puts above the grid canvas while the active sheet
 // has an outline; the canvas shrinks by the strip's height, so scroll, zoom
-// and frozen panes never move it. Colours and sizes are the design tokens.
+// and frozen panes never move it. The grid also makes room for the per-group
+// bracket gutters (outline-gutter.ts): one level column per outline level,
+// left of the row headers and above the column headers. Colours and sizes
+// are the design tokens.
 import type { OutlineAxis } from "./outline-levels";
+import { outlineGutterExtent } from "./outline-gutter";
 
 export interface OutlineLevelBar {
   /** Show 1..max+1 buttons per axis with an outline; hide the strip when
@@ -26,8 +30,8 @@ const STYLE_ID = "uniwork-xlsx-outline-levels-style";
 // The strip's height is a variable so a coarse pointer gets 44px targets
 // (the primitives' touch contract) and the grid shrinks by the same amount.
 const STYLE = `
-.xlsx-surface { --uniwork-outline-bar-height: 24px; }
-@media (pointer: coarse) { .xlsx-surface { --uniwork-outline-bar-height: 44px; } }
+.xlsx-surface { --uniwork-outline-bar-height: 24px; --uniwork-outline-level-width: 16px; }
+@media (pointer: coarse) { .xlsx-surface { --uniwork-outline-bar-height: 44px; --uniwork-outline-level-width: 26px; } }
 .${BAR_CLASS} { display: flex; align-items: center; gap: 12px; box-sizing: border-box;
   height: var(--uniwork-outline-bar-height); padding: 0 4px; overflow: hidden;
   background: var(--color-muted); border-bottom: 1px solid var(--color-border);
@@ -48,6 +52,17 @@ function installStyle(document: Document): void {
   style.id = STYLE_ID;
   style.textContent = STYLE;
   document.head.appendChild(style);
+}
+
+/** The grid's box: below the strip and the column gutter, right of the row
+ *  gutter; the whole container without an outline. */
+function layoutGrid(grid: HTMLElement, levels: { rows: number; cols: number } | null): void {
+  const rows = outlineGutterExtent(levels?.rows ?? 0);
+  const cols = outlineGutterExtent(levels?.cols ?? 0);
+  grid.style.height = levels ? `calc(100% - var(--uniwork-outline-bar-height) - ${cols})` : "100%";
+  grid.style.width = levels ? `calc(100% - ${rows})` : "100%";
+  grid.style.marginTop = levels ? cols : "";
+  grid.style.marginLeft = levels ? rows : "";
 }
 
 export function createOutlineLevelBar(options: OutlineLevelBarOptions): OutlineLevelBar {
@@ -91,7 +106,7 @@ export function createOutlineLevelBar(options: OutlineLevelBarOptions): OutlineL
       renderedKey = key;
       if (!visible) {
         if (bar) bar.hidden = true;
-        grid.style.height = "100%";
+        layoutGrid(grid, null);
         return;
       }
       if (!bar) {
@@ -107,13 +122,13 @@ export function createOutlineLevelBar(options: OutlineLevelBarOptions): OutlineL
         ...(levels.cols > 0 ? [axisGroup("cols", levels.cols)] : []),
       );
       bar.hidden = false;
-      grid.style.height = "calc(100% - var(--uniwork-outline-bar-height))";
+      layoutGrid(grid, levels);
     },
     dispose() {
       bar?.remove();
       bar = null;
       renderedKey = "";
-      grid.style.height = "100%";
+      layoutGrid(grid, null);
     },
   };
 }
