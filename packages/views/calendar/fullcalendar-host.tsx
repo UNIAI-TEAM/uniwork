@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  AllDayMountArg,
   DateSelectArg,
   DatesSetArg,
   DayCellContentArg,
@@ -216,6 +217,36 @@ export function FullCalendarHost(props: {
     }
   };
 
+  const renderAllDayContent = () => (
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      className="h-7 gap-0.5 px-0.5 text-caption font-normal text-muted-foreground pointer-coarse:min-h-11"
+      aria-expanded={allDayExpanded}
+      aria-label={t(
+        allDayExpanded
+          ? "calendar.collapse_all_day"
+          : "calendar.expand_all_day",
+      )}
+      onClick={() => setAllDayExpanded((expanded) => !expanded)}
+    >
+      {allDayExpanded ? (
+        <ChevronDown aria-hidden className="size-3.5" />
+      ) : (
+        <ChevronRight aria-hidden className="size-3.5" />
+      )}
+      {t("calendar.all_day")}
+    </Button>
+  );
+
+  const enhanceAllDayCell = (info: AllDayMountArg) => {
+    // FullCalendar hides the axis cell because its default content is text.
+    // Our expand/collapse control lives there, so the cell must stay in the
+    // accessibility tree with the button.
+    info.el.removeAttribute("aria-hidden");
+  };
+
   const positionPointerAnchor = (event: MouseEvent | null | undefined) => {
     const host = hostRef.current;
     const anchor = pointerAnchorRef.current;
@@ -298,28 +329,6 @@ export function FullCalendarHost(props: {
           {timeZoneLabel}
         </span>
       ) : null}
-      {isTimeGrid ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="absolute left-1 top-8 z-20 h-7 gap-0.5 px-0.5 text-caption font-normal text-muted-foreground pointer-coarse:min-h-11"
-          aria-expanded={allDayExpanded}
-          aria-label={t(
-            allDayExpanded
-              ? "calendar.collapse_all_day"
-              : "calendar.expand_all_day",
-          )}
-          onClick={() => setAllDayExpanded((expanded) => !expanded)}
-        >
-          {allDayExpanded ? (
-            <ChevronDown aria-hidden className="size-3.5" />
-          ) : (
-            <ChevronRight aria-hidden className="size-3.5" />
-          )}
-          {t("calendar.all_day")}
-        </Button>
-      ) : null}
       <FullCalendar
         key={`${props.viewMode}-${props.initialDate}-${showWeekends ? "weekends" : "weekdays"}`}
         plugins={FC_PLUGINS}
@@ -337,6 +346,8 @@ export function FullCalendarHost(props: {
           ? (allDayExpanded ? false : 1)
           : MONTH_EVENT_ROW_LIMIT}
         allDayText={isTimeGrid ? "" : undefined}
+        allDayContent={isTimeGrid ? renderAllDayContent : undefined}
+        allDayDidMount={isTimeGrid ? enhanceAllDayCell : undefined}
         headerToolbar={false}
         height="100%"
         expandRows={!isTimeGrid}
