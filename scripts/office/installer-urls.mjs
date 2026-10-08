@@ -6,6 +6,9 @@
 //     --base-url https://github.com/<owner>/<repo>/releases/download/<tag> \
 //     --dir <artifacts directory>          # or --files a.deb,b.exe
 //
+// The base is https; a dev map may also use http on a loopback host (a local
+// MinIO bucket), the one exception the server accepts too.
+//
 // Prints the compact JSON map the server parses (server/internal/config/
 // office_installers.go): {"win32-x64":"https://...","linux-x64-deb":"..."}.
 // Only dev and beta exist - stable stays empty while signing is parked - and
@@ -47,7 +50,10 @@ export function buildInstallerUrls({ channel, baseUrl, files }) {
   if (!INSTALLER_CHANNELS.includes(channel)) throw new Error(`installer channel must be dev or beta, got: ${channel}`);
   let base;
   try { base = new URL(baseUrl); } catch { throw new Error("base URL must be absolute"); }
-  if (base.protocol !== "https:" || base.username || base.password || base.search || base.hash) throw new Error("base URL must be https without credentials, query or fragment");
+  // Same rule as the server's OfficeInstallers: http only for dev on loopback.
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname);
+  const scheme = base.protocol === "https:" || (base.protocol === "http:" && channel === "dev" && loopback);
+  if (!scheme || base.username || base.password || base.search || base.hash) throw new Error("base URL must be https (or http on a loopback host for --channel dev) without credentials, query or fragment");
   const prefix = base.href.replace(/\/+$/, "");
   const urls = {};
   for (const file of files) {
@@ -71,7 +77,7 @@ export function parseInstallerUrlArguments(argv) {
     options[name.slice(2).replace("-u", "U")] = value;
     index += 1;
   }
-  if (!options.channel || !options.baseUrl || (!options.dir && !options.files)) throw new Error("usage: installer-urls.mjs --channel dev|beta --base-url <https base> (--dir <directory> | --files a,b)");
+  if (!options.channel || !options.baseUrl || (!options.dir && !options.files)) throw new Error("usage: installer-urls.mjs --channel dev|beta --base-url <https base, or http loopback for dev> (--dir <directory> | --files a,b)");
   return options;
 }
 
