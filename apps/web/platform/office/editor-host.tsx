@@ -13,6 +13,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
+import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
 import { downloadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
 import { launchOfficeDeepLink } from "./desktop-handoff";
@@ -36,10 +37,14 @@ export interface OfficeEditorHostProps<TSnapshot = unknown> {
   onRecoverSnapshot?: (snapshot: StableSnapshot<TSnapshot>) => Promise<void> | void;
   breadcrumbs?: { label: ReactNode; href?: string }[];
   className?: string;
+  /** Overrides the deployment's channel; unset, the host reads the one the
+   * server names in GET /api/v1/config and never assumes one. */
   officeChannel?: OfficeChannel;
   installers?: OfficeInstallerOption[];
   officeDeploymentId?: string;
 }
+
+interface OfficeDeploymentBinding { channel?: OfficeChannel; deploymentId?: string }
 
 export interface OfficeFormatAdapter<TSnapshot = unknown> {
   session: OfficeEditorSession<TSnapshot>;
@@ -100,7 +105,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   onRecoverSnapshot,
   breadcrumbs = [],
   className,
-  officeChannel = "stable",
+  officeChannel,
   installers,
   officeDeploymentId,
 }: OfficeEditorHostProps<TSnapshot>) {
@@ -125,6 +130,23 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   // 2s checkpoint timer can flip `saved` back to `dirty` in between, which is
   // why a plain `state === "saved"` check missed the note/page-ops flows).
   const saveEpoch = useRef(0);
+  // The desktop channel and deployment binding are the server's decision. A
+  // dev or beta deployment only has installers on its own channel, so asking
+  // "stable" here would answer "no installer" for a correctly configured
+  // deployment; a channel the server never named offers no desktop action.
+  const [binding, setBinding] = useState<OfficeDeploymentBinding | null>(null);
+  const needsBinding = Boolean(activeSession) && !readonly && !(officeChannel && officeDeploymentId);
+  useEffect(() => {
+    if (!needsBinding) return;
+    let active = true;
+    void getPublicConfig(document.organization_id)
+      .then((config) => { if (active) setBinding({ channel: config.office_channel, deploymentId: config.office_deployment_id }); })
+      .catch(() => { if (active) setBinding({}); });
+    return () => { active = false; };
+  }, [needsBinding, document.organization_id]);
+  const deploymentChannel = officeChannel ?? binding?.channel;
+  const deploymentId = officeDeploymentId ?? binding?.deploymentId;
+
   const effectiveCapability = useMemo<OfficeCapabilityEntry>(() => activeCapability ?? ({
     format: documentFormat(document),
     operation: "open",
@@ -271,11 +293,11 @@ export function OfficeEditorHost<TSnapshot = unknown>({
 
   // The header split button and the inline too-large notice are two mounts of
   // the same launch-ticket action, so both get one prop set.
-  const renderDesktopAction = (placement: "header" | "inline") => activeSession && !readonly ? (
+  const renderDesktopAction = (placement: "header" | "inline") => activeSession && !readonly && deploymentChannel ? (
     <DesktopOpenAction
       placement={placement}
       documentId={document.id}
-      deploymentId={officeDeploymentId}
+      deploymentId={deploymentId}
       savedVersion={document.current_version}
       dirty={dirty}
       saveCoordinator={activeSession.coordinator}
@@ -290,10 +312,10 @@ export function OfficeEditorHost<TSnapshot = unknown>({
           return null;
         }
       }}
-      channel={officeChannel}
+      channel={deploymentChannel}
       installers={installers}
       loadInstallers={async () => {
-        const profile = await getOfficeDesktopDownload(document.organization_id, officeChannel);
+        const profile = await getOfficeDesktopDownload(document.organization_id, deploymentChannel);
         return { installers: profile?.installers ?? [], supportedPlatforms: profile?.supported_platforms ?? DESKTOP_PLATFORMS };
       }}
       loadPlatformHint={async () => {
@@ -303,7 +325,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         return detectDesktopPlatform({ userAgent: navigator.userAgent, userAgentData: data ? { platform: data.platform, mobile: data.mobile, ...entropy } : undefined });
       }}
       downloadInstaller={async (platform) => {
-        const blob = await downloadOfficeDesktopBundle(document.organization_id, officeChannel, platform);
+        const blob = await downloadOfficeDesktopBundle(document.organization_id, deploymentChannel, platform);
         const url = URL.createObjectURL(blob);
         const link = window.document.createElement("a");
         link.href = url; link.download = "UniWork-Office.zip";

@@ -11,6 +11,22 @@ import { HeaderActionsSlot, HeaderActionsSlotProvider } from "@uniwork/views/lay
 import { OfficeTooLargeNotice } from "@uniwork/views/office";
 import { OfficeEditorHost, type OfficeEditorHostProps } from "./editor-host";
 import type { OfficeEditorSession } from "./editor-host-core";
+import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
+import { getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
+import { DesktopOpenAction } from "@uniwork/views/office";
+
+// The desktop channel is the server's: the host reads it from GET /api/v1/config.
+vi.mock("@uniwork/core/api/endpoints/config", () => ({
+  getPublicConfig: vi.fn(async () => ({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_channel: "dev", office_deployment_id: "default" })),
+}));
+vi.mock("@uniwork/core/api/endpoints/office-desktop", () => ({
+  getOfficeDesktopDownload: vi.fn(async () => null),
+  downloadOfficeDesktopBundle: vi.fn(async () => new Blob()),
+}));
+vi.mock("@uniwork/views/office", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/views/office")>();
+  return { ...actual, DesktopOpenAction: vi.fn((props: Parameters<typeof actual.DesktopOpenAction>[0]) => React.createElement(actual.DesktopOpenAction, props)) };
+});
 
 initI18n();
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -377,6 +393,51 @@ describe("OfficeEditorHost draft recovery", () => {
     await settle();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     rendered.root.unmount();
+  });
+});
+
+describe("OfficeEditorHost deployment channel", () => {
+  type ActionProps = Parameters<typeof DesktopOpenAction>[0];
+  const lastActionProps = () => vi.mocked(DesktopOpenAction).mock.calls.at(-1)?.[0] as ActionProps | undefined;
+
+  it("asks the deployment's own channel for installers, never a hard-coded stable", async () => {
+    vi.mocked(DesktopOpenAction).mockClear();
+    const { session } = makeSession();
+    const { container, root } = renderHost(session);
+    await settle();
+    expect(vi.mocked(getPublicConfig)).toHaveBeenCalledWith("org");
+    expect(container.querySelector("[data-office-desktop-action]")).not.toBeNull();
+    const props = lastActionProps()!;
+    expect(props.channel).toBe("dev");
+    expect(props.deploymentId).toBe("default");
+    await act(async () => { await props.loadInstallers?.(); });
+    expect(vi.mocked(getOfficeDesktopDownload)).toHaveBeenLastCalledWith("org", "dev");
+    act(() => root.unmount());
+  });
+
+  it("offers no desktop action when the server names no channel, instead of substituting one", async () => {
+    vi.mocked(getPublicConfig).mockResolvedValueOnce({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_deployment_id: "default" });
+    const { session } = makeSession();
+    const { container, root } = renderHost(session);
+    await settle();
+    expect(container.querySelector("[data-office-desktop-action]")).toBeNull();
+    act(() => root.unmount());
+
+    vi.mocked(getPublicConfig).mockRejectedValueOnce(new Error("offline"));
+    const second = renderHost(makeSession().session);
+    await settle();
+    expect(second.container.querySelector("[data-office-desktop-action]")).toBeNull();
+    act(() => second.root.unmount());
+  });
+
+  it("keeps an explicit channel and binding from the caller without reading the config", async () => {
+    vi.mocked(getPublicConfig).mockClear();
+    const { session } = makeSession();
+    const { root } = renderHost(session, { officeChannel: "beta", officeDeploymentId: "dep" });
+    await settle();
+    expect(vi.mocked(getPublicConfig)).not.toHaveBeenCalled();
+    expect(lastActionProps()?.channel).toBe("beta");
+    act(() => root.unmount());
   });
 });
 
