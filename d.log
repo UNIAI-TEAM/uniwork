@@ -1,0 +1,5 @@
+$ set -a && . ./.env && set +a && bash scripts/turbo-cache-check.sh
+Updated 1 path from the index
+before=9688ea300ba85429
+after=151f54b68aa9de9d
+PASS: hash tracks dependency sources

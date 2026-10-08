@@ -1,0 +1,6 @@
+$ set -a && . ./.env && set +a && pnpm generate:reserved-slugs && git diff --exit-code -- packages/core/paths/reserved-slugs.ts
+
+> uniwork@ generate:reserved-slugs /workspace
+> node scripts/generate-reserved-slugs.mjs
+
+wrote packages/core/paths/reserved-slugs.ts
