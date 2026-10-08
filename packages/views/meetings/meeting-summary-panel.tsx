@@ -13,6 +13,7 @@ import {
   useCreateMeetingSummary,
   useCreateTasksFromSummary,
   useMeetingCapabilities,
+  useMeetingChat,
   useMeetingSummary,
   useNotes,
   useRecordings,
@@ -20,6 +21,7 @@ import {
   useTranscript,
 } from "@uniwork/core/meetings";
 import { useMeetingMotions } from "@uniwork/core/meetings/motions";
+import { useProject } from "@uniwork/core/tasks";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingNote, MeetingSummary, MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -101,6 +103,10 @@ export function MeetingSummaryPanel({
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [showTranscript, setShowTranscript] = useState(false);
   const { data: notes } = useNotes(meetingId);
+  const { data: chatMessages } = useMeetingChat(meetingId);
+  // A project deleted after the meeting was linked stays on the meeting row
+  // (no FK); only a project that still resolves is passed on to new tasks.
+  const { data: project } = useProject(workspaceId, meeting.project_id || "");
   const { data: motions } = useMeetingMotions(meetingId);
   // Recorded results, not AI: shown, and summarisable, whether or not a summary exists.
   const voted = useMemo(() => (motions ?? []).filter((m) => m.status === "CLOSED"), [motions]);
@@ -116,8 +122,9 @@ export function MeetingSummaryPanel({
   const decisions = summary?.decisions ?? [];
   const transcriptLines = transcript?.length ?? 0;
   const noteCount = notes?.length ?? 0;
-  // The server summarises the transcript, the notes and the closed votes, so any one is enough.
-  const hasSource = transcriptLines > 0 || noteCount > 0 || voted.length > 0;
+  // The server summarises the transcript, the notes, the meeting chat and the
+  // closed votes (Summarize), so any one is enough.
+  const hasSource = transcriptLines > 0 || noteCount > 0 || (chatMessages?.length ?? 0) > 0 || voted.length > 0;
   const aiOn = caps?.ai_summary === true;
   const showGenerate = canHost && aiOn;
 
@@ -137,7 +144,7 @@ export function MeetingSummaryPanel({
   }
 
   function onCreateTasks() {
-    const items = buildSummaryTaskItems(actionItems, picked, assigneeOverrides, meeting.project_id || undefined);
+    const items = buildSummaryTaskItems(actionItems, picked, assigneeOverrides, project?.id);
     if (items.length === 0) return;
     createTasks.mutate(items, {
       onSuccess: (ids) => {

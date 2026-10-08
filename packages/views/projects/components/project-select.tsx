@@ -65,7 +65,8 @@ export function ProjectSelect({
       onValueChange={(next) => onChange(!next || next === NO_PROJECT ? undefined : next)}
     >
       <SelectTrigger id={id} size={size} className={className} aria-label={ariaLabel}>
-        <SelectValue placeholder={noneLabel}>{active?.label}</SelectValue>
+        {/* A value missing from the list (a deleted project) reads as no project, not as its raw id. */}
+        <SelectValue placeholder={noneLabel}>{active?.label ?? noneLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {items.map((item) => (

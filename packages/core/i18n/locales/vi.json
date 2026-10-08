@@ -2394,7 +2394,7 @@
     "notesEmptyLocked": "Cuộc họp không có ghi chú nào.",
     "notesLockedHint": "Cuộc họp đã đóng, ghi chú chỉ còn để đọc.",
     "reschedule": "Sửa lịch",
-    "summaryNeedsSource": "Cần bản ghi lời thoại hoặc ghi chú để tạo tóm tắt.",
+    "summaryNeedsSource": "Cần bản ghi lời thoại, ghi chú hoặc tin nhắn trong cuộc họp để tạo tóm tắt.",
     "summarySourceNotes": "Từ ghi chú cuộc họp",
     "systemActor": "Hệ thống",
     "transferHostMenu": "Chuyển chủ trì…",

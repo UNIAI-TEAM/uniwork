@@ -2395,7 +2395,7 @@
     "notesEmptyLocked": "This meeting has no notes.",
     "notesLockedHint": "The meeting is closed; notes are read-only.",
     "reschedule": "Reschedule",
-    "summaryNeedsSource": "A transcript or notes are needed to generate a summary.",
+    "summaryNeedsSource": "A transcript, notes or meeting chat are needed to generate a summary.",
     "summarySourceNotes": "From the meeting notes",
     "systemActor": "System",
     "transferHostMenu": "Make host…",
