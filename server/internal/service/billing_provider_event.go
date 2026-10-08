@@ -58,14 +58,30 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 	return true, nil
 }
 
+// intentTerminalErr marks a provider-event failure whose side effects (typically
+// billing_payment_intents → failed) must commit even though the call returns error.
+type intentTerminalErr struct{ cause error }
+
+func (e intentTerminalErr) Error() string { return e.cause.Error() }
+func (e intentTerminalErr) Unwrap() error { return e.cause }
+
 // ApplyProviderEvent is the idempotent writer path (worker or tests).
 func (s *BillingService) ApplyProviderEvent(ctx context.Context, ev billing.Event) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
-	if err := s.applyProviderEvent(ctx, s.q.WithTx(tx), ev); err != nil {
+	err = s.applyProviderEvent(ctx, s.q.WithTx(tx), ev)
+	if err != nil {
+		var term intentTerminalErr
+		if errors.As(err, &term) {
+			if commitErr := tx.Commit(ctx); commitErr != nil {
+				_ = tx.Rollback(ctx)
+				return errors.Join(term.cause, commitErr)
+			}
+			return term.cause
+		}
+		_ = tx.Rollback(ctx)
 		return err
 	}
 	return tx.Commit(ctx)
@@ -100,13 +116,13 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		_ = q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
 			ID: intent.ID, OrganizationID: intent.OrganizationID,
 		})
-		return fmt.Errorf("billing: amount mismatch")
+		return intentTerminalErr{cause: fmt.Errorf("billing: amount mismatch")}
 	}
 	if ev.Currency != "" && ev.Currency != intent.Currency {
 		_ = q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
 			ID: intent.ID, OrganizationID: intent.OrganizationID,
 		})
-		return fmt.Errorf("billing: currency mismatch")
+		return intentTerminalErr{cause: fmt.Errorf("billing: currency mismatch")}
 	}
 
 	plan, err := q.GetPlanByID(ctx, intent.PlanID)
@@ -121,7 +137,7 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		_ = q.MarkBillingPaymentIntentFailed(ctx, db.MarkBillingPaymentIntentFailedParams{
 			ID: intent.ID, OrganizationID: intent.OrganizationID,
 		})
-		return err
+		return intentTerminalErr{cause: err}
 	}
 	start := time.Now().UTC()
 	periodEnd := subscriptionPeriodEnd(start, plan.BillingPeriod)

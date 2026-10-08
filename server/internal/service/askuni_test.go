@@ -226,8 +226,8 @@ func TestConversationOwnershipAndUsage(t *testing.T) {
 	if err != nil || !caps.Enabled || !caps.AskUni || !caps.MeetingSummary {
 		t.Fatalf("%+v %v", caps, err)
 	}
-	if caps.LimitTokens == nil || *caps.LimitTokens != 500000 {
-		t.Fatalf("G2 default quota: %+v", caps.LimitTokens)
+	if caps.LimitTokens == nil || *caps.LimitTokens != 100_000 {
+		t.Fatalf("Starter default ai.tokens quota: %+v", caps.LimitTokens)
 	}
 	if _, err := s.WorkspaceUsage(ctx, ub.ID, w.ID, time.Time{}, time.Time{}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("member reads usage: %v", err)
