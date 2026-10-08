@@ -1,0 +1,1 @@
+$ pnpm --filter @uniwork/views exec eslint office/install-prompt.tsx office/install-prompt.test.tsx --max-warnings 0

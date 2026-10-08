@@ -1,0 +1,2 @@
+$ node scripts/office/check-boundaries.mjs
+check-boundaries: OK - browser isolation, no /ee, licence attribution
