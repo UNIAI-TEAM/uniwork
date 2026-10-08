@@ -108,7 +108,7 @@ func TestOfficeDesktopDownloadPlatformBundle(t *testing.T) {
 		t.Fatalf("bundle response: %d %s", response.StatusCode, data)
 	}
 	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil || len(archive.File) != 2 || archive.File[0].Name != "office_unsigned.deb" || archive.File[1].Name != "deployment-profile.json" {
+	if err != nil || len(archive.File) != 3 || archive.File[0].Name != "office_unsigned.deb" || archive.File[1].Name != "deployment-profile.json" || archive.File[2].Name != "README.txt" {
 		t.Fatalf("platform bundle: %+v %v", archive, err)
 	}
 }

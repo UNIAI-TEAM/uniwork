@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestOfficeDesktopBundleContainsInstallerAndProfile(t *testing.T) {
@@ -52,7 +54,7 @@ func TestOfficeDesktopBundleContainsInstallerAndProfile(t *testing.T) {
 		}
 		files[file.Name] = data
 	}
-	if len(files) != 2 || !bytes.Equal(files["setup.exe"], installer) {
+	if len(files) != 3 || !bytes.Equal(files["setup.exe"], installer) {
 		t.Fatalf("wrong bundle entries: %v", files)
 	}
 	var installed map[string]string
@@ -61,6 +63,53 @@ func TestOfficeDesktopBundleContainsInstallerAndProfile(t *testing.T) {
 	}
 	if len(installed) != 4 || installed["deploymentId"] != "fixture" || installed["apiOrigin"] != profile.ServerOrigin || installed["clientId"] != profile.ClientID || installed["channel"] != "dev" {
 		t.Fatalf("profile incompatible with desktop resolver: %v", installed)
+	}
+}
+
+func TestOfficeDesktopBundleReadmeExplainsBothPlatforms(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("unsigned installer fixture")) }))
+	defer provider.Close()
+	bundle, err := (&OfficeDesktopDownloadService{}).Bundle(context.Background(), OfficeDesktopDownload{InstallerURL: provider.URL + "/UniWork-Office.dmg", ServerOrigin: "https://uniwork.example.vn", Channel: "dev", ClientID: "uniwork-office-dev", DeploymentID: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = bundle.Close() }()
+	var data bytes.Buffer
+	if err := bundle.WriteZipTo(&data); err != nil {
+		t.Fatal(err)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(data.Bytes()), int64(data.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var readme []byte
+	for _, file := range archive.File {
+		if file.Name != "README.txt" {
+			continue
+		}
+		r, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		readme, err = io.ReadAll(r)
+		_ = r.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	text := string(readme)
+	if !utf8.Valid(readme) {
+		t.Fatal("README is not UTF-8")
+	}
+	// The labels must match officeDesktop.login.importProfile (vi, en) in
+	// packages/core/i18n/locales, or the instructions point at no button.
+	for _, want := range []string{"Tiếng Việt", "English", "Windows", "macOS", "deployment-profile.json", "Chọn tệp cấu hình…", "Choose configuration file…", "run Setup"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("README misses %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "https://uniwork.example.vn") || strings.Contains(text, "fixture") {
+		t.Error("README must stay generic: no origin or deployment id")
 	}
 }
 
@@ -105,7 +154,7 @@ func TestOfficeDesktopBundlePlatformExtensions(t *testing.T) {
 				t.Fatal(err)
 			}
 			archive, err := zip.NewReader(bytes.NewReader(data.Bytes()), int64(data.Len()))
-			if err != nil || len(archive.File) != 2 || archive.File[0].Name != filename {
+			if err != nil || len(archive.File) != 3 || archive.File[0].Name != filename {
 				t.Fatalf("platform bundle: %+v %v", archive, err)
 			}
 		})
