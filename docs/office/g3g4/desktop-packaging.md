@@ -307,7 +307,7 @@ Scope: one self-hosted deployment on the `dev` or `beta` channel (`stable` is re
      curl -s <api origin>/api/v1/config
      ```
 
-     `office_channel` must be `dev` (or `beta`), and `office_installers.<channel>` must list each platform with `url`, `version` and `unsigned: true`. The other channels stay empty. If `office_channel` is `stable` on a dev deployment, the desktop trio is missing: the download then answers 503 naming the trio (`desktop client or deployment binding is ambiguous`).
+     `office_channel` must be `dev` (or `beta`), and `office_installers.<channel>` must list each platform with `url`, `version` and `unsigned: true`. The other channels stay empty. If `office_channel` is `stable` on a dev deployment, the desktop trio is missing: the download then answers 503 `office_download_unavailable` with the short message `desktop client or deployment binding is not configured for this channel`. The server log (`office desktop download unavailable: client or deployment binding does not match the channel`) carries the operator hint with the variable names.
 
 5. **Download from UniWork and install.** In the web Office editor, use **Download** on a document. The browser asks the server for the bundle with `bundle=true` and the platform the user chose (`platform=<key>`; without it the server sends the Windows Setup). The zip holds three files: the installer (`UniWork-Office-Setup` with the platform's extension), `deployment-profile.json` (`deploymentId`, `apiOrigin`, `clientId`, `channel`) and `README.txt` (Vietnamese and English). Extract all three into one folder before you start the installer.
 
@@ -329,7 +329,7 @@ Scope: one self-hosted deployment on the `dev` or `beta` channel (`stable` is re
    | "Tệp cấu hình này dành cho một bản UniWork Office khác. Tải lại UniWork Office từ site UniWork của bạn." (`channel_mismatch`) | The profile's channel is not this build's channel | Download the build for that channel from the site |
    | "Bản UniWork Office này đã được liên kết với một site UniWork." (`already_configured`) | A profile already resolves (installer-owned, or imported earlier) | Reset the imported connection first; an installer-owned profile needs a reinstall |
    | "Không thể lưu tệp cấu hình. Thử lại." (`unavailable`) | The import could not complete, for example the file could not be read or stored | Try again; check that the user-data folder is writable |
-   | Download answers 503 "desktop client or deployment binding is ambiguous" | The desktop trio does not match the channel | Set the trio in step 4 and restart |
+   | 503 `office_download_unavailable` ("desktop client or deployment binding is not configured for this channel"); the server log warns "client or deployment binding does not match the channel" | The desktop trio does not match the channel | Read the hint in the server log, set the trio in step 4 and restart |
    | Web shows the channel has no installer (404 `installer_unavailable`) | `OFFICE_INSTALLER_<CHANNEL>_URLS` empty or not set for that channel | Fill it and restart. Never point another channel's variable at these files |
    | 503 `office_download_unavailable` ("desktop installer URLs are not configured safely") | A link is not HTTPS (outside dev loopback), has credentials, a query or a fragment, or its extension does not match the platform | Regenerate the JSON with `installer-urls.mjs` |
    | Bundle download fails on a redirect | The link answers 302 (a GitHub release URL) | Mirror the files to a host that answers 200 directly |
