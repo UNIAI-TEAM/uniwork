@@ -1,0 +1,2 @@
+$ CARGO_TARGET_DIR=$HOME/.cache/uniwork-cargo-target node scripts/office/build-upstream.mjs --with-native
+{"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
