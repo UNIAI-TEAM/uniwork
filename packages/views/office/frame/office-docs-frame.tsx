@@ -33,6 +33,8 @@ export interface OfficeDocsFrameProps {
   fitContent?: boolean;
   onTitleChange?: (title: string) => void;
   onSaved?: (saved: SavedPayload) => void;
+  /** The user saved a copy; the frame now edits that new document. */
+  onSavedAs?: (documentId: string) => void;
   /** Header actions (save, print) for the page that hosts the frame. */
   controlsRef?: MutableRefObject<OfficeDocsFrameControls | null>;
   className?: string;
@@ -57,7 +59,7 @@ function useFrameTheme(): Theme {
  */
 export function OfficeDocsFrame({
   wsId, documentId, title, frameVersion, api = defaultDocsFrameApi, readonly = false, fitContent = false,
-  onTitleChange, onSaved, controlsRef, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, className,
 }: OfficeDocsFrameProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const theme = useFrameTheme();
@@ -73,6 +75,7 @@ export function OfficeDocsFrame({
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
+    onSavedAs,
     onError: (error: ProtocolErrorShape) => {
       if (error.code === "cancelled") return;
       const key = KNOWN_ERRORS.has(error.code) ? error.code : "internal";

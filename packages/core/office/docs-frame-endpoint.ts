@@ -1,9 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at ed5eafe7b6cc0812d797504bed56226ddc3fea11
+// web/docs/protocol/endpoint.ts at b6f773ff8a1b657dc8ee2af8d495e9003dc44549
 // (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
-// One local patch: `allowedOrigins[0]!` in post() for noUncheckedIndexedAccess (validateOrigins guarantees it); to be upstreamed.
+
 /**
  * Shared postMessage engine for host.ts and client.ts: origin/source checks,
  * request/response correlation with ids + timeouts + cancellation, error
@@ -58,6 +58,7 @@ export interface EndpointOptions {
 }
 
 export interface RequestOptions {
+  /** ms; 0 (or any non-positive / non-finite value) = no timeout, e.g. a request waiting on a user dialog */
   timeoutMs?: number
   signal?: AbortSignal
   /** ArrayBuffers to transfer instead of copy */
@@ -82,8 +83,17 @@ interface Pending {
 
 export const DEFAULT_TIMEOUT_MS = 30_000
 
-export function validateOrigins(origins: readonly string[]): void {
-  if (origins.length === 0) throw new Error('allowedOrigins must not be empty')
+/** `timeoutMs` 0 means "wait forever"; setTimeout(fn, 0) would time out at once */
+export function armTimeout(timeoutMs: number, onTimeout: () => void): () => void {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return () => {}
+  const timer = setTimeout(onTimeout, timeoutMs)
+  return () => clearTimeout(timer)
+}
+
+/** Throws on an empty list or a non-exact origin; returns the first one (the postMessage targetOrigin). */
+export function validateOrigins(origins: readonly string[]): string {
+  const first = origins[0]
+  if (first === undefined) throw new Error('allowedOrigins must not be empty')
   for (const o of origins) {
     if (o === '*' || o === 'null' || !/^https?:\/\/[^/?#\s]+$/.test(o)) {
       throw new Error(
@@ -91,11 +101,14 @@ export function validateOrigins(origins: readonly string[]): void {
       )
     }
   }
+  return first
 }
 
 export class Endpoint {
   private readonly opts: EndpointOptions
   private readonly allowed: ReadonlySet<string>
+  /** first allowed origin, captured at construction (later edits to the caller's array do not apply) */
+  private readonly targetOrigin: string
   private readonly pending = new Map<string, Pending>()
   private readonly handlers = new Map<string, Handler>()
   private readonly listeners = new Map<string, Set<Listener>>()
@@ -106,7 +119,7 @@ export class Endpoint {
   private readonly onMessage = (ev: MessageEvent): void => this.receive(ev)
 
   constructor(opts: EndpointOptions) {
-    validateOrigins(opts.allowedOrigins)
+    this.targetOrigin = validateOrigins(opts.allowedOrigins)
     this.opts = opts
     this.allowed = new Set(opts.allowedOrigins)
     opts.self.addEventListener('message', this.onMessage)
@@ -143,11 +156,11 @@ export class Endpoint {
     const timeoutMs = options.timeoutMs ?? this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
     return new Promise<unknown>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const clearTimer = armTimeout(timeoutMs, () => {
         this.settle(id)?.reject(
           err('timeout', `${type} timed out after ${timeoutMs} ms`, { retryable: true }),
         )
-      }, timeoutMs)
+      })
       const onAbort = (): void => {
         const p = this.settle(id)
         if (!p) return
@@ -160,7 +173,7 @@ export class Endpoint {
         resolve,
         reject,
         cleanup: () => {
-          clearTimeout(timer)
+          clearTimer()
           signal?.removeEventListener('abort', onAbort)
         },
       })
@@ -212,7 +225,7 @@ export class Endpoint {
     if (this.disposed) return
     const peer = this.opts.peer()
     if (!peer) throw err('not_ready', 'peer window not available')
-    peer.postMessage(msg, this.opts.allowedOrigins[0]!, transfer)
+    peer.postMessage(msg, this.targetOrigin, transfer)
   }
 
   private reply(req: Envelope, body: { payload?: unknown; error?: ProtocolErrorShape }): void {

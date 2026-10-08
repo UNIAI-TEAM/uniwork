@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
 import type { OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
-import { docsFrameApiBase, docsFrameError, docsFrameToken, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { docsFrameApiBase, docsFrameError, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import {
   DocsProtocolError,
@@ -31,6 +31,8 @@ export interface DocsFrameSessionOptions {
   theme: Theme;
   onTitle?: (title: string) => void;
   onSaved?: (saved: SavedPayload) => void;
+  /** The frame saved a copy: it now edits that new document (the page may follow it). */
+  onSavedAs?: (documentId: string) => void;
   /** Non-fatal frame or proxy errors the user should hear about. */
   onError: (error: ProtocolErrorShape) => void;
 }
@@ -55,7 +57,7 @@ export interface DocsFrameSession {
 export function docsFrameCapabilities(readonly: boolean, api: DocsFrameApi): Capabilities {
   return {
     save: !readonly, saveAs: !readonly && Boolean(api.saveAs), recents: true, print: true,
-    exportPdf: Boolean(api.export), exportHtml: Boolean(api.export),
+    exportPdf: Boolean(api.export), exportHtml: false,
     attachments: !readonly && Boolean(api.addAttachments), images: !readonly, ai: false,
   };
 }
@@ -74,7 +76,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const { iframeRef, frameOrigin, wsId, documentId, locale, theme } = options;
   const [attempt, setAttempt] = useState(0);
   const queryClient = useQueryClient();
-  const tokenQuery = useOfficeFrameToken(wsId, documentId);
+  // The document the frame edits: the page's, until a save-as moves it to the copy.
+  const [savedAs, setSavedAs] = useState<{ from: string; to: string } | null>(null);
+  const scopeId = savedAs?.from === documentId ? savedAs.to : documentId;
+  const tokenQuery = useOfficeFrameToken(wsId, scopeId);
   const token = tokenQuery.data ? docsFrameToken(tokenQuery.data) : null;
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
@@ -83,8 +88,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [host, setHost] = useState<DocsFrameHost | null>(null);
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, token, refetch: tokenQuery.refetch });
-  latest.current = { options, token, refetch: tokenQuery.refetch };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch };
   const sentToken = useRef<string | null>(null);
 
   useEffect(() => {
@@ -94,7 +99,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     sentToken.current = null;
 
     const currentToken = async (): Promise<TokenPayload> => {
-      const { wsId: ws, documentId: doc } = latest.current.options;
+      const { options: { wsId: ws }, scopeId: doc } = latest.current;
       // The cache may hold a token this render has not seen yet.
       const cached = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(ws, doc));
       if (cached) return docsFrameToken(cached);
@@ -105,14 +110,15 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
     const proxy = <K extends keyof ApiHandlers>(type: K, write: boolean, pick: (api: DocsFrameApi) => ((payload: never, call: never) => Promise<unknown>) | undefined) =>
       async (payload: FrameRequests[K]["payload"], { signal }: { signal: AbortSignal }) => {
-        const { options: current } = latest.current;
+        const { options: current, scopeId: doc } = latest.current;
         if (write && current.readonly) throw readOnly(type);
         const run = pick(current.api);
         if (!run) throw new DocsProtocolError({ code: "unsupported", message: `${type} is not available on the web yet` });
         const { token: frameToken } = await currentToken();
-        return run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: current.documentId, token: frameToken, signal } as never) as Promise<FrameRequests[K]["result"]>;
+        return run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal } as never) as Promise<FrameRequests[K]["result"]>;
       };
 
+    const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
     const endpoint = createDocsFrameHost({
       self: window,
       frame: () => iframeRef.current?.contentWindow ?? null,
@@ -120,10 +126,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       getInit: async () => {
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
-        const { options: current } = latest.current;
+        const { options: current, scopeId: doc } = latest.current;
         return {
           ...frameToken,
-          documentId: current.documentId, workspaceId: current.wsId,
+          documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",
           locale: current.locale, theme: current.theme,
           capabilities: docsFrameCapabilities(current.readonly, current.api),
@@ -139,7 +145,19 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       api: {
         "api.open": proxy("api.open", false, (api) => api.open),
         "api.save": proxy("api.save", true, (api) => api.save),
-        "api.saveAs": proxy("api.saveAs", true, (api) => api.saveAs),
+        "api.saveAs": async (payload, context) => {
+          const { save, rebind } = (await saveAs(payload, context)) as unknown as DocsFrameSavedAs;
+          // Switch the frame to the copy before it hears the answer: token first, then scope.
+          const { options: current } = latest.current;
+          queryClient.setQueryData(officeFrameKeys.token(current.wsId, rebind.documentId), rebind.token);
+          latest.current.scopeId = rebind.documentId;
+          setSavedAs({ from: current.documentId, to: rebind.documentId });
+          const frameToken = docsFrameToken(rebind.token);
+          sentToken.current = frameToken.token;
+          endpoint.pushToken(frameToken);
+          current.onSavedAs?.(rebind.documentId);
+          return save;
+        },
         "api.recents": proxy("api.recents", false, (api) => api.recents),
         "api.export": proxy("api.export", false, (api) => api.export),
         "api.attachments.add": proxy("api.attachments.add", true, (api) => api.addAttachments),
@@ -157,7 +175,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     endpoint.on("title", ({ title }) => { latest.current.options.onTitle?.(title); });
     endpoint.on("resize", ({ height: next }) => { setHeight(next); });
     endpoint.on("saved", (saved) => {
-      const { wsId: ws, documentId: doc, onSaved } = latest.current.options;
+      const { options: { wsId: ws, onSaved }, scopeId: doc } = latest.current;
       void queryClient.invalidateQueries({ queryKey: documentKeys.detail(ws, doc) });
       onSaved?.(saved);
     });
