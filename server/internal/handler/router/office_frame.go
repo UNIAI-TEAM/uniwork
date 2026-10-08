@@ -15,9 +15,10 @@ import (
 // with that token alone as `Authorization: Bearer`, so the frame needs no
 // cookie and can move to its own origin later. A token opens exactly one
 // document: a path naming another document, or a session token, is refused.
+// There is no frame-token refresh route: the frame's token.refresh message is
+// answered by the host, which mints again with its session.
 //
 //	POST   /api/v1/documents/{documentID}/office/frame-token            (session)
-//	POST   /api/v1/office-frame/token                                   (refresh)
 //	GET    /api/v1/office-frame/documents/{documentID}                  (open)
 //	GET    /api/v1/office-frame/documents/{documentID}/content          (bytes; HEAD)
 //	POST   /api/v1/office-frame/documents/{documentID}/uploads          (save intent)
@@ -51,11 +52,6 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 	}
 	// Auth first so the flags evaluate with the token's user and organization.
 	f := r.With(frameAuth, mw.RequireFeatureFlag(flags, "documents"), mw.RequireFeatureFlag(flags, "office_docs_web"))
-	f.Post("/office-frame/token", h.RefreshOfficeFrameToken, apiOp{
-		summary:     "Refresh an Office Docs frame token",
-		description: "Frame token only: rechecks the ACL and returns a fresh token for the same document. An expired token cannot refresh; the frame asks the host to mint again.",
-		tags:        []string{"documents"}, sdo: sdo.OfficeFrameTokenSDO{}, auth: true,
-	})
 	f.Get("/office-frame/documents/{documentID}", h.OpenOfficeFrameDocument, apiOp{
 		summary:     "Open a document in the Office Docs frame",
 		description: "Frame token only: title, revision (the save base), current file version and download_url, a first-party route read with the same token. DOCX file documents only.",

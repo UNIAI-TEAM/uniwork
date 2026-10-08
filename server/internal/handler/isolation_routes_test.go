@@ -254,7 +254,6 @@ var isoRoutes = map[string]isoSpec{
 	// is bound to one document and re-mints only that binding. The document
 	// routes are cross-tenant by default and sent with each caller's own frame
 	// token (isoWorld.frameTokens).
-	"POST /api/v1/office-frame/token": {class: isoSelf, reason: "the frame token is the credential and names its own document; refresh re-mints only that binding"},
 
 	// Platform console.
 	"GET /api/v1/admin/flags":                    {class: isoPlatform, reason: reasonPlatform},

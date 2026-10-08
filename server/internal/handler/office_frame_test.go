@@ -77,7 +77,7 @@ func TestOfficeFrameTokenNeedsTheFlag(t *testing.T) {
 	w := newOfficeWorld(t, true)
 	documentID := w.createDocx(t, "plan.docx", frameDocx(t, "a"))
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/frame-token", w.token, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "feature_disabled" {
+	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "feature_disabled" {
 		t.Fatalf("flag off mint = %d %v", res.StatusCode, out)
 	}
 }
@@ -203,15 +203,10 @@ func TestOfficeFrameTokenOpensOnlyItsDocument(t *testing.T) {
 		t.Fatalf("upload to second with first's token = %d %s", res.StatusCode, raw)
 	}
 
-	// Refresh keeps the binding and needs the frame token itself.
-	res, refreshed := doJSON(t, w.srv, "POST", "/api/v1/office-frame/token", token, nil)
-	if res.StatusCode != 200 || refreshed["document_id"] != first || refreshed["token"] == token {
-		t.Fatalf("refresh = %d %v", res.StatusCode, refreshed)
+	// A frame token cannot renew itself: the host re-mints with its session.
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/office-frame/token", token, nil); res.StatusCode != 404 && res.StatusCode != 405 {
+		t.Fatalf("POST /office-frame/token = %d %v, want no such route", res.StatusCode, out)
 	}
-	if res, out := doJSON(t, w.srv, "POST", "/api/v1/office-frame/token", w.token, nil); res.StatusCode != 401 {
-		t.Fatalf("refresh with session = %d %v", res.StatusCode, out)
-	}
-
 }
 
 func TestOfficeFrameImagesAreSignedPerAsset(t *testing.T) {
@@ -315,9 +310,6 @@ func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
 	if code := w.saveThroughFrame(t, documentID, token, "org-a-edit"); code != 200 {
 		t.Fatalf("save under the org override = %d", code)
 	}
-	if res, out := doJSON(t, w.srv, "POST", "/api/v1/office-frame/token", token, nil); res.StatusCode != 200 {
-		t.Fatalf("refresh under the org override = %d %v", res.StatusCode, out)
-	}
 
 	// Another organization, same server, no override: closed.
 	other := w.outsiderToken(t)
@@ -343,7 +335,7 @@ func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
 	_ = json.Unmarshal(raw, &created)
 	otherDoc := created.Document.ID
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+otherDoc+"/office/frame-token", other, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "feature_disabled" {
+	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "feature_disabled" {
 		t.Fatalf("mint in the organization without the override = %d %v", res.StatusCode, out)
 	}
 
@@ -359,7 +351,6 @@ func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
 	for _, call := range []struct{ method, path string }{
 		{"GET", "/api/v1/office-frame/documents/" + otherDoc},
 		{"GET", "/api/v1/office-frame/documents/" + otherDoc + "/recents"},
-		{"POST", "/api/v1/office-frame/token"},
 	} {
 		res, out := doJSON(t, w.srv, call.method, call.path, otherToken, nil)
 		if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "feature_disabled" {
