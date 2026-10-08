@@ -782,6 +782,27 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatThreadTaskUnlinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{Name: "audit-unsync", Visibility: "public"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			root, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, ch.ID, SendChatMessageInput{Body: "root"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "unsynced"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.SyncThreadTask(f.ctx, f.owner.ID, w.ID, root.ID, SyncThreadTaskInput{TaskID: task.ID, Direction: "both"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.UnsyncThreadTask(f.ctx, f.owner.ID, w.ID, root.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatFollowUpCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
@@ -1323,6 +1344,7 @@ func auditActions() []string {
 		audit.ActionChatMessageLinked,
 		audit.ActionChatMessageUnlinked,
 		audit.ActionChatThreadTaskLinked,
+		audit.ActionChatThreadTaskUnlinked,
 		audit.ActionChatFollowUpCreated,
 		audit.ActionChatFollowUpUpdated,
 		audit.ActionChatFollowUpCompleted,

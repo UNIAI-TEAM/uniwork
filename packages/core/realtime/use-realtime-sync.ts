@@ -409,7 +409,8 @@ function handleChatRealtimeEvent(
       }
       return false;
     }
-    case "chat.thread.linked": {
+    case "chat.thread.linked":
+    case "chat.thread.unlinked": {
       const threadRootId = payload.thread_root_id;
       if (threadRootId) {
         chatScheduler.scheduleThreadLinked(roomId ?? "", threadRootId);
