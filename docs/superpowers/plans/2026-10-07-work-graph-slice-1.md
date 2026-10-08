@@ -27,6 +27,10 @@
 - Web: `packages/views` không import `next/*`; chuỗi qua `t()`, khóa vi trước rồi en; endpoint chỉ trả dữ liệu qua `parseWithFallback`, mỗi endpoint có test response hỏng; khóa query có `wsId`; file `.ts/.tsx` ≤ 500 dòng hiệu dụng; `pnpm knip` không báo export thừa.
 - Không chạy cả bộ e2e (khoảng 10 phút); chỉ chạy spec của kế hoạch này.
 - Commit theo prefix quy ước, mỗi commit kết thúc bằng `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; hook tự thêm `Refs: UNI-nnn`.
+- Chạy `gofmt -w` trên mọi file Go đã sửa trước khi commit: hook pre-commit chặn file chưa gofmt, và vài khối mã trong kế hoạch chưa căn cột. gofmt còn đổi `''` trong doc comment thành dấu nháy cong, nên đừng viết `''` trong doc comment.
+- `make sqlc` còn xếp lại `server/pkg/db/generated/billing.sql.go` (drift có sẵn trên develop, chỉ đổi thứ tự hàm): chạy `git checkout -- server/pkg/db/generated/billing.sql.go` trước khi commit.
+- Mỗi lệnh `go test`/`go run` chạy với env của worktree: `set -a; . ./.env.worktree; set +a` ở gốc worktree (DB test riêng `uniwork_uni_962_763_test`). Typecheck package views cần `NODE_OPTIONS=--max-old-space-size=8192`.
+- Select của Base UI trong jsdom chọn item khi nhận chuỗi pointerDown → pointerUp → mouseUp → click; `fireEvent.click` trơn không đổi giá trị.
 
 ## Review Focus
 
@@ -769,7 +773,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `server/internal/service/chat_links.go` (`UnsyncThreadTask`, ~:478-494)
 - Modify: `server/internal/service/chat.go` (`EnsureWorkspaceRoom` ~:139-178 phát `chat.room.created` khi tạo phòng mặc định)
 - Modify: `server/internal/service/audit_coverage_test.go` (ca mới + `auditActions()`)
-- Modify: `packages/core/realtime/use-realtime-sync.ts` (`case "chat.thread.unlinked"` cạnh `"chat.thread.linked"`, ~:403)
+- Modify: `packages/core/realtime/use-realtime-sync.ts` (`case "chat.thread.unlinked"` cạnh `"chat.thread.linked"`, :412)
 - Create: `server/internal/service/graph_events_test.go`
 
 **Interfaces:**
@@ -1125,7 +1129,7 @@ và thêm `audit.ActionChatThreadTaskUnlinked,` vào `auditActions()` ngay sau `
 - [ ] **Bước 8: Chạy.**
 
 ```bash
-cd server && go test ./internal/service/ -run 'TestGraphSourceEventsReachTheOutbox|TestEveryAuditedCommandWritesItsRow|TestAgent|TestChat' -count=1 -v 2>&1 | grep -E -- '--- (PASS|FAIL|SKIP)' | tail -40
+cd server && go test ./internal/service/ -run 'TestGraphSourceEventsReachTheOutbox|TestEveryAuditedCommandWritesItsRow|TestAgent|TestChat|TestSyncThreadTask|TestWorkspace|TestSendWorkspace|TestResolveDM|TestCreateGroupAndInvite|TestSignalVoiceAndTyping' -count=1 -v 2>&1 | grep -E -- '--- (PASS|FAIL|SKIP)' | tail -60
 cd server && go test ./internal/outbox/ ./migrations/ -count=1
 node --test scripts/events-catalogue.test.mjs
 pnpm --filter @uniwork/core exec vitest run realtime/
@@ -1216,7 +1220,9 @@ WHERE organization_id = sqlc.arg(organization_id) AND node_type = sqlc.arg(node_
 INSERT INTO graph_nodes (id, organization_id, workspace_id, node_type, subtype, source_id, title, status,
                          visibility, reader_ids, occurred_at, source_updated_at)
 VALUES (sqlc.arg(id), sqlc.arg(organization_id), sqlc.narg(workspace_id), sqlc.arg(node_type), sqlc.arg(subtype),
-        sqlc.arg(source_id), sqlc.arg(title), sqlc.arg(status), sqlc.arg(visibility), sqlc.arg(reader_ids)::text[],
+        sqlc.arg(source_id), sqlc.arg(title), sqlc.arg(status), sqlc.arg(visibility),
+        -- pgx sends a nil []string as NULL; the column is NOT NULL.
+        COALESCE(sqlc.arg(reader_ids)::text[], '{}'::text[]),
         sqlc.narg(occurred_at), sqlc.narg(source_updated_at))
 ON CONFLICT (organization_id, node_type, source_id) DO UPDATE SET
   workspace_id = EXCLUDED.workspace_id, subtype = EXCLUDED.subtype, title = EXCLUDED.title,
@@ -1455,7 +1461,10 @@ JOIN graph_nodes p ON p.id = CASE WHEN e.from_node = sqlc.arg(node_id)::text THE
 LEFT JOIN workspaces w ON w.id = p.workspace_id
 WHERE e.organization_id = sqlc.arg(organization_id)
   AND (e.from_node = sqlc.arg(node_id)::text OR e.to_node = sqlc.arg(node_id)::text)
-  AND e.valid_from <= sqlc.arg(at)::timestamptz AND (e.valid_to IS NULL OR e.valid_to > sqlc.arg(at)::timestamptz)
+  -- No at = the database's now(), so an edge the DB just dated is never in the
+  -- future of a client clock that runs behind it.
+  AND e.valid_from <= COALESCE(sqlc.narg(at)::timestamptz, now())
+  AND (e.valid_to IS NULL OR e.valid_to > COALESCE(sqlc.narg(at)::timestamptz, now()))
   AND (cardinality(sqlc.arg(edge_types)::text[]) = 0 OR e.edge_type = ANY(sqlc.arg(edge_types)::text[]))
   AND (sqlc.arg(direction)::text = 'both' OR (sqlc.arg(direction)::text = 'out') = (e.from_node = sqlc.arg(node_id)::text))
   AND p.organization_id = sqlc.arg(organization_id) AND p.deleted_at IS NULL
@@ -1471,7 +1480,7 @@ LIMIT sqlc.arg(limit_n)::int;
 SELECT e.id AS edge_id, e.edge_type, e.origin, e.valid_from, e.valid_to, e.attrs,
        (e.from_node = sqlc.arg(node_id)::text) AS outgoing,
        p.node_type AS peer_type, p.subtype AS peer_subtype, p.source_id AS peer_source_id,
-       p.title AS peer_title, p.status AS peer_status, (p.deleted_at IS NOT NULL) AS peer_deleted,
+       p.title AS peer_title, p.status AS peer_status, (p.deleted_at IS NOT NULL)::boolean AS peer_deleted,
        COALESCE(p.workspace_id, '')::text AS peer_workspace_id, COALESCE(w.slug, '')::text AS peer_workspace_slug
 FROM graph_edges e
 JOIN graph_nodes p ON p.id = CASE WHEN e.from_node = sqlc.arg(node_id)::text THEN e.to_node ELSE e.from_node END
@@ -1601,8 +1610,9 @@ type FactWant struct {
 
 // Desired is a node's projection computed from its source. Node nil means the
 // source is gone or is not projected (a DM room): the node is deleted. Peers
-// are other nodes whose own projection may have moved with this source (the
-// far end of a dependency); they are marked dirty after a write.
+// are the owners of incoming edges this source implies (the from end of a
+// dependency on this task); reconcile marks a peer dirty only when its edge
+// and the source disagree, so two tasks never re-mark each other forever.
 type Desired struct {
 	Node  *NodeState
 	Edges []EdgeWant
@@ -1652,10 +1662,13 @@ func (e EventInfo) openAt(n NodeState) (time.Time, bool) {
 	if !e.At.IsZero() {
 		return e.At, false
 	}
-	if e.fresh && !n.OccurredAt.IsZero() {
+	now := time.Now().UTC()
+	// A source dated in the future (an upcoming meeting's start) is clamped to
+	// now: a relation that exists today must not read as not yet valid.
+	if e.fresh && !n.OccurredAt.IsZero() && n.OccurredAt.Before(now) {
 		return n.OccurredAt, true
 	}
-	return time.Now().UTC(), false
+	return now, false
 }
 
 func (e EventInfo) closeAt() time.Time {
@@ -1667,9 +1680,14 @@ func (e EventInfo) closeAt() time.Time {
 
 // Drift counts what a projection changed (Project) or would change (Verify).
 type Drift struct {
-	MissingNodes, ExtraNodes, ChangedNodes   int
-	MissingEdges, ExtraEdges                 int
-	MissingFacts, ExtraFacts, ChangedFacts   int
+	MissingNodes int `json:"missing_nodes"`
+	ExtraNodes   int `json:"extra_nodes"`
+	ChangedNodes int `json:"changed_nodes"`
+	MissingEdges int `json:"missing_edges"`
+	ExtraEdges   int `json:"extra_edges"`
+	MissingFacts int `json:"missing_facts"`
+	ExtraFacts   int `json:"extra_facts"`
+	ChangedFacts int `json:"changed_facts"`
 }
 
 // Total is the number of rows that differ.
@@ -1854,8 +1872,9 @@ func textOf(t pgtype.Text) string {
 	return t.String
 }
 
+// sortedUnique never returns nil: pgx encodes a nil []string as SQL NULL.
 func sortedUnique(ids []string) []string {
-	out := slices.Clone(ids)
+	out := append([]string{}, ids...)
 	slices.Sort(out)
 	return slices.Compact(out)
 }
@@ -1906,15 +1925,13 @@ func loadTask(ctx context.Context, q *db.Queries, org, id string) (Desired, erro
 		if dep.Type == "blocks" {
 			from, to = dep.DependsOnTaskID, dep.TaskID
 		}
-		if from == t.ID {
+		switch {
+		case from == t.ID && to != t.ID:
 			d.edge(graph.EdgeDependsOn, true, graph.NodeTask, to)
-		}
-		other := dep.TaskID
-		if other == t.ID {
-			other = dep.DependsOnTaskID
-		}
-		if other != t.ID {
-			d.Peers = append(d.Peers, NodeRef{Type: graph.NodeTask, SourceID: other})
+		case to == t.ID && from != t.ID:
+			// from owns the edge from→t; reconcile marks it only if that edge
+			// is not open yet.
+			d.Peers = append(d.Peers, NodeRef{Type: graph.NodeTask, SourceID: from})
 		}
 	}
 	origin := strings.TrimSpace(textOf(t.OriginID))
@@ -2224,6 +2241,25 @@ func Verify(ctx context.Context, q *db.Queries, org string, ref NodeRef) (Drift,
 
 func lockKey(org string, ref NodeRef) string { return "graph:" + org + ":" + ref.key() }
 
+// bareNode reports whether a live node has no open in-scope SYSTEM edge and
+// no open fact.
+func bareNode(ctx context.Context, q *db.Queries, org, nodeID string, t graph.NodeType) (bool, error) {
+	edges, err := q.GraphListOpenSystemEdges(ctx, db.GraphListOpenSystemEdgesParams{OrganizationID: org, NodeID: nodeID})
+	if err != nil {
+		return false, err
+	}
+	for _, e := range edges {
+		if inScope(t, graph.EdgeType(e.EdgeType), e.Outgoing) {
+			return false, nil
+		}
+	}
+	facts, err := q.GraphListOpenFacts(ctx, db.GraphListOpenFactsParams{OrganizationID: org, NodeID: nodeID})
+	if err != nil {
+		return false, err
+	}
+	return len(facts) == 0, nil
+}
+
 func reconcile(ctx context.Context, q *db.Queries, org string, ref NodeRef, ev EventInfo, write bool) (Drift, error) {
 	var drift Drift
 	if write {
@@ -2261,6 +2297,15 @@ func reconcile(ctx context.Context, q *db.Queries, org string, ref NodeRef, ev E
 		drift.ChangedNodes++
 	}
 	ev.fresh = !live
+	if live && ev.At.IsZero() {
+		// A node resolvePeer created moments ago (in this rebuild) has a row
+		// but no open edges or facts: its history is dated by the source too.
+		bare, err := bareNode(ctx, q, org, cur.ID, ref.Type)
+		if err != nil {
+			return drift, err
+		}
+		ev.fresh = bare
+	}
 	nodeID := cur.ID
 	if write {
 		row, err := upsertNode(ctx, q, org, *want.Node)
@@ -2290,13 +2335,12 @@ func reconcileEdges(ctx context.Context, q *db.Queries, org, nodeID string, ref 
 		return drift, err
 	}
 	current := map[string]db.GraphListOpenSystemEdgesRow{}
-	var peers []NodeRef
+	incoming := map[string]NodeRef{} // owners of open DEPENDS_ON edges into this node
 	for _, r := range rows {
 		w := EdgeWant{Type: graph.EdgeType(r.EdgeType), Out: r.Outgoing,
 			Peer: NodeRef{Type: graph.NodeType(r.PeerType), SourceID: r.PeerSourceID}}
 		if w.Type == graph.EdgeDependsOn && !w.Out {
-			// Owned by the other end: let it re-read the dependency rows.
-			peers = append(peers, w.Peer)
+			incoming[w.Peer.key()] = w.Peer
 		}
 		if inScope(ref.Type, w.Type, w.Out) {
 			current[w.key()] = r
@@ -2355,7 +2399,26 @@ func reconcileEdges(ctx context.Context, q *db.Queries, org, nodeID string, ref 
 		}
 	}
 	if write && ev.EvidenceKind == EvidenceOutboxEvent {
-		if err := markDirty(ctx, q, org, append(peers, want.Peers...), ev); err != nil {
+		// Mark only the owners whose edge disagrees with the rows: a row with
+		// no open edge yet, or an open edge whose row is gone. Marking every
+		// peer on every write would make two dependent tasks re-mark each
+		// other forever.
+		wantIn := map[string]NodeRef{}
+		for _, p := range want.Peers {
+			wantIn[p.key()] = p
+		}
+		var stale []NodeRef
+		for k, p := range wantIn {
+			if _, ok := incoming[k]; !ok {
+				stale = append(stale, p)
+			}
+		}
+		for k, p := range incoming {
+			if _, ok := wantIn[k]; !ok {
+				stale = append(stale, p)
+			}
+		}
+		if err := markDirty(ctx, q, org, stale, ev); err != nil {
 			return drift, err
 		}
 	}
@@ -2530,7 +2593,7 @@ func optTime(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t
 func optText(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
 ```
 
-`markDirty` được định nghĩa ở Task 6 (`marker.go`). Để Task 5 biên dịch độc lập, tạo trước `server/internal/graph/projector/dirty.go`:
+`markDirty` nằm ở `server/internal/graph/projector/dirty.go`:
 
 ```go
 package projector
@@ -2667,6 +2730,8 @@ func newFixture(t *testing.T) *fixture {
 		people:   service.NewPeopleService(pool, q, orgs),
 	}
 	f.chat.SetTasks(f.tasks)
+	// CreateTasksFromSummary answers 503 without a task service.
+	f.meetings.Tasks = f.tasks
 	f.marker = NewMarker(q, func(context.Context, string) bool { return true })
 	f.worker = NewWorker(pool, q)
 	f.disp = outbox.New(pool, q, outbox.Options{})
@@ -3125,7 +3190,7 @@ func Refs(topic string, payload map[string]string) []NodeRef {
 }
 ```
 
-(`chat.channel.updated` được catalogue ghi `ephemeral`, nhưng `Record` vẫn ghi dòng outbox ở `chat_channels.go:319,461`; marker nghe nó. Test tích hợp ở Bước 4 giữ điều này: nếu ai đổi sang publish trực tiếp, test đổi visibility kênh sẽ đỏ.)
+(`chat.channel.updated` được catalogue ghi `ephemeral`, nhưng `Record` vẫn ghi dòng outbox ở `chat_channels.go:319,461`; marker nghe nó. Test tích hợp `TestChannelVisibilityChangeReachesTheGraph` ở Bước 5 giữ điều này: nếu ai đổi sang publish trực tiếp, test đổi visibility kênh sẽ đỏ.)
 
 `refs_test.go`:
 
@@ -3547,7 +3612,7 @@ cd server && go vet ./internal/graph/... && go test ./internal/ -run 'TestGraphT
 
 Kết quả mong đợi: mọi test PASS, không SKIP. Nếu một golden test đỏ vì service từ chối dữ liệu dựng (ví dụ quyền tạo dự án), sửa phần dựng dữ liệu của test, không sửa quy tắc chiếu.
 
-- [ ] **Bước 7: Commit.**
+- [ ] **Bước 7: Commit.** Chạy `gofmt -w server/internal/graph/projector/` trước (vài khối mã trong brief chưa căn cột).
 
 ```bash
 git add server/internal/graph/projector/
@@ -3794,7 +3859,7 @@ func sourceIDs(ctx context.Context, q *db.Queries, org string, t graph.NodeType,
 }
 ```
 
-Thêm tag JSON cho `Drift` để báo cáo `--format json` đọc được: trong `types.go` đổi khai báo thành các trường có tag `json:"missing_nodes"`, `json:"extra_nodes"`, `json:"changed_nodes"`, `json:"missing_edges"`, `json:"extra_edges"`, `json:"missing_facts"`, `json:"extra_facts"`, `json:"changed_facts"` (mỗi trường một dòng).
+`Drift` đã mang tag JSON từ Task 5, nên báo cáo `--format json` đọc được.
 
 - [ ] **Bước 3: CLI.** `server/cmd/graph-rebuild/main.go`:
 
@@ -3975,6 +4040,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create: `server/internal/metrics/graph.go`, `graph_test.go`
 - Modify: `server/internal/metrics/registry.go`
 - Modify: `server/cmd/server/main.go`
+- Modify: `deploy/grafana/dashboards/outbox-realtime.json` (hai panel đồ thị, spec §5.6)
 - Modify: `deploy/alerts.yml`, `scripts/alerts-runbooks.test.mjs` (14 → 15)
 - Create: `docs/runbooks/GraphProjectorLagHigh.md`; Modify: `docs/runbooks/README.md`
 - Modify: `docs/ops/RUNBOOK_OUTBOX.md`, `CLAUDE.md` (câu về lane realtime), `.env.example` (dòng chú thích `# FF_GRAPH=true`, `# FF_GRAPH_UI=true` cạnh `# FF_DOCUMENTS`)
@@ -4090,6 +4156,8 @@ var (
 		"Nodes waiting in graph_dirty.", nil, nil)
 	graphDirtyOldestDesc = prometheus.NewDesc("uniwork_graph_dirty_oldest_seconds",
 		"Age of the oldest event waiting in graph_dirty.", nil, nil)
+	graphDirtyUpDesc = prometheus.NewDesc("uniwork_graph_dirty_lag_up",
+		"1 when graph_dirty was read at this scrape, 0 when the read failed.", nil, nil)
 )
 
 // GraphDirtyCollector reads graph_dirty at scrape time.
@@ -4100,6 +4168,7 @@ func NewGraphDirtyCollector(pool *pgxpool.Pool) *GraphDirtyCollector { return &G
 func (c *GraphDirtyCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- graphDirtyPendingDesc
 	ch <- graphDirtyOldestDesc
+	ch <- graphDirtyUpDesc
 }
 
 func (c *GraphDirtyCollector) Collect(ch chan<- prometheus.Metric) {
@@ -4111,8 +4180,11 @@ func (c *GraphDirtyCollector) Collect(ch chan<- prometheus.Metric) {
 	var pending, oldest float64
 	if err := c.pool.QueryRow(ctx, `SELECT count(*)::float8,
 		COALESCE(EXTRACT(EPOCH FROM now() - min(last_event_at)), 0)::float8 FROM graph_dirty`).Scan(&pending, &oldest); err != nil {
+		// An absent age would silence GraphProjectorLagHigh; say the read failed.
+		ch <- prometheus.MustNewConstMetric(graphDirtyUpDesc, prometheus.GaugeValue, 0)
 		return
 	}
+	ch <- prometheus.MustNewConstMetric(graphDirtyUpDesc, prometheus.GaugeValue, 1)
 	ch <- prometheus.MustNewConstMetric(graphDirtyPendingDesc, prometheus.GaugeValue, pending)
 	ch <- prometheus.MustNewConstMetric(graphDirtyOldestDesc, prometheus.GaugeValue, oldest)
 }
@@ -4209,11 +4281,13 @@ Import `github.com/unicomhub/uniwork/server/internal/graph/projector`. (GraphSer
 Kéo dài quá 1 giờ, hoặc `--verify` vẫn lệch sau rebuild: báo owner `graph` (C-11) kèm kết quả bước 2 và 3.
 ```
 
+Thêm vào `deploy/grafana/dashboards/outbox-realtime.json` hai panel `timeseries` theo đúng hình panel id 9 (datasource `{"type":"prometheus","uid":"prometheus"}`): id 10 "Work Graph: tuổi sự kiện chờ chiếu cũ nhất", `gridPos {x:0,y:40,w:12,h:8}`, unit `s`, expr `max(uniwork_graph_dirty_oldest_seconds)`; id 11 "Work Graph: node chờ chiếu", `gridPos {x:12,y:40,w:12,h:8}`, unit `short`, expr `sum(uniwork_graph_dirty_pending)`. Trong runbook, mục "Kiểm tra" thêm: `uniwork_graph_dirty_lag_up = 0` nghĩa là không đọc được bảng, cảnh báo trễ sẽ im.
+
 Thêm dòng vào bảng `docs/runbooks/README.md`: `| \`GraphProjectorLagHigh\` | 3 | Work Graph chiếu chậm hơn nguồn | [GraphProjectorLagHigh.md](GraphProjectorLagHigh.md) |`. Trong `scripts/alerts-runbooks.test.mjs` đổi `14` thành `15` và thêm "+ C-11 graph lag" vào thông điệp.
 
 - [ ] **Bước 5: Tài liệu vận hành và luật lane.**
   - `docs/ops/RUNBOOK_OUTBOX.md`: thêm vào bảng lane một dòng ghi chú "realtime cũng mang `graph_marker` (một upsert vào `graph_dirty`)"; thêm mục `### Work Graph: dòng bẩn và rebuild` gồm cách đọc `graph_dirty`, khi nào chạy `graph-rebuild` (sau khi bật `graph` cho một tổ chức; sau sự cố; định kỳ hàng tuần với `--verify` để bắt tên đổi không phát sự kiện), và lệnh trong pod: `graph-rebuild --org <id> --verify`.
-  - `CLAUDE.md`, mục Audit and Events, câu "realtime lane, which is only for consumers that touch memory, Redis or one indexed read" → "…memory, Redis, one indexed read, or one keyed upsert (the Work Graph marker)".
+  - `CLAUDE.md` (AGENTS.md là symlink), mục Audit and Events: câu bị ngắt dòng ở dòng 307-308. Thay đúng chuỗi `memory, Redis or one indexed read;` ở dòng 308 bằng `memory, Redis, one indexed read, or one keyed upsert (the Work Graph marker);`. Sửa tương ứng comment của `Register` ở `server/internal/outbox/outbox.go:136-138` nếu nó nhắc cùng luật.
   - `.env.example`: thêm `# FF_GRAPH=true` và `# FF_GRAPH_UI=true` cạnh `# FF_DOCUMENTS=true`.
 
 - [ ] **Bước 6: Chạy.**
@@ -4382,7 +4456,7 @@ func TestGraphNeighborsLayerTwoDropsStaleReaders(t *testing.T) {
 		t.Fatalf("member threads before the kick = %v", got)
 	}
 	// A kick writes no event (spec §5.2): reader_ids still name the member.
-	if _, err := w.q.LeaveChatRoomMember(w.ctx, db.LeaveChatRoomMemberParams{RoomID: room, UserID: w.member.ID}); err != nil {
+	if err := w.q.LeaveChatRoomMember(w.ctx, db.LeaveChatRoomMemberParams{RoomID: room, UserID: w.member.ID}); err != nil {
 		t.Fatal(err)
 	}
 	if got := w.threadIDs(t, w.member.ID, task); len(got) != 0 {
@@ -4427,19 +4501,25 @@ func TestGraphHistoryShowsReassignment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var owners []string
+	// Asserted by state, not order: the DB and Go clocks may differ by a few ms.
+	var closed, open []string
 	for _, it := range h.Items {
-		if it.EdgeType == "OWNED_BY" {
-			owners = append(owners, it.Node.ID)
+		if it.EdgeType != "OWNED_BY" {
+			continue
+		}
+		if it.ValidTo != nil {
+			closed = append(closed, it.Node.ID)
+		} else {
+			open = append(open, it.Node.ID)
 		}
 	}
-	if len(owners) != 2 || owners[0] != w.member.ID || owners[1] != w.owner.ID {
-		t.Fatalf("OWNED_BY history = %v", owners)
+	if len(closed) != 1 || closed[0] != w.member.ID || len(open) != 1 || open[0] != w.owner.ID {
+		t.Fatalf("OWNED_BY history closed=%v open=%v", closed, open)
 	}
 }
 ```
 
-Kiểm tên và tham số của `LeaveChatRoomMember` trong `server/pkg/db/generated/chat*.sql.go` (`chat_moderation.go:226` gọi nó). Nếu nó là `:exec` không trả giá trị, viết `if err := w.q.LeaveChatRoomMember(...); err != nil`.
+`LeaveChatRoomMember(ctx, LeaveChatRoomMemberParams{RoomID, UserID}) error` (`server/pkg/db/generated/chat.sql.go:1014`).
 
 Chạy `cd server && go test ./internal/service/ -run TestGraph -count=1 -v` → biên dịch hỏng (chưa có `GraphService`).
 
@@ -4619,7 +4699,8 @@ type GraphNeighbor struct {
 }
 
 // GraphNeighborsQuery: EdgeTypes empty = all; Direction out|in|both (default
-// both); At zero = now; Limit 1..100 (default 50); Cursor from NextCursor.
+// both); At zero = the database's now; Limit 1..100 (default 50); Cursor from
+// NextCursor.
 type GraphNeighborsQuery struct {
 	EdgeTypes []string
 	Direction string
@@ -4749,16 +4830,13 @@ func (s *GraphService) Neighbors(ctx context.Context, userID, workspaceID, nodeT
 	if limit > 100 {
 		limit = 100
 	}
-	at := in.At
-	if at.IsZero() {
-		at = time.Now()
-	}
 	afterAt, afterID, err := parseGraphCursor(in.Cursor)
 	if err != nil {
 		return GraphNeighborsPage{}, err
 	}
 	rows, err := s.q.GraphListNeighbors(ctx, db.GraphListNeighborsParams{
-		OrganizationID: v.orgID, NodeID: n.ID, At: pgtype.Timestamptz{Time: at, Valid: true},
+		// No At = the database's now() (graph_read.sql), not this process's clock.
+		OrganizationID: v.orgID, NodeID: n.ID, At: optTS(in.At),
 		EdgeTypes: nonNil(in.EdgeTypes), Direction: dir, WorkspaceIds: v.workspaces, UserID: v.userID,
 		AfterValidFrom: afterAt, AfterID: afterID, LimitN: int32(limit),
 	})
@@ -5281,7 +5359,7 @@ func TestGraphRoutes(t *testing.T) {
 - [ ] **Bước 6: Chạy.**
 
 ```bash
-cd server && go test ./internal/handler/ -run 'TestGraphRoutes|TestSwaggerSpecFollowsChiRoutesAndSDI|TestEveryRouteFieldIsBound|TestTimelineRouteIsGone' -count=1 -v 2>&1 | grep -E -- '--- (PASS|FAIL|SKIP)'
+cd server && go test ./internal/handler/ ./internal/handler/router/ -run 'TestGraphRoutes|TestSwaggerSpecFollowsChiRoutesAndSDI|TestEveryRouteFieldIsBound|TestTimelineRouteIsGone' -count=1 -v 2>&1 | grep -E -- '--- (PASS|FAIL|SKIP)'
 cd server && go test ./internal/handler/ -run 'TestIsolationMatrix|TestEveryBodyIDFieldHasAReferenceCase|TestIsolationRealtime' -count=1 -v 2>&1 | grep -E -- '--- (PASS|FAIL|SKIP)'
 ```
 
@@ -5603,9 +5681,10 @@ describe("useGraphUI", () => {
 
   it("is off without an organization and unknown when the answer drifts", async () => {
     expect(renderHook(() => useGraphUI(undefined), { wrapper }).result.current).toBe("off");
-    vi.mocked(fetch).mockResolvedValue(json({ flags: {} }));
+    // A fresh Response per call: the hook retries once, a second later.
+    vi.mocked(fetch).mockImplementation(async () => json({ flags: {} }));
     const { result } = renderHook(() => useGraphUI("o2"), { wrapper });
-    await waitFor(() => expect(result.current).toBe("unknown"));
+    await waitFor(() => expect(result.current).toBe("unknown"), { timeout: 4_000 });
   });
 });
 ```
@@ -5623,7 +5702,8 @@ describe("useGraphUI", () => {
     }
 ```
 
-  - cạnh `transcriptScheduler`: `const graphScheduler = createInvalidateScheduler(qc, GRAPH_INVALIDATE_MS);` với `const GRAPH_INVALIDATE_MS = 3_000;` ở đầu file cạnh `TRANSCRIPT_INVALIDATE_MS`;
+  - khai `const GRAPH_INVALIDATE_MS = 3_000;` ở đầu `use-realtime-sync.ts` (sau các import; `TRANSCRIPT_INVALIDATE_MS` được import từ `invalidate-scheduler.ts`, không khai trong file này), và cạnh `transcriptScheduler`: `const graphScheduler = createInvalidateScheduler(qc, GRAPH_INVALIDATE_MS);`;
+  - trong cleanup của effect, cạnh `transcriptScheduler.dispose();`: thêm `graphScheduler.dispose();` để timer 3 s không chạy sau khi unmount hay đổi workspace;
   - trong vòng `for (const queryKey of keysFor(...))`, trước `scheduler.schedule(queryKey)`:
 
 ```ts
@@ -5725,6 +5805,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     "originated_from": "Xuất phát từ {{title}}",
     "belongs_to_project": "Thuộc dự án {{title}}",
     "belongs_to_task": "Là việc con của {{title}}",
+    "belongs_to_in": "{{title}} là việc con của việc này",
     "depends_on_out": "Phụ thuộc vào {{title}}",
     "depends_on_in": "{{title}} phụ thuộc vào việc này",
     "participated_in": "{{name}} tham dự",
@@ -5778,6 +5859,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     "originated_from": "Originated from {{title}}",
     "belongs_to_project": "In project {{title}}",
     "belongs_to_task": "Subtask of {{title}}",
+    "belongs_to_in": "{{title}} is a subtask of this task",
     "depends_on_out": "Depends on {{title}}",
     "depends_on_in": "{{title}} depends on this task",
     "participated_in": "{{name}} attended",
@@ -5902,6 +5984,8 @@ export function historySentence(item: GraphHistoryItem, label: Label, statusName
     case "ORIGINATED_FROM":
       return label("graph.history.originated_from", { title });
     case "BELONGS_TO":
+      // In-edges are the node's children (a subtask pointing at its parent).
+      if (item.direction === "in") return label("graph.history.belongs_to_in", { title });
       return item.node?.type === "TASK" ? label("graph.history.belongs_to_task", { title }) : label("graph.history.belongs_to_project", { title });
     case "DEPENDS_ON":
       return item.direction === "in" ? label("graph.history.depends_on_in", { title }) : label("graph.history.depends_on_out", { title });
@@ -5994,6 +6078,7 @@ describe("RelatedSection", () => {
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { beforeAll, beforeEach, expect, it } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -6028,9 +6113,21 @@ beforeEach(() => {
 
 it("reads the reassignment and the moved deadline as sentences", async () => {
   render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={me}><NodeHistorySection workspaceId="w1" nodeType="TASK" nodeId="t1" /></WorkspaceProvider>));
-  expect(await screen.findByText("Giao cho Bình")).toBeInTheDocument();
+  expect(await screen.findByRole("link", { name: "Giao cho Bình" })).toHaveAttribute("href", "/org/team/people/u3");
   expect(screen.getByText("Giao cho An")).toBeInTheDocument();
   expect(screen.getByText(/^Hạn đổi .+ → .+$/)).toBeInTheDocument();
+});
+
+it("shows the empty state when the node is not projected yet", async () => {
+  requestMock.mockImplementation((path: unknown) => {
+    const p = String(path);
+    if (p.startsWith("/api/v1/config")) return Promise.resolve({ flags: { graph_ui: true }, rum_sample_rate: 0, work_management_capabilities: {} });
+    if (p.endsWith("/task-statuses")) return Promise.resolve({ statuses: [], categories: [], total: 0 });
+    if (p.includes("/history")) return Promise.reject(new ApiError("not found", "not_found", 404));
+    return Promise.resolve({});
+  });
+  render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={me}><NodeHistorySection workspaceId="w1" nodeType="TASK" nodeId="t1" /></WorkspaceProvider>));
+  expect(await screen.findByText("Chưa ghi nhận thay đổi nào.")).toBeInTheDocument();
 });
 ```
 
@@ -6043,6 +6140,7 @@ Chạy `pnpm --filter @uniwork/views exec vitest run graph/` → đỏ (chưa c�
 
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@uniwork/core/api/http";
 import { useGraphNeighbors, useGraphUI } from "@uniwork/core/graph";
 import type { GraphNeighbor } from "@uniwork/core/types/graph";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -6063,13 +6161,15 @@ export function RelatedSection({ workspaceId, nodeType, nodeId }: { workspaceId:
   const query = useGraphNeighbors(workspaceId, nodeType, nodeId, { enabled: ui === "on" });
   const groups = useMemo(() => groupNeighbors(query.data?.items ?? []), [query.data?.items]);
   if (ui !== "on") return null;
+  // 404 = not projected yet (or hidden, deliberately indistinguishable): nothing related to show.
+  const missing = query.error instanceof ApiError && query.error.status === 404;
 
   return (
     <SidebarSection title={t("graph.related.title")}>
       <div data-testid="graph-related" className="space-y-3">
         {query.isPending ? (
           <p role="status" className="text-caption text-muted-foreground">{t("graph.related.loading")}</p>
-        ) : query.isError ? (
+        ) : query.isError && !missing ? (
           <div className="space-y-2">
             <p className="text-caption text-muted-foreground">{t("graph.related.error")}</p>
             <Button type="button" size="sm" variant="outline" onClick={() => void query.refetch()}>
@@ -6135,11 +6235,13 @@ function RelatedRow({ item, orgSlug, wsSlug }: { item: GraphNeighbor; orgSlug: s
 
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@uniwork/core/api/http";
 import { useGraphHistory, useGraphUI } from "@uniwork/core/graph";
 import { useTaskStatuses } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useWorkspace } from "../layout/workspace-context";
-import { historySentence, historyWhen } from "./graph-labels";
+import { AppLink } from "../navigation";
+import { graphNodeHref, historySentence, historyWhen } from "./graph-labels";
 
 /**
  * "Dòng thời gian": who owned the work, when the deadline moved, where it came
@@ -6157,13 +6259,14 @@ export function NodeHistorySection({ workspaceId, nodeType, nodeId }: { workspac
   const statusName = (key: string) => statuses.data?.statuses.find((s) => s.key === key)?.name ?? key;
   const label = (key: string, vars?: Record<string, string>) => t(key, vars);
   const items = [...(query.data?.items ?? [])].reverse();
+  const missing = query.error instanceof ApiError && query.error.status === 404;
 
   return (
     <section aria-labelledby={headingId} data-testid="graph-history" className="space-y-2">
       <h2 id={headingId} className="text-title-sm text-foreground">{t("graph.history.title")}</h2>
       {query.isPending ? (
         <p role="status" className="text-caption text-muted-foreground">{t("graph.history.loading")}</p>
-      ) : query.isError ? (
+      ) : query.isError && !missing ? (
         <div className="space-y-2">
           <p className="text-caption text-muted-foreground">{t("graph.history.error")}</p>
           <Button type="button" size="sm" variant="outline" onClick={() => void query.refetch()}>{t("common.retry")}</Button>
@@ -6172,12 +6275,21 @@ export function NodeHistorySection({ workspaceId, nodeType, nodeId }: { workspac
         <p className="text-caption text-muted-foreground">{t("graph.history.empty")}</p>
       ) : (
         <ol className="space-y-1.5">
-          {items.map((item, index) => (
-            <li key={`${item.kind}:${item.edge_type || item.fact_type}:${item.valid_from}:${index}`} className="flex flex-wrap items-baseline gap-x-2 text-body">
-              <span className="text-foreground">{historySentence(item, label, statusName, i18n.language)}</span>
-              <span className="text-caption text-muted-foreground">{historyWhen(item, label, i18n.language)}</span>
-            </li>
-          ))}
+          {items.map((item, index) => {
+            const sentence = historySentence(item, label, statusName, i18n.language);
+            // Spec §7: a row opens the entity it names.
+            const href = item.node ? graphNodeHref(item.node, workspace.organization_slug, workspace.slug) : null;
+            return (
+              <li key={`${item.kind}:${item.edge_type || item.fact_type}:${item.valid_from}:${index}`} className="flex flex-wrap items-baseline gap-x-2 text-body">
+                {href ? (
+                  <AppLink href={href} className="text-foreground underline-offset-4 hover:underline">{sentence}</AppLink>
+                ) : (
+                  <span className="text-foreground">{sentence}</span>
+                )}
+                <span className="text-caption text-muted-foreground">{historyWhen(item, label, i18n.language)}</span>
+              </li>
+            );
+          })}
         </ol>
       )}
     </section>
@@ -6322,29 +6434,61 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create: `scripts/load/graph-seed.sql`, `scripts/load/graph-neighbors.k6.js`
 - Modify: `scripts/load/README.md`
 
-- [ ] **Bước 1: Seed 1 triệu cạnh.** `scripts/load/graph-seed.sql` (chạy tay bằng `psql -v org_id=<id> -v ws_id=<id> -v n=200000 -f scripts/load/graph-seed.sql` trên DB đã có `cmd/seed`). Tệp sinh `n` node TASK và `n/10` node ACTOR, rồi khoảng 5 cạnh mỗi việc: `OWNED_BY` → ACTOR, `BELONGS_TO` → TASK cha, `DEPENDS_ON` → hai việc khác. Đều là bộ ba trong catalogue nên trigger nhận. id tất định như `documents-seed.sql`:
+- [ ] **Bước 1: Seed 1 triệu cạnh.** `scripts/load/graph-seed.sql` dựng node trên **việc và thành viên thật** của một tổ chức perf, để lớp 2 (`GetTask`) tìm thấy nguồn và phép đo đọc đúng đường hàng xóm. Tổ chức này chỉ dùng cho tải: `graph-rebuild --verify` trên nó sẽ coi các cạnh tổng hợp là lệch, nên phép đo §9 về rebuild/verify chạy trên tổ chức khác (Bước 3). Muốn 1 triệu cạnh (5 cạnh mỗi việc) thì tổ chức cần khoảng 200 000 việc: `go run ./cmd/seed --orgs 1 --users 200 --tasks 200000` trên một database riêng.
 
 ```sql
+-- Work Graph load set (C-11 §8): ~5 edges per real task of one perf org.
+-- psql -v org_id=<id> -v tag=graphload -f scripts/load/graph-seed.sql
+-- Run on an org reserved for load: rebuild/verify treats these edges as drift.
 \set ON_ERROR_STOP on
+CREATE TEMP TABLE seed_tasks AS
+  SELECT t.id, t.workspace_id, row_number() OVER (ORDER BY t.id) AS n
+  FROM tasks t WHERE t.organization_id = :'org_id';
+CREATE TEMP TABLE seed_members AS
+  SELECT m.user_id AS id, row_number() OVER (ORDER BY m.user_id) AS n
+  FROM organization_members m WHERE m.organization_id = :'org_id';
 INSERT INTO graph_nodes (id, organization_id, workspace_id, node_type, source_id, title, visibility)
-SELECT 'gt' || g, :'org_id', :'ws_id', 'TASK', 'st' || g, 'Việc ' || g, 'workspace' FROM generate_series(1, :n) g;
+SELECT :'tag' || '-gt-' || n, :'org_id', workspace_id, 'TASK', id, 'Việc ' || n, 'workspace' FROM seed_tasks
+ON CONFLICT DO NOTHING;
 INSERT INTO graph_nodes (id, organization_id, node_type, subtype, source_id, title, visibility)
-SELECT 'ga' || g, :'org_id', 'ACTOR', 'member', 'sa' || g, 'Người ' || g, 'organization' FROM generate_series(1, :n / 10) g;
+SELECT :'tag' || '-ga-' || n, :'org_id', 'ACTOR', 'member', id, 'Người ' || n, 'organization' FROM seed_members
+ON CONFLICT DO NOTHING;
+-- Edges join nodes by source id, so nodes a projector already wrote are reused.
+CREATE TEMP TABLE seed_task_nodes AS
+  SELECT s.n, g.id AS node_id FROM seed_tasks s
+  JOIN graph_nodes g ON g.organization_id = :'org_id' AND g.node_type = 'TASK' AND g.source_id = s.id;
+CREATE TEMP TABLE seed_actor_nodes AS
+  SELECT m.n, g.id AS node_id FROM seed_members m
+  JOIN graph_nodes g ON g.organization_id = :'org_id' AND g.node_type = 'ACTOR' AND g.source_id = m.id;
+SELECT count(*) AS tasks FROM seed_task_nodes \gset
+SELECT count(*) AS actors FROM seed_actor_nodes \gset
 INSERT INTO graph_edges (id, organization_id, from_node, to_node, edge_type, origin, valid_from, evidence_kind, evidence_id)
-SELECT 'eo' || g, :'org_id', 'gt' || g, 'ga' || (1 + g % (:n / 10)), 'OWNED_BY', 'SYSTEM', now() - interval '30 days', 'source_row', 'st' || g
-FROM generate_series(1, :n) g;
+SELECT :'tag' || '-eo-' || t.n, :'org_id', t.node_id, a.node_id, 'OWNED_BY', 'SYSTEM', now() - interval '30 days', 'source_row', :'tag'
+FROM seed_task_nodes t JOIN seed_actor_nodes a ON a.n = 1 + (t.n % :actors)
+ON CONFLICT DO NOTHING;
 INSERT INTO graph_edges (id, organization_id, from_node, to_node, edge_type, origin, valid_from, evidence_kind, evidence_id)
-SELECT 'eb' || g, :'org_id', 'gt' || g, 'gt' || (1 + (g * 7) % :n), 'BELONGS_TO', 'SYSTEM', now() - interval '20 days', 'source_row', 'st' || g
-FROM generate_series(1, :n) g WHERE (1 + (g * 7) % :n) <> g;
+SELECT :'tag' || '-eb-' || t.n, :'org_id', t.node_id, p.node_id, 'BELONGS_TO', 'SYSTEM', now() - interval '20 days', 'source_row', :'tag'
+FROM seed_task_nodes t JOIN seed_task_nodes p ON p.n = 1 + ((t.n * 7) % :tasks)
+WHERE p.n <> t.n
+ON CONFLICT DO NOTHING;
 INSERT INTO graph_edges (id, organization_id, from_node, to_node, edge_type, origin, valid_from, evidence_kind, evidence_id)
-SELECT 'ed' || g || '_' || k, :'org_id', 'gt' || g, 'gt' || (1 + (g * 13 + k * 101) % :n), 'DEPENDS_ON', 'SYSTEM', now() - interval '10 days', 'source_row', 'st' || g
-FROM generate_series(1, :n) g, generate_series(1, 3) k WHERE (1 + (g * 13 + k * 101) % :n) <> g;
-ANALYZE graph_nodes; ANALYZE graph_edges;
+SELECT :'tag' || '-ed-' || t.n || '-' || k, :'org_id', t.node_id, d.node_id, 'DEPENDS_ON', 'SYSTEM', now() - interval '10 days', 'source_row', :'tag'
+FROM seed_task_nodes t CROSS JOIN generate_series(1, 3) k
+JOIN seed_task_nodes d ON d.n = 1 + ((t.n * 13 + k * 101) % :tasks)
+WHERE d.n <> t.n
+ON CONFLICT DO NOTHING;
+ANALYZE graph_nodes;
+ANALYZE graph_edges;
 ```
 
-(File SQL ngoài cây Go nên arch test không quét; đây là dữ liệu tải, không phải đường ghi của sản phẩm.)
+(File SQL nằm ngoài cây Go nên arch test không quét; đây là dữ liệu tải, không phải đường ghi của sản phẩm. Mọi bộ ba là `TASK→ACTOR OWNED_BY`, `TASK→TASK BELONGS_TO`, `TASK→TASK DEPENDS_ON`, đều có trong catalogue nên trigger nhận.)
 
-- [ ] **Bước 2: k6.** `scripts/load/graph-neighbors.k6.js` theo mẫu các script k6 trong `scripts/load/`: đăng nhập `user0@perf.local`, gọi `GET /api/v1/workspaces/${WS}/graph/nodes/TASK/st${random}/neighbors` với `limit=50`, ngưỡng `http_req_duration: ['p(95)<200']`. Ghi cách chạy vào `scripts/load/README.md`, mục "Work Graph", kèm câu "chạy tay, không trong CI".
+- [ ] **Bước 2: k6.** `scripts/load/graph-neighbors.k6.js` theo mẫu các script k6 đang có trong `scripts/load/`:
+  - `setup()` đăng nhập `user0@perf.local` (mật khẩu `password123`), đọc workspace của tổ chức tải, rồi lấy tối đa 500 id việc thật bằng `GET /api/v1/workspaces/${WS}/tasks?limit=500`.
+  - Mỗi vòng gọi `GET /api/v1/workspaces/${WS}/graph/nodes/TASK/${id}/neighbors?limit=50`, kèm `check(res, { "200": (r) => r.status === 200 })`.
+  - Ngưỡng: `thresholds: { http_req_duration: ['p(95)<200'], checks: ['rate>0.99'] }`.
+
+  Ghi vào `scripts/load/README.md`, mục "Work Graph": server phải bật `graph_ui` cho tổ chức tải (`FF_GRAPH_UI=true` khi khởi động, hoặc một override `graph_ui` global), chạy tay, không trong CI.
 
 - [ ] **Bước 3: Đo cổng §9 trên máy dev.**
   - Mọi việc có `origin_type = 'meeting'` có cạnh `ORIGINATED_FROM` mở tới cuộc họp (kết quả phải là 0):
@@ -6360,7 +6504,7 @@ WHERE t.organization_id = :'org_id' AND t.origin_type = 'meeting'
     WHERE n.organization_id = t.organization_id AND n.node_type = 'TASK' AND n.source_id = t.id);
 ```
 
-  - `graph-rebuild --org <perf org> --verify` sau khi worker bắt kịp → `drift=0`.
+  - Trên một tổ chức **không** chạy `graph-seed.sql`: bật `graph`, để worker bắt kịp, rồi `graph-rebuild --org <id> --verify` → `drift=0`.
   - Thời gian `graph-rebuild --org` cho tổ chức `cmd/seed --orgs 1 --tasks 100000` (trước đó chạy SQL tạo `organization_member_profiles` nếu seed thiếu) → ghi số đo.
   - k6 p95 hàng xóm ở 1 triệu cạnh → ghi số đo.
   - Ghi ba số vào mô tả PR. Đo được nhưng chưa đạt ngưỡng thì ghi đúng như vậy, không làm tròn.
