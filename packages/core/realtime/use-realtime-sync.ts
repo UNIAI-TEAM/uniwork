@@ -110,10 +110,6 @@ function keysFor(
     if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
       push(homeKeys.summary(wsId));
     }
-    // The graph trails its sources (ADR 0019): refresh now and once more later.
-    if (payload.task_id && (type === "task.created" || type === "task.updated" || type === "task.deleted")) {
-      push(graphKeys.node(wsId, "TASK", payload.task_id));
-    }
     pushCalendar();
     return keys;
   }
@@ -476,6 +472,22 @@ function allWorkspaceKeys(wsId: string) {
   ];
 }
 
+/**
+ * Events after which the projector re-reads a TASK node. The refresh covers
+ * the whole workspace graph, not that node: an open Related panel lists its
+ * neighbours by title and status, and the changed task may be one of them.
+ */
+function changesTaskGraph(type: WSEventType, payload: Record<string, string>): boolean {
+  if (!payload.task_id) return false;
+  return (
+    type === "task.created" ||
+    type === "task.updated" ||
+    type === "task.deleted" ||
+    type === "chat.thread.linked" ||
+    type === "chat.thread.unlinked"
+  );
+}
+
 function isMeetingDetailKey(queryKey: readonly unknown[]): boolean {
   return Array.isArray(queryKey) && queryKey[0] === "meeting" && typeof queryKey[1] === "string";
 }
@@ -499,6 +511,12 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
       const eventType = RENAMED_EVENTS[msg.type] ?? (msg.type as WSEventType);
+      if (changesTaskGraph(eventType, payload)) {
+        // The graph trails its sources (ADR 0019): refresh now and once more
+        // later. Ahead of every early return and of the patched-detail skip.
+        scheduler.schedule(graphKeys.workspace(wsId));
+        graphScheduler.schedule(graphKeys.workspace(wsId));
+      }
       if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
         if (
           payload.room_id &&
@@ -534,11 +552,6 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         }
         if (eventType === "motion.ballot_cast") {
           tallyScheduler.schedule(queryKey);
-          continue;
-        }
-        if (queryKey[0] === "graph") {
-          scheduler.schedule(queryKey);
-          graphScheduler.schedule(queryKey);
           continue;
         }
         scheduler.schedule(queryKey);

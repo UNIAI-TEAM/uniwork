@@ -5,6 +5,7 @@ import * as chatApi from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
+import { graphKeys } from "../graph/keys";
 import type { Task } from "../types/task";
 import { useRealtimeSync } from "./use-realtime-sync";
 
@@ -124,15 +125,43 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["audit", "history", "ws1", "task", "t1"]));
   });
 
-  it("refreshes the task's graph now and again after the projector lag", () => {
-    vi.useFakeTimers();
-    const { invalidate, client } = setup();
-    client.emit({ type: "task.updated", payload: { task_id: "t1" } });
-    act(() => { vi.advanceTimersByTime(250); });
-    const key = JSON.stringify(["graph", "ws1", "TASK", "t1"]);
-    expect(keysCalled(invalidate).filter((k: string) => k === key)).toHaveLength(1);
-    act(() => { vi.advanceTimersByTime(3_000); });
-    expect(keysCalled(invalidate).filter((k: string) => k === key)).toHaveLength(2);
+  describe("work graph refresh", () => {
+    // Task A's Related panel lists neighbour B by title and status, so an
+    // event about B must reach A's cached graph, not only B's own node.
+    const panelA = graphKeys.neighbors("ws1", "TASK", "tA");
+    const otherWorkspace = graphKeys.neighbors("ws2", "TASK", "tA");
+    const page = { node: null, items: [], next_cursor: "" };
+    const invalidated = (qc: QueryClient, key: readonly unknown[]) =>
+      qc.getQueryState(key)?.isInvalidated === true;
+
+    it.each([
+      ["task.updated", { task_id: "tB" }],
+      ["task.created", { task_id: "tB" }],
+      ["task.deleted", { task_id: "tB" }],
+      ["chat.thread.linked", { room_id: "r1", thread_root_id: "m1", task_id: "tA" }],
+      ["chat.thread.unlinked", { room_id: "r1", thread_root_id: "m1", task_id: "tA" }],
+    ])("%s refreshes an open graph panel now and again after the projector lag", (type, payload) => {
+      vi.useFakeTimers();
+      const { qc, client } = setup();
+      qc.setQueryData(panelA, page);
+      qc.setQueryData(otherWorkspace, page);
+      client.emit({ type, payload });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(invalidated(qc, panelA)).toBe(true);
+      // Settle the panel as its refetch would, then wait out the projector.
+      qc.setQueryData(panelA, page);
+      act(() => {
+        vi.advanceTimersByTime(2_749);
+      });
+      expect(invalidated(qc, panelA)).toBe(false);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(invalidated(qc, panelA)).toBe(true);
+      expect(invalidated(qc, otherWorkspace)).toBe(false);
+    });
   });
 
   it("invalidates projects on project.created", () => {
@@ -367,6 +396,8 @@ describe("useRealtimeSync", () => {
       });
       expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["task", "t1"]));
       expect(keysCalled(invalidate)).toEqual(expect.arrayContaining(listRoots));
+      // The graph trails the task (ADR 0019): a patched detail never skips it.
+      expect(keysCalled(invalidate)).toContain(JSON.stringify(["graph", "ws1"]));
     });
 
     it("does not patch, keeps the cached revision and invalidates when the frame carries a content key outside Patch", () => {
