@@ -36,12 +36,18 @@ func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
 	})
 }
 
-func registerOfficeFrame(r api, h Routes, flags *featureflag.Service) {
-	if h.OfficeFrameAuth == nil {
-		return
+func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth func(http.Handler) http.Handler) {
+	if frameAuth == nil {
+		frameAuth = func(http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":{"code":"not_found","message":"not found"}}`))
+			})
+		}
 	}
 	// Auth first so the flags evaluate with the token's user and organization.
-	f := r.With(h.OfficeFrameAuth, mw.RequireFeatureFlag(flags, "documents"), mw.RequireFeatureFlag(flags, "office_docs_web"))
+	f := r.With(frameAuth, mw.RequireFeatureFlag(flags, "documents"), mw.RequireFeatureFlag(flags, "office_docs_web"))
 	f.Post("/office-frame/token", h.RefreshOfficeFrameToken, apiOp{
 		summary:     "Refresh an Office Docs frame token",
 		description: "Frame token only: rechecks the ACL and returns a fresh token for the same document. An expired token cannot refresh; the frame asks the host to mint again.",

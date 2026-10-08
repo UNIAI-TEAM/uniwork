@@ -36,6 +36,9 @@ type Deps struct {
 	// evaluates every catalogue key at its declared default.
 	FeatureFlags *featureflag.Service
 	DeviceStatus func(context.Context, string, string) error
+	// OfficeFrameAuth checks the Office Docs frame token on
+	// /api/v1/office-frame/*; nil refuses every frame route with 404.
+	OfficeFrameAuth func(http.Handler) http.Handler
 }
 
 // New wires middleware and registers routes by OpenAPI tag (auth.go, me.go, …).
@@ -126,7 +129,7 @@ func New(d Deps, h Routes) http.Handler {
 		// group: the frame is credentialless and presents only its opaque scope.
 		registerPreview(v1, h)
 		// The Docs frame presents only its document-bound frame token.
-		registerOfficeFrame(v1, h, d.FeatureFlags)
+		registerOfficeFrame(v1, h, d.FeatureFlags, d.OfficeFrameAuth)
 		v1.Group(func(authed api) {
 			if d.DeviceStatus != nil {
 				authed.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
