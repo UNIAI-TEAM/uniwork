@@ -1,0 +1,4 @@
+$ cd server && go test -count=1 -timeout 30m ./internal/service/...
+ok  	github.com/unicomhub/uniwork/server/internal/service	820.955s
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	30.092s
+?   	github.com/unicomhub/uniwork/server/internal/service/templates	[no test files]
