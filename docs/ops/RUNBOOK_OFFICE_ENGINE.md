@@ -347,7 +347,7 @@ The engine switch and the format switches are feature flags (`server/internal/fe
 | --- | --- | --- |
 | `office_engine` | off | Master switch for Office editing; off = view / download / history only |
 | `office_docx` `office_xlsx` `office_pptx` `office_pdf` `office_markdown` `office_html` | on | One format editable only when `office_engine` **and** its own flag are on |
-| `office_html_visual_edit` | off | Visual HTML editing (no UI yet) |
+| `office_html_visual_edit` | on | Visual HTML editing; also needs `office_engine` and `office_html` on |
 
 Set a flag with `FF_<KEY>` (for example `FF_OFFICE_DOCX=false`), the `FEATURE_FLAGS_FILE`, or an override
 (user > organization > global). Web reads the config for the document's organization, so an organization override

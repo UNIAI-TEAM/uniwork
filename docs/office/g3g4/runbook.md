@@ -92,7 +92,7 @@ Server Go (mọi biến đã có trong `.env.example`):
 | `OFFICE_INSTALLER_{DEV,BETA,STABLE}_URLS` | Link tải bản cài theo nền tảng (JSON). `_URL` số ít là kiểu cũ, bỏ sau 2026-11-02 |
 | `FEATURE_FLAGS_FILE` | File YAML cờ; có thể ghi đè bằng `FF_<TÊN_CỜ>` |
 | `FF_DOCUMENTS`, `FF_OFFICE_ENGINE` | Bật/tắt cờ cho **cả môi trường** (`true`/`false`; `false` là công tắc khẩn). Office cần **cả hai** bật. Bật theo từng tổ chức thì dùng override trong `/admin` (mục 3.6) |
-| `FF_OFFICE_DOCX` … `FF_OFFICE_HTML`, `FF_OFFICE_HTML_VISUAL_EDIT` | Tắt riêng từng định dạng (mặc định bật; sửa HTML trực quan mặc định tắt) |
+| `FF_OFFICE_DOCX` … `FF_OFFICE_HTML`, `FF_OFFICE_HTML_VISUAL_EDIT` | Tắt riêng từng định dạng (mặc định bật, kể cả sửa HTML trực quan) |
 | `MINIO_*` hoặc `S3_*` (`STORAGE_BACKEND`) | Kho file |
 | `S3_KEY_PREFIX` | Thư mục gốc theo môi trường trong kho dùng chung (`<env>/v1/...`, UNI-947); mỗi môi trường một giá trị khác nhau |
 | `MINIO_PUBLIC_ENDPOINT` | Địa chỉ MinIO mà **trình duyệt** tới được, dùng khi ký URL tải thẳng. Bỏ trống khi dùng S3 |
@@ -150,7 +150,7 @@ Sidecar XLSX: không có biến riêng cần đặt.
 | `documents` | bật | Tài liệu trong workspace (menu Tài liệu) |
 | `office_engine` | bật | Công tắc tổng: bật trình soạn Office cho cả web và desktop host |
 | `office_docx` `office_xlsx` `office_pptx` `office_pdf` `office_markdown` `office_html` | bật | Cho phép sửa riêng từng định dạng (cần `office_engine` bật) |
-| `office_html_visual_edit` | tắt | Sửa HTML trực quan (chưa có giao diện) |
+| `office_html_visual_edit` | bật | Sửa HTML trực quan (cần `office_engine` và `office_html` đang bật) |
 
 1. `documents` mặc định đã bật (tắt bằng `FF_DOCUMENTS=false` hoặc override); `office_engine` cũng mặc định bật (tắt bằng `FF_OFFICE_ENGINE=false`, file YAML `FEATURE_FLAGS_FILE` hoặc override).
 2. Tắt/bật **riêng từng định dạng**: mỗi định dạng có cờ riêng, mặc định **bật** — `office_docx`, `office_xlsx`, `office_pptx`, `office_pdf`, `office_markdown`, `office_html`. Một định dạng chỉ sửa được khi `office_engine` **và** cờ của nó cùng bật. Để tắt một định dạng: `FF_OFFICE_DOCX=false` (đổi tên theo cờ) hoặc override trong file/org. Tệp định dạng đó mở ở màn xem/tải như khi tắt `office_engine`, không mở trình soạn; các định dạng khác không đổi. Web đọc `GET /api/v1/config` theo tổ chức của tài liệu, nên override theo org có hiệu lực. Desktop đọc cùng các cờ này theo tổ chức đang chọn (lấy sau khi chọn tổ chức, đọc lại khi đổi tổ chức hoặc tài khoản; nếu lỗi thì thử lại ngay một lần, sau đó tự thử lại theo khoảng tăng dần tới 5 phút, ngay khi cửa sổ được focus hoặc có mạng lại, và trước mỗi lần mở tài liệu cloud): tài liệu cloud thuộc định dạng bị tắt, hoặc khi chưa đọc được cấu hình, mở ở chế độ chỉ xem. Tab chỉ xem ghi rõ lý do: định dạng bị tổ chức tắt, hoặc chưa đọc được cấu hình. Khi được phép, tab được đọc lại tài liệu mới nhất rồi mới chuyển sang sửa (chưa có chỉnh sửa nào trong chế độ chỉ xem nên không mất dữ liệu). Tệp cục bộ không bị cờ chặn. Web: đổi cờ có hiệu lực ở lần làm mới cấu hình tiếp theo (tối đa ~5 phút hoặc khi quay lại tab). Trình soạn đang mở không bị đóng khi làm mới lỗi; chỉ đóng khi câu trả lời mới nói tắt, và nếu đang có thay đổi chưa lưu thì hiện hộp thoại Lưu / giữ bản nháp / bỏ trước. Trong lúc chưa đọc được cấu hình, thẻ tệp ghi "đang kiểm tra" hoặc "chưa kiểm tra được" (có nút Thử lại), không ghi "đang tắt".

@@ -29,7 +29,7 @@ describe("FeatureFlagsProvider + hooks", () => {
     expect(screen.getByTestId("flag").textContent).toBe("ON");
   });
 
-  it("reads office_html_visual_edit through the provider and defaults it off", () => {
+  it("reads office_html_visual_edit through the provider and falls back off without a provider", () => {
     const on = new FeatureFlagService(new StaticProvider({ [OFFICE_HTML_VISUAL_EDIT_FLAG]: { default: true } }));
     const { unmount } = render(
       <FeatureFlagsProvider service={on}>
