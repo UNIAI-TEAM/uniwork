@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { docsFrameSrc, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { createDocsFrameApi, docsFrameSrc, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import type { ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
@@ -26,8 +26,8 @@ export interface OfficeDocsFrameProps {
   title: string;
   /** Pinned frame build (the web app's sync pin); the frame is served same-origin. */
   frameVersion: string;
-  /** UniWork API the frame's `api.*` requests are proxied to (built on W6's endpoints). */
-  api: DocsFrameApi;
+  /** Where the frame's `api.*` requests go; defaults to the UniWork office-frame routes. */
+  api?: DocsFrameApi;
   readonly?: boolean;
   /** Size the iframe to the height the frame reports instead of filling the parent. */
   fitContent?: boolean;
@@ -37,6 +37,8 @@ export interface OfficeDocsFrameProps {
   controlsRef?: MutableRefObject<OfficeDocsFrameControls | null>;
   className?: string;
 }
+
+const defaultDocsFrameApi = createDocsFrameApi();
 
 const KNOWN_ERRORS = new Set(["unauthorized", "forbidden", "not_found", "conflict", "too_large", "rate_limited", "network", "unsupported", "timeout"]);
 
@@ -54,13 +56,12 @@ function useFrameTheme(): Theme {
  * needs travels back over postMessage and is made here.
  */
 export function OfficeDocsFrame({
-  wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
+  wsId, documentId, title, frameVersion, api = defaultDocsFrameApi, readonly = false, fitContent = false,
   onTitleChange, onSaved, controlsRef, className,
 }: OfficeDocsFrameProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const theme = useFrameTheme();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const [attempt, setAttempt] = useState(0);
   const [frameTitle, setFrameTitle] = useState<string | null>(null);
   const src = docsFrameSrc(frameVersion);
   const frameOrigin = useMemo(() => (typeof window === "undefined" ? "" : new URL(src, document.baseURI).origin), [src]);
@@ -68,7 +69,7 @@ export function OfficeDocsFrame({
   tRef.current = t;
 
   const session = useDocsFrameSession({
-    iframeRef, frameOrigin, api, wsId, documentId, readonly, attempt,
+    iframeRef, frameOrigin, api, wsId, documentId, readonly,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
@@ -128,7 +129,7 @@ export function OfficeDocsFrame({
         <Alert variant="destructive" role="alert" data-testid="office-docs-frame-failed">
           <AlertTitle>{t("failed_title")}</AlertTitle>
           <AlertDescription>{t(`errors.${KNOWN_ERRORS.has(code) ? code : "internal"}`)}</AlertDescription>
-          <Button className="mt-2" size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>
+          <Button className="mt-2" size="sm" variant="outline" onClick={session.retry}>
             {t("retry")}
           </Button>
         </Alert>
@@ -145,7 +146,7 @@ export function OfficeDocsFrame({
       data-dirty={dirty || undefined}
     >
       <iframe
-        key={attempt}
+        key={session.attempt}
         ref={iframeRef}
         src={src}
         title={t("frame_label", { title: frameTitle ?? title })}

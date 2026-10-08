@@ -1,8 +1,9 @@
-// Vendored verbatim from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at b7c541ff6d7cb51d2f26afecb90d093a0232890f
-// (lane branch feature/UNI-1013-docs-web-bridge). Do not edit here: change the fork,
-// then re-vendor and update this SHA.
-/* eslint-disable max-lines -- vendored contract file, kept byte-identical to the fork */
+// Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
+// web/docs/protocol/types.ts at ed5eafe7b6cc0812d797504bed56226ddc3fea11
+// (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
+// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
+// ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
+/* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
 /**
  * UniWork <-> genoffice Docs frame protocol (UNI-1013, lane GO-B2+B3).
  *
@@ -463,6 +464,50 @@ export interface CancelPayload {
   id: string
 }
 
+// ---------------------------------------------------------------- additive (W3 needs, after b7c541f)
+
+export interface FilePickPayload {
+  /** what the picked file is for; the host may show a different picker per purpose */
+  purpose: 'open' | 'insert'
+  /** lowercased extensions without the dot, e.g. ["docx"] */
+  accept?: string[]
+}
+
+export interface FilePickResult {
+  /** null when the user cancelled */
+  file: OpenPayload | null
+}
+
+export interface ImageFetchPayload {
+  /** remote http(s) image URL; the host fetches it server-side (SSRF-guarded) */
+  url: string
+}
+
+export interface ImageFetchResult {
+  /** null when the image could not be fetched */
+  image: { base64: string; mime: string } | null
+}
+
+export interface ConvertAltChunkHtmlPayload {
+  html: string
+}
+
+export interface ConvertAltChunkHtmlResult {
+  /** converted docx bytes, null when conversion is unavailable/failed */
+  data: ArrayBuffer | null
+}
+
+export interface CloseCheckResult {
+  dirty: boolean
+  /** true when the frame will autosave by itself (no prompt needed) */
+  autoSave: boolean
+}
+
+export interface FileRenamedPayload {
+  /** the document's new metadata (name changed elsewhere) */
+  file: FileMeta
+}
+
 export interface TokenRefreshRequestPayload {
   reason: 'expiring' | 'unauthorized'
 }
@@ -481,6 +526,8 @@ export interface HostRequests {
   save: Rpc<SaveRequestPayload, SaveResult>
   saveAs: Rpc<SaveAsRequestPayload, SaveResult>
   print: Rpc<PrintPayload, { printed: boolean }>
+  /** before closing/navigating: is there unsaved work? (then `save` with reason 'navigate') */
+  'doc.closeCheck': Rpc<Record<string, never>, CloseCheckResult>
 }
 
 /** Events the host sends to the frame. */
@@ -491,6 +538,8 @@ export interface HostEvents {
   language: LanguagePayload
   /** host aborts one of its own host->frame requests */
   cancel: CancelPayload
+  /** the open document was renamed outside the editor */
+  'file.renamed': FileRenamedPayload
 }
 
 /** Requests the frame sends to the host. `api.*` are proxied to UniWork APIs. */
@@ -503,6 +552,12 @@ export interface FrameRequests {
   'api.export': Rpc<ApiExportPayload, ApiExportResult>
   'api.attachments.add': Rpc<ApiAttachmentsAddPayload, ApiAttachmentsAddResult>
   'api.images.upload': Rpc<ApiImageUploadPayload, ApiImageUploadResult>
+  /** UniWork file picker (desktop: native open dialog) */
+  'file.pick': Rpc<FilePickPayload, FilePickResult>
+  /** fetch a remote image for insertion (frame CSP blocks arbitrary origins) */
+  'image.fetch': Rpc<ImageFetchPayload, ImageFetchResult>
+  /** HTML altChunk -> docx bytes (desktop: main-process converter) */
+  'convert.altChunkHtml': Rpc<ConvertAltChunkHtmlPayload, ConvertAltChunkHtmlResult>
 }
 
 /** Events the frame sends to the host. */
@@ -537,38 +592,48 @@ export type FrameToHostMessage =
 
 export type ProtocolMessage = HostToFrameMessage | FrameToHostMessage
 
-export const HOST_REQUEST_TYPES: readonly HostRequestType[] = [
-  'init',
-  'open',
-  'save',
-  'saveAs',
-  'print',
-]
-export const HOST_EVENT_TYPES: readonly HostEventType[] = [
-  'token.update',
-  'theme',
-  'language',
-  'cancel',
-]
-export const FRAME_REQUEST_TYPES: readonly FrameRequestType[] = [
-  'token.refresh',
-  'api.open',
-  'api.save',
-  'api.saveAs',
-  'api.recents',
-  'api.export',
-  'api.attachments.add',
-  'api.images.upload',
-]
-export const FRAME_EVENT_TYPES: readonly FrameEventType[] = [
-  'ready',
-  'dirty',
-  'title',
-  'resize',
-  'saved',
-  'error',
-  'cancel',
-]
+// Record<K, true> makes a missing/extra type a compile error; the arrays are derived.
+const HOST_REQUESTS: Record<HostRequestType, true> = {
+  init: true,
+  open: true,
+  save: true,
+  saveAs: true,
+  print: true,
+  'doc.closeCheck': true,
+}
+const HOST_EVENTS: Record<HostEventType, true> = {
+  'token.update': true,
+  theme: true,
+  language: true,
+  cancel: true,
+  'file.renamed': true,
+}
+const FRAME_REQUESTS: Record<FrameRequestType, true> = {
+  'token.refresh': true,
+  'api.open': true,
+  'api.save': true,
+  'api.saveAs': true,
+  'api.recents': true,
+  'api.export': true,
+  'api.attachments.add': true,
+  'api.images.upload': true,
+  'file.pick': true,
+  'image.fetch': true,
+  'convert.altChunkHtml': true,
+}
+const FRAME_EVENTS: Record<FrameEventType, true> = {
+  ready: true,
+  dirty: true,
+  title: true,
+  resize: true,
+  saved: true,
+  error: true,
+  cancel: true,
+}
+export const HOST_REQUEST_TYPES = Object.keys(HOST_REQUESTS) as readonly HostRequestType[]
+export const HOST_EVENT_TYPES = Object.keys(HOST_EVENTS) as readonly HostEventType[]
+export const FRAME_REQUEST_TYPES = Object.keys(FRAME_REQUESTS) as readonly FrameRequestType[]
+export const FRAME_EVENT_TYPES = Object.keys(FRAME_EVENTS) as readonly FrameEventType[]
 
 // ---------------------------------------------------------------- runtime validation (hand-written, no deps)
 
@@ -712,7 +777,9 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
   'request:saveAs': (x) => isObj(x) && isOpt(x.name, isStr),
   'request:print': (x) =>
     isObj(x) && (x.mode === undefined || x.mode === 'dialog' || x.mode === 'pdf'),
+  'request:doc.closeCheck': (x) => isObj(x),
   // host -> frame events
+  'event:file.renamed': (x) => isObj(x) && isFileMeta(x.file),
   'event:token.update': isTokenPayload,
   'event:theme': (x) => isObj(x) && isTheme(x.theme),
   'event:language': (x) => isObj(x) && isNonEmptyStr(x.locale),
@@ -744,6 +811,12 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
   'request:api.attachments.add': (x) =>
     isObj(x) && Array.isArray(x.files) && x.files.every(isUploadItem),
   'request:api.images.upload': (x) => isObj(x) && isUploadItem(x) && isOpt(x.fileId, isStr),
+  'request:file.pick': (x) =>
+    isObj(x) &&
+    (x.purpose === 'open' || x.purpose === 'insert') &&
+    (x.accept === undefined || (Array.isArray(x.accept) && x.accept.every(isStr))),
+  'request:image.fetch': (x) => isObj(x) && isNonEmptyStr(x.url) && /^https?:\/\//i.test(x.url),
+  'request:convert.altChunkHtml': (x) => isObj(x) && isStr(x.html),
   // frame -> host events
   'event:ready': isReadyPayload,
   'event:dirty': (x) => isObj(x) && isBool(x.dirty),
@@ -772,6 +845,12 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
     Array.isArray(x.rejected) &&
     x.rejected.every(isStr),
   'response:api.images.upload': (x) => isObj(x) && isNonEmptyStr(x.imageId) && isNonEmptyStr(x.url),
+  'response:doc.closeCheck': (x) => isObj(x) && isBool(x.dirty) && isBool(x.autoSave),
+  'response:file.pick': (x) => isObj(x) && (x.file === null || isOpenPayload(x.file)),
+  'response:image.fetch': (x) =>
+    isObj(x) &&
+    (x.image === null || (isObj(x.image) && isStr(x.image.base64) && isStr(x.image.mime))),
+  'response:convert.altChunkHtml': (x) => isObj(x) && (x.data === null || isBuffer(x.data)),
 }
 
 /** Outcome of `parseEnvelope`. */
