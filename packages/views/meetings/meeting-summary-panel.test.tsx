@@ -162,7 +162,7 @@ describe("MeetingSummaryPanel attribution", () => {
 
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).toBeDisabled());
-    const reason = screen.getByText("Cần bản ghi lời thoại hoặc ghi chú để tạo tóm tắt.");
+    const reason = screen.getByText("Cần bản ghi lời thoại, ghi chú hoặc tin nhắn trong cuộc họp để tạo tóm tắt.");
     expect(button.getAttribute("aria-describedby")).toBe(reason.id);
   });
 
@@ -216,6 +216,74 @@ describe("MeetingSummaryPanel attribution", () => {
 
     expect(await screen.findByText("giao cho")).toHaveClass("sr-only");
     expect(screen.getByText("→")).toHaveAttribute("aria-hidden");
+  });
+});
+
+describe("MeetingSummaryPanel sources and project", () => {
+  const withAction = {
+    id: "s1",
+    meeting_id: "m1",
+    summary: "Chốt lịch",
+    action_items: [{ title: "Gửi biên bản" }],
+    created_at: "2026-09-22T02:31:00Z",
+  };
+  const project = {
+    id: "p1", organization_id: "o1", workspace_id: "w1", title: "Ra mắt Q4", description: "", status: "in_progress",
+    priority: "none", revision: 1, task_count: 0, done_count: 0, resource_count: 0,
+    created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z",
+  };
+
+  function respondWith(opts: { summary: unknown; projectAnswer?: () => Promise<unknown>; chat?: unknown[] }) {
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary/tasks") && init?.method === "POST") return Promise.resolve({ task_ids: ["t1"] });
+      if (p.endsWith("/summary")) return Promise.resolve({ summary: opts.summary });
+      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [] });
+      if (p.includes("/meetings/m1/chat")) return Promise.resolve({ messages: opts.chat ?? [] });
+      if (p.includes("/projects/")) return opts.projectAnswer ? opts.projectAnswer() : Promise.resolve({});
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+  }
+
+  function postedItems(): Record<string, unknown>[] {
+    const call = requestMock.mock.calls.find(
+      (c) => String(c[0]).endsWith("/summary/tasks") && (c[1] as { method?: string } | undefined)?.method === "POST",
+    );
+    return ((call?.[1] as { body?: { items?: Record<string, unknown>[] } } | undefined)?.body?.items) ?? [];
+  }
+
+  it("lets the host summarize a meeting whose only record is its chat", async () => {
+    // The server summarises meeting chat too (Summarize, HasMeetingSummarySource).
+    respondWith({
+      summary: null,
+      chat: [{ id: "c1", meeting_id: "m1", sender_name: "An", message: "Chốt thứ Sáu", sent_at: "2026-09-22T02:05:00Z" }],
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
+    await waitFor(() => expect(button).toBeEnabled());
+  });
+
+  it("gives tasks from the summary the meeting's project", async () => {
+    respondWith({ summary: withAction, projectAnswer: () => Promise.resolve({ project }) });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={{ ...meeting, project_id: "p1" }} canHost />));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Gửi biên bản/ }));
+    await waitFor(() => expect(requestMock.mock.calls.some((c) => String(c[0]).includes("/projects/p1"))).toBe(true));
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo 1 việc" }));
+    await waitFor(() => expect(postedItems()).toHaveLength(1));
+    expect(postedItems()[0]).toMatchObject({ title: "Gửi biên bản", project_id: "p1" });
+  });
+
+  it("drops a project that no longer exists, so tasks can still be created", async () => {
+    respondWith({ summary: withAction, projectAnswer: () => Promise.reject(new ApiError("not found", "not_found", 404)) });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={{ ...meeting, project_id: "p-gone" }} canHost />));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Gửi biên bản/ }));
+    await waitFor(() => expect(requestMock.mock.calls.some((c) => String(c[0]).includes("/projects/p-gone"))).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Tạo 1 việc" }));
+    await waitFor(() => expect(postedItems()).toHaveLength(1));
+    expect(postedItems()[0]).not.toHaveProperty("project_id");
   });
 });
 
@@ -286,14 +354,14 @@ describe("MeetingSummaryPanel › voted decisions", () => {
 
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).toBeEnabled());
-    expect(screen.queryByText("Cần bản ghi lời thoại hoặc ghi chú để tạo tóm tắt.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cần bản ghi lời thoại, ghi chú hoặc tin nhắn trong cuộc họp để tạo tóm tắt.")).not.toBeInTheDocument();
   });
 
   it("still asks for a source when nothing has been voted", async () => {
     respond([]);
     render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
 
-    expect(await screen.findByText("Cần bản ghi lời thoại hoặc ghi chú để tạo tóm tắt.")).toBeInTheDocument();
+    expect(await screen.findByText("Cần bản ghi lời thoại, ghi chú hoặc tin nhắn trong cuộc họp để tạo tóm tắt.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tạo tóm tắt" })).toBeDisabled();
     expect(screen.queryByText("Đã biểu quyết")).not.toBeInTheDocument();
   });

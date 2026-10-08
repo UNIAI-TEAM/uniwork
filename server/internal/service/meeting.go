@@ -268,7 +268,8 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if in.AllowJoinRequest != nil {
 		allow = *in.AllowJoinRequest
 	}
-	if err := s.requireMeetingProject(ctx, mem.OrganizationID, workspaceID, in.ProjectID); err != nil {
+	projectID := strings.TrimSpace(in.ProjectID)
+	if err := s.requireMeetingProject(ctx, mem.OrganizationID, workspaceID, projectID); err != nil {
 		return db.Meeting{}, err
 	}
 	id := util.NewID()
@@ -286,7 +287,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeScheduled,
 		HostUserID: userID, Timezone: tz, AllowJoinRequest: allow,
-		ProjectID: strText(in.ProjectID),
+		ProjectID: strText(projectID),
 	})
 	if err != nil {
 		return db.Meeting{}, err

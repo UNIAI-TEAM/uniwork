@@ -18,4 +18,14 @@ describe("resourceHref", () => {
     const n = { ...base, resource_type: "chat_message", resource_id: "m1" } as Notification;
     expect(resourceHref(n, workspace)).toBe("/acme/team/chat");
   });
+
+  it("opens a meeting's summary panel from the summary reminder", () => {
+    const n = { ...base, kind: "meeting_summary_reminder", resource_type: "meeting", resource_id: "m1" } as Notification;
+    expect(resourceHref(n, workspace)).toBe("/acme/team/meetings/m1?section=summary");
+  });
+
+  it("opens other meeting notifications at the top of the page", () => {
+    const n = { ...base, kind: "meeting_invited", resource_type: "meeting", resource_id: "m1" } as Notification;
+    expect(resourceHref(n, workspace)).toBe("/acme/team/meetings/m1");
+  });
 });

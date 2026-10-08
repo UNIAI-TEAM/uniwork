@@ -20,6 +20,7 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   task_assigned: "assigned",
   meeting_invited: "meetings",
   meeting_starting: "meetings",
+  meeting_summary_reminder: "meetings",
   task_status_changed: "updates",
   member_added: "workspace",
   role_changed: "workspace",

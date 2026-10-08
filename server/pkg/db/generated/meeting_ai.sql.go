@@ -172,6 +172,25 @@ func (q *Queries) GetMeetingRecordingByID(ctx context.Context, arg GetMeetingRec
 	return i, err
 }
 
+const hasMeetingSummarySource = `-- name: HasMeetingSummarySource :one
+SELECT (
+  EXISTS (SELECT 1 FROM meeting_transcript_segments WHERE meeting_id = $1::text)
+  OR EXISTS (SELECT 1 FROM meeting_notes WHERE meeting_id = $1::text)
+  OR EXISTS (SELECT 1 FROM meeting_chat_messages WHERE meeting_id = $1::text)
+  OR EXISTS (SELECT 1 FROM meeting_motions WHERE meeting_id = $1::text AND status = 'CLOSED')
+)::boolean AS has_source
+`
+
+// tenant: parent meeting_id
+// C-11 §9.1 V1: the same "anything to summarize" test Summarize applies
+// (transcript, notes, meeting chat or a closed motion), as one round trip.
+func (q *Queries) HasMeetingSummarySource(ctx context.Context, meetingID string) (bool, error) {
+	row := q.db.QueryRow(ctx, hasMeetingSummarySource, meetingID)
+	var has_source bool
+	err := row.Scan(&has_source)
+	return has_source, err
+}
+
 const insertMeetingRecording = `-- name: InsertMeetingRecording :one
 INSERT INTO meeting_recordings (id, meeting_id, egress_id, started_by, file_id, organization_id)
 VALUES ($1, $2, $3, $4, $5, $6)

@@ -748,7 +748,12 @@ UPDATE meetings SET
   ends_at     = COALESCE($4, ends_at),
   timezone    = COALESCE($5, timezone),
   allow_join_request = COALESCE($6, allow_join_request),
-  project_id  = COALESCE($7, project_id),
+  -- NULL keeps the project; '' clears it to NULL (C-11 §9.1 V2: the graph
+  -- reads NULL as "no project", never '').
+  project_id  = CASE
+    WHEN $7::text IS NULL THEN project_id
+    ELSE NULLIF($7::text, '')
+  END,
   quorum_percent = CASE
     WHEN $8::smallint IS NULL THEN quorum_percent
     WHEN $8::smallint = 0 THEN NULL

@@ -17,10 +17,24 @@ const me: User = {
   locale: "vi",
 };
 
+/** Base UI Select picks an item on pointer up, not on a bare click. */
+function pickOption(option: HTMLElement) {
+  fireEvent.pointerDown(option);
+  fireEvent.pointerUp(option);
+  fireEvent.mouseUp(option);
+  fireEvent.click(option);
+}
+
 beforeEach(() => {
   requestMock.mockReset();
   setSessionUser(me);
 });
+
+const projectsConfig = {
+  flags: {},
+  rum_sample_rate: 0,
+  work_management_capabilities: { "tasks.projects": { status: "available" } },
+};
 
 function openDialog() {
   render(wrapWithNav(<NewMeetingDialog workspaceId="w1" trigger={<button type="button">Mở</button>} />));
@@ -117,4 +131,40 @@ describe("NewMeetingDialog", () => {
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang tạo…" })).toBeDisabled());
     expect(within(dialog).getByRole("button", { name: "Hủy" })).toBeDisabled();
   });
+
+  it("sends the chosen project with the new meeting", async () => {
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      const p = String(path);
+      if (p.startsWith("/api/v1/config")) return Promise.resolve(projectsConfig);
+      if (p.includes("/projects")) {
+        return Promise.resolve({ projects: [{ id: "p1", organization_id: "o1", workspace_id: "w1", title: "Ra mắt Q4", description: "", status: "in_progress", priority: "none", revision: 1, task_count: 0, done_count: 0, resource_count: 0, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z" }], total: 1 });
+      }
+      if (init?.method === "POST") return Promise.resolve({ meeting: { id: "m1", title: "Giao ban" } });
+      return Promise.resolve({ members: [] });
+    });
+    const dialog = openDialog();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Giao ban" } });
+    fireEvent.click(await within(dialog).findByRole("combobox", { name: "Dự án" }));
+    pickOption(await screen.findByRole("option", { name: "Ra mắt Q4" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/w1/meetings",
+        expect.objectContaining({ method: "POST", body: expect.objectContaining({ project_id: "p1" }) }),
+      ),
+    );
+  });
+
+  it("hides the project field when projects are unavailable", async () => {
+    requestMock.mockImplementation((path: unknown) =>
+      String(path).startsWith("/api/v1/config")
+        ? Promise.resolve({ ...projectsConfig, work_management_capabilities: {} })
+        : Promise.resolve({ members: [] }),
+    );
+    const dialog = openDialog();
+    await within(dialog).findByLabelText("Tiêu đề");
+    await waitFor(() => expect(requestMock.mock.calls.some((c) => String(c[0]).startsWith("/api/v1/config"))).toBe(true));
+    expect(within(dialog).queryByRole("combobox", { name: "Dự án" })).toBeNull();
+  });
 });
+

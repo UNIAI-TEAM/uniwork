@@ -31,6 +31,7 @@ import {
   scheduleWindowIso,
   type ScheduleDraft,
 } from "./meeting-datetime";
+import { ProjectSelect, useProjectsAvailable } from "../projects/components/project-select";
 import { MemberMultiPicker } from "./member-multi-picker";
 import { useNow } from "./use-now";
 import {
@@ -73,6 +74,8 @@ export function NewMeetingDialog({
   const [end, setEnd] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).end);
   const [attendees, setAttendees] = useState<string[]>([]);
   const [allowJoin, setAllowJoin] = useState(true);
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const projectsAvailable = useProjectsAvailable();
   const [submitted, setSubmitted] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -85,6 +88,7 @@ export function NewMeetingDialog({
     setEnd(next.end);
     setAttendees([]);
     setAllowJoin(true);
+    setProjectId(undefined);
     setSubmitted(false);
   };
 
@@ -140,6 +144,7 @@ export function NewMeetingDialog({
                 timezone: browserTimeZone(),
                 allow_join_request: allowJoin,
                 attendee_user_ids: attendees,
+                ...(projectId ? { project_id: projectId } : {}),
               },
               {
                 onSuccess: (m) => {
@@ -182,6 +187,19 @@ export function NewMeetingDialog({
                   rows={2}
                 />
               </Field>
+              {projectsAvailable ? (
+                <Field>
+                  <FieldLabel htmlFor={`${id}-project`}>{t("meetings.project")}</FieldLabel>
+                  <ProjectSelect
+                    id={`${id}-project`}
+                    workspaceId={workspaceId}
+                    value={projectId}
+                    onChange={setProjectId}
+                    noneLabel={t("meetings.projectNone")}
+                    ariaLabel={t("meetings.project")}
+                  />
+                </Field>
+              ) : null}
               <MeetingScheduleFields
                 idPrefix={id}
                 date={date}

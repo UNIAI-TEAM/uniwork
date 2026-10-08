@@ -95,3 +95,14 @@ WHERE m.status = 'IN_PROGRESS'
     OR m.ends_at < sqlc.arg('overtime_cutoff')
   )
 LIMIT 50;
+
+-- name: HasMeetingSummarySource :one
+-- tenant: parent meeting_id
+-- C-11 §9.1 V1: the same "anything to summarize" test Summarize applies
+-- (transcript, notes, meeting chat or a closed motion), as one round trip.
+SELECT (
+  EXISTS (SELECT 1 FROM meeting_transcript_segments WHERE meeting_id = sqlc.arg(meeting_id)::text)
+  OR EXISTS (SELECT 1 FROM meeting_notes WHERE meeting_id = sqlc.arg(meeting_id)::text)
+  OR EXISTS (SELECT 1 FROM meeting_chat_messages WHERE meeting_id = sqlc.arg(meeting_id)::text)
+  OR EXISTS (SELECT 1 FROM meeting_motions WHERE meeting_id = sqlc.arg(meeting_id)::text AND status = 'CLOSED')
+)::boolean AS has_source;

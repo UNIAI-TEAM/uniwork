@@ -120,8 +120,8 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 	}
 	_ = s.writeAudit(ctx, q, m, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
 	s.record(ctx, q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
-		map[string]any{"title": m.Title, "starts_at": tsOrNil(m.StartsAt), "ends_at": tsOrNil(m.EndsAt), "quorum_percent": quorumOrNil(m.QuorumPercent)},
-		map[string]any{"title": up.Title, "starts_at": tsOrNil(up.StartsAt), "ends_at": tsOrNil(up.EndsAt), "quorum_percent": quorumOrNil(up.QuorumPercent)},
+		map[string]any{"title": m.Title, "starts_at": tsOrNil(m.StartsAt), "ends_at": tsOrNil(m.EndsAt), "quorum_percent": quorumOrNil(m.QuorumPercent), "project_id": textOrNil(m.ProjectID)},
+		map[string]any{"title": up.Title, "starts_at": tsOrNil(up.StartsAt), "ends_at": tsOrNil(up.EndsAt), "quorum_percent": quorumOrNil(up.QuorumPercent), "project_id": textOrNil(up.ProjectID)},
 	))
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err

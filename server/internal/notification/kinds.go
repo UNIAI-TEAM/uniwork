@@ -16,11 +16,13 @@ const (
 	KindMentioned         = "mentioned"
 	KindMeetingInvited    = "meeting_invited"
 	KindMeetingStarting   = "meeting_starting"
-	KindMemberAdded       = "member_added"
-	KindRoleChanged       = "role_changed"
-	KindAuditExportReady  = "audit_export_ready"
-	KindChatFollowUp      = "chat_follow_up"
-	KindEmailHubNewMail   = "email_hub_new_mail"
+	// Nudge after a meeting ends with something to summarize (C-11 §9.1 V1).
+	KindMeetingSummaryReminder = "meeting_summary_reminder"
+	KindMemberAdded            = "member_added"
+	KindRoleChanged            = "role_changed"
+	KindAuditExportReady       = "audit_export_ready"
+	KindChatFollowUp           = "chat_follow_up"
+	KindEmailHubNewMail        = "email_hub_new_mail"
 	// Document comments (G1-07, UNI-681): distinct kinds because the gate is
 	// document read access, not workspace membership - and the titles name
 	// the document, not a task.
@@ -31,7 +33,7 @@ const (
 // Kinds is the list in display order.
 var Kinds = []string{
 	KindTaskAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
-	KindMeetingInvited, KindMeetingStarting,
+	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,
 }

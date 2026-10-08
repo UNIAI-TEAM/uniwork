@@ -36,6 +36,7 @@ import {
   scheduleProblems,
   scheduleReady,
 } from "./meeting-schedule-fields";
+import { ProjectSelect, useProjectsAvailable } from "../projects/components/project-select";
 import { useNow } from "./use-now";
 
 /** The form is typed in the meeting's own zone, so 09:00 Tokyo stays 09:00 whoever opens it. */
@@ -52,6 +53,7 @@ function meetingDraft(meeting: Meeting) {
     timezone,
     allowJoin: meeting.allow_join_request !== false,
     quorum: meeting.quorum_percent ? String(meeting.quorum_percent) : "",
+    projectId: meeting.project_id ?? "",
   };
 }
 
@@ -67,6 +69,7 @@ function meetingRevision(meeting: Meeting): string {
     meeting.allow_join_request,
     meeting.status,
     meeting.quorum_percent,
+    meeting.project_id,
   ]);
 }
 
@@ -92,7 +95,8 @@ export function MeetingEditDialog({
   // when the dialog opens, and a newer server copy is offered, not forced.
   const [seed, setSeed] = useState(() => ({ draft: meetingDraft(meeting), revision: meetingRevision(meeting) }));
   const [submitted, setSubmitted] = useState(false);
-  const { title, description, date, start, end, timezone, allowJoin, quorum } = draft;
+  const { title, description, date, start, end, timezone, allowJoin, quorum, projectId } = draft;
+  const projectsAvailable = useProjectsAvailable();
   const set = <K extends keyof typeof draft>(key: K) => (value: (typeof draft)[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -159,6 +163,8 @@ export function MeetingEditDialog({
                 timezone,
                 allow_join_request: allowJoin,
                 ...(quorumChanged ? { quorum_percent: quorumValue } : {}),
+                // "" clears the project; an untouched field is left out.
+                ...(projectId !== seed.draft.projectId ? { project_id: projectId } : {}),
                 ...(slot ? { starts_at: slot.starts_at, ends_at: slot.ends_at } : {}),
               },
               {
@@ -213,6 +219,19 @@ export function MeetingEditDialog({
                     rows={3}
                   />
                 </Field>
+                {projectsAvailable ? (
+                  <Field>
+                    <FieldLabel htmlFor={`${id}-project`}>{t("meetings.project")}</FieldLabel>
+                    <ProjectSelect
+                      id={`${id}-project`}
+                      workspaceId={workspaceId}
+                      value={projectId || undefined}
+                      onChange={(next) => set("projectId")(next ?? "")}
+                      noneLabel={t("meetings.projectNone")}
+                      ariaLabel={t("meetings.project")}
+                    />
+                  </Field>
+                ) : null}
               </FieldGroup>
             </section>
 

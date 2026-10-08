@@ -1,10 +1,14 @@
 "use client";
 import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { paths } from "@uniwork/core/paths";
+import { useProject } from "@uniwork/core/tasks";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
 import { PanelCard } from "../common/panel-card";
 import { moduleTone } from "../layout/module-tones";
+import { useWorkspace } from "../layout/workspace-context";
+import { AppLink } from "../navigation";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { meetingTimeZoneLabel } from "./meeting-detail-format";
 import { MeetingInviteLinksSection } from "./meeting-invite-links-section";
@@ -71,6 +75,9 @@ export function MeetingDetailAside({
   );
   const createdAt = meeting.created_at ? formatMeetingStart(meeting.created_at, meetingLocale(i18n.language)) : null;
   const open = rosterOpen(meeting);
+  const { workspace } = useWorkspace();
+  // useProject stays idle without an id; a meeting may have no project.
+  const { data: project } = useProject(workspaceId, meeting.project_id || "");
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -79,6 +86,16 @@ export function MeetingDetailAside({
       <PanelCard id="details-heading" icon={Info} iconTone={moduleTone("meetings")} title={t("meetings.details")}>
         <dl className="-my-2 divide-y divide-border">
           <DetailRow label={t("meetings.timezone")}>{timezone}</DetailRow>
+          {project ? (
+            <DetailRow label={t("meetings.project")}>
+              <AppLink
+                href={paths.workspace(workspace.organization_slug, workspace.slug).project(project.id)}
+                className="text-foreground underline-offset-4 hover:underline"
+              >
+                {project.title}
+              </AppLink>
+            </DetailRow>
+          ) : null}
           {meeting.allow_join_request !== undefined ? (
             <DetailRow label={t("meetings.whoCanJoin")}>
               {t(meeting.allow_join_request ? "meetings.joinRequestOpen" : "meetings.joinRequestClosed")}
