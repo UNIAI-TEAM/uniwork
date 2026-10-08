@@ -8017,6 +8017,7 @@
         "unsupported": "Thao tác này chưa có trên bản web.",
         "timeout": "UniWork phản hồi quá lâu. Hãy thử lại.",
         "busy": "Một lần lưu khác của tài liệu này vẫn đang chạy. Hãy thử lại sau giây lát.",
+        "feature_disabled": "Trình soạn thảo tài liệu mới chưa được bật cho tổ chức của bạn.",
         "internal": "Trình soạn thảo tài liệu gặp lỗi."
       }
     },

@@ -44,8 +44,16 @@ removes older versions.
 `pnpm build` and `pnpm dev` run `office-frame-sync.mjs --ensure`: already
 installed and verified is a no-op; otherwise it syncs from
 `OFFICE_FRAME_SOURCE`; with no source it warns and carries on, so a checkout
-without access to the fork still builds (the flag is off by default and the
-frame simply 404s). A deployment that wants the frame must set
+without access to the fork still builds. `next.config.mjs` offers the frame
+(`NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION`) only when the pinned bundle is
+installed and verifies against the pin, so without a bundle every organization
+keeps the G3 editor whatever `office_docs_web` says (no 404 iframe).
+
+An archive source (`.tar.gz`, or an https URL to one) is listed before it is
+extracted: only regular files and directories, no absolute or `..` names, at
+most 2000 entries, 160 MiB unpacked, 64 MiB archive, and a 120 s deadline for
+the download and the tar calls. Its manifest and every file digest are then
+checked before anything is copied into `public/`. A deployment that wants the frame must set
 `OFFICE_FRAME_SOURCE` at image build time (the web Dockerfile runs
 `pnpm build`).
 
@@ -81,7 +89,15 @@ The host only adds `onSavedAs`, which navigates the page to the copy.
 - **Open / save / recents:** open hands the frame the bytes; save is upload +
   commit against the document revision (a stale base is a typed `conflict`,
   which the frame answers with its own Cancel / Reload / Overwrite dialog; the
-  host does not toast it).
+  host does not toast it). A save without the etag the frame opened with is
+  refused (`malformed`), never rebased onto the newest revision. Save, save-as
+  and export each send one Idempotency-Key derived from what the operation is
+  (kind, document or workspace, base revision, sha256 of the bytes), so a retry
+  after a lost answer replays the first attempt instead of colliding with it.
+- **Flag turned off under a cached page:** if the server refuses the token mint
+  with `feature_disabled` (the page's config answer is cached up to 5 minutes),
+  `OfficeDocsFrame` tells `DocxOpenSwitch` and the G3 editor takes over; a
+  standalone frame shows "not turned on for your organization".
 - **Save as:** the session creates the copy (`createDocumentFile`), mints a
   token for it and rebinds the frame to it; the page then follows the copy.
 - **PDF export:** `POST /api/v1/office-frame/documents/{id}/export/pdf`. A 200
@@ -91,7 +107,13 @@ The host only adds `onSavedAs`, which navigates the page to the copy.
   bundle + Chromium) and `OFFICE_ENGINE_MEMORY_MB >= 1024` turn the real
   renderer on (`docs/ops/RUNBOOK_OFFICE_ENGINE.md`).
 - **Images:** the frame embeds images as `data:` URIs in the docx and never
-  calls `api.images.upload`; `img-src 'self' data: blob:` covers it.
+  calls `api.images.upload`; `img-src 'self' data: blob:` covers it. The host
+  has no image-upload handler (a request answers `unsupported`): a signed
+  asset URL on the API origin could not load under that `img-src` anyway.
+- **Save as:** the page follows the copy and mounts a fresh frame for the new
+  document id (the document screen swaps its host while the copy loads), so the
+  copy opens clean from its stored version. The in-place rebind of a live frame
+  is unit-tested in `packages/views`.
 - **Still `unsupported`:** attachments, HTML export, `file.pick` (the host
   does not grant the `filePick` capability).
 
@@ -99,6 +121,23 @@ The protocol files in `packages/core/office/docs-frame-{protocol,endpoint,host}.
 are vendored byte-identical (import specifiers aside) from the fork at
 the SHA in their header; the pinned bundle is the fork build of the same
 commit (`docs.pin.json`, currently fork `5bce54c`).
+
+## CI
+
+`e2e/office-docs-web.spec.ts` runs in the `e2e` job (`OFFICE_DOCS_WEB_E2E=1`).
+With the `OFFICE_FRAME_SOURCE` secret (an https `.tar.gz` of the fork build the
+pin names) the frame cases run; without it the bundle is not installed and the
+spec runs its "not installed -> G3" case instead. The cases choose themselves
+from `GET <frame>/manifest.json`, so one job covers both. It needs no office
+engine (the PDF step accepts the 503/501 print fallback) and drives the frame
+by its Vietnamese labels.
+
+## Security note
+
+The same-origin iframe has no `sandbox` (it cannot usefully have one with
+`allow-same-origin`): until the frame moves to its own origin, a compromise of
+the bundle is a compromise of the user's UniWork session. The document-scoped
+token only limits what a separate origin could do.
 
 ## Moving the frame to its own origin later
 
