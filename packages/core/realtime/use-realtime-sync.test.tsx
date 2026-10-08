@@ -124,6 +124,17 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["audit", "history", "ws1", "task", "t1"]));
   });
 
+  it("refreshes the task's graph now and again after the projector lag", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "task.updated", payload: { task_id: "t1" } });
+    act(() => { vi.advanceTimersByTime(250); });
+    const key = JSON.stringify(["graph", "ws1", "TASK", "t1"]);
+    expect(keysCalled(invalidate).filter((k: string) => k === key)).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(3_000); });
+    expect(keysCalled(invalidate).filter((k: string) => k === key)).toHaveLength(2);
+  });
+
   it("invalidates projects on project.created", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

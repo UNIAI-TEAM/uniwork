@@ -12,6 +12,7 @@ import { emitQuotaThreshold } from "../billing/quota-threshold-bus";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
 import { documentKeys } from "../documents/keys";
+import { graphKeys } from "../graph/keys";
 import {
   invalidateEmailHubReadingCachesForAccount,
   invalidateEmailHubThreadsForAccount,
@@ -34,6 +35,9 @@ import {
   TRANSCRIPT_INVALIDATE_MS,
 } from "./invalidate-scheduler";
 import { shouldInvalidateCalendar } from "./should-invalidate-calendar";
+
+/** The projector trails a task event (ADR 0019); the second graph refresh waits it out. */
+const GRAPH_INVALIDATE_MS = 3_000;
 
 /**
  * Central WS → cache sync for one workspace.
@@ -105,6 +109,10 @@ function keysFor(
     // lifecycle event can change it.
     if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
       push(homeKeys.summary(wsId));
+    }
+    // The graph trails its sources (ADR 0019): refresh now and once more later.
+    if (payload.task_id && (type === "task.created" || type === "task.updated" || type === "task.deleted")) {
+      push(graphKeys.node(wsId, "TASK", payload.task_id));
     }
     pushCalendar();
     return keys;
@@ -464,6 +472,7 @@ function allWorkspaceKeys(wsId: string) {
     // different branch of the same feature.
     documentKeys.workspace(wsId),
     documentKeys.favoritesRoot,
+    graphKeys.workspace(wsId),
   ];
 }
 
@@ -484,6 +493,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
     const scheduler = createInvalidateScheduler(qc);
     const transcriptScheduler = createInvalidateScheduler(qc, TRANSCRIPT_INVALIDATE_MS);
     const tallyScheduler = createInvalidateScheduler(qc, MOTION_TALLY_INVALIDATE_MS);
+    const graphScheduler = createInvalidateScheduler(qc, GRAPH_INVALIDATE_MS);
     const chatScheduler = createChatRealtimePatchScheduler(qc, wsId);
 
     const offAny = client.onAny((msg: WSMessage) => {
@@ -526,6 +536,11 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
           tallyScheduler.schedule(queryKey);
           continue;
         }
+        if (queryKey[0] === "graph") {
+          scheduler.schedule(queryKey);
+          graphScheduler.schedule(queryKey);
+          continue;
+        }
         scheduler.schedule(queryKey);
       }
     });
@@ -538,6 +553,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       scheduler.dispose();
       transcriptScheduler.dispose();
       tallyScheduler.dispose();
+      graphScheduler.dispose();
       void chatScheduler.dispose();
     };
   }, [client, wsId, qc]);
