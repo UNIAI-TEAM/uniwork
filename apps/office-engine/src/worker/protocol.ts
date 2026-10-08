@@ -17,6 +17,9 @@ export interface RunMessage {
   /** Service-configured dir holding the patched xlsx-gateway bundle + the
       Rust sidecar binary; the worker resolves it only inside xlsx handlers. */
   xlsxAssetsDir?: string;
+  /** Service-configured dir with the Docs web bundle and Chromium; read only
+      by the export:docx handler (UNI-1013). */
+  docsPdfAssetsDir?: string;
   sampleMs: number;
   /** V8 old-generation cap for the handler thread, in MiB. */
   heapMb: number;

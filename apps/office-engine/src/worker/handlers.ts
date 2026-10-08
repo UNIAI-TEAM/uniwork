@@ -15,6 +15,7 @@
 
 import { createHash } from "node:crypto";
 import { readFile, rename, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   applyXlsxEditBytes,
@@ -34,6 +35,7 @@ import {
   xlsxGatewayArtifactPath,
   xlsxSidecarPath,
 } from "@uniwork/office-engine/xlsx/native";
+import { DocsPdfError, renderDocxPdf } from "./docs-pdf.ts";
 import type { HandlerOutcome, RunMessage } from "./protocol.ts";
 
 type Handler = (message: RunMessage) => Promise<HandlerOutcome>;
@@ -329,6 +331,62 @@ async function editPdf(message: RunMessage): Promise<HandlerOutcome> {
   }
 }
 
+// ── DOCX -> PDF export (UNI-1013) ──────────────────────────────────────────
+//
+// The pinned genoffice Docs web bundle renders and paginates the document in a
+// headless Chromium (docs-pdf.ts); the only target is pdf. Without the staged
+// bundle + Chromium the job fails as engine_incompatible, never as a fallback
+// to another renderer.
+
+/** Below the service's job ceiling so a stuck renderer fails as a named error
+    before the supervisor's deadline kill. */
+const DOCS_PDF_TIMEOUT_MS = 100_000;
+
+async function exportDocxPdf(message: RunMessage): Promise<HandlerOutcome> {
+  if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
+  if (!message.payloadPath) return { ok: false, code: "engine_result_invalid", reason: "payload_required" };
+  let payload: ConvertJobPayload;
+  try {
+    payload = JSON.parse(await readFile(message.payloadPath, "utf8")) as ConvertJobPayload;
+  } catch {
+    return { ok: false, code: "engine_result_invalid", reason: "export_payload_invalid" };
+  }
+  if (payload.target_format !== "pdf") return { ok: false, code: "unsupported_operation", reason: "export_pair_not_bound" };
+  if (!message.docsPdfAssetsDir) return { ok: false, code: "engine_incompatible", reason: "docs_pdf_assets_missing" };
+  const pdf = await loadPdf();
+  try {
+    const rendered = await renderDocxPdf(
+      await readFile(message.inputPath),
+      {
+        chromiumPath: join(message.docsPdfAssetsDir, "chromium"),
+        bundleDir: join(message.docsPdfAssetsDir, "bundle"),
+        profileDir: join(message.tempDir, "chromium-profile"),
+        timeoutMs: DOCS_PDF_TIMEOUT_MS,
+      },
+      async ([first, ...rest]) => {
+        if (!first) throw new DocsPdfError("engine_result_invalid", "merge_without_parts");
+        return (await pdf.mergePdfBytes(first, rest)).bytes;
+      },
+    );
+    await writeOutput(message.outputPath, rendered.pdf);
+    return {
+      ok: true,
+      warnings: [],
+      result: {
+        operation: message.operation,
+        source_format: "docx",
+        target_format: "pdf",
+        ...(typeof payload.source_version_id === "string" ? { source_version_id: payload.source_version_id } : {}),
+        renderer: "genoffice-docs-web",
+        print_calls: rendered.printCalls,
+      },
+    };
+  } catch (error) {
+    if (error instanceof DocsPdfError) return { ok: false, code: error.code, reason: error.reason };
+    throw error;
+  }
+}
+
 const HANDLERS: Record<string, Handler> = {
   "serialize:md": serializeText,
   "serialize:html": serializeText,
@@ -340,6 +398,7 @@ const HANDLERS: Record<string, Handler> = {
   "edit:xlsx": editXlsx,
   "convert:xls": convertLegacy,
   "convert:odt": convertLegacy,
+  "export:docx": exportDocxPdf,
 };
 
 /** Keys ("operation:format") this build binds; capability rows read it. */

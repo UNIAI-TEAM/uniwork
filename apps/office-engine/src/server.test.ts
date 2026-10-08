@@ -91,6 +91,60 @@ describe("capability and unsupported operations", () => {
     expect((await call(h, "GET", "/v1/capability?format=exe")).status).toBe(400);
   });
 
+  it("claims export only for docx -> pdf, as pending evidence (UNI-1013)", async () => {
+    type Row = { operation: string; supported: boolean; runtime: string; evidence_level: string; reason?: string };
+    const docx = (await call(h, "GET", "/v1/capability?format=docx")).body.capabilities as Row[];
+    expect(docx.find((r) => r.operation === "export")).toMatchObject({
+      supported: true,
+      runtime: "internal_service",
+      evidence_level: "pending",
+      reason: expect.stringContaining("docx -> pdf"),
+    });
+    const md = (await call(h, "GET", "/v1/capability?format=md")).body.capabilities as Row[];
+    expect(md.find((r) => r.operation === "export")).toMatchObject({ supported: false, runtime: "none" });
+  });
+
+  it("runs export:docx through the real job path; without the staged renderer it fails as engine_incompatible", async () => {
+    const bytes = readFileSync(new URL("../../../docs/office/g0/fixtures/files/docs/docx-kitchen-sink.docx", import.meta.url));
+    const job = makeJob(h.target, {
+      operation: "export",
+      format: "docx",
+      bytes,
+      payload: {
+        document_model_ref: undefined,
+        base_revision: undefined,
+        base_version_id: undefined,
+        source_version_id: "ver-3",
+        target_format: "pdf",
+      },
+    });
+    const res = await submit(h, job);
+    expect(res.status).toBe(202);
+    const done = await waitTerminal(h, job);
+    expect(done.body).toMatchObject({ state: "failed", error: { code: "engine_incompatible" } });
+  });
+
+  it("refuses an export whose bytes are missing from the payload", async () => {
+    const job = makeJob(h.target, {
+      operation: "export",
+      format: "docx",
+      text: "x",
+      payload: {
+        document_model_ref: undefined,
+        base_revision: undefined,
+        base_version_id: undefined,
+        input_bytes: undefined,
+        input_checksum: undefined,
+        input_length: undefined,
+        source_version_id: "ver-3",
+        target_format: "pdf",
+      },
+    });
+    const res = await submit(h, job);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(h.service.jobs.get(job.grant.job_id)).toBeUndefined();
+  });
+
   it("answers an unbound convert pair with 501 unsupported_operation and does not consume the grant", async () => {
     const job = makeJob(h.target, {
       operation: "convert",

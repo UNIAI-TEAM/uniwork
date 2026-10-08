@@ -604,6 +604,7 @@ func New(d Deps) http.Handler {
 		UploadOfficeFrameAsset:   h.uploadOfficeFrameAsset,
 		SignOfficeFrameAssets:    h.signOfficeFrameAssets,
 		GetOfficeFrameAsset:      h.getOfficeFrameAsset,
+		ExportOfficeFramePDF:     h.exportOfficeFramePDF,
 
 		ListDocumentComments:          h.listDocumentComments,
 		CreateDocumentComment:         h.createDocumentComment,

@@ -130,6 +130,8 @@ func New(d Deps, h Routes) http.Handler {
 		registerPreview(v1, h)
 		// The Docs frame presents only its document-bound frame token.
 		registerOfficeFrame(v1, h, d.FeatureFlags, d.OfficeFrameAuth)
+		registerOfficeFrameExport(v1, h, d.FeatureFlags, d.OfficeFrameAuth,
+			mw.RateLimitByIdentity(d.Redis, 20, time.Minute, proxies, frameUser))
 		v1.Group(func(authed api) {
 			if d.DeviceStatus != nil {
 				authed.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
