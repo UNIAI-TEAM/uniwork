@@ -159,6 +159,25 @@ describe("OfficeDocsFrame", () => {
     await waitFor(() => expect(ids.map((id) => frame.answerTo(id)?.error?.code)).toEqual(["unsupported", "unsupported", "unsupported"]));
   });
 
+  it("moves the frame to the copy after save-as: new token pushed, later calls scoped to the copy", async () => {
+    const onSavedAs = vi.fn();
+    const copy = { fileId: "doc-2", name: "Copy.docx" };
+    const saveAs = vi.fn(async () => ({ save: { ok: true as const, file: copy, versionId: "v-c1" }, rebind: { documentId: "doc-2", token: minted("copy-tok") } }));
+    const api = fakeApi({ saveAs });
+    mount({ onSavedAs }, api);
+    const frame = fakeFrame();
+    await boot(frame);
+    expect(frame.sent("request", "init")[0]?.payload).toMatchObject({ capabilities: { saveAs: true } });
+    const id = frame.request("api.saveAs", { name: "Copy", data: new ArrayBuffer(2) });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true, file: copy }));
+    expect(saveAs).toHaveBeenCalledWith(expect.objectContaining({ name: "Copy" }), expect.objectContaining({ documentId: "doc-1", token: "tok-1" }));
+    expect(frame.sent("event", "token.update").at(-1)?.payload).toMatchObject({ token: "copy-tok" });
+    expect(onSavedAs).toHaveBeenCalledWith("doc-2");
+    frame.request("api.recents", {});
+    await waitFor(() => expect(api.recents).toHaveBeenCalledWith({}, expect.objectContaining({ documentId: "doc-2", token: "copy-tok" })));
+    expect(mintCalls()).toHaveLength(1);
+  });
+
   it("passes an API error to the frame as a typed error", async () => {
     mount({}, fakeApi({ open: vi.fn(async () => { throw new DocsProtocolError({ code: "not_found", message: "gone", status: 404 }); }) }));
     const frame = fakeFrame();

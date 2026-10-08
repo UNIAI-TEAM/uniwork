@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { createDocsFrameApi, docsFrameApiBase, docsFrameSrc, docsFrameToken, type DocsFrameCall } from "./docs-frame-api";
 
@@ -32,7 +33,7 @@ function fakeFetch(routes: Record<string, Route>) {
 const call = (): DocsFrameCall => ({ workspaceId: "ws-1", documentId: "doc-1", token: "frame-tok", signal: new AbortController().signal });
 const header = (init: RequestInit, name: string) => (init.headers as Record<string, string>)[name];
 
-afterEach(() => { resetRuntimeConfig(); });
+afterEach(() => { resetRuntimeConfig(); vi.unstubAllGlobals(); setAccessToken(null); });
 
 describe("docs frame helpers", () => {
   it("builds the pinned same-origin frame URL and apiBase", () => {
@@ -144,8 +145,70 @@ describe("createDocsFrameApi", () => {
       .resolves.toEqual({ imageId: "a-1", url: `${API}/api/v1/office-frame/documents/doc-1/assets/a-1?sig=s` });
   });
 
-  it("offers no save-as, export or attachments until their routes exist", () => {
+  it("offers no export or attachments until their routes exist", () => {
     const api = createDocsFrameApi();
-    expect([api.saveAs, api.export, api.addAttachments]).toEqual([undefined, undefined, undefined]);
+    expect([api.export, api.addAttachments]).toEqual([undefined, undefined]);
+  });
+});
+
+describe("createDocsFrameApi saveAs", () => {
+  // Save-as runs on the host's session (POST documents/files, then a frame
+  // token for the copy), so the session transport and the frame client share
+  // one fake fetch.
+  const COPY = {
+    id: "doc-2", organization_id: "org-1", workspace_id: "ws-1", parent_id: null, kind: "file", title: "Copy",
+    visibility: "workspace", revision: "1", current_version: 1, position: 0, created_by: "u1", created_by_kind: "human",
+    updated_by: "u1", updated_by_kind: "human", created_at: "2026-10-08T10:00:00Z", updated_at: "2026-10-08T10:00:00Z",
+  };
+  const COPY_TOKEN = {
+    token: "copy-tok", token_type: "Bearer", expires_at: "2026-10-08T10:10:00Z", expires_in: 600,
+    document_id: "doc-2", workspace_id: "ws-1", organization_id: "org-1", can_edit: true,
+  };
+  const OPENED = { ...DOC, document_id: "doc-2", title: "Copy", revision: "1", file: { ...DOC.file, filename: "Copy.docx", version_id: "v-c1" } };
+
+  function setup(routes: Record<string, Route>) {
+    configureRuntime({ apiUrl: API });
+    setAccessToken("session-tok");
+    const fake = fakeFetch(routes);
+    vi.stubGlobal("fetch", fake.fetch);
+    return { ...fake, api: createDocsFrameApi({ apiUrl: API, fetch: fake.fetch }) };
+  }
+
+  it("creates the copy with the session, mints a token for it and answers with its open shape", async () => {
+    const { api, calls } = setup({
+      "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: COPY }),
+      "POST /api/v1/documents/doc-2/office/frame-token": () => json(COPY_TOKEN),
+      "GET /api/v1/office-frame/documents/doc-2": () => json(OPENED),
+    });
+    const result = await api.saveAs!({ name: "Copy", data: new ArrayBuffer(4) }, call());
+    expect(result.save).toEqual({
+      ok: true, versionId: "v-c1",
+      file: expect.objectContaining({ fileId: "doc-2", name: "Copy.docx", etag: "1", writable: true }),
+    });
+    expect(result.rebind).toEqual({ documentId: "doc-2", token: COPY_TOKEN });
+    const [create, mint, open] = calls;
+    const form = create!.init.body as FormData;
+    expect((form.get("file") as File).name).toBe("Copy.docx");
+    expect(form.get("title")).toBe("Copy");
+    expect(new Headers(create!.init.headers).get("Idempotency-Key")).toBeTruthy();
+    expect(new Headers(create!.init.headers).get("Authorization")).toBe("Bearer session-tok");
+    expect(new Headers(mint!.init.headers).get("Authorization")).toBe("Bearer session-tok");
+    expect(header(open!.init, "Authorization")).toBe("Bearer copy-tok");
+  });
+
+  it("degrades a malformed create or mint answer to a typed error", async () => {
+    const drifted = setup({ "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: { id: 7 } }) });
+    await expect(drifted.api.saveAs!({ name: "Copy.docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "internal" });
+
+    const noToken = setup({
+      "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: COPY }),
+      "POST /api/v1/documents/doc-2/office/frame-token": () => json({ token: "" }),
+    });
+    await expect(noToken.api.saveAs!({ name: "Copy.docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "internal" });
+  });
+
+  it("maps a refused create to the protocol code", async () => {
+    const { api } = setup({ "POST /api/v1/workspaces/ws-1/documents/files": () => json({ error: { code: "quota_exceeded", message: "full" } }, 413) });
+    await expect(api.saveAs!({ name: "Big.docx", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "too_large", status: 413 });
   });
 });

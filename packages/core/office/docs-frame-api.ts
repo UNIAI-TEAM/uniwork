@@ -1,6 +1,8 @@
 import { ApiError } from "../api/http";
+import { createDocumentFile } from "../api/endpoints/documents";
 import {
   createOfficeFrameClient,
+  mintOfficeFrameToken,
   type OfficeFrameClient,
   type OfficeFrameClientOptions,
   type OfficeFrameDocument,
@@ -37,6 +39,16 @@ export interface DocsFrameCall {
 }
 
 /**
+ * A save-as answer. The copy is a new document, so the frame's token no longer
+ * covers it: `rebind` carries the new document and a token minted for it, and
+ * the host switches the frame's scope to them before answering.
+ */
+export interface DocsFrameSavedAs {
+  save: SaveResult;
+  rebind: { documentId: string; token: OfficeFrameToken };
+}
+
+/**
  * What the Docs frame host proxies the frame's `api.*` requests to. Each
  * method answers one request and may throw a `DocsProtocolError` that the
  * frame receives as a typed error. An absent method answers `unsupported`.
@@ -46,7 +58,7 @@ export interface DocsFrameApi {
   save(payload: ApiSavePayload, call: DocsFrameCall): Promise<SaveResult>;
   recents(payload: ApiRecentsPayload, call: DocsFrameCall): Promise<ApiRecentsResult>;
   uploadImage(payload: ApiImageUploadPayload, call: DocsFrameCall): Promise<ApiImageUploadResult>;
-  saveAs?(payload: ApiSaveAsPayload, call: DocsFrameCall): Promise<SaveResult>;
+  saveAs?(payload: ApiSaveAsPayload, call: DocsFrameCall): Promise<DocsFrameSavedAs>;
   export?(payload: ApiExportPayload, call: DocsFrameCall): Promise<ApiExportResult>;
   addAttachments?(payload: ApiAttachmentsAddPayload, call: DocsFrameCall): Promise<ApiAttachmentsAddResult>;
 }
@@ -119,7 +131,9 @@ export type DocsFrameApiOptions = Pick<OfficeFrameClientOptions, "apiUrl" | "fet
  *     docsFrame={<OfficeDocsFrame wsId documentId title frameVersion={pin} />} />`
  * and passes `api={createDocsFrameApi({ apiUrl })}` only for another API origin.
  * It keeps no per-document state, so one instance serves every frame.
- * Save-as, export and attachments have no route yet and answer `unsupported`.
+ * Save-as has no frame route by design: the host creates the copy with its own
+ * session and mints a frame token for it. Export and attachments have no route
+ * yet and answer `unsupported`.
  */
 export function createDocsFrameApi(options: DocsFrameApiOptions = {}): DocsFrameApi {
   const clientFor = (call: DocsFrameCall): OfficeFrameClient => createOfficeFrameClient({ ...options, getToken: () => call.token });
@@ -165,6 +179,22 @@ export function createDocsFrameApi(options: DocsFrameApiOptions = {}): DocsFrame
         if (error instanceof ApiError && error.status === 409) return { ok: false, error: docsFrameError(error).toShape() };
         throw error;
       }
+    }),
+
+    saveAs: (payload, call) => run(async () => {
+      const name = /\.docx$/i.test(payload.name) ? payload.name : `${payload.name}.docx`;
+      const created = await createDocumentFile(
+        call.workspaceId,
+        new File([payload.data], name, { type: DOCX_MIME }),
+        { title: name.replace(/\.docx$/i, ""), parent_id: payload.folderId },
+        { idempotencyKey: newKey(), signal: call.signal },
+      );
+      if (!created) throw malformed("documents/files");
+      const token = await mintOfficeFrameToken(created.id, { signal: call.signal });
+      if (!token) throw malformed("office frame-token");
+      const opened = await createOfficeFrameClient({ ...options, getToken: () => token.token }).open(created.id);
+      if (!opened) throw malformed("office-frame open");
+      return { save: { ok: true, file: fileMeta(opened), versionId: opened.file.version_id }, rebind: { documentId: created.id, token } };
     }),
 
     recents: (payload, call) => run(async () => {
