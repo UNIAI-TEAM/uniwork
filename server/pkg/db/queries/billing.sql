@@ -205,7 +205,7 @@ UPDATE subscriptions SET
   plan_id = $3,
   status = 'active',
   provider = 'manual',
-  current_period_start = NULL,
+  current_period_start = now(),
   current_period_end = NULL,
   cancel_at = NULL,
   canceled_at = NULL,
