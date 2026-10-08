@@ -1,0 +1,101 @@
+# UNI-961 macOS smoke: takes the UNSIGNED darwin-arm64 dmg that the installers
+# workflow already built (run 37652934657, probe branch @ 6c6b1aec), mounts it on a
+# GitHub-hosted macOS 14 (Apple Silicon) runner, launches the real .app with
+# Playwright's Electron launcher and proves the window shows, the File menu carries
+# Print (Cmd+P), the menu item opens the in-app print dialog for an open local
+# document and Save as PDF writes a PDF. Evidence goes to the `macos-smoke-evidence`
+# artifact. scripts/office/macos-smoke.mjs is the driver.
+#
+# Runs only on its own branch and on a manual dispatch; never a merge gate.
+# Not covered: Gatekeeper on a user download (the binary is launched in place, no
+# quarantine attribute), signing and notarization (certificates are parked backlog).
+name: Office desktop macOS smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      installer_run_id:
+        description: Installers workflow run whose office-desktop-darwin-arm64 artifact is smoked
+        default: "37652934657"
+  push:
+    branches: ["ci/UNI-961-office-macos-smoke"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read # download an artifact of another workflow run
+
+env:
+  NODE_VERSION: "22"
+  INSTALLER_RUN_ID: ${{ inputs.installer_run_id || '37652934657' }}
+
+jobs:
+  smoke:
+    runs-on: macos-14
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # Only the e2e workspace: it carries @playwright/test, whose _electron driver
+      # the smoke script loads (no browser download is needed for Electron).
+      - run: pnpm install --frozen-lockfile --filter ./e2e
+      - uses: actions/download-artifact@v4
+        with:
+          name: office-desktop-darwin-arm64
+          path: installer
+          repository: ${{ github.repository }}
+          run-id: ${{ env.INSTALLER_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Mount the dmg and copy the app out
+        run: |
+          set -euo pipefail
+          mkdir -p evidence work
+          ls -l installer | tee evidence/installer-files.txt
+          (cd installer && shasum -a 256 -c SHA256SUMS-darwin-arm64.txt) | tee evidence/sha256-check.txt
+          dmg="$(ls installer/*.dmg)"
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint /tmp/office-dmg | tee evidence/hdiutil-attach.txt
+          ls -la /tmp/office-dmg | tee evidence/dmg-contents.txt
+          bundles=(/tmp/office-dmg/*.app)
+          [ -d "${bundles[0]}" ] || { echo "::error::no .app inside the dmg"; exit 1; }
+          ditto "${bundles[0]}" "work/$(basename "${bundles[0]}")"
+          hdiutil detach /tmp/office-dmg
+          app="$(ls -d work/*.app)"
+          echo "OFFICE_APP=$PWD/$app" >> "$GITHUB_ENV"
+          {
+            echo "## $app"
+            file "$app"/Contents/MacOS/*
+            codesign -dv --verbose=2 "$app" 2>&1 || true
+            plutil -p "$app/Contents/Info.plist" | head -40
+            sw_vers
+            uname -m
+          } | tee evidence/app-facts.txt
+      - name: Launch the app and drive Print
+        run: |
+          set -euo pipefail
+          node scripts/office/macos-smoke.mjs --app "$OFFICE_APP" --out "$PWD/evidence/run" \
+            --docx "$PWD/docs/office/g0/fixtures/files/docs/docx-simple.docx" \
+            --xlsx "$PWD/packages/office-engine/test/fixtures/xlsx-visuals/xlsx-excel-visuals.xlsx" 2>&1 | tee evidence/smoke.log
+      - name: Render the saved PDFs to PNG (best effort)
+        if: always()
+        run: |
+          for pdf in evidence/run/*.pdf; do
+            [ -f "$pdf" ] || continue
+            sips -s format png "$pdf" --out "${pdf%.pdf}-page1.png" || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-smoke-evidence
+          path: evidence
+          if-no-files-found: error
+          retention-days: 14
