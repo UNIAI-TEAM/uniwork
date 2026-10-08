@@ -2,8 +2,11 @@ package projector
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/graph"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
@@ -145,6 +148,155 @@ func TestWorkerDatesANewSourceByItsEvent(t *testing.T) {
 			t.Fatalf("%s: backfill = %v, valid_from = the event's time: %v", c.what, backfill, atEvent)
 		}
 	}
+}
+
+// Spec §4.3 and §13 #10: on the worker path a relation is dated, cited and
+// attributed by the outbox row that made its node dirty. The chain is the
+// marker (row → graph_dirty), Worker.one (graph_dirty → EventInfo) and
+// reconcile (EventInfo → columns); a link that falls back to time.Now(), the
+// source id or an empty actor still projects the right edges, so only these
+// columns show it. Expected values come from outbox_events (DB clock).
+func TestWorkerCarriesTheEventsTimeIDAndActor(t *testing.T) {
+	f := newFixture(t)
+	task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "Ai đổi gì", AssigneeID: &f.owner.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	// The member, not the creator, takes the task over and starts it.
+	member, status := &f.member.ID, "in_progress"
+	if _, err := f.tasks.Update(f.ctx, service.Human(f.member.ID), task.ID,
+		service.UpdateTaskInput{AssigneeID: &member, Status: &status}); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+
+	type event struct {
+		id, actorKind, actorID string
+		at                     time.Time
+	}
+	var evs []event
+	rows, err := f.pool.Query(f.ctx, `SELECT id, created_at, COALESCE(actor_kind, ''), COALESCE(actor_id, '')
+		FROM outbox_events WHERE organization_id = $1 AND topic = 'task.updated' AND payload::jsonb->>'task_id' = $2`,
+		f.orgID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var e event
+		if err := rows.Scan(&e.id, &e.at, &e.actorKind, &e.actorID); err != nil {
+			t.Fatal(err)
+		}
+		evs = append(evs, e)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 1 {
+		t.Fatalf("task.updated rows for the task = %d, want 1", len(evs))
+	}
+	ev := evs[0]
+	if ev.actorKind != string(audit.KindHuman) || ev.actorID != f.member.ID {
+		t.Fatalf("outbox actor = (%q, %q), want (%q, %q)", ev.actorKind, ev.actorID, audit.KindHuman, f.member.ID)
+	}
+
+	edge := func(peer string) provenanceEdge {
+		t.Helper()
+		var e provenanceEdge
+		if err := f.pool.QueryRow(f.ctx, `
+			SELECT e.valid_to IS NULL, e.valid_from, e.valid_to, e.evidence_kind, e.evidence_id, e.actor_kind, e.actor_id,
+			       COALESCE(e.attrs->>'closed_by', ''), COALESCE((e.attrs->>'backfill')::boolean, false)
+			FROM graph_edges e JOIN graph_nodes n ON n.id = e.from_node JOIN graph_nodes p ON p.id = e.to_node
+			WHERE e.organization_id = $1 AND e.edge_type = 'OWNED_BY' AND n.source_id = $2 AND p.source_id = $3`,
+			f.orgID, task.ID, peer).Scan(&e.open, &e.validFrom, &e.validTo, &e.evidenceKind, &e.evidenceID,
+			&e.actorKind, &e.actorID, &e.closedBy, &e.backfill); err != nil {
+			t.Fatalf("OWNED_BY → %s: %v", peer, err)
+		}
+		return e
+	}
+	opened := edge(f.member.ID)
+	if !opened.open || opened.backfill || !opened.validFrom.Equal(ev.at) || opened.evidenceKind != EvidenceOutboxEvent ||
+		opened.evidenceID != ev.id || opened.actorKind != ev.actorKind || opened.actorID != ev.actorID {
+		t.Fatalf("opened OWNED_BY = %v, want open from %s citing outbox_event %s by (%s, %s)",
+			opened, stamp(&ev.at), ev.id, ev.actorKind, ev.actorID)
+	}
+	closed := edge(f.owner.ID)
+	if closed.open || closed.validTo == nil || !closed.validTo.Equal(ev.at) || closed.closedBy != ev.id {
+		t.Fatalf("closed OWNED_BY = %v, want closed at %s by %s", closed, stamp(&ev.at), ev.id)
+	}
+	// Closing does not re-attribute: the edge keeps the person who opened it.
+	if closed.actorKind != string(audit.KindHuman) || closed.actorID != f.owner.ID {
+		t.Fatalf("closed OWNED_BY actor = (%q, %q), want the creator (%q, %q)",
+			closed.actorKind, closed.actorID, audit.KindHuman, f.owner.ID)
+	}
+
+	var facts []provenanceFact
+	rows, err = f.pool.Query(f.ctx, `
+		SELECT x.value, x.valid_from, x.valid_to, x.evidence_kind, x.evidence_id, COALESCE(x.attrs->>'previous', '')
+		FROM graph_node_facts x JOIN graph_nodes n ON n.id = x.node_id
+		WHERE x.organization_id = $1 AND n.source_id = $2 AND x.fact_type = 'status'
+		ORDER BY x.valid_to IS NULL, x.valid_from`, f.orgID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var x provenanceFact
+		if err := rows.Scan(&x.value, &x.validFrom, &x.validTo, &x.evidenceKind, &x.evidenceID, &x.previous); err != nil {
+			t.Fatal(err)
+		}
+		facts = append(facts, x)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(facts) != 2 {
+		t.Fatalf("status facts = %v, want the closed %q and the open %q", facts, task.Status, status)
+	}
+	if was := facts[0]; was.value != task.Status || was.validTo == nil || !was.validTo.Equal(ev.at) {
+		t.Fatalf("closed status fact = %v, want %q closed at %s", was, task.Status, stamp(&ev.at))
+	}
+	if now := facts[1]; now.value != status || now.validTo != nil || !now.validFrom.Equal(ev.at) ||
+		now.evidenceKind != EvidenceOutboxEvent || now.evidenceID != ev.id || now.previous != task.Status {
+		t.Fatalf("open status fact = %v, want %q from %s citing outbox_event %s", now, status, stamp(&ev.at), ev.id)
+	}
+}
+
+// provenanceEdge and provenanceFact are the provenance columns of one edge or
+// fact, printed readably when an assertion fails.
+type provenanceEdge struct {
+	open                         bool
+	validFrom                    time.Time
+	validTo                      *time.Time
+	evidenceKind, evidenceID     string
+	actorKind, actorID, closedBy string
+	backfill                     bool
+}
+
+func (e provenanceEdge) String() string {
+	return fmt.Sprintf("{open=%v from=%s to=%s evidence=%s/%s actor=(%q, %q) closed_by=%q backfill=%v}",
+		e.open, stamp(&e.validFrom), stamp(e.validTo), e.evidenceKind, e.evidenceID, e.actorKind, e.actorID, e.closedBy, e.backfill)
+}
+
+type provenanceFact struct {
+	value                    string
+	validFrom                time.Time
+	validTo                  *time.Time
+	evidenceKind, evidenceID string
+	previous                 string
+}
+
+func (x provenanceFact) String() string {
+	return fmt.Sprintf("{value=%q from=%s to=%s evidence=%s/%s previous=%q}",
+		x.value, stamp(&x.validFrom), stamp(x.validTo), x.evidenceKind, x.evidenceID, x.previous)
+}
+
+func stamp(t *time.Time) string {
+	if t == nil {
+		return "open"
+	}
+	return t.UTC().Format("15:04:05.000000")
 }
 
 // A visibility change rides chat.channel.updated, catalogued "ephemeral" but
