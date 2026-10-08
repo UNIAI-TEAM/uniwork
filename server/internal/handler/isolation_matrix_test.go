@@ -637,8 +637,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{code}":
 		return "starter"
 	case "{key}":
-		if under("/admin/plans/") {
+		switch {
+		case under("/admin/plans/"):
 			return "members.max"
+		case under("/admin/flags/"):
+			return "agents_assignee"
 		}
 		return "documents"
 	case "{traceID}":
@@ -760,6 +763,7 @@ func isoMixedPath(t *testing.T, pattern, firstKey string, from, to *isoTenant) (
 // nothing about isolation.
 var isoSharedParams = map[string]bool{
 	"{provider}": true, "{resourceType}": true, "{itemType}": true, "{versionNo}": true, "{key}": true,
+	"{code}":          true,
 	"{quickActionID}": true, "{agentTaskID}": true, "{connectionID}": true,
 }
 
