@@ -353,6 +353,11 @@ async function exportDocxPdf(message: RunMessage): Promise<HandlerOutcome> {
   }
   if (payload.target_format !== "pdf") return { ok: false, code: "unsupported_operation", reason: "export_pair_not_bound" };
   if (!message.docsPdfAssetsDir) return { ok: false, code: "engine_incompatible", reason: "docs_pdf_assets_missing" };
+  // Chromium renders an untrusted document with its own sandbox off (a uid-dropped
+  // process in a container cannot create the namespaces it needs), so the engine's
+  // per-slot uid sandbox must be what confines it. Without that, refuse; never
+  // run it unconfined.
+  if (message.sandboxed !== true) return { ok: false, code: "engine_incompatible", reason: "sandbox_required" };
   const pdf = await loadPdf();
   try {
     const rendered = await renderDocxPdf(
@@ -362,6 +367,7 @@ async function exportDocxPdf(message: RunMessage): Promise<HandlerOutcome> {
         bundleDir: join(message.docsPdfAssetsDir, "bundle"),
         profileDir: join(message.tempDir, "chromium-profile"),
         timeoutMs: DOCS_PDF_TIMEOUT_MS,
+        noSandbox: true,
       },
       async ([first, ...rest]) => {
         if (!first) throw new DocsPdfError("engine_result_invalid", "merge_without_parts");

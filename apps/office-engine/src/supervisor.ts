@@ -171,6 +171,7 @@ export class Supervisor {
         tempDir: job.tempDir,
         ...(job.xlsxAssetsDir ? { xlsxAssetsDir: job.xlsxAssetsDir } : {}),
         ...(job.docsPdfAssetsDir ? { docsPdfAssetsDir: job.docsPdfAssetsDir } : {}),
+        sandboxed: job.uid !== undefined,
         sampleMs: job.sampleMs,
         heapMb: job.limits.heapMb,
         faults: job.faults,

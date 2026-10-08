@@ -20,6 +20,9 @@ export interface RunMessage {
   /** Service-configured dir with the Docs web bundle and Chromium; read only
       by the export:docx handler (UNI-1013). */
   docsPdfAssetsDir?: string;
+  /** The worker was forked under its per-slot uid (sandbox.ts). The export:docx
+      handler runs Chromium with --no-sandbox only then and refuses otherwise. */
+  sandboxed?: boolean;
   sampleMs: number;
   /** V8 old-generation cap for the handler thread, in MiB. */
   heapMb: number;
