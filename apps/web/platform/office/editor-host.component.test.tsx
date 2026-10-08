@@ -14,6 +14,7 @@ import type { OfficeEditorSession } from "./editor-host-core";
 import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
 import { getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
 import { DesktopOpenAction } from "@uniwork/views/office";
+import { withCoreProvider } from "./with-core-provider.test-helper";
 
 // The desktop channel is the server's: the host reads it from GET /api/v1/config.
 vi.mock("@uniwork/core/api/endpoints/config", () => ({
@@ -132,7 +133,7 @@ function renderHost(session: OfficeEditorSession<unknown>, overrides: Partial<Of
   const container = document.createElement("div");
   document.body.appendChild(container);
   let root!: Root;
-  act(() => { root = createRoot(container); root.render(React.createElement(OfficeEditorHost, props)); });
+  act(() => { root = createRoot(container); root.render(withCoreProvider(React.createElement(OfficeEditorHost, props))); });
   return { container, root };
 }
 
@@ -150,7 +151,8 @@ function dialogButton(label: string): HTMLButtonElement {
 }
 
 async function settle(): Promise<void> {
-  await act(async () => { await new Promise<void>((resolve) => setTimeout(resolve, 0)); });
+  // Two turns: the query result lands on the first, its observers notify on the second.
+  await act(async () => { await new Promise<void>((resolve) => setTimeout(resolve, 0)); await new Promise<void>((resolve) => setTimeout(resolve, 0)); });
 }
 
 describe("OfficeEditorHost composition", () => {
@@ -171,9 +173,9 @@ describe("OfficeEditorHost composition", () => {
     document.body.appendChild(container);
     const root = createRoot(container);
     act(() => {
-      root.render(React.createElement(React.StrictMode, null, React.createElement(OfficeEditorHost, {
+      root.render(withCoreProvider(React.createElement(React.StrictMode, null, React.createElement(OfficeEditorHost, {
         document: officeDocument, wsId: "workspace", readonly: false, session, capability, editorView: React.createElement("div"),
-      })));
+      }))));
     });
     await settle();
     expect(session.dispose).not.toHaveBeenCalled();
@@ -242,11 +244,11 @@ describe("OfficeEditorHost composition", () => {
     let root!: Root;
     act(() => {
       root = createRoot(container);
-      root.render(React.createElement(OfficeEditorHost, {
+      root.render(withCoreProvider(React.createElement(OfficeEditorHost, {
         document: officeDocument,
         wsId: "workspace",
         readonly: false,
-      }));
+      })));
     });
     await settle();
     expect(container.textContent).toContain("This editor is unavailable");
@@ -402,10 +404,12 @@ describe("OfficeEditorHost deployment channel", () => {
 
   it("asks the deployment's own channel for installers, never a hard-coded stable", async () => {
     vi.mocked(DesktopOpenAction).mockClear();
+    vi.mocked(getPublicConfig).mockClear();
     const { session } = makeSession();
     const { container, root } = renderHost(session);
     await settle();
-    expect(vi.mocked(getPublicConfig)).toHaveBeenCalledWith("org");
+    // One cached config read; the channel and deployment id are deployment-wide.
+    expect(vi.mocked(getPublicConfig)).toHaveBeenCalledTimes(1);
     expect(container.querySelector("[data-office-desktop-action]")).not.toBeNull();
     const props = lastActionProps()!;
     expect(props.channel).toBe("dev");
@@ -430,13 +434,13 @@ describe("OfficeEditorHost deployment channel", () => {
     act(() => second.root.unmount());
   });
 
-  it("keeps an explicit channel and binding from the caller without reading the config", async () => {
+  it("keeps an explicit channel and binding from the caller over the config", async () => {
     vi.mocked(getPublicConfig).mockClear();
     const { session } = makeSession();
     const { root } = renderHost(session, { officeChannel: "beta", officeDeploymentId: "dep" });
     await settle();
-    expect(vi.mocked(getPublicConfig)).not.toHaveBeenCalled();
     expect(lastActionProps()?.channel).toBe("beta");
+    expect(lastActionProps()?.deploymentId).toBe("dep");
     act(() => root.unmount());
   });
 });
@@ -449,12 +453,12 @@ describe("OfficeEditorHost page header", () => {
     let root!: Root;
     act(() => {
       root = createRoot(container);
-      root.render(React.createElement(HeaderActionsSlotProvider, null,
+      root.render(withCoreProvider(React.createElement(HeaderActionsSlotProvider, null,
         React.createElement("header", { "data-testid": "page-header" }, React.createElement(HeaderActionsSlot)),
         React.createElement(OfficeEditorHost, {
           document: officeDocument, wsId: "workspace", readonly: false, session, capability,
           editorView: React.createElement("div", { role: "textbox" }),
-        })));
+        }))));
     });
     await settle();
     const shell = container.querySelector("[data-office-shell]")!;

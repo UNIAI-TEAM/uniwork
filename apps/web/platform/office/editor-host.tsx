@@ -13,7 +13,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
-import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
+import { usePublicConfig } from "@uniwork/core/feature-flags";
 import { downloadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
 import { launchOfficeDeepLink } from "./desktop-handoff";
@@ -43,8 +43,6 @@ export interface OfficeEditorHostProps<TSnapshot = unknown> {
   installers?: OfficeInstallerOption[];
   officeDeploymentId?: string;
 }
-
-interface OfficeDeploymentBinding { channel?: OfficeChannel; deploymentId?: string }
 
 export interface OfficeFormatAdapter<TSnapshot = unknown> {
   session: OfficeEditorSession<TSnapshot>;
@@ -134,18 +132,9 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   // dev or beta deployment only has installers on its own channel, so asking
   // "stable" here would answer "no installer" for a correctly configured
   // deployment; a channel the server never named offers no desktop action.
-  const [binding, setBinding] = useState<OfficeDeploymentBinding | null>(null);
-  const needsBinding = Boolean(activeSession) && !readonly && !(officeChannel && officeDeploymentId);
-  useEffect(() => {
-    if (!needsBinding) return;
-    let active = true;
-    void getPublicConfig(document.organization_id)
-      .then((config) => { if (active) setBinding({ channel: config.office_channel, deploymentId: config.office_deployment_id }); })
-      .catch(() => { if (active) setBinding({}); });
-    return () => { active = false; };
-  }, [needsBinding, document.organization_id]);
-  const deploymentChannel = officeChannel ?? binding?.channel;
-  const deploymentId = officeDeploymentId ?? binding?.deploymentId;
+  const { data: publicConfig } = usePublicConfig();
+  const deploymentChannel = officeChannel ?? publicConfig?.office_channel;
+  const deploymentId = officeDeploymentId ?? publicConfig?.office_deployment_id;
 
   const effectiveCapability = useMemo<OfficeCapabilityEntry>(() => activeCapability ?? ({
     format: documentFormat(document),

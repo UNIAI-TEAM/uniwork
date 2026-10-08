@@ -16,7 +16,7 @@ import { OfficeShell } from "@uniwork/views/office/office-shell";
 import type { Document } from "@uniwork/core/types/document";
 import { useSession } from "@uniwork/core/auth";
 import { getOfficeCapabilities, type OfficeCapabilities } from "@uniwork/core/api/endpoints/office";
-import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
+import { usePublicConfig } from "@uniwork/core/feature-flags";
 import type { OfficeCapabilityEntry } from "@uniwork/core/office";
 import { OfficeEditorHost, type OfficeEditorHostProps } from "./editor-host";
 import { createPptxDocumentsTransport } from "./pptx-save-transport";
@@ -48,21 +48,11 @@ export function PptxOfficeEditorHost(props: OfficeEditorHostProps): ReactElement
   const [loaded, setLoaded] = useState<{ key: string; capability: OfficeCapabilityEntry; adapter?: PptxFormatAdapter } | null>(null);
   // Undefined (never guessed) until the server advertises a binding; the
   // desktop open action fails closed on an id it was never given.
-  const [officeDeploymentId, setOfficeDeploymentId] = useState<string | undefined>(undefined);
+  const officeDeploymentId = usePublicConfig().data?.office_deployment_id;
   const sessionInput = useRef({ document, accountId, readonly, wsId });
   sessionInput.current = { document, accountId, readonly, wsId };
   const unavailable = useRef(t("office.pptx.errors.capabilityUnavailable"));
   unavailable.current = t("office.pptx.errors.capabilityUnavailable");
-
-  useEffect(() => {
-    let active = true;
-    void getPublicConfig(document.organization_id).then((config) => {
-      if (active) setOfficeDeploymentId(config.office_deployment_id);
-    }).catch(() => {
-      // Config unavailable: stay closed rather than guess a deployment id.
-    });
-    return () => { active = false; };
-  }, [document.organization_id]);
 
   useEffect(() => {
     if (!isPptx) {

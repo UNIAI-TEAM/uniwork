@@ -12,6 +12,7 @@ vi.mock("./xlsx-adapter", () => ({ createXlsxFormatAdapter: mocks.adapter, creat
 vi.mock("./xlsx-runtime", () => ({ createWebXlsxSessionRuntime: mocks.runtime }));
 vi.mock("./editor-host", () => ({ OfficeEditorHost: (props: { formatAdapter?: { id: string }; editorView?: ReactNode }) => createElement("div", { "data-adapter": props.formatAdapter?.id ?? "unbound" }, props.editorView) }));
 import { XlsxOfficeEditorHost } from "./xlsx-office-host";
+import { withCoreProvider } from "./with-core-provider.test-helper";
 
 const documentFor = (id = "doc-1") => ({ id, title: "Workbook", organization_id: "org", workspace_id: "ws", revision: "1", file: { version_id: "version-1", filename: "workbook.xlsx", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } }) as Document;
 const capabilities = (id = "doc-1") => ({ documentId: id, format: "xlsx", engineVersion: "bound", operations: ["open", "edit", "serialize"].map((operation) => ({ operation, supported: true })) });
@@ -28,7 +29,7 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 async function mount(doc = documentFor(), readonly = false) {
-  await act(async () => { root.render(createElement(XlsxOfficeEditorHost, { document: doc, wsId: "ws", readonly })); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => { root.render(withCoreProvider(createElement(XlsxOfficeEditorHost, { document: doc, wsId: "ws", readonly }))); await new Promise((resolve) => setTimeout(resolve, 0)); });
 }
 describe("XLSX web session lifetime", () => {
   it("retains the bound editing session across metadata refetches and a title change", async () => {
