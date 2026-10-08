@@ -90,6 +90,14 @@ func (d *Desired) edge(t graph.EdgeType, out bool, peerType graph.NodeType, peer
 	d.Edges = append(d.Edges, w)
 }
 
+// backfillMargin is how much older than its event a fresh node's source must
+// be before the worker treats it as predating the graph. A source and its
+// first event are usually written in one transaction, so their times match;
+// the margin absorbs lag (a later event folded into the same dirty row before
+// the worker projected the first) and clock skew where a source's time is
+// stamped by the application rather than the database.
+const backfillMargin = time.Minute
+
 // EventInfo is why a projection runs: the newest outbox event folded into a
 // dirty row, or a rebuild (EvidenceSourceRow, At zero).
 type EventInfo struct {
@@ -98,8 +106,9 @@ type EventInfo struct {
 	At           time.Time
 	ActorKind    string
 	ActorID      string
-	// fresh is set by reconcile when this projection brings the node to life;
-	// a rebuild then dates new edges by the source, not by today.
+	// fresh is set by reconcile when this projection brings the node to life
+	// (no live row, or a row with no open edge or fact yet): openAt may then
+	// date its new edges and facts by the source, not by the event or today.
 	fresh bool
 }
 
@@ -114,6 +123,15 @@ func (e EventInfo) evidence(ref NodeRef) string {
 // backfill (the source predates the graph; the true start is unknown).
 func (e EventInfo) openAt(n NodeState) (time.Time, bool) {
 	if !e.At.IsZero() {
+		// The worker. A node this event brings to life from a source well
+		// older than the event predates the graph (edited while the flag was
+		// off, or between enabling it and the rebuild reaching it): date it
+		// as a rebuild would, or every relation reads as starting today. Both
+		// times come from the database; a source dated after the event (an
+		// upcoming meeting) never clears the margin and stays at the event.
+		if e.fresh && !n.OccurredAt.IsZero() && e.At.Sub(n.OccurredAt) > backfillMargin {
+			return n.OccurredAt, true
+		}
 		return e.At, false
 	}
 	now := time.Now().UTC()

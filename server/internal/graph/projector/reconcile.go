@@ -85,9 +85,10 @@ func reconcile(ctx context.Context, q *db.Queries, org string, ref NodeRef, ev E
 		drift.ChangedNodes++
 	}
 	ev.fresh = !live
-	if live && ev.At.IsZero() {
-		// A node resolvePeer created moments ago (in this rebuild) has a row
-		// but no open edges or facts: its history is dated by the source too.
+	if live {
+		// A node resolvePeer created moments ago (in this rebuild, or for an
+		// event about another node) has a row but no open edges or facts:
+		// its history is dated by the source too.
 		bare, err := bareNode(ctx, q, org, cur.ID, ref.Type)
 		if err != nil {
 			return drift, err
