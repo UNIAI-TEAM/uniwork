@@ -23,7 +23,7 @@ import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { desktopEngineBuild, type DesktopDocumentFormat } from "../../shared/document-formats";
 import { desktopEditorLoader } from "./editor-registry";
 import { DesktopDocumentMenu, useDesktopPrint } from "./document-menu";
-import { isMemoryFailure } from "./bytes";
+import { isMemoryFailure } from "../../shared/memory";
 
 /** The one draft-recovery flow both tab shells share: list this document's
  * rows once per session, offer the newest through DraftRecoveryPrompt (a row
@@ -74,7 +74,7 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
   const [surfaceVersion, setSurfaceVersion] = useState(0);
   const { prompt, notice, recovered } = useDraftRecovery(session, () => setSurfaceVersion((value) => value + 1));
   const [openAttempt, setOpenAttempt] = useState(0);
-  const [actionFailed, setActionFailed] = useState(false);
+  const [actionFailed, setActionFailed] = useState<false | "memory" | true>(false);
   const [localFile, setLocalFile] = useState<{ handleId: string; displayName: string } | null>(null);
   const format = session.editor.format;
   const [loaded, setLoaded] = useState<{ session: ByteDocumentSession; failure?: DocxOpenFailure | PdfOpenFailure } | null>(null);
@@ -114,7 +114,7 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
       if (!result.accepted || session.isDisposed || !session.localHandle || !session.localName) return;
       const rebound = { handleId: session.localHandle, displayName: session.localName };
       setLocalFile(rebound); onLocalFileRebound?.(rebound);
-    } catch { setActionFailed(true); }
+    } catch (error) { setActionFailed(isMemoryFailure(error) ? "memory" : true); }
   };
   // The slot provider lets the mounted format view contribute its document
   // menu items (Print) to the desktop menu, as it does to the web page menu.
@@ -129,7 +129,7 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
       editor={<>
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}
-        {actionFailed ? <p role="alert" className="mb-3 text-caption text-destructive">{t("actionError")}</p> : null}
+        {actionFailed ? <p role="alert" className="mb-3 text-caption text-destructive">{actionFailed === "memory" ? tOffice("save.reason.file_insufficient_memory") : t("actionError")}</p> : null}
         {print.hint}{print.dialog}
         {featureOff ? <FeatureOffNotice formatName={tOffice(`formatName.${format}`, { defaultValue: format.toUpperCase() })} reason={readOnlyReason} className="mx-4 my-2" /> : null}
         {/* The shell header is the only frame: neutralize the shared EditorSlot card so the editor fills the page like DOCX/XLSX (web has no card either). A read-only message is a notice, not the editor: it keeps its margin and its own height so the read-only surface below sits right under it. */}
@@ -149,7 +149,7 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
   active?: boolean; kind?: "local" | "cloud"; signedIn?: boolean; onSignIn?: () => void; onLocalFileRebound?: (file: { handleId: string; displayName: string }) => void;
   readOnlyReason?: ReadOnlyReason;
 }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const { t: tLocal } = useTranslation(undefined, { keyPrefix: "officeDesktop.local" });
   const { t: tAi } = useTranslation(undefined, { keyPrefix: "officeDesktop.ai" });
   const print = useDesktopPrint(bridge);
@@ -165,9 +165,9 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
   useEffect(() => {
     if (!active) return undefined;
     let alive = true;
-    void session.openEditor().then(() => { if (alive) setReady(true); }).catch((error: unknown) => { if (alive) setFailure(error instanceof Error ? error.message : String(error)); });
+    void session.openEditor().then(() => { if (alive) setReady(true); }).catch((error: unknown) => { if (alive) setFailure(isMemoryFailure(error) ? i18n.t("office.save.reason.file_insufficient_memory") : error instanceof Error ? error.message : String(error)); });
     return () => { alive = false; };
-  }, [active, session, openAttempt]);
+  }, [active, i18n, session, openAttempt]);
   // The desktop adapter publishes a fresh revision on every edit/undo/redo/restore
   // and reports each one to the shared coordinator, so the coordinator's own
   // notification is the signal that the model moved.

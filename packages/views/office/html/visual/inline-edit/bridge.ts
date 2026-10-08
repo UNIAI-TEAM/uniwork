@@ -18,7 +18,7 @@
  * engine ownership and makes every branch unit-testable with a fake port.
  *
  * The whole surface is gated on the SAME flag H5/H6 use (`OFFICE_HTML_VISUAL_EDIT_FLAG`,
- * default OFF). With it off the hook subscribes to nothing, sends no command
+ * server default on, client fallback off). With it off the hook subscribes to nothing, sends no command
  * and applies no op, so a flag-off build is behaviourally identical to before
  * H8. A malformed frame payload is dropped the same way - the op is only built
  * from a validated commit and a live context, and an op the document cannot
@@ -26,10 +26,10 @@
  * crash.
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useFlag } from "@uniwork/core/feature-flags";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG, useFlag } from "@uniwork/core/feature-flags";
 import type { UpstreamPatchSet } from "@uniwork/office-engine/html";
 import { HtmlOpError, type HtmlOpContext } from "../ops";
-import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection, type PreviewEventSink } from "../selection/model";
+import type { HtmlSelection, PreviewEventSink } from "../selection/model";
 import { moveSelectionOp, resizeSelectionOp, textEditOp, type ResizeInput } from "./ops";
 import { parseTextEditCommit } from "./model";
 

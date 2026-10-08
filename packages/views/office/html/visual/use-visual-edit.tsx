@@ -4,7 +4,7 @@
  * useHtmlVisualEdit - the one place the HTML editor turns the H5-H8 surface on.
  *
  * Everything the visual editor needs is behind ONE switch,
- * `OFFICE_HTML_VISUAL_EDIT_FLAG` (default off), and a host: the injected
+ * `OFFICE_HTML_VISUAL_EDIT_FLAG` (server default on, client fallback off), and a host: the injected
  * `HtmlVisualEditHost` supplies the browser parse map and the engine's
  * `applyPatchSet`. With the flag off, no host, or a read-only document the hook
  * returns inert props - no sid-stamped copy, no inspector mount, no float
@@ -20,14 +20,14 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useFlag } from "@uniwork/core/feature-flags";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG, useFlag } from "@uniwork/core/feature-flags";
 import type { UpstreamParseMap, UpstreamPatchSet } from "@uniwork/office-engine/html";
 import type { PreviewSession } from "../../source-editor-types";
 import { colourEdit, deleteEdit, duplicateEdit, fontSizeEdit, isDocumentStructure, textColourValue, toggleMarkEdit, type HtmlFloatToolbarCommands } from "./float-toolbar";
 import { createVisualEditNonce } from "./nonce";
 import type { HtmlInlineEditPort, InlineEditInspector } from "./inline-edit";
 import { elementBySid, HtmlOpError, type HtmlOpContext } from "./ops";
-import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection } from "./selection/model";
+import type { HtmlSelection } from "./selection/model";
 import type { HtmlVisualShellProps } from "./shell";
 import { stampSids } from "./stamp-sids";
 import { HtmlStylePanel, mergeHtmlStyleValues, type HtmlStylePatch } from "./style-panel";

@@ -9,7 +9,7 @@ import { registerReplayIdScenarios, registerSaveRebaseScenarios } from "../../..
 import { createWebPptxSessionRuntime, type PptxSessionRuntime } from "./pptx-runtime";
 
 // W12 real-id mode (packages/office-engine/test/pptx-replay-scenarios.ts).
-const seam = vi.hoisted(() => ({ realIds: false, breakOp: null as string | null, saves: 0, opens: 0 }));
+const seam = vi.hoisted(() => ({ realIds: false, breakOp: null as string | null, saves: 0, opens: 0, failOpen: null as Error | null, failSave: null as Error | null }));
 
 vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
   const fakes = await import("../../../../packages/office-engine/test/fake-pptx-engine");
@@ -18,12 +18,14 @@ vi.mock("@uniwork/office-upstream/pptx-renderer", async () => {
   const { remintElementIds: remint } = await import("../../../../packages/office-engine/test/pptx-replay-scenarios");
   return {
     openPptx: async (bytes: Uint8Array) => {
+      if (seam.failOpen) throw seam.failOpen;
       const opened = await engine.openPptx(bytes);
       seam.opens += 1;
       if (seam.realIds) remint(opened.deck as never, "o" + String(seam.opens));
       return opened;
     },
     savePptx: (opened: OpenedPptxLike) => {
+      if (seam.failSave) throw seam.failSave;
       seam.saves += 1;
       return engine.savePptx(opened);
     },
@@ -55,6 +57,8 @@ async function opened(): Promise<{ runtime: PptxSessionRuntime; ref: string }> {
 beforeEach(() => {
   seam.realIds = false;
   seam.breakOp = null;
+  seam.failOpen = null;
+  seam.failSave = null;
 });
 
 describe("desktop PPTX session runtime", () => {
@@ -142,6 +146,23 @@ describe("desktop PPTX session runtime", () => {
     expect(runtime.slides(ref).map((slide) => slide.hidden)).toEqual([true, true]);
     const tip = runtime.snapshot(ref);
     await expect(runtime.serialize(ref, { snapshot: { generation: 4, fingerprint: "fp", value: tip } })).resolves.toBeDefined();
+  });
+
+  it("answers an allocation failure while opening as the typed file_insufficient_memory", async () => {
+    seam.failOpen = new RangeError("Array buffer allocation failed");
+    const runtime = createWebPptxSessionRuntime({ documentId: "doc" });
+    await expect(runtime.open({ bytes: makeFakePptxBytes(), documentId: "doc" })).resolves.toMatchObject({ outcome: "failed", message: "file_insufficient_memory" });
+  });
+
+  it("rejects a save that runs out of memory with the typed file_insufficient_memory, and a plain fault with its own code", async () => {
+    const { runtime, ref } = await opened();
+    const snapshot = () => ({ snapshot: { generation: 1, fingerprint: "fp", value: runtime.snapshot(ref) } });
+    seam.failSave = new RangeError("Array buffer allocation failed");
+    await expect(runtime.serialize(ref, snapshot())).rejects.toMatchObject({ code: "file_insufficient_memory" });
+    seam.failSave = new Error("boom");
+    await expect(runtime.serialize(ref, snapshot())).rejects.toMatchObject({ code: "engine_crashed" });
+    seam.failSave = null;
+    await expect(runtime.serialize(ref, snapshot())).resolves.toBeDefined();
   });
 
   it("leaves the session untouched when the first entry of a batch is refused", async () => {

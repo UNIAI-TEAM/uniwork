@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bytesToText, copyBytes, incomingBytes, isMemoryFailure, textToBytes } from "./bytes";
+import { bytesToText, copyBytes, incomingBytes, textToBytes, typedMemoryFailure } from "./bytes";
 
 const memoryError = { code: "file_insufficient_memory" };
 
@@ -38,10 +38,10 @@ describe("renderer byte helper", () => {
     expect(bytesToText(textToBytes("xin chào"))).toBe("xin chào");
   });
 
-  it("recognises the typed code and a raw allocation failure", () => {
-    expect(isMemoryFailure(Object.assign(new Error("x"), memoryError))).toBe(true);
-    expect(isMemoryFailure(new RangeError("Array buffer allocation failed"))).toBe(true);
-    expect(isMemoryFailure(new Error("other"))).toBe(false);
-    expect(isMemoryFailure(null)).toBe(false);
+  it("types every memory failure, including an invoke rejection, and passes other errors through", () => {
+    expect(typedMemoryFailure(new RangeError("Array buffer allocation failed"))).toMatchObject(memoryError);
+    expect(typedMemoryFailure(new Error("Error invoking remote method 'desktop:office-open': RangeError: Array buffer allocation failed"))).toMatchObject(memoryError);
+    const other = new Error("other");
+    expect(typedMemoryFailure(other)).toBe(other);
   });
 });

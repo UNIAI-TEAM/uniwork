@@ -1,4 +1,4 @@
-import { isMemoryFailure } from "./office/bytes";
+import { isMemoryFailure } from "../shared/memory";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DraftRecoveryPrompt, LeaveDialog, type LeaveChoice } from "@uniwork/views/office/leave-dialog";

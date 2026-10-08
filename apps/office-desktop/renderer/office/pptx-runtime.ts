@@ -41,6 +41,9 @@ import * as pptxUpstream from "@uniwork/office-upstream/pptx-renderer";
 import type { StableSnapshot } from "@uniwork/core/office";
 import type { PptxDeckModel } from "@uniwork/views/office/pptx";
 import { LOCAL_ENGINE_BOUNDS } from "../../shared/local-engine-bounds";
+import { HostCapabilityRefusal } from "@uniwork/office-contracts";
+import { isMemoryFailure } from "../../shared/memory";
+import { FILE_INSUFFICIENT_MEMORY, typedMemoryFailure } from "./bytes";
 
 /** The generated artifact's optional speaker-notes read. Undefined until the
  * artifact exports getSlideNotes; the adapter then refuses with a typed
@@ -265,6 +268,19 @@ interface RuntimeSession {
   diverged?: Error;
 }
 
+/** The engine files any other throw from its open or save as a corrupted deck
+ * or a crash, but lets a host refusal through: an allocation failure leaves as
+ * one carrying the typed file_insufficient_memory code (and message). */
+function memoryRefusal<A extends unknown[], R>(channel: string, step: (...args: A) => Promise<R> | R): (...args: A) => Promise<R> {
+  return async (...args) => {
+    try { return await step(...args); }
+    catch (error) {
+      if (!isMemoryFailure(error)) throw error;
+      throw Object.assign(new HostCapabilityRefusal(channel, "failed", FILE_INSUFFICIENT_MEMORY), { code: FILE_INSUFFICIENT_MEMORY });
+    }
+  };
+}
+
 /** A bare Error carries no `code`, so the error table would file it under
  * office_unknown_error; the code is the message, like the engine's refusals. */
 function codedError(code: string): Error {
@@ -291,8 +307,8 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
   function engineAdapter(): PptxAdapter {
     adapter ??= createPptxAdapter({
       engine: bindPptxEngine({
-        openPptx,
-        savePptx,
+        openPptx: memoryRefusal("pptx-open", openPptx),
+        savePptx: memoryRefusal("pptx-save", savePptx),
         commitSaved,
         reparseDeck,
         listSlideLayouts,
@@ -463,7 +479,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
   return {
     async open({ bytes, documentId }) {
       return serializeOperation(async () => {
-        const outcome = await engineAdapter().open({ bytes, format: "pptx", document_id: documentId });
+        const outcome = await engineAdapter().open({ bytes, format: "pptx", document_id: documentId }).catch((error: unknown) => { throw typedMemoryFailure(error); });
         if (outcome.outcome !== "opened") {
           return {
             outcome: "failed" as const,
@@ -568,7 +584,7 @@ export function createWebPptxSessionRuntime(options: { documentId: string }): Pp
         if (!snapshotIsJournalPrefix(session, snapshot.value)) throw new Error("pptx_save_snapshot_invalid");
         // The live engine session (not the runtime ref) is what holds the model;
         // undo swaps it, so the save must serialize the current one.
-        const out = await engineAdapter().serialize({ document_model_ref: currentEngineRef(documentModelRef), format: "pptx" });
+        const out = await engineAdapter().serialize({ document_model_ref: currentEngineRef(documentModelRef), format: "pptx" }).catch((error: unknown) => { throw typedMemoryFailure(error); });
         signal?.throwIfAborted();
         // The bytes hold the live model, journal[0..cursor-1] - possibly more
         // than the snapshot (typing queued ahead of this save on the lane).

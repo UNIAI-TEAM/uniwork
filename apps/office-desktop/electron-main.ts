@@ -182,7 +182,7 @@ async function startElectronHost(): Promise<void> {
   // The unbounded local engines (xlsx, pdfium) run in a utilityProcess with a
   // machine-sized heap: a heap OOM there kills only the child, and every request
   // in flight answers insufficient_memory (see main/engine-host).
-  const engineHost = createLocalEngineHost({ fork: (script, args, options) => utilityProcess.fork(script, args, options), script: join(DIST_MAIN_DIRECTORY, "engine-host.mjs"), assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }) });
+  const engineHost = createLocalEngineHost({ fork: (script, args, options) => utilityProcess.fork(script, args, options), script: join(DIST_MAIN_DIRECTORY, "engine-host.mjs"), assetsDir: resolveLocalXlsxAssetsDir({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, distDirectory: app.isPackaged ? undefined : dirname(DIST_MAIN_DIRECTORY), envAssetsDir: process.env.UNIWORK_XLSX_ASSETS }), forcedMemoryFailure: { packaged: app.isPackaged, env: process.env } });
   app.once("will-quit", () => engineHost.dispose());
   window.webContents.on("did-navigate", () => engineHost.releasePdfs()).on("render-process-gone", () => engineHost.releasePdfs()).on("destroyed", () => engineHost.releasePdfs());
   const host = createHost({

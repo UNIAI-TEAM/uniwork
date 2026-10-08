@@ -20,7 +20,8 @@ import type { HtmlEditorHandle, HtmlOpenOutcome } from "./types";
 import type { IsolatedPreviewPort, PreviewMountOptions } from "../source-editor-types";
 
 const flagMock = vi.hoisted(() => ({ value: true }));
-vi.mock("@uniwork/core/feature-flags", () => ({
+vi.mock("@uniwork/core/feature-flags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/core/feature-flags")>()),
   useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_edit" ? flagMock.value : fallback),
 }));
 

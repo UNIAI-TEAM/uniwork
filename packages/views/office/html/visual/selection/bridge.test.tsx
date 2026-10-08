@@ -2,13 +2,15 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { HtmlVisualShell } from "../shell";
-import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection } from "./model";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG } from "@uniwork/core/feature-flags";
+import type { HtmlSelection } from "./model";
 import type { IsolatedPreviewPort, PreviewSession } from "../../../source-editor-types";
 
 /** A mutable flag mock, the pattern document-file-view.test.tsx uses: the
  * suite flips the key and the shell re-reads it on the next render. */
 const flagMock = vi.hoisted(() => ({ value: false }));
-vi.mock("@uniwork/core/feature-flags", () => ({
+vi.mock("@uniwork/core/feature-flags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/core/feature-flags")>()),
   useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_edit" ? flagMock.value : fallback),
 }));
 

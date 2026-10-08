@@ -18,7 +18,7 @@
  * swatch fills.
  *
  * The whole surface is behind the SAME flag H5 uses (`OFFICE_HTML_VISUAL_EDIT_FLAG`,
- * default OFF) and renders nothing when the flag is off or no renderable rect
+ * server default on, client fallback off) and renders nothing when the flag is off or no renderable rect
  * is known, so a flag-off build is behaviourally identical to before H6.
  *
  * Positioning mirrors the H5 outline exactly: the rect is in the frame's
@@ -35,14 +35,10 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Separator } from "@uniwork/ui/components/ui/separator";
 import { Toggle } from "@uniwork/ui/components/ui/toggle";
-import { useFlag } from "@uniwork/core/feature-flags";
-import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection } from "../selection/model";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG, useFlag } from "@uniwork/core/feature-flags";
+import { FRAME_OFFSET_ZERO, frameOffset, watchFrameOffset, type FrameOffset } from "../frame-offset";
+import type { HtmlSelection } from "../selection/model";
 import { floatAnchor, renderableRect, selectionBox } from "./geometry";
-
-/** The preview frame's structural hook, the same one H5 probes. Kept as a
- * literal here rather than imported from `selection/` so H6 stays a leaf module
- * that does not depend on the bridge; the two copies must move together. */
-const PREVIEW_FRAME_ATTR = "data-html-preview-frame";
 
 /** Bounds for the size readout; a value outside them is not a real font size. */
 const FONT_SIZE_MIN = 1;
@@ -109,24 +105,6 @@ export interface HtmlFloatToolbarProps {
   state?: HtmlFloatToolbarState;
 }
 
-interface Offset {
-  x: number;
-  y: number;
-}
-
-const ZERO: Offset = { x: 0, y: 0 };
-
-/** Read-only layout probe: how far the preview frame sits from the canvas
- * origin. Returns zero when there is no frame (jsdom, no preview port). */
-function frameOffset(canvas: HTMLElement | null): Offset {
-  if (!canvas) return ZERO;
-  const frame = canvas.querySelector(`[${PREVIEW_FRAME_ATTR}]`);
-  if (!(frame instanceof HTMLElement)) return ZERO;
-  const canvasRect = canvas.getBoundingClientRect();
-  const frameRect = frame.getBoundingClientRect();
-  return { x: frameRect.left - canvasRect.left, y: frameRect.top - canvasRect.top };
-}
-
 /** Clamp a displayed font size, or null when there is no honest number. */
 function displayFontSize(fontSize: number | null | undefined): number | null {
   if (typeof fontSize !== "number" || !Number.isFinite(fontSize)) return null;
@@ -145,25 +123,15 @@ function ToolbarButton({ label, testId, disabled, onClick, children }: { label: 
 export function HtmlFloatToolbar({ selection, canvasRef, scrollRef, zoom = 100, commands = {}, state = {} }: HtmlFloatToolbarProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.html.float" });
   const enabled = useFlag(OFFICE_HTML_VISUAL_EDIT_FLAG, false);
-  const [offset, setOffset] = useState<Offset>(ZERO);
+  const [offset, setOffset] = useState<FrameOffset>(FRAME_OFFSET_ZERO);
   const rect = renderableRect(selection);
   const rectKey = rect === null ? null : `${rect.x}:${rect.y}:${rect.width}:${rect.height}`;
 
   useEffect(() => {
     if (!enabled || rectKey === null) return undefined;
-    const probe = () => setOffset(frameOffset(canvasRef.current));
     // A rect can arrive long after the frame was laid out, so probe now, then
     // on every signal that moves the frame without an inspector event.
-    probe();
-    const scroll = scrollRef?.current;
-    scroll?.addEventListener("scroll", probe, { passive: true });
-    const canvas = canvasRef.current;
-    const observer = canvas !== null && typeof ResizeObserver === "function" ? new ResizeObserver(probe) : null;
-    if (observer !== null && canvas !== null) observer.observe(canvas);
-    return () => {
-      scroll?.removeEventListener("scroll", probe);
-      observer?.disconnect();
-    };
+    return watchFrameOffset(canvasRef.current, scrollRef?.current, () => setOffset(frameOffset(canvasRef.current)));
     // `rectKey` re-probes on new geometry; `zoom` whenever the frame re-scales.
   }, [enabled, rectKey, zoom, canvasRef, scrollRef]);
 

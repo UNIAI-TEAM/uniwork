@@ -106,6 +106,20 @@ it("cancels a clean Save As without rebinding, leaving the document clean and wr
   expect(session.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 1 });
 });
 
+it.each([
+  ["an invoke-relayed allocation failure", new Error("Error invoking remote method 'desktop:file-save-as': RangeError: Array buffer allocation failed"), () => i18n.t("office.save.reason.file_insufficient_memory")],
+  ["an invoke-relayed generic failure", new Error("Error invoking remote method 'desktop:file-save-as': Error: boom"), () => i18n.t("officeDesktop.library.actionError")],
+])("tells why a Save As that rejects with %s failed, and does not rebind", async (_label, failure, expected) => {
+  const { session, rebound } = harness(async () => ({}), { ...original, localHandle: handle });
+  await screen.findByTestId("docx-document-surface");
+  vi.spyOn(session, "saveAs").mockRejectedValue(failure);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("office.ribbon.more") }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: i18n.t("officeDesktop.library.saveAs") }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(expected());
+  expect(rebound).not.toHaveBeenCalled();
+  expect(session.localHandle).toBe(handle);
+});
+
 it("shows a reasoned corrupt-file error with no Save", async () => {
   const broken = harness(async () => ({}), { format: "docx", data: Uint8Array.from(Buffer.from("AQID", "base64")), checksum: bytesChecksum(new Uint8Array([1, 2, 3])) });
   expect(await screen.findByTestId("office-open-error")).toHaveTextContent(/.+/);

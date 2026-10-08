@@ -30,7 +30,7 @@ afterEach(() => settleDocxSessions(sessions));
 /** What the upgrade re-read answers after the first open: a read-only document, or a thrown coded / foreign error. */
 type SecondRead = "view_only" | "gone" | "thrown_forbidden" | "lookalike" | "prefixed" | "transient";
 
-function harness(options: { flags?: Record<string, boolean>; config?: (payload: unknown) => unknown; localFile?: boolean; failSave?: boolean; failLogout?: boolean; readOnly?: boolean; secondRead?: SecondRead; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
+function harness(options: { flags?: Record<string, boolean>; config?: (payload: unknown) => unknown; localFile?: boolean; failSave?: boolean; failLogout?: boolean; readOnly?: boolean; secondRead?: SecondRead; openFailure?: Error; beforeTabsUpdate?: () => Promise<void>; beforeSave?: () => Promise<void> } = {}) {
   const checksum = fixtureChecksum;
   const documents = Array.from({ length: 10 }, (_, index) => ({ id: `doc-${index}`, workspaceId: "ws", title: `Plan${index}.docx`, kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-10-01T00:00:00Z", ownerKind: null, canEdit: true, downloadAvailable: true }));
   let account = "account";
@@ -50,6 +50,7 @@ function harness(options: { flags?: Record<string, boolean>; config?: (payload: 
     if (channel === "desktop:public-config") return options.config ? options.config(payload) : { flags: options.flags ?? { office_engine: true } };
     if (channel === "desktop:file-pick-open" && options.localFile) return { opened: true, metadata: { handle: `file_${"f".repeat(32)}`, name: "Local.docx", byteLength: docxSource.length, modifiedAtMs: 1_000, checksum }, data: Uint8Array.from(Buffer.from(fixtureBase64, "base64")) };
     if (channel === "desktop:library-list") return { documents, nextCursor: null, engineAvailable: true };
+    if (channel === "desktop:office-open" && options.openFailure) throw options.openFailure;
     if (channel === "desktop:office-open" && options.secondRead && ++opens > 1) {
       if (options.secondRead === "gone") throw new Error("Error invoking remote method 'desktop:office-open': Error: office_document_gone");
       if (options.secondRead === "thrown_forbidden") throw new Error("Error invoking remote method 'desktop:office-open': Error: forbidden");
@@ -141,6 +142,18 @@ it("scopes Ctrl+S and native Save to the selected document and disables them on 
   fireEvent.keyDown(window, { key: "s", ctrlKey: true }); h.native("doc-1");
   await act(async () => { await Promise.resolve(); });
   expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:office-save")).toHaveLength(1);
+});
+
+it.each([
+  ["an invoke-relayed allocation failure", new Error("Error invoking remote method 'desktop:office-open': RangeError: Array buffer allocation failed"), () => i18n.t("office.save.reason.file_insufficient_memory")],
+  ["an invoke-relayed generic failure", new Error("Error invoking remote method 'desktop:office-open': Error: boom"), () => i18n.t("officeDesktop.library.actionError")],
+])("tells the user why a cloud open rejected with %s", async (_label, openFailure, expected) => {
+  const h = harness({ openFailure });
+  await screen.findByText("Plan0.docx");
+  fireEvent.click(screen.getAllByRole("button", { name: i18n.t("officeDesktop.library.open") })[0]!);
+  expect(await screen.findByText(expected())).toBeInTheDocument();
+  expect(h.call.mock.calls.filter(([channel]) => channel === "desktop:office-open")).toHaveLength(1);
+  expect(screen.queryByRole("tab", { name: /Plan0/ })).toBeNull();
 });
 
 it("waits for native registration before opening and then registers the live document set", async () => {

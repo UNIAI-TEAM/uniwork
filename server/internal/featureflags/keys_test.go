@@ -38,17 +38,17 @@ func TestNoInheritedCompatKeysArePublished(t *testing.T) {
 	}
 }
 
-func TestOfficeHTMLVisualEditIsPublicAndOffByDefault(t *testing.T) {
+func TestOfficeHTMLVisualEditIsPublicAndOnByDefault(t *testing.T) {
 	f, ok := Lookup("office_html_visual_edit")
 	if !ok {
 		t.Fatal("office_html_visual_edit is not declared")
 	}
-	if f.Default || !f.Public || f.Owner != "office" {
-		t.Fatalf("office_html_visual_edit = %+v, want default off, public, owner office", f)
+	if !f.Default || !f.Public || f.Owner != "office" {
+		t.Fatalf("office_html_visual_edit = %+v, want default on, public, owner office", f)
 	}
 	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
-	if v, published := flags["office_html_visual_edit"]; !published || v {
-		t.Fatalf("published=%v value=%v, want published and false", published, v)
+	if v, published := flags["office_html_visual_edit"]; !published || !v {
+		t.Fatalf("published=%v value=%v, want published and true", published, v)
 	}
 }
 

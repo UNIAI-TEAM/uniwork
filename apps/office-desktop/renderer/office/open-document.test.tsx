@@ -212,6 +212,29 @@ it("binds every desktop pptx edit port and advances the revision on a committed 
   await waitFor(() => expect((pptxProbe.views.at(-1)?.deck as { revision: number } | undefined)?.revision).toBe(1));
 });
 
+it.each([
+  ["an invoke-relayed allocation failure", "Error invoking remote method 'desktop:office-open': RangeError: Array buffer allocation failed", () => i18n.t("office.save.reason.file_insufficient_memory")],
+  ["an invoke-relayed generic failure", "Error invoking remote method 'desktop:office-open': Error: boom", () => "Error invoking remote method 'desktop:office-open': Error: boom"],
+])("shows the open error of a PPTX whose engine open rejects with %s", async (_label, message, expected) => {
+  const bridge = {
+    call: (async (channel: string) => (channel === "desktop:draft-list" ? { drafts: [] } : {})) as RendererBridge["call"],
+    onSessionChanged: () => () => undefined,
+  } as RendererBridge;
+  const session = createPptxDocumentSession(bridge, identity, { format: "pptx", data: Uint8Array.from(Buffer.from("UEsDBA==", "base64")), checksum }, (onDirty) => {
+    const { surface } = createPptxTestSurface(onDirty);
+    (surface as unknown as { open: () => Promise<void> }).open = async () => { throw new Error(message); };
+    return {
+      editor: surface,
+      capability: { format: "pptx", operation: "serialize", host: "desktop", engineBuild: "test", contractRevision: "office-editor-host/1", status: "available", fidelityWarnings: [] },
+      open: async () => ({ outcome: "opened", document_id: identity.documentId, format: "pptx" }),
+    } as unknown as DesktopPptxAdapter;
+  });
+  pptxProbe.views.length = 0;
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Deck.pptx" active kind="cloud" onBack={() => undefined} />);
+  await waitFor(() => expect(pptxProbe.views.at(-1)?.openState).toBe("error"));
+  expect(pptxProbe.views.at(-1)?.openError).toBe(expected());
+});
+
 it("exposes the local-mode AI entry as a labelled group and keeps it locked", async () => {
   const bridge = {
     call: (async (channel: string) => channel === "desktop:draft-list" ? { drafts: [] } : {}) as RendererBridge["call"],

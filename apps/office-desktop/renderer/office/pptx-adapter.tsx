@@ -10,6 +10,8 @@
 import type { EditorHandle, OfficeCapabilityEntry, OfficeIdentity, StableSnapshot } from "@uniwork/core/office";
 import { isPptxSessionDiverged, type PptxEdit, type PptxSlideAnimationRead, type PptxSlideTransitionRead } from "@uniwork/office-engine/pptx";
 import type { MasterElementView, MasterPartView, PptxDeckModel } from "@uniwork/views/office/pptx";
+import { FILE_INSUFFICIENT_MEMORY, memoryError } from "./bytes";
+import { isMemoryFailure } from "../../shared/memory";
 import { fingerprintPptxSnapshot, type PptxDeckSnapshot, type PptxSessionRuntime, type PptxSlideSummary } from "./pptx-runtime";
 
 export interface DesktopPptxOpenOutcome {
@@ -100,7 +102,10 @@ export function createDesktopPptxAdapter(options: DesktopPptxAdapterOptions): De
           if (outcome.document_model_ref) await options.runtime.release(outcome.document_model_ref);
           throw new Error("pptx_editor_disposed");
         }
-        if (outcome.outcome !== "opened") throw new Error(outcome.message ?? outcome.failure_class ?? outcome.engine_error ?? "pptx_open_failed");
+        if (outcome.outcome !== "opened") {
+          const message = outcome.message ?? outcome.failure_class ?? outcome.engine_error ?? "pptx_open_failed";
+          throw message === FILE_INSUFFICIENT_MEMORY ? memoryError() : new Error(message);
+        }
         if (!outcome.document_model_ref) throw new Error("pptx_open_missing_model_ref");
         modelRef = outcome.document_model_ref;
         generation = 0;
@@ -214,7 +219,7 @@ export function createDesktopPptxAdapter(options: DesktopPptxAdapterOptions): De
         await editor.open();
         return { outcome: "opened", document_id: options.identity.documentId, format: "pptx", ...(modelRef ? { document_model_ref: modelRef } : {}) };
       } catch (error) {
-        return { outcome: "failed", document_id: options.identity.documentId, format: "pptx", failure_class: "engine_error", message: error instanceof Error ? error.message : String(error) };
+        return { outcome: "failed", document_id: options.identity.documentId, format: "pptx", failure_class: "engine_error", message: isMemoryFailure(error) ? FILE_INSUFFICIENT_MEMORY : error instanceof Error ? error.message : String(error) };
       }
     },
   };

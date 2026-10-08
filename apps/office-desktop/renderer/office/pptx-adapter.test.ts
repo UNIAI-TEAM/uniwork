@@ -147,4 +147,24 @@ describe("desktop PPTX adapter handle", () => {
     expect(engine.undo).toHaveBeenCalledTimes(2);
     expect(engine.redo).toHaveBeenCalledTimes(1);
   });
+
+  // UNI-965: out-of-memory is one typed code, whichever layer reported it.
+  it("rejects editor.open with the typed memory code when the runtime answers file_insufficient_memory", async () => {
+    const backing = runtime();
+    vi.mocked(backing.open).mockResolvedValueOnce({ outcome: "failed", document_id: "doc", message: "file_insufficient_memory" });
+    const adapter = createDesktopPptxAdapter({ identity, runtime: backing, readBytes: async () => new Uint8Array([80, 75, 3, 4]), capability });
+    await expect(adapter.editor.open()).rejects.toMatchObject({ code: "file_insufficient_memory" });
+  });
+
+  it("reports a relayed IPC allocation failure from readBytes as file_insufficient_memory", async () => {
+    const readBytes = async (): Promise<Uint8Array> => { throw new Error("Error invoking remote method 'desktop:file-read': RangeError: Array buffer allocation failed"); };
+    const adapter = createDesktopPptxAdapter({ identity, runtime: runtime(), readBytes, capability });
+    await expect(adapter.open()).resolves.toMatchObject({ outcome: "failed", message: "file_insufficient_memory" });
+  });
+
+  it("keeps a generic readBytes failure's own message", async () => {
+    const readBytes = async (): Promise<Uint8Array> => { throw new Error("boom"); };
+    const adapter = createDesktopPptxAdapter({ identity, runtime: runtime(), readBytes, capability });
+    await expect(adapter.open()).resolves.toMatchObject({ outcome: "failed", message: "boom" });
+  });
 });

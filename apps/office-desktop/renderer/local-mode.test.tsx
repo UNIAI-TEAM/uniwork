@@ -82,6 +82,8 @@ function harness(options: { localMode?: boolean; signedIn?: boolean; files?: Rec
     calls.push({ channel, payload });
     if (options.strict && !LOCAL_CHANNELS.has(channel)) throw new Error(`unexpected network channel ${channel}`);
     if (options.failAuthConfig && channel === "desktop:auth-config") throw new Error("no transport");
+    // A rejected pick is the transport failing, as Electron's invoke does.
+    if (options.pick instanceof Error && channel === "desktop:file-pick-open") throw options.pick;
     // The durable draft write refused: the product must warn that the tab is unprotected.
     if (options.failCheckpoint && channel === "desktop:draft-checkpoint") throw new Error("draft store unavailable");
     return response(channel, (payload ?? {}) as Record<string, unknown>);
@@ -408,6 +410,17 @@ it.each([
   ["file_from_a_newer_main", () => i18n.t("officeDesktop.library.actionError")],
 ])("names a refused pick by its code %s, or falls back to the generic copy", async (code, expected) => {
   const h = harness({ localMode: true, pick: { opened: false, code } });
+  await enterLocal(h);
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(expected());
+  expect(screen.queryAllByRole("tab")).toHaveLength(1);
+});
+
+it.each([
+  ["an invoke-relayed allocation failure", new Error("Error invoking remote method 'desktop:file-pick-open': RangeError: Array buffer allocation failed"), () => i18n.t("office.save.reason.file_insufficient_memory")],
+  ["an invoke-relayed generic failure", new Error("Error invoking remote method 'desktop:file-pick-open': Error: boom"), () => i18n.t("officeDesktop.library.actionError")],
+])("says why a rejected pick failed: %s", async (_label, pick, expected) => {
+  const h = harness({ localMode: true, pick });
   await enterLocal(h);
   fireEvent.click(screen.getByRole("button", { name: i18n.t("officeDesktop.local.open") }));
   expect(await screen.findByRole("alert")).toHaveTextContent(expected());
