@@ -145,9 +145,53 @@ describe("createDocsFrameApi", () => {
       .resolves.toEqual({ imageId: "a-1", url: `${API}/api/v1/office-frame/documents/doc-1/assets/a-1?sig=s` });
   });
 
-  it("offers no export or attachments until their routes exist", () => {
-    const api = createDocsFrameApi();
-    expect([api.export, api.addAttachments]).toEqual([undefined, undefined]);
+  it("offers no attachments until their route exists", () => {
+    expect(createDocsFrameApi().addAttachments).toBeUndefined();
+  });
+
+  describe("export", () => {
+    const EXPORT = "POST /api/v1/office-frame/documents/doc-1/export/pdf";
+    const pdfAnswer = () => new Response("%PDF-1.7 x", { headers: { "Content-Type": "application/pdf" } });
+
+    it("renders the live bytes when the frame sends them, named after the document", async () => {
+      const { fetch, calls } = fakeFetch({ [EXPORT]: pdfAnswer });
+      const out = await createDocsFrameApi({ apiUrl: API, fetch }).export!({ format: "pdf", fileId: "doc-1", data: new ArrayBuffer(3), name: "Plan.docx" }, call());
+      expect(out.mimeType).toBe("application/pdf");
+      expect(out.name).toBe("Plan.pdf");
+      expect(new TextDecoder().decode(out.data)).toBe("%PDF-1.7 x");
+      const form = calls[0]!.init.body as FormData;
+      expect(form.get("file")).toBeInstanceOf(Blob);
+      expect(header(calls[0]!.init, "Idempotency-Key")).toBeTruthy();
+      expect(header(calls[0]!.init, "Authorization")).toBe("Bearer frame-tok");
+    });
+
+    it("renders the stored version when there are no unsaved bytes", async () => {
+      const { fetch, calls } = fakeFetch({ [EXPORT]: pdfAnswer });
+      const out = await createDocsFrameApi({ apiUrl: API, fetch }).export!({ format: "pdf", fileId: "doc-1" }, call());
+      expect(out.name).toBeUndefined();
+      expect([...(calls[0]!.init.body as FormData).keys()]).toEqual([]);
+    });
+
+    it("maps 501 to unsupported (the frame prints instead), 504 to timeout and 413 to too_large", async () => {
+      const answers: Record<string, Response> = {
+        501: json({ error: { code: "unsupported_operation", message: "no renderer" } }, 501),
+        504: new Response("", { status: 504 }),
+        413: json({ error: { code: "payload_too_large", message: "big" } }, 413),
+      };
+      for (const [status, code] of [["501", "unsupported"], ["504", "timeout"], ["413", "too_large"]] as const) {
+        const { fetch } = fakeFetch({ [EXPORT]: () => answers[status]! });
+        await expect(createDocsFrameApi({ apiUrl: API, fetch }).export!({ format: "pdf" }, call())).rejects.toMatchObject({ code, status: Number(status) });
+      }
+    });
+
+    it("fails a 200 that is not a PDF, refuses HTML and another document, without guessing", async () => {
+      const drifted = fakeFetch({ [EXPORT]: () => json({ ok: true }) });
+      const api = createDocsFrameApi({ apiUrl: API, fetch: drifted.fetch });
+      await expect(api.export!({ format: "pdf" }, call())).rejects.toMatchObject({ code: "internal" });
+      await expect(api.export!({ format: "html", html: "<p/>" }, call())).rejects.toMatchObject({ code: "unsupported" });
+      await expect(api.export!({ format: "pdf", fileId: "doc-2" }, call())).rejects.toMatchObject({ code: "forbidden" });
+      expect(drifted.calls).toHaveLength(1);
+    });
   });
 });
 

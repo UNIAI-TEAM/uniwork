@@ -84,8 +84,14 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 /** An API failure (ApiError, network, thrown shape) as the protocol error the frame understands. */
 export function docsFrameError(error: unknown): DocsProtocolError {
   if (error instanceof ApiError) {
-    const mapped = errorFromHttpStatus(error.status, error.message);
-    return new DocsProtocolError({ ...mapped.toShape(), details: { apiCode: error.code } });
+    // 501 (no PDF renderer here) tells the frame to fall back to its own print;
+    // 504 is the server giving up on a slow render. Both are not "internal".
+    const shape = error.status === 501
+      ? { code: "unsupported" as const, message: error.message, status: 501 }
+      : error.status === 504
+        ? { code: "timeout" as const, message: error.message, status: 504, retryable: true }
+        : errorFromHttpStatus(error.status, error.message).toShape();
+    return new DocsProtocolError({ ...shape, details: { apiCode: error.code } });
   }
   return toProtocolError(error);
 }
@@ -132,8 +138,9 @@ export type DocsFrameApiOptions = Pick<OfficeFrameClientOptions, "apiUrl" | "fet
  * and passes `api={createDocsFrameApi({ apiUrl })}` only for another API origin.
  * It keeps no per-document state, so one instance serves every frame.
  * Save-as has no frame route by design: the host creates the copy with its own
- * session and mints a frame token for it. Export and attachments have no route
- * yet and answer `unsupported`.
+ * session and mints a frame token for it. Export renders a PDF on the server
+ * (HTML export has no route). Attachments have no route yet and answer
+ * `unsupported`.
  */
 export function createDocsFrameApi(options: DocsFrameApiOptions = {}): DocsFrameApi {
   const clientFor = (call: DocsFrameCall): OfficeFrameClient => createOfficeFrameClient({ ...options, getToken: () => call.token });
@@ -205,6 +212,17 @@ export function createDocsFrameApi(options: DocsFrameApiOptions = {}): DocsFrame
           return { fileId: item.document_id, name: item.title, ...(Number.isFinite(modifiedAt) ? { modifiedAt } : {}) };
         }),
       };
+    }),
+
+    export: (payload, call) => run(async () => {
+      if (payload.format !== "pdf") throw new DocsProtocolError({ code: "unsupported", message: "only PDF export is available on the web" });
+      if (payload.fileId !== undefined) sameDocument(payload.fileId, call);
+      // Unsaved edits travel as `data` and win; without them the server renders the current version.
+      const file = payload.data ? new Blob([payload.data], { type: DOCX_MIME }) : undefined;
+      const pdf = await clientFor(call).exportPdf(call.documentId, { file, signal: call.signal }, newKey());
+      if (!pdf) throw malformed("office-frame export/pdf");
+      const base = payload.name?.replace(/\.(docx|pdf)$/i, "");
+      return { data: pdf, mimeType: "application/pdf", ...(base ? { name: `${base}.pdf` } : {}) };
     }),
 
     uploadImage: (payload, call) => run(async () => {

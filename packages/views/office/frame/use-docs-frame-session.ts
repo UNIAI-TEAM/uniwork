@@ -53,7 +53,12 @@ export interface DocsFrameSession {
   retry: () => void;
 }
 
-/** Capabilities this host grants. AI stays off on the web (GO-D2); routes that do not exist yet stay off too. */
+/**
+ * Capabilities this host grants. AI stays off on the web (GO-D2); routes that
+ * do not exist yet stay off too. `exportPdf` follows the API alone: nothing
+ * tells the host whether this deployment has a PDF renderer, so it is offered
+ * and a 501 answers `unsupported`, on which the frame prints in place instead.
+ */
 export function docsFrameCapabilities(readonly: boolean, api: DocsFrameApi): Capabilities {
   return {
     save: !readonly, saveAs: !readonly && Boolean(api.saveAs), recents: true, print: true,
