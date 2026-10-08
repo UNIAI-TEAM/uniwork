@@ -12255,6 +12255,7 @@
       "emptySearchDescription": "Không có tài liệu nào khớp từ khóa tìm kiếm.",
       "fileOpenQueued": "Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.",
       "actionError": "Không thể thực hiện thao tác. Thử lại.",
+      "engineUnavailable": "Hiện chưa mở được tài liệu trên đám mây vì dịch vụ tài liệu của máy chủ chưa phản hồi. Bạn vẫn có thể tải xuống.",
       "printPreviewHint": "Hộp thoại in của Windows có thể không hiện bản xem trước. Trang in ra vẫn đúng.",
       "printLandscapeHint": "Tài liệu này nằm ngang: hãy chọn Hướng là Ngang trong hộp thoại in để trang không bị xoay.",
       "printMixedOrientationHint": "Tài liệu này có cả trang dọc lẫn trang ngang. Những trang khác hướng với hướng bạn chọn sẽ bị xoay cho vừa tờ giấy; muốn các trang ngang in thẳng, hãy in riêng các trang đó và chọn Hướng là Ngang trong hộp thoại in.",
