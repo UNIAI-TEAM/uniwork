@@ -49,5 +49,6 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 		OfficeInstallerURLs:        sdo.OfficeInstallerURLsSDO{Dev: h.Cfg.OfficeInstallerDevURL, Beta: h.Cfg.OfficeInstallerBetaURL, Stable: h.Cfg.OfficeInstallerStableURL},
 		OfficeInstallers:           sdo.OfficeInstallerChannelsSDO{Dev: dev, Beta: beta, Stable: stable},
 		OfficeDeploymentID:         deploymentID,
+		OfficeChannel:              h.Cfg.OfficeDesktopChannel(),
 	})
 }

@@ -48,6 +48,7 @@ type ConfigSDO struct {
 	OfficeInstallerURLs        OfficeInstallerURLsSDO          `json:"office_installer_urls" description:"Installer URL per deployment channel; empty means unavailable"`
 	OfficeInstallers           OfficeInstallerChannelsSDO      `json:"office_installers" description:"Platform installer catalogue per deployment channel"`
 	OfficeDeploymentID         string                          `json:"office_deployment_id" description:"Configured deployment binding for Office launch sessions" example:"default"`
+	OfficeChannel              string                          `json:"office_channel" description:"Kênh UniWork Office của deployment (stable, beta, dev); rỗng nghĩa là không có kênh, không bao giờ thay bằng kênh khác" example:"stable"`
 }
 
 type OfficeInstallerURLsSDO struct {

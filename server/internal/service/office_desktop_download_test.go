@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -80,6 +81,31 @@ func TestOfficeDesktopDownloadUnsafeOrUnavailableConfig(t *testing.T) {
 	cfg.APIPublicURL = "http://localhost:8080"
 	if _, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.ownerA.ID, f.orgA, "dev"); err != nil {
 		t.Fatalf("loopback dev profile: %v", err)
+	}
+}
+
+// A dev-only deployment: no channel asked means the deployment's own channel,
+// and a desktop client bound to another channel is refused with the settings
+// the operator has to change, not a bare "ambiguous".
+func TestOfficeDesktopDownloadDeploymentChannel(t *testing.T) {
+	f := newAuditServiceFixture(t)
+	cfg := desktopDownloadConfig()
+	cfg.OfficeInstallerStableURL = ""
+	cfg.OfficeInstallerDevURLs = `{"win32-x64":"http://localhost:9000/office-installers/dev/office_unsigned_win32_x64-setup.exe"}`
+	cfg.APIPublicURL = "http://localhost:8080"
+	_, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.memberA.ID, f.orgA, "dev")
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "office_download_unavailable" || !strings.Contains(ce.Msg, "DESKTOP_AUTH_CLIENT_ID=uniwork-office-dev") || !strings.Contains(ce.Msg, "DESKTOP_AUTH_REDIRECT_URIS=uniwork-office-dev://auth/callback") || !strings.Contains(ce.Msg, "DESKTOP_AUTH_DEPLOYMENT_IDS") {
+		t.Fatalf("dev installers with the stable client: %v", err)
+	}
+	cfg.DesktopAuthClientID = "uniwork-office-dev"
+	out, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.memberA.ID, f.orgA, "")
+	if err != nil || out.Channel != "dev" || out.ClientID != "uniwork-office-dev" {
+		t.Fatalf("empty channel did not take the deployment channel: %+v %v", out, err)
+	}
+	cfg.DesktopAuthClientID = "uniwork-office"
+	if _, err := NewOfficeDesktopDownloadService(f.svc.orgs, cfg).Get(f.ctx, f.memberA.ID, f.orgA, ""); err == nil {
+		t.Fatal("a stable deployment was handed the dev installer")
 	}
 }
 
