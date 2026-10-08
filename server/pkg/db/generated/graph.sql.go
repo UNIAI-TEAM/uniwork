@@ -367,9 +367,13 @@ SELECT $1::text, unnest($2::text[]), unnest($3::text[]),
        $4::text, $5::timestamptz, $6::text, $7::text
 ON CONFLICT (organization_id, node_type, source_id) DO UPDATE SET
   mark_seq = graph_dirty.mark_seq + 1,
-  last_event_id = EXCLUDED.last_event_id,
+  last_event_id = CASE WHEN EXCLUDED.last_event_at >= graph_dirty.last_event_at
+                       THEN EXCLUDED.last_event_id ELSE graph_dirty.last_event_id END,
   last_event_at = GREATEST(graph_dirty.last_event_at, EXCLUDED.last_event_at),
-  actor_kind = EXCLUDED.actor_kind, actor_id = EXCLUDED.actor_id,
+  actor_kind = CASE WHEN EXCLUDED.last_event_at >= graph_dirty.last_event_at
+                    THEN EXCLUDED.actor_kind ELSE graph_dirty.actor_kind END,
+  actor_id = CASE WHEN EXCLUDED.last_event_at >= graph_dirty.last_event_at
+                  THEN EXCLUDED.actor_id ELSE graph_dirty.actor_id END,
   available_at = LEAST(graph_dirty.available_at, now()),
   attempts = 0, last_error = ''
 `
@@ -386,6 +390,10 @@ type GraphMarkDirtyParams struct {
 
 // One upsert per event; node_types[i] pairs with source_ids[i] (deduplicated
 // by the caller: ON CONFLICT cannot touch one row twice in a statement).
+// The event fields move together and keep the latest event by time: lanes
+// run concurrently, so an older event can be marked after a newer one, and
+// the worker dates and attributes edges from this row. Any mark, older or
+// not, still re-dirties the node.
 func (q *Queries) GraphMarkDirty(ctx context.Context, arg GraphMarkDirtyParams) error {
 	_, err := q.db.Exec(ctx, graphMarkDirty,
 		arg.OrganizationID,

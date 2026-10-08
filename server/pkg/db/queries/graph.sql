@@ -88,14 +88,22 @@ WHERE organization_id = sqlc.arg(organization_id) AND node_id = sqlc.arg(node_id
 -- name: GraphMarkDirty :exec
 -- One upsert per event; node_types[i] pairs with source_ids[i] (deduplicated
 -- by the caller: ON CONFLICT cannot touch one row twice in a statement).
+-- The event fields move together and keep the latest event by time: lanes
+-- run concurrently, so an older event can be marked after a newer one, and
+-- the worker dates and attributes edges from this row. Any mark, older or
+-- not, still re-dirties the node.
 INSERT INTO graph_dirty (organization_id, node_type, source_id, last_event_id, last_event_at, actor_kind, actor_id)
 SELECT sqlc.arg(organization_id)::text, unnest(sqlc.arg(node_types)::text[]), unnest(sqlc.arg(source_ids)::text[]),
        sqlc.arg(event_id)::text, sqlc.arg(event_at)::timestamptz, sqlc.arg(actor_kind)::text, sqlc.arg(actor_id)::text
 ON CONFLICT (organization_id, node_type, source_id) DO UPDATE SET
   mark_seq = graph_dirty.mark_seq + 1,
-  last_event_id = EXCLUDED.last_event_id,
+  last_event_id = CASE WHEN EXCLUDED.last_event_at >= graph_dirty.last_event_at
+                       THEN EXCLUDED.last_event_id ELSE graph_dirty.last_event_id END,
   last_event_at = GREATEST(graph_dirty.last_event_at, EXCLUDED.last_event_at),
-  actor_kind = EXCLUDED.actor_kind, actor_id = EXCLUDED.actor_id,
+  actor_kind = CASE WHEN EXCLUDED.last_event_at >= graph_dirty.last_event_at
+                    THEN EXCLUDED.actor_kind ELSE graph_dirty.actor_kind END,
+  actor_id = CASE WHEN EXCLUDED.last_event_at >= graph_dirty.last_event_at
+                  THEN EXCLUDED.actor_id ELSE graph_dirty.actor_id END,
   available_at = LEAST(graph_dirty.available_at, now()),
   attempts = 0, last_error = '';
 
