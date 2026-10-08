@@ -1,0 +1,5 @@
+$ set -a && . ./.env && set +a && bash scripts/test-go.sh --race --shard=handler --skip-static --skip-floor
+ok  	github.com/unicomhub/uniwork/server/internal/handler	255.860s	coverage: 81.4% of statements
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	1.038s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	12.668s	coverage: 99.3% of statements
