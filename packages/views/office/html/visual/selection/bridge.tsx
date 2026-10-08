@@ -26,6 +26,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { OFFICE_HTML_VISUAL_EDIT_FLAG, useFlag } from "@uniwork/core/feature-flags";
+import { FRAME_OFFSET_ZERO, frameOffset, watchFrameOffset, type FrameOffset } from "../frame-offset";
 import { clampZoom } from "../shell-model";
 import {
   HTML_SELECTION_EMPTY,
@@ -34,29 +35,6 @@ import {
   type HtmlSelectionRect,
   type PreviewEventSink,
 } from "./model";
-
-/** The preview frame's structural hook, set by the shell on the element that
- * hosts the injected session. A dedicated `data-*` attribute, not the pane's
- * testing testid, so renaming a test hook cannot move the outline. */
-const PREVIEW_FRAME_ATTR = "data-html-preview-frame";
-
-interface Offset {
-  x: number;
-  y: number;
-}
-
-const ZERO: Offset = { x: 0, y: 0 };
-
-/** Read-only layout probe: how far the preview frame sits from the canvas
- * origin. Returns zero when there is no frame (jsdom, no preview port). */
-function frameOffset(canvas: HTMLElement | null): Offset {
-  if (!canvas) return ZERO;
-  const frame = canvas.querySelector(`[${PREVIEW_FRAME_ATTR}]`);
-  if (!(frame instanceof HTMLElement)) return ZERO;
-  const canvasRect = canvas.getBoundingClientRect();
-  const frameRect = frame.getBoundingClientRect();
-  return { x: frameRect.left - canvasRect.left, y: frameRect.top - canvasRect.top };
-}
 
 export interface HtmlSelectionOverlayProps {
   /** The shell's fan-out for forwarded preview events. */
@@ -88,7 +66,7 @@ export function HtmlSelectionOverlay({ sink, canvasRef, zoom = 100, scrollRef, o
   const { t } = useTranslation(undefined, { keyPrefix: "office.html.selection" });
   const enabled = useFlag(OFFICE_HTML_VISUAL_EDIT_FLAG, false);
   const [state, setState] = useState(HTML_SELECTION_EMPTY);
-  const [offset, setOffset] = useState<Offset>(ZERO);
+  const [offset, setOffset] = useState<FrameOffset>(FRAME_OFFSET_ZERO);
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
 
@@ -106,19 +84,9 @@ export function HtmlSelectionOverlay({ sink, canvasRef, zoom = 100, scrollRef, o
 
   useEffect(() => {
     if (!enabled || rect === null) return undefined;
-    const probe = () => setOffset(frameOffset(canvasRef.current));
     // Re-probe now (a rect can arrive long after the frame was laid out) and
     // then on every signal that moves the frame without an inspector event.
-    probe();
-    const scroll = scrollRef?.current;
-    scroll?.addEventListener("scroll", probe, { passive: true });
-    const canvas = canvasRef.current;
-    const observer = canvas !== null && typeof ResizeObserver === "function" ? new ResizeObserver(probe) : null;
-    if (observer !== null && canvas !== null) observer.observe(canvas);
-    return () => {
-      scroll?.removeEventListener("scroll", probe);
-      observer?.disconnect();
-    };
+    return watchFrameOffset(canvasRef.current, scrollRef?.current, () => setOffset(frameOffset(canvasRef.current)));
     // `rect` is re-probed whenever new geometry arrives; `zoom` whenever the
     // frame is re-scaled.
   }, [enabled, rect, zoom, canvasRef, scrollRef]);
