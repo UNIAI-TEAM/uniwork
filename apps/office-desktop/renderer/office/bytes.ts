@@ -1,13 +1,13 @@
-import { isAllocationFailure } from "../../shared/memory";
+import { isAllocationFailure, isMemoryFailure } from "../../shared/memory";
 
 /** The one place the renderer touches incoming file bytes. Bytes arrive from
  * main as binary (never base64), so the only thing that can still go wrong
  * here is the machine running out of memory while a copy or a string is built.
  * That is the typed `file_insufficient_memory` code, which the save status
  * already maps to `office.save.reason.file_insufficient_memory`. */
-const FILE_INSUFFICIENT_MEMORY = "file_insufficient_memory";
+export const FILE_INSUFFICIENT_MEMORY = "file_insufficient_memory";
 
-function memoryError(): Error {
+export function memoryError(): Error {
   return Object.assign(new Error(FILE_INSUFFICIENT_MEMORY), { code: FILE_INSUFFICIENT_MEMORY });
 }
 
@@ -42,15 +42,6 @@ export function textToBytes(text: string): Uint8Array<ArrayBuffer> {
 /** A private copy of the bytes, for a holder that must not alias the opened file. */
 export function copyBytes(bytes: Uint8Array): Uint8Array {
   return withMemoryGuard(() => bytes.slice());
-}
-
-/** True for the typed memory error above, for a raw allocation failure that
- * reached a caller outside the guard, or for an engine-host crash relayed by
- * Electron invoke: invoke carries only the message ("Error invoking remote
- * method ...: EngineHostExitError: insufficient_memory"), never the code. */
-export function isMemoryFailure(error: unknown): boolean {
-  if ((error as { code?: unknown } | null)?.code === FILE_INSUFFICIENT_MEMORY || isAllocationFailure(error)) return true;
-  return error instanceof Error && /(^|[^a-z])insufficient_memory$/.test(error.message);
 }
 
 /** The typed memory error for any memory failure, otherwise the error itself. */
