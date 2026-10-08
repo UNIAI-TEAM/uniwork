@@ -8001,6 +8001,24 @@
     }
   },
   "office": {
+    "docsFrame": {
+      "loading": "Đang mở trình soạn thảo tài liệu…",
+      "frame_label": "Trình soạn thảo tài liệu: {{title}}",
+      "failed_title": "Không mở được trình soạn thảo tài liệu",
+      "retry": "Thử lại",
+      "errors": {
+        "unauthorized": "Phiên chỉnh sửa đã hết hạn. Hãy thử lại.",
+        "forbidden": "Bạn không có quyền thực hiện thao tác này trong tài liệu.",
+        "not_found": "Tài liệu không còn tồn tại hoặc đã được chuyển đi.",
+        "conflict": "Đã có người lưu phiên bản mới hơn. Hãy mở lại tài liệu để xem trước khi lưu.",
+        "too_large": "Tệp quá lớn để tải lên.",
+        "rate_limited": "Có quá nhiều yêu cầu. Hãy đợi một lát rồi thử lại.",
+        "network": "Không kết nối được tới UniWork. Hãy kiểm tra kết nối mạng.",
+        "unsupported": "Thao tác này chưa có trên bản web.",
+        "timeout": "UniWork phản hồi quá lâu. Hãy thử lại.",
+        "internal": "Trình soạn thảo tài liệu gặp lỗi."
+      }
+    },
     "too_large": {
       "title": "Tệp quá lớn để chỉnh sửa trên web",
       "description": "Tệp {{format}} này vượt giới hạn dung lượng của trình duyệt. Mở tệp trong ứng dụng UniWork Office trên máy tính để tiếp tục làm việc — ứng dụng không giới hạn dung lượng tệp.",

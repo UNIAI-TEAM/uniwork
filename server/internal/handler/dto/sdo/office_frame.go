@@ -1,0 +1,73 @@
+package sdo
+
+// OfficeFrameTokenSDO is POST /api/v1/documents/{documentID}/office/frame-token
+// and POST /api/v1/office-frame/token. The token is server-signed and binds
+// exactly one document, its workspace and organization, and the user; it is
+// handed to the frame in the postMessage init, never in a cookie or URL.
+type OfficeFrameTokenSDO struct {
+	Token          string `json:"token" description:"Token khung ngắn hạn (Authorization: Bearer cho /api/v1/office-frame/*)" example:"oft1.eyJ2IjoxfQ.c2ln"`
+	TokenType      string `json:"token_type" description:"Luôn Bearer" example:"Bearer"`
+	ExpiresAt      string `json:"expires_at" description:"Hạn token (RFC3339); làm mới trước hạn bằng POST /office-frame/token" example:"2026-10-08T10:10:00Z"`
+	ExpiresIn      int    `json:"expires_in" description:"Số giây còn lại khi cấp" example:"600"`
+	DocumentID     string `json:"document_id" description:"ULID tài liệu duy nhất token mở được" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	WorkspaceID    string `json:"workspace_id" description:"ULID workspace của tài liệu" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	OrganizationID string `json:"organization_id" description:"ULID tổ chức của tài liệu" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	CanEdit        bool   `json:"can_edit" description:"Người dùng có quyền sửa (save/asset) lúc cấp; server vẫn kiểm lại mỗi request" example:"true"`
+}
+
+// OfficeFrameDocumentSDO is the frame's view of the document: GET
+// /api/v1/office-frame/documents/{documentID} (open) and the answer of a
+// successful commit (save). download_url is a first-party route read with the
+// same frame token; it is never a presigned storage URL.
+type OfficeFrameDocumentSDO struct {
+	DocumentID     string          `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	WorkspaceID    string          `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	OrganizationID string          `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	Title          string          `json:"title" example:"Kế hoạch Q4.docx"`
+	Revision       string          `json:"revision" description:"Revision hiện tại dạng chuỗi thập phân; gửi lại làm base_revision khi save" example:"41"`
+	CanEdit        bool            `json:"can_edit" example:"true"`
+	File           DocumentFileDTO `json:"file"`
+	DownloadURL    string          `json:"download_url" description:"Route tải byte của version hiện tại, đọc bằng token khung" example:"/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7/content?version=3"`
+	UpdatedAt      string          `json:"updated_at" example:"2026-10-08T10:00:00Z"`
+}
+
+// OfficeFrameRecentDTO is one recent DOCX in the token's workspace.
+type OfficeFrameRecentDTO struct {
+	DocumentID string `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Title      string `json:"title" example:"Biên bản họp.docx"`
+	UpdatedAt  string `json:"updated_at" example:"2026-10-08T09:00:00Z"`
+}
+
+// OfficeFrameRecentsSDO is GET
+// /api/v1/office-frame/documents/{documentID}/recents. Opening one of them
+// goes through the host, which mints a new token for that document.
+type OfficeFrameRecentsSDO struct {
+	Items []OfficeFrameRecentDTO `json:"items"`
+}
+
+// OfficeFrameAssetURLDTO is one signed image URL. The URL carries its own
+// short-lived signature bound to this asset, document and user, so an <img>
+// in the frame can load it without a header.
+type OfficeFrameAssetURLDTO struct {
+	AssetID   string `json:"asset_id" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+	URL       string `json:"url" description:"Route first-party có chữ ký ngắn hạn" example:"/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7/assets/01J8X4AST0N1P2Q3R4S5T6U7V8?sig=oft1.abc"`
+	ExpiresAt string `json:"expires_at" example:"2026-10-08T10:10:00Z"`
+}
+
+// OfficeFrameAssetSDO is POST /api/v1/office-frame/documents/{documentID}/assets.
+type OfficeFrameAssetSDO struct {
+	AssetID    string `json:"asset_id" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+	DocumentID string `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	MimeType   string `json:"mime_type" example:"image/png"`
+	SizeBytes  int64  `json:"size_bytes" example:"102400"`
+	Width      *int32 `json:"width,omitempty" example:"1280"`
+	Height     *int32 `json:"height,omitempty" example:"720"`
+	URL        string `json:"url" description:"URL ảnh có chữ ký ngắn hạn" example:"/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7/assets/01J8X4AST0N1P2Q3R4S5T6U7V8?sig=oft1.abc"`
+	ExpiresAt  string `json:"expires_at" example:"2026-10-08T10:10:00Z"`
+}
+
+// OfficeFrameAssetURLsSDO is POST
+// /api/v1/office-frame/documents/{documentID}/assets/sign.
+type OfficeFrameAssetURLsSDO struct {
+	Items []OfficeFrameAssetURLDTO `json:"items"`
+}

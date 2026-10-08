@@ -125,6 +125,8 @@ func New(d Deps, h Routes) http.Handler {
 		// Preview asset bytes are intentionally outside the app-authenticated
 		// group: the frame is credentialless and presents only its opaque scope.
 		registerPreview(v1, h)
+		// The Docs frame presents only its document-bound frame token.
+		registerOfficeFrame(v1, h, d.FeatureFlags)
 		v1.Group(func(authed api) {
 			if d.DeviceStatus != nil {
 				authed.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
@@ -161,6 +163,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerDocuments(authed, h, d.FeatureFlags)
 			registerSignatures(authed, h)
 			registerOfficeLaunch(authed, h)
+			registerOfficeFrameToken(authed, h, d.FeatureFlags)
 			registerOfficeDesktopDownload(authed, h, mw.RateLimit(d.Redis, 10, time.Minute, proxies))
 			if d.PlatformRoles != nil {
 				adminLimit := mw.RateLimit(d.Redis, d.Cfg.AdminRateLimitPerMin, time.Minute, proxies)

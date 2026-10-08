@@ -9,3 +9,5 @@ export {
   type OfficeStatusZoomProps,
 } from "./office-status-bar";
 export { textCaret, textFigures } from "./text-position";
+export { OfficeDocsFrame, type OfficeDocsFrameControls, type OfficeDocsFrameProps } from "./office-docs-frame";
+export { DocxOpenSwitch, type DocxOpenSwitchProps } from "./docx-open-switch";
