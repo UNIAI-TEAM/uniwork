@@ -140,8 +140,9 @@ async function waitForLog(session, marker, ms = 30_000) {
 const loginState = (page, state, timeout = 30_000) => page.locator(`[data-login-state='${state}']`).waitFor({ state: "visible", timeout }).then(() => true, () => false);
 
 /** Main's own picker, confirmation and relaunch are replaced in the running
- * main process; each call is written to stdout for the evidence. */
-async function stubDialogs(app, { pick, confirm }) {
+ * main process; each call is written to stdout for the evidence. `holdMs`
+ * keeps the confirmation open so the busy card can be captured before quit. */
+async function stubDialogs(app, { pick, confirm, holdMs = 0 }) {
   await app.evaluate(({ app: electron, dialog }, options) => {
     const optionsOf = (args) => (args.length > 1 ? args[1] : args[0]) ?? {};
     dialog.showOpenDialog = async (...args) => {
@@ -152,10 +153,11 @@ async function stubDialogs(app, { pick, confirm }) {
     dialog.showMessageBox = async (...args) => {
       const opts = optionsOf(args);
       process.stdout.write(`SMOKE_CONFIRM ${JSON.stringify({ message: opts.message, detail: opts.detail, buttons: opts.buttons, defaultId: opts.defaultId, cancelId: opts.cancelId })}\n`);
+      if (options.holdMs) await new Promise((done) => setTimeout(done, options.holdMs));
       return { response: options.confirm, checkboxChecked: false };
     };
     electron.relaunch = () => { process.stdout.write("SMOKE_RELAUNCH\n"); };
-  }, { pick, confirm });
+  }, { pick, confirm, holdMs });
 }
 
 let userData;
@@ -178,12 +180,14 @@ try {
     const cancelled = await first.page.locator("[data-import-status='cancelled']").waitFor({ timeout: 15_000 }).then(() => true, () => false);
     check("cancelling the confirmation writes no profile and does not restart", cancelled && !existsSync(imported) && !logLine(first, "SMOKE_RELAUNCH"), { cancelled });
 
-    await stubDialogs(first.app, { pick: profilePath, confirm: 1 });
+    await stubDialogs(first.app, { pick: profilePath, confirm: 1, holdMs: 3000 });
     await button.click();
     const confirmLine = await waitForLog(first, "SMOKE_CONFIRM");
+    // The confirmation is still held open: the card shows its busy state and
+    // the app has not started to quit yet.
+    await shot(first.page, "02-importing");
     const confirm = confirmLine ? JSON.parse(confirmLine.slice(confirmLine.indexOf("{"))) : undefined;
     check("the confirmation names the stub origin host, default Cancel", Boolean(confirm?.message?.includes(stubOrigin.hostname)) && confirm?.defaultId === 0 && confirm?.cancelId === 0, { confirm, openDialog: logLine(first, "SMOKE_OPEN_DIALOG")?.trim() });
-    await shot(first.page, "02-importing");
     const relaunch = await waitForLog(first, "SMOKE_RELAUNCH");
     const exit = await finish(first, { quit: false });
     check("import restarts the app (app.relaunch + clean quit)", Boolean(relaunch) && exit?.code === 0, { exit });
