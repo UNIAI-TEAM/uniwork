@@ -142,18 +142,19 @@ func TestNewOrganizationIsOnTheDefaultPlan(t *testing.T) {
 	if e, _ := lookup(snap.Entitlements, FeatureMembersMax); e.Current != 1 || !e.Metered {
 		t.Fatalf("members.max current = %d metered=%v, want 1 (the founder) and metered", e.Current, e.Metered)
 	}
-	// F-09 wired ai.tokens (the gateway meters it) and G2 gives the default
-	// plan 500k per month.
-	if e, ok := lookup(snap.Entitlements, FeatureAITokens); !ok || !e.Metered || e.Limit == nil || *e.Limit != 500000 {
-		t.Fatalf("ai.tokens must be metered with the G2 default: %+v", e)
+	// F-09 wired ai.tokens (the gateway meters it); B1 Starter gives 100k/month.
+	const starterAITokens = int64(100_000)
+	if e, ok := lookup(snap.Entitlements, FeatureAITokens); !ok || !e.Metered || e.Limit == nil || *e.Limit != starterAITokens {
+		t.Fatalf("ai.tokens must be metered with the Starter default: %+v", e)
 	}
-	if e, ok := lookup(snap.Entitlements, FeatureTasksMax); !ok || !e.Metered || e.Limit != nil {
-		t.Fatalf("tasks.max must be metered and unlimited on starter: %+v", e)
+	const starterTasksMax = int64(200)
+	if e, ok := lookup(snap.Entitlements, FeatureTasksMax); !ok || !e.Metered || e.Limit == nil || *e.Limit != starterTasksMax {
+		t.Fatalf("tasks.max must be metered with the Starter cap: %+v", e)
 	}
-	// G1-03 wired storage.bytes (Documents): metered, unlimited on starter,
-	// and a new organization holds nothing yet.
-	if e, ok := lookup(snap.Entitlements, FeatureStorageBytes); !ok || !e.Metered || e.Limit != nil || e.Current != 0 {
-		t.Fatalf("storage.bytes must be metered, unlimited and empty: %+v", e)
+	// G1-03 wired storage.bytes (Documents): metered on Starter (5 GiB), empty at signup.
+	const starterStorageBytes = int64(5_368_709_120)
+	if e, ok := lookup(snap.Entitlements, FeatureStorageBytes); !ok || !e.Metered || e.Limit == nil || *e.Limit != starterStorageBytes || e.Current != 0 {
+		t.Fatalf("storage.bytes must be metered with the Starter cap and empty: %+v", e)
 	}
 }
 
@@ -175,6 +176,11 @@ func TestCanIsFailClosed(t *testing.T) {
 
 func TestCheckQuotaLimits(t *testing.T) {
 	f := newEntitlementFixture(t)
+	// B1 Starter caps members.max at 5; the founder is the only member today.
+	if err := f.ent.CheckQuota(f.ctx, f.orgID, FeatureMembersMax, 4); err != nil {
+		t.Fatalf("under Starter members.max: %v", err)
+	}
+	f.override(t, `{"members.max": null}`)
 	if err := f.ent.CheckQuota(f.ctx, f.orgID, FeatureMembersMax, 1000); err != nil {
 		t.Fatalf("NULL limit is unlimited: %v", err)
 	}

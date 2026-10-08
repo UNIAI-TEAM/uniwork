@@ -56,9 +56,8 @@ func registerRecordingUser(t *testing.T, srv *httptest.Server, tag string) (toke
 	return token, email, wsID
 }
 
-// enableMeetingRecordingForWorkspace turns on meeting.recording for the org
-// behind wsID. B1 disables it on the default Starter plan; UNI-746 pins
-// playback authorization, not tier gating.
+// enableMeetingRecordingForWorkspace bật meeting.recording qua subscription override
+// (dùng khi test cần tắt cờ trên plan rồi bật lại cho một org).
 func enableMeetingRecordingForWorkspace(t *testing.T, wsID string) {
 	t.Helper()
 	ctx := context.Background()

@@ -28,7 +28,8 @@ FROM plans p WHERE pf.plan_id = p.id AND p.code = 'starter' AND pf.feature_key =
 UPDATE plan_features pf SET quota_limit = 5368709120, enabled = true
 FROM plans p WHERE pf.plan_id = p.id AND p.code = 'starter' AND pf.feature_key = 'storage.bytes';
 
-UPDATE plan_features pf SET enabled = false
+-- Starter: bật cờ tính năng (giới hạn quota ở trên); phân tách paid tier chủ yếu bằng hạn mức.
+UPDATE plan_features pf SET enabled = true
 FROM plans p WHERE pf.plan_id = p.id AND p.code = 'starter' AND pf.feature_key IN (
   'meeting.recording', 'meeting.ai_summary', 'sso.oidc', 'documents.public_links'
 );

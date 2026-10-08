@@ -49,6 +49,10 @@ func newOrgInviteFixture(t *testing.T) *orgInviteFixture {
 		t.Fatal(err)
 	}
 	f.org = o
+	// Invitation tests batch several addresses; lift the seat cap so quota logic is not the subject.
+	if _, err := pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = '{"members.max": null}'::jsonb WHERE organization_id = $1`, o.ID); err != nil {
+		t.Fatal(err)
+	}
 	for _, m := range []struct{ id, role string }{{f.admin.ID, OrgRoleAdmin}, {f.member.ID, OrgRoleMember}} {
 		if err := q.AddOrganizationMember(f.ctx, db.AddOrganizationMemberParams{
 			OrganizationID: o.ID, UserID: m.id, Role: m.role,

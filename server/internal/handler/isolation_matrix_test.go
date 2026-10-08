@@ -634,7 +634,15 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "docLinkToken")
 		}
 		return tn.get(t, "invitationToken")
+	case "{code}":
+		return "starter"
 	case "{key}":
+		switch {
+		case under("/admin/plans/"):
+			return "members.max"
+		case under("/admin/flags/"):
+			return "agents_assignee"
+		}
 		return "documents"
 	case "{traceID}":
 		return "0af7651916cd43dd8448eb211c80319c"
@@ -755,6 +763,7 @@ func isoMixedPath(t *testing.T, pattern, firstKey string, from, to *isoTenant) (
 // nothing about isolation.
 var isoSharedParams = map[string]bool{
 	"{provider}": true, "{resourceType}": true, "{itemType}": true, "{versionNo}": true, "{key}": true,
+	"{code}":          true,
 	"{quickActionID}": true, "{agentTaskID}": true, "{connectionID}": true,
 }
 
