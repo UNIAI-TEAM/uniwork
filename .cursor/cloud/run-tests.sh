@@ -35,7 +35,7 @@ done
 
 root=$(git rev-parse --show-toplevel)
 cd "$root"
-export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
+export PATH=/usr/local/go/bin:$HOME/go/bin:$HOME/.cargo/bin:$PATH
 
 provisioned=false fresh_install=false start_seconds=0 head="" notes=""
 ran_file=$(mktemp)

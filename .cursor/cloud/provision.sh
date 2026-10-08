@@ -9,6 +9,8 @@ GO_VERSION=1.27.0
 NODE_MAJOR=22
 PNPM_VERSION=10.28.2
 PLAYWRIGHT_VERSION=1.62.1
+# The office-upstream xlsx sidecar (xlsx-engine crate, edition 2024).
+RUST_VERSION=1.88.0
 # MinIO is no longer downloadable from dl.min.io or Docker Hub's minio/minio;
 # the binaries come from the frozen Bitnami build CI uses as its service.
 MINIO_IMAGE=bitnamilegacy/minio
@@ -76,4 +78,17 @@ fi
 $SUDO mkdir -p /var/lib/minio
 $SUDO chown "$(id -un):$(id -gn)" /var/lib/minio
 
-echo "cloud provision: done ($(go env GOVERSION), node $(node --version), pnpm $(pnpm --version))"
+# Rust for the xlsx sidecar build and cargo tests (specs/rust-sidecar.txt): rustup, minimal
+# profile, one pinned toolchain under $HOME, so CARGO_HOME/RUSTUP_HOME survive warm-VM rounds.
+# The linker comes from build-essential above.
+export PATH=$HOME/.cargo/bin:$PATH
+if ! rustc "+$RUST_VERSION" --version > /dev/null 2>&1; then
+  if command -v rustup > /dev/null 2>&1; then
+    rustup toolchain install "$RUST_VERSION" --profile minimal
+  else
+    curl -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal --default-toolchain "$RUST_VERSION"
+  fi
+fi
+rustup default "$RUST_VERSION" > /dev/null 2>&1 || true
+
+echo "cloud provision: done ($(go env GOVERSION), node $(node --version), pnpm $(pnpm --version), $(rustc --version))"

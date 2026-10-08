@@ -98,3 +98,17 @@ node <this dir>/cloud-runner.mjs collect --all yes   # or --shard <name>; exit c
 `collect` writes each shard's report but not the suite summary. The run's
 `--timeout` still counts from its start; `collect --timeout s` gives a fresh
 wait instead.
+
+### Rust sidecar shard
+
+`provision.sh` installs Rust 1.88.0 (rustup, minimal profile, under `$HOME`;
+`run-tests.sh` puts `~/.cargo/bin` on `PATH`). `specs/rust-sidecar.txt` builds
+office-upstream with the native sidecar (`build-upstream.mjs --with-native`,
+which applies the patch series to `.go-tmp/office-upstream-build/upstream`) and
+runs `cargo test --locked` for the xlsx-engine crate in that patched copy.
+`CARGO_TARGET_DIR` is `~/.cache/uniwork-cargo-target`, outside the checkout, so
+the per-round `git clean` leaves compiled dependencies warm.
+
+```bash
+node <this dir>/cloud-runner.mjs test --spec <this dir>/specs/rust-sidecar.txt --lane <slug> --shard rust --out reports/<lane>/rust.md
+```

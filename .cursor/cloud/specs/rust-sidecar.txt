@@ -1,0 +1,10 @@
+# Rust xlsx sidecar shard: native build + cargo tests on the PATCHED scratch copy.
+# Usage (from the lane worktree, after the lane branch is pushed):
+#   node <runner>/cloud-runner.mjs test --spec <runner>/specs/rust-sidecar.txt --lane <slug> --shard rust --out <report.md>
+# build-upstream.mjs copies the vendored tree to .go-tmp/office-upstream-build/upstream, applies
+# the whole patch series there and (--with-native) runs cargo build --release in the crate dir.
+# cargo test then runs in that same patched crate, so patches 0017+ are under test.
+# CARGO_TARGET_DIR sits outside the checkout: the runner's git clean wipes .go-tmp every round,
+# while the target dir and ~/.cargo registry stay warm between rounds.
+CARGO_TARGET_DIR=$HOME/.cache/uniwork-cargo-target node scripts/office/build-upstream.mjs --with-native
+cd .go-tmp/office-upstream-build/upstream/apps/sheets/native/xlsx-engine && CARGO_TARGET_DIR=$HOME/.cache/uniwork-cargo-target cargo test --locked
