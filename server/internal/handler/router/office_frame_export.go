@@ -31,7 +31,7 @@ func registerOfficeFrameExport(r api, h Routes, flags *featureflag.Service, fram
 	f.Post("/office-frame/documents/{documentID}/export/pdf", h.ExportOfficeFramePDF, apiOp{
 		summary: "Export the frame's document as PDF",
 		description: "Frame token only, view access: renders the current DOCX version - or the multipart `file` part, the frame's unsaved edit of it - " +
-			"with the Docs renderer on the Office engine and answers the PDF bytes. Idempotency-Key (optional) replays the same render. " +
+			"with the Docs renderer on the Office engine and answers the PDF bytes; a multipart `version` field renders that stored version instead. Idempotency-Key (optional) replays the same render. " +
 			"No engine or renderer -> 501 unsupported_operation / 503 office_not_configured; a render past its deadline -> 504 engine_timeout.",
 		tags: []string{"documents"}, sdi: sdi.ExportOfficeFramePDFSDI{}, produces: "application/pdf", auth: true,
 	})

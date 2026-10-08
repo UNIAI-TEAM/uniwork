@@ -93,8 +93,10 @@ synchronous request.
 - **Auth:** frame-token Bearer only, behind the `documents` and `office_docs_web`
   flags. It needs only view access, because an export is a read.
 - **Budget:** 20 requests per minute per verified frame user.
-- **Body:** none exports the current version. A multipart `file` part carries the
-  frame's unsaved DOCX, for when the editor is dirty.
+- **Body:** none (or an empty multipart body) exports the current version. A
+  multipart `file` part carries the frame's unsaved DOCX, for when the editor is
+  dirty; a `version` field renders that stored version instead. `file` and
+  `version` are exclusive.
 - **Idempotency:** an optional `Idempotency-Key` replays the render; reusing it with
   different bytes is refused.
 - **Response:** `200 application/pdf` (the bytes the protocol's `api.export`
@@ -149,10 +151,10 @@ dependency:
 3. **Sandbox review.** Chromium runs with `--no-sandbox` inside the job's slot uid and
    the container, with network access limited to loopback. Consider seccomp or landlock
    on top.
-4. **Frame and host.** The frame's `api.export` (W3b, optional `data` when dirty) and
-   the host proxy (W5) call this route. Add a `packages/core` endpoint function with
-   its schema and a malformed-response test when the host wires it. The response is
-   binary, so the "schema" is only the error envelope.
+4. **Frame and host.** The frame's `api.export` (W3b, optional `data` when dirty) goes
+   through the host proxy (W5d), whose `createOfficeFrameClient().exportPdf` in
+   `packages/core/api/endpoints/office-frame.ts` calls this route with `file`,
+   `version` or neither.
 5. **CJK punctuation follow-up.** Implement `fontMetrics` for the web bridge (or in the
    engine's page shim, from the bundle's fonts) and re-measure kitchen-sink.
 

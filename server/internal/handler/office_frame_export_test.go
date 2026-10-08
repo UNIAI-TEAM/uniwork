@@ -193,11 +193,47 @@ func TestOfficeFrameExportPDFRoute(t *testing.T) {
 		t.Fatalf("export edited = %d (%d bytes)", res.StatusCode, len(raw))
 	}
 
+	// A stored version: save version 2 through the frame, then export 1.
+	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/office-frame/documents/"+documentID+"/uploads", token, nil, "report.docx", edited, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("upload v2 = %d %s", res.StatusCode, raw)
+	}
+	var up struct {
+		UploadID string `json:"upload_id"`
+	}
+	_ = json.Unmarshal(raw, &up)
+	_, opened := doJSON(t, w.srv, "GET", "/api/v1/office-frame/documents/"+documentID, token, nil)
+	if res, out := doJSONHeaders(t, w.srv, "POST", "/api/v1/office-frame/documents/"+documentID+"/versions/commit", token,
+		map[string]string{"Idempotency-Key": "export-v2"}, map[string]any{"upload_id": up.UploadID, "base_revision": opened["revision"]}); res.StatusCode != 200 {
+		t.Fatalf("commit v2 = %d %v", res.StatusCode, out)
+	}
+	var vb bytes.Buffer
+	vw := multipart.NewWriter(&vb)
+	_ = vw.WriteField("version", "1")
+	_ = vw.Close()
+	res, raw = postExport(t, w.srv, path, token, vw.FormDataContentType(), vb.Bytes())
+	if res.StatusCode != 200 || !bytes.Equal(raw, pdf) || stub.input(res.Header.Get("X-Office-Job-Id")) != hex.EncodeToString(storedSum[:]) {
+		t.Fatalf("export v1 = %d (%d bytes)", res.StatusCode, len(raw))
+	}
+
 	// Bodies the route refuses before any job.
 	jobsBefore := stub.count()
 	ct2, two := exportMultipart(t, edited, edited)
 	ctEmpty, empty := exportMultipart(t, []byte{})
 	ctPDF, notDocx := exportMultipart(t, pdf)
+	field := func(k, v string, withFile bool) (string, []byte) {
+		var b bytes.Buffer
+		m := multipart.NewWriter(&b)
+		_ = m.WriteField(k, v)
+		if withFile {
+			fw, _ := m.CreateFormFile("file", "x.docx")
+			_, _ = fw.Write(edited)
+		}
+		_ = m.Close()
+		return m.FormDataContentType(), b.Bytes()
+	}
+	ctBadVersion, badVersion := field("version", "zero", false)
+	ctBoth, both := field("version", "1", true)
 	for name, c := range map[string]struct {
 		ct     string
 		body   []byte
@@ -207,6 +243,8 @@ func TestOfficeFrameExportPDFRoute(t *testing.T) {
 		"two file parts":      {ct2, two, 400},
 		"empty file part":     {ctEmpty, empty, 400},
 		"not a docx":          {ctPDF, notDocx, 400},
+		"bad version":         {ctBadVersion, badVersion, 400},
+		"file and version":    {ctBoth, both, 400},
 		"truncated file part": {"multipart/form-data; boundary=x", []byte("--x\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.docx\"\r\n\r\nPK\x03\x04"), 400},
 	} {
 		if res, raw := postExport(t, w.srv, path, token, c.ct, c.body); res.StatusCode != c.status {

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"strings"
 	"time"
 
@@ -23,10 +24,12 @@ import (
 // row are its record, and no domain event is emitted.
 
 // OfficeExportPDFInput is one export request. Bytes, when set, is the frame's
-// unsaved edit of the current version; nil exports the current version.
+// unsaved edit of the current version; Version, when > 0, is a stored version
+// to render instead. Neither exports the current version; both is invalid.
 type OfficeExportPDFInput struct {
 	IdempotencyKey string
 	Bytes          []byte
+	Version        int32
 }
 
 // OfficeExportPDF is a completed export: the rendered bytes, opened from
@@ -50,6 +53,9 @@ func (s *DocumentOfficeService) ExportFramePDF(ctx context.Context, actor Actor,
 	if s.engine == nil || s.files == nil || s.documents == nil {
 		return OfficeExportPDF{}, office.ErrNotConfigured
 	}
+	if in.Bytes != nil && in.Version != 0 {
+		return OfficeExportPDF{}, ErrOfficeExportInput
+	}
 	doc, access, err := s.documents.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
 	if err != nil {
 		return OfficeExportPDF{}, err
@@ -68,12 +74,28 @@ func (s *DocumentOfficeService) ExportFramePDF(ctx context.Context, actor Actor,
 		// The frame need not send a key: a retry then renders again.
 		job.IdempotencyKey = "export:" + s.newID()
 	}
-	if in.Bytes != nil {
+	var version *int32
+	if file, err := s.documents.currentFileInfo(ctx, doc); err == nil && file != nil {
+		version = &file.Version
+	}
+	switch {
+	case in.Bytes != nil:
 		input, err := officeExportInput(in.Bytes)
 		if err != nil {
 			return OfficeExportPDF{}, err
 		}
 		job.input = &input
+	case in.Version > 0 && (version == nil || in.Version != *version):
+		// An older version renders through the same job: its stored bytes
+		// stand in for the current version's, as the frame's edit does.
+		input, err := s.versionExportInput(ctx, actor, documentID, in.Version)
+		if err != nil {
+			return OfficeExportPDF{}, err
+		}
+		job.input = &input
+		version = &in.Version
+	case in.Version < 0:
+		return OfficeExportPDF{}, ErrOfficeExportInput
 	}
 	row, err := s.StartOfficeJob(ctx, actor, job)
 	if err != nil {
@@ -93,12 +115,32 @@ func (s *DocumentOfficeService) ExportFramePDF(ctx context.Context, actor Actor,
 	if err != nil {
 		return OfficeExportPDF{}, err
 	}
-	var version *int32
-	if file, err := s.documents.currentFileInfo(ctx, doc); err == nil && file != nil {
-		version = &file.Version
-	}
 	s.documents.RecordDocumentRead(ctx, actor, doc, access, DocumentAccessExport, version)
 	return OfficeExportPDF{Reader: r, Job: row}, nil
+}
+
+// versionExportInput reads a stored version's bytes for an export. It is the
+// version read of the download route without its "download" access row: the
+// caller records the export.
+func (s *DocumentOfficeService) versionExportInput(ctx context.Context, actor Actor, documentID string, versionNo int32) (officeInput, error) {
+	doc, v, _, err := s.documents.authorizeDocumentVersion(ctx, actor, documentID, versionNo, DocumentLevelView)
+	if err != nil {
+		return officeInput{}, err
+	}
+	f, err := s.documents.openVersionFile(ctx, doc, v, DocumentByteRange{})
+	if err != nil {
+		return officeInput{}, err
+	}
+	defer f.Reader.Close()
+	limit := documentFileMaxBytes()
+	raw, err := io.ReadAll(io.LimitReader(f.Reader.Body, limit+1))
+	if err != nil {
+		return officeInput{}, err
+	}
+	if int64(len(raw)) > limit {
+		return officeInput{}, officeErr("upload_bounds", "input_too_large")
+	}
+	return officeExportInput(raw)
 }
 
 // officeExportInput measures supplied bytes. They must fit the DocumentFile

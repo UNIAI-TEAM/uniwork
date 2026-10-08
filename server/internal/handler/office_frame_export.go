@@ -6,6 +6,7 @@ import (
 	"mime"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
@@ -33,14 +34,12 @@ func (h *handlers) exportOfficeFramePDF(w http.ResponseWriter, r *http.Request) 
 		h.mapServiceError(w, err)
 		return
 	}
-	body, ok := officeFrameExportBodyOf(w, r)
+	in, ok := officeFrameExportBodyOf(w, r)
 	if !ok {
 		return
 	}
-	out, err := h.Office.ExportFramePDF(r.Context(), service.Human(claims.UserID), claims.DocumentID, service.OfficeExportPDFInput{
-		IdempotencyKey: r.Header.Get("Idempotency-Key"),
-		Bytes:          body,
-	})
+	in.IdempotencyKey = r.Header.Get("Idempotency-Key")
+	out, err := h.Office.ExportFramePDF(r.Context(), service.Human(claims.UserID), claims.DocumentID, in)
 	if errors.Is(err, service.ErrOfficeExportInput) {
 		respondError(w, http.StatusBadRequest, "invalid_request", "file must be a DOCX document")
 		return
@@ -62,28 +61,30 @@ func (h *handlers) exportOfficeFramePDF(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// officeFrameExportBodyOf reads the optional "file" part. No body (or an
-// empty one) means the current version; a body that is not multipart, a
-// second file part or one past the cap is refused here.
-func officeFrameExportBodyOf(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+// officeFrameExportBodyOf reads the optional multipart body: a "file" part
+// (the frame's unsaved bytes) or a "version" field (a stored version). No
+// body, or a multipart body with neither, means the current version. A body
+// that is not multipart, a second file part, both at once, a bad version or a
+// part past the cap is refused here.
+func officeFrameExportBodyOf(w http.ResponseWriter, r *http.Request) (service.OfficeExportPDFInput, bool) {
+	var in service.OfficeExportPDFInput
 	if r.ContentLength == 0 || (r.ContentLength < 0 && r.Header.Get("Content-Type") == "") {
-		return nil, true
+		return in, true
 	}
 	if r.ContentLength > officeFrameExportBody {
 		documentTooLarge(w)
-		return nil, false
+		return in, false
 	}
 	if media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || media != "multipart/form-data" {
-		respondError(w, http.StatusBadRequest, "invalid_request", "body must be empty or multipart/form-data with a file part")
-		return nil, false
+		respondError(w, http.StatusBadRequest, "invalid_request", "body must be empty or multipart/form-data")
+		return in, false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, officeFrameExportBody)
 	mr, err := r.MultipartReader()
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid_request", "multipart/form-data body required")
-		return nil, false
+		return in, false
 	}
-	var file []byte
 	for {
 		p, err := mr.NextPart()
 		if errors.Is(err, io.EOF) {
@@ -91,32 +92,44 @@ func officeFrameExportBodyOf(w http.ResponseWriter, r *http.Request) ([]byte, bo
 		}
 		if err != nil {
 			officeFrameExportReadError(w, err)
-			return nil, false
+			return in, false
 		}
-		if p.FormName() != "file" {
+		switch p.FormName() {
+		case "file":
+			if in.Bytes != nil {
+				respondError(w, http.StatusBadRequest, "invalid_request", "only one file part is accepted")
+				return in, false
+			}
+			if in.Bytes, err = io.ReadAll(io.LimitReader(p, officeFrameExportMax+1)); err != nil {
+				officeFrameExportReadError(w, err)
+				return in, false
+			}
+			if len(in.Bytes) > officeFrameExportMax {
+				documentTooLarge(w)
+				return in, false
+			}
+			if len(in.Bytes) == 0 {
+				respondError(w, http.StatusBadRequest, "invalid_request", "file part is empty")
+				return in, false
+			}
+		case "version":
+			raw, err := io.ReadAll(io.LimitReader(p, 16))
+			n, perr := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 32)
+			if err != nil || perr != nil || n < 1 {
+				respondError(w, http.StatusBadRequest, "invalid_request", "version must be a positive integer")
+				return in, false
+			}
+			in.Version = int32(n)
+		default:
 			// Unknown fields are drained and ignored, like the upload route.
 			_, _ = io.Copy(io.Discard, io.LimitReader(p, documentUploadFieldCap))
-			continue
-		}
-		if file != nil {
-			respondError(w, http.StatusBadRequest, "invalid_request", "only one file part is accepted")
-			return nil, false
-		}
-		file, err = io.ReadAll(io.LimitReader(p, officeFrameExportMax+1))
-		if err != nil {
-			officeFrameExportReadError(w, err)
-			return nil, false
-		}
-		if len(file) > officeFrameExportMax {
-			documentTooLarge(w)
-			return nil, false
-		}
-		if len(file) == 0 {
-			respondError(w, http.StatusBadRequest, "invalid_request", "file part is empty")
-			return nil, false
 		}
 	}
-	return file, true
+	if in.Bytes != nil && in.Version != 0 {
+		respondError(w, http.StatusBadRequest, "invalid_request", "send either file or version, not both")
+		return in, false
+	}
+	return in, true
 }
 
 func officeFrameExportReadError(w http.ResponseWriter, err error) {

@@ -160,6 +160,30 @@ func TestOfficeFrameExportPDF(t *testing.T) {
 		}
 	})
 
+	t.Run("a version number picks the stored bytes; with supplied bytes it is invalid", func(t *testing.T) {
+		f, docx := exportFixture(t)
+		eng := exportEngine(t, "")
+		svc := f.service(eng)
+		out, err := svc.ExportFramePDF(ctx, f.actor, f.doc, OfficeExportPDFInput{Version: 1})
+		if err != nil {
+			t.Fatalf("export v1: %v", err)
+		}
+		readExport(t, out)
+		if out.Job.InputChecksum != sha(docx) {
+			t.Fatalf("v1 rendered %s", out.Job.InputChecksum)
+		}
+		if _, err := svc.ExportFramePDF(ctx, f.actor, f.doc, OfficeExportPDFInput{Version: 9}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("unknown version: %v", err)
+		}
+		if _, err := svc.ExportFramePDF(ctx, f.actor, f.doc, OfficeExportPDFInput{Version: -1}); !errors.Is(err, ErrOfficeExportInput) {
+			t.Fatalf("negative version: %v", err)
+		}
+		both := OfficeExportPDFInput{Version: 1, Bytes: []byte("PK\x03\x04x")}
+		if _, err := svc.ExportFramePDF(ctx, f.actor, f.doc, both); !errors.Is(err, ErrOfficeExportInput) {
+			t.Fatalf("bytes and version: %v", err)
+		}
+	})
+
 	t.Run("an engine refusal reaches the caller with its code", func(t *testing.T) {
 		f, _ := exportFixture(t)
 		svc := f.service(exportEngine(t, "engine_incompatible"))
