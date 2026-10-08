@@ -1,9 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at c973857f17d81cfead77ec9350c79c5dc4b4a98c
+// web/docs/protocol/endpoint.ts at b6f773ff8a1b657dc8ee2af8d495e9003dc44549
 // (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
-// One local patch: `allowedOrigins[0]!` in post() for noUncheckedIndexedAccess (validateOrigins guarantees it); to be upstreamed.
+
 /**
  * Shared postMessage engine for host.ts and client.ts: origin/source checks,
  * request/response correlation with ids + timeouts + cancellation, error
@@ -90,8 +90,10 @@ export function armTimeout(timeoutMs: number, onTimeout: () => void): () => void
   return () => clearTimeout(timer)
 }
 
-export function validateOrigins(origins: readonly string[]): void {
-  if (origins.length === 0) throw new Error('allowedOrigins must not be empty')
+/** Throws on an empty list or a non-exact origin; returns the first one (the postMessage targetOrigin). */
+export function validateOrigins(origins: readonly string[]): string {
+  const first = origins[0]
+  if (first === undefined) throw new Error('allowedOrigins must not be empty')
   for (const o of origins) {
     if (o === '*' || o === 'null' || !/^https?:\/\/[^/?#\s]+$/.test(o)) {
       throw new Error(
@@ -99,11 +101,14 @@ export function validateOrigins(origins: readonly string[]): void {
       )
     }
   }
+  return first
 }
 
 export class Endpoint {
   private readonly opts: EndpointOptions
   private readonly allowed: ReadonlySet<string>
+  /** first allowed origin, captured at construction (later edits to the caller's array do not apply) */
+  private readonly targetOrigin: string
   private readonly pending = new Map<string, Pending>()
   private readonly handlers = new Map<string, Handler>()
   private readonly listeners = new Map<string, Set<Listener>>()
@@ -114,7 +119,7 @@ export class Endpoint {
   private readonly onMessage = (ev: MessageEvent): void => this.receive(ev)
 
   constructor(opts: EndpointOptions) {
-    validateOrigins(opts.allowedOrigins)
+    this.targetOrigin = validateOrigins(opts.allowedOrigins)
     this.opts = opts
     this.allowed = new Set(opts.allowedOrigins)
     opts.self.addEventListener('message', this.onMessage)
@@ -220,7 +225,7 @@ export class Endpoint {
     if (this.disposed) return
     const peer = this.opts.peer()
     if (!peer) throw err('not_ready', 'peer window not available')
-    peer.postMessage(msg, this.opts.allowedOrigins[0]!, transfer)
+    peer.postMessage(msg, this.targetOrigin, transfer)
   }
 
   private reply(req: Envelope, body: { payload?: unknown; error?: ProtocolErrorShape }): void {
