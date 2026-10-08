@@ -42,7 +42,7 @@ export interface OfficeDocsFrameProps {
 
 const defaultDocsFrameApi = createDocsFrameApi();
 
-const KNOWN_ERRORS = new Set(["unauthorized", "forbidden", "not_found", "conflict", "too_large", "rate_limited", "network", "unsupported", "timeout"]);
+const KNOWN_ERRORS = new Set(["unauthorized", "forbidden", "not_found", "conflict", "too_large", "rate_limited", "network", "unsupported", "timeout", "busy"]);
 
 /** next-themes answers the resolved theme; without its provider the root class does. */
 function useFrameTheme(): Theme {

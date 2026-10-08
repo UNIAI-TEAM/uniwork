@@ -72,11 +72,33 @@ G3 host alone; otherwise `DocxOpenSwitch` (`packages/views/office/frame`)
 reads `office_docs_web` for the document's organization
 (`useOfficeDocsWebEnabled`, the organization-scoped `GET /api/v1/config`) and
 mounts `OfficeDocsFrame` only on a settled "on", the G3 host on anything else.
-`platform/office-frame/docs-frame-api.ts` is the `DocsFrameApi` the frame's
-`api.*` requests go through: open/save/recents/image upload on the
-`/api/v1/office-frame/*` routes with the document-scoped frame token; save-as,
-export and attachments answer a typed `unsupported` until a server endpoint
-exists.
+`docs-frame-host.tsx` mounts `OfficeDocsFrame` with the core defaults: the
+token comes from `useOfficeFrameToken` and the frame's `api.*` requests go
+through `createDocsFrameApi` (`packages/core/office/docs-frame-api.ts`, over
+the `/api/v1/office-frame/*` routes with the document-scoped frame token).
+The host only adds `onSavedAs`, which navigates the page to the copy.
+
+- **Open / save / recents:** open hands the frame the bytes; save is upload +
+  commit against the document revision (a stale base is a typed `conflict`,
+  which the frame answers with its own Cancel / Reload / Overwrite dialog; the
+  host does not toast it).
+- **Save as:** the session creates the copy (`createDocumentFile`), mints a
+  token for it and rebinds the frame to it; the page then follows the copy.
+- **PDF export:** `POST /api/v1/office-frame/documents/{id}/export/pdf`. A 200
+  is the PDF; 501 `unsupported_operation` or 503 `office_not_configured` (no
+  engine or renderer on this deployment) answers a typed `unsupported`, and
+  the frame prints in place instead. `UNIWORK_DOCS_PDF_ASSETS` (the pinned
+  bundle + Chromium) and `OFFICE_ENGINE_MEMORY_MB >= 1024` turn the real
+  renderer on (`docs/ops/RUNBOOK_OFFICE_ENGINE.md`).
+- **Images:** the frame embeds images as `data:` URIs in the docx and never
+  calls `api.images.upload`; `img-src 'self' data: blob:` covers it.
+- **Still `unsupported`:** attachments, HTML export, `file.pick` (the host
+  does not grant the `filePick` capability).
+
+The protocol files in `packages/core/office/docs-frame-{protocol,endpoint,host}.ts`
+are vendored byte-identical (import specifiers aside) from the fork at
+the SHA in their header; the pinned bundle is the fork build of the same
+commit (`docs.pin.json`, currently fork `5bce54c`).
 
 ## Moving the frame to its own origin later
 

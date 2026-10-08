@@ -1,9 +1,8 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at b6f773ff8a1b657dc8ee2af8d495e9003dc44549
+// web/docs/protocol/endpoint.ts at 5bce54cffc2d92e13afdeb157cb05cdbd830936a
 // (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
-
 /**
  * Shared postMessage engine for host.ts and client.ts: origin/source checks,
  * request/response correlation with ids + timeouts + cancellation, error
@@ -157,14 +156,16 @@ export class Endpoint {
 
     return new Promise<unknown>((resolve, reject) => {
       const clearTimer = armTimeout(timeoutMs, () => {
-        this.settle(id)?.reject(
-          err('timeout', `${type} timed out after ${timeoutMs} ms`, { retryable: true }),
-        )
+        const p = this.settle(id)
+        if (!p) return
+        // tell the peer we gave up, so it can abort the work (e.g. the host's upload)
+        this.cancelRemote(id)
+        p.reject(err('timeout', `${type} timed out after ${timeoutMs} ms`, { retryable: true }))
       })
       const onAbort = (): void => {
         const p = this.settle(id)
         if (!p) return
-        this.emit('cancel', { id })
+        this.cancelRemote(id)
         p.reject(err('cancelled', `${type} aborted`))
       }
       signal?.addEventListener('abort', onAbort, { once: true })
@@ -211,6 +212,14 @@ export class Endpoint {
   private nextId(): string {
     this.seq += 1
     return `${this.opts.idPrefix}${this.seq}-${Math.random().toString(36).slice(2, 10)}`
+  }
+
+  private cancelRemote(id: string): void {
+    try {
+      this.emit('cancel', { id })
+    } catch {
+      // peer gone: nothing left to cancel
+    }
   }
 
   private settle(id: string): Pending | undefined {

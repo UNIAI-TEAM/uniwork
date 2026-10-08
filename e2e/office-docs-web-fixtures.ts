@@ -99,3 +99,10 @@ export async function versionBodyXml(request: APIRequestContext, token: string, 
   expect(xml, `v${version} is not a docx (no word/document.xml)`).toBeTruthy();
   return xml ?? "";
 }
+
+/** Entry names of the docx stored as `version` of the document. */
+export async function versionEntries(request: APIRequestContext, token: string, documentId: string, version: number): Promise<string[]> {
+  const response = await request.get(`${e2eApiUrl}/api/v1/documents/${documentId}/download?version=${version}`, { headers: { authorization: `Bearer ${token}` } });
+  expect(response.ok(), `download v${version}: HTTP ${response.status()}`).toBeTruthy();
+  return Object.keys((await JSZip.loadAsync(await response.body())).files);
+}
