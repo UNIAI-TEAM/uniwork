@@ -77,7 +77,10 @@ type Deps struct {
 
 	// OfficeLaunch is the document-scoped single-use launch-ticket service.
 	// When omitted, New derives it from Documents and the deployment config.
-	OfficeLaunch          *service.OfficeLaunchService
+	OfficeLaunch *service.OfficeLaunchService
+	// OfficeFrame mints and checks the Office Docs web frame token
+	// (UNI-1013). When omitted, New derives it from Documents and JWT_SECRET.
+	OfficeFrame           *service.OfficeFrameService
 	OfficeDesktopDownload *service.OfficeDesktopDownloadService
 
 	// Redis is optional: nil disables the rate limiter and any other feature
@@ -124,6 +127,9 @@ func New(d Deps) http.Handler {
 	}
 	if d.OfficeLaunch == nil && d.Documents != nil {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
+	}
+	if d.OfficeFrame == nil && d.Documents != nil {
+		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
 	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	return rt.New(rt.Deps{
@@ -586,6 +592,18 @@ func New(d Deps) http.Handler {
 		DownloadDocument:        h.downloadDocument,
 		CreatePreviewScope:      h.createPreviewScope,
 		GetPreviewAsset:         h.getPreviewAsset,
+
+		MintOfficeFrameToken:     h.mintOfficeFrameToken,
+		OfficeFrameAuth:          h.officeFrameAuth,
+		RefreshOfficeFrameToken:  h.refreshOfficeFrameToken,
+		OpenOfficeFrameDocument:  h.openOfficeFrameDocument,
+		GetOfficeFrameContent:    h.getOfficeFrameContent,
+		UploadOfficeFrameFile:    h.uploadOfficeFrameFile,
+		CommitOfficeFrameVersion: h.commitOfficeFrameVersion,
+		ListOfficeFrameRecents:   h.listOfficeFrameRecents,
+		UploadOfficeFrameAsset:   h.uploadOfficeFrameAsset,
+		SignOfficeFrameAssets:    h.signOfficeFrameAssets,
+		GetOfficeFrameAsset:      h.getOfficeFrameAsset,
 
 		ListDocumentComments:          h.listDocumentComments,
 		CreateDocumentComment:         h.createDocumentComment,
