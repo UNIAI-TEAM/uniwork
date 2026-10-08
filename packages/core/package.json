@@ -62,6 +62,7 @@
     "./office": "./office/index.ts",
     "./office/host-contract": "./office/host-contract.ts",
     "./office/docs-frame-protocol": "./office/docs-frame-protocol.ts",
+    "./office/docs-frame-endpoint": "./office/docs-frame-endpoint.ts",
     "./office/docs-frame-host": "./office/docs-frame-host.ts",
     "./office/docs-frame-api": "./office/docs-frame-api.ts",
     "./office/error-state": "./office/error-state.ts",
