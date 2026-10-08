@@ -12,7 +12,8 @@
         "scripts/**/*.mjs",
         "scripts/load/*.k6.js",
         "scripts/office-g0/*.ts",
-        "docs/office/g3g4/samples/web-launch-ticket.mjs"
+        "docs/office/g3g4/samples/web-launch-ticket.mjs",
+        "docs/office/pdf-export/render-web.mjs"
       ],
       "ignoreBinaries": [
         "rustc"
