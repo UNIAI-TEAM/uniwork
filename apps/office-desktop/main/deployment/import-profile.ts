@@ -66,7 +66,7 @@ export function profileConfirmation(profile: Pick<DeploymentProfile, "apiOrigin"
  * userData and a relaunch. Replacing a working profile needs the explicit
  * reset, which also wipes that deployment's stored sessions.
  */
-export function createProfileImport(options: ProfileImportOptions) {
+export function createProfileImport(options: ProfileImportOptions): Readonly<{ importProfile(): Promise<ProfileImportResult>; resetConnection(): Promise<ConnectionResetResult>; isImported(): boolean }> {
   const fs = options.fileSystem ?? nodeFileSystem;
   const target = join(options.userDataDirectory, USER_DATA_PROFILE_FILE);
   const installerOwned = () => Boolean(options.installedProfilePath && fs.existsSync(options.installedProfilePath));
@@ -102,8 +102,15 @@ export function createProfileImport(options: ProfileImportOptions) {
     return { status: "reset" };
   }
 
-  return Object.freeze({ importProfile, resetConnection });
+  return Object.freeze({
+    importProfile,
+    resetConnection,
+    /** True while the profile in use is one the user imported. */
+    isImported: () => !installerOwned() && fs.existsSync(target),
+  });
 }
+
+export type ProfileImportFlow = ReturnType<typeof createProfileImport>;
 
 function readSmallJson(fs: ImportFileSystem, file: string): unknown {
   const stat = fs.statSync(file);

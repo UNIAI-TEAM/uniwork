@@ -1,7 +1,9 @@
 /** Main-process copy: the native menu, the update dialog and the platform-gate
  * box. The renderer's copy lives in packages/core/i18n/locales and needs
  * i18next; main carries this small table instead, under keys named like the
- * renderer's (`officeDesktop.native.*`), so the two read as one dictionary. */
+ * renderer's (`officeDesktop.native.*`), so the two read as one dictionary.
+ * The deployment-profile import confirmations live here too: they are native
+ * dialogs main opens itself. */
 export type DesktopLocale = "vi" | "en";
 
 /** The locales main has copy for. main/strings.test.ts fails when the shared
@@ -39,6 +41,18 @@ const vi = {
   "officeDesktop.native.update.failed": "Không thể cập nhật. Ứng dụng vẫn đang mở.",
   "officeDesktop.native.update.code": "Mã: {{code}}",
   "officeDesktop.native.update.close": "Đóng",
+  "officeDesktop.native.profile.pickTitle": "Chọn tệp cấu hình UniWork Office",
+  "officeDesktop.native.profile.pickFilter": "Tệp cấu hình",
+  "officeDesktop.native.profile.importTitle": "Kết nối site UniWork",
+  "officeDesktop.native.profile.importMessage": "Kết nối UniWork Office với {{host}}?",
+  "officeDesktop.native.profile.importDetail": "Địa chỉ: {{rawHost}}\nMã triển khai: {{deploymentId}}\n\nChỉ kết nối nếu đây là site UniWork của tổ chức bạn. UniWork Office sẽ khởi động lại.",
+  "officeDesktop.native.profile.connect": "Kết nối",
+  "officeDesktop.native.profile.cancel": "Hủy",
+  "officeDesktop.native.profile.resetTitle": "Đặt lại kết nối",
+  "officeDesktop.native.profile.resetMessage": "Ngắt kết nối khỏi {{host}}?",
+  "officeDesktop.native.profile.resetMessageUnknown": "Xóa tệp cấu hình đã chọn?",
+  "officeDesktop.native.profile.resetDetail": "Phiên đăng nhập lưu trên máy này cũng bị xóa. UniWork Office sẽ khởi động lại để bạn chọn tệp cấu hình khác.",
+  "officeDesktop.native.profile.reset": "Đặt lại",
 } as const;
 
 type MainStringKey = keyof typeof vi;
@@ -70,6 +84,18 @@ const en: Record<MainStringKey, string> = {
   "officeDesktop.native.update.failed": "Couldn't update. The app is still open.",
   "officeDesktop.native.update.code": "Code: {{code}}",
   "officeDesktop.native.update.close": "Close",
+  "officeDesktop.native.profile.pickTitle": "Choose the UniWork Office configuration file",
+  "officeDesktop.native.profile.pickFilter": "Configuration file",
+  "officeDesktop.native.profile.importTitle": "Connect to a UniWork site",
+  "officeDesktop.native.profile.importMessage": "Connect UniWork Office to {{host}}?",
+  "officeDesktop.native.profile.importDetail": "Address: {{rawHost}}\nDeployment: {{deploymentId}}\n\nConnect only if this is your organization's UniWork site. UniWork Office will restart.",
+  "officeDesktop.native.profile.connect": "Connect",
+  "officeDesktop.native.profile.cancel": "Cancel",
+  "officeDesktop.native.profile.resetTitle": "Reset connection",
+  "officeDesktop.native.profile.resetMessage": "Disconnect from {{host}}?",
+  "officeDesktop.native.profile.resetMessageUnknown": "Remove the chosen configuration file?",
+  "officeDesktop.native.profile.resetDetail": "The sign-in saved on this computer is removed too. UniWork Office will restart so you can choose another configuration file.",
+  "officeDesktop.native.profile.reset": "Reset",
 };
 
 const TABLES: Readonly<Record<DesktopLocale, Record<MainStringKey, string>>> = { vi, en };

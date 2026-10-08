@@ -305,3 +305,38 @@ it("shows the no-deployment-profile card, never the generic error, and keeps loc
   expect(calls).not.toContain("desktop:auth-start");
   expect(screen.getByRole("button", { name: i18n.t("officeDesktop.login.useLocal") })).toBeInTheDocument();
 });
+
+it("asks main to import a profile from the no-profile card, sending no path or content", async () => {
+  const calls: { channel: string; payload: unknown }[] = [];
+  const { bridge } = makeBridge((async (channel: string, payload: unknown) => {
+    calls.push({ channel, payload });
+    if (channel === "desktop:auth-config") return { state: "no_deployment_profile", reason: "missing" };
+    if (channel === "desktop:local-state") return { localMode: false };
+    if (channel === "desktop:deployment-import") return { status: "imported" };
+    return { status: "signed-out" };
+  }) as RendererBridge["call"]);
+  render(<App bridge={bridge} />);
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("officeDesktop.login.importProfile") }));
+  expect(await screen.findByText(i18n.t("officeDesktop.login.importRestarting"))).toBeInTheDocument();
+  expect(calls.find((entry) => entry.channel === "desktop:deployment-import")?.payload).toEqual({ sessionGeneration: "desktop-dev-session" });
+  expect(screen.queryByRole("button", { name: i18n.t("officeDesktop.login.resetConnection") })).toBeNull();
+});
+
+it("offers reset only for an imported profile and treats an unexpected answer as a failure", async () => {
+  for (const resettable of [false, true]) {
+    const { bridge } = makeBridge(vi.fn(async (channel: string) => {
+      if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane", resettable };
+      if (channel === "desktop:deployment-reset") return { status: "surprise" };
+      return { status: "signed-out" };
+    }) as RendererBridge["call"]);
+    const { container, unmount } = render(<App bridge={bridge} />);
+    await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
+    const reset = screen.queryByRole("button", { name: i18n.t("officeDesktop.login.resetConnection") });
+    expect(Boolean(reset)).toBe(resettable);
+    if (reset) {
+      fireEvent.click(reset);
+      expect(await screen.findByText(i18n.t("officeDesktop.login.resetFailed"))).toBeInTheDocument();
+    }
+    unmount();
+  }
+});

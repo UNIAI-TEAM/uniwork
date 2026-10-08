@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DEFAULT_DESKTOP_DOCUMENT_FORMAT, DESKTOP_DOCUMENT_FORMATS, desktopDocumentMimeTypes, type DesktopDocumentFormat } from "./document-formats";
 import { isAllowedExternalUrl } from "./external-url";
 import { bytesSchema, isByteValue } from "./ipc-bytes";
+import { desktopDeploymentImportResponseSchema, desktopDeploymentResetResponseSchema } from "./ipc-auth";
 import { desktopPrintOptionsSchema, desktopPrintPreviewRequestSchema, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, desktopPrintSavePdfRequestSchema, desktopPrintSavePdfResponseSchema, PRINT_HTML_MAX_BYTES } from "./ipc-print";
 
 export { PRINT_HTML_MAX_BYTES, PRINT_PREVIEW_MAX_BYTES, desktopPrintPreviewResponseSchema, desktopPrintPrintersResponseSchema, desktopPrintResponseSchema, desktopPrintSavePdfResponseSchema, type DesktopPrinter, type DesktopPrintSavePdfResponse, type DesktopPrintGeometry, type DesktopPrintOptions, type DesktopPrintResponse } from "./ipc-print";
@@ -18,6 +19,8 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-session",
   "desktop:auth-config",
   "desktop:auth-logout",
+  "desktop:deployment-import",
+  "desktop:deployment-reset",
   "desktop:diagnostics",
   "desktop:window-theme",
   "desktop:appearance",
@@ -290,7 +293,9 @@ export const desktopDiagnosticsResponseSchema = z.object({
   deploymentId: deploymentSchema.optional(),
   originHost: z.string().min(1).max(255).optional(),
 }).strict();
-export const desktopAuthConfigResponseSchema = z.object({ clientId: clientIdSchema, deploymentId: deploymentSchema }).strict();
+/** `resettable` marks a profile the user imported (userData), which the card
+ * may offer to reset; an installer-owned profile is never resettable. */
+export const desktopAuthConfigResponseSchema = z.object({ clientId: clientIdSchema, deploymentId: deploymentSchema, resettable: z.boolean().optional() }).strict();
 export const desktopTabsUpdateResponseSchema = z.object({ updated: z.boolean() }).strict();
 /** BCP 47 tags as the OS reports them ("vi-VN", "en-US"); the renderer picks
  * the first one the shared i18n dictionaries support. */
@@ -315,6 +320,8 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:recent-open": desktopFileResponseSchema,
   "desktop:recent-remove": recentRemoveResponseSchema,
   "desktop:diagnostics": desktopDiagnosticsResponseSchema,
+  "desktop:deployment-import": desktopDeploymentImportResponseSchema,
+  "desktop:deployment-reset": desktopDeploymentResetResponseSchema,
   "desktop:window-theme": z.object({ applied: z.boolean() }).strict(),
   "desktop:appearance": desktopAppearanceResponseSchema,
   "desktop:tabs-update": desktopTabsUpdateResponseSchema,
@@ -366,6 +373,8 @@ const requestSchemas = {
   "desktop:auth-session": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:auth-config": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:auth-logout": z.object({ sessionGeneration: sessionGenerationSchema, scope: z.enum(["device", "family"]).default("device") }).strict(),
+  "desktop:deployment-import": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:deployment-reset": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:diagnostics": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:window-theme": z.object({ sessionGeneration: sessionGenerationSchema, dark: z.boolean() }).strict(),
   "desktop:appearance": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
