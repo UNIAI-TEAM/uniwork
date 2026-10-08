@@ -459,9 +459,8 @@ type Routes struct {
 	GetPreviewAsset         http.HandlerFunc
 
 	// Office Docs web frame (UNI-1013): the session mint, and the frame-token
-	// routes OfficeFrameAuth guards (nil leaves them unmounted).
+	// routes Deps.OfficeFrameAuth guards.
 	MintOfficeFrameToken     http.HandlerFunc
-	OfficeFrameAuth          func(http.Handler) http.Handler
 	RefreshOfficeFrameToken  http.HandlerFunc
 	OpenOfficeFrameDocument  http.HandlerFunc
 	GetOfficeFrameContent    http.HandlerFunc
