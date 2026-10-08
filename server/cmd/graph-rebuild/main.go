@@ -3,7 +3,8 @@
 //	graph-rebuild --org <organization id> [--verify] [--format text|json]
 //	graph-rebuild --all [--verify] [--format text|json]
 //
-// --verify writes nothing and exits 1 when any drift is found. Like cmd/seed
+// --verify writes nothing and exits 1 when any drift is found. An --org id
+// that does not exist, or any positional argument, is an error. Like cmd/seed
 // and cmd/uniwork-admin it reads only DATABASE_URL.
 package main
 
@@ -41,6 +42,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("%w; %s", err, usage)
 	}
+	// Parsing stops at the first positional argument: "--org a b" would
+	// rebuild a alone and "--org a b --verify" would drop --verify and write.
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected arguments %q; %s", fs.Args(), usage)
+	}
 	if (*org == "") == !*all || (*format != "text" && *format != "json") {
 		return errors.New(usage)
 	}
@@ -58,6 +64,16 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if *all {
 		if orgs, err = q.GraphListOrganizations(ctx); err != nil {
 			return err
+		}
+	} else {
+		// An unknown id has no rows, so it would rebuild nothing and report a
+		// clean run; a typo in the rollout must fail instead.
+		found, err := q.GraphOrganizationExists(ctx, *org)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("organization %q does not exist", *org)
 		}
 	}
 	var reports []projector.Report

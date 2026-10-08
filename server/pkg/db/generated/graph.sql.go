@@ -547,6 +547,17 @@ func (q *Queries) GraphOpenFact(ctx context.Context, arg GraphOpenFactParams) er
 	return err
 }
 
+const graphOrganizationExists = `-- name: GraphOrganizationExists :one
+SELECT EXISTS (SELECT 1 FROM organizations WHERE id = $1)::boolean
+`
+
+func (q *Queries) GraphOrganizationExists(ctx context.Context, organizationID string) (bool, error) {
+	row := q.db.QueryRow(ctx, graphOrganizationExists, organizationID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const graphRebuildLiveSources = `-- name: GraphRebuildLiveSources :many
 SELECT source_id FROM graph_nodes
 WHERE organization_id = $1 AND node_type = $2 AND deleted_at IS NULL

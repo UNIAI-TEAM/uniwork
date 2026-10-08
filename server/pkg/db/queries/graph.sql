@@ -152,6 +152,9 @@ WHERE organization_id = sqlc.arg(organization_id) AND node_type = sqlc.arg(node_
 -- name: GraphListOrganizations :many
 SELECT id FROM organizations ORDER BY id;
 
+-- name: GraphOrganizationExists :one
+SELECT EXISTS (SELECT 1 FROM organizations WHERE id = sqlc.arg(organization_id))::boolean;
+
 -- name: GraphRebuildLiveSources :many
 SELECT source_id FROM graph_nodes
 WHERE organization_id = sqlc.arg(organization_id) AND node_type = sqlc.arg(node_type) AND deleted_at IS NULL
