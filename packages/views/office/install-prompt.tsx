@@ -112,7 +112,7 @@ function InstallerPicker({
         <DialogDescription id="office-install-description" className="text-body">{t(options.length === 0 && reason === "download" ? "description_unavailable" : reasonKey)}</DialogDescription>
       </div>
     </div>
-    {options.length === 0 ? <Alert role="status"><AlertDescription>{t("unavailable")}</AlertDescription></Alert> : <>
+    {options.length === 0 ? <p role="status" className="text-body text-muted-foreground">{t("unavailable")}</p> : <>
       {!recommended ? <Alert role="status"><AlertDescription>{t("unsupported")}</AlertDescription></Alert> : null}
       <RadioGroup aria-label={t("os_group")} value={selectedOS ?? ""} onValueChange={selectOS} disabled={downloading}
         className="grid auto-cols-fr grid-flow-col gap-2 pt-2 min-[480px]:gap-[10px]">
@@ -161,11 +161,11 @@ function InstallerPicker({
       </> : null}
     </>}
     {failed ? <Alert variant="destructive" role="alert"><AlertDescription>{t("download_failed")}</AlertDescription></Alert> : null}
-    <div className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center">
-      <p role="status" className="order-last min-w-0 flex-1 text-caption text-muted-foreground min-[480px]:order-first">
-        {downloading ? t("downloading") : started ? <Trans t={t} i18nKey="started" values={{ file: started }} components={{ filename: <span className="break-all" /> }} /> : ""}
+    <div className="flex flex-col gap-3">
+      <p role="status" className="min-w-0 text-caption text-muted-foreground empty:hidden">
+        {downloading ? t("downloading") : started ? <Trans t={t} i18nKey="started" values={{ file: started }} components={{ filename: <span className="font-medium text-foreground [overflow-wrap:anywhere]" /> }} /> : ""}
       </p>
-      <div className="flex flex-col-reverse gap-2 min-[480px]:flex-row">
+      <div className="flex flex-col-reverse gap-2 min-[480px]:flex-row min-[480px]:justify-end">
         {reason !== "download" && options.length > 0 ? <Button ref={openAgain} variant="ghost" onClick={onOpenAgain} disabled={downloading}>{t("open_again")}</Button> : null}
         <Button ref={later} variant="outline" onClick={() => onOpenChange(false)}>{t("later")}</Button>
         {options.length > 0 ? <Button ref={primary} onClick={() => void download()} disabled={!selected || downloading} className="min-w-0">
