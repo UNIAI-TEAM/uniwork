@@ -38,6 +38,11 @@ it("shows the decoded text of a read-only .md instead of a bare capability notic
 
 const openMenu = () => { const trigger = document.querySelector("[data-office-document-menu]") as HTMLElement; fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" }); fireEvent.click(trigger); };
 const printCalls = (call: ReturnType<typeof vi.fn>) => call.mock.calls.filter(([channel]) => channel === "desktop:print-document");
+/** Print opens the in-app print dialog (UNI-961); its system-dialog link sends
+ * the job to main with no printer list or preview needed. */
+const continueInSystemDialog = async () => {
+  fireEvent.click(await screen.findByRole("button", { name: i18n.t("officeDesktop.print.systemDialog") }, { timeout: 15000 }));
+};
 
 it.each([["md", "# Một\n"], ["html", "<p>Hai</p>"]] as const)("shows the %s editor's own Print entry once in the desktop menu and prints through main", async (format, source) => {
   const { call } = mount(format, source);
@@ -47,6 +52,7 @@ it.each([["md", "# Một\n"], ["html", "<p>Hai</p>"]] as const)("shows the %s ed
   // The shell no longer adds a Print item of its own: the view's is the only one.
   expect(document.querySelectorAll("[data-markdown-print]")).toHaveLength(1);
   fireEvent.click(document.querySelector("[data-markdown-print]") as HTMLElement);
+  await continueInSystemDialog();
   await waitFor(() => expect(printCalls(call)).toHaveLength(1));
   const payload = printCalls(call)[0]![1] as { title: string; html: string };
   expect(payload.title).toBe(`Doc.${format}`);
@@ -61,6 +67,7 @@ it("leaves print outcome notices to the view: no shell busy or error line", asyn
   await screen.findByTestId("md-editor", {}, { timeout: 15000 });
   openMenu();
   fireEvent.click(await waitFor(() => document.querySelector("[data-markdown-print]") as HTMLElement));
+  await continueInSystemDialog();
   await waitFor(() => expect(printCalls(call)).toHaveLength(1));
   expect(screen.queryByTestId("print-busy-notice")).toBeNull();
   expect(screen.queryByText(i18n.t("officeDesktop.library.actionError"))).toBeNull();
