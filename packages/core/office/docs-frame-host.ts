@@ -1,5 +1,5 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at ed5eafe7b6cc0812d797504bed56226ddc3fea11
+// web/docs/protocol/host.ts at c973857f17d81cfead77ec9350c79c5dc4b4a98c
 // (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
@@ -21,6 +21,7 @@
  */
 import {
   Endpoint,
+  armTimeout,
   err,
   type MessageSource,
   type PostTarget,
@@ -216,13 +217,12 @@ export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHos
           reject(e)
         },
       }
-      const timer = setTimeout(
-        () => w.reject(err('timeout', `frame not ready after ${timeoutMs} ms`)),
-        timeoutMs,
+      const clearTimer = armTimeout(timeoutMs, () =>
+        w.reject(err('timeout', `frame not ready after ${timeoutMs} ms`)),
       )
       const onAbort = (): void => w.reject(err('cancelled', 'whenReady aborted'))
       const done = (): void => {
-        clearTimeout(timer)
+        clearTimer()
         o.signal?.removeEventListener('abort', onAbort)
         waiters.delete(w)
       }

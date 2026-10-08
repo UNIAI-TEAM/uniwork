@@ -1,5 +1,5 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at ed5eafe7b6cc0812d797504bed56226ddc3fea11
+// web/docs/protocol/endpoint.ts at c973857f17d81cfead77ec9350c79c5dc4b4a98c
 // (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
@@ -58,6 +58,7 @@ export interface EndpointOptions {
 }
 
 export interface RequestOptions {
+  /** ms; 0 (or any non-positive / non-finite value) = no timeout, e.g. a request waiting on a user dialog */
   timeoutMs?: number
   signal?: AbortSignal
   /** ArrayBuffers to transfer instead of copy */
@@ -81,6 +82,13 @@ interface Pending {
 }
 
 export const DEFAULT_TIMEOUT_MS = 30_000
+
+/** `timeoutMs` 0 means "wait forever"; setTimeout(fn, 0) would time out at once */
+export function armTimeout(timeoutMs: number, onTimeout: () => void): () => void {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return () => {}
+  const timer = setTimeout(onTimeout, timeoutMs)
+  return () => clearTimeout(timer)
+}
 
 export function validateOrigins(origins: readonly string[]): void {
   if (origins.length === 0) throw new Error('allowedOrigins must not be empty')
@@ -143,11 +151,11 @@ export class Endpoint {
     const timeoutMs = options.timeoutMs ?? this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
     return new Promise<unknown>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const clearTimer = armTimeout(timeoutMs, () => {
         this.settle(id)?.reject(
           err('timeout', `${type} timed out after ${timeoutMs} ms`, { retryable: true }),
         )
-      }, timeoutMs)
+      })
       const onAbort = (): void => {
         const p = this.settle(id)
         if (!p) return
@@ -160,7 +168,7 @@ export class Endpoint {
         resolve,
         reject,
         cleanup: () => {
-          clearTimeout(timer)
+          clearTimer()
           signal?.removeEventListener('abort', onAbort)
         },
       })
