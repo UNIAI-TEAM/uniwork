@@ -20,6 +20,8 @@ export interface WorkerRun {
   tempDir: string;
   /** Dir holding the xlsx gateway bundle + Rust sidecar (config.UNIWORK_XLSX_ASSETS). */
   xlsxAssetsDir?: string;
+  /** Docs web bundle + Chromium for export:docx (config.UNIWORK_DOCS_PDF_ASSETS). */
+  docsPdfAssetsDir?: string;
   limits: EffectiveLimits;
   sampleMs: number;
   faults: boolean;
@@ -168,6 +170,7 @@ export class Supervisor {
         payloadPath: job.payloadPath,
         tempDir: job.tempDir,
         ...(job.xlsxAssetsDir ? { xlsxAssetsDir: job.xlsxAssetsDir } : {}),
+        ...(job.docsPdfAssetsDir ? { docsPdfAssetsDir: job.docsPdfAssetsDir } : {}),
         sampleMs: job.sampleMs,
         heapMb: job.limits.heapMb,
         faults: job.faults,
