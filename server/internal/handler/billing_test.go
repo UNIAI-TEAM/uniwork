@@ -50,8 +50,15 @@ func TestBillingEndpoints(t *testing.T) {
 		t.Fatalf("resume: %d %v", res.StatusCode, out)
 	}
 
+	// Starter (default) is free — checkout is rejected before the provider runs.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/orgs/"+w.orgID+"/billing/checkout", w.token,
 		map[string]string{"plan_code": defaultPlan["code"].(string), "success_path": "/x", "cancel_path": "/y"})
+	if res.StatusCode != 400 || out["error"].(map[string]any)["code"] != "checkout_not_available" {
+		t.Fatalf("checkout on free default plan: %d %v", res.StatusCode, out)
+	}
+	// Paid tier with manual provider: no payment gateway wired in this test server.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/orgs/"+w.orgID+"/billing/checkout", w.token,
+		map[string]string{"plan_code": "team", "success_path": "/x", "cancel_path": "/y"})
 	if res.StatusCode != 503 || out["error"].(map[string]any)["code"] != "billing_provider_unavailable" {
 		t.Fatalf("checkout on manual: %d %v", res.StatusCode, out)
 	}
