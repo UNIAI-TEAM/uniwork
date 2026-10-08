@@ -54,6 +54,7 @@ export const PATCHED_SYMBOLS = [
   { patch: '0015', file: 'apps/sheets/src/renderer/numfmt-fix.ts', symbol: 'export function applyHostNumfmtLocale(' },
   { patch: '0016', file: 'apps/sheets/src/renderer/formula-stream-hold.ts', symbol: 'export function noteFormulaStreamChunk(runtime: UniverRuntime): void' },
   { patch: '0017', file: 'apps/sheets/native/xlsx-engine/src/recalc.rs', symbol: 'fn fill_col_widths(source: Vec<u8>) -> Vec<u8>' },
+  { patch: '0018', file: 'apps/sheets/native/xlsx-engine/src/recalc.rs', symbol: "fn find_start_tag<'a>(text: &'a str, local: &str, from: usize) -> Option<(usize, &'a str)>" },
 ];
 
 const FORBIDDEN_EXTERNAL = /^(?!react(?:\/|$)|react-dom(?:\/|$)|i18next$).+$/;

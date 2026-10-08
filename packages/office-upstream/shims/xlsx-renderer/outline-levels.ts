@@ -12,22 +12,68 @@ type OutlineEntries = ReadonlyMap<number, { level: number; collapsed: boolean }>
 export type OutlineAxis = "rows" | "cols";
 
 /** Lines per axis on a sheet (Excel's grid), the bound a summary line obeys. */
-const AXIS_LINES: Record<OutlineAxis, number> = { rows: 1_048_576, cols: 16_384 };
+export const AXIS_LINES: Record<OutlineAxis, number> = { rows: 1_048_576, cols: 16_384 };
 
-function entriesFor(state: LazyWorkbookState | null, sheetId: string, axis: OutlineAxis): OutlineEntries | undefined {
+export function entriesFor(state: LazyWorkbookState | null, sheetId: string, axis: OutlineAxis): OutlineEntries | undefined {
   const outline = state?.outline.get(sheetId);
   return axis === "rows" ? outline?.rows : outline?.cols;
 }
+
+// What the bar and the brackets derive from an axis's entries (the deepest
+// level, the groups) is cached per entries map, so a scroll frame re-reads
+// nothing: the controller bumps the generation after every command or
+// mutation that can change a level (outlineLevelsMayChange), and the entry
+// count catches the loader seeding rows as they stream in. Collapsed flags
+// are never cached; they are read live.
+let outlineGeneration = 0;
+
+/** Commands and mutations that change outline levels: the group / ungroup /
+ *  clear commands (their undo and redo replay the same ids) and the row /
+ *  column inserts and removals that shift the levels with their lines. */
+const LEVEL_CHANGING = new Set([
+  "uniwork.command.set-rows-outline",
+  "uniwork.command.set-cols-outline",
+  "sheet.mutation.insert-row",
+  "sheet.mutation.remove-rows",
+  "sheet.mutation.insert-col",
+  "sheet.mutation.remove-col",
+]);
+
+export function outlineLevelsMayChange(id: string | undefined): boolean {
+  return id !== undefined && LEVEL_CHANGING.has(id);
+}
+
+/** Drops every cached derivation (the next read recomputes it). */
+export function invalidateOutlineCache(): void {
+  outlineGeneration += 1;
+}
+
+export type OutlineMemo<T> = WeakMap<object, { generation: number; size: number; value: T }>;
+
+/** `compute(entries)`, recomputed only after an invalidation or a change in
+ *  the entry count. */
+export function memoOutline<T>(memo: OutlineMemo<T>, entries: OutlineEntries, compute: (entries: OutlineEntries) => T): T {
+  const cached = memo.get(entries);
+  if (cached && cached.generation === outlineGeneration && cached.size === entries.size) return cached.value;
+  const value = compute(entries);
+  memo.set(entries, { generation: outlineGeneration, size: entries.size, value });
+  return value;
+}
+
+const maxLevelMemo: OutlineMemo<number> = new WeakMap();
 
 /** The deepest outline level on an axis (0: no outline, no buttons). The
  *  level buttons are 1..max+1: button 1 shows only ungrouped lines, the last
  *  one shows every line. */
 export function outlineMaxLevel(entries: OutlineEntries | undefined): number {
-  let max = 0;
-  for (const entry of entries?.values() ?? []) {
-    if (entry.level > max) max = Math.min(7, entry.level);
-  }
-  return max;
+  if (!entries) return 0;
+  return memoOutline(maxLevelMemo, entries, (lines) => {
+    let max = 0;
+    for (const entry of lines.values()) {
+      if (entry.level > max) max = Math.min(7, entry.level);
+    }
+    return max;
+  });
 }
 
 /** Both axes' deepest levels on a sheet, the bar's input. */
@@ -108,19 +154,27 @@ function axisRanges(axis: OutlineAxis, spans: ReadonlyArray<{ start: number; end
     : { startRow: 0, endRow: 0, startColumn: start, endColumn: end, rangeType: 2 });
 }
 
-/** Runs one level click: hide, then show, then the summary flags, every
- *  change journalled (the hidden/visible commands through the mutation
- *  channel, the flags as outline ops) with one undo entry for the flags. The
- *  caller folds the whole click into one undo step. A sheet without an
- *  outline on the axis, or a level past the last button, changes nothing.
- *  False only when a hidden/visible command is refused. */
+/** Runs one level click: hide, then show, then the summary flags (see
+ *  runOutlinePlan). A sheet without an outline on the axis, or a level past
+ *  the last button, changes nothing. False only when a hidden/visible command
+ *  is refused. */
 export function runOutlineLevel(host: OutlineLevelHost, sheetId: string, axis: OutlineAxis, level: number): boolean {
   if (!Number.isInteger(level) || level < 1 || level > 8) return false;
   if (!host.state?.file.sheets.some((sheet) => sheet.id === sheetId)) return false;
   const entries = entriesFor(host.state, sheetId, axis);
+  // A click walks the axis anyway; it never trusts a cached derivation.
+  invalidateOutlineCache();
   const max = outlineMaxLevel(entries);
   if (max === 0) return true;
-  const plan = planOutlineLevel(entries, Math.min(level, max + 1), axis, host.isHidden);
+  return runOutlinePlan(host, sheetId, axis, planOutlineLevel(entries, Math.min(level, max + 1), axis, host.isHidden));
+}
+
+/** Applies a level or group plan: hide, then show, then the summary flags,
+ *  every change journalled (the hidden/visible commands through the mutation
+ *  channel, the flags as outline ops) with one undo entry for the flags. The
+ *  caller folds the whole click into one undo step. False only when a
+ *  hidden/visible command is refused. */
+export function runOutlinePlan(host: OutlineLevelHost, sheetId: string, axis: OutlineAxis, plan: OutlineLevelPlan): boolean {
   for (const [spans, ids] of [[plan.hide, HIDE_COMMAND], [plan.show, SHOW_COMMAND]] as const) {
     if (spans.length === 0) continue;
     if (!host.execute(ids[axis], { unitId: host.unitId, subUnitId: sheetId, ranges: axisRanges(axis, spans) })) return false;
