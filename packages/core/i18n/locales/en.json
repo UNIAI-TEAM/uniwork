@@ -12428,5 +12428,54 @@
       "signIn": "Sign in",
       "close": "Close"
     }
+  },
+  "graph": {
+    "related": {
+      "title": "Related",
+      "loading": "Loading…",
+      "error": "Couldn't load related items.",
+      "empty": "Nothing related yet. Tasks created from a meeting, in a project, or with an assignee show up here.",
+      "updated": "Updated at {{time}}",
+      "system": "Automatic",
+      "untitled": "Untitled"
+    },
+    "groups": {
+      "originated_from_out": "Originated from",
+      "originated_from_in": "Gave rise to",
+      "owned_by_out": "Owner",
+      "owned_by_in": "Owns",
+      "belongs_to_out": "Belongs to",
+      "belongs_to_in": "Contains",
+      "depends_on_out": "Depends on",
+      "depends_on_in": "Waiting on this",
+      "discussed_in_out": "Discussed in",
+      "discussed_in_in": "Discussion of",
+      "participated_in_out": "Attended",
+      "participated_in_in": "Attendees",
+      "evidenced_by_out": "Evidence",
+      "evidenced_by_in": "Evidence for",
+      "other": "Other"
+    },
+    "history": {
+      "title": "Timeline",
+      "loading": "Loading…",
+      "error": "Couldn't load the timeline.",
+      "empty": "No changes recorded yet.",
+      "owned_by": "Assigned to {{name}}",
+      "originated_from": "Originated from {{title}}",
+      "belongs_to_project": "In project {{title}}",
+      "belongs_to_task": "Subtask of {{title}}",
+      "belongs_to_in": "{{title}} is a subtask of this task",
+      "depends_on_out": "Depends on {{title}}",
+      "depends_on_in": "{{title}} depends on this task",
+      "participated_in": "{{name}} attended",
+      "due_set": "Due {{to}}",
+      "due_changed": "Due moved {{from}} → {{to}}",
+      "status_set": "Status {{to}}",
+      "status_changed": "Status {{from}} → {{to}}",
+      "since": "since {{from}}",
+      "range": "{{from}} – {{to}}",
+      "before_graph": "before the graph existed"
+    }
   }
 }

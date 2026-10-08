@@ -192,6 +192,10 @@ fails on drift. One flat namespace, keys nested by section:
 | abstain | **không ý kiến** | Abstain | `choice_ABSTAIN`; for / against are **tán thành** / **không tán thành** |
 | secret ballot | **bỏ phiếu kín** | Secret ballot | `ballotMode_SECRET`; the other mode is **công khai** / Open ballot |
 | onboarding | **onboarding** | Onboarding | section name stays English |
+| related (Work Graph panel) | **liên quan** | Related | `graph.related.title = "Liên quan"` |
+| originated from | **xuất phát từ** | Originated from | nguồn gốc của một việc (Work Graph) |
+| graph timeline | **dòng thời gian** | Timeline | khác "Hoạt động" (audit + bình luận) của trang việc |
+| Work Graph | **Work Graph** | Work Graph | tên hệ thống, không dịch |
 
 `workspace` stays English on purpose: the Vietnamese candidates ("không gian
 làm việc") are long, and the URL, the slug field and the product name all say
