@@ -37,8 +37,11 @@ WHERE organization_id = sqlc.arg(organization_id) AND id = sqlc.arg(id) AND dele
 
 -- name: GraphListOpenSystemEdges :many
 -- Every open SYSTEM edge touching a node, with the other end named by source.
+-- peer_deleted: two projections can race (each holds only its own lock), so
+-- an edge can stay open to a peer whose deletion did not see it.
 SELECT e.id, e.edge_type, (e.from_node = sqlc.arg(node_id)::text) AS outgoing,
-       p.node_type AS peer_type, p.source_id AS peer_source_id
+       p.node_type AS peer_type, p.source_id AS peer_source_id,
+       (p.deleted_at IS NOT NULL)::boolean AS peer_deleted
 FROM graph_edges e
 JOIN graph_nodes p ON p.id = CASE WHEN e.from_node = sqlc.arg(node_id)::text THEN e.to_node ELSE e.from_node END
 WHERE e.organization_id = sqlc.arg(organization_id)

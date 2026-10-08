@@ -195,6 +195,45 @@ func (f *fixture) openFacts(t *testing.T, typ graph.NodeType, sourceID string) m
 	return out
 }
 
+// project runs Project for one node in its own transaction, as the worker does.
+func (f *fixture) project(t *testing.T, ref NodeRef, ev EventInfo) Drift {
+	t.Helper()
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(f.ctx) }()
+	d, err := Project(f.ctx, f.q.WithTx(tx), f.orgID, ref, ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func (f *fixture) verify(t *testing.T, ref NodeRef) Drift {
+	t.Helper()
+	d, err := Verify(f.ctx, f.q, f.orgID, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+// exec changes rows directly, to stage a state no service call produces.
+func (f *fixture) exec(t *testing.T, sql string, args ...any) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx, sql, args...); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func outboxEvent(id string) EventInfo {
+	return EventInfo{EvidenceKind: EvidenceOutboxEvent, EvidenceID: id, At: time.Now()}
+}
+
 func (f *fixture) count(t *testing.T, sql string, args ...any) int {
 	t.Helper()
 	var n int

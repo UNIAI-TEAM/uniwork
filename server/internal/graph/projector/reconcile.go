@@ -135,11 +135,14 @@ func reconcileEdges(ctx context.Context, q *db.Queries, org, nodeID string, ref 
 		}
 	}
 	// Resolve wanted peers first: an edge to a source that no longer exists is
-	// not wanted, so it is closed rather than kept.
+	// not wanted, so it is closed rather than kept. An open edge is enough only
+	// while its peer is live: one left open to a deleted peer (the peer's
+	// deletion raced this node's projection and missed it) is resolved too,
+	// which brings the peer back when its source exists.
 	wanted := map[string]EdgeWant{}
 	peerIDs := map[string]string{}
 	for _, w := range want.Edges {
-		if _, ok := current[w.key()]; ok {
+		if r, ok := current[w.key()]; ok && !r.PeerDeleted {
 			wanted[w.key()] = w
 			continue
 		}

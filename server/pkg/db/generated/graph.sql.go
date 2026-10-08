@@ -276,7 +276,8 @@ func (q *Queries) GraphListOpenFacts(ctx context.Context, arg GraphListOpenFacts
 
 const graphListOpenSystemEdges = `-- name: GraphListOpenSystemEdges :many
 SELECT e.id, e.edge_type, (e.from_node = $1::text) AS outgoing,
-       p.node_type AS peer_type, p.source_id AS peer_source_id
+       p.node_type AS peer_type, p.source_id AS peer_source_id,
+       (p.deleted_at IS NOT NULL)::boolean AS peer_deleted
 FROM graph_edges e
 JOIN graph_nodes p ON p.id = CASE WHEN e.from_node = $1::text THEN e.to_node ELSE e.from_node END
 WHERE e.organization_id = $2
@@ -295,9 +296,12 @@ type GraphListOpenSystemEdgesRow struct {
 	Outgoing     bool   `json:"outgoing"`
 	PeerType     string `json:"peer_type"`
 	PeerSourceID string `json:"peer_source_id"`
+	PeerDeleted  bool   `json:"peer_deleted"`
 }
 
 // Every open SYSTEM edge touching a node, with the other end named by source.
+// peer_deleted: two projections can race (each holds only its own lock), so
+// an edge can stay open to a peer whose deletion did not see it.
 func (q *Queries) GraphListOpenSystemEdges(ctx context.Context, arg GraphListOpenSystemEdgesParams) ([]GraphListOpenSystemEdgesRow, error) {
 	rows, err := q.db.Query(ctx, graphListOpenSystemEdges, arg.NodeID, arg.OrganizationID)
 	if err != nil {
@@ -313,6 +317,7 @@ func (q *Queries) GraphListOpenSystemEdges(ctx context.Context, arg GraphListOpe
 			&i.Outgoing,
 			&i.PeerType,
 			&i.PeerSourceID,
+			&i.PeerDeleted,
 		); err != nil {
 			return nil, err
 		}

@@ -288,3 +288,65 @@ func TestUnlinkReachesTheTaskThroughItsPayload(t *testing.T) {
 		t.Fatalf("closed DISCUSSED_IN = %d, want 1 (history kept)", n)
 	}
 }
+
+// Two worker loops can project a task and its assignee at once: the task
+// opens OWNED_BY while the actor's deletion, which cannot see that
+// uncommitted insert, closes the actor's edges and marks it deleted. An open
+// edge to a deleted peer is not satisfied by being open: the next projection
+// of the task closes it when the peer's source is gone.
+func TestProjectClosesAnOpenEdgeToADeletedPeer(t *testing.T) {
+	f := newFixture(t)
+	task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "Giao cho người sắp rời", AssigneeID: &f.member.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	eq(t, "task edges", f.openEdges(t, graph.NodeTask, task.ID), []string{"OWNED_BY>ACTOR:" + f.member.ID})
+
+	// The race's end state: the member is gone, their node deleted, and the
+	// task's OWNED_BY edge still open.
+	f.exec(t, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, f.wsID, f.member.ID)
+	f.exec(t, `DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`, f.orgID, f.member.ID)
+	f.exec(t, `UPDATE graph_nodes SET deleted_at = now() WHERE organization_id = $1 AND node_type = 'ACTOR' AND source_id = $2`,
+		f.orgID, f.member.ID)
+
+	ref := NodeRef{Type: graph.NodeTask, SourceID: task.ID}
+	if d := f.verify(t, ref); d.ExtraEdges != 1 || d.Total() != 1 {
+		t.Fatalf("verify = %+v, want the edge to the deleted actor as one extra edge", d)
+	}
+	if d := f.project(t, ref, outboxEvent("ev-after-race")); d.ExtraEdges != 1 || d.Total() != 1 {
+		t.Fatalf("project = %+v, want one edge closed", d)
+	}
+	eq(t, "task edges after projection", f.openEdges(t, graph.NodeTask, task.ID), []string{})
+	if d := f.verify(t, ref); d.Total() != 0 {
+		t.Fatalf("verify after projection = %+v", d)
+	}
+	if n := f.count(t, `SELECT count(*) FROM graph_nodes WHERE organization_id = $1 AND node_type = 'ACTOR'
+		AND source_id = $2 AND deleted_at IS NOT NULL`, f.orgID, f.member.ID); n != 1 {
+		t.Fatal("the actor whose source is gone stays deleted")
+	}
+}
+
+// The same race when the peer's source still exists (deleted, then back):
+// the edge stays open and the peer's node comes back to life.
+func TestProjectKeepsAnOpenEdgeToARevivedPeer(t *testing.T) {
+	f := newFixture(t)
+	task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "Giao cho người quay lại", AssigneeID: &f.member.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	f.exec(t, `UPDATE graph_nodes SET deleted_at = now() WHERE organization_id = $1 AND node_type = 'ACTOR' AND source_id = $2`,
+		f.orgID, f.member.ID)
+
+	ref := NodeRef{Type: graph.NodeTask, SourceID: task.ID}
+	if d := f.verify(t, ref); d.Total() != 0 {
+		t.Fatalf("verify = %+v, want no drift on the task (the actor's source exists)", d)
+	}
+	f.project(t, ref, outboxEvent("ev-after-race"))
+	eq(t, "task edges", f.openEdges(t, graph.NodeTask, task.ID), []string{"OWNED_BY>ACTOR:" + f.member.ID})
+	if n := f.count(t, `SELECT count(*) FROM graph_nodes WHERE organization_id = $1 AND node_type = 'ACTOR'
+		AND source_id = $2 AND deleted_at IS NULL`, f.orgID, f.member.ID); n != 1 {
+		t.Fatal("the actor's node is live again")
+	}
+}
