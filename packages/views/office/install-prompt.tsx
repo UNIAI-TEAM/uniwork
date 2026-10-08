@@ -162,7 +162,7 @@ function InstallerPicker({
     </>}
     {failed ? <Alert variant="destructive" role="alert"><AlertDescription>{t("download_failed")}</AlertDescription></Alert> : null}
     <div className="flex flex-col gap-3">
-      <p role="status" className="min-w-0 text-caption text-muted-foreground empty:hidden">
+      <p role="status" className="min-w-0 text-caption text-muted-foreground empty:sr-only">
         {downloading ? t("downloading") : started ? <Trans t={t} i18nKey="started" values={{ file: started }} components={{ filename: <span className="font-medium text-foreground [overflow-wrap:anywhere]" /> }} /> : ""}
       </p>
       <div className="flex flex-col-reverse gap-2 min-[480px]:flex-row min-[480px]:justify-end">

@@ -88,6 +88,14 @@ describe("OfficeInstallPrompt", () => {
     expect(screen.getByText("The desktop installer isn't available yet. Try again later.")).toBeInTheDocument();
     expect(screen.queryByText("Choose the operating system and format that fits your computer.")).not.toBeInTheDocument();
   });
+  it("keeps the download live region rendered, collapsed not display:none, so the later text is announced", () => {
+    render(<OfficeInstallPrompt {...props()} />);
+    const region = document.querySelector<HTMLElement>('p[role="status"]');
+    expect(region).not.toBeNull();
+    expect(region).toBeEmptyDOMElement();
+    expect(region!.className).toContain("empty:sr-only");
+    expect(region!.className).not.toContain("empty:hidden");
+  });
   it("locks both groups while downloading, reports success and opens the instructions", async () => {
     let finish!: () => void;
     const onDownload = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
