@@ -1,0 +1,5 @@
+$ pnpm --filter @uniwork/office-desktop lint
+
+> @uniwork/office-desktop@0.1.0 lint /workspace/apps/office-desktop
+> eslint . --max-warnings 0
+

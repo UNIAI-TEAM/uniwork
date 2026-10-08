@@ -1,0 +1,6 @@
+$ node scripts/office/check-boundaries.mjs
+check-boundaries: browser_isolation /workspace/apps/web/platform/office/editor-host.tsx: resolves non-browser-safe specifier "@uniwork/core/feature-flags"
+check-boundaries: browser_isolation /workspace/apps/web/platform/office/pptx-office-host.tsx: resolves non-browser-safe specifier "@uniwork/core/feature-flags"
+check-boundaries: browser_isolation /workspace/apps/web/platform/office/with-core-provider.test-helper.tsx: resolves non-browser-safe specifier "@uniwork/core/platform"
+check-boundaries: browser_isolation /workspace/apps/web/platform/office/xlsx-office-host.tsx: resolves non-browser-safe specifier "@uniwork/core/feature-flags"
+check-boundaries: 4 violation(s)

@@ -1,0 +1,1 @@
+$ pnpm --filter @uniwork/core exec tsc --noEmit

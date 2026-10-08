@@ -1,0 +1,5 @@
+$ pnpm --filter @uniwork/office-desktop typecheck
+
+> @uniwork/office-desktop@0.1.0 typecheck /workspace/apps/office-desktop
+> tsc --noEmit
+

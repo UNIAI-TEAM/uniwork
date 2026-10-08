@@ -1,0 +1,2 @@
+$ cd server && go test -count=1 ./internal/config
+ok  	github.com/unicomhub/uniwork/server/internal/config	0.019s

@@ -1,0 +1,2 @@
+$ cd server && go test -count=1 ./internal/service -run 'TestOfficeDesktop'
+ok  	github.com/unicomhub/uniwork/server/internal/service	3.681s
