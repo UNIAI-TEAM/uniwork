@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -131,4 +133,55 @@ func isoLaunchPost(*isoWorld, *isoTenant) isoBody {
 // isoSignaturePost is the body of a saved signature.
 func isoSignaturePost(_ *isoWorld, tn *isoTenant) isoBody {
 	return isoBody{json: map[string]any{"label": tn.marker + " signature", "content_type": "image/png", "image": isoSignaturePNG}}
+}
+
+const isoDocxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+// isoFrameDocx is the DOCX the frame fixtures and bodies upload.
+var isoFrameDocx = func() []byte {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, name := range []string{"[Content_Types].xml", "_rels/.rels", "word/document.xml"} {
+		f, err := zw.Create(name)
+		if err != nil {
+			panic(err)
+		}
+		_, _ = f.Write([]byte("<x>" + name + "</x>"))
+	}
+	if err := zw.Close(); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}()
+
+// buildOfficeFrame gives the tenant an Office Docs frame: a DOCX file
+// document, a frame token minted by the owner's session (registered so do()
+// sends it on the frame routes), bytes staged through the frame for a save,
+// and an image attached through the frame.
+func (w *isoWorld) buildOfficeFrame(t *testing.T, tn *isoTenant) {
+	t.Helper()
+	out := w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": tn.marker + " Docx"}, filename: strings.ToLower(tn.marker) + ".docx",
+		contentType: isoDocxMime, content: isoFrameDocx,
+	})
+	tn.ids["frameDocument"] = isoID(t, out, "document")
+	out = w.call(t, "POST", "/api/v1/documents/"+tn.ids["frameDocument"]+"/office/frame-token", tn.token, nil)
+	tn.ids["frameToken"] = isoString(t, out, "token")
+	if w.frameTokens == nil {
+		w.frameTokens = map[string]string{}
+	}
+	// buildTenant re-registers it under the long-lived session it mints last.
+	w.frameTokens[tn.token] = tn.ids["frameToken"]
+	base := "/api/v1/office-frame/documents/" + tn.ids["frameDocument"]
+	out = w.upload(t, base+"/uploads", tn.token, isoMultipart{filename: "staged.docx", contentType: isoDocxMime, content: isoFrameDocx})
+	tn.ids["frameUpload"] = isoString(t, out, "upload_id")
+	out = w.upload(t, base+"/assets", tn.token, isoMultipart{filename: "frame.png", contentType: "image/png", content: docsPNG})
+	tn.ids["frameAsset"] = isoString(t, out, "asset_id")
+	out = w.call(t, "GET", base, tn.token, nil)
+	tn.ids["frameRevision"] = isoString(t, out, "revision")
+}
+
+// isoFrameSign asks for a signed URL of the tenant's own frame image.
+func isoFrameSign(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"asset_ids": []string{tn.ids["frameAsset"]}}}
 }

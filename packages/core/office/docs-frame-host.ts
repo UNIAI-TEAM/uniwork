@@ -1,181 +1,277 @@
+// Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
+// web/docs/protocol/host.ts at b6f773ff8a1b657dc8ee2af8d495e9003dc44549
+// (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
+// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
+// ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
+/* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
 /**
- * Docs frame postMessage endpoint, host side (GO-B2+B3, UNI-1013).
+ * Host-side protocol endpoint (runs in the UniWork page that embeds the
+ * genoffice Docs iframe). Dependency-free apart from ./types and ./endpoint;
+ * dev-uniwork vendors these three files together.
  *
- * Local stand-in for the fork's web/docs/protocol/host.ts, which has not
- * landed yet: same surface (handle / on / request / emit / dispose) over the
- * vendored envelope in ./docs-frame-protocol. Replace this file with the
- * vendored host.ts (and its fork SHA) once W2 commits it.
- *
- * A message is read only when its `source` is the frame's own window AND its
- * `origin` is one of the exact allowed origins; anything else is dropped.
- * Requests are correlated by id, time out, and can be cancelled.
+ * - Accepts messages only from the iframe's window and only from the exact
+ *   allowed frame origins; posts only to the first allowed origin.
+ * - Handshake: waits for the frame's `ready`, checks the protocol version,
+ *   asks `getInit` for a fresh server-minted token + session data and sends
+ *   `init`. A later `ready` (frame reload) re-runs the handshake.
+ * - Token refresh: answers the frame's `token.refresh` via `refreshToken`,
+ *   or pushes one proactively with `pushToken`.
+ * - `api.*` requests from the frame are proxied by the `api` handlers the
+ *   host supplies (token-authorised fetches stay in the page).
  */
 import {
+  Endpoint,
+  armTimeout,
+  err,
+  type MessageSource,
+  type PostTarget,
+  type RejectInfo,
+  type RequestOptions,
+} from './docs-frame-endpoint'
+import {
   DocsProtocolError,
-  PROTOCOL_NS,
+  FRAME_REQUEST_TYPES,
   PROTOCOL_VERSION,
-  parseEnvelope,
   toProtocolError,
-  type Envelope,
-  type MessageKind,
-} from "./docs-frame-protocol";
+  type FileMeta,
+  type FrameEvents,
+  type FrameRequests,
+  type HostRequests,
+  type InitAck,
+  type InitPayload,
+  type ProtocolErrorShape,
+  type ReadyPayload,
+  type Theme,
+  type TokenPayload,
+} from './docs-frame-protocol'
 
-export interface DocsFramePostTarget {
-  postMessage(message: unknown, targetOrigin: string, transfer?: Transferable[]): void;
-}
-export interface DocsFrameMessageSource {
-  addEventListener(type: "message", listener: (event: MessageEvent) => void): void;
-  removeEventListener(type: "message", listener: (event: MessageEvent) => void): void;
+export type ApiRequestType = Exclude<keyof FrameRequests, 'token.refresh'>
+
+export type ApiHandlers = {
+  [K in ApiRequestType]?: (
+    payload: FrameRequests[K]['payload'],
+    ctx: { signal: AbortSignal },
+  ) => Promise<FrameRequests[K]['result']> | FrameRequests[K]['result']
 }
 
 export interface DocsFrameHostOptions {
-  /** The host page's window. */
-  self: DocsFrameMessageSource;
-  /** The iframe's window; null while it is not attached. */
-  peer: () => DocsFramePostTarget | null;
-  /** Exact origins; the first is the targetOrigin of every post. */
-  allowedOrigins: readonly string[];
-  timeoutMs?: number;
-  /** A message from the frame window that was dropped (malformed, wrong version). */
-  onReject?: (reason: string, detail: string) => void;
+  /** the iframe's window, e.g. () => iframeRef.current?.contentWindow ?? null */
+  frame: () => PostTarget | null
+  /** exact frame origins; same-origin deployment: [location.origin] */
+  allowedOrigins: readonly string[]
+  /** default: window */
+  self?: MessageSource
+  /** session data + a freshly minted token for this frame */
+  getInit: (ready: ReadyPayload) => Promise<Omit<InitPayload, 'protocolVersion'>>
+  /** mint a new token (the frame asked: expiring soon / got a 401) */
+  refreshToken: (reason: 'expiring' | 'unauthorized') => Promise<TokenPayload>
+  /** proxies for the frame's api.* requests; missing ones answer `unsupported` */
+  api?: ApiHandlers
+  /** called after every successful handshake (first load and reloads) */
+  onInitialized?: (ack: InitAck, ready: ReadyPayload) => void
+  /** handshake failed (version mismatch, getInit threw, init rejected/timed out) */
+  onHandshakeError?: (error: DocsProtocolError) => void
+  timeoutMs?: number
+  onReject?: (info: RejectInfo) => void
 }
 
-type Handler = (payload: unknown, context: { signal: AbortSignal }) => unknown;
-type Listener = (payload: unknown) => void;
+type FrameEventListener<K extends keyof FrameEvents> = (payload: FrameEvents[K]) => void
 
 export interface DocsFrameHost {
-  handle(type: string, handler: Handler): () => void;
-  on(type: string, listener: Listener): () => void;
-  emit(type: string, payload: unknown): boolean;
-  request<T = unknown>(type: string, payload: unknown, options?: { timeoutMs?: number; signal?: AbortSignal }): Promise<T>;
-  dispose(): void;
+  /** true once `init` was acknowledged (and until the next frame reload) */
+  readonly isReady: boolean
+  /** resolves with the next/last successful InitAck; waits up to `timeoutMs` */
+  whenReady(options?: { timeoutMs?: number; signal?: AbortSignal }): Promise<InitAck>
+  open(
+    payload: HostRequests['open']['payload'],
+    options?: RequestOptions,
+  ): Promise<HostRequests['open']['result']>
+  save(
+    payload: HostRequests['save']['payload'],
+    options?: RequestOptions,
+  ): Promise<HostRequests['save']['result']>
+  saveAs(
+    payload: HostRequests['saveAs']['payload'],
+    options?: RequestOptions,
+  ): Promise<HostRequests['saveAs']['result']>
+  print(
+    payload?: HostRequests['print']['payload'],
+    options?: RequestOptions,
+  ): Promise<HostRequests['print']['result']>
+  /** before closing/navigating: does the frame hold unsaved work? */
+  closeCheck(options?: RequestOptions): Promise<HostRequests['doc.closeCheck']['result']>
+  /** the open document was renamed outside the editor */
+  notifyRenamed(file: FileMeta): void
+  /** live theme / language switches (no-ops before the handshake; getInit supplies the initial values) */
+  setTheme(theme: Theme): void
+  setLanguage(locale: string): void
+  /** proactive token rotation */
+  pushToken(token: TokenPayload): void
+  on<K extends 'dirty' | 'title' | 'resize' | 'saved' | 'error'>(
+    type: K,
+    listener: FrameEventListener<K>,
+  ): () => void
+  dispose(): void
 }
 
-const DEFAULT_TIMEOUT_MS = 30_000;
-
 export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHost {
-  const allowed = new Set(options.allowedOrigins);
-  if (allowed.size === 0 || allowed.has("*") || allowed.has("null")) throw new Error("docs frame host needs exact origins");
-  const target = options.allowedOrigins[0]!;
-  const handlers = new Map<string, Handler>();
-  const listeners = new Map<string, Set<Listener>>();
-  const pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: DocsProtocolError) => void; cleanup: () => void }>();
-  const inbound = new Map<string, AbortController>();
-  let seq = 0;
-  let disposed = false;
+  const self = options.self ?? (globalThis as unknown as MessageSource)
+  const ep = new Endpoint({
+    self,
+    peer: options.frame,
+    allowedOrigins: options.allowedOrigins,
+    timeoutMs: options.timeoutMs,
+    idPrefix: 'h',
+    onReject: options.onReject,
+  })
 
-  const post = (kind: MessageKind, type: string, id: string, rest: Pick<Envelope, "payload" | "error">): boolean => {
-    const peer = options.peer();
-    if (disposed || !peer) return false;
-    const message: Envelope = { ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind, type, ...rest };
-    peer.postMessage(message, target);
-    return true;
-  };
-  const fail = (code: DocsProtocolError["code"], message: string) => new DocsProtocolError({ code, message });
+  let ack: InitAck | null = null
+  let handshaking = false
+  let disposed = false
+  const waiters = new Set<{
+    resolve: (a: InitAck) => void
+    reject: (e: DocsProtocolError) => void
+  }>()
 
-  const answer = async (message: Envelope) => {
-    const handler = handlers.get(message.type);
-    if (!handler) {
-      post("response", message.type, message.id, { error: fail("unknown_type", `no handler for ${message.type}`).toShape() });
-      return;
+  const failHandshake = (e: DocsProtocolError): void => {
+    options.onHandshakeError?.(e)
+    for (const w of [...waiters]) w.reject(e)
+  }
+
+  ep.on('ready', async (raw) => {
+    const ready = raw as ReadyPayload
+    if (handshaking || disposed) return // the frame re-sends `ready` until it gets `init`
+    ack = null
+    if (ready.protocolVersion !== PROTOCOL_VERSION) {
+      failHandshake(
+        err(
+          'version_mismatch',
+          `frame protocol v${ready.protocolVersion}, host v${PROTOCOL_VERSION}`,
+          {
+            details: { remoteVersion: ready.protocolVersion, localVersion: PROTOCOL_VERSION },
+          },
+        ),
+      )
+      return
     }
-    const controller = new AbortController();
-    inbound.set(message.id, controller);
+    handshaking = true
     try {
-      const payload = await handler(message.payload, { signal: controller.signal });
-      if (!controller.signal.aborted) post("response", message.type, message.id, { payload });
-    } catch (error) {
-      if (!controller.signal.aborted) post("response", message.type, message.id, { error: toProtocolError(error).toShape() });
+      const init = await options.getInit(ready)
+      if (disposed) return
+      const result = (await ep.request('init', {
+        ...init,
+        protocolVersion: PROTOCOL_VERSION,
+      })) as InitAck
+      ack = result
+      options.onInitialized?.(result, ready)
+      for (const w of [...waiters]) w.resolve(result)
+    } catch (e) {
+      if (!disposed) failHandshake(toProtocolError(e))
     } finally {
-      inbound.delete(message.id);
+      handshaking = false
     }
-  };
+  })
 
-  const receive = (event: MessageEvent) => {
-    if (disposed) return;
-    const peer = options.peer();
-    if (!peer || event.source !== peer || !allowed.has(event.origin)) return;
-    const parsed = parseEnvelope(event.data);
-    if (!parsed.ok) {
-      if (parsed.reason === "foreign") return;
-      if (parsed.reason === "version_mismatch") {
-        const { message } = parsed;
-        if (message.kind === "request") {
-          post("response", message.type, message.id, { error: fail("version_mismatch", `host speaks protocol ${PROTOCOL_VERSION}, frame sent ${message.v}`).toShape() });
-        }
-        options.onReject?.("version_mismatch", `v${message.v}`);
-        return;
-      }
-      const { partial } = parsed;
-      if (partial?.kind === "request" && partial.id && partial.type) {
-        post("response", partial.type, partial.id, { error: fail("malformed", parsed.detail).toShape() });
-      }
-      options.onReject?.("malformed", parsed.detail);
-      return;
+  ep.on('$version_mismatch', (shape) =>
+    failHandshake(new DocsProtocolError(shape as ProtocolErrorShape)),
+  )
+
+  ep.handle('token.refresh', async (raw) => {
+    const { reason } = raw as FrameRequests['token.refresh']['payload']
+    try {
+      return await options.refreshToken(reason)
+    } catch (e) {
+      const pe = toProtocolError(e)
+      throw new DocsProtocolError({
+        ...pe.toShape(),
+        code: pe.code === 'network' ? 'network' : 'unauthorized',
+      })
     }
-    const { message } = parsed;
-    if (message.kind === "request") {
-      void answer(message);
-    } else if (message.kind === "event") {
-      if (message.type === "cancel") {
-        const id = (message.payload as { id?: unknown }).id;
-        if (typeof id === "string") inbound.get(id)?.abort();
-        return;
+  })
+
+  const apiTypes = FRAME_REQUEST_TYPES.filter((t): t is ApiRequestType => t !== 'token.refresh')
+  for (const type of apiTypes) {
+    ep.handle(type, async (payload, ctx) => {
+      // the frame may act on `init` before its ack reached us: wait for it
+      if (!ack && !handshaking) throw err('not_ready', `${type} before init`)
+      if (!ack) await whenReady({ signal: ctx.signal })
+      const h = options.api?.[type] as
+        ((p: unknown, c: { signal: AbortSignal }) => unknown) | undefined
+      if (!h) throw err('unsupported', `${type} is not available in this host`)
+      return h(payload, { signal: ctx.signal })
+    })
+  }
+
+  function whenReady(o: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<InitAck> {
+    if (ack) return Promise.resolve(ack)
+    if (disposed) return Promise.reject(err('cancelled', 'host disposed'))
+    const timeoutMs = o.timeoutMs ?? options.timeoutMs ?? 30_000
+    return new Promise<InitAck>((resolve, reject) => {
+      const w = {
+        resolve: (a: InitAck) => {
+          done()
+          resolve(a)
+        },
+        reject: (e: DocsProtocolError) => {
+          done()
+          reject(e)
+        },
       }
-      for (const listener of listeners.get(message.type) ?? []) listener(message.payload);
-    } else {
-      const entry = pending.get(message.id);
-      if (!entry) return;
-      entry.cleanup();
-      if (message.error) entry.reject(new DocsProtocolError(message.error));
-      else entry.resolve(message.payload);
+      const clearTimer = armTimeout(timeoutMs, () =>
+        w.reject(err('timeout', `frame not ready after ${timeoutMs} ms`)),
+      )
+      const onAbort = (): void => w.reject(err('cancelled', 'whenReady aborted'))
+      const done = (): void => {
+        clearTimer()
+        o.signal?.removeEventListener('abort', onAbort)
+        waiters.delete(w)
+      }
+      if (o.signal?.aborted) return onAbort()
+      o.signal?.addEventListener('abort', onAbort, { once: true })
+      waiters.add(w)
+    })
+  }
+
+  async function call<K extends keyof HostRequests>(
+    type: K,
+    payload: HostRequests[K]['payload'],
+    opts: RequestOptions = {},
+  ): Promise<HostRequests[K]['result']> {
+    await whenReady({ timeoutMs: opts.timeoutMs, signal: opts.signal })
+    return (await ep.request(type, payload, opts)) as HostRequests[K]['result']
+  }
+
+  const emitIfReady = (type: string, payload: unknown): void => {
+    if (!ack) return
+    try {
+      ep.emit(type, payload)
+    } catch {
+      // frame gone; the next handshake carries current values
     }
-  };
-  options.self.addEventListener("message", receive);
+  }
 
   return {
-    handle(type, handler) {
-      handlers.set(type, handler);
-      return () => { if (handlers.get(type) === handler) handlers.delete(type); };
+    get isReady() {
+      return ack !== null
     },
-    on(type, listener) {
-      const set = listeners.get(type) ?? new Set<Listener>();
-      set.add(listener);
-      listeners.set(type, set);
-      return () => { set.delete(listener); };
-    },
-    emit(type, payload) {
-      return post("event", type, `h${(seq += 1)}`, { payload });
-    },
-    request<T>(type: string, payload: unknown, requestOptions: { timeoutMs?: number; signal?: AbortSignal } = {}) {
-      return new Promise<T>((resolve, reject) => {
-        const id = `h${(seq += 1)}`;
-        const settle = (error: DocsProtocolError) => { cleanup(); reject(error); };
-        const onAbort = () => {
-          post("event", "cancel", `h${(seq += 1)}`, { payload: { id } });
-          settle(fail("cancelled", `${type} cancelled`));
-        };
-        const timer = setTimeout(() => settle(fail("timeout", `${type} timed out`)), requestOptions.timeoutMs ?? options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-        function cleanup() {
-          clearTimeout(timer);
-          requestOptions.signal?.removeEventListener("abort", onAbort);
-          pending.delete(id);
-        }
-        if (requestOptions.signal?.aborted) { settle(fail("cancelled", `${type} cancelled`)); return; }
-        requestOptions.signal?.addEventListener("abort", onAbort);
-        pending.set(id, { resolve: (value) => { resolve(value as T); }, reject, cleanup });
-        if (!post("request", type, id, { payload })) settle(fail("not_ready", "docs frame is not attached"));
-      });
-    },
+    whenReady,
+    open: (p, o) => call('open', p, o),
+    save: (p, o) => call('save', p, o),
+    saveAs: (p, o) => call('saveAs', p, o),
+    print: (p = {}, o) => call('print', p, o),
+    closeCheck: (o) => call('doc.closeCheck', {}, o),
+    notifyRenamed: (file) => emitIfReady('file.renamed', { file }),
+    setTheme: (theme) => emitIfReady('theme', { theme }),
+    setLanguage: (locale) => emitIfReady('language', { locale }),
+    pushToken: (t) =>
+      emitIfReady('token.update', { token: t.token, tokenExpiresAt: t.tokenExpiresAt }),
+    on: (type, listener) => ep.on(type, listener as (p: unknown) => void),
     dispose() {
-      if (disposed) return;
-      disposed = true;
-      options.self.removeEventListener("message", receive);
-      for (const controller of inbound.values()) controller.abort();
-      for (const entry of [...pending.values()]) {
-        entry.cleanup();
-        entry.reject(fail("cancelled", "docs frame host disposed"));
-      }
+      if (disposed) return
+      disposed = true
+      ack = null
+      for (const w of [...waiters]) w.reject(err('cancelled', 'host disposed'))
+      ep.dispose()
     },
-  };
+  }
 }

@@ -104,6 +104,13 @@ func (s *OfficeFrameService) SetClock(now func() time.Time) {
 	s.now = now
 }
 
+// SetTTL replaces the token lifetime (tests that outlive the default).
+func (s *OfficeFrameService) SetTTL(ttl time.Duration) {
+	if ttl > 0 {
+		s.ttl = ttl
+	}
+}
+
 // Mint checks that actor may view documentID, that it is a live DOCX file
 // document, and signs a token for it. The caller cannot choose the lifetime
 // or any bound id.

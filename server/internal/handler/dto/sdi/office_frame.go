@@ -32,7 +32,7 @@ type UploadOfficeFrameAssetSDI struct {
 // /api/v1/office-frame/documents/{documentID}/assets/sign: fresh signed URLs
 // for images already attached to the token's document.
 type SignOfficeFrameAssetsSDI struct {
-	AssetIDs []string `json:"asset_ids" description:"ULID asset của chính tài liệu trong token (1..100); asset lạ -> 404" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+	AssetIDs []string `json:"asset_ids" minItems:"1" maxItems:"100" description:"ULID asset của chính tài liệu trong token (1..100); asset lạ -> 404" example:"[\"01J8X4AST0N1P2Q3R4S5T6U7V8\"]"`
 }
 
 // ListOfficeFrameRecentsSDI documents GET

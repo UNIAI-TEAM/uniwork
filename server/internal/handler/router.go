@@ -146,6 +146,7 @@ func New(d Deps) http.Handler {
 			}
 			return d.DesktopAuth.CheckDeviceSession(ctx, userID, sessionID)
 		},
+		OfficeFrameAuth: h.officeFrameAuth,
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
@@ -594,7 +595,6 @@ func New(d Deps) http.Handler {
 		GetPreviewAsset:         h.getPreviewAsset,
 
 		MintOfficeFrameToken:     h.mintOfficeFrameToken,
-		OfficeFrameAuth:          h.officeFrameAuth,
 		RefreshOfficeFrameToken:  h.refreshOfficeFrameToken,
 		OpenOfficeFrameDocument:  h.openOfficeFrameDocument,
 		GetOfficeFrameContent:    h.getOfficeFrameContent,

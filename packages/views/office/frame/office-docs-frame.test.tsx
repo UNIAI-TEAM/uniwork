@@ -3,10 +3,13 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
-import { officeDocsFrameKeys, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { ApiError } from "@uniwork/core/api/http";
+import { officeFrameKeys } from "@uniwork/core/documents/office-frame-hooks";
+import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from "@uniwork/core/office/docs-frame-protocol";
 import { ThemeProvider, useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { leaveGuardAllows } from "../../navigation/leave-guard";
+import { requestMock } from "../../test/api-mock";
 import { OfficeDocsFrame, type OfficeDocsFrameProps } from "./office-docs-frame";
 
 const toastError = vi.hoisted(() => vi.fn());
@@ -14,16 +17,24 @@ vi.mock("sonner", () => ({ toast: { error: toastError } }));
 
 const FILE = { fileId: "doc-1", name: "Plan.docx" };
 
-function fakeApi(overrides: Partial<DocsFrameApi> = {}) {
+const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
+const minted = (token: string) => ({
+  token, token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
+  document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: true,
+});
+const mintCalls = () => requestMock.mock.calls.filter(([path]) => path === MINT_PATH);
+
+/** The frame token comes from W6's mint endpoint, through the mocked transport. */
+function serveTokens(answer: (n: number) => Promise<unknown> = (n) => Promise.resolve(minted(`tok-${n}`))) {
   let n = 0;
+  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? answer((n += 1)) : Promise.reject(new Error(`unexpected ${path}`))));
+}
+
+function fakeApi(overrides: Partial<DocsFrameApi> = {}) {
   const api = {
-    mintToken: vi.fn(async () => ({ token: `tok-${(n += 1)}`, tokenExpiresAt: Date.now() + 10 * 60_000 })),
     open: vi.fn(async () => ({ file: FILE, source: { kind: "url" as const, url: "https://files.test/signed" } })),
     save: vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" })),
-    saveAs: vi.fn(),
     recents: vi.fn(async () => ({ files: [FILE] })),
-    export: vi.fn(),
-    addAttachments: vi.fn(),
     uploadImage: vi.fn(),
     ...overrides,
   };
@@ -35,7 +46,8 @@ function ThemeFlip() {
   return <button type="button" onClick={() => setTheme("dark")}>flip</button>;
 }
 
-function mount(props: Partial<OfficeDocsFrameProps> = {}, api = fakeApi()) {
+function mount(props: Partial<OfficeDocsFrameProps> = {}, api = fakeApi(), tokens = true) {
+  if (tokens) serveTokens();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui = (extra: Partial<OfficeDocsFrameProps> = {}): ReactElement => (
     <QueryClientProvider client={client}>
@@ -87,35 +99,36 @@ async function boot(frame: ReturnType<typeof fakeFrame>) {
   await waitFor(() => expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull());
 }
 
-afterEach(() => { toastError.mockReset(); });
+afterEach(() => { toastError.mockReset(); requestMock.mockReset(); });
 
 describe("OfficeDocsFrame", () => {
   it("serves the pinned build same-origin and hands the token over in init once the frame is ready", async () => {
-    const { api } = mount();
+    mount();
     const iframe = screen.getByTestId("office-docs-frame-iframe");
     expect(iframe.getAttribute("src")).toBe("/office-frame/docs/1.0.0/index.html");
     expect(iframe.getAttribute("title")).toBe("Trình soạn thảo tài liệu: Plan");
     const frame = fakeFrame();
     expect(screen.getByTestId("office-docs-frame-loading")).toBeTruthy();
-    await waitFor(() => expect(api.mintToken).toHaveBeenCalledWith({ workspaceId: "ws-1", documentId: "doc-1" }));
+    await waitFor(() => expect(mintCalls()).toHaveLength(1));
+    expect(mintCalls()[0]?.[1]).toMatchObject({ method: "POST" });
     expect(frame.sent("request", "init")).toHaveLength(0);
     await boot(frame);
     const [init] = frame.sent("request", "init");
     expect(init?.payload).toMatchObject({
       protocolVersion: 1, token: "tok-1", documentId: "doc-1", workspaceId: "ws-1", apiMode: "host-proxy",
-      locale: "vi", theme: "light", capabilities: { save: true, ai: false },
+      locale: "vi", theme: "light", capabilities: { save: true, images: true, saveAs: false, exportPdf: false, attachments: false, ai: false },
     });
     expect(frame.sent("request", "init")).toHaveLength(1);
   });
 
   it("waits for the token before init", async () => {
-    let mint!: (value: { token: string; tokenExpiresAt: number }) => void;
-    const api = fakeApi({ mintToken: vi.fn(() => new Promise<{ token: string; tokenExpiresAt: number }>((resolve) => { mint = resolve; })) });
-    mount({}, api);
+    let mint!: (value: unknown) => void;
+    serveTokens(() => new Promise((resolve) => { mint = resolve; }));
+    mount({}, fakeApi(), false);
     const frame = fakeFrame();
     await frame.event("ready", { protocolVersion: 1, capabilities: {} });
     expect(frame.sent("request", "init")).toHaveLength(0);
-    await act(async () => { mint({ token: "late", tokenExpiresAt: Date.now() + 600_000 }); });
+    await act(async () => { mint(minted("late")); });
     await waitFor(() => expect(frame.sent("request", "init")[0]?.payload).toMatchObject({ token: "late" }));
   });
 
@@ -132,6 +145,37 @@ describe("OfficeDocsFrame", () => {
       expect.objectContaining({ fileId: "doc-1", etag: "e1" }),
       expect.objectContaining({ token: "tok-1", workspaceId: "ws-1", documentId: "doc-1" }),
     );
+  });
+
+  it("answers requests with no UniWork route yet (export, save-as, file picker) as unsupported", async () => {
+    mount();
+    const frame = fakeFrame();
+    await boot(frame);
+    const ids = [
+      frame.request("api.export", { format: "pdf" }),
+      frame.request("api.saveAs", { name: "Copy.docx", data: new ArrayBuffer(1) }),
+      frame.request("file.pick", { purpose: "open" }),
+    ];
+    await waitFor(() => expect(ids.map((id) => frame.answerTo(id)?.error?.code)).toEqual(["unsupported", "unsupported", "unsupported"]));
+  });
+
+  it("moves the frame to the copy after save-as: new token pushed, later calls scoped to the copy", async () => {
+    const onSavedAs = vi.fn();
+    const copy = { fileId: "doc-2", name: "Copy.docx" };
+    const saveAs = vi.fn(async () => ({ save: { ok: true as const, file: copy, versionId: "v-c1" }, rebind: { documentId: "doc-2", token: minted("copy-tok") } }));
+    const api = fakeApi({ saveAs });
+    mount({ onSavedAs }, api);
+    const frame = fakeFrame();
+    await boot(frame);
+    expect(frame.sent("request", "init")[0]?.payload).toMatchObject({ capabilities: { saveAs: true } });
+    const id = frame.request("api.saveAs", { name: "Copy", data: new ArrayBuffer(2) });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true, file: copy }));
+    expect(saveAs).toHaveBeenCalledWith(expect.objectContaining({ name: "Copy" }), expect.objectContaining({ documentId: "doc-1", token: "tok-1" }));
+    expect(frame.sent("event", "token.update").at(-1)?.payload).toMatchObject({ token: "copy-tok" });
+    expect(onSavedAs).toHaveBeenCalledWith("doc-2");
+    frame.request("api.recents", {});
+    await waitFor(() => expect(api.recents).toHaveBeenCalledWith({}, expect.objectContaining({ documentId: "doc-2", token: "copy-tok" })));
+    expect(mintCalls()).toHaveLength(1);
   });
 
   it("passes an API error to the frame as a typed error", async () => {
@@ -153,15 +197,15 @@ describe("OfficeDocsFrame", () => {
   });
 
   it("re-mints on token.refresh and rotates a re-minted token to the frame", async () => {
-    const { api, client } = mount();
+    const { client } = mount();
     const frame = fakeFrame();
     await boot(frame);
     const id = frame.request("token.refresh", { reason: "unauthorized" });
     await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ token: "tok-2" }));
     expect(frame.sent("event", "token.update")).toHaveLength(0);
-    await act(async () => { await client.refetchQueries({ queryKey: officeDocsFrameKeys.token("ws-1", "doc-1") }); });
+    await act(async () => { await client.refetchQueries({ queryKey: officeFrameKeys.token("ws-1", "doc-1") }); });
     await waitFor(() => expect(frame.sent("event", "token.update")[0]?.payload).toMatchObject({ token: "tok-3" }));
-    expect(api.mintToken).toHaveBeenCalledTimes(3);
+    expect(mintCalls()).toHaveLength(3);
   });
 
   it("follows the page's theme and language", async () => {
@@ -221,11 +265,11 @@ describe("OfficeDocsFrame", () => {
     const frame = fakeFrame();
     await boot(frame);
     fireEvent.keyDown(window, { key: "p", ctrlKey: true });
-    expect(frame.sent("request", "print")[0]?.payload).toEqual({ mode: "dialog" });
+    await waitFor(() => expect(frame.sent("request", "print")[0]?.payload).toEqual({ mode: "dialog" }));
   });
 
   it("toasts a non-fatal error, and replaces the editor with a retry on a fatal one", async () => {
-    const { api } = mount();
+    mount();
     let frame = fakeFrame();
     await boot(frame);
     await frame.event("error", { error: { code: "conflict", message: "412" }, fatal: false });
@@ -237,13 +281,18 @@ describe("OfficeDocsFrame", () => {
     frame = fakeFrame();
     await boot(frame);
     expect(frame.sent("request", "init")).toHaveLength(1);
-    expect(api.mintToken).toHaveBeenCalledTimes(1);
+    expect(mintCalls()).toHaveLength(1);
   });
 
   it("shows a retry when no token can be minted", async () => {
-    mount({}, fakeApi({ mintToken: vi.fn(async () => { throw new DocsProtocolError({ code: "forbidden", message: "no" }); }) }));
-    const alert = await screen.findByTestId("office-docs-frame-failed", undefined, { timeout: 4_000 });
+    serveTokens((n) => (n === 1 ? Promise.reject(new ApiError("no", "forbidden", 403)) : Promise.resolve(minted("tok-ok"))));
+    mount({}, fakeApi(), false);
+    const alert = await screen.findByTestId("office-docs-frame-failed");
     expect(alert.textContent).toContain("Bạn không có quyền thực hiện thao tác này trong tài liệu.");
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    const frame = fakeFrame();
+    await boot(frame);
+    expect(frame.sent("request", "init")[0]?.payload).toMatchObject({ token: "tok-ok" });
   });
 
   it("exposes save and print controls to the hosting page", async () => {

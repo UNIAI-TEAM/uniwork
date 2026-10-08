@@ -1,0 +1,143 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { ApiError } from "../http";
+import { setAccessToken } from "../session";
+import { createOfficeFrameClient, mintOfficeFrameToken } from "./office-frame";
+
+const docId = "01J8X4DOC0N1P2Q3R4S5T6U7";
+const token = {
+  token: "oft1.payload.sig",
+  token_type: "Bearer",
+  expires_at: "2026-10-08T10:10:00Z",
+  expires_in: 600,
+  document_id: docId,
+  workspace_id: "01J8X4WS0N1P2Q3R4S5T6U7V8",
+  organization_id: "01J8X4ORGN1P2Q3R4S5T6U7V8",
+  can_edit: true,
+};
+const document = {
+  document_id: docId,
+  workspace_id: token.workspace_id,
+  organization_id: token.organization_id,
+  title: "Kế hoạch.docx",
+  revision: "41",
+  can_edit: true,
+  file: {
+    file_id: "f1", version_id: "v1", version: 3, filename: "ke-hoach.docx",
+    mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 12, checksum_sha256: "abc",
+  },
+  download_url: `/api/v1/office-frame/documents/${docId}/content?version=3`,
+  updated_at: "2026-10-08T10:00:00Z",
+};
+const upload = { upload_id: "01J8X4FILEN1P2Q3R4S5T6U7V8", checksum_sha256: "abc", size_bytes: 12, claim_expires_at: "2026-10-09T10:00:00Z" };
+const asset = {
+  asset_id: "01J8X4AST0N1P2Q3R4S5T6U7V8", document_id: docId, mime_type: "image/png", size_bytes: 10,
+  url: `/api/v1/office-frame/documents/${docId}/assets/01J8X4AST0N1P2Q3R4S5T6U7V8?sig=ofa1.x.y`, expires_at: "2026-10-08T10:10:00Z",
+};
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const malformed = [{ nope: true }, null, [], "malformed", { ...document, revision: 41 }];
+
+describe("Office Docs frame endpoints", () => {
+  beforeEach(() => {
+    setAccessToken("session-token");
+    configureRuntime({ apiUrl: "http://api.test" });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    setAccessToken(null);
+    resetRuntimeConfig();
+  });
+
+  it("mints with the session and parses the token", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(token, 201));
+    await expect(mintOfficeFrameToken(docId)).resolves.toEqual(token);
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toBe(`http://api.test/api/v1/documents/${docId}/office/frame-token`);
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer session-token");
+  });
+
+  it("degrades a malformed mint answer to null", async () => {
+    for (const body of [{ nope: true }, null, [], "malformed", { ...token, expires_in: "600" }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body, 201));
+      await expect(mintOfficeFrameToken(docId)).resolves.toBeNull();
+    }
+  });
+
+  it("sends only the frame token, never cookies, on every frame call", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "http://frame.test" });
+    f.mockResolvedValueOnce(json(document));
+    await expect(client.open(docId)).resolves.toEqual(document);
+    const [url, init] = f.mock.calls[0] ?? [];
+    expect(String(url)).toBe(`http://frame.test/api/v1/office-frame/documents/${docId}`);
+    expect(init?.credentials).toBe("omit");
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer oft1.frame");
+  });
+
+  it("runs the save flow and surfaces a conflict as a 409 ApiError", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
+    f.mockResolvedValueOnce(json(upload, 201));
+    await expect(client.upload(docId, new Blob(["x"]), "ke-hoach.docx", "k1")).resolves.toEqual(upload);
+    expect((f.mock.calls[0]?.[1]?.headers as Record<string, string>)["Idempotency-Key"]).toBe("k1");
+    expect(f.mock.calls[0]?.[1]?.body).toBeInstanceOf(FormData);
+
+    f.mockResolvedValueOnce(json({ ...document, revision: "42" }));
+    await expect(client.commit(docId, { upload_id: upload.upload_id, base_revision: "41" }, "k2")).resolves.toMatchObject({ revision: "42" });
+    expect(JSON.parse(String(f.mock.calls[1]?.[1]?.body))).toEqual({ upload_id: upload.upload_id, base_revision: "41" });
+
+    f.mockResolvedValueOnce(json({ error: { code: "document_version_conflict", message: "stale", fields: { current_revision: "43" } } }, 409));
+    const err = await client.commit(docId, { upload_id: upload.upload_id, base_revision: "41" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 409, code: "document_version_conflict", fields: { current_revision: "43" } });
+  });
+
+  it("reads bytes only from frame routes", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
+    f.mockResolvedValueOnce(new Response("docx-bytes"));
+    await expect((await client.content(document.download_url)).text()).resolves.toBe("docx-bytes");
+    await expect(client.content("https://evil.test/x")).rejects.toBeInstanceOf(ApiError);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("parses refresh, recents and image answers", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
+    f.mockResolvedValueOnce(json(token));
+    await expect(client.refresh()).resolves.toEqual(token);
+    f.mockResolvedValueOnce(json({ items: [{ document_id: docId, title: "a.docx", updated_at: "2026-10-08T10:00:00Z" }] }));
+    await expect(client.recents(docId, 5)).resolves.toEqual({ items: [{ document_id: docId, title: "a.docx", updated_at: "2026-10-08T10:00:00Z" }] });
+    expect(String(f.mock.calls[1]?.[0])).toBe(`/api/v1/office-frame/documents/${docId}/recents?limit=5`);
+    f.mockResolvedValueOnce(json(asset, 201));
+    await expect(client.uploadAsset(docId, new Blob(["p"]), "a.png")).resolves.toEqual(asset);
+    f.mockResolvedValueOnce(json({ items: [{ asset_id: asset.asset_id, url: asset.url, expires_at: asset.expires_at }] }));
+    await expect(client.signAssets(docId, [asset.asset_id])).resolves.toEqual({ items: [{ asset_id: asset.asset_id, url: asset.url, expires_at: asset.expires_at }] });
+    expect(JSON.parse(String(f.mock.calls[3]?.[1]?.body))).toEqual({ asset_ids: [asset.asset_id] });
+  });
+
+  it("degrades every malformed frame answer instead of throwing", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
+    for (const body of malformed) {
+      f.mockResolvedValueOnce(json(body));
+      await expect(client.refresh()).resolves.toBeNull();
+      f.mockResolvedValueOnce(json(body));
+      await expect(client.open(docId)).resolves.toBeNull();
+      f.mockResolvedValueOnce(json(body));
+      await expect(client.upload(docId, new Blob(["x"]), "a.docx")).resolves.toBeNull();
+      f.mockResolvedValueOnce(json(body));
+      await expect(client.commit(docId, { upload_id: "u", base_revision: "1" })).resolves.toBeNull();
+      f.mockResolvedValueOnce(json(body));
+      await expect(client.recents(docId)).resolves.toEqual({ items: [] });
+      f.mockResolvedValueOnce(json(body));
+      await expect(client.uploadAsset(docId, new Blob(["x"]), "a.png")).resolves.toBeNull();
+      f.mockResolvedValueOnce(json(body));
+      await expect(client.signAssets(docId, ["a"])).resolves.toEqual({ items: [] });
+    }
+    // A non-JSON success body degrades too.
+    f.mockResolvedValueOnce(new Response("not json", { status: 200 }));
+    await expect(client.open(docId)).resolves.toBeNull();
+  });
+});
