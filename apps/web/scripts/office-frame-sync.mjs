@@ -32,7 +32,7 @@ async function sync({ source, repin, allowDirty }) {
     const bundle = loadBundle(dir, { allowDirty });
     const pin = readPin();
     if (repin) {
-      writeFileSync(fileURLToPath(PIN_PATH), `${JSON.stringify(buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers), null, 2)}\n`);
+      writeFileSync(PIN_PATH, `${JSON.stringify(buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers), null, 2)}\n`);
       console.log(`office-frame: pinned ${bundle.manifest.version} (${bundle.manifest.gitSha.slice(0, 12)})`);
     } else if (!pin) {
       throw new Error("no docs.pin.json; run with --pin once to record the build you intend to serve");

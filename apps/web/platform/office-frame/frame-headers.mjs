@@ -1,10 +1,11 @@
-/* global URL */
 // Response headers for /office-frame/** (UNI-1013), derived from the checked-in
 // pin so next.config.mjs never needs the bundle itself. Build-time only.
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { enforceFrameAncestors, parsePin, CSP_HEADER, FRAME_URL_ROOT } from "./frame-bundle.mjs";
 
-export const PIN_PATH = new URL("./docs.pin.json", import.meta.url);
+export const PIN_PATH = join(dirname(fileURLToPath(import.meta.url)), "docs.pin.json");
 
 // What a path that has no pin is served with: nothing may run in it and only
 // this origin may embed it. There is no bundle to serve in that state anyway.
@@ -14,7 +15,7 @@ const IMMUTABLE = "public, max-age=31536000, immutable";
 const REVALIDATE = "public, max-age=0, must-revalidate";
 
 /**
- * @param {URL} [path]
+ * @param {string} [path]
  * @returns {import("./frame-bundle.mjs").FramePin | null}
  */
 export function readPin(path = PIN_PATH) {

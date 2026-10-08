@@ -50,20 +50,25 @@ export async function seedDocx(page: Page, baseUrl: string, tag: string): Promis
 }
 
 /**
- * Writes the organization override a platform admin would, then waits until
+ * Writes the override a platform admin would, then waits until
  * `GET /config?organization_id=` reports it (the server caches overrides for
  * featureflags.CacheTTL and a direct write sends no invalidation).
+ *
+ * `office_docs_web` is written GLOBALLY: the /office-frame routes gate on it
+ * with mw.RequireFeatureFlag, which evaluates with no organization in scope,
+ * so an organization-scoped override would open the frame in the page and
+ * then 404 the token mint. (Open item for the lane; see the W7 report.)
  */
-export async function setOrgFlag(flag: string, organizationId: string, enabled: boolean): Promise<void> {
+export async function setFlag(flag: string, organizationId: string, enabled: boolean, scope: "global" | "organization" = "global"): Promise<void> {
   const url = process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL ?? "postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable";
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
     await client.query(
       `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
-       VALUES ($1, $2, 'organization', $3, $4, 'e2e: docs web frame', 'e2e', 'system')
-       ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = $4`,
-      [`e2e-${flag}-${organizationId}`, flag, organizationId, enabled],
+       VALUES ($1, $2, $3, $4, $5, 'e2e: docs web frame', 'e2e', 'system')
+       ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = $5`,
+      [`e2e-${flag}-${scope === "global" ? "global" : organizationId}`, flag, scope, scope === "global" ? "" : organizationId, enabled],
     );
   } finally {
     await client.end();

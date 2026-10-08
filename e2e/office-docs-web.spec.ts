@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { e2eBaseUrl } from "./api-url";
 import {
-  listVersions, readPinnedFrame, seedDocx, setOrgFlag, versionBodyXml, type SeededDocx,
+  listVersions, readPinnedFrame, seedDocx, setFlag, versionBodyXml, type SeededDocx,
 } from "./office-docs-web-fixtures";
 
 /**
@@ -90,8 +90,13 @@ test.describe("open, edit, save", () => {
     } finally {
       await context.close();
     }
-    await setOrgFlag("office_engine", seeded.organizationId, true);
-    await setOrgFlag("office_docs_web", seeded.organizationId, true);
+    await setFlag("office_engine", seeded.organizationId, true, "organization");
+    await setFlag("office_docs_web", seeded.organizationId, true);
+  });
+
+  test.afterAll(async () => {
+    // Leave the database as the suite found it: the flag defaults off.
+    if (seeded) await setFlag("office_docs_web", seeded.organizationId, false);
   });
 
   test("a DOCX opens in the frame, an edit is saved as a new version and survives a reopen", async ({ page, request }) => {
@@ -132,14 +137,14 @@ test.describe("open, edit, save", () => {
   });
 
   test("with the flag off the G3 editor stays the default and no frame mounts", async ({ page }) => {
-    await setOrgFlag("office_docs_web", seeded.organizationId, false);
+    await setFlag("office_docs_web", seeded.organizationId, false);
     try {
       await signInAs(page, seeded.account.email);
       await page.goto(seeded.documentUrl);
       await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
       await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
     } finally {
-      await setOrgFlag("office_docs_web", seeded.organizationId, true);
+      await setFlag("office_docs_web", seeded.organizationId, true);
     }
   });
 });

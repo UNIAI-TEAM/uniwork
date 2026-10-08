@@ -1,7 +1,6 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildPin, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
 import { officeFrameHeaderRules, readPin } from "./frame-headers.mjs";
@@ -42,16 +41,25 @@ describe("officeFrameHeaderRules", () => {
   });
 });
 
+describe("the checked-in pin", () => {
+  it("parses, carries the frame-ancestors policy and is not a dirty build", () => {
+    const checkedIn = readPin();
+    expect(checkedIn).not.toBeNull();
+    expect(checkedIn!.version).not.toMatch(/dirty/);
+    expect(checkedIn!.headers["Content-Security-Policy"]).toContain("frame-ancestors 'self'");
+  });
+});
+
 describe("readPin", () => {
   it("is null when no pin is checked in and parses one when it is", () => {
     const dir = mkdtempSync(join(tmpdir(), "frame-pin-"));
-    expect(readPin(pathToFileURL(join(dir, "missing.json")))).toBeNull();
+    expect(readPin(join(dir, "missing.json"))).toBeNull();
     writeFileSync(join(dir, "pin.json"), JSON.stringify(pin));
-    expect(readPin(pathToFileURL(join(dir, "pin.json")))).toEqual(pin);
+    expect(readPin(join(dir, "pin.json"))).toEqual(pin);
     writeFileSync(join(dir, "bad.json"), "{");
-    expect(() => readPin(pathToFileURL(join(dir, "bad.json")))).toThrow();
+    expect(() => readPin(join(dir, "bad.json"))).toThrow();
   });
   it("rethrows a read error that is not 'missing'", () => {
-    expect(() => readPin(pathToFileURL(tmpdir()))).toThrow();
+    expect(() => readPin(tmpdir())).toThrow();
   });
 });
