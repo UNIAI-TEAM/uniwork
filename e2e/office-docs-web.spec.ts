@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { e2eBaseUrl } from "./api-url";
 import {
-  listVersions, readPinnedFrame, seedDocx, setFlag, versionBodyXml, type SeededDocx,
+  listVersions, readPinnedFrame, seedDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
 } from "./office-docs-web-fixtures";
 
 /**
@@ -27,6 +27,7 @@ const baseUrl = e2eBaseUrl;
 const pin = process.env.OFFICE_DOCS_WEB_E2E === "1" ? readPinnedFrame() : { version: "unpinned", entry: "index.html" };
 const frameBase = `/office-frame/docs/${pin.version}`;
 const FRAME_SELECTOR = 'iframe[src*="/office-frame/docs/"]';
+const PNG_1X1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 const EDITOR = '.ProseMirror[contenteditable="true"]';
 
 test.describe("frame serving", () => {
@@ -175,6 +176,61 @@ test.describe("open, edit, save", () => {
     const latest = (await listVersions(request, token, copyId)).reduce((a, b) => (b.version > a.version ? b : a));
     expect(await versionBodyXml(request, token, copyId, latest.version)).toContain(second);
     expect((await listVersions(request, token, seeded.documentId)).length).toBe(originalBefore.length);
+  });
+
+  test("an inserted image passes the frame CSP and is stored in the docx", async ({ page, request }) => {
+    // The frame embeds images as data: URIs (it never calls api.images.upload), which `img-src 'self' data: blob:` allows.
+    const violations: string[] = [];
+    page.on("console", (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) violations.push(m.text()); });
+    const token = seeded.account.token;
+    const before = await listVersions(request, token, seeded.documentId);
+    await signInAs(page, seeded.account.email);
+    await page.goto(seeded.documentUrl);
+    const frame = page.frameLocator(FRAME_SELECTOR);
+    await expect(frame.locator(EDITOR).first()).toBeVisible({ timeout: 60_000 });
+
+    await frame.getByText("Chèn", { exact: true }).first().click();
+    const chooser = page.waitForEvent("filechooser", { timeout: 15_000 });
+    await frame.getByText("Hình ảnh", { exact: true }).first().click();
+    await (await chooser).setFiles({ name: "dot.png", mimeType: "image/png", buffer: PNG_1X1 });
+    const image = frame.locator(".ProseMirror img").first();
+    await expect(image).toBeVisible({ timeout: 30_000 });
+    expect(await image.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await page.screenshot({ path: test.info().outputPath("05-image-inserted.png") });
+
+    await frame.locator(EDITOR).first().click();
+    await page.keyboard.press("Control+s");
+    await expect.poll(async () => (await listVersions(request, token, seeded.documentId)).length, { timeout: 60_000, intervals: [1_000] }).toBeGreaterThan(before.length);
+    const newest = (await listVersions(request, token, seeded.documentId)).reduce((a, b) => (b.version > a.version ? b : a));
+    expect((await versionEntries(request, token, seeded.documentId, newest.version)).some((name) => name.startsWith("word/media/"))).toBe(true);
+    expect(violations).toEqual([]);
+  });
+
+  test("PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback", async ({ page }) => {
+    await signInAs(page, seeded.account.email);
+    await page.goto(seeded.documentUrl);
+    const frame = page.frameLocator(FRAME_SELECTOR);
+    await expect(frame.locator(EDITOR).first()).toBeVisible({ timeout: 60_000 });
+    // The web build has no menu entry for PDF export; the renderer exposes the action as window.__exportPdf.
+    // Printing is stubbed (a headless run has no print dialog) and settles like the real one, on afterprint.
+    await frame.locator("body").evaluate(() => {
+      const w = window as unknown as { __printed?: number };
+      w.__printed = 0;
+      window.print = () => { w.__printed = (w.__printed ?? 0) + 1; setTimeout(() => window.dispatchEvent(new Event("afterprint")), 50); };
+    });
+    const answered = page.waitForResponse((r) => /\/office-frame\/documents\/[^/]+\/export\/pdf$/.test(r.url()) && r.request().method() === "POST", { timeout: 60_000 });
+    await frame.locator("body").evaluate(() => (window as unknown as { __exportPdf: () => Promise<boolean> }).__exportPdf());
+    const response = await answered;
+    const printed = await frame.locator("body").evaluate(() => (window as unknown as { __printed?: number }).__printed ?? 0);
+    if (response.status() === 200) {
+      expect((await response.body()).subarray(0, 5).toString("latin1")).toBe("%PDF-");
+      test.info().annotations.push({ type: "export", description: "real PDF from the office engine" });
+    } else {
+      // No engine or renderer on this deployment: 501 unsupported_operation or 503 office_not_configured.
+      expect([501, 503]).toContain(response.status());
+      expect(printed).toBe(1);
+      test.info().annotations.push({ type: "export", description: `HTTP ${response.status()} -> in-frame print fallback` });
+    }
   });
 
   test("with the flag off the G3 editor stays the default and no frame mounts", async ({ page }) => {
