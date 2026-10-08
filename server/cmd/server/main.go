@@ -487,6 +487,11 @@ func main() {
 	askUNI.SetEmailHub(emailHubSvc)
 	go emailHubSvc.RunWorkers(runCtx)
 	go emailHubSvc.RunHubWatchers(runCtx)
+	graphSvc := service.NewGraphService(q, orgSvc, wsSvc, chatSvc)
+	graphSvc.SetFlags(flags)
+	if reg != nil {
+		graphSvc.SetMetrics(reg.Graph)
+	}
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
@@ -514,6 +519,7 @@ func main() {
 		AskUNI:              askUNI,
 		Meetings:            meetingSvc,
 		Chat:                chatSvc,
+		Graph:               graphSvc,
 		Hub:                 hub,
 		Redis:               rdb,
 		FeatureFlags:        flags,

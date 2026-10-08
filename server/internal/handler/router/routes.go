@@ -282,6 +282,9 @@ type Routes struct {
 	GetAuditExport      http.HandlerFunc
 	DownloadAuditExport http.HandlerFunc
 
+	GraphNeighbors http.HandlerFunc
+	GraphHistory   http.HandlerFunc
+
 	ListMeetings                   http.HandlerFunc
 	CreateMeeting                  http.HandlerFunc
 	CreateInstantMeeting           http.HandlerFunc
