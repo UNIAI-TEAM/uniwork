@@ -1,6 +1,6 @@
 import type { DesktopIpcChannel, DesktopIpcRequest, DesktopSessionMetadata } from "../shared/ipc";
 
-export type LoginScreenState = "signed-out" | "pending" | "error" | "cancelled" | "signed-in" | "locked" | "login-required" | "expired";
+export type LoginScreenState = "signed-out" | "pending" | "error" | "cancelled" | "signed-in" | "locked" | "login-required" | "expired" | "no-deployment-profile";
 
 export function loginStateFromMetadata(metadata: DesktopSessionMetadata): LoginScreenState {
   return metadata.status;

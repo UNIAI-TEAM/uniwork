@@ -17,6 +17,7 @@ import { resolveDeploymentProfile } from "./shared/deployment";
 import { createSecureCredentialStore } from "./main/credentials/secure-store";
 import { createSystemBrowserLauncher } from "./main/auth/browser";
 import { NativeLoginManager } from "./main/auth/manager";
+import { resolveProfileOutcome } from "./main/auth/no-profile";
 import { createHttpAuthTransport } from "./main/transport/auth-transport";
 import { createHttpOfficeTransport } from "./main/transport/office-transport";
 import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
@@ -72,13 +73,18 @@ async function startElectronHost(): Promise<void> {
   // Name, AppUserModelId (the installer shortcut's), About panel, dev dock icon;
   // after ready the same seam opens the window and owns theme and language.
   const desktopShell = startDesktopShell({ app, nativeTheme, BrowserWindow, platform: process.platform, iconPath: BRAND_ICON_PATH });
-  const deploymentResolution = resolveDeploymentProfile({
+  // A packaged app with no usable profile still starts: the auth channels
+  // answer a typed no_deployment_profile state and local files keep working.
+  const profileOutcome = resolveProfileOutcome(() => resolveDeploymentProfile({
     installedProfilePath: app.isPackaged ? join(process.resourcesPath, "deployment-profile.json") : undefined,
     userDataDirectory: app.getPath("userData"),
     buildChannel: DESKTOP_IDENTITY_MANIFEST.build.channel,
     env: app.isPackaged && !SMOKE_MODE ? {} : process.env,
-  });
-  const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
+  }), { packaged: app.isPackaged });
+  const deploymentProfile = "profile" in profileOutcome ? profileOutcome.profile : undefined;
+  const noDeploymentProfile = "reason" in profileOutcome ? profileOutcome.reason : undefined;
+  // The reason word is a diagnostic: no path, profile field or user name.
+  if (noDeploymentProfile) process.stderr.write(`office-desktop: no deployment profile (${noDeploymentProfile})\n`);
   await app.whenReady();
   const draftKeyStore = createSafeStorageDraftKeyStore({
     userDataDirectory: app.getPath("userData"),
@@ -209,6 +215,7 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: launchEvents.createDeepLinkSystem(), bridge: launchBridge },
     authManager,
+    ...(noDeploymentProfile ? { noDeploymentProfile } : {}),
     local: { mode: localMode, ...(recentFiles ? { recents: recentFiles } : {}) },
     localFiles: { registry: fileRegistry, saveGuard, session: deviceScope, xlsx: engineHost.xlsx, ...(recentFiles ? { recents: recentFiles } : {}), beginSave: documents.beginSave, isOpened: (handle) => documents.context(handle)?.kind === "local", onOpened: documentSession.localOpenContext, checkpoint: documentSession.localCheckpoint, onSaveConfirmed: documentSession.noteConfirmedLocalSave, onSaveAsConfirmed: documentSession.noteConfirmedLocalRebind,
       pickOpen: async () => {

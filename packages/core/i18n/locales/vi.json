@@ -12206,6 +12206,8 @@
       "required": "Đăng nhập lại để tiếp tục.",
       "start": "Đăng nhập",
       "startHint": "Trang đăng nhập sẽ mở trong trình duyệt.",
+      "noDeploymentProfile": "Chưa thể đăng nhập vì bản UniWork Office này chưa được liên kết với site UniWork.",
+      "noDeploymentProfileHint": "Tải lại UniWork Office từ site UniWork của bạn để đăng nhập.",
       "or": "hoặc",
       "cancel": "Hủy đăng nhập",
       "useLocal": "Làm việc với tệp trên máy",

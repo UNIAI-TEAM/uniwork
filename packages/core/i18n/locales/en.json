@@ -12230,6 +12230,8 @@
       "required": "Please sign in again.",
       "start": "Sign in",
       "startHint": "The sign-in page opens in your browser.",
+      "noDeploymentProfile": "Sign in isn't available because this copy of UniWork Office isn't linked to a UniWork site.",
+      "noDeploymentProfileHint": "Download UniWork Office again from your UniWork site to sign in.",
       "or": "or",
       "cancel": "Cancel login",
       "useLocal": "Work with files on this computer",

@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { setLocale } from "@uniwork/core/i18n";
 import { LoginScreen, type LoginScreenProps } from "./login-screen";
 
 const STATES: LoginScreenProps["state"][] = ["signed-out", "pending", "error", "cancelled", "signed-in", "locked", "login-required"];
@@ -64,5 +65,35 @@ describe("LoginScreen", () => {
   it("keeps the generic locked copy when the reason is unknown", () => {
     render(<LoginScreen state="locked" onStart={() => undefined} onCancel={() => undefined} />);
     expect(screen.getByText("Kho lưu trữ thông tin đăng nhập đang bị khóa. Mở khóa và thử lại.")).toBeInTheDocument();
+  });
+});
+
+describe("LoginScreen without a deployment profile", () => {
+  it("tells the user to download again and offers no sign-in or retry", () => {
+    const onStart = vi.fn();
+    const onUseLocal = vi.fn();
+    const { container } = render(<LoginScreen state="no-deployment-profile" onStart={onStart} onCancel={() => undefined} onUseLocal={onUseLocal} />);
+    expect(container.querySelector("[data-login-state='no-deployment-profile']")).not.toBeNull();
+    expect(screen.getByText("Chưa thể đăng nhập vì bản UniWork Office này chưa được liên kết với site UniWork.")).toBeInTheDocument();
+    expect(screen.getByText("Tải lại UniWork Office từ site UniWork của bạn để đăng nhập.")).toBeInTheDocument();
+    expect(screen.queryByText("Không thể đăng nhập. Thử lại.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Đăng nhập" })).toBeNull();
+    expect(screen.queryByText("hoặc")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Làm việc với tệp trên máy" }));
+    expect(onUseLocal).toHaveBeenCalledOnce();
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
+  it("reads naturally in English", async () => {
+    await setLocale("en");
+    try {
+      render(<LoginScreen state="no-deployment-profile" onStart={() => undefined} onCancel={() => undefined} onUseLocal={() => undefined} />);
+      expect(screen.getByText("Sign in isn't available because this copy of UniWork Office isn't linked to a UniWork site.")).toBeInTheDocument();
+      expect(screen.getByText("Download UniWork Office again from your UniWork site to sign in.")).toBeInTheDocument();
+      expect(screen.queryByText("Sign in could not be completed. Try again.")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+    } finally {
+      await setLocale("vi");
+    }
   });
 });

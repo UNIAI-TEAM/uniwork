@@ -4,6 +4,8 @@ import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
 import type { NativeLoginManager } from "./auth/manager";
+import { createNoProfileAuthIpcHandlers } from "./auth/no-profile";
+import type { NoDeploymentProfileReason } from "../shared/ipc-auth";
 import { launchRequestedEventSchema, desktopSessionMetadataSchema, officeSaveRequestedEventSchema } from "../shared/ipc";
 import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
 import type { DeploymentProfile } from "../shared/deployment";
@@ -41,6 +43,8 @@ export type DesktopHostOptions = {
   allowedExternalHosts?: readonly string[];
   openSystemBrowser?: (url: string) => void;
   authManager?: NativeLoginManager;
+  /** Set when no usable deployment profile is installed: the auth channels stay registered and answer a typed no_deployment_profile state. */
+  noDeploymentProfile?: NoDeploymentProfileReason;
   localFiles?: FileIpcOptions;
   drafts?: DraftIpcOptions;
   /** Device-scoped local-mode state and the encrypted recent-file list. */
@@ -93,10 +97,11 @@ export function createDesktopHost(options: DesktopHostOptions) {
   });
   options.window.setUserDataDirectory(options.userDataDirectory ?? DESKTOP_IDENTITY.userDataNamespace);
   const authHandlers = options.authManager ? createAuthIpcHandlers(options.authManager) : undefined;
+  const noProfileHandlers = !authHandlers && options.noDeploymentProfile ? createNoProfileAuthIpcHandlers(options.noDeploymentProfile) : undefined;
   const handlers = {
     ...options.handlers,
     "desktop:diagnostics": createDiagnosticsIpcHandler(options.deploymentProfile),
-    ...(authHandlers ?? {}),
+    ...(authHandlers ?? noProfileHandlers ?? {}),
     ...(options.localFiles ? createFileIpcHandlers(options.localFiles) : {}),
     ...(options.drafts ? createDraftIpcHandlers(options.drafts) : {}),
     ...(options.local ? createLocalIpcHandlers(options.local) : {}),

@@ -22,6 +22,7 @@ const MESSAGE_KEY: Record<LoginScreenState, string> = {
   locked: "locked",
   "login-required": "required",
   expired: "expired",
+  "no-deployment-profile": "noDeploymentProfile",
 };
 
 /** The centred sign-in card shown before a workspace is reached. The desktop
@@ -32,6 +33,9 @@ const MESSAGE_KEY: Record<LoginScreenState, string> = {
 export function LoginScreen({ state, lockedReason, onStart, onCancel, onUseLocal }: LoginScreenProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.login" });
   const pending = state === "pending";
+  // Without a deployment profile sign in cannot succeed, so the card offers no
+  // sign-in action and no retry; only the local files path remains.
+  const noProfile = state === "no-deployment-profile";
   const messageKey = state === "locked" && lockedReason === "keyring" ? "lockedKeyring" : MESSAGE_KEY[state];
   return (
     <div className="flex h-full min-h-0 items-center justify-center bg-background p-6" data-login-state={state}>
@@ -41,7 +45,9 @@ export function LoginScreen({ state, lockedReason, onStart, onCancel, onUseLocal
           <h1 className="text-title font-semibold text-foreground">{t("title")}</h1>
           <p className="text-body text-muted-foreground">{t(messageKey)}</p>
         </div>
-        {pending ? (
+        {noProfile ? (
+          <p className="text-caption text-muted-foreground">{t("noDeploymentProfileHint")}</p>
+        ) : pending ? (
           <Button variant="outline" className="w-full" onClick={onCancel}>
             {t("cancel")}
           </Button>
@@ -55,11 +61,13 @@ export function LoginScreen({ state, lockedReason, onStart, onCancel, onUseLocal
         )}
         {!pending && onUseLocal ? (
           <>
-            <div className="flex w-full items-center gap-3 text-caption text-muted-foreground" data-login-divider>
-              <span aria-hidden className="h-px flex-1 bg-border" />
-              <span>{t("or")}</span>
-              <span aria-hidden className="h-px flex-1 bg-border" />
-            </div>
+            {noProfile ? null : (
+              <div className="flex w-full items-center gap-3 text-caption text-muted-foreground" data-login-divider>
+                <span aria-hidden className="h-px flex-1 bg-border" />
+                <span>{t("or")}</span>
+                <span aria-hidden className="h-px flex-1 bg-border" />
+              </div>
+            )}
             <div className="flex w-full flex-col gap-2">
               <Button variant="outline" className="w-full" onClick={onUseLocal}>{t("useLocal")}</Button>
               <p className="text-caption text-muted-foreground">{t("localNote")}</p>

@@ -286,3 +286,22 @@ it("resolves a clean empty window leave without an unnecessary prompt", async ()
   await waitFor(() => expect(calls.find((entry) => entry.channel === "desktop:leave-resolved")?.payload).toMatchObject({ requestId: "leave-1", choice: "keep", proceeded: true }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
+
+it("shows the no-deployment-profile card, never the generic error, and keeps local files reachable", async () => {
+  const calls: string[] = [];
+  const { bridge } = makeBridge(vi.fn(async (channel: string) => {
+    calls.push(channel);
+    if (channel === "desktop:auth-config") return { state: "no_deployment_profile", reason: "missing" };
+    if (channel === "desktop:local-state") return { localMode: false };
+    return { status: "signed-out" };
+  }) as RendererBridge["call"]);
+  const { container } = render(<App bridge={bridge} />);
+  await waitFor(() => expect(container.querySelector("[data-login-state='no-deployment-profile']")).not.toBeNull());
+  expect(screen.getByText(i18n.t("officeDesktop.login.noDeploymentProfile"))).toBeInTheDocument();
+  expect(screen.getByText(i18n.t("officeDesktop.login.noDeploymentProfileHint"))).toBeInTheDocument();
+  expect(screen.queryByText(i18n.t("officeDesktop.login.error"))).toBeNull();
+  expect(container.querySelector("[data-login-state='error']")).toBeNull();
+  expect(screen.queryByRole("button", { name: i18n.t("officeDesktop.login.start") })).toBeNull();
+  expect(calls).not.toContain("desktop:auth-start");
+  expect(screen.getByRole("button", { name: i18n.t("officeDesktop.login.useLocal") })).toBeInTheDocument();
+});
