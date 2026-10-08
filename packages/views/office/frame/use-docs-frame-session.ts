@@ -190,6 +190,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     });
     endpoint.on("error", ({ error, fatal: isFatal }) => {
       if (isFatal) { setFatal(error); setStatus("failed"); }
+      // A save conflict is answered inside the frame (its own Cancel / Reload / Overwrite dialog) and
+      // reaches the host only as this event: a toast here would say it twice.
+      if (error.code === "conflict" && !isFatal) return;
       latest.current.options.onError(error);
     });
     setHost(endpoint);

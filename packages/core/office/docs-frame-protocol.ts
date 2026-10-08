@@ -1,5 +1,5 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at b6f773ff8a1b657dc8ee2af8d495e9003dc44549
+// web/docs/protocol/types.ts at 5bce54cffc2d92e13afdeb157cb05cdbd830936a
 // (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
@@ -90,6 +90,8 @@ export type ProtocolErrorCode =
   | 'network'
   /** capability not available in this deployment (e.g. AI on the web) */
   | 'unsupported'
+  /** the same operation is already running (e.g. a second save while one is in flight); retry later */
+  | 'busy'
   /** anything else (HTTP 5xx, thrown exceptions) */
   | 'internal'
 
@@ -108,6 +110,7 @@ export const PROTOCOL_ERROR_CODES: readonly ProtocolErrorCode[] = [
   'rate_limited',
   'network',
   'unsupported',
+  'busy',
   'internal',
 ]
 
@@ -197,6 +200,8 @@ export type Capability =
   | 'save'
   | 'saveAs'
   | 'recents'
+  /** `file.pick` (File > Open / Ctrl+O): the host has a document picker */
+  | 'filePick'
   | 'print'
   | 'exportPdf'
   | 'exportHtml'
@@ -211,6 +216,7 @@ export const CAPABILITY_KEYS: readonly Capability[] = [
   'save',
   'saveAs',
   'recents',
+  'filePick',
   'print',
   'exportPdf',
   'exportHtml',
@@ -269,6 +275,12 @@ export interface ReadyPayload {
   frameVersion?: string
   /** what the frame can do, before the host grants anything */
   capabilities: Capabilities
+  /**
+   * random per frame-document id (additive). Every `ready` of one page load carries the
+   * same value; a different value while a handshake is in flight means the frame reloaded
+   * and the host restarts the handshake.
+   */
+  instanceId?: string
 }
 
 export interface InitPayload extends TokenPayload {
@@ -728,7 +740,8 @@ export function isReadyPayload(x: unknown): x is ReadyPayload {
     isObj(x) &&
     isFiniteNum(x.protocolVersion) &&
     isOpt(x.frameVersion, isStr) &&
-    isCapabilities(x.capabilities)
+    isCapabilities(x.capabilities) &&
+    isOpt(x.instanceId, isStr)
   )
 }
 

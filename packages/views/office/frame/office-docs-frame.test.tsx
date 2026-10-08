@@ -172,6 +172,7 @@ describe("OfficeDocsFrame", () => {
     const id = frame.request("api.saveAs", { name: "Copy", data: new ArrayBuffer(2) });
     await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true, file: copy }));
     // The page follows the copy right away: the unsaved edits live in the copy, so no leave dialog.
+    await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")?.hasAttribute("data-dirty")).toBe(false));
     await expect(leaveGuardAllows("/documents/doc-2")).resolves.toBe(true);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(saveAs).toHaveBeenCalledWith(expect.objectContaining({ name: "Copy" }), expect.objectContaining({ documentId: "doc-1", token: "tok-1" }));
@@ -276,8 +277,12 @@ describe("OfficeDocsFrame", () => {
     mount();
     let frame = fakeFrame();
     await boot(frame);
+    await frame.event("error", { error: { code: "busy", message: "save in flight" }, fatal: false });
+    expect(toastError).toHaveBeenCalledWith("Một lần lưu khác của tài liệu này vẫn đang chạy. Hãy thử lại sau giây lát.");
+    // A save conflict is answered by the frame's own dialog: the host does not say it again.
+    toastError.mockClear();
     await frame.event("error", { error: { code: "conflict", message: "412" }, fatal: false });
-    expect(toastError).toHaveBeenCalledWith("Đã có người lưu phiên bản mới hơn. Hãy mở lại tài liệu để xem trước khi lưu.");
+    expect(toastError).not.toHaveBeenCalled();
     await frame.event("error", { error: { code: "malformed", message: "x" }, fatal: true });
     expect(screen.getByTestId("office-docs-frame-failed").textContent).toContain("Trình soạn thảo tài liệu gặp lỗi.");
 
