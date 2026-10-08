@@ -62,7 +62,7 @@ func TestAIEndpoints(t *testing.T) {
 	if res.StatusCode != 200 || out["enabled"] != true || out["ask_uni"] != true {
 		t.Fatalf("capabilities: %d %v", res.StatusCode, out)
 	}
-	if quota := out["quota"].(map[string]any); quota["limit_tokens"] != float64(500000) {
+	if quota := out["quota"].(map[string]any); quota["limit_tokens"] != float64(100000) {
 		t.Fatalf("quota: %v", quota)
 	}
 

@@ -27,7 +27,7 @@ func TestBillingEndpoints(t *testing.T) {
 			members = m
 		}
 	}
-	if members == nil || members["current_usage"].(float64) != 1 || members["quota_limit"] != nil {
+	if members == nil || members["current_usage"].(float64) != 1 || members["quota_limit"].(float64) != 5 {
 		t.Fatalf("members.max entitlement: %v", members)
 	}
 

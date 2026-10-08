@@ -634,7 +634,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "docLinkToken")
 		}
 		return tn.get(t, "invitationToken")
+	case "{code}":
+		return "starter"
 	case "{key}":
+		if under("/admin/plans/") {
+			return "members.max"
+		}
 		return "documents"
 	case "{traceID}":
 		return "0af7651916cd43dd8448eb211c80319c"
