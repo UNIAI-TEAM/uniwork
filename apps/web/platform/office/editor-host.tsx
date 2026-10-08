@@ -13,7 +13,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
-import { usePublicConfig } from "@uniwork/core/feature-flags";
+import { useOfficeDeploymentBinding, type OfficeDeploymentBinding } from "./deployment-binding";
 import { downloadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
 import { launchOfficeDeepLink } from "./desktop-handoff";
@@ -42,6 +42,9 @@ export interface OfficeEditorHostProps<TSnapshot = unknown> {
   officeChannel?: OfficeChannel;
   installers?: OfficeInstallerOption[];
   officeDeploymentId?: string;
+  /** The binding a format host already read from the config: `null` while its
+   * read is pending, an object once answered. Unset, this host reads it. */
+  officeBinding?: OfficeDeploymentBinding | null;
 }
 
 export interface OfficeFormatAdapter<TSnapshot = unknown> {
@@ -106,6 +109,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   officeChannel,
   installers,
   officeDeploymentId,
+  officeBinding,
 }: OfficeEditorHostProps<TSnapshot>) {
   const { t } = useTranslation();
   const formatName = useOfficeFormatName();
@@ -132,9 +136,13 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   // dev or beta deployment only has installers on its own channel, so asking
   // "stable" here would answer "no installer" for a correctly configured
   // deployment; a channel the server never named offers no desktop action.
-  const { data: publicConfig } = usePublicConfig();
-  const deploymentChannel = officeChannel ?? publicConfig?.office_channel;
-  const deploymentId = officeDeploymentId ?? publicConfig?.office_deployment_id;
+  // A format host that already read the config hands its answer down; only a
+  // host without one reads it here, so no open costs two requests.
+  const needsBinding = Boolean(activeSession) && !readonly && officeBinding === undefined && !(officeChannel && officeDeploymentId);
+  const ownBinding = useOfficeDeploymentBinding(document.organization_id, needsBinding);
+  const binding = officeBinding === undefined ? ownBinding : officeBinding;
+  const deploymentChannel = officeChannel ?? binding?.channel;
+  const deploymentId = officeDeploymentId ?? binding?.deploymentId;
 
   const effectiveCapability = useMemo<OfficeCapabilityEntry>(() => activeCapability ?? ({
     format: documentFormat(document),

@@ -16,7 +16,6 @@ vi.mock("./pptx-save-transport", () => ({ createPptxDocumentsTransport: mocks.do
 // `editorView`). Reading only `props.editorView` hid the adapter canvas.
 vi.mock("./editor-host", () => ({ OfficeEditorHost: (props: { formatAdapter?: { id: string; editorView?: ReactNode }; editorView?: ReactNode }) => createElement("div", { "data-adapter": props.formatAdapter?.id ?? "unbound" }, props.formatAdapter?.editorView ?? props.editorView) }));
 import { PptxOfficeEditorHost } from "./pptx-office-host";
-import { withCoreProvider } from "./with-core-provider.test-helper";
 
 const documentFor = (id = "doc-1") => ({
   id,
@@ -55,7 +54,7 @@ afterEach(async () => {
 
 async function mount(doc = documentFor(), readonly = false) {
   await act(async () => {
-    root.render(withCoreProvider(createElement(PptxOfficeEditorHost, { document: doc, wsId: "ws", readonly })));
+    root.render(createElement(PptxOfficeEditorHost, { document: doc, wsId: "ws", readonly }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
   });

@@ -13,7 +13,6 @@ vi.mock("./xlsx-runtime", () => ({ createWebXlsxSessionRuntime: () => ({}) }));
 vi.mock("./xlsx-adapter", () => ({ createXlsxFormatAdapter: mocks.adapter, createXlsxDocumentsTransport: () => ({}) }));
 // The real OfficeEditorHost and OfficeShell must remain in this regression.
 import { XlsxOfficeEditorHost } from "./xlsx-office-host";
-import { withCoreProvider } from "./with-core-provider.test-helper";
 
 const doc = { id: "doc", title: "Workbook", organization_id: "org", workspace_id: "ws", revision: "1",
   file: { filename: "book.xlsx", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", version_id: "v1" } } as Document;
@@ -40,7 +39,7 @@ beforeEach(async () => {
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); });
 async function render(readonly = false) {
-  await act(async () => { root.render(withCoreProvider(createElement(XlsxOfficeEditorHost, { document: doc, readonly, wsId: "ws" }))); });
+  await act(async () => { root.render(createElement(XlsxOfficeEditorHost, { document: doc, readonly, wsId: "ws" })); });
 }
 describe("XLSX loading/readonly composition across the real Shared host", () => {
   it("negotiates with a styled polite busy state, then opens the actual host without any false assertive alert", async () => {

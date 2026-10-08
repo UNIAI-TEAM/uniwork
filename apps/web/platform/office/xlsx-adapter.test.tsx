@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, createElement, isValidElement, StrictMode, useEffect, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { OfficeEditorHost } from "./editor-host";
-import { withCoreProvider } from "./with-core-provider.test-helper";
 import type { OfficeCapabilityEntry, OfficeIdentity, OfficeSerializedOutput, OfficeUploadReceipt } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
@@ -410,7 +409,7 @@ describe("web XLSX format adapter", () => {
       file: { file_id: "file", version_id: "version-1", version: 1, filename: "document.xlsx", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", size_bytes: 3, checksum_sha256: "sha256:file" },
     } as never;
     let root!: Root;
-    await act(async () => { root = createRoot(container); root.render(withCoreProvider(createElement(StrictMode, null, createElement(OfficeEditorHost, { document: officeDocument, wsId: identity.workspaceId, readonly: false, formatAdapter: adapter as never })))); });
+    await act(async () => { root = createRoot(container); root.render(createElement(StrictMode, null, createElement(OfficeEditorHost, { document: officeDocument, wsId: identity.workspaceId, readonly: false, formatAdapter: adapter as never }))); });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
     return { container, root };
   }
