@@ -69,7 +69,14 @@ import {
 } from "./edits";
 import { getLang, t } from "./locale";
 import { createOutlineLevelBar } from "./outline-bar";
-import { outlineMaxLevels, runOutlineLevel, type OutlineAxis, type OutlineLevelHost } from "./outline-levels";
+import {
+  invalidateOutlineCache,
+  outlineLevelsMayChange,
+  outlineMaxLevels,
+  runOutlineLevel,
+  type OutlineAxis,
+  type OutlineLevelHost,
+} from "./outline-levels";
 import { layoutOutlineBrackets, runOutlineGroup } from "./outline-brackets";
 import { createOutlineGutters } from "./outline-gutter";
 import { createOutlineMeasure } from "./outline-measure";
@@ -674,9 +681,20 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
       });
     });
   };
-  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, scheduleOutlineBar));
+  // The levels and groups are cached per axis (outline-levels.ts); a command
+  // that can change a level drops the cache before the re-layout reads it.
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.CommandExecuted, (event) => {
+    if (outlineLevelsMayChange(event?.id)) invalidateOutlineCache();
+    scheduleOutlineBar();
+  }));
   disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.ActiveSheetChanged, scheduleOutlineBar));
-  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, scheduleOutlineBar));
+  // A scroll only moves the brackets: a sheet without an outline (the cached
+  // levels read 0) and nothing drawn has nothing to move.
+  disposables.push(runtime.univerAPI.addEvent(runtime.univerAPI.Event.Scroll, () => {
+    const sheetId = runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId();
+    const levels = outlineMaxLevels(lazyWorkbookRef.current, sheetId);
+    if (levels.rows > 0 || levels.cols > 0) scheduleOutlineBar();
+  }));
   if (outlineBar) disposables.push(outlineBar);
   if (outlineGutters) disposables.push(outlineGutters);
   // The grid's box changes when the strip or a gutter appears (and with the

@@ -42,7 +42,7 @@ const bundled = await build({
 });
 const loaded = { exports: {} };
 new Function('module', 'exports', 'require', bundled.outputFiles[0].text)(loaded, loaded.exports, createRequire(import.meta.url));
-const { outlineGroups, groupCollapsed, planOutlineGroup, runOutlineGroup, layoutOutlineBrackets, createOutlineGutters,
+const { outlineGroups, cachedOutlineGroups, invalidateOutlineCache, groupCollapsed, planOutlineGroup, runOutlineGroup, layoutOutlineBrackets, createOutlineGutters,
   outlineGutterExtent, columnName, createOutlineLevelBar, applyOutlineAction, applyOutlineCollapse, seedRowOutline,
   ingestStructuralMutation, canExecuteCommand, createEditJournal, rendererEditsToOperations } = loaded.exports;
 
@@ -83,7 +83,7 @@ test('collapse hides the whole group; expand keeps a nested group collapsed on i
   const [outer, inner] = outlineGroups(lines, 'rows');
   const hidden = new Set([1, 2, 3, 4, 5, 6]);
   const isHidden = (line) => hidden.has(line);
-  assert.equal(groupCollapsed(outer, isHidden), true);
+  assert.equal(groupCollapsed(outer, lines, isHidden), true);
   assert.deepEqual(planOutlineGroup(lines, outer, false, 'rows', isHidden), {
     hide: [], show: [{ start: 1, end: 1 }, { start: 4, end: 6 }], collapsed: [{ line: 7, collapsed: false }],
   });
@@ -93,7 +93,7 @@ test('collapse hides the whole group; expand keeps a nested group collapsed on i
   // Collapsing the inner group hides only its visible lines and flags its summary.
   hidden.clear();
   hidden.add(3);
-  assert.equal(groupCollapsed(inner, isHidden), false);
+  assert.equal(groupCollapsed(inner, lines, isHidden), false);
   assert.deepEqual(planOutlineGroup(lines, inner, true, 'rows', isHidden), {
     hide: [{ start: 2, end: 2 }], show: [], collapsed: [{ line: 4, collapsed: true }],
   });
@@ -434,4 +434,124 @@ test('controller: the gutters mount with an outline, set-outline-group runs thro
     await settle();
     assert.equal(readOnly.h.appended?.find((child) => child.className === 'uniwork-xlsx-outline-gutter'), undefined);
   } finally { readOnly.close(); }
+});
+
+// An outline map that counts full reads of its entries (what a group rebuild costs).
+class CountingMap extends Map {
+  reads = 0;
+  entries() { this.reads += 1; return super.entries(); }
+  values() { this.reads += 1; return super.values(); }
+}
+
+test('a scroll frame over a 100k-line group does bounded work: groups cached, collapsed read in O(1)', () => {
+  const rows = new CountingMap();
+  for (let line = 1; line <= 100_000; line += 1) rows.set(line, { level: line >= 50_000 && line <= 50_010 ? 2 : 1, collapsed: false });
+  const model = { outline: new Map([['s1', { rows, cols: new Map() }]]) };
+  const calls = { box: 0, isHidden: 0 };
+  // Rows 20px from y=30 with `top` the first row on screen; folded rows 1..100000 take no height.
+  const counted = ({ top, end, hidden = () => false }) => ({
+    box(axis, line) {
+      calls.box += 1;
+      const before = hidden(1) && line > 1 ? (line > 100_000 ? line - 100_000 : 1) : line;
+      return { start: 30 + (before - top) * 20, size: hidden(line) ? 0 : 20 };
+    },
+    visible: () => [{ start: top, end }],
+    isHidden: (axis, line) => { calls.isHidden += 1; return hidden(line); },
+  });
+  invalidateOutlineCache();
+  assert.equal(layoutOutlineBrackets(model, 's1', 'rows', counted({ top: 0, end: 40 })).length, 1);
+  const built = rows.reads;
+  assert.equal(built, 1, 'the groups are built once');
+  for (let frame = 0; frame < 20; frame += 1) {
+    calls.box = 0;
+    calls.isHidden = 0;
+    const top = 49_990 + frame;
+    const brackets = layoutOutlineBrackets(model, 's1', 'rows', counted({ top, end: top + 40 }));
+    assert.deepEqual(brackets.map((bracket) => bracket.key), ['rows:1:1', 'rows:50000:2']);
+    assert.ok(calls.box <= 8 && calls.isHidden <= 8, `frame ${frame}: ${JSON.stringify(calls)}`);
+  }
+  assert.equal(rows.reads, built, 'no frame re-reads the outline');
+  assert.equal(cachedOutlineGroups(rows, 'rows'), cachedOutlineGroups(rows, 'rows'));
+  // Collapsed through its toggle (flag on the summary row 100001): O(1), the "+" on row 100001.
+  rows.set(100_001, { level: 0, collapsed: true });
+  const folded = (line) => line >= 1 && line <= 100_000;
+  calls.box = 0;
+  calls.isHidden = 0;
+  const closed = layoutOutlineBrackets(model, 's1', 'rows', counted({ top: 0, end: 100_040, hidden: folded }));
+  assert.deepEqual(closed.map((bracket) => [bracket.key, bracket.collapsed, bracket.line, bracket.button]), [['rows:1:1', true, null, 60]]);
+  assert.ok(calls.box <= 4 && calls.isHidden <= 6, JSON.stringify(calls));
+  // Hidden by hand (no flag): still bounded, by the scan limit.
+  rows.set(100_001, { level: 0, collapsed: false });
+  calls.isHidden = 0;
+  assert.equal(layoutOutlineBrackets(model, 's1', 'rows', counted({ top: 0, end: 100_040, hidden: folded }))[0].collapsed, true);
+  assert.ok(calls.isHidden <= 520, JSON.stringify(calls));
+});
+
+function liveHost(model, hidden) {
+  return host(model, hidden, {
+    execute: (id, params) => {
+      for (const range of params.ranges) {
+        for (let line = range.startRow; line <= range.endRow; line += 1) {
+          if (id === 'sheet.command.set-rows-hidden') hidden.add(line);
+          else hidden.delete(line);
+        }
+      }
+      return true;
+    },
+  }).host;
+}
+
+test('a stale nested flag (rows shown by another path) does not re-hide the child after the parent folds and unfolds', () => {
+  const model = state();
+  applyOutlineAction(model, 's1', 'rows', 1, 6, 'group');
+  applyOutlineAction(model, 's1', 'rows', 2, 3, 'group');
+  // The inner group was collapsed, then its rows were unhidden by hand: the flag on row 4 stayed.
+  applyOutlineCollapse(model, 's1', 'rows', 4, true);
+  const hidden = new Set();
+  const lines = model.outline.get('s1').rows;
+  const [outer] = outlineGroups(lines, 'rows');
+  assert.deepEqual(planOutlineGroup(lines, outer, true, 'rows', (line) => hidden.has(line)).collapsed,
+    [{ line: 4, collapsed: false }, { line: 7, collapsed: true }]);
+  const live = liveHost(model, hidden);
+  assert.equal(runOutlineGroup(live, 's1', 'rows', 1, 1, true), true);
+  assert.deepEqual([...hidden].sort((a, b) => a - b), [1, 2, 3, 4, 5, 6]);
+  assert.equal(lines.get(4).collapsed, false);
+  assert.equal(runOutlineGroup(live, 's1', 'rows', 1, 1, false), true);
+  assert.deepEqual([...hidden], [], 'the child comes back shown, as it was');
+  // A child that really was collapsed (flag set, rows hidden) keeps its state through the same round trip.
+  assert.equal(runOutlineGroup(live, 's1', 'rows', 2, 2, true), true);
+  assert.equal(runOutlineGroup(live, 's1', 'rows', 1, 1, true), true);
+  assert.equal(lines.get(4).collapsed, true);
+  assert.equal(runOutlineGroup(live, 's1', 'rows', 1, 1, false), true);
+  assert.deepEqual([...hidden].sort((a, b) => a - b), [2, 3]);
+});
+
+test('a collapsed group whose summary line is hidden or past the grid edge keeps a toggle on the nearest shown line', () => {
+  const model = state();
+  applyOutlineAction(model, 's1', 'rows', 1, 3, 'group');
+  applyOutlineCollapse(model, 's1', 'rows', 4, true);
+  // Rows 1-3 collapsed, the summary row 4 hidden by hand: the "+" moves to row 5 (y 50..70).
+  const hiddenSummary = layoutOutlineBrackets(model, 's1', 'rows', measure({ hidden: new Set([1, 2, 3, 4]) }));
+  assert.deepEqual(hiddenSummary.map((bracket) => [bracket.key, bracket.collapsed, bracket.line, bracket.button]),
+    [['rows:1:1', true, null, 60]]);
+  // Every row after it hidden or off screen: the row before the group carries it.
+  const before = layoutOutlineBrackets(model, 's1', 'rows', measure({ hidden: new Set([1, 2, 3, 4, 5]), rows: [{ start: 0, end: 5 }] }));
+  assert.deepEqual(before.map((bracket) => bracket.button), [40]);
+  // A group ending on the last row of the grid has no summary row: the row above carries the "+".
+  const edge = state();
+  const last = 1_048_575;
+  edge.outline.set('s1', { rows: new Map([[last - 1, { level: 1, collapsed: false }], [last, { level: 1, collapsed: false }]]), cols: new Map() });
+  const top = last - 15;
+  const edgeMeasure = {
+    box: (axis, line) => ({ start: 30 + (line - top) * 20, size: line >= last - 1 ? 0 : 20 }),
+    visible: () => [{ start: top, end: last }],
+    isHidden: (axis, line) => line >= last - 1,
+  };
+  const [bracket] = layoutOutlineBrackets(edge, 's1', 'rows', edgeMeasure);
+  assert.deepEqual([bracket.key, bracket.group.summary, bracket.collapsed, bracket.button], [`rows:${last - 1}:1`, null, true, 30 + 13 * 20 + 10]);
+  // Expanded, it keeps its line and has no toggle (no summary row to put it on).
+  const open = layoutOutlineBrackets(edge, 's1', 'rows', {
+    ...edgeMeasure, box: (axis, line) => ({ start: 30 + (line - top) * 20, size: 20 }), isHidden: () => false,
+  });
+  assert.deepEqual(open.map((item) => [item.collapsed, item.button]), [[false, null]]);
 });

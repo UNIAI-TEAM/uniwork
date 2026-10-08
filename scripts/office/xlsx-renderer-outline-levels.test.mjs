@@ -40,7 +40,7 @@ const bundled = await build({
 });
 const loaded = { exports: {} };
 new Function('module', 'exports', 'require', bundled.outputFiles[0].text)(loaded, loaded.exports, createRequire(import.meta.url));
-const { outlineMaxLevel, outlineMaxLevels, planOutlineLevel, runOutlineLevel, createOutlineLevelBar,
+const { outlineMaxLevel, outlineMaxLevels, invalidateOutlineCache, outlineLevelsMayChange, planOutlineLevel, runOutlineLevel, createOutlineLevelBar,
   applyOutlineAction, applyOutlineCollapse, canExecuteCommand, createEditJournal } = loaded.exports;
 
 function state() {
@@ -67,8 +67,21 @@ test('max level and the per-sheet levels the bar reads', () => {
   assert.deepEqual(outlineMaxLevels(model, 's1'), { rows: 2, cols: 1 });
   assert.deepEqual(outlineMaxLevels(model, 'ghost'), { rows: 0, cols: 0 });
   assert.deepEqual(outlineMaxLevels(model, undefined), { rows: 0, cols: 0 });
+  // The levels are cached per entries map: a level change in place reads the
+  // cached value until the controller invalidates after the command.
   applyOutlineAction(model, 's1', 'cols', 4, 5, 'clear');
+  assert.deepEqual(outlineMaxLevels(model, 's1'), { rows: 2, cols: 1 });
+  assert.equal(outlineLevelsMayChange('uniwork.command.set-cols-outline'), true);
+  invalidateOutlineCache();
   assert.deepEqual(outlineMaxLevels(model, 's1'), { rows: 2, cols: 0 });
+  // A new entry (the loader seeding a streamed row) changes the count and recomputes on its own.
+  model.outline.get('s1').rows.set(10, { level: 4, collapsed: false });
+  assert.deepEqual(outlineMaxLevels(model, 's1'), { rows: 4, cols: 0 });
+  for (const id of ['uniwork.command.set-rows-outline', 'sheet.mutation.insert-row', 'sheet.mutation.remove-rows',
+    'sheet.mutation.insert-col', 'sheet.mutation.remove-col']) assert.equal(outlineLevelsMayChange(id), true, id);
+  for (const id of ['sheet.operation.set-selections', 'sheet.operation.set-scroll', 'sheet.mutation.set-range-values', undefined]) {
+    assert.equal(outlineLevelsMayChange(id), false, String(id));
+  }
 });
 
 test('a level hides every deeper grouped line, shows the rest and sets each group summary flag', () => {

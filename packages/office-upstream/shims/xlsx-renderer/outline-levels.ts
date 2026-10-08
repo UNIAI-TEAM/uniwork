@@ -19,15 +19,61 @@ export function entriesFor(state: LazyWorkbookState | null, sheetId: string, axi
   return axis === "rows" ? outline?.rows : outline?.cols;
 }
 
+// What the bar and the brackets derive from an axis's entries (the deepest
+// level, the groups) is cached per entries map, so a scroll frame re-reads
+// nothing: the controller bumps the generation after every command or
+// mutation that can change a level (outlineLevelsMayChange), and the entry
+// count catches the loader seeding rows as they stream in. Collapsed flags
+// are never cached; they are read live.
+let outlineGeneration = 0;
+
+/** Commands and mutations that change outline levels: the group / ungroup /
+ *  clear commands (their undo and redo replay the same ids) and the row /
+ *  column inserts and removals that shift the levels with their lines. */
+const LEVEL_CHANGING = new Set([
+  "uniwork.command.set-rows-outline",
+  "uniwork.command.set-cols-outline",
+  "sheet.mutation.insert-row",
+  "sheet.mutation.remove-rows",
+  "sheet.mutation.insert-col",
+  "sheet.mutation.remove-col",
+]);
+
+export function outlineLevelsMayChange(id: string | undefined): boolean {
+  return id !== undefined && LEVEL_CHANGING.has(id);
+}
+
+/** Drops every cached derivation (the next read recomputes it). */
+export function invalidateOutlineCache(): void {
+  outlineGeneration += 1;
+}
+
+export type OutlineMemo<T> = WeakMap<object, { generation: number; size: number; value: T }>;
+
+/** `compute(entries)`, recomputed only after an invalidation or a change in
+ *  the entry count. */
+export function memoOutline<T>(memo: OutlineMemo<T>, entries: OutlineEntries, compute: (entries: OutlineEntries) => T): T {
+  const cached = memo.get(entries);
+  if (cached && cached.generation === outlineGeneration && cached.size === entries.size) return cached.value;
+  const value = compute(entries);
+  memo.set(entries, { generation: outlineGeneration, size: entries.size, value });
+  return value;
+}
+
+const maxLevelMemo: OutlineMemo<number> = new WeakMap();
+
 /** The deepest outline level on an axis (0: no outline, no buttons). The
  *  level buttons are 1..max+1: button 1 shows only ungrouped lines, the last
  *  one shows every line. */
 export function outlineMaxLevel(entries: OutlineEntries | undefined): number {
-  let max = 0;
-  for (const entry of entries?.values() ?? []) {
-    if (entry.level > max) max = Math.min(7, entry.level);
-  }
-  return max;
+  if (!entries) return 0;
+  return memoOutline(maxLevelMemo, entries, (lines) => {
+    let max = 0;
+    for (const entry of lines.values()) {
+      if (entry.level > max) max = Math.min(7, entry.level);
+    }
+    return max;
+  });
 }
 
 /** Both axes' deepest levels on a sheet, the bar's input. */
@@ -116,6 +162,8 @@ export function runOutlineLevel(host: OutlineLevelHost, sheetId: string, axis: O
   if (!Number.isInteger(level) || level < 1 || level > 8) return false;
   if (!host.state?.file.sheets.some((sheet) => sheet.id === sheetId)) return false;
   const entries = entriesFor(host.state, sheetId, axis);
+  // A click walks the axis anyway; it never trusts a cached derivation.
+  invalidateOutlineCache();
   const max = outlineMaxLevel(entries);
   if (max === 0) return true;
   return runOutlinePlan(host, sheetId, axis, planOutlineLevel(entries, Math.min(level, max + 1), axis, host.isHidden));
