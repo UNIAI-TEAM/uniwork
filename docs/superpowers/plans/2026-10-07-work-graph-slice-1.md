@@ -2,6 +2,16 @@
 
 > **Trạng thái:** in-progress — UNI-962 (sub-issue của UNI-460), nhánh `feature/UNI-962-c-11-lat-1-work-graph-catalogue-projecto`.
 
+> **Điều chỉnh khi thực thi (2026-10-08).** Mã trong các task dưới đây là bản trước điều chỉnh; mã trên nhánh là nguồn đúng. Mỗi điều chỉnh có dòng `Ruling:` trong sổ thực thi và commit riêng:
+> - `GraphMarkDirty` dời mã sự kiện, người làm và `last_event_at` cùng nhau theo sự kiện mới nhất (`59708231`).
+> - `nodeDiffers` so cả `occurred_at` (`460d7c2e`) nhưng không so `source_updated_at`, vì tin nhắn chat, sắp xếp phòng ban và chuyển chủ trì đổi cột này mà không có sự kiện (`ccc8ee46`).
+> - Cạnh mở tới node đã xoá được đóng (`55a74b1c`); node sống lại đánh dấu các node ở đầu kia của cạnh mà lần xoá đã đóng (`74a55b68`).
+> - `graph-rebuild` từ chối `--org` không tồn tại và đối số thừa (`2d5c6c01`); runbook chạy `--verify` hằng tuần theo từng tổ chức đã bật `graph` (`1ba6209b`).
+> - Worker lấy ngày nghiệp vụ của nguồn, kèm `backfill`, cho node mới mà nguồn có trước sự kiện hơn 1 phút (`dbd3d265`, `eadf86a9`); spec §13 #10.
+> - Fact hạn đi theo `due_date`, tức “Hạn” trên trang việc, `due_at` chỉ là dự phòng (`796a7018`); spec §5.3, §13 #19.
+> - Xoá tài khoản ghi `member.deactivated` hoặc `profile.updated` cho từng tổ chức để đồ thị nhận được (`437301e1`, `006e022a`).
+> - Task 13 chạy spec bằng `pnpm --filter @uniwork/e2e exec playwright test graph-related-panel.spec.ts` (repo không có project `chromium`); Task 14 lấy id việc qua `POST …/tasks/query`, vì `GET …/tasks?limit=` bỏ qua `limit`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Việc, cuộc họp, dự án, thành viên/agent, phòng ban và phòng chat của một tổ chức nằm trên một đồ thị chung, có thời gian, có bằng chứng. Đồ thị được chiếu từ bảng nguồn qua outbox, dựng lại cho ra đúng nó, và hiện thành panel "Liên quan" cùng dòng thời gian trên trang chi tiết việc, sau flag.

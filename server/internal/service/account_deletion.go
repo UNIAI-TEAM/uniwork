@@ -119,9 +119,10 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 		return err
 	}
 	// user.deleted sits on the credential sentinel, which no organization
-	// reads. Each organization gets the member.deactivated row and event an
-	// admin's Deactivate writes: its admins see why the member went, and the
-	// Work Graph marker re-reads the ACTOR node, so the real name does not
+	// reads. Each organization gets its own row and event: an active
+	// membership the member.deactivated an admin's Deactivate writes, one an
+	// admin already switched off a profile.updated. Either event makes the
+	// Work Graph marker re-read the ACTOR node, so the real name does not
 	// outlive the erasure in graph_nodes.title.
 	for _, m := range memberships {
 		if m.DeactivatedAt.Valid {
