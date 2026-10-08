@@ -8016,6 +8016,7 @@
         "network": "Không kết nối được tới UniWork. Hãy kiểm tra kết nối mạng.",
         "unsupported": "Thao tác này chưa có trên bản web.",
         "timeout": "UniWork phản hồi quá lâu. Hãy thử lại.",
+        "busy": "Một lần lưu khác của tài liệu này vẫn đang chạy. Hãy thử lại sau giây lát.",
         "internal": "Trình soạn thảo tài liệu gặp lỗi."
       }
     },

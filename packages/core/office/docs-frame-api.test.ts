@@ -184,6 +184,13 @@ describe("createDocsFrameApi", () => {
       }
     });
 
+    it("treats 503 office_not_configured (no engine at all) like 501, but not any other 503", async () => {
+      const notConfigured = fakeFetch({ [EXPORT]: () => json({ error: { code: "office_not_configured", message: "office engine is not configured" } }, 503) });
+      await expect(createDocsFrameApi({ apiUrl: API, fetch: notConfigured.fetch }).export!({ format: "pdf" }, call())).rejects.toMatchObject({ code: "unsupported", status: 503 });
+      const down = fakeFetch({ [EXPORT]: () => json({ error: { code: "unavailable", message: "down" } }, 503) });
+      await expect(createDocsFrameApi({ apiUrl: API, fetch: down.fetch }).export!({ format: "pdf" }, call())).rejects.toMatchObject({ code: "internal", status: 503 });
+    });
+
     it("fails a 200 that is not a PDF, refuses HTML and another document, without guessing", async () => {
       const drifted = fakeFetch({ [EXPORT]: () => json({ ok: true }) });
       const api = createDocsFrameApi({ apiUrl: API, fetch: drifted.fetch });

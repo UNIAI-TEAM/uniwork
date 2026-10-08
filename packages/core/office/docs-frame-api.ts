@@ -84,10 +84,12 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 /** An API failure (ApiError, network, thrown shape) as the protocol error the frame understands. */
 export function docsFrameError(error: unknown): DocsProtocolError {
   if (error instanceof ApiError) {
-    // 501 (no PDF renderer here) tells the frame to fall back to its own print;
+    // 501 or 503 office_not_configured (no PDF renderer here) tells the frame to fall back to its own print;
     // 504 is the server giving up on a slow render. Both are not "internal".
-    const shape = error.status === 501
-      ? { code: "unsupported" as const, message: error.message, status: 501 }
+    // 503 office_not_configured is the same fact as 501 for the frame: this deployment has no engine.
+    const noRenderer = error.status === 501 || (error.status === 503 && error.code === "office_not_configured");
+    const shape = noRenderer
+      ? { code: "unsupported" as const, message: error.message, status: error.status }
       : error.status === 504
         ? { code: "timeout" as const, message: error.message, status: 504, retryable: true }
         : errorFromHttpStatus(error.status, error.message).toShape();
