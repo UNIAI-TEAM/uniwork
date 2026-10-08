@@ -1,0 +1,16 @@
+$ REQUIRE_XLSX_GATEWAY=1 pnpm --filter @uniwork/office-engine exec vitest run test/xlsx-cf-dv-followups.test.ts test/xlsx-cf-dv.test.ts test/xlsx-recalc-widthless-columns.test.ts --coverage.enabled=false
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:2:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:3:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/office-engine
+
+
+ Test Files  2 passed | 1 skipped (3)
+      Tests  18 passed | 4 skipped (22)
+   Start at  03:50:02
+   Duration  991ms (transform 1.27s, setup 0ms, import 1.18s, tests 917ms, environment 0ms)
+
