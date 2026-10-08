@@ -171,23 +171,35 @@ export interface OutlineLineBox {
   readonly size: number;
 }
 
+/** One pane on screen along an axis (the frozen band or the scrolling
+ *  pane): its line range and, when known, the pixels it covers. A pane
+ *  without `from` / `to` starts at its first line's box and ends with its
+ *  last one's. */
+export interface OutlinePane {
+  readonly start: number;
+  readonly end: number;
+  readonly from?: number;
+  readonly to?: number;
+}
+
 /** The measurements a layout reads from the grid on screen. */
 export interface OutlineMeasure {
   box(axis: OutlineAxis, line: number): OutlineLineBox | null;
-  /** Line ranges on screen per axis (a frozen band and the scrolling pane). */
-  visible(axis: OutlineAxis): ReadonlyArray<{ start: number; end: number }>;
+  /** The panes on screen per axis (a frozen band and the scrolling pane). */
+  visible(axis: OutlineAxis): ReadonlyArray<OutlinePane>;
   isHidden(axis: OutlineAxis, line: number): boolean;
 }
 
-/** One bracket as the gutter draws it. `line` is the bracket's extent along
- *  the axis (null when collapsed or scrolled away), `button` the toggle's
- *  centre (null when no shown line on screen carries it: its summary line, or
- *  for a collapsed group whose summary line is not shown, the nearest one). */
+/** One bracket as the gutter draws it. `lines` are the bracket's extents
+ *  along the axis, one per pane the group shows in (none when collapsed or
+ *  scrolled away), `button` the toggle's centre (null when no shown line on
+ *  screen carries it: its summary line, or for a collapsed group whose
+ *  summary line is not shown, the nearest one). */
 export interface OutlineBracket {
   readonly key: string;
   readonly group: OutlineGroup;
   readonly collapsed: boolean;
-  readonly line: { readonly from: number; readonly to: number } | null;
+  readonly lines: ReadonlyArray<{ readonly from: number; readonly to: number }>;
   readonly button: number | null;
 }
 
@@ -213,11 +225,14 @@ function nearestShownLine(
   return null;
 }
 
-/** The brackets of the groups on screen. Positions before the first line on
- *  screen (under the header or the frozen band's edge) are clipped. A group
- *  inside a collapsed one draws nothing (its lines are folded away). The work
- *  per call is bounded by the groups and lines on screen, not by the size of
- *  a group: the groups are cached and a group's state reads O(1) lines. */
+/** The brackets of the groups on screen. Every position is read in the pane
+ *  that shows its line and clipped to that pane's pixels: a toggle whose line
+ *  is scrolled out (behind the frozen band or the header) is not drawn, and
+ *  a group straddling the freeze draws one line per pane, so nothing lands on
+ *  an unrelated frozen line. A group inside a collapsed one draws nothing
+ *  (its lines are folded away). The work per call is bounded by the groups
+ *  and lines on screen, not by the size of a group: the groups are cached
+ *  and a group's state reads O(1) lines. */
 export function layoutOutlineBrackets(
   state: LazyWorkbookState | null,
   sheetId: string | undefined,
@@ -230,10 +245,29 @@ export function layoutOutlineBrackets(
   if (groups.length === 0) return [];
   const windows = measure.visible(axis);
   if (windows.length === 0) return [];
-  const first = Math.min(...windows.map((window) => window.start));
-  const lastOnScreen = Math.max(...windows.map((window) => window.end));
-  const clip = measure.box(axis, first)?.start;
-  if (clip === undefined) return [];
+  const boxes = new Map<number, OutlineLineBox | null>();
+  const box = (line: number): OutlineLineBox | null => {
+    if (!boxes.has(line)) boxes.set(line, measure.box(axis, line));
+    return boxes.get(line) ?? null;
+  };
+  const panes: Array<{ start: number; end: number; from: number; to: number }> = [];
+  for (const window of windows) {
+    const first = window.from ?? box(window.start)?.start;
+    const lastBox = window.to === undefined ? box(window.end) : null;
+    const last = window.to ?? (lastBox ? lastBox.start + lastBox.size : undefined);
+    if (first !== undefined && last !== undefined && last > first) panes.push({ start: window.start, end: window.end, from: first, to: last });
+  }
+  if (panes.length === 0) return [];
+  const lastOnScreen = Math.max(...panes.map((pane) => pane.end));
+  const paneOf = (line: number) => panes.find((pane) => line >= pane.start && line <= pane.end);
+  // A shown line's centre, when it is inside the pane that shows the line.
+  const centreOnScreen = (line: number): number | null => {
+    const pane = paneOf(line);
+    const lineBox = pane ? box(line) : null;
+    if (!pane || !lineBox || lineBox.size <= 0) return null;
+    const centre = lineBox.start + lineBox.size / 2;
+    return centre >= pane.from && centre <= pane.to ? centre : null;
+  };
   const hidden = (line: number): boolean => measure.isHidden(axis, line);
   const brackets: OutlineBracket[] = [];
   // Enclosing groups of the current one (proper nesting: an ancestor ends at
@@ -241,34 +275,40 @@ export function layoutOutlineBrackets(
   const ancestors: Array<{ end: number; collapsed: boolean }> = [];
   for (const group of groups) {
     if (group.start > lastOnScreen) break;
+    const summaryShown = group.summary !== null && !hidden(group.summary);
     const last = group.summary ?? group.end;
-    if (!windows.some((window) => group.start <= window.end && last >= window.start)) continue;
+    if (!panes.some((pane) => group.start <= pane.end && last >= pane.start)) continue;
     while (ancestors.length > 0 && ancestors.at(-1)!.end < group.start) ancestors.pop();
     const folded = ancestors.some((ancestor) => ancestor.collapsed);
-    const collapsed = folded || groupCollapsed(group, entries, hidden, windows);
+    const collapsed = folded || groupCollapsed(group, entries, hidden, panes);
     ancestors.push({ end: group.end, collapsed });
     if (folded) continue;
-    const summaryBox = group.summary === null || hidden(group.summary) ? null : measure.box(axis, group.summary);
-    const shown = summaryBox && summaryBox.size > 0 ? summaryBox : null;
-    let anchor = shown;
-    if (!anchor && collapsed) {
-      const nearest = nearestShownLine(group, axis, windows, hidden);
-      const box = nearest === null ? null : measure.box(axis, nearest);
-      anchor = box && box.size > 0 ? box : null;
+    // The toggle sits on the summary line when it is shown, and only where it
+    // is on screen; a collapsed group without a shown summary line uses the
+    // nearest shown line on screen instead.
+    let button = summaryShown ? centreOnScreen(group.summary!) : null;
+    if (button === null && !summaryShown && collapsed) {
+      const nearest = nearestShownLine(group, axis, panes, hidden);
+      button = nearest === null ? null : centreOnScreen(nearest);
     }
-    const button = anchor && anchor.start + anchor.size / 2 >= clip ? anchor.start + anchor.size / 2 : null;
-    let line: OutlineBracket["line"] = null;
+    const lines: Array<{ from: number; to: number }> = [];
     if (!collapsed) {
-      const startBox = measure.box(axis, group.start);
-      const endBox = shown ?? measure.box(axis, group.end);
-      if (startBox && endBox) {
-        const from = Math.max(clip, startBox.start);
-        const to = shown ? shown.start + shown.size / 2 : endBox.start + endBox.size;
-        if (to > from) line = { from, to };
+      const end = summaryShown ? group.summary! : group.end;
+      for (const pane of panes) {
+        const first = Math.max(group.start, pane.start);
+        const lastLine = Math.min(end, pane.end);
+        if (first > lastLine) continue;
+        const startBox = box(first);
+        const endBox = box(lastLine);
+        if (!startBox || !endBox) continue;
+        const from = Math.max(pane.from, startBox.start);
+        const reach = summaryShown && lastLine === end ? endBox.start + endBox.size / 2 : endBox.start + endBox.size;
+        const to = Math.min(pane.to, reach);
+        if (to > from) lines.push({ from, to });
       }
     }
-    if (!line && button === null) continue;
-    brackets.push({ key: `${axis}:${group.start}:${group.depth}`, group, collapsed, line, button });
+    if (lines.length === 0 && button === null) continue;
+    brackets.push({ key: `${axis}:${group.start}:${group.depth}`, group, collapsed, lines, button });
   }
   return brackets;
 }

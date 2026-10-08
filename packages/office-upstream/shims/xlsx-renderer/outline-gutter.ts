@@ -26,6 +26,9 @@ export interface OutlineGutters {
 export interface OutlineGutterOptions {
   /** The renderer root (`.xlsx-surface`). */
   container: HTMLElement;
+  /** The grid host inside it; the gutters go before it in DOM order, so Tab
+   *  from the level bar reaches the toggles before the grid. */
+  grid?: HTMLElement;
   label: (key: string, params?: Record<string, unknown>) => string;
   onToggle: (axis: OutlineAxis, start: number, depth: number, collapse: boolean) => void;
 }
@@ -78,9 +81,9 @@ export function columnName(index: number): string {
 const levelCentre = (depth: number): string => `calc(${depth - 0.5} * var(--uniwork-outline-level-width) + 2px)`;
 
 export function createOutlineGutters(options: OutlineGutterOptions): OutlineGutters {
-  const { container, label, onToggle } = options;
+  const { container, grid, label, onToggle } = options;
   const document = container.ownerDocument;
-  const gutters = new Map<OutlineAxis, { element: HTMLElement; nodes: Map<string, { line: HTMLElement; button: HTMLButtonElement }> }>();
+  const gutters = new Map<OutlineAxis, { element: HTMLElement; nodes: Map<string, { lines: HTMLElement[]; button: HTMLButtonElement }> }>();
 
   const gutterFor = (axis: OutlineAxis) => {
     let gutter = gutters.get(axis);
@@ -90,7 +93,8 @@ export function createOutlineGutters(options: OutlineGutterOptions): OutlineGutt
       element.className = GUTTER_CLASS;
       element.setAttribute("data-axis", axis);
       element.setAttribute("role", "group");
-      container.appendChild(element);
+      if (grid && grid.parentNode === container) container.insertBefore(element, grid);
+      else container.appendChild(element);
       gutter = { element, nodes: new Map() };
       gutters.set(axis, gutter);
     }
@@ -130,9 +134,6 @@ export function createOutlineGutters(options: OutlineGutterOptions): OutlineGutt
       seen.add(bracket.key);
       let node = nodes.get(bracket.key);
       if (!node) {
-        const line = document.createElement("div");
-        line.className = `${GUTTER_CLASS}-line`;
-        line.setAttribute("aria-hidden", "true");
         const button = document.createElement("button");
         button.type = "button";
         button.setAttribute("data-start", String(bracket.group.start));
@@ -141,7 +142,7 @@ export function createOutlineGutters(options: OutlineGutterOptions): OutlineGutt
           const expanded = button.getAttribute("aria-expanded") === "true";
           onToggle(axis, bracket.group.start, bracket.group.depth, expanded);
         });
-        node = { line, button };
+        node = { lines: [], button };
         nodes.set(bracket.key, node);
       }
       const { group } = bracket;
@@ -154,18 +155,28 @@ export function createOutlineGutters(options: OutlineGutterOptions): OutlineGutt
       node.button.title = text;
       node.button.textContent = bracket.collapsed ? "+" : "−";
       const across = levelCentre(group.depth);
-      node.line.hidden = bracket.line === null;
-      if (bracket.line) {
-        const length = `${bracket.line.to - bracket.line.from}px`;
-        if (axis === "rows") Object.assign(node.line.style, { top: along(bracket.line.from), height: length, left: across });
-        else Object.assign(node.line.style, { left: along(bracket.line.from), width: length, top: across });
+      // One line per pane the group shows in (a group across the freeze has
+      // two); spare nodes from an earlier frame stay hidden.
+      while (node.lines.length < bracket.lines.length) {
+        const line = document.createElement("div");
+        line.className = `${GUTTER_CLASS}-line`;
+        line.setAttribute("aria-hidden", "true");
+        node.lines.push(line);
       }
+      node.lines.forEach((line, index) => {
+        const extent = bracket.lines[index];
+        line.hidden = extent === undefined;
+        if (!extent) return;
+        const length = `${extent.to - extent.from}px`;
+        if (axis === "rows") Object.assign(line.style, { top: along(extent.from), height: length, left: across });
+        else Object.assign(line.style, { left: along(extent.from), width: length, top: across });
+      });
       node.button.hidden = bracket.button === null;
       if (bracket.button !== null) {
         if (axis === "rows") Object.assign(node.button.style, { top: along(bracket.button), left: across });
         else Object.assign(node.button.style, { left: along(bracket.button), top: across });
       }
-      ordered.push(node.line, node.button);
+      ordered.push(...node.lines, node.button);
     }
     for (const key of [...nodes.keys()]) if (!seen.has(key)) nodes.delete(key);
     // Kept nodes are re-attached in reading order, so a focused toggle keeps

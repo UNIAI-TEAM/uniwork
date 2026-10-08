@@ -12,6 +12,7 @@ const bundled = await build({
   stdin: {
     contents: `export * from './outline-brackets'; export * from './outline-gutter'; export * from './outline-levels';
       export { createOutlineLevelBar } from './outline-bar';
+      export { createOutlineMeasure } from './outline-measure';
       export { applyOutlineAction, applyOutlineCollapse, seedRowOutline, ingestStructuralMutation, canExecuteCommand, createEditJournal } from './index-test';
       export { rendererEditsToOperations } from '../../../views/office/xlsx/xlsx-edit-bridge';`,
     resolveDir: renderer, loader: 'ts',
@@ -30,6 +31,10 @@ const bundled = await build({
       builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
         contents: 'export const CellValueType={STRING:1,NUMBER:2,BOOLEAN:3}; export const CommandType={COMMAND:0,OPERATION:1,MUTATION:2};',
       }));
+      builder.onResolve({ filter: /^@univerjs\/engine-render$/ }, () => ({ path: 'render', namespace: 'test-render' }));
+      builder.onLoad({ filter: /.*/, namespace: 'test-render' }, () => ({
+        contents: 'export const IRenderManagerService = "render-manager"; export const SHEET_VIEWPORT_KEY = { VIEW_MAIN: "main" };',
+      }));
       builder.onResolve({ filter: /^\.\/locale$/ }, () => ({ path: 'locale', namespace: 'test-locale' }));
       builder.onLoad({ filter: /.*/, namespace: 'test-locale' }, () => ({ contents: 'export const t = (key) => key;' }));
       builder.onResolve({ filter: /^@genoffice\/xlsx-gateway\// }, (args) => ({
@@ -43,6 +48,7 @@ const bundled = await build({
 const loaded = { exports: {} };
 new Function('module', 'exports', 'require', bundled.outputFiles[0].text)(loaded, loaded.exports, createRequire(import.meta.url));
 const { outlineGroups, cachedOutlineGroups, invalidateOutlineCache, groupCollapsed, planOutlineGroup, runOutlineGroup, layoutOutlineBrackets, createOutlineGutters,
+  createOutlineMeasure,
   outlineGutterExtent, columnName, createOutlineLevelBar, applyOutlineAction, applyOutlineCollapse, seedRowOutline,
   ingestStructuralMutation, canExecuteCommand, createEditJournal, rendererEditsToOperations } = loaded.exports;
 
@@ -184,24 +190,24 @@ test('layout: an expanded group draws its line to the toggle, a collapsed one on
   applyOutlineAction(model, 's1', 'rows', 1, 4, 'group');
   applyOutlineAction(model, 's1', 'rows', 2, 3, 'group');
   const open = layoutOutlineBrackets(model, 's1', 'rows', measure());
-  assert.deepEqual(open.map((bracket) => [bracket.key, bracket.collapsed, bracket.line, bracket.button]), [
-    ['rows:1:1', false, { from: 50, to: 140 }, 140],
-    ['rows:2:2', false, { from: 70, to: 120 }, 120],
+  assert.deepEqual(open.map((bracket) => [bracket.key, bracket.collapsed, bracket.lines, bracket.button]), [
+    ['rows:1:1', false, [{ from: 50, to: 140 }], 140],
+    ['rows:2:2', false, [{ from: 70, to: 120 }], 120],
   ]);
   // The inner group collapsed: no line, its toggle on row 4; the outer line still reaches row 5.
   const folded = layoutOutlineBrackets(model, 's1', 'rows', measure({ hidden: new Set([2, 3]) }));
-  assert.deepEqual(folded.map((bracket) => [bracket.key, bracket.collapsed, bracket.line, bracket.button]), [
-    ['rows:1:1', false, { from: 50, to: 100 }, 100],
-    ['rows:2:2', true, null, 80],
+  assert.deepEqual(folded.map((bracket) => [bracket.key, bracket.collapsed, bracket.lines, bracket.button]), [
+    ['rows:1:1', false, [{ from: 50, to: 100 }], 100],
+    ['rows:2:2', true, [], 80],
   ]);
   // The outer collapsed: the inner toggle sits on a hidden row and is not drawn.
   const closed = layoutOutlineBrackets(model, 's1', 'rows', measure({ hidden: new Set([1, 2, 3, 4]) }));
-  assert.deepEqual(closed.map((bracket) => [bracket.key, bracket.collapsed, bracket.line, bracket.button]), [['rows:1:1', true, null, 60]]);
+  assert.deepEqual(closed.map((bracket) => [bracket.key, bracket.collapsed, bracket.lines, bracket.button]), [['rows:1:1', true, [], 60]]);
   // Scrolled to row 3: the outer line starts at the first row on screen, the inner one is gone above it.
   const scrolled = layoutOutlineBrackets(model, 's1', 'rows', measure({ top: 3, rows: [{ start: 3, end: 19 }] }));
-  assert.deepEqual(scrolled.map((bracket) => [bracket.key, bracket.line, bracket.button]), [
-    ['rows:1:1', { from: 30, to: 80 }, 80],
-    ['rows:2:2', { from: 30, to: 60 }, 60],
+  assert.deepEqual(scrolled.map((bracket) => [bracket.key, bracket.lines, bracket.button]), [
+    ['rows:1:1', [{ from: 30, to: 80 }], 80],
+    ['rows:2:2', [{ from: 30, to: 60 }], 60],
   ]);
   // Off screen, no outline, no sheet: nothing.
   assert.deepEqual(layoutOutlineBrackets(model, 's1', 'rows', measure({ rows: [{ start: 10, end: 19 }] })), []);
@@ -209,8 +215,8 @@ test('layout: an expanded group draws its line to the toggle, a collapsed one on
   assert.deepEqual(layoutOutlineBrackets(model, undefined, 'rows', measure()), []);
   // Columns measure along x.
   applyOutlineAction(model, 's1', 'cols', 1, 2, 'group');
-  assert.deepEqual(layoutOutlineBrackets(model, 's1', 'cols', measure()).map((bracket) => [bracket.line, bracket.button]),
-    [[{ from: 100, to: 250 }, 250]]);
+  assert.deepEqual(layoutOutlineBrackets(model, 's1', 'cols', measure()).map((bracket) => [bracket.lines, bracket.button]),
+    [[[{ from: 100, to: 250 }], 250]]);
 });
 
 function fakeDocument() {
@@ -222,8 +228,8 @@ function fakeDocument() {
       textContent: '', title: '', type: '', id: '', className: '', parent: null, ownerDocument: document,
       setAttribute(key, value) { this.attributes.set(key, String(value)); },
       getAttribute(key) { return this.attributes.get(key) ?? null; },
-      appendChild(child) { child.parent = this; this.children.push(child); if (child.id) byId.set(child.id, child); return child; },
-      insertBefore(child, before) { child.parent = this; this.children.splice(Math.max(0, this.children.indexOf(before)), 0, child); return child; },
+      appendChild(child) { child.parent = this; child.parentNode = this; this.children.push(child); if (child.id) byId.set(child.id, child); return child; },
+      insertBefore(child, before) { child.parent = this; child.parentNode = this; this.children.splice(Math.max(0, this.children.indexOf(before)), 0, child); return child; },
       replaceChildren(...nodes) {
         if (nodes.includes(document.activeElement) || this.children.includes(document.activeElement)) document.activeElement = null;
         this.children = [];
@@ -249,9 +255,9 @@ test('gutters: one labelled toggle per bracket with aria-expanded, kept across u
   const gutters = createOutlineGutters({ container, label, onToggle: (...args) => toggles.push(args) });
   const group = (start, end, depth) => ({ start, end, depth, summary: end + 1 });
   const layout = (rows, cols = []) => ({ rows: { levels: rows.length ? 2 : 0, brackets: rows }, cols: { levels: cols.length ? 1 : 0, brackets: cols } });
-  const outer = { key: 'rows:1:1', group: group(1, 4, 1), collapsed: false, line: { from: 50, to: 140 }, button: 140 };
-  const inner = { key: 'rows:2:2', group: group(2, 3, 2), collapsed: true, line: null, button: 80 };
-  const column = { key: 'cols:1:1', group: group(1, 2, 1), collapsed: false, line: { from: 100, to: 250 }, button: 250 };
+  const outer = { key: 'rows:1:1', group: group(1, 4, 1), collapsed: false, lines: [{ from: 50, to: 140 }], button: 140 };
+  const inner = { key: 'rows:2:2', group: group(2, 3, 2), collapsed: true, lines: [], button: 80 };
+  const column = { key: 'cols:1:1', group: group(1, 2, 1), collapsed: false, lines: [{ from: 100, to: 250 }], button: 250 };
   gutters.update(layout([outer, inner], [column]));
   assert.ok(document.getElementById('uniwork-xlsx-outline-gutter-style').textContent.includes('var(--color-border)'));
   const [colGutter, rowGutter] = container.children;
@@ -266,8 +272,8 @@ test('gutters: one labelled toggle per bracket with aria-expanded, kept across u
     ['button', '+', 'false', 'en:outlineGroupExpandRows:3-4'],
   ]);
   const lines = rowGutter.children.filter((child) => child.tagName === 'DIV');
+  assert.equal(lines.length, 1, 'a collapsed group draws no line');
   assert.equal(lines[0].hidden, false);
-  assert.equal(lines[1].hidden, true, 'a collapsed group draws no line');
   assert.equal(lines[0].style.height, '90px');
   assert.ok(buttons[0].style.top.startsWith('calc(140px - ('));
   const colButton = colGutter.children.find((child) => child.tagName === 'BUTTON');
@@ -280,12 +286,12 @@ test('gutters: one labelled toggle per bracket with aria-expanded, kept across u
   // The same brackets after a scroll: the same nodes, moved, focus kept; a language switch relabels.
   buttons[0].focus();
   lang = 'vi';
-  gutters.update(layout([{ ...outer, line: { from: 30, to: 120 }, button: 120 }, inner], [column]));
+  gutters.update(layout([{ ...outer, lines: [{ from: 30, to: 120 }], button: 120 }, inner], [column]));
   assert.equal(rowGutter.children.filter((child) => child.tagName === 'BUTTON')[0], buttons[0]);
   assert.ok(buttons[0].style.top.startsWith('calc(120px - ('));
   assert.equal(buttons[0].getAttribute('aria-label'), 'vi:outlineGroupCollapseRows:2-5');
   // A new bracket ahead of the focused one re-orders the nodes and refocuses it.
-  gutters.update(layout([{ ...outer, key: 'rows:0:1', group: group(0, 0, 1) }, { ...outer, line: { from: 30, to: 120 }, button: 120 }, inner], [column]));
+  gutters.update(layout([{ ...outer, key: 'rows:0:1', group: group(0, 0, 1) }, { ...outer, lines: [{ from: 30, to: 120 }], button: 120 }, inner], [column]));
   assert.equal(document.activeElement, buttons[0]);
   // No column outline: its gutter hides; no outline at all: both hide; dispose removes them.
   gutters.update(layout([outer]));
@@ -393,6 +399,161 @@ test('real Univer: a bracket toggle hides one group, saves as hidden rows + the 
   }
 });
 
+test('gutters: a group across the freeze draws one line per pane; the gutters sit before the grid in DOM order', () => {
+  const document = fakeDocument();
+  const container = document.createElement('div');
+  const grid = document.createElement('div');
+  container.appendChild(grid);
+  const gutters = createOutlineGutters({ container, grid, label: (key) => key, onToggle: () => {} });
+  const group = { start: 1, end: 4, depth: 1, summary: 5 };
+  const bracket = (lines) => ({ key: 'rows:1:1', group, collapsed: false, lines, button: null });
+  gutters.update({ rows: { levels: 1, brackets: [bracket([{ from: 50, to: 90 }, { from: 90, to: 120 }])] }, cols: { levels: 1, brackets: [] } });
+  // Tab from the level bar reaches the toggles before the grid: both gutters precede it.
+  assert.deepEqual(container.children.map((child) => child.getAttribute('data-axis') ?? 'grid'), ['cols', 'rows', 'grid']);
+  const rowGutter = container.children[1];
+  const lines = () => rowGutter.children.filter((child) => child.tagName === 'DIV');
+  assert.deepEqual(lines().map((line) => [line.hidden, line.style.height]), [[false, '40px'], [false, '30px']]);
+  assert.equal(rowGutter.children.find((child) => child.tagName === 'BUTTON').hidden, true, 'no toggle when the summary is off screen');
+  // Scrolled so the group shows in one pane only: the spare line hides, the nodes are kept.
+  const [first, second] = lines();
+  gutters.update({ rows: { levels: 1, brackets: [bracket([{ from: 50, to: 90 }])] }, cols: { levels: 1, brackets: [] } });
+  assert.deepEqual(lines(), [first, second]);
+  assert.deepEqual(lines().map((line) => line.hidden), [false, true]);
+  gutters.dispose();
+  // Without the grid inside the container, the gutters are appended.
+  const bare = document.createElement('div');
+  createOutlineGutters({ container: bare, grid, label: (key) => key, onToggle: () => {} })
+    .update({ rows: { levels: 1, brackets: [] }, cols: { levels: 0, brackets: [] } });
+  assert.equal(bare.children.length, 1);
+});
+
+// Frozen 3 rows / 2 columns (rows 0-2, columns 0-1), scrolled so the scrolling pane starts at row 6 /
+// column 5: rows 3-5 and columns 2-4 are behind the band. Rows are 20px from y=30, columns 60px from x=40;
+// a line behind the band is reported under it, as Univer's geometry does.
+const frozenBox = (axis, line) => axis === 'rows'
+  ? { start: 30 + (line < 3 ? line : line - 3) * 20, size: 20 }
+  : { start: 40 + (line < 2 ? line : line - 3) * 60, size: 60 };
+function frozenMeasure({ hidden = new Set() } = {}) {
+  return {
+    box: (axis, line) => ({ ...frozenBox(axis, line), ...(axis === 'rows' && hidden.has(line) ? { size: 0 } : {}) }),
+    visible: (axis) => axis === 'rows'
+      ? [{ start: 0, end: 2, from: 30, to: 90 }, { start: 6, end: 19, from: 90, to: 370 }]
+      : [{ start: 0, end: 1, from: 40, to: 160 }, { start: 5, end: 9, from: 160, to: 460 }],
+    isHidden: (axis, line) => axis === 'rows' && hidden.has(line),
+  };
+}
+
+test('frozen panes + scroll: a toggle sits on its summary line in its own pane or is not drawn; lines clip per pane', () => {
+  const model = state();
+  // Rows 2-5 and 3-4 (1-based) straddle the frozen band; their summaries (rows 6 and 5) are behind it.
+  applyOutlineAction(model, 's1', 'rows', 1, 4, 'group');
+  applyOutlineAction(model, 's1', 'rows', 2, 3, 'group');
+  // Rows 7-11 start on the first scrolling row; summary row 12 at y 90 + 5 * 20 + 10.
+  applyOutlineAction(model, 's1', 'rows', 6, 10, 'group');
+  const rows = layoutOutlineBrackets(model, 's1', 'rows', frozenMeasure());
+  assert.deepEqual(rows.map((bracket) => [bracket.key, bracket.lines, bracket.button]), [
+    // No toggle next to rows 1-2, and each line covers only the group's frozen rows.
+    ['rows:1:1', [{ from: 50, to: 90 }], null],
+    ['rows:2:2', [{ from: 70, to: 90 }], null],
+    ['rows:6:1', [{ from: 90, to: 200 }], 200],
+  ]);
+  // Columns: B-E straddles the band with its summary F the first scrolling column; C-D (summary E) is
+  // wholly behind the band and draws nothing (no toggle over column B); H-I is in the scrolling pane.
+  applyOutlineAction(model, 's1', 'cols', 1, 4, 'group');
+  applyOutlineAction(model, 's1', 'cols', 2, 3, 'group');
+  applyOutlineAction(model, 's1', 'cols', 7, 8, 'group');
+  const cols = layoutOutlineBrackets(model, 's1', 'cols', frozenMeasure());
+  assert.deepEqual(cols.map((bracket) => [bracket.key, bracket.lines, bracket.button]), [
+    ['cols:1:1', [{ from: 100, to: 160 }, { from: 160, to: 190 }], 190],
+    ['cols:7:1', [{ from: 280, to: 430 }], 430],
+  ]);
+  // A group whose summary is a frozen line keeps its toggle there (row 2, summary row 3).
+  const edge = state();
+  applyOutlineAction(edge, 's1', 'rows', 1, 1, 'group');
+  assert.deepEqual(layoutOutlineBrackets(edge, 's1', 'rows', frozenMeasure()).map((bracket) => [bracket.lines, bracket.button]),
+    [[[{ from: 50, to: 80 }], 80]]);
+});
+
+test('frozen panes + scroll: a collapsed group whose summary is hidden uses the nearest shown line on screen only', () => {
+  const model = state();
+  applyOutlineAction(model, 's1', 'rows', 1, 4, 'group');
+  applyOutlineCollapse(model, 's1', 'rows', 5, true);
+  // Rows 2-5 collapsed and the summary row 6 hidden by hand: the nearest shown line on screen after the
+  // group is row 7, the first scrolling row - never a frozen row in front of the scrolled-out ones.
+  const after = layoutOutlineBrackets(model, 's1', 'rows', frozenMeasure({ hidden: new Set([1, 2, 3, 4, 5]) }));
+  assert.deepEqual(after.map((bracket) => [bracket.key, bracket.collapsed, bracket.lines, bracket.button]), [['rows:1:1', true, [], 100]]);
+  // Its summary shown but scrolled behind the band: no toggle at all (not the nearest-line fallback).
+  assert.deepEqual(layoutOutlineBrackets(model, 's1', 'rows', frozenMeasure({ hidden: new Set([1, 2, 3, 4]) })), []);
+});
+
+test('scroll without a freeze: lines of a group whose start scrolled out stop at the header edge (both axes)', () => {
+  const model = state();
+  applyOutlineAction(model, 's1', 'cols', 1, 4, 'group');
+  applyOutlineAction(model, 's1', 'rows', 1, 4, 'group');
+  // Scrolled 30px into column C and 10px into row 3: the panes start at the header edges x=40, y=30.
+  const measure = {
+    box: (axis, line) => axis === 'cols' ? { start: 10 + (line - 2) * 60, size: 60 } : { start: 20 + (line - 2) * 20, size: 20 },
+    visible: (axis) => axis === 'cols' ? [{ start: 2, end: 9, from: 40, to: 460 }] : [{ start: 2, end: 19, from: 30, to: 380 }],
+    isHidden: () => false,
+  };
+  assert.deepEqual(layoutOutlineBrackets(model, 's1', 'cols', measure).map((bracket) => [bracket.lines, bracket.button]),
+    [[[{ from: 40, to: 220 }], 220]]);
+  assert.deepEqual(layoutOutlineBrackets(model, 's1', 'rows', measure).map((bracket) => [bracket.lines, bracket.button]),
+    [[[{ from: 30, to: 90 }], 90]]);
+  // A summary column whose centre is still under the header (pane from x=230): no toggle and no line.
+  const tight = { ...measure, visible: () => [{ start: 5, end: 9, from: 230, to: 460 }] };
+  assert.deepEqual(layoutOutlineBrackets(model, 's1', 'cols', tight), []);
+});
+
+function measureRuntime({ freeze, visible, scroll = { x: 0, y: 0 }, hiddenRows = new Set() }) {
+  const worksheet = {
+    getSheetId: () => 's1',
+    getSheet: () => ({ getRowRawVisible: (line) => !hiddenRows.has(line), getColVisible: () => true }),
+    getVisibleRange: () => visible,
+    getFreeze: () => freeze,
+  };
+  return {
+    univerAPI: { getActiveWorkbook: () => ({ getId: () => 'book', getActiveSheet: () => worksheet }) },
+    univer: { __getInjector: () => ({ get: () => ({ getRenderById: () => ({ scene: { getViewport: () => ({ viewportScrollX: scroll.x, viewportScrollY: scroll.y }) } }) }) }) },
+  };
+}
+
+test('measure: the frozen band and the scrolling pane carry their pixels; without a freeze the pane starts at the header edge', () => {
+  const frozen = createOutlineMeasure(
+    measureRuntime({ freeze: { xSplit: 2, ySplit: 3, startRow: 3, startColumn: 2 }, visible: { startRow: 6, endRow: 19, startColumn: 5, endColumn: 9 } }),
+    { getCellBox: (sheetId, row, column) => {
+      const y = frozenBox('rows', row);
+      const x = frozenBox('cols', column);
+      return { x: x.start, y: y.start, width: x.size, height: y.size, zoom: 1 };
+    } },
+    's1');
+  assert.deepEqual(frozen.visible('rows'), [{ start: 0, end: 2, from: 30, to: 90 }, { start: 6, end: 19, from: 90, to: 370 }]);
+  assert.deepEqual(frozen.visible('cols'), [{ start: 0, end: 1, from: 40, to: 160 }, { start: 5, end: 9, from: 160, to: 460 }]);
+  assert.deepEqual(frozen.box('rows', 6), { start: 90, size: 20 });
+  // Unscrolled, Univer's visible range may start inside the band: the scrolling pane starts after it.
+  const unscrolled = createOutlineMeasure(
+    measureRuntime({ freeze: { xSplit: 0, ySplit: 3, startRow: 3, startColumn: -1 }, visible: { startRow: 0, endRow: 19, startColumn: 0, endColumn: 9 } }),
+    { getCellBox: (sheetId, row, column) => ({ x: 40 + column * 60, y: 30 + row * 20, width: 60, height: 20, zoom: 1 }) },
+    's1');
+  assert.deepEqual(unscrolled.visible('rows'), [{ start: 0, end: 2, from: 30, to: 90 }, { start: 3, end: 19, from: 90, to: 430 }]);
+  // No freeze, zoom 2, scrolled 50 / 90 scene px: the first line on screen is partly under the header,
+  // so the pane starts at the header edge (line 0's box plus the scroll), not at that line's box.
+  const zoomed = createOutlineMeasure(
+    measureRuntime({ freeze: { xSplit: 0, ySplit: 0, startRow: -1, startColumn: -1 }, visible: { startRow: 2, endRow: 10, startColumn: 1, endColumn: 5 },
+      scroll: { x: 90, y: 50 }, hiddenRows: new Set([4]) }),
+    { getCellBox: (sheetId, row, column) => ({ x: 40 + (column * 60 - 90) * 2, y: 30 + (row * 20 - 50) * 2, width: 120, height: 40, zoom: 2 }) },
+    's1');
+  assert.deepEqual(zoomed.visible('rows'), [{ start: 2, end: 10, from: 30, to: 370 }]);
+  assert.deepEqual(zoomed.visible('cols'), [{ start: 1, end: 5, from: 40, to: 580 }]);
+  assert.equal(zoomed.isHidden('rows', 4), true);
+  assert.equal(zoomed.isHidden('cols', 4), false);
+  // Another sheet active, or a facade that throws: no measure.
+  assert.equal(createOutlineMeasure(measureRuntime({ visible: null }), { getCellBox: () => null }, 's2'), null);
+  const throwing = { ...measureRuntime({ visible: null }), univerAPI: { getActiveWorkbook: () => ({ getId: () => 'book', getActiveSheet: () => ({
+    getSheetId: () => 's1', getSheet: () => { throw new Error('gone'); } }) }) } };
+  assert.equal(createOutlineMeasure(throwing, { getCellBox: () => null }, 's1'), null);
+});
+
 test('reopen: a saved collapsed group reads collapsed from the file and draws "+" on its summary line', () => {
   const model = state();
   model.file.sheets[0].rowOutline = [
@@ -400,7 +561,7 @@ test('reopen: a saved collapsed group reads collapsed from the file and draws "+
   ];
   seedRowOutline(model);
   const [bracket] = layoutOutlineBrackets(model, 's1', 'rows', measure({ hidden: new Set([1, 2, 3]) }));
-  assert.deepEqual([bracket.key, bracket.collapsed, bracket.line, bracket.button], ['rows:1:1', true, null, 60]);
+  assert.deepEqual([bracket.key, bracket.collapsed, bracket.lines, bracket.button], ['rows:1:1', true, [], 60]);
   assert.equal(model.outline.get('s1').rows.get(4).collapsed, true);
 });
 
@@ -416,8 +577,11 @@ test('controller: the gutters mount with an outline, set-outline-group runs thro
   try {
     await mounted.handle.loadWorkbook(file);
     await settle();
-    const gutter = mounted.h.appended?.find((child) => child.className === 'uniwork-xlsx-outline-gutter');
-    assert.ok(gutter, 'the row gutter mounts for a sheet whose file carries a row outline');
+    const [placed] = mounted.h.gutters ?? [];
+    assert.ok(placed, 'the row gutter mounts for a sheet whose file carries a row outline');
+    // Before the grid host in DOM order: Tab from the level bar reaches the toggles first.
+    assert.equal(placed.before.className, 'xlsx-univer-container');
+    const gutter = placed.child;
     assert.equal(gutter.getAttribute('data-axis'), 'rows');
     assert.equal(gutter.hidden, false);
     assert.equal(await mounted.handle.executeCommand('uniwork.command.set-outline-group', { axis: 'rows', start: 2, level: 2, collapse: true }), true);
@@ -432,7 +596,7 @@ test('controller: the gutters mount with an outline, set-outline-group runs thro
   try {
     await readOnly.handle.loadWorkbook(file);
     await settle();
-    assert.equal(readOnly.h.appended?.find((child) => child.className === 'uniwork-xlsx-outline-gutter'), undefined);
+    assert.equal(readOnly.h.gutters, undefined);
   } finally { readOnly.close(); }
 });
 
@@ -478,7 +642,7 @@ test('a scroll frame over a 100k-line group does bounded work: groups cached, co
   calls.box = 0;
   calls.isHidden = 0;
   const closed = layoutOutlineBrackets(model, 's1', 'rows', counted({ top: 0, end: 100_040, hidden: folded }));
-  assert.deepEqual(closed.map((bracket) => [bracket.key, bracket.collapsed, bracket.line, bracket.button]), [['rows:1:1', true, null, 60]]);
+  assert.deepEqual(closed.map((bracket) => [bracket.key, bracket.collapsed, bracket.lines, bracket.button]), [['rows:1:1', true, [], 60]]);
   assert.ok(calls.box <= 4 && calls.isHidden <= 6, JSON.stringify(calls));
   // Hidden by hand (no flag): still bounded, by the scan limit.
   rows.set(100_001, { level: 0, collapsed: false });
@@ -532,8 +696,8 @@ test('a collapsed group whose summary line is hidden or past the grid edge keeps
   applyOutlineCollapse(model, 's1', 'rows', 4, true);
   // Rows 1-3 collapsed, the summary row 4 hidden by hand: the "+" moves to row 5 (y 50..70).
   const hiddenSummary = layoutOutlineBrackets(model, 's1', 'rows', measure({ hidden: new Set([1, 2, 3, 4]) }));
-  assert.deepEqual(hiddenSummary.map((bracket) => [bracket.key, bracket.collapsed, bracket.line, bracket.button]),
-    [['rows:1:1', true, null, 60]]);
+  assert.deepEqual(hiddenSummary.map((bracket) => [bracket.key, bracket.collapsed, bracket.lines, bracket.button]),
+    [['rows:1:1', true, [], 60]]);
   // Every row after it hidden or off screen: the row before the group carries it.
   const before = layoutOutlineBrackets(model, 's1', 'rows', measure({ hidden: new Set([1, 2, 3, 4, 5]), rows: [{ start: 0, end: 5 }] }));
   assert.deepEqual(before.map((bracket) => bracket.button), [40]);

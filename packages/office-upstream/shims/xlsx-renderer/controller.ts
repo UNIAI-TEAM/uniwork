@@ -657,7 +657,7 @@ export function createXlsxRenderer(options: XlsxRendererOptions): XlsxRendererHa
     onLevel: (axis, level) => runOutlineUi("uniwork.command.set-outline-level", { axis, level }),
   });
   const outlineGutters = options.readOnly ? null : createOutlineGutters({
-    container, label: t,
+    container, grid: univerHost, label: t,
     onToggle: (axis, start, level, collapse) => runOutlineUi("uniwork.command.set-outline-group", { axis, start, level, collapse }),
   });
   let outlineBarQueued = false;

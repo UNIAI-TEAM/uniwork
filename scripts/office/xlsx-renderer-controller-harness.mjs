@@ -228,9 +228,13 @@ export function mountController(options = {}, environment = {}) {
     // The DV hint stylesheet and the dialog relabel look the document up.
     ownerDocument: { createElement: element, fonts: environment.fonts, getElementById: () => null,
       head: { appendChild() {} }, querySelectorAll: () => [] },
-    // The outline gutters (outline-gutter.ts) are appended; tests find them here.
-    appendChild: (child) => { (h.appended ??= []).push(child); return child; },
-    insertBefore: (child) => { h.outlineBar = child; return child; } };
+    // The outline gutters (outline-gutter.ts) go before the grid host; tests find them here.
+    appendChild: (child) => { child.parentNode = container; (h.appended ??= []).push(child); return child; },
+    insertBefore: (child, before) => {
+      if (child.className === 'uniwork-xlsx-outline-gutter') (h.gutters ??= []).push({ child, before });
+      else h.outlineBar = child;
+      return child;
+    } };
   const handle = createXlsxRenderer({ container, host: { async readRange() { return {}; } }, ...options });
   return {
     handle, h, workbook, events, container,
