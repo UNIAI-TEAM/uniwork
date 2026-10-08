@@ -110,16 +110,18 @@ async function launch(label) {
   const child = app.process();
   child.stdout?.on("data", (chunk) => logs.push(`[out] ${chunk}`));
   child.stderr?.on("data", (chunk) => logs.push(`[err] ${chunk}`));
-  const exited = new Promise((done) => child.once("exit", (code, signal) => done({ code, signal })));
-  const page = await app.firstWindow();
-  await page.waitForLoadState("domcontentloaded");
-  return { app, page, logs, exited, label };
+  const session = { app, child, logs, label, done: false };
+  session.exited = new Promise((done) => child.once("exit", (code, signal) => { session.done = true; done({ code, signal }); }));
+  session.page = await app.firstWindow();
+  await session.page.waitForLoadState("domcontentloaded");
+  return session;
 }
 
 async function finish(session, { quit = true } = {}) {
   if (quit) await session.app.evaluate(({ app }) => app.quit()).catch(() => undefined);
   const outcome = await Promise.race([session.exited, sleep(30_000).then(() => "timeout")]);
-  if (outcome === "timeout") session.app.process().kill("SIGKILL");
+  // Playwright drops its handle once the app exits: use the child process.
+  if (outcome === "timeout") session.child.kill("SIGKILL");
   await writeFile(join(out, `${session.label}-app.log`), session.logs.join(""), "utf8");
   return outcome;
 }
@@ -189,7 +191,7 @@ try {
     const mode = existsSync(imported) ? ((await stat(imported)).mode & 0o777).toString(8) : null;
     check("userData/deployment-profile.json equals the bundle profile, mode 600", JSON.stringify(written) === JSON.stringify(profile) && mode === "600", { mode, written });
   } finally {
-    if (first.app.process().exitCode === null) await finish(first);
+    if (!first.done) await finish(first);
   }
 
   // ---- 5. The restart: the imported profile resolves and sign-in uses its origin.
@@ -219,7 +221,7 @@ try {
     const exit = await finish(second, { quit: false });
     check("Reset connection confirms, removes the profile and restarts", Boolean(resetConfirm) && Boolean(resetRelaunch) && exit?.code === 0 && !existsSync(join(userData, "deployment-profile.json")), { resetConfirm: resetConfirm?.trim(), exit });
   } finally {
-    if (second.app.process().exitCode === null) await finish(second);
+    if (!second.done) await finish(second);
   }
 
   const third = await launch("3-after-reset");
