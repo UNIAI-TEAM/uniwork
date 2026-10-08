@@ -305,8 +305,9 @@ Every command that changes business state writes an `audit_events` row and its
 - The dispatcher runs one claim loop per lane (`server/internal/outbox/lane.go`:
   realtime, notify, provider, push, slow). `Dispatcher.Register` puts a
   consumer on the realtime lane, which is only for consumers that touch
-  memory, Redis or one indexed read; a consumer that waits on a third party or
-  fans out across tables uses `RegisterLane`. A topic runs on the slowest lane
+  memory, Redis, one indexed read, or one keyed upsert (the Work Graph
+  marker); a consumer that waits on a third party or fans out across tables
+  uses `RegisterLane`. A topic runs on the slowest lane
   among its consumers, and one row's consumers run concurrently.
   `TestSlowLaneDoesNotDelayARealtimeRow` and
   `TestLanesDeliverEachRowOnceAcrossNodes` hold it.

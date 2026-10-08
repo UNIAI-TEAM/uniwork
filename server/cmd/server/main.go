@@ -24,6 +24,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/handler"
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/mail"
@@ -374,6 +375,18 @@ func main() {
 	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	dispatcher.RegisterLane(outbox.LaneNotify, notifConsumer)
+	// Work Graph (C-11): the marker rides the realtime lane (one upsert per
+	// event); the worker projects dirty nodes. The graph flag is read per
+	// organization, so enabling one needs no restart (then graph-rebuild --org).
+	graphFlagDefault := false
+	if f, ok := featureflags.Lookup("graph"); ok {
+		graphFlagDefault = f.Default
+	}
+	graphMarker := projector.NewMarker(q, func(ctx context.Context, orgID string) bool {
+		return flags.IsEnabled(featureflag.WithEvalContext(ctx, featureflag.EvalContext{OrganizationID: orgID}), "graph", graphFlagDefault)
+	})
+	dispatcher.Register(graphMarker)
+	graphWorker := projector.NewWorker(pool, q)
 	dispatcher.Register(featureflags.NewInvalidator(flagOverrides))
 	dispatcher.RegisterLane(outbox.LanePush, pushConsumer)
 	if reg != nil {
@@ -383,6 +396,8 @@ func main() {
 		notifConsumer.SetMetrics(reg.Notifications)
 		pushConsumer.SetMetrics(reg.Notifications)
 		digest.SetMetrics(reg.Notifications)
+		graphMarker.SetMetrics(reg.Graph)
+		graphWorker.SetMetrics(reg.Graph)
 	}
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
@@ -400,6 +415,8 @@ func main() {
 	// at shutdown awaits all of them.
 	dispatcherDone := make(chan struct{})
 	go func() { dispatcher.Run(runCtx); close(dispatcherDone) }()
+	graphWorkerDone := make(chan struct{})
+	go func() { graphWorker.Run(runCtx); close(graphWorkerDone) }()
 	if reg != nil {
 		go auditSvc.RunRetentionMarker(runCtx, reg.Outbox)
 	}
@@ -575,6 +592,11 @@ func main() {
 	case <-dispatcherDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("outbox: dispatcher did not stop in time")
+	}
+	select {
+	case <-graphWorkerDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("graph: projector worker did not stop in time")
 	}
 	// The meeting workers publish through the relay too, so they stop before it.
 	select {

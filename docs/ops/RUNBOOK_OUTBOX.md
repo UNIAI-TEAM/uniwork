@@ -1,6 +1,6 @@
 # Runbook — outbox sự kiện và nhật ký audit
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-05 · **Thành phần:** `outbox.Dispatcher` trong tiến trình API · **Liên quan:** ADR 0009, ADR 0012, `docs/events/CATALOGUE.md`
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-08 · **Thành phần:** `outbox.Dispatcher` trong tiến trình API · **Liên quan:** ADR 0009, ADR 0012, `docs/events/CATALOGUE.md`
 
 Mọi command đổi trạng thái nghiệp vụ ghi một dòng `audit_events` và một hoặc
 nhiều dòng `outbox_events` trong cùng transaction. `outbox.Dispatcher` trong
@@ -13,6 +13,7 @@ Dispatcher chạy năm lane, mỗi lane một vòng claim riêng
 | Lane | Consumer | Claim mỗi lượt |
 | --- | --- | --- |
 | `realtime` | realtime, flags invalidator; nhận mọi topic không lane nào khác giữ | `MEETING_OUTBOX_BATCH` |
+| | realtime cũng mang `graph_marker` (một upsert vào `graph_dirty`) | |
 | `notify` | notification, chat-task sync | `MEETING_OUTBOX_BATCH` |
 | `provider` | provider hội nghị (LiveKit) | tối đa 16 |
 | `push` | web push | tối đa 8 |
@@ -100,6 +101,49 @@ phẳng thì command đó chưa có trong bảng coverage. Thêm vào đó trư�
 Đúng như thiết kế (ADR 0012). `UPDATE` và `DELETE` bị trigger từ chối kể cả với
 user sở hữu schema. Ghi sai thì ghi thêm một dòng nói điều đúng; không có đường
 nào khác, và không mở đường nào.
+
+### Work Graph: dòng bẩn và rebuild
+
+`graph_marker` chỉ đánh dấu, không đọc nguồn: với tổ chức bật flag `graph`, mỗi
+sự kiện là một upsert vào `graph_dirty`, một dòng cho mỗi node nó chạm tới
+(khoá tổ chức, loại node, id nguồn). Worker chiếu (`projector.Worker`, hai
+vòng claim trong tiến trình API, dừng cùng dispatcher khi shutdown) đọc lại
+nguồn, đối chiếu đồ thị rồi xoá dòng. Lỗi thì giữ dòng, ghi `last_error` và
+hẹn lại theo lịch lùi tối đa 5 phút; dòng bẩn không thành dead letter. Cảnh
+báo: [GraphProjectorLagHigh](../runbooks/GraphProjectorLagHigh.md).
+
+Đọc `graph_dirty`:
+
+```sql
+SELECT node_type, count(*), max(attempts), min(last_event_at)
+FROM graph_dirty GROUP BY 1;
+
+SELECT organization_id, node_type, source_id, attempts, available_at, locked_until, last_error
+FROM graph_dirty WHERE attempts > 0 ORDER BY attempts DESC LIMIT 20;
+```
+
+`attempts` tăng mỗi lần worker claim và về 0 khi có sự kiện mới; `locked_until`
+khác NULL là dòng đang có worker giữ (lease 60 giây, hết hạn thì worker khác
+claim lại); `last_event_at` là sự kiện mới nhất đã dồn vào dòng, gauge
+`uniwork_graph_dirty_oldest_seconds` đo từ đó.
+
+Khi nào chạy `graph-rebuild`:
+
+- Sau khi bật `graph` cho một tổ chức: marker chỉ đánh dấu từ lúc bật, phần đồ
+  thị trước đó phải dựng lại.
+- Sau sự cố: worker đứng lâu, flag bị tắt rồi bật lại, dữ liệu nguồn sửa tay
+  trong DB.
+- Định kỳ hàng tuần với `--verify`, để bắt tên đổi mà không phát sự kiện.
+
+Lệnh trong pod API (binary nằm sẵn trong image, chỉ đọc `DATABASE_URL`):
+
+```sh
+graph-rebuild --org <id> --verify
+```
+
+`--verify` không ghi gì, in `drift=<n>` cho từng tổ chức và thoát 1 khi lệch.
+Lệch thì chạy lại không có `--verify` để ghi, rồi `--verify` lần nữa phải ra
+`drift=0`. `--all` thay `--org <id>` cho mọi tổ chức.
 
 ## Bản xuất nhật ký treo
 
