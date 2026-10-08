@@ -16,12 +16,10 @@ func TestSubscriptionLapseCancelToDefault(t *testing.T) {
 	if _, err := f.billing.ChangePlan(f.ctx, admin.ID, f.orgID, "paid_team", v); err != nil {
 		t.Fatal(err)
 	}
+	past := time.Now().UTC().Add(-24 * time.Hour)
 	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET
-		current_period_start = now() - interval '1 day',
-		current_period_end = now() - interval '1 day',
-		cancel_at = NULL,
-		provider = 'vnpay'
-		WHERE organization_id = $1`, f.orgID); err != nil {
+		current_period_start = $1, current_period_end = $1, cancel_at = NULL, provider = 'vnpay'
+		WHERE organization_id = $2`, past, f.orgID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID); err != nil {

@@ -79,7 +79,6 @@ func (s *BillingService) processPastDueBatches(ctx context.Context) error {
 }
 
 func (s *BillingService) lapseCancelToDefault(ctx context.Context, sub db.Subscription, defaultPlan db.Plan) error {
-	now := time.Now().UTC()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -90,7 +89,10 @@ func (s *BillingService) lapseCancelToDefault(ctx context.Context, sub db.Subscr
 	if err != nil {
 		return err
 	}
-	if locked.ID != sub.ID || !locked.CancelAt.Valid || locked.CancelAt.Time.After(now) {
+	// Do not compare cancel_at to Go's clock: ListSubscriptionsDueForCancelLapse
+	// and RevertSubscriptionToDefaultAtCancel use PostgreSQL now(). Skew between
+	// the app host and the database would skip a row the list already selected.
+	if locked.ID != sub.ID || !locked.CancelAt.Valid {
 		return nil
 	}
 	before, err := q.GetPlanByID(ctx, locked.PlanID)
