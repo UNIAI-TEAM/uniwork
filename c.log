@@ -1,0 +1,1 @@
+$ pnpm --filter @uniwork/views exec eslint office/html --max-warnings 0

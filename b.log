@@ -1,0 +1,16 @@
+$ pnpm --filter @uniwork/views exec vitest run --coverage.enabled=false office/html
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+
+
+ Test Files  34 passed (34)
+      Tests  445 passed (445)
+   Start at  03:46:54
+   Duration  13.99s (transform 2.96s, setup 7.14s, import 10.90s, tests 10.06s, environment 9.56s)
+
