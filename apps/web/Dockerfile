@@ -17,6 +17,13 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
+# The genoffice Docs web build pinned in apps/web/platform/office-frame/docs.pin.json
+# (docs/office/docs-web-frame.md): an https URL to a .tar.gz of the fork's
+# dist-web/docs/<version>. Unset, the image builds without the frame (/office-frame
+# answers 404 and office_docs_web has nothing to open).
+ARG OFFICE_FRAME_SOURCE=
+ENV OFFICE_FRAME_SOURCE=$OFFICE_FRAME_SOURCE
+
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @uniwork/web build

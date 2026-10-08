@@ -22,6 +22,7 @@ export const RESERVED_SLUGS = [
   "members",
   "my-tasks",
   "new",
+  "office-frame",
   "onboarding",
   "orgs",
   "pricing",

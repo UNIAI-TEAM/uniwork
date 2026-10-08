@@ -58,3 +58,5 @@ apps/office-desktop/.test-artifacts/
 
 # pdfium wasm copied from node_modules by apps/web/scripts/copy-pdfium-wasm.mjs
 apps/web/public/office/pdfium.wasm
+# genoffice Docs web build synced by apps/web/scripts/office-frame-sync.mjs (the pin is checked in, the bundle is not)
+apps/web/public/office-frame/
