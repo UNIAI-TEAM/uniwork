@@ -14,7 +14,7 @@ Command (from `e2e/`, env from `.env.worktree`):
       flock /home/ubuntu/.uniwork-lane-build.lock \
       pnpm exec playwright test office-docs-web.spec.ts --trace=on
 
-Result: 9 passed.
+Result: installed bundle 10 passed + 1 skipped; bundle absent 1 passed + 10 skipped (see "Two states").
 
 | # | spec | what it proves |
 | --- | --- | --- |
@@ -26,7 +26,8 @@ Result: 9 passed.
 | 6 | save as | File > Save as in the frame -> a copy is created and holds the edit, the page URL follows to the copy, the original gains no version, the next Ctrl+S lands a new version on the copy |
 | 7 | inserted image | Chèn > Hình ảnh in the frame: the image renders (naturalWidth > 0) with zero CSP violations, and after Ctrl+S the stored docx holds `word/media/*` |
 | 8 | PDF export | see "Export outcome" below |
-| 9 | flag off | org override off: G3 editor host mounts, no iframe |
+| 9 | feature_disabled mint | the mint answers 403 `feature_disabled` while the page's config says on -> G3 editor, no iframe, no "document gone" text |
+| 10 | flag off | org override off: G3 editor host mounts, no iframe |
 
 Go (`server/`, env from `.env.worktree`): `go test ./internal/handler -run 'TestIsolation|Office'`,
 `./internal/handler/router`, `./internal` pass; `TestOfficeFrameFlagIsEvaluatedPerOrganization`
@@ -34,7 +35,7 @@ proves an org override opens mint, open, save and refresh, another organization 
 mint, and a token minted while open stops working when its override is switched off.
 
 Screenshots: `screenshots/01-opened-in-frame.png`, `02-saved.png`, `03-reopened.png`,
-`04-save-as-copy.png`, `05-image-inserted.png`. Traces for every case: `flow/**/trace.zip` (untracked, regenerate with the command above).
+`04-save-as-copy.png`, `05-image-inserted.png`, `06-bundle-not-installed-g3.png`. Traces for every case: `flow/**/trace.zip` (untracked, regenerate with the command above).
 
 ## Export outcome (step 8)
 
@@ -55,3 +56,14 @@ caller for it; only the protocol and the host proxy define it). So no asset URL 
 `img-src` question for the signed asset URL does not arise here; step 7 proves the path the frame really uses
 (`data:` under `img-src 'self' data: blob:`, persisted in `word/media/`). The host-side `uploadImage` is covered by core
 unit tests only.
+
+## Two states (review follow-up F3b)
+
+The spec picks its cases from `GET <frame>/manifest.json`:
+
+- **Installed** (`flow/`): headers, open/edit/save/reopen, save as, image, export, feature_disabled fallback, flag off: 10 passed.
+- **Not installed** (`not-installed/`, the web app built with `public/office-frame` moved away and `OFFICE_FRAME_SOURCE` empty):
+  with `office_docs_web` ON for the organization the docx still opens in the G3 editor and no iframe is mounted
+  (`screenshots/06-bundle-not-installed-g3.png`): 1 passed. Before this change the page offered the pinned frame and got a 404 iframe.
+
+CI (`e2e` job) sets `OFFICE_DOCS_WEB_E2E=1`; with the `OFFICE_FRAME_SOURCE` secret it runs the installed cases, without it the not-installed one.
