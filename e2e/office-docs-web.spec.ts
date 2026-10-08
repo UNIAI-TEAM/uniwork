@@ -90,7 +90,7 @@ test.describe("open, edit, save", () => {
     } finally {
       await context.close();
     }
-    await setFlag("office_engine", seeded.organizationId, true, "organization");
+    await setFlag("office_engine", seeded.organizationId, true);
     await setFlag("office_docs_web", seeded.organizationId, true);
   });
 
@@ -134,6 +134,50 @@ test.describe("open, edit, save", () => {
     await expect(reopened).toBeVisible({ timeout: 60_000 });
     await expect(reopened).toContainText(marker, { timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath("03-reopened.png") });
+  });
+
+  test("Save as makes a copy, the page follows it and the frame keeps editing the copy", async ({ page, request }) => {
+    const marker = `uw-docs-web-copy-${Date.now().toString(36)}`;
+    const token = seeded.account.token;
+    const originalBefore = await listVersions(request, token, seeded.documentId);
+    await signInAs(page, seeded.account.email);
+    await page.goto(seeded.documentUrl);
+    const editor = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
+    await expect(editor).toBeVisible({ timeout: 60_000 });
+    // A mark on the frame's own window: it survives only if the frame is rebound, not reloaded.
+    await page.frameLocator(FRAME_SELECTOR).locator("body").evaluate(() => { (window as unknown as { __w7Rebind?: boolean }).__w7Rebind = true; });
+
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type(` ${marker}`);
+    await page.frameLocator(FRAME_SELECTOR).getByText("Tệp", { exact: true }).first().click();
+    await page.frameLocator(FRAME_SELECTOR).getByText("Lưu thành…").first().click();
+
+    // The page follows the copy: same workspace, another document id.
+    await expect(page).not.toHaveURL(seeded.documentUrl, { timeout: 60_000 });
+    const copyId = page.url().split("/documents/")[1]!.split(/[?#]/)[0]!;
+    expect(copyId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(copyId).not.toBe(seeded.documentId);
+    await page.screenshot({ path: test.info().outputPath("04-save-as-copy.png") });
+
+    // The copy holds the edit; the original gained no version.
+    const copyVersions = await listVersions(request, token, copyId);
+    expect(copyVersions.length).toBeGreaterThan(0);
+    expect(await versionBodyXml(request, token, copyId, copyVersions.reduce((a, b) => (b.version > a.version ? b : a)).version)).toContain(marker);
+    expect((await listVersions(request, token, seeded.documentId)).length).toBe(originalBefore.length);
+
+    // Rebound, not reloaded: same frame window, same editor, and the next save lands on the copy.
+    await expect(editor).toContainText(marker);
+    expect(await page.frameLocator(FRAME_SELECTOR).locator("body").evaluate(() => (window as unknown as { __w7Rebind?: boolean }).__w7Rebind === true)).toBe(true);
+    const second = `${marker}-again`;
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type(` ${second}`);
+    await page.keyboard.press("Control+s");
+    await expect.poll(async () => (await listVersions(request, token, copyId)).length, { timeout: 60_000, intervals: [1_000] }).toBeGreaterThan(copyVersions.length);
+    const latest = (await listVersions(request, token, copyId)).reduce((a, b) => (b.version > a.version ? b : a));
+    expect(await versionBodyXml(request, token, copyId, latest.version)).toContain(second);
+    expect((await listVersions(request, token, seeded.documentId)).length).toBe(originalBefore.length);
   });
 
   test("with the flag off the G3 editor stays the default and no frame mounts", async ({ page }) => {

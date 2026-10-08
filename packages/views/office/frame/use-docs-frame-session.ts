@@ -155,6 +155,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           const frameToken = docsFrameToken(rebind.token);
           sentToken.current = frameToken.token;
           endpoint.pushToken(frameToken);
+          // The copy now holds every byte the frame had: nothing is unsaved, so the page's own
+          // navigation to the copy must not meet the leave dialog (the frame's dirty:false
+          // event only arrives after this answer).
+          setDirty(false);
           current.onSavedAs?.(rebind.documentId);
           return save;
         },
