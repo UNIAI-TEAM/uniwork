@@ -69,19 +69,22 @@ const FILE_SUFFIX = ".credential";
 
 /**
  * Electron safeStorage delegates to Windows DPAPI and the macOS Keychain.
- * The encrypted payload is written to a per-channel/deployment/account file;
+ * The encrypted payload is written to a per-channel/namespace/account file,
+ * where the namespace is `<deploymentId>@<origin hash>` (credentials/secure-store.ts);
  * the file is replaced with a fsync'd temporary file, so a torn write leaves
  * the previous pair intact. There is intentionally no plaintext fallback.
  */
-export function createSecureCredentialStore(options: Readonly<{
+export function createOsCredentialStore(options: Readonly<{
   userDataDirectory: string;
   channel: "stable" | "beta" | "dev";
-  deploymentId: string;
+  /** `<deploymentId>@<sha256(origin)[:12]>`: a profile naming another origin
+   * never reads the tokens stored for this one. */
+  namespace: string;
   safeStorage: SafeStorageAdapter;
   fileSystem?: CredentialStoreFileSystem;
 }>): CredentialStore {
   const fs = options.fileSystem ?? nodeFileSystem;
-  const root = join(options.userDataDirectory, "credentials", options.channel, safeSegment(options.deploymentId));
+  const root = join(options.userDataDirectory, "credentials", options.channel, namespaceSegment(options.namespace));
   const activePath = join(root, ".active");
   let lastPath: string | undefined;
   const ensureAvailable = () => {
@@ -190,6 +193,11 @@ function safeSegment(value: string): string {
   const normalized = value.trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(normalized)) throw new CredentialStoreError("corrupt", "invalid credential namespace");
   return normalized;
+}
+
+function namespaceSegment(value: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}@[0-9a-f]{12}$/.test(value)) throw new CredentialStoreError("corrupt", "invalid credential namespace");
+  return value;
 }
 
 function isCredentialSession(value: unknown): value is CredentialSession {
