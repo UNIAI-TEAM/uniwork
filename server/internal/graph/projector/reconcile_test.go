@@ -66,6 +66,49 @@ func TestProjectTaskFollowsItsSource(t *testing.T) {
 	}
 }
 
+// A slot dragged in Calendar sets due_date and a due_at time block; the task
+// page labels due_date "Hạn" and its sidebar edits only that. The Timeline's
+// due must follow the same field, and moving the block within the day (or
+// onto the all-day row, which clears due_at) is not a change of Hạn.
+func TestDueFollowsTheDueDateTheTaskPageShows(t *testing.T) {
+	f := newFixture(t)
+	ict := time.FixedZone("ICT", 7*3600)
+	at := func(hour int) *time.Time {
+		v := time.Date(2026, 10, 15, hour, 0, 0, 0, ict)
+		return &v
+	}
+	task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{
+		Title: "Gọi khách", DueDate: ptr("2026-10-15"), StartAt: at(10), DueAt: at(11),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	eq(t, "due after create", f.dueFacts(t, task.ID), []string{"open 2026-10-15 date"})
+
+	due := ptr("2026-10-20")
+	if _, err := f.tasks.Update(f.ctx, service.Human(f.owner.ID), task.ID, service.UpdateTaskInput{DueDate: &due}); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	moved := []string{"closed 2026-10-15 date", "open 2026-10-20 date"}
+	eq(t, "due after Hạn moved", f.dueFacts(t, task.ID), moved)
+
+	start, end := at(13), at(14)
+	if _, err := f.tasks.Update(f.ctx, service.Human(f.owner.ID), task.ID, service.UpdateTaskInput{StartAt: &start, DueAt: &end}); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	eq(t, "due after the block moved within the day", f.dueFacts(t, task.ID), moved)
+
+	var none *time.Time
+	if _, err := f.tasks.Update(f.ctx, service.Human(f.owner.ID), task.ID, service.UpdateTaskInput{StartAt: &none, DueAt: &none}); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	eq(t, "due after the block moved to the all-day row", f.dueFacts(t, task.ID), moved)
+}
+
 func TestProjectTaskDependenciesAndOrigin(t *testing.T) {
 	f := newFixture(t)
 	m, err := f.meetings.CreateInstant(f.ctx, f.owner.ID, f.wsID, "Giao ban")

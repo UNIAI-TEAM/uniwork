@@ -68,14 +68,21 @@ export function graphNodeIcon(node: GraphNode): LucideIcon {
   }
 }
 
-/** A graph date: a calendar date stays that date in every zone; an instant uses the locale. */
+/**
+ * A graph date: a calendar date ("date") stays that date in every zone; an
+ * instant reads in the viewer's zone, with its HH:mm when the precision is
+ * "datetime" (a due from due_at) and as its day otherwise.
+ */
 export function formatGraphDate(value: string, precision: string, locale: string): string {
   if (!value) return "";
   const d = precision === "date" ? dateOnlyToLocalDate(value) : new Date(value);
   if (!d || Number.isNaN(d.getTime())) return value;
   // The year check reads the local date: an ISO string is UTC, and local
   // midnight on 1 January east of UTC is still last year there.
-  return d.toLocaleDateString(locale, shortDateFormat(toDateOnly(d)));
+  const day = shortDateFormat(toDateOnly(d));
+  return precision === "datetime"
+    ? d.toLocaleString(locale, { ...day, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    : d.toLocaleDateString(locale, day);
 }
 
 type Label = (key: string, vars?: Record<string, string>) => string;
@@ -118,7 +125,9 @@ export function historySentence(item: GraphHistoryItem, label: Label, statusName
 /** When it held: "since …", "… – …", or no date for a backfilled row. */
 export function historyWhen(item: GraphHistoryItem, label: Label, locale: string): string {
   if (item.backfilled) return label("graph.history.before_graph");
-  const from = formatGraphDate(item.valid_from, "datetime", locale);
+  // When a row held reads as a day (spec §7 "từ 03/10"); only a timed due
+  // prints its hour.
+  const from = formatGraphDate(item.valid_from, "day", locale);
   if (!item.valid_to) return label("graph.history.since", { from });
-  return label("graph.history.range", { from, to: formatGraphDate(item.valid_to, "datetime", locale) });
+  return label("graph.history.range", { from, to: formatGraphDate(item.valid_to, "day", locale) });
 }

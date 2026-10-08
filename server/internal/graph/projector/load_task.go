@@ -92,14 +92,17 @@ func assigneeRef(t db.Task) (NodeRef, bool) {
 	return NodeRef{}, false
 }
 
-// dueFact: due_at when set (an instant, stored in UTC), else due_date as a
-// calendar date with precision "date" — never shifted through a time zone.
+// dueFact is the "Hạn" the task page shows: due_date, a calendar date with
+// precision "date", never shifted through a time zone. due_at (an instant,
+// stored in UTC) counts only when due_date is empty: a Calendar time block
+// sets both, the sidebar edits due_date alone, and moving the block within
+// its day is not a change of deadline.
 func dueFact(t db.Task) (FactWant, bool) {
-	if t.DueAt.Valid {
-		return FactWant{Type: graph.FactDue, Value: t.DueAt.Time.UTC().Format(time.RFC3339), Precision: "datetime"}, true
-	}
 	if t.DueDate.Valid {
 		return FactWant{Type: graph.FactDue, Value: t.DueDate.Time.Format("2006-01-02"), Precision: "date"}, true
+	}
+	if t.DueAt.Valid {
+		return FactWant{Type: graph.FactDue, Value: t.DueAt.Time.UTC().Format(time.RFC3339), Precision: "datetime"}, true
 	}
 	return FactWant{}, false
 }

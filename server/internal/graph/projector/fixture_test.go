@@ -195,6 +195,39 @@ func (f *fixture) openFacts(t *testing.T, typ graph.NodeType, sourceID string) m
 	return out
 }
 
+// dueFacts lists a task's due facts, closed first then by valid_from, as
+// "open|closed VALUE PRECISION".
+func (f *fixture) dueFacts(t *testing.T, taskID string) []string {
+	t.Helper()
+	rows, err := f.pool.Query(f.ctx, `
+		SELECT x.valid_to IS NULL, x.value, COALESCE(x.attrs->>'precision', '')
+		FROM graph_node_facts x JOIN graph_nodes n ON n.id = x.node_id
+		WHERE n.organization_id = $1 AND n.node_type = $2 AND n.source_id = $3 AND x.fact_type = 'due'
+		ORDER BY x.valid_to IS NULL, x.valid_from, x.recorded_at`,
+		f.orgID, string(graph.NodeTask), taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var open bool
+		var value, precision string
+		if err := rows.Scan(&open, &value, &precision); err != nil {
+			t.Fatal(err)
+		}
+		state := "closed"
+		if open {
+			state = "open"
+		}
+		out = append(out, state+" "+value+" "+precision)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
 // project runs Project for one node in its own transaction, as the worker does.
 func (f *fixture) project(t *testing.T, ref NodeRef, ev EventInfo) Drift {
 	t.Helper()
