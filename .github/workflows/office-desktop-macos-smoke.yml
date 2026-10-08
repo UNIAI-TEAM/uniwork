@@ -1,7 +1,7 @@
 # UNI-961 / UNI-966 macOS smoke on a GitHub-hosted macOS 14 (Apple Silicon) runner.
 #
 # profile (UNI-966, the default): builds the UNSIGNED darwin-arm64 dmg from the
-# pushed commit (channel dev, xlsx sidecar NOT required: this smoke never saves a
+# dispatched commit (channel dev, xlsx sidecar NOT required: this smoke never saves a
 # formula workbook), runs the server's own bundle code on it
 # (server/internal/service TestOfficeDesktopBundleWriteFixture) to write the
 # bundle.zip a browser download receives - dmg + deployment-profile.json with a
@@ -14,7 +14,9 @@
 # print (UNI-961): smokes the dmg of an installers run (installer_run_id) with
 # scripts/office/macos-smoke.mjs: File > Print, the in-app print dialog, Save as PDF.
 #
-# Runs only on its own branches and on a manual dispatch; never a merge gate.
+# Manual dispatch only; never a merge gate. Profile mode was proven green on
+# run 37726314116 (19/19, pushed from the lane branch feature/UNI-966-office-w4-desktop-dist
+# while that branch still carried a push trigger); dispatch it again on the branch to re-run.
 # Not covered: Gatekeeper on a user download (Playwright execs the binary in
 # place), signing and notarization (certificates are parked backlog).
 name: Office desktop macOS smoke
@@ -30,8 +32,6 @@ on:
       installer_run_id:
         description: print mode only - installers workflow run whose office-desktop-darwin-arm64 artifact is smoked
         default: "37652934657"
-  push:
-    branches: ["ci/UNI-961-office-macos-smoke", "feature/UNI-966-office-w4-desktop-dist"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -44,7 +44,7 @@ permissions:
 env:
   NODE_VERSION: "22"
   GO_VERSION: "1.27.0"
-  MODE: ${{ inputs.mode || (github.ref_name == 'ci/UNI-961-office-macos-smoke' && 'print' || 'profile') }}
+  MODE: ${{ inputs.mode || 'profile' }}
   INSTALLER_RUN_ID: ${{ inputs.installer_run_id || '37652934657' }}
   STUB_HOST: uniwork-smoke.example.test
   STUB_ORIGIN: https://uniwork-smoke.example.test:8443
