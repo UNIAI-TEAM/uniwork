@@ -1,0 +1,192 @@
+diff --git a/apps/sheets/native/xlsx-engine/src/recalc.rs b/apps/sheets/native/xlsx-engine/src/recalc.rs
+--- a/apps/sheets/native/xlsx-engine/src/recalc.rs
++++ b/apps/sheets/native/xlsx-engine/src/recalc.rs
+@@ -525,14 +525,16 @@
+ /// the gateway writes outline-only, hidden-only and style-only columns without
+ /// it. The value is the sheet's `defaultColWidth`, else Excel's 8.43; it only
+ /// reaches the throwaway recalc copy, where column widths do not affect values.
++/// A worksheet written with a prefixed SpreadsheetML namespace
++/// (`<x:cols><x:col/></x:cols>`) is covered the same way.
+ fn fill_col_widths(source: Vec<u8>) -> Vec<u8> {
+     let Ok(text) = std::str::from_utf8(&source) else {
+         return source;
+     };
+-    let Some(cols_start) = text.find("<cols") else {
++    let Some((cols_start, prefix)) = find_start_tag(text, "cols", 0) else {
+         return source;
+     };
+-    let Some(cols_offset) = text[cols_start..].find("</cols>") else {
++    let Some(cols_offset) = text[cols_start..].find(&format!("</{prefix}cols")) else {
+         return source;
+     };
+     let cols_end = cols_start + cols_offset;
+@@ -542,10 +544,8 @@
+     output.push_str(&text[..cols_start]);
+     let mut cursor = 0;
+     let mut changed = false;
+-    while let Some(offset) = section[cursor..].find("<col") {
+-        let start = cursor + offset;
++    while let Some((start, tag_prefix)) = find_start_tag(section, "col", cursor) {
+         output.push_str(&section[cursor..start]);
+-        let next = section.as_bytes().get(start + 4).copied();
+         let Some(end_offset) = section[start..].find('>') else {
+             output.push_str(&section[start..]);
+             cursor = section.len();
+@@ -553,11 +553,7 @@
+         };
+         let end = start + end_offset;
+         let tag = &section[start..=end];
+-        let is_col = matches!(
+-            next,
+-            Some(b'/') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r')
+-        );
+-        if !is_col || has_attribute(tag, "width") {
++        if tag_prefix != prefix || has_attribute(tag, "width") {
+             output.push_str(tag);
+         } else {
+             let body_end = if tag.ends_with("/>") { tag.len() - 2 } else { tag.len() - 1 };
+@@ -576,9 +572,45 @@
+     output.into_bytes()
+ }
+ 
++/// The next start tag at or after `from` whose local name is `local`, with the
++/// namespace prefix it is written with (`""`, or `"x:"` including the colon).
++/// Matching on the local name covers prefixed writers, as `table_styles.rs` does;
++/// the whole name must match, so `<colBreaks>` and `<cols>` are never `col`.
++fn find_start_tag<'a>(text: &'a str, local: &str, from: usize) -> Option<(usize, &'a str)> {
++    let mut at = from;
++    while let Some(offset) = text[at..].find('<') {
++        let start = at + offset;
++        let name_start = start + 1;
++        let name_len = text[name_start..]
++            .find(|ch: char| ch.is_whitespace() || ch == '>' || ch == '/')
++            .unwrap_or(text.len() - name_start);
++        let name = &text[name_start..name_start + name_len];
++        if let Some(prefix) = name.strip_suffix(local) {
++            if is_namespace_prefix(prefix) {
++                return Some((start, prefix));
++            }
++        }
++        at = name_start;
++    }
++    None
++}
++
++/// `""`, or an XML name followed by a colon (`"x:"`).
++fn is_namespace_prefix(prefix: &str) -> bool {
++    match prefix.strip_suffix(':') {
++        None => prefix.is_empty(),
++        Some(name) => {
++            !name.is_empty()
++                && name
++                    .chars()
++                    .all(|ch| ch.is_alphanumeric() || matches!(ch, '_' | '-' | '.'))
++        }
++    }
++}
++
+ /// `defaultColWidth` from the worksheet's `<sheetFormatPr>`, when it is a number.
+ fn sheet_default_col_width(text: &str) -> Option<&str> {
+-    let start = text.find("<sheetFormatPr")?;
++    let (start, _) = find_start_tag(text, "sheetFormatPr", 0)?;
+     let end = start + text[start..].find('>')?;
+     let value = attribute_value(&text[start..=end], "defaultColWidth")?;
+     value.parse::<f64>().ok().filter(|width| width.is_finite() && *width > 0.0)?;
+@@ -776,6 +808,18 @@
+     /// Rewrite `xl/worksheets/sheet1.xml` of the package at `path`: any
+     /// `<cols>` section is replaced by `cols` (placed before `sheetData`).
+     fn with_sheet_cols(path: &Path, cols: &str) {
++        with_sheet_xml(path, |mut xml| {
++            if let (Some(start), Some(end)) = (xml.find("<cols"), xml.find("</cols>")) {
++                xml.replace_range(start..end + "</cols>".len(), "");
++            }
++            let at = xml.find("<sheetData").unwrap();
++            xml.insert_str(at, cols);
++            xml
++        });
++    }
++
++    /// Rewrite `xl/worksheets/sheet1.xml` of the package at `path` with `rewrite`.
++    fn with_sheet_xml(path: &Path, mut rewrite: impl FnMut(String) -> String) {
+         use std::io::Write as _;
+ 
+         let source = std::fs::read(path).unwrap();
+@@ -788,13 +832,7 @@
+             let mut bytes = Vec::new();
+             entry.read_to_end(&mut bytes).unwrap();
+             if name == "xl/worksheets/sheet1.xml" {
+-                let mut xml = String::from_utf8(bytes).unwrap();
+-                if let (Some(start), Some(end)) = (xml.find("<cols"), xml.find("</cols>")) {
+-                    xml.replace_range(start..end + "</cols>".len(), "");
+-                }
+-                let at = xml.find("<sheetData").unwrap();
+-                xml.insert_str(at, cols);
+-                bytes = xml.into_bytes();
++                bytes = rewrite(String::from_utf8(bytes).unwrap()).into_bytes();
+             }
+             writer.start_file(name, options).unwrap();
+             writer.write_all(&bytes).unwrap();
+@@ -845,6 +883,63 @@
+         assert_eq!(fill_col_widths(b"<worksheet><sheetData/></worksheet>".to_vec()), b"<worksheet><sheetData/></worksheet>");
+     }
+ 
++    /// A producer that writes the worksheet with a prefixed SpreadsheetML
++    /// namespace (`<x:worksheet xmlns:x=…>`) hits the same IronCalc import
++    /// limit, so its width-less `<x:col>` is filled too and the package
++    /// recalculates; the source package stays byte-identical.
++    #[test]
++    fn recalculates_a_prefixed_package_with_widthless_columns() {
++        for cols in [
++            "<x:cols><x:col min=\"2\" max=\"3\" outlineLevel=\"1\"/></x:cols>",
++            "<x:cols><x:col min=\"2\" max=\"2\" hidden=\"1\"/><x:col min=\"4\" max=\"4\" width=\"12\" customWidth=\"1\"/></x:cols>",
++            "<x:cols><x:col min=\"1\" max=\"1\" style=\"0\" collapsed=\"1\"></x:col></x:cols>",
++        ] {
++            let dir = tempfile::tempdir().unwrap();
++            let path = dir.path().join("prefixed.xlsx");
++            fixture(&path);
++            with_sheet_xml(&path, |_| prefixed_sheet_xml(cols));
++            let raw = std::fs::read(&path).unwrap();
++            let mut cache = RecalcCache::new();
++            let result = recalc_cells(&mut cache, &path, &[edit("A1", "100")], &[read_a1_a3()])
++                .unwrap_or_else(|error| panic!("{cols}: {error:?}"));
++            let sum = result.cells.iter().find(|cell| cell.row == 2).unwrap();
++            assert_eq!(sum.formatted, "120", "{cols}");
++            assert_eq!(std::fs::read(&path).unwrap(), raw, "{cols}");
++        }
++    }
++
++    fn prefixed_sheet_xml(cols: &str) -> String {
++        format!(
++            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><x:worksheet xmlns:x=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><x:sheetFormatPr defaultColWidth=\"11\" defaultRowHeight=\"15\"/>{cols}<x:sheetData><x:row r=\"1\"><x:c r=\"A1\"><x:v>10</x:v></x:c></x:row><x:row r=\"2\"><x:c r=\"A2\"><x:v>20</x:v></x:c></x:row><x:row r=\"3\"><x:c r=\"A3\"><x:f>SUM(A1:A2)</x:f><x:v>30</x:v></x:c></x:row></x:sheetData></x:worksheet>"
++        )
++    }
++
++    #[test]
++    fn fills_prefixed_col_widths_and_ignores_look_alikes() {
++        let fill = |xml: &str| String::from_utf8(fill_col_widths(xml.as_bytes().to_vec())).unwrap();
++        // The prefix may be any name, and defaultColWidth is read from the
++        // prefixed sheetFormatPr; a width stays, a missing one is filled.
++        assert_eq!(
++            fill("<main:worksheet><main:sheetFormatPr defaultColWidth=\"10.5\"/><main:cols><main:col min=\"1\" max=\"1\" width=\"20\"/><main:col min=\"2\" max=\"3\" outlineLevel=\"1\"/><main:col min=\"4\" max=\"4\" hidden=\"1\"></main:col></main:cols><main:sheetData/></main:worksheet>"),
++            "<main:worksheet><main:sheetFormatPr defaultColWidth=\"10.5\"/><main:cols><main:col min=\"1\" max=\"1\" width=\"20\"/><main:col min=\"2\" max=\"3\" outlineLevel=\"1\" width=\"10.5\"/><main:col min=\"4\" max=\"4\" hidden=\"1\" width=\"10.5\"></main:col></main:cols><main:sheetData/></main:worksheet>"
++        );
++        assert_eq!(
++            fill("<x:worksheet><x:cols><x:col min=\"2\" max=\"2\" outlineLevel=\"1\"/></x:cols><x:sheetData/></x:worksheet>"),
++            "<x:worksheet><x:cols><x:col min=\"2\" max=\"2\" outlineLevel=\"1\" width=\"8.43\"/></x:cols><x:sheetData/></x:worksheet>"
++        );
++        // A col of another prefix inside the section, and the page-break
++        // look-alikes outside it, are left as they are.
++        let mixed = "<x:worksheet><x:cols><y:col min=\"2\" max=\"2\"/></x:cols><x:sheetData/><x:colBreaks count=\"1\"><x:brk id=\"2\" max=\"1048575\"/></x:colBreaks></x:worksheet>";
++        assert_eq!(fill(mixed), mixed);
++        let breaks_only = "<x:worksheet><x:sheetData/><x:colBreaks count=\"1\"><x:brk id=\"2\"/></x:colBreaks></x:worksheet>";
++        assert_eq!(fill(breaks_only), breaks_only);
++        let unprefixed_breaks = "<worksheet><sheetData/><colBreaks count=\"1\"><brk id=\"2\"/></colBreaks></worksheet>";
++        assert_eq!(fill(unprefixed_breaks), unprefixed_breaks);
++        // An unterminated or self-closing cols section changes nothing.
++        let empty = "<x:worksheet><x:cols/><x:sheetData/></x:worksheet>";
++        assert_eq!(fill(empty), empty);
++    }
++
+     #[test]
+     fn recalculates_a_package_ironcalc_itself_refuses() {
+         let dir = tempfile::tempdir().unwrap();
