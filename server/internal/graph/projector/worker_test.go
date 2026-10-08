@@ -382,14 +382,48 @@ func TestAccountDeletionReachesTheActorNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.sync(t)
-	var title, status string
-	if err := f.pool.QueryRow(f.ctx, `SELECT title, status FROM graph_nodes
-		WHERE organization_id = $1 AND node_type = $2 AND source_id = $3 AND deleted_at IS NULL`,
-		f.orgID, string(graph.NodeActor), f.member.ID).Scan(&title, &status); err != nil {
+	f.wantActor(t, f.member.ID, deletedName, "deactivated")
+}
+
+// service.deletedDisplayName, the placeholder AnonymizeUser writes.
+const deletedName = "Người dùng đã xóa"
+
+// An admin deactivates the member first (ordinary offboarding), and the
+// person deletes their account later. The deletion switches no membership
+// off in that organization, yet it anonymises the name the ACTOR node shows
+// there, so the node must still be re-read.
+func TestAccountDeletionReachesAnAlreadyDeactivatedActor(t *testing.T) {
+	f := newFixture(t)
+	task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "Giao rồi nghỉ", AssigneeID: &f.member.ID})
+	if err != nil {
 		t.Fatal(err)
 	}
-	// service.deletedDisplayName, the placeholder AnonymizeUser writes.
-	if title != "Người dùng đã xóa" || status != "deactivated" {
-		t.Fatalf("actor node = (%q, %q), want (%q, %q)", title, status, "Người dùng đã xóa", "deactivated")
+	f.sync(t)
+	eq(t, "edges", f.openEdges(t, graph.NodeTask, task.ID), []string{"OWNED_BY>ACTOR:" + f.member.ID})
+	members := service.NewOrganizationMemberService(f.pool, f.q, service.NewOrganizationService(f.pool, f.q))
+	if _, err := members.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	f.wantActor(t, f.member.ID, f.member.DisplayName, "deactivated")
+	if err := f.auth.DeleteAccount(f.ctx, f.member.ID, service.DeleteAccountInput{Password: "password123"}); err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	f.wantActor(t, f.member.ID, deletedName, "deactivated")
+	eq(t, "edges after deletion", f.openEdges(t, graph.NodeTask, task.ID), []string{"OWNED_BY>ACTOR:" + f.member.ID})
+}
+
+// wantActor checks the live ACTOR node's title and status.
+func (f *fixture) wantActor(t *testing.T, userID, title, status string) {
+	t.Helper()
+	var gotTitle, gotStatus string
+	if err := f.pool.QueryRow(f.ctx, `SELECT title, status FROM graph_nodes
+		WHERE organization_id = $1 AND node_type = $2 AND source_id = $3 AND deleted_at IS NULL`,
+		f.orgID, string(graph.NodeActor), userID).Scan(&gotTitle, &gotStatus); err != nil {
+		t.Fatal(err)
+	}
+	if gotTitle != title || gotStatus != status {
+		t.Fatalf("actor node = (%q, %q), want (%q, %q)", gotTitle, gotStatus, title, status)
 	}
 }

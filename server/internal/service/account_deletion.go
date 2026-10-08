@@ -125,6 +125,23 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	// outlive the erasure in graph_nodes.title.
 	for _, m := range memberships {
 		if m.DeactivatedAt.Valid {
+			// An admin switched this membership off earlier; a second
+			// member.deactivated would claim a transition that did not
+			// happen. The profile scrub and the anonymised name still change
+			// what this organization shows, so it records profile.updated,
+			// which the marker also maps to the ACTOR node. No Changes: the
+			// old values are what the erasure removes.
+			if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+				OrganizationID: m.ID,
+				Actor:          audit.User(userID),
+				Action:         audit.ActionProfileUpdated,
+				ResourceType:   "organization_member_profile", ResourceID: userID,
+				Metadata: map[string]any{"reason": "account_deleted"},
+			}, audit.Event{Topic: "profile.updated", Payload: map[string]string{
+				"organization_id": m.ID, "user_id": userID,
+			}}); err != nil {
+				return err
+			}
 			continue
 		}
 		if err := auditRecorder.Record(ctx, qtx, audit.Entry{

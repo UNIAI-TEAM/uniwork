@@ -212,4 +212,54 @@ func TestDeleteAccountAnonymisesAndKeepsAudit(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("member.deactivated outbox rows: %d, want 1", n)
 	}
+	// An active membership gets the deactivation alone, not a profile row too.
+	if got := countOrgRows(t, f, "profile.updated"); got != (orgRows{}) {
+		t.Fatalf("profile.updated rows for an active membership = %+v, want none", got)
+	}
+}
+
+// A membership an admin already deactivated is not switched off again, so it
+// gets no second member.deactivated (that row would claim a transition that
+// did not happen). The deletion still scrubs the profile and anonymises the
+// name that organization shows, and records that as profile.updated.
+func TestDeleteAccountRecordsProfileUpdatedForADeactivatedMembership(t *testing.T) {
+	f := newAuditFixture(t)
+	f.build(t)
+	addOrgMember(t, f.q, f.orgID, f.member.ID)
+	if _, err := f.orgMem.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.auth.DeleteAccount(f.ctx, f.member.ID, DeleteAccountInput{Password: auditPassword}); err != nil {
+		t.Fatal(err)
+	}
+	if got := countOrgRows(t, f, "member.deactivated"); got != (orgRows{rows: 1, events: 1}) {
+		t.Fatalf("member.deactivated rows = %+v, want only the admin's", got)
+	}
+	if got := countOrgRows(t, f, "profile.updated"); got != (orgRows{rows: 1, events: 1}) {
+		t.Fatalf("profile.updated rows = %+v, want one audit row and one event", got)
+	}
+	var actor, reason string
+	if err := f.pool.QueryRow(f.ctx, `SELECT actor_id, metadata::jsonb->>'reason' FROM audit_events
+		WHERE organization_id = $1 AND resource_id = $2 AND action = 'profile.updated'`, f.orgID, f.member.ID).Scan(&actor, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if actor != f.member.ID || reason != "account_deleted" {
+		t.Fatalf("profile.updated row: actor %s reason %q, want the deleted user and account_deleted", actor, reason)
+	}
+}
+
+type orgRows struct{ rows, events int }
+
+// countOrgRows counts the fixture member's audit rows and outbox events of
+// one action/topic in the fixture's organization.
+func countOrgRows(t *testing.T, f *auditFixture, action string) orgRows {
+	t.Helper()
+	var r orgRows
+	if err := f.pool.QueryRow(f.ctx, `SELECT
+		(SELECT count(*) FROM audit_events WHERE organization_id = $1 AND resource_id = $2 AND action = $3),
+		(SELECT count(*) FROM outbox_events WHERE organization_id = $1 AND topic = $3 AND payload::jsonb->>'user_id' = $2)`,
+		f.orgID, f.member.ID, action).Scan(&r.rows, &r.events); err != nil {
+		t.Fatal(err)
+	}
+	return r
 }
