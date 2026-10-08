@@ -20,8 +20,7 @@ export const deploymentProfileSchema = z.object({
   if (origin.username || origin.password || origin.search || origin.hash || (origin.pathname !== "" && origin.pathname !== "/")) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["apiOrigin"], message: "origin cannot contain credentials, path, query, or fragment" });
   }
-  const expectedClientId = value.channel === "dev" ? ["uniwork", "office", value.channel].join("-") : ["uniwork", "office"].join("-");
-  if (value.clientId !== expectedClientId) context.addIssue({ code: z.ZodIssueCode.custom, path: ["clientId"], message: "client id does not match build channel" });
+  if (value.clientId !== expectedClientId(value.channel)) context.addIssue({ code: z.ZodIssueCode.custom, path: ["clientId"], message: "client id does not match build channel" });
 });
 
 export type DeploymentProfile = z.infer<typeof deploymentProfileSchema>;
@@ -38,26 +37,42 @@ function readProfileFile(file: string): unknown | undefined {
 
 export type DeploymentProfileResolution = DeploymentProfile | { readonly kind: "no_deployment_profile"; readonly message: string };
 
+/** The one profile validator: the resolver and the main-owned import both go
+ * through it, so an imported file meets exactly the checks an installed one
+ * does (strict schema, HTTPS outside dev loopback, channel == build channel). */
+export function parseDeploymentProfile(raw: unknown, buildChannel: DesktopChannel): DeploymentProfile {
+  const parsed = deploymentProfileSchema.safeParse(raw);
+  if (!parsed.success) throw new DeploymentProfileResolutionError("invalid", "deployment profile is invalid");
+  if (parsed.data.channel !== buildChannel) throw new DeploymentProfileResolutionError("channel_mismatch", "deployment profile channel does not match this build");
+  return parsed.data;
+}
+
+/** The file name of an imported profile inside userData; the resolver reads it
+ * as its second candidate. */
+export const USER_DATA_PROFILE_FILE = "deployment-profile.json";
+
 /** Main's only deployment seam. Download-time signed profile replacement plugs in here. */
 export function resolveDeploymentProfile(options: { installedProfilePath?: string; userDataDirectory?: string; env?: NodeJS.ProcessEnv; buildChannel?: DesktopChannel } = {}): DeploymentProfileResolution {
   const buildChannel = options.buildChannel ?? "dev";
-  const candidates = [options.installedProfilePath, options.userDataDirectory ? join(options.userDataDirectory, "deployment-profile.json") : undefined, join(dirname(fileURLToPath(import.meta.url)), "../deployment-profile.json")].filter((value): value is string => Boolean(value));
+  const candidates = [options.installedProfilePath, options.userDataDirectory ? join(options.userDataDirectory, USER_DATA_PROFILE_FILE) : undefined, join(dirname(fileURLToPath(import.meta.url)), "../deployment-profile.json")].filter((value): value is string => Boolean(value));
   for (const candidate of candidates) {
     const raw = readProfileFile(candidate);
     if (raw === undefined) continue;
-    const parsed = deploymentProfileSchema.safeParse(raw);
-    if (!parsed.success) throw new DeploymentProfileResolutionError("invalid", "installed deployment profile is invalid");
-    if (parsed.data.channel !== buildChannel) throw new DeploymentProfileResolutionError("channel_mismatch", "installed deployment profile channel does not match this build");
-    return parsed.data;
+    return parseDeploymentProfile(raw, buildChannel);
   }
   const env = options.env ?? process.env;
   if (buildChannel === "dev" && env.UNIWORK_OFFICE_DEPLOYMENT_ID && env.UNIWORK_OFFICE_API_ORIGIN) {
-    const clientId = buildChannel === "dev" ? ["uniwork", "office", buildChannel].join("-") : ["uniwork", "office"].join("-");
-    const parsed = deploymentProfileSchema.safeParse({ deploymentId: env.UNIWORK_OFFICE_DEPLOYMENT_ID, apiOrigin: env.UNIWORK_OFFICE_API_ORIGIN, clientId, channel: buildChannel });
-    if (!parsed.success) throw new DeploymentProfileResolutionError("invalid", "development deployment environment is invalid");
-    return parsed.data;
+    try {
+      return parseDeploymentProfile({ deploymentId: env.UNIWORK_OFFICE_DEPLOYMENT_ID, apiOrigin: env.UNIWORK_OFFICE_API_ORIGIN, clientId: expectedClientId(buildChannel), channel: buildChannel }, buildChannel);
+    } catch {
+      throw new DeploymentProfileResolutionError("invalid", "development deployment environment is invalid");
+    }
   }
   return { kind: "no_deployment_profile", message: "No deployment profile is installed; download again from your UniWork site" };
+}
+
+function expectedClientId(channel: DesktopChannel): string {
+  return channel === "dev" ? ["uniwork", "office", channel].join("-") : ["uniwork", "office"].join("-");
 }
 
 type DesktopChannel = "stable" | "beta" | "dev";
