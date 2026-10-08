@@ -42,7 +42,13 @@ func TestRebuildVerifyFindsNoDriftAfterTheWorker(t *testing.T) {
 	if _, err := RebuildOrg(f.ctx, f.pool, f.q, f.orgID, RebuildOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if rep, _ = RebuildOrg(f.ctx, f.pool, f.q, f.orgID, RebuildOptions{Verify: true}); rep.Drift.Total() != 0 {
+	// A verify that fails partway returns a partial report with zero drift,
+	// so its error must fail the test before the drift is read.
+	rep, err = RebuildOrg(f.ctx, f.pool, f.q, f.orgID, RebuildOptions{Verify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Drift.Total() != 0 {
 		t.Fatalf("verify after apply = %+v", rep.Drift)
 	}
 	eq(t, "task edges", f.openEdges(t, graph.NodeTask, task.ID), []string{"BELONGS_TO>PROJECT:" + p.ID, "OWNED_BY>ACTOR:" + f.member.ID})
