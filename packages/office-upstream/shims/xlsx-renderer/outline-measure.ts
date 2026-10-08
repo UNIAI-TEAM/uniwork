@@ -5,11 +5,31 @@
 // covers) and a line's live hidden flag. A scrolling pane starts where the
 // frozen band ends, or at the header edge without a freeze: a line partly
 // scrolled under either is clipped there, never drawn over it.
-import { IRenderManagerService, SHEET_VIEWPORT_KEY } from "@univerjs/engine-render";
+import type { IRange } from "@univerjs/core";
+import { IRenderManagerService, SHEET_VIEWPORT_KEY, Vector2, type IRender, type Viewport } from "@univerjs/engine-render";
+import { SheetSkeletonManagerService } from "@univerjs/sheets-ui";
 import type { UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import type { XlsxRendererGeometry } from "./geometry";
 import type { OutlineMeasure, OutlinePane } from "./outline-brackets";
 import type { OutlineAxis } from "./outline-levels";
+
+/** The scrolling pane's lines at the viewport's CURRENT scroll. Univer's
+ *  getVisibleRange() is the skeleton's range from the last drawn frame
+ *  (SpreadsheetSkeleton.updateVisibleRange runs in the render loop), while
+ *  the Scroll event fires once the viewport has scrolled and before that
+ *  frame: a layout on the event would read the pre-scroll range. So the view
+ *  bound is computed the way Viewport.calcViewportInfo does (its edges in the
+ *  scene through the live scroll and zoom, without its cache side effects)
+ *  and resolved by the skeleton's own lookup. */
+function liveVisibleRange(render: IRender, viewMain: Viewport): IRange | null {
+  const skeleton = render.with(SheetSkeletonManagerService).getCurrentSkeleton();
+  if (!skeleton) return null;
+  const { scene } = viewMain;
+  const parent = scene.getParent();
+  const from = viewMain.transformVector2SceneCoord(Vector2.FromArray([viewMain.leftOrigin * scene.scaleX, viewMain.topOrigin * scene.scaleY]));
+  const to = viewMain.transformVector2SceneCoord(Vector2.FromArray([parent.width - viewMain.right, parent.height - viewMain.bottom]));
+  return skeleton.getRangeByViewBound({ left: from.x, top: from.y, right: to.x, bottom: to.y });
+}
 
 export function createOutlineMeasure(runtime: UniverRuntime, geometry: XlsxRendererGeometry, sheetId: string): OutlineMeasure | null {
   const workbook = runtime.univerAPI.getActiveWorkbook();
@@ -24,9 +44,9 @@ export function createOutlineMeasure(runtime: UniverRuntime, geometry: XlsxRende
   let sheet: ReturnType<typeof worksheet.getSheet>;
   try {
     sheet = worksheet.getSheet();
-    const visible = worksheet.getVisibleRange();
-    const viewMain = runtime.univer.__getInjector().get(IRenderManagerService).getRenderById(workbook.getId())
-      ?.scene?.getViewport(SHEET_VIEWPORT_KEY.VIEW_MAIN);
+    const render = runtime.univer.__getInjector().get(IRenderManagerService).getRenderById(workbook.getId());
+    const viewMain = render?.scene?.getViewport(SHEET_VIEWPORT_KEY.VIEW_MAIN);
+    const visible = render && viewMain ? liveVisibleRange(render, viewMain) : null;
     // Univer's freeze: ySplit rows ending before startRow (columns likewise).
     const freeze = worksheet.getFreeze?.();
     const axes = [
@@ -50,7 +70,7 @@ export function createOutlineMeasure(runtime: UniverRuntime, geometry: XlsxRende
         const origin = box(axis, 0);
         if (origin) edge = origin.start + scroll * origin.zoom;
       }
-      if (start === undefined || end === undefined || edge === null) continue;
+      if (start === undefined || end === undefined || start < 0 || end < 0 || edge === null) continue;
       const first = split > 0 ? Math.max(start, from) : start;
       const last = box(axis, end);
       if (first <= end && last) panes[axis].push({ start: first, end, from: edge, to: last.start + last.size });

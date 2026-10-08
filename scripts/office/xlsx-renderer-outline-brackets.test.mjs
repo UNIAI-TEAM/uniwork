@@ -33,7 +33,12 @@ const bundled = await build({
       }));
       builder.onResolve({ filter: /^@univerjs\/engine-render$/ }, () => ({ path: 'render', namespace: 'test-render' }));
       builder.onLoad({ filter: /.*/, namespace: 'test-render' }, () => ({
-        contents: 'export const IRenderManagerService = "render-manager"; export const SHEET_VIEWPORT_KEY = { VIEW_MAIN: "main" };',
+        contents: 'export const IRenderManagerService = "render-manager"; export const SHEET_VIEWPORT_KEY = { VIEW_MAIN: "main" };'
+          + ' export const Vector2 = { FromArray: ([x, y]) => ({ x, y }) };',
+      }));
+      builder.onResolve({ filter: /^@univerjs\/sheets-ui$/ }, () => ({ path: 'sheets-ui', namespace: 'test-sheets-ui' }));
+      builder.onLoad({ filter: /.*/, namespace: 'test-sheets-ui' }, () => ({
+        contents: 'export const SheetSkeletonManagerService = "skeleton-manager";',
       }));
       builder.onResolve({ filter: /^\.\/locale$/ }, () => ({ path: 'locale', namespace: 'test-locale' }));
       builder.onLoad({ filter: /.*/, namespace: 'test-locale' }, () => ({ contents: 'export const t = (key) => key;' }));
@@ -505,16 +510,27 @@ test('scroll without a freeze: lines of a group whose start scrolled out stop at
   assert.deepEqual(layoutOutlineBrackets(model, 's1', 'cols', tight), []);
 });
 
-function measureRuntime({ freeze, visible, scroll = { x: 0, y: 0 }, hiddenRows = new Set() }) {
+// A Univer runtime for the measure. The main viewport sits at (40, 30) in a `size` scene and maps a
+// point to the scene through the live scroll and zoom; the skeleton resolves that view bound to lines
+// (`range`, by default the given `visible`). getVisibleRange() answers `stale`, the range Univer drew
+// last: the measure must not read it.
+function measureRuntime({ freeze, visible, scroll = { x: 0, y: 0 }, zoom = 1, size = { width: 520, height: 430 }, range = () => visible,
+  stale = visible, hiddenRows = new Set() }) {
   const worksheet = {
     getSheetId: () => 's1',
     getSheet: () => ({ getRowRawVisible: (line) => !hiddenRows.has(line), getColVisible: () => true }),
-    getVisibleRange: () => visible,
+    getVisibleRange: () => stale,
     getFreeze: () => freeze,
   };
+  const viewMain = {
+    viewportScrollX: scroll.x, viewportScrollY: scroll.y, leftOrigin: 40, topOrigin: 30, right: 0, bottom: 0,
+    scene: { scaleX: zoom, scaleY: zoom, getParent: () => size },
+    transformVector2SceneCoord: (point) => ({ x: point.x / zoom + scroll.x, y: point.y / zoom + scroll.y }),
+  };
+  const render = { scene: { getViewport: () => viewMain }, with: () => ({ getCurrentSkeleton: () => ({ getRangeByViewBound: range }) }) };
   return {
     univerAPI: { getActiveWorkbook: () => ({ getId: () => 'book', getActiveSheet: () => worksheet }) },
-    univer: { __getInjector: () => ({ get: () => ({ getRenderById: () => ({ scene: { getViewport: () => ({ viewportScrollX: scroll.x, viewportScrollY: scroll.y }) } }) }) }) },
+    univer: { __getInjector: () => ({ get: () => ({ getRenderById: () => render }) }) },
   };
 }
 
@@ -552,6 +568,42 @@ test('measure: the frozen band and the scrolling pane carry their pixels; withou
   const throwing = { ...measureRuntime({ visible: null }), univerAPI: { getActiveWorkbook: () => ({ getId: () => 'book', getActiveSheet: () => ({
     getSheetId: () => 's1', getSheet: () => { throw new Error('gone'); } }) }) } };
   assert.equal(createOutlineMeasure(throwing, { getCellBox: () => null }, 's1'), null);
+});
+
+test('one scroll: the pane reaches the lines at the new scroll before Univer redraws (both axes, visual N1)', () => {
+  // Columns 60px from x=40, rows 20px from y=30; the grid shows 8 columns and 10 rows. One wheel 250px
+  // right and 100px down: Univer still reports the pre-scroll range (columns A-H, rows 1-10) until it
+  // draws the frame, but columns E-J and rows 6-15 are on screen.
+  const runtime = measureRuntime({
+    freeze: { xSplit: 0, ySplit: 0, startRow: -1, startColumn: -1 }, scroll: { x: 250, y: 100 }, size: { width: 520, height: 230 },
+    stale: { startRow: 0, endRow: 9, startColumn: 0, endColumn: 7 },
+    range: (bound) => ({
+      startRow: Math.floor((bound.top - 30) / 20), endRow: Math.min(19, Math.ceil((bound.bottom - 30) / 20) - 1),
+      startColumn: Math.floor((bound.left - 40) / 60), endColumn: Math.min(9, Math.ceil((bound.right - 40) / 60) - 1),
+    }),
+  });
+  const live = createOutlineMeasure(runtime,
+    { getCellBox: (sheetId, row, column) => ({ x: 40 + column * 60 - 250, y: 30 + row * 20 - 100, width: 60, height: 20, zoom: 1 }) },
+    's1');
+  assert.deepEqual(live.visible('cols'), [{ start: 4, end: 9, from: 40, to: 390 }]);
+  assert.deepEqual(live.visible('rows'), [{ start: 5, end: 14, from: 30, to: 230 }]);
+  // Columns H-I (summary J) and rows 12-13 (summary 14) lie past the pre-scroll range: their toggles and
+  // lines are drawn on the first layout after the scroll.
+  const model = state();
+  applyOutlineAction(model, 's1', 'cols', 7, 8, 'group');
+  applyOutlineAction(model, 's1', 'rows', 11, 12, 'group');
+  assert.deepEqual(layoutOutlineBrackets(model, 's1', 'cols', live).map((bracket) => [bracket.key, bracket.lines, bracket.button]),
+    [['cols:7:1', [{ from: 210, to: 360 }], 360]]);
+  assert.deepEqual(layoutOutlineBrackets(model, 's1', 'rows', live).map((bracket) => [bracket.key, bracket.lines, bracket.button]),
+    [['rows:11:1', [{ from: 150, to: 200 }], 200]]);
+  // Frozen 2 columns / 3 rows: the scrolling pane is the live range after the band too.
+  const frozen = createOutlineMeasure(
+    measureRuntime({ freeze: { xSplit: 2, ySplit: 3, startRow: 3, startColumn: 2 }, stale: { startRow: 3, endRow: 9, startColumn: 2, endColumn: 6 },
+      range: () => ({ startRow: 8, endRow: 17, startColumn: 6, endColumn: 9 }) }),
+    { getCellBox: (sheetId, row, column) => ({ x: 40 + column * 60, y: 30 + row * 20, width: 60, height: 20, zoom: 1 }) },
+    's1');
+  assert.deepEqual(frozen.visible('cols').map((pane) => [pane.start, pane.end]), [[0, 1], [6, 9]]);
+  assert.deepEqual(frozen.visible('rows').map((pane) => [pane.start, pane.end]), [[0, 2], [8, 17]]);
 });
 
 test('reopen: a saved collapsed group reads collapsed from the file and draws "+" on its summary line', () => {
