@@ -217,7 +217,11 @@ no sidecar.
 
 The last job step, `OFFICE_INSTALLER_<CHANNEL>_URLS`, writes a line like this to
 the job summary (and to the `installer_urls` step output and the
-`installer-urls-<channel>.json` artifact):
+`installer-urls-<channel>.json` artifact). Only a publishing run reaches that step
+(a tag push, or a dispatch with `publish: true`); a build-only run (dispatch with
+`publish: false`, or the probe branch) uploads the installers as workflow artifacts
+and prints no value, so use `scripts/office/installer-urls.mjs` on the downloaded
+files (see the operator steps below):
 
 ```text
 OFFICE_INSTALLER_DEV_URLS={"win32-x64":"https://github.com/<owner>/<repo>/releases/download/office-desktop-v0.1.0-dev.7/uniwork-office-test_0.1.0-dev.7_unsigned_win32_x64-setup.exe","win32-x64-zip":"…","linux-x64-deb":"…","linux-x64-appimage":"…"}
@@ -226,10 +230,12 @@ OFFICE_INSTALLER_DEV_URLS={"win32-x64":"https://github.com/<owner>/<repo>/releas
 1. Take everything after the `=` (one line of JSON). The `dev` channel fills
    `OFFICE_INSTALLER_DEV_URLS`, `beta` fills `OFFICE_INSTALLER_BETA_URLS`;
    `OFFICE_INSTALLER_STABLE_URLS` stays empty.
-2. Set it where the server is configured (Helm values or the deploy secret; see
-   `docs/office/g3g4/runbook.md`) and restart the server. The old single
+2. Set it where the server is configured: `OFFICE_INSTALLER_DEV_URLS` /
+   `OFFICE_INSTALLER_BETA_URLS` in `deploy/app/env/uniwork-be.env` on Kubernetes
+   (a plain env file, not a Secret) or in `.env` for compose, then restart the
+   server (see `docs/office/g3g4/runbook.md`). The old single
    `OFFICE_INSTALLER_*_URL` variables remain only as a Windows fallback and will be
-   removed.
+   removed after 2026-11-02.
 3. Check `GET /api/v1/config`: `office_installers.<channel>` lists the expected
    `platform`, `url`, `version` and `unsigned: true`.
 
@@ -243,13 +249,102 @@ host and regenerate the value with:
 node scripts/office/installer-urls.mjs --channel dev --base-url https://downloads.example/office/dev --dir <directory holding the installers>
 ```
 
+## Operator steps: distribute a desktop build through UniWork
+
+Scope: one self-hosted deployment on the `dev` or `beta` channel (`stable` is refused while signing is parked). Run the steps in order. Quoted UI strings are copied from `packages/core/i18n/locales/vi.json` and `apps/office-desktop/main/strings.ts`.
+
+1. **Build the installers.** Start `office-desktop-installers.yml` from the Actions tab, or:
+
+   ```bash
+   gh workflow run office-desktop-installers.yml --ref <branch> -f channel=dev -f require_xlsx_sidecar=true -f publish=false
+   gh run list --workflow office-desktop-installers.yml --limit 1
+   gh run watch <run id> --exit-status
+   ```
+
+   `workflow_dispatch` only sees the workflow once the file is on the repository's default branch. Before that, push `ci/office-desktop-installers-probe` for a build-only run (channel `dev`; the build number is the run number). A passing run produces five files: Windows `-setup.exe` and `.zip`, Linux `.deb` and `.AppImage`, and macOS arm64 `.dmg`. Each name contains `_unsigned_` and `-<channel>.<build number>`.
+
+2. **Download the artifacts at once.** Workflow artifacts expire (the probe branch keeps them 3 days).
+
+   ```bash
+   gh run download <run id> -D <download dir>
+   ```
+
+   Artifacts are named `office-desktop-win32-x64`, `office-desktop-linux-x64` and `office-desktop-darwin-arm64`. Each holds its installers and its own `SHA256SUMS-<platform>.txt`. Check every file against its sums file (`sha256sum -c SHA256SUMS-<platform>.txt` inside that artifact directory) and record the SHA-256 values with the run id. `installer-urls.mjs` reads one directory without recursing, so copy the installers into one flat directory first.
+
+3. **Upload to storage.** Use a bucket that holds only installers: the anonymous read policy covers the whole bucket. The MinIO commands are the ones in the local setup record (`reports/office-w4-desktop-dist/env-setup.md`). Use your own alias and keys from the secret store; the placeholders below are not real values.
+
+   ```bash
+   mc alias set <alias> <storage endpoint> <ACCESS_KEY> <SECRET_KEY>
+   mc mb <alias>/office-installers
+   mc anonymous set download <alias>/office-installers
+   mc cp --recursive <flat dir>/ <alias>/office-installers/dev/<version>/
+   ```
+
+   `<version>` is the installer version, for example `0.1.0-dev.42`. The public base is `https://<public host>/office-installers/dev/<version>`. The server fetches each installer itself and refuses redirects, so every link must answer 200 directly; a GitHub release link (302) is not enough for the bundle download. Plain `http://localhost` is accepted only for a dev deployment on a local MinIO.
+
+4. **Set the server environment.** Generate the value from the flat directory:
+
+   ```bash
+   node scripts/office/installer-urls.mjs --channel dev --base-url https://<public host>/office-installers/dev/<version> --dir <flat dir>
+   ```
+
+   It prints one line of JSON, for example `{"win32-x64":"https://…/…_unsigned_win32_x64-setup.exe","win32-x64-zip":"…","darwin-arm64":"…","linux-x64-deb":"…","linux-x64-appimage":"…"}`. Then:
+
+   - Put that JSON in `OFFICE_INSTALLER_DEV_URLS` (`OFFICE_INSTALLER_BETA_URLS` for beta). Leave `OFFICE_INSTALLER_STABLE_URLS` empty. Keep it on one line.
+   - Set the desktop client binding for the channel. A dev deployment sets all three values, using exactly one deployment id:
+
+     ```text
+     DESKTOP_AUTH_CLIENT_ID=uniwork-office-dev
+     DESKTOP_AUTH_REDIRECT_URIS=uniwork-office-dev://auth/callback
+     DESKTOP_AUTH_DEPLOYMENT_IDS=default
+     ```
+
+     A beta deployment keeps `DESKTOP_AUTH_CLIENT_ID=uniwork-office` and sets `OFFICE_DESKTOP_CHANNEL=beta`. The bundle's `deploymentId` is the one value in `DESKTOP_AUTH_DEPLOYMENT_IDS`.
+   - Restart the API (on Kubernetes, roll the BE deployment).
+   - Check the config:
+
+     ```bash
+     curl -s <api origin>/api/v1/config
+     ```
+
+     `office_channel` must be `dev` (or `beta`), and `office_installers.<channel>` must list each platform with `url`, `version` and `unsigned: true`. The other channels stay empty. If `office_channel` is `stable` on a dev deployment, the desktop trio is missing: the download then answers 503 naming the trio (`desktop client or deployment binding is ambiguous`).
+
+5. **Download from UniWork and install.** In the web Office editor, use **Download** on a document. The browser asks the server for the bundle with `bundle=true` and the platform the user chose (`platform=<key>`; without it the server sends the Windows Setup). The zip holds three files: the installer (`UniWork-Office-Setup` with the platform's extension), `deployment-profile.json` (`deploymentId`, `apiOrigin`, `clientId`, `channel`) and `README.txt` (Vietnamese and English). Extract all three into one folder before you start the installer.
+
+   - **Windows:** run `UniWork-Office-Setup.exe` from the extracted folder. NSIS copies `deployment-profile.json` next to the installed app, so the app starts connected. SmartScreen warnings are expected (**More info**, then **Run anyway**, or `Unblock-File`).
+   - **macOS:** open the `.dmg`, drag the app to Applications, then open it once with right-click, **Open**, **Open** (Gatekeeper; the build is unsigned).
+   - **Ubuntu:** `sudo apt install ./UniWork-Office-Setup.deb`, or `chmod +x` the AppImage after `sudo apt install libfuse2` (see `desktop-install-macos-ubuntu.md`).
+   - **macOS and Linux, first launch:** there is no installer hook, so the app opens the no-profile card. Click **"Chọn tệp cấu hình…"** (English: "Choose configuration file…") and pick `deployment-profile.json` from the extracted folder. The native dialog then asks **"Kết nối UniWork Office với <host>?"** ("Connect UniWork Office to <host>?"). The detail shows the raw address and the deployment id. The buttons are **Kết nối** (Connect) and **Hủy** (Cancel). Cancel is the default and writes nothing. On Connect the app stores the profile in its user-data folder (`deployment-profile.json`, mode 0600) and restarts on the sign-in card.
+   - **Windows, fallback:** the same button appears only when no profile was installed, for example when Setup was run from inside the zip viewer. Extract first and run Setup from the folder instead.
+   - **Switching sites:** on the signed-out card of an imported profile, click **"Đặt lại kết nối"** (Reset connection). The native dialog asks **"Ngắt kết nối khỏi <host>?"** and **Đặt lại** removes the imported profile and every stored session of that deployment, then restarts. Import the other site's bundle afterwards. An installer-owned profile (Windows Setup) has no reset action.
+
+   Upgrades: run the newer installer over the existing one. The unsigned build never updates itself.
+
+6. **Troubleshoot.**
+
+   | Symptom | Cause | Fix |
+   | --- | --- | --- |
+   | No-profile card: "Chưa thể đăng nhập vì bản UniWork Office này chưa được liên kết với site UniWork." (`no_deployment_profile`, reason `missing`) | No profile next to the app, or the copy did not come from UniWork | Download the bundle again from the UniWork site, then choose the file |
+   | "Tệp này không phải tệp cấu hình UniWork Office. Chọn lại tệp deployment-profile.json." (`invalid`) | Wrong file, malformed JSON, over 4 KiB, or a rule failed (for example a non-HTTPS origin) | Choose `deployment-profile.json` from the same bundle; do not edit it |
+   | "Tệp cấu hình này dành cho một bản UniWork Office khác. Tải lại UniWork Office từ site UniWork của bạn." (`channel_mismatch`) | The profile's channel is not this build's channel | Download the build for that channel from the site |
+   | "Bản UniWork Office này đã được liên kết với một site UniWork." (`already_configured`) | A profile already resolves (installer-owned, or imported earlier) | Reset the imported connection first; an installer-owned profile needs a reinstall |
+   | "Không thể lưu tệp cấu hình. Thử lại." (`unavailable`) | The import could not complete, for example the file could not be read or stored | Try again; check that the user-data folder is writable |
+   | Download answers 503 "desktop client or deployment binding is ambiguous" | The desktop trio does not match the channel | Set the trio in step 4 and restart |
+   | Web shows the channel has no installer (404 `installer_unavailable`) | `OFFICE_INSTALLER_<CHANNEL>_URLS` empty or not set for that channel | Fill it and restart. Never point another channel's variable at these files |
+   | 503 `office_download_unavailable` ("desktop installer URLs are not configured safely") | A link is not HTTPS (outside dev loopback), has credentials, a query or a fragment, or its extension does not match the platform | Regenerate the JSON with `installer-urls.mjs` |
+   | Bundle download fails on a redirect | The link answers 302 (a GitHub release URL) | Mirror the files to a host that answers 200 directly |
+   | Windows: no profile after Setup | Setup was run from inside the zip, so the profile was not beside it | Extract all three files and run Setup from the folder |
+   | Signed out after an upgrade | Credentials are now stored per origin, under `userData/credentials/<channel>/<deploymentId>@<sha256(origin)[:12]>/`. The old `<deploymentId>/` folder is not read or migrated | Sign in once more; no migration exists |
+
+   Signing, notarization and the update feed are parked in the certificates backlog. Every build is unsigned, and automatic update stays off.
+
 ## Update and rollback (G4-07b)
 
-Configure `OFFICE_INSTALLER_DEV_URL`, `OFFICE_INSTALLER_BETA_URL`, and `OFFICE_INSTALLER_STABLE_URL` for the three deployment channels. The authenticated `GET /api/v1/office/desktop/download?organization_id=...&channel=...` route requires organization membership, returns the selected installer with the public API origin, channel, client id, and deployment id, and writes an audit row. The response contains no credentials, signing keys, or storage secrets. The web editor reuses the existing not-installed install prompt and fails closed when the selected channel has no installer.
+The deployment variables are `OFFICE_INSTALLER_DEV_URLS`, `OFFICE_INSTALLER_BETA_URLS`, and `OFFICE_INSTALLER_STABLE_URLS` (see the CI section above). The authenticated `GET /api/v1/office/desktop/download?organization_id=...&channel=...` route requires organization membership, returns the selected installer with the public API origin, channel, client id, and deployment id, and writes an audit row. The response contains no credentials, signing keys, or storage secrets. The web editor reuses the existing not-installed install prompt and fails closed when the selected channel has no installer.
 
 The web **Download** action requests the same route with `bundle=true` using the current authenticated session. The server produces an `application/zip` containing `UniWork-Office-Setup` with the configured installer extension and `deployment-profile.json` (`deploymentId`, `apiOrigin`, `clientId`, `channel`). The installer fetch forwards no user credentials, refuses redirects and empty responses, and enforces a 512 MiB limit. Audit records download initiation before that fetch; they do not prove the client finished receiving or installed the bundle. Both responses use `Cache-Control: no-store`; the route is limited to ten requests per minute when the Redis limiter is configured.
 
-Extract both files together before starting the Windows installer. NSIS copies the adjacent profile to installed resources; packaged Electron resolves it there. macOS profile delivery is still a sidecar: place the validated `deployment-profile.json` in the accepted userData namespace before launching, or let deployment tooling provision it there. Signing that profile and qualifying platform installation are 07c work. Missing, malformed or mismatched API profiles leave the Download flow unavailable; it does not fall back to a public URL for another channel.
+Extract both files together before starting the Windows installer. NSIS copies the adjacent profile to installed resources; packaged Electron resolves it there. On macOS and Linux there is no install hook, so the user imports the adjacent `deployment-profile.json` once from the no-profile card (**Choose configuration file…**); the import needs a confirmation and is refused while a profile already resolves. The operator steps are in the section above. Signing that profile and qualifying platform installation are 07c work. Missing, malformed or mismatched API profiles leave the Download flow unavailable; it does not fall back to a public URL for another channel.
 
 Unsigned automatic update is disabled until a real feed and signing publisher are approved. Feed and artifact URLs must use verified HTTPS on the configured origin, without credentials or fragments; redirects are refused. The installed main-process policy pins the publisher key and an ordered list of accepted engine revisions. A feed cannot supply its own trust key. Ed25519 signatures bind artifact URL, SHA-256, size, publisher, app id, channel, engine version, contract version, protocol version and target draft format. Unknown or older engine revisions, incompatible contracts/protocols, wrong identity/publisher, invalid signatures and changed bytes are typed refusals. The local HTTPS fixture exercises acceptance, untrusted TLS, redirects and tampering without production keys.
 
