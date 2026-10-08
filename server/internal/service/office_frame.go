@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -260,7 +261,9 @@ func (s *OfficeFrameService) SignAssets(ctx context.Context, claims OfficeFrameC
 
 // Recents lists the user's recently opened or edited DOCX file documents in
 // the token's workspace. It reuses the Documents recent list (the same ACL
-// filter) and keeps only what the frame can open.
+// filter) and keeps only what the frame can open, judged as load judges it:
+// the current version's mime type or its stored file name. The current
+// versions come in one query and the file names in one batch resolve.
 func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClaims, limit int) ([]db.Document, error) {
 	if limit <= 0 || limit > 50 {
 		limit = 20
@@ -269,17 +272,46 @@ func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClai
 	if err != nil {
 		return nil, err
 	}
-	out := make([]db.Document, 0, limit)
+	candidates := make([]db.Document, 0, len(page.Items))
+	versionIDs := make([]string, 0, len(page.Items))
 	for _, item := range page.Items {
 		doc := item.Document
-		if doc.Kind != DocumentKindFile || doc.ArchivedAt.Valid || doc.OrganizationID != claims.OrganizationID {
+		if doc.Kind != DocumentKindFile || doc.ArchivedAt.Valid || !doc.FileVersionID.Valid ||
+			doc.OrganizationID != claims.OrganizationID || doc.WorkspaceID != claims.WorkspaceID {
 			continue
 		}
-		v, err := s.documents.currentFileVersion(ctx, s.documents.q, doc)
-		if err != nil {
-			return nil, err
+		candidates = append(candidates, doc)
+		versionIDs = append(versionIDs, doc.FileVersionID.String)
+	}
+	out := make([]db.Document, 0, limit)
+	if len(candidates) == 0 {
+		return out, nil
+	}
+	versions, err := s.documents.q.ListDocumentVersionsByIDs(ctx, db.ListDocumentVersionsByIDsParams{
+		OrganizationID: claims.OrganizationID, WorkspaceID: claims.WorkspaceID, Ids: versionIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]db.DocumentVersion, len(versions))
+	fileIDs := make([]files.FileID, 0, len(versions))
+	for _, v := range versions {
+		byID[v.ID] = v
+		if v.FileID.Valid {
+			fileIDs = append(fileIDs, files.FileID(v.FileID.String))
 		}
-		if v == nil || !officeFrameIsDocx(v.MimeType.String, doc.Title) {
+	}
+	names := s.fileNames(ctx, claims, fileIDs)
+	for _, doc := range candidates {
+		v, ok := byID[doc.FileVersionID.String]
+		if !ok || v.DocumentID != doc.ID {
+			continue
+		}
+		name := doc.Title
+		if n := names[files.FileID(v.FileID.String)]; n != "" {
+			name = n
+		}
+		if !officeFrameIsDocx(v.MimeType.String, name) {
 			continue
 		}
 		out = append(out, doc)
@@ -288,6 +320,29 @@ func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClai
 		}
 	}
 	return out, nil
+}
+
+// fileNames resolves the stored names of fileIDs in the token's workspace,
+// as currentFileInfo does for one; a file that does not resolve is left out
+// and its document falls back to its title.
+func (s *OfficeFrameService) fileNames(ctx context.Context, claims OfficeFrameClaims, fileIDs []files.FileID) map[files.FileID]string {
+	out := make(map[files.FileID]string, len(fileIDs))
+	if s.documents.files == nil || len(fileIDs) == 0 {
+		return out
+	}
+	resolved, err := s.documents.files.ResolveMany(ctx, files.ResolveInput{
+		Scope: documentScope(claims.OrganizationID, claims.WorkspaceID), Mode: files.ReadProxy,
+		Disposition: files.DispositionAttachment, FileIDs: fileIDs,
+	})
+	if err != nil {
+		return out
+	}
+	for _, r := range resolved {
+		if r.Err == nil && r.File.Filename != "" {
+			out[r.File.ID] = r.File.Filename
+		}
+	}
+	return out
 }
 
 func (s *OfficeFrameService) sign(prefix string, claims any) (string, error) {
