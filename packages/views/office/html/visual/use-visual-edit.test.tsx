@@ -12,7 +12,8 @@ import { elementByPath, setText } from "./ops";
 import { useHtmlVisualEdit, type HtmlVisualEditHost, type UseHtmlVisualEditOptions } from "./use-visual-edit";
 
 const flagMock = vi.hoisted(() => ({ value: true }));
-vi.mock("@uniwork/core/feature-flags", () => ({
+vi.mock("@uniwork/core/feature-flags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/core/feature-flags")>()),
   useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_edit" ? flagMock.value : fallback),
 }));
 

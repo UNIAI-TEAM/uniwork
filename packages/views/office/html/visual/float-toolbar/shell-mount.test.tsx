@@ -15,7 +15,8 @@ import type { HtmlFloatToolbarCommands } from "./float-toolbar";
 import type { IsolatedPreviewPort, PreviewSession } from "../../../source-editor-types";
 
 const flagMock = vi.hoisted(() => ({ value: false }));
-vi.mock("@uniwork/core/feature-flags", () => ({
+vi.mock("@uniwork/core/feature-flags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/core/feature-flags")>()),
   useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_edit" ? flagMock.value : fallback),
 }));
 

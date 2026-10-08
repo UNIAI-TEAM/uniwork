@@ -4,12 +4,14 @@ import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { HtmlFloatToolbar, type HtmlFloatToolbarCommands, type HtmlFloatToolbarState } from "./float-toolbar";
-import { OFFICE_HTML_VISUAL_EDIT_FLAG, type HtmlSelection } from "../selection/model";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG } from "@uniwork/core/feature-flags";
+import type { HtmlSelection } from "../selection/model";
 
 /** A mutable flag mock, the pattern bridge.test.tsx uses: the suite flips the
  * key and the toolbar re-reads it on the next render. */
 const flagMock = vi.hoisted(() => ({ value: false }));
-vi.mock("@uniwork/core/feature-flags", () => ({
+vi.mock("@uniwork/core/feature-flags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/core/feature-flags")>()),
   useFlag: (key: string, fallback: boolean) => (key === "office_html_visual_edit" ? flagMock.value : fallback),
 }));
 

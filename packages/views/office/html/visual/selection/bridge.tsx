@@ -8,8 +8,8 @@
  * component folds them into a selection and paints an inert outline in the
  * `overlay` slot. It never edits: no H3 op, no command back to the frame.
  *
- * The whole surface is behind `OFFICE_HTML_VISUAL_EDIT_FLAG` (default OFF). With the
- * flag off this component returns null and does nothing else, so the shell is
+ * The whole surface is behind `OFFICE_HTML_VISUAL_EDIT_FLAG` (server default on, client
+ * fallback off). With the flag off this component returns null and does nothing else, so the shell is
  * byte-for-byte the same behaviour it had before H5.
  *
  * The outline is positioned from the rect the inspector reported, clamped by
@@ -25,11 +25,10 @@
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { useFlag } from "@uniwork/core/feature-flags";
+import { OFFICE_HTML_VISUAL_EDIT_FLAG, useFlag } from "@uniwork/core/feature-flags";
 import { clampZoom } from "../shell-model";
 import {
   HTML_SELECTION_EMPTY,
-  OFFICE_HTML_VISUAL_EDIT_FLAG,
   reduceSelection,
   type HtmlSelection,
   type HtmlSelectionRect,
