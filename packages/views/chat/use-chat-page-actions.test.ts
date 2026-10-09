@@ -275,7 +275,6 @@ describe("useChatPageActions", () => {
 
   it("queues a failed thread reply with its thread root", async () => {
     const deps = buildDeps({
-      target: { kind: "channel" as const },
       activeThreadRootId: "root1",
       sendThreadMessage: {
         mutateAsync: vi.fn().mockRejectedValue(new ApiError("down", "internal", 503)),
