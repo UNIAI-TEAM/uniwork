@@ -15,8 +15,11 @@ import (
 )
 
 // RequireAuthWithDevice extends bearer validation with a live native-device
-// status check. Browser sessions are represented by the same sid namespace;
-// a checker returns nil for those rows and only rejects a known revoked device.
+// status check. Browser sessions share the sid namespace but are marked in
+// the token, so they skip the lookup; the checker returns nil for an unmarked
+// sid with no device row and only rejects a known revoked device. Any other
+// checker error is infrastructure (a DB timeout) and answers 503: a 401 there
+// would make the client refresh and possibly sign the user out (H8).
 func RequireAuthWithDevice(m auth.TokenMinter, check func(context.Context, string, string) error) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,18 +29,18 @@ func RequireAuthWithDevice(m auth.TokenMinter, check func(context.Context, strin
 				writeUnauthorized(w, "missing bearer token")
 				return
 			}
-			uid, sid, err := m.ParseSession(token)
+			uid, sid, web, err := m.ParseAccess(token)
 			if err != nil {
 				writeUnauthorized(w, "invalid token")
 				return
 			}
-			if check != nil {
+			if check != nil && !web {
 				if err := check(r.Context(), uid, sid); err != nil {
 					if codedErrorCode(err) == "device_revoked" {
 						writeDeviceRevoked(w)
 						return
 					}
-					writeUnauthorized(w, "unauthorized")
+					writeUnavailable(w)
 					return
 				}
 			}
@@ -57,6 +60,13 @@ func codedErrorCode(err error) string {
 		return carrier.CodeValue()
 	}
 	return ""
+}
+
+func writeUnavailable(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "1")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("unavailable", "session check failed, retry"))
 }
 
 func writeDeviceRevoked(w http.ResponseWriter) {

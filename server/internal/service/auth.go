@@ -370,7 +370,7 @@ func (s *AuthService) mintSession(ctx context.Context, u db.User, sessionID, inh
 		sessionID = util.NewID()
 		newDevice = s.isNewDevice(ctx, u.ID, meta.UserAgent)
 	}
-	access, err := s.minter.MintSession(u.ID, sessionID)
+	access, err := s.minter.MintWebSession(u.ID, sessionID)
 	if err != nil {
 		return Session{}, err
 	}
