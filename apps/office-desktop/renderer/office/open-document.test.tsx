@@ -226,6 +226,8 @@ it("exposes the local-mode AI entry as a labelled group and keeps it locked", as
   const group = await screen.findByRole("group", { name: i18n.t("officeDesktop.ai.entry") });
   const entry = within(group).getByRole("button", { name: i18n.t("officeDesktop.ai.entry") });
   expect(entry).toHaveAttribute("data-ai-entry", "locked");
+  // The same Sparkles glyph the web AI entry uses, not a desktop-only drawing.
+  expect(entry.querySelector("svg.lucide-sparkles")).not.toBeNull();
 
   // Behaviour is unchanged: opening it stays locked and only offers sign-in.
   fireEvent.click(entry);
