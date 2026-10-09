@@ -145,8 +145,14 @@ node <same>/cloud-runner.mjs close        # when the lane is done
   runner falls back on its own: the agent boots on `test/cursor-cloud-env` of
   uniwork and `run-tests.sh --repo-url <url>` clones the repository into
   `~/work/<name>` once per VM and runs the round there. Spec refs are read
-  from that repository; results refs are pushed to it with the VM's
-  credentials, else `GH_TOKEN` through a credential helper. The state records
+  from that repository. Results refs go to it with the VM's credentials, else
+  with any personal GitHub token among the VM secrets (`ghp_`/`github_pat_`,
+  through a credential helper with no global git config; Cursor's own
+  `GH_TOKEN` can be its app token). When neither may write there (the trial:
+  the app has no access and the PAT's account gets 403), the logs go to the
+  uniwork repository as `refs/test-results/<repo>/<lane>/<sha>`; the report
+  names it in `log_repo`, the runner fetches from it, and `close` deletes
+  those refs too. Notes are scrubbed like logs. The state records
   `via: "clone"` (or `"direct"`), and follow-ups keep that mode; once the app
   has access, `close` and the next round goes direct.
 - `run-tests.sh --profile office` selects the fork's profile:

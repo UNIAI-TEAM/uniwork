@@ -56,7 +56,10 @@ esac
 
 # --repo-url: Cursor could not open that repository, so the VM booted on the
 # uniwork checkout; work in a clone of the URL under ~/work instead (once per VM).
+home_origin=""
 if [ "$repo_url" ]; then
+  # The uniwork checkout the VM booted on: Cursor's credentials can push there.
+  home_origin=$(git remote get-url origin 2> /dev/null)
   clone=~/work/$(basename "$repo_url" .git)
   if [ ! -d "$clone/.git" ]; then
     rm -rf "$clone" && mkdir -p ~/work
@@ -73,8 +76,9 @@ export PATH=/usr/local/go/bin:$HOME/go/bin:$HOME/.cargo/bin:$PATH
 provisioned=false fresh_install=false start_seconds=0 head="" notes=""
 ran_file=$(mktemp)
 
+log_repo=""
 report() { # stage_outcome test_verdict log_ref
-  STAGE=$1 VERDICT=$2 LOGREF=$3 HEAD_SHA=$head PROV=$provisioned START=$start_seconds \
+  STAGE=$1 VERDICT=$2 LOGREF=$3 LOGREPO=$log_repo HEAD_SHA=$head PROV=$provisioned START=$start_seconds \
   NOTES=$notes RAN=$ran_file node -e '
     const fs = require("fs");
     const ran = fs.readFileSync(process.env.RAN, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
@@ -91,7 +95,8 @@ report() { # stage_outcome test_verdict log_ref
       sha: process.env.HEAD_SHA, stage_outcome: process.env.STAGE, test_verdict: process.env.VERDICT,
       provisioned: process.env.PROV === "true", start_seconds: Number(process.env.START),
       ran: ran.map(({ cmd, result, duration_s, exit_code }) => ({ cmd, result, duration_s, exit_code })),
-      failures, not_run: [], log_ref: process.env.LOGREF || null, notes,
+      failures, not_run: [], log_ref: process.env.LOGREF || null,
+      ...(process.env.LOGREPO ? { log_repo: process.env.LOGREPO } : {}), notes,
     }));'
   rm -f "$ran_file"
 }
@@ -241,7 +246,7 @@ log_ref="refs/test-results/$lane/$head"
 # the notes name what was tried by variable and prefix only.
 push_with_gh_token() {
   local tried="" name val
-  for name in GH_TOKEN GITHUB_TOKEN ${CLOUD_AGENT_ALL_SECRET_NAMES//,/ }; do
+  for name in $(printf '%s\n' GH_TOKEN GITHUB_TOKEN ${CLOUD_AGENT_ALL_SECRET_NAMES//,/ } | awk '!seen[$0]++'); do
     val=${!name:-}
     case "$val" in
       ghp_*|github_pat_*|gho_*) tried="$tried $name(${val:0:4})" ;;
@@ -257,11 +262,20 @@ push_with_gh_token() {
   return 1
 }
 origin=$(git remote get-url origin)
+# In the uniwork repository the logs of another repository live under its name.
+home_ref="refs/test-results/$(basename "${repo_url:-none}" .git)/$lane/$head"
+rm -f /tmp/runner-log-repo
 if ! (cd "$results" && export GIT_TERMINAL_PROMPT=0 && git init -q && git add -A \
       && git -c user.name=runner -c user.email=runner@local commit -qm "$lane $head" \
-      && { git push -qf "$origin" "HEAD:$log_ref" || push_with_gh_token "$origin"; }) > /tmp/runner-push.log 2>&1; then
+      && { git push -qf "$origin" "HEAD:$log_ref" || push_with_gh_token "$origin" \
+           || { [ "$home_origin" ] && git push -qf "$home_origin" "HEAD:$home_ref" && echo "$home_origin" > /tmp/runner-log-repo; }; }) > /tmp/runner-push.log 2>&1; then
   notes="log push failed: $(tail -2 /tmp/runner-push.log | tr '\n' ' ')"; log_ref=""
+elif [ -s /tmp/runner-log-repo ]; then
+  # Logs went to the uniwork repository; the runner fetches them from there.
+  log_ref=$home_ref
+  log_repo=$(sed -E "s#//[^/@]*@#//#" /tmp/runner-log-repo)  # never a credential in the report
 fi
+rm -f /tmp/runner-log-repo
 
 $any_fail && verdict=fail || verdict=pass
 report succeeded "$verdict" "$log_ref"

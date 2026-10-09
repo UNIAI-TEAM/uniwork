@@ -164,7 +164,15 @@ async function api(method, path, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    // A proxy page ("upstream connect error ...") instead of the API's JSON.
+    const err = new Error(`${method} ${path} -> ${res.status} non-JSON ${text.slice(0, 120)}`);
+    err.status = res.ok ? 502 : res.status;
+    throw err;
+  }
   if (!res.ok) {
     const err = new Error(`${method} ${path} -> ${res.status} ${text.slice(0, 300)}`);
     err.status = res.status;
@@ -220,7 +228,15 @@ function laneSlug(opts, branch) {
 async function waitRun(agentId, runId, timeoutS, startedAt = Date.now()) {
   const deadline = startedAt + timeoutS * 1000;
   for (;;) {
-    const run = await api("GET", `/agents/${agentId}/runs/${runId}`);
+    let run;
+    try {
+      run = await api("GET", `/agents/${agentId}/runs/${runId}`);
+    } catch (e) {
+      // Transient API or network failure: the run goes on, keep polling until the deadline.
+      if (e.status && e.status < 500 && e.status !== 429) throw e;
+      console.error(`cloud-runner: poll failed (${e.message.slice(0, 120)}); retrying`);
+      run = { status: "UNKNOWN" };
+    }
     if (["FINISHED", "ERROR", "CANCELLED", "EXPIRED"].includes(run.status)) return run;
     if (Date.now() > deadline) {
       await api("POST", `/agents/${agentId}/runs/${runId}/cancel`).catch(() => {});
@@ -379,13 +395,13 @@ ${rep ? JSON.stringify(rep, null, 2) : String(rawResult ?? "").slice(0, 4000)}
 
 // Writes each file of the results commit with `git show`, so it needs no tar
 // (Windows' bsdtar does not read stdin by default).
-function fetchLogs(ref, dir) {
+function fetchLogs(ref, dir, remote = REPO.remote) {
   try {
     // Shards of one suite fetch from the same repository at once; retry a
     // fetch that lost a lock race.
     for (let attempt = 1; ; attempt += 1) {
       try {
-        git("fetch", "-q", REPO.remote, `${ref}:${ref}`);
+        git("fetch", "-q", remote, `${ref}:${ref}`);
         break;
       } catch (e) {
         if (attempt >= 4) throw e;
@@ -484,7 +500,9 @@ async function finishPending(state, shard, timeoutOverride) {
   const rep = extractReport(run.result);
   const after = await costCents(state.agentId);
   let logsDir = null;
-  if (rep?.log_ref) logsDir = fetchLogs(rep.log_ref, p.out.replace(/\.md$/, ".logs"));
+  // A clone-mode VM that cannot push to the repository puts the logs in uniwork (log_repo).
+  const logRepo = rep?.log_repo && Object.keys(REPOS).find((n) => normUrl(REPOS[n].url) === normUrl(rep.log_repo));
+  if (rep?.log_ref) logsDir = fetchLogs(rep.log_ref, p.out.replace(/\.md$/, ".logs"), logRepo ? repoInfo(logRepo).remote : REPO.remote);
   try { git("push", "-q", REPO.remote, `:${p.specRef}`); } catch { /* best effort */ }
   const valid = rep && String(rep.sha ?? "").slice(0, 7) === p.sha.slice(0, 7);
   writeReport(p.out, {
@@ -550,6 +568,14 @@ async function closeOne(shard, laneOpt) {
       .split("\n").map((l) => l.split(/\s+/)[1]).filter(Boolean);
     if (refs.length) git("push", "-q", REPO.remote, ...refs.map((r) => `:${r}`));
     console.log(`deleted ${refs.length} results refs for ${lane}`);
+    if (state?.via === "clone") {
+      // Logs a clone-mode VM could not push to the repository went to uniwork under its name.
+      const home = repoInfo(DEFAULT_REPO).remote;
+      const prefix = `refs/test-results/${REPO.url.split("/").pop()}/${lane}`;
+      const more = git("ls-remote", home, `${prefix}/*`).split("\n").map((l) => l.split(/\s+/)[1]).filter(Boolean);
+      if (more.length) git("push", "-q", home, ...more.map((r) => `:${r}`));
+      console.log(`deleted ${more.length} results refs under ${prefix} in uniwork`);
+    }
   }
   if (existsSync(statePath(shard))) rmSync(statePath(shard));
 }
