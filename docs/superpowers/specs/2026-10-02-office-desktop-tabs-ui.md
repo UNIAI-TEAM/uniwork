@@ -1,6 +1,6 @@
 # UniWork Office desktop — thanh tiêu đề có tab tài liệu
 
-> **Trạng thái:** in-progress (UNI-917)
+> **Trạng thái:** superseded - thanh tiêu đề/tab của `apps/office-desktop` đóng băng; giao diện tab lấy từ shell genoffice trong repo fork (xem [plan genoffice](../plans/2026-10-08-uniwork-office-genoffice.md), UNI-1001, vào develop cùng UNI-1001).
 
 Người dùng 2026-10-02 (ảnh màn chọn workspace trên app): "chỗ này trên app cũng cần làm cho đẹp hơn nhé. làm UI các
 tab tài liệu, kiểu kiểu của gen office ấy. logo cũng nên đưa lên header trên cùng".
