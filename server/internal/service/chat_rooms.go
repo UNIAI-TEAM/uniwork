@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -249,16 +252,19 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 	if len(memberIDs) < 2 {
 		return ChatRoomSummary{}, Invalid("nhóm cần ít nhất 2 thành viên")
 	}
+	allIDs := uniqueUserIDs(append(memberIDs, userID))
+	if len(allIDs) > maxChatGroupMembers {
+		return ChatRoomSummary{}, errChatGroupTooLarge()
+	}
 	for _, id := range memberIDs {
 		if err := s.requireOrgPeer(ctx, w.OrganizationID, id); err != nil {
 			return ChatRoomSummary{}, err
 		}
 	}
-	allIDs := uniqueUserIDs(append(memberIDs, userID))
 	if len(allIDs) < 3 {
 		return ChatRoomSummary{}, Invalid("nhóm cần ít nhất 2 thành viên khác bạn")
 	}
-	key := memberSetKey(allIDs)
+	key := groupMemberSetKey(allIDs)
 	room, err := s.q.GetChatRoomByKindAndMemberSet(ctx, db.GetChatRoomByKindAndMemberSetParams{
 		OrganizationID: w.OrganizationID,
 		Kind:           chatRoomKindGroup,
@@ -302,6 +308,16 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	ids := normalizeUserIDs(memberUserIDs)
 	if len(ids) == 0 {
 		return ChatRoomSummary{}, Invalid("cần ít nhất một thành viên để mời")
+	}
+	if room.Kind == chatRoomKindGroup {
+		current, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
+		if err != nil {
+			return ChatRoomSummary{}, err
+		}
+		size := len(uniqueUserIDs(append(current, ids...)))
+		if size > maxChatGroupMembers {
+			return ChatRoomSummary{}, errChatGroupTooLarge()
+		}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -679,6 +695,21 @@ func memberSetKey(userIDs []string) string {
 	ids := uniqueUserIDs(userIDs)
 	sort.Strings(ids)
 	return strings.Join(ids, memberSetDelimiter)
+}
+
+// maxChatGroupMembers counts the creator; a larger audience is a channel.
+const maxChatGroupMembers = 250
+
+func errChatGroupTooLarge() error {
+	return Invalid(fmt.Sprintf("nhóm có tối đa %d thành viên, hãy dùng kênh cho nhóm lớn hơn", maxChatGroupMembers))
+}
+
+// groupMemberSetKey is the fixed-size dedupe key of a group. The id list
+// itself overflows a btree row at ~99 members (H18); only a DM keeps the
+// list, because the DM peer and voice checks read it back.
+func groupMemberSetKey(userIDs []string) string {
+	sum := sha256.Sum256([]byte(memberSetKey(userIDs)))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func uniqueUserIDs(userIDs []string) []string {

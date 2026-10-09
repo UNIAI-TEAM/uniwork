@@ -443,13 +443,7 @@ func (s *ChatService) userIsVoiceInviteRecipient(
 	case chatRoomKindDM:
 		peerID, err := dmPeerUserID(room, callerID)
 		return err == nil && peerID == userID
-	case chatRoomKindGroup:
-		if !s.userInVoiceRoomMemberSet(room, userID) {
-			return false
-		}
-		canJoin, err := s.userCanJoinVoiceRoom(ctx, room, userID)
-		return err == nil && canJoin
-	case chatRoomKindChannel:
+	case chatRoomKindGroup, chatRoomKindChannel:
 		canJoin, err := s.userCanJoinVoiceRoom(ctx, room, userID)
 		return err == nil && canJoin
 	default:
