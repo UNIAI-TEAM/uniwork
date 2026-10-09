@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createOfficeFrameApi, docsFrameSrc, type DocsFrameCall } from "./docs-frame-api";
 import { OFFICE_MODULES } from "./docs-frame-protocol";
-import { officeFrameSrc, officeModuleForFormat, officeModuleSpec } from "./office-modules";
+import { officeFrameSrc, officeModuleForFormat, officeModuleSpec, officeModuleTooLarge } from "./office-modules";
 
 const API = "http://api.test";
 const DOC = {
@@ -42,6 +42,14 @@ describe("office module table", () => {
     expect(officeModuleSpec("html").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true });
     expect(officeModuleSpec("slides").grant).toEqual({ save: true, saveAs: true, print: true });
     expect(officeModuleSpec("sheets").grant).toEqual({ save: true, saveAs: true, print: true });
+  });
+
+  it("caps Sheets at 5 MiB of stored xlsx and no other module", () => {
+    expect(officeModuleTooLarge("sheets", 5 * 1024 * 1024)).toBe(false);
+    expect(officeModuleTooLarge("sheets", 5 * 1024 * 1024 + 1)).toBe(true);
+    expect(officeModuleTooLarge("sheets", undefined)).toBe(false);
+    expect(OFFICE_MODULES.filter((m) => officeModuleSpec(m).maxBytes !== undefined)).toEqual(["sheets"]);
+    expect(officeModuleTooLarge("docs", 1e12)).toBe(false);
   });
 
   it("sends a view-only slides user to the G3 host, every other module keeps the frame", () => {

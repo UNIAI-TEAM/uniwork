@@ -39,7 +39,21 @@ export interface OfficeModuleSpec {
    * without save / save-as.
    */
   viewOnlyInG3?: boolean;
+  /**
+   * The largest stored file the frame opens (bytes). A larger document opens
+   * in the G3 host without asking for a token; the server refuses the mint
+   * with 413 too_large too, and a frame that answers its open with
+   * `too_large` falls back the same way. Sheets only (GO-D3 = C).
+   */
+  maxBytes?: number;
 }
+
+/**
+ * Sheets runs the engine in WASM in the browser (GO-D3 = C, CONTRACT C11):
+ * measured cap 5 MiB of stored xlsx. Same number as
+ * OfficeFrameSheetsMaxBytes in server/internal/service/office_frame_module.go.
+ */
+const SHEETS_MAX_BYTES = 5 * 1024 * 1024;
 
 const EDIT_PRINT: OfficeModuleGrant = { save: true, saveAs: true, print: true };
 const EDIT_PRINT_HTML: OfficeModuleGrant = { save: true, saveAs: true, print: true, exportHtml: true };
@@ -59,12 +73,18 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   },
   sheets: {
     flag: "office_sheets_web", format: "xlsx", extension: "xlsx",
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT,
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT, maxBytes: SHEETS_MAX_BYTES,
   },
 };
 
 export function officeModuleSpec(module: OfficeModule): OfficeModuleSpec {
   return OFFICE_MODULE_SPECS[module];
+}
+
+/** Whether a stored file of sizeBytes is over the module's cap (then the G3 host opens it). */
+export function officeModuleTooLarge(module: OfficeModule, sizeBytes: number | null | undefined): boolean {
+  const max = OFFICE_MODULE_SPECS[module].maxBytes;
+  return max !== undefined && typeof sizeBytes === "number" && sizeBytes > max;
 }
 
 /** The module that opens a `detectDocumentFormat` id; null for a format with no web module (xls, odt, …). */

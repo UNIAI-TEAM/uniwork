@@ -6,8 +6,9 @@ import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
+import { ApiError } from "@uniwork/core/api/http";
 import { requestMock, wrap } from "../../test/api-mock";
-import { useDocsFrameRefusal } from "./docs-frame-refusal";
+import { DocsFrameRefusalContext, useDocsFrameRefusal } from "./docs-frame-refusal";
 import { OfficeModuleFrame } from "./office-module-frame";
 import { OfficeModuleOpenSwitch } from "./office-module-open-switch";
 
@@ -25,13 +26,15 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false } = {}) {
-  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? Promise.resolve({ ...minted, can_edit: canEdit }) : Promise.reject(new Error(`unexpected ${path}`))));
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, mint, refuse }: { canEdit?: boolean; readonly?: boolean; mint?: () => Promise<unknown>; refuse?: () => void } = {}) {
+  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit })) : Promise.reject(new Error(`unexpected ${path}`))));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
-        <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={fullApi()} readonly={readonly} />
+        <DocsFrameRefusalContext.Provider value={refuse ?? null}>
+          <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={fullApi()} readonly={readonly} />
+        </DocsFrameRefusalContext.Provider>
       </ThemeProvider>
     </QueryClientProvider>,
   );
@@ -53,6 +56,7 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false } =
   });
   return {
     iframe,
+    event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     ready: (payload: Record<string, unknown>) => post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, ...payload })),
     inits: () => received.filter((m) => m.kind === "request" && m.type === "init"),
   };
@@ -98,6 +102,29 @@ describe("OfficeModuleFrame", () => {
     await frame.ready({});
     expect(await screen.findByTestId("office-docs-frame-failed")).toBeTruthy();
     expect(frame.inits()).toHaveLength(0);
+  });
+
+  it("hands a workbook the server refused as too large (413) to the G3 editor", async () => {
+    const refuse = vi.fn();
+    mountFrame("sheets", { refuse, mint: () => Promise.reject(new ApiError("document is too large for the web frame", "too_large", 413)) });
+    await waitFor(() => expect(refuse).toHaveBeenCalled());
+  });
+
+  it("hands a workbook the Sheets frame refused to open as too_large to the G3 editor", async () => {
+    const refuse = vi.fn();
+    const frame = mountFrame("sheets", { refuse });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(refuse).not.toHaveBeenCalled();
+    await frame.event("error", { error: { code: "too_large", message: "worksheet XML over 40 MB" }, fatal: true });
+    await waitFor(() => expect(refuse).toHaveBeenCalled());
+  });
+
+  it("does not fall back for too_large in a module without a size cap", async () => {
+    const refuse = vi.fn();
+    mountFrame("pdf", { refuse, mint: () => Promise.reject(new ApiError("too large", "too_large", 413)) });
+    expect(await screen.findByTestId("office-docs-frame-failed")).toBeTruthy();
+    expect(refuse).not.toHaveBeenCalled();
   });
 
   it("keeps the Docs grant for docs", async () => {

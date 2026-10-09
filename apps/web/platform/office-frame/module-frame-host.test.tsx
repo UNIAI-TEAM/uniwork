@@ -59,6 +59,16 @@ describe("ModuleFrameOrG3Host", () => {
     expect(mocks.push).toHaveBeenCalledWith("/acme/ops/documents/copy-9");
   });
 
+  it("keeps a workbook over the Sheets cap on the G3 xlsx host without asking for a token", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ sheets: "0.2.0-abc1234" }));
+    const big = { ...doc, file: { size_bytes: 5 * 1024 * 1024 + 1 } } as Document;
+    await act(async () => {
+      root.render(createElement(ModuleFrameOrG3Host, { module: "sheets", document: big, wsId: "ws-1", readonly: false, fallback: createElement("b", { "data-testid": "g3" }) }));
+    });
+    expect(container.querySelector('[data-testid="g3"]')).not.toBeNull();
+    expect(mocks.switchProps).not.toHaveBeenCalled();
+  });
+
   it("keeps a view-only slides user on the G3 pptx host, and an editor on the frame", async () => {
     vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ slides: "0.2.0-abc1234" }));
     await mount("slides", true);

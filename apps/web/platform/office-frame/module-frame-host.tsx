@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { paths } from "@uniwork/core/paths";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
-import { officeModuleSpec } from "@uniwork/core/office/office-modules";
+import { officeModuleSpec, officeModuleTooLarge } from "@uniwork/core/office/office-modules";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { OfficeModuleFrame, OfficeModuleOpenSwitch } from "@uniwork/views/office";
@@ -37,11 +37,13 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string }) {
  * organization and its bundle is installed; the G3 host (`fallback`)
  * otherwise, and until the flag's answer arrives. The document screen only
  * mounts this when `pinnedFrameVersion(module)` is set. A view-only user of a
- * module marked `viewOnlyInG3` (slides) stays on the G3 host.
+ * module marked `viewOnlyInG3` (slides) stays on the G3 host, and so does a
+ * document over its module's size cap (Sheets, GO-D3) - no token is asked for.
  */
 export function ModuleFrameOrG3Host(props: ModuleHostProps & { fallback: ReactNode }) {
   const frameVersion = pinnedFrameVersion(props.module);
   if (!frameVersion || (props.readonly && officeModuleSpec(props.module).viewOnlyInG3)) return props.fallback;
+  if (officeModuleTooLarge(props.module, props.document.file?.size_bytes)) return props.fallback;
   const { fallback, ...hostProps } = props;
   return (
     <OfficeModuleOpenSwitch

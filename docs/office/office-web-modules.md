@@ -101,6 +101,22 @@ its unsupported state).
   `ModuleFrameOrG3Host` only when `pinnedFrameVersion(module)` is set; without
   an installed bundle the existing G3 host renders exactly as before.
 
+## Sheets size cap (GO-D3 = C)
+
+The Sheets frame runs the engine in WASM in the browser, so a workbook over
+the cap opens in the G3 xlsx host. One number per module (`maxBytes` in
+`office-modules.ts`, `maxBytes` in the server's `officeFrameModules`; xlsx
+only, 5 MiB = 5 * 1024 * 1024 bytes of stored file, raise both together):
+
+- Host gate: `ModuleFrameOrG3Host` compares the document's
+  `file.size_bytes` and mounts the G3 host without asking for a token.
+- Server gate: the mint answers 413 `too_large` for a stored file over the
+  cap (after the ACL check), so a crafted client cannot open it in the frame.
+- Frame gate: when the Sheets frame fails its open with `too_large` (sum of
+  worksheet XML over 40 MB, checked in the frame) - or the mint answered 413 -
+  `OfficeModuleFrame` hands the document to the G3 host through the same
+  refusal path as `feature_disabled`. A module without a cap shows the error.
+
 ## Module e2e
 
 `e2e/office-module-web-fixtures.ts` holds the module helpers (pin, installed

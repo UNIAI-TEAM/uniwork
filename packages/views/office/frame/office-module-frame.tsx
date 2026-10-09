@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { createOfficeFrameApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import type { OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
-import { officeFrameSrc } from "@uniwork/core/office/office-modules";
+import { officeFrameSrc, officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -142,8 +142,11 @@ export function OfficeModuleFrame({
 
   // The server refused the token mint because the module's flag is off for this organization.
   const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
+  // A module with a size cap (Sheets, GO-D3): a mint refused with 413 or a frame that answers its
+  // open with too_large hands the document to the G3 editor the same way.
+  const tooLarge = officeModuleSpec(module).maxBytes !== undefined && session.failure?.code === "too_large";
   const refuse = useDocsFrameRefusal();
-  useEffect(() => { if (featureDisabled) refuse?.(); }, [featureDisabled, refuse]);
+  useEffect(() => { if (featureDisabled || tooLarge) refuse?.(); }, [featureDisabled, tooLarge, refuse]);
 
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
