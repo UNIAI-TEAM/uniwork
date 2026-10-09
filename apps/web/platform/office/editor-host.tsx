@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ComponentType } from "react";
 import type { Document } from "@uniwork/core/types/document";
-import { detectDesktopPlatform, DESKTOP_PLATFORMS, type DesktopPlatformHints, type OfficeInstallerOption, type OfficeCapabilityEntry, type OfficeHost, type SaveCoordinatorState, type StableSnapshot } from "@uniwork/core/office";
+import { detectDesktopPlatform, DESKTOP_PLATFORMS, selectOfficeInstallerChannel, type DesktopPlatformHints, type OfficeInstallerOption, type OfficeCapabilityEntry, type OfficeHost, type SaveCoordinatorState, type StableSnapshot } from "@uniwork/core/office";
 import { registerLeaveGuard } from "@uniwork/views/navigation";
 import { DesktopOpenAction, OfficeShell, OfficeTooLargeProvider, type OfficeChannel } from "@uniwork/views/office";
 import { useOfficeFormatName } from "@uniwork/views/office/editor-slot";
@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
+import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
 import { downloadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
@@ -100,11 +101,25 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   onRecoverSnapshot,
   breadcrumbs = [],
   className,
-  officeChannel = "stable",
+  officeChannel: officeChannelOverride,
   installers,
   officeDeploymentId,
 }: OfficeEditorHostProps<TSnapshot>) {
   const { t } = useTranslation();
+  // The channel that actually publishes installers (stable > beta > dev); an
+  // explicit prop wins. Until the config answers, ask for stable, as before.
+  const [publishedChannel, setPublishedChannel] = useState<OfficeChannel | null>(null);
+  useEffect(() => {
+    if (officeChannelOverride) return undefined;
+    let active = true;
+    void getPublicConfig(document.organization_id).then((config) => {
+      if (active) setPublishedChannel(selectOfficeInstallerChannel(config.office_installers));
+    }).catch(() => {
+      // Config unavailable: keep the default channel and its "no installer" state.
+    });
+    return () => { active = false; };
+  }, [officeChannelOverride, document.organization_id]);
+  const officeChannel: OfficeChannel = officeChannelOverride ?? publishedChannel ?? "stable";
   const formatName = useOfficeFormatName();
   const activeSession = formatAdapter?.session ?? session;
   const activeEditorView = formatAdapter?.editorView ?? editorView;
