@@ -6,14 +6,7 @@ import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { DocxOpenSwitch, OfficeDocsFrame } from "@uniwork/views/office";
 import type { OfficeEditorHostProps } from "../office/editor-host";
-
-/**
- * The pinned frame build, inlined by next.config.mjs from docs.pin.json; empty
- * when no bundle is pinned, in which case the frame is never offered.
- */
-function pinnedDocsFrameVersion(): string {
-  return process.env.NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION ?? "";
-}
+import { pinnedFrameVersion } from "./frame-versions";
 
 function DocsFrameHost(props: OfficeEditorHostProps & { frameVersion: string }) {
   const { document, wsId, readonly, className, frameVersion } = props;
@@ -39,7 +32,7 @@ function DocsFrameHost(props: OfficeEditorHostProps & { frameVersion: string }) 
  * otherwise, and until the flag's answer arrives.
  */
 export function DocxFrameOrG3Host(props: OfficeEditorHostProps & { fallback: ReactNode }) {
-  const frameVersion = pinnedDocsFrameVersion();
+  const frameVersion = pinnedFrameVersion("docs");
   if (!frameVersion) return props.fallback;
   const { fallback, ...hostProps } = props;
   return (

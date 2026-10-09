@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  assertMatchesPin, assertSafeBundlePath, assertSafeVersion, buildPin, enforceFrameAncestors,
-  parseCspManifest, parseManifest, parsePin, sha256Hex,
+  assertMatchesPin, assertModule, assertSafeBundlePath, assertSafeVersion, buildPin, enforceFrameAncestors,
+  frameUrlRoot, parseCspManifest, parseManifest, parsePin, sha256Hex,
 } from "./frame-bundle.mjs";
 
 const sha = sha256Hex("x");
@@ -21,11 +21,22 @@ describe("assertSafeVersion / assertSafeBundlePath", () => {
   });
 });
 
+describe("modules", () => {
+  it("knows the six modules and nothing else, each served from its own root", () => {
+    for (const m of ["docs", "pdf", "markdown", "html", "slides", "sheets"]) expect(frameUrlRoot(m)).toBe(`/office-frame/${m}`);
+    for (const bad of ["", "Docs", "xls", "../docs", undefined]) expect(() => assertModule(bad)).toThrow(/unknown office frame module/);
+  });
+});
+
 describe("parseManifest", () => {
   it("reads the fork manifest and ignores informational fields", () => {
     expect(parseManifest(manifest({ builtAt: "x", totalBytes: 1, gzipBytes: 1 }))).toEqual({
-      version: "0.1.0-abc1234", gitSha: "abc1234def", entry: "index.html", dirty: false, files: [{ path: "index.html", bytes: 1, sha256: sha }],
+      module: "docs", version: "0.1.0-abc1234", gitSha: "abc1234def", entry: "index.html", dirty: false, files: [{ path: "index.html", bytes: 1, sha256: sha }],
     });
+  });
+  it("reads the module a build names, an absent one being docs (builds from before modules)", () => {
+    expect(parseManifest(manifest()).module).toBe("docs");
+    expect(parseManifest(manifest({ module: "sheets" })).module).toBe("sheets");
   });
   it("reads the dirty flag the fork sets for an uncommitted build", () => {
     expect(parseManifest(manifest()).dirty).toBe(false);
@@ -33,6 +44,7 @@ describe("parseManifest", () => {
   });
   it.each([
     ["not an object", null],
+    ["unknown module", manifest({ module: "../docs" })],
     ["unsafe version", manifest({ version: "../x" })],
     ["bad gitSha", manifest({ gitSha: "zz" })],
     ["entry outside files", manifest({ entry: "other.html" })],

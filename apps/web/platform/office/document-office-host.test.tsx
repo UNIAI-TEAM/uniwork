@@ -22,6 +22,8 @@ vi.mock("next/dynamic", () => ({
 vi.mock("./docx-office-host", () => ({ DocxOfficeEditorHost: Object.assign(() => null, { __name: "docx" }) }));
 // A .docx goes through the Docs-frame switch (UNI-1013), which falls back to the G3 host.
 vi.mock("../office-frame/docs-frame-host", () => ({ DocxFrameOrG3Host: Object.assign(() => null, { __name: "docx-frame-switch" }) }));
+// pdf, md, html, pptx and xlsx go through the module-frame switch only when their bundle is installed (UNI-1014).
+vi.mock("../office-frame/module-frame-host", () => ({ ModuleFrameOrG3Host: Object.assign(() => null, { __name: "module-frame-switch" }) }));
 vi.mock("./xlsx-office-host", () => ({ XlsxOfficeEditorHost: Object.assign(() => null, { __name: "xlsx" }) }));
 vi.mock("./pdf-office-host", () => ({ PdfOfficeEditorHost: Object.assign(() => null, { __name: "pdf" }) }));
 vi.mock("./pptx-office-host", () => ({ PptxOfficeEditorHost: Object.assign(() => null, { __name: "pptx" }) }));
@@ -43,7 +45,7 @@ beforeEach(() => {
   root = createRoot(container);
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 });
-afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
+afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllEnvs(); });
 
 async function route(document: Document) {
   await act(async () => { root.render(createElement(DocumentOfficeEditorHost, { document, wsId: "ws", readonly: false })); });
@@ -96,5 +98,23 @@ describe("document office host routing", () => {
     await route(documentFor("legacy.xls", "application/vnd.ms-excel"));
     expect(container.querySelector('[data-format-host="docx"]')).toBeNull();
     expect(container.querySelector('[data-format-host="xlsx"]')).toBeNull();
+  });
+
+  it.each([
+    ["book.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "sheets"],
+    ["paper.pdf", "application/pdf", "pdf"],
+    ["notes.md", "text/markdown", "markdown"],
+    ["page.html", "text/html", "html"],
+    ["slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "slides"],
+  ])("routes %s through the module-frame switch once the %s bundle is installed", async (filename, mime, module) => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ [module]: "0.1.0-abc1234" }));
+    await route(documentFor(filename, mime));
+    expect(container.querySelector('[data-format-host="module-frame-switch"]')).not.toBeNull();
+  });
+
+  it("keeps the G3 host of a format whose module has no bundle, whatever else is installed", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ docs: "0.1.0-abc1234", slides: "0.1.0-abc1234" }));
+    await route(documentFor("paper.pdf", "application/pdf"));
+    expect(container.querySelector('[data-format-host="pdf"]')).not.toBeNull();
   });
 });

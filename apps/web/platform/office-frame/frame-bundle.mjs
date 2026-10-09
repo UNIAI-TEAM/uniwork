@@ -1,18 +1,37 @@
-// The Docs web frame bundle (UNI-1013): what the fork's versioned web build
-// looks like on disk (manifest.json + csp.json) and how it is verified before
-// it is served from /office-frame/docs/<version>/.
+// The genoffice web frame bundles (UNI-1013 docs; UNI-1014/1015/1016 the other
+// modules): what the fork's versioned web build looks like on disk
+// (manifest.json + csp.json) and how it is verified before it is served from
+// /office-frame/<module>/<version>/.
 //
 // Pure functions only; the CLI that touches the network and `public/` is
 // apps/web/scripts/office-frame-sync.mjs. Node-only, never imported by browser
 // code (next.config.mjs and the sync script read it at build time).
 import { createHash } from "node:crypto";
 
-export const FRAME_URL_ROOT = "/office-frame/docs";
+/** The genoffice web modules, in the protocol's order (packages/core/office/docs-frame-protocol.ts). */
+export const OFFICE_MODULES = Object.freeze(["docs", "pdf", "markdown", "html", "slides", "sheets"]);
 export const CSP_HEADER = "Content-Security-Policy";
 
 const VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const GIT_SHA_RE = /^[0-9a-f]{7,64}$/;
+
+/**
+ * A module names a directory, a pin file and a URL segment: only the known ones.
+ * @param {unknown} module
+ * @returns {string}
+ */
+export function assertModule(module) {
+  if (typeof module !== "string" || !OFFICE_MODULES.includes(module)) {
+    throw new Error(`unknown office frame module ${JSON.stringify(module)} (one of ${OFFICE_MODULES.join(", ")})`);
+  }
+  return module;
+}
+
+/** @param {string} module */
+export function frameUrlRoot(module) {
+  return `/office-frame/${assertModule(module)}`;
+}
 
 /** @param {Uint8Array | string} data */
 export function sha256Hex(data) {
@@ -51,18 +70,20 @@ export function assertSafeBundlePath(path) {
 
 /**
  * @typedef {{ path: string, bytes: number, sha256: string }} ManifestFile
- * @typedef {{ version: string, gitSha: string, entry: string, dirty: boolean, files: ManifestFile[] }} FrameManifest
+ * @typedef {{ module: string, version: string, gitSha: string, entry: string, dirty: boolean, files: ManifestFile[] }} FrameManifest
  */
 
 /**
- * Validates the fork's manifest.json ({version, gitSha, entry, files[]}); any
- * other field (builtAt, totalBytes, gzipBytes) is informational and ignored.
+ * Validates the fork's manifest.json ({module?, version, gitSha, entry, files[]});
+ * an absent module is docs (builds from before modules existed). Any other
+ * field (builtAt, totalBytes, gzipBytes) is informational and ignored.
  * @param {unknown} raw
  * @returns {FrameManifest}
  */
 export function parseManifest(raw) {
   if (!raw || typeof raw !== "object") throw new Error("manifest.json is not an object");
   const m = /** @type {Record<string, unknown>} */ (raw);
+  const module = m.module === undefined ? "docs" : assertModule(m.module);
   const version = assertSafeVersion(m.version);
   if (typeof m.gitSha !== "string" || !GIT_SHA_RE.test(m.gitSha)) throw new Error("manifest.gitSha is not a git SHA");
   const entry = assertSafeBundlePath(m.entry);
@@ -79,7 +100,7 @@ export function parseManifest(raw) {
     return { path, bytes: f.bytes, sha256: f.sha256 };
   });
   if (!seen.has(entry)) throw new Error(`manifest entry ${entry} is not in files`);
-  return { version, gitSha: m.gitSha, entry, dirty: m.dirty === true, files };
+  return { module, version, gitSha: m.gitSha, entry, dirty: m.dirty === true, files };
 }
 
 /**

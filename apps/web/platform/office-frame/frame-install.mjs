@@ -1,10 +1,11 @@
 /* global fetch, Buffer, AbortSignal, console */
-// Install side of the Docs web frame bundle (UNI-1013): locate, verify and copy
-// a fork build into public/. Used by scripts/office-frame-sync.mjs.
+// Install side of the genoffice web frame bundles (UNI-1013 docs, UNI-1014
+// modules): locate, verify and copy a fork build into public/. Used by
+// scripts/office-frame-sync.mjs.
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { assertMatchesPin, assertSafeVersion, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
+import { assertMatchesPin, assertModule, assertSafeVersion, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
 
 /** Finds the directory holding manifest.json: the source itself, or its only child. */
 export function locateBundleDir(source) {
@@ -13,6 +14,32 @@ export function locateBundleDir(source) {
   const holders = children.map((e) => join(source, e.name)).filter((dir) => existsSync(join(dir, "manifest.json")));
   if (holders.length === 1) return holders[0];
   throw new Error(`no manifest.json in ${source} (${holders.length} candidate version directories)`);
+}
+
+/** The module a version directory's manifest names (absent = docs). */
+function manifestModule(dir) {
+  return parseManifest(JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"))).module;
+}
+
+/**
+ * Finds one module's version directory in a source, or null when the source
+ * has no build of that module. Accepted layouts: a dist-web root holding
+ * `<module>/<version>/` directories (the fork's `build:web:all`); one module's
+ * directory holding its version (the docs-only `dist-web/docs` of UNI-1013);
+ * or a version directory itself. In the last two the manifest's module decides.
+ */
+export function locateModuleBundle(source, module) {
+  assertModule(module);
+  if (existsSync(join(source, "manifest.json"))) return manifestModule(source) === module ? source : null;
+  const own = join(source, module);
+  if (existsSync(own) && statSync(own).isDirectory()) return locateBundleDir(own);
+  const versions = readdirSync(source, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(join(source, e.name, "manifest.json")))
+    .map((e) => join(source, e.name));
+  if (versions.length === 0) return null;
+  const matching = versions.filter((dir) => manifestModule(dir) === module);
+  if (matching.length > 1) throw new Error(`${source} holds ${matching.length} ${module} versions; point the source at one`);
+  return matching[0] ?? null;
 }
 
 /** Reads and checks a bundle directory against its own manifest. Returns what the install needs. */
@@ -89,6 +116,11 @@ async function download(url, target, limits) {
   writeFileSync(target, Buffer.concat(chunks));
 }
 
+/**
+ * The source as a local directory: an archive (or an https URL to one) is
+ * checked and unpacked into scratch; a directory is used as it is. The result
+ * is the source root, which `locateModuleBundle` searches per module.
+ */
 export async function materialize(source, scratch, limits = DEFAULT_ARCHIVE_LIMITS) {
   if (/^https:\/\//.test(source) || source.endsWith(".tar.gz") || source.endsWith(".tgz")) {
     let archive = resolve(source);
@@ -100,9 +132,9 @@ export async function materialize(source, scratch, limits = DEFAULT_ARCHIVE_LIMI
     const out = join(scratch, "unpacked");
     mkdirSync(out);
     execFileSync("tar", ["-xzf", archive, "-C", out], { stdio: "inherit", timeout: limits.timeoutMs });
-    return locateBundleDir(out);
+    return out;
   }
-  return locateBundleDir(resolve(source));
+  return resolve(source);
 }
 
 /** Copies the verified files into public/, replacing any older version directories. */
@@ -152,7 +184,7 @@ export function offerableFrameVersion(pin, root) {
   try {
     return checkInstalled(pin, root) ? pin.version : "";
   } catch (error) {
-    console.warn(`office-frame: ${pin.version} is installed but does not verify (${error.message}); the Docs frame is not offered`);
+    console.warn(`office-frame: ${pin.version} is installed but does not verify (${error.message}); this frame is not offered`);
     return "";
   }
 }
