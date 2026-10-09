@@ -140,8 +140,8 @@ func New(d Deps, h Routes) http.Handler {
 			registerBilling(authed, h)
 			registerNotifications(authed, h)
 			registerAI(authed, h)
-			registerAIBYOK(authed, h, mw.RateLimitByIdentity(d.Redis, 60, time.Minute, proxies, bearerUser(d.Minter)))
-			registerAICloud(authed, h, mw.RateLimitByIdentity(d.Redis, 20, time.Minute, proxies, bearerUser(d.Minter)))
+			registerAIBYOK(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, bearerUser(d.Minter)))
+			registerAICloud(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerTasksSuite(authed, h)
@@ -162,8 +162,8 @@ func New(d Deps, h Routes) http.Handler {
 			registerFiles(authed, h)
 			registerDocuments(authed, h, d.FeatureFlags)
 			registerSignatures(authed, h)
-			// Personal AI keys: per signed-in person, 30/min (ADR 0029).
-			registerAICredentials(authed, h, mw.RateLimitByIdentity(d.Redis, 30, time.Minute, proxies, bearerUser(d.Minter)))
+			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).
+			registerAICredentials(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOfficeLaunch(authed, h)
 			registerOfficeDesktopDownload(authed, h, mw.RateLimit(d.Redis, 10, time.Minute, proxies))
 			if d.PlatformRoles != nil {
