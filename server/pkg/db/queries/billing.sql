@@ -138,7 +138,6 @@ SELECT * FROM billing_payment_intents WHERE provider_txn_ref = $1;
 SELECT * FROM billing_payment_intents WHERE id = $1 AND organization_id = $2;
 
 -- name: GetCompletedPaymentIntentForInvoice :one
--- tenant: by-id
 SELECT * FROM billing_payment_intents
 WHERE organization_id = $1 AND subscription_id = $2 AND provider = $3 AND amount = $4 AND status = 'completed'
 ORDER BY COALESCE(completed_at, created_at) DESC
@@ -155,7 +154,6 @@ WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
 RETURNING *;
 
 -- name: PatchBillingPaymentIntentProviderMeta :exec
--- tenant: self
 UPDATE billing_payment_intents SET
   provider_bank_code = CASE
     WHEN sqlc.narg('provider_bank_code')::text IS NOT NULL AND btrim(sqlc.narg('provider_bank_code')::text) <> ''
@@ -211,7 +209,6 @@ INSERT INTO invoices (
 RETURNING *;
 
 -- name: GetBillingPaymentIntentForInvoice :one
--- tenant: by-id
 SELECT * FROM billing_payment_intents WHERE id = $1 AND organization_id = $2;
 
 -- name: ListInvoicesByOrganization :many
@@ -259,7 +256,6 @@ WHERE id = $1 AND organization_id = $2
 RETURNING *;
 
 -- name: RevertSubscriptionToDefaultAfterInvoiceRefund :one
--- tenant: by-id
 UPDATE subscriptions SET
   plan_id = $3,
   status = 'active',
@@ -302,7 +298,6 @@ ORDER BY refund_requested_at NULLS LAST, updated_at
 LIMIT $1;
 
 -- name: ConfirmInvoiceRefundFromProvider :one
--- tenant: self
 UPDATE invoices SET
   amount_refunded = CASE
     WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL

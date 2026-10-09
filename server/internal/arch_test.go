@@ -318,7 +318,7 @@ func TestAdminQueriesStayInAdminService(t *testing.T) {
 			return err
 		}
 		slash := filepath.ToSlash(path)
-		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.HasSuffix(slash, "internal/service/admin_billing.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund.go") || strings.HasSuffix(slash, "internal/service/admin_plans.go") || strings.Contains(slash, "pkg/db/generated/") {
+		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.HasSuffix(slash, "internal/service/admin_billing.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund_vnpay.go") || strings.HasSuffix(slash, "internal/service/admin_plans.go") || strings.Contains(slash, "pkg/db/generated/") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
