@@ -6,7 +6,8 @@
   "workspaces": {
     ".": {
       "ignore": [
-        "scripts/landing-film/**"
+        "scripts/landing-film/**",
+        "docs/office/pdf-export/**"
       ],
       "entry": [
         "scripts/**/*.mjs",

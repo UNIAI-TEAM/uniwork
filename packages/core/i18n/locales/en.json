@@ -8008,6 +8008,45 @@
     }
   },
   "office": {
+    "docsFrame": {
+      "loading": "Opening the document editor…",
+      "frame_label": "Document editor: {{title}}",
+      "retry": "Try again",
+      "failure": {
+        "unavailable": {
+          "title": "The new document editor is not available",
+          "description": "This UniWork server is not set up for it yet.",
+          "use_standard": "Open in the standard editor"
+        },
+        "network": {
+          "title": "Could not connect to UniWork",
+          "description": "Check your connection, then try again."
+        },
+        "denied": {
+          "title": "This document cannot be opened",
+          "forbidden": "You do not have access to this document.",
+          "not_found": "This document no longer exists or was moved."
+        },
+        "failed": {
+          "title": "The document could not open",
+          "description": "UniWork ran into a problem opening this document. Try again in a moment."
+        }
+      },
+      "errors": {
+        "unauthorized": "Your editing session expired. Try again.",
+        "forbidden": "You do not have permission to do that in this document.",
+        "not_found": "This document no longer exists or was moved.",
+        "conflict": "Someone saved a newer version. Reopen the document to see it before saving.",
+        "too_large": "The file is too large to upload.",
+        "rate_limited": "Too many requests. Wait a moment and try again.",
+        "network": "Could not reach UniWork. Check your connection.",
+        "unsupported": "This action is not available on the web yet.",
+        "timeout": "UniWork took too long to answer. Try again.",
+        "busy": "Another save of this document is still running. Try again in a moment.",
+        "feature_disabled": "The new document editor is not turned on for your organization.",
+        "internal": "Something went wrong in the document editor."
+      }
+    },
     "too_large": {
       "title": "File is too large to edit on the web",
       "description": "This {{format}} file exceeds the browser size limit. Open it in the UniWork Office desktop app to keep working — the app has no file size limit.",

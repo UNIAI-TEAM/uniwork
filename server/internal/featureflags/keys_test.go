@@ -52,6 +52,20 @@ func TestOfficeHTMLVisualEditIsPublicAndOffByDefault(t *testing.T) {
 	}
 }
 
+func TestOfficeDocsWebIsPublicOnByDefaultAndReviewed(t *testing.T) {
+	f, ok := Lookup("office_docs_web")
+	if !ok {
+		t.Fatal("office_docs_web is not declared")
+	}
+	if !f.Default || !f.Public || f.Owner != "office" || !f.ReviewAt.Equal(day(2026, 12, 5)) {
+		t.Fatalf("office_docs_web = %+v, want default on, public, owner office, review 2026-12-05", f)
+	}
+	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
+	if v, published := flags["office_docs_web"]; !published || !v {
+		t.Fatalf("published=%v value=%v, want published and true", published, v)
+	}
+}
+
 func TestOfficeFormatFlagsAreOnByDefaultAndEngineStaysOff(t *testing.T) {
 	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
 	for _, key := range []string{"office_docx", "office_xlsx", "office_pptx", "office_pdf", "office_markdown", "office_html"} {

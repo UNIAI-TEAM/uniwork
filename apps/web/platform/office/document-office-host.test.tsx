@@ -28,7 +28,11 @@ vi.mock("./md-html-adapter", () => ({
   HtmlOfficeEditorHost: Object.assign(() => null, { __name: "html" }),
 }));
 
-import { DocumentOfficeEditorHost } from "./document-office-host";
+import { createDocumentOfficeEditorHost, type DocxFrameSlot } from "./document-office-host";
+
+// A .docx goes through the injected Docs-frame slot (UNI-1013), handed the G3 host as its fallback.
+const DocxFrame: DocxFrameSlot = ({ fallback }) => createElement("div", { "data-format-host": "docx-frame-switch" }, fallback);
+const DocumentOfficeEditorHost = createDocumentOfficeEditorHost(DocxFrame);
 
 const file = (filename: string, mime_type: string) => ({ file_id: "f", version_id: "v1", version: 1, filename, mime_type, size_bytes: 10, checksum_sha256: "0".repeat(64) });
 const documentFor = (filename: string, mime_type: string) => ({ id: "doc-1", title: "Doc", organization_id: "org", workspace_id: "ws", revision: "1", file: file(filename, mime_type) }) as Document;
@@ -50,7 +54,7 @@ async function route(document: Document) {
 
 describe("document office host routing", () => {
   it.each([
-    ["report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"],
+    ["report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx-frame-switch"],
     ["book.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"],
     ["paper.pdf", "application/pdf", "pdf"],
     ["notes.md", "text/markdown", "md"],

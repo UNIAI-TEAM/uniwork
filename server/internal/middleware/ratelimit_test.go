@@ -326,3 +326,30 @@ func TestParseTrustedProxies_InvalidSkipped(t *testing.T) {
 		t.Fatalf("expected 2 valid CIDRs (invalid skipped), got %d", len(nets))
 	}
 }
+
+func TestRateLimitBucket_SharesOneBudgetAcrossPaths(t *testing.T) {
+	// A route whose path carries an id must not hand out one budget per id.
+	rdb := newRedisTestClient(t)
+	user := func(r *http.Request) string { return r.Header.Get("X-Test-User") }
+	handler := RateLimitByIdentityBucket(rdb, "export", 2, time.Minute, nil, user)(okHandler)
+	send := func(path, uid string) int {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "10.0.2.1:9000"
+		req.Header.Set("X-Test-User", uid)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for _, path := range []string{"/documents/a/export", "/documents/b/export"} {
+		if code := send(path, "u1"); code != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d", path, code)
+		}
+	}
+	if code := send("/documents/c/export", "u1"); code != http.StatusTooManyRequests {
+		t.Fatalf("third document: expected 429, got %d", code)
+	}
+	// Another user on the same address has its own budget.
+	if code := send("/documents/c/export", "u2"); code != http.StatusOK {
+		t.Fatalf("other user: expected 200, got %d", code)
+	}
+}

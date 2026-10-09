@@ -8,6 +8,7 @@
     "@playwright/test": "^1.56.0",
     "@types/node": "catalog:",
     "@types/pg": "^8.11.0",
+    "jszip": "catalog:",
     "pg": "^8.13.0"
   }
 }

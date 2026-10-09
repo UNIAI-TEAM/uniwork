@@ -542,6 +542,13 @@ func fileVersionParams(doc db.Document, id string, version int32, reason string,
 // header), then in the mutation transaction: claim, quota, the asset row and
 // its audit row.
 func (s *DocumentService) UploadDocumentAsset(ctx context.Context, actor Actor, documentID string, in DocumentUploadInput) (db.DocumentAsset, error) {
+	return s.uploadDocumentAsset(ctx, actor, documentID, in, func(doc db.Document) bool { return doc.Kind == DocumentKindPage })
+}
+
+// uploadDocumentAsset is UploadDocumentAsset with the document kinds the
+// caller accepts: pages through the Documents route, DOCX file documents
+// through the Office Docs frame (OfficeFrameService.UploadAsset).
+func (s *DocumentService) uploadDocumentAsset(ctx context.Context, actor Actor, documentID string, in DocumentUploadInput, accepts func(db.Document) bool) (db.DocumentAsset, error) {
 	fs, err := s.fileService()
 	if err != nil {
 		return db.DocumentAsset{}, err
@@ -550,7 +557,7 @@ func (s *DocumentService) UploadDocumentAsset(ctx context.Context, actor Actor, 
 	if err != nil {
 		return db.DocumentAsset{}, err
 	}
-	if doc.Kind != DocumentKindPage {
+	if !accepts(doc) {
 		return db.DocumentAsset{}, Invalid("chỉ trang nhận ảnh chèn")
 	}
 	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)

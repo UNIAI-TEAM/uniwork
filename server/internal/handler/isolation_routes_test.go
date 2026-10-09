@@ -251,6 +251,10 @@ var isoRoutes = map[string]isoSpec{
 		refusedAlso: []int{http.StatusOK}}, // an unknown, revoked or foreign device all answer an idempotent 200 that changes nothing; the untouched subtest checks A's device is still live
 	"POST /api/v1/office/sessions/exchange":             {class: isoSelf, reason: "desktop main: the device bearer's session must be the body's device and the ticket's account; attacked in isoReferences"},
 	"GET /api/v1/preview/assets/{capability}/{assetID}": {class: isoPublic, reason: "the signed preview capability in the path is the credential; it lists the only assets it opens"},
+	// Office Docs web frame: refresh names no row; the frame token it carries
+	// is bound to one document and re-mints only that binding. The document
+	// routes are cross-tenant by default and sent with each caller's own frame
+	// token (isoWorld.frameTokens).
 
 	// Platform console.
 	"GET /api/v1/admin/flags":                    {class: isoPlatform, reason: reasonPlatform},
@@ -367,6 +371,11 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/shares":                                                           {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/uploads":                                                          {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
 	"POST /api/v1/documents/{documentID}/versions/commit":                                                  {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	"POST /api/v1/office-frame/documents/{documentID}/uploads":                                             {body: isoFile("frame.docx", isoDocxMime, isoFrameDocx, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/versions/commit":                                     {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
+	"POST /api/v1/office-frame/documents/{documentID}/assets":                                              {body: isoFile("dot.png", "image/png", docsPNG, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":                                         {body: isoFrameSign},
+	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                                          {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil)},
 	"POST /api/v1/documents/{documentID}/versions":                                                         {body: isoJSON(map[string]any{"label": "v"})},
 	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                                          {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
 	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                                 {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},

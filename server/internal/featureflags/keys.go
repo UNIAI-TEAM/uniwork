@@ -46,6 +46,7 @@ var catalogue = []Flag{
 	{Key: "office_markdown", Description: "Sửa tệp Markdown trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_html", Description: "Sửa tệp HTML trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_html_visual_edit", Description: "Sửa trực quan tệp HTML trong trình soạn Office; cần office_engine và office_html đang bật (UNI-941, mặc định tắt cho đến khi trình sửa trực quan được nghiệm thu)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
+	{Key: "office_docs_web", Description: "Mở DOCX trên web bằng trình soạn genoffice Docs trong iframe cùng origin, token khung ngắn hạn theo một tài liệu (UNI-1013; mặc định bật, tổ chức hoặc người dùng có thể tắt bằng ghi đè; khung quay về trình soạn G3 khi gói đã ghim chưa được cài đặt hoặc xác minh)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
 }
 
 // Catalogue returns a copy of the declared flags.

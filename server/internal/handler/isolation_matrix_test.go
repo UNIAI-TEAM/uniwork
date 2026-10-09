@@ -543,11 +543,17 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{followUpID}":
 		return tn.get(t, "followUp")
 	case "{documentID}":
+		if under("/office-frame/") || under("/office/frame-token") {
+			return tn.get(t, "frameDocument")
+		}
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")
 		}
 		return tn.get(t, "document")
 	case "{assetID}":
+		if under("/office-frame/") {
+			return tn.get(t, "frameAsset")
+		}
 		return tn.get(t, "asset")
 	case "{signatureID}":
 		return tn.get(t, "signature")

@@ -32,6 +32,15 @@ WHERE id = sqlc.arg(id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id);
 
+-- name: ListDocumentVersionsByIDs :many
+-- One read for the current versions of many documents of one workspace (the
+-- Docs frame's recents); the caller pairs each row with its document.
+SELECT *
+FROM document_versions
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND id = ANY(sqlc.arg(ids)::text[]);
+
 -- ---- Shares (G1-02b) ------------------------------------------------------
 
 -- name: GetLiveDocumentShareByID :one

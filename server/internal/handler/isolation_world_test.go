@@ -78,6 +78,11 @@ type isoWorld struct {
 	// digestSQL and refSQL are built once from the schema; see tenantDigest
 	// and referencesTo.
 	digestSQL, refSQL string
+	// frameTokens maps a tenant owner's session token to the Office Docs
+	// frame token minted for their DOCX (buildOfficeFrame). do() sends it in
+	// its place on /api/v1/office-frame/*, the only credential those routes
+	// take, so every pass attacks them as the same caller.
+	frameTokens map[string]string
 }
 
 // newIsolationServer wires every service the production binary wires
@@ -166,6 +171,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 		t.Fatal(err)
 	}
 	d.Preview = preview
+	// The run outlives a 10-minute frame token, as it does an access token.
+	d.OfficeFrame = service.NewOfficeFrameService(docs, d.Cfg.JWTSecret)
+	d.OfficeFrame.SetTTL(time.Hour)
 	d.Office = service.NewDocumentOfficeService(service.DocumentOfficeOptions{
 		Pool: pool, Queries: q, Files: docFiles, Engine: newHandlerStubEngine(t), Documents: docs,
 		// The stub engine never finishes a blank document; a short deadline
@@ -270,6 +278,9 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
+	}
+	if frame, ok := w.frameTokens[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/") {
+		token = frame
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -422,6 +433,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	w.buildDocuments(t, tn)
 	w.buildOrganization(t, tn)
 	w.buildOffice(t, tn)
+	w.buildOfficeFrame(t, tn)
 	w.buildSeeded(t, tn)
 	w.buildActivity(t, tn)
 
@@ -438,6 +450,8 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 		}
 		*p.token = tok
 	}
+	// The frame token stays; it is now sent in place of the new session.
+	w.frameTokens[tn.token] = tn.ids["frameToken"]
 	return tn
 }
 

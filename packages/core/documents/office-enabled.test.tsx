@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
-import { useOfficeEnabled } from "./office-enabled";
+import { useOfficeDocsWebEnabled, useOfficeEnabled } from "./office-enabled";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -102,6 +102,53 @@ describe("useOfficeEnabled", () => {
     const { result } = renderHook(() => useOfficeEnabled(undefined, "docx"), { wrapper });
     // No provider: office_engine reads its default (off) and nothing is fetched.
     expect(result.current.state).toBe("off");
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+});
+
+describe("useOfficeDocsWebEnabled", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("reads loading, then on only when the organization's answer turns office_docs_web on", async () => {
+    const { wrapper } = setup();
+    const pending = deferred<Response>();
+    vi.mocked(fetch).mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useOfficeDocsWebEnabled("org1"), { wrapper });
+    expect(result.current).toBe("loading");
+    pending.resolve(answer({ office_engine: true, office_docs_web: true }));
+    await waitFor(() => expect(result.current).toBe("on"));
+  });
+
+  it("reads off when the organization's answer says false, on when the flag is absent, and unknown on a failed read", async () => {
+    const { wrapper } = setup();
+    vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true, office_docs_web: false }));
+    const { result } = renderHook(() => useOfficeDocsWebEnabled("org1"), { wrapper });
+    await waitFor(() => expect(result.current).toBe("off"));
+
+    const absent = setup();
+    vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true }));
+    const { result: defaulted } = renderHook(() => useOfficeDocsWebEnabled("org3"), { wrapper: absent.wrapper });
+    await waitFor(() => expect(defaulted.current).toBe("on"));
+
+    const failing = setup();
+    vi.mocked(fetch).mockImplementation(async () => json({ error: "boom" }, 500));
+    const { result: failed } = renderHook(() => useOfficeDocsWebEnabled("org2"), { wrapper: failing.wrapper });
+    await waitFor(() => expect(failed.current).toBe("unknown"), SETTLE);
+  });
+
+  it("reads the host's global default (on) without an organization", () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useOfficeDocsWebEnabled(undefined), { wrapper });
+    expect(result.current).toBe("on");
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 });

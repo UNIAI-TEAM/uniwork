@@ -468,6 +468,20 @@ type Routes struct {
 	CreatePreviewScope      http.HandlerFunc
 	GetPreviewAsset         http.HandlerFunc
 
+	// Office Docs web frame (UNI-1013): the session mint, and the frame-token
+	// routes Deps.OfficeFrameAuth guards.
+	MintOfficeFrameToken     http.HandlerFunc
+	OpenOfficeFrameDocument  http.HandlerFunc
+	GetOfficeFrameContent    http.HandlerFunc
+	UploadOfficeFrameFile    http.HandlerFunc
+	CommitOfficeFrameVersion http.HandlerFunc
+	ListOfficeFrameRecents   http.HandlerFunc
+	UploadOfficeFrameAsset   http.HandlerFunc
+	SignOfficeFrameAssets    http.HandlerFunc
+	GetOfficeFrameAsset      http.HandlerFunc
+	// PDF export of the frame's document (UNI-1013, W8).
+	ExportOfficeFramePDF http.HandlerFunc
+
 	// Document comments + favorites (G1-07, UNI-681; lane 07b).
 	ListDocumentComments          http.HandlerFunc
 	CreateDocumentComment         http.HandlerFunc
