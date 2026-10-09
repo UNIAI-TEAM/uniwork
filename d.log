@@ -1,0 +1,2 @@
+$ cd server && go test ./internal/handler -count=1 -timeout 20m -run 'AI|Ai|BYOK|Byok|Cloud|Credential|Mount|IsolationMatrix|EveryBodyIDField|Swagger|OpenAPI|CORS|Cors'
+ok  	github.com/unicomhub/uniwork/server/internal/handler	119.437s

@@ -1,0 +1,1 @@
+$ cd server && go build ./... && go vet ./internal/ai/... ./internal/handler/... && test -z "$(gofmt -l ./internal)"
