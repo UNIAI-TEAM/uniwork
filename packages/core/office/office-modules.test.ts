@@ -44,9 +44,9 @@ describe("office module table", () => {
     expect(officeModuleSpec("sheets").grant).toEqual({ save: true, saveAs: true, print: true });
   });
 
-  it("caps Sheets at 5 MiB of stored xlsx and no other module", () => {
-    expect(officeModuleTooLarge("sheets", 5 * 1024 * 1024)).toBe(false);
-    expect(officeModuleTooLarge("sheets", 5 * 1024 * 1024 + 1)).toBe(true);
+  it("caps Sheets at 10 MiB of stored xlsx and no other module", () => {
+    expect(officeModuleTooLarge("sheets", 10 * 1024 * 1024)).toBe(false);
+    expect(officeModuleTooLarge("sheets", 10 * 1024 * 1024 + 1)).toBe(true);
     expect(officeModuleTooLarge("sheets", undefined)).toBe(false);
     expect(OFFICE_MODULES.filter((m) => officeModuleSpec(m).maxBytes !== undefined)).toEqual(["sheets"]);
     expect(officeModuleTooLarge("docs", 1e12)).toBe(false);

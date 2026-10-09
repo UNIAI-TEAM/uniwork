@@ -21,10 +21,12 @@ const (
 )
 
 // OfficeFrameSheetsMaxBytes is the largest stored xlsx the Sheets frame opens
-// (GO-D3 = C, CONTRACT C11: the engine runs in WASM in the browser, measured
-// cap 5 MiB). A larger workbook opens in the G3 xlsx host. The web host checks
-// the same number (packages/core/office/office-modules.ts) before it asks.
-const OfficeFrameSheetsMaxBytes = 5 * 1024 * 1024
+// (GO-D3 = C, CONTRACT C11: the engine runs in WASM in the browser, cap 10 MiB).
+// Measured with the SH2 incremental index (fork docs/web-modules/sheets-sidecar.md):
+// 2.2M dense cells = ~10.3 MB file, ~2.3 s to first paint, ~0.8 GB renderer peak.
+// A larger workbook opens in the G3 xlsx host. The web host checks the same
+// number (packages/core/office/office-modules.ts) before it asks.
+const OfficeFrameSheetsMaxBytes = 10 * 1024 * 1024
 
 // ErrOfficeFrameTooLarge is a mint for a document over its module's size cap;
 // the handler answers 413 too_large and the host opens the G3 editor.

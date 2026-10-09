@@ -50,10 +50,12 @@ export interface OfficeModuleSpec {
 
 /**
  * Sheets runs the engine in WASM in the browser (GO-D3 = C, CONTRACT C11):
- * measured cap 5 MiB of stored xlsx. Same number as
+ * cap 10 MiB of stored xlsx. Measured with the SH2 incremental index (fork
+ * docs/web-modules/sheets-sidecar.md): 2.2M dense cells = ~10.3 MB file, ~2.3 s
+ * to first paint, ~0.8 GB renderer peak. Same number as
  * OfficeFrameSheetsMaxBytes in server/internal/service/office_frame_module.go.
  */
-const SHEETS_MAX_BYTES = 5 * 1024 * 1024;
+const SHEETS_MAX_BYTES = 10 * 1024 * 1024;
 
 const EDIT_PRINT: OfficeModuleGrant = { save: true, saveAs: true, print: true };
 const EDIT_PRINT_HTML: OfficeModuleGrant = { save: true, saveAs: true, print: true, exportHtml: true };
