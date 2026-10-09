@@ -47,6 +47,11 @@ var catalogue = []Flag{
 	{Key: "office_html", Description: "Sửa tệp HTML trong trình soạn Office; cần office_engine đang bật (UNI-941, tắt riêng một định dạng)", Default: true, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_html_visual_edit", Description: "Sửa trực quan tệp HTML trong trình soạn Office; cần office_engine và office_html đang bật (UNI-941, mặc định tắt cho đến khi trình sửa trực quan được nghiệm thu)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 31)},
 	{Key: "office_docs_web", Description: "Mở DOCX trên web bằng trình soạn genoffice Docs trong iframe cùng origin, token khung ngắn hạn theo một tài liệu (UNI-1013; mặc định tắt, trình soạn G3 vẫn là mặc định đến khi nghiệm thu)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
+	{Key: "office_pdf_web", Description: "Mở tệp PDF trên web bằng module genoffice trong iframe cùng origin, token khung theo một tài liệu (UNI-1014; mặc định tắt, trình soạn G3 vẫn là mặc định đến khi nghiệm thu)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
+	{Key: "office_markdown_web", Description: "Mở tệp Markdown trên web bằng module genoffice trong iframe cùng origin, token khung theo một tài liệu (UNI-1014; mặc định tắt, trình soạn G3 vẫn là mặc định đến khi nghiệm thu)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
+	{Key: "office_html_web", Description: "Mở tệp HTML trên web bằng module genoffice trong iframe cùng origin, token khung theo một tài liệu (UNI-1014; mặc định tắt, trình soạn G3 vẫn là mặc định đến khi nghiệm thu)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
+	{Key: "office_slides_web", Description: "Mở tệp PPTX trên web bằng module genoffice trong iframe cùng origin, token khung theo một tài liệu (UNI-1015; mặc định tắt, trình soạn G3 vẫn là mặc định đến khi nghiệm thu)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
+	{Key: "office_sheets_web", Description: "Mở tệp XLSX trên web bằng module genoffice trong iframe cùng origin, token khung theo một tài liệu (UNI-1016; mặc định tắt, trình soạn G3 vẫn là mặc định đến khi nghiệm thu)", Default: false, Public: true, Owner: "office", ReviewAt: day(2026, 12, 5)},
 }
 
 // Catalogue returns a copy of the declared flags.

@@ -23,8 +23,14 @@ const (
 // token's document, rendered by the Office engine with the Docs renderer. An
 // empty body exports the current version; a multipart "file" part is the
 // frame's unsaved edit of it. The answer is the PDF itself, which is what the
-// frame protocol's api.export returns to the editor.
+// frame protocol's api.export returns to the editor. Docs tokens only.
 func (h *handlers) exportOfficeFramePDF(w http.ResponseWriter, r *http.Request) {
+	// Only the Docs renderer lays a document out for this export; another
+	// module's token gets the typed unsupported answer and prints in place.
+	if officeFrameClaims(r).ModuleName() != service.OfficeFrameModuleDocs {
+		respondError(w, http.StatusNotImplemented, "unsupported_operation", "export is not supported for this module")
+		return
+	}
 	if h.Office == nil {
 		respondError(w, http.StatusServiceUnavailable, "office_not_configured", "office engine is not configured")
 		return

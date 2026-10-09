@@ -99,9 +99,15 @@ func TestOfficeFrameOpenSaveConflictReopen(t *testing.T) {
 		t.Fatalf("expires_in = %v, want ~600", minted["expires_in"])
 	}
 
-	// Only DOCX file documents get a frame; a non-member gets the same 404.
-	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+markdownID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
+	// A markdown file is another module's document: its own flag (off here)
+	// decides. A format with no web module gets no frame; a non-member gets
+	// the same 404.
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+markdownID+"/office/frame-token", w.token, nil); res.StatusCode != 403 {
 		t.Fatalf("markdown mint = %d %v", res.StatusCode, out)
+	}
+	textID := w.createDocx(t, "notes.txt", []byte("plain text\n"))
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+textID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
+		t.Fatalf("text mint = %d %v", res.StatusCode, out)
 	}
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/frame-token", w.outsiderToken(t), nil); res.StatusCode != 404 {
 		t.Fatalf("outsider mint = %d %v", res.StatusCode, out)

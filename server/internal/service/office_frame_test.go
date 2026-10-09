@@ -77,3 +77,80 @@ func TestOfficeFrameAssetSignatureNamesOneAsset(t *testing.T) {
 		t.Fatal("VerifyAsset accepted an expired signature")
 	}
 }
+
+// The module claim: absent is docs (tokens minted before modules existed keep
+// working and keep meaning docs), a module is carried as m, and neither an
+// unknown module nor an explicit "docs" spelling passes.
+func TestOfficeFrameTokenModuleClaim(t *testing.T) {
+	now := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
+	s := newFrameSignerForTest(t, &now)
+	base := OfficeFrameClaims{Version: 1, DocumentID: "doc", WorkspaceID: "ws", OrganizationID: "org", UserID: "u", ExpiresAt: now.Add(OfficeFrameTokenTTL).UnixMilli(), Nonce: "n"}
+
+	// A token signed from the pre-module claim shape: no "m" key at all.
+	legacy, err := s.sign(officeFrameTokenPrefix, struct {
+		Version        int    `json:"v"`
+		DocumentID     string `json:"d"`
+		WorkspaceID    string `json:"w"`
+		OrganizationID string `json:"o"`
+		UserID         string `json:"u"`
+		ExpiresAt      int64  `json:"e"`
+		Nonce          string `json:"n"`
+	}{1, "doc", "ws", "org", "u", base.ExpiresAt, "n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Verify(legacy)
+	if err != nil || got.Module != "" || got.ModuleName() != OfficeFrameModuleDocs {
+		t.Fatalf("legacy token = %+v (%q), %v", got, got.ModuleName(), err)
+	}
+
+	for _, m := range []string{OfficeFrameModulePDF, OfficeFrameModuleMarkdown, OfficeFrameModuleHTML, OfficeFrameModuleSlides, OfficeFrameModuleSheets} {
+		c := base
+		c.Module = m
+		token, _ := s.sign(officeFrameTokenPrefix, c)
+		got, err := s.Verify(token)
+		if err != nil || got.ModuleName() != m {
+			t.Errorf("%s token = %+v, %v", m, got, err)
+		}
+	}
+	for _, m := range []string{"docs", "xls", "Docs", "pdf "} {
+		c := base
+		c.Module = m
+		token, _ := s.sign(officeFrameTokenPrefix, c)
+		if _, err := s.Verify(token); err == nil {
+			t.Errorf("Verify accepted module %q", m)
+		}
+	}
+}
+
+func TestOfficeFrameModuleIsDerivedFromTheStoredFormat(t *testing.T) {
+	const docxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	for _, c := range []struct {
+		mime, name, want string
+	}{
+		{docxMime, "plan.docx", "docs"},
+		{docxMime, "", "docs"},
+		{"application/zip", "plan.DOCX", "docs"},
+		{"application/pdf", "a.pdf", "pdf"},
+		{"application/pdf", "", "pdf"},
+		{"text/plain", "notes.md", "markdown"},
+		{"text/markdown; charset=utf-8", "notes", "markdown"},
+		{"text/html", "page.htm", "html"},
+		{"application/zip", "deck.pptx", "slides"},
+		{"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "", "sheets"},
+		{"application/vnd.ms-excel", "old.xls", ""},
+		{"application/vnd.oasis.opendocument.text", "a.odt", ""},
+		{"text/plain", "a.txt", ""},
+		{"image/png", "a.png", ""},
+	} {
+		got, ok := officeFrameModuleOf(c.mime, c.name)
+		if got != c.want || ok != (c.want != "") {
+			t.Errorf("officeFrameModuleOf(%q, %q) = %q, %v; want %q", c.mime, c.name, got, ok, c.want)
+		}
+		if ok {
+			if _, flagged := OfficeFrameModuleFlag(got); !flagged {
+				t.Errorf("module %q has no flag", got)
+			}
+		}
+	}
+}

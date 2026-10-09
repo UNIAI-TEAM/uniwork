@@ -12,6 +12,7 @@ type OfficeFrameTokenSDO struct {
 	WorkspaceID    string `json:"workspace_id" description:"ULID workspace của tài liệu" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	OrganizationID string `json:"organization_id" description:"ULID tổ chức của tài liệu" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	CanEdit        bool   `json:"can_edit" description:"Người dùng có quyền sửa (save/asset) lúc cấp; server vẫn kiểm lại mỗi request" example:"true"`
+	Module         string `json:"module" description:"Module web genoffice mở tài liệu, suy từ định dạng tệp đã lưu: docs, pdf, markdown, html, slides, sheets" example:"docs"`
 }
 
 // OfficeFrameDocumentSDO is the frame's view of the document: GET
@@ -25,12 +26,14 @@ type OfficeFrameDocumentSDO struct {
 	Title          string          `json:"title" example:"Kế hoạch Q4.docx"`
 	Revision       string          `json:"revision" description:"Revision hiện tại dạng chuỗi thập phân; gửi lại làm base_revision khi save" example:"41"`
 	CanEdit        bool            `json:"can_edit" example:"true"`
+	Module         string          `json:"module" description:"Module web của token: docs, pdf, markdown, html, slides, sheets" example:"docs"`
 	File           DocumentFileDTO `json:"file"`
 	DownloadURL    string          `json:"download_url" description:"Route tải byte của version hiện tại, đọc bằng token khung" example:"/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7/content?version=3"`
 	UpdatedAt      string          `json:"updated_at" example:"2026-10-08T10:00:00Z"`
 }
 
-// OfficeFrameRecentDTO is one recent DOCX in the token's workspace.
+// OfficeFrameRecentDTO is one recent document of the token's module in its
+// workspace.
 type OfficeFrameRecentDTO struct {
 	DocumentID string `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Title      string `json:"title" example:"Biên bản họp.docx"`
