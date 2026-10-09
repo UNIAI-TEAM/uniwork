@@ -179,7 +179,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	})
 
 	d.Hub.SetAuthorizer(realtime.ScopeAuthorizers{
-		realtime.ScopeChat:    realtime.ChatScopeAuthorizer{Gate: d.Chat},
+		realtime.ScopeChat:    realtime.NewChatScopeAuthorizer(d.Chat),
 		realtime.ScopeMeeting: realtime.NewMeetingScopeAuthorizer(d.Meetings),
 	})
 	d.Hub.SetOrganizationResolver(d.Workspaces.OrganizationOf)

@@ -252,7 +252,7 @@ func main() {
 	// Chat rooms and in-room meeting events are scopes a socket must be let into;
 	// both authorizers fail closed.
 	hub.SetAuthorizer(realtime.ScopeAuthorizers{
-		realtime.ScopeChat:    realtime.ChatScopeAuthorizer{Gate: chatSvc},
+		realtime.ScopeChat:    realtime.NewChatScopeAuthorizer(chatSvc),
 		realtime.ScopeMeeting: realtime.NewMeetingScopeAuthorizer(meetingSvc),
 	})
 	// Directory and department events belong to the organization, so every

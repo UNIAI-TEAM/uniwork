@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/time/rate"
 )
 
 // MembershipChecker verifies a user belongs to a workspace.
@@ -240,6 +241,19 @@ const (
 	// grow that buffer without bound and OOM the process. Matches the usf daemon
 	// hub limit so both WebSocket surfaces answer this question the same way.
 	inboundReadLimit = 64 * 1024
+
+	// inboundFrameRate and inboundFrameBurst bound how fast one socket may
+	// send frames; past them it is closed with 1008. Steady traffic is a ping
+	// every 25s and the odd subscribe, but a client replays all its scopes on
+	// reconnect and swaps up to 25 lazily subscribed chat rooms as
+	// unsubscribe+subscribe pairs at once, so the burst covers that.
+	inboundFrameRate  = 10
+	inboundFrameBurst = 60
+
+	// maxScopesPerSocket caps the scopes one socket holds, the identity
+	// scopes joined at connect time included. The web client asks for at most
+	// 25 chat rooms plus the open task or meeting.
+	maxScopesPerSocket = 50
 )
 
 var upgrader = websocket.Upgrader{
@@ -989,6 +1003,7 @@ func (c *Client) readPump() {
 		c.conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
+	limiter := rate.NewLimiter(inboundFrameRate, inboundFrameBurst)
 
 	for {
 		_, raw, err := c.conn.ReadMessage()
@@ -1012,6 +1027,16 @@ func (c *Client) readPump() {
 		// WebSocket control ping/pong still pass application frames, and
 		// clients send {"type":"ping"} as a keepalive through idle LBs.
 		c.conn.SetReadDeadline(time.Now().Add(pongWait))
+		if !limiter.Allow() {
+			slog.Warn("ws: inbound frame rate exceeded, closing",
+				"user_id", c.userID,
+				"workspace_id", c.workspaceID,
+			)
+			_ = c.conn.WriteControl(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "rate limit"),
+				time.Now().Add(writeWait))
+			break
+		}
 		c.handleFrame(raw)
 	}
 }
@@ -1050,6 +1075,18 @@ func (c *Client) handleFrame(raw []byte) {
 }
 
 func (c *Client) handleSubscribe(scope, id string) {
+	if scope == ScopeTask || scope == ScopeChat || scope == ScopeMeeting {
+		held, full := c.holds(scope, id)
+		if held {
+			// Authorized when it was taken: a repeat must not cost a lookup.
+			c.ackSubscribe(scope, id)
+			return
+		}
+		if full {
+			c.refuseSubscribe(scope, id, "too_many_scopes")
+			return
+		}
+	}
 	switch scope {
 	case ScopeWorkspace, ScopeUser, ScopeOrganization:
 		// Implicit scopes — only allowed if it matches the connection identity.
@@ -1087,10 +1124,22 @@ func (c *Client) handleSubscribe(scope, id string) {
 		c.refuseSubscribe(scope, id, "unknown_scope")
 		return
 	}
+	c.ackSubscribe(scope, id)
+}
+
+func (c *Client) ackSubscribe(scope, id string) {
 	c.sendJSON(map[string]any{
 		"type":    "subscribe_ack",
 		"payload": map[string]string{"scope": scope, "id": id},
 	})
+}
+
+// holds reports whether the socket already holds (scope, id), and whether it
+// is at maxScopesPerSocket and so may take no other scope.
+func (c *Client) holds(scope, id string) (held, full bool) {
+	c.hub.mu.RLock()
+	defer c.hub.mu.RUnlock()
+	return c.subscriptions[sk(scope, id)], len(c.subscriptions) >= maxScopesPerSocket
 }
 
 // authorizeScope returns "" when auth admits this socket to (scope, id), or
