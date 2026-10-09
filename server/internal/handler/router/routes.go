@@ -261,6 +261,11 @@ type Routes struct {
 	AiByokMessages        http.HandlerFunc
 	AiByokGenerate        http.HandlerFunc
 	AiByokModels          http.HandlerFunc
+	AiCloudStatus         http.HandlerFunc
+	AiCloudSearch         http.HandlerFunc
+	AiCloudImages         http.HandlerFunc
+	AiCloudAnalyzeMedia   http.HandlerFunc
+	AiCloudTranscribe     http.HandlerFunc
 
 	ListPlans           http.HandlerFunc
 	GetSubscription     http.HandlerFunc

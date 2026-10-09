@@ -46,6 +46,8 @@ var (
 	ErrProxyBadRequest      = &Error{Code: "invalid_request", Status: 400, Msg: "thân yêu cầu không đúng định dạng của nhà cung cấp"}
 	ErrProviderAuthFailed   = &Error{Code: "provider_auth_failed", Status: 424, Msg: "nhà cung cấp từ chối khóa API đã lưu"}
 	ErrProviderUnreachable  = &Error{Code: "provider_unreachable", Status: 502, Msg: "không kết nối được nhà cung cấp AI"}
+	ErrCloudUnavailable     = &Error{Code: "cloud_unavailable", Status: 503, Msg: "công cụ AI đám mây chưa được cấu hình trên server"}
+	ErrMediaUnsupported     = &Error{Code: "media_unsupported", Status: 422, Msg: "mô hình không nhận loại tệp này"}
 )
 
 func errPolicy(msg string) error {

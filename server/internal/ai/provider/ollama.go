@@ -29,6 +29,9 @@ func (o *Ollama) Complete(ctx context.Context, req CompletionRequest) (Completio
 		msgs = append(msgs, map[string]string{"role": "system", "content": req.System})
 	}
 	for _, m := range req.Messages {
+		if len(m.Parts) > 0 {
+			return CompletionResponse{}, ErrUnsupportedMedia
+		}
 		msgs = append(msgs, map[string]string{"role": m.Role, "content": m.Content})
 	}
 	body := map[string]any{

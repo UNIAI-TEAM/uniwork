@@ -141,6 +141,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerNotifications(authed, h)
 			registerAI(authed, h)
 			registerAIBYOK(authed, h, mw.RateLimitByIdentity(d.Redis, 60, time.Minute, proxies, bearerUser(d.Minter)))
+			registerAICloud(authed, h, mw.RateLimitByIdentity(d.Redis, 20, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerTasksSuite(authed, h)

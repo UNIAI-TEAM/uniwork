@@ -52,7 +52,10 @@ type Deps struct {
 	Notifications       *notification.Service
 	AskUNI              *service.AskUNIService
 	// AIBYOK is the web host's own-key proxy (UNI-1008); nil answers 503.
-	AIBYOK   *service.AIBYOKService
+	AIBYOK *service.AIBYOKService
+	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
+	// cloud_unavailable on its routes.
+	AICloud  *service.AICloudService
 	Meetings *service.MeetingService
 	Chat     *service.ChatService
 	Hub      *realtime.Hub
@@ -400,6 +403,11 @@ func New(d Deps) http.Handler {
 		AiByokMessages:        h.byokProxy(ai.ProxyMessages),
 		AiByokGenerate:        h.byokProxy(ai.ProxyGenerate),
 		AiByokModels:          h.byokProxy(ai.ProxyModels),
+		AiCloudStatus:         h.aiCloudStatus,
+		AiCloudSearch:         h.aiCloudSearch,
+		AiCloudImages:         h.aiCloudImages,
+		AiCloudAnalyzeMedia:   h.aiCloudAnalyzeMedia,
+		AiCloudTranscribe:     h.aiCloudTranscribe,
 
 		ListPlans:           h.listPlans,
 		GetSubscription:     h.getSubscription,

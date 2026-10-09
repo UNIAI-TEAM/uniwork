@@ -13,6 +13,7 @@ const (
 	PromptChatCatchUp        = "chat_catchup@1"
 	PromptChatCallSummary    = "chat_call_summary@1"
 	PromptEmailThreadSummary = "email_thread_summary@1"
+	PromptMediaAnalysis      = "media_analysis@1"
 )
 
 type TranscriptLine struct {
@@ -267,6 +268,26 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 				language(str(vars, "locale")), str(vars, "subject"), str(vars, "from"), str(vars, "to"), str(vars, "sent_at"))
 			b.WriteString("Body:\n<untrusted source=\"email_body\">\n")
 			b.WriteString(str(vars, "body"))
+			b.WriteString("\n</untrusted>\n")
+			return b.String()
+		},
+	})
+
+	register(Prompt{
+		ID: "media_analysis", Version: 1,
+		System: `You analyze media files (images, documents, audio) for a Vietnamese office suite.
+The user attaches the files and states what they need from them.
+Respond with a single JSON object and nothing else, shaped exactly as: {"text": string}
+- "text" answers exactly what the requirements ask, in plain text or Markdown; no preamble.
+- Describe only what is present in the files; say so when something asked for is not there.
+- Write in the language named by the caller.
+` + UntrustedFooter,
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}`),
+		Render: func(vars map[string]any) string {
+			var b strings.Builder
+			fmt.Fprintf(&b, "Output language: %s\nAttached files: %s\n\nRequirements:\n<untrusted source=\"requirements\">\n",
+				language(str(vars, "locale")), str(vars, "files"))
+			b.WriteString(str(vars, "requirements"))
 			b.WriteString("\n</untrusted>\n")
 			return b.String()
 		},

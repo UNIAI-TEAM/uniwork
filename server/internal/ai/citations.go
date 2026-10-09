@@ -166,6 +166,23 @@ func ParseSummaryJSON(s string) (MeetingSummary, error) {
 	return out, nil
 }
 
+// MediaAnalysis is the media_analysis@1 output.
+type MediaAnalysis struct {
+	Text string `json:"text"`
+}
+
+// ParseMediaAnalysisJSON reads media_analysis output. A model that answered
+// in prose instead of the object still answered: its text is kept.
+func ParseMediaAnalysisJSON(s string) MediaAnalysis {
+	if raw, err := extractJSON(s); err == nil {
+		var out MediaAnalysis
+		if json.Unmarshal(raw, &out) == nil && strings.TrimSpace(out.Text) != "" {
+			return out
+		}
+	}
+	return MediaAnalysis{Text: strings.TrimSpace(s)}
+}
+
 func extractJSON(s string) (json.RawMessage, error) {
 	start := strings.Index(s, "{")
 	end := strings.LastIndex(s, "}")
