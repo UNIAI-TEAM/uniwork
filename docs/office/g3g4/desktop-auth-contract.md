@@ -71,7 +71,7 @@ production fakes are 02b/03b work and are out of scope for this revision.
 ## Endpoint surface
 
 All paths are relative to the configured deployment API origin (`/api/v1`).
-The `client_id` is the implemented public identifier `uniwork-office`; it is allow-listed and is not a secret. The default deployment allowlist is `default`, and the exact callback allowlist is `uniwork-office://auth/callback`.
+The `client_id` is a public, allow-listed identifier, never a secret. Stable builds use `uniwork-office` with the callback `uniwork-office://auth/callback`; dev builds use `uniwork-office-dev` with `uniwork-office-dev://auth/callback`. One server may accept several clients (UNI-1006): each client has its own exact callback allowlist, a callback listed for one client is refused for another, and a code is redeemed only by the client and callback its attempt started with. The default deployment allowlist is `default`.
 The DTO names below are registered by the 02b server implementation.
 
 ### `GET /auth/desktop/start`
@@ -131,7 +131,7 @@ attempt locally.
 
 | Field | Required | Rule |
 | --- | --- | --- |
-| `client_id` | yes | Same allow-listed client as start. |
+| `client_id` | yes | The client the attempt started with; another configured client gets `auth_code_invalid`. |
 | `code` | yes | Opaque callback code; never a launch ticket. |
 | `code_verifier` | yes | Original RFC 7636 verifier; sent only over TLS in this request. |
 | `redirect_uri` | yes | Exact registered callback URI, byte-for-byte. |
@@ -325,7 +325,16 @@ Each item records the G4-D4 decision and the value implemented by this lane.
    `uniwork-office`, deployment `default`, and the exact callback allowlist is
    `uniwork-office://auth/callback`; operators can provide deployment and
    redirect lists through `DESKTOP_AUTH_DEPLOYMENT_IDS` and
-   `DESKTOP_AUTH_REDIRECT_URIS`.
+   `DESKTOP_AUTH_REDIRECT_URIS`. UNI-1006 adds `DESKTOP_AUTH_CLIENTS`
+   (`client_id=redirect[|redirect...]`, comma separated) so the stable
+   `uniwork-office` and dev `uniwork-office-dev` clients sign in against one
+   server, each on its own redirects. When it is set it is the whole client
+   allowlist and the single `DESKTOP_AUTH_CLIENT_ID` /
+   `DESKTOP_AUTH_REDIRECT_URIS` pair must be empty; a malformed entry, a
+   duplicate client or a relative redirect stops the server at startup.
+   Device sessions keep the client they were created with; Office launch
+   accepts any configured client but still binds the ticket to the device
+   session's own client.
 2. **TTL and rotation - implemented.** Codes expire after 120 seconds and
    pending attempts after 10 minutes. Refresh is serialized by a row lock;
    replay returns 401 `refresh_reused` and revokes the native device. Device

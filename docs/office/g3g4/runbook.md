@@ -88,6 +88,7 @@ Server Go (mọi biến đã có trong `.env.example`):
 | `PREVIEW_ORIGIN` | Origin khung xem trước; phải khác `FRONTEND_ORIGIN` |
 | `PREVIEW_CAPABILITY_SECRET`, `PREVIEW_ASSET_TTL`, `PREVIEW_ASSET_MAX_BYTES` | Khóa ký, thời hạn, trần byte |
 | `DESKTOP_AUTH_CLIENT_ID`, `DESKTOP_AUTH_REDIRECT_URIS`, `DESKTOP_AUTH_DEPLOYMENT_IDS` | Cho phép app desktop đăng nhập (so khớp từng byte) |
+| `DESKTOP_AUTH_CLIENTS` | Nhiều client cùng lúc (`uniwork-office` bản ổn định + `uniwork-office-dev` bản dev), mỗi client chỉ dùng redirect của mình; khi đặt thì để trống `DESKTOP_AUTH_CLIENT_ID` / `DESKTOP_AUTH_REDIRECT_URIS` |
 | `DESKTOP_AUTH_CODE_TTL`, `DESKTOP_AUTH_ATTEMPT_TTL` | Hạn mã đăng nhập (120s) và lượt thử (10m) |
 | `OFFICE_INSTALLER_{DEV,BETA,STABLE}_URLS` | Link tải bản cài theo nền tảng (JSON). `_URL` số ít là kiểu cũ, bỏ sau 2026-11-02 |
 | `FEATURE_FLAGS_FILE` | File YAML cờ; có thể ghi đè bằng `FF_<TÊN_CỜ>` |
