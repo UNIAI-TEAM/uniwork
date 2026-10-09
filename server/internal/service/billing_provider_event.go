@@ -157,7 +157,7 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		return err
 	}
 	bankCode, txnNo := vnpayProviderMetaFromEvent(ev)
-	if _, err := q.MarkBillingPaymentIntentCompleted(ctx, markIntentCompletedParams(intent.ID, intent.OrganizationID, bankCode, txnNo)); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.MarkBillingPaymentIntentCompleted(ctx, markIntentCompletedParams(intent.ID, intent.OrganizationID, bankCode, txnNo, ev)); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
 	invID := util.NewID()

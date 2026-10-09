@@ -19,7 +19,7 @@ func vnpayProviderMetaFromEvent(ev billing.Event) (bankCode, txnNo string) {
 	return strings.TrimSpace(ev.RawParams["vnp_BankCode"]), strings.TrimSpace(ev.RawParams["vnp_TransactionNo"])
 }
 
-func markIntentCompletedParams(intentID, orgID, bankCode, txnNo string) db.MarkBillingPaymentIntentCompletedParams {
+func markIntentCompletedParams(intentID, orgID, bankCode, txnNo string, ev billing.Event) db.MarkBillingPaymentIntentCompletedParams {
 	p := db.MarkBillingPaymentIntentCompletedParams{
 		ID: intentID, OrganizationID: orgID,
 	}
@@ -28,6 +28,13 @@ func markIntentCompletedParams(intentID, orgID, bankCode, txnNo string) db.MarkB
 	}
 	if txnNo != "" {
 		p.ProviderTransactionNo = pgtype.Text{String: txnNo, Valid: true}
+	}
+	_, _, orderInfo, payDate := vnpayMetaFromProviderEvent(ev)
+	if orderInfo.Valid {
+		p.ProviderOrderInfo = orderInfo
+	}
+	if payDate.Valid {
+		p.ProviderPayDate = payDate
 	}
 	return p
 }
@@ -69,15 +76,7 @@ func (s *BillingService) ProcessIntentProviderMetaBackfill(ctx context.Context) 
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		txDate := row.CreatedAt.Time
-		if row.CompletedAt.Valid {
-			txDate = row.CompletedAt.Time
-		}
-		ev, err := vnp.QueryTransaction(ctx, billing.QueryTransactionInput{
-			TxnRef:          row.ProviderTxnRef,
-			TransactionDate: txDate,
-			OrderInfo:       "UniWork billing",
-		})
+		ev, err := vnp.QueryTransaction(ctx, vnpayQueryDRInputFromBackfillRow(ctx, s.q, row, ""))
 		if err != nil {
 			s.billingLogWarn("billing intent meta backfill querydr", err, "intent_id", row.ID)
 			continue

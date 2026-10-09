@@ -32,11 +32,8 @@ func (s *BillingService) RefundInvoiceOnProvider(ctx context.Context, adminID st
 		if err != nil {
 			return "", err
 		}
-		txDate := intentVNPayTransactionDate(intent)
-		qev, qErr := vnp.QueryTransaction(ctx, billing.QueryTransactionInput{
-			TxnRef: intent.ProviderTxnRef, TransactionDate: txDate,
-			OrderInfo: "UniWork billing", ClientIP: clientIP,
-		})
+		qin := s.vnpayQueryDRInput(ctx, s.q, intent, clientIP)
+		qev, qErr := vnp.QueryTransaction(ctx, qin)
 		if qErr != nil {
 			msg := fmt.Sprintf("VNPay không tra được giao dịch gốc: %v", qErr)
 			if errors.Is(qErr, billing.ErrInvalidWebhookSignature) {
@@ -58,7 +55,7 @@ func (s *BillingService) RefundInvoiceOnProvider(ctx context.Context, adminID st
 		}
 		orderInfo := fmt.Sprintf("Hoàn tiền HĐ %s", inv.Number)
 		res, err := vnp.Refund(ctx, billing.RefundInput{
-			TxnRef: intent.ProviderTxnRef, TransactionDate: txDate, Amount: refundAmount,
+			TxnRef: intent.ProviderTxnRef, TransactionDate: qin.TransactionDate, Amount: refundAmount,
 			TransactionType: txType,
 			OrderInfo:       orderInfo, CreateBy: adminID, ClientIP: clientIP, TransactionNo: txnNo,
 		})

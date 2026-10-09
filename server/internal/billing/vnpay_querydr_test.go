@@ -9,6 +9,16 @@ import (
 	"time"
 )
 
+func TestDecodeVNPayJSONMapNumbers(t *testing.T) {
+	m, err := decodeVNPayJSONMap([]byte(`{"vnp_ResponseCode":"00","vnp_Amount":1000000}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["vnp_Amount"] != "1000000" {
+		t.Fatalf("amount %q", m["vnp_Amount"])
+	}
+}
+
 func TestVNPayQueryDRSignAndCall(t *testing.T) {
 	secret := "testsecret"
 	var got map[string]string

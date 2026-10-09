@@ -186,6 +186,8 @@ type BillingPaymentIntent struct {
 	CreatedByKind         pgtype.Text        `json:"created_by_kind"`
 	ProviderBankCode      pgtype.Text        `json:"provider_bank_code"`
 	ProviderTransactionNo pgtype.Text        `json:"provider_transaction_no"`
+	ProviderOrderInfo     pgtype.Text        `json:"provider_order_info"`
+	ProviderPayDate       pgtype.Text        `json:"provider_pay_date"`
 }
 
 type CalendarConnection struct {

@@ -116,8 +116,8 @@ ORDER BY user_id;
 -- name: InsertBillingPaymentIntent :one
 INSERT INTO billing_payment_intents (
   id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
-  amount, currency, status, expires_at, created_by, created_by_kind
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, $10, $11)
+  amount, currency, status, expires_at, created_by, created_by_kind, provider_order_info
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, $10, $11, $12)
 RETURNING *;
 
 -- name: ExpirePendingBillingPaymentIntents :exec
@@ -149,7 +149,9 @@ UPDATE billing_payment_intents SET
   completed_at = now(),
   updated_at = now(),
   provider_bank_code = COALESCE(sqlc.narg('provider_bank_code'), provider_bank_code),
-  provider_transaction_no = COALESCE(sqlc.narg('provider_transaction_no'), provider_transaction_no)
+  provider_transaction_no = COALESCE(sqlc.narg('provider_transaction_no'), provider_transaction_no),
+  provider_order_info = COALESCE(sqlc.narg('provider_order_info'), provider_order_info),
+  provider_pay_date = COALESCE(sqlc.narg('provider_pay_date'), provider_pay_date)
 WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
 RETURNING *;
 
@@ -170,7 +172,7 @@ WHERE id = $1 AND organization_id = $2 AND status = 'completed';
 
 -- name: ListCompletedBillingIntentsMissingProviderMeta :many
 -- tenant: system
-SELECT id, organization_id, provider_txn_ref, created_at, completed_at
+SELECT id, organization_id, plan_id, provider_txn_ref, provider_order_info, provider_pay_date, created_at, completed_at
 FROM billing_payment_intents
 WHERE provider = 'vnpay' AND status = 'completed'
   AND (

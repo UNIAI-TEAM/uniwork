@@ -77,11 +77,18 @@ func (v *VNPay) QueryTransaction(ctx context.Context, in QueryTransactionInput) 
 	if err != nil {
 		return Event{}, err
 	}
-	var resp map[string]string
-	if err := json.Unmarshal(raw, &resp); err != nil {
+	resp, err := decodeVNPayJSONMap(raw)
+	if err != nil {
 		return Event{}, fmt.Errorf("vnpay: querydr decode: %w", err)
 	}
 	if err := vnpVerifyQueryDRResponse(resp, v.cfg.HashSecret); err != nil {
+		if code := resp["vnp_ResponseCode"]; code != "" && resp["vnp_SecureHash"] == "" {
+			msg := strings.TrimSpace(resp["vnp_Message"])
+			if msg == "" {
+				msg = "missing SecureHash"
+			}
+			return Event{}, fmt.Errorf("vnpay: querydr response %q: %s", code, msg)
+		}
 		return Event{}, err
 	}
 	if resp["vnp_ResponseCode"] != "00" {
@@ -130,6 +137,27 @@ func QueryDRRefundSettled(params map[string]string) bool {
 	default:
 		return false
 	}
+}
+
+// decodeVNPayJSONMap accepts VNPay JSON whose values may be numbers or strings.
+func decodeVNPayJSONMap(raw []byte) (map[string]string, error) {
+	var loose map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &loose); err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(loose))
+	for k, v := range loose {
+		var s string
+		if err := json.Unmarshal(v, &s); err != nil {
+			var n json.Number
+			if err2 := json.Unmarshal(v, &n); err2 != nil {
+				return nil, fmt.Errorf("field %q: %w", k, err)
+			}
+			s = n.String()
+		}
+		out[k] = s
+	}
+	return out, nil
 }
 
 func vnpQueryDRSign(params map[string]string, secret string) string {
