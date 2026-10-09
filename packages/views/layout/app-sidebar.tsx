@@ -143,7 +143,10 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="gap-2 px-2 pt-2 pb-1 group-data-[collapsible=icon]:px-0">
+      {/* The switcher shares the top bar's horizon: expanded (48px) it starts
+          where the content card does, collapsed (32px) it sits 8px lower, so
+          both centres land on the 48px bar's. The sheet keeps its own pad. */}
+      <SidebarHeader className="gap-2 px-2 pt-2 pb-1 group-data-[collapsible=icon]:px-0 lg:pt-0 lg:group-data-[collapsible=icon]:pt-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} />
@@ -204,7 +207,7 @@ export function AppSidebar() {
                               size="xs"
                               variant="solid"
                               tone={moduleTone(module)}
-                              className="[&_svg]:size-3 [&_svg]:stroke-[2.25]"
+                              className="[&_svg]:size-3"
                             />
                             <span>{t(key)}</span>
                             {badge ? (

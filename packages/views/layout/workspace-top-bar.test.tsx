@@ -88,7 +88,7 @@ describe("WorkspaceTopBar", () => {
     renderTopBar();
     const create = screen.getByRole("button", { name: /tạo việc/i });
     expect(create).toHaveTextContent("");
-    expect(create).toHaveClass("h-8", "w-8");
+    expect(create).toHaveClass("size-8");
     expect(screen.getByLabelText(/giao diện/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/ngôn ngữ/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();

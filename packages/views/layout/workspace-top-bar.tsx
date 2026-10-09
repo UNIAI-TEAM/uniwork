@@ -130,115 +130,119 @@ export function WorkspaceTopBar({
         PAGE_GUTTER,
       )}
     >
-      <SidebarTrigger size="icon" />
+      <SidebarTrigger size="icon" className="text-muted-foreground" />
       <SearchTrigger />
       <div className="flex-1" />
-      <AskUniButton />
-      <NotificationBell />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="h-8 w-8"
-              aria-label={createLabel}
-              onClick={() => onCreateOpenChange(true)}
-            />
-          }
-        >
-          <Plus aria-hidden className="size-4 text-muted-foreground" />
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{createLabel}</TooltipContent>
-      </Tooltip>
-      <DropdownMenu>
+      {/* One cluster, tight: 32px targets 2px apart, so the glyphs read as
+          a toolbar rather than five loose buttons. Touch keeps 44px. */}
+      <div className="flex items-center gap-0.5">
+        <AskUniButton />
+        <NotificationBell />
         <Tooltip>
           <TooltipTrigger
             render={
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="h-8 w-8"
-                    aria-label={themeLabel}
-                  />
-                }
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground"
+                aria-label={createLabel}
+                onClick={() => onCreateOpenChange(true)}
               />
             }
           >
-            <ThemeIcon aria-hidden className="size-4 text-muted-foreground" />
+            <Plus aria-hidden />
           </TooltipTrigger>
-          <TooltipContent side="bottom">{themeLabel}</TooltipContent>
+          <TooltipContent side="bottom">{createLabel}</TooltipContent>
         </Tooltip>
-        <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuRadioGroup
-            value={themeValue}
-            onValueChange={(next) => {
-              if (!next || next === themeValue) return;
-              setTheme(next as ThemeValue);
-              toast.success(t("settings.preferences.toastSaved"), {
-                id: "settings-auto-save",
-              });
-            }}
-          >
-            {themeOptions.map((option) => {
-              const Icon = THEME_ICONS[option.value];
-              return (
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground"
+                      aria-label={themeLabel}
+                    />
+                  }
+                />
+              }
+            >
+              <ThemeIcon aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{themeLabel}</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end" className="min-w-44">
+            <DropdownMenuRadioGroup
+              value={themeValue}
+              onValueChange={(next) => {
+                if (!next || next === themeValue) return;
+                setTheme(next as ThemeValue);
+                toast.success(t("settings.preferences.toastSaved"), {
+                  id: "settings-auto-save",
+                });
+              }}
+            >
+              {themeOptions.map((option) => {
+                const Icon = THEME_ICONS[option.value];
+                return (
+                  <DropdownMenuRadioItem key={option.value} value={option.value}>
+                    <Icon aria-hidden className="size-4 text-muted-foreground" />
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                );
+              })}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground"
+                      aria-label={languageLabel}
+                    />
+                  }
+                />
+              }
+            >
+              <Languages aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{languageLabel}</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end" className="min-w-44">
+            <DropdownMenuRadioGroup
+              value={currentLocale}
+              onValueChange={(next) => {
+                if (!next || next === currentLocale) return;
+                const locale = next as SupportedLocale;
+                localeAdapter.persist(locale);
+                document.documentElement.lang = locale;
+                // The toast text resolves after the language switched, in the new language.
+                void setLocale(locale).then(() => {
+                  toast.success(i18n.t("settings.preferences.toastSaved", { lng: locale }), { id: "settings-auto-save" });
+                });
+              }}
+            >
+              {languageOptions.map((option) => (
                 <DropdownMenuRadioItem key={option.value} value={option.value}>
-                  <Icon aria-hidden className="size-4 text-muted-foreground" />
                   {option.label}
                 </DropdownMenuRadioItem>
-              );
-            })}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="h-8 w-8"
-                    aria-label={languageLabel}
-                  />
-                }
-              />
-            }
-          >
-            <Languages aria-hidden className="size-4 text-muted-foreground" />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{languageLabel}</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuRadioGroup
-            value={currentLocale}
-            onValueChange={(next) => {
-              if (!next || next === currentLocale) return;
-              const locale = next as SupportedLocale;
-              localeAdapter.persist(locale);
-              document.documentElement.lang = locale;
-              // The toast text resolves after the language switched, in the new language.
-              void setLocale(locale).then(() => {
-                toast.success(i18n.t("settings.preferences.toastSaved", { lng: locale }), { id: "settings-auto-save" });
-              });
-            }}
-          >
-            {languageOptions.map((option) => (
-              <DropdownMenuRadioItem key={option.value} value={option.value}>
-                {option.label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <NewTaskDialog
         workspaceId={workspace.id}
         open={createOpen}

@@ -32,7 +32,7 @@ export function SearchTrigger({ className }: { className?: string }) {
       )}
       onClick={() => useSearchStore.getState().setOpen(true)}
     >
-      <Search aria-hidden strokeWidth={1.75} className="size-4" />
+      <Search aria-hidden className="size-4" />
       <span className="hidden sm:inline">{label}</span>
       <kbd className="pointer-events-none ml-auto hidden font-sans text-caption font-medium text-muted-foreground sm:inline-flex">
         {shortcutLabel(t)}

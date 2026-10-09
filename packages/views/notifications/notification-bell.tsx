@@ -47,12 +47,12 @@ export function NotificationBell() {
             <PopoverTrigger
               render={
                 // 32px in the bar; a 44px target under a finger (pointer-coarse), which the 48px bar still holds.
-                <Button type="button" variant="ghost" size="icon" className="relative pointer-coarse:size-11" aria-label={label} />
+                <Button type="button" variant="ghost" size="icon" className="relative text-muted-foreground pointer-coarse:size-11" aria-label={label} />
               }
             />
           }
         >
-          <Bell aria-hidden className="size-4 text-muted-foreground" />
+          <Bell aria-hidden />
           {count > 0 ? (
             <span
               aria-hidden
