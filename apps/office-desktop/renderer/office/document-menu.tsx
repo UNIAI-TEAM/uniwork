@@ -1,5 +1,6 @@
 import { Children, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Ellipsis } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, useHeaderActionsMenuFilled } from "@uniwork/views/layout/header-actions-slot";
@@ -7,12 +8,6 @@ import { printOrientationFromCopy, type OfficePrintOutcome, type OfficePrintPort
 import type { PrintPreviewJob } from "./print-preview/types";
 import { usePrintPreview } from "./print-preview/use-print-preview";
 import { createDesktopPrintPort, type DesktopPrintHostBridge } from "./text-print";
-
-/** The header overflow control. Inline rather than a lucide import: the
- * desktop package does not depend on the icon set directly. */
-function MoreIcon() {
-  return <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></svg>;
-}
 
 /**
  * The desktop document "Thêm" (⋯) menu, one component for every tab shell.
@@ -28,7 +23,7 @@ export function DesktopDocumentMenu({ children }: { children?: ReactNode }) {
   if (!contributed && Children.toArray(children).length === 0) return null;
   return <DropdownMenu>
     <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("ribbon.more")} title={t("ribbon.more")} data-office-document-menu />}>
-      <MoreIcon />
+      <Ellipsis className="size-4 shrink-0" aria-hidden />
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="min-w-56">
       {children}
