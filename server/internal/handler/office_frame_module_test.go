@@ -1,10 +1,14 @@
 package handler
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"crypto/rand"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -112,5 +116,61 @@ func TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization(t *testing.T) {
 	code, out = mint(md)
 	if code != 201 || out["module"] != "markdown" {
 		t.Fatalf("md mint = %d %v", code, out)
+	}
+}
+
+// frameXlsx is a minimal SpreadsheetML package padded (stored, not deflated)
+// to at least pad bytes, so its stored size is what the test needs.
+func frameXlsx(t *testing.T, pad int) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, name := range []string{"[Content_Types].xml", "_rels/.rels", "xl/workbook.xml", "xl/worksheets/sheet1.xml"} {
+		f, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write([]byte("<x>" + name + "</x>")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if pad > 0 {
+		f, err := zw.CreateHeader(&zip.FileHeader{Name: "xl/media/pad.bin", Method: zip.Store})
+		if err != nil {
+			t.Fatal(err)
+		}
+		noise := make([]byte, pad)
+		if _, err := rand.Read(noise); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write(noise); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// GO-D3 = C: an xlsx over the Sheets cap never gets a Sheets frame token, so a
+// crafted client cannot open it in the frame; the host opens the G3 editor.
+func TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	setOfficeFrameFlagFor(t, w.q, "office_sheets_web", w.orgID, true)
+	small := w.createDocx(t, "small.xlsx", frameXlsx(t, 0))
+	big := w.createDocx(t, "big.xlsx", frameXlsx(t, service.OfficeFrameSheetsMaxBytes+1))
+
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+small+"/office/frame-token", w.token, nil)
+	if res.StatusCode != 201 || out["module"] != "sheets" {
+		t.Fatalf("small xlsx mint = %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+big+"/office/frame-token", w.token, nil)
+	if code, _ := errCodeClass(out); res.StatusCode != 413 || code != "too_large" {
+		t.Fatalf("xlsx over the cap mint = %d %v, want 413 too_large", res.StatusCode, out)
+	}
+	// The cap is checked after the ACL: a non-member still gets the plain 404.
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+big+"/office/frame-token", w.outsiderToken(t), nil); res.StatusCode != 404 {
+		t.Fatalf("outsider mint of the big xlsx = %d %v", res.StatusCode, out)
 	}
 }

@@ -40,7 +40,7 @@ func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/documents/{documentID}/office/frame-token", h.MintOfficeFrameToken, apiOp{
 		summary: "Mint an Office web frame token",
 		description: "Host page only: checks the live ACL of a file document a web module opens (docx, pdf, md, html, pptx, xlsx) and returns a server-signed token (10 min) bound to this document, its workspace, the caller and the module derived from the stored format. " +
-			"403 feature_disabled when that module's flag is off for the document's organization. " +
+			"403 feature_disabled when that module's flag is off for the document's organization; 413 too_large when the stored file is over the module's cap (sheets: 5 MiB). " +
 			"The host passes it to the frame in the postMessage init; it opens only /api/v1/office-frame/* for this document and is refused everywhere else.",
 		tags: []string{"documents"}, sdo: sdo.OfficeFrameTokenSDO{}, status: http.StatusCreated, auth: true,
 	})

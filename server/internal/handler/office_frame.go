@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -110,6 +111,11 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	t, err := h.OfficeFrame.Mint(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"))
+	if errors.Is(err, service.ErrOfficeFrameTooLarge) {
+		// Over the module's size cap (Sheets, GO-D3): the host opens the G3 editor instead.
+		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "document is too large for the web frame")
+		return
+	}
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

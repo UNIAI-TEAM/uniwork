@@ -137,6 +137,10 @@ func (s *OfficeFrameService) Mint(ctx context.Context, actor Actor, documentID s
 	if err != nil {
 		return OfficeFrameToken{}, err
 	}
+	// After the ACL check, so a non-member still learns nothing about the file.
+	if limit := officeFrameModuleMaxBytes(d.Module); limit > 0 && d.File.SizeBytes > limit {
+		return OfficeFrameToken{}, ErrOfficeFrameTooLarge
+	}
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
 		return OfficeFrameToken{}, err
