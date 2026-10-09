@@ -14,6 +14,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { registerLeaveGuard } from "../../navigation/leave-guard";
 import { LeaveDialog } from "../leave-dialog";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
+import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
 export interface OfficeModuleFrameControls {
@@ -41,6 +42,11 @@ export interface OfficeModuleFrameProps {
   onSavedAs?: (documentId: string) => void;
   /** Header actions (save, print) for the page that hosts the frame. */
   controlsRef?: MutableRefObject<OfficeModuleFrameControls | null>;
+  /**
+   * "Open in desktop app" wiring (the G3 host's, apps/web/platform/office/desktop-open-props.ts).
+   * Shown once the frame is ready and only for a user who may edit, the G3 rule; absent = no action.
+   */
+  desktopOpen?: FrameDesktopOpenProps;
   className?: string;
 }
 
@@ -73,7 +79,7 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, className,
 }: OfficeModuleFrameProps) {
   const frameApi = api ?? defaultFrameApi(module);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
@@ -172,6 +178,9 @@ export function OfficeModuleFrame({
       data-state={session.status}
       data-dirty={dirty || undefined}
     >
+      {desktopOpen && !booting && !readonly ? (
+        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} workspaceId={wsId} dirty={dirty} save={() => save("user")} />
+      ) : null}
       <iframe
         key={session.attempt}
         ref={iframeRef}

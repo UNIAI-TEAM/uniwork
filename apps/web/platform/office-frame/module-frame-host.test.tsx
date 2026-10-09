@@ -5,6 +5,7 @@ import type { Document } from "@uniwork/core/types/document";
 
 const mocks = vi.hoisted(() => ({ switchProps: vi.fn(), frameProps: vi.fn(), push: vi.fn() }));
 vi.mock("@uniwork/views/layout/workspace-context", () => ({ useWorkspace: () => ({ workspace: { organization_slug: "acme", slug: "ops" } }) }));
+vi.mock("@uniwork/core/api/endpoints/config", () => ({ getPublicConfig: async () => ({ office_deployment_id: "dep-7" }) }));
 vi.mock("@uniwork/views/navigation", () => ({ useNavigation: () => ({ push: mocks.push }) }));
 vi.mock("@uniwork/views/office", () => ({
   OfficeModuleOpenSwitch: (props: { module: string; organizationId?: string; frame: ReactNode; fallback: ReactNode }) => {
@@ -55,6 +56,12 @@ describe("ModuleFrameOrG3Host", () => {
     expect(mocks.frameProps).toHaveBeenCalledWith(expect.objectContaining({
       module: "sheets", wsId: "ws-1", documentId: "doc-1", title: "Deck", frameVersion: "0.2.0-abc1234", readonly: true, className: "c",
     }));
+    // "Open in desktop app": the G3 wiring, with the organization's deployment binding once config answers.
+    await act(async () => { await Promise.resolve(); });
+    const last = mocks.frameProps.mock.calls.at(-1)![0] as { desktopOpen: { deploymentId?: string; channel?: string; launch?: unknown; loadInstallers?: unknown } };
+    expect(last.desktopOpen).toMatchObject({ deploymentId: "dep-7", channel: "stable" });
+    expect(last.desktopOpen.launch).toBeTypeOf("function");
+    expect(last.desktopOpen.loadInstallers).toBeTypeOf("function");
     (mocks.frameProps.mock.calls[0]![0] as { onSavedAs: (id: string) => void }).onSavedAs("copy-9");
     expect(mocks.push).toHaveBeenCalledWith("/acme/ops/documents/copy-9");
   });

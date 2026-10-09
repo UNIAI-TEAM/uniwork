@@ -9,6 +9,7 @@ import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { ApiError } from "@uniwork/core/api/http";
 import { requestMock, wrap } from "../../test/api-mock";
 import { DocsFrameRefusalContext, useDocsFrameRefusal } from "./docs-frame-refusal";
+import type { FrameDesktopOpenProps } from "./frame-desktop-open";
 import { OfficeModuleFrame } from "./office-module-frame";
 import { OfficeModuleOpenSwitch } from "./office-module-open-switch";
 
@@ -26,14 +27,14 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, mint, refuse }: { canEdit?: boolean; readonly?: boolean; mint?: () => Promise<unknown>; refuse?: () => void } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, mint, refuse, desktopOpen }: { canEdit?: boolean; readonly?: boolean; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps } = {}) {
   requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit })) : Promise.reject(new Error(`unexpected ${path}`))));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
         <DocsFrameRefusalContext.Provider value={refuse ?? null}>
-          <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={fullApi()} readonly={readonly} />
+          <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={fullApi()} readonly={readonly} desktopOpen={desktopOpen} />
         </DocsFrameRefusalContext.Provider>
       </ThemeProvider>
     </QueryClientProvider>,
@@ -172,3 +173,44 @@ describe("OfficeModuleOpenSwitch", () => {
     expect(await screen.findByText("g3 editor")).toBeTruthy();
   });
 });
+
+describe("Open in desktop app in the module frame", () => {
+  const desktopOpen = (loadInstallers = vi.fn(async () => ({ installers: [] }))): FrameDesktopOpenProps => ({
+    deploymentId: "dep-1", savedVersion: 3, loadInstallers, launch: vi.fn(async () => "not-installed" as const),
+  });
+  const action = () => document.querySelector("[data-office-desktop-action]");
+
+  it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("shows the G3 action for %s once the frame is ready", async (module) => {
+    const frame = mountFrame(module, { desktopOpen: desktopOpen() });
+    expect(action()).toBeNull();
+    await frame.ready(module === "docs" ? {} : { module });
+    await waitFor(() => expect(action()).not.toBeNull());
+  });
+
+  it("asks before handing off unsaved frame edits, like the G3 host", async () => {
+    const launch = vi.fn(async () => "launched" as const);
+    const frame = mountFrame("sheets", { desktopOpen: { ...desktopOpen(), launch } });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(action()).not.toBeNull());
+    await frame.event("dirty", { dirty: true });
+    const button = action()!.querySelector("button")!;
+    await act(async () => { button.click(); });
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(launch).not.toHaveBeenCalled();
+  });
+
+  it("is hidden for a user who may only view, as in the G3 host", async () => {
+    const frame = mountFrame("pdf", { desktopOpen: desktopOpen(), readonly: true });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(action()).toBeNull();
+  });
+
+  it("is absent when the page wires no desktop handoff", async () => {
+    const frame = mountFrame("pdf");
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(action()).toBeNull();
+  });
+});
+

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ComponentType } from "react";
 import type { Document } from "@uniwork/core/types/document";
-import { detectDesktopPlatform, DESKTOP_PLATFORMS, type DesktopPlatformHints, type OfficeInstallerOption, type OfficeCapabilityEntry, type OfficeHost, type SaveCoordinatorState, type StableSnapshot } from "@uniwork/core/office";
+import { type OfficeInstallerOption, type OfficeCapabilityEntry, type OfficeHost, type SaveCoordinatorState, type StableSnapshot } from "@uniwork/core/office";
 import { registerLeaveGuard } from "@uniwork/views/navigation";
 import { DesktopOpenAction, OfficeShell, OfficeTooLargeProvider, type OfficeChannel } from "@uniwork/views/office";
 import { useOfficeFormatName } from "@uniwork/views/office/editor-slot";
@@ -12,10 +12,8 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
-import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
 import { downloadDocumentFile } from "@uniwork/core/api/endpoints/documents";
-import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
-import { launchOfficeDeepLink } from "./desktop-handoff";
+import { desktopOpenAllowed, desktopOpenWiring } from "./desktop-open-props";
 export * from "./editor-host-core";
 
 export interface OfficeEditorHostProps<TSnapshot = unknown> {
@@ -271,7 +269,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
 
   // The header split button and the inline too-large notice are two mounts of
   // the same launch-ticket action, so both get one prop set.
-  const renderDesktopAction = (placement: "header" | "inline") => activeSession && !readonly ? (
+  const renderDesktopAction = (placement: "header" | "inline") => activeSession && desktopOpenAllowed({ open: true, readonly }) ? (
     <DesktopOpenAction
       placement={placement}
       documentId={document.id}
@@ -279,38 +277,8 @@ export function OfficeEditorHost<TSnapshot = unknown>({
       savedVersion={document.current_version}
       dirty={dirty}
       saveCoordinator={activeSession.coordinator}
-      versionAfterSave={async (outcome) => {
-        const versionId = outcome.receipt?.versionId;
-        if (!versionId) return null;
-        try {
-          const page = await listDocumentVersions(document.id, { limit: 100 });
-          const committed = page.versions.find((version) => version.id === versionId);
-          return committed?.version ?? null;
-        } catch {
-          return null;
-        }
-      }}
-      channel={officeChannel}
       installers={installers}
-      loadInstallers={async () => {
-        const profile = await getOfficeDesktopDownload(document.organization_id, officeChannel);
-        return { installers: profile?.installers ?? [], supportedPlatforms: profile?.supported_platforms ?? DESKTOP_PLATFORMS };
-      }}
-      loadPlatformHint={async () => {
-        const data = (navigator as Navigator & { userAgentData?: DesktopPlatformHints["userAgentData"] & { getHighEntropyValues?: (keys: string[]) => Promise<{ architecture?: string; bitness?: string }> } }).userAgentData;
-        let entropy: { architecture?: string; bitness?: string } = {};
-        try { entropy = await data?.getHighEntropyValues?.(["architecture", "bitness"]) ?? {}; } catch { /* Reduced UA remains a safe uncertain hint. */ }
-        return detectDesktopPlatform({ userAgent: navigator.userAgent, userAgentData: data ? { platform: data.platform, mobile: data.mobile, ...entropy } : undefined });
-      }}
-      downloadInstaller={async (platform) => {
-        const blob = await downloadOfficeDesktopBundle(document.organization_id, officeChannel, platform);
-        const url = URL.createObjectURL(blob);
-        const link = window.document.createElement("a");
-        link.href = url; link.download = "UniWork-Office.zip";
-        window.document.body.append(link); link.click(); link.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      }}
-      launch={launchOfficeDeepLink}
+      {...desktopOpenWiring(document, officeChannel)}
     />
   ) : null;
   const downloadDocument = async () => {
