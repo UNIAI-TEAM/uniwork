@@ -193,13 +193,17 @@ node $R/cloud-runner.mjs close --all yes --lane <slug>      # when the lane is d
 Exit 0 = both shards pass. The `format`, `theme-colors`, `skill-version` and
 `public-hygiene` steps diff against `HEAD^1` on main and the merge-base with
 `origin/main` on any other branch (the PR merge-commit logic of CI, adapted).
-Measured 2026-10-09 on main 854dc163: fresh VMs about 5 min (test) and 12 min
-(e2e), 13 and 19 cents.
+Measured 2026-10-09 on main 854dc163, both shards PASS: test 20/20 steps (about
+14 min with the sidecar rebuilt), e2e 7/7 steps (12-17 min incl. the build; all but
+2 of the e2e tests), roughly 17-25 cents per shard round.
 
 Not replicated: `cargo-deny` (not installed on the VM) and the setup/cache
 steps (the `office` profile does them). Differences from CI's image, handled
 in the specs: the `test` shard removes `fonts-noto-cjk` before `npm test`
-(font-metrics expects no font to map U+0378; ubuntu-latest has none); the
+(font-metrics expects no font to map U+0378; ubuntu-latest has none) and
+deletes the kept sidecar `target/` (the cli tests skip their sidecar cases on a
+fresh CI checkout); the office profile installs the NodeSource Node and puts
+`/usr/bin` first, because the agent image's Node 22.14 lacks FTS5 in `node:sqlite`; the
 `e2e` shard reduces the VM (Ubuntu 24.04, ~50 extra font packages) to CI's
 font stack and 22.04 font package versions so the docs pixel baselines match.
 Two e2e tests still differ on the VM and are excluded with `--grep-invert`:
