@@ -353,6 +353,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/office/jobs":                                                      {body: isoIdem(nil, map[string]any{"operation": "serialize"})},
 	"POST /api/v1/documents/{documentID}/office/sessions":                                                  {body: isoLaunchPost},
 	"POST /api/v1/documents/{documentID}/preview/scopes":                                                   {body: isoPreviewPost},
+	"PUT /api/v1/orgs/{orgID}/ai/credentials/{aiProvider}":                                                 {body: isoAICredentialPut},
 	"POST /api/v1/orgs/{orgID}/signatures":                                                                 {body: isoSignaturePost},
 	"POST /api/v1/documents/{documentID}/shares":                                                           {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/uploads":                                                          {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},

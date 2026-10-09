@@ -1235,6 +1235,24 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-1008 W1: the per-user AI provider key store.
+		audit.ActionAICredentialSaved: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewAICredentialService(f.pool, f.q, f.orgs, NewEntitlementService(f.pool, f.q), testAICredentialBox(t))
+			if _, _, err := svc.SaveAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr(testAIKey)}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAICredentialDeleted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewAICredentialService(f.pool, f.q, f.orgs, NewEntitlementService(f.pool, f.q), testAICredentialBox(t))
+			if _, _, err := svc.SaveAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr(testAIKey)}); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai"); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -1365,6 +1383,8 @@ func auditActions() []string {
 		audit.ActionDocumentAssetPurged,
 		audit.ActionSignatureCreated,
 		audit.ActionSignatureDeleted,
+		audit.ActionAICredentialSaved,
+		audit.ActionAICredentialDeleted,
 	}
 }
 

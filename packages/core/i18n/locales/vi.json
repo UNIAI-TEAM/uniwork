@@ -559,7 +559,9 @@
         "ai_tokens": "Token AI",
         "storage_bytes": "Dung lượng lưu trữ",
         "sso_oidc": "Đăng nhập SSO (OIDC)",
-        "documents_public_links": "Liên kết công khai cho tài liệu"
+        "documents_public_links": "Liên kết công khai cho tài liệu",
+        "office_ai_byok": "Khóa AI riêng cho Office",
+        "office_ai_cloud": "Công cụ AI đám mây cho Office"
       },
       "errors": {
         "checkout_required": "Gói trả phí cần thanh toán qua cổng; dùng nút Thanh toán.",
