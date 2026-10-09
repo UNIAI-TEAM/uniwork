@@ -20,8 +20,6 @@ vi.mock("next/dynamic", () => ({
   },
 }));
 vi.mock("./docx-office-host", () => ({ DocxOfficeEditorHost: Object.assign(() => null, { __name: "docx" }) }));
-// A .docx goes through the Docs-frame switch (UNI-1013), which falls back to the G3 host.
-vi.mock("../office-frame/docs-frame-host", () => ({ DocxFrameOrG3Host: Object.assign(() => null, { __name: "docx-frame-switch" }) }));
 vi.mock("./xlsx-office-host", () => ({ XlsxOfficeEditorHost: Object.assign(() => null, { __name: "xlsx" }) }));
 vi.mock("./pdf-office-host", () => ({ PdfOfficeEditorHost: Object.assign(() => null, { __name: "pdf" }) }));
 vi.mock("./pptx-office-host", () => ({ PptxOfficeEditorHost: Object.assign(() => null, { __name: "pptx" }) }));
@@ -30,7 +28,11 @@ vi.mock("./md-html-adapter", () => ({
   HtmlOfficeEditorHost: Object.assign(() => null, { __name: "html" }),
 }));
 
-import { DocumentOfficeEditorHost } from "./document-office-host";
+import { createDocumentOfficeEditorHost, type DocxFrameSlot } from "./document-office-host";
+
+// A .docx goes through the injected Docs-frame slot (UNI-1013), handed the G3 host as its fallback.
+const DocxFrame: DocxFrameSlot = ({ fallback }) => createElement("div", { "data-format-host": "docx-frame-switch" }, fallback);
+const DocumentOfficeEditorHost = createDocumentOfficeEditorHost(DocxFrame);
 
 const file = (filename: string, mime_type: string) => ({ file_id: "f", version_id: "v1", version: 1, filename, mime_type, size_bytes: 10, checksum_sha256: "0".repeat(64) });
 const documentFor = (filename: string, mime_type: string) => ({ id: "doc-1", title: "Doc", organization_id: "org", workspace_id: "ws", revision: "1", file: file(filename, mime_type) }) as Document;

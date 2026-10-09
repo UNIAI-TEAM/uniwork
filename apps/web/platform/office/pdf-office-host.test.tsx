@@ -26,8 +26,11 @@ vi.mock("next/dynamic", async () => {
   };
 });
 
-import { DocumentOfficeEditorHost } from "./document-office-host";
+import { createDocumentOfficeEditorHost } from "./document-office-host";
 import { PdfOfficeEditorHost } from "./pdf-office-host";
+
+// A PDF never reaches the docx slot; the G3 fallback stands in for it.
+const DocumentOfficeEditorHost = createDocumentOfficeEditorHost(({ fallback }) => fallback);
 
 const documentFor = (id: string) => ({ id, title: "Spec", organization_id: "org", workspace_id: "ws", revision: "1", file: { version_id: "version-1", filename: "spec.pdf", mime_type: "application/pdf" } }) as Document;
 /** The engine service binds no pdf handlers, so every pdf row is unbound. */

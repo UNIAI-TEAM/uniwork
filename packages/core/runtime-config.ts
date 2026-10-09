@@ -1,7 +1,7 @@
 /**
  * Endpoint configuration injected by the platform layer at boot.
  *
- * packages/core must not read `process.env`: it runs under Node in tests, and
+ * packages/core must not read environment variables: it runs under Node in tests, and
  * on any platform where no bundler inlines those values there is nothing to
  * read. The app that owns the environment sets them once at startup and every
  * core module reads them from here.
