@@ -16,7 +16,7 @@ beforeAll(async () => {
     maxWorkers: 4,
     maxQueue: 8,
     limits: {
-      maxJobMs: 20_000,
+      maxJobMs: 45_000,
       cpuMs: 2_500,
       memoryBytes: 192 * MiB,
       tempBytes: 8 * MiB,
@@ -33,7 +33,7 @@ async function runFault(fault: string, deadlineMs = 15_000) {
   const job = makeJob(h.target, { text: "uniwork-fault:" + fault + "\n", deadlineMs });
   const res = await submit(h, job);
   expect(res.status).toBe(202);
-  return { job, done: await waitTerminal(h, job) };
+  return { job, done: await waitTerminal(h, job, deadlineMs + 10_000) };
 }
 
 interface ExpectedOutcome {
@@ -85,12 +85,15 @@ describe("per-job limits", () => {
     expect((done.body.finished_at as number) - (done.body.accepted_at as number)).toBeLessThan(8_000);
   });
 
+  // The deadline is wall time and the budget is CPU time: on a loaded CI host
+  // the spinning worker gets a fraction of a core, so the deadline sits far
+  // enough out that only a budget that never fires can lose the race.
   it("cpu: a CPU-bound handler is stopped by the CPU budget before its deadline", async () => {
-    const { done } = await runFault("spin 60000", 18_000);
+    const { done } = await runFault("spin 60000", 40_000);
     expectFaultOutcome(done, "spin 60000", { state: "timed_out", code: "engine_timeout", reason: "cpu_limit" });
     // The measurement that tripped the budget rides on the error body.
     expect((done.body.error as { measured_cpu_ms?: number }).measured_cpu_ms).toBeGreaterThan(0);
-  });
+  }, 60_000);
 
   it("memory: off-heap growth past the RSS cap fails with memory_limit", async () => {
     const { done } = await runFault("rss 400");
