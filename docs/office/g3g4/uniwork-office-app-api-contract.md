@@ -32,13 +32,17 @@ consent, mã một lần, thu hồi thiết bị) ở [desktop-auth-contract.md]
 
 `client_id` là `uniwork-office`, `deployment_id` là `default` và callback là
 `uniwork-office://auth/callback` (allowlist trong `desktop-auth-contract.md`).
-Fork hiện đã có `appId` `com.uniwork.office` (`apps/shell/electron-builder.cjs`, không phải
-scheme callback) và chỉ đăng ký protocol `uniwork://` (`apps/shell/src/main/index.ts`,
-dùng cho `uniwork://office/app` và `uniwork://agent/intent`); chưa có `client_id` hay
-`uniwork-office://`. GO-A5 (UNI-1006) phải đăng ký thêm scheme `uniwork-office` và xử lý
-`uniwork-office://auth/callback` mà không gỡ `uniwork://`. Nếu fork giữ `uniwork://` cho
-đăng nhập, allowlist server (`DESKTOP_AUTH_REDIRECT_URIS`, `DESKTOP_AUTH_DEPLOYMENT_IDS`)
-phải thêm giá trị đó trước.
+Fork (`appId` `com.uniwork.office`) đăng ký, từ GO-A5 (UNI-1006), hai scheme đăng nhập bên
+cạnh `uniwork://` (vẫn dùng cho `uniwork://office/app` và `uniwork://agent/intent`):
+`uniwork-office://auth/callback` (`client_id` `uniwork-office`, kênh stable/beta) và
+`uniwork-office-dev://auth/callback` (`client_id` `uniwork-office-dev`, kênh dev). App chỉ đăng
+ký scheme của kênh đang chạy; cả hai được khai báo trong `protocols` của electron-builder.
+Đăng nhập dùng đúng allowlist hiện có, server không đổi (`DESKTOP_AUTH_REDIRECT_URIS` giữ
+nguyên). Callback đến qua argv khi khởi động, lần mở thứ hai trên Windows hoặc `open-url`
+trên macOS (kể cả trước khi app sẵn sàng) và được chuyển cho phần đăng nhập trước bộ định
+tuyến office. Địa chỉ server lấy từ `deployment-profile.json` (thư mục resources, rồi
+userData; bộ cài NSIS chép file này cạnh bộ cài vào resources), sau đó mới tới
+`UNIWORK_API_ORIGIN` / `uniworkApiOrigin`.
 
 ## 2. Mở và lưu tài liệu UniWork (GO-A6, UNI-1007)
 
