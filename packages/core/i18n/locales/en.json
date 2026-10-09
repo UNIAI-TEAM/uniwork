@@ -3509,6 +3509,7 @@
     "send_outbox_pending_one": "{{count}} message waiting to send",
     "send_outbox_pending_other": "{{count}} messages waiting to send",
     "send_queued_offline": "Message saved and will send when you're back online.",
+    "send_rate_limited": "You're sending too fast. The message wasn't sent; wait a moment and send it again.",
     "message_sending": "Sending…",
     "message_queued": "Waiting to send",
     "retry": "Retry",

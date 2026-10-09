@@ -3508,6 +3508,7 @@
     "send_outbox_pending_one": "{{count}} tin nhắn đang chờ gửi",
     "send_outbox_pending_other": "{{count}} tin nhắn đang chờ gửi",
     "send_queued_offline": "Tin nhắn đã được lưu và sẽ gửi khi có mạng.",
+    "send_rate_limited": "Bạn đang gửi quá nhanh. Tin chưa được gửi, chờ một chút rồi gửi lại.",
     "message_sending": "Đang gửi…",
     "message_queued": "Chờ gửi",
     "retry": "Thử lại",
