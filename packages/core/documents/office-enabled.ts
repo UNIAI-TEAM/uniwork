@@ -64,13 +64,13 @@ export function useOfficeEnabled(organizationId: string | undefined, format: str
 
 /**
  * Whether a .docx opens in the genoffice Docs frame instead of the G3 editor
- * (`office_docs_web`, UNI-1013; default off). Same organization-scoped answer
+ * (`office_docs_web`, UNI-1013; default on, an explicit override of false turns it off). Same organization-scoped answer
  * and states as `useOfficeEnabled`: only a settled `on` mounts the frame.
  */
 export function useOfficeDocsWebEnabled(organizationId: string | undefined): OfficeEnabledState {
-  const global = useFlag(OFFICE_DOCS_WEB_FLAG, false);
+  const global = useFlag(OFFICE_DOCS_WEB_FLAG, true);
   const scoped = useOrganizationOfficeConfig(organizationId);
   if (!organizationId) return global ? "on" : "off";
-  if (scoped.data) return scoped.data.flags[OFFICE_DOCS_WEB_FLAG] === true ? "on" : "off";
+  if (scoped.data) return scoped.data.flags[OFFICE_DOCS_WEB_FLAG] !== false ? "on" : "off";
   return scoped.isError ? "unknown" : "loading";
 }
