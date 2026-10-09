@@ -172,9 +172,14 @@ var catalogue = []EventDef{
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_added", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_removed", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
-	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// A read goes to the reader's own tabs and, in a DM, to the peer: nobody
+	// else renders it, and every client that hears one reloads its sidebar.
+	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	// Message and typing rows of the workspace's default channel go to the
+	// workspace, whose members are that channel's; every other room's go to
+	// chat:{room} only.
 	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.updated", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.deleted", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},

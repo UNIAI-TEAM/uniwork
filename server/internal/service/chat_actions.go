@@ -100,7 +100,6 @@ func (s *ChatService) DeleteChatMessage(
 }
 
 func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.ChatRoom, messageID string) {
-	anchorWS := roomAnchorWorkspaceID(room)
 	ev := Event{
 		Type: "chat.message.deleted",
 		Payload: map[string]string{
@@ -108,13 +107,7 @@ func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.Cha
 			"message_id": messageID,
 		},
 	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishChatMessageChange(ctx, room, ev)
 }
 
 // ToggleChatMessagePin toggles whether a message is pinned in the room.
@@ -161,7 +154,6 @@ func (s *ChatService) ToggleChatMessagePin(
 }
 
 func (s *ChatService) publishChatMessageUpdated(ctx context.Context, room db.ChatRoom, messageID string) {
-	anchorWS := roomAnchorWorkspaceID(room)
 	ev := Event{
 		Type: "chat.message.updated",
 		Payload: map[string]string{
@@ -169,9 +161,20 @@ func (s *ChatService) publishChatMessageUpdated(ctx context.Context, room db.Cha
 			"message_id": messageID,
 		},
 	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
+	s.publishChatMessageChange(ctx, room, ev)
+}
+
+// publishChatMessageChange sends an edit, delete, reaction or pin of a
+// message. The default channel's members are the workspace, so it goes there;
+// any other channel's goes to chat:{room} only, like before without a
+// per-member activity frame (one per reaction would reload every member's
+// sidebar). DMs and groups also refresh their members' sidebar previews.
+func (s *ChatService) publishChatMessageChange(ctx context.Context, room db.ChatRoom, ev Event) {
+	switch {
+	case isWorkspaceDefaultRoom(room):
+		s.pub.Publish(ctx, roomAnchorWorkspaceID(room), ev)
+	case room.Kind == chatRoomKindChannel:
+		s.publishChatRoomEvent(ctx, room.ID, ev)
 	default:
 		s.publishChatRoomEvent(ctx, room.ID, ev)
 		s.publishChatRoomActivity(ctx, room.ID)

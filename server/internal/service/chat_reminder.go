@@ -139,19 +139,6 @@ func (s *ChatService) SendReminderMessage(
 		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	ev := Event{
-		Type: "chat.message.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID)
 	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
 }

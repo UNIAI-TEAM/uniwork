@@ -421,10 +421,7 @@ func (s *ChatService) listMessages(
 	// SkipMarkRead is set (unread room open).
 	if !in.SkipMarkRead && in.Before == nil && len(out) > 0 {
 		last := out[len(out)-1]
-		_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
-			RoomID: roomID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: last.CreatedAt, Valid: true},
-		})
-		s.publishChatRoomRead(ctx, room, userID)
+		s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true})
 	}
 	return out, nil
 }
@@ -446,10 +443,7 @@ func (s *ChatService) MarkRoomRead(ctx context.Context, userID, workspaceID, roo
 	if err != nil {
 		return err
 	}
-	_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
-		RoomID: room.ID, UserID: userID, LastReadAt: preview.CreatedAt,
-	})
-	s.publishChatRoomRead(ctx, room, userID)
+	s.markChatRoomRead(ctx, room, userID, preview.CreatedAt)
 	return nil
 }
 

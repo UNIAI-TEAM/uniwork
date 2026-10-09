@@ -1,6 +1,6 @@
 # Catalogue sự kiện UniWork
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-07 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-09 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
 
 Bảng dưới là hợp đồng giữa server và mọi client. Ba nơi phải khớp nhau —
 file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mjs`
@@ -93,7 +93,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.room.created` | 1 | `room_id` | — | room | outbox |
 | `chat.room.member_added` | 1 | `room_id`, `user_id` | — | room | outbox |
 | `chat.room.member_removed` | 1 | `room_id`, `user_id` | — | room | outbox |
-| `chat.room.read` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
+| `chat.room.read` | 1 | `room_id`, `user_id` | — | user | ephemeral |
 | `chat.room.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
 | `chat.typing` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.accept` | 1 | `room_id`, `user_id` | — | user | ephemeral |

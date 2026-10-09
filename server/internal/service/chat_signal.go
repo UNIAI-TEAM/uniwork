@@ -2,8 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -127,12 +131,11 @@ func (s *ChatService) SignalTyping(ctx context.Context, userID, workspaceID, roo
 			"room_id": roomID, "user_id": userID,
 		},
 	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
+	if isWorkspaceDefaultRoom(room) {
 		s.pub.Publish(ctx, workspaceID, ev)
-	default:
-		s.publishChatRoomEvent(ctx, roomID, ev)
+		return nil
 	}
+	s.publishChatRoomEvent(ctx, roomID, ev)
 	return nil
 }
 
@@ -159,7 +162,26 @@ func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, s
 	}
 }
 
-func (s *ChatService) publishChatRoomRead(ctx context.Context, room db.ChatRoom, userID string) {
+// markChatRoomRead moves the caller's read pointer to at and, only when that
+// moves it forward, tells the reader's other tabs and, in a DM, the peer who
+// renders the receipt. Nobody else shows another person's read state, and
+// every client that hears one reloads its sidebar, so a room-wide read (or a
+// repeat that moved nothing) cost every open client a reload for nothing.
+func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, userID string, at pgtype.Timestamptz) {
+	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: room.ID, UserID: userID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return // reading a public channel without joining: no pointer to move
+	}
+	if err == nil && member.LastReadAt.Valid && !at.Time.After(member.LastReadAt.Time) {
+		return
+	}
+	if err := s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
+		RoomID: room.ID, UserID: userID, LastReadAt: at,
+	}); err != nil {
+		return
+	}
 	ev := Event{
 		Type: "chat.room.read",
 		Payload: map[string]string{
@@ -167,10 +189,8 @@ func (s *ChatService) publishChatRoomRead(ctx context.Context, room db.ChatRoom,
 			"user_id": userID,
 		},
 	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, roomAnchorWorkspaceID(room), ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
+	s.pub.SendToUser(ctx, userID, ev)
+	if peerID, err := dmPeerUserID(room, userID); err == nil {
+		s.pub.SendToUser(ctx, peerID, ev)
 	}
 }

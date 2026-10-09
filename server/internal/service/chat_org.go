@@ -63,9 +63,12 @@ func (s *ChatService) publishChatRoomActivity(ctx context.Context, roomID string
 	})
 }
 
-// AuthorizeChatScope gates WebSocket subscriptions to chat:{roomId}.
+// AuthorizeChatScope gates WebSocket subscriptions to chat:{roomId}. Whoever
+// may read the room may subscribe, so a workspace member viewing a public
+// channel without joining hears its edits, now that they no longer go to the
+// whole workspace.
 func (s *ChatService) AuthorizeChatScope(ctx context.Context, userID, workspaceID, roomID string) (bool, error) {
-	_, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	_, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
 		return false, nil
 	}
