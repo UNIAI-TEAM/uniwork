@@ -77,15 +77,50 @@ its unsupported state).
   names it. A Docs bundle from before the field says no module, which is docs.
 - Capabilities come from one table, `officeModuleSpec(module).grant` in
   `packages/core/office/office-modules.ts`, narrowed by readonly and by the
-  API. Docs has its UNI-1013 grant; every other module grants nothing (save,
-  save-as, recents, print, export, images, attachments off) until its worker
-  turns on what its frame implements.
+  API. Docs keeps its UNI-1013 grant. pdf, slides, sheets: save, save-as,
+  print; markdown, html: also exportHtml. Recents, file pick and attachments
+  stay off outside Docs and only Docs has the server PDF export.
+- Images (markdown/html): off, and `open.assets` is not filled. The G3 web
+  host does not resolve relative images either (its image port is unwired,
+  the engine manifest carries no asset ids, and the preview asset proxy is a
+  separate origin the frame's `img-src 'self' data: blob:` could not load),
+  and it has no paste upload. When G3 gains them, fill `open.assets` with
+  same-origin URLs or `data:` URIs and grant `images` with an upload handler
+  over the asset routes.
+- `init.user = {displayName}` is the signed-in user's display name, for every
+  module including Docs (comment and note authors). Display data only.
+- View-only: a user who may view but not edit (the page's `readonly`, or
+  outside Docs the minted token's `can_edit: false`) gets the frame without
+  save / save-as. Slides is the exception (`viewOnlyInG3`): a view-only user
+  opens the G3 pptx host. Docs view-only behaviour is unchanged from UNI-1013
+  (open item: it does not read the token's `can_edit`).
 - `createOfficeFrameApi(module)` is the API over the same routes: a save
   uploads the module's mime type under the stored name, a save-as appends the
   module's extension, and only docs has `export`.
 - `document-office-host.tsx` routes pdf/md/html/pptx/xlsx through
   `ModuleFrameOrG3Host` only when `pinnedFrameVersion(module)` is set; without
   an installed bundle the existing G3 host renders exactly as before.
+
+## Module e2e
+
+`e2e/office-module-web-fixtures.ts` holds the module helpers (pin, installed
+check, host wrapper locator, sign-in, stored bytes); `seedDocument` in
+`office-docs-web-fixtures.ts` seeds a file of any format. A module spec runs
+with `OFFICE_MODULES_WEB_E2E=1` and skips itself unless the web build under
+test installed that module's pinned bundle:
+
+```bash
+# fork lane: npm run build:web -- --module markdown   (or build:web:all)
+node apps/web/scripts/office-frame-sync.mjs --module markdown --pin --from <fork>/dist-web   # local pin
+pnpm --filter @uniwork/web build && <start server + next start>
+OFFICE_MODULES_WEB_E2E=1 E2E_BASE_URL=http://localhost:$FRONTEND_PORT \
+  pnpm --filter @uniwork/e2e exec playwright test office-markdown-web.spec.ts
+```
+
+`office-markdown-web.spec.ts` is the first: serving headers, open + handshake
+(`data-state="ready"` on the host wrapper), flag off -> G3; the edit -> save
+-> reopen case is `test.fixme` until the fork's markdown module saves. CI
+does not set `OFFICE_MODULES_WEB_E2E` yet (no module pin is committed).
 
 ## Not done here
 

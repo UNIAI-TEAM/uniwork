@@ -34,12 +34,17 @@ export interface SeededDocx {
 }
 
 export async function seedDocx(page: Page, baseUrl: string, tag: string): Promise<SeededDocx> {
+  return seedDocument(page, baseUrl, tag, { name: "docs-web.docx", mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) });
+}
+
+/** A fresh account with one file document of any format (the module frame specs, UNI-1014). */
+export async function seedDocument(page: Page, baseUrl: string, tag: string, file: { name: string; mimeType: string; buffer: Buffer }): Promise<SeededDocx> {
   const account = await createRecordingAccount(page, e2eApiUrl, tag);
   const response = await page.request.post(`${e2eApiUrl}/api/v1/workspaces/${account.wsId}/documents/files`, {
     headers: { authorization: `Bearer ${account.token}`, "Idempotency-Key": `${tag}-${Date.now().toString(36)}` },
-    multipart: { file: { name: "docs-web.docx", mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) } },
+    multipart: { file },
   });
-  expect(response.ok(), `seed docx: HTTP ${response.status()} ${await response.text()}`).toBeTruthy();
+  expect(response.ok(), `seed ${file.name}: HTTP ${response.status()} ${await response.text()}`).toBeTruthy();
   const { document } = (await response.json()) as { document: { id: string; organization_id: string } };
   return {
     account,
