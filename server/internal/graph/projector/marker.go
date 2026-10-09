@@ -34,8 +34,8 @@ func (*Marker) Name() string { return "graph_marker" }
 // Topics is every topic that changes a projected node.
 func (*Marker) Topics() []string { return Topics() }
 
-// Handle marks the row's node dirty. Idempotent: a retried row bumps
-// mark_seq on the same dirty row and the projection converges on the source.
+// Handle marks the row's node dirty. Idempotent: a retried row gives the same
+// dirty row a fresh mark_seq and the projection converges on the source.
 func (m *Marker) Handle(ctx context.Context, ev outbox.Row) error {
 	var p map[string]string
 	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
