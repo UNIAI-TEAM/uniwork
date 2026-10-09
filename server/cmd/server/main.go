@@ -519,6 +519,7 @@ func main() {
 		Documents:           docSvc,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
 		AICredentials:       aiCredentialSvc,
+		AICloud:             service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway),
 		OfficeLaunch:        officeLaunchSvc,
 		Office:              officeSvc,
 		Preview:             previewSvc,

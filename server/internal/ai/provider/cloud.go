@@ -197,8 +197,8 @@ func (b *Brave) Search(ctx context.Context, sr SearchRequest) (SearchResponse, e
 	if sr.Kind == "image" {
 		path = "/images/search"
 	}
-	q := url.Values{"q": {sr.Query}, "count": {fmt.Sprint(sr.MaxResults)}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.baseURL+path+"?"+q.Encode(), nil)
+	params := url.Values{"q": {sr.Query}, "count": {fmt.Sprint(sr.MaxResults)}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.baseURL+path+"?"+params.Encode(), nil)
 	if err != nil {
 		return SearchResponse{}, err
 	}
