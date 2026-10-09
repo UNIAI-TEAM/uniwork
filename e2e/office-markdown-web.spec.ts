@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { e2eBaseUrl } from "./api-url";
 import { listVersions, seedDocument, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
-import { moduleFrameBase, moduleFrameHost, moduleFrameInstalled, readModulePin, signInAs, versionBytes } from "./office-module-web-fixtures";
+import {
+  evidencePath, expectDesktopOpenInstallerMenu, moduleFrameBase, moduleFrameHost, moduleFrameInstalled, readModulePin, signInAs, versionBytes,
+} from "./office-module-web-fixtures";
 
 /**
  * Markdown web frame (UNI-1014): the genoffice Markdown editor served from
@@ -67,6 +69,22 @@ test.describe("open, edit, save", () => {
     await page.screenshot({ path: test.info().outputPath("01-opened-in-markdown-frame.png") });
     expect(violations).toEqual([]);
   });
+
+  for (const locale of ["vi", "en"] as const) {
+    for (const theme of ["light", "dark"] as const) {
+      test(`Open in desktop app sits in the frame header and opens the installer menu (${locale}, ${theme})`, async ({ page, context }) => {
+        await context.addCookies([{ name: "uniwork-locale", value: locale, url: baseUrl }]);
+        // The app theme follows the system (next-themes), and the frame follows the app's resolved theme.
+        await page.emulateMedia({ colorScheme: theme });
+        await signInAs(page, seeded.account.email);
+        await page.goto(seeded.documentUrl);
+        await expect(moduleFrameHost(page, "markdown")).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+        await expectDesktopOpenInstallerMenu(page, async (step) => {
+          await page.screenshot({ path: evidencePath(`${step}-${locale}-${theme}`) });
+        });
+      });
+    }
+  }
 
   // PENDING (MH): save is being wired in the fork's markdown module; un-fixme once the bundle saves.
   test.fixme("an edit is saved as a new version and survives a reopen", async ({ page, request }) => {

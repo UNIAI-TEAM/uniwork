@@ -101,6 +101,20 @@ its unsupported state).
   `ModuleFrameOrG3Host` only when `pinnedFrameVersion(module)` is set; without
   an installed bundle the existing G3 host renders exactly as before.
 
+## Open in desktop app (GD3)
+
+Every module frame, Docs included, carries the G3 editor's "Open in desktop
+app" split button (`DesktopOpenAction`: launch session + `uniwork://` deep
+link + installer menu) in the page header's action cluster. One rule for both
+hosts, `apps/web/platform/office/desktop-open-props.ts`: shown once the editor
+is open (frame `ready`) and only for a user who may edit; the same installer,
+platform-hint, download and launch wiring. The frame has no save coordinator,
+so a small adapter (`frame-desktop-open.tsx`) feeds the action the frame's
+dirty state and save, and the version a frame save committed is read back as
+the document's current version. The launch target (GO-A6) and installer URLs
+(GO-A8) come later. Evidence: `reports/uni-1014-evidence/desktop-open/`
+(header button, installer menu, install prompt; vi + en, light + dark).
+
 ## Sheets size cap (GO-D3 = C)
 
 The Sheets frame runs the engine in WASM in the browser, so a workbook over

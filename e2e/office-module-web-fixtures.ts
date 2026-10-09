@@ -50,8 +50,9 @@ export function moduleFrameHost(page: Page, module: FrameModule) {
 export async function signInAs(page: Page, email: string): Promise<void> {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  // Either locale: the desktop-open step signs in under vi and en.
+  await page.getByLabel(/^(Mật khẩu|Password)$/).fill("password123");
+  await page.getByRole("button", { name: /^(Đăng nhập|Log in)$/ }).click();
   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 });
 }
 
@@ -60,4 +61,29 @@ export async function versionBytes(request: APIRequestContext, token: string, do
   const response = await request.get(`${e2eApiUrl}/api/v1/documents/${documentId}/download?version=${version}`, { headers: { authorization: `Bearer ${token}` } });
   expect(response.ok(), `download v${version}: HTTP ${response.status()}`).toBeTruthy();
   return response.body();
+}
+
+/**
+ * "Open in desktop app" in the page header over a module frame (GD3): the
+ * split button is visible, its chevron opens the installer menu, and the
+ * download item opens the install prompt. Nothing is launched.
+ */
+export async function expectDesktopOpenInstallerMenu(page: Page, shot?: (name: string) => Promise<void>): Promise<void> {
+  const action = page.locator("[data-office-desktop-action]").first();
+  await expect(action).toBeVisible({ timeout: 30_000 });
+  await shot?.("01-header-action");
+  await action.locator("button").nth(1).click();
+  const items = page.getByRole("menuitem");
+  await expect(items).toHaveCount(2);
+  await shot?.("02-installer-menu");
+  await items.nth(1).click();
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 30_000 });
+  await shot?.("03-install-prompt");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+}
+
+/** Where the GD3 desktop-open evidence screenshots land (committed under reports/). */
+export function evidencePath(name: string): string {
+  return resolve(repoRoot, "reports/uni-1014-evidence/desktop-open", `${name}.png`);
 }
