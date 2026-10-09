@@ -92,24 +92,15 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 // address (an office NAT) each get the whole budget. A request it cannot
 // name falls back to the IP key. A nil identity is RateLimit.
 func RateLimitByIdentity(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc) func(http.Handler) http.Handler {
-	return rateLimit(rdb, limit, window, trustedProxies, identity, "")
+	return RateLimitByIdentityBucket(rdb, "", limit, window, trustedProxies, identity)
 }
 
-// RateLimitByIdentityBucket is RateLimitByIdentity with one budget per caller
-// for every route the limiter wraps: the counter is keyed by bucket instead of
-// the request path, so a route or a group whose paths carry ids (a document,
-// an organization, a provider) is limited per person per bucket, not per
-// person per URL, and cannot be multiplied by varying the id.
+// RateLimitByIdentityBucket is RateLimitByIdentity with one budget shared by
+// every route the limiter wraps: the counter is keyed by bucket instead of
+// the request path, so a group whose paths carry ids (a document, an
+// organization, a provider) is limited per person per group, not per person
+// per URL. An empty bucket keys by path, which is RateLimitByIdentity.
 func RateLimitByIdentityBucket(rdb *redis.Client, bucket string, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc) func(http.Handler) http.Handler {
-	if bucket == "" {
-		panic("ratelimit: empty bucket")
-	}
-	return rateLimit(rdb, limit, window, trustedProxies, identity, bucket)
-}
-
-// rateLimit keys the counter on bucket, or on the request path when bucket
-// is empty.
-func rateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc, bucket string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if rdb == nil {
 			return next
