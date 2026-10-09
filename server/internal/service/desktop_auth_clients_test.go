@@ -133,3 +133,15 @@ func TestDesktopAuthLegacySingleClientRefusesOtherClients(t *testing.T) {
 		t.Fatal("legacy config accepted a client it does not list")
 	}
 }
+
+func TestDesktopAuthLegacyPairKeepsItsPerFieldDefaults(t *testing.T) {
+	// The isolation world sets only the client id; the redirect still defaults.
+	svc := NewDesktopAuthService(nil, nil, auth.TokenMinter{}, config.Config{DesktopAuthClientID: stableClient, DesktopAuthDeploymentIDs: []string{"default"}})
+	if !svc.allowed(stableClient, stableRedirect, "default") {
+		t.Fatal("client-only legacy config lost the default redirect")
+	}
+	svc = NewDesktopAuthService(nil, nil, auth.TokenMinter{}, config.Config{DesktopAuthRedirectURIs: []string{stableRedirect}, DesktopAuthDeploymentIDs: []string{"default"}})
+	if !svc.allowed(stableClient, stableRedirect, "default") {
+		t.Fatal("redirect-only legacy config lost the default client")
+	}
+}

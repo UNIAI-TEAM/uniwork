@@ -59,8 +59,15 @@ type DesktopAuthService struct {
 }
 
 func NewDesktopAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, cfg config.Config) *DesktopAuthService {
-	if len(cfg.DesktopClients()) == 0 {
-		cfg.DesktopAuthClients = []config.DesktopAuthClient{{ID: "uniwork-office", RedirectURIs: []string{"uniwork-office://auth/callback"}}}
+	// Without DesktopAuthClients the single-client pair keeps its own
+	// per-field defaults, exactly as before the client list existed.
+	if len(cfg.DesktopAuthClients) == 0 {
+		if cfg.DesktopAuthClientID == "" {
+			cfg.DesktopAuthClientID = "uniwork-office"
+		}
+		if len(cfg.DesktopAuthRedirectURIs) == 0 {
+			cfg.DesktopAuthRedirectURIs = []string{"uniwork-office://auth/callback"}
+		}
 	}
 	if len(cfg.DesktopAuthDeploymentIDs) == 0 {
 		cfg.DesktopAuthDeploymentIDs = []string{"default"}
