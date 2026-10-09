@@ -1,6 +1,8 @@
 # UniWork Office G3 - Editor sáu định dạng trên web
 
-> **Trạng thái:** in-progress - spec v1.3 để duyệt, cập nhật 2026-09-29; đã reconcile baseline G1/G2 đã merge và handoff evidence, giữ quyết định bỏ autosave của người dùng; chưa triển khai hoặc nghiệm thu sản phẩm.
+> **Trạng thái:** superseded - phần editor đã bị thay bằng [plan genoffice](../plans/2026-10-08-uniwork-office-genoffice.md) (UNI-1001; plan này vào develop cùng UNI-1001, GO-C3 UNI-1020, 2026-10-09). Phần editor sáu định dạng trên web (UI dựng trên `packages/ui`, engine port) không phát triển thêm; web sẽ dùng renderer genoffice (GO-B1..B7, UNI-1011..1017).
+
+> **Còn hiệu lực:** hợp đồng host/Save/quyền/phiên bản (`docs/office/g3g4/host-contract.md`), FileService + Documents (UNI-726), web host harness và khung `packages/views/office/frame`. Các phần đã merge giữ nguyên cho tới khi GO-B7 gỡ editor cũ.
 
 **Issue tài liệu:** UNI-819, parent UNI-437. **Issue triển khai:** G3 UNI-659.
 **Roadmap:** C-01, liên quan C-15/C-16. **Spec đồng hành:** [G4 desktop](2026-09-27-office-g4-desktop-design.md).
