@@ -121,6 +121,71 @@ the document's current version. The launch target (GO-A6) and installer URLs
 (GO-A8) come later. Evidence: `reports/uni-1014-evidence/desktop-open/`
 (header button, installer menu, install prompt; vi + en, light + dark).
 
+## AI in the frame (CONTRACT C16, ADR 0029 D9)
+
+The frame calls GO-A7's AI routes itself, same origin, with
+`Authorization: Bearer <frame token>` and `credentials: 'omit'`; there is no
+postMessage relay. The routes are GO-A7's handlers (`handler.NewAIMountable`)
+mounted on the frame token (`server/internal/handler/router/office_frame_ai.go`):
+
+| route under `/api/v1/office-frame/documents/{documentID}/ai` | session twin under `/api/v1/orgs/{orgID}/ai` |
+| --- | --- |
+| `GET /credentials`, `PUT` / `DELETE /credentials/{aiProvider}` | `.../credentials...` |
+| `POST /byok/{aiProvider}/chat/completions` \| `/messages` \| `/generate`, `GET /byok/{aiProvider}/models` | `.../byok/...` |
+| `GET /cloud`, `POST /cloud/search` \| `/images` \| `/media/analyze` \| `/transcribe` | `.../cloud...` |
+
+What each request passes, in order:
+
+1. Frame auth (`officeFrameAuth`, the same as every frame route): a frame token
+   only (a session token or a cookie is not one: 401), the token's document must
+   be `{documentID}` (another document's or another organization's token: 404),
+   and the token module's `office_*_web` flag must be on for the token's
+   organization (off: 404 `feature_disabled`, as on every frame route).
+2. The per-person rate limit: the same buckets and numbers as the session
+   routes (`ai-credentials` 30/min, `ai-byok` 60/min, `ai-cloud` 20/min for the
+   four tools; `GET .../cloud` only the global limit), keyed by the token's
+   user, so a frame and a host tab of one person share one budget and a new
+   document or provider does not reset it.
+3. `frameAIActor` (`server/internal/handler/office_frame_ai.go`): rechecks on
+   every request that the token's user may still view the token's document
+   (`OfficeFrameService.Authorize`: ACL, same workspace, same organization,
+   same module); a user who lost access gets 404 on the next call although the
+   token has not expired. It then names the token's user and organization to
+   GO-A7's handlers.
+4. GO-A7's services as on the session routes: organization membership,
+   `office.ai_byok` (credential `PUT` and the proxy; `GET`/`DELETE` stay open)
+   or `office.ai_cloud` (the tools), credits (`ai.tokens`), usage rows, audit
+   (`ai.credential.saved` / `.deleted`), error codes (402 `credits_exhausted`,
+   403 `entitlement_required`, 404 `credential_missing`, 424
+   `provider_auth_failed`, 429, 502, 503 `cloud_unavailable`). The BYOK stream
+   is passed through byte for byte (SSE stays SSE).
+
+Credentials are the person's own rows of (organization, user), not part of the
+document, so **view access is the bar for every route, credential `PUT` /
+`DELETE` included**: a key saved in a frame is the same key the session routes
+list, in the document's organization.
+
+**Host grant.** The frame-token answer (`POST /documents/{documentID}/office/frame-token`)
+carries `ai: {ai, web_search, image_search, image_generation}`, read once at
+mint (`officeFrameAIGrant`): `ai` when the person could use the proxy in the
+document's organization (member, `office.ai_byok`, credential store
+configured: `AIBYOKService.Enabled`), each cloud key only with `ai` and while
+GO-A7's cloud status reports that tool (`office.ai_cloud` + a configured
+provider). Anything that fails reads as off. The host
+(`officeModuleCapabilities`) grants `ai`, `webSearch`, `imageSearch`,
+`imageGeneration` only to a module with AI panels (`officeModuleSpec(m).ai`:
+docs, pdf, markdown, html, slides; not sheets) and only as far as that grant;
+a view-only user keeps AI (it still cannot save). Without the grant the frame
+hides every AI entry, as before. The capability keys are re-vendored from the
+fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
+
+Tests: `server/internal/handler/office_frame_ai_test.go` (every route through
+the frame token, refusals, per-request ACL, entitlement, flag, SSE pass-through,
+the grant), `server/internal/handler/router/office_frame_ai_test.go` (binding,
+shared budgets), `TestIsolationMatrix` rows, `TestAIBYOKServiceEnabled`,
+`packages/views/office/frame/office-module-frame.test.tsx` and
+`packages/core/api/endpoints/office-frame.test.ts` (grant).
+
 ## Sheets size cap (GO-D3 = C)
 
 The Sheets frame runs the engine in WASM in the browser, so a workbook over

@@ -219,6 +219,10 @@ trong context + `{orgID}` trên path). Việc mount dưới `/office-frame/docum
 (chỉ bearer frame-token; user/org lấy từ claim và tài liệu) **do lane web modules (B4/5/6,
 UNI-1014) thực hiện** sau khi merge lane này, bằng resolver đọc claim frame-token; lane GO-A7
 không phụ thuộc middleware frame của GO-B2/B3. Rate limit và xác thực nằm ở nhóm route mount.
+**Đã mount (UNI-1014, 2026-10-09):** cả ba route khóa (khóa cũng mountable), bốn route BYOK và
+năm route đám mây dưới `/office-frame/documents/{documentID}/ai/...`; quyền xem tài liệu kiểm lại
+mỗi request, cùng bucket rate limit với route session, token frame mang `ai` grant cho host. Chi
+tiết: `docs/office/office-web-modules.md` mục "AI in the frame".
 Trang host web dùng được các route session ở trên ngay. Desktop **không đổi** ở v1: BYOK trực
 tiếp, chỉ dùng mục 3.3 cho công cụ đám mây.
 
@@ -226,7 +230,7 @@ tiếp, chỉ dùng mục 3.3 cho công cụ đám mây.
 thành viên bị gỡ/vô hiệu hóa để lại khóa trong bảng (không dùng được, chỉ `DELETE` xóa); không
 xoay khóa chủ; stream openai-compatible chỉ ghi token khi có `include_usage`; body 2xx của nhà
 cung cấp không lọc khóa; hạn chót header 15 s chỉ cho streaming/`GET`; phiên âm không có thời
-lượng được ước lượng từ dung lượng; việc mount route frame do lane web modules làm (mục này).
+lượng được ước lượng từ dung lượng; route frame đã mount bởi lane web modules (mục này).
 
 Trạng thái: các route Ask UNI cũ (`router/ai.go`: `GET /workspaces/{workspaceID}/ai/capabilities`,
 `.../ai/usage`, `GET /orgs/{orgID}/ai/usage`) phục vụ web và không đổi. Các route 3.1–3.3 là

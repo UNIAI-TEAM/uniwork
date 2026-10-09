@@ -200,7 +200,7 @@ Client gửi **byte** media, server không bao giờ tự tải URL media, nên 
   stream chỉ chịu tổng 10 phút vì nhà cung cấp trả header sau khi sinh xong.
 - Phiên âm bằng model không báo thời lượng chỉ tính theo ước lượng từ dung lượng (xem Quyết
   định 5); tệp có bitrate rất khác điển hình có thể lệch.
-- Route frame (`/office-frame/...`) chưa mount (xem Quyết định 9): chờ merge gốc GO-B2/B3.
+- Route frame (`/office-frame/documents/{documentID}/ai/...`) đã mount bởi lane web modules (UNI-1014, 2026-10-09, xem Quyết định 9 và `docs/office/office-web-modules.md`): token frame, quyền xem tài liệu kiểm lại mỗi request, cùng bucket rate limit; khóa `PUT`/`DELETE` chỉ cần quyền xem vì khóa là của người dùng trong tổ chức, không thuộc tài liệu.
 
 ## Trạng thái
 
