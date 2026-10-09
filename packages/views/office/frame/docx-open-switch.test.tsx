@@ -24,8 +24,14 @@ describe("DocxOpenSwitch", () => {
     expect(screen.queryByText("g3 editor")).toBeNull();
   });
 
-  it("keeps the G3 editor when the flag is off or absent", async () => {
+  it("opens the Docs frame by default when the answer does not name the flag", async () => {
     answer({ office_engine: true });
+    render(wrap(ui));
+    expect(await screen.findByText("docs frame")).toBeTruthy();
+  });
+
+  it("keeps the G3 editor when an override turns the flag off", async () => {
+    answer({ office_engine: true, office_docs_web: false });
     render(wrap(ui));
     expect(await screen.findByText("g3 editor")).toBeTruthy();
     expect(screen.queryByText("docs frame")).toBeNull();

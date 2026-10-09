@@ -128,11 +128,16 @@ describe("useOfficeDocsWebEnabled", () => {
     await waitFor(() => expect(result.current).toBe("on"));
   });
 
-  it("reads off when the flag is absent or false, and unknown on a failed read", async () => {
+  it("reads off when the organization's answer says false, on when the flag is absent, and unknown on a failed read", async () => {
     const { wrapper } = setup();
-    vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true }));
+    vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true, office_docs_web: false }));
     const { result } = renderHook(() => useOfficeDocsWebEnabled("org1"), { wrapper });
     await waitFor(() => expect(result.current).toBe("off"));
+
+    const absent = setup();
+    vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true }));
+    const { result: defaulted } = renderHook(() => useOfficeDocsWebEnabled("org3"), { wrapper: absent.wrapper });
+    await waitFor(() => expect(defaulted.current).toBe("on"));
 
     const failing = setup();
     vi.mocked(fetch).mockImplementation(async () => json({ error: "boom" }, 500));
@@ -140,10 +145,10 @@ describe("useOfficeDocsWebEnabled", () => {
     await waitFor(() => expect(failed.current).toBe("unknown"), SETTLE);
   });
 
-  it("reads the host's global default (off) without an organization", () => {
+  it("reads the host's global default (on) without an organization", () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useOfficeDocsWebEnabled(undefined), { wrapper });
-    expect(result.current).toBe("off");
+    expect(result.current).toBe("on");
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 });
