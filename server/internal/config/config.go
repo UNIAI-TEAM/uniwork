@@ -107,6 +107,9 @@ type Config struct {
 	OfficeInstallerDevURLs    string
 	OfficeInstallerBetaURLs   string
 	OfficeInstallerStableURLs string
+	// OfficeInstallerRedirectHosts are the only hosts a bundle download may
+	// follow one redirect to, and only from a github.com release URL.
+	OfficeInstallerRedirectHosts []string
 	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
 	AdminRateLimitPerMin int
 }
@@ -212,6 +215,7 @@ func Load() (Config, error) {
 		OfficeInstallerDevURLs:        os.Getenv("OFFICE_INSTALLER_DEV_URLS"),
 		OfficeInstallerBetaURLs:       os.Getenv("OFFICE_INSTALLER_BETA_URLS"),
 		OfficeInstallerStableURLs:     os.Getenv("OFFICE_INSTALLER_STABLE_URLS"),
+		OfficeInstallerRedirectHosts:  splitList(strings.ToLower(getenv("OFFICE_INSTALLER_REDIRECT_HOSTS", "objects.githubusercontent.com,release-assets.githubusercontent.com"))),
 		AdminRateLimitPerMin:          int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
 	}
 	if c.VAPIDSubject == "" {
@@ -225,6 +229,9 @@ func Load() (Config, error) {
 	}
 	if strings.TrimSpace(c.DesktopAuthClientID) == "" || len(c.DesktopAuthRedirectURIs) == 0 || len(c.DesktopAuthDeploymentIDs) == 0 {
 		return c, fmt.Errorf("desktop auth client, redirect and deployment allowlists are required")
+	}
+	if !validRedirectHosts(c.OfficeInstallerRedirectHosts) {
+		return c, fmt.Errorf("OFFICE_INSTALLER_REDIRECT_HOSTS must list DNS host names without ports, IPs or localhost")
 	}
 	if c.DesktopAuthCodeTTL <= 0 || c.DesktopAuthCodeTTL > 10*time.Minute {
 		return c, fmt.Errorf("DESKTOP_AUTH_CODE_TTL must be between 1s and 10m")

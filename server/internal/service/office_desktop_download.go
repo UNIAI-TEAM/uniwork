@@ -24,6 +24,10 @@ type OfficeDesktopDownload struct {
 type OfficeDesktopDownloadService struct {
 	orgs *OrganizationService
 	cfg  config.Config
+	// Tests route the two installer hops to fixtures; nil uses the default
+	// transport for the configured URL and publicOnlyTransport for a redirect.
+	installerTransport http.RoundTripper
+	redirectTransport  http.RoundTripper
 }
 
 func NewOfficeDesktopDownloadService(orgs *OrganizationService, cfg config.Config) *OfficeDesktopDownloadService {
