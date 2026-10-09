@@ -428,4 +428,26 @@ describe("OfficeDocsFrame", () => {
     expect(alert.getAttribute("data-failure-kind")).toBe("failed");
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeTruthy();
   });
+
+  it("dims the page chrome while the frame shows a modal dialog of its own", async () => {
+    serveTokens();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <nav data-testid="chrome">sidebar</nav>
+        <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+      </QueryClientProvider>,
+    );
+    const frame = fakeFrame();
+    await boot(frame);
+    const chrome = screen.getByTestId("chrome");
+    expect(chrome.hasAttribute("inert")).toBe(false);
+    await frame.event("modal", { open: true });
+    await waitFor(() => expect(chrome.hasAttribute("inert")).toBe(true));
+    expect(chrome.hasAttribute("data-office-frame-modal-dimmed")).toBe(true);
+    expect(screen.getByTestId("office-docs-frame-iframe").closest("[inert]")).toBeNull();
+    await frame.event("modal", { open: false });
+    await waitFor(() => expect(chrome.hasAttribute("inert")).toBe(false));
+    expect(chrome.style.filter).toBe("");
+  });
 });

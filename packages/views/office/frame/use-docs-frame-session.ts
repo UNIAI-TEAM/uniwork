@@ -48,6 +48,8 @@ export interface DocsFrameSession {
   failure: ProtocolErrorShape | null;
   dirty: boolean;
   saveState: DocsFrameSaveState;
+  /** The frame shows one of its own dialogs (its `modal` event); the page dims its chrome meanwhile. */
+  modal: boolean;
   /** Content height the frame last reported, in CSS px. */
   height: number | null;
   /** Ask the frame to save (leave dialog). Resolves true once the bytes are a new version. */
@@ -96,6 +98,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<DocsFrameSaveState>("ready");
+  const [modal, setModal] = useState(false);
   const [height, setHeight] = useState<number | null>(null);
   const [host, setHost] = useState<DocsFrameHost | null>(null);
 
@@ -109,6 +112,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     setFatal(null);
     setDirty(false);
     setSaveState("ready");
+    setModal(false);
     sentToken.current = null;
     // A clean frame after a save reads "saved"; one never saved reads "ready".
     let savedOnce = false;
@@ -210,6 +214,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       setDirty(next);
       if (!next) setSaveState((now) => (now === "dirty" ? (savedOnce ? "saved" : "ready") : now));
     });
+    endpoint.on("modal", ({ open }) => { setModal(open); });
     endpoint.on("title", ({ title }) => { latest.current.options.onTitle?.(title); });
     endpoint.on("resize", ({ height: next }) => { setHeight(next); });
     endpoint.on("saved", (saved) => {
@@ -278,5 +283,6 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   return { status: failure ? "failed" : status, failure, dirty,
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
+    modal: modal && status === "ready" && !failure,
     height, save, print, attempt, retry };
 }

@@ -13,6 +13,7 @@ import { registerLeaveGuard } from "../../navigation/leave-guard";
 import { LeaveDialog } from "../leave-dialog";
 import { SaveStatus } from "../save-status";
 import { DocsFrameFailure } from "./docs-frame-failure";
+import { dimChromeAround } from "./frame-modal-chrome";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
@@ -103,6 +104,14 @@ export function OfficeDocsFrame({
   });
   const { dirty, saveState, save, print } = session;
 
+  // A dialog inside the frame is modal for the whole page: dim and inert the chrome around the frame.
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!session.modal || !container) return undefined;
+    return dimChromeAround(container);
+  }, [session.modal]);
+
   useEffect(() => {
     if (!controlsRef) return undefined;
     controlsRef.current = { save: () => save("user"), print };
@@ -170,11 +179,13 @@ export function OfficeDocsFrame({
   const booting = session.status !== "ready";
   return (
     <div
+      ref={containerRef}
       className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col bg-background", className)}
       data-office-docs-frame
       data-state={session.status}
       data-dirty={dirty || undefined}
       data-save-state={saveState}
+      data-frame-modal={session.modal || undefined}
     >
       {headerSlot && !readonly && session.status === "ready" ? (
         // The page header around the frame says whether the frame's edits are saved, like the G3 header does.
