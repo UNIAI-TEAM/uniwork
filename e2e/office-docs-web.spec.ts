@@ -161,7 +161,7 @@ test.describe("open, edit, save", () => {
     await page.keyboard.press("Control+End");
     await page.keyboard.type(` ${marker}`);
     await page.frameLocator(FRAME_SELECTOR).getByText("Tệp", { exact: true }).first().click();
-    await page.frameLocator(FRAME_SELECTOR).getByText("Lưu thành…").first().click();
+    await page.frameLocator(FRAME_SELECTOR).getByText("Lưu dưới dạng…").first().click();
 
     // The page follows the copy: same workspace, another document id.
     await expect(page).not.toHaveURL(seeded.documentUrl, { timeout: 60_000 });

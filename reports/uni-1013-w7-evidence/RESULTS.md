@@ -1,6 +1,6 @@
 # W7/W7b evidence: Docs web frame served from apps/web (UNI-1013)
 
-Run 2026-10-08 against a production `next build` of this branch, the Go server
+Run 2026-10-09 (re-pin, lane F10) against the pinned fork build `0.1.0-8f34ddf` (fork lane = bd87597 + F11 fix 'hand opened document bytes to the renderer without fetch(blob:)'), dev SHA `63cf4aa19`, on top of the earlier run 2026-10-08 against a production `next build` of this branch, the Go server
 built from this branch (dev lane `1b1d5d9b3` (F3a server fixes, W8 export route) merged),
 Postgres from `.env.worktree`, and the pinned fork build `0.1.0-5a81008`
 (clean, fork lane `5a81008` (headless entry; protocol files unchanged since `5bce54c`), built with `npm run build:web` in the lane worktree).
@@ -76,3 +76,15 @@ details in `docs/office/pdf-export-decision.md`. The e2e export step still ends 
 this local stack runs no office engine.
 
 Re-run 2026-10-09 after merging dev lane `1b1d5d9b3`: installed 10 passed / 1 skipped, not installed 1 passed / 10 skipped.
+
+## Re-pin 2026-10-09: fork 0.1.0-8f34ddf (dev `63cf4aa19`)
+
+`office_docs_web` is ON by default; only the flag-off case writes an ORGANIZATION override (and restores it).
+Production `next build` + `next start`, Go server from this branch, both runs under the shared build flock.
+
+- Installed bundle (`0.1.0-8f34ddf`): **10 passed, 1 skipped** (the not-installed case).
+- Bundle not installed (`public/office-frame` moved away, `OFFICE_FRAME_SOURCE` empty): **1 passed, 10 skipped**.
+- Pin `bd87597` was not usable (blob: URL vs frame CSP) and was never accepted as evidence.
+- The fork menu renamed Save as from "Lưu thành…" to "Lưu dưới dạng…"; `e2e/office-docs-web.spec.ts` follows it (first run on 8f34ddf: 9 passed, this one case failed on the label only; re-run all green).
+- Vendored protocol files are byte-identical to fork `web/docs/protocol/{types,endpoint,host}.ts` at 8f34ddf (import specifiers aside); only the SHA header comments moved.
+- Screenshots refreshed in `screenshots/` (01-06).
