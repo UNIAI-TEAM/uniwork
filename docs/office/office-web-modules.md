@@ -120,7 +120,10 @@ the document's current version. The launch target (GO-A6) and installer URLs
 The Sheets frame runs the engine in WASM in the browser, so a workbook over
 the cap opens in the G3 xlsx host. One number per module (`maxBytes` in
 `office-modules.ts`, `maxBytes` in the server's `officeFrameModules`; xlsx
-only, 5 MiB = 5 * 1024 * 1024 bytes of stored file, raise both together):
+only, 10 MiB = 10 * 1024 * 1024 bytes of stored file, raise both together;
+raised from 5 MiB on measurement: with the SH2 incremental index 2.2M dense
+cells = a ~10.3 MB file, ~2.3 s to first paint, ~0.8 GB renderer peak, see the
+fork's `docs/web-modules/sheets-sidecar.md`):
 
 - Host gate: `ModuleFrameOrG3Host` compares the document's
   `file.size_bytes` and mounts the G3 host without asking for a token.
@@ -150,7 +153,12 @@ OFFICE_MODULES_WEB_E2E=1 E2E_BASE_URL=http://localhost:$FRONTEND_PORT \
 `office-markdown-web.spec.ts` is the first: serving headers, open + handshake
 (`data-state="ready"` on the host wrapper), flag off -> G3; the edit -> save
 -> reopen case is `test.fixme` until the fork's markdown module saves. CI
-does not set `OFFICE_MODULES_WEB_E2E` yet (no module pin is committed).
+runs in the `e2e` job (`OFFICE_MODULES_WEB_E2E=1`, next to `OFFICE_DOCS_WEB_E2E`).
+Like the Docs spec, its cases choose themselves from the installed manifests: a
+module pin plus an `OFFICE_FRAME_SOURCE` holding that module's build runs the
+frame cases; without a bundle (no pin committed yet, or no secret access) only
+the "bundle not installed -> G3" case runs and the frame cases skip. A module
+spec copies that shape, so adding one needs no CI change.
 
 ## Not done here
 
