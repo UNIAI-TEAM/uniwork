@@ -1607,15 +1607,21 @@ WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
   AND m.thread_root_id IS NULL
-  AND ($3::timestamptz IS NULL OR m.created_at < $3)
-ORDER BY m.created_at DESC
-LIMIT $4
+  -- Keyset page older than (before_at, before_id). An empty before_id sorts
+  -- below every id, so a bare legacy timestamp stays strictly-before.
+  AND ($3::timestamptz IS NULL OR (
+    m.created_at <= $3::timestamptz
+    AND (m.created_at, m.id) < ($3::timestamptz, $4::text)
+  ))
+ORDER BY m.created_at DESC, m.id DESC
+LIMIT $5
 `
 
 type ListChatMessagesByRoomParams struct {
 	RoomID      string             `json:"room_id"`
 	WorkspaceID string             `json:"workspace_id"`
 	BeforeAt    pgtype.Timestamptz `json:"before_at"`
+	BeforeID    string             `json:"before_id"`
 	MsgLimit    int32              `json:"msg_limit"`
 }
 
@@ -1642,6 +1648,7 @@ func (q *Queries) ListChatMessagesByRoom(ctx context.Context, arg ListChatMessag
 		arg.RoomID,
 		arg.WorkspaceID,
 		arg.BeforeAt,
+		arg.BeforeID,
 		arg.MsgLimit,
 	)
 	if err != nil {

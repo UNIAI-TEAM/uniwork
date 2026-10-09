@@ -2,17 +2,19 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { listChatRoomMessages, type ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
+import { listChatRoomMessages, olderThan, type ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { chatKeys } from "@uniwork/core/chat";
 
 const OLDER_PAGE = 80;
 
-function oldestCreatedAt(rows: ChatMessageRecord[]): string | null {
+type OlderThan = ReturnType<typeof olderThan>;
+
+function olderThanOldest(rows: ChatMessageRecord[]): OlderThan | null {
   let oldest: ChatMessageRecord | null = null;
   for (const row of rows) {
     if (!oldest || Date.parse(row.created_at) < Date.parse(oldest.created_at)) oldest = row;
   }
-  return oldest?.created_at ?? null;
+  return oldest ? olderThan(oldest) : null;
 }
 
 /**
@@ -27,14 +29,14 @@ export function useBulletinOlderMessages(
   windowRows: ChatMessageRecord[],
   windowFull: boolean,
 ) {
-  const [from, setFrom] = useState<string | null>(null);
+  const [from, setFrom] = useState<OlderThan | null>(null);
   const older = useInfiniteQuery({
-    queryKey: chatKeys.roomBulletinOlder(workspaceId, roomId, from ?? ""),
+    queryKey: chatKeys.roomBulletinOlder(workspaceId, roomId, from?.cursor ?? from?.before ?? ""),
     enabled: Boolean(from),
-    initialPageParam: from ?? "",
+    initialPageParam: from ?? {},
     queryFn: ({ pageParam }) =>
-      listChatRoomMessages(workspaceId, roomId, { before: pageParam, limit: OLDER_PAGE, mark_read: false }),
-    getNextPageParam: (last) => (last.length < OLDER_PAGE ? undefined : (oldestCreatedAt(last) ?? undefined)),
+      listChatRoomMessages(workspaceId, roomId, { ...pageParam, limit: OLDER_PAGE, mark_read: false }),
+    getNextPageParam: (last) => (last.length < OLDER_PAGE ? undefined : (olderThanOldest(last) ?? undefined)),
   });
 
   const rows = useMemo(() => {
@@ -62,7 +64,7 @@ export function useBulletinOlderMessages(
     loadMoreFailed: older.isError,
     loadMore: () => {
       if (!started) {
-        const cursor = oldestCreatedAt(windowRows);
+        const cursor = olderThanOldest(windowRows);
         if (cursor) setFrom(cursor);
         return;
       }

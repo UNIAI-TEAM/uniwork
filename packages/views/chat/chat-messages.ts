@@ -4,6 +4,8 @@ export interface ChatMessage {
   body: string;
   kind?: string;
   ts: number;
+  /** Server history cursor; passed back verbatim to page older messages. */
+  cursor?: string;
   replyToEventId?: string;
   threadRootId?: string;
   replyCount?: number;

@@ -58,6 +58,7 @@ vi.mock("@uniwork/core/api/endpoints/chat", async (orig) => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 import { toast } from "sonner";
+import { listChatRoomMessages } from "@uniwork/core/api/endpoints/chat";
 
 // @tanstack/react-virtual needs layout measurements that jsdom cannot provide,
 // so render rows synchronously in this test.
@@ -228,16 +229,21 @@ describe("NativeChatMessagePanel", () => {
     expect(status()?.textContent).toBe("Binh: Mới đây");
   });
 
-  it("offers a button for older history when more exists", () => {
+  it("offers a button for older history and pages from the oldest row's cursor", async () => {
     rows = Array.from({ length: 80 }, (_, i) => ({
       id: `h${i}`,
       sender_id: "u2",
       body: `msg ${i}`,
       kind: "text",
       created_at: new Date(Date.UTC(2026, 0, 1, 10, i)).toISOString(),
+      cursor: `c${i}`,
       reactions: {},
     }));
     render(wrap(panel()));
-    expect(screen.getByRole("button", { name: "Tải tin cũ hơn" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tải tin cũ hơn" }));
+    await waitFor(() =>
+      expect(listChatRoomMessages).toHaveBeenCalledWith("ws1", "room1", expect.objectContaining({ cursor: "c0" })),
+    );
+    expect(vi.mocked(listChatRoomMessages).mock.calls[0]?.[2]).not.toHaveProperty("before");
   });
 });

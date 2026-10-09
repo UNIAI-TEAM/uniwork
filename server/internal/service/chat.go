@@ -104,12 +104,21 @@ type ChatMessageRow struct {
 }
 
 type ListChatMessagesInput struct {
+	// Cursor is a row's Cursor(): the page strictly older than that row.
+	Cursor string
+	// Before is the legacy second-precision cursor; it skips messages that
+	// share the boundary second, so Cursor wins when both are set.
 	Before *time.Time
 	Limit  int
 	// SkipMarkRead leaves last_read_at alone so CatchUp can still summarise
-	// the unread window after the client opens the room. Pagination (Before
-	// set) never marks read either.
+	// the unread window after the client opens the room. Pagination (Cursor
+	// or Before set) never marks read either.
 	SkipMarkRead bool
+}
+
+// Cursor is the opaque keyset position of this message in its room's history.
+func (m ChatMessageRow) Cursor() string {
+	return encodeFeedCursor(m.CreatedAt, m.ID)
 }
 
 type SendChatMessageInput struct {
@@ -400,13 +409,22 @@ func (s *ChatService) listMessages(
 		limit = maxChatMessageLimit
 	}
 	var before pgtype.Timestamptz
-	if in.Before != nil {
+	var beforeID string
+	switch {
+	case in.Cursor != "":
+		at, id, err := decodeFeedCursor(in.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		before, beforeID = pgtype.Timestamptz{Time: at, Valid: true}, id
+	case in.Before != nil:
 		before = pgtype.Timestamptz{Time: *in.Before, Valid: true}
 	}
 	rows, err := s.q.ListChatMessagesByRoom(ctx, db.ListChatMessagesByRoomParams{
 		RoomID:      roomID,
 		WorkspaceID: workspaceID,
 		BeforeAt:    before,
+		BeforeID:    beforeID,
 		MsgLimit:    int32(limit),
 	})
 	if err != nil {
@@ -419,7 +437,7 @@ func (s *ChatService) listMessages(
 	// Only the latest page may bump the read cursor — loading older history
 	// must not rewind last_read_at. CatchUp needs the pre-open cursor when
 	// SkipMarkRead is set (unread room open).
-	if !in.SkipMarkRead && in.Before == nil && len(out) > 0 {
+	if !in.SkipMarkRead && !before.Valid && len(out) > 0 {
 		last := out[len(out)-1]
 		s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true})
 	}

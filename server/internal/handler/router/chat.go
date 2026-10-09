@@ -213,8 +213,9 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.Get("/workspaces/{workspaceID}/chat/messages", h.ListWorkspaceChatMessages, apiOp{
 		summary:     "List workspace chat messages",
-		description: "Danh sách tin nhắn phòng workspace (cursor: before RFC3339).",
+		description: "Danh sách tin nhắn phòng workspace (phân trang bằng cursor).",
 		tags:        []string{"chat"},
+		sdi:         sdi.ListChatMessagesSDI{},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
@@ -277,8 +278,9 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", h.ListChatRoomMessages, apiOp{
 		summary:     "List chat room messages",
-		description: "Danh sách tin nhắn phòng DM/nhóm. mark_read=0 giữ last_read_at (CatchUp sau khi mở phòng unread).",
+		description: "Danh sách tin nhắn phòng DM/nhóm (phân trang bằng cursor). mark_read=0 giữ last_read_at (CatchUp sau khi mở phòng unread).",
 		tags:        []string{"chat"},
+		sdi:         sdi.ListChatMessagesSDI{},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})

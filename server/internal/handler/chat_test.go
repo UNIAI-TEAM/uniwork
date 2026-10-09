@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -270,6 +271,23 @@ func TestChatRoomMessages(t *testing.T) {
 	res, out = doJSON(t, srv, "GET", base+"?before=not-a-time", tokA, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad before: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"?limit=1", tokA, nil)
+	newest := out["messages"].([]any)[0].(map[string]any)
+	cursor, _ := newest["cursor"].(string)
+	if res.StatusCode != http.StatusOK || cursor == "" {
+		t.Fatalf("newest page cursor: %d %v", res.StatusCode, newest)
+	}
+	res, out = doJSON(t, srv, "GET", base+"?limit=10&cursor="+url.QueryEscape(cursor), tokA, nil)
+	if res.StatusCode != http.StatusOK || len(out["messages"].([]any)) != 1 ||
+		out["messages"].([]any)[0].(map[string]any)["id"] == newest["id"] {
+		t.Fatalf("older page: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"?cursor=not-a-cursor", tokA, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("bad cursor: %d %v", res.StatusCode, out)
 	}
 
 	res, out = doJSON(t, srv, "GET", base+"/"+msgID, tokA, nil)

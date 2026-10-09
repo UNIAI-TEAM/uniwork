@@ -64,8 +64,13 @@ WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
   AND m.thread_root_id IS NULL
-  AND (sqlc.narg(before_at)::timestamptz IS NULL OR m.created_at < sqlc.narg(before_at))
-ORDER BY m.created_at DESC
+  -- Keyset page older than (before_at, before_id). An empty before_id sorts
+  -- below every id, so a bare legacy timestamp stays strictly-before.
+  AND (sqlc.narg(before_at)::timestamptz IS NULL OR (
+    m.created_at <= sqlc.narg(before_at)::timestamptz
+    AND (m.created_at, m.id) < (sqlc.narg(before_at)::timestamptz, sqlc.arg(before_id)::text)
+  ))
+ORDER BY m.created_at DESC, m.id DESC
 LIMIT sqlc.arg(msg_limit);
 
 -- name: CreateChatPollMessage :one

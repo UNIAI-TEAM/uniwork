@@ -7,9 +7,10 @@ import type { ChatMessageRecord } from "./chat-schemas";
 export async function listChatRoomMessages(
   workspaceId: string,
   roomId: string,
-  options?: { before?: string; limit?: number; mark_read?: boolean },
+  options?: { cursor?: string; before?: string; limit?: number; mark_read?: boolean },
 ): Promise<ChatMessageRecord[]> {
   const params = new URLSearchParams();
+  if (options?.cursor) params.set("cursor", options.cursor);
   if (options?.before) params.set("before", options.before);
   if (options?.limit) params.set("limit", String(options.limit));
   // Default true (omit param). mark_read=0 preserves last_read for CatchUp.
@@ -22,6 +23,17 @@ export async function listChatRoomMessages(
     endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages",
   });
   return parsed.messages ?? [];
+}
+
+/**
+ * Query for the page older than `message`: its opaque cursor verbatim, or the
+ * second-precision `before` that a server sending no cursor still understands.
+ */
+export function olderThan(message: { cursor?: string; created_at: string }): {
+  cursor?: string;
+  before?: string;
+} {
+  return message.cursor ? { cursor: message.cursor } : { before: message.created_at };
 }
 
 export async function markChatRoomRead(workspaceId: string, roomId: string): Promise<boolean> {

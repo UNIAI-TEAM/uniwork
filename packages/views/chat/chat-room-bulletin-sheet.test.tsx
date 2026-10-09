@@ -143,7 +143,7 @@ describe("ChatRoomBulletinSheet", () => {
 
   it("loads older messages past the window on request, without marking the room read", async () => {
     messagesState.rows = Array.from({ length: 80 }, (_, i) =>
-      ({ ...note(`w${i}`, `tin ${i}`), kind: "text", note: undefined, body: `tin ${i}`, created_at: `2026-03-26T10:${String(i % 60).padStart(2, "0")}:00Z` }),
+      ({ ...note(`w${i}`, `tin ${i}`), kind: "text", note: undefined, body: `tin ${i}`, created_at: `2026-03-26T10:${String(i % 60).padStart(2, "0")}:00Z`, cursor: `c${i}` }),
     );
     requestMock.mockResolvedValue({ messages: [note("old1", "ghi chú cũ", "2026-03-01T08:00:00Z")] });
     render(wrap(<ChatRoomBulletinSheet open onOpenChange={vi.fn()} workspaceId="ws1" roomId="room1" title="Bảng tin" />));
@@ -152,7 +152,8 @@ describe("ChatRoomBulletinSheet", () => {
     expect(await screen.findByText("ghi chú cũ")).toBeInTheDocument();
     const [path] = requestMock.mock.calls[0] as [string];
     expect(path).toContain("/chat/rooms/room1/messages?");
-    expect(path).toContain("before=2026-03-26T10%3A00%3A00Z");
+    expect(path).toContain("cursor=c0");
+    expect(path).not.toContain("before=");
     expect(path).toContain("mark_read=0");
     // A short page means the start of the room: nothing more to load.
     await waitFor(() => expect(screen.queryByRole("button", { name: "Tải tin cũ hơn" })).toBeNull());

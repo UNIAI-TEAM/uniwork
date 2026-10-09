@@ -3,6 +3,14 @@ package sdi
 // EnsureWorkspaceChatRoomSDI is POST /workspaces/{workspaceID}/chat/room.
 type EnsureWorkspaceChatRoomSDI struct{}
 
+// ListChatMessagesSDI documents GET .../chat/messages and .../chat/rooms/{roomID}/messages query params.
+type ListChatMessagesSDI struct {
+	Cursor   string `query:"cursor" description:"Trường cursor của tin cũ nhất đang có, gửi lại nguyên văn để lấy trang cũ hơn" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	Before   string `query:"before" description:"Cũ: mốc RFC3339, có thể bỏ sót tin cùng giây; dùng cursor thay thế" example:"2026-03-26T10:00:00Z"`
+	Limit    int    `query:"limit" description:"Số tin mỗi trang" example:"50"`
+	MarkRead string `query:"mark_read" description:"0 giữ nguyên last_read_at (CatchUp sau khi mở phòng chưa đọc)" example:"0"`
+}
+
 // SendChatMessageSDI is POST /workspaces/{workspaceID}/chat/messages.
 type SendChatMessageSDI struct {
 	Body             string                 `json:"body" description:"Message text" example:"Xin chào team!"`

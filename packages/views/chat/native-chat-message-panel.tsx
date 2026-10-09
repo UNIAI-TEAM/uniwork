@@ -7,7 +7,7 @@ import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import { stopChatVoicePlayback } from "@uniwork/core/chat/voice-playback-store";
-import { listChatRoomMessages, listChatRoomMessagesAround } from "@uniwork/core/api/endpoints/chat";
+import { listChatRoomMessages, listChatRoomMessagesAround, olderThan } from "@uniwork/core/api/endpoints/chat";
 import {
   useChatRoomMessageLinks,
   useChatRoomMessages,
@@ -293,7 +293,7 @@ export function NativeChatMessagePanel({
       const oldest = allMessages[0];
       if (!oldest) return;
       const rows = await listChatRoomMessages(workspaceId, roomId, {
-        before: new Date(oldest.ts).toISOString(),
+        ...olderThan({ cursor: oldest.cursor, created_at: new Date(oldest.ts).toISOString() }),
         limit: CHAT_MESSAGE_PAGE_SIZE,
       });
       const older = rows.map(toChatMessage);

@@ -28,6 +28,8 @@ export const ChatMessageSchema = z.object({
   last_reply_at: z.string().optional(),
   thread_unread: z.boolean().optional().default(false),
   created_at: z.string(),
+  /** Opaque history position; sent back verbatim to page older messages. */
+  cursor: z.string().optional().catch(undefined),
   edited_at: z.string().optional(),
   pinned: z.boolean().optional().default(false),
   mentioned_user_ids: z

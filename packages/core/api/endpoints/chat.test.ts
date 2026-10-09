@@ -11,6 +11,7 @@ import {
   patchChatRoomMember,
   listChatRoomMessages,
   markChatRoomRead,
+  olderThan,
   searchChatRoomMessages,
   listChatRoomMessagesAround,
   listChatRooms,
@@ -228,6 +229,28 @@ describe("chat endpoints", () => {
     const url = String(vi.mocked(fetch).mock.calls[0]?.[0]);
     expect(url).toContain("mark_read=0");
     expect(url).toContain("limit=20");
+  });
+
+  it("listChatRoomMessages sends the cursor back verbatim and degrades a drifted one", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      body: "hi",
+      created_at: "2026-09-05T00:00:00Z",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ messages: [{ ...base, id: "m1", cursor: "1788566400123456.m1" }, { ...base, id: "m2", cursor: 7 }] }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1", { cursor: "1788566400999999.m9" });
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("cursor=1788566400999999.m9");
+    expect(messages.map((m) => m.cursor)).toEqual(["1788566400123456.m1", undefined]);
+  });
+
+  it("olderThan prefers the opaque cursor and falls back to before without one", () => {
+    expect(olderThan({ cursor: "1.m1", created_at: "2026-09-05T00:00:00Z" })).toEqual({ cursor: "1.m1" });
+    expect(olderThan({ created_at: "2026-09-05T00:00:00Z" })).toEqual({ before: "2026-09-05T00:00:00Z" });
   });
 
   it("markChatRoomRead posts to the room read endpoint", async () => {
