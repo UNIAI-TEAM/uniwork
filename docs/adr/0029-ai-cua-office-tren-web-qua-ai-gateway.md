@@ -108,11 +108,12 @@ dựng các công cụ đám mây UniWork (tìm kiếm, sinh ảnh, phân tích 
 8. **Không bao giờ trả khóa (D8).** Phản hồi chỉ có `key_hint` = "…" + 4 ký tự cuối. Khóa
    không xuất hiện trong log, payload audit, lỗi, trace hay sự kiện outbox. Body lỗi của
    nhà cung cấp chỉ được chuyển tiếp sau khi thay mọi chỗ khóa lặp lại bằng `[redacted]`.
-9. **Frame web (D9).** Cùng service proxy và công cụ đám mây sẽ được mount thêm dưới
-   `/office-frame/documents/{documentID}/ai/...`, tác nhân (user, org) lấy từ claim của
-   frame-token. Route frame nằm trên nhánh GO-B2/B3, chưa có trên nền này, nên lane này
-   chỉ dựng tầng service để việc mount là một route mỏng; việc mount ghi là **chờ merge
-   gốc GO-B2/B3**. Trang host web dùng được route session ngay.
+9. **Frame web (D9).** Handler proxy và công cụ đám mây là mountable: chúng nhận tác nhân
+   (user, org) từ một `AIActorResolver` duy nhất (`handler.NewAIMountable`), mặc định là user
+   của phiên + `{orgID}` trên path. Lane web modules (UNI-1014) tự mount chúng dưới
+   `/office-frame/documents/{documentID}/ai/...` với resolver đọc claim frame-token, sau khi
+   merge lane này; lane này không phụ thuộc middleware frame của GO-B2/B3. Trang host web
+   dùng được route session ngay.
 
 ## Công cụ đám mây UniWork
 

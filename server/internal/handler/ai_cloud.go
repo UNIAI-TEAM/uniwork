@@ -5,12 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
-	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
@@ -24,7 +21,7 @@ const (
 )
 
 // aiCloud answers 503 cloud_unavailable when the server has no cloud service.
-func (h *handlers) aiCloud(w http.ResponseWriter) *service.AICloudService {
+func (h *aiHandlers) aiCloud(w http.ResponseWriter) *service.AICloudService {
 	if h.AICloud == nil {
 		h.mapServiceError(w, ai.ErrCloudUnavailable)
 	}
@@ -35,12 +32,16 @@ func cloudMedia(in sdi.AiCloudMediaSDI) service.CloudMedia {
 	return service.CloudMedia{MIME: in.Mime, DataBase64: in.DataBase64}
 }
 
-func (h *handlers) aiCloudStatus(w http.ResponseWriter, r *http.Request) {
+func (h *aiHandlers) aiCloudStatus(w http.ResponseWriter, r *http.Request) {
+	userID, orgID, ok := h.resolve(w, r)
+	if !ok {
+		return
+	}
 	svc := h.aiCloud(w)
 	if svc == nil {
 		return
 	}
-	st, err := svc.Status(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"))
+	st, err := svc.Status(r.Context(), userID, orgID)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -60,7 +61,11 @@ func (h *handlers) aiCloudStatus(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, out)
 }
 
-func (h *handlers) aiCloudSearch(w http.ResponseWriter, r *http.Request) {
+func (h *aiHandlers) aiCloudSearch(w http.ResponseWriter, r *http.Request) {
+	userID, orgID, ok := h.resolve(w, r)
+	if !ok {
+		return
+	}
 	svc := h.aiCloud(w)
 	if svc == nil {
 		return
@@ -69,7 +74,7 @@ func (h *handlers) aiCloudSearch(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	res, err := svc.Search(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), service.CloudSearchInput{
+	res, err := svc.Search(r.Context(), userID, orgID, service.CloudSearchInput{
 		Query: in.Query, Kind: in.Kind, MaxResults: in.MaxResults,
 	})
 	if err != nil {
@@ -85,7 +90,11 @@ func (h *handlers) aiCloudSearch(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, out)
 }
 
-func (h *handlers) aiCloudImages(w http.ResponseWriter, r *http.Request) {
+func (h *aiHandlers) aiCloudImages(w http.ResponseWriter, r *http.Request) {
+	userID, orgID, ok := h.resolve(w, r)
+	if !ok {
+		return
+	}
 	svc := h.aiCloud(w)
 	if svc == nil {
 		return
@@ -98,7 +107,7 @@ func (h *handlers) aiCloudImages(w http.ResponseWriter, r *http.Request) {
 	for _, m := range in.ReferenceImages {
 		refs = append(refs, cloudMedia(m))
 	}
-	res, err := svc.GenerateImage(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), service.CloudImageInput{
+	res, err := svc.GenerateImage(r.Context(), userID, orgID, service.CloudImageInput{
 		Prompt: in.Prompt, AspectRatio: in.AspectRatio, ImageSize: in.ImageSize, ReferenceImages: refs,
 	})
 	if err != nil {
@@ -112,7 +121,11 @@ func (h *handlers) aiCloudImages(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, out)
 }
 
-func (h *handlers) aiCloudAnalyzeMedia(w http.ResponseWriter, r *http.Request) {
+func (h *aiHandlers) aiCloudAnalyzeMedia(w http.ResponseWriter, r *http.Request) {
+	userID, orgID, ok := h.resolve(w, r)
+	if !ok {
+		return
+	}
 	svc := h.aiCloud(w)
 	if svc == nil {
 		return
@@ -125,7 +138,7 @@ func (h *handlers) aiCloudAnalyzeMedia(w http.ResponseWriter, r *http.Request) {
 	for _, m := range in.Media {
 		media = append(media, cloudMedia(m))
 	}
-	text, err := svc.AnalyzeMedia(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), service.CloudAnalyzeInput{
+	text, err := svc.AnalyzeMedia(r.Context(), userID, orgID, service.CloudAnalyzeInput{
 		Requirements: in.Requirements, Locale: in.Locale, Media: media,
 	})
 	if err != nil {
@@ -135,7 +148,11 @@ func (h *handlers) aiCloudAnalyzeMedia(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sdo.AiCloudTextSDO{Text: text})
 }
 
-func (h *handlers) aiCloudTranscribe(w http.ResponseWriter, r *http.Request) {
+func (h *aiHandlers) aiCloudTranscribe(w http.ResponseWriter, r *http.Request) {
+	userID, orgID, ok := h.resolve(w, r)
+	if !ok {
+		return
+	}
 	svc := h.aiCloud(w)
 	if svc == nil {
 		return
@@ -144,7 +161,7 @@ func (h *handlers) aiCloudTranscribe(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxCloudMediaBody) {
 		return
 	}
-	text, err := svc.Transcribe(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), service.CloudTranscribeInput{
+	text, err := svc.Transcribe(r.Context(), userID, orgID, service.CloudTranscribeInput{
 		Prompt: in.Prompt, Audio: cloudMedia(in.Audio),
 	})
 	if err != nil {

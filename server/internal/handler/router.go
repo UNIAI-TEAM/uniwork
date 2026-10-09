@@ -8,7 +8,6 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
@@ -135,6 +134,7 @@ func New(d Deps) http.Handler {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
 	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
+	aiMount := h.aiMountable(sessionAIActor)
 	return rt.New(rt.Deps{
 		Cfg:           d.Cfg,
 		Minter:        d.Minter,
@@ -399,15 +399,15 @@ func New(d Deps) http.Handler {
 		WorkspaceAiUsage:     h.workspaceAiUsage,
 		OrganizationAiUsage:  h.organizationAiUsage,
 
-		AiByokChatCompletions: h.byokProxy(ai.ProxyChatCompletions),
-		AiByokMessages:        h.byokProxy(ai.ProxyMessages),
-		AiByokGenerate:        h.byokProxy(ai.ProxyGenerate),
-		AiByokModels:          h.byokProxy(ai.ProxyModels),
-		AiCloudStatus:         h.aiCloudStatus,
-		AiCloudSearch:         h.aiCloudSearch,
-		AiCloudImages:         h.aiCloudImages,
-		AiCloudAnalyzeMedia:   h.aiCloudAnalyzeMedia,
-		AiCloudTranscribe:     h.aiCloudTranscribe,
+		AiByokChatCompletions: aiMount.ByokChatCompletions,
+		AiByokMessages:        aiMount.ByokMessages,
+		AiByokGenerate:        aiMount.ByokGenerate,
+		AiByokModels:          aiMount.ByokModels,
+		AiCloudStatus:         aiMount.CloudStatus,
+		AiCloudSearch:         aiMount.CloudSearch,
+		AiCloudImages:         aiMount.CloudImages,
+		AiCloudAnalyzeMedia:   aiMount.CloudAnalyzeMedia,
+		AiCloudTranscribe:     aiMount.CloudTranscribe,
 
 		ListPlans:           h.listPlans,
 		GetSubscription:     h.getSubscription,

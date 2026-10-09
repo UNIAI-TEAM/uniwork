@@ -211,17 +211,22 @@ prompt. MIME của phiên âm phải là token `type/subtype` (audio/*, video/mp
 
 ### 3.5 Frame web và trạng thái triển khai
 
-Proxy và công cụ đám mây được dựng thành tầng service để mount thêm dưới
-`/office-frame/documents/{documentID}/ai/...` (chỉ bearer frame-token; tác nhân user/org lấy từ
-claim). Route frame nằm trên nhánh GO-B2/B3, **chờ merge gốc GO-B2/B3**; trang host web dùng
-được các route session ở trên ngay. Desktop **không đổi** ở v1: BYOK trực tiếp, chỉ dùng mục 3.3
-cho công cụ đám mây.
+Handler của proxy và công cụ đám mây là **mountable**: `handler.AIMountable` / `handler.NewAIMountable(deps, resolve)`
+(`server/internal/handler/ai_mount.go`) trả về bộ handler cho một `AIActorResolver`
+(`func(*http.Request) (userID, orgID string, err error)`), không đọc gì khác ngoài tác nhân từ
+request (BYOK còn cần path param `{aiProvider}`). Route session ở trên dùng resolver mặc định (user
+trong context + `{orgID}` trên path). Việc mount dưới `/office-frame/documents/{documentID}/ai/...`
+(chỉ bearer frame-token; user/org lấy từ claim và tài liệu) **do lane web modules (B4/5/6,
+UNI-1014) thực hiện** sau khi merge lane này, bằng resolver đọc claim frame-token; lane GO-A7
+không phụ thuộc middleware frame của GO-B2/B3. Rate limit và xác thực nằm ở nhóm route mount.
+Trang host web dùng được các route session ở trên ngay. Desktop **không đổi** ở v1: BYOK trực
+tiếp, chỉ dùng mục 3.3 cho công cụ đám mây.
 
 **Giới hạn đã biết** (chi tiết ở ADR 0029): `GET`/`DELETE` khóa không bị chặn bởi entitlement;
 thành viên bị gỡ/vô hiệu hóa để lại khóa trong bảng (không dùng được, chỉ `DELETE` xóa); không
 xoay khóa chủ; stream openai-compatible chỉ ghi token khi có `include_usage`; body 2xx của nhà
 cung cấp không lọc khóa; hạn chót header 15 s chỉ cho streaming/`GET`; phiên âm không có thời
-lượng được ước lượng từ dung lượng; route frame chờ merge gốc GO-B2/B3.
+lượng được ước lượng từ dung lượng; việc mount route frame do lane web modules làm (mục này).
 
 Trạng thái: các route Ask UNI cũ (`router/ai.go`: `GET /workspaces/{workspaceID}/ai/capabilities`,
 `.../ai/usage`, `GET /orgs/{orgID}/ai/usage`) phục vụ web và không đổi. Các route 3.1–3.3 là
