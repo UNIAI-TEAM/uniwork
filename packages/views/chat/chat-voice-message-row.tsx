@@ -1,7 +1,8 @@
 "use client";
 
 import { memo } from "react";
-import { LoaderCircle, Pause, Play } from "lucide-react";
+import { Pause, Play } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { useChatVoiceBlobLoader } from "@uniwork/core/chat";
 import {
@@ -54,7 +55,7 @@ function VoicePlayer({ workspaceId, roomId, message }: { workspaceId: string; ro
           onClick={() => void toggleChatVoicePlayback(message.id, () => loadVoice(message.id))}
         >
           {status === "loading" ? (
-            <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden />
+            <Spinner />
           ) : playing ? (
             <Pause className="size-4" aria-hidden />
           ) : (

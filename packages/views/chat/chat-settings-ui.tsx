@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { AlertCircle, BarChart3, ChevronDown, Clock, Pencil, StickyNote, X } from "lucide-react";
+import { CircleAlert, ChartColumn, ChevronDown, Clock, Pencil, StickyNote, X } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -242,7 +242,7 @@ export function ChatSettingsBulletinSection({
         <ChatSettingsMenuRow icon={StickyNote} label={notesLabel} onClick={onNotes} />
       ) : null}
       {showPolls ? (
-        <ChatSettingsMenuRow icon={BarChart3} label={pollsLabel} onClick={onPolls} />
+        <ChatSettingsMenuRow icon={ChartColumn} label={pollsLabel} onClick={onPolls} />
       ) : null}
     </ChatSettingsCollapsibleSection>
   );
@@ -278,7 +278,7 @@ export function ChatMemberListError({ onRetry }: { onRetry: () => void }) {
   return (
     <Notice
       tone="destructive"
-      icon={AlertCircle}
+      icon={CircleAlert}
       layout="inline"
       live="assertive"
       className="mx-4 my-1"

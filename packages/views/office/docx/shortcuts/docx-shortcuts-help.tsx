@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState, type KeyboardEvent } from "react";
-import { CircleHelp } from "lucide-react";
+import { CircleQuestionMark } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatShortcut, getShortcutPlatform, type ShortcutChord } from "@uniwork/core/shortcuts";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -84,7 +84,7 @@ export function DocxShortcutsHelp({ readOnly = false }: DocxToolbarGroupContext)
         data-testid="docx-shortcuts-help-trigger"
         onClick={() => setOpen(true)}
       >
-        <CircleHelp aria-hidden />
+        <CircleQuestionMark aria-hidden />
       </Button>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent

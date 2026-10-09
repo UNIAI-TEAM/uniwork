@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, MoreHorizontal, Pin, PinOff, Trash2 } from "lucide-react";
+import { ExternalLink, Ellipsis, Pin, PinOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -69,7 +69,7 @@ export function ProjectRowActions({
             />
           }
         >
-          <MoreHorizontal className="size-4" />
+          <Ellipsis className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuItem

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -83,7 +83,7 @@ export function MeetingSectionError({
   return (
     <Notice
       tone="destructive"
-      icon={AlertCircle}
+      icon={CircleAlert}
       layout="inline"
       className={className}
       action={

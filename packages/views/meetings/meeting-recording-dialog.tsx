@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -116,7 +116,7 @@ export function MeetingRecordingDialog({
           </MeetingSectionLoading>
         ) : null}
         {status === "error" ? (
-          <Notice tone="destructive" icon={AlertCircle} layout="inline" live="assertive">
+          <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
             {t("meetings.recording_play_error")}
           </Notice>
         ) : null}

@@ -238,7 +238,7 @@ export function PickerItem({
       {disabled && disabledReason ? <span className="sr-only">{disabledReason}</span> : null}
       <Check
         className={cn(
-          "h-3.5 w-3.5 shrink-0 text-muted-foreground",
+          "size-3.5 shrink-0 text-muted-foreground",
           selected ? "" : "invisible",
         )}
         aria-hidden

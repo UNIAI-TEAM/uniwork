@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  FilePlus2,
+  FilePlusCorner,
   ImagePlus,
-  MoreHorizontal,
+  Ellipsis,
   RotateCw,
   Save,
   Scissors,
@@ -81,7 +81,7 @@ const DEFAULT_ICONS: Readonly<Partial<Record<PdfCommandId, ReactNode>>> = {
   [PDF_COMMANDS.annotations]: <MessageSquareText aria-hidden />,
   [PDF_COMMANDS.editText]: <Type aria-hidden />,
   [PDF_COMMANDS.replaceImage]: <ImagePlus aria-hidden />,
-  [PDF_COMMANDS.insertPage]: <FilePlus2 aria-hidden />,
+  [PDF_COMMANDS.insertPage]: <FilePlusCorner aria-hidden />,
   [PDF_COMMANDS.deletePage]: <Trash2 aria-hidden />,
   [PDF_COMMANDS.rotatePage]: <RotateCw aria-hidden />,
   [PDF_COMMANDS.reorderPage]: <ListRestart aria-hidden />,
@@ -218,7 +218,7 @@ export function PdfToolbarShell({
               aria-label={t("office.pdf.toolbar.more")}
               data-testid="pdf-toolbar-more"
             >
-              <MoreHorizontal aria-hidden />
+              <Ellipsis aria-hidden />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" aria-label={t("office.pdf.toolbar.more")}>
               {overflowCommands.map((command) => (

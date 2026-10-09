@@ -4,9 +4,9 @@ import { useState } from "react";
 import {
   ArchiveRestore,
   Copy,
-  History,
+  RotateCcwClock,
   MessageSquare,
-  MoreHorizontal,
+  Ellipsis,
   ScrollText,
   Share2,
   Trash2,
@@ -75,8 +75,8 @@ export function DocumentActionsMenu({
   const comments = useDocumentCommentsChrome();
   const commentsEnabled = useFlag("documents", false);
 
-  const items: { id: Exclude<PanelId, null>; label: string; icon: typeof History; destructive?: boolean }[] = [];
-  items.push({ id: "versions", label: t("documents.actions.versions"), icon: History });
+  const items: { id: Exclude<PanelId, null>; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
+  items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
   if (canManage && !owned && !archived) {
     items.push({ id: "share", label: t("documents.actions.share"), icon: Share2 });
     items.push({ id: "logs", label: t("documents.actions.access_log"), icon: ScrollText });
@@ -104,7 +104,7 @@ export function DocumentActionsMenu({
             />
           }
         >
-          <MoreHorizontal aria-hidden className="size-4" />
+          <Ellipsis aria-hidden className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44">
           {/* An embedded Office editor's entries: phone-only desktop actions

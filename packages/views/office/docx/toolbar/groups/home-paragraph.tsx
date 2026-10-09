@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, IndentDecrease, IndentIncrease } from "lucide-react";
+import { TextAlignCenter, TextAlignJustify, TextAlignStart, TextAlignEnd, ListIndentDecrease, ListIndentIncrease } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Toggle } from "@uniwork/ui/components/ui/toggle";
@@ -10,11 +10,11 @@ import { ptFromTwips, type ParagraphAlign } from "../../paragraph/paragraph-form
 import { ParagraphSpacingPicker } from "../../paragraph/spacing-controls";
 import type { DocxToolbarGroupContext } from "../types";
 
-const ALIGNMENTS: readonly { align: ParagraphAlign; icon: typeof AlignLeft; labelKey: string }[] = [
-  { align: "left", icon: AlignLeft, labelKey: "office.docx.toolbar.paragraph.alignLeft" },
-  { align: "center", icon: AlignCenter, labelKey: "office.docx.toolbar.paragraph.alignCenter" },
-  { align: "right", icon: AlignRight, labelKey: "office.docx.toolbar.paragraph.alignRight" },
-  { align: "justify", icon: AlignJustify, labelKey: "office.docx.toolbar.paragraph.alignJustify" },
+const ALIGNMENTS: readonly { align: ParagraphAlign; icon: typeof TextAlignStart; labelKey: string }[] = [
+  { align: "left", icon: TextAlignStart, labelKey: "office.docx.toolbar.paragraph.alignLeft" },
+  { align: "center", icon: TextAlignCenter, labelKey: "office.docx.toolbar.paragraph.alignCenter" },
+  { align: "right", icon: TextAlignEnd, labelKey: "office.docx.toolbar.paragraph.alignRight" },
+  { align: "justify", icon: TextAlignJustify, labelKey: "office.docx.toolbar.paragraph.alignJustify" },
 ];
 
 /**
@@ -42,7 +42,7 @@ function HomeParagraphGroupView({ format, commands, readOnly, saving }: DocxTool
         onClick={() => commands?.stepParagraphIndent(-1)}
         data-testid="docx-indent-decrease"
       >
-        <IndentDecrease aria-hidden />
+        <ListIndentDecrease aria-hidden />
       </Button>
       <Button
         type="button"
@@ -53,7 +53,7 @@ function HomeParagraphGroupView({ format, commands, readOnly, saving }: DocxTool
         onClick={() => commands?.stepParagraphIndent(1)}
         data-testid="docx-indent-increase"
       >
-        <IndentIncrease aria-hidden />
+        <ListIndentIncrease aria-hidden />
       </Button>
       {ALIGNMENTS.map(({ align: value, icon: Icon, labelKey }) => (
         <Toggle
@@ -103,7 +103,7 @@ export function homeParagraphRibbonItems(context: DocxToolbarGroupContext): read
       kind: "button",
       id: "docx-indent-decrease",
       labelKey: "office.docx.toolbar.paragraph.indentDecrease",
-      icon: IndentDecrease,
+      icon: ListIndentDecrease,
       size: "icon",
       collapseAs: "icon",
       disabled: blocked,
@@ -113,7 +113,7 @@ export function homeParagraphRibbonItems(context: DocxToolbarGroupContext): read
       kind: "button",
       id: "docx-indent-increase",
       labelKey: "office.docx.toolbar.paragraph.indentIncrease",
-      icon: IndentIncrease,
+      icon: ListIndentIncrease,
       size: "icon",
       collapseAs: "icon",
       disabled: blocked,

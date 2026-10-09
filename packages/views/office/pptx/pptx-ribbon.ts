@@ -20,7 +20,7 @@
  * explicit mapping: group 0 -> 10, group 1 -> 5, group 2+ -> 0.
  */
 import {
-  BarChart3,
+  ChartColumn,
   CaseSensitive,
   FileDown,
   FolderOpen,
@@ -44,11 +44,11 @@ import {
   Save,
   Search,
   Shapes,
-  Sparkles,
   StickyNote,
   Table,
   Type,
   Undo2,
+  Orbit,
 } from "lucide-react";
 import type { PptxCommand, PptxCommandId } from "./command-map";
 import type { PptxPanelKind } from "./pptx-panel-host";
@@ -115,8 +115,8 @@ const PPTX_COMMAND_ICONS: Partial<Record<PptxCommandId, RibbonIcon>> = {
   print: Printer,
   "speaker-notes": StickyNote,
   "masters-layouts": LayoutTemplate,
-  animations: Sparkles,
-  charts: BarChart3,
+  animations: Orbit,
+  charts: ChartColumn,
   tables: Table,
   "embedded-fonts": CaseSensitive,
   "render-fidelity": Monitor,
@@ -141,9 +141,9 @@ const PPTX_PANEL_ICONS: Partial<Record<PptxPanelKind, RibbonIcon>> = {
   transitions: ArrowRightLeft,
   comments: MessageSquare,
   notes: StickyNote,
-  animations: Sparkles,
+  animations: Orbit,
   tables: Table,
-  charts: BarChart3,
+  charts: ChartColumn,
 };
 
 /** A side panel opened from a ribbon item (a toggle that shows the panel). */

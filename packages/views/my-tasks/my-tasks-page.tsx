@@ -1,11 +1,11 @@
 "use client";
 
-import { ListTodo } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 import { myTasksViewStore } from "@uniwork/core/tasks/stores/my-tasks-view-store";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
 import { CollectionPageState } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { PageHeader } from "../layout/page-header";
 import { TaskSurface } from "../tasks/surface/task-surface";
@@ -37,7 +37,7 @@ export function MyTasksPageView({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PageHeader>
-        <ListTodo className="size-4 text-muted-foreground" aria-hidden />
+        <MODULE_ICONS.my_tasks className="size-4 text-muted-foreground" aria-hidden />
         <h1 className="text-body font-medium">{t("myTasks.page.title")}</h1>
       </PageHeader>
 
@@ -62,7 +62,7 @@ export function MyTasksPageView({
         )}
         renderEmpty={() => (
           <CollectionPageState
-            icon={ListTodo}
+            icon={MODULE_ICONS.my_tasks}
             tone={moduleTone("my_tasks")}
             title={t("myTasks.page.empty_title")}
             description={t("myTasks.page.empty_description")}

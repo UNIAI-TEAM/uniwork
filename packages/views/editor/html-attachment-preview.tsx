@@ -112,7 +112,7 @@ export function HtmlAttachmentPreview({
             onPreview();
           }}
         >
-          <Maximize2 className="h-3.5 w-3.5" />
+          <Maximize2 className="size-3.5" />
         </button>
         {canOpenInNewTab && (
           <button
@@ -126,7 +126,7 @@ export function HtmlAttachmentPreview({
               handleOpenInNewTab();
             }}
           >
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="size-3.5" />
           </button>
         )}
         <button
@@ -140,7 +140,7 @@ export function HtmlAttachmentPreview({
             onDownload();
           }}
         >
-          <Download className="h-3.5 w-3.5" />
+          <Download className="size-3.5" />
         </button>
         {onDelete && (
           <button
@@ -154,7 +154,7 @@ export function HtmlAttachmentPreview({
               onDelete();
             }}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="size-3.5" />
           </button>
         )}
       </div>

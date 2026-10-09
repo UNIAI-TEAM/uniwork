@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  AlertCircle,
-  BarChart3,
+  CircleAlert,
+  ChartColumn,
   ChevronLeft,
   Clock,
   Megaphone,
@@ -58,7 +58,7 @@ const KIND_VISUAL: Record<string, { icon: LucideIcon; tone: IconTileTone }> = {
   note: { icon: StickyNote, tone: "yellow" },
   post: { icon: Megaphone, tone: "orange" },
   reminder: { icon: Clock, tone: "teal" },
-  poll: { icon: BarChart3, tone: "blue" },
+  poll: { icon: ChartColumn, tone: "blue" },
 };
 
 /** Same tint and glyph per kind as the timeline cards; anything else is a pinned message. */
@@ -148,7 +148,7 @@ function BulletinTabPanel({
     return (
       <Notice
         tone="destructive"
-        icon={AlertCircle}
+        icon={CircleAlert}
         layout="inline"
         live="assertive"
         action={

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Sparkles } from "lucide-react";
+import { CircleAlert, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiUsage } from "@uniwork/core/ai";
 import type { AiUsageRow } from "@uniwork/core/types";
@@ -119,7 +119,7 @@ export function AiUsageSection({ workspaceId, aiEnabled }: { workspaceId: string
   if (usage.isError) {
     return (
       <SettingsSection title={title}>
-        <Notice tone="destructive" icon={AlertCircle} layout="inline" live="assertive">
+        <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
           {t("error_title")}
         </Notice>
       </SettingsSection>

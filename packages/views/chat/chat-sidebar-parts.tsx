@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Compass, Hash, MessageSquare, UserPlus, Users, type LucideIcon } from "lucide-react";
+import { CircleAlert, Compass, Hash, UserPlus, Users, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { PendingInvitation, Workspace } from "@uniwork/core/types";
@@ -11,6 +11,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { toastChatError } from "./chat-error-message";
 import type { ChatSidebarActivityFilter, ChatSidebarKindFilter } from "./chat-sidebar-unified";
@@ -111,7 +112,7 @@ export function SidebarLoadError({ onRetry }: { onRetry?: () => void }) {
   return (
     <Notice
       tone="destructive"
-      icon={AlertCircle}
+      icon={CircleAlert}
       layout="inline"
       live="assertive"
       className="my-1"
@@ -213,7 +214,7 @@ export function SidebarEmpty({
 
   return (
     <div className="flex flex-col items-start gap-2 px-2 py-4">
-      <IconTile icon={MessageSquare} tone={moduleTone("chat")} size="sm" />
+      <IconTile icon={MODULE_ICONS.chat} tone={moduleTone("chat")} size="sm" />
       <p className="text-body font-medium text-foreground">
         {filtered ? t("chat.sidebar_filter_empty_title") : t("chat.sidebar_empty_title")}
       </p>

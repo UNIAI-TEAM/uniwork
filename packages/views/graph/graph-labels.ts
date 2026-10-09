@@ -1,8 +1,9 @@
-import { Bot, CalendarDays, CircleDot, FolderKanban, ListTodo, Mail, MessageSquare, User, Users, type LucideIcon } from "lucide-react";
+import { Bot, CircleDot, User, Users, type LucideIcon } from "lucide-react";
 import { paths } from "@uniwork/core/paths";
 import type { GraphHistoryItem, GraphNeighbor, GraphNode } from "@uniwork/core/types/graph";
 import { shortDateFormat } from "../common/date-pill";
 import { dateOnlyToLocalDate, toDateOnly } from "../common/date-field";
+import { MODULE_ICONS } from "../layout/module-icons";
 
 /** Group order on the panel: where the work came from first, then who and where. */
 const GROUP_ORDER = [
@@ -52,17 +53,17 @@ export function graphNodeHref(node: GraphNode, orgSlug: string, fallbackWsSlug: 
 export function graphNodeIcon(node: GraphNode): LucideIcon {
   switch (node.type) {
     case "TASK":
-      return ListTodo;
+      return MODULE_ICONS.tasks;
     case "MEETING":
-      return CalendarDays;
+      return MODULE_ICONS.meetings;
     case "PROJECT":
-      return FolderKanban;
+      return MODULE_ICONS.projects;
     case "ACTOR":
       return node.subtype === "agent" ? Bot : User;
     case "TEAM":
       return Users;
     case "THREAD":
-      return node.subtype === "email_thread" ? Mail : MessageSquare;
+      return node.subtype === "email_thread" ? MODULE_ICONS.email : MODULE_ICONS.chat;
     default:
       return CircleDot;
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Grid3X3, Rows3 } from "lucide-react";
+import { Grid3x3, Rows3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { gridlinesCommandParams, headerSizeCommands, XLSX_GRIDLINES_COMMAND } from "../view/display";
@@ -48,7 +48,7 @@ export function XlsxViewDisplayGroup({ commands, viewEcho }: XlsxToolbarGroupPro
             aria-disabled={blocked}
             onClick={toggleGridlines}
           >
-            <Grid3X3 aria-hidden />
+            <Grid3x3 aria-hidden />
             {t("office.xlsx.view.gridlines")}
           </Button>
         </XlsxGroupRow>

@@ -37,6 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageHeader } from "../../layout/collection-page";
+import { MODULE_ICONS } from "../../layout/module-icons";
 import { moduleTone } from "../../layout/module-tones";
 import { useWorkspace } from "../../layout/workspace-context";
 import { useNavigation } from "../../navigation";
@@ -177,7 +178,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <CollectionPageHeader icon={Settings} tone={moduleTone("settings")} title={t("page.title")} />
+      <CollectionPageHeader icon={MODULE_ICONS.settings} tone={moduleTone("settings")} title={t("page.title")} />
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}

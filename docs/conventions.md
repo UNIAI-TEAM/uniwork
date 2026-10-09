@@ -1,9 +1,9 @@
 # Conventions
 
-Single source of truth for code naming, the vi–en translation glossary, and the
-Vietnamese voice guide. `CLAUDE.md` points here; nothing else overrides this
-page. Every example below is taken from the repository as it is — if you find
-one that no longer matches, the page is wrong, fix the page.
+Single source of truth for code naming, the vi–en translation glossary, the
+Vietnamese voice guide and icon use. `CLAUDE.md` points here; nothing else
+overrides this page. Every example below is taken from the repository as it is
+— if you find one that no longer matches, the page is wrong, fix the page.
 
 ---
 
@@ -297,6 +297,92 @@ both keys with identical text. Put the count first.
 2. `PRODUCT.md` — brand personality and the anti-references.
 3. `packages/views/onboarding/` — the most complete screens in the current
    register.
+
+---
+
+## 4. Icons
+
+One library (`lucide-react`), one glyph per meaning, one size per role.
+
+### Names
+
+Import the canonical name: `CircleAlert`, not `AlertCircle`; `LoaderCircle`,
+not `Loader2`; `Ellipsis`, not `MoreHorizontal`; `RotateCcwClock`, not
+`History`. Lucide keeps a renamed icon importable under its old name, and the
+two spellings hide each other from search. `no-restricted-imports` names the
+canonical import for every alias, and `scripts/lucide-aliases.test.mjs` fails
+on one at every gate level. The list is generated from the installed package —
+after bumping lucide-react run `pnpm generate:lucide-aliases`. The registry
+primitives in `packages/ui/components/ui/` keep shadcn's `XIcon` suffix
+(`CircleAlertIcon`); that is the canonical name with a suffix, not an alias.
+
+### Modules
+
+A module is drawn with one glyph everywhere it appears: sidebar, page header,
+empty state, search, the work graph, notifications, auth and onboarding.
+`MODULE_ICONS` in `packages/views/layout/module-icons.ts` holds them beside
+`MODULE_TONES`; read the map, never pick the glyph again at the call site.
+
+| Module | Glyph | Module | Glyph |
+| --- | --- | --- | --- |
+| home | `House` | meetings | `Video` |
+| inbox | `Inbox` | chat | `MessageSquare` |
+| email | `Mail` | people | `Users` |
+| tasks | `SquareCheckBig` | documents | `FileText` |
+| my_tasks | `ListTodo` | calendar | `Calendar` |
+| projects | `FolderKanban` | settings | `Settings` |
+
+Meetings is a camera, not a calendar: Calendar sits one row above it in the
+sidebar. A glyph that names a part of a module rather than the module (a
+meeting's participants panel, a date field's `CalendarDays`) keeps its own.
+
+### Size
+
+`size-*`, never `h-* w-*`. The role decides the size, not the screen:
+
+| Size | Class | Role |
+| --- | --- | --- |
+| 12px | `size-3` | inside a chip or badge, `IconTile size="xs"` |
+| 14px | `size-3.5` | metadata beside caption text, `IconTile size="sm"` |
+| 16px | `size-4` | buttons, menu items, inputs, page-header glyph (`Button` sizes a bare svg to this) |
+| 20px | `size-5` | header tiles, `IconTile size="md"` |
+| 24px+ | `size-6` and up | empty states, `IconTile size="lg"` (`CollectionPageState`) |
+
+### Stroke
+
+Lucide's default 2. Do not set `strokeWidth` on an icon to make it look lighter
+or heavier; pick the role's size instead. The one exception is the brand
+surfaces of auth and onboarding (`auth-shell.tsx`, `step-welcome.tsx`,
+`auth-controls.tsx`), whose raised cards use a hairline 1.5–1.75 on tiles of
+`size="sm"` and up.
+
+### Meaning
+
+| Meaning | Glyph | Not |
+| --- | --- | --- |
+| Error: a failed load, save or send, invalid input, a destructive notice | `CircleAlert` | `TriangleAlert`, `OctagonX` |
+| Warning: needs attention but nothing failed — a conflict, past due, a permission the browser denied | `TriangleAlert` | `CircleAlert` |
+| Refresh, retry, reconnect | `RefreshCw` | `RotateCw` |
+| Rotate | `RotateCw` / `RotateCcw` | — |
+| Reset, reopen | `RotateCcw` | `RefreshCw` |
+| View options: display, density, columns, customize | `SlidersHorizontal` | `Settings2`, `Cog` |
+| Settings and configuration | `Settings` | `Settings2`, `Cog` |
+| The system as an actor (audit, avatars) | `Cog` | `Settings` |
+| AI: Ask UNI, copilots, AI summaries and insights | `Sparkles` | anything else — not "auto", animations or decoration |
+| Loading | `<Spinner />` | a raw `LoaderCircle animate-spin` |
+
+`Spinner` (`packages/ui/components/ui/spinner.tsx`) is decorative unless it is
+the only sign of progress; then pass `label`. Under reduced motion it keeps
+turning at half speed (`packages/ui/styles/base.css`), because one turn and a
+stop reads as done. `scripts/lucide-aliases.test.mjs` fails on a raw
+`LoaderCircle`. A refresh glyph may turn while its own refetch runs.
+
+### Accessibility
+
+An icon beside text is `aria-hidden`. An icon-only button carries an
+`aria-label` (or `label` on the primitive that takes one) and keeps the 44px
+coarse-pointer target, which `Button` already has — use it rather than a bare
+`<button>`.
 
 ---
 
