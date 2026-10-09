@@ -83,3 +83,10 @@ RETURNING *;
 -- tenant: system
 SELECT * FROM chat_messages
 WHERE mirrored_from_comment_id = $1 AND deleted_at IS NULL;
+
+-- name: UnlinkChatThreadTask :one
+-- C-11: the unsync command returns the link it removed, for its audit row
+-- and its chat.thread.unlinked event.
+DELETE FROM chat_thread_task_links
+WHERE thread_root_id = sqlc.arg(thread_root_id) AND workspace_id = sqlc.arg(workspace_id)
+RETURNING *;

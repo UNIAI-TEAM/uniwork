@@ -118,6 +118,10 @@ var catalogue = []EventDef{
 
 	// Agents (ADR 0007): the picker in a workspace refreshes when one joins.
 	{Topic: "workspace_agent.added", Version: 1, Payload: []string{"workspace_id", "agent_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Agents (C-11): identity changes; the Work Graph projects ACTOR nodes from them.
+	{Topic: "agent.archived", Version: 1, Payload: []string{"organization_id", "agent_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "agent.created", Version: 1, Payload: []string{"organization_id", "agent_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "agent.updated", Version: 1, Payload: []string{"organization_id", "agent_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
 
 	// Organization and workspace membership
 	{Topic: "organization.created", Version: 1, Payload: []string{"organization_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
@@ -158,6 +162,7 @@ var catalogue = []EventDef{
 	{Topic: "chat.channel.archived", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.replied", Version: 1, Payload: []string{"room_id", "thread_root_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.thread.linked", Version: 1, Payload: []string{"room_id", "thread_root_id", "task_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	{Topic: "chat.thread.unlinked", Version: 1, Payload: []string{"room_id", "thread_root_id", "task_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.message.linked", Version: 1, Payload: []string{"room_id", "message_id", "target_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.follow_up.created", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "chat.follow_up.updated", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},

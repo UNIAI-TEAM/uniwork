@@ -54,6 +54,10 @@ type Deps struct {
 	Chat                *service.ChatService
 	Hub                 *realtime.Hub
 
+	// Graph is the Work Graph read service (C-11); nil answers 501 on the
+	// graph routes until the server wires it.
+	Graph *service.GraphService
+
 	// FileAccess is the FileService read path (T4); nil answers 501 on the
 	// file routes until the server wires it.
 	FileAccess *service.FileAccessService
@@ -414,6 +418,9 @@ func New(d Deps) http.Handler {
 		CreateAuditExport:   h.createAuditExport,
 		GetAuditExport:      h.getAuditExport,
 		DownloadAuditExport: h.downloadAuditExport,
+
+		GraphNeighbors: h.graphNeighbors,
+		GraphHistory:   h.graphHistory,
 
 		ListMeetings:                   h.listMeetings,
 		CreateMeeting:                  h.createMeeting,

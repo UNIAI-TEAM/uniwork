@@ -163,6 +163,7 @@ fails on drift. One flat namespace, keys nested by section:
 | Concept | vi | en | Note |
 | --- | --- | --- | --- |
 | task (the unit of work) | **công việc** / **việc** | Task | `tasks.title = "Công việc"`, `tasks.new = "Việc mới"` |
+| subtask | **công việc con** | Sub-task | `tasks.detail.child_of = "Công việc con của"`; always the full term, never the short "việc con", even where "việc" alone stands for the task |
 | meeting | **cuộc họp** | Meeting | `meetings.title = "Cuộc họp"` |
 | workspace | **workspace** | Workspace | kept in English in vi copy: `workspace.create = "Tạo workspace"` |
 | organization | **tổ chức** | Organization | `"tên tổ chức không được để trống"` |
@@ -192,6 +193,10 @@ fails on drift. One flat namespace, keys nested by section:
 | abstain | **không ý kiến** | Abstain | `choice_ABSTAIN`; for / against are **tán thành** / **không tán thành** |
 | secret ballot | **bỏ phiếu kín** | Secret ballot | `ballotMode_SECRET`; the other mode is **công khai** / Open ballot |
 | onboarding | **onboarding** | Onboarding | section name stays English |
+| related (Work Graph panel) | **liên quan** | Related | `graph.related.title = "Liên quan"` |
+| originated from | **xuất phát từ** | Originated from | nguồn gốc của một việc (Work Graph) |
+| graph timeline | **dòng thời gian** | Timeline | khác "Hoạt động" (audit + bình luận) của trang việc |
+| Work Graph | **Work Graph** | Work Graph | tên hệ thống, không dịch |
 
 `workspace` stays English on purpose: the Vietnamese candidates ("không gian
 làm việc") are long, and the URL, the slug field and the product name all say
