@@ -113,7 +113,7 @@ FROM (
     COALESCE(init_u.email, owner_u.email, '')::text AS user_email,
     COALESCE(pi_link.provider_bank_code, pi_match.provider_bank_code) AS provider_bank_code,
     COALESCE(pi_link.provider_transaction_no, pi_match.provider_transaction_no) AS provider_transaction_no,
-    COALESCE(pi_link.provider_txn_ref, pi_match.provider_txn_ref) AS provider_txn_ref,
+    COALESCE(pi_link.provider_txn_ref, pi_match.provider_txn_ref, '')::text AS provider_txn_ref,
     count(*) OVER ()::bigint AS total_count
   FROM invoices i
   JOIN organizations o ON o.id = i.organization_id
@@ -201,7 +201,7 @@ SELECT i.*, o.slug AS org_slug, o.name AS org_name,
   pl.code AS plan_code, pl.name AS plan_name,
   COALESCE(pi_link.provider_bank_code, pi_match.provider_bank_code) AS provider_bank_code,
   COALESCE(pi_link.provider_transaction_no, pi_match.provider_transaction_no) AS provider_transaction_no,
-  COALESCE(pi_link.provider_txn_ref, pi_match.provider_txn_ref) AS provider_txn_ref
+  COALESCE(pi_link.provider_txn_ref, pi_match.provider_txn_ref, '')::text AS provider_txn_ref
 FROM invoices i
 JOIN organizations o ON o.id = i.organization_id
 LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
