@@ -372,7 +372,8 @@ var blockedPrefixes = func() []netip.Prefix {
 // unspecified and the reserved ranges above, v4 and v6 (v4-mapped v6 is
 // judged as the v4 it carries).
 func blockedAddr(ip netip.Addr) bool {
-	ip = ip.Unmap()
+	// Prefix.Contains is false for zoned addresses, so drop the zone first.
+	ip = ip.Unmap().WithZone("")
 	if !ip.IsValid() || ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
 		ip.IsLinkLocalUnicast() {
 		return true

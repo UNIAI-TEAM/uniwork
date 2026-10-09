@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -88,6 +89,8 @@ func (h *aiHandlers) resolve(w http.ResponseWriter, r *http.Request) (userID, or
 	case errors.Is(err, service.ErrNotFound), errors.Is(err, service.ErrForbidden):
 		h.mapServiceError(w, err)
 	default:
+		// Error class only: the text of a resolver error may carry token detail.
+		h.Log.Debug("ai: actor not resolved", "err_type", fmt.Sprintf("%T", err))
 		respondError(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
 	}
 	return "", "", false
