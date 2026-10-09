@@ -26,6 +26,10 @@ export const ProjectSchema = z.object({
   task_count: z.number(),
   done_count: z.number(),
   resource_count: z.number(),
+  // Who made the project; with lead_id it decides who may edit it
+  // (TaskService.authorizeProjectEdit). Absent on older servers.
+  created_by: z.string().nullable().optional(),
+  created_by_kind: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });

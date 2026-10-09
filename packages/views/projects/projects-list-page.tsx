@@ -5,6 +5,7 @@ import { Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
+import { useProjectPermissions } from "@uniwork/core/permissions";
 import {
   useProjectViewStore,
   type ProjectColumnKey,
@@ -224,6 +225,9 @@ export function ProjectsListPage({
   const openProject: OpenProject = (projectId, intent = "push") =>
     navigateInternal(navigation, projectPath(projectId), intent);
 
+  const { decideEdit } = useProjectPermissions(workspaceId);
+  const canEditProject = (project: Project) => decideEdit(project).allowed;
+
   const isWorkspaceAdmin = useMemo(() => {
     if (!currentUser) return false;
     const me = members.find((m) => m.user_id === currentUser.id);
@@ -363,6 +367,7 @@ export function ProjectsListPage({
               projects={pageProjects}
               pinnedIds={pinnedProjectIds}
               canDelete={isWorkspaceAdmin}
+              canEdit={canEditProject}
               sortField={sortField}
               sortDirection={sortDirection}
               isColVisible={isColVisible}
@@ -384,6 +389,7 @@ export function ProjectsListPage({
               projects={pageProjects}
               pinnedIds={pinnedProjectIds}
               canDelete={isWorkspaceAdmin}
+              canEdit={canEditProject}
               onOpenProject={openProject}
               locale={locale}
               leadOptions={leadOptions}

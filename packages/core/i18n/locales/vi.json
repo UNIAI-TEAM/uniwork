@@ -4927,6 +4927,8 @@
       "prop_due_date": "Ngày hết hạn",
       "description_placeholder": "Thêm mô tả…",
       "description_hint": "Được chia sẻ với agent làm ngữ cảnh cho mọi công việc trong dự án này.",
+      "description_empty": "Chưa có mô tả.",
+      "read_only": "Chỉ người tạo, người phụ trách hoặc quản trị viên workspace mới sửa được dự án này.",
       "sidebar_toggle": "Hiện hoặc ẩn chi tiết dự án",
       "sidebar_label": "Chi tiết dự án"
     },
