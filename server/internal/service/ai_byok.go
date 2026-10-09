@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
@@ -38,8 +39,12 @@ func NewAIBYOKService(orgs *OrganizationService, ents byokEntitlements, creds by
 // Proxy runs the gates in order — organization member, provider/route
 // match, plan entitlement, stored key — then hands the call to the gateway.
 // The caller copies the returned stream to the client and closes it.
-func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID string, op ai.ProxyOp, body json.RawMessage) (*ai.ProxyStream, error) {
+func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID string, op ai.ProxyOp, body json.RawMessage, header http.Header) (*ai.ProxyStream, error) {
 	if _, err := s.orgs.RequireMember(ctx, orgID, userID); err != nil {
+		// Same answer as the credential routes: an organization id cannot be probed.
+		if errors.Is(err, ErrForbidden) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	p, ok := provider.LookupBYOKProvider(providerID)
@@ -60,6 +65,6 @@ func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID str
 		return nil, err
 	}
 	return s.gw.Proxy(ctx, ai.ProxyRequest{
-		Actor: Human(userID), OrganizationID: orgID, Credential: cred, Op: op, Body: body,
+		Actor: Human(userID), OrganizationID: orgID, Credential: cred, Op: op, Body: body, Header: header,
 	})
 }
