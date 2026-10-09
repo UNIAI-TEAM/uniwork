@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -48,6 +50,9 @@ type ProxyRequest struct {
 	// Body is the vendor body for chat/messages, and the
 	// {model, stream, request} wrapper for generate. Ignored for models.
 	Body json.RawMessage
+	// Header is the client's request headers; only the per-protocol
+	// allowlist (provider.ForwardedRequestHeaders) is forwarded.
+	Header http.Header
 }
 
 // ProxyStream is the vendor answer to copy to the client. Header holds only
@@ -60,8 +65,23 @@ type ProxyStream struct {
 	Stream bool
 }
 
-// proxyHeaderAllowlist is every vendor response header the client sees.
-var proxyHeaderAllowlist = []string{"Content-Type", "Retry-After"}
+// proxyHeaderAllowlist is every vendor response header the client sees;
+// Content-Type is further narrowed by safeProxyContentType.
+var proxyHeaderAllowlist = []string{"Retry-After"}
+
+// safeProxyContentType passes a vendor Content-Type through only when it is
+// JSON, SSE or plain text; anything else (an HTML error page from a custom
+// base URL) is served as opaque bytes so the API origin never renders it.
+func safeProxyContentType(v string) string {
+	mt, _, err := mime.ParseMediaType(v)
+	if err == nil {
+		switch mt {
+		case "application/json", "text/event-stream", "text/plain":
+			return v
+		}
+	}
+	return "application/octet-stream"
+}
 
 // geminiModelRE keeps the model id a plain path segment.
 var geminiModelRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
@@ -99,6 +119,7 @@ func (g *Gateway) Proxy(ctx context.Context, req ProxyRequest) (*ProxyStream, er
 		return nil, err
 	}
 	out.Provider, out.BaseURL, out.APIKey = p, req.Credential.BaseURL, req.Credential.APIKey
+	out.Header = req.Header
 
 	var rowID string
 	if req.Op != ProxyModels {
@@ -145,6 +166,7 @@ func (g *Gateway) Proxy(ctx context.Context, req ProxyRequest) (*ProxyStream, er
 			header.Set(k, v)
 		}
 	}
+	header.Set("Content-Type", safeProxyContentType(res.Header.Get("Content-Type")))
 	if res.Status == http.StatusUnauthorized || res.Status == http.StatusForbidden {
 		_ = res.Body.Close()
 		settle("failed", ErrProviderAuthFailed.Code, 0, 0)
@@ -233,7 +255,12 @@ func RedactKey(b []byte, key string) []byte {
 	if key == "" {
 		return b
 	}
-	return bytes.ReplaceAll(b, []byte(key), []byte("[redacted]"))
+	b = bytes.ReplaceAll(b, []byte(key), []byte("[redacted]"))
+	// A vendor that JSON-escapes "/" echoes a key containing one as "\/".
+	if esc := strings.ReplaceAll(key, "/", `\/`); esc != key {
+		b = bytes.ReplaceAll(b, []byte(esc), []byte("[redacted]"))
+	}
+	return b
 }
 
 func actorKind(a audit.Actor) string {

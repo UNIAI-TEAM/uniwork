@@ -105,6 +105,9 @@ type BYOKRequest struct {
 	Query    url.Values
 	Body     []byte
 	Stream   bool
+	// Header is the client's own request headers. Only the per-protocol
+	// allowlist in ForwardedRequestHeaders reaches the vendor.
+	Header http.Header
 }
 
 // BYOKResponse is the vendor's answer. Body must be closed; closing it
@@ -144,7 +147,10 @@ func (c *BYOKClient) Do(ctx context.Context, in BYOKRequest) (*BYOKResponse, err
 	} else {
 		req.Header.Set("Accept", "application/json")
 	}
-	injectKey(req.Header, in.Provider.Protocol, in.APIKey)
+	for k, v := range ForwardedRequestHeaders(in.Header, in.Provider) {
+		req.Header.Set(k, v)
+	}
+	injectKey(req.Header, in.Provider.Protocol, in.APIKey) // last: nothing the client sent can override it
 
 	// Response-header budget: streaming answers start at once; a blocking
 	// completion legitimately takes as long as the generation.
@@ -164,6 +170,36 @@ func (c *BYOKClient) Do(ctx context.Context, in BYOKRequest) (*BYOKResponse, err
 		return nil, fmt.Errorf("%w: %s", ErrUnreachable, transportReason(err))
 	}
 	return &BYOKResponse{Status: res.StatusCode, Header: res.Header, Body: newIdleBody(res.Body, c.opts.IdleTimeout, cancel)}, nil
+}
+
+// maxForwardedHeaderValue bounds one forwarded header value.
+const maxForwardedHeaderValue = 512
+
+// ForwardedRequestHeaders picks the client request headers that may reach the
+// vendor: an explicit allowlist per protocol (and per provider for the
+// attribution headers OpenRouter reads). Anything else, above all
+// authorization, x-api-key, x-goog-api-key and cookie, is dropped. Keys are
+// canonical (textproto) names. A value with a control character is dropped.
+func ForwardedRequestHeaders(in http.Header, p BYOKProvider) map[string]string {
+	var allowed []string
+	switch p.Protocol {
+	case ProtocolAnthropic:
+		allowed = []string{"Anthropic-Beta"}
+	case ProtocolOpenAICompatible:
+		allowed = []string{"Openai-Organization", "Openai-Project"}
+		if p.ID == "openrouter" {
+			allowed = append(allowed, "Http-Referer", "X-Title")
+		}
+	}
+	out := map[string]string{}
+	for _, name := range allowed {
+		v := strings.TrimSpace(in.Get(name))
+		if v == "" || len(v) > maxForwardedHeaderValue || strings.ContainsFunc(v, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+			continue
+		}
+		out[name] = v
+	}
+	return out
 }
 
 // injectKey is the whole difference between protocols on the way out.
@@ -319,6 +355,11 @@ var blockedPrefixes = func() []netip.Prefix {
 		"100::/64",           // discard-only
 		"fec0::/10",          // deprecated site-local
 		"169.254.169.254/32", // cloud metadata (also link-local; explicit for readers)
+		"192.0.2.0/24",       // documentation (TEST-NET-1)
+		"198.51.100.0/24",    // documentation (TEST-NET-2)
+		"203.0.113.0/24",     // documentation (TEST-NET-3)
+		"2001:db8::/32",      // documentation
+		"::/96",              // IPv4-compatible (deprecated): embeds an IPv4 address
 	} {
 		out = append(out, netip.MustParsePrefix(s))
 	}

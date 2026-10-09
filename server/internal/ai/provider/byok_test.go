@@ -63,6 +63,7 @@ func TestBYOKBlockedAddresses(t *testing.T) {
 		"0.0.0.0", "224.0.0.1", "255.255.255.255", "198.18.0.1",
 		"::1", "::", "fc00::1", "fd12::1", "fe80::1", "ff02::1", "::ffff:127.0.0.1", "::ffff:10.0.0.1",
 		"64:ff9b::a00:1", "2002:a00:1::1",
+		"192.0.2.1", "198.51.100.7", "203.0.113.9", "2001:db8::1", "::7f00:1",
 	}
 	for _, s := range blocked {
 		if !blockedAddr(netip.MustParseAddr(s)) {
@@ -313,5 +314,67 @@ func TestBYOKClientIdleAndHeaderTimeouts(t *testing.T) {
 	}
 	if time.Since(started) > 5*time.Second {
 		t.Fatal("idle timeout did not fire")
+	}
+}
+
+// The client's headers reach the vendor only through the per-protocol
+// allowlist; credentials and cookies never do, and the stored key wins.
+func TestForwardedRequestHeaders(t *testing.T) {
+	in := http.Header{}
+	for k, v := range map[string]string{
+		"Anthropic-Beta": "tools-2026-01-01", "Openai-Organization": "org-1", "Openai-Project": "proj-1",
+		"Http-Referer": "https://app.example.com", "X-Title": "UniWork",
+		"Authorization": "Bearer attacker", "X-Api-Key": "attacker", "X-Goog-Api-Key": "attacker",
+		"Cookie": "session=1", "X-Forwarded-For": "1.2.3.4",
+	} {
+		in.Set(k, v)
+	}
+	got := func(id string) map[string]string {
+		p, ok := LookupBYOKProvider(id)
+		if !ok {
+			t.Fatalf("no provider %s", id)
+		}
+		return ForwardedRequestHeaders(in, p)
+	}
+	if h := got("anthropic"); len(h) != 1 || h["Anthropic-Beta"] != "tools-2026-01-01" {
+		t.Errorf("anthropic: %v", h)
+	}
+	if h := got("openai"); len(h) != 2 || h["Openai-Organization"] != "org-1" || h["Openai-Project"] != "proj-1" {
+		t.Errorf("openai: %v", h)
+	}
+	if h := got("openrouter"); len(h) != 4 || h["Http-Referer"] != "https://app.example.com" || h["X-Title"] != "UniWork" {
+		t.Errorf("openrouter: %v", h)
+	}
+	if h := got("gemini"); len(h) != 0 {
+		t.Errorf("gemini: %v", h)
+	}
+	bad := http.Header{"Anthropic-Beta": {"a\x01b"}}
+	p, _ := LookupBYOKProvider("anthropic")
+	if h := ForwardedRequestHeaders(bad, p); len(h) != 0 {
+		t.Errorf("control character forwarded: %v", h)
+	}
+}
+
+func TestBYOKClientForwardsAllowedHeadersOnly(t *testing.T) {
+	var seen http.Header
+	c, srv := vendorFixture(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}), [][]string{{"93.184.216.34"}}, BYOKClientOptions{})
+	_ = srv
+	p, _ := LookupBYOKProvider("anthropic")
+	in := http.Header{}
+	in.Set("Anthropic-Beta", "tools-2026-01-01")
+	in.Set("X-Api-Key", "attacker")
+	in.Set("Cookie", "session=1")
+	res, err := c.Do(context.Background(), BYOKRequest{
+		Provider: p, BaseURL: "https://example.com", APIKey: "sk-real", Method: http.MethodGet, Path: "/v1/models", Header: in,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if seen.Get("Anthropic-Beta") != "tools-2026-01-01" || seen.Get("X-Api-Key") != "sk-real" || seen.Get("Cookie") != "" {
+		t.Fatalf("vendor saw %v", seen)
 	}
 }

@@ -34,18 +34,18 @@ func TestAIBYOKServiceGates(t *testing.T) {
 	svc := NewAIBYOKService(f.orgs, NewEntitlementService(f.pool, f.q), f.svc, gw)
 	body := []byte(`{"model":"gpt-5.6-terra","messages":[]}`)
 
-	if _, err := svc.Proxy(f.ctx, f.second.ID, f.orgID, "openai", ai.ProxyChatCompletions, body); !errors.Is(err, ErrForbidden) {
-		t.Fatalf("non-member = %v, want forbidden", err)
+	if _, err := svc.Proxy(f.ctx, f.second.ID, f.orgID, "openai", ai.ProxyChatCompletions, body, nil); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-member = %v, want not found", err)
 	}
 	for _, c := range []struct {
 		provider string
 		op       ai.ProxyOp
 	}{{"codex", ai.ProxyChatCompletions}, {"genspark", ai.ProxyModels}, {"openai", ai.ProxyMessages}, {"anthropic", ai.ProxyGenerate}} {
-		if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, c.provider, c.op, body); !errors.Is(err, ai.ErrProviderNotSupported) {
+		if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, c.provider, c.op, body, nil); !errors.Is(err, ai.ErrProviderNotSupported) {
 			t.Errorf("%s/%s = %v, want provider_not_supported", c.provider, c.op, err)
 		}
 	}
-	if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, body); !errors.Is(err, ErrNotFound) {
+	if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, body, nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("no stored key = %v, want credential_missing", err)
 	} else if code, status := aiCredentialCode(err); code != "credential_missing" || status != 404 {
 		t.Fatalf("no stored key = %s %d", code, status)
@@ -54,7 +54,7 @@ func TestAIBYOKServiceGates(t *testing.T) {
 	if _, _, err := f.svc.SaveAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr(testAIKey)}); err != nil {
 		t.Fatal(err)
 	}
-	_, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, body)
+	_, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, body, nil)
 	var aerr *ai.Error
 	if !errors.As(err, &aerr) || aerr.Code != "provider_unreachable" || dialled == 0 {
 		t.Fatalf("stored key = %v (dialled %d), want provider_unreachable after a dial", err, dialled)
@@ -63,7 +63,7 @@ func TestAIBYOKServiceGates(t *testing.T) {
 	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = '{"office.ai_byok": false}'::jsonb WHERE organization_id = $1`, f.orgID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, body); !errors.Is(err, ErrEntitlementRequired) {
+	if _, err := svc.Proxy(f.ctx, f.owner.ID, f.orgID, "openai", ai.ProxyChatCompletions, body, nil); !errors.Is(err, ErrEntitlementRequired) {
 		t.Fatalf("without office.ai_byok = %v, want entitlement_required", err)
 	}
 }

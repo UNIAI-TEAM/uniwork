@@ -218,6 +218,68 @@ func TestRedactKey(t *testing.T) {
 	if string(RedactKey([]byte("x"), "")) != "x" {
 		t.Fatal("empty key")
 	}
+	// A vendor that JSON-escapes "/" echoes it as "/".
+	if got := string(RedactKey([]byte(`{"e":"sk-ab/cd"}`), "sk-ab/cd")); strings.Contains(got, "ab") {
+		t.Fatal(got)
+	}
+}
+
+// m3: only JSON, SSE and plain text keep their Content-Type; an HTML page
+// from a custom endpoint is handed back as opaque bytes.
+func TestProxyContentTypeAllowlist(t *testing.T) {
+	g := NewGateway(nil, nil, nil, nil, Options{})
+	ct := ""
+	base := vendor(t, g, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if ct != "" {
+			w.Header().Set("Content-Type", ct)
+		}
+		_, _ = io.WriteString(w, "<html></html>")
+	}))
+	for in, want := range map[string]string{
+		"application/json":                "application/json",
+		"application/json; charset=utf-8": "application/json; charset=utf-8",
+		"text/event-stream":               "text/event-stream",
+		"text/plain; charset=utf-8":       "text/plain; charset=utf-8",
+		"text/html":                       "application/octet-stream",
+		"text/html; charset=utf-8":        "application/octet-stream",
+		"image/svg+xml":                   "application/octet-stream",
+		"application/jsonx":               "application/octet-stream",
+		"garbage;;":                       "application/octet-stream",
+	} {
+		ct = in
+		s, err := g.Proxy(context.Background(), byokReq("anthropic", base, ProxyModels, ""))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = s.Body.Close()
+		if got := s.Header.Get("Content-Type"); got != want {
+			t.Errorf("vendor %q -> %q, want %q", in, got, want)
+		}
+	}
+}
+
+// m6: the client's anthropic-beta reaches the vendor; its credentials and
+// cookies do not, and the stored key is the one the vendor sees.
+func TestProxyForwardsAllowlistedRequestHeaders(t *testing.T) {
+	g := NewGateway(nil, nil, nil, nil, Options{})
+	var seen http.Header
+	base := vendor(t, g, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Clone()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, "{}")
+	}))
+	req := byokReq("anthropic", base, ProxyModels, "")
+	req.Header = http.Header{
+		"Anthropic-Beta": {"tools-2026-01-01"}, "X-Api-Key": {"attacker"}, "Authorization": {"Bearer attacker"}, "Cookie": {"s=1"},
+	}
+	s, err := g.Proxy(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Body.Close()
+	if seen.Get("Anthropic-Beta") != "tools-2026-01-01" || seen.Get("X-Api-Key") != testKey || seen.Get("Authorization") != "" || seen.Get("Cookie") != "" {
+		t.Fatalf("vendor saw %v", seen)
+	}
 }
 
 // DB-backed (runs where TEST_DATABASE_URL is set): a streamed chat call

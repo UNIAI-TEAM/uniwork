@@ -57,8 +57,10 @@ export async function listAiCredentials(orgId: string): Promise<AiCredentialList
 }
 
 /**
- * A malformed answer to a save throws: the write succeeded or failed on the
- * server, and an invented "credential" would show a key as stored that is not.
+ * A malformed 2xx answer degrades: the server accepted the save, so the
+ * fallback is built from the request (provider, label, base URL) with a bare
+ * "…" hint and no timestamps, never a key. `useSaveAiCredential` invalidates
+ * the credential list on success, so the next read shows the stored truth.
  */
 export async function saveAiCredential(
   orgId: string,
@@ -66,9 +68,12 @@ export async function saveAiCredential(
   body: SaveAiCredentialInput,
 ): Promise<AiCredential> {
   const raw = await request(`${orgAi(orgId)}/credentials/${encodeURIComponent(provider)}`, { method: "PUT", body });
-  const parsed = AiCredentialSchema.safeParse(raw);
-  if (!parsed.success) throw new Error("ai_credential_invalid");
-  return parsed.data;
+  return parseWithFallback<AiCredential>(
+    raw,
+    AiCredentialSchema,
+    { provider, label: body.label ?? "", base_url: body.base_url ?? "", key_hint: "…", created_at: "", updated_at: "" },
+    { endpoint: "PUT /api/v1/orgs/{id}/ai/credentials/{provider}" },
+  );
 }
 
 export async function deleteAiCredential(orgId: string, provider: string): Promise<void> {
