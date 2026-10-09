@@ -15,8 +15,13 @@ type Config struct {
 	JWTSecret       string
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
-	// Desktop auth is a public PKCE client. Redirects and deployments are
-	// explicit allowlists; an empty allowlist is rejected by Load.
+	// Desktop auth serves public PKCE clients. Clients, their redirects and
+	// deployments are explicit allowlists; an empty allowlist is rejected by
+	// Load. DesktopAuthClients (DESKTOP_AUTH_CLIENTS) lists several clients,
+	// each with its own redirects; when it is empty the single
+	// DesktopAuthClientID + DesktopAuthRedirectURIs pair is the one client.
+	// Read them through DesktopClients().
+	DesktopAuthClients       []DesktopAuthClient
 	DesktopAuthClientID      string
 	DesktopAuthRedirectURIs  []string
 	DesktopAuthDeploymentIDs []string
@@ -149,6 +154,53 @@ func (c Config) CalendarRedirectURL(provider string) string {
 	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/calendar-connections/" + provider + "/callback"
 }
 
+// DesktopAuthClient is one public PKCE client and the redirects it may use.
+// A redirect is valid only for the client that lists it.
+type DesktopAuthClient struct {
+	ID           string
+	RedirectURIs []string
+}
+
+// DesktopClients is the desktop auth client allowlist: DesktopAuthClients
+// when set, otherwise the legacy single client (nil when that is empty too).
+func (c Config) DesktopClients() []DesktopAuthClient {
+	if len(c.DesktopAuthClients) > 0 {
+		return c.DesktopAuthClients
+	}
+	if strings.TrimSpace(c.DesktopAuthClientID) == "" {
+		return nil
+	}
+	return []DesktopAuthClient{{ID: c.DesktopAuthClientID, RedirectURIs: c.DesktopAuthRedirectURIs}}
+}
+
+// parseDesktopAuthClients reads DESKTOP_AUTH_CLIENTS:
+// "client_id=redirect[|redirect...],client_id=...". Any malformed entry fails.
+func parseDesktopAuthClients(raw string) ([]DesktopAuthClient, error) {
+	var out []DesktopAuthClient
+	seen := map[string]bool{}
+	for _, entry := range strings.Split(raw, ",") {
+		id, redirects, ok := strings.Cut(strings.TrimSpace(entry), "=")
+		id = strings.TrimSpace(id)
+		if !ok || id == "" || strings.ContainsAny(id, " \t|") {
+			return nil, fmt.Errorf("DESKTOP_AUTH_CLIENTS entry %q must be client_id=redirect[|redirect...]", entry)
+		}
+		if seen[id] {
+			return nil, fmt.Errorf("DESKTOP_AUTH_CLIENTS lists client %q twice", id)
+		}
+		seen[id] = true
+		client := DesktopAuthClient{ID: id}
+		for _, r := range strings.Split(redirects, "|") {
+			r = strings.TrimSpace(r)
+			if u, err := url.Parse(r); r == "" || err != nil || u.Scheme == "" {
+				return nil, fmt.Errorf("DESKTOP_AUTH_CLIENTS redirect %q for client %q must be an absolute URI", r, id)
+			}
+			client.RedirectURIs = append(client.RedirectURIs, r)
+		}
+		out = append(out, client)
+	}
+	return out, nil
+}
+
 func Load() (Config, error) {
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
@@ -225,7 +277,20 @@ func Load() (Config, error) {
 	if c.JWTSecret == "" {
 		return c, fmt.Errorf("JWT_SECRET is required")
 	}
-	if strings.TrimSpace(c.DesktopAuthClientID) == "" || len(c.DesktopAuthRedirectURIs) == 0 || len(c.DesktopAuthDeploymentIDs) == 0 {
+	if raw := strings.TrimSpace(os.Getenv("DESKTOP_AUTH_CLIENTS")); raw != "" {
+		// One allowlist at a time: a leftover single-client pair beside the
+		// list would otherwise be silently ignored.
+		if os.Getenv("DESKTOP_AUTH_CLIENT_ID") != "" || os.Getenv("DESKTOP_AUTH_REDIRECT_URIS") != "" {
+			return c, fmt.Errorf("set either DESKTOP_AUTH_CLIENTS or DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both")
+		}
+		clients, err := parseDesktopAuthClients(raw)
+		if err != nil {
+			return c, err
+		}
+		c.DesktopAuthClients = clients
+		c.DesktopAuthClientID, c.DesktopAuthRedirectURIs = "", nil
+	}
+	if len(c.DesktopClients()) == 0 || len(c.DesktopClients()[0].RedirectURIs) == 0 || len(c.DesktopAuthDeploymentIDs) == 0 {
 		return c, fmt.Errorf("desktop auth client, redirect and deployment allowlists are required")
 	}
 	if c.DesktopAuthCodeTTL <= 0 || c.DesktopAuthCodeTTL > 10*time.Minute {

@@ -59,11 +59,8 @@ type DesktopAuthService struct {
 }
 
 func NewDesktopAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, cfg config.Config) *DesktopAuthService {
-	if cfg.DesktopAuthClientID == "" {
-		cfg.DesktopAuthClientID = "uniwork-office"
-	}
-	if len(cfg.DesktopAuthRedirectURIs) == 0 {
-		cfg.DesktopAuthRedirectURIs = []string{"uniwork-office://auth/callback"}
+	if len(cfg.DesktopClients()) == 0 {
+		cfg.DesktopAuthClients = []config.DesktopAuthClient{{ID: "uniwork-office", RedirectURIs: []string{"uniwork-office://auth/callback"}}}
 	}
 	if len(cfg.DesktopAuthDeploymentIDs) == 0 {
 		cfg.DesktopAuthDeploymentIDs = []string{"default"}
@@ -645,24 +642,26 @@ func (s *DesktopAuthService) validateStart(in DesktopStartInput) error {
 	return nil
 }
 
+// allowed reports whether clientID is a configured client, redirectURI is one
+// of that same client's redirects, and deploymentID is allowlisted. A redirect
+// listed for another client does not count. Exchange then redeems only the
+// attempt row stored with the same client and redirect.
 func (s *DesktopAuthService) allowed(clientID, redirectURI, deploymentID string) bool {
-	if clientID != s.cfg.DesktopAuthClientID || !s.deploymentAllowed(deploymentID) {
+	if clientID == "" || !s.deploymentAllowed(deploymentID) {
 		return false
 	}
-	redirectOK, deploymentOK := false, false
-	for _, v := range s.cfg.DesktopAuthRedirectURIs {
-		if v == redirectURI {
-			redirectOK = true
-			break
+	for _, c := range s.cfg.DesktopClients() {
+		if c.ID != clientID {
+			continue
 		}
-	}
-	for _, v := range s.cfg.DesktopAuthDeploymentIDs {
-		if v == deploymentID {
-			deploymentOK = true
-			break
+		for _, v := range c.RedirectURIs {
+			if v == redirectURI {
+				return true
+			}
 		}
+		return false
 	}
-	return redirectOK && deploymentOK
+	return false
 }
 
 func (s *DesktopAuthService) deploymentAllowed(deploymentID string) bool {
