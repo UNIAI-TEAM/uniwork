@@ -1,0 +1,1 @@
+$ dpkg -s fonts-crosextra-carlito fonts-crosextra-caladea fonts-noto-cjk >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-crosextra-carlito fonts-crosextra-caladea fonts-noto-cjk; }
