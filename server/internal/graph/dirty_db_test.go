@@ -46,6 +46,11 @@ func TestGraphMarkDirtyKeepsTheLatestEventWhole(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			source := "task-" + c.name
 			c.first(source)
+			var firstSeq int64
+			if err := pool.QueryRow(ctx, `SELECT mark_seq FROM graph_dirty
+				WHERE organization_id = 'org-a' AND node_type = 'TASK' AND source_id = $1`, source).Scan(&firstSeq); err != nil {
+				t.Fatal(err)
+			}
 			// Claim and fail the row so the second mark has queue state to reset.
 			if _, err := q.GraphClaimDirty(ctx, db.GraphClaimDirtyParams{LeaseSeconds: 60, Batch: 10}); err != nil {
 				t.Fatal(err)
@@ -67,8 +72,10 @@ func TestGraphMarkDirtyKeepsTheLatestEventWhole(t *testing.T) {
 				lastError    string
 				availableNow bool
 			)
+			// availableNow: back from the hour GraphFailDirty set, with slack for
+			// a DB clock that steps back between the mark and this read.
 			if err := pool.QueryRow(ctx, `SELECT mark_seq, last_event_id, last_event_at, actor_kind, actor_id,
-				attempts, last_error, available_at <= now()
+				attempts, last_error, available_at < now() + interval '1 minute'
 				FROM graph_dirty WHERE organization_id = 'org-a' AND node_type = 'TASK' AND source_id = $1`, source,
 			).Scan(&seq, &event, &at, &kind, &actor, &attempts, &lastError, &availableNow); err != nil {
 				t.Fatal(err)
@@ -77,13 +84,84 @@ func TestGraphMarkDirtyKeepsTheLatestEventWhole(t *testing.T) {
 				t.Errorf("event fields = (%s, %s, %s, %s), want (evt-2, %s, agent, agent-2)",
 					event, at.UTC().Format(time.RFC3339), kind, actor, t2.Format(time.RFC3339))
 			}
-			if seq != 2 {
-				t.Errorf("mark_seq = %d, want 2", seq)
+			if seq == firstSeq {
+				t.Errorf("mark_seq = %d after a second mark, want a value other than the first mark's", seq)
 			}
 			if attempts != 0 || lastError != "" || !availableNow {
 				t.Errorf("queue fields = (attempts %d, last_error %q, available now %v), want (0, \"\", true)",
 					attempts, lastError, availableNow)
 			}
 		})
+	}
+}
+
+// mark_seq fences GraphDoneDirty, so a mark committed after a claim must not
+// carry the claimed value.
+// A worker whose lease ran out mid-batch still holds its claim while a second
+// worker claims the row, projects it and deletes it, and the next mark inserts
+// the row again. Counted per row from 1, that mark took the value the first
+// claim held, and the first worker's delete removed a mark it never projected.
+func TestGraphDoneDirtyLeavesAMarkInsertedAfterAnExpiredClaim(t *testing.T) {
+	pool := testutil.DB(t)
+	ctx := context.Background()
+	q := db.New(pool)
+
+	const org, typ, source = "org-a", "TASK", "task-aba"
+	backdate := func(set string) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `UPDATE graph_dirty SET `+set+`
+			WHERE organization_id = $1 AND node_type = $2 AND source_id = $3`, org, typ, source); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mark := func() {
+		t.Helper()
+		if err := q.GraphMarkDirty(ctx, db.GraphMarkDirtyParams{
+			OrganizationID: org, NodeTypes: []string{typ}, SourceIds: []string{source},
+			EventID: "evt", EventAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, ActorKind: "human", ActorID: "user-1",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		// Due a second ago, so a DB clock that steps back cannot hide it from
+		// the claim that follows.
+		backdate(`available_at = now() - interval '1 second'`)
+	}
+	claim := func() db.GraphDirty {
+		t.Helper()
+		rows, err := q.GraphClaimDirty(ctx, db.GraphClaimDirtyParams{LeaseSeconds: 60, Batch: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("claimed %d rows, want the one dirty row", len(rows))
+		}
+		return rows[0]
+	}
+	done := func(seq int64) int64 {
+		t.Helper()
+		n, err := q.GraphDoneDirty(ctx, db.GraphDoneDirtyParams{OrganizationID: org, NodeType: typ, SourceID: source, MarkSeq: seq})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	mark()
+	first := claim()
+	backdate(`locked_until = now() - interval '1 second'`) // the first claim's lease runs out
+	second := claim()
+	if n := done(second.MarkSeq); n != 1 {
+		t.Fatalf("the live claim deleted %d rows, want 1", n)
+	}
+	mark()
+	if n := done(first.MarkSeq); n != 0 {
+		t.Fatalf("the expired claim (mark_seq %d) deleted the mark that came after it", first.MarkSeq)
+	}
+	var left int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM graph_dirty WHERE source_id = $1`, source).Scan(&left); err != nil {
+		t.Fatal(err)
+	}
+	if left != 1 {
+		t.Fatalf("dirty rows = %d, want the new mark", left)
 	}
 }

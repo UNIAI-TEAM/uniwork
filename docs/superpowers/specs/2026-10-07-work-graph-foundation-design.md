@@ -1,6 +1,6 @@
 # Work Graph nền (C-11): catalogue, projector, nối tay, panel Liên quan
 
-> **Trạng thái:** Đã duyệt (2026-10-07, quangpd). Thiết kế khái niệm đã chốt cùng chủ sở hữu sản phẩm ngày 2026-10-07 (mười quyết định, xem §1.2). ADR 0019 accepted. Thực thi: ba vá §9.1 đã merge (UNI-963, PR #197, 2026-10-08); lát 1 trong PR #203 (UNI-962), số đo cổng ở §9.2; lát 2–3 chưa làm. §13 ghi các điều chỉnh sau khi đối chiếu mã (2026-10-07, đã duyệt cùng hai kế hoạch) và khi thực thi (2026-10-08, dòng 19–26).
+> **Trạng thái:** in-progress — đã duyệt (2026-10-07, quangpd). Thiết kế khái niệm đã chốt cùng chủ sở hữu sản phẩm ngày 2026-10-07 (mười quyết định, xem §1.2). ADR 0019 accepted. Thực thi: ba vá §9.1 đã merge (UNI-963, PR #197, 2026-10-08); lát 1 trong PR #203 (UNI-962), số đo cổng ở §9.2; lát 2–3 chưa làm. §13 ghi các điều chỉnh sau khi đối chiếu mã (2026-10-07, đã duyệt cùng hai kế hoạch) và khi thực thi (2026-10-08, dòng 19–26); dòng 27–28 sửa hai lỗi chạy đua tìm ra sau lát 1 (2026-10-09).
 
 **Roadmap:** C-11 (P1). Mở đường cho C-12 Decision record, Goal, Context Engine / A-04, A-01.
 **Issue:** chưa tạo.
@@ -225,7 +225,9 @@ realtime. Thay vào đó, việc chiếu chia hai bước:
 - **`projector.Marker`**, một consumer outbox đăng ký trên lane realtime bằng
   `dispatcher.Register`. Với mỗi sự kiện, nó suy ra từ payload (chỉ có id) các node bị
   ảnh hưởng, rồi ghi **một** lệnh upsert vào bảng `graph_dirty`, khoá
-  `(organization_id, node_type, source_id)`, `mark_seq` tăng mỗi lần đánh dấu. Không đọc
+  `(organization_id, node_type, source_id)`, mỗi lần đánh dấu ghi vào `mark_seq` mã giao
+  dịch của lần đánh dấu đó, nên dấu commit sau một lần nhận việc không bao giờ mang giá
+  trị đã nhận (§13 #27). Không đọc
   bảng nguồn, không gọi gì bên ngoài. Tổ chức chưa bật flag `graph` thì bỏ qua.
 - **`projector.Worker`**, một goroutine nền (2 vòng, batch 8, `FOR UPDATE SKIP LOCKED`,
   thuê 60 s), có trong trình tự tắt của `main.go`. Mỗi dòng bẩn được chiếu trong một giao
@@ -522,7 +524,7 @@ Hoàn tác: tắt hai flag; bảng để nguyên (không xoá), rebuild lại kh
 - Email Hub: V3 chỉ thêm test, §9.1.
 - `agents`: thêm ba topic outbox `agent.*`; `Update` sang `archived` phát
   `agent.archived`, mọi thay đổi khác phát `agent.updated`; hành động audit giữ nguyên.
-- Tasks: không đổi; projector đọc `tasks`, `task_dependencies`.
+- Tasks: thêm và gỡ phụ thuộc phát `task.updated` cho cả hai việc (§13 #28); projector đọc `tasks`, `task_dependencies`.
 - Chat: lệnh gỡ có sẵn (`UnsyncThreadTask`), nên thêm topic `chat.thread.unlinked` cùng
   hành động audit `chat.thread.task_unlinked` và bọc lệnh trong giao dịch.
 - Documents: không đổi schema; projector đọc `documents`, `document_shares`.
@@ -569,3 +571,5 @@ quyết định) không đổi.
 | 24 | §6 | (chưa nói) | Hàng xóm tại `at` trong quá khứ hiện tên và trạng thái hiện tại của node, ẩn node đã xoá ở hiện tại | Xoá là luật mạnh hơn; ảnh chụp node theo thời gian để lát sau |
 | 25 | §10 | `graph-rebuild --org` hoặc `--all` | `--verify` hằng tuần chạy theo từng tổ chức đã bật `graph`, sau khi `graph_dirty` của tổ chức đó về 0; `--all` chỉ khi `graph` đã bật toàn cục; CLI từ chối `--org` không tồn tại và đối số thừa; rebuild vẫn chiếu tổ chức bị đình chỉ | Tổ chức chưa bật flag luôn báo thiếu toàn bộ; gõ sai `--org` từng báo thành công mà không làm gì; `2d5c6c01`, `1ba6209b` |
 | 26 | §7 | Panel làm mới khi chính việc đổi | Mọi sự kiện việc và liên kết luồng làm mới đồ thị cả workspace (250 ms rồi 3 s) | Panel của việc A hiện tên và trạng thái của việc B; `3b9b74e9` |
+| 27 | §5.2 | `mark_seq` đếm số lần đánh dấu của từng dòng, bắt đầu từ 1 | `mark_seq` là mã giao dịch của lần đánh dấu (`pg_current_xact_id()`, 64 bit, không dùng lại), khi chèn lẫn khi dồn dấu; worker chỉ xoá dòng còn đúng giá trị nó đã nhận. Mã giao dịch lớn hơn mọi số đếm cũ và không cần thêm đối tượng nào vào schema, nên không cần migration | Lease 60 s có thể hết giữa một lô 8 node chiếu tuần tự. Vòng kia nhận dòng, chiếu rồi xoá; sự kiện kế tiếp chèn lại dòng với `mark_seq = 1`, đúng giá trị vòng đầu còn giữ, nên lệnh xoá của vòng đầu xoá luôn dấu mới và thay đổi đó không tới đồ thị (lỗi ABA). `TestAnExpiredClaimLeavesTheMarkOfALaterEdit` |
+| 28 | §5.3, §11 | Sự kiện phụ thuộc chỉ mang `task_id` của việc được đặt phụ thuộc; chiếu việc đó đánh dấu việc ở đầu kia | Thêm và gỡ phụ thuộc phát `task.updated` cho cả hai việc; phép kiểm đầu kia ở #11 giữ lại làm lưới an toàn | Cạnh của `blocks(A,B)` là B → A, chỉ phép chiếu của B ghi. Phép kiểm trong phép chiếu của A đọc ở mức READ COMMITTED nên không thấy cạnh B chưa commit: gỡ phụ thuộc đúng lúc B đang chiếu để cạnh mở mà không còn dòng bẩn nào. `TestDependencyRemovedWhileThePeerProjectsClosesTheEdge` |

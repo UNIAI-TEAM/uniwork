@@ -161,6 +161,10 @@ type GraphDoneDirtyParams struct {
 	MarkSeq        int64  `json:"mark_seq"`
 }
 
+// Deletes only the mark the worker claimed. A claim can outlive its lease
+// while another worker projects the row, deletes it and a new mark inserts it
+// again; no later mark carries the claimed mark_seq (GraphMarkDirty), so the
+// new mark survives the old claim.
 func (q *Queries) GraphDoneDirty(ctx context.Context, arg GraphDoneDirtyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, graphDoneDirty,
 		arg.OrganizationID,
@@ -410,11 +414,12 @@ func (q *Queries) GraphLockNode(ctx context.Context, lockKey string) error {
 }
 
 const graphMarkDirty = `-- name: GraphMarkDirty :exec
-INSERT INTO graph_dirty (organization_id, node_type, source_id, last_event_id, last_event_at, actor_kind, actor_id)
+INSERT INTO graph_dirty (organization_id, node_type, source_id, mark_seq, last_event_id, last_event_at, actor_kind, actor_id)
 SELECT $1::text, unnest($2::text[]), unnest($3::text[]),
+       pg_current_xact_id()::text::bigint,
        $4::text, $5::timestamptz, $6::text, $7::text
 ON CONFLICT (organization_id, node_type, source_id) DO UPDATE SET
-  mark_seq = graph_dirty.mark_seq + 1,
+  mark_seq = EXCLUDED.mark_seq,
   last_event_id = CASE WHEN EXCLUDED.last_event_at >= graph_dirty.last_event_at
                        THEN EXCLUDED.last_event_id ELSE graph_dirty.last_event_id END,
   last_event_at = GREATEST(graph_dirty.last_event_at, EXCLUDED.last_event_at),
@@ -442,6 +447,13 @@ type GraphMarkDirtyParams struct {
 // run concurrently, so an older event can be marked after a newer one, and
 // the worker dates and attributes edges from this row. Any mark, older or
 // not, still re-dirties the node.
+// mark_seq is the id of the marking transaction (64 bit, never reused), on
+// insert and on every folded mark. GraphDoneDirty deletes only the value the
+// worker claimed, and a claim reads committed marks only, so every later mark
+// holds another value: on the same row, or on the row inserted again after
+// another worker deleted it. A per-row count restarted at 1 there; the
+// table's DEFAULT 1 and its "counts the marks" note are from that time. A
+// transaction id also exceeds any such count and needs no new schema object.
 func (q *Queries) GraphMarkDirty(ctx context.Context, arg GraphMarkDirtyParams) error {
 	_, err := q.db.Exec(ctx, graphMarkDirty,
 		arg.OrganizationID,

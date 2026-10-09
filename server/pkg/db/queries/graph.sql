@@ -108,11 +108,19 @@ WHERE organization_id = sqlc.arg(organization_id) AND node_id = sqlc.arg(node_id
 -- run concurrently, so an older event can be marked after a newer one, and
 -- the worker dates and attributes edges from this row. Any mark, older or
 -- not, still re-dirties the node.
-INSERT INTO graph_dirty (organization_id, node_type, source_id, last_event_id, last_event_at, actor_kind, actor_id)
+-- mark_seq is the id of the marking transaction (64 bit, never reused), on
+-- insert and on every folded mark. GraphDoneDirty deletes only the value the
+-- worker claimed, and a claim reads committed marks only, so every later mark
+-- holds another value: on the same row, or on the row inserted again after
+-- another worker deleted it. A per-row count restarted at 1 there; the
+-- table's DEFAULT 1 and its "counts the marks" note are from that time. A
+-- transaction id also exceeds any such count and needs no new schema object.
+INSERT INTO graph_dirty (organization_id, node_type, source_id, mark_seq, last_event_id, last_event_at, actor_kind, actor_id)
 SELECT sqlc.arg(organization_id)::text, unnest(sqlc.arg(node_types)::text[]), unnest(sqlc.arg(source_ids)::text[]),
+       pg_current_xact_id()::text::bigint,
        sqlc.arg(event_id)::text, sqlc.arg(event_at)::timestamptz, sqlc.arg(actor_kind)::text, sqlc.arg(actor_id)::text
 ON CONFLICT (organization_id, node_type, source_id) DO UPDATE SET
-  mark_seq = graph_dirty.mark_seq + 1,
+  mark_seq = EXCLUDED.mark_seq,
   last_event_id = CASE WHEN EXCLUDED.last_event_at >= graph_dirty.last_event_at
                        THEN EXCLUDED.last_event_id ELSE graph_dirty.last_event_id END,
   last_event_at = GREATEST(graph_dirty.last_event_at, EXCLUDED.last_event_at),
@@ -139,6 +147,10 @@ WHERE d.organization_id = c.organization_id AND d.node_type = c.node_type AND d.
 RETURNING d.*;
 
 -- name: GraphDoneDirty :execrows
+-- Deletes only the mark the worker claimed. A claim can outlive its lease
+-- while another worker projects the row, deletes it and a new mark inserts it
+-- again; no later mark carries the claimed mark_seq (GraphMarkDirty), so the
+-- new mark survives the old claim.
 DELETE FROM graph_dirty
 WHERE organization_id = sqlc.arg(organization_id) AND node_type = sqlc.arg(node_type)
   AND source_id = sqlc.arg(source_id) AND mark_seq = sqlc.arg(mark_seq);
