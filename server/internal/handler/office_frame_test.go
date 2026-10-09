@@ -150,7 +150,7 @@ func TestOfficeFrameOpenSaveConflictReopen(t *testing.T) {
 	_ = json.Unmarshal(raw, &up)
 	res, saved := doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", token, map[string]string{"Idempotency-Key": "frame-save-1"},
 		map[string]string{"upload_id": up.UploadID, "base_revision": revision})
-	if res.StatusCode != 200 || saved["revision"] == revision || saved["download_url"] != base+"/content?version=2" {
+	if res.StatusCode != 200 || saved["revision"] == revision || saved["download_url"] != base+"/content?version=2" || saved["module"] != "docs" {
 		t.Fatalf("commit = %d %v", res.StatusCode, saved)
 	}
 

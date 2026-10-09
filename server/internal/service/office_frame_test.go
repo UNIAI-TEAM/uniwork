@@ -72,6 +72,32 @@ func TestOfficeFrameAssetSignatureNamesOneAsset(t *testing.T) {
 	if _, err := s.Verify(sig); err == nil {
 		t.Fatal("Verify accepted an asset signature")
 	}
+	if got.Module != "" || got.ModuleName() != OfficeFrameModuleDocs {
+		t.Fatalf("docs signature verified as module %q", got.Module)
+	}
+	// A signature minted under a module token verifies as that module, so the
+	// byte route checks that module's flag.
+	pdf := claims
+	pdf.Module = OfficeFrameModulePDF
+	signedPDF, err := s.SignAsset(pdf, "asset")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pdfSig := signedPDF.URL[strings.Index(signedPDF.URL, "?sig=")+len("?sig="):]
+	if got, err := s.VerifyAsset(pdfSig, "doc", "asset"); err != nil || got.ModuleName() != OfficeFrameModulePDF {
+		t.Fatalf("pdf VerifyAsset = %+v, %v", got, err)
+	}
+	// The token's module rules hold: no explicit docs spelling, no unknown module.
+	for _, m := range []string{OfficeFrameModuleDocs, "word"} {
+		forged, err := s.sign(officeFrameAssetPrefix, officeFrameAssetClaims{DocumentID: "doc", AssetID: "asset", WorkspaceID: "ws",
+			OrganizationID: "org", UserID: "u", ExpiresAt: now.Add(OfficeFrameTokenTTL).UnixMilli(), Module: m})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.VerifyAsset(forged, "doc", "asset"); err == nil {
+			t.Errorf("VerifyAsset accepted module %q", m)
+		}
+	}
 	now = now.Add(OfficeFrameTokenTTL)
 	if _, err := s.VerifyAsset(sig, "doc", "asset"); err == nil {
 		t.Fatal("VerifyAsset accepted an expired signature")

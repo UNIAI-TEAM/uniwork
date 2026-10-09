@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -172,5 +173,162 @@ func TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap(t *testing.T) {
 	// The cap is checked after the ACL: a non-member still gets the plain 404.
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+big+"/office/frame-token", w.outsiderToken(t), nil); res.StatusCode != 404 {
 		t.Fatalf("outsider mint of the big xlsx = %d %v", res.StatusCode, out)
+	}
+}
+
+// frameZip is a minimal OOXML-shaped package with the given part names.
+func frameZip(t *testing.T, parts ...string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, name := range parts {
+		f, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write([]byte("<x>" + name + "</x>")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// frameModuleFiles is one stored file per web module, with the flag that
+// turns it on.
+func frameModuleFiles(t *testing.T) []struct {
+	module, flag, name string
+	body               []byte
+} {
+	return []struct {
+		module, flag, name string
+		body               []byte
+	}{
+		{"docs", "office_docs_web", "plan.docx", frameDocx(t, "m")},
+		{"pdf", "office_pdf_web", "scan.pdf", framePDF},
+		{"markdown", "office_markdown_web", "notes.md", []byte("# notes\n")},
+		{"html", "office_html_web", "page.html", []byte("<!doctype html><html><body><p>hi</p></body></html>\n")},
+		{"slides", "office_slides_web", "deck.pptx", frameZip(t, "[Content_Types].xml", "_rels/.rels", "ppt/presentation.xml", "ppt/slides/slide1.xml")},
+		{"sheets", "office_sheets_web", "book.xlsx", frameXlsx(t, 0)},
+	}
+}
+
+// restrictedFileSharedWith uploads a file document, restricts it and grants
+// memberID level on it.
+func (w *officeWorld) restrictedFileSharedWith(t *testing.T, name string, body []byte, memberID, level string) string {
+	t.Helper()
+	documentID := w.createDocx(t, name, body)
+	_, got := doJSON(t, w.srv, "GET", "/api/v1/documents/"+documentID, w.token, nil)
+	revision, _ := got["document"].(map[string]any)["revision"].(string)
+	if res, out := doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+documentID, w.token, map[string]any{"revision": revision, "visibility": "restricted"}); res.StatusCode != 200 {
+		t.Fatalf("restrict %s: %d %v", name, res.StatusCode, out)
+	}
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/shares", w.token, map[string]any{
+		"principal_type": "user", "principal_id": memberID, "level": level}); res.StatusCode != 201 {
+		t.Fatalf("share %s: %d %v", name, res.StatusCode, out)
+	}
+	return documentID
+}
+
+// For every module: a view-only token opens and reads, its uploads and
+// commits are refused (can_edit is only a hint, the Documents commands hold
+// the line), and the owner's commit answers with the token's module.
+func TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	viewer, viewerID := w.officeJoinWorkspace(t, "office-frame-module-viewer@example.com")
+	for _, m := range frameModuleFiles(t) {
+		t.Run(m.module, func(t *testing.T) {
+			setOfficeFrameFlagFor(t, w.q, m.flag, w.orgID, true)
+			documentID := w.restrictedFileSharedWith(t, m.name, m.body, viewerID, "view")
+			base := "/api/v1/office-frame/documents/" + documentID
+
+			res, minted := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/frame-token", viewer, nil)
+			if res.StatusCode != 201 || minted["can_edit"] != false || minted["module"] != m.module {
+				t.Fatalf("viewer mint = %d %v", res.StatusCode, minted)
+			}
+			token := minted["token"].(string)
+			res, opened := doJSON(t, w.srv, "GET", base, token, nil)
+			if res.StatusCode != 200 || opened["can_edit"] != false || opened["module"] != m.module {
+				t.Fatalf("viewer open = %d %v", res.StatusCode, opened)
+			}
+			if res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", token, nil, m.name, m.body, nil); res.StatusCode != 403 {
+				t.Fatalf("viewer upload = %d %s", res.StatusCode, raw)
+			}
+
+			ownerToken := w.mintFrameToken(t, documentID)["token"].(string)
+			res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", ownerToken, nil, m.name, m.body, nil)
+			if res.StatusCode != 201 {
+				t.Fatalf("owner upload = %d %s", res.StatusCode, raw)
+			}
+			var up struct {
+				UploadID string `json:"upload_id"`
+			}
+			_ = json.Unmarshal(raw, &up)
+			body := map[string]string{"upload_id": up.UploadID, "base_revision": opened["revision"].(string)}
+			if res, out := doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", token, map[string]string{"Idempotency-Key": "viewer-" + m.module}, body); res.StatusCode != 403 {
+				t.Fatalf("viewer commit = %d %v", res.StatusCode, out)
+			}
+			res, saved := doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", ownerToken, map[string]string{"Idempotency-Key": "owner-" + m.module}, body)
+			if res.StatusCode != 200 || saved["module"] != m.module || saved["revision"] == opened["revision"] {
+				t.Fatalf("owner commit = %d %v, want module %s", res.StatusCode, saved, m.module)
+			}
+			setOfficeFrameFlagFor(t, w.q, m.flag, w.orgID, false)
+		})
+	}
+}
+
+// A signed image URL keeps the token's module: the byte route checks that
+// module's flag (not office_docs_web) and Authorize matches the document.
+func TestOfficeFrameSignedAssetKeepsTheModule(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	setOfficeFrameFlagFor(t, w.q, "office_pdf_web", w.orgID, true)
+	pdf := w.createDocx(t, "scan.pdf", framePDF)
+	minted := w.mintFrameToken(t, pdf)
+	if minted["module"] != "pdf" {
+		t.Fatalf("mint = %v", minted)
+	}
+	token := minted["token"].(string)
+	base := "/api/v1/office-frame/documents/" + pdf
+
+	res, raw := doMultipart(t, w.srv, "POST", base+"/assets", token, nil, "dot.png", docsPNG, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("asset upload = %d %s", res.StatusCode, raw)
+	}
+	var asset struct {
+		AssetID string `json:"asset_id"`
+	}
+	_ = json.Unmarshal(raw, &asset)
+	res, signed := doJSON(t, w.srv, "POST", base+"/assets/sign", token, map[string]any{"asset_ids": []string{asset.AssetID}})
+	items, _ := signed["items"].([]any)
+	if res.StatusCode != 200 || len(items) != 1 {
+		t.Fatalf("sign = %d %v", res.StatusCode, signed)
+	}
+	url := items[0].(map[string]any)["url"].(string)
+
+	// Only office_pdf_web is on: the signed GET loads.
+	if res, got := doBytes(t, w.srv, "GET", url, ""); res.StatusCode != 200 || !bytes.Equal(got, docsPNG) {
+		t.Fatalf("signed GET with the pdf flag on = %d (%d bytes)", res.StatusCode, len(got))
+	}
+	// PDF off, Docs on: the URL stops on the pdf flag, not on the docs one.
+	setOfficeFrameFlagFor(t, w.q, "office_pdf_web", w.orgID, false)
+	setOfficeFrameFlagFor(t, w.q, "office_docs_web", w.orgID, true)
+	res, got := doBytes(t, w.srv, "GET", url, "")
+	var out map[string]any
+	_ = json.Unmarshal(got, &out)
+	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "feature_disabled" {
+		t.Fatalf("signed GET with the pdf flag off = %d %s, want 404 feature_disabled", res.StatusCode, got)
+	}
+}
+
+// The module's flag answers before the size cap: an oversized xlsx in an
+// organization without office_sheets_web is 403 feature_disabled, not 413.
+func TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	big := w.createDocx(t, "big.xlsx", frameXlsx(t, service.OfficeFrameSheetsMaxBytes+1))
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+big+"/office/frame-token", w.token, nil)
+	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "feature_disabled" {
+		t.Fatalf("big xlsx mint with the sheets flag off = %d %v, want 403 feature_disabled", res.StatusCode, out)
 	}
 }

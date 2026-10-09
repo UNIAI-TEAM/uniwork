@@ -33,7 +33,10 @@ its unsupported state).
   organization, inside the frame-auth middleware (only the token names the
   module): off answers 404 `feature_disabled`, the same answer the old
   route-level `office_docs_web` gate gave. A Docs token cannot pass on the
-  PDF flag and the other way round.
+  PDF flag and the other way round. A signed image URL (`?sig=`) carries the
+  token's `m` too, so the byte route checks the same module's flag.
+- The open, mint and commit answers carry `module`; the host refuses a minted
+  module that differs from the frame it mounts (`malformed`, G3 fallback).
 - `Authorize` refuses a token whose document's current version is no longer of
   the token's module (404), and recents list only the token's module.
 - The routes stay generic (open, content, uploads, commit, recents, assets).
@@ -129,6 +132,8 @@ fork's `docs/web-modules/sheets-sidecar.md`):
   `file.size_bytes` and mounts the G3 host without asking for a token.
 - Server gate: the mint answers 413 `too_large` for a stored file over the
   cap (after the ACL check), so a crafted client cannot open it in the frame.
+  The module's flag answers first: with it off the mint is 403
+  `feature_disabled` whatever the size.
 - Frame gate: when the Sheets frame fails its open with `too_large` (sum of
   worksheet XML over 40 MB, checked in the frame) - or the mint answered 413 -
   `OfficeModuleFrame` hands the document to the G3 host through the same

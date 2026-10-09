@@ -111,6 +111,11 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	t, err := h.OfficeFrame.Mint(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"))
+	if errors.Is(err, service.ErrOfficeFrameTooLarge) && !officeFrameModuleEnabled(r.Context(), h.FeatureFlags, t.Claims) {
+		// The flag answers first: off is 403 whatever the size.
+		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
+		return
+	}
 	if errors.Is(err, service.ErrOfficeFrameTooLarge) {
 		// Over the module's size cap (Sheets, GO-D3): the host opens the G3 editor instead.
 		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "document is too large for the web frame")
@@ -208,7 +213,7 @@ func (h *handlers) commitOfficeFrameVersion(w http.ResponseWriter, r *http.Reque
 		h.mapServiceError(w, err)
 		return
 	}
-	respondOfficeJSON(w, http.StatusOK, officeFrameDocumentSDO(service.OfficeFrameDocument{Document: res.Document, Access: res.Access, File: res.File}))
+	respondOfficeJSON(w, http.StatusOK, officeFrameDocumentSDO(service.OfficeFrameDocument{Document: res.Document, Access: res.Access, File: res.File, Module: claims.ModuleName()}))
 }
 
 // listOfficeFrameRecents is GET /office-frame/documents/{documentID}/recents.

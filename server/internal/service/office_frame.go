@@ -97,6 +97,9 @@ type officeFrameAssetClaims struct {
 	OrganizationID string `json:"o"`
 	UserID         string `json:"u"`
 	ExpiresAt      int64  `json:"e"`
+	// Module is the token's m, carried over so the byte route checks the flag
+	// of the module the URL was signed for; empty is docs, as on a token.
+	Module string `json:"m,omitempty"`
 }
 
 // NewOfficeFrameService derives its signing key from secret (the JWT secret)
@@ -138,8 +141,15 @@ func (s *OfficeFrameService) Mint(ctx context.Context, actor Actor, documentID s
 		return OfficeFrameToken{}, err
 	}
 	// After the ACL check, so a non-member still learns nothing about the file.
+	// The refusal still names the module (no token is signed), so the handler
+	// can answer the module's flag before the size.
 	if limit := officeFrameModuleMaxBytes(d.Module); limit > 0 && d.File.SizeBytes > limit {
-		return OfficeFrameToken{}, ErrOfficeFrameTooLarge
+		refused := OfficeFrameClaims{Version: 1, DocumentID: d.Document.ID, WorkspaceID: d.Document.WorkspaceID,
+			OrganizationID: d.Document.OrganizationID, UserID: actor.ID}
+		if d.Module != OfficeFrameModuleDocs {
+			refused.Module = d.Module
+		}
+		return OfficeFrameToken{Claims: refused}, ErrOfficeFrameTooLarge
 	}
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
@@ -238,6 +248,7 @@ func (s *OfficeFrameService) SignAsset(claims OfficeFrameClaims, assetID string)
 	sig, err := s.sign(officeFrameAssetPrefix, officeFrameAssetClaims{
 		DocumentID: claims.DocumentID, AssetID: assetID, WorkspaceID: claims.WorkspaceID,
 		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: expires.UnixMilli(),
+		Module: claims.Module,
 	})
 	if err != nil {
 		return OfficeFrameAssetURL{}, err
@@ -260,8 +271,16 @@ func (s *OfficeFrameService) VerifyAsset(sig, documentID, assetID string) (Offic
 	if claims.DocumentID != documentID || claims.AssetID != assetID || claims.UserID == "" || claims.ExpiresAt <= s.now().UnixMilli() {
 		return OfficeFrameClaims{}, ErrOfficeFrameToken
 	}
-	return OfficeFrameClaims{Version: 1, DocumentID: claims.DocumentID, WorkspaceID: claims.WorkspaceID,
-		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: claims.ExpiresAt}, nil
+	// The same module rules as Verify: one spelling for docs, no unknown module.
+	if claims.Module == OfficeFrameModuleDocs {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	out := OfficeFrameClaims{Version: 1, DocumentID: claims.DocumentID, WorkspaceID: claims.WorkspaceID,
+		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: claims.ExpiresAt, Module: claims.Module}
+	if _, ok := OfficeFrameModuleFlag(out.ModuleName()); !ok {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	return out, nil
 }
 
 // SignAssets signs URLs for assets that belong to the token's document, after
