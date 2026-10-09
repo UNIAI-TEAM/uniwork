@@ -12535,5 +12535,54 @@
       "signIn": "Đăng nhập",
       "close": "Đóng"
     }
+  },
+  "graph": {
+    "related": {
+      "title": "Liên quan",
+      "loading": "Đang tải…",
+      "error": "Không tải được mục liên quan.",
+      "empty": "Chưa có gì liên quan. Việc tạo từ cuộc họp, thuộc dự án hoặc có người phụ trách sẽ hiện ở đây.",
+      "updated": "Cập nhật lúc {{time}}",
+      "system": "Tự động",
+      "untitled": "Không có tiêu đề"
+    },
+    "groups": {
+      "originated_from_out": "Xuất phát từ",
+      "originated_from_in": "Sinh ra",
+      "owned_by_out": "Người phụ trách",
+      "owned_by_in": "Phụ trách",
+      "belongs_to_out": "Thuộc về",
+      "belongs_to_in": "Bao gồm",
+      "depends_on_out": "Phụ thuộc vào",
+      "depends_on_in": "Đang chờ việc này",
+      "discussed_in_out": "Được bàn trong",
+      "discussed_in_in": "Nơi bàn",
+      "participated_in_out": "Đã tham dự",
+      "participated_in_in": "Người tham dự",
+      "evidenced_by_out": "Bằng chứng",
+      "evidenced_by_in": "Là bằng chứng cho",
+      "other": "Khác"
+    },
+    "history": {
+      "title": "Dòng thời gian",
+      "loading": "Đang tải…",
+      "error": "Không tải được dòng thời gian.",
+      "empty": "Chưa ghi nhận thay đổi nào.",
+      "owned_by": "Giao cho {{name}}",
+      "originated_from": "Xuất phát từ {{title}}",
+      "belongs_to_project": "Thuộc dự án {{title}}",
+      "belongs_to_task": "Là công việc con của {{title}}",
+      "belongs_to_in": "{{title}} là công việc con của việc này",
+      "depends_on_out": "Phụ thuộc vào {{title}}",
+      "depends_on_in": "{{title}} phụ thuộc vào việc này",
+      "participated_in": "{{name}} tham dự",
+      "due_set": "Hạn {{to}}",
+      "due_changed": "Hạn đổi {{from}} → {{to}}",
+      "status_set": "Trạng thái {{to}}",
+      "status_changed": "Trạng thái {{from}} → {{to}}",
+      "since": "từ {{from}}",
+      "range": "{{from}} – {{to}}",
+      "before_graph": "trước khi có đồ thị"
+    }
   }
 }

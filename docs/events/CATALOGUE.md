@@ -1,6 +1,6 @@
 # Catalogue sự kiện UniWork
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-05 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-07 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
 
 Bảng dưới là hợp đồng giữa server và mọi client. Ba nơi phải khớp nhau —
 file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mjs`
@@ -66,6 +66,9 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 
 | Topic | v | Payload | Patch | Phạm vi | Cách gửi |
 | --- | --- | --- | --- | --- | --- |
+| `agent.archived` | 1 | `organization_id`, `agent_id` | — | organization | outbox |
+| `agent.created` | 1 | `organization_id`, `agent_id` | — | organization | outbox |
+| `agent.updated` | 1 | `organization_id`, `agent_id` | — | organization | outbox |
 | `ai.usage.updated` | 1 | `organization_id`, `workspace_id` | — | workspace | outbox |
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | — | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |
@@ -79,6 +82,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.channel.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
 | `chat.thread.replied` | 1 | `room_id`, `thread_root_id`, `message_id` | — | chat | ephemeral |
 | `chat.thread.linked` | 1 | `room_id`, `thread_root_id`, `task_id` | — | room | outbox |
+| `chat.thread.unlinked` | 1 | `room_id`, `thread_root_id`, `task_id` | — | room | outbox |
 | `chat.message.linked` | 1 | `room_id`, `message_id`, `target_id` | — | room | outbox |
 | `chat.follow_up.created` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |
 | `chat.follow_up.updated` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |

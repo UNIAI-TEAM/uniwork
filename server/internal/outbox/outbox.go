@@ -134,8 +134,9 @@ func New(pool *pgxpool.Pool, q *db.Queries, opts Options) *Dispatcher {
 func (d *Dispatcher) SetMetrics(m Metrics) { d.metrics = m }
 
 // Register subscribes a consumer on the realtime lane. That lane is for
-// consumers that only touch memory, Redis or one indexed read; anything that
-// waits on a third party or fans out across tables belongs on RegisterLane.
+// consumers that only touch memory, Redis, one indexed read, or one keyed
+// upsert (the Work Graph marker); anything that waits on a third party or
+// fans out across tables belongs on RegisterLane.
 // Registration happens before Run; the maps are not guarded.
 func (d *Dispatcher) Register(c Consumer) { d.RegisterLane(LaneRealtime, c) }
 

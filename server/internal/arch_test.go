@@ -454,3 +454,33 @@ func TestFilesContractIsALeafCalledOnlyFromTheServiceTier(t *testing.T) {
 		}
 	}
 }
+
+// The Work Graph is a projection (ADR 0019): only internal/graph/projector
+// writes its tables, so rebuilding from the business tables reproduces it.
+func TestGraphTablesWrittenOnlyByProjector(t *testing.T) {
+	calls := regexp.MustCompile(`\.(Graph(Upsert|Open|Close|Mark|Claim|Done|Release|Fail|Lock)\w*)\(`)
+	rawSQL := regexp.MustCompile(`(?i)\b(insert\s+into|update|delete\s+from)\s+graph_`)
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") || strings.Contains(slash, "internal/graph/projector/") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if m := calls.FindStringSubmatch(string(src)); m != nil {
+			t.Errorf("%s calls %s; only internal/graph/projector writes the Work Graph (ADR 0019)", slash, m[1])
+		}
+		if rawSQL.Match(src) {
+			t.Errorf("%s writes a graph_ table in SQL; only internal/graph/projector may (ADR 0019)", slash)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

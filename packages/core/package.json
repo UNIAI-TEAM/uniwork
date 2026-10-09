@@ -70,6 +70,7 @@
     "./documents/hooks-comments": "./documents/hooks-comments.ts",
     "./documents/hooks-favorites": "./documents/hooks-favorites.ts",
     "./documents/comment-drafts": "./documents/comment-drafts.ts",
+    "./graph": "./graph/hooks.ts",
     "./chat": "./chat/hooks.ts",
     "./chat/contacts-store": "./chat/contacts-store.ts",
     "./chat/groups-store": "./chat/groups-store.ts",

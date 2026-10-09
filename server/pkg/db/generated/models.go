@@ -889,6 +889,79 @@ type FileUploadSession struct {
 	FailureCode pgtype.Text `json:"failure_code"`
 }
 
+type GraphDirty struct {
+	OrganizationID string             `json:"organization_id"`
+	NodeType       string             `json:"node_type"`
+	SourceID       string             `json:"source_id"`
+	MarkSeq        int64              `json:"mark_seq"`
+	LastEventID    string             `json:"last_event_id"`
+	LastEventAt    pgtype.Timestamptz `json:"last_event_at"`
+	ActorKind      string             `json:"actor_kind"`
+	ActorID        string             `json:"actor_id"`
+	Attempts       int32              `json:"attempts"`
+	AvailableAt    pgtype.Timestamptz `json:"available_at"`
+	LockedUntil    pgtype.Timestamptz `json:"locked_until"`
+	LastError      string             `json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type GraphEdge struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	FromNode       string             `json:"from_node"`
+	ToNode         string             `json:"to_node"`
+	EdgeType       string             `json:"edge_type"`
+	Origin         string             `json:"origin"`
+	ValidFrom      pgtype.Timestamptz `json:"valid_from"`
+	ValidTo        pgtype.Timestamptz `json:"valid_to"`
+	RecordedAt     pgtype.Timestamptz `json:"recorded_at"`
+	EvidenceKind   string             `json:"evidence_kind"`
+	EvidenceID     string             `json:"evidence_id"`
+	ActorKind      string             `json:"actor_kind"`
+	ActorID        string             `json:"actor_id"`
+	Attrs          []byte             `json:"attrs"`
+}
+
+type GraphEdgeType struct {
+	EdgeType       string `json:"edge_type"`
+	FromType       string `json:"from_type"`
+	ToType         string `json:"to_type"`
+	HumanCreatable bool   `json:"human_creatable"`
+	Temporal       bool   `json:"temporal"`
+}
+
+type GraphNode struct {
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     pgtype.Text        `json:"workspace_id"`
+	NodeType        string             `json:"node_type"`
+	Subtype         string             `json:"subtype"`
+	SourceID        string             `json:"source_id"`
+	Title           string             `json:"title"`
+	Status          string             `json:"status"`
+	Visibility      string             `json:"visibility"`
+	ReaderIds       []string           `json:"reader_ids"`
+	OccurredAt      pgtype.Timestamptz `json:"occurred_at"`
+	SourceUpdatedAt pgtype.Timestamptz `json:"source_updated_at"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type GraphNodeFact struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	NodeID         string             `json:"node_id"`
+	FactType       string             `json:"fact_type"`
+	Value          string             `json:"value"`
+	ValidFrom      pgtype.Timestamptz `json:"valid_from"`
+	ValidTo        pgtype.Timestamptz `json:"valid_to"`
+	RecordedAt     pgtype.Timestamptz `json:"recorded_at"`
+	EvidenceKind   string             `json:"evidence_kind"`
+	EvidenceID     string             `json:"evidence_id"`
+	Attrs          []byte             `json:"attrs"`
+}
+
 type HomePreference struct {
 	OrganizationID string             `json:"organization_id"`
 	WorkspaceID    string             `json:"workspace_id"`
