@@ -67,3 +67,29 @@ func TestAIBYOKServiceGates(t *testing.T) {
 		t.Fatalf("without office.ai_byok = %v, want entitlement_required", err)
 	}
 }
+
+// Enabled is the host's "may this person have web AI here" read: a
+// non-member is refused like the proxy, a plan without office.ai_byok or a
+// missing credential store is false, and nothing calls a vendor.
+func TestAIBYOKServiceEnabled(t *testing.T) {
+	f := newAICredentialFixture(t)
+	gw := ai.NewGateway(f.q, nil, nil, nil, ai.Options{})
+	ents := NewEntitlementService(f.pool, f.q)
+	svc := NewAIBYOKService(f.orgs, ents, f.svc, gw)
+
+	if ok, err := svc.Enabled(f.ctx, f.second.ID, f.orgID); ok || err == nil {
+		t.Fatalf("non-member = %v %v, want refused", ok, err)
+	}
+	if ok, err := svc.Enabled(f.ctx, f.owner.ID, f.orgID); !ok || err != nil {
+		t.Fatalf("member with the plan = %v %v, want true", ok, err)
+	}
+	if ok, err := NewAIBYOKService(f.orgs, ents, nil, gw).Enabled(f.ctx, f.owner.ID, f.orgID); ok || err != nil {
+		t.Fatalf("no credential store = %v %v, want false", ok, err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = '{"office.ai_byok": false}'::jsonb WHERE organization_id = $1`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := svc.Enabled(f.ctx, f.owner.ID, f.orgID); ok || err != nil {
+		t.Fatalf("without office.ai_byok = %v %v, want false", ok, err)
+	}
+}

@@ -139,6 +139,13 @@ func New(d Deps, h Routes) http.Handler {
 		registerOfficeFrame(v1, h, d.FeatureFlags, d.OfficeFrameAuth)
 		registerOfficeFrameExport(v1, h, d.FeatureFlags, d.OfficeFrameAuth,
 			mw.RateLimitByIdentityBucket(d.Redis, "office-frame-export", 20, time.Minute, proxies, frameUser))
+		// GO-A7's AI on the frame token: the same per-person buckets as the
+		// session routes, so a frame and a host tab share one budget.
+		registerOfficeFrameAI(v1, h, d.FeatureFlags, d.OfficeFrameAuth, officeFrameAILimits{
+			credentials: mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, frameUser),
+			byok:        mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, frameUser),
+			cloud:       mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, frameUser),
+		})
 		v1.Group(func(authed api) {
 			if d.DeviceStatus != nil {
 				authed.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))

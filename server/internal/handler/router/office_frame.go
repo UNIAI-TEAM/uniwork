@@ -48,13 +48,7 @@ func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
 
 func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth func(http.Handler) http.Handler) {
 	if frameAuth == nil {
-		frameAuth = func(http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write([]byte(`{"error":{"code":"not_found","message":"not found"}}`))
-			})
-		}
+		frameAuth = frameAuthNotFound
 	}
 	// Auth first so the flags evaluate with the token's user and organization;
 	// frameAuth itself checks the flag of the token's module.

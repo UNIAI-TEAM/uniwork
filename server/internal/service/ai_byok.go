@@ -68,3 +68,24 @@ func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID str
 		Actor: Human(userID), OrganizationID: orgID, Credential: cred, Op: op, Body: body, Header: header,
 	})
 }
+
+// Enabled reports whether the person could use the proxy in orgID at all: a
+// member, a plan with office.ai_byok and a credential store wired. It reads
+// no key and never calls a vendor; the web host uses it to decide whether a
+// frame gets the `ai` grant. A plan refusal is false, not an error.
+func (s *AIBYOKService) Enabled(ctx context.Context, userID, orgID string) (bool, error) {
+	if _, err := s.orgs.RequireMember(ctx, orgID, userID); err != nil {
+		return false, err
+	}
+	if s.creds == nil {
+		return false, nil
+	}
+	if err := s.ents.Can(ctx, orgID, FeatureOfficeAIBYOK); err != nil {
+		var ce CodedError
+		if errors.As(err, &ce) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}

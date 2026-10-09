@@ -136,7 +136,9 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
 		return
 	}
-	respondOfficeJSON(w, http.StatusCreated, officeFrameTokenSDO(t, time.Now()))
+	out := officeFrameTokenSDO(t, time.Now())
+	out.AI = h.officeFrameAIGrant(r.Context(), t.Claims)
+	respondOfficeJSON(w, http.StatusCreated, out)
 }
 
 // officeFrameModuleEnabled evaluates the flag of the token's module

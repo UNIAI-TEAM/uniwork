@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
@@ -110,6 +111,13 @@ func newOfficeWorld(t *testing.T, enableFlag bool) *officeWorld {
 // world's FileService fake, for a stub that writes job outputs into it.
 func newOfficeWorldWith(t *testing.T, enableFlag bool, engine func(*filesfake.Fake) service.OfficeEngine) *officeWorld {
 	t.Helper()
+	return newOfficeWorldTweaked(t, enableFlag, engine, nil)
+}
+
+// newOfficeWorldTweaked is newOfficeWorldWith with a hook that may replace
+// services in the deps before the server starts (nil = none).
+func newOfficeWorldTweaked(t *testing.T, enableFlag bool, engine func(*filesfake.Fake) service.OfficeEngine, tweak func(*Deps, *pgxpool.Pool)) *officeWorld {
+	t.Helper()
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	q := db.New(pool)
 	fake := filesfake.New(filesfake.Options{})
@@ -121,6 +129,9 @@ func newOfficeWorldWith(t *testing.T, enableFlag bool, engine func(*filesfake.Fa
 		Pool: pool, Queries: q, Files: fake, Engine: engine(fake), Documents: docs,
 		MaxDeadline: time.Minute,
 	})
+	if tweak != nil {
+		tweak(&d, pool)
+	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 

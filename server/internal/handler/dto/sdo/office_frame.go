@@ -13,6 +13,9 @@ type OfficeFrameTokenSDO struct {
 	OrganizationID string `json:"organization_id" description:"ULID tổ chức của tài liệu" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	CanEdit        bool   `json:"can_edit" description:"Người dùng có quyền sửa (save/asset) lúc cấp; server vẫn kiểm lại mỗi request" example:"true"`
 	Module         string `json:"module" description:"Module web genoffice mở tài liệu, suy từ định dạng tệp đã lưu: docs, pdf, markdown, html, slides, sheets" example:"docs"`
+	// AI is the AI grant for this document's organization; all false when the
+	// plan or the server has no web AI.
+	AI OfficeFrameAIGrantSDO `json:"ai" description:"Quyền AI host được cấp cho khung (ai, web_search, image_search, image_generation)"`
 }
 
 // OfficeFrameDocumentSDO is the frame's view of the document: GET
@@ -72,4 +75,15 @@ type OfficeFrameAssetSDO struct {
 // /api/v1/office-frame/documents/{documentID}/assets/sign.
 type OfficeFrameAssetURLsSDO struct {
 	Items []OfficeFrameAssetURLDTO `json:"items"`
+}
+
+// OfficeFrameAIGrantSDO is the AI part of a frame token answer (UNI-1014, ADR
+// 0029): which AI capabilities the host may grant the frame for this
+// document. Read once at mint from GO-A7's entitlement checks; every AI route
+// on the frame mount still checks membership, entitlement and credits itself.
+type OfficeFrameAIGrantSDO struct {
+	AI              bool `json:"ai" description:"Khung được bật AI (BYOK qua /office-frame/.../ai): tổ chức có office.ai_byok và kho khóa đã cấu hình" example:"true"`
+	WebSearch       bool `json:"web_search" description:"Tìm web đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"true"`
+	ImageSearch     bool `json:"image_search" description:"Tìm ảnh đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"false"`
+	ImageGeneration bool `json:"image_generation" description:"Sinh ảnh và phân tích media đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"false"`
 }

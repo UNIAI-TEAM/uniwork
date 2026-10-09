@@ -19,13 +19,7 @@ import (
 func registerOfficeFrameExport(r api, h Routes, flags *featureflag.Service, frameAuth func(http.Handler) http.Handler, limit func(http.Handler) http.Handler) {
 	if frameAuth == nil {
 		// Same as registerOfficeFrame: no frame token service, no frame route.
-		frameAuth = func(http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write([]byte(`{"error":{"code":"not_found","message":"not found"}}`))
-			})
-		}
+		frameAuth = frameAuthNotFound
 	}
 	// Auth first so the flags and the budget see the token's user.
 	f := r.With(frameAuth, mw.RequireFeatureFlag(flags, "documents"), limit)
