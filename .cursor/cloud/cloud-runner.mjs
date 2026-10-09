@@ -83,7 +83,7 @@ const ENV_GIT = "~/.uniwork-cloud/env.git";
 const ENV_FETCH = `fetch -q --depth 1 ${ENV_REPO_URL} ${ENV_BRANCH}`;
 const REFRESH_FOREIGN = [
   `mkdir -p ~/.uniwork-cloud && git init -q --bare ${ENV_GIT}`,
-  `{ git -C ${ENV_GIT} ${ENV_FETCH} 2> /dev/null || git -C ${ENV_GIT} -c credential.helper= -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' ${ENV_FETCH}; }`,
+  `{ GIT_TERMINAL_PROMPT=0 git -C ${ENV_GIT} ${ENV_FETCH} 2> /dev/null || git -C ${ENV_GIT} -c credential.helper= -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' ${ENV_FETCH}; }`,
   `git -C ${ENV_GIT} archive FETCH_HEAD .cursor/cloud | tar -x -C ~/.uniwork-cloud`,
 ].join(" && ");
 
@@ -241,16 +241,30 @@ async function agentAlive(state) {
   }
 }
 
-async function createAgent(branch, model, prompt) {
-  const r = await api("POST", "/agents", {
+// promptFor(via) builds the first run's prompt. via is "direct" (the VM checks
+// out the repository) or "clone": Cursor cannot open a non-default repository
+// (its GitHub app has no access), so the VM boots on the uniwork environment
+// branch and run-tests.sh clones the repository itself. Returns { agentId, runId, via }.
+async function createAgent(branch, model, promptFor) {
+  const create = (repo, via) => api("POST", "/agents", {
     name: `runner ${REPO.name === DEFAULT_REPO ? "" : `${REPO.name} `}${branch}`.slice(0, 80),
-    prompt: { text: prompt },
+    prompt: { text: promptFor(via) },
     model: modelSpec(model),
-    repos: [{ url: REPO.url, startingRef: branch }],
+    repos: [repo],
     env: { type: "cloud" },
     autoCreatePR: false,
   });
-  return { agentId: r.agent.id, runId: r.run.id };
+  let r;
+  let via = "direct";
+  try {
+    r = await create({ url: REPO.url, startingRef: branch }, via);
+  } catch (e) {
+    if (REPO.name === DEFAULT_REPO || e.status !== 400 || !/verify existence/i.test(e.message)) throw e;
+    console.error(`cloud-runner: Cursor cannot open ${REPO.url}; the VM boots on uniwork and clones it`);
+    via = "clone";
+    r = await create({ url: ENV_REPO_URL, startingRef: ENV_BRANCH }, via);
+  }
+  return { agentId: r.agent.id, runId: r.run.id, via };
 }
 
 async function sendRun(agentId, prompt) {
@@ -265,21 +279,24 @@ async function sendRun(agentId, prompt) {
   }
 }
 
-function oneCommandPrompt(args) {
+function oneCommandPrompt(args, via = "direct") {
+  // A VM in "clone" mode has the uniwork checkout, so the plain REFRESH works there.
+  const refresh = REPO.name === DEFAULT_REPO || via === "clone" ? REFRESH : REFRESH_FOREIGN;
+  const extra = `${REPO.profile === "uniwork" ? "" : ` --profile ${REPO.profile}`}${via === "clone" ? ` --repo-url ${REPO.url}` : ""}`;
   return `You are a test runner. Run exactly one command, from the repository root,
 and wait for it to finish (up to 30 minutes on a new VM). Do not run anything
 else, do not edit, commit or push any file, do not open a PR, and do not look
 into failures:
 
-    ${REPO.name === DEFAULT_REPO ? REFRESH : REFRESH_FOREIGN} && bash ~/.uniwork-cloud/.cursor/cloud/run-tests.sh ${args}${REPO.profile === "uniwork" ? "" : ` --profile ${REPO.profile}`}
+    ${refresh} && bash ~/.uniwork-cloud/.cursor/cloud/run-tests.sh ${args}${extra}
 
 The last line it prints is a JSON object. Reply with only that object, unchanged,
 inside one \`\`\`json fence. If it printed no JSON, reply inside the fence with
 {"stage_outcome": "failed", "test_verdict": "blocked", "notes": "<its last 3 output lines>"}.`;
 }
 
-function ensurePrompt(branch) {
-  return oneCommandPrompt(`--branch ${branch} --provision-only`);
+function ensurePrompt(branch, via) {
+  return oneCommandPrompt(`--branch ${branch} --provision-only`, via);
 }
 
 // Publishes the spec as refs/test-specs/<lane>/<sha> (a one-file commit) so the
@@ -297,8 +314,8 @@ function publishSpec(lane, sha, commands) {
   return { ref, sha256: createHash("sha256").update(text).digest("hex") };
 }
 
-function testPrompt({ branch, sha, lane, spec }) {
-  return oneCommandPrompt(`--branch ${branch} --sha ${sha} --lane ${lane} --spec-ref ${spec.ref} --spec-sha256 ${spec.sha256}`);
+function testPrompt({ branch, sha, lane, spec }, via) {
+  return oneCommandPrompt(`--branch ${branch} --sha ${sha} --lane ${lane} --spec-ref ${spec.ref} --spec-sha256 ${spec.sha256}`, via);
 }
 
 function extractReport(result) {
@@ -396,8 +413,8 @@ async function cmdEnsure(opts) {
     return 0;
   }
   const model = opts.model || DEFAULT_MODEL;
-  const { agentId, runId } = await createAgent(branch, model, ensurePrompt(branch));
-  state = { agentId, repo: REPO.name, branch, model, lane: laneSlug(opts, branch), shard: shardName(opts.shard), createdAt: new Date().toISOString() };
+  const { agentId, runId, via } = await createAgent(branch, model, (v) => ensurePrompt(branch, v));
+  state = { agentId, repo: REPO.name, via, branch, model, lane: laneSlug(opts, branch), shard: shardName(opts.shard), createdAt: new Date().toISOString() };
   saveState(state, opts.shard);
   console.log(`runner created: ${agentId}; provisioning (about 10 min)`);
   const run = await waitRun(agentId, runId, Number(opts.timeout || 1800));
@@ -423,17 +440,26 @@ async function cmdTest(opts) {
   }
   const lane = laneSlug(opts, branch);
   const spec = publishSpec(lane, sha, commands);
-  const prompt = testPrompt({ branch, sha, lane, spec });
+  const promptFor = (via) => testPrompt({ branch, sha, lane, spec }, via);
   const alive = await agentAlive(state);
   const before = alive ? await costCents(state.agentId) : 0;
   let agentId;
   let runId;
-  if (alive) {
-    agentId = state.agentId;
-    runId = await sendRun(agentId, prompt);
-  } else {
-    ({ agentId, runId } = await createAgent(branch, opts.model || DEFAULT_MODEL, prompt));
-    state = { agentId, repo: REPO.name, branch, model: opts.model || DEFAULT_MODEL, lane, shard: shardName(opts.shard), createdAt: new Date().toISOString() };
+  let via = state?.via ?? "direct";
+  try {
+    if (alive) {
+      agentId = state.agentId;
+      runId = await sendRun(agentId, promptFor(via));
+    } else {
+      ({ agentId, runId, via } = await createAgent(branch, opts.model || DEFAULT_MODEL, promptFor));
+    }
+  } catch (e) {
+    // No run will read the spec (e.g. Cursor cannot see the repository): drop its ref.
+    try { git("push", "-q", REPO.remote, `:${spec.ref}`); } catch { /* best effort */ }
+    throw e;
+  }
+  if (!alive) {
+    state = { agentId, repo: REPO.name, via, branch, model: opts.model || DEFAULT_MODEL, lane, shard: shardName(opts.shard), createdAt: new Date().toISOString() };
   }
   // Saved before any wait: this is what collect resumes after a crash or shutdown.
   state.pending = {

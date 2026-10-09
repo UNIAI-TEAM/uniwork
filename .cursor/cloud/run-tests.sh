@@ -27,7 +27,7 @@ state=~/.uniwork-cloud/state
 results=/tmp/test-results
 mkdir -p "$state"
 
-branch="" sha="" lane="" spec_ref="" spec_sha="" provision_only=false profile=uniwork
+branch="" sha="" lane="" spec_ref="" spec_sha="" provision_only=false profile=uniwork repo_url=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --branch) branch=$2; shift 2 ;;
@@ -37,6 +37,7 @@ while [ $# -gt 0 ]; do
     --spec-sha256) spec_sha=$2; shift 2 ;;
     --provision-only) provision_only=true; shift ;;
     --profile) profile=$2; shift 2 ;;
+    --repo-url) repo_url=$2; shift 2 ;;
     *) echo "run-tests.sh: unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -53,6 +54,18 @@ case "$profile" in
   *) echo "run-tests.sh: unknown profile $profile" >&2; exit 2 ;;
 esac
 
+# --repo-url: Cursor could not open that repository, so the VM booted on the
+# uniwork checkout; work in a clone of the URL under ~/work instead (once per VM).
+if [ "$repo_url" ]; then
+  clone=~/work/$(basename "$repo_url" .git)
+  if [ ! -d "$clone/.git" ]; then
+    rm -rf "$clone" && mkdir -p ~/work
+    if ! git clone -q "$repo_url" "$clone" > /tmp/runner-clone.log 2>&1; then
+      echo "{\"stage_outcome\":\"failed\",\"test_verdict\":\"blocked\",\"notes\":\"could not clone $repo_url\"}"; exit 0
+    fi
+  fi
+  cd "$clone"
+fi
 root=$(git rev-parse --show-toplevel)
 cd "$root"
 export PATH=/usr/local/go/bin:$HOME/go/bin:$HOME/.cargo/bin:$PATH
@@ -210,10 +223,16 @@ SECRET_NAMES=$secret_names RESULTS=$results node -e '
   }'
 
 log_ref="refs/test-results/$lane/$head"
+# The VM's own credentials may not reach a repository Cursor cannot open
+# (--repo-url); the fallback feeds GH_TOKEN through a credential helper so it
+# is never on a command line.
 origin=$(git remote get-url origin)
-if ! (cd "$results" && git init -q && git add -A \
+if ! (cd "$results" && export GIT_TERMINAL_PROMPT=0 && git init -q && git add -A \
       && git -c user.name=runner -c user.email=runner@local commit -qm "$lane $head" \
-      && git push -qf "$origin" "HEAD:$log_ref") > /tmp/runner-push.log 2>&1; then
+      && { git push -qf "$origin" "HEAD:$log_ref" \
+           || { [ "${GH_TOKEN:-}" ] && git -c credential.helper= \
+                -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
+                push -qf "$origin" "HEAD:$log_ref"; }; }) > /tmp/runner-push.log 2>&1; then
   notes="log push failed: $(tail -2 /tmp/runner-push.log | tr '\n' ' ')"; log_ref=""
 fi
 

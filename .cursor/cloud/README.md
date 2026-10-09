@@ -140,6 +140,15 @@ node <same>/cloud-runner.mjs close        # when the lane is done
   side repository (`~/.uniwork-cloud/env.git`, shallow), with the VM's git
   credentials, falling back to `GH_TOKEN` through a credential helper so the
   token is never on a command line or in a log.
+- If Cursor cannot open the repository (its GitHub app has no access:
+  `POST /agents` answers 400 "Failed to verify existence of branch"), the
+  runner falls back on its own: the agent boots on `test/cursor-cloud-env` of
+  uniwork and `run-tests.sh --repo-url <url>` clones the repository into
+  `~/work/<name>` once per VM and runs the round there. Spec refs are read
+  from that repository; results refs are pushed to it with the VM's
+  credentials, else `GH_TOKEN` through a credential helper. The state records
+  `via: "clone"` (or `"direct"`), and follow-ups keep that mode; once the app
+  has access, `close` and the next round goes direct.
 - `run-tests.sh --profile office` selects the fork's profile:
 
 | | `uniwork` | `office` (uniwork-office) |
