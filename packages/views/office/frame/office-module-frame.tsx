@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { createDocsFrameApi, docsFrameSrc, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
-import type { ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
+import { createOfficeFrameApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import type { OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
+import { officeFrameSrc } from "@uniwork/core/office/office-modules";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -15,12 +16,14 @@ import { LeaveDialog } from "../leave-dialog";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
-export interface OfficeDocsFrameControls {
+export interface OfficeModuleFrameControls {
   save: () => Promise<boolean>;
   print: () => Promise<boolean>;
 }
 
-export interface OfficeDocsFrameProps {
+export interface OfficeModuleFrameProps {
+  /** The genoffice web module; must be the module the server derives for the document. */
+  module: OfficeModule;
   wsId: string;
   documentId: string;
   /** Document title, for the frame's accessible name until the editor reports its own. */
@@ -37,11 +40,20 @@ export interface OfficeDocsFrameProps {
   /** The user saved a copy; the frame now edits that new document. */
   onSavedAs?: (documentId: string) => void;
   /** Header actions (save, print) for the page that hosts the frame. */
-  controlsRef?: MutableRefObject<OfficeDocsFrameControls | null>;
+  controlsRef?: MutableRefObject<OfficeModuleFrameControls | null>;
   className?: string;
 }
 
-const defaultDocsFrameApi = createDocsFrameApi();
+// One stateless API per module, shared by every frame of it.
+const defaultApis = new Map<OfficeModule, DocsFrameApi>();
+function defaultFrameApi(module: OfficeModule): DocsFrameApi {
+  let api = defaultApis.get(module);
+  if (!api) {
+    api = createOfficeFrameApi(module);
+    defaultApis.set(module, api);
+  }
+  return api;
+}
 
 const KNOWN_ERRORS = new Set(["unauthorized", "forbidden", "not_found", "conflict", "too_large", "rate_limited", "network", "unsupported", "timeout", "busy", "feature_disabled"]);
 
@@ -53,26 +65,28 @@ function useFrameTheme(): Theme {
 }
 
 /**
- * The genoffice Docs editor in a same-origin iframe (GO-D2, UNI-1013). The
- * page never shares cookies with the frame: it mints a short-lived token for
- * this one document and hands it over in `init`; every API call the frame
- * needs travels back over postMessage and is made here.
+ * A genoffice editor in a same-origin iframe: Docs (GO-D2, UNI-1013) and the
+ * other web modules (UNI-1014/1015/1016), one host for all. The page never
+ * shares cookies with the frame: it mints a short-lived token for this one
+ * document and hands it over in `init`; every API call the frame needs
+ * travels back over postMessage and is made here.
  */
-export function OfficeDocsFrame({
-  wsId, documentId, title, frameVersion, api = defaultDocsFrameApi, readonly = false, fitContent = false,
+export function OfficeModuleFrame({
+  module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
   onTitleChange, onSaved, onSavedAs, controlsRef, className,
-}: OfficeDocsFrameProps) {
+}: OfficeModuleFrameProps) {
+  const frameApi = api ?? defaultFrameApi(module);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const theme = useFrameTheme();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [frameTitle, setFrameTitle] = useState<string | null>(null);
-  const src = docsFrameSrc(frameVersion);
+  const src = officeFrameSrc(module, frameVersion);
   const frameOrigin = useMemo(() => (typeof window === "undefined" ? "" : new URL(src, document.baseURI).origin), [src]);
   const tRef = useRef(t);
   tRef.current = t;
 
   const session = useDocsFrameSession({
-    iframeRef, frameOrigin, api, wsId, documentId, readonly,
+    iframeRef, frameOrigin, api: frameApi, module, wsId, documentId, readonly,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
@@ -126,7 +140,7 @@ export function OfficeDocsFrame({
   }, [dirty]);
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
 
-  // The server refused the token mint because office_docs_web is off for this organization.
+  // The server refused the token mint because the module's flag is off for this organization.
   const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
   const refuse = useDocsFrameRefusal();
   useEffect(() => { if (featureDisabled) refuse?.(); }, [featureDisabled, refuse]);
@@ -134,7 +148,7 @@ export function OfficeDocsFrame({
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
     return (
-      <div className={cn("p-4", className)} data-office-docs-frame data-state="failed">
+      <div className={cn("p-4", className)} data-office-docs-frame data-office-module={module} data-state="failed">
         <Alert variant="destructive" role="alert" data-testid="office-docs-frame-failed">
           <AlertTitle>{t("failed_title")}</AlertTitle>
           <AlertDescription>{t(`errors.${KNOWN_ERRORS.has(code) ? code : "internal"}`)}</AlertDescription>
@@ -151,6 +165,7 @@ export function OfficeDocsFrame({
     <div
       className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col bg-background", className)}
       data-office-docs-frame
+      data-office-module={module}
       data-state={session.status}
       data-dirty={dirty || undefined}
     >

@@ -11,11 +11,13 @@ import {
   DocsProtocolError,
   type Capabilities,
   type FrameRequests,
+  type OfficeModule,
   type ProtocolErrorShape,
   type SavedPayload,
   type Theme,
   type TokenPayload,
 } from "@uniwork/core/office/docs-frame-protocol";
+import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 
 export type DocsFrameStatus = "booting" | "ready" | "failed";
 
@@ -24,6 +26,12 @@ export interface DocsFrameSessionOptions {
   /** Exact origin of the frame document. */
   frameOrigin: string;
   api: DocsFrameApi;
+  /**
+   * The document's genoffice module (default docs). The host refuses a frame
+   * whose `ready.module` differs (`malformed`) and grants this module's
+   * capabilities.
+   */
+  module?: OfficeModule;
   wsId: string;
   documentId: string;
   readonly: boolean;
@@ -58,12 +66,18 @@ export interface DocsFrameSession {
  * do not exist yet stay off too. `exportPdf` follows the API alone: nothing
  * tells the host whether this deployment has a PDF renderer, so it is offered
  * and a 501 answers `unsupported`, on which the frame prints in place instead.
+ * Each module starts from its grant (`officeModuleSpec(module).grant`,
+ * one table the module workers fill in), narrowed by readonly and by what the
+ * API implements. A key the grant leaves out is off; AI is always off.
  */
-export function docsFrameCapabilities(readonly: boolean, api: DocsFrameApi): Capabilities {
+export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi): Capabilities {
+  const grant = officeModuleSpec(module).grant;
+  const on = (key: keyof Capabilities) => grant[key] === true;
   return {
-    save: !readonly, saveAs: !readonly && Boolean(api.saveAs), recents: true, print: true,
-    exportPdf: Boolean(api.export), exportHtml: false,
-    attachments: !readonly && Boolean(api.addAttachments), images: !readonly, ai: false,
+    ...grant,
+    save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents"), print: on("print"),
+    exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
+    attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly, ai: false,
   };
 }
 
@@ -79,6 +93,7 @@ const shapeOf = (error: unknown): ProtocolErrorShape => docsFrameError(error).to
  */
 export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrameSession {
   const { iframeRef, frameOrigin, wsId, documentId, locale, theme } = options;
+  const module = options.module ?? "docs";
   const [attempt, setAttempt] = useState(0);
   const queryClient = useQueryClient();
   // The document the frame edits: the page's, until a save-as moves it to the copy.
@@ -128,6 +143,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       self: window,
       frame: () => iframeRef.current?.contentWindow ?? null,
       allowedOrigins: [frameOrigin],
+      module,
       getInit: async () => {
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
@@ -137,7 +153,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",
           locale: current.locale, theme: current.theme,
-          capabilities: docsFrameCapabilities(current.readonly, current.api),
+          capabilities: officeModuleCapabilities(module, current.readonly, current.api),
         };
       },
       refreshToken: async () => {
@@ -197,7 +213,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     });
     setHost(endpoint);
     return () => { endpoint.dispose(); setHost(null); };
-  }, [attempt, documentId, frameOrigin, iframeRef, queryClient, wsId]);
+  }, [attempt, documentId, frameOrigin, iframeRef, module, queryClient, wsId]);
 
   // Proactive rotation: a re-minted token reaches the frame before the old one expires.
   const tokenValue = token?.token;

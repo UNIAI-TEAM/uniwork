@@ -25,10 +25,12 @@ import {
   type ApiSaveAsPayload,
   type ApiSavePayload,
   type FileMeta,
+  type OfficeModule,
   type OpenPayload,
   type SaveResult,
   type TokenPayload,
 } from "./docs-frame-protocol";
+import { officeFrameSrc, officeModuleSpec } from "./office-modules";
 
 /** A proxied call carries the frame token and the one document it is scoped to. */
 export interface DocsFrameCall {
@@ -66,7 +68,7 @@ export interface DocsFrameApi {
 
 /** Same-origin URL of a pinned Docs frame build (served by the web app). */
 export function docsFrameSrc(version: string): string {
-  return `/office-frame/docs/${encodeURIComponent(version)}/index.html`;
+  return officeFrameSrc("docs", version);
 }
 
 /** `apiBase` of the init message; informational while the frame uses host-proxy mode. */
@@ -79,8 +81,6 @@ export function docsFrameToken(token: OfficeFrameToken, now = Date.now()): Token
   const parsed = Date.parse(token.expires_at);
   return { token: token.token, tokenExpiresAt: Number.isFinite(parsed) ? parsed : now + token.expires_in * 1000 };
 }
-
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 /** An API failure (ApiError, network, thrown shape) as the protocol error the frame understands. */
 export function docsFrameError(error: unknown): DocsProtocolError {
@@ -163,6 +163,19 @@ export type DocsFrameApiOptions = Pick<OfficeFrameClientOptions, "apiUrl" | "fet
  * `unsupported`.
  */
 export function createDocsFrameApi(options: DocsFrameApiOptions = {}): DocsFrameApi {
+  return createOfficeFrameApi("docs", options);
+}
+
+/**
+ * The same API for any genoffice web module (UNI-1014/1015/1016): the routes
+ * are generic, the token names the module. A save uploads the module's own
+ * mime type, a save-as names the copy with its extension, and only Docs has
+ * a server PDF export (another module answers `unsupported` and prints in
+ * place, as the server would refuse it with 501).
+ */
+export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApiOptions = {}): DocsFrameApi {
+  const { mimeType, extension } = officeModuleSpec(module);
+  const ext = new RegExp(`\\.${extension}$`, "i");
   const clientFor = (call: DocsFrameCall): OfficeFrameClient => createOfficeFrameClient({ ...options, getToken: () => call.token });
   const run = async <T>(work: () => Promise<T>): Promise<T> => {
     try {
@@ -195,7 +208,7 @@ export function createDocsFrameApi(options: DocsFrameApiOptions = {}): DocsFrame
       // The stored file keeps its own name: the upload is named after what open answered.
       const current = await client.open(payload.fileId);
       if (!current) throw malformed("office-frame open");
-      const upload = await client.upload(payload.fileId, new Blob([payload.data], { type: DOCX_MIME }), current.file.filename, `${key}:upload`);
+      const upload = await client.upload(payload.fileId, new Blob([payload.data], { type: mimeType }), current.file.filename, `${key}:upload`);
       if (!upload) throw malformed("office-frame upload");
       try {
         const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision }, `${key}:commit`);
@@ -209,11 +222,11 @@ export function createDocsFrameApi(options: DocsFrameApiOptions = {}): DocsFrame
     }),
 
     saveAs: (payload, call) => run(async () => {
-      const name = /\.docx$/i.test(payload.name) ? payload.name : `${payload.name}.docx`;
+      const name = ext.test(payload.name) ? payload.name : `${payload.name}.${extension}`;
       const created = await createDocumentFile(
         call.workspaceId,
-        new File([payload.data], name, { type: DOCX_MIME }),
-        { title: name.replace(/\.docx$/i, ""), parent_id: payload.folderId },
+        new File([payload.data], name, { type: mimeType }),
+        { title: name.replace(ext, ""), parent_id: payload.folderId },
         { idempotencyKey: await operationKey("saveas", [call.workspaceId, name, payload.folderId ?? ""], payload.data), signal: call.signal },
       );
       if (!created) throw malformed("documents/files");
@@ -234,16 +247,20 @@ export function createDocsFrameApi(options: DocsFrameApiOptions = {}): DocsFrame
       };
     }),
 
-    export: (payload, call) => run(async () => {
+    ...(module === "docs" ? { export: exportPdf } : {}),
+  };
+
+  function exportPdf(payload: ApiExportPayload, call: DocsFrameCall): Promise<ApiExportResult> {
+    return run(async () => {
       if (payload.format !== "pdf") throw new DocsProtocolError({ code: "unsupported", message: "only PDF export is available on the web" });
       if (payload.fileId !== undefined) sameDocument(payload.fileId, call);
       // Unsaved edits travel as `data` and win; without them the server renders the current version.
-      const file = payload.data ? new Blob([payload.data], { type: DOCX_MIME }) : undefined;
+      const file = payload.data ? new Blob([payload.data], { type: mimeType }) : undefined;
       const key = await operationKey("export", [call.documentId, payload.name ?? ""], payload.data);
       const pdf = await clientFor(call).exportPdf(call.documentId, { file, signal: call.signal }, key);
       if (!pdf) throw malformed("office-frame export/pdf");
       const base = payload.name?.replace(/\.(docx|pdf)$/i, "");
       return { data: pdf, mimeType: "application/pdf", ...(base ? { name: `${base}.pdf` } : {}) };
-    }),
-  };
+    });
+  }
 }
