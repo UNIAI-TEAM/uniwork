@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -391,6 +392,20 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 		return DesktopSession{}, desktopDeviceRevoked()
 	}
 	oldDigest := hashToken(rawToken)
+	next := s.nextRefreshToken(device.ID, rawToken)
+	if !secureDigestEqual(device.RefreshTokenDigest, oldDigest) && secureDigestEqual(device.RefreshTokenDigest, hashToken(next)) {
+		// The token is the immediate predecessor of the live one: its
+		// rotation committed but the client may never have seen the answer.
+		// Within the grace window the retry gets the same refresh token back;
+		// after it, this is reuse like any other rotated-out token.
+		within, err := q.RefreshTokenRotatedOutWithin(ctx, db.RefreshTokenRotatedOutWithinParams{TokenHash: oldDigest, UserID: device.UserID, SessionID: device.SessionFamilyID, GraceSeconds: desktopRefreshRetryGrace.Seconds()})
+		if err != nil {
+			return DesktopSession{}, err
+		}
+		if within {
+			return s.replayRefresh(ctx, tx, q, device, next)
+		}
+	}
 	if !secureDigestEqual(device.RefreshTokenDigest, oldDigest) {
 		// Only a token this family really issued and later rotated out is a
 		// replay worth revoking the family for. Anything else is a guess by
@@ -419,10 +434,7 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 		}
 		return DesktopSession{}, desktopRefreshReused()
 	}
-	refresh, err := randomToken(32)
-	if err != nil {
-		return DesktopSession{}, err
-	}
+	refresh := next
 	if _, err := q.RotateDeviceSessionToken(ctx, db.RotateDeviceSessionTokenParams{ID: device.ID, RefreshTokenDigest: hashToken(refresh), RefreshTokenDigest_2: oldDigest}); err != nil {
 		return DesktopSession{}, err
 	}
@@ -442,11 +454,52 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 	if err := tx.Commit(ctx); err != nil {
 		return DesktopSession{}, err
 	}
+	return s.refreshedSession(device, access, refresh), nil
+}
+
+// desktopRefreshRetryGrace is how long the immediately previous refresh token
+// of a device still answers, so a retry after a lost response does not read
+// as reuse and revoke the device (GO-A5 review r2, R2-5).
+const desktopRefreshRetryGrace = 30 * time.Second
+
+// nextRefreshToken derives the successor of a refresh token. Derivation makes
+// a retry idempotent without keeping any usable token at rest: the server
+// stores digests only and recomputes the same successor from the presented
+// predecessor. The key comes from JWT_SECRET, whose holder can mint access
+// tokens outright, so the chain is never easier to forge than a session.
+func (s *DesktopAuthService) nextRefreshToken(deviceID, rawToken string) string {
+	key := hmac.New(sha256.New, []byte(s.cfg.JWTSecret))
+	key.Write([]byte("uniwork desktop refresh chain v1"))
+	mac := hmac.New(sha256.New, key.Sum(nil))
+	mac.Write([]byte(deviceID))
+	mac.Write([]byte{0})
+	mac.Write([]byte(rawToken))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+// replayRefresh answers a retry inside the grace window with the refresh
+// token already issued and a fresh access token. Nothing rotates; the audit
+// row records that the answer was a replay.
+func (s *DesktopAuthService) replayRefresh(ctx context.Context, tx pgx.Tx, q *db.Queries, device db.DeviceSession, refresh string) (DesktopSession, error) {
+	access, err := s.minter.MintSession(device.UserID, device.ID)
+	if err != nil {
+		return DesktopSession{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(device.UserID), Action: audit.ActionAuthDesktopTokenRotated, ResourceType: "device_session", ResourceID: device.ID, Metadata: map[string]any{"replay": "retry_grace"}}); err != nil {
+		return DesktopSession{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return DesktopSession{}, err
+	}
+	return s.refreshedSession(device, access, refresh), nil
+}
+
+func (s *DesktopAuthService) refreshedSession(device db.DeviceSession, access, refresh string) DesktopSession {
 	refreshSeconds := int32(time.Until(device.ExpiresAt.Time) / time.Second)
 	if refreshSeconds < 1 {
 		refreshSeconds = 1
 	}
-	return DesktopSession{AccountID: device.UserID, DeviceSessionID: device.ID, SessionID: device.SessionFamilyID, DeploymentID: device.DeploymentID, AccessToken: access, ExpiresIn: int32(s.minter.TTL / time.Second), RefreshToken: refresh, RefreshExpiresIn: refreshSeconds}, nil
+	return DesktopSession{AccountID: device.UserID, DeviceSessionID: device.ID, SessionID: device.SessionFamilyID, DeploymentID: device.DeploymentID, AccessToken: access, ExpiresIn: int32(s.minter.TTL / time.Second), RefreshToken: refresh, RefreshExpiresIn: refreshSeconds}
 }
 
 // revokeDesktopFamily closes every live device session of the family, then the

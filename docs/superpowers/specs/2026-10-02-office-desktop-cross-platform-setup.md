@@ -1,6 +1,8 @@
 # UniWork Office desktop - chọn bản cài và luồng setup macOS / Ubuntu
 
-> **Trạng thái:** in-progress (UNI-919 lane A, UNI-920 lane B; người dùng yêu cầu 2026-10-02 14:00 UTC+7)
+> **Trạng thái:** superseded - phần bản cài và setup của `apps/office-desktop` đóng băng theo [plan genoffice](../plans/2026-10-08-uniwork-office-genoffice.md) (UNI-1001; vào develop cùng UNI-1001). Đóng gói/phát hành chuyển sang repo fork (GO-A8, UNI-1009).
+
+> **Còn hiệu lực:** phía server phát link bản cài theo nền tảng (`OFFICE_INSTALLER_*_URLS`, `GET /api/v1/office/desktop/download`) và UI chọn bản cài trên web, vì app mới vẫn tải qua luồng đó.
 
 ## 1. Lý do
 

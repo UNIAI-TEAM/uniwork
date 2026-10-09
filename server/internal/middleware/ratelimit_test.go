@@ -331,7 +331,7 @@ func TestRateLimitBucket_SharesOneBudgetAcrossPaths(t *testing.T) {
 	// A route whose path carries an id must not hand out one budget per id.
 	rdb := newRedisTestClient(t)
 	user := func(r *http.Request) string { return r.Header.Get("X-Test-User") }
-	handler := RateLimitBucketByIdentity(rdb, "export", 2, time.Minute, nil, user)(okHandler)
+	handler := RateLimitByIdentityBucket(rdb, "export", 2, time.Minute, nil, user)(okHandler)
 	send := func(path, uid string) int {
 		req := httptest.NewRequest(http.MethodPost, path, nil)
 		req.RemoteAddr = "10.0.2.1:9000"

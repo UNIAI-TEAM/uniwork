@@ -99,6 +99,13 @@ func New(d Deps, h Routes) http.Handler {
 			mw.CorrelationHeader,
 			telemetry.DebugTraceHeader,
 			meetings.GuestSessionHeader,
+			// Vendor headers the BYOK proxy forwards (provider/byok_client.go); a
+			// browser caller needs them in the preflight or the fetch never leaves.
+			"Anthropic-Beta",
+			"Openai-Organization",
+			"Openai-Project",
+			"Http-Referer",
+			"X-Title",
 		},
 		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After"},
 		AllowCredentials: true,
@@ -131,7 +138,7 @@ func New(d Deps, h Routes) http.Handler {
 		// The Docs frame presents only its document-bound frame token.
 		registerOfficeFrame(v1, h, d.FeatureFlags, d.OfficeFrameAuth)
 		registerOfficeFrameExport(v1, h, d.FeatureFlags, d.OfficeFrameAuth,
-			mw.RateLimitBucketByIdentity(d.Redis, "office-frame-export", 20, time.Minute, proxies, frameUser))
+			mw.RateLimitByIdentityBucket(d.Redis, "office-frame-export", 20, time.Minute, proxies, frameUser))
 		v1.Group(func(authed api) {
 			if d.DeviceStatus != nil {
 				authed.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
@@ -147,6 +154,8 @@ func New(d Deps, h Routes) http.Handler {
 			registerBilling(authed, h)
 			registerNotifications(authed, h)
 			registerAI(authed, h)
+			registerAIBYOK(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, bearerUser(d.Minter)))
+			registerAICloud(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerTasksSuite(authed, h)
@@ -167,6 +176,8 @@ func New(d Deps, h Routes) http.Handler {
 			registerFiles(authed, h)
 			registerDocuments(authed, h, d.FeatureFlags)
 			registerSignatures(authed, h)
+			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).
+			registerAICredentials(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOfficeLaunch(authed, h)
 			registerOfficeFrameToken(authed, h, d.FeatureFlags)
 			registerOfficeDesktopDownload(authed, h, mw.RateLimit(d.Redis, 10, time.Minute, proxies))

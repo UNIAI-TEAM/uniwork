@@ -66,6 +66,13 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		}
 		b, _ := json.Marshal(cu)
 		text = string(b)
+	case strings.Contains(req.System, "You analyze media files"):
+		parts := 0
+		if n := len(req.Messages); n > 0 {
+			parts = len(req.Messages[n-1].Parts)
+		}
+		b, _ := json.Marshal(MediaAnalysis{Text: "Phân tích thử nghiệm của " + itoa(parts) + " tệp."})
+		text = string(b)
 	default:
 		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []string{}, ActionItems: []ActionItem{}})
 		text = string(b)

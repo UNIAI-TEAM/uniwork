@@ -39,6 +39,8 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0025](0025-mot-process-cho-api-va-worker.md) | Chưa tách API và worker; khi tách thì cùng binary theo `SERVER_ROLE`; mọi job phải an toàn đa replica trước khi tăng `be.replicaCount` |
 | [0026](0026-office-desktop-host.md) | Desktop host Electron tách main/preload/renderer, sandbox renderer và kiểm IPC allowlist có kiểu |
 | [0027](0027-inspector-script-uniwork-cho-che-do-visual-edit.md) | Script inspector do UniWork sở hữu, chỉ trong chế độ visual-edit của preview HTML (G3-D2 vẫn giữ) |
+| [0028](0028-ai-phia-client-cua-uniwork-office.md) | AI phía client của UniWork Office: khóa của người dùng gọi thẳng nhà cung cấp; mọi thứ tốn credit/công cụ cloud đi qua UniWork API + `ai.Gateway`; 0010 chỉ điều chỉnh runtime server |
+| [0029](0029-ai-cua-office-tren-web-qua-ai-gateway.md) | AI của Office trên web: khóa của người dùng lưu mã hóa phía server, proxy pass-through qua `ai.Gateway` (rào SSRF, entitlement `office.ai_byok`/`office.ai_cloud`, credit `ai.tokens`); bổ sung dòng frame web của 0028 |
 
 ## Bản nháp
 

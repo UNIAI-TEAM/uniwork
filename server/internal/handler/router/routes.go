@@ -257,6 +257,16 @@ type Routes struct {
 	WorkspaceAiUsage     http.HandlerFunc
 	OrganizationAiUsage  http.HandlerFunc
 
+	AiByokChatCompletions http.HandlerFunc
+	AiByokMessages        http.HandlerFunc
+	AiByokGenerate        http.HandlerFunc
+	AiByokModels          http.HandlerFunc
+	AiCloudStatus         http.HandlerFunc
+	AiCloudSearch         http.HandlerFunc
+	AiCloudImages         http.HandlerFunc
+	AiCloudAnalyzeMedia   http.HandlerFunc
+	AiCloudTranscribe     http.HandlerFunc
+
 	ListPlans           http.HandlerFunc
 	GetSubscription     http.HandlerFunc
 	ChangePlan          http.HandlerFunc
@@ -489,6 +499,11 @@ type Routes struct {
 	ListSavedSignatures  http.HandlerFunc
 	CreateSavedSignature http.HandlerFunc
 	DeleteSavedSignature http.HandlerFunc
+
+	// Personal AI provider credentials (UNI-1008, ADR 0029).
+	ListAICredentials  http.HandlerFunc
+	SaveAICredential   http.HandlerFunc
+	DeleteAICredential http.HandlerFunc
 
 	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
 	// §5.3, §5.4; UNI-679, G1-05b).

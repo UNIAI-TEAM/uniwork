@@ -100,6 +100,11 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	t.Setenv("LOCAL_UPLOAD_DIR", uploadDir)
 	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
 	t.Setenv("AI_PROVIDER", "fake")
+	// The Office cloud tools on their fake vendors, so the owner's control
+	// call succeeds and an outsider's refusal proves something.
+	t.Setenv("AI_CLOUD_SEARCH_PROVIDER", "fake")
+	t.Setenv("AI_CLOUD_IMAGE_PROVIDER", "fake")
+	t.Setenv("AI_CLOUD_TRANSCRIBE_PROVIDER", "fake")
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	// The Office desktop bridge: the download profile and the desktop client
 	// the launch and device routes check against.

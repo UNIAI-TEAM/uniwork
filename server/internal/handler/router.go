@@ -50,9 +50,14 @@ type Deps struct {
 	Billing             *service.BillingService
 	Notifications       *notification.Service
 	AskUNI              *service.AskUNIService
-	Meetings            *service.MeetingService
-	Chat                *service.ChatService
-	Hub                 *realtime.Hub
+	// AIBYOK is the web host's own-key proxy (UNI-1008); nil answers 503.
+	AIBYOK *service.AIBYOKService
+	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
+	// cloud_unavailable on its routes.
+	AICloud  *service.AICloudService
+	Meetings *service.MeetingService
+	Chat     *service.ChatService
+	Hub      *realtime.Hub
 
 	// FileAccess is the FileService read path (T4); nil answers 501 on the
 	// file routes until the server wires it.
@@ -65,6 +70,9 @@ type Deps struct {
 	// Signatures is the per-user saved-signature store (UNI-925 B6); nil
 	// answers 501 on the signature routes until the server wires it.
 	Signatures *service.SignatureService
+	// AICredentials is the per-user AI provider key store (UNI-1008, ADR
+	// 0029); nil answers 503 ai_credentials_unavailable.
+	AICredentials *service.AICredentialService
 
 	// Office is the Office job service (G2-07, UNI-690); nil answers 503
 	// office_not_configured on the office routes, so Documents keeps working
@@ -132,6 +140,7 @@ func New(d Deps) http.Handler {
 		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
 	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
+	aiMount := h.aiMountable(sessionAIActor)
 	return rt.New(rt.Deps{
 		Cfg:           d.Cfg,
 		Minter:        d.Minter,
@@ -397,6 +406,16 @@ func New(d Deps) http.Handler {
 		WorkspaceAiUsage:     h.workspaceAiUsage,
 		OrganizationAiUsage:  h.organizationAiUsage,
 
+		AiByokChatCompletions: aiMount.ByokChatCompletions,
+		AiByokMessages:        aiMount.ByokMessages,
+		AiByokGenerate:        aiMount.ByokGenerate,
+		AiByokModels:          aiMount.ByokModels,
+		AiCloudStatus:         aiMount.CloudStatus,
+		AiCloudSearch:         aiMount.CloudSearch,
+		AiCloudImages:         aiMount.CloudImages,
+		AiCloudAnalyzeMedia:   aiMount.CloudAnalyzeMedia,
+		AiCloudTranscribe:     aiMount.CloudTranscribe,
+
 		ListPlans:           h.listPlans,
 		GetSubscription:     h.getSubscription,
 		ChangePlan:          h.changePlan,
@@ -620,6 +639,9 @@ func New(d Deps) http.Handler {
 		ListSavedSignatures:  h.listSavedSignatures,
 		CreateSavedSignature: h.createSavedSignature,
 		DeleteSavedSignature: h.deleteSavedSignature,
+		ListAICredentials:    h.listAICredentials,
+		SaveAICredential:     h.saveAICredential,
+		DeleteAICredential:   h.deleteAICredential,
 
 		ListDocuments:          h.listDocuments,
 		ListRecentDocuments:    h.listRecentDocuments,

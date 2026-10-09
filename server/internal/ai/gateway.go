@@ -61,6 +61,9 @@ type Request struct {
 	// Tools the model may call this turn. A call to anything else fails the
 	// request with ErrToolNotAllowed.
 	Tools Registry
+	// Attachments are media parts sent with the rendered prompt (media
+	// analysis); the vendor adapter refuses a type it cannot send.
+	Attachments []provider.Part
 }
 
 type Response struct {
@@ -82,6 +85,9 @@ type Gateway struct {
 	metrics Metrics
 	log     *slog.Logger
 	now     func() time.Time
+	// byok is the guarded transport of the BYOK proxy (proxy.go).
+	byok  *provider.BYOKClient
+	cloud CloudTools
 }
 
 // NewGateway wires the pipeline. p == nil yields a disabled gateway that
@@ -90,7 +96,8 @@ func NewGateway(q *db.Queries, p provider.Provider, quota Quota, rec *audit.Reco
 	if opts.Timeout <= 0 {
 		opts.Timeout = 60 * time.Second
 	}
-	return &Gateway{q: q, p: p, quota: quota, rec: rec, opts: opts, log: slog.Default(), now: time.Now}
+	return &Gateway{q: q, p: p, quota: quota, rec: rec, opts: opts, log: slog.Default(), now: time.Now,
+		byok: provider.NewBYOKClient(provider.BYOKClientOptions{}), cloud: opts.Cloud}
 }
 
 func (g *Gateway) Enabled() bool { return g != nil && g.p != nil }
@@ -134,7 +141,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		JSONSchema: prompt.OutputSchema,
 	}
 	creq.Messages = append(creq.Messages, req.History...)
-	creq.Messages = append(creq.Messages, provider.Message{Role: "user", Content: prompt.Render(req.Vars)})
+	creq.Messages = append(creq.Messages, provider.Message{Role: "user", Content: prompt.Render(req.Vars), Parts: req.Attachments})
 	// Structured JSON output and tool-calling fight each other on OpenAI-compatible
 	// hosts (400 / empty content → 502 ai_provider_error). When the prompt pins a
 	// schema, context must already be in Vars — do not advertise tools.
@@ -148,31 +155,40 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	resp, perr := g.p.Complete(cctx, creq)
 	cancel()
 	latency := g.now().Sub(started)
+	// The request may be gone (client hung up) while the vendor answered: the
+	// row still settles and the call is still charged.
+	sctx, cancelSettle := settleContext(ctx)
+	defer cancelSettle()
 	if perr != nil {
-		_ = g.finish(ctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
+		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
 		g.observe(req.Capability, "failed", latency)
 		g.log.Warn("ai: provider error", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds(), "err", perr)
+		if errors.Is(perr, provider.ErrUnsupportedMedia) {
+			return Response{}, ErrMediaUnsupported.wrap(perr)
+		}
 		return Response{}, ErrProviderError.wrap(perr)
 	}
 	calls, denied := auditToolCalls(resp.ToolCalls, req.Tools)
 	if denied != "" {
-		_ = g.finish(ctx, row.ID, row.OrganizationID, resp, "failed", ErrToolNotAllowed.Code, latency, calls)
+		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrToolNotAllowed.Code, latency, calls)
 		g.observe(req.Capability, "failed", latency)
 		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))
 	}
-	if err := g.finish(ctx, row.ID, row.OrganizationID, resp, "succeeded", "", latency, calls); err != nil {
+	if err := g.finish(sctx, row.ID, row.OrganizationID, resp, "succeeded", "", latency, calls); err != nil {
 		return Response{}, err
 	}
 	if g.quota != nil {
-		if err := g.quota.Record(ctx, UsageRecord{
+		if err := g.quota.Record(sctx, UsageRecord{
 			OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID, Actor: req.Actor,
 			Tokens: int64(resp.InputTokens + resp.OutputTokens), UsageEventID: row.ID,
 		}); err != nil {
 			g.log.Warn("ai: quota record", "usage_event_id", row.ID, "err", err)
 		}
 	}
-	if g.rec != nil {
-		if err := g.rec.Emit(ctx, g.q, req.Actor, audit.Event{
+	// ai.usage.updated is workspace-scoped; an organization-tier call (media
+	// analysis for Office) has no workspace audience to tell.
+	if g.rec != nil && req.WorkspaceID != "" {
+		if err := g.rec.Emit(sctx, g.q, req.Actor, audit.Event{
 			Topic: "ai.usage.updated", OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID,
 			Payload: map[string]string{"organization_id": req.OrganizationID, "workspace_id": req.WorkspaceID},
 		}); err != nil {

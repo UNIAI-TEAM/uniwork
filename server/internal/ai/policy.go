@@ -21,6 +21,10 @@ const (
 	CapAgentGeneration      Capability = "agent_generation"
 	CapAgentEvaluation      Capability = "agent_evaluation"
 	CapEmbedding            Capability = "embedding"
+	CapCloudSearch          Capability = "cloud_search"
+	CapCloudImage           Capability = "cloud_image_generate"
+	CapCloudTranscribe      Capability = "cloud_transcribe"
+	CapMediaAnalysis        Capability = "media_analysis"
 )
 
 // ModelPolicy is the source-code constant behind a capability: the default
@@ -48,6 +52,7 @@ var policies = map[Capability]ModelPolicy{
 	CapAgentGeneration:      {Default: flagship, MaxTokens: 8192, Temperature: 0.2},
 	CapAgentEvaluation:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapEmbedding:            {Default: embedding, MaxTokens: 0, Temperature: 0},
+	CapMediaAnalysis:        {Default: flagship, MaxTokens: 4096, Temperature: 0},
 }
 
 // allowedModels is the allowlist every override is checked against

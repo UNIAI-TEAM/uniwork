@@ -171,3 +171,32 @@ func TestRateLimitKeyKeepsIdentitiesApartFromAddresses(t *testing.T) {
 		t.Fatal("an identity equal to an address shares that address's bucket")
 	}
 }
+
+// m1: a bucket is one budget per identity for every path in the group, while
+// the plain limiter keys by path; the buckets of two groups stay apart.
+func TestRateLimitByIdentityBucket_OneBudgetAcrossPaths(t *testing.T) {
+	rdb := newRedisTestClient(t)
+	who := func(*http.Request) string { return "user:bucket-a" }
+	group := RateLimitByIdentityBucket(rdb, "test-group-a", 2, time.Minute, nil, who)(okHandler)
+	other := RateLimitByIdentityBucket(rdb, "test-group-b", 2, time.Minute, nil, who)(okHandler)
+
+	send := func(h http.Handler, path string) int {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "10.0.7.1:9000"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for i, path := range []string{"/api/v1/orgs/o1/ai/byok/openai/models", "/api/v1/orgs/o2/ai/byok/gemini/generate"} {
+		if code := send(group, path); code != http.StatusOK {
+			t.Fatalf("request %d: status %d, want 200", i+1, code)
+		}
+	}
+	// A third path of the same group draws on the same two-request budget.
+	if code := send(group, "/api/v1/orgs/o3/ai/byok/anthropic/messages"); code != http.StatusTooManyRequests {
+		t.Fatalf("third path in the group: status %d, want 429", code)
+	}
+	if code := send(other, "/api/v1/orgs/o3/ai/cloud/search"); code != http.StatusOK {
+		t.Fatalf("another group: status %d, want 200", code)
+	}
+}

@@ -1,6 +1,8 @@
 # UniWork Office desktop - dùng không đăng nhập (chế độ trên máy, offline)
 
-> **Trạng thái:** in-progress (UNI-922, chờ UNI-917 merge; người dùng yêu cầu 2026-10-02 15:30 UTC+7)
+> **Trạng thái:** superseded - chế độ dùng không đăng nhập là việc của `apps/office-desktop`, đã đóng băng theo [plan genoffice](../plans/2026-10-08-uniwork-office-genoffice.md) (UNI-1001; vào develop cùng UNI-1001). App fork genoffice vốn dùng được với file cục bộ (GO-A6 giữ nguyên hành vi đó).
+
+> **Còn hiệu lực:** đăng nhập UniWork vẫn dùng luồng UNI-966 (GO-A5, UNI-1006).
 
 ## 1. Lý do
 
