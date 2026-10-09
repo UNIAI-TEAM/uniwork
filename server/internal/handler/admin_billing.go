@@ -148,3 +148,14 @@ func (h *handlers) adminConfirmInvoiceRefund(w http.ResponseWriter, r *http.Requ
 	}
 	respondJSON(w, 200, sdo.AdminInvoiceSDO{Invoice: adminInvoiceDTOFromInvoice(inv, meta)})
 }
+
+// parseAdminBillingTimeRange maps admin date_from/date_to (YYYY-MM-DD, inclusive) to UTC bounds [from, to).
+func parseAdminBillingTimeRange(fromDate, toDate string) (from, to time.Time) {
+	if d, err := time.ParseInLocation("2006-01-02", fromDate, time.UTC); err == nil {
+		from = d
+	}
+	if d, err := time.ParseInLocation("2006-01-02", toDate, time.UTC); err == nil {
+		to = d.AddDate(0, 0, 1)
+	}
+	return from, to
+}
