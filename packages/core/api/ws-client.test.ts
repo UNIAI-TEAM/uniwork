@@ -7,7 +7,7 @@ class FakeWebSocket {
   static sent: string[] = [];
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((ev?: CloseEvent) => void) | null = null;
   onerror: (() => void) | null = null;
   readyState = WebSocket.OPEN;
   constructor(url: string) {
@@ -88,6 +88,26 @@ describe("WSClient scoped subscribe", () => {
       payload: { scope: "chat", id: "room-1" },
     });
     vi.useRealTimers();
+  });
+
+  it("runs reconnect callbacks on the first auth of a socket that replaces another", () => {
+    const resumed = new WSClient("ws://example.test/ws", { resumed: true });
+    const fresh = new WSClient("ws://example.test/ws");
+    const onResumed = vi.fn();
+    const onFresh = vi.fn();
+    resumed.onReconnect(onResumed);
+    fresh.onReconnect(onFresh);
+
+    for (const ws of [resumed, fresh]) {
+      ws.setAuth("tok", "acme/ws");
+      ws.connect();
+      FakeWebSocket.lastInstance!.onmessage?.({ data: JSON.stringify({ type: "auth_ack" }) });
+    }
+
+    expect(onResumed).toHaveBeenCalledTimes(1);
+    expect(onFresh).not.toHaveBeenCalled();
+    // Not a reconnect for the banner: the session never looked disconnected.
+    expect(resumed.hasEverConnected()).toBe(true);
   });
 
   it("notifies connection state listeners", () => {

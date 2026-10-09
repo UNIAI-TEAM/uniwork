@@ -52,6 +52,8 @@ export class WSClient {
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempt = 0;
   private hasConnectedBefore = false;
+  /** This socket replaces an earlier one of the same session; see `resumed`. */
+  private resumed = false;
   /** Set after auth_ack; cleared when the socket closes. Used by lobby join fallback. */
   private authenticated = false;
   // One-shot per connection. A non-conforming frame can repeat hundreds of
@@ -73,6 +75,12 @@ export class WSClient {
       cookieAuth?: boolean;
       guestSession?: string | null;
       identity?: WSClientIdentity;
+      /**
+       * True when this client replaces a connected socket of the same
+       * session (token rotation): events in the gap were missed, so its
+       * first auth runs the reconnect callbacks like a reconnect does.
+       */
+      resumed?: boolean;
     },
   ) {
     this.baseUrl = url;
@@ -80,6 +88,7 @@ export class WSClient {
     this.cookieAuth = options?.cookieAuth ?? false;
     this.guestSession = options?.guestSession?.trim() ? options.guestSession.trim() : null;
     this.identity = options?.identity;
+    this.resumed = options?.resumed ?? false;
   }
 
   setAuth(token: string | null, workspaceSlug: string) {
@@ -216,7 +225,8 @@ export class WSClient {
     this.authenticated = true;
     this.setConnectionState("connected");
     this.logger.info("connected");
-    const recoveredConnection = this.hasConnectedBefore || this.reconnectAttempt > 0;
+    const recoveredConnection = this.hasConnectedBefore || this.reconnectAttempt > 0 || this.resumed;
+    this.resumed = false;
     this.reconnectAttempt = 0;
     this.startAppPing();
     if (recoveredConnection) {

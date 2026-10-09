@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, use, useEffect, useState, type ReactNode } from "react";
+import { createContext, use, useEffect, useRef, useState, type ReactNode } from "react";
 import { getAccessToken, subscribe as subscribeToToken } from "../api/session";
 import { WSClient } from "../api/ws-client";
 import { useAuthStore } from "../auth/store";
@@ -27,12 +27,15 @@ export interface WSProviderProps {
  * Owns one WSClient per (user, workspace). The token is delivered as the
  * first frame (never in the URL, where proxies and history would log it),
  * and the socket is rebuilt when the token rotates so a refreshed session
- * does not keep talking on an expired one.
+ * does not keep talking on an expired one. The rebuilt socket runs the same
+ * refetch a reconnect does: events sent between the two sockets are gone.
  */
 export function WSProvider({ children, workspaceSlug }: WSProviderProps) {
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const [token, setToken] = useState<string | null>(() => getAccessToken());
   const [client, setClient] = useState<WSClient | null>(null);
+  /** The session whose last socket had connected, so the next one resumes it. */
+  const connectedSession = useRef<string | null>(null);
 
   useEffect(() => subscribeToToken(() => setToken(getAccessToken())), []);
 
@@ -41,14 +44,17 @@ export function WSProvider({ children, workspaceSlug }: WSProviderProps) {
       setClient(null);
       return;
     }
+    const session = `${userId}/${workspaceSlug}`;
     const ws = new WSClient(`${runtimeConfig().wsUrl}/api/v1/ws`, {
       logger: createLogger("ws"),
       identity: { platform: "web" },
+      resumed: connectedSession.current === session,
     });
     ws.setAuth(token, workspaceSlug);
     ws.connect();
     setClient(ws);
     return () => {
+      connectedSession.current = ws.hasEverConnected() ? session : null;
       ws.disconnect();
       setClient(null);
     };
