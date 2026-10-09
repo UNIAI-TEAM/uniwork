@@ -5,7 +5,7 @@ every genoffice module. There is one protocol, one frame host, one set of
 `/api/v1/office-frame/*` routes and one sync script; each of them takes a
 module. Docs keeps every name, URL, pin and test it had.
 
-| module | format | flag (default off) | issue |
+| module | format | flag (default on) | issue |
 | --- | --- | --- | --- |
 | `docs` | docx | `office_docs_web` | UNI-1013 |
 | `pdf` | pdf | `office_pdf_web` | UNI-1014 |
@@ -14,8 +14,11 @@ module. Docs keeps every name, URL, pin and test it had.
 | `slides` | pptx | `office_slides_web` | UNI-1015 |
 | `sheets` | xlsx | `office_sheets_web` | UNI-1016 |
 
-xls, odt and every other format have no web module and keep the G3 host (or
-its unsupported state).
+Every module flag is on by default since 2026-10-09 (user decision, lane
+CONTRACT C14); an organization or user override turns a module off, and a
+module whose bundle is not installed and verified opens in the G3 host
+whatever its flag says. xls, odt and every other format have no web module
+and keep the G3 host (or its unsupported state).
 
 ## Server: the module is in the token
 

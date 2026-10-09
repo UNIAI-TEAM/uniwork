@@ -2,7 +2,9 @@
 
 The web opens a DOCX in the genoffice Docs renderer running in a same-origin
 iframe (`/office-frame/docs/<version>/index.html`), behind the
-`office_docs_web` flag. The G3 editor stays the default until acceptance.
+`office_docs_web` flag, on by default since 2026-10-09 (user decision,
+lane CONTRACT C14; an organization or user override turns it off). The G3
+editor opens whenever the flag is off or the bundle is not installed.
 This page is the serving half: where the bundle comes from, how it is pinned
 and verified, and which headers it gets. The other genoffice modules (pdf,
 markdown, html, slides, sheets; UNI-1014/1015/1016) reuse every piece below

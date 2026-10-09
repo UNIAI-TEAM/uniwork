@@ -29,6 +29,15 @@ func setOfficeFrameFlagFor(t *testing.T, q *db.Queries, key, organizationID stri
 	}
 }
 
+// officeWebFlagsOffFor turns every module flag off for one organization (they
+// are on by default, CONTRACT C14), so a test can switch them on one by one.
+func officeWebFlagsOffFor(t *testing.T, q *db.Queries, organizationID string) {
+	t.Helper()
+	for _, key := range []string{"office_docs_web", "office_pdf_web", "office_markdown_web", "office_html_web", "office_slides_web", "office_sheets_web"} {
+		setOfficeFrameFlagFor(t, q, key, organizationID, false)
+	}
+}
+
 // framePDF passes the file sniffer's %PDF- magic.
 var framePDF = []byte("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n%%EOF\n")
 
@@ -55,6 +64,7 @@ func TestOfficeFrameModuleFlagsArePerModuleAndPerOrganization(t *testing.T) {
 	}
 
 	// Only office_pdf_web is on for this organization.
+	officeWebFlagsOffFor(t, w.q, w.orgID)
 	setOfficeFrameFlagFor(t, w.q, "office_pdf_web", w.orgID, true)
 	code, out := mint(docx)
 	refusedAsDisabled("docx mint with only the pdf flag", code, out, 403)
@@ -283,6 +293,7 @@ func TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule(t *testing.T) {
 // module's flag (not office_docs_web) and Authorize matches the document.
 func TestOfficeFrameSignedAssetKeepsTheModule(t *testing.T) {
 	w := newOfficeWorld(t, true)
+	officeWebFlagsOffFor(t, w.q, w.orgID)
 	setOfficeFrameFlagFor(t, w.q, "office_pdf_web", w.orgID, true)
 	pdf := w.createDocx(t, "scan.pdf", framePDF)
 	minted := w.mintFrameToken(t, pdf)
@@ -323,9 +334,10 @@ func TestOfficeFrameSignedAssetKeepsTheModule(t *testing.T) {
 }
 
 // The module's flag answers before the size cap: an oversized xlsx in an
-// organization without office_sheets_web is 403 feature_disabled, not 413.
+// organization with office_sheets_web off is 403 feature_disabled, not 413.
 func TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap(t *testing.T) {
 	w := newOfficeWorld(t, true)
+	setOfficeFrameFlagFor(t, w.q, "office_sheets_web", w.orgID, false)
 	big := w.createDocx(t, "big.xlsx", frameXlsx(t, service.OfficeFrameSheetsMaxBytes+1))
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+big+"/office/frame-token", w.token, nil)
 	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "feature_disabled" {

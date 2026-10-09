@@ -53,19 +53,20 @@ func TestOfficeHTMLVisualEditIsPublicAndOffByDefault(t *testing.T) {
 }
 
 // The web frame of every genoffice module has its own flag (UNI-1013 docs,
-// UNI-1014/1015/1016 the others): off, public, owner office, one review date.
-func TestOfficeWebModuleFlagsArePublicOffByDefaultAndReviewed(t *testing.T) {
+// UNI-1014/1015/1016 the others): on by default (user decision 2026-10-09,
+// CONTRACT C14), public, owner office, one review date.
+func TestOfficeWebModuleFlagsArePublicOnByDefaultAndReviewed(t *testing.T) {
 	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
 	for _, key := range []string{"office_docs_web", "office_pdf_web", "office_markdown_web", "office_html_web", "office_slides_web", "office_sheets_web"} {
 		f, ok := Lookup(key)
 		if !ok {
 			t.Fatalf("%s is not declared", key)
 		}
-		if f.Default || !f.Public || f.Owner != "office" || !f.ReviewAt.Equal(day(2026, 12, 5)) {
-			t.Fatalf("%s = %+v, want default off, public, owner office, review 2026-12-05", key, f)
+		if !f.Default || !f.Public || f.Owner != "office" || !f.ReviewAt.Equal(day(2026, 12, 5)) {
+			t.Fatalf("%s = %+v, want default on, public, owner office, review 2026-12-05", key, f)
 		}
-		if v, published := flags[key]; !published || v {
-			t.Fatalf("%s published=%v value=%v, want published and false", key, published, v)
+		if v, published := flags[key]; !published || !v {
+			t.Fatalf("%s published=%v value=%v, want published and true", key, published, v)
 		}
 	}
 }

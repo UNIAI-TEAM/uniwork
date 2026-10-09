@@ -113,7 +113,7 @@ test.describe("open, edit, save", () => {
   });
 
   test.afterAll(async () => {
-    // Leave the database as the suite found it: the flag defaults off.
+    // Close the seeded organization's frame again (the flag defaults on; this organization is the suite's own).
     if (seeded) await setFlag("office_docs_web", seeded.organizationId, false);
   });
 

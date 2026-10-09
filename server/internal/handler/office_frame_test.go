@@ -73,8 +73,10 @@ func (w *officeWorld) mintFrameToken(t *testing.T, documentID string) map[string
 	return out
 }
 
+// The flag is on by default (CONTRACT C14); an organization override turns it off.
 func TestOfficeFrameTokenNeedsTheFlag(t *testing.T) {
 	w := newOfficeWorld(t, true)
+	setOfficeDocsWebFor(t, w.q, w.orgID, false)
 	documentID := w.createDocx(t, "plan.docx", frameDocx(t, "a"))
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/frame-token", w.token, nil)
 	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "feature_disabled" {
@@ -99,9 +101,10 @@ func TestOfficeFrameOpenSaveConflictReopen(t *testing.T) {
 		t.Fatalf("expires_in = %v, want ~600", minted["expires_in"])
 	}
 
-	// A markdown file is another module's document: its own flag (off here)
-	// decides. A format with no web module gets no frame; a non-member gets
-	// the same 404.
+	// A markdown file is another module's document: its own flag (switched
+	// off here for the organization) decides. A format with no web module gets
+	// no frame; a non-member gets the same 404.
+	setOfficeFrameFlagFor(t, w.q, "office_markdown_web", w.orgID, false)
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+markdownID+"/office/frame-token", w.token, nil); res.StatusCode != 403 {
 		t.Fatalf("markdown mint = %d %v", res.StatusCode, out)
 	}
@@ -317,13 +320,14 @@ func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
 		t.Fatalf("save under the org override = %d", code)
 	}
 
-	// Another organization, same server, no override: closed.
+	// Another organization, same server, its override off: closed.
 	other := w.outsiderToken(t)
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/orgs", other, map[string]string{"name": "Other Org", "slug": "other-org"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create other org: %d %v", res.StatusCode, out)
 	}
 	otherOrg := out["organization"].(map[string]any)["id"].(string)
+	setOfficeDocsWebFor(t, w.q, otherOrg, false)
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/orgs/"+otherOrg+"/workspaces", other, map[string]string{"name": "Other WS", "slug": "other-ws"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create other ws: %d %v", res.StatusCode, out)
@@ -342,7 +346,7 @@ func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
 	otherDoc := created.Document.ID
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+otherDoc+"/office/frame-token", other, nil)
 	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "feature_disabled" {
-		t.Fatalf("mint in the organization without the override = %d %v", res.StatusCode, out)
+		t.Fatalf("mint in the organization with the override off = %d %v", res.StatusCode, out)
 	}
 
 	// A token minted while the other organization was open stops working when

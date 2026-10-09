@@ -18,7 +18,7 @@ import type { Capabilities, OfficeModule } from "./docs-frame-protocol";
 export type OfficeModuleGrant = Capabilities;
 
 export interface OfficeModuleSpec {
-  /** Organization-scoped flag that turns the module's frame on (default off). */
+  /** Organization-scoped flag that turns the module's frame on (default on server-side; an override turns it off). */
   flag: string;
   /** `detectDocumentFormat` id of the documents this module opens. */
   format: string;
