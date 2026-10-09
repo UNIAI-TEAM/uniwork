@@ -1,0 +1,2 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse --short HEAD origin/main
+fatal: Needed a single revision

@@ -1,0 +1,237 @@
+$ node --test tools/release/*.test.mjs
+TAP version 13
+# Subtest: parseVersionInfo
+    # Subtest: reads the StringFileInfo entries of a version resource
+    ok 1 - reads the StringFileInfo entries of a version resource
+      ---
+      duration_ms: 2.141447
+      ...
+    # Subtest: returns null without a version resource
+    ok 2 - returns null without a version resource
+      ---
+      duration_ms: 0.168754
+      ...
+    1..2
+ok 1 - parseVersionInfo
+  ---
+  duration_ms: 3.024741
+  type: 'suite'
+  ...
+# Subtest: parsePlist
+    # Subtest: reads dicts, arrays, strings, numbers, booleans and entities
+    ok 1 - reads dicts, arrays, strings, numbers, booleans and entities
+      ---
+      duration_ms: 1.444961
+      ...
+    1..1
+ok 2 - parsePlist
+  ---
+  duration_ms: 1.607438
+  type: 'suite'
+  ...
+# Subtest: checkInfoPlist
+    # Subtest: accepts the UniWork identity
+    ok 1 - accepts the UniWork identity
+      ---
+      duration_ms: 0.679422
+      ...
+    # Subtest: flags an upstream bundle id, name and document type name
+    ok 2 - flags an upstream bundle id, name and document type name
+      ---
+      duration_ms: 0.27435
+      ...
+    1..2
+ok 3 - checkInfoPlist
+  ---
+  duration_ms: 1.102462
+  type: 'suite'
+  ...
+# Subtest: BRAND
+    # Subtest: matches the upstream names in any style and nothing else
+    ok 1 - matches the upstream names in any style and nothing else
+      ---
+      duration_ms: 0.255339
+      ...
+    1..1
+ok 4 - BRAND
+  ---
+  duration_ms: 0.483677
+  type: 'suite'
+  ...
+# Subtest: checkBuildDir
+    # Subtest: passes a clean Windows output (the internal package name is not user-visible)
+    ok 1 - passes a clean Windows output (the internal package name is not user-visible)
+      ---
+      duration_ms: 19.412415
+      ...
+    # Subtest: flags an upstream installer name
+    ok 2 - flags an upstream installer name
+      ---
+      duration_ms: 3.893295
+      ...
+    # Subtest: flags upstream exe version strings
+    ok 3 - flags upstream exe version strings
+      ---
+      duration_ms: 3.713757
+      ...
+    # Subtest: flags upstream package.json fields inside app.asar
+    ok 4 - flags upstream package.json fields inside app.asar
+      ---
+      duration_ms: 5.043044
+      ...
+    # Subtest: flags a baked update feed
+    ok 5 - flags a baked update feed
+      ---
+      duration_ms: 5.280463
+      ...
+    # Subtest: flags an upstream-branded installer exe
+    ok 6 - flags an upstream-branded installer exe
+      ---
+      duration_ms: 3.327574
+      ...
+    # Subtest: flags update feed metadata next to the installers
+    ok 7 - flags update feed metadata next to the installers
+      ---
+      duration_ms: 2.48477
+      ...
+    # Subtest: fails when the installer is present but win-unpacked is missing
+    ok 8 - fails when the installer is present but win-unpacked is missing
+      ---
+      duration_ms: 0.804687
+      ...
+    # Subtest: fails when an --expect directory is missing
+    ok 9 - fails when an --expect directory is missing
+      ---
+      duration_ms: 3.40161
+      ...
+    # Subtest: passes a clean dual-arch mac output
+    ok 10 - passes a clean dual-arch mac output
+      ---
+      duration_ms: 7.787637
+      ...
+    # Subtest: fails when a dmg is present but its mac directory is missing
+    ok 11 - fails when a dmg is present but its mac directory is missing
+      ---
+      duration_ms: 3.674887
+      ...
+    # Subtest: flags an upstream mac helper, Info.plist and a baked update feed
+    ok 12 - flags an upstream mac helper, Info.plist and a baked update feed
+      ---
+      duration_ms: 2.907754
+      ...
+    # Subtest: reads a binary Info.plist only through plutil (macOS)
+    ok 13 - reads a binary Info.plist only through plutil (macOS)
+      ---
+      duration_ms: 2.720198
+      ...
+    # Subtest: fails on a directory with nothing to check
+    ok 14 - fails on a directory with nothing to check
+      ---
+      duration_ms: 0.264928
+      ...
+    1..14
+ok 5 - checkBuildDir
+  ---
+  duration_ms: 65.58351
+  type: 'suite'
+  ...
+# Subtest: installerPlatformOf
+    # Subtest: maps the release artifact names to the server platform keys
+    ok 1 - maps the release artifact names to the server platform keys
+      ---
+      duration_ms: 0.958899
+      ...
+    # Subtest: ignores files that are not installers
+    ok 2 - ignores files that are not installers
+      ---
+      duration_ms: 0.146254
+      ...
+    # Subtest: refuses an installer without the unsigned label
+    ok 3 - refuses an installer without the unsigned label
+      ---
+      duration_ms: 0.316721
+      ...
+    # Subtest: refuses an installer of another channel
+    ok 4 - refuses an installer of another channel
+      ---
+      duration_ms: 0.193452
+      ...
+    # Subtest: refuses names the server would not serve verbatim
+    ok 5 - refuses names the server would not serve verbatim
+      ---
+      duration_ms: 0.110628
+      ...
+    # Subtest: refuses the stable channel
+    ok 6 - refuses the stable channel
+      ---
+      duration_ms: 0.097172
+      ...
+    1..6
+ok 6 - installerPlatformOf
+  ---
+  duration_ms: 3.583726
+  type: 'suite'
+  ...
+# Subtest: buildInstallerUrls
+    # Subtest: returns the compact map in the server contract order
+    ok 1 - returns the compact map in the server contract order
+      ---
+      duration_ms: 1.05594
+      ...
+    # Subtest: keeps the platform key list identical to the server
+    ok 2 - keeps the platform key list identical to the server
+      ---
+      duration_ms: 0.315889
+      ...
+    # Subtest: refuses two installers for one platform
+    ok 3 - refuses two installers for one platform
+      ---
+      duration_ms: 0.312541
+      ...
+    # Subtest: refuses installers of different versions
+    ok 4 - refuses installers of different versions
+      ---
+      duration_ms: 0.299378
+      ...
+    # Subtest: refuses an empty result
+    ok 5 - refuses an empty result
+      ---
+      duration_ms: 0.159594
+      ...
+    # Subtest: refuses a base URL that is not plain https
+    ok 6 - refuses a base URL that is not plain https
+      ---
+      duration_ms: 0.31249
+      ...
+    1..6
+ok 7 - buildInstallerUrls
+  ---
+  duration_ms: 2.81709
+  type: 'suite'
+  ...
+# Subtest: command line
+    # Subtest: parses exactly one of --dir and --files
+    ok 1 - parses exactly one of --dir and --files
+      ---
+      duration_ms: 0.325675
+      ...
+    # Subtest: prints the map for the files in a directory
+    ok 2 - prints the map for the files in a directory
+      ---
+      duration_ms: 30.947884
+      ...
+    1..2
+ok 8 - command line
+  ---
+  duration_ms: 31.390839
+  type: 'suite'
+  ...
+1..8
+# tests 34
+# suites 8
+# pass 34
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 152.948953
