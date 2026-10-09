@@ -7,11 +7,11 @@ import (
 
 func TestReactionCountsFromMetadata(t *testing.T) {
 	raw := []byte(`{"reactions":{"👍":["USER1","USER2"],"❤️":["USER1"]}}`)
-	got := reactionCountsFromMetadata(raw)
+	got := reactionCountsFromMetadata(decodeChatMessageMetadata(raw))
 	if got["👍"] != 2 || got["❤️"] != 1 {
 		t.Fatalf("counts: %+v", got)
 	}
-	if reactionCountsFromMetadata(nil) != nil {
+	if reactionCountsFromMetadata(decodeChatMessageMetadata(nil)) != nil {
 		t.Fatal("empty metadata should be nil")
 	}
 }
@@ -22,7 +22,7 @@ func TestToggleReactionInMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := reactionCountsFromMetadata(added)
+	got := reactionCountsFromMetadata(decodeChatMessageMetadata(added))
 	if got["👍"] != 2 {
 		t.Fatalf("add: %+v", got)
 	}
@@ -31,7 +31,7 @@ func TestToggleReactionInMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got = reactionCountsFromMetadata(removed)
+	got = reactionCountsFromMetadata(decodeChatMessageMetadata(removed))
 	if got["👍"] != 1 {
 		t.Fatalf("remove one: %+v", got)
 	}
@@ -40,7 +40,7 @@ func TestToggleReactionInMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reactionCountsFromMetadata(cleared) != nil {
+	if reactionCountsFromMetadata(decodeChatMessageMetadata(cleared)) != nil {
 		t.Fatalf("last toggle should clear emoji: %s", cleared)
 	}
 
@@ -81,14 +81,14 @@ func TestToggleReactionKeepsOtherMetadata(t *testing.T) {
 
 func TestMyReactionsFromMetadata(t *testing.T) {
 	raw := []byte(`{"reactions":{"👍":["USER1","USER2"],"❤️":["user2"],"🎉":["USER3"]}}`)
-	got := myReactionsFromMetadata(raw, "user2")
+	got := myReactionsFromMetadata(decodeChatMessageMetadata(raw), "user2")
 	if len(got) != 2 || got[0] != "❤️" && got[1] != "❤️" {
 		t.Fatalf("mine: %+v", got)
 	}
-	if myReactionsFromMetadata(raw, "") != nil {
+	if myReactionsFromMetadata(decodeChatMessageMetadata(raw), "") != nil {
 		t.Fatal("no viewer means no mine")
 	}
-	if myReactionsFromMetadata(raw, "USER9") != nil {
+	if myReactionsFromMetadata(decodeChatMessageMetadata(raw), "USER9") != nil {
 		t.Fatal("viewer without reactions should be nil")
 	}
 }

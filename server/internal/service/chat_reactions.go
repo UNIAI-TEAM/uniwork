@@ -19,8 +19,7 @@ type chatMessageMetadata struct {
 	Priority         string               `json:"priority,omitempty"`
 }
 
-func reactionCountsFromMetadata(raw []byte) map[string]int {
-	meta := decodeChatMessageMetadata(raw)
+func reactionCountsFromMetadata(meta chatMessageMetadata) map[string]int {
 	if len(meta.Reactions) == 0 {
 		return nil
 	}
@@ -104,12 +103,11 @@ func patchMetadataKey(raw []byte, key string, value any) ([]byte, error) {
 
 // myReactionsFromMetadata lists the emojis viewerID has reacted with, sorted,
 // so a client can show its own reactions as pressed.
-func myReactionsFromMetadata(raw []byte, viewerID string) []string {
+func myReactionsFromMetadata(meta chatMessageMetadata, viewerID string) []string {
 	viewer := strings.ToUpper(strings.TrimSpace(viewerID))
 	if viewer == "" {
 		return nil
 	}
-	meta := decodeChatMessageMetadata(raw)
 	var out []string
 	for emoji, userIDs := range meta.Reactions {
 		for _, id := range userIDs {
@@ -135,10 +133,6 @@ func decodeChatMessageMetadata(raw []byte) chatMessageMetadata {
 		meta.Reactions = map[string][]string{}
 	}
 	return meta
-}
-
-func pinFromMetadata(raw []byte) bool {
-	return decodeChatMessageMetadata(raw).Pinned
 }
 
 func togglePinInMetadata(raw []byte) ([]byte, bool, error) {

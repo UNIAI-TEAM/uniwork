@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -15,6 +16,14 @@ import (
 )
 
 const chatMessageKindPoll = "poll"
+
+// Poll caps, counted in runes; the composer's (packages/core/chat/poll-utils.ts)
+// must stay at or under them.
+const (
+	maxPollQuestionRunes = 200
+	maxPollOptions       = 20
+	maxPollOptionRunes   = 120
+)
 
 type ChatPollSettings struct {
 	DeadlineAt           *string `json:"deadline_at,omitempty"`
@@ -53,12 +62,8 @@ type SendPollMessageInput struct {
 	ReplyToMessageID *string
 }
 
-func pollFromMetadata(kind string, raw []byte, viewerID string) *ChatPollInfo {
-	if kind != chatMessageKindPoll || len(raw) == 0 {
-		return nil
-	}
-	meta := decodeChatMessageMetadata(raw)
-	if meta.Poll == nil || meta.Poll.Question == "" || len(meta.Poll.Options) < 2 {
+func pollFromMetadata(kind string, meta chatMessageMetadata, viewerID string) *ChatPollInfo {
+	if kind != chatMessageKindPoll || meta.Poll == nil || meta.Poll.Question == "" || len(meta.Poll.Options) < 2 {
 		return nil
 	}
 	viewerKey := strings.ToUpper(strings.TrimSpace(viewerID))
@@ -87,12 +92,18 @@ func encodePollMetadata(payload ChatPollPayload) ([]byte, error) {
 	return json.Marshal(meta)
 }
 
-func normalizePollOptions(labels []string) []ChatPollOption {
-	out := make([]ChatPollOption, 0, len(labels))
+func normalizePollOptions(labels []string) ([]ChatPollOption, error) {
+	out := make([]ChatPollOption, 0, min(len(labels), maxPollOptions))
 	for _, label := range labels {
 		label = strings.TrimSpace(label)
 		if label == "" {
 			continue
+		}
+		if len(out) == maxPollOptions {
+			return nil, Invalid("bình chọn có tối đa 20 lựa chọn")
+		}
+		if utf8.RuneCountInString(label) > maxPollOptionRunes {
+			return nil, Invalid("lựa chọn bình chọn quá dài")
 		}
 		out = append(out, ChatPollOption{
 			ID:    util.NewID(),
@@ -100,7 +111,7 @@ func normalizePollOptions(labels []string) []ChatPollOption {
 			Votes: 0,
 		})
 	}
-	return out
+	return out, nil
 }
 
 func pollIsExpired(settings ChatPollSettings, now time.Time) bool {
@@ -122,14 +133,17 @@ func (s *ChatService) SendPollMessage(
 	ctx context.Context, userID, workspaceID, roomID string, in SendPollMessageInput,
 ) (ChatMessageRow, error) {
 	question := strings.TrimSpace(in.Question)
-	options := normalizePollOptions(in.Options)
+	options, err := normalizePollOptions(in.Options)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
 	if question == "" {
 		return ChatMessageRow{}, Invalid("câu hỏi bình chọn không được để trống")
 	}
 	if len(options) < 2 {
 		return ChatMessageRow{}, Invalid("cần ít nhất 2 lựa chọn")
 	}
-	if len(question) > 200 {
+	if utf8.RuneCountInString(question) > maxPollQuestionRunes {
 		return ChatMessageRow{}, Invalid("câu hỏi bình chọn quá dài")
 	}
 

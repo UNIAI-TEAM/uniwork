@@ -62,6 +62,8 @@ func TestChatPollSendValidation(t *testing.T) {
 		{"no options", SendPollMessageInput{Question: "Q?", Options: nil}},
 		{"blank labels only", SendPollMessageInput{Question: "Q?", Options: []string{"  ", "", "A"}}},
 		{"question too long", SendPollMessageInput{Question: strings.Repeat("a", 201), Options: []string{"A", "B"}}},
+		{"too many options", SendPollMessageInput{Question: "Q?", Options: strings.Split(strings.Repeat("x,", maxPollOptions)+"x", ",")}},
+		{"option too long", SendPollMessageInput{Question: "Q?", Options: []string{"A", strings.Repeat("ố", maxPollOptionRunes+1)}}},
 		{"bad deadline", SendPollMessageInput{Question: "Q?", Options: []string{"A", "B"}, Settings: ChatPollSettings{DeadlineAt: pollStrPtr("not-a-date")}}},
 		{"past deadline", SendPollMessageInput{Question: "Q?", Options: []string{"A", "B"}, Settings: ChatPollSettings{DeadlineAt: pollStrPtr(past)}}},
 	}
@@ -110,6 +112,25 @@ func TestChatPollSendSuccess(t *testing.T) {
 	}
 	if len(pub.events) == 0 || pub.events[len(pub.events)-1].Type != "chat.message.created" {
 		t.Fatalf("publish: %+v", pub.events)
+	}
+}
+
+// The caps count runes, not bytes, so a full-length Vietnamese poll the
+// composer allows (question 200, options 10 x 120) is accepted.
+func TestChatPollSendAcceptsTheCapsInRunes(t *testing.T) {
+	s, _, _, ua, _, w := chatFixture(t)
+	ctx := context.Background()
+	roomID := mustPollRoom(t, s, ctx, ua.ID, w.ID)
+	options := make([]string, maxPollOptions)
+	for i := range options {
+		options[i] = strings.Repeat("ố", maxPollOptionRunes)
+	}
+	row := mustSendPoll(t, s, ctx, ua.ID, w.ID, roomID, SendPollMessageInput{
+		Question: strings.Repeat("ố", maxPollQuestionRunes),
+		Options:  options,
+	})
+	if row.Poll == nil || len(row.Poll.Options) != maxPollOptions {
+		t.Fatalf("poll = %+v", row.Poll)
 	}
 }
 
@@ -424,25 +445,25 @@ func TestPollFromMetadataBranches(t *testing.T) {
 		return raw
 	}
 
-	if got := pollFromMetadata("text", mkPayload("Q", 2, ChatPollSettings{}, nil), "u1"); got != nil {
+	if got := pollFromMetadata("text", decodeChatMessageMetadata(mkPayload("Q", 2, ChatPollSettings{}, nil)), "u1"); got != nil {
 		t.Fatalf("non-poll kind should be nil: %+v", got)
 	}
-	if got := pollFromMetadata(chatMessageKindPoll, nil, "u1"); got != nil {
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(nil), "u1"); got != nil {
 		t.Fatalf("empty raw should be nil: %+v", got)
 	}
-	if got := pollFromMetadata(chatMessageKindPoll, []byte("{}"), "u1"); got != nil {
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata([]byte("{}")), "u1"); got != nil {
 		t.Fatalf("missing poll should be nil: %+v", got)
 	}
-	if got := pollFromMetadata(chatMessageKindPoll, mkPayload("", 2, ChatPollSettings{}, nil), "u1"); got != nil {
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(mkPayload("", 2, ChatPollSettings{}, nil)), "u1"); got != nil {
 		t.Fatalf("blank question should be nil: %+v", got)
 	}
-	if got := pollFromMetadata(chatMessageKindPoll, mkPayload("Q", 1, ChatPollSettings{}, nil), "u1"); got != nil {
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(mkPayload("Q", 1, ChatPollSettings{}, nil)), "u1"); got != nil {
 		t.Fatalf("<2 options should be nil: %+v", got)
 	}
 
 	votes := map[string][]string{"U1": {"opt-a"}}
 	raw := mkPayload("Q", 2, ChatPollSettings{}, votes)
-	got := pollFromMetadata(chatMessageKindPoll, raw, "u1")
+	got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(raw), "u1")
 	if got == nil {
 		t.Fatal("expected poll info")
 	}
@@ -453,30 +474,33 @@ func TestPollFromMetadataBranches(t *testing.T) {
 		t.Fatal("votes should be visible by default")
 	}
 
-	got = pollFromMetadata(chatMessageKindPoll, raw, "  ")
+	got = pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(raw), "  ")
 	if got == nil || len(got.ViewerOptionIDs) != 0 {
 		t.Fatalf("blank viewer should have no options: %+v", got)
 	}
 
 	hidden := mkPayload("Q", 2, ChatPollSettings{HideResultsUntilVote: true}, votes)
-	if got := pollFromMetadata(chatMessageKindPoll, hidden, "u2"); got == nil || got.VotesByUser != nil {
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u2"); got == nil || got.VotesByUser != nil {
 		t.Fatalf("non-voter should not see votes: %+v", got)
 	}
-	if got := pollFromMetadata(chatMessageKindPoll, hidden, "u1"); got == nil || got.VotesByUser == nil {
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(hidden), "u1"); got == nil || got.VotesByUser == nil {
 		t.Fatalf("voter should see votes: %+v", got)
 	}
 
 	anon := mkPayload("Q", 2, ChatPollSettings{HideVoters: true}, votes)
-	if got := pollFromMetadata(chatMessageKindPoll, anon, "u1"); got == nil || got.VotesByUser != nil {
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(anon), "u1"); got == nil || got.VotesByUser != nil {
 		t.Fatalf("HideVoters should suppress votes_by_user: %+v", got)
 	}
-	if got := pollFromMetadata(chatMessageKindPoll, anon, "u1"); got == nil || len(got.ViewerOptionIDs) != 1 {
+	if got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(anon), "u1"); got == nil || len(got.ViewerOptionIDs) != 1 {
 		t.Fatalf("HideVoters should keep viewer options: %+v", got)
 	}
 }
 
 func TestNormalizePollOptions(t *testing.T) {
-	opts := normalizePollOptions([]string{"  A  ", "", "   ", "B", "A"})
+	opts, err := normalizePollOptions([]string{"  A  ", "", "   ", "B", "A"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(opts) != 3 {
 		t.Fatalf("blanks should be skipped: %+v", opts)
 	}
@@ -496,7 +520,7 @@ func TestNormalizePollOptions(t *testing.T) {
 			t.Fatalf("votes must start at zero: %+v", opt)
 		}
 	}
-	if got := normalizePollOptions(nil); len(got) != 0 {
+	if got, err := normalizePollOptions(nil); err != nil || len(got) != 0 {
 		t.Fatalf("nil input: %+v", got)
 	}
 }
@@ -530,7 +554,7 @@ func TestEncodePollMetadataRoundTrip(t *testing.T) {
 	if err != nil || len(raw) == 0 {
 		t.Fatalf("encode: err=%v raw=%s", err, raw)
 	}
-	got := pollFromMetadata(chatMessageKindPoll, raw, "viewer")
+	got := pollFromMetadata(chatMessageKindPoll, decodeChatMessageMetadata(raw), "viewer")
 	if got == nil || got.Question != "Round trip?" || len(got.Options) != 2 {
 		t.Fatalf("round trip: %+v", got)
 	}

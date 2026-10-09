@@ -83,26 +83,26 @@ func TestReminderEncodeDecodeMetadata(t *testing.T) {
 	if err != nil || len(meta) == 0 {
 		t.Fatalf("encode: err=%v meta=%s", err, meta)
 	}
-	info := reminderFromMetadata(chatMessageKindReminder, meta)
+	info := reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata(meta))
 	if info == nil || info.Body != "Họp nhóm" || info.Repeat != "daily" || info.RemindAt == "" {
 		t.Fatalf("decode: %+v", info)
 	}
 }
 
 func TestReminderFromMetadataBranches(t *testing.T) {
-	if reminderFromMetadata("note", []byte(`{"reminder":{"body":"x"}}`)) != nil {
+	if reminderFromMetadata("note", decodeChatMessageMetadata([]byte(`{"reminder":{"body":"x"}}`))) != nil {
 		t.Fatal("wrong kind should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, nil) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata(nil)) != nil {
 		t.Fatal("empty raw should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, []byte(`{}`)) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata([]byte(`{}`))) != nil {
 		t.Fatal("missing reminder should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, []byte(`{"reminder":{"body":"   "}}`)) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata([]byte(`{"reminder":{"body":"   "}}`))) != nil {
 		t.Fatal("blank body should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, []byte(`not-json`)) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata([]byte(`not-json`))) != nil {
 		t.Fatal("invalid json should be nil")
 	}
 }

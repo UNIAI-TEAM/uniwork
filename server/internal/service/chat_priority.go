@@ -20,8 +20,8 @@ func normalizeMessagePriority(priority string) string {
 	}
 }
 
-func priorityFromMetadata(raw []byte) string {
-	return normalizeMessagePriority(decodeChatMessageMetadata(raw).Priority)
+func priorityFromMetadata(meta chatMessageMetadata) string {
+	return normalizeMessagePriority(meta.Priority)
 }
 
 func encodeMessagePriorityMetadata(raw []byte, priority string) ([]byte, error) {

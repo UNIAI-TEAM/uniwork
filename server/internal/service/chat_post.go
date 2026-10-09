@@ -39,12 +39,11 @@ type SendPostMessageInput struct {
 	ReplyToMessageID *string
 }
 
-func postFromMetadata(kind string, raw []byte, body string) *ChatPostInfo {
+func postFromMetadata(kind string, meta chatMessageMetadata, body string) *ChatPostInfo {
 	if kind != chatMessageKindPost {
 		return nil
 	}
 	content := strings.TrimSpace(body)
-	meta := decodeChatMessageMetadata(raw)
 	title := ""
 	pinToTop := meta.Pinned
 	if meta.Post != nil {

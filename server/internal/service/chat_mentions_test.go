@@ -18,7 +18,7 @@ func TestParseMentionUserIDsFromBody(t *testing.T) {
 
 func TestMentionedUserIDsFromMetadata(t *testing.T) {
 	raw := []byte(`{"mentioned_user_ids":["USER2","USER2","USER3"]}`)
-	got := mentionedUserIDsFromMetadata(raw)
+	got := mentionedUserIDsFromMetadata(decodeChatMessageMetadata(raw))
 	if len(got) != 2 || got[0] != "USER2" || got[1] != "USER3" {
 		t.Fatalf("got %#v", got)
 	}

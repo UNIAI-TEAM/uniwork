@@ -42,12 +42,8 @@ type SendReminderMessageInput struct {
 	ReplyToMessageID *string
 }
 
-func reminderFromMetadata(kind string, raw []byte) *ChatReminderInfo {
-	if kind != chatMessageKindReminder || len(raw) == 0 {
-		return nil
-	}
-	meta := decodeChatMessageMetadata(raw)
-	if meta.Reminder == nil || strings.TrimSpace(meta.Reminder.Body) == "" {
+func reminderFromMetadata(kind string, meta chatMessageMetadata) *ChatReminderInfo {
+	if kind != chatMessageKindReminder || meta.Reminder == nil || strings.TrimSpace(meta.Reminder.Body) == "" {
 		return nil
 	}
 	return &ChatReminderInfo{

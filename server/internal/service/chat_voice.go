@@ -660,24 +660,27 @@ func chatMessageRowFromMessageFields(
 	editedAt, createdAt pgtype.Timestamptz,
 	viewerID string,
 ) ChatMessageRow {
+	// Decoded once per row: a poll's metadata can be large, and every reader
+	// below would otherwise parse all of it again.
+	meta := decodeChatMessageMetadata(metadata)
 	msg := ChatMessageRow{
 		ID: id, RoomID: roomID, WorkspaceID: workspaceID,
 		SenderID: senderID, SenderDisplayName: senderDisplayName,
 		Body: body, Kind: kind,
 		CreatedAt:        createdAt.Time,
-		Reactions:        reactionCountsFromMetadata(metadata),
-		MyReactions:      myReactionsFromMetadata(metadata, viewerID),
-		Pinned:           pinFromMetadata(metadata),
-		MentionedUserIDs: mentionedUserIDsFromMetadata(metadata),
+		Reactions:        reactionCountsFromMetadata(meta),
+		MyReactions:      myReactionsFromMetadata(meta, viewerID),
+		Pinned:           meta.Pinned,
+		MentionedUserIDs: mentionedUserIDsFromMetadata(meta),
 		VoiceCall:        voiceCallLogFromMetadata(kind, metadata),
 		VoiceCallSummary: voiceCallSummaryFromMetadata(kind, metadata),
 		Voice:            voiceMessageFromMetadata(kind, metadata),
 		File:             fileMessageFromMetadata(kind, metadata),
-		Poll:             pollFromMetadata(kind, metadata, viewerID),
-		Reminder:         reminderFromMetadata(kind, metadata),
-		Note:             noteFromMetadata(kind, metadata, body),
-		Post:             postFromMetadata(kind, metadata, body),
-		Priority:         priorityFromMetadata(metadata),
+		Poll:             pollFromMetadata(kind, meta, viewerID),
+		Reminder:         reminderFromMetadata(kind, meta),
+		Note:             noteFromMetadata(kind, meta, body),
+		Post:             postFromMetadata(kind, meta, body),
+		Priority:         priorityFromMetadata(meta),
 	}
 	if editedAt.Valid {
 		t := editedAt.Time

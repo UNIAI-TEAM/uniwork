@@ -30,7 +30,7 @@ type SendNoteMessageInput struct {
 	ReplyToMessageID *string
 }
 
-func noteFromMetadata(kind string, raw []byte, body string) *ChatNoteInfo {
+func noteFromMetadata(kind string, meta chatMessageMetadata, body string) *ChatNoteInfo {
 	if kind != chatMessageKindNote {
 		return nil
 	}
@@ -38,7 +38,6 @@ func noteFromMetadata(kind string, raw []byte, body string) *ChatNoteInfo {
 	if content == "" {
 		return nil
 	}
-	meta := decodeChatMessageMetadata(raw)
 	pinToTop := meta.Pinned
 	if meta.Note != nil && meta.Note.PinToTop {
 		pinToTop = true

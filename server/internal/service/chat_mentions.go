@@ -80,8 +80,7 @@ func (s *ChatService) resolveMentionRecipients(
 	return out, nil
 }
 
-func mentionedUserIDsFromMetadata(raw []byte) []string {
-	meta := decodeChatMessageMetadata(raw)
+func mentionedUserIDsFromMetadata(meta chatMessageMetadata) []string {
 	if len(meta.MentionedUserIDs) == 0 {
 		return nil
 	}
@@ -119,7 +118,7 @@ func messageMentionsCurrentUser(raw []byte, userID string) bool {
 	if userID == "" {
 		return false
 	}
-	for _, id := range mentionedUserIDsFromMetadata(raw) {
+	for _, id := range mentionedUserIDsFromMetadata(decodeChatMessageMetadata(raw)) {
 		if id == userID {
 			return true
 		}
