@@ -1,6 +1,6 @@
 # Hợp đồng API giữa app UniWork Office và UniWork
 
-**Revision:** 1.0 (2026-10-09)
+**Revision:** 1.1 (2026-10-09, mục 3 viết lại thành hợp đồng AI thật, GO-A7)
 **Issue:** GO-C3 (UNI-1020), thuộc UNI-1001
 **Trạng thái:** hợp đồng bên server `dev-uniwork`. Phần đã có route được đánh dấu "có sẵn"; phần chưa xây được đánh dấu theo lane (GO-A6, GO-A7, GO-B2/B3).
 
@@ -13,7 +13,7 @@ hợp đồng đã có và không chép lại; mọi đường dẫn bên dướ
 
 Nguyên tắc chung:
 
-- App là public client, không giữ bí mật của UniWork và không giữ key nhà cung cấp AI của UniWork.
+- App là public client, không giữ bí mật của UniWork và không giữ key nhà cung cấp AI của UniWork (khóa BYOK của người dùng trên web nằm phía server, mục 3).
 - Quyền luôn do server quyết (`RequireMember`, ACL của Document); app không tự suy ra.
 - Tài liệu cục bộ của người dùng không đi qua UniWork trừ khi người dùng chủ động lưu lên.
 
@@ -77,21 +77,113 @@ phải bổ sung vào tài liệu này cùng bản đăng ký route và SDI/SDO.
 
 ## 3. AI đám mây (GO-A7, UNI-1008)
 
-Quyết định nằm ở [ADR 0028](../../adr/0028-ai-phia-client-cua-uniwork-office.md):
+Quyết định nằm ở [ADR 0028](../../adr/0028-ai-phia-client-cua-uniwork-office.md) (ranh
+giới client) và [ADR 0029](../../adr/0029-ai-cua-office-tren-web-qua-ai-gateway.md) (web, khóa
+phía server, proxy). Hợp đồng đầy đủ của lane GO-A7 (UNI-1008); trạng thái route ghi ở
+cuối mục.
 
-- **BYO key** (key của người dùng, Codex CLI, v.v. theo cấu hình AI của genoffice):
-  app gọi thẳng nhà cung cấp. Lưu lượng này không đi qua UniWork, UniWork không thấy
-  key, prompt hay kết quả, và không tính tín dụng.
-- **Đám mây UniWork** (tìm web, tạo ảnh, phân tích media, tín dụng): app chỉ gọi API
-  UniWork bằng phiên đăng nhập ở mục 1. Server đi qua `ai.Gateway`
-  (`server/internal/ai/`) và kiểm entitlement của tổ chức; app không bao giờ giữ key
-  nhà cung cấp của UniWork.
+- **Desktop, BYO key** (key của người dùng, Codex CLI, v.v. theo cấu hình AI của genoffice):
+  **không đổi**. App gọi thẳng nhà cung cấp; lưu lượng này không đi qua UniWork, UniWork
+  không thấy key, prompt hay kết quả, và không tính tín dụng.
+- **Web, BYO key**: khóa lưu mã hóa phía server, trình duyệt không bao giờ giữ khóa và không
+  gọi thẳng nhà cung cấp. Lệnh gọi đi qua proxy pass-through của UniWork (mục 3.2).
+- **Đám mây UniWork** (tìm web, tạo ảnh, phân tích media, phiên âm, tín dụng): client chỉ gọi
+  API UniWork bằng phiên đăng nhập ở mục 1 (hoặc phiên web). Server đi qua `ai.Gateway`
+  (`server/internal/ai/`) và kiểm entitlement của tổ chức; app không bao giờ giữ key nhà cung
+  cấp của UniWork.
 
-Hiện trên develop chỉ có các route AI của Ask UNI (`router/ai.go`, ví dụ
-`GET /workspaces/{workspaceID}/ai/capabilities`, `GET /workspaces/{workspaceID}/ai/usage`,
-`GET /orgs/{orgID}/ai/usage`); chúng phục vụ web chứ chưa phải hợp đồng cho app.
-**Các endpoint đám mây cho app là việc của GO-A7 (UNI-1008), chưa xây**; lane đó
-sẽ bổ sung route, entitlement và cách báo hết tín dụng vào mục này.
+Mọi route dưới `/api/v1/orgs/{orgID}/ai/...`, nằm trong nhóm `authed` (bearer web **hoặc**
+bearer thiết bị desktop), đi qua `OrganizationService.RequireMember` trước (người không phải
+thành viên nhận 403/404 theo `mapServiceError`, app không suy ra id có tồn tại). Lỗi theo
+dạng `{ "code": ..., "message": ... }`.
+
+### 3.1 Khóa nhà cung cấp (W1)
+
+| Việc | Route | Ghi chú |
+| --- | --- | --- |
+| Liệt kê khóa + bảng nhà cung cấp | `GET /orgs/{orgID}/ai/credentials` | `{ items: [Credential], providers: [{ id, protocol, requires_base_url, default_base_url }] }` |
+| Tạo / cập nhật | `PUT /orgs/{orgID}/ai/credentials/{aiProvider}` | body `{ api_key?, base_url?, label? }`; `api_key` bắt buộc khi tạo, ≤ 4096; `label` ≤ 80; **201** khi tạo, **200** khi cập nhật |
+| Xóa | `DELETE /orgs/{orgID}/ai/credentials/{aiProvider}` | **204**; **404** nếu chưa có |
+
+`Credential` = `{ provider, label, base_url, key_hint, created_at, updated_at }`. API **không
+bao giờ** trả khóa; `key_hint` là "…" + 4 ký tự cuối. Ghi (`PUT`/`DELETE`) cần entitlement
+`office.ai_byok` và ghi audit `ai.credential.saved` / `ai.credential.deleted` (payload chỉ có id +
+provider) cùng transaction. Nhà cung cấp có sẵn: anthropic, openai, gemini, openrouter,
+deepseek, xai, mistral, qwen, kimi, glm, doubao, hunyuan, minimax, custom; UI lấy danh sách từ
+`providers`, không chép lại.
+
+### 3.2 Proxy BYOK (W2)
+
+Pass-through: client giữ nguyên wire format gốc của nhà cung cấp, chỉ đổi base URL sang
+route dưới đây và bỏ khóa. Server chọn endpoint từ bảng cố định, gắn khóa của người dùng
+(`Resolve`) và chuyển byte phản hồi nguyên vẹn (SSE vẫn là SSE).
+
+| Giao thức | Route |
+| --- | --- |
+| openai-compatible | `POST /orgs/{orgID}/ai/byok/{aiProvider}/chat/completions` |
+| anthropic | `POST /orgs/{orgID}/ai/byok/{aiProvider}/messages` |
+| gemini | `POST /orgs/{orgID}/ai/byok/{aiProvider}/generate`, body `{ model, stream, request: <body Gemini gốc> }` |
+| Danh sách model | `GET /orgs/{orgID}/ai/byok/{aiProvider}/models` (JSON của nhà cung cấp, chuyển tiếp) |
+
+Giới hạn: body ≤ 16 MiB, phải là JSON; timeout phía server 15 s tới header, 10 phút tổng, nghỉ
+60 s giữa hai chunk. Header phản hồi chuyển tiếp: `content-type`, `retry-after`. Không hỗ
+trợ `codex`, `genspark`. Nhà cung cấp `custom` cần `base_url` `https://` công khai (rào SSRF,
+kiểm lại lúc dial, không theo redirect). Lệnh gọi ghi một sự kiện sử dụng (`office.byok`,
+`credits=0`); proxy **không** tiêu credit UniWork.
+
+### 3.3 Công cụ đám mây UniWork (W3)
+
+Khóa nhà cung cấp nằm ở env của server; công cụ chưa cấu hình báo `available:false` và route
+trả 503.
+
+| Việc | Route | Body → kết quả |
+| --- | --- | --- |
+| Trạng thái + credit | `GET /orgs/{orgID}/ai/cloud` | `{ enabled, reason?, tools: { web_search, image_search, image_generate, media_analyze, transcribe }, credits: { unit: "ai.tokens", used, limit\|null, remaining\|null, period_end\|null } }`; **không bao giờ 403**: thiếu entitlement → `enabled:false` + `reason: "entitlement_required"` |
+| Tìm kiếm | `POST /orgs/{orgID}/ai/cloud/search` | `{ query ≤ 400, kind: "web"\|"image", max_results 1..10 (mặc định 6) }` → `{ results: [{ title, url, snippet, image_url?, thumbnail_url? }], answer? }` |
+| Sinh ảnh | `POST /orgs/{orgID}/ai/cloud/images` | `{ prompt ≤ 4000, aspect_ratio?, image_size?, reference_images?: [{ mime, data_base64 }] (≤ 4, mỗi ảnh ≤ 8 MiB) }` → `{ images: [{ mime, data_base64 }], model }`; body ≤ 40 MiB |
+| Phân tích media | `POST /orgs/{orgID}/ai/cloud/media/analyze` | `{ requirements ≤ 4000, media: [{ mime, data_base64 }] (≤ 4, tổng ≤ 25 MiB) }` → `{ text }` |
+| Phiên âm | `POST /orgs/{orgID}/ai/cloud/transcribe` | `{ prompt?, audio: { mime, data_base64 } (≤ 25 MiB) }` → `{ text }` |
+
+Client gửi **byte**; server không bao giờ tự tải URL media (không có mặt SSRF). Sinh slide vẫn
+ẩn, ngoài phạm vi.
+
+### 3.4 Entitlement, tín dụng, lỗi, giới hạn tốc độ
+
+- **Entitlement** (bảng `features`, fail-closed): `office.ai_byok` (ghi khóa + proxy), `office.ai_cloud`
+  (mọi công cụ đám mây). Cả hai bật ở các plan đã bật `ai.tokens`.
+- **Tín dụng** = meter `ai.tokens`. Trước mỗi lệnh gọi đám mây: `Can(office.ai_cloud)`, rồi
+  `CheckQuota`. Công cụ không có số token tính mức cố định: tìm kiếm 500, ảnh 4000/ảnh, phiên
+  âm 1000 mỗi phút bắt đầu; phân tích dùng token thật. Số còn lại đọc từ `GET .../ai/cloud`.
+- **Lỗi**:
+
+| Mã HTTP | `code` | Khi |
+| --- | --- | --- |
+| 400 | `provider_not_supported`, `base_url_refused` | Nhà cung cấp ngoài danh sách / URL `custom` bị rào SSRF từ chối |
+| 402 | `credits_exhausted` | Hết token của kỳ (client hiện "hết credit") |
+| 403 | `entitlement_required` | Plan thiếu `office.ai_byok` hoặc `office.ai_cloud`; hoặc không phải thành viên |
+| 404 | `credential_missing` | Chưa có khóa cho nhà cung cấp này (hoặc không thấy tổ chức) |
+| 424 | `provider_auth_failed` | Nhà cung cấp trả 401/403 cho khóa của người dùng |
+| 429 | — | Giới hạn tốc độ của UniWork hoặc 429 của nhà cung cấp (chuyển tiếp, kèm `retry-after`) |
+| 502 | `provider_unreachable` | Mạng/timeout tới nhà cung cấp |
+| 503 | `cloud_unavailable` | Công cụ đám mây chưa cấu hình ở server |
+
+- **Giới hạn tốc độ** (theo bearer user, cần Redis, fail-open): khóa 30/phút, proxy 60/phút, đám mây 20/phút.
+- **Không bao giờ lộ khóa**: không có trong phản hồi, log, audit, lỗi, trace; lỗi của nhà cung cấp được lọc
+  mọi chỗ lặp lại khóa thành `[redacted]`.
+
+### 3.5 Frame web và trạng thái triển khai
+
+Proxy và công cụ đám mây được dựng thành tầng service để mount thêm dưới
+`/office-frame/documents/{documentID}/ai/...` (chỉ bearer frame-token; tác nhân user/org lấy từ
+claim). Route frame nằm trên nhánh GO-B2/B3, **chờ merge gốc GO-B2/B3**; trang host web dùng
+được các route session ở trên ngay. Desktop **không đổi** ở v1: BYOK trực tiếp, chỉ dùng mục 3.3
+cho công cụ đám mây.
+
+Trạng thái: các route Ask UNI cũ (`router/ai.go`: `GET /workspaces/{workspaceID}/ai/capabilities`,
+`.../ai/usage`, `GET /orgs/{orgID}/ai/usage`) phục vụ web và không đổi. Các route 3.1–3.3 là
+hợp đồng của lane GO-A7 (UNI-1008), được xây ở W1 (khóa), W2 (proxy), W3 (đám mây); phía client
+TypeScript là `packages/core/api/endpoints/ai-office.ts` (W4). Nếu một route đổi trong lúc
+xây, sửa tại đây cùng thay đổi.
 
 ## 4. Bản cài (GO-A8, UNI-1009)
 
