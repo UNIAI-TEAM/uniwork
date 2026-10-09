@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import * as auth from "../api/endpoints/auth";
 import { getAccessToken, subscribe as subscribeToToken } from "../api/session";
+import { endOfficeDraftSession } from "../office/draft-session-key";
 import { setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
 import { syncSessionHint } from "./session-hint";
@@ -27,6 +28,19 @@ export interface AuthState {
 let initInFlight: Promise<void> | null = null;
 let initialized = false;
 let onLogout: (() => void) | null = null;
+// The last signed-in user, kept across a token loss so a different person
+// signing in afterwards still counts as a session switch.
+let lastUserId: string | null = null;
+
+/**
+ * Sign-out and session switch end the Office draft-recovery session: the key
+ * is forgotten and the encrypted drafts are deleted (CONTRACT C18). A token
+ * loss alone does not: the same person may sign back in without a reload.
+ */
+function endDraftSession(): void {
+  lastUserId = null;
+  void endOfficeDraftSession();
+}
 
 /** Drop to anon. Logout callback runs only for an explicit logout, not token loss. */
 function clearSession(runLogoutCallback = true): void {
@@ -37,7 +51,10 @@ function clearSession(runLogoutCallback = true): void {
   // state (chat outbox, views) must not keep reading and writing the previous
   // user's namespace until some layout sets a new one.
   setCurrentWorkspace(null, null);
-  if (runLogoutCallback) onLogout?.();
+  if (runLogoutCallback) {
+    endDraftSession();
+    onLogout?.();
+  }
 }
 
 /**
@@ -96,6 +113,10 @@ subscribeToToken(() => {
 
 useAuthStore.subscribe((state, prev) => {
   if (state.status !== prev.status) syncSessionHint(state.status);
+  const userId = state.user?.id ?? null;
+  if (userId === null) return;
+  if (lastUserId !== null && lastUserId !== userId) endDraftSession();
+  lastUserId = userId;
 });
 
 /** Test seam: drop module state so cases cannot leak into each other. */
@@ -103,5 +124,6 @@ export function resetAuthStoreForTests(): void {
   initInFlight = null;
   initialized = false;
   onLogout = null;
+  lastUserId = null;
   useAuthStore.setState({ user: null, status: "loading" });
 }

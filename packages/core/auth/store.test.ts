@@ -9,7 +9,14 @@ vi.mock("../api/endpoints/auth", () => ({
   logout: vi.fn(),
 }));
 
+// Spy on the draft-session end while keeping the real key holder behind it.
+vi.mock("../office/draft-session-key", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../office/draft-session-key")>();
+  return { ...real, endOfficeDraftSession: vi.fn(real.endOfficeDraftSession) };
+});
+
 import * as auth from "../api/endpoints/auth";
+import { endOfficeDraftSession, getOfficeDraftKey } from "../office/draft-session-key";
 import { resetAuthStoreForTests, useAuthStore } from "./store";
 
 const user: User = {
@@ -23,10 +30,13 @@ describe("auth store", () => {
     setAccessToken(null);
     vi.mocked(auth.refreshSession).mockReset();
     vi.mocked(auth.logout).mockReset();
+    vi.mocked(endOfficeDraftSession).mockClear();
+    vi.stubGlobal("indexedDB", { deleteDatabase: vi.fn(() => ({})) });
   });
   afterEach(() => {
     setAccessToken(null);
     setCurrentWorkspace(null, null);
+    vi.unstubAllGlobals();
   });
 
   it("starts loading and becomes authed when the refresh cookie yields a session", async () => {
@@ -114,6 +124,39 @@ describe("auth store", () => {
     resolveRefresh(null);
     await initPromise;
     expect(useAuthStore.getState()).toMatchObject({ user, status: "authed" });
+  });
+
+  it("logout ends the Office draft session: drafts deleted, a new key afterwards", async () => {
+    useAuthStore.getState().setUser(user);
+    const before = await getOfficeDraftKey(user.id);
+    await useAuthStore.getState().logout();
+    expect(endOfficeDraftSession).toHaveBeenCalledTimes(1);
+    expect(indexedDB.deleteDatabase).toHaveBeenCalledWith("uniwork-office-frame-drafts");
+    // The G3 web host's durable drafts live in their own database and survive sign-out.
+    expect(indexedDB.deleteDatabase).toHaveBeenCalledTimes(1);
+    expect(indexedDB.deleteDatabase).not.toHaveBeenCalledWith("uniwork-office-drafts");
+    expect(await getOfficeDraftKey(user.id)).not.toBe(before);
+  });
+
+  it("a different user signing in ends the previous Office draft session", () => {
+    useAuthStore.getState().setUser(user);
+    useAuthStore.getState().setUser({ ...user, display_name: "A2" });
+    expect(endOfficeDraftSession).not.toHaveBeenCalled();
+    useAuthStore.getState().setUser({ ...user, id: "u2" });
+    expect(endOfficeDraftSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("a token loss keeps the drafts for the same person, but not for the next one", () => {
+    setAccessToken("tok");
+    useAuthStore.getState().setUser(user);
+    setAccessToken(null);
+    expect(endOfficeDraftSession).not.toHaveBeenCalled();
+    useAuthStore.getState().setUser(user);
+    expect(endOfficeDraftSession).not.toHaveBeenCalled();
+    setAccessToken("tok");
+    setAccessToken(null);
+    useAuthStore.getState().setUser({ ...user, id: "u2" });
+    expect(endOfficeDraftSession).toHaveBeenCalledTimes(1);
   });
 
   it("selectors return stable references between renders", () => {

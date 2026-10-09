@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
-import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { PROTOCOL_NS, PROTOCOL_VERSION, isInitPayload, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { endOfficeDraftSession } from "@uniwork/core/office/draft-session-key";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { ApiError } from "@uniwork/core/api/http";
@@ -68,7 +69,7 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
   };
 }
 
-afterEach(() => { requestMock.mockReset(); resetAuthStoreForTests(); });
+afterEach(async () => { requestMock.mockReset(); resetAuthStoreForTests(); await endOfficeDraftSession(); });
 
 describe("OfficeModuleFrame", () => {
   it("serves the module's build and grants it only what its frame implements", async () => {
@@ -89,6 +90,40 @@ describe("OfficeModuleFrame", () => {
     await frame.ready({ module: "markdown" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     expect(frame.inits()[0]?.payload).toMatchObject({ user: { displayName: "Nguyễn An" }, capabilities: { exportHtml: true, save: true } });
+  });
+
+  const ALL_MODULES: OfficeModule[] = ["docs", "pdf", "markdown", "html", "slides", "sheets"];
+
+  it.each(ALL_MODULES)("hands the %s frame the session's draft-recovery key and the user:document scope", async (module) => {
+    setSessionUser({ id: "u-1", email: "an@example.test", display_name: "An" } as Parameters<typeof setSessionUser>[0]);
+    const frame = mountFrame(module);
+    await frame.ready({ module, instanceId: "load-1" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const recovery = (frame.inits()[0]?.payload as { recovery?: { key: CryptoKey; scope: string } }).recovery;
+    expect(recovery?.scope).toBe("u-1:doc-1");
+    expect(recovery?.key).toBeInstanceOf(CryptoKey);
+    expect(recovery?.key.extractable).toBe(false);
+    expect(isInitPayload(frame.inits()[0]?.payload)).toBe(true);
+    // A frame reload (a new instance) gets a fresh init with the same key: its drafts stay readable.
+    await frame.ready({ module, instanceId: "load-2" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(2));
+    const again = (frame.inits()[1]?.payload as { recovery?: { key: CryptoKey; scope: string } }).recovery;
+    expect(again?.key).toBe(recovery?.key);
+    expect(again?.scope).toBe("u-1:doc-1");
+  });
+
+  it("sends no recovery to a view-only user or without a signed-in user", async () => {
+    setSessionUser({ id: "u-1", email: "an@example.test", display_name: "An" } as Parameters<typeof setSessionUser>[0]);
+    const viewer = mountFrame("pdf", { canEdit: false });
+    await viewer.ready({ module: "pdf" });
+    await waitFor(() => expect(viewer.inits()).toHaveLength(1));
+    expect(viewer.inits()[0]?.payload).not.toHaveProperty("recovery");
+    cleanup();
+    resetAuthStoreForTests();
+    const anon = mountFrame("pdf");
+    await anon.ready({ module: "pdf" });
+    await waitFor(() => expect(anon.inits()).toHaveLength(1));
+    expect(anon.inits()[0]?.payload).not.toHaveProperty("recovery");
   });
 
   it.each([

@@ -41,6 +41,12 @@ export interface OfficeModuleSpec {
    */
   viewOnlyInG3?: boolean;
   /**
+   * Web draft recovery (CONTRACT C18): the host hands the frame the session's
+   * draft key and the "<userId>:<documentId>" scope in `init`, and the frame
+   * keeps encrypted copies of unsaved edits in IndexedDB. Off = no `recovery`.
+   */
+  recovery?: boolean;
+  /**
    * The largest stored file the frame opens (bytes). A larger document opens
    * in the G3 host without asking for a token; the server refuses the mint
    * with 413 too_large too, and a frame that answers its open with
@@ -66,17 +72,18 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
     flag: OFFICE_DOCS_WEB_FLAG, format: "docx", extension: "docx",
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     grant: { save: true, saveAs: true, recents: true, print: true, exportPdf: true, exportHtml: false, attachments: true, images: true },
+    recovery: true,
   },
-  pdf: { flag: "office_pdf_web", format: "pdf", extension: "pdf", mimeType: "application/pdf", grant: EDIT_PRINT },
-  markdown: { flag: "office_markdown_web", format: "md", extension: "md", mimeType: "text/markdown", grant: EDIT_PRINT_HTML },
-  html: { flag: "office_html_web", format: "html", extension: "html", mimeType: "text/html", grant: EDIT_PRINT_HTML },
+  pdf: { flag: "office_pdf_web", format: "pdf", extension: "pdf", mimeType: "application/pdf", grant: EDIT_PRINT, recovery: true },
+  markdown: { flag: "office_markdown_web", format: "md", extension: "md", mimeType: "text/markdown", grant: EDIT_PRINT_HTML, recovery: true },
+  html: { flag: "office_html_web", format: "html", extension: "html", mimeType: "text/html", grant: EDIT_PRINT_HTML, recovery: true },
   slides: {
     flag: "office_slides_web", format: "pptx", extension: "pptx",
-    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", grant: EDIT_PRINT, viewOnlyInG3: true,
+    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", grant: EDIT_PRINT, viewOnlyInG3: true, recovery: true,
   },
   sheets: {
     flag: "office_sheets_web", format: "xlsx", extension: "xlsx",
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT, maxBytes: SHEETS_MAX_BYTES,
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT, maxBytes: SHEETS_MAX_BYTES, recovery: true,
   },
 };
 

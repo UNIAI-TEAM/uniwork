@@ -18,6 +18,7 @@ import {
   type Theme,
   type TokenPayload,
 } from "@uniwork/core/office/docs-frame-protocol";
+import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-session-key";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 
 export type DocsFrameStatus = "booting" | "ready" | "failed";
@@ -102,6 +103,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const module = options.module ?? "docs";
   // Display data for the editors (comment and note authors), never an identity the frame authorises with.
   const displayName = useAuthStore((s) => s.user?.display_name ?? "");
+  const userId = useAuthStore((s) => s.user?.id ?? "");
   const [attempt, setAttempt] = useState(0);
   const queryClient = useQueryClient();
   // The document the frame edits: the page's, until a save-as moves it to the copy.
@@ -119,8 +121,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [host, setHost] = useState<DocsFrameHost | null>(null);
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, viewOnly });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, viewOnly };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly };
   const sentToken = useRef<string | null>(null);
 
   useEffect(() => {
@@ -158,7 +160,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       getInit: async () => {
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
-        const { options: current, scopeId: doc, displayName: name } = latest.current;
+        const { options: current, scopeId: doc, displayName: name, userId: uid } = latest.current;
         const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
         // The server derives the module from the stored file; a frame mounted for another
         // module would edit bytes of a format it does not own (older servers send none).
@@ -170,6 +172,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         }
         // Same rule as the hook's viewOnly, read from the token this init carries.
         const viewOnly = current.readonly || (module !== "docs" && minted?.can_edit === false);
+        // Draft recovery (CONTRACT C18): the session's key, again on every init so a reloaded
+        // frame reads the drafts it wrote. A viewer has nothing unsaved to recover.
+        const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
+          ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
+          : null;
         return {
           ...frameToken,
           documentId: doc, workspaceId: current.wsId,
@@ -177,6 +184,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           locale: current.locale, theme: current.theme,
           capabilities: officeModuleCapabilities(module, viewOnly, current.api),
           ...(name ? { user: { displayName: name } } : {}),
+          ...(recovery ? { recovery } : {}),
         };
       },
       refreshToken: async () => {
