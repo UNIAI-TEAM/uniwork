@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -58,10 +59,78 @@ type voiceCallSession struct {
 
 const voiceCallInvitePendingTTL = 5 * time.Minute
 
-var voiceCallSessions sync.Map // key: roomID|callID
+// A session nobody hangs up is reclaimed lazily: an unanswered invite after
+// voiceCallUnansweredTTL, an answered call after voiceCallAnsweredTTL. The
+// sweep runs on invite, the only path that grows the map, at most once per
+// voiceCallSweepEvery.
+const (
+	voiceCallUnansweredTTL = time.Hour
+	voiceCallAnsweredTTL   = 12 * time.Hour
+	voiceCallSweepEvery    = time.Minute
+	maxVoiceCallIDLen      = 64
+)
+
+var (
+	voiceCallSessions  sync.Map // key: roomID|callID
+	lastVoiceCallSweep atomic.Int64
+)
 
 func voiceCallSessionKey(roomID, callID string) string {
 	return roomID + "|" + callID
+}
+
+// normalizeVoiceCallID accepts the client's UUID (or a ULID): at most 64
+// bytes of letters, digits and '-'. The id is a map key, an event payload
+// and a LiveKit room-name suffix, so its size is bounded here.
+func normalizeVoiceCallID(callID string) (string, error) {
+	callID = strings.TrimSpace(callID)
+	if callID == "" {
+		return "", Invalid("call_id is required")
+	}
+	if len(callID) > maxVoiceCallIDLen {
+		return "", Invalid("call_id không hợp lệ")
+	}
+	for _, r := range callID {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' {
+			continue
+		}
+		return "", Invalid("call_id không hợp lệ")
+	}
+	return callID, nil
+}
+
+func (sess voiceCallSession) expired(now time.Time) bool {
+	if sess.acceptedAt != nil {
+		return now.Sub(*sess.acceptedAt) > voiceCallAnsweredTTL
+	}
+	return now.Sub(sess.invitedAt) > voiceCallUnansweredTTL
+}
+
+// loadVoiceCallSession treats an expired session as gone and drops it.
+func loadVoiceCallSession(key string) (voiceCallSession, bool) {
+	raw, ok := voiceCallSessions.Load(key)
+	if !ok {
+		return voiceCallSession{}, false
+	}
+	sess := raw.(voiceCallSession)
+	if sess.expired(time.Now()) {
+		voiceCallSessions.Delete(key)
+		return voiceCallSession{}, false
+	}
+	return sess, true
+}
+
+func sweepVoiceCallSessions(now time.Time) {
+	last := lastVoiceCallSweep.Load()
+	if now.UnixNano()-last < int64(voiceCallSweepEvery) || !lastVoiceCallSweep.CompareAndSwap(last, now.UnixNano()) {
+		return
+	}
+	voiceCallSessions.Range(func(key, value any) bool {
+		if sess, ok := value.(voiceCallSession); ok && sess.expired(now) {
+			voiceCallSessions.Delete(key)
+		}
+		return true
+	})
 }
 
 func appendVoiceCallParticipantID(ids []string, userID string) []string {
@@ -79,11 +148,10 @@ func appendVoiceCallParticipantID(ids []string, userID string) []string {
 
 func (s *ChatService) trackVoiceCallParticipant(roomID, callID, userID string) {
 	key := voiceCallSessionKey(roomID, callID)
-	raw, ok := voiceCallSessions.Load(key)
+	sess, ok := loadVoiceCallSession(key)
 	if !ok {
 		return
 	}
-	sess := raw.(voiceCallSession)
 	sess.participantIDs = appendVoiceCallParticipantID(sess.participantIDs, userID)
 	voiceCallSessions.Store(key, sess)
 }
@@ -106,15 +174,15 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 		sess.acceptedAt = &now
 	}
 	voiceCallSessions.Store(voiceCallSessionKey(room.ID, callID), sess)
+	sweepVoiceCallSessions(now)
 }
 
 func (s *ChatService) trackVoiceCallAccept(roomID, callID string) {
 	key := voiceCallSessionKey(roomID, callID)
-	raw, ok := voiceCallSessions.Load(key)
+	sess, ok := loadVoiceCallSession(key)
 	if !ok {
 		return
 	}
-	sess := raw.(voiceCallSession)
 	now := time.Now()
 	sess.acceptedAt = &now
 	voiceCallSessions.Store(key, sess)
@@ -282,12 +350,12 @@ func (s *ChatService) requireVoiceTokenAccess(ctx context.Context, room db.ChatR
 }
 
 func liveKitRoomForActiveVoiceCall(room db.ChatRoom, callID string) (string, error) {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return "", Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return "", err
 	}
 	key := voiceCallSessionKey(room.ID, callID)
-	if _, ok := voiceCallSessions.Load(key); !ok {
+	if _, ok := loadVoiceCallSession(key); !ok {
 		return "", ErrForbidden
 	}
 	const maxLen = 240

@@ -10,9 +10,9 @@ import (
 
 // SignalVoiceInvite notifies organization members of an outgoing voice call.
 func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID, roomID, callID string) error {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, false)
 	if err != nil {
@@ -45,9 +45,9 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 
 // SignalVoiceAccept notifies room members that a voice call was answered.
 func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID, roomID, callID string) error {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
@@ -71,9 +71,9 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 func (s *ChatService) SignalVoiceHangup(
 	ctx context.Context, userID, workspaceID, roomID, callID string, durationSeconds *int,
 ) error {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
@@ -84,11 +84,10 @@ func (s *ChatService) SignalVoiceHangup(
 	}
 	if voiceCallMultiPartyKind(room.Kind) {
 		key := voiceCallSessionKey(roomID, callID)
-		raw, ok := voiceCallSessions.Load(key)
+		sess, ok := loadVoiceCallSession(key)
 		if !ok {
 			return ErrForbidden
 		}
-		sess := raw.(voiceCallSession)
 		if sess.callerID != userID {
 			return ErrForbidden
 		}

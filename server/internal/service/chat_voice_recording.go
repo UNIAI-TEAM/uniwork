@@ -47,9 +47,9 @@ func (s *ChatService) VoiceRecordingEnabled(ctx context.Context) bool {
 func (s *ChatService) StartVoiceRecording(
 	ctx context.Context, userID, workspaceID, roomID, callID string,
 ) (db.ChatVoiceRecording, error) {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return db.ChatVoiceRecording{}, Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return db.ChatVoiceRecording{}, err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
@@ -145,9 +145,9 @@ func (s *ChatService) StartVoiceRecording(
 func (s *ChatService) StopVoiceRecording(
 	ctx context.Context, userID, workspaceID, roomID, callID string,
 ) (db.ChatVoiceRecording, error) {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return db.ChatVoiceRecording{}, Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return db.ChatVoiceRecording{}, err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
@@ -301,11 +301,10 @@ func (s *ChatService) finishVoiceRecordingFileClaim(ctx context.Context, f files
 }
 
 func (s *ChatService) requireAcceptedVoiceCall(roomID, callID string) error {
-	raw, ok := voiceCallSessions.Load(voiceCallSessionKey(roomID, callID))
+	sess, ok := loadVoiceCallSession(voiceCallSessionKey(roomID, callID))
 	if !ok {
 		return ErrForbidden
 	}
-	sess := raw.(voiceCallSession)
 	if sess.acceptedAt == nil {
 		return coded(http.StatusConflict, "call_not_connected", "chỉ ghi âm sau khi cuộc gọi đã kết nối")
 	}
@@ -352,9 +351,9 @@ func (s *ChatService) attachVoiceRecordingToCallLog(
 func (s *ChatService) ActiveVoiceRecording(
 	ctx context.Context, userID, workspaceID, roomID, callID string,
 ) (db.ChatVoiceRecording, error) {
-	callID = strings.TrimSpace(callID)
-	if callID == "" {
-		return db.ChatVoiceRecording{}, Invalid("call_id is required")
+	callID, err := normalizeVoiceCallID(callID)
+	if err != nil {
+		return db.ChatVoiceRecording{}, err
 	}
 	room, err := s.authorizeVoiceSignalRoom(ctx, userID, workspaceID, roomID, true)
 	if err != nil {
