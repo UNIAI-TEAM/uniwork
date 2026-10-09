@@ -110,6 +110,30 @@ describe("WSClient scoped subscribe", () => {
     expect(resumed.hasEverConnected()).toBe(true);
   });
 
+  // H10: a flat ±20 % around 1s sends a whole restarted pod's clients back
+  // within 400ms of each other; full jitter spreads them over the window.
+  it("reconnects after a random delay up to the backoff, also on a 1012 restart", () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const ws = new WSClient("ws://example.test/ws");
+    ws.setAuth("tok", "acme/ws");
+    ws.connect();
+    const first = FakeWebSocket.lastInstance!;
+    first.onclose?.({ code: 1012 } as CloseEvent);
+    vi.advanceTimersByTime(499);
+    expect(FakeWebSocket.lastInstance).toBe(first);
+    vi.advanceTimersByTime(1);
+    expect(FakeWebSocket.lastInstance).not.toBe(first);
+
+    random.mockReturnValue(0);
+    const second = FakeWebSocket.lastInstance!;
+    second.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(0);
+    expect(FakeWebSocket.lastInstance).not.toBe(second);
+    random.mockRestore();
+    vi.useRealTimers();
+  });
+
   it("notifies connection state listeners", () => {
     const ws = new WSClient("ws://example.test/ws");
     const states: string[] = [];

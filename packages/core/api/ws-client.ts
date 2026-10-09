@@ -9,8 +9,8 @@ type EventHandler = (payload: unknown, actorId?: string, actorType?: string) => 
 const UNPARSEABLE_LOG_MAX_CHARS = 200;
 
 // Reconnect backoff parameters. A flat delay causes a thundering herd when many
-// clients reconnect after a server restart; exponential backoff with jitter
-// spreads the reconnection attempts over time. The client retries indefinitely
+// clients reconnect after a server restart; exponential backoff with full
+// jitter (a random delay in [0, backoff]) spreads the reconnection attempts. The client retries indefinitely
 // (capped at RECONNECT_MAX_DELAY_MS) because the web/desktop UI does not yet
 // expose a visible disconnected state or manual retry action.
 const RECONNECT_BASE_DELAY_MS = 1_000;
@@ -184,6 +184,8 @@ export class WSClient {
       }
     };
 
+    // Every close reconnects, a server restart (1012) included: the delay's
+    // full jitter is what spreads a whole pod's clients out.
     this.ws.onclose = () => {
       this.authenticated = false;
       this.stopAppPing();
@@ -198,7 +200,7 @@ export class WSClient {
   }
 
   /**
-   * Schedule a reconnection attempt with exponential backoff and jitter.
+   * Schedule a reconnection attempt with exponential backoff and full jitter.
    * Retries indefinitely with a capped delay because the web/desktop UI
    * does not yet expose a visible disconnected state or manual retry action.
    */
@@ -207,12 +209,9 @@ export class WSClient {
       RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempt,
       RECONNECT_MAX_DELAY_MS,
     );
-    // ±20 % jitter so clients that disconnected at the same time don't
-    // reconnect in lockstep.
-    const jitter = base * 0.2 * (Math.random() * 2 - 1);
-    const delay = Math.round(
-      Math.min(base + jitter, RECONNECT_MAX_DELAY_MS),
-    );
+    // Full jitter: ±20 % around 1s put a restarted pod's clients back within
+    // 400ms of each other; anywhere in [0, base] spreads them over the window.
+    const delay = Math.round(Math.random() * base);
 
     this.reconnectAttempt++;
     this.logger.warn(
