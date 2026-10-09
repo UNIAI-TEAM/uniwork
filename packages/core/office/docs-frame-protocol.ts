@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at 5bce54cffc2d92e13afdeb157cb05cdbd830936a
-// (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
+// web/docs/protocol/types.ts at 3ce2107be3a7cd0ba408066a7f643bffe831262b
+// (lane branch feature/UNI-1014-web-modules, framework commit of GO-B4/B5/B6). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
@@ -195,6 +195,52 @@ export function toProtocolError(err: unknown): DocsProtocolError {
 
 export type Theme = 'light' | 'dark'
 
+/**
+ * Which genoffice editor a frame bundle is (lane GO-B4/B5/B6, additive). One protocol serves every
+ * module; `ready.module` says what the frame is and `init.module` what the host opens in it. Absent
+ * on either side means 'docs' (frames and hosts from before the field existed).
+ */
+export type OfficeModule = 'docs' | 'pdf' | 'markdown' | 'html' | 'slides' | 'sheets'
+
+export const OFFICE_MODULES: readonly OfficeModule[] = [
+  'docs',
+  'pdf',
+  'markdown',
+  'html',
+  'slides',
+  'sheets',
+]
+
+/** absent = 'docs' */
+export const DEFAULT_OFFICE_MODULE: OfficeModule = 'docs'
+
+export function isOfficeModule(x: unknown): x is OfficeModule {
+  return typeof x === 'string' && (OFFICE_MODULES as readonly string[]).includes(x)
+}
+
+/** the module a `ready` / `init` payload names (absent = 'docs') */
+export function moduleOf(payload: { module?: OfficeModule } | null | undefined): OfficeModule {
+  return payload?.module ?? DEFAULT_OFFICE_MODULE
+}
+
+/**
+ * Host-side check before `init`: does the frame that said `ready` run the editor for the
+ * document's module? Returns the `malformed` error to fail the handshake with, or null when they
+ * match. (A docs document never opens in the PDF frame, whatever URL the frame was loaded from.)
+ */
+export function checkFrameModule(
+  ready: { module?: OfficeModule },
+  expected: OfficeModule,
+): DocsProtocolError | null {
+  const frame = moduleOf(ready)
+  if (frame === expected) return null
+  return new DocsProtocolError({
+    code: 'malformed',
+    message: `frame module "${frame}" cannot open a "${expected}" document`,
+    details: { frameModule: frame, expectedModule: expected },
+  })
+}
+
 /** Feature switches the host grants the frame. Unknown keys must be ignored. */
 export type Capability =
   | 'save'
@@ -281,6 +327,8 @@ export interface ReadyPayload {
    * and the host restarts the handshake.
    */
   instanceId?: string
+  /** the editor this bundle runs (additive, GO-B4/B5/B6); absent = 'docs' */
+  module?: OfficeModule
 }
 
 export interface InitPayload extends TokenPayload {
@@ -296,6 +344,11 @@ export interface InitPayload extends TokenPayload {
   capabilities: Capabilities
   /** optional: open this immediately (saves a round-trip vs. a later `open`) */
   open?: OpenPayload
+  /**
+   * the document's module (additive, GO-B4/B5/B6); absent = 'docs'. A frame running another
+   * module refuses the `init` with `malformed`.
+   */
+  module?: OfficeModule
 }
 
 export interface InitAck {
@@ -741,7 +794,8 @@ export function isReadyPayload(x: unknown): x is ReadyPayload {
     isFiniteNum(x.protocolVersion) &&
     isOpt(x.frameVersion, isStr) &&
     isCapabilities(x.capabilities) &&
-    isOpt(x.instanceId, isStr)
+    isOpt(x.instanceId, isStr) &&
+    isOpt(x.module, isOfficeModule)
   )
 }
 
@@ -757,7 +811,8 @@ export function isInitPayload(x: unknown): x is InitPayload {
     isNonEmptyStr(x.locale) &&
     isTheme(x.theme) &&
     isCapabilities(x.capabilities) &&
-    isOpt(x.open, isOpenPayload)
+    isOpt(x.open, isOpenPayload) &&
+    isOpt(x.module, isOfficeModule)
   )
 }
 

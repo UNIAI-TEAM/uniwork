@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at 5bce54cffc2d92e13afdeb157cb05cdbd830936a
-// (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
+// web/docs/protocol/host.ts at 3ce2107be3a7cd0ba408066a7f643bffe831262b
+// (lane branch feature/UNI-1014-web-modules, framework commit of GO-B4/B5/B6). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
@@ -33,6 +33,7 @@ import {
 import {
   DocsProtocolError,
   FRAME_REQUEST_TYPES,
+  checkFrameModule,
   PROTOCOL_VERSION,
   toProtocolError,
   type FileMeta,
@@ -41,6 +42,7 @@ import {
   type HostRequests,
   type InitAck,
   type InitPayload,
+  type OfficeModule,
   type ProtocolErrorShape,
   type ReadyPayload,
   type Theme,
@@ -63,6 +65,13 @@ export interface DocsFrameHostOptions {
   allowedOrigins: readonly string[]
   /** default: window */
   self?: MessageSource
+  /**
+   * the document's module (GO-B4/B5/B6). Set: a frame whose `ready.module` differs fails the
+   * handshake with `malformed` before `getInit` runs (no token is minted for the wrong editor),
+   * and `init.module` carries it. Unset: `getInit`'s `module` (if any) is checked the same way;
+   * neither = 'docs' on both sides, the pre-module behaviour.
+   */
+  module?: OfficeModule
   /** session data + a freshly minted token for this frame */
   getInit: (ready: ReadyPayload) => Promise<Omit<InitPayload, 'protocolVersion'>>
   /** mint a new token (the frame asked: expiring soon / got a 401) */
@@ -171,15 +180,24 @@ export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHos
       )
       return
     }
+    if (options.module !== undefined) {
+      const mismatch = checkFrameModule(ready, options.module)
+      if (mismatch) return failHandshake(mismatch)
+    }
     const abort = new AbortController()
     handshake = { abort, ...(instanceId !== undefined ? { instanceId } : {}) }
     const current = (): boolean => !disposed && gen === generation
     try {
       const init = await options.getInit(ready)
       if (!current()) return
+      const module = options.module ?? init.module
+      if (module !== undefined) {
+        const mismatch = checkFrameModule(ready, module)
+        if (mismatch) throw mismatch
+      }
       const result = (await ep.request(
         'init',
-        { ...init, protocolVersion: PROTOCOL_VERSION },
+        { ...init, ...(module !== undefined ? { module } : {}), protocolVersion: PROTOCOL_VERSION },
         { signal: abort.signal },
       )) as InitAck
       if (!current()) return

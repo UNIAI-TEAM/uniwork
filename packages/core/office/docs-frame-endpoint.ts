@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at 5bce54cffc2d92e13afdeb157cb05cdbd830936a
-// (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
+// web/docs/protocol/endpoint.ts at 3ce2107be3a7cd0ba408066a7f643bffe831262b
+// (lane branch feature/UNI-1014-web-modules, framework commit of GO-B4/B5/B6). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
 /**
