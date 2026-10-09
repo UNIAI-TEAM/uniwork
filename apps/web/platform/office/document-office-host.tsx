@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentType, ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
@@ -11,13 +12,12 @@ import { useOfficeTabTitle } from "./tab-title";
 // unsupported state instead of being handed to a host that would silently
 // open it as something else (the previous xlsx fallback).
 
-function LoadingEditor() {
+export function LoadingEditor() {
   const { t } = useTranslation();
   return <div role="status" className="p-4 text-body text-muted-foreground">{t("office.editor.loading")}</div>;
 }
 
 const DocxHost = dynamic(() => import("./docx-office-host").then((module) => module.DocxOfficeEditorHost), { ssr: false, loading: LoadingEditor });
-const DocxFrameHost = dynamic(() => import("../office-frame/docs-frame-host").then((module) => module.DocxFrameOrG3Host), { ssr: false, loading: LoadingEditor });
 const PdfHost = dynamic(() => import("./pdf-office-host").then((module) => module.PdfOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const XlsxHost = dynamic(() => import("./xlsx-office-host").then((module) => module.XlsxOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const MarkdownHost = dynamic(() => import("./md-html-adapter").then((module) => module.MarkdownOfficeEditorHost), { ssr: false, loading: LoadingEditor });
@@ -37,18 +37,28 @@ function UnsupportedHost({ format, title }: { format: string; title: string }) {
   );
 }
 
-export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
-  useOfficeTabTitle(props.document.title);
-  const format = detectDocumentFormat(props.document);
-  if (format === "pdf") return <PdfHost {...props} />;
-  // UNI-1013: the genoffice Docs frame when office_docs_web is on; the G3 host otherwise.
-  if (format === "docx") return <DocxFrameHost {...props} fallback={<DocxHost {...props} />} />;
-  if (format === "xlsx") return <XlsxHost {...props} />;
-  if (format === "md") return <MarkdownHost {...props} />;
-  if (format === "html") return <HtmlHost {...props} />;
-  // UNI-927 P0-1: .pptx has its own browser host.
-  if (format === "pptx") return <PptxHost {...props} />;
-  // The conversion-only sources (xls, odt) have no web editor yet.
-  // Say so; do not route them to a host for a different format.
-  return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;
+/**
+ * What a .docx opens in instead of the G3 editor: the app layer injects the
+ * Docs frame switch here (UNI-1013), which renders `fallback` (the G3 host)
+ * whenever the frame is not offered. Injected rather than imported so the
+ * frame's app wiring (pinned build, workspace routes) stays outside this
+ * browser-isolated surface (scripts/office/check-boundaries.mjs).
+ */
+export type DocxFrameSlot = ComponentType<OfficeEditorHostProps & { fallback: ReactNode }>;
+
+export function createDocumentOfficeEditorHost(DocxFrame: DocxFrameSlot): ComponentType<OfficeEditorHostProps> {
+  return function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
+    useOfficeTabTitle(props.document.title);
+    const format = detectDocumentFormat(props.document);
+    if (format === "pdf") return <PdfHost {...props} />;
+    if (format === "docx") return <DocxFrame {...props} fallback={<DocxHost {...props} />} />;
+    if (format === "xlsx") return <XlsxHost {...props} />;
+    if (format === "md") return <MarkdownHost {...props} />;
+    if (format === "html") return <HtmlHost {...props} />;
+    // UNI-927 P0-1: .pptx has its own browser host.
+    if (format === "pptx") return <PptxHost {...props} />;
+    // The conversion-only sources (xls, odt) have no web editor yet.
+    // Say so; do not route them to a host for a different format.
+    return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;
+  };
 }

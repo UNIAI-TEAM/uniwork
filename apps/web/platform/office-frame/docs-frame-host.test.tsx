@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Document } from "@uniwork/core/types/document";
 
 const mocks = vi.hoisted(() => ({ switchProps: vi.fn(), frameProps: vi.fn(), push: vi.fn() }));
-vi.mock("@uniwork/views/layout/workspace-context", () => ({ useWorkspace: () => ({ workspace: { organization_slug: "acme", slug: "ops" } }) }));
 vi.mock("@uniwork/views/navigation", () => ({ useNavigation: () => ({ push: mocks.push }) }));
 vi.mock("@uniwork/views/office", () => ({
   DocxOpenSwitch: (props: { organizationId?: string; docsFrame: ReactNode; fallback: ReactNode }) => {
@@ -32,23 +31,17 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
-  vi.unstubAllEnvs();
 });
 
 const mount = () => act(async () => {
-  root.render(createElement(DocxFrameOrG3Host, { document: doc, wsId: "ws-1", readonly: false, className: "c", fallback: createElement("b", { "data-testid": "g3" }) }));
+  root.render(createElement(DocxFrameOrG3Host, {
+    document: doc, wsId: "ws-1", readonly: false, className: "c", frameVersion: "0.1.0-abc1234",
+    documentHref: (id: string) => `/acme/ops/documents/${id}`, fallback: createElement("b", { "data-testid": "g3" }),
+  }));
 });
 
 describe("DocxFrameOrG3Host", () => {
-  it("is the G3 editor alone, and asks no flag, when no frame build is pinned", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "");
-    await mount();
-    expect(container.querySelector('[data-testid="g3"]')).not.toBeNull();
-    expect(mocks.switchProps).not.toHaveBeenCalled();
-  });
-
   it("hands the switch the document's organization and the pinned version for the frame", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "0.1.0-abc1234");
     await mount();
     expect(mocks.switchProps.mock.calls[0]![0].organizationId).toBe("org-1");
     expect(mocks.frameProps).toHaveBeenCalledWith(expect.objectContaining({
@@ -59,8 +52,7 @@ describe("DocxFrameOrG3Host", () => {
     expect(container.querySelector('[data-testid="g3"]')).not.toBeNull();
   });
 
-  it("follows a save-as copy by navigating to the new document in the same workspace", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "0.1.0-abc1234");
+  it("follows a save-as copy by navigating to the document route the app layer gave it", async () => {
     await mount();
     (mocks.frameProps.mock.calls[0]![0] as { onSavedAs: (id: string) => void }).onSavedAs("copy-9");
     expect(mocks.push).toHaveBeenCalledWith("/acme/ops/documents/copy-9");

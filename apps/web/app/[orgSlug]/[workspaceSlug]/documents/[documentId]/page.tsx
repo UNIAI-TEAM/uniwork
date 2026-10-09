@@ -6,7 +6,7 @@ import { useDocument } from "@uniwork/core/documents/hooks";
 import { paths } from "@uniwork/core/paths";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
-import { DocumentOfficeEditorHost } from "@/platform/office/document-office-host";
+import { DocumentOfficeEditorHost } from "@/platform/office-frame/document-host";
 import { useDocumentsTabTitle } from "@/platform/office/tab-title";
 
 // The detail view owns the lazy editor chunk; this route only reads params.
