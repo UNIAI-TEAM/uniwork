@@ -96,6 +96,13 @@ func New(d Deps, h Routes) http.Handler {
 			mw.CorrelationHeader,
 			telemetry.DebugTraceHeader,
 			meetings.GuestSessionHeader,
+			// Vendor headers the BYOK proxy forwards (provider/byok_client.go); a
+			// browser caller needs them in the preflight or the fetch never leaves.
+			"Anthropic-Beta",
+			"Openai-Organization",
+			"Openai-Project",
+			"Http-Referer",
+			"X-Title",
 		},
 		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After"},
 		AllowCredentials: true,

@@ -48,7 +48,7 @@ func TestAICloudAnalyzeRefusesTypesOutsideTheAllowlist(t *testing.T) {
 		res, out := doJSON(t, w.srv, "POST", w.path("/media/analyze"), w.member, map[string]any{
 			"requirements": "mô tả", "media": []any{map[string]any{"mime": mime, "data_base64": cloudPNG}},
 		})
-		if res.StatusCode != 422 || out["code"] != "media_unsupported" {
+		if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "media_unsupported" {
 			t.Errorf("mime %.30q: %d %v", mime, res.StatusCode, out)
 		}
 	}

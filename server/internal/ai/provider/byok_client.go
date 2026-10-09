@@ -348,6 +348,8 @@ var blockedPrefixes = func() []netip.Prefix {
 		"192.0.0.0/24",       // IETF protocol assignments
 		"198.18.0.0/15",      // benchmarking
 		"240.0.0.0/4",        // reserved, incl. broadcast
+		"224.0.0.0/4",        // group addresses (v4)
+		"ff00::/8",           // group addresses (v6), incl. link- and interface-local scopes
 		"64:ff9b::/96",       // NAT64: embeds an IPv4 address
 		"64:ff9b:1::/48",     // local-use NAT64
 		"2002::/16",          // 6to4: embeds an IPv4 address
@@ -366,13 +368,13 @@ var blockedPrefixes = func() []netip.Prefix {
 	return out
 }()
 
-// blockedAddr: loopback, private, link-local, CGNAT, multicast,
+// blockedAddr: loopback, private, link-local, CGNAT, group addresses,
 // unspecified and the reserved ranges above, v4 and v6 (v4-mapped v6 is
 // judged as the v4 it carries).
 func blockedAddr(ip netip.Addr) bool {
 	ip = ip.Unmap()
 	if !ip.IsValid() || ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
-		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() || ip.IsMulticast() {
+		ip.IsLinkLocalUnicast() {
 		return true
 	}
 	for _, p := range blockedPrefixes {
