@@ -124,23 +124,13 @@ func (s *ChatService) ToggleChatMessagePin(
 	}); err != nil {
 		return ChatMessageRow{}, err
 	}
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
-		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ChatMessageRow{}, ErrNotFound
-	}
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	meta, pinned, err := togglePinInMetadata(msg.Metadata)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	updated, err := s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, Metadata: meta,
-	})
+	var pinned bool
+	updated, err := s.mutateChatMessageMetadata(ctx, messageID, roomID, roomAnchorWorkspaceID(room),
+		func(msg db.ChatMessage) ([]byte, error) {
+			meta, p, err := togglePinInMetadata(msg.Metadata)
+			pinned = p
+			return meta, err
+		})
 	if err != nil {
 		return ChatMessageRow{}, err
 	}

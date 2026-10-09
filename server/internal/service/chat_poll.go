@@ -3,12 +3,10 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -231,25 +229,36 @@ func (s *ChatService) VoteChatPollMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
-		ID: messageID, RoomID: room.ID, WorkspaceID: anchorWS,
-	})
+	updated, err := s.mutateChatMessageMetadata(ctx, messageID, room.ID, roomAnchorWorkspaceID(room),
+		func(msg db.ChatMessage) ([]byte, error) { return applyPollVote(msg, userID, optionID) })
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ChatMessageRow{}, ErrNotFound
-		}
 		return ChatMessageRow{}, err
 	}
+	u, err := s.q.GetUserByID(ctx, updated.SenderID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	s.publishChatRoomEvent(ctx, room.ID, Event{
+		Type: "chat.message.updated",
+		Payload: map[string]string{
+			"room_id":    room.ID,
+			"message_id": updated.ID,
+		},
+	})
+	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
+}
+
+// applyPollVote toggles userID's vote for optionID and returns the new metadata.
+func applyPollVote(msg db.ChatMessage, userID, optionID string) ([]byte, error) {
 	if msg.Kind != chatMessageKindPoll {
-		return ChatMessageRow{}, Invalid("tin nhắn không phải bình chọn")
+		return nil, Invalid("tin nhắn không phải bình chọn")
 	}
 	meta := decodeChatMessageMetadata(msg.Metadata)
 	if meta.Poll == nil {
-		return ChatMessageRow{}, Invalid("dữ liệu bình chọn không hợp lệ")
+		return nil, Invalid("dữ liệu bình chọn không hợp lệ")
 	}
 	if pollIsExpired(meta.Poll.Settings, time.Now()) {
-		return ChatMessageRow{}, Invalid("bình chọn đã kết thúc")
+		return nil, Invalid("bình chọn đã kết thúc")
 	}
 
 	userKey := strings.ToUpper(strings.TrimSpace(userID))
@@ -265,7 +274,7 @@ func (s *ChatService) VoteChatPollMessage(
 		}
 	}
 	if !optionExists {
-		return ChatMessageRow{}, Invalid("lựa chọn không hợp lệ")
+		return nil, Invalid("lựa chọn không hợp lệ")
 	}
 
 	nextVotes := previous
@@ -313,26 +322,5 @@ func (s *ChatService) VoteChatPollMessage(
 		meta.Poll.VotesByUser[userKey] = nextVotes
 	}
 
-	updatedMeta, err := json.Marshal(meta)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	updated, err := s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: updatedMeta,
-	})
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	u, err := s.q.GetUserByID(ctx, msg.SenderID)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	s.publishChatRoomEvent(ctx, room.ID, Event{
-		Type: "chat.message.updated",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	})
-	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
+	return json.Marshal(meta)
 }

@@ -601,23 +601,10 @@ func (s *ChatService) ToggleChatMessageReaction(
 	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
-		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ChatMessageRow{}, ErrNotFound
-	}
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	meta, err := toggleReactionInMetadata(msg.Metadata, userID, emoji)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	updated, err := s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, Metadata: meta,
-	})
+	updated, err := s.mutateChatMessageMetadata(ctx, messageID, roomID, roomAnchorWorkspaceID(room),
+		func(msg db.ChatMessage) ([]byte, error) {
+			return toggleReactionInMetadata(msg.Metadata, userID, emoji)
+		})
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -627,6 +614,41 @@ func (s *ChatService) ToggleChatMessageReaction(
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
 	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
+}
+
+// mutateChatMessageMetadata rewrites a message's metadata under a row lock, so
+// concurrent reactions, votes and pins build on each other instead of
+// overwriting. mutate must not use the pool: it runs while the lock is held.
+func (s *ChatService) mutateChatMessageMetadata(
+	ctx context.Context, messageID, roomID, workspaceID string,
+	mutate func(db.ChatMessage) ([]byte, error),
+) (db.ChatMessage, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.ChatMessage{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	msg, err := q.GetChatMessageInRoomForUpdate(ctx, db.GetChatMessageInRoomForUpdateParams{
+		ID: messageID, RoomID: roomID, WorkspaceID: workspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ChatMessage{}, ErrNotFound
+	}
+	if err != nil {
+		return db.ChatMessage{}, err
+	}
+	meta, err := mutate(msg)
+	if err != nil {
+		return db.ChatMessage{}, err
+	}
+	updated, err := q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
+		ID: messageID, RoomID: roomID, WorkspaceID: workspaceID, Metadata: meta,
+	})
+	if err != nil {
+		return db.ChatMessage{}, err
+	}
+	return updated, tx.Commit(ctx)
 }
 
 func chatMessageRowFromDB(msg db.ChatMessage, senderDisplayName string) ChatMessageRow {

@@ -777,6 +777,46 @@ func (q *Queries) GetChatMessageInRoom(ctx context.Context, arg GetChatMessageIn
 	return i, err
 }
 
+const getChatMessageInRoomForUpdate = `-- name: GetChatMessageInRoomForUpdate :one
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id FROM chat_messages
+WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
+FOR UPDATE
+`
+
+type GetChatMessageInRoomForUpdateParams struct {
+	ID          string `json:"id"`
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+// Locks the row so a metadata read-modify-write cannot lose a concurrent one.
+func (q *Queries) GetChatMessageInRoomForUpdate(ctx context.Context, arg GetChatMessageInRoomForUpdateParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, getChatMessageInRoomForUpdate, arg.ID, arg.RoomID, arg.WorkspaceID)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+		&i.ThreadRootID,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
 const getChatRoomByID = `-- name: GetChatRoomByID :one
 SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms WHERE id = $1
 `

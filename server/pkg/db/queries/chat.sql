@@ -149,6 +149,12 @@ INSERT INTO chat_messages (
 SELECT * FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL;
 
+-- name: GetChatMessageInRoomForUpdate :one
+-- Locks the row so a metadata read-modify-write cannot lose a concurrent one.
+SELECT * FROM chat_messages
+WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
+FOR UPDATE;
+
 -- name: UpdateChatMessageMetadata :one
 UPDATE chat_messages
 SET metadata = $4
