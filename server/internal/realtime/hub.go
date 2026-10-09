@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -268,6 +269,8 @@ type Client struct {
 	// subscriptions is guarded by hub.mu. Tracks the scopes this client is
 	// currently in. Used to clean up rooms on disconnect.
 	subscriptions map[scopeKey]bool
+	// sendClosed is guarded by hub.mu and set when the hub closes send.
+	sendClosed bool
 
 	// lastSeenEventIDs is used by the dual-write broadcaster (and any
 	// future deliverer) to dedup messages that arrived first via the local
@@ -449,6 +452,7 @@ func (h *Hub) removeClient(client *Client) {
 		}
 	}
 	close(client.send)
+	client.sendClosed = true
 	cb := h.onLastSubscriber
 	total := len(h.clients)
 	h.mu.Unlock()
@@ -735,7 +739,13 @@ func (h *Hub) evictSlow(slow []*Client) {
 		released = append(released, held)
 		c.subscriptions = nil
 		close(c.send)
+		c.sendClosed = true
 		evicted++
+		// Otherwise the read side lives on until the write deadline, still
+		// taking frames from a socket the hub has already dropped.
+		if c.conn != nil {
+			_ = c.conn.Close()
+		}
 	}
 	cb := h.onLastSubscriber
 	h.mu.Unlock()
@@ -958,8 +968,18 @@ type subPayload struct {
 	ID    string `json:"id"`
 }
 
+// recoverPump keeps a panic in one socket's pump from killing the process:
+// it is logged, and the pump's own cleanup tears down that socket only.
+func (c *Client) recoverPump(pump string) {
+	if r := recover(); r != nil {
+		slog.Error("ws: pump panic", "pump", pump, "panic", r, "stack", string(debug.Stack()),
+			"user_id", c.userID, "workspace_id", c.workspaceID)
+	}
+}
+
 func (c *Client) readPump() {
 	defer func() {
+		c.recoverPump("read")
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
@@ -1112,10 +1132,18 @@ func (c *Client) handleUnsubscribe(scope, id string) {
 
 // sendJSON best-effort encodes v and pushes it to the client's send channel.
 // Drops the message if the channel is full (the writePump will be evicted by
-// the next BroadcastToScope cycle).
+// the next BroadcastToScope cycle) or the hub has already dropped the client.
+// The hub closes send under its write lock, so checking sendClosed under the
+// read lock makes the send safe: the read pump of an evicted socket can still
+// be handling a frame (C1: a send on the closed channel crashed the process).
 func (c *Client) sendJSON(v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
+		return
+	}
+	c.hub.mu.RLock()
+	defer c.hub.mu.RUnlock()
+	if c.sendClosed {
 		return
 	}
 	select {
@@ -1130,6 +1158,7 @@ func (c *Client) writePump() {
 	// WebSocket control frames. Interval stays under the observed cut.
 	appKeepalive := time.NewTicker(25 * time.Second)
 	defer func() {
+		c.recoverPump("write")
 		ticker.Stop()
 		appKeepalive.Stop()
 		c.conn.Close()
