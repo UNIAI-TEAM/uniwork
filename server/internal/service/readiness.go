@@ -10,23 +10,27 @@ import (
 	"github.com/unicomhub/uniwork/server/migrations"
 )
 
-// Readiness answers /readyz (spec F-11 §6.4): the database answers within
-// readinessTimeout, Redis pings when configured, the schema is at the
-// version this binary embeds, and - once a storage adapter is wired - the
-// storage destination still answers. /healthz stays a bare liveness answer:
-// losing storage must never restart-loop the process (spec §3.3.5).
+// Readiness answers /readyz (spec F-11 §6.4). Only the database gates it:
+// the db answers within readinessTimeout and its schema is not older than
+// the version this binary embeds. Redis and - once a storage adapter is
+// wired - the storage destination are probed and reported, but their failure
+// leaves the node ready: with one API pod, a Redis or S3 blip must degrade
+// the features that need them, not pull every route out of the Service (H14).
+// /healthz stays a bare liveness answer.
 type Readiness struct {
 	pool    *pgxpool.Pool
 	rdb     *redis.Client
 	storage StorageProber
 }
 
-const readinessTimeout = 500 * time.Millisecond
+// readinessTimeout bounds the db and schema checks. It is generous on
+// purpose: a pool briefly saturated under load is still a working node, and
+// the kubelet readinessProbe timeout in deploy/ sits above it.
+const readinessTimeout = 2 * time.Second
 
-// storageProbeTimeout is the storage check's own deadline, smaller than the
-// overall readiness budget so a slow endpoint cannot starve the db or schema
-// checks. The probe itself is cheap - a HeadBucket / stat - never an upload
-// or a delete (spec §3.3.5).
+// storageProbeTimeout bounds each advisory check (Redis, storage), so a slow
+// dependency adds little to the probe. The storage probe itself is cheap - a
+// HeadBucket / stat - never an upload or a delete (spec §3.3.5).
 const storageProbeTimeout = 300 * time.Millisecond
 
 // StorageProber is the narrow capability the wired storage adapter exposes to
@@ -60,7 +64,8 @@ type ReadinessCheck struct {
 	Detail string `json:"detail,omitempty"`
 }
 
-// ReadinessReport is the whole answer; Ready is false when any check fails.
+// ReadinessReport is the whole answer; Ready is false when the db or
+// migrations check fails. A failing redis or storage check is advisory.
 type ReadinessReport struct {
 	Ready  bool             `json:"ready"`
 	Checks []ReadinessCheck `json:"checks"`
@@ -74,7 +79,9 @@ func (r *Readiness) Check(ctx context.Context) ReadinessReport {
 		c := ReadinessCheck{Name: name, OK: err == nil, Detail: detail}
 		if err != nil {
 			c.Detail = err.Error()
-			rep.Ready = false
+			if name == "db" || name == "migrations" {
+				rep.Ready = false
+			}
 		}
 		rep.Checks = append(rep.Checks, c)
 	}
@@ -86,12 +93,14 @@ func (r *Readiness) Check(ctx context.Context) ReadinessReport {
 	var one int
 	add("db", r.pool.QueryRow(ctx, "SELECT 1").Scan(&one), "")
 	applied, err := migrations.Applied(ctx, r.pool)
-	if err == nil && applied != migrations.Latest() {
+	if err == nil && migrations.Behind(applied) {
 		err = errMigrationDrift{applied: applied, latest: migrations.Latest()}
 	}
 	add("migrations", err, applied)
 	if r.rdb != nil {
-		add("redis", r.rdb.Ping(ctx).Err(), "")
+		rctx, cancel := context.WithTimeout(ctx, storageProbeTimeout)
+		add("redis", r.rdb.Ping(rctx).Err(), "")
+		cancel()
 	}
 	if r.storage != nil {
 		sctx, cancel := context.WithTimeout(ctx, storageProbeTimeout)

@@ -162,3 +162,5 @@ spec:
             httpGet: { path: /readyz, port: http }
             initialDelaySeconds: 5
             periodSeconds: 5
+            # Above the server's 2s db budget plus the bounded advisory checks.
+            timeoutSeconds: 3

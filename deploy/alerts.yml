@@ -35,7 +35,7 @@ groups:
           severity: "1"
         annotations:
           summary: "/readyz trả 503 quá 2 phút"
-          description: "Blackbox probe GET /readyz của uniwork-api thất bại liên tục 2 phút: DB, Redis hoặc migration đang lệch."
+          description: "Blackbox probe GET /readyz của uniwork-api thất bại liên tục 2 phút: DB không trả lời hoặc schema cũ hơn binary."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/ReadinessFailing.md
 
       # Per route, so one throttled path stands out from the total. The global
