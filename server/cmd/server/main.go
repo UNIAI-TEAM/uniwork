@@ -466,6 +466,18 @@ func main() {
 		log.Warn("connected calendars disabled", "err", err)
 	}
 	calendarConnectionSvc := service.NewCalendarConnectionService(pool, q, wsSvc, calendarBox, cfg)
+	// Personal AI provider keys (ADR 0029): without AI_CREDENTIAL_KEY the
+	// server still boots and the credential routes answer 503.
+	var aiCredentialBox *secretbox.Box
+	if key, err := secretbox.LoadKey("AI_CREDENTIAL_KEY"); err == nil {
+		aiCredentialBox, err = secretbox.New(key)
+		if err != nil {
+			log.Warn("AI provider credentials disabled", "err", err)
+		}
+	} else if os.Getenv("AI_CREDENTIAL_KEY") != "" {
+		log.Warn("AI provider credentials disabled", "err", err)
+	}
+	aiCredentialSvc := service.NewAICredentialService(pool, q, orgSvc, service.NewEntitlementService(pool, q), aiCredentialBox)
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
@@ -506,6 +518,7 @@ func main() {
 		FileAccess:          fileAccess,
 		Documents:           docSvc,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
+		AICredentials:       aiCredentialSvc,
 		OfficeLaunch:        officeLaunchSvc,
 		Office:              officeSvc,
 		Preview:             previewSvc,

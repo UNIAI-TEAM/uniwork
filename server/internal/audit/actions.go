@@ -185,6 +185,12 @@ const (
 	ActionSignatureCreated = "signature.created"
 	ActionSignatureDeleted = "signature.deleted"
 
+	// Personal AI provider credentials (UNI-1008, ADR 0029). Only the owner's
+	// own settings read them, so they audit without an outbox event; the
+	// metadata names the provider, never the key.
+	ActionAICredentialSaved   = "ai.credential.saved"
+	ActionAICredentialDeleted = "ai.credential.deleted"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"
