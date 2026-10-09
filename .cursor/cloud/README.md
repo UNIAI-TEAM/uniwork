@@ -171,9 +171,10 @@ node <same>/cloud-runner.mjs close        # when the lane is done
   `xvfb-run --auto-servernum -- npm run test:e2e`. CI's `cargo-deny` license
   step is not installed on the VM.
 
-Cost per round (Grok 4.6 high): a fresh fork VM (provision + `npm ci`) and a
-warm round are listed in the trial below; uniwork rounds cost the same as
-before (fresh VM about 12 cents, warm about 5).
+Cost per round (Grok 4.6 high, measured 2026-10-09): fork, fresh VM in clone
+mode (clone + provision + `npm ci` + Playwright, 117 s) 11.4 cents, warm round
+about 20 s and 5.2-5.6 cents; uniwork unchanged, fresh VM 12.3 cents (150 s),
+warm 5.2 cents (25 s).
 
 Linux hosts (the VPS) run the runner the same way: `CURSOR_API_KEY` comes from
 the environment, and every path the runner writes is built with `node:path`.
