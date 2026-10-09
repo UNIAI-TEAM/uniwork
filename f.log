@@ -1,0 +1,834 @@
+$ cd server && go test ./internal/service -count=1
+2026/10/09 06:15:30 WARN ai: byok vendor unreachable usage_event_id=01M4FMTVHQKY2AFSSK980V3ZDM provider=openai err="provider: vendor unreachable: connection failed"
+2026/10/09 06:15:36 INFO ai: call usage_event_id=01M4FMV131799GR6C6AM2QNV66 capability=chat_catchup latency_ms=0
+2026/10/09 06:15:37 INFO ai: call usage_event_id=01M4FMV2K2AW7F0X18MV3GF7Z5 capability=copilot_answer latency_ms=0
+2026/10/09 06:15:37 INFO ai: call usage_event_id=01M4FMV2KG76SV2NHC9YG7R6MG capability=copilot_answer latency_ms=0
+2026/10/09 06:15:38 INFO ai: call usage_event_id=01M4FMV39W9VTZQF1K7QAMA5JE capability=copilot_answer latency_ms=0
+2026/10/09 06:15:40 INFO ai: call usage_event_id=01M4FMV59ERM91F8E6DK5198N0 capability=copilot_answer latency_ms=0
+2026/10/09 06:16:51 WARN audit export: losing duplicate upload not canceled export=01M4FMXA5KTS671ZXQX02VMYFS err="file \"01M4FMXA5PXJCCR87K7A3V8RB8\" is already claimed"
+2026/10/09 06:16:51 WARN audit export: losing duplicate upload not canceled export=01M4FMXB0DJBFDNAY9W5HM4N7K err="file \"01M4FMXB0GXBJQ4TWSEPPBJ2WG\" is already claimed"
+2026/10/09 06:16:54 WARN audit export expiry: release export=01M4FMXD52KXA0T4EV68KDK0V2 err="file storage is unavailable"
+2026/10/09 06:18:12 WARN presence: beat not recorded error="presence store down" workspace_id=WS1 user_id=U1
+2026/10/09 06:18:12 WARN presence: leave not recorded error="presence store down" workspace_id=WS1 user_id=U1
+2026/10/09 06:18:12 WARN presence: sweep failed error="presence store down"
+2026/10/09 06:18:52 INFO ai: call usage_event_id=01M4FN112Y1RRN46P4H9YWSDS5 capability=chat_call_summary latency_ms=0
+2026/10/09 06:19:09 WARN document access log write failed document=01M4FN1HN4ZW5FNRZ6AAHQKPQ8 action=download correlation_id="" err="context canceled"
+2026/10/09 06:19:21 INFO local storage adapter ready dir=/tmp/TestDocumentCommitlocal4075097094/001
+2026/10/09 06:19:23 INFO local storage adapter ready dir=/tmp/TestDocumentCopylocal1329499780/001
+2026/10/09 06:19:27 INFO local storage adapter ready dir=/tmp/TestDocumentUploadlocal1429233510/001
+2026/10/09 06:19:29 INFO local storage adapter ready dir=/tmp/TestDocumentIdempotencylocal2380730805/001
+2026/10/09 06:19:31 INFO local storage adapter ready dir=/tmp/TestDocumentQuotalocal24618014/001
+2026/10/09 06:19:32 INFO local storage adapter ready dir=/tmp/TestDocumentReferenceslocal3247444640/001
+2026/10/09 06:19:32 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=2 retry=0 quarantined=0 aborted=0
+2026/10/09 06:19:36 WARN documents purge: row failed, next sweep retries document=01M4FN2B7W11TB59CXMWQHPPS0 err="files: release refused (test)"
+2026/10/09 06:19:38 INFO local storage adapter ready dir=/tmp/TestDocumentUploadQuotaRejectIsCountedlocal3932291843/001
+2026/10/09 06:19:45 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeCommitlocal2349938451/001
+2026/10/09 06:19:59 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeQ7local3151140039/001
+2026/10/09 06:20:01 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeEngineRollbacklocal854254009/001
+2026/10/09 06:20:06 INFO local storage adapter ready dir=/tmp/TestDocumentOfficeViewerOpenlocal502465350/001
+2026/10/09 06:20:27 WARN email hub mark read imap failed thread_id=01M4FN3X4KHCED660PDEP97A53 err="imap dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:20:27 WARN email hub mark starred imap failed thread_id=01M4FN3X4KHCED660PDEP97A53 err="imap dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:20:31 WARN email hub fetch body failed thread_id=01M4FN41DYJRPAJ4YY25JADAV6 err="imap dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:20:32 WARN email hub imap search failed account_id=01M4FN42QKEA1H0B6A8QWAFHCZ folder=INBOX err="imap dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:20:32 WARN email hub imap search failed account_id=01M4FN42QKEA1H0B6A8QWAFHCZ folder=SENT err="imap dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:20:32 WARN email hub imap search failed account_id=01M4FN42QKEA1H0B6A8QWAFHCZ folder=ARCHIVE err="imap dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:20:34 WARN email hub send failed account_id=01M4FN448YDB5AAK2M4ZAXYSR8 err="smtp dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:20:35 WARN email hub mark read imap failed thread_id=01M4FN44ZFBK4RRWPYN806YPFV err="imap dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:20:37 WARN email hub mark starred imap failed thread_id=01M4FN47EQZBVB8M3YPFCPAPNX err="imap dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:20:43 WARN email hub send failed account_id=01M4FN4CWK341C9NC5W9HFFT44 err="smtp dial: dial tcp 127.0.0.1:1: connect: connection refused"
+2026/10/09 06:21:05 INFO event retention sweep outbox_done=3 outbox_dead=1 webhook_inbox=2 provider_events=1
+2026/10/09 06:21:07 INFO local storage adapter ready dir=/tmp/TestFileGCUnderKeyRoot3842478736/001
+2026/10/09 06:21:07 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=4 aborted=0
+2026/10/09 06:21:07 INFO local storage adapter ready dir=/tmp/TestFileGCDefaultIsDryRunAndWritesNothing813094190/001
+2026/10/09 06:21:07 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=1 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:08 INFO local storage adapter ready dir=/tmp/TestFileGCOffDoesNothing3711132023/001
+2026/10/09 06:21:09 INFO local storage adapter ready dir=/tmp/TestFileGCCancelDoesNotResetAge3800797204/001
+2026/10/09 06:21:09 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:09 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:10 INFO local storage adapter ready dir=/tmp/TestFileGCExpiresUnclaimedUploads1984525772/001
+2026/10/09 06:21:10 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:10 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:11 INFO local storage adapter ready dir=/tmp/TestFileGCLastReferenceGone2912857436/001
+2026/10/09 06:21:11 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:11 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/09 06:21:11 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:12 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierClaimWins1292771894/001
+2026/10/09 06:21:12 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:12 INFO local storage adapter ready dir=/tmp/TestFileGCBarrierGCWins176517214/001
+2026/10/09 06:21:12 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:13 INFO local storage adapter ready dir=/tmp/TestFileGCCancelVersusSave500235463/001
+2026/10/09 06:21:13 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:14 INFO local storage adapter ready dir=/tmp/TestFileGCTwoWorkers3619590485/001
+2026/10/09 06:21:14 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:15 INFO local storage adapter ready dir=/tmp/TestFileGCCrashAfterBarrierResumes1064169839/001
+2026/10/09 06:21:15 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:15 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:15 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:15 INFO local storage adapter ready dir=/tmp/TestFileGCDeleteFailureKeepsJoberror1463225733/001
+2026/10/09 06:21:15 WARN files gc: object delete failed, file kept deleting file=01M4FN5CRN796HQ64C5PEQDFPN code=storage_unavailable err="test: storage adapter is down"
+2026/10/09 06:21:15 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/09 06:21:15 WARN files gc: object delete failed, file kept deleting file=01M4FN5CRN796HQ64C5PEQDFPN code=storage_unavailable err="test: storage adapter is down"
+2026/10/09 06:21:15 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/09 06:21:15 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:16 INFO local storage adapter ready dir=/tmp/TestFileGCDeleteFailureKeepsJobobject_lock3553800879/001
+2026/10/09 06:21:16 WARN files gc: object delete failed, file kept deleting file=01M4FN5DJ2B190D02NEDJEX6QK code=object_still_present err="files: object still present after delete"
+2026/10/09 06:21:16 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/09 06:21:16 WARN files gc: object delete failed, file kept deleting file=01M4FN5DJ2B190D02NEDJEX6QK code=object_still_present err="files: object still present after delete"
+2026/10/09 06:21:16 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/09 06:21:16 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:17 INFO local storage adapter ready dir=/tmp/TestFileGCProviderErrorAbortsBatch2451147468/001
+2026/10/09 06:21:17 WARN files gc: batch aborted, every file kept jobs=2 err="files: gc batch aborted: files: provider test.holds: provider down"
+2026/10/09 06:21:17 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=2
+2026/10/09 06:21:17 INFO files gc: sweep finished mode=destructive deleted=2 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:18 INFO local storage adapter ready dir=/tmp/TestFileGCMissingProviderDeletesNothing1198201722/001
+2026/10/09 06:21:18 WARN files gc: reference coverage gap, cleanup jobs left untouched err="files: reference providers do not cover every file id column: audit_exports.file_id has no provider \"audit.exports\"; chat_messages.file_id has no provider \"chat.messages\"; document_assets.file_id has no provider \"documents.assets\"; document_versions.file_id has no provider \"documents.versions\"; office_jobs.output_file_id has no provider \"office.jobs\""
+2026/10/09 06:21:18 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:18 INFO local storage adapter ready dir=/tmp/TestFileGCHoldReasonsAndSoftDeleteRestore2042322377/001
+2026/10/09 06:21:19 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:19 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:19 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:19 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:19 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:19 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:20 INFO local storage adapter ready dir=/tmp/TestFileGCTwoReferences208162111/001
+2026/10/09 06:21:20 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=1 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:20 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:20 INFO local storage adapter ready dir=/tmp/TestFileGCDiscoversUnreleasedGarbage4011366529/001
+2026/10/09 06:21:20 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:20 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:21 INFO local storage adapter ready dir=/tmp/TestFileGCCrossTenantQuarantines3907299083/001
+2026/10/09 06:21:21 WARN files gc: cross-tenant reference, file quarantined file=01M4FN5JAP4VK7NN9VPRZEBSD7 source=users.avatar_file_id
+2026/10/09 06:21:21 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=2 aborted=0
+2026/10/09 06:21:22 INFO local storage adapter ready dir=/tmp/TestFileGCNeverDeletesLegacyG0OrSharedObjects3338231417/001
+2026/10/09 06:21:22 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=6 aborted=0
+2026/10/09 06:21:23 INFO local storage adapter ready dir=/tmp/TestFileGCWorkerRunsOncePerDay4177256697/001
+2026/10/09 06:21:23 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:23 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:23 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:24 INFO local storage adapter ready dir=/tmp/TestFileGCConfigRejectsDuplicateProviders1098184932/001
+2026/10/09 06:21:24 INFO local storage adapter ready dir=/tmp/TestFileGCVersionedBucketDeletesOnlyTheRecordedVersion972525093/001
+2026/10/09 06:21:24 WARN files gc: object delete failed, file kept deleting file=01M4FN5NJPC2HV1V2Q5GV5HGXA code=storage_version_required err="files: gc refuses an unversioned delete on a versioned bucket"
+2026/10/09 06:21:24 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=1 quarantined=0 aborted=0
+2026/10/09 06:21:24 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:25 INFO local storage adapter ready dir=/tmp/TestObjectKeysCarryTheEnvRootlocal3152252140/001
+2026/10/09 06:21:26 INFO local storage adapter ready dir=/tmp/TestNewFileServiceRefusesAnUnsafeKeyRoot3780862435/001
+2026/10/09 06:21:27 INFO local storage adapter ready dir=/tmp/TestOpenServesAPresignPurpose199798501/001
+2026/10/09 06:21:28 INFO local storage adapter ready dir=/tmp/TestFileReconcileAbandonedUploadIntent3832529954/001
+2026/10/09 06:21:28 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:28 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:28 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:28 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:29 INFO local storage adapter ready dir=/tmp/TestFileReconcileDryRunWritesNothing4188229923/001
+2026/10/09 06:21:29 INFO files gc: sweep finished mode=dry_run deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:29 INFO local storage adapter ready dir=/tmp/TestFileReconcileProviderOutputLateCompletion4234559544/001
+2026/10/09 06:21:29 WARN files gc: provider output missing after its deadline; kept for confirmation file=01M4FN5TDWEA41SZ78RXFCYNHN
+2026/10/09 06:21:29 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=1 aborted=0
+2026/10/09 06:21:29 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:30 INFO local storage adapter ready dir=/tmp/TestFileReconcileActiveRecordingIsNotExpired2989909687/001
+2026/10/09 06:21:30 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:31 INFO local storage adapter ready dir=/tmp/TestFileReconcileMissingObjectKeepsReference2019867311/001
+2026/10/09 06:21:31 WARN files gc: ready file has no object; references kept, recovery needed file=01M4FN5W8MNE0Q0QFRNBE8RDAD
+2026/10/09 06:21:31 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=1 aborted=0
+2026/10/09 06:21:32 INFO local storage adapter ready dir=/tmp/TestFileReconcileKeepsAbortMultipartIntent3559857279/001
+2026/10/09 06:21:32 WARN files gc: multipart abort is not supported by the adapter; intent kept file=01M4FN5WWV1AYNYJN18AZ1SPK7
+2026/10/09 06:21:32 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=1 aborted=0
+2026/10/09 06:21:33 INFO local storage adapter ready dir=/tmp/TestFileGCSweepsStaleSpoolFiles3784180615/001
+2026/10/09 06:21:33 INFO files gc: sweep finished mode=destructive deleted=0 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:33 INFO local storage adapter ready dir=/tmp/TestFileReconcileTombstoneDeletesTheLateVersion894396364/001
+2026/10/09 06:21:33 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:33 INFO files gc: sweep finished mode=destructive deleted=1 would_delete=0 held=0 retry=0 quarantined=0 aborted=0
+2026/10/09 06:21:35 INFO local storage adapter ready dir=/tmp/TestResolveUploadsIsTheCallersStagedFilesOnly3626757276/001
+2026/10/09 06:21:36 INFO local storage adapter ready dir=/tmp/TestResolveUploadsGateAndValidation1831579391/001
+2026/10/09 06:21:37 INFO local storage adapter ready dir=/tmp/TestProxyTicketIsCappedByClaimWindowAndAuthSession2935803599/001
+2026/10/09 06:21:38 INFO local storage adapter ready dir=/tmp/TestResolveUploadsPresignPurposeNamesStorage1320046386/001
+2026/10/09 06:21:39 INFO local storage adapter ready dir=/tmp/TestResolveUploadsReportsRevokedAndDeletingFiles1172168956/001
+2026/10/09 06:21:40 INFO local storage adapter ready dir=/tmp/TestAuthorizeContentChecksEveryRequest1173738383/001
+2026/10/09 06:21:41 INFO local storage adapter ready dir=/tmp/TestAuthorizeContentFollowsSessionAndMembership3906113186/001
+2026/10/09 06:21:42 INFO local storage adapter ready dir=/tmp/TestAuthorizeContentExpiresAndFollowsTheFile1845259850/001
+2026/10/09 06:21:42 INFO local storage adapter ready dir=/tmp/TestResolveUploadsQueriesDoNotGrowWithTheBatch628884857/001
+2026/10/09 06:21:43 INFO local storage adapter ready dir=/tmp/TestResolveKeepsOrderDuplicatesAndPerIDErrors999225647/001
+2026/10/09 06:21:44 INFO local storage adapter ready dir=/tmp/TestResolveIsolatesTenantsWorkspacesAndTheAvatarBranch3110735339/001
+2026/10/09 06:21:45 INFO local storage adapter ready dir=/tmp/TestResolveSessionStatesAreRefusedPerID1897457226/001
+2026/10/09 06:21:46 INFO local storage adapter ready dir=/tmp/TestResolveModeMismatchFailsTheWholeBatch1322895736/001
+2026/10/09 06:21:47 INFO local storage adapter ready dir=/tmp/TestPresignTTLIsCappedByTwelveHoursClaimWindowAndCredential997725679/001
+2026/10/09 06:21:48 INFO local storage adapter ready dir=/tmp/TestPresignDispositionComesFromTheSharedFilename960278070/001
+2026/10/09 06:21:48 INFO local storage adapter ready dir=/tmp/TestResolveManyIsOneQueryPerBatch1396433380/001
+2026/10/09 06:21:50 INFO local storage adapter ready dir=/tmp/TestOpenStreamsWindowsAndPastTheEnd4199410123/001
+2026/10/09 06:21:51 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalpurposeunknown_is_refused1576046826/001
+2026/10/09 06:21:52 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalpurposedisabled_is_refused10509067/001
+2026/10/09 06:21:52 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalscopemissing_and_extra_tenant_fiel423544070/001
+2026/10/09 06:21:53 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadready_result_carries_the_ver4140270291/001
+2026/10/09 06:21:54 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadchecksum_follows_the_policy254675381/001
+2026/10/09 06:21:55 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadover_cap_is_refused163914449/001
+2026/10/09 06:21:56 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploaddisallowed_type_is_refused1214625069/001
+2026/10/09 06:21:57 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadevery_allowlisted_type_is_ve2449526524/001
+2026/10/09 06:21:59 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadfilename_never_moves_bytes_t3138168161/001
+2026/10/09 06:22:00 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadpurpose_canonical_types_are_3023237652/001
+2026/10/09 06:22:01 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadidempotency_replay_returns_t285039533/001
+2026/10/09 06:22:02 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadidempotency_conflict_on_a_di2857958973/001
+2026/10/09 06:22:03 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocaluploadreplay_after_cancel_does_not4013771843/001
+2026/10/09 06:22:04 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalcancelrevokes_a_staged_upload_and_557099786/001
+2026/10/09 06:22:04 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalcancela_claimed_file_is_refused497720/001
+2026/10/09 06:22:05 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalcancelunknown_foreign_scope_and_fo892985553/001
+2026/10/09 06:22:06 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimready_file_is_attached_and_re2882179312/001
+2026/10/09 06:22:06 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimnot_ready_file_is_refused3693975608/001
+2026/10/09 06:22:07 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimwindow_is_24h_and_claimed_fil303067918/001
+2026/10/09 06:22:08 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimwindow_closes_exactly_at_the_1205123372/001
+2026/10/09 06:22:09 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimforeign_scope_and_wrong_purpo536103500/001
+2026/10/09 06:22:10 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimvalidates_purpose_and_scope_f3393501040/001
+2026/10/09 06:22:11 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimrollback_leaves_the_file_stag3496770665/001
+2026/10/09 06:22:12 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalclaimreplaces_locks_the_old_file_t256236147/001
+2026/10/09 06:22:12 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalreleaseunknown_id_is_not_found568827948/001
+2026/10/09 06:22:13 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalreleasecollected_files_are_refused985694053/001
+2026/10/09 06:22:14 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalreleaseafter_collecting_is_a_no_op4126937357/001
+2026/10/09 06:22:15 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalresolvepresign_and_proxy_follow_th2745201879/001
+2026/10/09 06:22:16 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalresolveper_id_errors_leave_the_res2936264793/001
+2026/10/09 06:22:16 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalresolveforeign_tenant_is_not_found2487111921/001
+2026/10/09 06:22:17 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalresolvemode_must_match_the_policy2722033099/001
+2026/10/09 06:22:18 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalprovideroutput_intent_is_idempoten2012807885/001
+2026/10/09 06:22:19 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalproviderwrite_target_carries_the_o1660760256/001
+2026/10/09 06:22:20 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalprovidercompleted_output_becomes_a1360380391/001
+2026/10/09 06:22:21 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalprovidercomplete_replays_and_check3881511436/001
+2026/10/09 06:22:22 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalproviderinvalid_output_is_refused4193406165/001
+2026/10/09 06:22:22 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalprovideroutput_that_disagrees_with1817768216/001
+2026/10/09 06:22:23 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalproviderstorage_unavailable_is_ref913377837/001
+2026/10/09 06:22:24 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalopenreads_bytes_and_range3288049054/001
+2026/10/09 06:22:24 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposepurposeunknown1451031512/001
+2026/10/09 06:22:25 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposepurposedisable2740475867/001
+2026/10/09 06:22:26 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposescopemissing_a1067272409/001
+2026/10/09 06:22:27 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadready_re1599132725/001
+2026/10/09 06:22:28 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadchecksum2633359897/001
+2026/10/09 06:22:28 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadover_cap92381667/001
+2026/10/09 06:22:29 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploaddisallow4191589987/001
+2026/10/09 06:22:30 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadevery_al1949250173/001
+2026/10/09 06:22:31 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadfilename1919771504/001
+2026/10/09 06:22:33 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadpurpose_1825840867/001
+2026/10/09 06:22:34 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadidempote1011842656/001
+2026/10/09 06:22:34 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadidempote2581423008/001
+2026/10/09 06:22:35 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeuploadreplay_a3301944676/001
+2026/10/09 06:22:36 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposecancelrevokes_410976316/001
+2026/10/09 06:22:36 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposecancela_claime2535167603/001
+2026/10/09 06:22:37 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposecancelunknown_3259084432/001
+2026/10/09 06:22:38 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimready_fil2276624554/001
+2026/10/09 06:22:39 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimnot_ready3847862731/001
+2026/10/09 06:22:40 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimwindow_is11474802/001
+2026/10/09 06:22:40 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimwindow_cl347548567/001
+2026/10/09 06:22:41 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimforeign_s2307329009/001
+2026/10/09 06:22:42 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimvalidates2167830705/001
+2026/10/09 06:22:43 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimrollback_1337559061/001
+2026/10/09 06:22:44 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeclaimreplaces_2348652748/001
+2026/10/09 06:22:45 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposereleaseunknown3354786016/001
+2026/10/09 06:22:46 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposereleasecollect1362050437/001
+2026/10/09 06:22:46 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposereleaseafter_c4023507477/001
+2026/10/09 06:22:47 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeresolvepresign3414874487/001
+2026/10/09 06:22:48 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeresolveper_id_1674629720/001
+2026/10/09 06:22:49 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeresolveforeign1816604881/001
+2026/10/09 06:22:50 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeresolvemode_mu1234885161/001
+2026/10/09 06:22:51 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeprovideroutput573807536/001
+2026/10/09 06:22:52 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeproviderwrite_361421529/001
+2026/10/09 06:22:53 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeprovidercomple2867714752/001
+2026/10/09 06:22:54 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeprovidercomple4269596873/001
+2026/10/09 06:22:55 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeproviderinvali3477682621/001
+2026/10/09 06:22:55 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeprovideroutput1872094228/001
+2026/10/09 06:22:56 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeproviderstorag930618772/001
+2026/10/09 06:22:57 INFO local storage adapter ready dir=/tmp/TestFileServiceContractLocalWithADisabledPurposeopenreads_byte9073736/001
+2026/10/09 06:22:57 INFO local storage adapter ready dir=/tmp/TestNewFileServiceRefusesBadWiring2850751772/001
+2026/10/09 06:22:58 INFO local storage adapter ready dir=/tmp/TestUploadRefusalsBeforeTheBodyHaveNoSideEffect3097580255/001
+2026/10/09 06:22:58 INFO local storage adapter ready dir=/tmp/TestUploadFraudIsRefusedWithoutStoringBytes3880508035/001
+2026/10/09 06:22:59 INFO local storage adapter ready dir=/tmp/TestUploadReplayNeverReadsTheBody2709967304/001
+2026/10/09 06:23:00 INFO local storage adapter ready dir=/tmp/TestUploadFailureBeforeAndAfterPut1632071510/001
+2026/10/09 06:23:01 INFO local storage adapter ready dir=/tmp/TestUploadDoesNotOpenASecondWriter4018571629/001
+2026/10/09 06:23:02 INFO local storage adapter ready dir=/tmp/TestCancelDuringUploadWins748041125/001
+2026/10/09 06:23:03 INFO local storage adapter ready dir=/tmp/TestClaimAndCancelRace1405948895/001
+2026/10/09 06:23:03 INFO local storage adapter ready dir=/tmp/TestMultiFileClaimIsAllOrNothing3740206505/001
+2026/10/09 06:23:04 INFO local storage adapter ready dir=/tmp/TestClaimRollbackRestoresTheSession4191061917/001
+2026/10/09 06:23:05 INFO local storage adapter ready dir=/tmp/TestClaimWindowEdgeAndReclaim3177047219/001
+2026/10/09 06:23:06 INFO local storage adapter ready dir=/tmp/TestChecksumFollowsThePolicy3219245394/001
+2026/10/09 06:23:07 INFO local storage adapter ready dir=/tmp/TestObjectKeysFollowTheLayout1434948433/001
+2026/10/09 06:23:07 INFO local storage adapter ready dir=/tmp/TestAvatarBranchIsUserBound1461497962/001
+2026/10/09 06:23:08 INFO local storage adapter ready dir=/tmp/TestSystemActorGoesThroughTheSameGrant2573785394/001
+2026/10/09 06:23:09 INFO local storage adapter ready dir=/tmp/TestQuotaRefusalIsRetryable1748460322/001
+2026/10/09 06:23:10 INFO local storage adapter ready dir=/tmp/TestProviderOutputNeedsASigner267619447/001
+2026/10/09 06:23:10 INFO local storage adapter ready dir=/tmp/TestFinalizeTakesTheFileLockFirst1343837908/001
+2026/10/09 06:23:22 INFO ai: call usage_event_id=01M4FN97Z8KQDCCS6TNPKMK0E6 capability=meeting_summarization latency_ms=0
+2026/10/09 06:23:22 INFO ai: call usage_event_id=01M4FN980CPC4AS0EKEEJ53D96 capability=meeting_summarization latency_ms=0
+2026/10/09 06:23:23 INFO ai: call usage_event_id=01M4FN98XRWE0J9ECPM4B41PV0 capability=meeting_summarization latency_ms=0
+2026/10/09 06:23:24 INFO ai: call usage_event_id=01M4FN99YN6TFAPGGFWBYE8NKC capability=meeting_summarization latency_ms=0
+2026/10/09 06:23:30 INFO ai: call usage_event_id=01M4FN9GA7CC8W6MXVB5EBA08J capability=meeting_summarization latency_ms=0
+2026/10/09 06:24:53 ERROR outbox dead letter lane=all id=01M4FNC0R4N5V097YSGQPZ1187 topic=provider.end_session attempts=10 err="meeting-provider: conference provider not configured"
+2026/10/09 06:25:19 ERROR recording finish dropped: FileService unwired for FS-backed row recording_id=01M4FNCTE5YXJ18T6TQA14GNVC egress_id=fake-egress-uw_mtg_01M4FNCTE0MAD99QBGNTD93D3T
+panic: test timed out after 10m0s
+	running tests:
+		TestMeetingRecordingStartStopLegacyBehavior (0s)
+
+goroutine 8047 [running]:
+testing.(*M).startAlarm.func1()
+	/usr/local/go/src/testing/testing.go:2959 +0x34a
+created by time.goFunc
+	/usr/local/go/src/time/sleep.go:182 +0x2d
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0x1d1877614248, {0x247d866?, 0x1d1877559aa0?}, 0x456c960)
+	/usr/local/go/src/testing/testing.go:2266 +0x4f2
+testing.runTests.func1(0x1d1877614248)
+	/usr/local/go/src/testing/testing.go:2742 +0x37
+testing.tRunner(0x1d1877614248, 0x1d1877559bc8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+testing.runTests({0x245fd89, 0x23}, {0x24957de, 0x34}, 0x1d187749e0c0, {0x46473d0, 0x3ae, 0x3ae}, {0xc2aa4014f0be7c60, 0x8bb36cabb7, ...})
+	/usr/local/go/src/testing/testing.go:2740 +0x510
+testing.(*M).Run(0x1d187761a820)
+	/usr/local/go/src/testing/testing.go:2600 +0x6af
+main.main()
+	_testmain.go:1928 +0x9b
+
+goroutine 4639 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18775c6b48)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestSearchScopeFolders(0x1d18775c6b48)
+	/workspace/server/internal/service/email_hub_search_scope_test.go:10 +0x1c
+testing.tRunner(0x1d18775c6b48, 0x456cf98)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1525 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d1877213d48)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestSanitizeChatFilename(0x1d1877213d48)
+	/workspace/server/internal/service/chat_file_message_test.go:11 +0x2a
+testing.tRunner(0x1d1877213d48, 0x456cf30)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4678 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18775c7b08)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestNormalizeSendAttachmentsLimits(0x1d18775c7b08)
+	/workspace/server/internal/service/email_hub_send_helpers_test.go:74 +0x2a
+testing.tRunner(0x1d18775c7b08, 0x456ca70)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4303 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da04b48)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorDefersSyncDuringInteractive(0x1d187da04b48)
+	/workspace/server/internal/service/email_hub_governor_test.go:116 +0x1c
+testing.tRunner(0x1d187da04b48, 0x456c210)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 8041 [IO wait]:
+internal/poll.runtime_pollWait(0x7ff5861c9e00, 0x72)
+	/usr/local/go/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0x1d18773bef80?, 0x1d18778e8000?, 0x0)
+	/usr/local/go/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*pollDesc).waitRead(...)
+	/usr/local/go/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Read(0x1d18773bef80, {0x1d18778e8000, 0x2000, 0x2000})
+	/usr/local/go/src/internal/poll/fd_unix.go:170 +0x2a8
+net.(*netFD).Read(0x1d18773bef80, {0x1d18778e8000?, 0x91b697?, 0x1d1877240558?})
+	/usr/local/go/src/net/fd_posix.go:68 +0x25
+net.(*conn).Read(0x1d18773cf130, {0x1d18778e8000?, 0x1d1877545cf8?, 0x461cad?})
+	/usr/local/go/src/net/net.go:196 +0x45
+github.com/jackc/pgx/v5/pgconn/internal/bgreader.(*BGReader).Read(0x1d18794e58c0, {0x1d18778e8000, 0x2000, 0x2000})
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/internal/bgreader/bgreader.go:100 +0xcb
+io.ReadAtLeast({0x452b040, 0x1d18794e58c0}, {0x1d18778e8000, 0x2000, 0x2000}, 0x5)
+	/usr/local/go/src/io/io.go:335 +0x83
+github.com/jackc/pgx/v5/pgproto3.(*chunkReader).Next(0x1d18775fd800, 0x5)
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgproto3/chunkreader.go:80 +0x289
+github.com/jackc/pgx/v5/pgproto3.(*Frontend).Receive(0x1d1877240488)
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgproto3/frontend.go:313 +0x3c
+github.com/jackc/pgx/v5/pgconn.(*PgConn).peekMessage(0x1d1877424108)
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/pgconn.go:645 +0x155
+github.com/jackc/pgx/v5/pgconn.(*MultiResultReader).NextResult(0x1d1877424240)
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/pgconn.go:1620 +0x4e
+github.com/jackc/pgx/v5.(*Conn).execSimpleProtocol(0x40cfff8?, {0x4549328?, 0x4677dc0?}, {0x25500ba?, 0x1d1877546108?}, {0x0?, 0x1d1877546150?, 0x4bf9fa?})
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/conn.go:589 +0xb0
+github.com/jackc/pgx/v5.(*Conn).exec(0x1d18775e77c0, {0x4549328, 0x4677dc0}, {0x25500ba, 0x6dc}, {0x0?, 0xf8240b?, 0x1d18794e5740?})
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/conn.go:574 +0x8d3
+github.com/jackc/pgx/v5.(*Conn).Exec(0x1d18775e77c0, {0x4549328?, 0x4677dc0?}, {0x25500ba, 0x6dc}, {0x0, 0x0, 0x0})
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/conn.go:481 +0x113
+github.com/jackc/pgx/v5/pgxpool.(*Conn).Exec(0x1d18776e1260?, {0x4549328?, 0x4677dc0?}, {0x25500ba?, 0x119f400?}, {0x0?, 0x4549328?, 0x4677dc0?})
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgxpool/conn.go:86 +0x3c
+github.com/jackc/pgx/v5/pgxpool.(*Pool).Exec(0x4549328?, {0x4549328, 0x4677dc0}, {0x25500ba, 0x6dc}, {0x0, 0x0, 0x0})
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgxpool/pool.go:734 +0xf7
+github.com/unicomhub/uniwork/server/internal/testutil.DB(0x1d1877615b08)
+	/workspace/server/internal/testutil/db.go:54 +0x35f
+github.com/unicomhub/uniwork/server/internal/service.meetingFixture(_)
+	/workspace/server/internal/service/meeting_test.go:17 +0xb4
+github.com/unicomhub/uniwork/server/internal/service.TestMeetingRecordingStartStopLegacyBehavior(0x1d1877615b08)
+	/workspace/server/internal/service/meeting_recording_regression_test.go:88 +0xbc
+testing.tRunner(0x1d1877615b08, 0x456c960)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4640 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18775c6d88)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestParseSendAttachmentsEmpty(0x1d18775c6d88)
+	/workspace/server/internal/service/email_hub_send_helpers_test.go:10 +0x1c
+testing.tRunner(0x1d18775c6d88, 0x456cbd8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4372 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da058c8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorAccountsIndependent(0x1d187da058c8)
+	/workspace/server/internal/service/email_hub_governor_test.go:193 +0x27
+testing.tRunner(0x1d187da058c8, 0x456c1f8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4679 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18775c7d48)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestBodyHTMLForSend(0x1d18775c7d48)
+	/workspace/server/internal/service/email_hub_send_helpers_test.go:105 +0x1c
+testing.tRunner(0x1d18775c7d48, 0x456b9a8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4641 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18775c6fc8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestParseSendAttachmentsSuccess(0x1d18775c6fc8)
+	/workspace/server/internal/service/email_hub_send_helpers_test.go:18 +0x27
+testing.tRunner(0x1d18775c6fc8, 0x456cbf0)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 224 [select, 4 minutes]:
+github.com/redis/go-redis/v9/maintnotifications.(*CircuitBreakerManager).cleanupLoop(0x1d18772f2690)
+	/home/ubuntu/go/pkg/mod/github.com/redis/go-redis/v9@v9.22.0/maintnotifications/circuit_breaker.go:285 +0xb9
+created by github.com/redis/go-redis/v9/maintnotifications.newCircuitBreakerManager in goroutine 217
+	/home/ubuntu/go/pkg/mod/github.com/redis/go-redis/v9@v9.22.0/maintnotifications/circuit_breaker.go:241 +0xff
+
+goroutine 222 [select, 4 minutes]:
+github.com/redis/go-redis/v9/maintnotifications.(*CircuitBreakerManager).cleanupLoop(0x1d18771c9a40)
+	/home/ubuntu/go/pkg/mod/github.com/redis/go-redis/v9@v9.22.0/maintnotifications/circuit_breaker.go:285 +0xb9
+created by github.com/redis/go-redis/v9/maintnotifications.newCircuitBreakerManager in goroutine 217
+	/home/ubuntu/go/pkg/mod/github.com/redis/go-redis/v9@v9.22.0/maintnotifications/circuit_breaker.go:241 +0xff
+
+goroutine 4300 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da04488)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorWatchSkipsWorker(0x1d187da04488)
+	/workspace/server/internal/service/email_hub_governor_test.go:49 +0x1c
+testing.tRunner(0x1d187da04488, 0x456c240)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4677 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18775c78c8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestDecodeSendAttachmentsSDI(0x1d18775c78c8)
+	/workspace/server/internal/service/email_hub_send_helpers_test.go:63 +0x27
+testing.tRunner(0x1d18775c78c8, 0x456be88)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4681 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877030248)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestParseEmailHubSyncState(0x1d1877030248)
+	/workspace/server/internal/service/email_hub_sync_test.go:12 +0x27
+testing.tRunner(0x1d1877030248, 0x456cbb8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4674 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18775c7208)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestParseSendAttachmentsInvalidBase64(0x1d18775c7208)
+	/workspace/server/internal/service/email_hub_send_helpers_test.go:33 +0x1c
+testing.tRunner(0x1d18775c7208, 0x456cbe0)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4373 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da05b08)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestSearchFolderPlan(0x1d187da05b08)
+	/workspace/server/internal/service/email_hub_imap_search_test.go:10 +0x1c
+testing.tRunner(0x1d187da05b08, 0x456cf70)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4371 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da05448)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorWithIMAP(0x1d187da05448)
+	/workspace/server/internal/service/email_hub_governor_test.go:181 +0x27
+testing.tRunner(0x1d187da05448, 0x456c248)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4304 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da04d88)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorLiveSyncDebounce(0x1d187da04d88)
+	/workspace/server/internal/service/email_hub_governor_test.go:133 +0x1c
+testing.tRunner(0x1d187da04d88, 0x456c220)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4299 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da04248)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorDebounce(0x1d187da04248)
+	/workspace/server/internal/service/email_hub_governor_test.go:26 +0x1c
+testing.tRunner(0x1d187da04248, 0x456c208)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4302 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da04908)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorInboxDebounceIndependentFromFull(0x1d187da04908)
+	/workspace/server/internal/service/email_hub_governor_test.go:93 +0x1c
+testing.tRunner(0x1d187da04908, 0x456c218)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4370 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da05208)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorBodyPrefetch(0x1d187da05208)
+	/workspace/server/internal/service/email_hub_governor_test.go:161 +0x1c
+testing.tRunner(0x1d187da05208, 0x456c200)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 8042 [select]:
+github.com/jackc/pgx/v5/pgxpool.(*Pool).backgroundHealthCheck(0x1d18776e1260)
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgxpool/pool.go:493 +0xc8
+github.com/jackc/pgx/v5/pgxpool.NewWithConfig.func5()
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgxpool/pool.go:336 +0x3d
+created by github.com/jackc/pgx/v5/pgxpool.NewWithConfig in goroutine 8041
+	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgxpool/pool.go:333 +0x465
+
+goroutine 4305 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da04fc8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorMailboxCache(0x1d187da04fc8)
+	/workspace/server/internal/service/email_hub_governor_test.go:150 +0x25
+testing.tRunner(0x1d187da04fc8, 0x456c228)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4689 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877031d48)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubServiceEnabledAndOpenPassword(0x1d1877031d48)
+	/workspace/server/internal/service/email_hub_views_test.go:101 +0x27
+testing.tRunner(0x1d1877031d48, 0x456c318)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4684 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877030fc8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubReconcileKeepUIDs(0x1d1877030fc8)
+	/workspace/server/internal/service/email_hub_sync_test.go:64 +0x2a
+testing.tRunner(0x1d1877030fc8, 0x456c298)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1993 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d187a1986c8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestChatSidebarPreviewBody(0x1d187a1986c8)
+	/workspace/server/internal/service/chat_preview_test.go:12 +0x2a
+testing.tRunner(0x1d187a1986c8, 0x456bc30)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4685 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877031208)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubViewHelpers(0x1d1877031208)
+	/workspace/server/internal/service/email_hub_views_test.go:19 +0x1f
+testing.tRunner(0x1d1877031208, 0x456c340)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1528 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d1877614b48)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestSanitizeChatFilenameTruncates(0x1d1877614b48)
+	/workspace/server/internal/service/chat_file_message_test.go:75 +0x1f
+testing.tRunner(0x1d1877614b48, 0x456cf38)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1526 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d1877614488)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestValidateFileMessageInput(0x1d1877614488)
+	/workspace/server/internal/service/chat_file_message_test.go:29 +0x2a
+testing.tRunner(0x1d1877614488, 0x456d338)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4687 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18770318c8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestShouldInvalidateCachedBody(0x1d18770318c8)
+	/workspace/server/internal/service/email_hub_views_test.go:74 +0x2a
+testing.tRunner(0x1d18770318c8, 0x456d090)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4805 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877213448)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestCodedAndValidationErrorStrings(0x1d1877213448?)
+	/workspace/server/internal/service/errors_string_test.go:6 +0x13
+testing.tRunner(0x1d1877213448, 0x456bcd8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4688 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877031b08)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestSentMessageHTML(0x1d1877031b08)
+	/workspace/server/internal/service/email_hub_views_test.go:90 +0x1c
+testing.tRunner(0x1d1877031b08, 0x456d030)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1646 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d1877030b48)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestSendFileMessageValidationFS(0x1d1877030b48)
+	/workspace/server/internal/service/chat_media_fs_test.go:461 +0x2a
+testing.tRunner(0x1d1877030b48, 0x456cff8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1529 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d1877614d88)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestFileMessageFromMetadataRejectsBad(0x1d1877614d88)
+	/workspace/server/internal/service/chat_file_message_test.go:88 +0x1c
+testing.tRunner(0x1d1877614d88, 0x456c560)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1530 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d1877614fc8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestFileMessageFromMetadata(0x1d1877614fc8)
+	/workspace/server/internal/service/chat_file_message_test.go:101 +0x1c
+testing.tRunner(0x1d1877614fc8, 0x456c558)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1521 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d1877030488)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestChatFileAndVoiceCapsPinForFileServiceMigration(0x1d1877030488)
+	/workspace/server/internal/service/chat_file_voice_pin_test.go:24 +0x2a
+testing.tRunner(0x1d1877030488, 0x456bad8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4318 [chan receive, 5 minutes]:
+testing.(*T).Parallel(0x1d18798cbb08)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestListAllowsBackfill(0x1d18798cbb08)
+	/workspace/server/internal/service/email_hub_backfill_test.go:10 +0x25
+testing.tRunner(0x1d18798cbb08, 0x456c7f0)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4686 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877031448)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestAccountAndThreadViews(0x1d1877031448)
+	/workspace/server/internal/service/email_hub_views_test.go:38 +0x2a
+testing.tRunner(0x1d1877031448, 0x456b748)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1667 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d1877213208)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestChatMediaRegistrySpecsMatchChatCaps(0x1d1877213208)
+	/workspace/server/internal/service/chat_media_fs_test.go:58 +0x2a
+testing.tRunner(0x1d1877213208, 0x456baf8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4298 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da04008)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorSearchIndexTTL(0x1d187da04008)
+	/workspace/server/internal/service/email_hub_governor_test.go:12 +0x1c
+testing.tRunner(0x1d187da04008, 0x456c230)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4683 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877030d88)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestFolderSyncRecentlySynced(0x1d1877030d88)
+	/workspace/server/internal/service/email_hub_sync_test.go:49 +0x1c
+testing.tRunner(0x1d1877030d88, 0x456c638)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1527 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d18776146c8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestExtForChatFileContentType(0x1d18776146c8)
+	/workspace/server/internal/service/chat_file_message_test.go:65 +0x1c
+testing.tRunner(0x1d18776146c8, 0x456c3f8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4682 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877030908)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestParseEmailHubSyncStateEmptyAndInvalid(0x1d1877030908)
+	/workspace/server/internal/service/email_hub_sync_test.go:31 +0x2a
+testing.tRunner(0x1d1877030908, 0x456cbc0)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 1994 [chan receive, 7 minutes]:
+testing.(*T).Parallel(0x1d187a198908)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestApplyLastMessagePreview(0x1d187a198908)
+	/workspace/server/internal/service/chat_preview_test.go:46 +0x2a
+testing.tRunner(0x1d187a198908, 0x456b7a0)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4675 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18775c7448)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestParseSendAttachmentsMissingContent(0x1d18775c7448)
+	/workspace/server/internal/service/email_hub_send_helpers_test.go:43 +0x1c
+testing.tRunner(0x1d18775c7448, 0x456cbe8)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 3150 [IO wait, 5 minutes]:
+internal/poll.runtime_pollWait(0x7ff5861c9c00, 0x72)
+	/usr/local/go/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0x1d1876ff5780?, 0x100?, 0x0)
+	/usr/local/go/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*pollDesc).waitRead(...)
+	/usr/local/go/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Accept(0x1d1876ff5780)
+	/usr/local/go/src/internal/poll/fd_unix.go:618 +0x27d
+net.(*netFD).accept(0x1d1876ff5780)
+	/usr/local/go/src/net/fd_unix.go:149 +0x29
+net.(*TCPListener).accept(0x1d187c9fef00)
+	/usr/local/go/src/net/tcpsock_posix.go:159 +0x1b
+net.(*TCPListener).Accept(0x1d187c9fef00)
+	/usr/local/go/src/net/tcpsock.go:387 +0x30
+net/http.(*Server).Serve(0x1d18776ad2c0, {0x4546380, 0x1d187c9fef00})
+	/usr/local/go/src/net/http/server.go:3551 +0x379
+net/http.Serve(...)
+	/usr/local/go/src/net/http/server.go:3018
+github.com/unicomhub/uniwork/server/internal/service.officeBridge.func1.2()
+	/workspace/server/internal/service/document_office_test.go:101 +0x70
+created by github.com/unicomhub/uniwork/server/internal/service.officeBridge.func1 in goroutine 3144
+	/workspace/server/internal/service/document_office_test.go:101 +0x251
+
+goroutine 4301 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d187da046c8)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestEmailHubGovernorSerializesSync(0x1d187da046c8)
+	/workspace/server/internal/service/email_hub_governor_test.go:62 +0x27
+testing.tRunner(0x1d187da046c8, 0x456c238)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4319 [chan receive, 5 minutes]:
+testing.(*T).Parallel(0x1d18798cbd48)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestBackfillSupportedFolder(0x1d18798cbd48)
+	/workspace/server/internal/service/email_hub_backfill_test.go:23 +0x1c
+testing.tRunner(0x1d18798cbd48, 0x456b970)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4320 [chan receive, 5 minutes]:
+testing.(*T).Parallel(0x1d187776e008)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestPgTextString(0x1d187776e008?)
+	/workspace/server/internal/service/email_hub_body_helpers_test.go:10 +0x13
+testing.tRunner(0x1d187776e008, 0x456cc30)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4680 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d1877030008)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestValidateSendInput(0x1d1877030008)
+	/workspace/server/internal/service/email_hub_send_helpers_test.go:119 +0x2a
+testing.tRunner(0x1d1877030008, 0x456d350)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+
+goroutine 4676 [chan receive, 4 minutes]:
+testing.(*T).Parallel(0x1d18775c7688)
+	/usr/local/go/src/testing/testing.go:1957 +0x230
+github.com/unicomhub/uniwork/server/internal/service.TestNormalizeSendAttachmentsSuccess(0x1d18775c7688)
+	/workspace/server/internal/service/email_hub_send_helpers_test.go:53 +0x27
+testing.tRunner(0x1d18775c7688, 0x456ca78)
+	/usr/local/go/src/testing/testing.go:2193 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go/src/testing/testing.go:2258 +0x4d4
+FAIL	github.com/unicomhub/uniwork/server/internal/service	600.025s
+FAIL
