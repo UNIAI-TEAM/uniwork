@@ -137,6 +137,20 @@ if [ "$fresh_install" = false ] && ! sha256sum -c --quiet "$state/locks" > /dev/
   sha256sum "${locks[@]}" > "$state/locks"
 fi
 
+# office: after install/provision (a fresh VM gets /usr/bin/node only then), pin a Node whose node:sqlite has
+# FTS5 by symlinking it into a directory that leads PATH, so no image PATH entry (/exec-daemon/node is 22.14 without
+# FTS5) can shadow it. Candidates: the node on PATH, /usr/bin/node (NodeSource), any nvm Node.
+if [ "$profile" = office ]; then
+  for cand in /usr/bin/node "$(command -v node)" "$HOME"/.nvm/versions/node/*/bin/node; do
+    [ -x "$cand" ] || continue
+    if "$cand" -e 'new (require("node:sqlite").DatabaseSync)(":memory:").exec("create virtual table t using fts5(a)")' > /dev/null 2>&1; then
+      mkdir -p "$HOME/.uniwork-cloud/node-bin" && ln -sf "$cand" "$HOME/.uniwork-cloud/node-bin/node"
+      export PATH=$HOME/.uniwork-cloud/node-bin:$(dirname "$cand"):$PATH
+      break
+    fi
+  done
+fi
+
 # packages/office-upstream/dist is gitignored, so the git clean above wipes it on a warm
 # VM and every suite importing @uniwork/office-upstream/* fails to resolve. Rebuild the
 # browser artifacts the branch knows how to build before any spec command runs.

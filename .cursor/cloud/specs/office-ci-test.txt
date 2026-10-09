@@ -11,6 +11,8 @@
 # One shell command per line, each in its own bash -c, so FORMAT_BASE_REF is set inline on every line that needs it.
 # FORMAT_BASE_REF: HEAD^1 on main (a push event diffs against the previous commit), else merge-base with origin/main.
 git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main
+# Guard: the Node that runs `npm test` must have FTS5 in node:sqlite (apps/shell file-index tests). Prints which node wins and fails loudly otherwise.
+echo "node $(node -v) at $(command -v node)"; type -a node; ls -l /usr/bin/node 2>&1; /usr/bin/node -v 2>&1; node -e "new (require('node:sqlite').DatabaseSync)(':memory:').exec('create virtual table t using fts5(x)')" 2>&1 | grep -v ExperimentalWarning || true; node -e "new (require('node:sqlite').DatabaseSync)(':memory:').exec('create virtual table t using fts5(x)')" >/dev/null 2>&1 || { echo "FATAL: node $(node -v) at $(command -v node) has no FTS5 in node:sqlite"; exit 1; }
 npm run licenses
 if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then FORMAT_BASE_REF=$(git rev-parse HEAD^1); else FORMAT_BASE_REF=$(git merge-base HEAD origin/main); fi; export FORMAT_BASE_REF; npm run format:check
 if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then FORMAT_BASE_REF=$(git rev-parse HEAD^1); else FORMAT_BASE_REF=$(git merge-base HEAD origin/main); fi; export FORMAT_BASE_REF; npm run check:theme-colors
