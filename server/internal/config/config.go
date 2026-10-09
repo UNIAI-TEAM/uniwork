@@ -110,6 +110,9 @@ type Config struct {
 	OfficeInstallerStableURLs string
 	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
 	AdminRateLimitPerMin int
+	// HTTPMaxInFlight bounds the HTTP requests served at once; past it the
+	// server sheds load with 503 + Retry-After (mw.LoadShed).
+	HTTPMaxInFlight int
 }
 
 // PushEnabled: both VAPID keys present.
@@ -215,6 +218,7 @@ func Load() (Config, error) {
 		OfficeInstallerBetaURLs:       os.Getenv("OFFICE_INSTALLER_BETA_URLS"),
 		OfficeInstallerStableURLs:     os.Getenv("OFFICE_INSTALLER_STABLE_URLS"),
 		AdminRateLimitPerMin:          int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
+		HTTPMaxInFlight:               int(parseInt32(os.Getenv("HTTP_MAX_IN_FLIGHT"), 128)),
 	}
 	if c.VAPIDSubject == "" {
 		c.VAPIDSubject = c.FrontendOrigin

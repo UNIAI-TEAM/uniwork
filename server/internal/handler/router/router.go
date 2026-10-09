@@ -100,6 +100,9 @@ func New(d Deps, h Routes) http.Handler {
 		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After"},
 		AllowCredentials: true,
 	}))
+	// Inside CORS, so a shed request still carries the headers the browser
+	// needs to read its 503 and Retry-After, and preflights never count.
+	r.Use(mw.LoadShed(d.Cfg.HTTPMaxInFlight, "/healthz", "/readyz"))
 	cat := &apiCatalog{}
 	root := newAPI(r, cat)
 	registerMeta(root, r, d.Storage, h)
