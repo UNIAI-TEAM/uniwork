@@ -59,19 +59,8 @@ import {
   Highlighter,
   Link2,
   List,
-  ListOrdered,
   ListTodo,
   Quote,
-  ChevronDown,
-  Check,
-  X,
-  Unlink,
-  Type,
-  Heading1,
-  Heading2,
-  Heading3,
-  FilePlus,
-  LoaderCircle,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------

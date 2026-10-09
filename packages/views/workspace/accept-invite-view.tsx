@@ -1,5 +1,6 @@
 "use client";
-import { Link2Off, LoaderCircle } from "lucide-react";
+import { Link2Off } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api";
@@ -120,7 +121,7 @@ export function AcceptInviteView({
   return (
     <AuthShell title={t("workspace.acceptInviteJoining.title")} description={t("workspace.acceptInviteJoining.body")}>
       <p className="flex items-center gap-3 text-body text-muted-foreground" role="status" aria-live="polite">
-        <LoaderCircle aria-hidden className="size-5 shrink-0 animate-spin" />
+        <Spinner className="size-5 shrink-0" />
         {t("common.loading")}
       </p>
     </AuthShell>

@@ -2,7 +2,8 @@
 
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleAlert, Check, LoaderCircle, RefreshCw } from "lucide-react";
+import { CircleAlert, Check, RefreshCw } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Card, CardContent } from "@uniwork/ui/components/ui/card";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -395,7 +396,7 @@ export function SettingsSaveState({
   const content =
     status === "saving" ? (
       <>
-        <LoaderCircle aria-hidden className="size-3 animate-spin" />
+        <Spinner className="size-3" />
         {savingLabel}
       </>
     ) : status === "saved" ? (

@@ -1,7 +1,8 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { TriangleAlert, Check, Clock, LoaderCircle } from "lucide-react";
+import { TriangleAlert, Check, Clock } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -60,7 +61,7 @@ export function DocumentSaveIndicator({
   if (pendingUploads > 0) {
     return (
       <span {...statusProps} className={cn(BASE, className)}>
-        <LoaderCircle aria-hidden className="size-3.5 animate-spin" />
+        <Spinner className="size-3.5" />
         {t("documents.save.asset_uploading")}
       </span>
     );
@@ -71,7 +72,7 @@ export function DocumentSaveIndicator({
     case "saving":
       return (
         <span {...statusProps} className={cn(BASE, className)}>
-          <LoaderCircle aria-hidden className="size-3.5 animate-spin" />
+          <Spinner className="size-3.5" />
           {t("documents.save.saving")}
         </span>
       );

@@ -1,5 +1,6 @@
 "use client";
-import { ArrowRight, Building2, LayoutGrid, LoaderCircle, UserPlus, UserRound, type LucideIcon } from "lucide-react";
+import { ArrowRight, Building2, LayoutGrid, UserPlus, UserRound, type LucideIcon } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ONBOARDING_STEP_ORDER } from "@uniwork/core/onboarding";
@@ -184,7 +185,7 @@ export function StepWelcome({
                     className="flex size-9 items-center justify-center rounded-full bg-primary-foreground text-primary transition-transform duration-(--duration-standard) ease-out-quart group-hover/start:translate-x-0.5 group-hover/start:-translate-y-px motion-reduce:transition-none"
                   >
                     {pending === "next" ? (
-                      <LoaderCircle className="size-4 animate-spin" strokeWidth={1.75} />
+                      <Spinner strokeWidth={1.75} />
                     ) : (
                       <ArrowRight className="size-4" strokeWidth={1.75} />
                     )}
@@ -199,7 +200,7 @@ export function StepWelcome({
                     aria-disabled={pending !== null || undefined}
                     className={cn(AUTH_PILL, "px-6 sm:w-auto")}
                   >
-                    {pending === "skip" ? <LoaderCircle className="size-4 animate-spin" strokeWidth={1.75} /> : null}
+                    {pending === "skip" ? <Spinner strokeWidth={1.75} /> : null}
                     {t("onboarding.welcome.skip_existing")}
                   </Button>
                 ) : null}

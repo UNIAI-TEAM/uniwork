@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleAlert, Check, Download, FileDown, LoaderCircle } from "lucide-react";
+import { CircleAlert, Check, Download, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   useAuditExports,
@@ -153,7 +153,7 @@ function StatusBadge({ status }: { status: string }) {
   const label = t(status, { defaultValue: t("unknown") });
   const icon =
     status === "pending" || status === "running" ? (
-      <LoaderCircle aria-hidden className="animate-spin" />
+      <Spinner />
     ) : status === "failed" ? (
       <CircleAlert aria-hidden />
     ) : status === "done" ? (

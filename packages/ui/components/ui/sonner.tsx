@@ -2,7 +2,8 @@
 
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
-import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, LoaderCircleIcon } from "lucide-react"
+import { CircleAlertIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon } from "lucide-react"
+import { Spinner } from "@uniwork/ui/components/ui/spinner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
   // Use `resolvedTheme` (the concrete "light" / "dark" value) instead of
@@ -27,10 +28,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
           <TriangleAlertIcon className="size-4 text-warning" />
         ),
         error: (
-          <OctagonXIcon className="size-4 text-destructive" />
+          <CircleAlertIcon className="size-4 text-destructive" />
         ),
         loading: (
-          <LoaderCircleIcon className="size-4 animate-spin text-brand" />
+          <Spinner className="text-brand" />
         ),
       }}
       style={

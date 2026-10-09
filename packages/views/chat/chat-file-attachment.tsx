@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Download, ExternalLink, Eye, EyeOff, FileText, LoaderCircle } from "lucide-react";
+import { Download, ExternalLink, Eye, EyeOff, FileText } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { useChatFileBlobLoader } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -58,7 +59,7 @@ function FileCard({
         onClick={onDownload}
       >
         {busy ? (
-          <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden />
+          <Spinner />
         ) : (
           <Download className="size-4" aria-hidden />
         )}

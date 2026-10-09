@@ -33,3 +33,13 @@ test("no source file imports a deprecated lucide alias", () => {
   }
   assert.deepEqual(hits, [], `deprecated lucide aliases:\n${hits.join("\n")}`);
 });
+
+// A loading glyph is <Spinner /> (packages/ui/components/ui/spinner.tsx): one
+// size default, one accessible-name rule and one reduced-motion behaviour.
+test("spinners go through Spinner, not a raw LoaderCircle", () => {
+  const hits = execSync(
+    `git grep -nF "<LoaderCircle" -- 'packages/*.tsx' 'apps/*.tsx' ':!packages/ui/components/ui/spinner.tsx' ':!packages/office-upstream/upstream/**' || true`,
+    { encoding: "utf8" },
+  ).trim();
+  assert.equal(hits, "", `raw spinners:\n${hits}`);
+});

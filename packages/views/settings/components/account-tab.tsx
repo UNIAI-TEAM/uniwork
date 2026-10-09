@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Camera, Check, LoaderCircle } from "lucide-react";
+import { Camera, Check } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore, usePatchMe, useUploadAvatar } from "@uniwork/core/auth";
@@ -172,7 +173,7 @@ function AvatarRow() {
             <ActorAvatar name={name} initials={initials(name)} avatarUrl={user?.avatar_url} size="2xl" />
             {pending ? (
               <span className="absolute inset-0 flex items-center justify-center rounded-full bg-background/70">
-                <LoaderCircle aria-hidden className="size-5 animate-spin text-foreground" />
+                <Spinner className="size-5 text-foreground" />
               </span>
             ) : null}
             <span
@@ -189,7 +190,7 @@ function AvatarRow() {
             aria-busy={pending || undefined}
             onClick={pick}
           >
-            {pending ? <LoaderCircle aria-hidden className="size-3.5 animate-spin" /> : null}
+            {pending ? <Spinner className="size-3.5" /> : null}
             {pending ? t("avatarUploading") : t("avatarChange")}
           </Button>
         </div>

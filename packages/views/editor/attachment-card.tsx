@@ -9,7 +9,8 @@
  * that decision out of this file so this stays a single-purpose row UI.
  */
 
-import { Download, Eye, FileText, LoaderCircle, Trash2 } from "lucide-react";
+import { Download, Eye, FileText, Trash2 } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { getPreviewKind } from "./utils/preview";
 
@@ -42,10 +43,7 @@ function AttachmentCardChrome({
       onMouseDown={(e) => e.stopPropagation()}
     >
       {uploading ? (
-        <LoaderCircle
-          className="size-4 shrink-0 animate-spin text-muted-foreground"
-          aria-hidden="true"
-        />
+        <Spinner className="shrink-0 text-muted-foreground" />
       ) : (
         <FileText
           className="size-4 shrink-0 text-muted-foreground"

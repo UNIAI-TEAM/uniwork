@@ -1,5 +1,6 @@
 "use client";
-import { ArrowRight, LoaderCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import type { ComponentProps, ReactNode } from "react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -51,7 +52,7 @@ export function AuthSubmit({
         className="flex size-9 items-center justify-center rounded-full bg-primary-foreground text-primary transition-transform duration-(--duration-standard) ease-out-quart group-hover/submit:translate-x-0.5 motion-reduce:transition-none"
       >
         {pending ? (
-          <LoaderCircle className="size-4 animate-spin" strokeWidth={1.75} />
+          <Spinner strokeWidth={1.75} />
         ) : (
           <ArrowRight className="size-4" strokeWidth={1.75} />
         )}

@@ -47,13 +47,7 @@ import {
   PreviewUnsupportedError,
 } from "./attachment-api";
 import {
-  ChevronLeft,
-  ChevronRight,
   Download,
-  ExternalLink,
-  FileText,
-  LoaderCircle,
-  X,
 } from "lucide-react";
 import type { Attachment } from "@uniwork/core/types";
 import { useEditorWorkspaceSlug } from "./workspace-slug";
