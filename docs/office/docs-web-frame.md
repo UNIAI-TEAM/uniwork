@@ -4,7 +4,9 @@ The web opens a DOCX in the genoffice Docs renderer running in a same-origin
 iframe (`/office-frame/docs/<version>/index.html`), behind the
 `office_docs_web` flag. The G3 editor stays the default until acceptance.
 This page is the serving half: where the bundle comes from, how it is pinned
-and verified, and which headers it gets. The postMessage protocol and the host
+and verified, and which headers it gets. The other genoffice modules (pdf,
+markdown, html, slides, sheets; UNI-1014/1015/1016) reuse every piece below
+with a module parameter: `docs/office/office-web-modules.md`. The postMessage protocol and the host
 component live in `packages/views/office` and `packages/core/office`.
 
 ## Where the bundle lives, and why it is not checked in
@@ -119,8 +121,10 @@ The host only adds `onSavedAs`, which navigates the page to the copy.
 
 The protocol files in `packages/core/office/docs-frame-{protocol,endpoint,host}.ts`
 are vendored byte-identical (import specifiers aside) from the fork at
-the SHA in their header; the pinned bundle is the fork build of the same
-commit (`docs.pin.json`, currently fork `5bce54c`).
+the SHA in their header (now the GO-B4/B5/B6 framework commit `3ce2107`,
+whose only protocol change is the additive `module` field). The pinned Docs
+bundle (`docs.pin.json`, fork `5a81008`) predates that field: its `ready`
+carries no module, which reads as docs.
 
 ## CI
 
