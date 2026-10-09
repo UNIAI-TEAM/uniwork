@@ -80,6 +80,51 @@ func aiCredentialCode(err error) (string, int) {
 	return "", 0
 }
 
+// A PUT that leaves base_url or label out keeps what is stored (a key rotation
+// must not reset a regional endpoint); only an explicit "" clears.
+func TestAICredentialPutKeepsFieldsItOmits(t *testing.T) {
+	f := newAICredentialFixture(t)
+	owner := Human(f.owner.ID)
+	if _, _, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "custom", SaveAICredentialInput{
+		APIKey: strPtr(testAIKey), Label: strPtr("Work"), BaseURL: strPtr("https://api.example.com/v1"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Rotate the key without naming base_url or label.
+	cred, created, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "custom", SaveAICredentialInput{APIKey: strPtr("sk-rotated-key-4321")})
+	if err != nil || created || cred.Label != "Work" || cred.BaseURL != "https://api.example.com/v1" || cred.KeyHint != "…4321" {
+		t.Fatalf("key rotation = %+v, created %v, %v", cred, created, err)
+	}
+	// Rename without naming base_url or key.
+	cred, _, err = f.svc.SaveAICredential(f.ctx, owner, f.orgID, "custom", SaveAICredentialInput{Label: strPtr("Home")})
+	if err != nil || cred.Label != "Home" || cred.BaseURL != "https://api.example.com/v1" {
+		t.Fatalf("rename = %+v, %v", cred, err)
+	}
+	// An explicit empty label clears it and leaves base_url alone.
+	cred, _, err = f.svc.SaveAICredential(f.ctx, owner, f.orgID, "custom", SaveAICredentialInput{Label: strPtr("")})
+	if err != nil || cred.Label != "" || cred.BaseURL != "https://api.example.com/v1" {
+		t.Fatalf("clear label = %+v, %v", cred, err)
+	}
+	// An explicit empty base_url on a provider that has a default resets to it.
+	if _, _, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "openai", SaveAICredentialInput{
+		APIKey: strPtr(testAIKey), BaseURL: strPtr("https://eu.api.openai.com/v1"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cred, _, err = f.svc.SaveAICredential(f.ctx, owner, f.orgID, "openai", SaveAICredentialInput{BaseURL: strPtr("")})
+	if err != nil || cred.BaseURL != "" {
+		t.Fatalf("reset base_url = %+v, %v", cred, err)
+	}
+	// custom still refuses an explicit empty base_url.
+	if code, _ := aiCredentialCode(func() error {
+		_, _, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "custom", SaveAICredentialInput{BaseURL: strPtr("")})
+		return err
+	}()); code != "base_url_refused" {
+		t.Fatalf("custom with empty base_url = %q, want base_url_refused", code)
+	}
+}
+
 func TestAICredentialRoundTrip(t *testing.T) {
 	f := newAICredentialFixture(t)
 	owner := Human(f.owner.ID)

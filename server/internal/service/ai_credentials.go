@@ -198,21 +198,22 @@ func (s *AICredentialService) SaveAICredential(ctx context.Context, actor Actor,
 		return cred, false, err
 	}
 
-	label := ""
+	// A field the request leaves out keeps its stored value; only an explicit
+	// "" clears it (base_url "" resets to the provider default).
+	var label, baseURL *string
 	if in.Label != nil {
-		label = strings.TrimSpace(*in.Label)
+		l := strings.TrimSpace(*in.Label)
+		if utf8.RuneCountInString(l) > maxAICredentialLabel {
+			return cred, false, Invalid(fmt.Sprintf("label must be at most %d characters", maxAICredentialLabel))
+		}
+		label = &l
 	}
-	if utf8.RuneCountInString(label) > maxAICredentialLabel {
-		return cred, false, Invalid(fmt.Sprintf("label must be at most %d characters", maxAICredentialLabel))
-	}
-	baseURL := ""
 	if in.BaseURL != nil {
-		if baseURL, err = normalizeAICredentialBaseURL(*in.BaseURL); err != nil {
+		b, err := normalizeAICredentialBaseURL(*in.BaseURL)
+		if err != nil {
 			return cred, false, err
 		}
-	}
-	if info.RequiresBaseURL && baseURL == "" {
-		return cred, false, errBaseURLRefused("base_url is required for this provider")
+		baseURL = &b
 	}
 	var key string
 	if in.APIKey != nil {
@@ -228,11 +229,33 @@ func (s *AICredentialService) SaveAICredential(ctx context.Context, actor Actor,
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
+	stored, err := q.GetProviderCredential(ctx, db.GetProviderCredentialParams{
+		OrganizationID: organizationID, UserID: actor.ID, Provider: provider,
+	})
+	exists := err == nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return cred, false, err
+	}
+	if label == nil {
+		l := stored.Label // "" when nothing is stored yet
+		label = &l
+	}
+	if baseURL == nil {
+		b := stored.BaseUrl
+		baseURL = &b
+	}
+	if info.RequiresBaseURL && *baseURL == "" {
+		return cred, false, errBaseURLRefused("base_url is required for this provider")
+	}
+
 	var id string
 	if key == "" {
 		// No key in the request: change the settings of a stored credential.
+		if !exists {
+			return cred, false, Invalid("api_key is required")
+		}
 		row, err := q.UpdateProviderCredentialSettings(ctx, db.UpdateProviderCredentialSettingsParams{
-			OrganizationID: organizationID, UserID: actor.ID, Provider: provider, Label: label, BaseUrl: baseURL,
+			OrganizationID: organizationID, UserID: actor.ID, Provider: provider, Label: *label, BaseUrl: *baseURL,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return cred, false, Invalid("api_key is required")
@@ -250,7 +273,7 @@ func (s *AICredentialService) SaveAICredential(ctx context.Context, actor Actor,
 		}
 		row, err := q.UpsertProviderCredential(ctx, db.UpsertProviderCredentialParams{
 			ID: util.NewID(), OrganizationID: organizationID, UserID: actor.ID, Provider: provider,
-			Label: label, BaseUrl: baseURL, SecretCiphertext: sealed, KeyHint: aiCredentialKeyHint(key),
+			Label: *label, BaseUrl: *baseURL, SecretCiphertext: sealed, KeyHint: aiCredentialKeyHint(key),
 			CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
 		})
 		if err != nil {
