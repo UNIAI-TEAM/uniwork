@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/netip"
@@ -779,6 +780,47 @@ func (h *Hub) evictSlow(slow []*Client) {
 			cb(r.Type, r.ID)
 		}
 	}
+}
+
+// drainBatches is how many groups DrainConnections splits the sockets into.
+const drainBatches = 20
+
+// DrainConnections closes every socket with 1012 (service restart) in
+// shuffled batches spread over window, so a deploy hands clients to the
+// other nodes gradually instead of all reconnecting in the same second. Once
+// ctx ends, whatever is left is closed at once.
+func (h *Hub) DrainConnections(ctx context.Context, window time.Duration) {
+	h.mu.RLock()
+	clients := make([]*Client, 0, len(h.clients))
+	for c := range h.clients {
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
+	rand.Shuffle(len(clients), func(i, j int) { clients[i], clients[j] = clients[j], clients[i] })
+
+	n := min(drainBatches, len(clients))
+	for i := range n {
+		if i > 0 && ctx.Err() == nil {
+			select {
+			case <-ctx.Done():
+			case <-time.After(window / time.Duration(n)):
+			}
+		}
+		for _, c := range clients[i*len(clients)/n : (i+1)*len(clients)/n] {
+			// One goroutine each: the close frame waits behind any write in
+			// flight, and a stalled socket must not hold up the batch.
+			go c.closeForRestart()
+		}
+	}
+}
+
+// closeForRestart tells the peer to reconnect elsewhere, then drops the
+// connection; the read pump's cleanup unregisters the client.
+func (c *Client) closeForRestart() {
+	_ = c.conn.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseServiceRestart, "server restarting"),
+		time.Now().Add(time.Second))
+	_ = c.conn.Close()
 }
 
 // Snapshot returns a JSON-friendly summary of the hub state.

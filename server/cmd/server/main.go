@@ -583,9 +583,15 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	// srv.Shutdown never sees hijacked WebSockets. Close them with 1012 in
+	// batches over 8s, inside the same 10s budget, so clients reconnect to
+	// the other nodes gradually; events keep flowing to the ones still open.
+	wsDrained := make(chan struct{})
+	go func() { hub.DrainConnections(shutdownCtx, 8*time.Second); close(wsDrained) }()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Warn("http shutdown", "err", err)
 	}
+	<-wsDrained
 	stopWorker()
 	select {
 	case <-outboxDone:
