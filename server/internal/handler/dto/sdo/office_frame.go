@@ -1,13 +1,12 @@
 package sdo
 
-// OfficeFrameTokenSDO is POST /api/v1/documents/{documentID}/office/frame-token
-// and POST /api/v1/office-frame/token. The token is server-signed and binds
+// OfficeFrameTokenSDO is POST /api/v1/documents/{documentID}/office/frame-token. The token is server-signed and binds
 // exactly one document, its workspace and organization, and the user; it is
 // handed to the frame in the postMessage init, never in a cookie or URL.
 type OfficeFrameTokenSDO struct {
 	Token          string `json:"token" description:"Token khung ngắn hạn (Authorization: Bearer cho /api/v1/office-frame/*)" example:"oft1.eyJ2IjoxfQ.c2ln"`
 	TokenType      string `json:"token_type" description:"Luôn Bearer" example:"Bearer"`
-	ExpiresAt      string `json:"expires_at" description:"Hạn token (RFC3339); làm mới trước hạn bằng POST /office-frame/token" example:"2026-10-08T10:10:00Z"`
+	ExpiresAt      string `json:"expires_at" description:"Hạn token (RFC3339); trước hạn host cấp lại bằng phiên của nó" example:"2026-10-08T10:10:00Z"`
 	ExpiresIn      int    `json:"expires_in" description:"Số giây còn lại khi cấp" example:"600"`
 	DocumentID     string `json:"document_id" description:"ULID tài liệu duy nhất token mở được" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	WorkspaceID    string `json:"workspace_id" description:"ULID workspace của tài liệu" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`

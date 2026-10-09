@@ -14,7 +14,8 @@ import (
 //	POST /api/v1/office-frame/documents/{documentID}/export/pdf
 //
 // limit is the route's own budget: one export holds an engine worker and a
-// headless browser for seconds.
+// headless browser for seconds, so it is one counter per user across every
+// document (a fixed bucket, not the path, which carries {documentID}).
 func registerOfficeFrameExport(r api, h Routes, flags *featureflag.Service, frameAuth func(http.Handler) http.Handler, limit func(http.Handler) http.Handler) {
 	if frameAuth == nil {
 		// Same as registerOfficeFrame: no frame token service, no frame route.

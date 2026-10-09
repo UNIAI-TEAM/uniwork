@@ -8,7 +8,9 @@ import { runtimeConfig } from "../../runtime-config";
 // the postMessage init. Every /api/v1/office-frame/* route takes only that
 // token as Bearer — never the session token or a cookie — and opens only the
 // one document it was minted for. `createOfficeFrameClient` is the frame-side
-// caller, kept here so both sides parse the same schemas.
+// caller, kept here so both sides parse the same schemas. There is no
+// frame-side token refresh: the protocol's `token.refresh` is answered by the
+// host, which mints again with its session.
 
 const enc = encodeURIComponent;
 const id = z.string().min(1).max(128);
@@ -89,7 +91,10 @@ export type OfficeFrameAsset = z.infer<typeof officeFrameAssetSchema>;
 export type OfficeFrameAssetUrls = z.infer<typeof officeFrameAssetUrlsSchema>;
 
 /** POST /api/v1/documents/{documentID}/office/frame-token — host session only.
- *  Null when the answer does not match the contract. */
+ *  Null when the answer does not match the contract. Rejects with ApiError
+ *  403 `feature_disabled` when office_docs_web is off for the document's
+ *  organization (the host falls back to the G3 editor), distinct from the
+ *  404 `not_found` of a missing, foreign or non-DOCX document. */
 export async function mintOfficeFrameToken(
   documentId: string,
   opts?: Pick<RequestOpts, "signal" | "correlationId">,
@@ -105,7 +110,7 @@ export async function mintOfficeFrameToken(
 }
 
 export interface OfficeFrameClientOptions {
-  /** The current frame token; read on every call so a refresh takes effect. */
+  /** The current frame token; read on every call so a re-mint takes effect. */
   getToken: () => string;
   /** API origin; defaults to the runtime config (same origin in the web host). */
   apiUrl?: string;
@@ -114,7 +119,6 @@ export interface OfficeFrameClientOptions {
 }
 
 export interface OfficeFrameClient {
-  refresh(): Promise<OfficeFrameToken | null>;
   open(documentId: string): Promise<OfficeFrameDocument | null>;
   /** Bytes of `download_url` (an /api/v1/office-frame path). */
   content(downloadUrl: string, signal?: AbortSignal): Promise<Blob>;
@@ -190,9 +194,6 @@ export function createOfficeFrameClient(options: OfficeFrameClientOptions): Offi
   };
 
   return {
-    async refresh() {
-      return parseWithFallback<OfficeFrameToken | null>(await json("/api/v1/office-frame/token", { method: "POST" }), officeFrameTokenSchema, null, { endpoint: "POST /api/v1/office-frame/token" });
-    },
     async open(documentId) {
       return parseWithFallback<OfficeFrameDocument | null>(await json(docPath(documentId)), officeFrameDocumentSchema, null, { endpoint: "GET /api/v1/office-frame/documents/{documentID}" });
     },

@@ -57,6 +57,13 @@ describe("Office Docs frame endpoints", () => {
     expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer session-token");
   });
 
+  it("tells a flag-off mint (403 feature_disabled) from a missing document (404)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "feature_disabled", message: "feature is disabled" } }, 403));
+    await expect(mintOfficeFrameToken(docId)).rejects.toMatchObject({ status: 403, code: "feature_disabled" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "not_found", message: "not found" } }, 404));
+    await expect(mintOfficeFrameToken(docId)).rejects.toMatchObject({ status: 404, code: "not_found" });
+  });
+
   it("degrades a malformed mint answer to null", async () => {
     for (const body of [{ nope: true }, null, [], "malformed", { ...token, expires_in: "600" }]) {
       vi.mocked(fetch).mockResolvedValueOnce(json(body, 201));
@@ -102,27 +109,23 @@ describe("Office Docs frame endpoints", () => {
     expect(f).toHaveBeenCalledTimes(1);
   });
 
-  it("parses refresh, recents and image answers", async () => {
+  it("parses recents and image answers", async () => {
     const f = vi.fn<typeof fetch>();
     const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
-    f.mockResolvedValueOnce(json(token));
-    await expect(client.refresh()).resolves.toEqual(token);
     f.mockResolvedValueOnce(json({ items: [{ document_id: docId, title: "a.docx", updated_at: "2026-10-08T10:00:00Z" }] }));
     await expect(client.recents(docId, 5)).resolves.toEqual({ items: [{ document_id: docId, title: "a.docx", updated_at: "2026-10-08T10:00:00Z" }] });
-    expect(String(f.mock.calls[1]?.[0])).toBe(`/api/v1/office-frame/documents/${docId}/recents?limit=5`);
+    expect(String(f.mock.calls[0]?.[0])).toBe(`/api/v1/office-frame/documents/${docId}/recents?limit=5`);
     f.mockResolvedValueOnce(json(asset, 201));
     await expect(client.uploadAsset(docId, new Blob(["p"]), "a.png")).resolves.toEqual(asset);
     f.mockResolvedValueOnce(json({ items: [{ asset_id: asset.asset_id, url: asset.url, expires_at: asset.expires_at }] }));
     await expect(client.signAssets(docId, [asset.asset_id])).resolves.toEqual({ items: [{ asset_id: asset.asset_id, url: asset.url, expires_at: asset.expires_at }] });
-    expect(JSON.parse(String(f.mock.calls[3]?.[1]?.body))).toEqual({ asset_ids: [asset.asset_id] });
+    expect(JSON.parse(String(f.mock.calls[2]?.[1]?.body))).toEqual({ asset_ids: [asset.asset_id] });
   });
 
   it("degrades every malformed frame answer instead of throwing", async () => {
     const f = vi.fn<typeof fetch>();
     const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
     for (const body of malformed) {
-      f.mockResolvedValueOnce(json(body));
-      await expect(client.refresh()).resolves.toBeNull();
       f.mockResolvedValueOnce(json(body));
       await expect(client.open(docId)).resolves.toBeNull();
       f.mockResolvedValueOnce(json(body));

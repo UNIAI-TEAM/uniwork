@@ -461,7 +461,6 @@ type Routes struct {
 	// Office Docs web frame (UNI-1013): the session mint, and the frame-token
 	// routes Deps.OfficeFrameAuth guards.
 	MintOfficeFrameToken     http.HandlerFunc
-	RefreshOfficeFrameToken  http.HandlerFunc
 	OpenOfficeFrameDocument  http.HandlerFunc
 	GetOfficeFrameContent    http.HandlerFunc
 	UploadOfficeFrameFile    http.HandlerFunc
