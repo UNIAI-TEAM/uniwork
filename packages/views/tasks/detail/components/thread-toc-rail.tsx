@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, MessageSquare } from "lucide-react";
+import { CircleCheck, MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useComments } from "@uniwork/core/tasks";
@@ -209,7 +209,7 @@ export function ThreadTocRail({
                     ) : null}
                     {thread.resolved ? (
                       <span className="flex items-center gap-1 text-success">
-                        <CheckCircle2 className="size-3.5" aria-hidden />
+                        <CircleCheck className="size-3.5" aria-hidden />
                         {t("tasks.detail.comment_resolved")}
                       </span>
                     ) : null}

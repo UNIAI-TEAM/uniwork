@@ -71,7 +71,7 @@ import {
   Heading2,
   Heading3,
   FilePlus,
-  Loader2,
+  LoaderCircle,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 import { useState, type MouseEventHandler, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { LayoutGrid, Settings2, SmilePlus } from "lucide-react";
+import { LayoutGrid, Settings2, FaceSlightlySmilingPlus } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogTrigger } from "@uniwork/ui/components/ui/dialog";
 import {
@@ -216,7 +216,7 @@ export function ReactionsControl({ inMenu = false }: { inMenu?: boolean }) {
             <Button type="button" variant="ghost" className="h-11 w-full justify-start gap-3" />
           }
         >
-          <SmilePlus aria-hidden />
+          <FaceSlightlySmilingPlus aria-hidden />
           {label}
         </PopoverTrigger>
       ) : (
@@ -231,7 +231,7 @@ export function ReactionsControl({ inMenu = false }: { inMenu?: boolean }) {
             />
           }
         >
-          <SmilePlus aria-hidden />
+          <FaceSlightlySmilingPlus aria-hidden />
         </PopoverTrigger>
       )}
       {/* `dark`: the popup portals to <body>, away from the dark stage it belongs to. */}

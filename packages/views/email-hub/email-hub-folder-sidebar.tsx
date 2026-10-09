@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Keyboard, Lock, Mail, PenSquare, Tag } from "lucide-react";
+import { ChevronDown, Keyboard, Lock, Mail, SquarePen, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -115,7 +115,7 @@ export function EmailHubFolderSidebar({
           disabled={composeDisabled}
           onClick={onCompose}
         >
-          <PenSquare aria-hidden />
+          <SquarePen aria-hidden />
           {t("email_hub.compose_label")}
           {shortcutsOn ? <Kbd className="ml-auto bg-brand-foreground/15 text-brand-foreground">C</Kbd> : null}
         </Button>

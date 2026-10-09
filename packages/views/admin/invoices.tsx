@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, ChevronLeft, ChevronRight, Receipt, Search } from "lucide-react";
+import { CircleAlert, ChevronLeft, ChevronRight, Receipt, Search } from "lucide-react";
 import { useAdminInvoices, useAdminPaymentIntents } from "@uniwork/core/admin";
 import { useDebouncedValue } from "@uniwork/core/hooks";
 import { paths } from "@uniwork/core/paths";
@@ -194,7 +194,7 @@ export function AdminInvoicesView() {
         </div>
       ) : active.isError ? (
         <CollectionPageState
-          icon={AlertCircle}
+          icon={CircleAlert}
           tone="destructive"
           role="alert"
           title={t("error_title")}

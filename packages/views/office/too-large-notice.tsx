@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { Download, FileWarning } from "lucide-react";
+import { Download, FileExclamationPoint } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Notice } from "../common/notice";
@@ -40,7 +40,7 @@ export function OfficeTooLargeNotice({ format }: { format: string }) {
   };
   return (
     <section className="flex min-h-64 flex-1 items-center justify-center p-6" data-testid="office-too-large">
-      <Notice tone="warning" icon={FileWarning} layout="inline" live="assertive" className="w-full max-w-xl">
+      <Notice tone="warning" icon={FileExclamationPoint} layout="inline" live="assertive" className="w-full max-w-xl">
         <div className="space-y-2">
           <p className="text-body font-semibold">{t("title")}</p>
           <p>{t("description", { format: formatName(format) })}</p>

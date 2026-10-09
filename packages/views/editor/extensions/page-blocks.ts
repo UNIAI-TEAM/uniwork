@@ -1,6 +1,6 @@
 import type { Editor, Range } from "@tiptap/core";
 import {
-  AlignLeft, AtSign, Code2, Heading1, Heading2, Heading3, ImagePlus,
+  TextAlignStart, AtSign, CodeXml, Heading1, Heading2, Heading3, ImagePlus,
   List, ListOrdered, ListTodo, Minus, Quote, Table2, type LucideIcon,
 } from "lucide-react";
 
@@ -14,7 +14,7 @@ export interface PageBlock {
 export type PageTranslate = (key: string, options?: { lng?: string }) => string;
 
 export const PAGE_BLOCKS: readonly PageBlock[] = [
-  { id: "paragraph", nodeType: "paragraph", icon: AlignLeft },
+  { id: "paragraph", nodeType: "paragraph", icon: TextAlignStart },
   { id: "heading1", nodeType: "heading", icon: Heading1 },
   { id: "heading2", nodeType: "heading", icon: Heading2 },
   { id: "heading3", nodeType: "heading", icon: Heading3 },
@@ -22,7 +22,7 @@ export const PAGE_BLOCKS: readonly PageBlock[] = [
   { id: "orderedList", nodeType: "orderedList", icon: ListOrdered },
   { id: "taskList", nodeType: "taskList", icon: ListTodo },
   { id: "blockquote", nodeType: "blockquote", icon: Quote },
-  { id: "codeBlock", nodeType: "codeBlock", icon: Code2 },
+  { id: "codeBlock", nodeType: "codeBlock", icon: CodeXml },
   { id: "horizontalRule", nodeType: "horizontalRule", icon: Minus },
   { id: "table", nodeType: "table", icon: Table2 },
   { id: "image", nodeType: "image", icon: ImagePlus },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { PauseCircle } from "lucide-react";
+import { CirclePause } from "lucide-react";
 import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { CollectionPageState } from "../layout/collection-page";
@@ -18,7 +18,7 @@ export function OrganizationSuspendedPage() {
   return (
     <div className="flex h-svh w-full items-center justify-center bg-background">
       <CollectionPageState
-        icon={PauseCircle}
+        icon={CirclePause}
         tone="warning"
         role="alert"
         title={t("title")}

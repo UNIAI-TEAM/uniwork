@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignCenter, AlignCenterHorizontal, AlignEndHorizontal, AlignLeft, AlignRight, AlignStartHorizontal, TextWrap } from "lucide-react";
+import { TextAlignCenter, AlignCenterHorizontal, AlignEndHorizontal, TextAlignStart, TextAlignEnd, AlignStartHorizontal, TextWrap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Select } from "@uniwork/ui/components/ui/select";
@@ -13,9 +13,9 @@ import { fireCommand } from "../fire-command";
 import { XLSX_FIELD_BOX_CLASS, XLSX_ICON_BUTTON_CLASS, XlsxGroupBody, XlsxGroupRow, XlsxGroupRows } from "./group-layout";
 
 const HORIZONTAL_ALIGNMENTS = [
-  { key: "left", value: XLSX_HORIZONTAL_ALIGN.left, Icon: AlignLeft },
-  { key: "center", value: XLSX_HORIZONTAL_ALIGN.center, Icon: AlignCenter },
-  { key: "right", value: XLSX_HORIZONTAL_ALIGN.right, Icon: AlignRight },
+  { key: "left", value: XLSX_HORIZONTAL_ALIGN.left, Icon: TextAlignStart },
+  { key: "center", value: XLSX_HORIZONTAL_ALIGN.center, Icon: TextAlignCenter },
+  { key: "right", value: XLSX_HORIZONTAL_ALIGN.right, Icon: TextAlignEnd },
 ] as const;
 
 const VERTICAL_ALIGNMENTS = [

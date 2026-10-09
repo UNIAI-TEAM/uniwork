@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Compass, Hash, MessageSquare, UserPlus, Users, type LucideIcon } from "lucide-react";
+import { CircleAlert, Compass, Hash, MessageSquare, UserPlus, Users, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { PendingInvitation, Workspace } from "@uniwork/core/types";
@@ -111,7 +111,7 @@ export function SidebarLoadError({ onRetry }: { onRetry?: () => void }) {
   return (
     <Notice
       tone="destructive"
-      icon={AlertCircle}
+      icon={CircleAlert}
       layout="inline"
       live="assertive"
       className="my-1"

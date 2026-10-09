@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, EyeOff } from "lucide-react";
+import { Ellipsis, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskStatus } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -67,7 +67,7 @@ export function SwimlaneStatusHeader({
                     />
                   }
                 >
-                  <MoreHorizontal className="size-3.5" aria-hidden />
+                  <Ellipsis className="size-3.5" aria-hidden />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => onHideStatus(status)}>

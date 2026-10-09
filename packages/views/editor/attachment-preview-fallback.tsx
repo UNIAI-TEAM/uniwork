@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Download, FileText, Loader2 } from "lucide-react";
+import { Download, FileText, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   PreviewTooLargeError,
@@ -24,7 +24,7 @@ export function TextBackedPreview({
   if (query.isLoading) {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-body text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
+        <LoaderCircle className="size-4 animate-spin" />
         {t("editor.attachment.preview_loading")}
       </div>
     );

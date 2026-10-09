@@ -52,7 +52,7 @@ import {
   Download,
   ExternalLink,
   FileText,
-  Loader2,
+  LoaderCircle,
   X,
 } from "lucide-react";
 import type { Attachment } from "@uniwork/core/types";

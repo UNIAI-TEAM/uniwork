@@ -20,7 +20,7 @@
  * explicit mapping: group 0 -> 10, group 1 -> 5, group 2+ -> 0.
  */
 import {
-  BarChart3,
+  ChartColumn,
   CaseSensitive,
   FileDown,
   FolderOpen,
@@ -116,7 +116,7 @@ const PPTX_COMMAND_ICONS: Partial<Record<PptxCommandId, RibbonIcon>> = {
   "speaker-notes": StickyNote,
   "masters-layouts": LayoutTemplate,
   animations: Sparkles,
-  charts: BarChart3,
+  charts: ChartColumn,
   tables: Table,
   "embedded-fonts": CaseSensitive,
   "render-fidelity": Monitor,
@@ -143,7 +143,7 @@ const PPTX_PANEL_ICONS: Partial<Record<PptxPanelKind, RibbonIcon>> = {
   notes: StickyNote,
   animations: Sparkles,
   tables: Table,
-  charts: BarChart3,
+  charts: ChartColumn,
 };
 
 /** A side panel opened from a ribbon item (a toggle that shows the panel). */

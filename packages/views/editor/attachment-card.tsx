@@ -9,7 +9,7 @@
  * that decision out of this file so this stays a single-purpose row UI.
  */
 
-import { Download, Eye, FileText, Loader2, Trash2 } from "lucide-react";
+import { Download, Eye, FileText, LoaderCircle, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getPreviewKind } from "./utils/preview";
 
@@ -42,7 +42,7 @@ function AttachmentCardChrome({
       onMouseDown={(e) => e.stopPropagation()}
     >
       {uploading ? (
-        <Loader2
+        <LoaderCircle
           className="size-4 shrink-0 animate-spin text-muted-foreground"
           aria-hidden="true"
         />

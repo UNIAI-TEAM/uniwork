@@ -6,7 +6,7 @@
 // the chart part. The actual node insertion goes through DocxChartEditing.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BarChart3, LineChart, PieChart, Plus, Trash2 } from "lucide-react";
+import { ChartColumn, ChartLine, ChartPie, Plus, Trash2 } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -45,10 +45,10 @@ interface SeriesRow {
   values: string[];
 }
 
-const KIND_ICONS: Record<DocxChartKind, typeof BarChart3> = {
-  bar: BarChart3,
-  line: LineChart,
-  pie: PieChart,
+const KIND_ICONS: Record<DocxChartKind, typeof ChartColumn> = {
+  bar: ChartColumn,
+  line: ChartLine,
+  pie: ChartPie,
 };
 
 const DEFAULT_CATEGORIES = ["", "", ""];
@@ -140,7 +140,7 @@ export function DocxChartInsert({ editing, readOnly = false, className, hasTable
         onClick={openDialog}
         data-testid="docx-chart-insert-button"
       >
-        <BarChart3 aria-hidden />
+        <ChartColumn aria-hidden />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent closeLabel={t("office.docx.charts.close")} className="sm:max-w-2xl">

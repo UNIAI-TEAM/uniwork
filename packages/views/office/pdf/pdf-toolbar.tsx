@@ -1,6 +1,6 @@
 "use client";
 
-import { FilePlus2, ImagePlus, RotateCw, Save, Undo2, Redo2, Type, Trash2 } from "lucide-react";
+import { FilePlusCorner, ImagePlus, RotateCw, Save, Undo2, Redo2, Type, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { PdfSaveCoordinator, PdfSelection } from "./types";
@@ -72,7 +72,7 @@ export function PdfToolbar({
       <span className="mx-1 h-5 w-px bg-border" aria-hidden />
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.commands.editText")} disabled={blocked || !canEditText || selection?.kind !== "text"} onClick={onEditText}><Type aria-hidden /></Button>
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.commands.replaceImage")} disabled={blocked || !canReplaceImage || selection?.kind !== "image"} onClick={onReplaceImage}><ImagePlus aria-hidden /></Button>
-      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.commands.insertPage")} disabled={blocked || !canPageOps} onClick={onInsertPage}><FilePlus2 aria-hidden /></Button>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.commands.insertPage")} disabled={blocked || !canPageOps} onClick={onInsertPage}><FilePlusCorner aria-hidden /></Button>
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.commands.deletePage")} disabled={blocked || !canPageOps || !hasPage} onClick={onDeletePage}><Trash2 aria-hidden /></Button>
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.pdf.commands.rotatePage")} disabled={blocked || !canPageOps || !hasPage} onClick={onRotatePage}><RotateCw aria-hidden /></Button>
       <Button type="button" variant="toolbar" size="sm" aria-label={t("office.pdf.commands.reorderPage")} disabled={blocked || !canPageOps || !hasPage} onClick={onReorderPage}>{t("office.pdf.commands.reorderPage")}</Button>

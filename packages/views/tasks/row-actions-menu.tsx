@@ -8,7 +8,7 @@ import {
   type Ref,
   type SyntheticEvent,
 } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { Ellipsis } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { paths } from "@uniwork/core/paths";
@@ -328,7 +328,7 @@ export function RowActionsDropdown({
             />
           }
         >
-          <MoreHorizontal aria-hidden />
+          <Ellipsis aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
           <RowActionItems

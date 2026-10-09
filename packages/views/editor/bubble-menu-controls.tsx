@@ -71,7 +71,7 @@ import {
   Heading2,
   Heading3,
   FilePlus,
-  Loader2,
+  LoaderCircle,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -484,7 +484,7 @@ export function CreateSubTaskButton({
         }
       >
         {pending ? (
-          <Loader2 className="size-3.5 animate-spin" />
+          <LoaderCircle className="size-3.5 animate-spin" />
         ) : (
           <FilePlus className="size-3.5" />
         )}

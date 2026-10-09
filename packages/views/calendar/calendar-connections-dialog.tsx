@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Link2, MoreHorizontal, Plus, Unplug } from "lucide-react";
+import { Check, Link2, Ellipsis, Plus, Unplug } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -311,7 +311,7 @@ function ConnectedProviderRow({
               />
             }
           >
-            <MoreHorizontal aria-hidden className="size-4" />
+            <Ellipsis aria-hidden className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem variant="destructive" onClick={onDisconnect}>

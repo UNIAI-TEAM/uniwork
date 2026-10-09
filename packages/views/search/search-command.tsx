@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, File, FileText, History, Monitor, Moon, Settings, SquareCheckBig, Sun } from "lucide-react";
+import { CalendarDays, File, FileText, RotateCcwClock, Monitor, Moon, Settings, SquareCheckBig, Sun } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -124,7 +124,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
                   value={`recent ${task.id} ${task.identifier} ${task.title}`}
                   onSelect={() => run(() => push(ws.task(task.id)))}
                 >
-                  <History />
+                  <RotateCcwClock />
                   <span className="shrink-0 text-muted-foreground">{task.identifier}</span>
                   <span className="truncate">{task.title || t("tasks.detail.title_placeholder")}</span>
                 </CommandItem>

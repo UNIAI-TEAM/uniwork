@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Copy, Download, Loader2 } from "lucide-react";
+import { Copy, Download, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { toastApiError } from "../../toast-api-error";
@@ -145,7 +145,7 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
             refresh.mutate(undefined, { onError: (err) => toastApiError(err, t("toastFailed")) });
           }}
         >
-          {refresh.isPending ? <Loader2 aria-hidden className="animate-spin" /> : null}
+          {refresh.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
           {t("recoveryDone")}
         </Button>
       </div>
@@ -199,7 +199,7 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
               });
             }}
           >
-            {setup.isPending ? <Loader2 aria-hidden className="animate-spin" /> : null}
+            {setup.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
             {t("enable")}
           </Button>
         </div>
@@ -259,7 +259,7 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
       </Field>
       <div className="flex gap-2">
         <Button type="submit" aria-disabled={confirm.isPending || undefined} aria-busy={confirm.isPending || undefined}>
-          {confirm.isPending ? <Loader2 aria-hidden className="animate-spin" /> : null}
+          {confirm.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
           {t("confirm")}
         </Button>
         <Button type="button" variant="ghost" onClick={() => setPending(null)}>
@@ -330,7 +330,7 @@ function DisableMfa() {
               aria-disabled={disable.isPending || undefined}
               aria-busy={disable.isPending || undefined}
             >
-              {disable.isPending ? <Loader2 aria-hidden className="animate-spin" /> : null}
+              {disable.isPending ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
               {t("disable")}
             </Button>
           </div>

@@ -4,7 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
-  Filter,
+  Funnel,
   LayoutGrid,
   Rows3,
   Search,
@@ -187,7 +187,7 @@ export function ProjectsListToolbar({
               />
             }
           >
-            <Filter className="size-3.5" />
+            <Funnel className="size-3.5" />
             {hasActiveFilters ? (
               <>
                 <span className="hidden md:inline">

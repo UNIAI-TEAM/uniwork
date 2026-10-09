@@ -6,7 +6,7 @@ import {
   ChevronDown,
   CircleDot,
   Crown,
-  History,
+  RotateCcwClock,
   Link2,
   ListChecks,
   Pencil,
@@ -92,7 +92,7 @@ export function MeetingActivityTimeline({
     <Collapsible open={open} onOpenChange={setOpen}>
       <PanelCard
         id="activity-heading"
-        icon={History}
+        icon={RotateCcwClock}
         iconTone={moduleTone("meetings")}
         title={t("meetings.activity")}
         flush

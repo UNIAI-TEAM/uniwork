@@ -1,4 +1,5 @@
 import nextConfig from "@uniwork/eslint-config/next";
+import { lucideAliasPaths } from "@uniwork/eslint-config/base";
 
 export default [
   ...nextConfig,
@@ -19,6 +20,7 @@ export default [
     files: ["features/landing/**/*.{ts,tsx}", "app/page.tsx", "app/solutions/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": ["error", {
+        paths: lucideAliasPaths,
         patterns: [{
           group: ["motion", "motion/*", "framer-motion", "framer-motion/*"],
           message:
@@ -32,6 +34,7 @@ export default [
     ignores: ["features/landing/**", "app/page.tsx", "app/solutions/**"],
     rules: {
       "no-restricted-imports": ["error", {
+        paths: lucideAliasPaths,
         patterns: [{
           group: ["gsap", "gsap/*", "@gsap/react"],
           message:

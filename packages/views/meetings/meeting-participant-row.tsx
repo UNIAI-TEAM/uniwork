@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
 import { useIsMuted, useIsSpeaking } from "@livekit/components-react";
-import { Eye, EyeOff, Lock, MicOff, MoreVertical, Pin, PinOff, Volume2 } from "lucide-react";
+import { Eye, EyeOff, Lock, MicOff, EllipsisVertical, Pin, PinOff, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -116,7 +116,7 @@ export function MeetingParticipantRow({
               />
             }
           >
-            <MoreVertical aria-hidden className="size-4" />
+            <EllipsisVertical aria-hidden className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-44">
             <DropdownMenuItem

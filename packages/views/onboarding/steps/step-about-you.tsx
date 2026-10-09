@@ -1,12 +1,12 @@
 "use client";
 import {
   Briefcase,
-  Code2,
+  CodeXml,
   GraduationCap,
   Handshake,
-  KanbanSquare,
+  SquareKanban,
   ListChecks,
-  MoreHorizontal,
+  Ellipsis,
   Settings2,
   User,
   UserRound,
@@ -41,21 +41,21 @@ export function StepAboutYou({
   const u = (k: string) => t(`onboarding.questions.use_case.${k}`);
 
   const roleOptions: QuestionOption[] = [
-    { slug: "engineer", icon: <Code2 />, label: r("engineer") },
+    { slug: "engineer", icon: <CodeXml />, label: r("engineer") },
     { slug: "manager", icon: <Users />, label: r("manager") },
     { slug: "product", icon: <Briefcase />, label: r("product") },
     { slug: "ops", icon: <Settings2 />, label: r("ops") },
     { slug: "sales", icon: <Handshake />, label: r("sales") },
     { slug: "hr", icon: <UserRound />, label: r("hr") },
     { slug: "student", icon: <GraduationCap />, label: r("student") },
-    { slug: "other", icon: <MoreHorizontal />, label: r("other"), isOther: true },
+    { slug: "other", icon: <Ellipsis />, label: r("other"), isOther: true },
   ];
   const useCaseOptions: QuestionOption[] = [
     { slug: "team_tasks", icon: <ListChecks />, label: u("team_tasks") },
     { slug: "meetings", icon: <Video />, label: u("meetings") },
     { slug: "personal_tasks", icon: <User />, label: u("personal_tasks") },
-    { slug: "project_tracking", icon: <KanbanSquare />, label: u("project_tracking") },
-    { slug: "other", icon: <MoreHorizontal />, label: u("other"), isOther: true },
+    { slug: "project_tracking", icon: <SquareKanban />, label: u("project_tracking") },
+    { slug: "other", icon: <Ellipsis />, label: u("other"), isOther: true },
   ];
 
   const roleSelected: readonly string[] = answers.role ? [answers.role] : [];

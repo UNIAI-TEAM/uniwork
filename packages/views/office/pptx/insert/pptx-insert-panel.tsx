@@ -20,7 +20,7 @@
  * deliberately touches no shared path.
  */
 import { useCallback, useState } from "react";
-import { Loader2, Type } from "lucide-react";
+import { LoaderCircle, Type } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -200,7 +200,7 @@ export function PptxInsertPanel({
         data-testid="pptx-insert-panel"
         data-state="loading"
       >
-        <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+        <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
         <span data-pptx-insert-loading data-testid="pptx-insert-loading">{t("office.pptx.insert.loading")}</span>
       </section>
     );

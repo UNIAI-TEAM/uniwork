@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api";
 import { isJoinAdmitted, useJoinMeeting } from "@uniwork/core/meetings";
@@ -334,7 +334,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
         <p className="text-body text-foreground">{title}</p>
         {joinPending ? (
           <p role="status" className="flex items-center gap-2 text-body text-muted-foreground">
-            <Loader2 aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
+            <LoaderCircle aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
             {t("meetings.joining")}
           </p>
         ) : null}

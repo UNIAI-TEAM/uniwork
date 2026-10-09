@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Bookmark, Check, ListTodo, Trash2 } from "lucide-react";
+import { CircleAlert, Bookmark, Check, ListTodo, Trash2 } from "lucide-react";
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatFollowUpRecord } from "@uniwork/core/api/endpoints/chat";
@@ -209,7 +209,7 @@ export function ChatFollowUpsSheet({
     body = (
       <Notice
         tone="destructive"
-        icon={AlertCircle}
+        icon={CircleAlert}
         layout="inline"
         live="assertive"
         action={

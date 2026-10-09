@@ -2,7 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Check, Loader2, RotateCw } from "lucide-react";
+import { CircleAlert, Check, LoaderCircle, RotateCw } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Card, CardContent } from "@uniwork/ui/components/ui/card";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -248,7 +248,7 @@ export function SettingsLoadError({ children, onRetry }: { children?: ReactNode;
   const { t } = useTranslation(undefined, { keyPrefix: "settings.state" });
   return (
     <div role="status" className="flex flex-wrap items-center gap-3 px-4 py-4 text-body">
-      <AlertCircle aria-hidden className="size-4 shrink-0 text-destructive" />
+      <CircleAlert aria-hidden className="size-4 shrink-0 text-destructive" />
       <span className="min-w-0 flex-1 text-pretty text-foreground">{children ?? t("load_error")}</span>
       {onRetry ? (
         <Button type="button" variant="outline" size="sm" onClick={onRetry}>
@@ -268,7 +268,7 @@ export function SettingsLoadError({ children, onRetry }: { children?: ReactNode;
 export function SettingsFieldError({ id, children, className }: { id: string; children: ReactNode; className?: string }) {
   return (
     <p id={id} className={cn("flex items-start gap-1.5 text-caption text-destructive", className)}>
-      <AlertCircle aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+      <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
       <span className="text-pretty">{children}</span>
     </p>
   );
@@ -395,7 +395,7 @@ export function SettingsSaveState({
   const content =
     status === "saving" ? (
       <>
-        <Loader2 aria-hidden className="size-3 animate-spin" />
+        <LoaderCircle aria-hidden className="size-3 animate-spin" />
         {savingLabel}
       </>
     ) : status === "saved" ? (
@@ -405,7 +405,7 @@ export function SettingsSaveState({
       </>
     ) : status === "error" ? (
       <>
-        <AlertCircle aria-hidden className="size-3 text-destructive" />
+        <CircleAlert aria-hidden className="size-3 text-destructive" />
         {errorLabel}
       </>
     ) : null;

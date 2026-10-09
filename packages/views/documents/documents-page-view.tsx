@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FilePlus2, FileText, FolderTree, Upload } from "lucide-react";
+import { FilePlusCorner, FileText, FolderTree, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -188,7 +188,7 @@ export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
         disabled={createPage.isPending}
         onClick={() => void newPage()}
       >
-        <FilePlus2 aria-hidden className="size-3.5" />
+        <FilePlusCorner aria-hidden className="size-3.5" />
         {t("documents.page.new_page")}
       </Button>
       <Button type="button" variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
@@ -262,7 +262,7 @@ export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
         actions={
           <>
             <CollectionPageHeaderAction
-              icon={FilePlus2}
+              icon={FilePlusCorner}
               label={t("documents.page.new_page")}
               disabled={!enabled || createPage.isPending}
               onClick={() => void newPage()}

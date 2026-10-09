@@ -7,11 +7,11 @@ import {
   Link2,
   ListTodo,
   MessageSquareText,
-  MoreHorizontal,
+  Ellipsis,
   Pencil,
   Pin,
   Reply,
-  SmilePlus,
+  FaceSlightlySmilingPlus,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -169,7 +169,7 @@ export function ChatMessageHoverActions({
     >
       <TooltipProvider delay={300}>
         <MessageActionButton label={t("chat.action_react")} onClick={() => onReact?.(message)}>
-          <SmilePlus className="size-4" aria-hidden />
+          <FaceSlightlySmilingPlus className="size-4" aria-hidden />
         </MessageActionButton>
         <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply?.(message)}>
           <Reply className="size-4" aria-hidden />
@@ -202,7 +202,7 @@ export function ChatMessageHoverActions({
                 className="shrink-0 text-muted-foreground hover:text-foreground"
                 aria-label={t("chat.action_more")}
               >
-                <MoreHorizontal className="size-4" aria-hidden />
+                <Ellipsis className="size-4" aria-hidden />
               </Button>
             }
           />

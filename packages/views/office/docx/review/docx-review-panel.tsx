@@ -5,7 +5,7 @@
 // file renders the change list (kind, author, date, snippet), per-change
 // accept/reject, the bulk actions behind a confirmation, and the
 // loading/empty/read-only states.
-import { Check, History, X } from "lucide-react";
+import { Check, RotateCcwClock, X } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -78,7 +78,7 @@ export function DocxReviewPanel({
     <div className="flex max-h-[70vh] w-full min-w-0 flex-col gap-2" data-testid="docx-review-panel">
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5 font-heading text-title-sm font-medium">
-          <History aria-hidden />
+          <RotateCcwClock aria-hidden />
           <span className="truncate">{t("office.docx.review.title")}</span>
         </span>
         <div className="flex shrink-0 items-center gap-1">
@@ -129,7 +129,7 @@ export function DocxReviewPanel({
         <Empty className="border-0 p-4">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <History aria-hidden />
+              <RotateCcwClock aria-hidden />
             </EmptyMedia>
             <EmptyTitle as="h3">{t("office.docx.review.empty")}</EmptyTitle>
             <EmptyDescription>{t("office.docx.review.emptyHint")}</EmptyDescription>

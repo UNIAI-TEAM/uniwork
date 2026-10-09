@@ -11,9 +11,9 @@
 import type { Editor } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
+  TextAlignCenter,
+  TextAlignStart,
+  TextAlignEnd,
   BetweenHorizontalStart,
   Columns3,
   FlipHorizontal2,
@@ -225,9 +225,9 @@ function tableLayoutTab(context: DocxToolbarGroupContext, when: boolean): Ribbon
       labelKey: "office.docx.toolbar.contextual.tableAlign",
       priority: 13,
       items: [
-        { kind: "button", id: "table-layout-align-left", labelKey: "office.docx.toolbar.paragraph.alignLeft", icon: AlignLeft, size: "icon", disabled, onExecute: () => commands?.setParagraphAlign("left") },
-        { kind: "button", id: "table-layout-align-center", labelKey: "office.docx.toolbar.paragraph.alignCenter", icon: AlignCenter, size: "icon", disabled, onExecute: () => commands?.setParagraphAlign("center") },
-        { kind: "button", id: "table-layout-align-right", labelKey: "office.docx.toolbar.paragraph.alignRight", icon: AlignRight, size: "icon", disabled, onExecute: () => commands?.setParagraphAlign("right") },
+        { kind: "button", id: "table-layout-align-left", labelKey: "office.docx.toolbar.paragraph.alignLeft", icon: TextAlignStart, size: "icon", disabled, onExecute: () => commands?.setParagraphAlign("left") },
+        { kind: "button", id: "table-layout-align-center", labelKey: "office.docx.toolbar.paragraph.alignCenter", icon: TextAlignCenter, size: "icon", disabled, onExecute: () => commands?.setParagraphAlign("center") },
+        { kind: "button", id: "table-layout-align-right", labelKey: "office.docx.toolbar.paragraph.alignRight", icon: TextAlignEnd, size: "icon", disabled, onExecute: () => commands?.setParagraphAlign("right") },
       ],
     },
   ];
@@ -269,9 +269,9 @@ function pictureFormatTab(context: DocxToolbarGroupContext, when: boolean): Ribb
       labelKey: "office.docx.image.align.label",
       priority: 12,
       items: [
-        { kind: "button", id: "picture-format-align-left", labelKey: "office.docx.image.align.left", icon: AlignLeft, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "align", align: "left" })) },
-        { kind: "button", id: "picture-format-align-center", labelKey: "office.docx.image.align.center", icon: AlignCenter, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "align", align: "center" })) },
-        { kind: "button", id: "picture-format-align-right", labelKey: "office.docx.image.align.right", icon: AlignRight, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "align", align: "right" })) },
+        { kind: "button", id: "picture-format-align-left", labelKey: "office.docx.image.align.left", icon: TextAlignStart, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "align", align: "left" })) },
+        { kind: "button", id: "picture-format-align-center", labelKey: "office.docx.image.align.center", icon: TextAlignCenter, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "align", align: "center" })) },
+        { kind: "button", id: "picture-format-align-right", labelKey: "office.docx.image.align.right", icon: TextAlignEnd, size: "icon", disabled, onExecute: () => withImageEditing(context, (editing) => editing.apply({ kind: "align", align: "right" })) },
       ],
     },
     {

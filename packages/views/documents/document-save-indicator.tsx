@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Check, Clock, Loader2 } from "lucide-react";
+import { TriangleAlert, Check, Clock, LoaderCircle } from "lucide-react";
 import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -60,7 +60,7 @@ export function DocumentSaveIndicator({
   if (pendingUploads > 0) {
     return (
       <span {...statusProps} className={cn(BASE, className)}>
-        <Loader2 aria-hidden className="size-3.5 animate-spin" />
+        <LoaderCircle aria-hidden className="size-3.5 animate-spin" />
         {t("documents.save.asset_uploading")}
       </span>
     );
@@ -71,7 +71,7 @@ export function DocumentSaveIndicator({
     case "saving":
       return (
         <span {...statusProps} className={cn(BASE, className)}>
-          <Loader2 aria-hidden className="size-3.5 animate-spin" />
+          <LoaderCircle aria-hidden className="size-3.5 animate-spin" />
           {t("documents.save.saving")}
         </span>
       );
@@ -93,7 +93,7 @@ export function DocumentSaveIndicator({
     case "conflict":
       return (
         <span {...statusProps} className={cn(BASE, "text-warning", className)}>
-          <AlertTriangle aria-hidden className="size-3.5" />
+          <TriangleAlert aria-hidden className="size-3.5" />
           {t("documents.save.conflict")}
           {onResolveConflict ? (
             <Button type="button" size="sm" variant="outline" onClick={onResolveConflict}>
@@ -106,7 +106,7 @@ export function DocumentSaveIndicator({
     case "unverifiable":
       return (
         <span {...statusProps} className={cn(BASE, "text-warning", className)}>
-          <AlertTriangle aria-hidden className="size-3.5" />
+          <TriangleAlert aria-hidden className="size-3.5" />
           {state.phase === "unverifiable" ? t("documents.save.unverified") : t("documents.save.error")}
           {onRetry ? (
             <Button type="button" size="sm" variant="outline" onClick={onRetry}>

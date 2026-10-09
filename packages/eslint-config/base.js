@@ -1,6 +1,23 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import importPlugin from "eslint-plugin-import-x";
+import { createRequire } from "node:module";
+
+// Deprecated lucide-react names (`AlertCircle`, `Loader2`, …), generated from
+// the installed package by `pnpm generate:lucide-aliases`. One restriction per
+// canonical icon, so the message names the import to use. A package config
+// that sets its own `no-restricted-imports` replaces this one and must spread
+// `lucideAliasPaths` into its `paths` (flat config does not merge options).
+const lucideAliases = createRequire(import.meta.url)("./lucide-aliases.json");
+const aliasesByIcon = new Map();
+for (const [alias, icon] of Object.entries(lucideAliases)) {
+  aliasesByIcon.set(icon, [...(aliasesByIcon.get(icon) ?? []), alias]);
+}
+export const lucideAliasPaths = [...aliasesByIcon].map(([icon, importNames]) => ({
+  name: "lucide-react",
+  importNames,
+  message: `Deprecated lucide alias. Import ${icon} (or ${icon}Icon in packages/ui) — docs/conventions.md › Icons.`,
+}));
 
 /** @type {import("eslint").Linter.Config[]} */
 export default [
@@ -36,6 +53,7 @@ export default [
         ],
         peerDependencies: true,
       }],
+      "no-restricted-imports": ["error", { paths: lucideAliasPaths }],
     },
   },
   // Type-aware: a promise that nobody awaits, `void`s or `.catch`es is a

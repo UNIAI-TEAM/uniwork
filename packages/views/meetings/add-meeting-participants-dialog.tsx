@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { inviteParticipant } from "@uniwork/core/api/endpoints/meetings";
@@ -82,7 +82,7 @@ export function AddMeetingParticipantsDialog({
         >
           <FormDialogBody className="space-y-3">
             {failedIds.length > 0 ? (
-              <Notice tone="destructive" icon={AlertCircle} layout="inline" live="assertive">
+              <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
                 {t("meetings.inviteFailedNames", { names: failedNames.join(", ") })}
               </Notice>
             ) : null}

@@ -1,4 +1,5 @@
 import reactConfig from "@uniwork/eslint-config/react";
+import { lucideAliasPaths } from "@uniwork/eslint-config/base";
 
 export default [
   ...reactConfig,
@@ -10,6 +11,7 @@ export default [
     ignores: ["**/*.test.{ts,tsx}", "test/**"],
     rules: {
       "no-restricted-imports": ["error", {
+        paths: lucideAliasPaths,
         patterns: [{
           group: ["@uniwork/core", "@uniwork/core/*"],
           message:

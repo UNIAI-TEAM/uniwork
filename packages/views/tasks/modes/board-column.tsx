@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
-import { EyeOff, MoreHorizontal, Plus } from "lucide-react";
+import { EyeOff, Ellipsis, Plus } from "lucide-react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Virtuoso } from "react-virtuoso";
@@ -209,7 +209,7 @@ export const BoardColumn = memo(function BoardColumn({
                   />
                 }
               >
-                <MoreHorizontal className="size-3.5" />
+                <Ellipsis className="size-3.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
