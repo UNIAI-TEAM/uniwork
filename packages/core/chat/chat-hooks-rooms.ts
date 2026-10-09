@@ -60,7 +60,7 @@ export function useChatRooms(workspaceId: string) {
   const authReady = useAuthStore((s) => s.status === "authed");
   return useQuery({
     queryKey: chatKeys.rooms(workspaceId),
-    queryFn: () => chat.listChatRooms(workspaceId),
+    queryFn: ({ signal }) => chat.listChatRooms(workspaceId, signal),
     enabled: !!workspaceId && authReady,
     // After BE restart the reconnect path invalidates this key; keep the
     // sidebar honest even if a prior empty response was briefly cached.

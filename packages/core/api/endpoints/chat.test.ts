@@ -106,6 +106,13 @@ describe("chat endpoints", () => {
     expect(await listChatRooms("ws1")).toEqual([]);
   });
 
+  it("listChatRooms hands the query's AbortSignal to fetch", async () => {
+    const controller = new AbortController();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ rooms: [] }));
+    await listChatRooms("ws1", controller.signal);
+    expect(vi.mocked(fetch).mock.calls.at(-1)?.[1]?.signal).toBe(controller.signal);
+  });
+
   it("listChatRooms accepts null member_user_ids from Go", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({

@@ -492,6 +492,11 @@ function isMeetingDetailKey(queryKey: readonly unknown[]): boolean {
   return Array.isArray(queryKey) && queryKey[0] === "meeting" && typeof queryKey[1] === "string";
 }
 
+/** The sidebar list: every refresh of it goes through the chat scheduler. */
+function isChatRoomsKey(wsId: string, queryKey: readonly unknown[]): boolean {
+  return JSON.stringify(queryKey) === JSON.stringify(chatKeys.rooms(wsId));
+}
+
 function isTranscriptKey(queryKey: readonly unknown[]): boolean {
   return Array.isArray(queryKey) && queryKey[0] === "meeting-transcript";
 }
@@ -539,6 +544,10 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {
+        if (isChatRoomsKey(wsId, queryKey)) {
+          chatScheduler.scheduleRoomActivity();
+          continue;
+        }
         if (
           isMeetingDetailKey(queryKey) &&
           payload.meeting_id &&
@@ -558,7 +567,10 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       }
     });
     const offReconnect = client.onReconnect(() => {
-      for (const queryKey of allWorkspaceKeys(wsId)) scheduler.schedule(queryKey);
+      for (const queryKey of allWorkspaceKeys(wsId)) {
+        if (isChatRoomsKey(wsId, queryKey)) chatScheduler.scheduleRoomActivity();
+        else scheduler.schedule(queryKey);
+      }
     });
     return () => {
       offAny();

@@ -56,8 +56,10 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
     );
     // After preview patches: server unread/mention counts win (avoids +1 then
     // refetch=1 racing into badge=2 when message.created + room.activity both fire).
+    // cancelRefetch: false — a sidebar load already in flight answers this
+    // frame too; aborting it would not stop the server from running it.
     if (refreshRooms) {
-      void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) }, { cancelRefetch: false });
     }
   };
 

@@ -654,6 +654,25 @@ describe("useRealtimeSync", () => {
     vi.useRealTimers();
   });
 
+  // C3: a sidebar refetch costs the server a query per room; a frame must not
+  // abort one in flight (the server keeps running it) to start another.
+  it("sends every sidebar refresh through the chat scheduler without cancelling one in flight", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.created", payload: { room_id: "r1" } } as WSMessage);
+    client.emit({ type: "chat.room.activity", payload: { room_id: "dm1" } });
+    client.reconnect();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    const rooms = JSON.stringify(chatKeys.rooms("ws1"));
+    const roomCalls = invalidate.mock.calls.filter(
+      (call) => JSON.stringify((call[0] as { queryKey: unknown }).queryKey) === rooms,
+    );
+    expect(roomCalls).toEqual([[{ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false }]]);
+    vi.useRealTimers();
+  });
+
   it("refreshes the room list on chat.room.activity", async () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
@@ -797,12 +816,13 @@ describe("useRealtimeSync", () => {
     );
   });
 
-  it("invalidates workspace keys and open chat timelines after a reconnect", () => {
+  it("invalidates workspace keys and open chat timelines after a reconnect", async () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.reconnect();
-    act(() => {
-      vi.advanceTimersByTime(250);
+    // The sidebar comes through the chat scheduler: debounce plus jitter.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
     });
     expect(keysCalled(invalidate)).toEqual(
       expect.arrayContaining([

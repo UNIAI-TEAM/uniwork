@@ -111,7 +111,7 @@ describe("createChatRealtimePatchScheduler", () => {
     scheduler.scheduleRoomActivity();
     expect(invalidate).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false });
     await scheduler.dispose();
   });
 
@@ -129,7 +129,7 @@ describe("createChatRealtimePatchScheduler", () => {
     scheduler.scheduleRoomActivity();
     await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
     expect(order).toEqual(["upsert", "invalidate"]);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false });
     await scheduler.dispose();
   });
 
