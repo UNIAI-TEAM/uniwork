@@ -22,6 +22,7 @@ type chatMessageMetadata struct {
 	Reactions        map[string][]string  `json:"reactions"`
 	Pinned           bool                 `json:"pinned,omitempty"`
 	MentionedUserIDs []string             `json:"mentioned_user_ids,omitempty"`
+	MentionsAll      bool                 `json:"mentions_all,omitempty"`
 	Poll             *ChatPollPayload     `json:"poll,omitempty"`
 	Reminder         *ChatReminderPayload `json:"reminder,omitempty"`
 	Note             *ChatNotePayload     `json:"note,omitempty"`

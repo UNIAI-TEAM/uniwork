@@ -492,6 +492,11 @@ func (s *ChatService) sendMessage(
 			return s.chatMessageRowForExisting(ctx, existing)
 		}
 	}
+	// Before the insert: a refused @all must not leave the message behind.
+	mentions, err := s.resolveMentionRecipients(ctx, userID, room, body)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
 	var replyTo pgtype.Text
 	if in.ReplyToMessageID != nil && strings.TrimSpace(*in.ReplyToMessageID) != "" {
 		replyID := strings.TrimSpace(*in.ReplyToMessageID)
@@ -530,15 +535,9 @@ func (s *ChatService) sendMessage(
 		}
 		return ChatMessageRow{}, err
 	}
-	mentionedUserIDs, err := s.resolveMentionRecipients(ctx, userID, room, body)
+	msg, err = s.persistMessageMentions(ctx, msg, mentions)
 	if err != nil {
 		return ChatMessageRow{}, err
-	}
-	if len(mentionedUserIDs) > 0 {
-		msg, err = s.persistMessageMentions(ctx, msg, mentionedUserIDs)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
 	}
 	if priority := normalizeMessagePriority(in.Priority); priority != "" {
 		meta, err := encodeMessagePriorityMetadata(msg.Metadata, priority)
@@ -562,7 +561,7 @@ func (s *ChatService) sendMessage(
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
 	s.publishCreatedChatMessage(ctx, room, msg.ID)
-	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentionedUserIDs)
+	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentions.Recipients)
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }
 

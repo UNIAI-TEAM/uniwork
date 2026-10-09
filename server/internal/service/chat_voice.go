@@ -733,7 +733,7 @@ func chatMessageRowFromMessageFields(
 		Reactions:        reactionCountsFromMetadata(meta),
 		MyReactions:      myReactionsFromMetadata(meta, viewerID),
 		Pinned:           meta.Pinned,
-		MentionedUserIDs: mentionedUserIDsFromMetadata(meta),
+		MentionedUserIDs: mentionedUserIDsForViewer(meta, senderID, viewerID),
 		VoiceCall:        voiceCallLogFromMetadata(kind, metadata),
 		VoiceCallSummary: voiceCallSummaryFromMetadata(kind, metadata),
 		Voice:            voiceMessageFromMetadata(kind, metadata),

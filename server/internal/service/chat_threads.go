@@ -208,12 +208,12 @@ func (s *ChatService) SendThreadReply(
 		return ChatMessageRow{}, err
 	}
 
-	mentionedUserIDs, err := s.resolveMentionRecipients(ctx, userID, room, body)
+	mentions, err := s.resolveMentionRecipients(ctx, userID, room, body)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	if len(mentionedUserIDs) > 0 {
-		meta, err := encodeMentionsMetadata(msg.Metadata, mentionedUserIDs)
+	if len(mentions.Recipients) > 0 {
+		meta, err := encodeMentionsMetadata(msg.Metadata, mentions)
 		if err != nil {
 			return ChatMessageRow{}, err
 		}
@@ -223,7 +223,9 @@ func (s *ChatService) SendThreadReply(
 		if err != nil {
 			return ChatMessageRow{}, err
 		}
-		for _, mid := range mentionedUserIDs {
+		// Only the people named follow the thread: an @all made every member
+		// of the room a follower for good.
+		for _, mid := range mentions.Named {
 			if err := s.ensureThreadFollowerTx(ctx, q, orgID, anchorWS, room.ID, threadRootID, mid, chatThreadFollowMentioned, nil); err != nil {
 				return ChatMessageRow{}, err
 			}
@@ -272,7 +274,7 @@ func (s *ChatService) SendThreadReply(
 			"room_id": room.ID, "thread_root_id": threadRootID, "message_id": msg.ID,
 		},
 	})
-	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentionedUserIDs)
+	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentions.Recipients)
 	s.notifyThreadFollowers(ctx, room, userID, threadRootID, msg.ID)
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }

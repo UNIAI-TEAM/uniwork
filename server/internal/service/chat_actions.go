@@ -26,6 +26,11 @@ func (s *ChatService) EditChatMessage(
 	if err := s.requireCanSendInRoom(ctx, userID, roomID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
+	// Before the update: a refused @all must not leave the new body behind.
+	mentions, err := s.resolveMentionRecipients(ctx, userID, room, body)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
 	anchorWS := roomAnchorWorkspaceID(room)
 	updated, err := s.q.UpdateChatMessageBody(ctx, db.UpdateChatMessageBodyParams{
 		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, Body: body, SenderID: userID,
@@ -36,11 +41,7 @@ func (s *ChatService) EditChatMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	mentionedUserIDs, err := s.resolveMentionRecipients(ctx, userID, room, body)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	updated, err = s.persistMessageMentions(ctx, updated, mentionedUserIDs)
+	updated, err = s.persistMessageMentions(ctx, updated, mentions)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}

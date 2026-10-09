@@ -36,7 +36,7 @@ func TestMessageMentionsCurrentUser(t *testing.T) {
 
 func TestEncodeMentionsMetadataPreservesReactions(t *testing.T) {
 	raw := []byte(`{"reactions":{"👍":["USER1"]}}`)
-	next, err := encodeMentionsMetadata(raw, []string{"USER2"})
+	next, err := encodeMentionsMetadata(raw, chatMentions{Named: []string{"USER2"}})
 	if err != nil {
 		t.Fatal(err)
 	}

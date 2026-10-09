@@ -3,10 +3,14 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/mentions"
@@ -24,23 +28,52 @@ func parseMentionUserIDsFromBody(body string) (memberIDs []string, mentionsAll b
 	return mentions.MemberIDs(body), chatMentionAllPattern.MatchString(body)
 }
 
+// chatSmallRoomMembers is the room size up to which every member may use
+// @all and add people to a group; past it only the room's moderators may.
+// Both fan out one frame per member. A var so tests can shrink it.
+var chatSmallRoomMembers = 50
+
+func errChatMentionAllForbidden() error {
+	return coded(http.StatusForbidden, "chat_mention_all_forbidden", "chỉ quản trị phòng mới được nhắc @all trong phòng đông người")
+}
+
+// chatMentions is who a message mentions: the members it names, and whether
+// it says @all. Recipients is everyone to notify.
+type chatMentions struct {
+	Named      []string
+	All        bool
+	Recipients []string
+}
+
+// resolveMentionRecipients reads the mentions in body. It refuses @all from a
+// non-moderator in a room past chatSmallRoomMembers, so callers run it before
+// writing the message.
 func (s *ChatService) resolveMentionRecipients(
 	ctx context.Context,
 	senderID string,
 	room db.ChatRoom,
 	body string,
-) ([]string, error) {
+) (chatMentions, error) {
 	if room.Kind != chatRoomKindWorkspace && room.Kind != chatRoomKindChannel && room.Kind != chatRoomKindGroup {
-		return nil, nil
+		return chatMentions{}, nil
 	}
 	memberIDs, mentionsAll := parseMentionUserIDsFromBody(body)
 	if !mentionsAll && len(memberIDs) == 0 {
-		return nil, nil
+		return chatMentions{}, nil
 	}
 
 	roomMemberIDs, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
 	if err != nil {
-		return nil, err
+		return chatMentions{}, err
+	}
+	if mentionsAll && len(roomMemberIDs) > chatSmallRoomMembers {
+		ok, err := s.isChatRoomModerator(ctx, senderID, room)
+		if err != nil {
+			return chatMentions{}, err
+		}
+		if !ok {
+			return chatMentions{}, errChatMentionAllForbidden()
+		}
 	}
 	active := make(map[string]struct{}, len(roomMemberIDs))
 	for _, id := range roomMemberIDs {
@@ -51,15 +84,8 @@ func (s *ChatService) resolveMentionRecipients(
 		active[id] = struct{}{}
 	}
 
-	recipients := map[string]struct{}{}
+	named := map[string]struct{}{}
 	senderID = strings.ToUpper(strings.TrimSpace(senderID))
-	if mentionsAll {
-		for id := range active {
-			if id != senderID {
-				recipients[id] = struct{}{}
-			}
-		}
-	}
 	for _, id := range memberIDs {
 		if _, ok := active[id]; !ok {
 			continue
@@ -67,17 +93,66 @@ func (s *ChatService) resolveMentionRecipients(
 		if id == senderID {
 			continue
 		}
-		recipients[id] = struct{}{}
+		named[id] = struct{}{}
 	}
-	if len(recipients) == 0 {
-		return nil, nil
+	recipients := named
+	if mentionsAll {
+		recipients = map[string]struct{}{}
+		for id := range active {
+			if id != senderID {
+				recipients[id] = struct{}{}
+			}
+		}
 	}
-	out := make([]string, 0, len(recipients))
-	for id := range recipients {
+	return chatMentions{Named: sortedIDs(named), All: mentionsAll, Recipients: sortedIDs(recipients)}, nil
+}
+
+func sortedIDs(set map[string]struct{}) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(set))
+	for id := range set {
 		out = append(out, id)
 	}
 	sort.Strings(out)
-	return out, nil
+	return out
+}
+
+// isChatRoomModerator is canModerateChatRoom with its own lookups.
+func (s *ChatService) isChatRoomModerator(ctx context.Context, userID string, room db.ChatRoom) (bool, error) {
+	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: room.ID, UserID: userID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	var wsMember db.WorkspaceMember
+	if isWorkspaceDefaultRoom(room) {
+		if wsMember, err = s.ws.RequireMember(ctx, roomAnchorWorkspaceID(room), userID); err != nil {
+			return false, err
+		}
+	}
+	return canModerateChatRoom(userID, member, room, wsMember), nil
+}
+
+// mentionedUserIDsForViewer is the mention list a viewer gets: the named
+// members, plus the viewer when the message says @all and they did not send
+// it. Storing the flag instead of every member's id keeps a 1,000-person
+// @all to a few bytes.
+func mentionedUserIDsForViewer(meta chatMessageMetadata, senderID, viewerID string) []string {
+	ids := mentionedUserIDsFromMetadata(meta)
+	viewerID = strings.ToUpper(strings.TrimSpace(viewerID))
+	if viewerID == "" || viewerID == strings.ToUpper(strings.TrimSpace(senderID)) || !meta.MentionsAll {
+		return ids
+	}
+	if slices.Contains(ids, viewerID) {
+		return ids
+	}
+	return append(ids, viewerID)
 }
 
 func mentionedUserIDsFromMetadata(meta chatMessageMetadata) []string {
@@ -104,21 +179,28 @@ func mentionedUserIDsFromMetadata(meta chatMessageMetadata) []string {
 	return out
 }
 
-func encodeMentionsMetadata(raw []byte, mentionedUserIDs []string) ([]byte, error) {
+func encodeMentionsMetadata(raw []byte, m chatMentions) ([]byte, error) {
 	meta := decodeChatMessageMetadata(raw)
-	meta.MentionedUserIDs = mentionedUserIDs
-	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 {
+	meta.MentionedUserIDs = m.Named
+	meta.MentionsAll = m.All
+	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 && !meta.MentionsAll {
 		return []byte("{}"), nil
 	}
 	return json.Marshal(meta)
 }
 
+// messageMentionsCurrentUser reports whether a message mentions userID; an
+// @all mentions every member (callers skip the sender's own messages).
 func messageMentionsCurrentUser(raw []byte, userID string) bool {
 	userID = strings.ToUpper(strings.TrimSpace(userID))
 	if userID == "" {
 		return false
 	}
-	for _, id := range mentionedUserIDsFromMetadata(decodeChatMessageMetadata(raw)) {
+	meta := decodeChatMessageMetadata(raw)
+	if meta.MentionsAll {
+		return true
+	}
+	for _, id := range mentionedUserIDsFromMetadata(meta) {
 		if id == userID {
 			return true
 		}
@@ -129,12 +211,12 @@ func messageMentionsCurrentUser(raw []byte, userID string) bool {
 func (s *ChatService) persistMessageMentions(
 	ctx context.Context,
 	msg db.ChatMessage,
-	mentionedUserIDs []string,
+	m chatMentions,
 ) (db.ChatMessage, error) {
-	if len(mentionedUserIDs) == 0 {
+	if len(m.Recipients) == 0 && !m.All {
 		return msg, nil
 	}
-	meta, err := encodeMentionsMetadata(msg.Metadata, mentionedUserIDs)
+	meta, err := encodeMentionsMetadata(msg.Metadata, m)
 	if err != nil {
 		return msg, err
 	}
