@@ -1,5 +1,6 @@
 "use client";
 
+import type { Project } from "../types/project";
 import type { Task } from "../types/task";
 import type { Member } from "../types/workspace";
 import {
@@ -9,6 +10,7 @@ import {
   canDeactivateMember,
   canEditEmploymentFields,
   canEditProfile,
+  canEditProject,
   canExportPeople,
   canLeaveOrg,
   canManageDepartments,
@@ -121,6 +123,23 @@ export function useOrgPermissions(orgId: string): { canCreateWorkspace: Decision
   const ctx: PermissionContext = { userId: role === null ? null : "member", orgRole: role, wsRole: null };
   if (isLoading) return { canCreateWorkspace: PENDING, isLoading };
   return { canCreateWorkspace: canCreateWorkspaceInOrg(ctx), isLoading };
+}
+
+/**
+ * The project write gate (UNI-898). The context is built once per screen and
+ * `decideEdit` is asked per project, so a list does not run the member
+ * queries once per row.
+ */
+export function useProjectPermissions(wsId: string): {
+  decideEdit: (
+    project: Pick<Project, "created_by" | "created_by_kind" | "lead_type" | "lead_id"> | null,
+  ) => Decision;
+  isLoading: boolean;
+} {
+  const { userId, role, isLoading } = useCurrentMember(wsId);
+  if (isLoading) return { decideEdit: () => PENDING, isLoading };
+  const ctx: PermissionContext = { userId, orgRole: null, wsRole: role };
+  return { decideEdit: (project) => canEditProject(project, ctx), isLoading };
 }
 
 export function useMeetingPermissions(

@@ -62,6 +62,7 @@ export function ProjectLeadPicker({
   triggerClassName,
   labelClassName,
   align = "start",
+  disabled = false,
 }: {
   project: Pick<Project, "lead_type" | "lead_id">;
   options: AssigneeOption[];
@@ -69,6 +70,7 @@ export function ProjectLeadPicker({
   triggerClassName?: string;
   labelClassName?: string;
   align?: "start" | "center" | "end";
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const lead = findProjectLeadOption(project, options);
@@ -79,6 +81,7 @@ export function ProjectLeadPicker({
       value={projectLeadRef(project)}
       options={options}
       onChange={(ref) => onChange(leadRefToProjectBody(ref))}
+      disabled={disabled}
       ariaLabel={t("projects.table.lead")}
       valueLabel={label}
       unassignedLabel={t("projects.lead.no_lead")}

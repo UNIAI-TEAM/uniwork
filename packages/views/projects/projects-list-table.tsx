@@ -102,6 +102,7 @@ function ProjectTableRow({
   project,
   pinned,
   canDelete,
+  canEdit,
   isColVisible,
   selected,
   onToggleSelect,
@@ -113,6 +114,7 @@ function ProjectTableRow({
   project: Project;
   pinned: boolean;
   canDelete: boolean;
+  canEdit: boolean;
   isColVisible: (key: ProjectColumnKey) => boolean;
   selected: boolean;
   onToggleSelect: () => void;
@@ -150,6 +152,7 @@ function ProjectTableRow({
           project={project}
           onUpdate={(p) => handleUpdate(p)}
           align="start"
+          disabled={!canEdit}
         />
       </ListGridCell>
 
@@ -163,6 +166,7 @@ function ProjectTableRow({
             project={project}
             onUpdate={(p) => handleUpdate(p)}
             align="start"
+            disabled={!canEdit}
           />
         </ListGridCell>
       ) : (
@@ -187,6 +191,7 @@ function ProjectTableRow({
             project={project}
             options={leadOptions}
             onChange={handleUpdate}
+            disabled={!canEdit}
           />
         </ListGridCell>
       ) : (
@@ -329,6 +334,7 @@ export function ProjectsListTable({
   projects,
   pinnedIds,
   canDelete,
+  canEdit,
   sortField,
   sortDirection,
   isColVisible,
@@ -345,6 +351,7 @@ export function ProjectsListTable({
   projects: Project[];
   pinnedIds: Set<string>;
   canDelete: boolean;
+  canEdit: (project: Project) => boolean;
   sortField: ProjectSortField;
   sortDirection: ProjectSortDirection;
   isColVisible: (key: ProjectColumnKey) => boolean;
@@ -391,6 +398,7 @@ export function ProjectsListTable({
             project={project}
             pinned={pinnedIds.has(project.id)}
             canDelete={canDelete}
+            canEdit={canEdit(project)}
             isColVisible={isColVisible}
             selected={selectedIds.has(project.id)}
             onToggleSelect={() => onToggleSelect(project.id)}
