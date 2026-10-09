@@ -152,7 +152,7 @@ func TestAICloudEntitlementCreditsAndAvailability(t *testing.T) {
 		t.Fatalf("status: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "POST", w.path("/images"), w.member, cloudBodies()["/images"])
-	if res.StatusCode != 503 || out["code"] != "cloud_unavailable" {
+	if code, _ := errCodeClass(out); res.StatusCode != 503 || code != "cloud_unavailable" {
 		t.Fatalf("unconfigured images: %d %v", res.StatusCode, out)
 	}
 
@@ -161,7 +161,7 @@ func TestAICloudEntitlementCreditsAndAvailability(t *testing.T) {
 	w.override(t, `{"ai.tokens": 100}`)
 	for _, p := range []string{"/search", "/transcribe"} {
 		res, out = doJSON(t, w.srv, "POST", w.path(p), w.member, cloudBodies()[p])
-		if res.StatusCode != 402 || out["code"] != "credits_exhausted" {
+		if code, _ := errCodeClass(out); res.StatusCode != 402 || code != "credits_exhausted" {
 			t.Fatalf("%s over credits: %d %v", p, res.StatusCode, out)
 		}
 	}
@@ -178,7 +178,7 @@ func TestAICloudEntitlementCreditsAndAvailability(t *testing.T) {
 	}
 	for p, body := range cloudBodies() {
 		res, out = doJSON(t, w.srv, "POST", w.path(p), w.member, body)
-		if res.StatusCode != 403 || out["code"] != "entitlement_required" {
+		if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "entitlement_required" {
 			t.Fatalf("%s not entitled: %d %v", p, res.StatusCode, out)
 		}
 	}
