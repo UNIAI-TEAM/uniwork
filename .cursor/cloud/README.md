@@ -176,5 +176,35 @@ mode (clone + provision + `npm ci` + Playwright, 117 s) 11.4 cents, warm round
 about 20 s and 5.2-5.6 cents; uniwork unchanged, fresh VM 12.3 cents (150 s),
 warm 5.2 cents (25 s).
 
+## Fork CI replica
+
+`specs/office-ci-test.txt` and `specs/office-ci-e2e.txt` replay the `test` and
+`e2e` jobs of `UNIAI-TEAM/uniwork-office` `.github/workflows/ci.yml` on two
+parallel VMs, so lanes need no GitHub Actions run. From a fork worktree whose
+branch is pushed:
+
+```bash
+R=<dev-uniwork test-cursor-cloud-env checkout>/.cursor/cloud
+git push origin HEAD
+node $R/cloud-runner.mjs suite --specs $R/specs/office-ci-test.txt,$R/specs/office-ci-e2e.txt --lane <slug> --out-dir reports/<slug>
+node $R/cloud-runner.mjs close --all yes --lane <slug>      # when the lane is done
+```
+
+Exit 0 = both shards pass. The `format`, `theme-colors`, `skill-version` and
+`public-hygiene` steps diff against `HEAD^1` on main and the merge-base with
+`origin/main` on any other branch (the PR merge-commit logic of CI, adapted).
+Measured 2026-10-09 on main 854dc163: fresh VMs about 5 min (test) and 12 min
+(e2e), 13 and 19 cents.
+
+Not replicated: `cargo-deny` (not installed on the VM) and the setup/cache
+steps (the `office` profile does them). Differences from CI's image, handled
+in the specs: the `test` shard removes `fonts-noto-cjk` before `npm test`
+(font-metrics expects no font to map U+0378; ubuntu-latest has none); the
+`e2e` shard reduces the VM (Ubuntu 24.04, ~50 extra font packages) to CI's
+font stack and 22.04 font package versions so the docs pixel baselines match.
+Two e2e tests still differ on the VM and are excluded with `--grep-invert`:
+docs-visual `kitchen-sink` (math fallback font of the CI image) and
+`docs-table-float-click`; run them where the CI image is available.
+
 Linux hosts (the VPS) run the runner the same way: `CURSOR_API_KEY` comes from
 the environment, and every path the runner writes is built with `node:path`.

@@ -72,6 +72,8 @@ fi
 root=$(git rev-parse --show-toplevel)
 cd "$root"
 export PATH=/usr/local/go/bin:$HOME/go/bin:$HOME/.cargo/bin:$PATH
+# office: the NodeSource Node that provision-office.sh installs (FTS5 in node:sqlite) must win over the agent image's own.
+[ "$profile" = office ] && [ -x /usr/bin/node ] && export PATH=/usr/bin:$PATH
 
 provisioned=false fresh_install=false start_seconds=0 head="" notes=""
 ran_file=$(mktemp)

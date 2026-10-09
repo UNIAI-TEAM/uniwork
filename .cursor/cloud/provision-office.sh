@@ -29,8 +29,16 @@ if [ "${#missing[@]}" -gt 0 ]; then
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "${missing[@]}"
 fi
 
+# The agent image puts its own Node (22.14, built without SQLite FTS5) first on PATH; CI runs the
+# latest 22.x, and apps/shell file-index tests need node:sqlite with FTS5. Install the NodeSource build
+# (/usr/bin/node) unless the node on PATH is a 22.x that has FTS5; run-tests.sh then puts /usr/bin first.
+fts5_ok() { "${1:-node}" -e 'const{DatabaseSync}=require("node:sqlite");new DatabaseSync(":memory:").exec("create virtual table t using fts5(a)")' > /dev/null 2>&1; }
 case "$(node --version 2>/dev/null)" in
-  "v${NODE_MAJOR}."*) ;;
+  "v${NODE_MAJOR}."*) if fts5_ok node || fts5_ok /usr/bin/node; then :; else NEED_NODE=1; fi ;;
+  *) NEED_NODE=1 ;;
+esac
+case "${NEED_NODE:-0}" in
+  0) ;;
   *)
     curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | $SUDO bash -
     $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -q nodejs
