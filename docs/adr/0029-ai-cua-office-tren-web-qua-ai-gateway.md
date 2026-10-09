@@ -42,7 +42,7 @@ dựng các công cụ đám mây UniWork (tìm kiếm, sinh ảnh, phân tích 
    link-local, CGNAT, multicast, unspecified; v4 lẫn v6, **kiểm lại lúc dial** để chặn DNS
    rebinding), không userinfo, không theo redirect. Đây là rào SSRF.
 5. **Entitlement và credit (D5).** Hai khóa tính năng seed bằng migration, đọc qua
-   `EntitlementService.Can` (fail-closed): `office.ai_byok` (CRUD khóa và proxy) và
+   `EntitlementService.Can` (fail-closed): `office.ai_byok` (`PUT` khóa và proxy; `GET`/`DELETE` khóa không bị chặn để người hạ plan vẫn gỡ được khóa) và
    `office.ai_cloud` (mọi công cụ đám mây). Credit dùng meter `ai.tokens` có sẵn:
    `CheckQuota` trước, `RecordUsage` sau; công cụ không có số token thì tính một mức
    token-tương-đương cố định mỗi lần gọi, khai ở đúng một bảng Go. Proxy BYOK ghi
@@ -101,8 +101,8 @@ nên không có mặt SSRF ở đây. Mỗi lệnh gọi: `RequireMember` → `C
 ## Giới hạn đã biết
 
 - Khi thành viên bị gỡ hoặc vô hiệu hóa tổ chức, khóa **không** bị xóa tự động: chúng
-  không dùng được vì `RequireMember` từ chối, và chỉ `DELETE` mới xóa dòng. (Worker W1 ghi lại
-  nếu nối được vào service gỡ thành viên.)
+  không dùng được vì `RequireMember` từ chối, và chỉ `DELETE` mới xóa dòng. (Sẽ ghi lại ở đây nếu
+  nối được vào service gỡ thành viên.)
 - Không xoay khóa chủ, không mã hóa theo từng tổ chức; một khóa chủ cho cả máy chủ.
 - `custom` chống rebinding bằng kiểm lại lúc dial, nhưng không chặn được nhà cung cấp tự
   trỏ về địa chỉ công khai rồi chuyển tiếp nội bộ phía họ.

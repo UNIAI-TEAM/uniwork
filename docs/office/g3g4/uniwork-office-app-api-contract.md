@@ -97,7 +97,7 @@ bearer thiết bị desktop), đi qua `OrganizationService.RequireMember` trư�
 thành viên nhận 403/404 theo `mapServiceError`, app không suy ra id có tồn tại). Lỗi theo
 dạng `{ "code": ..., "message": ... }`.
 
-### 3.1 Khóa nhà cung cấp (W1)
+### 3.1 Khóa nhà cung cấp
 
 | Việc | Route | Ghi chú |
 | --- | --- | --- |
@@ -106,13 +106,13 @@ dạng `{ "code": ..., "message": ... }`.
 | Xóa | `DELETE /orgs/{orgID}/ai/credentials/{aiProvider}` | **204**; **404** nếu chưa có |
 
 `Credential` = `{ provider, label, base_url, key_hint, created_at, updated_at }`. API **không
-bao giờ** trả khóa; `key_hint` là "…" + 4 ký tự cuối. Ghi (`PUT`/`DELETE`) cần entitlement
-`office.ai_byok` và ghi audit `ai.credential.saved` / `ai.credential.deleted` (payload chỉ có id +
+bao giờ** trả khóa; `key_hint` là "…" + 4 ký tự cuối. Chỉ `PUT` cần entitlement
+`office.ai_byok`; `GET` và `DELETE` **không** bị chặn bởi entitlement (người dùng hạ plan vẫn xem và gỡ được khóa của mình). Cả `PUT` và `DELETE` ghi audit `ai.credential.saved` / `ai.credential.deleted` (payload chỉ có id +
 provider) cùng transaction. Nhà cung cấp có sẵn: anthropic, openai, gemini, openrouter,
 deepseek, xai, mistral, qwen, kimi, glm, doubao, hunyuan, minimax, custom; UI lấy danh sách từ
 `providers`, không chép lại.
 
-### 3.2 Proxy BYOK (W2)
+### 3.2 Proxy BYOK
 
 Pass-through: client giữ nguyên wire format gốc của nhà cung cấp, chỉ đổi base URL sang
 route dưới đây và bỏ khóa. Server chọn endpoint từ bảng cố định, gắn khóa của người dùng
@@ -131,7 +131,7 @@ trợ `codex`, `genspark`. Nhà cung cấp `custom` cần `base_url` `https://` 
 kiểm lại lúc dial, không theo redirect). Lệnh gọi ghi một sự kiện sử dụng (`office.byok`,
 `credits=0`); proxy **không** tiêu credit UniWork.
 
-### 3.3 Công cụ đám mây UniWork (W3)
+### 3.3 Công cụ đám mây UniWork
 
 Khóa nhà cung cấp nằm ở env của server; công cụ chưa cấu hình báo `available:false` và route
 trả 503.
@@ -149,7 +149,7 @@ Client gửi **byte**; server không bao giờ tự tải URL media (không có 
 
 ### 3.4 Entitlement, tín dụng, lỗi, giới hạn tốc độ
 
-- **Entitlement** (bảng `features`, fail-closed): `office.ai_byok` (ghi khóa + proxy), `office.ai_cloud`
+- **Entitlement** (bảng `features`, fail-closed): `office.ai_byok` (`PUT` khóa + proxy; `GET`/`DELETE` khóa không bị chặn), `office.ai_cloud`
   (mọi công cụ đám mây). Cả hai bật ở các plan đã bật `ai.tokens`.
 - **Tín dụng** = meter `ai.tokens`. Trước mỗi lệnh gọi đám mây: `Can(office.ai_cloud)`, rồi
   `CheckQuota`. Công cụ không có số token tính mức cố định: tìm kiếm 500, ảnh 4000/ảnh, phiên
@@ -181,8 +181,8 @@ cho công cụ đám mây.
 
 Trạng thái: các route Ask UNI cũ (`router/ai.go`: `GET /workspaces/{workspaceID}/ai/capabilities`,
 `.../ai/usage`, `GET /orgs/{orgID}/ai/usage`) phục vụ web và không đổi. Các route 3.1–3.3 là
-hợp đồng của lane GO-A7 (UNI-1008), được xây ở W1 (khóa), W2 (proxy), W3 (đám mây); phía client
-TypeScript là `packages/core/api/endpoints/ai-office.ts` (W4). Nếu một route đổi trong lúc
+hợp đồng của lane GO-A7 (UNI-1008), được xây ở `server/internal/service/ai_credentials.go` (khóa), `server/internal/ai/` + `server/internal/ai/provider` (proxy và công cụ đám mây) và `server/internal/handler/router/` (đăng ký route); phía client
+TypeScript là `packages/core/api/endpoints/ai-office.ts`. Nếu một route đổi trong lúc
 xây, sửa tại đây cùng thay đổi.
 
 ## 4. Bản cài (GO-A8, UNI-1009)
