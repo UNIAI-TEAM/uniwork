@@ -2538,7 +2538,7 @@ func (q *Queries) UpdateChatMessageMetadata(ctx context.Context, arg UpdateChatM
 
 const updateChatRoomMemberLastRead = `-- name: UpdateChatRoomMemberLastRead :exec
 UPDATE chat_room_members
-SET last_read_at = $3, updated_at = now()
+SET last_read_at = GREATEST(last_read_at, $3), updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 `
 
