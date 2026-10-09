@@ -79,7 +79,12 @@ UPDATE meetings SET
   ends_at     = COALESCE(sqlc.narg('ends_at'), ends_at),
   timezone    = COALESCE(sqlc.narg('timezone'), timezone),
   allow_join_request = COALESCE(sqlc.narg('allow_join_request'), allow_join_request),
-  project_id  = COALESCE(sqlc.narg('project_id'), project_id),
+  -- NULL keeps the project; '' clears it to NULL (C-11 §9.1 V2: the graph
+  -- reads NULL as "no project", never '').
+  project_id  = CASE
+    WHEN sqlc.narg('project_id')::text IS NULL THEN project_id
+    ELSE NULLIF(sqlc.narg('project_id')::text, '')
+  END,
   quorum_percent = CASE
     WHEN sqlc.narg('quorum_percent')::smallint IS NULL THEN quorum_percent
     WHEN sqlc.narg('quorum_percent')::smallint = 0 THEN NULL

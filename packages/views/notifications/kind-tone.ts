@@ -17,6 +17,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   chat_follow_up: moduleTone("chat"),
   meeting_invited: moduleTone("meetings"),
   meeting_starting: moduleTone("meetings"),
+  meeting_summary_reminder: moduleTone("meetings"),
   member_added: moduleTone("people"),
   role_changed: moduleTone("people"),
   audit_export_ready: "gray",

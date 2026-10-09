@@ -2,35 +2,27 @@
 -- service/billing.go and service/billing_catalog.go call these (arch_test.go).
 
 -- name: ListActivePlans :many
--- tenant: platform
 SELECT * FROM plans WHERE is_active ORDER BY sort_order, code;
 
 -- name: ListAllPlans :many
--- tenant: platform
 SELECT * FROM plans ORDER BY sort_order, code;
 
 -- name: GetPlanByCode :one
--- tenant: platform
 SELECT * FROM plans WHERE code = $1;
 
 -- name: GetPlanByID :one
--- tenant: platform
 SELECT * FROM plans WHERE id = $1;
 
 -- name: GetDefaultPlan :one
--- tenant: platform
 SELECT * FROM plans WHERE is_default LIMIT 1;
 
 -- name: GetFeatureByKey :one
--- tenant: platform
 SELECT * FROM features WHERE key = $1;
 
 -- name: ListFeatures :many
--- tenant: platform
 SELECT * FROM features ORDER BY sort_order, key;
 
 -- name: ListPlanFeatures :many
--- tenant: platform
 SELECT pf.plan_id, pf.feature_key, pf.enabled, pf.quota_limit,
        f.name, f.kind, f.unit, f.category, f.meter_mode, f.sort_order
 FROM plan_features pf
@@ -39,7 +31,6 @@ WHERE pf.plan_id = $1
 ORDER BY f.sort_order, f.key;
 
 -- name: ListAllPlanFeatures :many
--- tenant: platform
 SELECT pf.plan_id, pf.feature_key, pf.enabled, pf.quota_limit,
        f.name, f.kind, f.unit, f.category, f.meter_mode, f.sort_order
 FROM plan_features pf
@@ -47,13 +38,11 @@ JOIN features f ON f.key = pf.feature_key
 ORDER BY pf.plan_id, f.sort_order, f.key;
 
 -- name: InsertPlanCatalog :one
--- tenant: platform
 INSERT INTO plans (id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order)
 VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9)
 RETURNING *;
 
 -- name: UpdatePlanCatalog :one
--- tenant: platform
 UPDATE plans SET
   name = $2,
   description = $3,
@@ -67,7 +56,6 @@ WHERE code = $1
 RETURNING *;
 
 -- name: UpsertPlanFeatureRow :execrows
--- tenant: platform
 INSERT INTO plan_features (plan_id, feature_key, enabled, quota_limit)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (plan_id, feature_key) DO UPDATE SET
@@ -75,7 +63,6 @@ ON CONFLICT (plan_id, feature_key) DO UPDATE SET
   quota_limit = EXCLUDED.quota_limit;
 
 -- name: ListActivePlanFeatures :many
--- tenant: platform
 SELECT pf.plan_id, pf.feature_key, pf.enabled, pf.quota_limit
 FROM plan_features pf
 JOIN plans p ON p.id = pf.plan_id
@@ -127,7 +114,6 @@ WHERE organization_id = $1 AND role IN ('owner', 'admin')
 ORDER BY user_id;
 
 -- name: InsertBillingPaymentIntent :one
--- tenant: by-id
 INSERT INTO billing_payment_intents (
   id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
   amount, currency, status, expires_at, created_by, created_by_kind
@@ -135,12 +121,10 @@ INSERT INTO billing_payment_intents (
 RETURNING *;
 
 -- name: ExpirePendingBillingPaymentIntents :exec
--- tenant: by-id
 UPDATE billing_payment_intents SET status = 'expired', updated_at = now()
 WHERE organization_id = $1 AND status = 'pending';
 
 -- name: GetPendingBillingPaymentIntentForPlan :one
--- tenant: by-id
 SELECT * FROM billing_payment_intents
 WHERE organization_id = $1 AND plan_id = $2 AND status = 'pending' AND expires_at > now()
 ORDER BY created_at DESC
@@ -151,11 +135,9 @@ LIMIT 1;
 SELECT * FROM billing_payment_intents WHERE provider_txn_ref = $1;
 
 -- name: GetBillingPaymentIntentByID :one
--- tenant: by-id
 SELECT * FROM billing_payment_intents WHERE id = $1 AND organization_id = $2;
 
 -- name: MarkBillingPaymentIntentCompleted :one
--- tenant: by-id
 UPDATE billing_payment_intents SET
   status = 'completed',
   completed_at = now(),
@@ -164,12 +146,10 @@ WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
 RETURNING *;
 
 -- name: MarkBillingPaymentIntentFailed :exec
--- tenant: by-id
 UPDATE billing_payment_intents SET status = 'failed', updated_at = now()
 WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'expired');
 
 -- name: ApplyPaidSubscriptionFromProvider :one
--- tenant: by-id
 UPDATE subscriptions SET
   plan_id = $3,
   status = 'active',
@@ -186,7 +166,6 @@ WHERE id = $1 AND organization_id = $2 AND status <> 'canceled'
 RETURNING *;
 
 -- name: InsertInvoice :one
--- tenant: by-id
 INSERT INTO invoices (
   id, organization_id, subscription_id, provider, provider_invoice_id, number,
   status, amount_due, amount_paid, currency, period_start, period_end, paid_at,
@@ -195,7 +174,6 @@ INSERT INTO invoices (
 RETURNING *;
 
 -- name: ListInvoicesByOrganization :many
--- tenant: by-id
 SELECT * FROM invoices
 WHERE organization_id = $1
 ORDER BY created_at DESC
@@ -223,12 +201,11 @@ ORDER BY s.current_period_end
 LIMIT $1;
 
 -- name: RevertSubscriptionToDefaultAtCancel :one
--- tenant: by-id
 UPDATE subscriptions SET
   plan_id = $3,
   status = 'active',
   provider = 'manual',
-  current_period_start = NULL,
+  current_period_start = now(),
   current_period_end = NULL,
   cancel_at = NULL,
   canceled_at = NULL,
@@ -241,7 +218,6 @@ WHERE id = $1 AND organization_id = $2
 RETURNING *;
 
 -- name: MarkSubscriptionPastDue :one
--- tenant: by-id
 UPDATE subscriptions s SET
   status = 'past_due',
   row_version = s.row_version + 1,

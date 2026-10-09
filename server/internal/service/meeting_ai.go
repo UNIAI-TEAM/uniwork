@@ -209,6 +209,14 @@ func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) 
 
 func (s *MeetingService) AIEnabled() bool { return s.AI.Enabled() }
 
+// SummaryAvailable reports whether the organization may summarize meetings
+// with AI right now: its plan includes meeting.ai_summary and a model is
+// configured. The notification consumer asks before nudging a host, so a
+// nudge never leads to a button that only answers 403 or 503 (C-11 §9.1 V1).
+func (s *MeetingService) SummaryAvailable(ctx context.Context, orgID string) bool {
+	return s.AIEnabled() && s.ent.Can(ctx, orgID, FeatureMeetingAISummary) == nil
+}
+
 // MeetingCapabilities is what the meeting screens of one workspace may offer.
 type MeetingCapabilities struct {
 	AISummary, Recording, ServerSTT bool

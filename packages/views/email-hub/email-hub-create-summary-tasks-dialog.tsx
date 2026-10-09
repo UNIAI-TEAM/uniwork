@@ -20,7 +20,7 @@ import {
 import { PriorityPicker } from "../tasks/pickers/priority-picker";
 import { MeetingAssigneeSelect } from "../meetings/meeting-assignee-select";
 import { dueHintToDateInput } from "./email-hub-summary-task-due";
-import { EmailHubTaskProjectSelect } from "./email-hub-task-project-select";
+import { ProjectSelect } from "../projects/components/project-select";
 
 const FIELD_CLASS = "h-9 w-full max-w-none";
 
@@ -203,10 +203,13 @@ export function EmailHubCreateSummaryTasksDialog({
         <FormDialogBody className="space-y-5">
           <section>
             <FieldBlock icon={FolderKanban} label={t("email_hub.ai.project_label")}>
-              <EmailHubTaskProjectSelect
+              <ProjectSelect
                 workspaceId={wsId}
                 value={projectId}
                 onChange={setProjectId}
+                noneLabel={t("email_hub.ai.project_none")}
+                ariaLabel={t("email_hub.ai.project_label")}
+                size="sm"
                 className={FIELD_CLASS}
               />
             </FieldBlock>

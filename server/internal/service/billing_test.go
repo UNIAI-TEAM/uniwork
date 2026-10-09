@@ -31,7 +31,7 @@ func (f *billingFixture) seedPlan(t *testing.T, code string, price int64, limits
 			t.Fatal(err)
 		}
 	}
-	if _, err := f.pool.Exec(f.ctx, `INSERT INTO plans (id, code, name, price_amount, sort_order) VALUES ($1, $2, $2, $3, 10)`,
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO plans (id, code, name, price_amount, sort_order, is_default) VALUES ($1, $2, $2, $3, 10, false)`,
 		"01TESTPLAN"+code, code, price); err != nil {
 		t.Fatal(err)
 	}
@@ -154,6 +154,7 @@ func TestChangePlanDowngradeFromPaidBlocked(t *testing.T) {
 
 func TestCancelResumeAndCheckout(t *testing.T) {
 	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
 	snap, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID)
 	if err != nil || !snap.Subscription.CancelAt.Valid || snap.Subscription.Status != "active" {
 		t.Fatalf("cancel schedules, does not kill: %v %+v", err, snap.Subscription)
@@ -162,7 +163,7 @@ func TestCancelResumeAndCheckout(t *testing.T) {
 	if err != nil || snap.Subscription.CancelAt.Valid {
 		t.Fatalf("resume clears cancel_at: %v %+v", err, snap.Subscription)
 	}
-	_, err = f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, snap.Plan.Code, "/ok", "/back", "127.0.0.1")
+	_, err = f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "/back", "127.0.0.1")
 	var ce CodedError
 	if !errors.As(err, &ce) || ce.Code != "billing_provider_unavailable" || ce.Status != 503 {
 		t.Fatalf("manual provider has no checkout: got %v", err)

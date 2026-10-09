@@ -34,6 +34,13 @@ type DocumentReadChecker interface {
 	FilterDocumentReaders(ctx context.Context, documentID string, userIDs []string) ([]string, error)
 }
 
+// SummaryChecker says whether AI meeting summaries are open to an
+// organization (plan and model). MeetingService implements it; it is
+// injected through SetMeetingSummaries so the rule never guesses (C-11 §9.1 V1).
+type SummaryChecker interface {
+	SummaryAvailable(ctx context.Context, orgID string) bool
+}
+
 // Draft is a notification a rule wants to create for one user. The consumer
 // applies preferences, merging and idempotency on top.
 type Draft struct {
@@ -52,9 +59,10 @@ type Draft struct {
 // env is what a rule may touch: read queries, the membership gate and the
 // injected document-read resolver.
 type env struct {
-	q       *db.Queries
-	members MemberChecker
-	docs    DocumentReadChecker
+	q         *db.Queries
+	members   MemberChecker
+	docs      DocumentReadChecker
+	summaries SummaryChecker
 }
 
 // rule turns one outbox row into drafts. Rules are pure apart from reads; the
@@ -71,6 +79,7 @@ var rules = map[string]rule{
 	"audit.exported":         ruleAuditExported,
 	"chat.follow_up.created": ruleChatFollowUpCreated,
 	"email_hub.new_mail":     ruleEmailHubNewMail,
+	"meeting.ended":          ruleMeetingEnded,
 }
 
 // snippetRunes bounds what of a comment body lands in params: enough to
@@ -565,5 +574,56 @@ func ruleChatFollowUpCreated(ctx context.Context, e env, ev outbox.Row, p map[st
 		Kind: KindChatFollowUp, GroupKey: "chat_follow_up:" + p["follow_up_id"],
 		ResourceType: "chat_message", ResourceID: p["message_id"],
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
+	}}, nil
+}
+
+// ruleMeetingEnded nudges the host to summarize a meeting that has something
+// to summarize and no summary yet (C-11 §9.1 V1). It never calls a model.
+// Personal reminder: the host is the recipient even when they ended the
+// meeting themselves, so the draft is built here rather than through
+// recipients.add, which drops the actor.
+func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if e.summaries == nil {
+		return nil, nil
+	}
+	m, err := e.q.GetMeeting(ctx, p["meeting_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// GetMeeting is by-id: the row must belong to the event's tenant.
+	if (ev.OrganizationID.Valid && m.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && m.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	if m.Status != "ENDED" || m.HostUserID == "" {
+		return nil, nil
+	}
+	if !e.summaries.SummaryAvailable(ctx, m.OrganizationID) {
+		return nil, nil
+	}
+	if _, err := e.q.GetLatestMeetingSummary(ctx, m.ID); err == nil {
+		return nil, nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	has, err := e.q.HasMeetingSummarySource(ctx, m.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, nil
+	}
+	if _, err := e.members.RequireMember(ctx, m.WorkspaceID, m.HostUserID); err != nil {
+		return nil, nil
+	}
+	return []Draft{{
+		UserID: m.HostUserID, OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID,
+		Kind: KindMeetingSummaryReminder, GroupKey: "meeting:" + m.ID + ":summary_reminder",
+		ResourceType: "meeting", ResourceID: m.ID,
+		ActorKind: string(audit.KindSystem), ActorID: "meeting_summary_reminder",
+		Params: map[string]string{"meeting": m.Title},
 	}}, nil
 }

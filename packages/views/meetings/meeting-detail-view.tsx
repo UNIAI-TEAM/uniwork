@@ -38,6 +38,7 @@ import { MeetingNotesSection } from "./meeting-notes-section";
 import { MeetingDetailPageSkeleton } from "./meeting-page-skeletons";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
 import { useMemberIndex } from "./use-member-index";
+import { useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
 import { useNow } from "./use-now";
 
 export function MeetingDetailView({
@@ -74,6 +75,11 @@ export function MeetingDetailView({
   const cancel = useCancelMeeting(workspaceId);
   const extend = useExtendMeeting(workspaceId);
   const [confirm, setConfirm] = useState<"cancel" | "end" | null>(null);
+  // The summary reminder opens here (C-11 §9.1 V1); the panel exists only
+  // once the meeting is loaded and has started.
+  useMeetingSectionDeepLink({
+    ready: Boolean(meeting) && (meeting?.status === "IN_PROGRESS" || meeting?.status === "ENDED"),
+  });
 
   const meetingsHref = paths.workspace(workspace.organization_slug, workspace.slug).meetings();
   const activeParticipants = (participants ?? []).filter((p) => p.status === "ACTIVE");

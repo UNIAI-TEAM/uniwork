@@ -100,6 +100,50 @@ describe("desktop:print-document page options", () => {
   });
 });
 
+describe("desktop:print-document silent job (in-app dialog)", () => {
+  const silent = { ...slideOptions, silent: true, deviceName: "Office printer" } as const;
+  it("accepts a silent job with every job setting", () => {
+    const job = { ...silent, copies: 3, pageRanges: [{ from: 0, to: 1 }, { from: 4, to: 4 }], color: false, duplexMode: "longEdge" };
+    expect(validateIpcRequest("desktop:print-document", { ...request, options: job }, context)).toEqual({ ...request, options: job });
+    expect(validateIpcRequest("desktop:print-document", { ...request, options: silent }, context)).toEqual({ ...request, options: silent });
+  });
+  it.each([
+    ["zero copies", { ...silent, copies: 0 }],
+    ["a thousand copies", { ...silent, copies: 1000 }],
+    ["a backwards range", { ...silent, pageRanges: [{ from: 3, to: 1 }] }],
+    ["an empty range list", { ...silent, pageRanges: [] }],
+    ["a copy count without silent", { ...slideOptions, copies: 2 }],
+    ["a range without silent", { ...slideOptions, pageRanges: [{ from: 0, to: 0 }] }],
+    ["a colour flag without silent", { ...slideOptions, color: true }],
+    ["a duplex mode without silent", { ...slideOptions, duplexMode: "simplex" }],
+    ["a silent print without a printer", { ...slideOptions, silent: true }],
+    ["silent: false", { ...slideOptions, silent: false }],
+    ["an unknown duplex mode", { ...silent, duplexMode: "tumble" }],
+    ["an unknown key", { ...silent, margins: { top: 1 } }],
+  ])("refuses %s", (_label, options) => {
+    expect(() => validateIpcRequest("desktop:print-document", { ...request, options }, context)).toThrowError(expect.objectContaining({ code: "schema" }));
+  });
+  it("maps a silent job onto Electron by name, never spreading the payload", () => {
+    expect(electronPrintOptions(silent)).toEqual({ silent: true, printBackground: true, deviceName: "Office printer", landscape: true, pageSize: { width: 190_500, height: 338_658 } });
+    const job = { ...silent, copies: 2, pageRanges: [{ from: 1, to: 3 }], color: true, duplexMode: "shortEdge" as const };
+    expect(electronPrintOptions(job)).toEqual({ silent: true, printBackground: true, deviceName: "Office printer", landscape: true, pageSize: { width: 190_500, height: 338_658 }, copies: 2, pageRanges: [{ from: 1, to: 3 }], color: true, duplexMode: "shortEdge" });
+    // A key the schema does not know never rides along, even from an unvalidated object.
+    const smuggled = { ...silent, scaleFactor: 500 } as unknown as typeof silent;
+    expect(electronPrintOptions(smuggled)).not.toHaveProperty("scaleFactor");
+    expect(Object.keys(electronPrintOptions(silent)).sort()).toEqual(["deviceName", "landscape", "pageSize", "printBackground", "silent"]);
+  });
+  it("hands a silent job to webContents.print and releases on its callback", async () => {
+    const { handler, window, cleanup } = harness((callback) => callback(true, ""));
+    expect(await handler({ ...request, options: { ...silent, copies: 2 } })).toEqual({ outcome: "printed" });
+    expect(window.webContents.print).toHaveBeenCalledWith({ silent: true, printBackground: true, deviceName: "Office printer", landscape: true, pageSize: { width: 190_500, height: 338_658 }, copies: 2 }, expect.any(Function));
+    expect(window.close).toHaveBeenCalledTimes(1);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    const failed = harness((callback) => callback(false, "Invalid deviceName provided"));
+    expect(await failed.handler({ ...request, options: silent })).toEqual({ outcome: "failed", reason: "print_invalid_devicename_provided" });
+    expect(failed.window.close).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("main print window", () => {
   it("prints from a hidden, script-free, preload-free window and never the app window", async () => {
     const { handler, createWindow, window, writeFile, cleanup } = harness((callback) => callback(true, ""));
@@ -440,6 +484,48 @@ describe("print owner and callback timeout", () => {
       await vi.waitFor(() => expect(finish).toBeDefined());
       finish!(false, "cancelled");
       expect(await again).toEqual({ outcome: "cancelled" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("releases a silent job whose callback never comes: print_timeout, window closed, file removed, next print accepted, late callback harmless", async () => {
+    vi.useFakeTimers();
+    try {
+      const silent = { landscape: false, pageSize: { width: 210_000, height: 297_000 }, silent: true, deviceName: "Prompting printer" } as const;
+      const callbacks: PrintCallback[] = [];
+      const { handler, window, cleanup } = harness((callback) => { callbacks.push(callback); });
+      const first = handler({ ...request, options: silent });
+      await vi.waitFor(() => expect(callbacks).toHaveLength(1));
+      await vi.advanceTimersByTimeAsync(PRINT_CALLBACK_TIMEOUT_MS);
+      expect(await first).toEqual({ outcome: "failed", reason: "print_timeout" });
+      expect(window.close).toHaveBeenCalledTimes(1);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      // No OS dialog to protect: the next print is not print_busy.
+      const second = handler({ ...request, options: silent });
+      await vi.waitFor(() => expect(callbacks).toHaveLength(2));
+      // The first job's callback arriving now must neither clean up twice nor free the second job.
+      callbacks[0]!(true, "");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(await handler({ ...request, options: silent })).toEqual({ outcome: "failed", reason: "print_busy" });
+      callbacks[1]!(true, "");
+      expect(await second).toEqual({ outcome: "printed" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("keeps a non-silent job open on timeout even when options are given (an OS dialog is never closed)", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish: PrintCallback | undefined;
+      const { handler, window, cleanup } = harness((callback) => { finish = callback; });
+      const first = handler({ ...request, options: { landscape: true, pageSize: { width: 190_500, height: 338_658 } } });
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      await vi.advanceTimersByTimeAsync(PRINT_CALLBACK_TIMEOUT_MS);
+      expect(await first).toEqual({ outcome: "failed", reason: "print_timeout" });
+      expect(window.close).not.toHaveBeenCalled();
+      expect(cleanup).not.toHaveBeenCalled();
+      expect(await handler(request)).toEqual({ outcome: "failed", reason: "print_busy" });
     } finally {
       vi.useRealTimers();
     }

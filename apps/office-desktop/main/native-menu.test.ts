@@ -45,6 +45,19 @@ describe("native menu branding", () => {
     expect(JSON.stringify([windows, mac])).not.toMatch(/[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i);
   });
 
+  it("lists Print under File, showing the chord without claiming it (print-shortcut.ts owns the key)", () => {
+    let printed = 0;
+    for (const isMac of [true, false]) {
+      const file = submenu(createNativeMenuTemplate("stable", () => undefined, isMac, undefined, mainStrings("vi"), () => { printed += 1; }).find((menu) => menu.label === "Tệp"));
+      const print = file.find((item) => item.label === "In…");
+      expect(print).toMatchObject({ accelerator: "CmdOrCtrl+P", registerAccelerator: false });
+      (print?.click as () => void)();
+    }
+    expect(printed).toBe(2);
+    expect(submenu(createNativeMenuTemplate("stable", () => undefined, false, undefined, mainStrings("en"), () => undefined)[0]).some((item) => item.label === "Print…")).toBe(true);
+    expect(submenu(createNativeMenuTemplate("stable", () => undefined, false)[0]).some((item) => item.accelerator === "CmdOrCtrl+P")).toBe(false);
+  });
+
   it("never names a menu after Electron", () => {
     for (const isMac of [true, false]) {
       expect(JSON.stringify(createNativeMenuTemplate("dev", () => undefined, isMac, () => undefined))).not.toContain("Electron");

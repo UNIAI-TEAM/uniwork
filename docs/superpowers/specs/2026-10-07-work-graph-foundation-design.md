@@ -457,6 +457,20 @@ sub-issue, không nằm trong code của projector.
 | V2 | `meetings.project_id` có từ migration 008 và service đã kiểm `requireMeetingProject`, nhưng màn tạo/sửa cuộc họp chưa có ô chọn dự án; bỏ chọn qua PATCH đang ghi `''` thay vì NULL; diff audit của `meeting.updated` thiếu `project_id` | Thêm ô chọn dự án (tuỳ chọn, ẩn khi capability `tasks.projects` tắt) vào form tạo và sửa, dùng select dạng form của Email Hub, gom thành `ProjectSelect` dùng chung; thêm dòng "Dự án" ở khung chi tiết; `UpdateMeeting` ghi NULL khi nhận `''`; diff audit có `project_id`; việc tạo từ tóm tắt kế thừa dự án của cuộc họp. Chỉ sửa được khi cuộc họp chưa kết thúc (`meetingEditable`) | `BELONGS_TO` cuộc họp → dự án; nhờ đó dòng thời gian dự án có cả cuộc họp |
 | V3 | **Đã có màn** từ 2026-09-24 (`4132dec2`): `EmailHubAiPanel` → `EmailHubCreateSummaryTasksDialog` gọi `createEmailHubSummaryTasks`, service ghi `origin_type = 'email_thread'`. Chỉ thiếu test | Thêm test service giữ `origin_type`/`origin_id` và test views giữ thân POST. Dữ liệu thưa ở đây là do mức dùng (workspace bật AI, chủ hộp thư bấm nút), không do thiếu màn | `ORIGINATED_FROM` việc → luồng thư (chiếu ở lát 2) |
 
+**Cách đo V1.** Tỉ lệ cuộc họp đã kết thúc trong 30 ngày qua có tóm tắt đầu tiên trong
+vòng 24 giờ sau khi kết thúc, theo từng tổ chức. Đo trước khi bật luật nhắc để có mốc,
+rồi đo lại sau 30 ngày:
+
+```sql
+SELECT count(*) FILTER (WHERE s.first_at <= m.actual_end_at + interval '24 hours')::float / NULLIF(count(*), 0) AS rate
+FROM meetings m
+LEFT JOIN LATERAL (SELECT min(created_at) AS first_at FROM meeting_summaries WHERE meeting_id = m.id) s ON true
+WHERE m.organization_id = $1 AND m.status = 'ENDED' AND m.actual_end_at >= now() - interval '30 days';
+```
+
+`meetings.actual_end_at` có từ migration 008; câu này đi qua `idx_meetings_ws_status` và
+`idx_meeting_summaries_meeting` (đã kiểm `EXPLAIN` ngày 2026-10-08).
+
 Không thuộc điều kiện dữ liệu, ghi để không nhầm: việc tạo tay sau cuộc họp không có
 `origin`; lát 3 (nối tay `ORIGINATED_FROM`) bù chỗ này. Quyết định của cuộc họp vẫn là
 JSON hiển thị (`meeting-decisions-block.tsx`), chưa xác nhận và chưa nối tới việc;

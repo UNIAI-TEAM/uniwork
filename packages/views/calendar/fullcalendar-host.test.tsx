@@ -25,6 +25,14 @@ type CapturedFcProps = {
   scrollTime?: string;
   dayMaxEventRows?: boolean | number;
   allDayText?: string;
+  allDayContent?: (arg: {
+    text: string;
+    view: { type: string };
+  }) => React.ReactNode;
+  allDayDidMount?: (arg: {
+    el: HTMLElement;
+    view: { type: string };
+  }) => void;
   editable?: boolean;
   selectable?: boolean;
   selectMirror?: boolean;
@@ -232,7 +240,7 @@ describe("FullCalendarHost", () => {
     expect(captured.hiddenDays).toEqual([]);
   });
 
-  it("collapses and expands all-day events in time-grid views", () => {
+  it("renders the all-day toggle in FullCalendar's accessible axis cell", () => {
     render(
       <FullCalendarHost
         events={[sample]}
@@ -244,6 +252,25 @@ describe("FullCalendarHost", () => {
       />,
     );
 
+    expect(captured.allDayContent).toBeTypeOf("function");
+    expect(captured.allDayDidMount).toBeTypeOf("function");
+    expect(
+      screen.queryByRole("button", { name: "Mở rộng sự kiện cả ngày" }),
+    ).not.toBeInTheDocument();
+
+    const axisCell = document.createElement("th");
+    axisCell.setAttribute("aria-hidden", "true");
+    captured.allDayDidMount?.({
+      el: axisCell,
+      view: { type: "timeGridWeek" },
+    });
+    expect(axisCell).not.toHaveAttribute("aria-hidden");
+
+    const allDayArg = {
+      text: "Cả ngày",
+      view: { type: "timeGridWeek" },
+    };
+    const axisContent = render(<>{captured.allDayContent?.(allDayArg)}</>);
     const expand = screen.getByRole("button", {
       name: "Mở rộng sự kiện cả ngày",
     });
@@ -252,6 +279,7 @@ describe("FullCalendarHost", () => {
     expect(captured.allDayText).toBe("");
 
     fireEvent.click(expand);
+    axisContent.rerender(<>{captured.allDayContent?.(allDayArg)}</>);
 
     expect(
       screen.getByRole("button", { name: "Thu gọn sự kiện cả ngày" }),

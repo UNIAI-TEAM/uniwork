@@ -366,6 +366,7 @@ func main() {
 		os.Exit(1)
 	}
 	notifConsumer.SetDocumentReaders(docSvc)
+	notifConsumer.SetMeetingSummaries(meetingSvc)
 	var pushSender notification.PushSender
 	if cfg.PushEnabled() {
 		pushSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}

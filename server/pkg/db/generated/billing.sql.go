@@ -39,7 +39,6 @@ type ApplyPaidSubscriptionFromProviderParams struct {
 	UpdatedByKind      string             `json:"updated_by_kind"`
 }
 
-// tenant: by-id
 func (q *Queries) ApplyPaidSubscriptionFromProvider(ctx context.Context, arg ApplyPaidSubscriptionFromProviderParams) (Subscription, error) {
 	row := q.db.QueryRow(ctx, applyPaidSubscriptionFromProvider,
 		arg.ID,
@@ -246,7 +245,6 @@ UPDATE billing_payment_intents SET status = 'expired', updated_at = now()
 WHERE organization_id = $1 AND status = 'pending'
 `
 
-// tenant: by-id
 func (q *Queries) ExpirePendingBillingPaymentIntents(ctx context.Context, organizationID string) error {
 	_, err := q.db.Exec(ctx, expirePendingBillingPaymentIntents, organizationID)
 	return err
@@ -261,45 +259,8 @@ type GetBillingPaymentIntentByIDParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-// tenant: by-id
 func (q *Queries) GetBillingPaymentIntentByID(ctx context.Context, arg GetBillingPaymentIntentByIDParams) (BillingPaymentIntent, error) {
 	row := q.db.QueryRow(ctx, getBillingPaymentIntentByID, arg.ID, arg.OrganizationID)
-	var i BillingPaymentIntent
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.SubscriptionID,
-		&i.PlanID,
-		&i.Provider,
-		&i.ProviderTxnRef,
-		&i.Amount,
-		&i.Currency,
-		&i.Status,
-		&i.ExpiresAt,
-		&i.CompletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.CreatedBy,
-		&i.CreatedByKind,
-	)
-	return i, err
-}
-
-const getPendingBillingPaymentIntentForPlan = `-- name: GetPendingBillingPaymentIntentForPlan :one
-SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind FROM billing_payment_intents
-WHERE organization_id = $1 AND plan_id = $2 AND status = 'pending' AND expires_at > now()
-ORDER BY created_at DESC
-LIMIT 1
-`
-
-type GetPendingBillingPaymentIntentForPlanParams struct {
-	OrganizationID string `json:"organization_id"`
-	PlanID         string `json:"plan_id"`
-}
-
-// tenant: by-id
-func (q *Queries) GetPendingBillingPaymentIntentForPlan(ctx context.Context, arg GetPendingBillingPaymentIntentForPlanParams) (BillingPaymentIntent, error) {
-	row := q.db.QueryRow(ctx, getPendingBillingPaymentIntentForPlan, arg.OrganizationID, arg.PlanID)
 	var i BillingPaymentIntent
 	err := row.Scan(
 		&i.ID,
@@ -353,7 +314,6 @@ const getDefaultPlan = `-- name: GetDefaultPlan :one
 SELECT id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at FROM plans WHERE is_default LIMIT 1
 `
 
-// tenant: platform
 func (q *Queries) GetDefaultPlan(ctx context.Context) (Plan, error) {
 	row := q.db.QueryRow(ctx, getDefaultPlan)
 	var i Plan
@@ -378,7 +338,6 @@ const getFeatureByKey = `-- name: GetFeatureByKey :one
 SELECT key, name, kind, unit, category, meter_mode, sort_order FROM features WHERE key = $1
 `
 
-// tenant: platform
 func (q *Queries) GetFeatureByKey(ctx context.Context, key string) (Feature, error) {
 	row := q.db.QueryRow(ctx, getFeatureByKey, key)
 	var i Feature
@@ -426,11 +385,45 @@ func (q *Queries) GetLiveSubscription(ctx context.Context, organizationID string
 	return i, err
 }
 
+const getPendingBillingPaymentIntentForPlan = `-- name: GetPendingBillingPaymentIntentForPlan :one
+SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind FROM billing_payment_intents
+WHERE organization_id = $1 AND plan_id = $2 AND status = 'pending' AND expires_at > now()
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetPendingBillingPaymentIntentForPlanParams struct {
+	OrganizationID string `json:"organization_id"`
+	PlanID         string `json:"plan_id"`
+}
+
+func (q *Queries) GetPendingBillingPaymentIntentForPlan(ctx context.Context, arg GetPendingBillingPaymentIntentForPlanParams) (BillingPaymentIntent, error) {
+	row := q.db.QueryRow(ctx, getPendingBillingPaymentIntentForPlan, arg.OrganizationID, arg.PlanID)
+	var i BillingPaymentIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.PlanID,
+		&i.Provider,
+		&i.ProviderTxnRef,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+	)
+	return i, err
+}
+
 const getPlanByCode = `-- name: GetPlanByCode :one
 SELECT id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at FROM plans WHERE code = $1
 `
 
-// tenant: platform
 func (q *Queries) GetPlanByCode(ctx context.Context, code string) (Plan, error) {
 	row := q.db.QueryRow(ctx, getPlanByCode, code)
 	var i Plan
@@ -455,7 +448,6 @@ const getPlanByID = `-- name: GetPlanByID :one
 SELECT id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at FROM plans WHERE id = $1
 `
 
-// tenant: platform
 func (q *Queries) GetPlanByID(ctx context.Context, id string) (Plan, error) {
 	row := q.db.QueryRow(ctx, getPlanByID, id)
 	var i Plan
@@ -498,7 +490,6 @@ type InsertBillingPaymentIntentParams struct {
 	CreatedByKind  pgtype.Text        `json:"created_by_kind"`
 }
 
-// tenant: by-id
 func (q *Queries) InsertBillingPaymentIntent(ctx context.Context, arg InsertBillingPaymentIntentParams) (BillingPaymentIntent, error) {
 	row := q.db.QueryRow(ctx, insertBillingPaymentIntent,
 		arg.ID,
@@ -559,7 +550,6 @@ type InsertInvoiceParams struct {
 	InitiatedByKind   pgtype.Text        `json:"initiated_by_kind"`
 }
 
-// tenant: by-id
 func (q *Queries) InsertInvoice(ctx context.Context, arg InsertInvoiceParams) (Invoice, error) {
 	row := q.db.QueryRow(ctx, insertInvoice,
 		arg.ID,
@@ -619,7 +609,6 @@ type InsertPlanCatalogParams struct {
 	SortOrder     int32       `json:"sort_order"`
 }
 
-// tenant: platform
 func (q *Queries) InsertPlanCatalog(ctx context.Context, arg InsertPlanCatalogParams) (Plan, error) {
 	row := q.db.QueryRow(ctx, insertPlanCatalog,
 		arg.ID,
@@ -658,7 +647,6 @@ WHERE p.is_active
 ORDER BY pf.plan_id, pf.feature_key
 `
 
-// tenant: platform
 func (q *Queries) ListActivePlanFeatures(ctx context.Context) ([]PlanFeature, error) {
 	rows, err := q.db.Query(ctx, listActivePlanFeatures)
 	if err != nil {
@@ -691,7 +679,6 @@ SELECT id, code, name, description, billing_period, price_amount, price_currency
 
 // Plans, features and subscriptions (F-02). Only service/entitlement.go,
 // service/billing.go and service/billing_catalog.go call these (arch_test.go).
-// tenant: platform
 func (q *Queries) ListActivePlans(ctx context.Context) ([]Plan, error) {
 	rows, err := q.db.Query(ctx, listActivePlans)
 	if err != nil {
@@ -746,7 +733,6 @@ type ListAllPlanFeaturesRow struct {
 	SortOrder  int32       `json:"sort_order"`
 }
 
-// tenant: platform
 func (q *Queries) ListAllPlanFeatures(ctx context.Context) ([]ListAllPlanFeaturesRow, error) {
 	rows, err := q.db.Query(ctx, listAllPlanFeatures)
 	if err != nil {
@@ -782,7 +768,6 @@ const listAllPlans = `-- name: ListAllPlans :many
 SELECT id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at FROM plans ORDER BY sort_order, code
 `
 
-// tenant: platform
 func (q *Queries) ListAllPlans(ctx context.Context) ([]Plan, error) {
 	rows, err := q.db.Query(ctx, listAllPlans)
 	if err != nil {
@@ -820,7 +805,6 @@ const listFeatures = `-- name: ListFeatures :many
 SELECT key, name, kind, unit, category, meter_mode, sort_order FROM features ORDER BY sort_order, key
 `
 
-// tenant: platform
 func (q *Queries) ListFeatures(ctx context.Context) ([]Feature, error) {
 	rows, err := q.db.Query(ctx, listFeatures)
 	if err != nil {
@@ -862,7 +846,6 @@ type ListInvoicesByOrganizationParams struct {
 	Offset         int32  `json:"offset"`
 }
 
-// tenant: by-id
 func (q *Queries) ListInvoicesByOrganization(ctx context.Context, arg ListInvoicesByOrganizationParams) ([]Invoice, error) {
 	rows, err := q.db.Query(ctx, listInvoicesByOrganization, arg.OrganizationID, arg.Limit, arg.Offset)
 	if err != nil {
@@ -951,7 +934,6 @@ type ListPlanFeaturesRow struct {
 	SortOrder  int32       `json:"sort_order"`
 }
 
-// tenant: platform
 func (q *Queries) ListPlanFeatures(ctx context.Context, planID string) ([]ListPlanFeaturesRow, error) {
 	rows, err := q.db.Query(ctx, listPlanFeatures, planID)
 	if err != nil {
@@ -1134,7 +1116,6 @@ type MarkBillingPaymentIntentCompletedParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-// tenant: by-id
 func (q *Queries) MarkBillingPaymentIntentCompleted(ctx context.Context, arg MarkBillingPaymentIntentCompletedParams) (BillingPaymentIntent, error) {
 	row := q.db.QueryRow(ctx, markBillingPaymentIntentCompleted, arg.ID, arg.OrganizationID)
 	var i BillingPaymentIntent
@@ -1168,7 +1149,6 @@ type MarkBillingPaymentIntentFailedParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-// tenant: by-id
 func (q *Queries) MarkBillingPaymentIntentFailed(ctx context.Context, arg MarkBillingPaymentIntentFailedParams) error {
 	_, err := q.db.Exec(ctx, markBillingPaymentIntentFailed, arg.ID, arg.OrganizationID)
 	return err
@@ -1197,7 +1177,6 @@ type MarkSubscriptionPastDueParams struct {
 	UpdatedByKind  string `json:"updated_by_kind"`
 }
 
-// tenant: by-id
 func (q *Queries) MarkSubscriptionPastDue(ctx context.Context, arg MarkSubscriptionPastDueParams) (Subscription, error) {
 	row := q.db.QueryRow(ctx, markSubscriptionPastDue,
 		arg.ID,
@@ -1236,7 +1215,7 @@ UPDATE subscriptions SET
   plan_id = $3,
   status = 'active',
   provider = 'manual',
-  current_period_start = NULL,
+  current_period_start = now(),
   current_period_end = NULL,
   cancel_at = NULL,
   canceled_at = NULL,
@@ -1257,7 +1236,6 @@ type RevertSubscriptionToDefaultAtCancelParams struct {
 	UpdatedByKind  string `json:"updated_by_kind"`
 }
 
-// tenant: by-id
 func (q *Queries) RevertSubscriptionToDefaultAtCancel(ctx context.Context, arg RevertSubscriptionToDefaultAtCancelParams) (Subscription, error) {
 	row := q.db.QueryRow(ctx, revertSubscriptionToDefaultAtCancel,
 		arg.ID,
@@ -1369,7 +1347,6 @@ type UpdatePlanCatalogParams struct {
 	SortOrder     int32       `json:"sort_order"`
 }
 
-// tenant: platform
 func (q *Queries) UpdatePlanCatalog(ctx context.Context, arg UpdatePlanCatalogParams) (Plan, error) {
 	row := q.db.QueryRow(ctx, updatePlanCatalog,
 		arg.Code,
@@ -1414,7 +1391,6 @@ type UpsertPlanFeatureRowParams struct {
 	QuotaLimit pgtype.Int8 `json:"quota_limit"`
 }
 
-// tenant: platform
 func (q *Queries) UpsertPlanFeatureRow(ctx context.Context, arg UpsertPlanFeatureRowParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertPlanFeatureRow,
 		arg.PlanID,

@@ -24,6 +24,14 @@ const meeting: Meeting = {
   timezone: "Asia/Ho_Chi_Minh",
 };
 
+/** Base UI Select picks an item on pointer up, not on a bare click. */
+function pickOption(option: HTMLElement) {
+  fireEvent.pointerDown(option);
+  fireEvent.pointerUp(option);
+  fireEvent.mouseUp(option);
+  fireEvent.click(option);
+}
+
 beforeEach(() => {
   requestMock.mockReset();
   vi.mocked(toast.success).mockClear();
@@ -94,7 +102,8 @@ describe("MeetingEditDialog", () => {
     expect(within(dialog).getByText("Nhập số nguyên từ 1 đến 100")).toBeInTheDocument();
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(document.activeElement).toBe(input);
-    expect(requestMock).not.toHaveBeenCalled();
+    // The dialog reads /config for the project field; nothing is saved.
+    expect(requestMock.mock.calls.some((c) => (c[1] as { method?: string } | undefined)?.method === "PATCH")).toBe(false);
   });
 
   it("names hour and minute segments apart", () => {
@@ -127,7 +136,8 @@ describe("MeetingEditDialog", () => {
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAttribute("aria-describedby", error.id);
     expect(document.activeElement).toBe(input);
-    expect(requestMock).not.toHaveBeenCalled();
+    // The dialog reads /config for the project field; nothing is saved.
+    expect(requestMock.mock.calls.some((c) => (c[1] as { method?: string } | undefined)?.method === "PATCH")).toBe(false);
   });
 
   it("types and saves times in the meeting's zone, not the browser's", async () => {
@@ -202,4 +212,41 @@ describe("MeetingEditDialog", () => {
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang lưu…" })).toBeDisabled());
     expect(within(dialog).getByRole("button", { name: "Hủy" })).toBeDisabled();
   });
+
+  it("clears the project with an empty string", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.startsWith("/api/v1/config")) {
+        return Promise.resolve({ flags: {}, rum_sample_rate: 0, work_management_capabilities: { "tasks.projects": { status: "available" } } });
+      }
+      if (p.includes("/projects")) {
+        return Promise.resolve({ projects: [{ id: "p1", organization_id: "o1", workspace_id: "w1", title: "Ra mắt Q4", description: "", status: "in_progress", priority: "none", revision: 1, task_count: 0, done_count: 0, resource_count: 0, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z" }], total: 1 });
+      }
+      return Promise.resolve({ meeting: { ...meeting, project_id: "" } });
+    });
+    const dialog = openDialog({ ...meeting, project_id: "p1" });
+    fireEvent.click(await within(dialog).findByRole("combobox", { name: "Dự án" }));
+    pickOption(await screen.findByRole("option", { name: "Không thuộc dự án" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1",
+        expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ project_id: "" }) }),
+      ),
+    );
+  });
+
+  it("leaves the project out of the PATCH when it did not change", async () => {
+    requestMock.mockImplementation((path: unknown) =>
+      String(path).startsWith("/api/v1/config")
+        ? Promise.resolve({ flags: {}, rum_sample_rate: 0, work_management_capabilities: { "tasks.projects": { status: "available" } } })
+        : Promise.resolve({ meeting }),
+    );
+    const dialog = openDialog({ ...meeting, project_id: "p1" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() => expect(requestMock.mock.calls.some((c) => (c[1] as { method?: string } | undefined)?.method === "PATCH")).toBe(true));
+    const patch = requestMock.mock.calls.find((c) => (c[1] as { method?: string } | undefined)?.method === "PATCH");
+    expect((patch?.[1] as { body: Record<string, unknown> }).body).not.toHaveProperty("project_id");
+  });
 });
+

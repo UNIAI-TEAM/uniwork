@@ -50,6 +50,11 @@ func (c *Consumer) SetMetrics(m Metrics) { c.metrics = m }
 // the document rules deliver nothing rather than guessing.
 func (c *Consumer) SetDocumentReaders(d DocumentReadChecker) { c.env.docs = d }
 
+// SetMeetingSummaries wires the AI-summary availability port the meeting
+// summary nudge asks. MeetingService satisfies it. Unwired, the nudge is
+// never sent.
+func (c *Consumer) SetMeetingSummaries(s SummaryChecker) { c.env.summaries = s }
+
 // Name identifies the consumer in dispatcher errors.
 func (*Consumer) Name() string { return "notification" }
 

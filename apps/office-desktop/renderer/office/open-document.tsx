@@ -130,7 +130,7 @@ function OpenByteSessionDocument({ bridge, identity, session, title, onBack, act
         {recovered ? <p role="status" className="mb-3 text-caption text-muted-foreground">{t("draftRecovered")}</p> : null}
         {notice ? <RecoveryNotice state={notice} className="mb-3" /> : null}
         {actionFailed ? <p role="alert" className="mb-3 text-caption text-destructive">{t("actionError")}</p> : null}
-        {print.hint}
+        {print.hint}{print.dialog}
         {featureOff ? <FeatureOffNotice formatName={tOffice(`formatName.${format}`, { defaultValue: format.toUpperCase() })} reason={readOnlyReason} className="mx-4 my-2" /> : null}
         {/* The shell header is the only frame: neutralize the shared EditorSlot card so the editor fills the page like DOCX/XLSX (web has no card either). A read-only message is a notice, not the editor: it keeps its margin and its own height so the read-only surface below sits right under it. */}
         {featureOff && !current?.failure ? null : <EditorSlot className={readOnlyMessage ? "flex-none rounded-none border-0 bg-transparent px-4 py-2" : "rounded-none border-0 bg-transparent p-0"} format={format} host={host} editorHandle={session.editor} capability={current?.failure ? { ...capability, status: "available" } : capability} openState={current?.failure ? "error" : ready ? "ready" : "loading"} openError={current?.failure?.message} onRetry={() => { setLoaded(null); setOpenAttempt((value) => value + 1); }} loadEditor={loadEditor} />}
@@ -229,7 +229,7 @@ function OpenPptxDocument({ bridge, identity, session, title, onBack, active = t
     {notice ? <RecoveryNotice state={notice} className="mx-4 my-2" /> : null}
   </> : null;
   // A flag-off deck: the neutral shell (notice + Back) over the opened deck, view-only; the recovery lines stay above it.
-  return <>{prompt(active && ready)}
+  return <>{prompt(active && ready)}{print.dialog}
     {readOnlyReason !== undefined && !session.canSave
       ? <>{recoveryLines}<FeatureOffShell format="pptx" reason={readOnlyReason} title={title} breadcrumbs={[{ label: t(kind === "local" ? "local" : "title") }]} onBack={onBack}>
         {ready && deck ? <ReadOnlyDeck host={host} editorHandle={session.editor} deck={deck} slides={slides} selectedIndex={selected} onSlideSelect={setSelected} /> : null}
