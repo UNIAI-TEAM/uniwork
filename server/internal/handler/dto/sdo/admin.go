@@ -183,22 +183,36 @@ type AdminPlanSDO struct {
 
 // AdminInvoiceDTO is one invoice row with organization metadata.
 type AdminInvoiceDTO struct {
-	ID              string `json:"id"`
-	OrganizationID  string `json:"organization_id"`
-	OrgSlug         string `json:"org_slug" example:"acme"`
-	OrgName         string `json:"org_name" example:"Acme"`
-	Number          string `json:"number" example:"UW-2026-01ABC12345"`
-	Status          string `json:"status" example:"paid"`
-	Provider        string `json:"provider" example:"vnpay"`
-	AmountPaid      int64  `json:"amount_paid" example:"499000"`
-	Currency        string `json:"currency" example:"VND"`
-	PeriodStart     string `json:"period_start" example:"2026-09-06T00:00:00Z"`
-	PeriodEnd       string `json:"period_end" example:"2026-10-06T00:00:00Z"`
-	PaidAt          string `json:"paid_at,omitempty" example:"2026-09-06T12:00:00Z"`
-	CreatedAt       string `json:"created_at" example:"2026-09-06T12:00:00Z"`
-	UserID          string `json:"user_id,omitempty" description:"Người bắt đầu checkout; fallback chủ tổ chức"`
-	UserDisplayName string `json:"user_display_name,omitempty" example:"Nguyễn Văn A"`
-	UserEmail       string `json:"user_email,omitempty" example:"owner@example.com"`
+	ID                    string `json:"id"`
+	OrganizationID        string `json:"organization_id"`
+	OrgSlug               string `json:"org_slug" example:"acme"`
+	OrgName               string `json:"org_name" example:"Acme"`
+	Number                string `json:"number" example:"UW-2026-01ABC12345"`
+	Status                string `json:"status" example:"paid"`
+	Provider              string `json:"provider" example:"vnpay"`
+	AmountPaid            int64  `json:"amount_paid" example:"499000"`
+	Currency              string `json:"currency" example:"VND"`
+	PeriodStart           string `json:"period_start" example:"2026-09-06T00:00:00Z"`
+	PeriodEnd             string `json:"period_end" example:"2026-10-06T00:00:00Z"`
+	PaidAt                string `json:"paid_at,omitempty" example:"2026-09-06T12:00:00Z"`
+	CreatedAt             string `json:"created_at" example:"2026-09-06T12:00:00Z"`
+	UserID                string `json:"user_id,omitempty" description:"Người bắt đầu checkout; fallback chủ tổ chức"`
+	UserDisplayName       string `json:"user_display_name,omitempty" example:"Nguyễn Văn A"`
+	UserEmail             string `json:"user_email,omitempty" example:"owner@example.com"`
+	PlanCode              string `json:"plan_code,omitempty" example:"team"`
+	PlanName              string `json:"plan_name,omitempty" example:"Team"`
+	RefundRequestedAt     string `json:"refund_requested_at,omitempty"`
+	RefundedAt            string `json:"refunded_at,omitempty"`
+	RefundProviderRef     string `json:"refund_provider_ref,omitempty"`
+	RefundReason          string `json:"refund_reason,omitempty"`
+	RefundConfirmReason   string `json:"refund_confirm_reason,omitempty"`
+	AmountRefunded        int64  `json:"amount_refunded,omitempty"`
+	PartialRefundAmount   int64  `json:"partial_refund_amount,omitempty"`
+	ProviderBankCode      string `json:"provider_bank_code,omitempty"`
+	ProviderTransactionNo string `json:"provider_transaction_no,omitempty"`
+	ProviderTxnRef        string `json:"provider_txn_ref,omitempty"`
+	ProviderInvoiceID     string `json:"provider_invoice_id,omitempty"`
+	PaymentIntentID       string `json:"payment_intent_id,omitempty" description:"Checkout intent gắn với HĐ (ULID)"`
 }
 
 // AdminInvoiceListSDO is GET /api/v1/admin/invoices.
@@ -211,22 +225,29 @@ type AdminInvoiceListSDO struct {
 
 // AdminPaymentIntentDTO is one checkout intent for support.
 type AdminPaymentIntentDTO struct {
-	ID              string `json:"id"`
-	OrganizationID  string `json:"organization_id"`
-	OrgSlug         string `json:"org_slug" example:"acme"`
-	OrgName         string `json:"org_name" example:"Acme"`
-	PlanCode        string `json:"plan_code" example:"team"`
-	Provider        string `json:"provider" example:"vnpay"`
-	ProviderTxnRef  string `json:"provider_txn_ref" example:"UW1700000000"`
-	Amount          int64  `json:"amount" example:"499000"`
-	Currency        string `json:"currency" example:"VND"`
-	Status          string `json:"status" description:"pending | completed | failed | expired" example:"completed"`
-	ExpiresAt       string `json:"expires_at" example:"2026-09-06T13:00:00Z"`
-	CompletedAt     string `json:"completed_at,omitempty"`
-	CreatedAt       string `json:"created_at" example:"2026-09-06T12:00:00Z"`
-	UserID          string `json:"user_id,omitempty"`
-	UserDisplayName string `json:"user_display_name,omitempty"`
-	UserEmail       string `json:"user_email,omitempty"`
+	ID                    string `json:"id"`
+	OrganizationID        string `json:"organization_id"`
+	OrgSlug               string `json:"org_slug" example:"acme"`
+	OrgName               string `json:"org_name" example:"Acme"`
+	PlanCode              string `json:"plan_code" example:"team"`
+	Provider              string `json:"provider" example:"vnpay"`
+	ProviderTxnRef        string `json:"provider_txn_ref" example:"UW1700000000"`
+	Amount                int64  `json:"amount" example:"499000"`
+	Currency              string `json:"currency" example:"VND"`
+	Status                string `json:"status" description:"pending | completed | failed | expired" example:"completed"`
+	ExpiresAt             string `json:"expires_at" example:"2026-09-06T13:00:00Z"`
+	CompletedAt           string `json:"completed_at,omitempty"`
+	CreatedAt             string `json:"created_at" example:"2026-09-06T12:00:00Z"`
+	UserID                string `json:"user_id,omitempty"`
+	UserDisplayName       string `json:"user_display_name,omitempty"`
+	UserEmail             string `json:"user_email,omitempty"`
+	ProviderBankCode      string `json:"provider_bank_code,omitempty"`
+	ProviderTransactionNo string `json:"provider_transaction_no,omitempty"`
+}
+
+// AdminInvoiceSDO wraps one invoice after a refund command.
+type AdminInvoiceSDO struct {
+	Invoice AdminInvoiceDTO `json:"invoice"`
 }
 
 // AdminPaymentIntentListSDO is GET /api/v1/admin/billing/payment-intents.

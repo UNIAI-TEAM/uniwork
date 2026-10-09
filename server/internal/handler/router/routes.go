@@ -31,6 +31,8 @@ type Routes struct {
 	AdminUpdatePlanFeature     http.HandlerFunc
 	AdminListInvoices          http.HandlerFunc
 	AdminListPaymentIntents    http.HandlerFunc
+	AdminRefundInvoice         http.HandlerFunc
+	AdminConfirmInvoiceRefund  http.HandlerFunc
 
 	Register              http.HandlerFunc
 	Login                 http.HandlerFunc

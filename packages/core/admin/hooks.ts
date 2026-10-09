@@ -166,6 +166,27 @@ export function useAdminPaymentIntents(query: AdminBillingQuery = {}, enabled = 
   });
 }
 
+export function useAdminRefundInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: admin.AdminInvoiceRefundInput) => admin.refundAdminInvoice(input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: adminKeys.invoicesRoot });
+    },
+  });
+}
+
+export function useAdminConfirmInvoiceRefund() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, reason }: { invoiceId: string; reason: string }) =>
+      admin.confirmAdminInvoiceRefund(invoiceId, reason),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: adminKeys.invoicesRoot });
+    },
+  });
+}
+
 export function useCreateAdminPlan() {
   return usePlanCatalogMutation((body: PlanCreateInput) => admin.createAdminPlan(body));
 }

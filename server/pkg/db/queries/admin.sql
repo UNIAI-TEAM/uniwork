@@ -96,21 +96,42 @@ SELECT status FROM organizations WHERE id = $1;
 SELECT t.id, t.organization_id, t.subscription_id, t.provider, t.provider_invoice_id, t.number,
   t.status, t.amount_due, t.amount_paid, t.currency, t.period_start, t.period_end, t.hosted_url,
   t.issued_at, t.paid_at, t.created_at, t.updated_at, t.org_slug, t.org_name,
-  t.user_id, t.user_display_name, t.user_email, t.total_count
+  t.user_id, t.user_display_name, t.user_email, t.plan_code, t.plan_name,
+  t.refund_requested_at, t.refunded_at, t.refund_provider_ref, t.amount_refunded, t.partial_refund_amount,
+  t.refund_reason, t.refund_confirm_reason,
+  t.provider_bank_code, t.provider_transaction_no, t.provider_txn_ref, t.payment_intent_id, t.total_count
 FROM (
   SELECT i.id, i.organization_id, i.subscription_id, i.provider, i.provider_invoice_id, i.number,
     i.status, i.amount_due, i.amount_paid, i.currency, i.period_start, i.period_end, i.hosted_url,
     i.issued_at, i.paid_at, i.created_at, i.updated_at,
+    i.refund_requested_at, i.refunded_at, i.refund_provider_ref, i.amount_refunded, i.partial_refund_amount,
+    i.refund_reason, i.refund_confirm_reason, i.payment_intent_id,
     o.slug AS org_slug, o.name AS org_name,
+    pl.code AS plan_code, pl.name AS plan_name,
     COALESCE(init_u.id, owner_u.id, '')::text AS user_id,
     COALESCE(init_u.display_name, owner_u.display_name, '')::text AS user_display_name,
     COALESCE(init_u.email, owner_u.email, '')::text AS user_email,
+    COALESCE(pi_link.provider_bank_code, pi_match.provider_bank_code) AS provider_bank_code,
+    COALESCE(pi_link.provider_transaction_no, pi_match.provider_transaction_no) AS provider_transaction_no,
+    COALESCE(pi_link.provider_txn_ref, pi_match.provider_txn_ref) AS provider_txn_ref,
     count(*) OVER ()::bigint AS total_count
   FROM invoices i
   JOIN organizations o ON o.id = i.organization_id
+  LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
+  LEFT JOIN plans pl ON pl.id = sub.plan_id
   LEFT JOIN users init_u ON init_u.id = i.initiated_by
   LEFT JOIN organization_members owner_m ON owner_m.organization_id = i.organization_id AND owner_m.role = 'owner'
   LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
+  LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+  LEFT JOIN LATERAL (
+    SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
+    FROM billing_payment_intents pi
+    WHERE i.payment_intent_id IS NULL
+      AND pi.organization_id = i.organization_id AND pi.provider = i.provider
+      AND pi.status = 'completed' AND pi.amount = i.amount_paid
+    ORDER BY COALESCE(pi.completed_at, pi.created_at) DESC
+    LIMIT 1
+  ) pi_match ON i.payment_intent_id IS NULL
   WHERE (sqlc.narg('provider')::text IS NULL OR i.provider = sqlc.narg('provider')::text)
     AND (sqlc.narg('status')::text IS NULL OR i.status = sqlc.narg('status')::text)
     AND (sqlc.narg('q')::text IS NULL OR i.number ILIKE '%' || sqlc.narg('q')::text || '%'
@@ -135,10 +156,12 @@ WHERE (sqlc.narg('provider')::text IS NULL OR i.provider = sqlc.narg('provider')
 -- tenant: platform
 SELECT t.id, t.organization_id, t.subscription_id, t.plan_id, t.provider, t.provider_txn_ref,
   t.amount, t.currency, t.status, t.expires_at, t.completed_at, t.created_at, t.updated_at,
+  t.provider_bank_code, t.provider_transaction_no,
   t.org_slug, t.org_name, t.plan_code, t.user_id, t.user_display_name, t.user_email, t.total_count
 FROM (
   SELECT pi.id, pi.organization_id, pi.subscription_id, pi.plan_id, pi.provider, pi.provider_txn_ref,
     pi.amount, pi.currency, pi.status, pi.expires_at, pi.completed_at, pi.created_at, pi.updated_at,
+    pi.provider_bank_code, pi.provider_transaction_no,
     o.slug AS org_slug, o.name AS org_name, p.code AS plan_code,
     COALESCE(pay_u.id, owner_u.id, '')::text AS user_id,
     COALESCE(pay_u.display_name, owner_u.display_name, '')::text AS user_display_name,
@@ -152,7 +175,8 @@ FROM (
   LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
   WHERE (sqlc.narg('provider')::text IS NULL OR pi.provider = sqlc.narg('provider')::text)
     AND (sqlc.narg('status')::text IS NULL OR pi.status = sqlc.narg('status')::text)
-    AND (sqlc.narg('q')::text IS NULL OR pi.provider_txn_ref ILIKE '%' || sqlc.narg('q')::text || '%'
+    AND (sqlc.narg('q')::text IS NULL OR pi.id = sqlc.narg('q')::text
+      OR pi.provider_txn_ref ILIKE '%' || sqlc.narg('q')::text || '%'
       OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
       OR pay_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR pay_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%')
 ) t
@@ -166,6 +190,110 @@ JOIN organizations o ON o.id = pi.organization_id
 LEFT JOIN users pay_u ON pay_u.id = pi.created_by
 WHERE (sqlc.narg('provider')::text IS NULL OR pi.provider = sqlc.narg('provider')::text)
   AND (sqlc.narg('status')::text IS NULL OR pi.status = sqlc.narg('status')::text)
-  AND (sqlc.narg('q')::text IS NULL OR pi.provider_txn_ref ILIKE '%' || sqlc.narg('q')::text || '%'
+  AND (sqlc.narg('q')::text IS NULL OR pi.id = sqlc.narg('q')::text
+    OR pi.provider_txn_ref ILIKE '%' || sqlc.narg('q')::text || '%'
     OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%' OR o.name ILIKE '%' || sqlc.narg('q')::text || '%'
     OR pay_u.email ILIKE '%' || sqlc.narg('q')::text || '%' OR pay_u.display_name ILIKE '%' || sqlc.narg('q')::text || '%');
+
+-- name: AdminGetInvoiceByID :one
+-- tenant: platform
+SELECT i.*, o.slug AS org_slug, o.name AS org_name,
+  pl.code AS plan_code, pl.name AS plan_name,
+  COALESCE(pi_link.provider_bank_code, pi_match.provider_bank_code) AS provider_bank_code,
+  COALESCE(pi_link.provider_transaction_no, pi_match.provider_transaction_no) AS provider_transaction_no,
+  COALESCE(pi_link.provider_txn_ref, pi_match.provider_txn_ref) AS provider_txn_ref
+FROM invoices i
+JOIN organizations o ON o.id = i.organization_id
+LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
+LEFT JOIN plans pl ON pl.id = sub.plan_id
+LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+LEFT JOIN LATERAL (
+  SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
+  FROM billing_payment_intents pi
+  WHERE i.payment_intent_id IS NULL
+    AND pi.organization_id = i.organization_id AND pi.provider = i.provider
+    AND pi.status = 'completed' AND pi.amount = i.amount_paid
+  ORDER BY COALESCE(pi.completed_at, pi.created_at) DESC
+  LIMIT 1
+) pi_match ON i.payment_intent_id IS NULL
+WHERE i.id = $1;
+
+-- name: AdminMarkInvoiceRefunded :one
+-- tenant: platform
+UPDATE invoices SET
+  status = 'refunded',
+  refunded_at = now(),
+  refund_provider_ref = sqlc.narg('refund_provider_ref'),
+  refund_reason = sqlc.arg('refund_reason'),
+  amount_refunded = amount_paid,
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status = 'paid'
+RETURNING *;
+
+-- name: AdminRequestInvoiceRefund :one
+-- tenant: platform
+UPDATE invoices SET
+  status = 'refund_pending',
+  refund_requested_at = now(),
+  refund_provider_ref = sqlc.narg('refund_provider_ref'),
+  refund_reason = sqlc.arg('refund_reason'),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status = 'paid'
+RETURNING *;
+
+-- name: AdminRequestPartialInvoiceRefund :one
+-- tenant: platform
+UPDATE invoices SET
+  status = 'partial_refund_pending',
+  refund_requested_at = now(),
+  partial_refund_amount = sqlc.arg('partial_refund_amount'),
+  refund_provider_ref = sqlc.narg('refund_provider_ref'),
+  refund_reason = sqlc.arg('refund_reason'),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status = 'paid'
+RETURNING *;
+
+-- name: AdminRevertInvoiceRefundRequest :one
+-- tenant: platform
+UPDATE invoices SET
+  status = 'paid',
+  refund_requested_at = NULL,
+  partial_refund_amount = NULL,
+  refund_provider_ref = NULL,
+  refund_reason = NULL,
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status IN ('refund_pending', 'partial_refund_pending')
+RETURNING *;
+
+-- name: AdminPatchInvoiceRefundProviderRef :one
+-- tenant: platform
+UPDATE invoices SET
+  refund_provider_ref = sqlc.narg('refund_provider_ref'),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status IN ('refund_pending', 'partial_refund_pending')
+RETURNING *;
+
+-- name: AdminConfirmInvoiceRefund :one
+-- tenant: platform
+UPDATE invoices SET
+  refund_confirm_reason = sqlc.arg('refund_confirm_reason'),
+  amount_refunded = CASE
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+    THEN amount_refunded + partial_refund_amount
+    ELSE amount_paid
+  END,
+  partial_refund_amount = NULL,
+  status = CASE
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+      AND amount_refunded + partial_refund_amount < amount_paid THEN 'paid'
+    ELSE 'refunded'
+  END,
+  refunded_at = CASE
+    WHEN status = 'refund_pending' THEN now()
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+      AND amount_refunded + partial_refund_amount >= amount_paid THEN now()
+    ELSE refunded_at
+  END,
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status IN ('refund_pending', 'partial_refund_pending')
+RETURNING *;

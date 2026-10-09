@@ -169,21 +169,23 @@ type AuditRetentionPolicy struct {
 }
 
 type BillingPaymentIntent struct {
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-	SubscriptionID string             `json:"subscription_id"`
-	PlanID         string             `json:"plan_id"`
-	Provider       string             `json:"provider"`
-	ProviderTxnRef string             `json:"provider_txn_ref"`
-	Amount         int64              `json:"amount"`
-	Currency       string             `json:"currency"`
-	Status         string             `json:"status"`
-	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
-	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	CreatedBy      pgtype.Text        `json:"created_by"`
-	CreatedByKind  pgtype.Text        `json:"created_by_kind"`
+	ID                    string             `json:"id"`
+	OrganizationID        string             `json:"organization_id"`
+	SubscriptionID        string             `json:"subscription_id"`
+	PlanID                string             `json:"plan_id"`
+	Provider              string             `json:"provider"`
+	ProviderTxnRef        string             `json:"provider_txn_ref"`
+	Amount                int64              `json:"amount"`
+	Currency              string             `json:"currency"`
+	Status                string             `json:"status"`
+	ExpiresAt             pgtype.Timestamptz `json:"expires_at"`
+	CompletedAt           pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	CreatedBy             pgtype.Text        `json:"created_by"`
+	CreatedByKind         pgtype.Text        `json:"created_by_kind"`
+	ProviderBankCode      pgtype.Text        `json:"provider_bank_code"`
+	ProviderTransactionNo pgtype.Text        `json:"provider_transaction_no"`
 }
 
 type CalendarConnection struct {
@@ -925,25 +927,33 @@ type Invitation struct {
 }
 
 type Invoice struct {
-	ID                string             `json:"id"`
-	OrganizationID    string             `json:"organization_id"`
-	SubscriptionID    string             `json:"subscription_id"`
-	Provider          string             `json:"provider"`
-	ProviderInvoiceID pgtype.Text        `json:"provider_invoice_id"`
-	Number            string             `json:"number"`
-	Status            string             `json:"status"`
-	AmountDue         int64              `json:"amount_due"`
-	AmountPaid        int64              `json:"amount_paid"`
-	Currency          string             `json:"currency"`
-	PeriodStart       pgtype.Timestamptz `json:"period_start"`
-	PeriodEnd         pgtype.Timestamptz `json:"period_end"`
-	HostedUrl         pgtype.Text        `json:"hosted_url"`
-	IssuedAt          pgtype.Timestamptz `json:"issued_at"`
-	PaidAt            pgtype.Timestamptz `json:"paid_at"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
-	InitiatedBy       pgtype.Text        `json:"initiated_by"`
-	InitiatedByKind   pgtype.Text        `json:"initiated_by_kind"`
+	ID                  string             `json:"id"`
+	OrganizationID      string             `json:"organization_id"`
+	SubscriptionID      string             `json:"subscription_id"`
+	Provider            string             `json:"provider"`
+	ProviderInvoiceID   pgtype.Text        `json:"provider_invoice_id"`
+	Number              string             `json:"number"`
+	Status              string             `json:"status"`
+	AmountDue           int64              `json:"amount_due"`
+	AmountPaid          int64              `json:"amount_paid"`
+	Currency            string             `json:"currency"`
+	PeriodStart         pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd           pgtype.Timestamptz `json:"period_end"`
+	HostedUrl           pgtype.Text        `json:"hosted_url"`
+	IssuedAt            pgtype.Timestamptz `json:"issued_at"`
+	PaidAt              pgtype.Timestamptz `json:"paid_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	InitiatedBy         pgtype.Text        `json:"initiated_by"`
+	InitiatedByKind     pgtype.Text        `json:"initiated_by_kind"`
+	RefundedAt          pgtype.Timestamptz `json:"refunded_at"`
+	RefundProviderRef   pgtype.Text        `json:"refund_provider_ref"`
+	RefundRequestedAt   pgtype.Timestamptz `json:"refund_requested_at"`
+	AmountRefunded      int64              `json:"amount_refunded"`
+	PartialRefundAmount pgtype.Int8        `json:"partial_refund_amount"`
+	RefundReason        pgtype.Text        `json:"refund_reason"`
+	RefundConfirmReason pgtype.Text        `json:"refund_confirm_reason"`
+	PaymentIntentID     pgtype.Text        `json:"payment_intent_id"`
 }
 
 type Meeting struct {

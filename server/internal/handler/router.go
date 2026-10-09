@@ -166,6 +166,8 @@ func New(d Deps) http.Handler {
 		AdminUpdatePlanFeature:     h.adminUpdatePlanFeature,
 		AdminListInvoices:          h.adminListInvoices,
 		AdminListPaymentIntents:    h.adminListPaymentIntents,
+		AdminRefundInvoice:         h.adminRefundInvoice,
+		AdminConfirmInvoiceRefund:  h.adminConfirmInvoiceRefund,
 		WS:                         h.ws,
 
 		Register:              h.register,
