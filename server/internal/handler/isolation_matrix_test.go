@@ -648,6 +648,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return "agents_assignee"
 		}
 		return "documents"
+	case "{invoiceID}":
+		// No invoice rows in the fixture; admin refund answers 404 for unknown ids.
+		return "01J8X4INV0N1P2Q3R4S5T6U7V8"
 	case "{traceID}":
 		return "0af7651916cd43dd8448eb211c80319c"
 	case "{sessionId}":

@@ -107,7 +107,7 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		return nil
 	}
 	if intent.Status == "completed" {
-		return nil
+		return s.patchIntentProviderMeta(ctx, q, intent, ev)
 	}
 	if intent.Status != "pending" && intent.Status != "failed" {
 		return fmt.Errorf("billing: intent %q not payable (status=%s)", intent.ID, intent.Status)
@@ -156,9 +156,8 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 	if err != nil {
 		return err
 	}
-	if _, err := q.MarkBillingPaymentIntentCompleted(ctx, db.MarkBillingPaymentIntentCompletedParams{
-		ID: intent.ID, OrganizationID: intent.OrganizationID,
-	}); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	bankCode, txnNo := vnpayProviderMetaFromEvent(ev)
+	if _, err := q.MarkBillingPaymentIntentCompleted(ctx, markIntentCompletedParams(intent.ID, intent.OrganizationID, bankCode, txnNo, ev)); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
 	invID := util.NewID()
@@ -177,6 +176,7 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		Number: invoiceNumber(start), AmountDue: intent.Amount, AmountPaid: intent.Amount, Currency: intent.Currency,
 		PeriodStart: pgtype.Timestamptz{Time: start, Valid: true}, PeriodEnd: periodEnd,
 		InitiatedBy: initiatedBy, InitiatedByKind: initiatedKind,
+		PaymentIntentID: pgtype.Text{String: intent.ID, Valid: true},
 	})
 	if err != nil {
 		return err

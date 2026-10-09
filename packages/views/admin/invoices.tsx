@@ -1,66 +1,77 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert, ChevronLeft, ChevronRight, Receipt, Search } from "lucide-react";
-import { useAdminInvoices, useAdminPaymentIntents } from "@uniwork/core/admin";
+import { useAdminInvoices, useAdminMe, useAdminPaymentIntents } from "@uniwork/core/admin";
 import { useDebouncedValue } from "@uniwork/core/hooks";
-import { paths } from "@uniwork/core/paths";
+import type { AdminInvoice, AdminPaymentIntent } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@uniwork/ui/components/ui/table";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import { PAGE_TOOLBAR } from "../layout/page-header";
-import { AppLink } from "../navigation";
+import { AdminBillingDetailSheet, type AdminBillingDetail } from "./admin-billing-detail-sheet";
+import { AdminBillingFiltersPanel } from "./admin-billing-ui";
+import { AdminInvoicesTable, AdminPaymentIntentsTable } from "./admin-invoices-tables";
+import { AdminInvoiceRefundDialogs, type InvoiceRefundTarget } from "./invoice-refund-dialogs";
 
 const ALL = "all";
 const PAGE_SIZE = 20;
 
-function formatMoney(amount: number, currency: string, locale: string): string {
-  const code = currency.toUpperCase();
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: code,
-      ...(code === "VND" ? { maximumFractionDigits: 0 } : {}),
-    }).format(amount);
-  } catch {
-    return `${amount.toLocaleString(locale)} ${currency}`;
-  }
-}
-
-function formatWhen(iso: string, locale: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString(locale);
-}
-
-function UserCell({ name, email }: { name: string; email: string }) {
-  if (!name && !email) return <span className="text-muted-foreground">—</span>;
-  return (
-    <div className="min-w-0">
-      <div className="truncate text-body">{name || email}</div>
-      {name && email ? <div className="truncate text-caption text-muted-foreground">{email}</div> : null}
-    </div>
-  );
-}
-
 type Tab = "invoices" | "intents";
+
+function invoiceStatusLabel(t: (key: string) => string, status: string): string {
+  const key = `status.${status}`;
+  const out = t(key);
+  return out === key ? status : out;
+}
+
+function intentStatusLabel(t: (key: string) => string, status: string): string {
+  const key = `intent.${status}`;
+  const out = t(key);
+  return out === key ? status : out;
+}
+
+function filterByDateRange<T extends { paid_at?: string; created_at?: string; refund_requested_at?: string; refunded_at?: string }>(
+  rows: T[],
+  from: string,
+  to: string,
+  pickTime: (row: T) => string,
+): T[] {
+  if (!from && !to) return rows;
+  const fromMs = from ? Date.parse(`${from}T00:00:00.000Z`) : Number.NEGATIVE_INFINITY;
+  const toMs = to ? Date.parse(`${to}T23:59:59.999Z`) : Number.POSITIVE_INFINITY;
+  return rows.filter((row) => {
+    const raw = pickTime(row);
+    if (!raw) return false;
+    const ms = Date.parse(raw);
+    return !Number.isNaN(ms) && ms >= fromMs && ms <= toMs;
+  });
+}
 
 /** /admin/invoices — hóa đơn và giao dịch checkout trên toàn nền tảng. */
 export function AdminInvoicesView() {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "admin.invoices" });
+  const me = useAdminMe();
+  const canRefund = me.data === "admin";
   const [tab, setTab] = useState<Tab>("invoices");
   const [q, setQ] = useState("");
   const [provider, setProvider] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [offset, setOffset] = useState(0);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [detail, setDetail] = useState<AdminBillingDetail | null>(null);
+  const [refundTarget, setRefundTarget] = useState<InvoiceRefundTarget | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ id: string; number: string } | null>(null);
   const search = useDebouncedValue(q.trim());
 
-  useEffect(() => setOffset(0), [search, provider, status, tab]);
+  const rangeInvalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+
+  useEffect(() => setOffset(0), [search, provider, status, tab, dateFrom, dateTo]);
 
   const query = {
     q: search || undefined,
@@ -73,9 +84,23 @@ export function AdminInvoicesView() {
   const invoices = useAdminInvoices(query, tab === "invoices");
   const intents = useAdminPaymentIntents(query, tab === "intents");
   const active = tab === "invoices" ? invoices : intents;
+
+  const invoiceRows = useMemo(() => {
+    const base = invoices.data?.invoices ?? [];
+    if (rangeInvalid) return base;
+    return filterByDateRange(base, dateFrom, dateTo, (inv) =>
+      inv.refund_requested_at || inv.refunded_at || inv.paid_at || inv.created_at,
+    );
+  }, [invoices.data?.invoices, dateFrom, dateTo, rangeInvalid]);
+
+  const intentRows = useMemo(() => {
+    const base = intents.data?.intents ?? [];
+    if (rangeInvalid) return base;
+    return filterByDateRange(base, dateFrom, dateTo, (pi) => pi.created_at);
+  }, [intents.data?.intents, dateFrom, dateTo, rangeInvalid]);
+
+  const rows = tab === "invoices" ? invoiceRows : intentRows;
   const total = tab === "invoices" ? (invoices.data?.total ?? 0) : (intents.data?.total ?? 0);
-  const rows =
-    tab === "invoices" ? (invoices.data?.invoices ?? []) : (intents.data?.intents ?? []);
 
   const pager =
     rows.length > 0 ? (
@@ -120,6 +145,9 @@ export function AdminInvoicesView() {
       ? [
           { value: ALL, label: t("filter.status_all") },
           { value: "paid", label: t("status.paid") },
+          { value: "refund_pending", label: t("status.refund_pending") },
+          { value: "partial_refund_pending", label: t("status.partial_refund_pending") },
+          { value: "refunded", label: t("status.refunded") },
           { value: "open", label: t("status.open") },
           { value: "draft", label: t("status.draft") },
         ]
@@ -130,6 +158,9 @@ export function AdminInvoicesView() {
           { value: "failed", label: t("intent.failed") },
           { value: "expired", label: t("intent.expired") },
         ];
+
+  const statusLabel = (s: string) =>
+    tab === "invoices" ? invoiceStatusLabel(t, s) : intentStatusLabel(t, s);
 
   return (
     <>
@@ -149,44 +180,59 @@ export function AdminInvoicesView() {
           </button>
         ))}
       </div>
-      <div className={PAGE_TOOLBAR}>
-        <div className="relative min-w-0 flex-1 sm:max-w-xs">
-          <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            variant="subtle"
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={tab === "invoices" ? t("search_invoices") : t("search_intents")}
-            aria-label={t("search_label")}
-            className="h-8 pl-8"
-          />
+      <AdminBillingFiltersPanel
+        dateHint={t("filter.date_hint")}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFromChange={setDateFrom}
+        onDateToChange={setDateTo}
+        fromLabel={t("filter.date_from")}
+        toLabel={t("filter.date_to")}
+        rangeInvalid={rangeInvalid}
+        rangeInvalidMessage={t("filter.date_range_invalid")}
+      >
+        <div className={cn(PAGE_TOOLBAR, "border-0 p-0")}>
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              variant="subtle"
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={tab === "invoices" ? t("search_invoices") : t("search_intents")}
+              aria-label={t("search_label")}
+              className="h-8 pl-8"
+            />
+          </div>
+          <Select items={providerItems} value={provider} onValueChange={(v) => v && setProvider(v)}>
+            <SelectTrigger variant="subtle" size="sm" aria-label={t("filter.provider_label")}>
+              <SelectValue>{providerItems.find((i) => i.value === provider)?.label}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {providerItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select items={statusItems} value={status} onValueChange={(v) => v && setStatus(v)}>
+            <SelectTrigger variant="subtle" size="sm" aria-label={t("filter.status_label")}>
+              <SelectValue>{statusItems.find((i) => i.value === status)?.label}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {statusItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Select items={providerItems} value={provider} onValueChange={(v) => v && setProvider(v)}>
-          <SelectTrigger variant="subtle" size="sm" aria-label={t("filter.provider_label")}>
-            <SelectValue>{providerItems.find((i) => i.value === provider)?.label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {providerItems.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select items={statusItems} value={status} onValueChange={(v) => v && setStatus(v)}>
-          <SelectTrigger variant="subtle" size="sm" aria-label={t("filter.status_label")}>
-            <SelectValue>{statusItems.find((i) => i.value === status)?.label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statusItems.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      </AdminBillingFiltersPanel>
       {active.isPending ? (
         <div className="flex flex-col gap-2 p-4">
           <Skeleton className="h-8 w-full" />
@@ -207,96 +253,52 @@ export function AdminInvoicesView() {
         />
       ) : tab === "invoices" ? (
         <>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("col.number")}</TableHead>
-              <TableHead>{t("col.organization")}</TableHead>
-              <TableHead>{t("col.user")}</TableHead>
-              <TableHead>{t("col.amount")}</TableHead>
-              <TableHead>{t("col.provider")}</TableHead>
-              <TableHead>{t("col.status")}</TableHead>
-              <TableHead>{t("col.paid_at")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(invoices.data?.invoices ?? []).length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  {t("empty")}
-                </TableCell>
-              </TableRow>
-            ) : (
-              invoices.data!.invoices.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell className="font-mono text-caption">{inv.number}</TableCell>
-                  <TableCell>
-                    <AppLink href={paths.admin.organization(inv.organization_id)} className="text-body hover:underline">
-                      {inv.org_name || inv.org_slug}
-                    </AppLink>
-                    <div className="text-caption text-muted-foreground">{inv.org_slug}</div>
-                  </TableCell>
-                  <TableCell>
-                    <UserCell name={inv.user_display_name} email={inv.user_email} />
-                  </TableCell>
-                  <TableCell>{formatMoney(inv.amount_paid, inv.currency, i18n.language)}</TableCell>
-                  <TableCell>{inv.provider}</TableCell>
-                  <TableCell>{inv.status}</TableCell>
-                  <TableCell className="text-caption">{formatWhen(inv.paid_at || inv.created_at, i18n.language)}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-        {pager}
+          <AdminInvoicesTable
+            rows={invoiceRows}
+            emptyLabel={t("empty")}
+            canRefund={canRefund}
+            locale={i18n.language}
+            onDetail={(inv) => setDetail({ kind: "invoice", row: inv })}
+            onRefund={(inv: AdminInvoice) =>
+              setRefundTarget({
+                id: inv.id,
+                number: inv.number,
+                amount_paid: inv.amount_paid,
+                currency: inv.currency,
+              })
+            }
+            onConfirmRefund={(inv: AdminInvoice) => setConfirmTarget({ id: inv.id, number: inv.number })}
+          />
+          {pager}
         </>
       ) : (
         <>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("col.txn_ref")}</TableHead>
-              <TableHead>{t("col.organization")}</TableHead>
-              <TableHead>{t("col.user")}</TableHead>
-              <TableHead>{t("col.plan")}</TableHead>
-              <TableHead>{t("col.amount")}</TableHead>
-              <TableHead>{t("col.status")}</TableHead>
-              <TableHead>{t("col.created_at")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(intents.data?.intents ?? []).length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  {t("empty")}
-                </TableCell>
-              </TableRow>
-            ) : (
-              intents.data!.intents.map((pi) => (
-                <TableRow key={pi.id}>
-                  <TableCell className="max-w-[12rem] truncate font-mono text-caption" title={pi.provider_txn_ref}>
-                    {pi.provider_txn_ref}
-                  </TableCell>
-                  <TableCell>
-                    <AppLink href={paths.admin.organization(pi.organization_id)} className="text-body hover:underline">
-                      {pi.org_name || pi.org_slug}
-                    </AppLink>
-                  </TableCell>
-                  <TableCell>
-                    <UserCell name={pi.user_display_name} email={pi.user_email} />
-                  </TableCell>
-                  <TableCell>{pi.plan_code}</TableCell>
-                  <TableCell>{formatMoney(pi.amount, pi.currency, i18n.language)}</TableCell>
-                  <TableCell>{pi.status}</TableCell>
-                  <TableCell className="text-caption">{formatWhen(pi.created_at, i18n.language)}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-        {pager}
+          <AdminPaymentIntentsTable
+            rows={intentRows}
+            emptyLabel={t("empty")}
+            locale={i18n.language}
+            onDetail={(pi: AdminPaymentIntent) => setDetail({ kind: "intent", row: pi })}
+          />
+          {pager}
         </>
       )}
+      <AdminBillingDetailSheet
+        detail={detail}
+        onClose={() => setDetail(null)}
+        statusLabel={statusLabel}
+        onOpenPaymentIntent={(intentId) => {
+          setDetail(null);
+          setTab("intents");
+          setQ(intentId);
+          setOffset(0);
+        }}
+      />
+      <AdminInvoiceRefundDialogs
+        refundTarget={refundTarget}
+        onRefundTargetChange={setRefundTarget}
+        confirmTarget={confirmTarget}
+        onConfirmTargetChange={setConfirmTarget}
+      />
     </>
   );
 }

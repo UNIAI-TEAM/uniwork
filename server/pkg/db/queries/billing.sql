@@ -116,8 +116,8 @@ ORDER BY user_id;
 -- name: InsertBillingPaymentIntent :one
 INSERT INTO billing_payment_intents (
   id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
-  amount, currency, status, expires_at, created_by, created_by_kind
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, $10, $11)
+  amount, currency, status, expires_at, created_by, created_by_kind, provider_order_info
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, $10, $11, $12)
 RETURNING *;
 
 -- name: ExpirePendingBillingPaymentIntents :exec
@@ -137,13 +137,50 @@ SELECT * FROM billing_payment_intents WHERE provider_txn_ref = $1;
 -- name: GetBillingPaymentIntentByID :one
 SELECT * FROM billing_payment_intents WHERE id = $1 AND organization_id = $2;
 
+-- name: GetCompletedPaymentIntentForInvoice :one
+SELECT * FROM billing_payment_intents
+WHERE organization_id = $1 AND subscription_id = $2 AND provider = $3 AND amount = $4 AND status = 'completed'
+ORDER BY COALESCE(completed_at, created_at) DESC
+LIMIT 1;
+
 -- name: MarkBillingPaymentIntentCompleted :one
 UPDATE billing_payment_intents SET
   status = 'completed',
   completed_at = now(),
-  updated_at = now()
+  updated_at = now(),
+  provider_bank_code = COALESCE(sqlc.narg('provider_bank_code'), provider_bank_code),
+  provider_transaction_no = COALESCE(sqlc.narg('provider_transaction_no'), provider_transaction_no),
+  provider_order_info = COALESCE(sqlc.narg('provider_order_info'), provider_order_info),
+  provider_pay_date = COALESCE(sqlc.narg('provider_pay_date'), provider_pay_date)
 WHERE id = $1 AND organization_id = $2 AND status IN ('pending', 'failed')
 RETURNING *;
+
+-- name: PatchBillingPaymentIntentProviderMeta :exec
+UPDATE billing_payment_intents SET
+  provider_bank_code = CASE
+    WHEN sqlc.narg('provider_bank_code')::text IS NOT NULL AND btrim(sqlc.narg('provider_bank_code')::text) <> ''
+    THEN btrim(sqlc.narg('provider_bank_code')::text)
+    ELSE provider_bank_code
+  END,
+  provider_transaction_no = CASE
+    WHEN sqlc.narg('provider_transaction_no')::text IS NOT NULL AND btrim(sqlc.narg('provider_transaction_no')::text) <> ''
+    THEN btrim(sqlc.narg('provider_transaction_no')::text)
+    ELSE provider_transaction_no
+  END,
+  updated_at = now()
+WHERE id = $1 AND organization_id = $2 AND status = 'completed';
+
+-- name: ListCompletedBillingIntentsMissingProviderMeta :many
+-- tenant: system
+SELECT id, organization_id, plan_id, provider_txn_ref, provider_order_info, provider_pay_date, created_at, completed_at
+FROM billing_payment_intents
+WHERE provider = 'vnpay' AND status = 'completed'
+  AND (
+    provider_bank_code IS NULL OR btrim(provider_bank_code) = ''
+    OR provider_transaction_no IS NULL OR btrim(provider_transaction_no) = ''
+  )
+ORDER BY COALESCE(completed_at, created_at) DESC
+LIMIT $1;
 
 -- name: MarkBillingPaymentIntentFailed :exec
 UPDATE billing_payment_intents SET status = 'failed', updated_at = now()
@@ -169,9 +206,12 @@ RETURNING *;
 INSERT INTO invoices (
   id, organization_id, subscription_id, provider, provider_invoice_id, number,
   status, amount_due, amount_paid, currency, period_start, period_end, paid_at,
-  initiated_by, initiated_by_kind
-) VALUES ($1, $2, $3, $4, $5, $6, 'paid', $7, $8, $9, $10, $11, now(), $12, $13)
+  initiated_by, initiated_by_kind, payment_intent_id
+) VALUES ($1, $2, $3, $4, $5, $6, 'paid', $7, $8, $9, $10, $11, now(), $12, $13, $14)
 RETURNING *;
+
+-- name: GetBillingPaymentIntentForInvoice :one
+SELECT * FROM billing_payment_intents WHERE id = $1 AND organization_id = $2;
 
 -- name: ListInvoicesByOrganization :many
 SELECT * FROM invoices
@@ -217,6 +257,24 @@ WHERE id = $1 AND organization_id = $2
   AND cancel_at IS NOT NULL AND cancel_at <= now()
 RETURNING *;
 
+-- name: RevertSubscriptionToDefaultAfterInvoiceRefund :one
+UPDATE subscriptions SET
+  plan_id = $3,
+  status = 'active',
+  provider = 'manual',
+  current_period_start = now(),
+  current_period_end = NULL,
+  cancel_at = NULL,
+  canceled_at = NULL,
+  row_version = row_version + 1,
+  updated_by = $4,
+  updated_by_kind = $5,
+  updated_at = now()
+WHERE id = $1 AND organization_id = $2
+  AND status <> 'canceled'
+  AND plan_id <> $3
+RETURNING *;
+
 -- name: MarkSubscriptionPastDue :one
 UPDATE subscriptions s SET
   status = 'past_due',
@@ -231,6 +289,38 @@ WHERE s.id = $1 AND s.organization_id = $2 AND s.plan_id = p.id
   AND s.cancel_at IS NULL
   AND s.current_period_end IS NOT NULL AND s.current_period_end < now()
 RETURNING s.*;
+
+-- name: ListInvoicesRefundPendingForReconcile :many
+-- tenant: system
+SELECT id, organization_id, subscription_id, provider, number, status, amount_paid, payment_intent_id
+FROM invoices
+WHERE status IN ('refund_pending', 'partial_refund_pending')
+  AND provider = 'vnpay'
+ORDER BY refund_requested_at NULLS LAST, updated_at
+LIMIT $1;
+
+-- name: ConfirmInvoiceRefundFromProvider :one
+UPDATE invoices SET
+  amount_refunded = CASE
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+    THEN amount_refunded + partial_refund_amount
+    ELSE amount_paid
+  END,
+  partial_refund_amount = NULL,
+  status = CASE
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+      AND amount_refunded + partial_refund_amount < amount_paid THEN 'paid'
+    ELSE 'refunded'
+  END,
+  refunded_at = CASE
+    WHEN status = 'refund_pending' THEN now()
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+      AND amount_refunded + partial_refund_amount >= amount_paid THEN now()
+    ELSE refunded_at
+  END,
+  updated_at = now()
+WHERE id = $1 AND organization_id = $2 AND status IN ('refund_pending', 'partial_refund_pending')
+RETURNING *;
 
 -- name: ClaimPendingBillingWebhookInbox :many
 UPDATE webhook_inbox SET

@@ -51,6 +51,7 @@ type Config struct {
 	VNPayTMNCode              string
 	VNPayHashSecret           string
 	VNPayPaymentURL           string
+	VNPayMerchantAPIURL       string
 	MeetingWorkerTick         time.Duration
 	MeetingOutboxBatch        int32
 	MeetingWebhookBatch       int32
@@ -178,6 +179,7 @@ func Load() (Config, error) {
 		VNPayTMNCode:                  os.Getenv("VNPAY_TMN_CODE"),
 		VNPayHashSecret:               os.Getenv("VNPAY_HASH_SECRET"),
 		VNPayPaymentURL:               getenv("VNPAY_PAYMENT_URL", "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"),
+		VNPayMerchantAPIURL:           os.Getenv("VNPAY_MERCHANT_API_URL"),
 		MeetingWorkerTick:             parseDuration(os.Getenv("MEETING_WORKER_TICK"), time.Second),
 		MeetingOutboxBatch:            parseInt32(os.Getenv("MEETING_OUTBOX_BATCH"), 50),
 		MeetingWebhookBatch:           parseInt32(os.Getenv("MEETING_WEBHOOK_BATCH"), 50),

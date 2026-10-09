@@ -124,7 +124,8 @@ const (
 	ActionChatMessageDeleted     = "chat.message.deleted"
 	ActionChatRoomMemberUpdated  = "chat.room.member_updated"
 
-	ActionSubscriptionChanged = "subscription.changed"
+	ActionSubscriptionChanged    = "subscription.changed"
+	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
 
 	// Documents (UNI-675): created today through the owner seam
 	// (C-01 §13.5); the public page/file commands add their own rows as

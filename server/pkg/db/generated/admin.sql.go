@@ -11,6 +11,72 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adminConfirmInvoiceRefund = `-- name: AdminConfirmInvoiceRefund :one
+UPDATE invoices SET
+  refund_confirm_reason = $1,
+  amount_refunded = CASE
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+    THEN amount_refunded + partial_refund_amount
+    ELSE amount_paid
+  END,
+  partial_refund_amount = NULL,
+  status = CASE
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+      AND amount_refunded + partial_refund_amount < amount_paid THEN 'paid'
+    ELSE 'refunded'
+  END,
+  refunded_at = CASE
+    WHEN status = 'refund_pending' THEN now()
+    WHEN status = 'partial_refund_pending' AND partial_refund_amount IS NOT NULL
+      AND amount_refunded + partial_refund_amount >= amount_paid THEN now()
+    ELSE refunded_at
+  END,
+  updated_at = now()
+WHERE id = $2 AND status IN ('refund_pending', 'partial_refund_pending')
+RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
+`
+
+type AdminConfirmInvoiceRefundParams struct {
+	RefundConfirmReason pgtype.Text `json:"refund_confirm_reason"`
+	ID                  string      `json:"id"`
+}
+
+// tenant: platform
+func (q *Queries) AdminConfirmInvoiceRefund(ctx context.Context, arg AdminConfirmInvoiceRefundParams) (Invoice, error) {
+	row := q.db.QueryRow(ctx, adminConfirmInvoiceRefund, arg.RefundConfirmReason, arg.ID)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.Provider,
+		&i.ProviderInvoiceID,
+		&i.Number,
+		&i.Status,
+		&i.AmountDue,
+		&i.AmountPaid,
+		&i.Currency,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.HostedUrl,
+		&i.IssuedAt,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InitiatedBy,
+		&i.InitiatedByKind,
+		&i.RefundedAt,
+		&i.RefundProviderRef,
+		&i.RefundRequestedAt,
+		&i.AmountRefunded,
+		&i.PartialRefundAmount,
+		&i.RefundReason,
+		&i.RefundConfirmReason,
+		&i.PaymentIntentID,
+	)
+	return i, err
+}
+
 const adminCountInvoices = `-- name: AdminCountInvoices :one
 SELECT count(*)::bigint FROM invoices i
 JOIN organizations o ON o.id = i.organization_id
@@ -62,7 +128,8 @@ JOIN organizations o ON o.id = pi.organization_id
 LEFT JOIN users pay_u ON pay_u.id = pi.created_by
 WHERE ($1::text IS NULL OR pi.provider = $1::text)
   AND ($2::text IS NULL OR pi.status = $2::text)
-  AND ($3::text IS NULL OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
+  AND ($3::text IS NULL OR pi.id = $3::text
+    OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
     OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
     OR pay_u.email ILIKE '%' || $3::text || '%' OR pay_u.display_name ILIKE '%' || $3::text || '%')
 `
@@ -79,6 +146,109 @@ func (q *Queries) AdminCountPaymentIntents(ctx context.Context, arg AdminCountPa
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const adminGetInvoiceByID = `-- name: AdminGetInvoiceByID :one
+SELECT i.id, i.organization_id, i.subscription_id, i.provider, i.provider_invoice_id, i.number, i.status, i.amount_due, i.amount_paid, i.currency, i.period_start, i.period_end, i.hosted_url, i.issued_at, i.paid_at, i.created_at, i.updated_at, i.initiated_by, i.initiated_by_kind, i.refunded_at, i.refund_provider_ref, i.refund_requested_at, i.amount_refunded, i.partial_refund_amount, i.refund_reason, i.refund_confirm_reason, i.payment_intent_id, o.slug AS org_slug, o.name AS org_name,
+  pl.code AS plan_code, pl.name AS plan_name,
+  COALESCE(pi_link.provider_bank_code, pi_match.provider_bank_code) AS provider_bank_code,
+  COALESCE(pi_link.provider_transaction_no, pi_match.provider_transaction_no) AS provider_transaction_no,
+  COALESCE(pi_link.provider_txn_ref, pi_match.provider_txn_ref, '')::text AS provider_txn_ref
+FROM invoices i
+JOIN organizations o ON o.id = i.organization_id
+LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
+LEFT JOIN plans pl ON pl.id = sub.plan_id
+LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+LEFT JOIN LATERAL (
+  SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
+  FROM billing_payment_intents pi
+  WHERE i.payment_intent_id IS NULL
+    AND pi.organization_id = i.organization_id AND pi.provider = i.provider
+    AND pi.status = 'completed' AND pi.amount = i.amount_paid
+  ORDER BY COALESCE(pi.completed_at, pi.created_at) DESC
+  LIMIT 1
+) pi_match ON i.payment_intent_id IS NULL
+WHERE i.id = $1
+`
+
+type AdminGetInvoiceByIDRow struct {
+	ID                    string             `json:"id"`
+	OrganizationID        string             `json:"organization_id"`
+	SubscriptionID        string             `json:"subscription_id"`
+	Provider              string             `json:"provider"`
+	ProviderInvoiceID     pgtype.Text        `json:"provider_invoice_id"`
+	Number                string             `json:"number"`
+	Status                string             `json:"status"`
+	AmountDue             int64              `json:"amount_due"`
+	AmountPaid            int64              `json:"amount_paid"`
+	Currency              string             `json:"currency"`
+	PeriodStart           pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd             pgtype.Timestamptz `json:"period_end"`
+	HostedUrl             pgtype.Text        `json:"hosted_url"`
+	IssuedAt              pgtype.Timestamptz `json:"issued_at"`
+	PaidAt                pgtype.Timestamptz `json:"paid_at"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	InitiatedBy           pgtype.Text        `json:"initiated_by"`
+	InitiatedByKind       pgtype.Text        `json:"initiated_by_kind"`
+	RefundedAt            pgtype.Timestamptz `json:"refunded_at"`
+	RefundProviderRef     pgtype.Text        `json:"refund_provider_ref"`
+	RefundRequestedAt     pgtype.Timestamptz `json:"refund_requested_at"`
+	AmountRefunded        int64              `json:"amount_refunded"`
+	PartialRefundAmount   pgtype.Int8        `json:"partial_refund_amount"`
+	RefundReason          pgtype.Text        `json:"refund_reason"`
+	RefundConfirmReason   pgtype.Text        `json:"refund_confirm_reason"`
+	PaymentIntentID       pgtype.Text        `json:"payment_intent_id"`
+	OrgSlug               string             `json:"org_slug"`
+	OrgName               string             `json:"org_name"`
+	PlanCode              pgtype.Text        `json:"plan_code"`
+	PlanName              pgtype.Text        `json:"plan_name"`
+	ProviderBankCode      pgtype.Text        `json:"provider_bank_code"`
+	ProviderTransactionNo pgtype.Text        `json:"provider_transaction_no"`
+	ProviderTxnRef        string             `json:"provider_txn_ref"`
+}
+
+// tenant: platform
+func (q *Queries) AdminGetInvoiceByID(ctx context.Context, id string) (AdminGetInvoiceByIDRow, error) {
+	row := q.db.QueryRow(ctx, adminGetInvoiceByID, id)
+	var i AdminGetInvoiceByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.Provider,
+		&i.ProviderInvoiceID,
+		&i.Number,
+		&i.Status,
+		&i.AmountDue,
+		&i.AmountPaid,
+		&i.Currency,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.HostedUrl,
+		&i.IssuedAt,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InitiatedBy,
+		&i.InitiatedByKind,
+		&i.RefundedAt,
+		&i.RefundProviderRef,
+		&i.RefundRequestedAt,
+		&i.AmountRefunded,
+		&i.PartialRefundAmount,
+		&i.RefundReason,
+		&i.RefundConfirmReason,
+		&i.PaymentIntentID,
+		&i.OrgSlug,
+		&i.OrgName,
+		&i.PlanCode,
+		&i.PlanName,
+		&i.ProviderBankCode,
+		&i.ProviderTransactionNo,
+		&i.ProviderTxnRef,
+	)
+	return i, err
 }
 
 const adminGetOrganization = `-- name: AdminGetOrganization :one
@@ -181,21 +351,42 @@ const adminListInvoices = `-- name: AdminListInvoices :many
 SELECT t.id, t.organization_id, t.subscription_id, t.provider, t.provider_invoice_id, t.number,
   t.status, t.amount_due, t.amount_paid, t.currency, t.period_start, t.period_end, t.hosted_url,
   t.issued_at, t.paid_at, t.created_at, t.updated_at, t.org_slug, t.org_name,
-  t.user_id, t.user_display_name, t.user_email, t.total_count
+  t.user_id, t.user_display_name, t.user_email, t.plan_code, t.plan_name,
+  t.refund_requested_at, t.refunded_at, t.refund_provider_ref, t.amount_refunded, t.partial_refund_amount,
+  t.refund_reason, t.refund_confirm_reason,
+  t.provider_bank_code, t.provider_transaction_no, t.provider_txn_ref, t.payment_intent_id, t.total_count
 FROM (
   SELECT i.id, i.organization_id, i.subscription_id, i.provider, i.provider_invoice_id, i.number,
     i.status, i.amount_due, i.amount_paid, i.currency, i.period_start, i.period_end, i.hosted_url,
     i.issued_at, i.paid_at, i.created_at, i.updated_at,
+    i.refund_requested_at, i.refunded_at, i.refund_provider_ref, i.amount_refunded, i.partial_refund_amount,
+    i.refund_reason, i.refund_confirm_reason, i.payment_intent_id,
     o.slug AS org_slug, o.name AS org_name,
+    pl.code AS plan_code, pl.name AS plan_name,
     COALESCE(init_u.id, owner_u.id, '')::text AS user_id,
     COALESCE(init_u.display_name, owner_u.display_name, '')::text AS user_display_name,
     COALESCE(init_u.email, owner_u.email, '')::text AS user_email,
+    COALESCE(pi_link.provider_bank_code, pi_match.provider_bank_code) AS provider_bank_code,
+    COALESCE(pi_link.provider_transaction_no, pi_match.provider_transaction_no) AS provider_transaction_no,
+    COALESCE(pi_link.provider_txn_ref, pi_match.provider_txn_ref, '')::text AS provider_txn_ref,
     count(*) OVER ()::bigint AS total_count
   FROM invoices i
   JOIN organizations o ON o.id = i.organization_id
+  LEFT JOIN subscriptions sub ON sub.id = i.subscription_id
+  LEFT JOIN plans pl ON pl.id = sub.plan_id
   LEFT JOIN users init_u ON init_u.id = i.initiated_by
   LEFT JOIN organization_members owner_m ON owner_m.organization_id = i.organization_id AND owner_m.role = 'owner'
   LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
+  LEFT JOIN billing_payment_intents pi_link ON pi_link.id = i.payment_intent_id
+  LEFT JOIN LATERAL (
+    SELECT pi.provider_bank_code, pi.provider_transaction_no, pi.provider_txn_ref
+    FROM billing_payment_intents pi
+    WHERE i.payment_intent_id IS NULL
+      AND pi.organization_id = i.organization_id AND pi.provider = i.provider
+      AND pi.status = 'completed' AND pi.amount = i.amount_paid
+    ORDER BY COALESCE(pi.completed_at, pi.created_at) DESC
+    LIMIT 1
+  ) pi_match ON i.payment_intent_id IS NULL
   WHERE ($1::text IS NULL OR i.provider = $1::text)
     AND ($2::text IS NULL OR i.status = $2::text)
     AND ($3::text IS NULL OR i.number ILIKE '%' || $3::text || '%'
@@ -215,29 +406,42 @@ type AdminListInvoicesParams struct {
 }
 
 type AdminListInvoicesRow struct {
-	ID                string             `json:"id"`
-	OrganizationID    string             `json:"organization_id"`
-	SubscriptionID    string             `json:"subscription_id"`
-	Provider          string             `json:"provider"`
-	ProviderInvoiceID pgtype.Text        `json:"provider_invoice_id"`
-	Number            string             `json:"number"`
-	Status            string             `json:"status"`
-	AmountDue         int64              `json:"amount_due"`
-	AmountPaid        int64              `json:"amount_paid"`
-	Currency          string             `json:"currency"`
-	PeriodStart       pgtype.Timestamptz `json:"period_start"`
-	PeriodEnd         pgtype.Timestamptz `json:"period_end"`
-	HostedUrl         pgtype.Text        `json:"hosted_url"`
-	IssuedAt          pgtype.Timestamptz `json:"issued_at"`
-	PaidAt            pgtype.Timestamptz `json:"paid_at"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
-	OrgSlug           string             `json:"org_slug"`
-	OrgName           string             `json:"org_name"`
-	UserID            string             `json:"user_id"`
-	UserDisplayName   string             `json:"user_display_name"`
-	UserEmail         string             `json:"user_email"`
-	TotalCount        int64              `json:"total_count"`
+	ID                    string             `json:"id"`
+	OrganizationID        string             `json:"organization_id"`
+	SubscriptionID        string             `json:"subscription_id"`
+	Provider              string             `json:"provider"`
+	ProviderInvoiceID     pgtype.Text        `json:"provider_invoice_id"`
+	Number                string             `json:"number"`
+	Status                string             `json:"status"`
+	AmountDue             int64              `json:"amount_due"`
+	AmountPaid            int64              `json:"amount_paid"`
+	Currency              string             `json:"currency"`
+	PeriodStart           pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd             pgtype.Timestamptz `json:"period_end"`
+	HostedUrl             pgtype.Text        `json:"hosted_url"`
+	IssuedAt              pgtype.Timestamptz `json:"issued_at"`
+	PaidAt                pgtype.Timestamptz `json:"paid_at"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	OrgSlug               string             `json:"org_slug"`
+	OrgName               string             `json:"org_name"`
+	UserID                string             `json:"user_id"`
+	UserDisplayName       string             `json:"user_display_name"`
+	UserEmail             string             `json:"user_email"`
+	PlanCode              pgtype.Text        `json:"plan_code"`
+	PlanName              pgtype.Text        `json:"plan_name"`
+	RefundRequestedAt     pgtype.Timestamptz `json:"refund_requested_at"`
+	RefundedAt            pgtype.Timestamptz `json:"refunded_at"`
+	RefundProviderRef     pgtype.Text        `json:"refund_provider_ref"`
+	AmountRefunded        int64              `json:"amount_refunded"`
+	PartialRefundAmount   pgtype.Int8        `json:"partial_refund_amount"`
+	RefundReason          pgtype.Text        `json:"refund_reason"`
+	RefundConfirmReason   pgtype.Text        `json:"refund_confirm_reason"`
+	ProviderBankCode      pgtype.Text        `json:"provider_bank_code"`
+	ProviderTransactionNo pgtype.Text        `json:"provider_transaction_no"`
+	ProviderTxnRef        string             `json:"provider_txn_ref"`
+	PaymentIntentID       pgtype.Text        `json:"payment_intent_id"`
+	TotalCount            int64              `json:"total_count"`
 }
 
 // tenant: platform
@@ -279,6 +483,19 @@ func (q *Queries) AdminListInvoices(ctx context.Context, arg AdminListInvoicesPa
 			&i.UserID,
 			&i.UserDisplayName,
 			&i.UserEmail,
+			&i.PlanCode,
+			&i.PlanName,
+			&i.RefundRequestedAt,
+			&i.RefundedAt,
+			&i.RefundProviderRef,
+			&i.AmountRefunded,
+			&i.PartialRefundAmount,
+			&i.RefundReason,
+			&i.RefundConfirmReason,
+			&i.ProviderBankCode,
+			&i.ProviderTransactionNo,
+			&i.ProviderTxnRef,
+			&i.PaymentIntentID,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -433,10 +650,12 @@ func (q *Queries) AdminListOutboxEventsByCorrelation(ctx context.Context, correl
 const adminListPaymentIntents = `-- name: AdminListPaymentIntents :many
 SELECT t.id, t.organization_id, t.subscription_id, t.plan_id, t.provider, t.provider_txn_ref,
   t.amount, t.currency, t.status, t.expires_at, t.completed_at, t.created_at, t.updated_at,
+  t.provider_bank_code, t.provider_transaction_no,
   t.org_slug, t.org_name, t.plan_code, t.user_id, t.user_display_name, t.user_email, t.total_count
 FROM (
   SELECT pi.id, pi.organization_id, pi.subscription_id, pi.plan_id, pi.provider, pi.provider_txn_ref,
     pi.amount, pi.currency, pi.status, pi.expires_at, pi.completed_at, pi.created_at, pi.updated_at,
+    pi.provider_bank_code, pi.provider_transaction_no,
     o.slug AS org_slug, o.name AS org_name, p.code AS plan_code,
     COALESCE(pay_u.id, owner_u.id, '')::text AS user_id,
     COALESCE(pay_u.display_name, owner_u.display_name, '')::text AS user_display_name,
@@ -450,7 +669,8 @@ FROM (
   LEFT JOIN users owner_u ON owner_u.id = owner_m.user_id
   WHERE ($1::text IS NULL OR pi.provider = $1::text)
     AND ($2::text IS NULL OR pi.status = $2::text)
-    AND ($3::text IS NULL OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
+    AND ($3::text IS NULL OR pi.id = $3::text
+      OR pi.provider_txn_ref ILIKE '%' || $3::text || '%'
       OR o.slug ILIKE '%' || $3::text || '%' OR o.name ILIKE '%' || $3::text || '%'
       OR pay_u.email ILIKE '%' || $3::text || '%' OR pay_u.display_name ILIKE '%' || $3::text || '%')
 ) t
@@ -467,26 +687,28 @@ type AdminListPaymentIntentsParams struct {
 }
 
 type AdminListPaymentIntentsRow struct {
-	ID              string             `json:"id"`
-	OrganizationID  string             `json:"organization_id"`
-	SubscriptionID  string             `json:"subscription_id"`
-	PlanID          string             `json:"plan_id"`
-	Provider        string             `json:"provider"`
-	ProviderTxnRef  string             `json:"provider_txn_ref"`
-	Amount          int64              `json:"amount"`
-	Currency        string             `json:"currency"`
-	Status          string             `json:"status"`
-	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
-	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-	OrgSlug         string             `json:"org_slug"`
-	OrgName         string             `json:"org_name"`
-	PlanCode        string             `json:"plan_code"`
-	UserID          string             `json:"user_id"`
-	UserDisplayName string             `json:"user_display_name"`
-	UserEmail       string             `json:"user_email"`
-	TotalCount      int64              `json:"total_count"`
+	ID                    string             `json:"id"`
+	OrganizationID        string             `json:"organization_id"`
+	SubscriptionID        string             `json:"subscription_id"`
+	PlanID                string             `json:"plan_id"`
+	Provider              string             `json:"provider"`
+	ProviderTxnRef        string             `json:"provider_txn_ref"`
+	Amount                int64              `json:"amount"`
+	Currency              string             `json:"currency"`
+	Status                string             `json:"status"`
+	ExpiresAt             pgtype.Timestamptz `json:"expires_at"`
+	CompletedAt           pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	ProviderBankCode      pgtype.Text        `json:"provider_bank_code"`
+	ProviderTransactionNo pgtype.Text        `json:"provider_transaction_no"`
+	OrgSlug               string             `json:"org_slug"`
+	OrgName               string             `json:"org_name"`
+	PlanCode              string             `json:"plan_code"`
+	UserID                string             `json:"user_id"`
+	UserDisplayName       string             `json:"user_display_name"`
+	UserEmail             string             `json:"user_email"`
+	TotalCount            int64              `json:"total_count"`
 }
 
 // tenant: platform
@@ -519,6 +741,8 @@ func (q *Queries) AdminListPaymentIntents(ctx context.Context, arg AdminListPaym
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProviderBankCode,
+			&i.ProviderTransactionNo,
 			&i.OrgSlug,
 			&i.OrgName,
 			&i.PlanCode,
@@ -535,6 +759,60 @@ func (q *Queries) AdminListPaymentIntents(ctx context.Context, arg AdminListPaym
 		return nil, err
 	}
 	return items, nil
+}
+
+const adminMarkInvoiceRefunded = `-- name: AdminMarkInvoiceRefunded :one
+UPDATE invoices SET
+  status = 'refunded',
+  refunded_at = now(),
+  refund_provider_ref = $1,
+  refund_reason = $2,
+  amount_refunded = amount_paid,
+  updated_at = now()
+WHERE id = $3 AND status = 'paid'
+RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
+`
+
+type AdminMarkInvoiceRefundedParams struct {
+	RefundProviderRef pgtype.Text `json:"refund_provider_ref"`
+	RefundReason      pgtype.Text `json:"refund_reason"`
+	ID                string      `json:"id"`
+}
+
+// tenant: platform
+func (q *Queries) AdminMarkInvoiceRefunded(ctx context.Context, arg AdminMarkInvoiceRefundedParams) (Invoice, error) {
+	row := q.db.QueryRow(ctx, adminMarkInvoiceRefunded, arg.RefundProviderRef, arg.RefundReason, arg.ID)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.Provider,
+		&i.ProviderInvoiceID,
+		&i.Number,
+		&i.Status,
+		&i.AmountDue,
+		&i.AmountPaid,
+		&i.Currency,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.HostedUrl,
+		&i.IssuedAt,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InitiatedBy,
+		&i.InitiatedByKind,
+		&i.RefundedAt,
+		&i.RefundProviderRef,
+		&i.RefundRequestedAt,
+		&i.AmountRefunded,
+		&i.PartialRefundAmount,
+		&i.RefundReason,
+		&i.RefundConfirmReason,
+		&i.PaymentIntentID,
+	)
+	return i, err
 }
 
 const adminOutboxSummary = `-- name: AdminOutboxSummary :one
@@ -555,6 +833,216 @@ func (q *Queries) AdminOutboxSummary(ctx context.Context) (AdminOutboxSummaryRow
 	row := q.db.QueryRow(ctx, adminOutboxSummary)
 	var i AdminOutboxSummaryRow
 	err := row.Scan(&i.Pending, &i.Dead, &i.OldestPendingAgeSeconds)
+	return i, err
+}
+
+const adminPatchInvoiceRefundProviderRef = `-- name: AdminPatchInvoiceRefundProviderRef :one
+UPDATE invoices SET
+  refund_provider_ref = $1,
+  updated_at = now()
+WHERE id = $2 AND status IN ('refund_pending', 'partial_refund_pending')
+RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
+`
+
+type AdminPatchInvoiceRefundProviderRefParams struct {
+	RefundProviderRef pgtype.Text `json:"refund_provider_ref"`
+	ID                string      `json:"id"`
+}
+
+// tenant: platform
+func (q *Queries) AdminPatchInvoiceRefundProviderRef(ctx context.Context, arg AdminPatchInvoiceRefundProviderRefParams) (Invoice, error) {
+	row := q.db.QueryRow(ctx, adminPatchInvoiceRefundProviderRef, arg.RefundProviderRef, arg.ID)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.Provider,
+		&i.ProviderInvoiceID,
+		&i.Number,
+		&i.Status,
+		&i.AmountDue,
+		&i.AmountPaid,
+		&i.Currency,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.HostedUrl,
+		&i.IssuedAt,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InitiatedBy,
+		&i.InitiatedByKind,
+		&i.RefundedAt,
+		&i.RefundProviderRef,
+		&i.RefundRequestedAt,
+		&i.AmountRefunded,
+		&i.PartialRefundAmount,
+		&i.RefundReason,
+		&i.RefundConfirmReason,
+		&i.PaymentIntentID,
+	)
+	return i, err
+}
+
+const adminRequestInvoiceRefund = `-- name: AdminRequestInvoiceRefund :one
+UPDATE invoices SET
+  status = 'refund_pending',
+  refund_requested_at = now(),
+  refund_provider_ref = $1,
+  refund_reason = $2,
+  updated_at = now()
+WHERE id = $3 AND status = 'paid'
+RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
+`
+
+type AdminRequestInvoiceRefundParams struct {
+	RefundProviderRef pgtype.Text `json:"refund_provider_ref"`
+	RefundReason      pgtype.Text `json:"refund_reason"`
+	ID                string      `json:"id"`
+}
+
+// tenant: platform
+func (q *Queries) AdminRequestInvoiceRefund(ctx context.Context, arg AdminRequestInvoiceRefundParams) (Invoice, error) {
+	row := q.db.QueryRow(ctx, adminRequestInvoiceRefund, arg.RefundProviderRef, arg.RefundReason, arg.ID)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.Provider,
+		&i.ProviderInvoiceID,
+		&i.Number,
+		&i.Status,
+		&i.AmountDue,
+		&i.AmountPaid,
+		&i.Currency,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.HostedUrl,
+		&i.IssuedAt,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InitiatedBy,
+		&i.InitiatedByKind,
+		&i.RefundedAt,
+		&i.RefundProviderRef,
+		&i.RefundRequestedAt,
+		&i.AmountRefunded,
+		&i.PartialRefundAmount,
+		&i.RefundReason,
+		&i.RefundConfirmReason,
+		&i.PaymentIntentID,
+	)
+	return i, err
+}
+
+const adminRequestPartialInvoiceRefund = `-- name: AdminRequestPartialInvoiceRefund :one
+UPDATE invoices SET
+  status = 'partial_refund_pending',
+  refund_requested_at = now(),
+  partial_refund_amount = $1,
+  refund_provider_ref = $2,
+  refund_reason = $3,
+  updated_at = now()
+WHERE id = $4 AND status = 'paid'
+RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
+`
+
+type AdminRequestPartialInvoiceRefundParams struct {
+	PartialRefundAmount pgtype.Int8 `json:"partial_refund_amount"`
+	RefundProviderRef   pgtype.Text `json:"refund_provider_ref"`
+	RefundReason        pgtype.Text `json:"refund_reason"`
+	ID                  string      `json:"id"`
+}
+
+// tenant: platform
+func (q *Queries) AdminRequestPartialInvoiceRefund(ctx context.Context, arg AdminRequestPartialInvoiceRefundParams) (Invoice, error) {
+	row := q.db.QueryRow(ctx, adminRequestPartialInvoiceRefund,
+		arg.PartialRefundAmount,
+		arg.RefundProviderRef,
+		arg.RefundReason,
+		arg.ID,
+	)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.Provider,
+		&i.ProviderInvoiceID,
+		&i.Number,
+		&i.Status,
+		&i.AmountDue,
+		&i.AmountPaid,
+		&i.Currency,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.HostedUrl,
+		&i.IssuedAt,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InitiatedBy,
+		&i.InitiatedByKind,
+		&i.RefundedAt,
+		&i.RefundProviderRef,
+		&i.RefundRequestedAt,
+		&i.AmountRefunded,
+		&i.PartialRefundAmount,
+		&i.RefundReason,
+		&i.RefundConfirmReason,
+		&i.PaymentIntentID,
+	)
+	return i, err
+}
+
+const adminRevertInvoiceRefundRequest = `-- name: AdminRevertInvoiceRefundRequest :one
+UPDATE invoices SET
+  status = 'paid',
+  refund_requested_at = NULL,
+  partial_refund_amount = NULL,
+  refund_provider_ref = NULL,
+  refund_reason = NULL,
+  updated_at = now()
+WHERE id = $1 AND status IN ('refund_pending', 'partial_refund_pending')
+RETURNING id, organization_id, subscription_id, provider, provider_invoice_id, number, status, amount_due, amount_paid, currency, period_start, period_end, hosted_url, issued_at, paid_at, created_at, updated_at, initiated_by, initiated_by_kind, refunded_at, refund_provider_ref, refund_requested_at, amount_refunded, partial_refund_amount, refund_reason, refund_confirm_reason, payment_intent_id
+`
+
+// tenant: platform
+func (q *Queries) AdminRevertInvoiceRefundRequest(ctx context.Context, id string) (Invoice, error) {
+	row := q.db.QueryRow(ctx, adminRevertInvoiceRefundRequest, id)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.SubscriptionID,
+		&i.Provider,
+		&i.ProviderInvoiceID,
+		&i.Number,
+		&i.Status,
+		&i.AmountDue,
+		&i.AmountPaid,
+		&i.Currency,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.HostedUrl,
+		&i.IssuedAt,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InitiatedBy,
+		&i.InitiatedByKind,
+		&i.RefundedAt,
+		&i.RefundProviderRef,
+		&i.RefundRequestedAt,
+		&i.AmountRefunded,
+		&i.PartialRefundAmount,
+		&i.RefundReason,
+		&i.RefundConfirmReason,
+		&i.PaymentIntentID,
+	)
 	return i, err
 }
 

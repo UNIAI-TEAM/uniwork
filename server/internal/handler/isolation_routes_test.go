@@ -261,6 +261,12 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/admin/plans":                    {class: isoPlatform, reason: reasonPlatform},
 	"GET /api/v1/admin/invoices":                 {class: isoPlatform, reason: reasonPlatform},
 	"GET /api/v1/admin/billing/payment-intents":  {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/invoices/{invoiceID}/refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
+		"reason": "isolation matrix fixture",
+	})},
+	"POST /api/v1/admin/invoices/{invoiceID}/confirm-refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
+		"reason": "isolation matrix fixture",
+	})},
 	"POST /api/v1/admin/plans": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"code": "iso_test_plan", "name": "ISO", "description": "", "billing_period": "none",
 		"price_currency": "VND", "is_active": false, "sort_order": 99, "reason": "isolation matrix fixture",

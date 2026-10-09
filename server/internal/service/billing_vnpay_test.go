@@ -30,6 +30,10 @@ func TestApplyProviderEventPaid(t *testing.T) {
 		Paid:            true,
 		Amount:          500000,
 		Currency:        "VND",
+		RawParams: map[string]string{
+			"vnp_BankCode":      "NCB",
+			"vnp_TransactionNo": "14234567",
+		},
 	}
 	if err := f.billing.ApplyProviderEvent(f.ctx, ev); err != nil {
 		t.Fatal(err)
@@ -47,6 +51,12 @@ func TestApplyProviderEventPaid(t *testing.T) {
 	var invCount int
 	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM invoices WHERE organization_id = $1`, f.orgID).Scan(&invCount); err != nil || invCount != 1 {
 		t.Fatalf("invoices: %d %v", invCount, err)
+	}
+	var bankCode, txnNo string
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT COALESCE(provider_bank_code, ''), COALESCE(provider_transaction_no, '') FROM billing_payment_intents WHERE id = $1`,
+		intentID).Scan(&bankCode, &txnNo); err != nil || bankCode != "NCB" || txnNo != "14234567" {
+		t.Fatalf("intent meta: bank=%q txn=%q err=%v", bankCode, txnNo, err)
 	}
 	// Idempotent retry
 	if err := f.billing.ApplyProviderEvent(f.ctx, ev); err != nil {

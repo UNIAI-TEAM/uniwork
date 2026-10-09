@@ -35,6 +35,7 @@
     "./audit": "./audit/hooks.ts",
     "./admin": "./admin/hooks.ts",
     "./billing": "./billing/hooks.ts",
+    "./billing/vnpay-bank-label": "./billing/vnpay-bank-label.ts",
     "./billing/use-quota-warnings": "./billing/use-quota-warnings.ts",
     "./billing/quota-threshold-bus": "./billing/quota-threshold-bus.ts",
     "./ai": "./ai/hooks.ts",

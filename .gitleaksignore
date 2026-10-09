@@ -7,3 +7,8 @@
 # environment may use it; deployments read the key from the uniwork-email-hub
 # secret. Decision recorded in UNI-773 (2026-09-24).
 7256390bf4d21b58770791de5e32b3627a596384:.env.example:generic-api-key:230
+# BYOK / AI proxy unit-test literals (UNI-1008). Fixed strings in *_test.go only;
+# not credentials. Remain in shared history after files were removed or rewritten.
+8c08102e88e565457f95ecddff663556989f6e6a:server/internal/ai/provider/byok_test.go:generic-api-key:154
+8c08102e88e565457f95ecddff663556989f6e6a:server/internal/ai/proxy_test.go:generic-api-key:24
+a49c5a133b23d1a4cdc0bed500da54291e42fc57:server/internal/service/ai_credentials_test.go:generic-api-key:28
