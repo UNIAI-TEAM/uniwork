@@ -131,6 +131,8 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	testFlagOverrides = flagOverrides
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
 	adminSvc.SetSystemSources(readiness, nil, nil)
+	ents := service.NewEntitlementService(pool, q)
+	aiCredentials := service.NewAICredentialService(pool, q, orgs, ents, testEmailHubSecretBox(t))
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
@@ -165,8 +167,10 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Notifications: notification.NewService(q, notification.PushConfig{}),
 		AskUNI:        service.NewAskUNIService(pool, q, ws, orgs, tasks, meetingSvc, chatSvc, gateway, nil),
 		Signatures:    service.NewSignatureService(pool, q, orgs),
-		AICredentials: service.NewAICredentialService(pool, q, orgs, service.NewEntitlementService(pool, q), testEmailHubSecretBox(t)),
-		AICloud:       service.NewAICloudService(orgs, service.NewEntitlementService(pool, q), gateway),
+		AICredentials: aiCredentials,
+		// Wired so a non-member meets the membership refusal, not "not configured".
+		AIBYOK:  service.NewAIBYOKService(orgs, ents, aiCredentials, gateway),
+		AICloud: service.NewAICloudService(orgs, ents, gateway),
 	}
 	return d, pool
 }
