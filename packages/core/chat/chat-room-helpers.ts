@@ -61,7 +61,7 @@ export function roomPreviewMapFromRooms(rooms: ChatRoomRecord[]): Record<string,
   return out;
 }
 
-function isDefaultWorkspaceChannel(room: ChatRoomRecord): boolean {
+export function isDefaultWorkspaceChannel(room: ChatRoomRecord): boolean {
   return room.kind === "workspace" || (room.kind === "channel" && Boolean(room.is_default));
 }
 

@@ -127,14 +127,17 @@ describe("fetchAndPatchChatMessage unread", () => {
     );
   });
 
-  it("increments unread locally for workspace rooms", async () => {
+  // Migration 165 turned the workspace room into the default channel; it is
+  // the one room without `chat.room.activity`, so it counts locally.
+  it("increments unread locally for the default channel", async () => {
     const message = { ...sampleMessage("m1", "2026-01-01T11:00:00Z"), room_id: "ws-room" };
     vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(message);
     const qc = new QueryClient();
     qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
       {
         id: "ws-room",
-        kind: "workspace",
+        kind: "channel",
+        is_default: true,
         name: "General",
         workspace_id: "ws1",
         member_user_ids: [],
@@ -142,10 +145,33 @@ describe("fetchAndPatchChatMessage unread", () => {
         mention_unread_count: 0,
       },
     ]);
+    qc.setQueryData(chatKeys.roomMessages("ws1", "ws-room"), []);
 
     await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m1");
 
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(1);
+  });
+
+  it("does not locally increment unread for a non-default channel", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(sampleMessage("m1", "2026-01-01T11:00:00Z"));
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "room1",
+        kind: "channel",
+        is_default: false,
+        name: "Dev",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), []);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1");
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
   });
 
   it("does not seed roomMessages before the room timeline was loaded", async () => {

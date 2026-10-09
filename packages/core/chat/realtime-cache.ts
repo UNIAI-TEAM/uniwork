@@ -5,6 +5,7 @@ import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat";
 import { getChatRoomMessage } from "../api/endpoints/chat";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
+import { isDefaultWorkspaceChannel } from "./chat-room-helpers";
 import { useActiveChatRoomStore } from "./active-chat-room-store";
 
 export const CHAT_MESSAGE_CACHE_MAX = 1000;
@@ -170,10 +171,10 @@ function currentUserId(): string | null {
 /**
  * DM/group/channel also emit `chat.room.activity`, which refetches rooms with
  * the server unread count. Local +1 there races into unread=2 for one message.
- * Only the workspace room skips activity, so it still increments locally.
+ * Only the default channel skips activity, so it still increments locally.
  */
 function shouldIncrementUnreadLocally(room: ChatRoomRecord | undefined): boolean {
-  return room?.kind === "workspace";
+  return room !== undefined && isDefaultWorkspaceChannel(room);
 }
 
 export async function fetchAndPatchChatMessage(
@@ -231,7 +232,7 @@ export function patchChatMentionCreated(
     return old.map((room) => {
       if (room.id !== roomId) return room;
       // Same race as unread: DM/group/channel unread badges come from
-      // `chat.room.activity` refetch; only workspace bumps locally.
+      // `chat.room.activity` refetch; only the default channel bumps locally.
       if (!shouldIncrementUnreadLocally(room)) return room;
       return { ...room, mention_unread_count: (room.mention_unread_count ?? 0) + 1 };
     });
