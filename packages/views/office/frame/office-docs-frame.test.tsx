@@ -10,11 +10,13 @@ import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from 
 import { ThemeProvider, useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { leaveGuardAllows } from "../../navigation/leave-guard";
 import { requestMock } from "../../test/api-mock";
+import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DocsFrameRefusalContext } from "./docs-frame-refusal";
 import { OfficeDocsFrame, type OfficeDocsFrameProps } from "./office-docs-frame";
 
 const toastError = vi.hoisted(() => vi.fn());
-vi.mock("sonner", () => ({ toast: { error: toastError } }));
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));
 
 const FILE = { fileId: "doc-1", name: "Plan.docx" };
 
@@ -100,7 +102,7 @@ async function boot(frame: ReturnType<typeof fakeFrame>) {
   await waitFor(() => expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull());
 }
 
-afterEach(() => { toastError.mockReset(); requestMock.mockReset(); });
+afterEach(() => { toastError.mockReset(); toastSuccess.mockReset(); requestMock.mockReset(); });
 
 describe("OfficeDocsFrame", () => {
   it("serves the pinned build same-origin and hands the token over in init once the frame is ready", async () => {
@@ -178,7 +180,8 @@ describe("OfficeDocsFrame", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(saveAs).toHaveBeenCalledWith(expect.objectContaining({ name: "Copy" }), expect.objectContaining({ documentId: "doc-1", token: "tok-1" }));
     expect(frame.sent("event", "token.update").at(-1)?.payload).toMatchObject({ token: "copy-tok" });
-    expect(onSavedAs).toHaveBeenCalledWith("doc-2");
+    expect(onSavedAs).toHaveBeenCalledWith("doc-2", "Copy");
+    expect(toastSuccess).toHaveBeenCalledWith('Đã tạo bản sao "Copy"');
     frame.request("api.recents", {});
     await waitFor(() => expect(api.recents).toHaveBeenCalledWith({}, expect.objectContaining({ documentId: "doc-2", token: "copy-tok" })));
     expect(mintCalls()).toHaveLength(1);
@@ -285,7 +288,10 @@ describe("OfficeDocsFrame", () => {
     await frame.event("error", { error: { code: "conflict", message: "412" }, fatal: false });
     expect(toastError).not.toHaveBeenCalled();
     await frame.event("error", { error: { code: "malformed", message: "x" }, fatal: true });
-    expect(screen.getByTestId("office-docs-frame-failed").textContent).toContain("Trình soạn thảo tài liệu gặp lỗi.");
+    const failed = screen.getByTestId("office-docs-frame-failed");
+    expect(failed.getAttribute("data-failure-kind")).toBe("failed");
+    expect(failed.textContent).toContain("Không mở được tài liệu");
+    expect(failed.textContent).toContain("UniWork gặp sự cố khi mở tài liệu này. Hãy thử lại sau giây lát.");
 
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     frame = fakeFrame();
@@ -298,7 +304,8 @@ describe("OfficeDocsFrame", () => {
     serveTokens((n) => (n === 1 ? Promise.reject(new ApiError("no", "forbidden", 403)) : Promise.resolve(minted("tok-ok"))));
     mount({}, fakeApi(), false);
     const alert = await screen.findByTestId("office-docs-frame-failed");
-    expect(alert.textContent).toContain("Bạn không có quyền thực hiện thao tác này trong tài liệu.");
+    expect(alert.getAttribute("data-failure-kind")).toBe("denied");
+    expect(alert.textContent).toContain("Bạn không có quyền truy cập tài liệu này.");
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     const frame = fakeFrame();
     await boot(frame);
@@ -337,5 +344,110 @@ describe("OfficeDocsFrame", () => {
     await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "conflict", message: "412" } });
     await expect(saving).resolves.toBe(false);
     expect(toastError).toHaveBeenCalledTimes(1);
+  });
+
+  it("names a save-as copy of the source the way UniWork names a copy", async () => {
+    const saveAs = vi.fn(async () => ({ save: { ok: true as const, file: FILE, versionId: "v-c1" }, rebind: { documentId: "doc-2", token: minted("copy-tok") } }));
+    const onSavedAs = vi.fn();
+    mount({ onSavedAs, title: "Plan.docx" }, fakeApi({ saveAs }));
+    const frame = fakeFrame();
+    await boot(frame);
+    const id = frame.request("api.saveAs", { name: "plan.docx", data: new ArrayBuffer(2) });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true }));
+    expect(saveAs).toHaveBeenCalledWith(expect.objectContaining({ name: "plan (bản sao).docx" }), expect.anything());
+    expect(onSavedAs).toHaveBeenCalledWith("doc-2", "plan (bản sao).docx");
+    expect(toastSuccess).toHaveBeenCalledWith('Đã tạo bản sao "plan (bản sao)"');
+  });
+
+  it("shows the frame's save state in the page header: clean, unsaved, saving, saved", async () => {
+    let finish!: (value: { ok: true; file: typeof FILE; versionId: string }) => void;
+    const save = vi.fn(() => new Promise<{ ok: true; file: typeof FILE; versionId: string }>((resolve) => { finish = resolve; }));
+    serveTokens();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <HeaderActionsSlotProvider>
+          <header data-testid="page-header"><HeaderActionsSlot /></header>
+          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
+        </HeaderActionsSlotProvider>
+      </QueryClientProvider>,
+    );
+    const header = screen.getByTestId("page-header");
+    expect(header.textContent).toBe("");
+    const frame = fakeFrame();
+    await boot(frame);
+    await waitFor(() => expect(header.textContent).toBe("Chưa có thay đổi"));
+    await frame.event("dirty", { dirty: true });
+    await waitFor(() => expect(header.textContent).toBe("Chưa lưu"));
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
+    await waitFor(() => expect(header.textContent).toBe("Đang lưu…"));
+    await act(async () => { finish({ ok: true, file: FILE, versionId: "v2" }); });
+    await waitFor(() => expect(frame.answerTo(id)).toBeTruthy());
+    // The answer came back before the frame's dirty:false: still unsaved until the frame says clean.
+    expect(header.textContent).toBe("Chưa lưu");
+    await frame.event("dirty", { dirty: false });
+    await frame.event("saved", { file: FILE, versionId: "v2" });
+    await waitFor(() => expect(header.textContent).toBe("Đã lưu"));
+    await frame.event("dirty", { dirty: true });
+    await waitFor(() => expect(header.textContent).toBe("Chưa lưu"));
+  });
+
+  it("says the editor is unavailable on this server (no retry) and offers the standard editor", async () => {
+    serveTokens(() => Promise.reject(new ApiError("office frame is not configured", "storage_unavailable", 501)));
+    const refuse = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DocsFrameRefusalContext.Provider value={refuse}>
+          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+        </DocsFrameRefusalContext.Provider>
+      </QueryClientProvider>,
+    );
+    const alert = await screen.findByTestId("office-docs-frame-failed");
+    expect(alert.getAttribute("data-failure-kind")).toBe("unavailable");
+    expect(alert.textContent).toContain("Chưa dùng được trình soạn thảo tài liệu mới");
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+    expect(refuse).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Mở bằng trình soạn thảo tiêu chuẩn" }));
+    expect(refuse).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells a dropped connection apart from a failure, with a retry", async () => {
+    serveTokens(() => Promise.reject(new TypeError("Failed to fetch")));
+    mount({}, fakeApi(), false);
+    const alert = await screen.findByTestId("office-docs-frame-failed");
+    expect(alert.getAttribute("data-failure-kind")).toBe("network");
+    expect(alert.textContent).toContain("Không kết nối được tới UniWork");
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeTruthy();
+  });
+
+  it("reads a 503 from the mint as a failure worth retrying, not as an unavailable editor", async () => {
+    serveTokens(() => Promise.reject(new ApiError("down", "internal", 503)));
+    mount({}, fakeApi(), false);
+    const alert = await screen.findByTestId("office-docs-frame-failed");
+    expect(alert.getAttribute("data-failure-kind")).toBe("failed");
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeTruthy();
+  });
+
+  it("dims the page chrome while the frame shows a modal dialog of its own", async () => {
+    serveTokens();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <nav data-testid="chrome">sidebar</nav>
+        <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+      </QueryClientProvider>,
+    );
+    const frame = fakeFrame();
+    await boot(frame);
+    const chrome = screen.getByTestId("chrome");
+    expect(chrome.hasAttribute("inert")).toBe(false);
+    await frame.event("modal", { open: true });
+    await waitFor(() => expect(chrome.hasAttribute("inert")).toBe(true));
+    expect(chrome.hasAttribute("data-office-frame-modal-dimmed")).toBe(true);
+    expect(screen.getByTestId("office-docs-frame-iframe").closest("[inert]")).toBeNull();
+    await frame.event("modal", { open: false });
+    await waitFor(() => expect(chrome.hasAttribute("inert")).toBe(false));
+    expect(chrome.style.filter).toBe("");
   });
 });

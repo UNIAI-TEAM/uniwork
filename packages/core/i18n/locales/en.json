@@ -8009,8 +8009,27 @@
     "docsFrame": {
       "loading": "Opening the document editor…",
       "frame_label": "Document editor: {{title}}",
-      "failed_title": "The document editor could not open",
       "retry": "Try again",
+      "failure": {
+        "unavailable": {
+          "title": "The new document editor is not available",
+          "description": "This UniWork server is not set up for it yet.",
+          "use_standard": "Open in the standard editor"
+        },
+        "network": {
+          "title": "Could not connect to UniWork",
+          "description": "Check your connection, then try again."
+        },
+        "denied": {
+          "title": "This document cannot be opened",
+          "forbidden": "You do not have access to this document.",
+          "not_found": "This document no longer exists or was moved."
+        },
+        "failed": {
+          "title": "The document could not open",
+          "description": "UniWork ran into a problem opening this document. Try again in a moment."
+        }
+      },
       "errors": {
         "unauthorized": "Your editing session expired. Try again.",
         "forbidden": "You do not have permission to do that in this document.",

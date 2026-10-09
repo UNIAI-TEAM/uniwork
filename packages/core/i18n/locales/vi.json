@@ -8004,8 +8004,27 @@
     "docsFrame": {
       "loading": "Đang mở trình soạn thảo tài liệu…",
       "frame_label": "Trình soạn thảo tài liệu: {{title}}",
-      "failed_title": "Không mở được trình soạn thảo tài liệu",
       "retry": "Thử lại",
+      "failure": {
+        "unavailable": {
+          "title": "Chưa dùng được trình soạn thảo tài liệu mới",
+          "description": "Máy chủ UniWork này chưa được thiết lập cho trình soạn thảo mới.",
+          "use_standard": "Mở bằng trình soạn thảo tiêu chuẩn"
+        },
+        "network": {
+          "title": "Không kết nối được tới UniWork",
+          "description": "Hãy kiểm tra kết nối mạng rồi thử lại."
+        },
+        "denied": {
+          "title": "Không mở được tài liệu này",
+          "forbidden": "Bạn không có quyền truy cập tài liệu này.",
+          "not_found": "Tài liệu không còn tồn tại hoặc đã được chuyển đi."
+        },
+        "failed": {
+          "title": "Không mở được tài liệu",
+          "description": "UniWork gặp sự cố khi mở tài liệu này. Hãy thử lại sau giây lát."
+        }
+      },
       "errors": {
         "unauthorized": "Phiên chỉnh sửa đã hết hạn. Hãy thử lại.",
         "forbidden": "Bạn không có quyền thực hiện thao tác này trong tài liệu.",
