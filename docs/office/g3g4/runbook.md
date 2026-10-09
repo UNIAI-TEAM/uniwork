@@ -207,7 +207,7 @@ Chi tiết: `desktop-install-macos-ubuntu.md`.
 - Đăng nhập kiểu PKCE qua trình duyệt, quay về `uniwork-office://auth/callback` (`uniwork-office-dev://…` với bản dev).
 - Người dùng tự xem thiết bị: `GET /auth/desktop/devices`; tự thu hồi: `DELETE /auth/desktop/devices/{deviceSessionID}` (đều dưới `/api/v1`).
 - Đăng xuất thiết bị: `POST /auth/desktop/logout`.
-- Dùng lại refresh token cũ: server trả 401 `refresh_reused` và tự thu hồi thiết bị đó.
+- Dùng lại refresh token cũ: server trả 401 `refresh_reused` và tự thu hồi thiết bị đó. Ngoại lệ: thử lại đúng token vừa xoay trong 30 giây (phản hồi trước bị mất) nhận lại cùng refresh token mới, không thu hồi; audit ghi `replay: retry_grace`.
 - Thu hồi thiết bị xong, lần gọi tiếp theo bị chặn ngay (`device_revoked`).
 - Thu hồi thay người dùng bằng công cụ vận hành (chạy trên máy chủ, cần `DATABASE_URL`):
   `uniwork-admin revoke-desktop-device --user-id <id người dùng> --device-id <id thiết bị> --reason "<lý do, ít nhất 10 ký tự>"`.

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"path"
 	"regexp"
@@ -87,4 +88,22 @@ func (c Config) OfficeInstallers(channel string) ([]OfficeInstaller, error) {
 		}
 	}
 	return items, nil
+}
+
+// A redirect host is a bare DNS name: no scheme, port, path, IP literal or
+// local name, so the allowlist cannot be widened to an internal address.
+func validRedirectHosts(hosts []string) bool {
+	for _, host := range hosts {
+		if host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".local") || net.ParseIP(host) != nil || !strings.Contains(host, ".") {
+			return false
+		}
+		for _, label := range strings.Split(host, ".") {
+			if label == "" || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") || strings.IndexFunc(label, func(r rune) bool {
+				return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-')
+			}) >= 0 {
+				return false
+			}
+		}
+	}
+	return true
 }

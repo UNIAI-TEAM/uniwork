@@ -454,6 +454,37 @@ func (q *Queries) RefreshTokenIssuedToFamily(ctx context.Context, arg RefreshTok
 	return exists, err
 }
 
+const refreshTokenRotatedOutWithin = `-- name: RefreshTokenRotatedOutWithin :one
+SELECT EXISTS (
+  SELECT 1 FROM refresh_tokens
+  WHERE token_hash = $1 AND user_id = $2 AND session_id = $3
+    AND revoked_at IS NOT NULL
+    AND revoked_at > now() - make_interval(secs => $4::float8)
+)
+`
+
+type RefreshTokenRotatedOutWithinParams struct {
+	TokenHash    string  `json:"token_hash"`
+	UserID       string  `json:"user_id"`
+	SessionID    string  `json:"session_id"`
+	GraceSeconds float64 `json:"grace_seconds"`
+}
+
+// True when this digest is a token of the family that was rotated out less
+// than grace_seconds ago. Refresh uses it to answer a retry whose response
+// was lost instead of treating it as reuse.
+func (q *Queries) RefreshTokenRotatedOutWithin(ctx context.Context, arg RefreshTokenRotatedOutWithinParams) (bool, error) {
+	row := q.db.QueryRow(ctx, refreshTokenRotatedOutWithin,
+		arg.TokenHash,
+		arg.UserID,
+		arg.SessionID,
+		arg.GraceSeconds,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const revokeAllDeviceSessions = `-- name: RevokeAllDeviceSessions :exec
 UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
 FROM (

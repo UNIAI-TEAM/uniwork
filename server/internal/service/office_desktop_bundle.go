@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,11 +13,15 @@ import (
 	"time"
 )
 
-const desktopInstallerMaxBytes int64 = 512 << 20
+const (
+	desktopInstallerMaxBytes int64 = 512 << 20
+	desktopInstallerTimeout        = 2 * time.Minute
+)
 
 // A staged bundle owns its temporary installer. The handler closes it after
 // streaming, including on a disconnected browser. No account token is sent to
-// the configured release server, and redirects cannot widen its authority.
+// the configured release server, and redirects cannot widen its authority
+// (fetchInstaller follows at most one, from GitHub release URLs only).
 type OfficeDesktopBundle struct {
 	installer *os.File
 	filename  string
@@ -36,14 +39,12 @@ func (s *OfficeDesktopDownloadService) Bundle(ctx context.Context, profile Offic
 	default:
 		return nil, coded(http.StatusServiceUnavailable, "installer_unavailable", "unsupported installer type")
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, profile.InstallerURL, nil)
+	// One deadline covers both hops and the body copy below.
+	ctx, cancel := context.WithTimeout(ctx, desktopInstallerTimeout)
+	defer cancel()
+	response, err := s.fetchInstaller(ctx, u)
 	if err != nil {
 		return nil, err
-	}
-	client := &http.Client{Timeout: 2 * time.Minute, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return fmt.Errorf("installer redirects are refused") }}
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, coded(http.StatusBadGateway, "installer_unavailable", "installer download failed")
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK || response.ContentLength > desktopInstallerMaxBytes {
