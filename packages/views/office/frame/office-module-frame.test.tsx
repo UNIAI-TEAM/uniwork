@@ -94,6 +94,38 @@ describe("OfficeModuleFrame", () => {
 
   const ALL_MODULES: OfficeModule[] = ["docs", "pdf", "markdown", "html", "slides", "sheets"];
 
+  const mintWithAI = (module: OfficeModule, ai: unknown) => () => Promise.resolve({ ...minted, module, ai });
+
+  it.each(["docs", "pdf", "markdown", "html", "slides"] as OfficeModule[])("grants the %s frame AI as far as the minted token's grant", async (module) => {
+    const frame = mountFrame(module, { mint: mintWithAI(module, { ai: true, web_search: true, image_search: false, image_generation: true }) });
+    await frame.ready({ module });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: true, webSearch: true, imageSearch: false, imageGeneration: true } });
+  });
+
+  it("keeps AI off for a module without AI panels, for a token without AI and for a malformed grant", async () => {
+    const cases: [OfficeModule, unknown][] = [
+      ["sheets", { ai: true, web_search: true, image_search: true, image_generation: true }],
+      ["pdf", { ai: false, web_search: true, image_search: true, image_generation: true }],
+      ["markdown", "yes"],
+      ["html", undefined],
+    ];
+    for (const [module, ai] of cases) {
+      const frame = mountFrame(module, { mint: mintWithAI(module, ai) });
+      await frame.ready({ module });
+      await waitFor(() => expect(frame.inits()).toHaveLength(1));
+      expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: false, webSearch: false, imageSearch: false, imageGeneration: false } });
+      cleanup();
+    }
+  });
+
+  it("keeps AI for a view-only user, who still cannot save", async () => {
+    const frame = mountFrame("pdf", { mint: () => Promise.resolve({ ...minted, can_edit: false, ai: { ai: true, web_search: false, image_search: false, image_generation: false } }) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: true, webSearch: false, save: false, saveAs: false } });
+  });
+
   it.each(ALL_MODULES)("hands the %s frame the session's draft-recovery key and the user:document scope", async (module) => {
     setSessionUser({ id: "u-1", email: "an@example.test", display_name: "An" } as Parameters<typeof setSessionUser>[0]);
     const frame = mountFrame(module);

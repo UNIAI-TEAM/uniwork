@@ -16,6 +16,17 @@ const enc = encodeURIComponent;
 const id = z.string().min(1).max(128);
 const rfc3339 = z.string().min(1);
 
+// The AI the host may grant the frame (GO-A7 entitlement read at mint, UNI-1014). A field that
+// drifts reads as off: the grant only shows AI, every frame AI route still gates itself.
+const officeFrameAIGrantSchema = z.object({
+  ai: z.boolean().catch(false),
+  web_search: z.boolean().catch(false),
+  image_search: z.boolean().catch(false),
+  image_generation: z.boolean().catch(false),
+});
+
+export type OfficeFrameAIGrant = z.infer<typeof officeFrameAIGrantSchema>;
+
 export const officeFrameTokenSchema = z.object({
   token: z.string().min(1),
   token_type: z.string(),
@@ -27,6 +38,8 @@ export const officeFrameTokenSchema = z.object({
   can_edit: z.boolean(),
   /** The genoffice web module the server derived from the stored format (absent from older servers = docs). */
   module: z.string().optional(),
+  /** Absent (older servers) or malformed = no AI grant. */
+  ai: officeFrameAIGrantSchema.optional().catch(undefined),
 });
 
 const officeFrameFileSchema = z.object({

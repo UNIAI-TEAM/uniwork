@@ -3,6 +3,9 @@
 // (lane branch feature/UNI-1014-web-modules, framework commit of GO-B4/B5/B6). Byte-identical except the
 // relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
 // ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
+// The AI capability keys (`ai` doc, `webSearch`, `imageSearch`, `imageGeneration`, CONTRACT C16) are
+// re-vendored from worker AI1's fork commit c044fa9 (branch zone17th/uni-1014-ai1); the rest of the
+// file is still the SHA above until the lane merges AI1 and this header moves to that merge.
 // TODO(UNI-1014 DR1): `InitPayload.recovery` / `InitRecovery` / `isInitRecovery` are vendored
 // ahead of the fork from lane CONTRACT C18 (draft recovery, additive, PROTOCOL_VERSION stays 1).
 // Re-vendor this file from the fork commit of worker DR1 once it lands and put its SHA above.
@@ -256,8 +259,18 @@ export type Capability =
   | 'exportHtml'
   | 'attachments'
   | 'images'
-  /** stays false on the web in this lane (AI/search/image stubbed + hidden) */
+  /**
+   * AI panels (GO-A7 web AI contract, CONTRACT C16): the frame calls the frame-token AI routes
+   * itself (/office-frame/documents/{id}/ai/...). Grant it only when the org entitlement and those
+   * routes are live; without it every AI entry stays hidden.
+   */
   | 'ai'
+  /** additive (C16): UniWork cloud web search for the AI tools; effective only together with `ai` */
+  | 'webSearch'
+  /** additive (C16): UniWork cloud image search for the AI tools; effective only together with `ai` */
+  | 'imageSearch'
+  /** additive (C16): UniWork cloud image generation (and media analysis); effective only with `ai` */
+  | 'imageGeneration'
 
 export type Capabilities = Partial<Record<Capability, boolean>>
 
@@ -272,6 +285,9 @@ export const CAPABILITY_KEYS: readonly Capability[] = [
   'attachments',
   'images',
   'ai',
+  'webSearch',
+  'imageSearch',
+  'imageGeneration',
 ]
 
 /**

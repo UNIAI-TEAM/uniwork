@@ -64,6 +64,20 @@ describe("Office Docs frame endpoints", () => {
     await expect(mintOfficeFrameToken(docId)).rejects.toMatchObject({ status: 404, code: "not_found" });
   });
 
+  it("parses the AI grant and reads a drifted one as off", async () => {
+    const grant = { ai: true, web_search: true, image_search: false, image_generation: true };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: grant }, 201));
+    await expect(mintOfficeFrameToken(docId)).resolves.toMatchObject({ ai: grant });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: { ai: "yes", web_search: 1 } }, 201));
+    await expect(mintOfficeFrameToken(docId)).resolves.toMatchObject({
+      token: token.token, ai: { ai: false, web_search: false, image_search: false, image_generation: false },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...token, ai: "on" }, 201));
+    const minted = await mintOfficeFrameToken(docId);
+    expect(minted?.token).toBe(token.token);
+    expect(minted?.ai).toBeUndefined();
+  });
+
   it("degrades a malformed mint answer to null", async () => {
     for (const body of [{ nope: true }, null, [], "malformed", { ...token, expires_in: "600" }]) {
       vi.mocked(fetch).mockResolvedValueOnce(json(body, 201));

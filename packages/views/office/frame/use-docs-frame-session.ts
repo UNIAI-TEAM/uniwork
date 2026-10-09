@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@uniwork/core/auth";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
-import type { OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
+import type { OfficeFrameAIGrant, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
 import { docsFrameApiBase, docsFrameError, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import {
@@ -69,22 +69,30 @@ export interface DocsFrameSession {
 }
 
 /**
- * Capabilities this host grants. AI stays off on the web (GO-D2); routes that
- * do not exist yet stay off too. `exportPdf` follows the API alone: nothing
- * tells the host whether this deployment has a PDF renderer, so it is offered
- * and a 501 answers `unsupported`, on which the frame prints in place instead.
- * Each module starts from its grant (`officeModuleSpec(module).grant`,
- * one table the module workers fill in), narrowed by readonly and by what the
- * API implements. A key the grant leaves out is off; AI is always off.
+ * Capabilities this host grants. Routes that do not exist yet stay off.
+ * `exportPdf` follows the API alone: nothing tells the host whether this
+ * deployment has a PDF renderer, so it is offered and a 501 answers
+ * `unsupported`, on which the frame prints in place instead. Each module
+ * starts from its grant (`officeModuleSpec(module).grant`, one table the
+ * module workers fill in), narrowed by readonly and by what the API
+ * implements. A key the grant leaves out is off. AI (CONTRACT C16) is on only
+ * for a module with AI panels (`officeModuleSpec(module).ai`) and only as far
+ * as the minted token's `ai` grant says (the organization's entitlement, read
+ * by the server at mint); each cloud tool needs `ai` too. The frame then calls
+ * the frame-token AI routes itself; a viewer keeps AI (it never saves).
  */
-export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi): Capabilities {
-  const grant = officeModuleSpec(module).grant;
+export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant): Capabilities {
+  const spec = officeModuleSpec(module);
+  const grant = spec.grant;
   const on = (key: keyof Capabilities) => grant[key] === true;
+  const ai = spec.ai === true && aiGrant?.ai === true;
   return {
     ...grant,
     save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents"), print: on("print"),
     exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
-    attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly, ai: false,
+    attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly,
+    ai, webSearch: ai && aiGrant?.web_search === true, imageSearch: ai && aiGrant?.image_search === true,
+    imageGeneration: ai && aiGrant?.image_generation === true,
   };
 }
 
@@ -182,7 +190,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",
           locale: current.locale, theme: current.theme,
-          capabilities: officeModuleCapabilities(module, viewOnly, current.api),
+          capabilities: officeModuleCapabilities(module, viewOnly, current.api, minted?.ai),
           ...(name ? { user: { displayName: name } } : {}),
           ...(recovery ? { recovery } : {}),
         };
