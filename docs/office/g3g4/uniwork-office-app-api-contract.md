@@ -30,10 +30,15 @@ consent, mã một lần, thu hồi thiết bị) ở [desktop-auth-contract.md]
 | Làm mới | `POST /auth/desktop/refresh` |
 | Đăng xuất / thiết bị | `POST /auth/desktop/logout`, `GET /auth/desktop/devices`, `DELETE /auth/desktop/devices/{deviceSessionID}` |
 
-Hồ sơ triển khai (origin API) do app chọn theo origin; `client_id` là `uniwork-office`
-và callback là `uniwork-office://auth/callback` như hợp đồng nêu. Fork phải đổi
-protocol và `appId` về giá trị này khi rebrand (GO-A1); nếu fork dùng giá trị khác,
-server phải thêm vào allowlist trước.
+`client_id` là `uniwork-office`, `deployment_id` là `default` và callback là
+`uniwork-office://auth/callback` (allowlist trong `desktop-auth-contract.md`).
+Fork hiện đã có `appId` `com.uniwork.office` (`apps/shell/electron-builder.cjs`, không phải
+scheme callback) và chỉ đăng ký protocol `uniwork://` (`apps/shell/src/main/index.ts`,
+dùng cho `uniwork://office/app` và `uniwork://agent/intent`); chưa có `client_id` hay
+`uniwork-office://`. GO-A5 (UNI-1006) phải đăng ký thêm scheme `uniwork-office` và xử lý
+`uniwork-office://auth/callback` mà không gỡ `uniwork://`. Nếu fork giữ `uniwork://` cho
+đăng nhập, allowlist server (`DESKTOP_AUTH_REDIRECT_URIS`, `DESKTOP_AUTH_DEPLOYMENT_IDS`)
+phải thêm giá trị đó trước.
 
 ## 2. Mở và lưu tài liệu UniWork (GO-A6, UNI-1007)
 

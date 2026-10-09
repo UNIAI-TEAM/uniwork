@@ -32,8 +32,7 @@ qua server.
    không chạm máy chủ UniWork và không tiêu credit UniWork.
 3. **Mọi thứ tốn credit UniWork hoặc dùng công cụ cloud của UniWork đi qua UniWork
    API.** Gồm tìm kiếm web, sinh ảnh, phân tích media, credit: client gọi UniWork API
-   bằng phiên UniWork của người dùng, server định tuyến qua `ai.Gateway` với quyền
-   lợi (entitlement) theo plan của tổ chức, do server cấp. Endpoint server cho các
+   bằng phiên UniWork của người dùng, server định tuyến qua `ai.Gateway` với entitlement theo plan của tổ chức, do server cấp. Endpoint server cho các
    công cụ cloud này là việc của GO-A7 (UNI-1008), ADR này không dựng chúng.
 4. **Ứng dụng không bao giờ giữ khóa nhà cung cấp của UniWork** hay bất kỳ
    credential provider phía server nào.
