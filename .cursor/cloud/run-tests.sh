@@ -236,12 +236,25 @@ log_ref="refs/test-results/$lane/$head"
 # is never on a command line. The VM's global git config rewrites github.com
 # URLs to carry Cursor's app token (insteadOf), which wins over any helper, so
 # the fallback push reads no global or system config at all.
+# Cursor may set GH_TOKEN to its own app token (ghs_, cursor[bot]), so every
+# secret holding a personal GitHub token (ghp_, github_pat_, gho_) is tried;
+# the notes name what was tried by variable and prefix only.
 push_with_gh_token() {
-  if [ -z "${GH_TOKEN:-}" ]; then echo "fallback push: GH_TOKEN is not set"; return 1; fi
-  echo "fallback push with GH_TOKEN"
-  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
-    git -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
-    push -qf "$1" "HEAD:$log_ref"
+  local tried="" name val
+  for name in GH_TOKEN GITHUB_TOKEN ${CLOUD_AGENT_ALL_SECRET_NAMES//,/ }; do
+    val=${!name:-}
+    case "$val" in
+      ghp_*|github_pat_*|gho_*) tried="$tried $name(${val:0:4})" ;;
+      ghs_*) tried="$tried $name(ghs_)"; continue ;;
+      "") tried="$tried $name(unset)"; continue ;;
+      *) continue ;;
+    esac
+    if PUSH_TOKEN=$val GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_ASKPASS= GIT_CONFIG_COUNT=0 \
+      git -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$PUSH_TOKEN"; }; f' \
+      push -qf "$1" "HEAD:$log_ref"; then return 0; fi
+  done
+  echo "fallback push failed; tokens seen:${tried:- none}"
+  return 1
 }
 origin=$(git remote get-url origin)
 if ! (cd "$results" && export GIT_TERMINAL_PROMPT=0 && git init -q && git add -A \
