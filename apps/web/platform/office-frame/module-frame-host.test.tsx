@@ -63,9 +63,13 @@ async function until(check: () => boolean) {
 
 const render = async (host: ReactNode) => {
   await act(async () => {
-    root.render(createElement(QueryProvider, null,
-      createElement(NavigationProvider, { value: nav },
-        createElement(WorkspaceProvider, { workspace, user: { id: "u-1" } as User }, host))));
+    root.render(
+      <QueryProvider>
+        <NavigationProvider value={nav}>
+          <WorkspaceProvider workspace={workspace} user={{ id: "u-1" } as User}>{host}</WorkspaceProvider>
+        </NavigationProvider>
+      </QueryProvider>,
+    );
   });
   await settle();
 };
