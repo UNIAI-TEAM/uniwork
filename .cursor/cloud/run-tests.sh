@@ -225,14 +225,20 @@ SECRET_NAMES=$secret_names RESULTS=$results node -e '
 log_ref="refs/test-results/$lane/$head"
 # The VM's own credentials may not reach a repository Cursor cannot open
 # (--repo-url); the fallback feeds GH_TOKEN through a credential helper so it
-# is never on a command line.
+# is never on a command line. The VM's GitHub auth (an insteadOf or extraheader
+# carrying Cursor's app token) would override a credential helper, so the URL
+# names a user (no insteadOf prefix matches it) and the extraheaders are cleared.
+push_with_gh_token() {
+  if [ -z "${GH_TOKEN:-}" ]; then echo "fallback push: GH_TOKEN is not set"; return 1; fi
+  echo "fallback push with GH_TOKEN"
+  git -c credential.helper= -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
+    -c http.extraheader= -c http.https://github.com/.extraheader= \
+    push -qf "https://x-access-token@${1#https://}" "HEAD:$log_ref"
+}
 origin=$(git remote get-url origin)
 if ! (cd "$results" && export GIT_TERMINAL_PROMPT=0 && git init -q && git add -A \
       && git -c user.name=runner -c user.email=runner@local commit -qm "$lane $head" \
-      && { git push -qf "$origin" "HEAD:$log_ref" \
-           || { [ "${GH_TOKEN:-}" ] && git -c credential.helper= \
-                -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
-                push -qf "$origin" "HEAD:$log_ref"; }; }) > /tmp/runner-push.log 2>&1; then
+      && { git push -qf "$origin" "HEAD:$log_ref" || push_with_gh_token "$origin"; }) > /tmp/runner-push.log 2>&1; then
   notes="log push failed: $(tail -2 /tmp/runner-push.log | tr '\n' ' ')"; log_ref=""
 fi
 
