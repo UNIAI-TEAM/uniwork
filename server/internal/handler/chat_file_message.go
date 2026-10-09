@@ -151,41 +151,37 @@ func (h *handlers) sendChatFileMessage(w http.ResponseWriter, r *http.Request) {
 
 // sendChatFileMessageFS is the FileService send: the handler only unpacks the
 // multipart envelope; verification, dedupe and claim all live in the service.
+// The room gate and the byte budget run before the body is read, and the file
+// part reaches the service disk-backed, never as a heap copy (C7).
 func (h *handlers) sendChatFileMessageFS(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, service.MaxChatFileMessageBytes+chatFileMultipartHeadroom)
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		var tooBig *http.MaxBytesError
-		if errors.As(err, &tooBig) {
-			respondError(w, http.StatusRequestEntityTooLarge, "too_large", "file must be at most 25 MiB")
-			return
-		}
-		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" is required`)
+	const tooLarge = "file must be at most 25 MiB"
+	release, ok := beginUpload(w, r, uploads, service.MaxChatFileMessageBytes+chatFileMultipartHeadroom, tooLarge)
+	if !ok {
+		return
+	}
+	defer release()
+	ctx := r.Context()
+	userID, workspaceID, roomID := middleware.UserID(ctx), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID")
+	if err := h.Chat.AuthorizeMediaSend(ctx, userID, workspaceID, roomID); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	file, header, ok := uploadFormFile(w, r, tooLarge)
+	if !ok {
 		return
 	}
 	defer file.Close()
-
-	data, err := io.ReadAll(io.LimitReader(file, service.MaxChatFileMessageBytes+1))
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "could not read file")
+	if header.Size > service.MaxChatFileMessageBytes {
+		respondError(w, http.StatusRequestEntityTooLarge, "too_large", tooLarge)
 		return
-	}
-	if len(data) > service.MaxChatFileMessageBytes {
-		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "file must be at most 25 MiB")
-		return
-	}
-	filename := ""
-	if header != nil {
-		filename = header.Filename
 	}
 	var replyTo *string
 	if raw := strings.TrimSpace(r.FormValue("reply_to_message_id")); raw != "" {
 		replyTo = &raw
 	}
-	ctx := r.Context()
-	msg, err := h.Chat.SendFileMessage(ctx, middleware.UserID(ctx), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), service.SendFileMessageInput{
-		Filename:         filename,
-		Body:             bytes.NewReader(data),
+	msg, err := h.Chat.SendFileMessage(ctx, userID, workspaceID, roomID, service.SendFileMessageInput{
+		Filename:         header.Filename,
+		Body:             file,
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      strings.TrimSpace(r.FormValue("client_msg_id")),
 	})

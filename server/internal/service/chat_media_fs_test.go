@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"io"
@@ -652,7 +653,7 @@ func TestSendFileMessageCancelsStagedUploadOnCommitErrorFS(t *testing.T) {
 		Actor:          audit.User(ua.ID),
 		Purpose:        files.ChatAttachment,
 		Scope:          scope,
-		IdempotencyKey: chatMediaUploadKey("file", dm.ID, ua.ID, "fs-cancel-1", tinyFSFileBytes),
+		IdempotencyKey: chatMediaUploadKey("file", dm.ID, ua.ID, "fs-cancel-1", func() []byte { sum := sha256.Sum256(tinyFSFileBytes); return sum[:] }()),
 		Filename:       "se-bo.pdf",
 		Body:           bytes.NewReader(tinyFSFileBytes),
 	})

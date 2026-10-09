@@ -241,7 +241,7 @@ func (s *ChatService) publishCreatedChatMessage(ctx context.Context, room db.Cha
 // does not own.
 type SendVoiceMessageInput struct {
 	DurationMS       int
-	Body             io.Reader
+	Body             io.ReadSeeker
 	ReplyToMessageID *string
 	ClientMsgID      string
 }

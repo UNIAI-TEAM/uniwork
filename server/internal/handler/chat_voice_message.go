@@ -137,26 +137,25 @@ func (h *handlers) sendChatVoiceMessage(w http.ResponseWriter, r *http.Request) 
 // the multipart envelope and duration; verification, dedupe and claim all
 // live in the service.
 func (h *handlers) sendChatVoiceMessageFS(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, service.MaxChatVoiceMessageBytes+chatVoiceMultipartHeadroom)
-	file, _, err := r.FormFile("file")
-	if err != nil {
-		var tooBig *http.MaxBytesError
-		if errors.As(err, &tooBig) {
-			respondError(w, http.StatusRequestEntityTooLarge, "too_large", "voice message must be at most 4 MiB")
-			return
-		}
-		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" is required`)
+	const tooLarge = "voice message must be at most 4 MiB"
+	release, ok := beginUpload(w, r, uploads, service.MaxChatVoiceMessageBytes+chatVoiceMultipartHeadroom, tooLarge)
+	if !ok {
+		return
+	}
+	defer release()
+	ctx := r.Context()
+	userID, workspaceID, roomID := middleware.UserID(ctx), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID")
+	if err := h.Chat.AuthorizeMediaSend(ctx, userID, workspaceID, roomID); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	file, header, ok := uploadFormFile(w, r, tooLarge)
+	if !ok {
 		return
 	}
 	defer file.Close()
-
-	data, err := io.ReadAll(io.LimitReader(file, service.MaxChatVoiceMessageBytes+1))
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "could not read voice message")
-		return
-	}
-	if len(data) > service.MaxChatVoiceMessageBytes {
-		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "voice message must be at most 4 MiB")
+	if header.Size > service.MaxChatVoiceMessageBytes {
+		respondError(w, http.StatusRequestEntityTooLarge, "too_large", tooLarge)
 		return
 	}
 	durationMS, err := strconv.Atoi(strings.TrimSpace(r.FormValue("duration_ms")))
@@ -168,10 +167,9 @@ func (h *handlers) sendChatVoiceMessageFS(w http.ResponseWriter, r *http.Request
 	if raw := strings.TrimSpace(r.FormValue("reply_to_message_id")); raw != "" {
 		replyTo = &raw
 	}
-	ctx := r.Context()
-	msg, err := h.Chat.SendVoiceMessage(ctx, middleware.UserID(ctx), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), service.SendVoiceMessageInput{
+	msg, err := h.Chat.SendVoiceMessage(ctx, userID, workspaceID, roomID, service.SendVoiceMessageInput{
 		DurationMS:       durationMS,
-		Body:             bytes.NewReader(data),
+		Body:             file,
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      strings.TrimSpace(r.FormValue("client_msg_id")),
 	})

@@ -224,7 +224,7 @@ func (s *ChatService) CreateFileMessage(
 // Prepare/Create pair stays for the unwired path until the module cutover.
 type SendFileMessageInput struct {
 	Filename         string
-	Body             io.Reader
+	Body             io.ReadSeeker
 	ReplyToMessageID *string
 	ClientMsgID      string
 }
