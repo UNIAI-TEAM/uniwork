@@ -26,13 +26,23 @@ export interface OfficeModuleSpec {
   /** File extension a save-as appends. */
   extension: string;
   /**
-   * Capability grants. Only Docs is filled in; a module's worker turns its
-   * own on once the frame implements them (off = the frame hides the action).
+   * Capability grants (off = the frame hides the action). Recents, file pick
+   * and attachments stay off for every module but Docs, and only Docs has the
+   * server PDF export. Images stay off for markdown/html: the G3 web host
+   * neither resolves relative images nor uploads pasted ones, so the frame
+   * gets no `open.assets` map and no upload handler either.
    */
   grant: OfficeModuleGrant;
+  /**
+   * A user who may view but not edit opens the G3 host instead of the frame
+   * (slides: lead decision, GO-B5). Otherwise a view-only user gets the frame
+   * without save / save-as.
+   */
+  viewOnlyInG3?: boolean;
 }
 
-const NONE: OfficeModuleGrant = {};
+const EDIT_PRINT: OfficeModuleGrant = { save: true, saveAs: true, print: true };
+const EDIT_PRINT_HTML: OfficeModuleGrant = { save: true, saveAs: true, print: true, exportHtml: true };
 
 const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   docs: {
@@ -40,16 +50,16 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     grant: { save: true, saveAs: true, recents: true, print: true, exportPdf: true, exportHtml: false, attachments: true, images: true },
   },
-  pdf: { flag: "office_pdf_web", format: "pdf", extension: "pdf", mimeType: "application/pdf", grant: NONE },
-  markdown: { flag: "office_markdown_web", format: "md", extension: "md", mimeType: "text/markdown", grant: NONE },
-  html: { flag: "office_html_web", format: "html", extension: "html", mimeType: "text/html", grant: NONE },
+  pdf: { flag: "office_pdf_web", format: "pdf", extension: "pdf", mimeType: "application/pdf", grant: EDIT_PRINT },
+  markdown: { flag: "office_markdown_web", format: "md", extension: "md", mimeType: "text/markdown", grant: EDIT_PRINT_HTML },
+  html: { flag: "office_html_web", format: "html", extension: "html", mimeType: "text/html", grant: EDIT_PRINT_HTML },
   slides: {
     flag: "office_slides_web", format: "pptx", extension: "pptx",
-    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", grant: NONE,
+    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", grant: EDIT_PRINT, viewOnlyInG3: true,
   },
   sheets: {
     flag: "office_sheets_web", format: "xlsx", extension: "xlsx",
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: NONE,
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT,
   },
 };
 

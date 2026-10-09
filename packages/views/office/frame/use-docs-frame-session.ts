@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@uniwork/core/auth";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { officeFrameKeys, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
 import type { OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
@@ -94,6 +95,8 @@ const shapeOf = (error: unknown): ProtocolErrorShape => docsFrameError(error).to
 export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrameSession {
   const { iframeRef, frameOrigin, wsId, documentId, locale, theme } = options;
   const module = options.module ?? "docs";
+  // Display data for the editors (comment and note authors), never an identity the frame authorises with.
+  const displayName = useAuthStore((s) => s.user?.display_name ?? "");
   const [attempt, setAttempt] = useState(0);
   const queryClient = useQueryClient();
   // The document the frame edits: the page's, until a save-as moves it to the copy.
@@ -108,8 +111,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [host, setHost] = useState<DocsFrameHost | null>(null);
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName };
   const sentToken = useRef<string | null>(null);
 
   useEffect(() => {
@@ -147,13 +150,18 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       getInit: async () => {
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
-        const { options: current, scopeId: doc } = latest.current;
+        const { options: current, scopeId: doc, displayName: name } = latest.current;
+        // A module other than Docs also honours the minted token's can_edit: a view-only user gets
+        // the frame without save / save-as even when the page did not say readonly.
+        const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
+        const viewOnly = current.readonly || (module !== "docs" && minted?.can_edit === false);
         return {
           ...frameToken,
           documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",
           locale: current.locale, theme: current.theme,
-          capabilities: officeModuleCapabilities(module, current.readonly, current.api),
+          capabilities: officeModuleCapabilities(module, viewOnly, current.api),
+          ...(name ? { user: { displayName: name } } : {}),
         };
       },
       refreshToken: async () => {

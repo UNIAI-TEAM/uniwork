@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { requestMock, wrap } from "../../test/api-mock";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
@@ -24,13 +25,13 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule) {
-  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? Promise.resolve(minted) : Promise.reject(new Error(`unexpected ${path}`))));
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false } = {}) {
+  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? Promise.resolve({ ...minted, can_edit: canEdit }) : Promise.reject(new Error(`unexpected ${path}`))));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
-        <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={fullApi()} />
+        <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={fullApi()} readonly={readonly} />
       </ThemeProvider>
     </QueryClientProvider>,
   );
@@ -57,10 +58,10 @@ function mountFrame(module: OfficeModule) {
   };
 }
 
-afterEach(() => { requestMock.mockReset(); });
+afterEach(() => { requestMock.mockReset(); resetAuthStoreForTests(); });
 
 describe("OfficeModuleFrame", () => {
-  it("serves the module's build and grants it nothing its worker has not enabled", async () => {
+  it("serves the module's build and grants it only what its frame implements", async () => {
     const frame = mountFrame("pdf");
     expect(frame.iframe.getAttribute("src")).toBe("/office-frame/pdf/1.0.0/index.html");
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
@@ -68,8 +69,27 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     expect(frame.inits()[0]?.payload).toMatchObject({
       module: "pdf", documentId: "doc-1", token: "tok-1",
-      capabilities: { save: false, saveAs: false, recents: false, print: false, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false },
+      capabilities: { save: true, saveAs: true, recents: false, print: true, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false },
     });
+  });
+
+  it("names the signed-in user to the editor", async () => {
+    setSessionUser({ id: "u-1", email: "an@example.test", display_name: "Nguyễn An" } as Parameters<typeof setSessionUser>[0]);
+    const frame = mountFrame("markdown");
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ user: { displayName: "Nguyễn An" }, capabilities: { exportHtml: true, save: true } });
+  });
+
+  it.each([
+    ["the page says readonly", { readonly: true }],
+    ["the minted token cannot edit", { canEdit: false }],
+  ])("gives a view-only user the frame without save or save-as when %s", async (_why, opts) => {
+    const frame = mountFrame("pdf", opts);
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { save: false, saveAs: false, print: true } });
   });
 
   it("refuses a frame that runs another module's editor before any init", async () => {

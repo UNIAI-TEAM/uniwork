@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { paths } from "@uniwork/core/paths";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { OfficeModuleFrame, OfficeModuleOpenSwitch } from "@uniwork/views/office";
@@ -35,11 +36,12 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string }) {
  * (UNI-1014/1015/1016) when the module's flag is on for the document's
  * organization and its bundle is installed; the G3 host (`fallback`)
  * otherwise, and until the flag's answer arrives. The document screen only
- * mounts this when `pinnedFrameVersion(module)` is set.
+ * mounts this when `pinnedFrameVersion(module)` is set. A view-only user of a
+ * module marked `viewOnlyInG3` (slides) stays on the G3 host.
  */
 export function ModuleFrameOrG3Host(props: ModuleHostProps & { fallback: ReactNode }) {
   const frameVersion = pinnedFrameVersion(props.module);
-  if (!frameVersion) return props.fallback;
+  if (!frameVersion || (props.readonly && officeModuleSpec(props.module).viewOnlyInG3)) return props.fallback;
   const { fallback, ...hostProps } = props;
   return (
     <OfficeModuleOpenSwitch

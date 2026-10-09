@@ -36,8 +36,8 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
-const mount = () => act(async () => {
-  root.render(createElement(ModuleFrameOrG3Host, { module: "slides", document: doc, wsId: "ws-1", readonly: true, className: "c", fallback: createElement("b", { "data-testid": "g3" }) }));
+const mount = (module: "slides" | "sheets" = "sheets", readonly = true) => act(async () => {
+  root.render(createElement(ModuleFrameOrG3Host, { module, document: doc, wsId: "ws-1", readonly, className: "c", fallback: createElement("b", { "data-testid": "g3" }) }));
 });
 
 describe("ModuleFrameOrG3Host", () => {
@@ -49,14 +49,23 @@ describe("ModuleFrameOrG3Host", () => {
   });
 
   it("hands the switch the module and organization, and the frame the module's version", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ slides: "0.2.0-abc1234" }));
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ sheets: "0.2.0-abc1234" }));
     await mount();
-    expect(mocks.switchProps.mock.calls[0]![0]).toMatchObject({ module: "slides", organizationId: "org-1" });
+    expect(mocks.switchProps.mock.calls[0]![0]).toMatchObject({ module: "sheets", organizationId: "org-1" });
     expect(mocks.frameProps).toHaveBeenCalledWith(expect.objectContaining({
-      module: "slides", wsId: "ws-1", documentId: "doc-1", title: "Deck", frameVersion: "0.2.0-abc1234", readonly: true, className: "c",
+      module: "sheets", wsId: "ws-1", documentId: "doc-1", title: "Deck", frameVersion: "0.2.0-abc1234", readonly: true, className: "c",
     }));
     (mocks.frameProps.mock.calls[0]![0] as { onSavedAs: (id: string) => void }).onSavedAs("copy-9");
     expect(mocks.push).toHaveBeenCalledWith("/acme/ops/documents/copy-9");
+  });
+
+  it("keeps a view-only slides user on the G3 pptx host, and an editor on the frame", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ slides: "0.2.0-abc1234" }));
+    await mount("slides", true);
+    expect(container.querySelector('[data-testid="g3"]')).not.toBeNull();
+    expect(mocks.switchProps).not.toHaveBeenCalled();
+    await mount("slides", false);
+    expect(mocks.switchProps.mock.calls[0]![0]).toMatchObject({ module: "slides" });
   });
 });
 

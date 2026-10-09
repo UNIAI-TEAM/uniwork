@@ -36,8 +36,16 @@ describe("office module table", () => {
     expect(docsFrameSrc("1.0.0")).toBe("/office-frame/docs/1.0.0/index.html");
   });
 
-  it("grants a new module nothing until its worker enables it", () => {
-    for (const m of OFFICE_MODULES.filter((x) => x !== "docs")) expect(officeModuleSpec(m).grant).toEqual({});
+  it("grants each module what its frame implements: no recents, attachments, images or server PDF export outside docs", () => {
+    expect(officeModuleSpec("pdf").grant).toEqual({ save: true, saveAs: true, print: true });
+    expect(officeModuleSpec("markdown").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true });
+    expect(officeModuleSpec("html").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true });
+    expect(officeModuleSpec("slides").grant).toEqual({ save: true, saveAs: true, print: true });
+    expect(officeModuleSpec("sheets").grant).toEqual({ save: true, saveAs: true, print: true });
+  });
+
+  it("sends a view-only slides user to the G3 host, every other module keeps the frame", () => {
+    expect(OFFICE_MODULES.filter((m) => officeModuleSpec(m).viewOnlyInG3)).toEqual(["slides"]);
   });
 });
 
