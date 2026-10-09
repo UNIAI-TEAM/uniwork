@@ -1,0 +1,3 @@
+# UNI-1013 cloud: vitest suites for every workspace, as ci.yml frontend-test; --continue so one failing workspace does not cancel the rest (r1 cancelled views + office-desktop)
+node scripts/office/build-upstream.mjs
+REQUIRE_XLSX_GATEWAY=1 pnpm test --continue

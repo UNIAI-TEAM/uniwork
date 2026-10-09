@@ -1,0 +1,2 @@
+# UNI-1013 cloud: Go handler shard (includes TestIsolationMatrix), as ci.yml backend-test (handler)
+bash scripts/test-go.sh --race --shard=handler --skip-static --skip-floor
