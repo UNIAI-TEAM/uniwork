@@ -29,31 +29,6 @@ func (s *BillingService) vnpayQueryDRInput(ctx context.Context, q *db.Queries, i
 	return in
 }
 
-func vnpayQueryDRInputFromBackfillRow(ctx context.Context, q *db.Queries, row db.ListCompletedBillingIntentsMissingProviderMetaRow, clientIP string) billing.QueryTransactionInput {
-	intent := db.BillingPaymentIntent{
-		ID:                row.ID,
-		OrganizationID:    row.OrganizationID,
-		PlanID:            row.PlanID,
-		ProviderTxnRef:    row.ProviderTxnRef,
-		ProviderOrderInfo: row.ProviderOrderInfo,
-		ProviderPayDate:   row.ProviderPayDate,
-		CreatedAt:         row.CreatedAt,
-		CompletedAt:       row.CompletedAt,
-	}
-	in := billing.QueryTransactionInput{
-		TxnRef:          row.ProviderTxnRef,
-		TransactionDate: intentVNPayTransactionDate(intent),
-		OrderInfo:       vnpayOrderInfoFromIntent(ctx, q, intent),
-		ClientIP:        clientIP,
-	}
-	if pd := strings.TrimSpace(pgTextString(row.ProviderPayDate)); len(pd) == 14 {
-		if t, err := time.ParseInLocation("20060102150405", pd, vnpayICT); err == nil {
-			in.TransactionDate = t
-		}
-	}
-	return in
-}
-
 func vnpayOrderInfoFromIntent(ctx context.Context, q *db.Queries, intent db.BillingPaymentIntent) string {
 	if s := strings.TrimSpace(pgTextString(intent.ProviderOrderInfo)); s != "" {
 		return s
@@ -66,6 +41,41 @@ func vnpayOrderInfoFromIntent(ctx context.Context, q *db.Queries, intent db.Bill
 		}
 	}
 	return "UniWork billing"
+}
+
+// vnpayQueryDR calls QueryDr and retries alternate transaction dates when VNPay rejects the first.
+func (s *BillingService) vnpayQueryDR(ctx context.Context, vnp *billing.VNPay, intent db.BillingPaymentIntent, clientIP string) (billing.Event, error) {
+	in := s.vnpayQueryDRInput(ctx, s.q, intent, clientIP)
+	ev, err := vnp.QueryTransaction(ctx, in)
+	if err == nil || !billing.IsQueryDRRetryable(err) {
+		return ev, err
+	}
+	seen := map[int64]struct{}{in.TransactionDate.Unix(): {}}
+	for _, alt := range vnpayQueryDRAlternateDates(intent, in.TransactionDate) {
+		if _, ok := seen[alt.Unix()]; ok {
+			continue
+		}
+		seen[alt.Unix()] = struct{}{}
+		try := in
+		try.TransactionDate = alt
+		if ev2, err2 := vnp.QueryTransaction(ctx, try); err2 == nil {
+			return ev2, nil
+		}
+	}
+	return ev, err
+}
+
+func vnpayQueryDRAlternateDates(intent db.BillingPaymentIntent, primary time.Time) []time.Time {
+	var alts []time.Time
+	if intent.CompletedAt.Valid {
+		alts = append(alts, intent.CompletedAt.Time)
+	}
+	if pd := strings.TrimSpace(pgTextString(intent.ProviderPayDate)); len(pd) == 14 {
+		if t, err := time.ParseInLocation("20060102150405", pd, vnpayICT); err == nil && t.Unix() != primary.Unix() {
+			alts = append(alts, t)
+		}
+	}
+	return alts
 }
 
 func vnpayMetaFromProviderEvent(ev billing.Event) (bankCode, txnNo, orderInfo, payDate pgtype.Text) {
