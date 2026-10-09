@@ -82,6 +82,8 @@ type Gateway struct {
 	metrics Metrics
 	log     *slog.Logger
 	now     func() time.Time
+	// byok is the guarded transport of the BYOK proxy (proxy.go).
+	byok *provider.BYOKClient
 }
 
 // NewGateway wires the pipeline. p == nil yields a disabled gateway that
@@ -90,7 +92,8 @@ func NewGateway(q *db.Queries, p provider.Provider, quota Quota, rec *audit.Reco
 	if opts.Timeout <= 0 {
 		opts.Timeout = 60 * time.Second
 	}
-	return &Gateway{q: q, p: p, quota: quota, rec: rec, opts: opts, log: slog.Default(), now: time.Now}
+	return &Gateway{q: q, p: p, quota: quota, rec: rec, opts: opts, log: slog.Default(), now: time.Now,
+		byok: provider.NewBYOKClient(provider.BYOKClientOptions{})}
 }
 
 func (g *Gateway) Enabled() bool { return g != nil && g.p != nil }

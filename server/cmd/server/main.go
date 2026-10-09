@@ -478,6 +478,8 @@ func main() {
 		log.Warn("AI provider credentials disabled", "err", err)
 	}
 	aiCredentialSvc := service.NewAICredentialService(pool, q, orgSvc, service.NewEntitlementService(pool, q), aiCredentialBox)
+	// BYOK proxy for the web host (UNI-1008): the stored key, resolved per call.
+	aiBYOK := service.NewAIBYOKService(orgSvc, service.NewEntitlementService(pool, q), aiCredentialSvc, gateway)
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
@@ -508,6 +510,7 @@ func main() {
 		Billing:             billingSvc,
 		Notifications:       notifSvc,
 		AskUNI:              askUNI,
+		AIBYOK:              aiBYOK,
 		Meetings:            meetingSvc,
 		Chat:                chatSvc,
 		Hub:                 hub,

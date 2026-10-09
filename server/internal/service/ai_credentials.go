@@ -31,6 +31,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
@@ -64,28 +65,16 @@ type AIProviderInfo struct {
 	DefaultBaseURL  string
 }
 
-// aiCredentialProviders is the interim provider list, mirrored from the fork's
-// packages/ai-provider registry. Only the three proxyable protocols appear:
-// codex, genspark and anything needing a local process are excluded (ADR 0029
-// D4).
-// TODO(UNI-1008 W2): replace with the provider table in
-// internal/ai/provider (byok.go) once W2 merges; keep the ids identical.
-var aiCredentialProviders = []AIProviderInfo{
-	{ID: "anthropic", Protocol: "anthropic", DefaultBaseURL: "https://api.anthropic.com"},
-	{ID: "openai", Protocol: "openai-compatible", DefaultBaseURL: "https://api.openai.com/v1"},
-	{ID: "gemini", Protocol: "gemini", DefaultBaseURL: "https://generativelanguage.googleapis.com/v1beta"},
-	{ID: "openrouter", Protocol: "openai-compatible", DefaultBaseURL: "https://openrouter.ai/api/v1"},
-	{ID: "deepseek", Protocol: "openai-compatible", DefaultBaseURL: "https://api.deepseek.com/v1"},
-	{ID: "xai", Protocol: "openai-compatible", DefaultBaseURL: "https://api.x.ai/v1"},
-	{ID: "mistral", Protocol: "openai-compatible", DefaultBaseURL: "https://api.mistral.ai/v1"},
-	{ID: "qwen", Protocol: "openai-compatible", DefaultBaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1"},
-	{ID: "kimi", Protocol: "openai-compatible", DefaultBaseURL: "https://api.moonshot.ai/v1"},
-	{ID: "glm", Protocol: "openai-compatible", DefaultBaseURL: "https://open.bigmodel.cn/api/paas/v4"},
-	{ID: "doubao", Protocol: "openai-compatible", DefaultBaseURL: "https://ark.cn-beijing.volces.com/api/v3"},
-	{ID: "hunyuan", Protocol: "openai-compatible", DefaultBaseURL: "https://tokenhub.tencentcloudmaas.com/v1"},
-	{ID: "minimax", Protocol: "openai-compatible", DefaultBaseURL: "https://api.minimax.io/v1"},
-	{ID: "custom", Protocol: "openai-compatible", RequiresBaseURL: true},
-}
+// aiCredentialProviders is the BYOK provider table of internal/ai/provider
+// (byok.go, mirrored from the Office fork), seen as the API names it.
+var aiCredentialProviders = func() []AIProviderInfo {
+	rows := provider.BYOKProviders()
+	out := make([]AIProviderInfo, 0, len(rows))
+	for _, p := range rows {
+		out = append(out, AIProviderInfo{ID: p.ID, Protocol: string(p.Protocol), RequiresBaseURL: p.RequiresBaseURL, DefaultBaseURL: p.DefaultBaseURL})
+	}
+	return out
+}()
 
 // AIProviders is the provider list GET /orgs/{orgID}/ai/credentials returns,
 // so the web settings need no copy of it.

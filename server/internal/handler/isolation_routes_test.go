@@ -159,13 +159,14 @@ func isoJSON(v any) func(*isoWorld, *isoTenant) isoBody {
 }
 
 const (
-	reasonAuth     = "authentication: there is no tenant before sign-in"
-	reasonProbe    = "process probe or public configuration, no tenant data"
-	reasonProvider = "provider callback authenticated by the provider's signature or OAuth state, not by a member"
-	reasonSelf     = "the caller's own account; the listing pass checks it shows nothing of another tenant"
-	reasonLink     = "the link secret in the path or body is the credential; holding it is the grant"
-	reasonPlatform = "platform console: across tenants by design, closed without users.platform_role"
-	reasonStub     = "catalogue stub: the same 422 capability_unavailable for every caller and id"
+	reasonAuth       = "authentication: there is no tenant before sign-in"
+	reasonProbe      = "process probe or public configuration, no tenant data"
+	reasonBYOKVendor = "the owner's call would reach the real vendor with the seeded key; the proxy path is held by internal/ai TestGatewayProxy* and provider TestBYOKClient*"
+	reasonProvider   = "provider callback authenticated by the provider's signature or OAuth state, not by a member"
+	reasonSelf       = "the caller's own account; the listing pass checks it shows nothing of another tenant"
+	reasonLink       = "the link secret in the path or body is the credential; holding it is the grant"
+	reasonPlatform   = "platform console: across tenants by design, closed without users.platform_role"
+	reasonStub       = "catalogue stub: the same 422 capability_unavailable for every caller and id"
 )
 
 // isoRoutes holds every route that is not plain isoScoped-with-no-body.
@@ -323,6 +324,10 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/task-views":                            {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
 	"GET /api/v1/meetings/{meetingID}/lobby-ws":                                  {class: isoRealtime, reason: "lobby WebSocket: the auth frame is checked against the knock - TestIsolationRealtime"},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/chat/completions":            {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/messages":                    {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/generate":                    {body: isoJSON(map[string]any{"model": "m", "request": map[string]any{}}), skipControl: reasonBYOKVendor},
+	"GET /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/models":                       {skipControl: reasonBYOKVendor},
 	"GET /api/v1/files/{fileID}/content":                                         {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 
