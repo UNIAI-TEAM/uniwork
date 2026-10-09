@@ -6,12 +6,13 @@ import { toast } from "sonner";
 import { createDocsFrameApi, docsFrameSrc, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import type { ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
-import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
 import { registerLeaveGuard } from "../../navigation/leave-guard";
 import { LeaveDialog } from "../leave-dialog";
+import { SaveStatus } from "../save-status";
+import { DocsFrameFailure } from "./docs-frame-failure";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
@@ -35,7 +36,7 @@ export interface OfficeDocsFrameProps {
   onTitleChange?: (title: string) => void;
   onSaved?: (saved: SavedPayload) => void;
   /** The user saved a copy; the frame now edits that new document. */
-  onSavedAs?: (documentId: string) => void;
+  onSavedAs?: (documentId: string, name: string) => void;
   /** Header actions (save, print) for the page that hosts the frame. */
   controlsRef?: MutableRefObject<OfficeDocsFrameControls | null>;
   className?: string;
@@ -63,6 +64,8 @@ export function OfficeDocsFrame({
   onTitleChange, onSaved, onSavedAs, controlsRef, className,
 }: OfficeDocsFrameProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
+  const { t: tRoot } = useTranslation();
+  const headerSlot = useHeaderActionsSlotAvailable();
   const theme = useFrameTheme();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [frameTitle, setFrameTitle] = useState<string | null>(null);
@@ -70,20 +73,35 @@ export function OfficeDocsFrame({
   const frameOrigin = useMemo(() => (typeof window === "undefined" ? "" : new URL(src, document.baseURI).origin), [src]);
   const tRef = useRef(t);
   tRef.current = t;
+  const tRootRef = useRef(tRoot);
+  tRootRef.current = tRoot;
+  const frameTitleRef = useRef(frameTitle);
+  frameTitleRef.current = frameTitle;
 
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, api, wsId, documentId, readonly,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
-    onSavedAs,
+    onSavedAs: (copyId, name) => {
+      // Say a copy was made: the copy opens in place and otherwise looks like the source.
+      toast.success(tRootRef.current("documents.copy.done", { title: name.replace(/\.docx$/i, "") }));
+      onSavedAs?.(copyId, name);
+    },
+    // The frame asks to save a copy under the source's own name: name it the way UniWork names a copy.
+    copyName: (name) => {
+      const base = name.replace(/\.docx$/i, "");
+      const source = (frameTitleRef.current ?? title).replace(/\.docx$/i, "");
+      if (base.trim().toLocaleLowerCase() !== source.trim().toLocaleLowerCase()) return name;
+      return `${tRootRef.current("documents.copy.title_placeholder", { title: base })}.docx`;
+    },
     onError: (error: ProtocolErrorShape) => {
       if (error.code === "cancelled") return;
       const key = KNOWN_ERRORS.has(error.code) ? error.code : "internal";
       toast.error(tRef.current(`errors.${key}`));
     },
   });
-  const { dirty, save, print } = session;
+  const { dirty, saveState, save, print } = session;
 
   useEffect(() => {
     if (!controlsRef) return undefined;
@@ -126,6 +144,11 @@ export function OfficeDocsFrame({
   }, [dirty]);
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
 
+  const headerStatus = useMemo(
+    () => <SaveStatus status={saveState} compact className="hidden whitespace-nowrap px-1 sm:flex" />,
+    [saveState],
+  );
+
   // The server refused the token mint because office_docs_web is off for this organization.
   const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
   const refuse = useDocsFrameRefusal();
@@ -134,15 +157,13 @@ export function OfficeDocsFrame({
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
     return (
-      <div className={cn("p-4", className)} data-office-docs-frame data-state="failed">
-        <Alert variant="destructive" role="alert" data-testid="office-docs-frame-failed">
-          <AlertTitle>{t("failed_title")}</AlertTitle>
-          <AlertDescription>{t(`errors.${KNOWN_ERRORS.has(code) ? code : "internal"}`)}</AlertDescription>
-          <Button className="mt-2" size="sm" variant="outline" onClick={session.retry}>
-            {t("retry")}
-          </Button>
-        </Alert>
-      </div>
+      <DocsFrameFailure
+        className={className}
+        failure={session.failure}
+        code={KNOWN_ERRORS.has(code) ? code : "internal"}
+        onRetry={session.retry}
+        onUseStandardEditor={refuse}
+      />
     );
   }
 
@@ -153,7 +174,12 @@ export function OfficeDocsFrame({
       data-office-docs-frame
       data-state={session.status}
       data-dirty={dirty || undefined}
+      data-save-state={saveState}
     >
+      {headerSlot && !readonly && session.status === "ready" ? (
+        // The page header around the frame says whether the frame's edits are saved, like the G3 header does.
+        <HeaderActionsFill actions={headerStatus} />
+      ) : null}
       <iframe
         key={session.attempt}
         ref={iframeRef}
