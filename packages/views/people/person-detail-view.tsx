@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, ChevronRight, Copy, IdCard, Mail, Pencil, Phone, RotateCw, UserRound, Users } from "lucide-react";
+import { Ban, ChevronRight, Copy, IdCard, Mail, Pencil, Phone, RefreshCw, UserRound, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -184,7 +184,7 @@ export function PersonDetailView({ userId }: { userId: string }) {
           description={t("people.load_error_description")}
           actions={
             <Button variant="outline" onClick={() => void refetch()} aria-busy={isRefetching || undefined}>
-              <RotateCw aria-hidden="true" className={isRefetching ? "motion-safe:animate-spin" : undefined} />
+              <RefreshCw aria-hidden="true" className={isRefetching ? "motion-safe:animate-spin" : undefined} />
               {t("common.retry")}
             </Button>
           }

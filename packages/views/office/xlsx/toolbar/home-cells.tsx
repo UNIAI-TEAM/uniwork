@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Grid3X3, Rows3, SquareMinus, SquarePlus, type LucideIcon } from "lucide-react";
+import { ChevronDown, Grid3x3, Rows3, SquareMinus, SquarePlus, type LucideIcon } from "lucide-react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -152,7 +152,7 @@ function FormatMenu(context: XlsxToolbarGroupProps) {
         data-testid="xlsx-cells-format-sheets"
         onClick={context.onShowSheets}
       >
-        <Grid3X3 aria-hidden />
+        <Grid3x3 aria-hidden />
         {t("office.xlsx.commands.sheets")}
       </Button>
     </CellsMenu>

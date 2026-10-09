@@ -1,5 +1,6 @@
 "use client";
-import { Loader2, MailCheck } from "lucide-react";
+import { MailCheck } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -66,7 +67,7 @@ export function ForgotPasswordView() {
             >
               {forgot.isPending ? (
                 <>
-                  <Loader2 aria-hidden className="animate-spin" />
+                  <Spinner />
                   {t("auth.forgot.sending")}
                 </>
               ) : cooldown > 0 ? (

@@ -18,7 +18,7 @@
  * the arrow keys move between kinds (the roving behaviour the group owns).
  */
 import { useTranslation } from "react-i18next";
-import { Ban, Blend, Circle, Layers, MoveRight, Shapes, Shuffle, Sparkles, SquareSplitHorizontal, ZoomIn, type LucideIcon } from "lucide-react";
+import { Ban, Blend, Circle, Layers, MoveRight, Shapes, Shuffle, SquareSplitHorizontal, ZoomIn, type LucideIcon, ArrowRightLeft } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { PPTX_TRANSITION_KINDS, type PptxTransitionKind } from "@uniwork/office-engine/pptx";
@@ -110,9 +110,9 @@ const KIND_ICONS: Partial<Record<PptxTransitionKind, LucideIcon>> = {
   random: Shuffle,
 };
 
-/** The tile icon for a kind; a kind without its own icon gets Sparkles. */
+/** The tile icon for a kind; a kind without its own icon gets the transitions glyph. */
 export function transitionKindIcon(kind: PptxTransitionKind): LucideIcon {
-  return KIND_ICONS[kind] ?? Sparkles;
+  return KIND_ICONS[kind] ?? ArrowRightLeft;
 }
 
 function TransitionKindIcon({ kind }: { kind: PptxTransitionKind }) {

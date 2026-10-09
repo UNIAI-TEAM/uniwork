@@ -1,12 +1,12 @@
 "use client";
-import { ArrowRight, Gauge, History, ShieldCheck } from "lucide-react";
+import { ArrowRight, Gauge, RotateCcwClock, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@uniwork/ui/components/ui/accordion";
 import { Container } from "./layout-primitives";
 
 const SECURITY_GROUPS = [
   { key: "access", icon: ShieldCheck, items: [4, 3] },
-  { key: "history", icon: History, items: [1, 2] },
+  { key: "history", icon: RotateCcwClock, items: [1, 2] },
   { key: "usage", icon: Gauge, items: [5, 6] },
 ] as const;
 
@@ -29,7 +29,7 @@ export function Security() {
           ))}</Accordion>
         </div>
         <figure className="security-record">
-          <figcaption><History aria-hidden />{t("landing.reference.auditSample")}</figcaption>
+          <figcaption><RotateCcwClock aria-hidden />{t("landing.reference.auditSample")}</figcaption>
           <h3>{t("landing.studio.task_design")}</h3>
           <div className="security-record-heading">
             <span className="preview-avatar" aria-hidden>ML</span>

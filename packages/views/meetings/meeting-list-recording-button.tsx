@@ -1,6 +1,7 @@
 "use client";
 
-import { LoaderCircle, Play } from "lucide-react";
+import { Play } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRecordings } from "@uniwork/core/meetings";
@@ -46,7 +47,7 @@ export function MeetingListRecordingButton({ meetingId }: { meetingId: string })
           if (isError) void refetch();
         }}
       >
-        {loading ? <LoaderCircle aria-hidden className="animate-spin motion-reduce:animate-none" /> : <Play aria-hidden />}
+        {loading ? <Spinner /> : <Play aria-hidden />}
         <span className="max-sm:sr-only">{t("meetings.recording_rewatch")}</span>
       </Button>
       {playable ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { CalendarClock, Inbox, RefreshCw, SearchX, TriangleAlert } from "lucide-react";
+import { CalendarClock, Inbox, RefreshCw, SearchX, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubScheduledSendItem } from "@uniwork/core/api/endpoints/email-hub";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
@@ -131,7 +131,7 @@ function ListBody({ state, handlers }: { state: EmailHubListBodyState; handlers:
   if (state.error && state.rows.length === 0) {
     return (
       <EmailHubEmptyState
-        icon={TriangleAlert}
+        icon={CircleAlert}
         title={t("email_hub.list_error_title")}
         message={t("email_hub.list_error")}
         action={

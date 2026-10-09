@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import Image from "@tiptap/extension-image";
 import { Extension, type JSONContent } from "@tiptap/core";
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, type NodeViewProps } from "@tiptap/react";
-import { Download, Link2, RotateCw, ShieldOff } from "lucide-react";
+import { Download, Link2, ShieldOff, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { documentPublic } from "@uniwork/core/api";
 import { usePublicDocument } from "@uniwork/core/documents/hooks-public";
@@ -120,7 +120,7 @@ export function PublicDocumentView({ token }: PublicDocumentViewProps) {
             <p className="text-body text-muted-foreground">{t("documents.public.not_found_description")}</p>
             {query.isError ? (
               <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
-                <RotateCw aria-hidden className="size-3.5" />
+                <RefreshCw aria-hidden className="size-3.5" />
                 {t("documents.public.retry")}
               </Button>
             ) : null}

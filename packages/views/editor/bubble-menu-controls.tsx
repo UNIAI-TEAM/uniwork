@@ -52,16 +52,9 @@ import {
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
-  Bold,
-  Italic,
-  Strikethrough,
-  Code,
-  Highlighter,
-  Link2,
   List,
   ListOrdered,
   ListTodo,
-  Quote,
   ChevronDown,
   Check,
   X,
@@ -71,8 +64,8 @@ import {
   Heading2,
   Heading3,
   FilePlus,
-  Loader2,
 } from "lucide-react";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -484,7 +477,7 @@ export function CreateSubTaskButton({
         }
       >
         {pending ? (
-          <Loader2 className="size-3.5 animate-spin" />
+          <Spinner className="size-3.5" />
         ) : (
           <FilePlus className="size-3.5" />
         )}

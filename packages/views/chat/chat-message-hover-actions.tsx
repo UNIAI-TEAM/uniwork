@@ -5,13 +5,12 @@ import {
   Bookmark,
   Copy,
   Link2,
-  ListTodo,
   MessageSquareText,
-  MoreHorizontal,
+  Ellipsis,
   Pencil,
   Pin,
   Reply,
-  SmilePlus,
+  FaceSlightlySmilingPlus,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -30,6 +29,7 @@ import {
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
+import { MODULE_ICONS } from "../layout/module-icons";
 
 /** Bubble + toolbar row: in-flow on sm+ so hover reaches the bar across the gap. */
 export function chatMessageActionsRailClass(isOwn: boolean): string {
@@ -169,7 +169,7 @@ export function ChatMessageHoverActions({
     >
       <TooltipProvider delay={300}>
         <MessageActionButton label={t("chat.action_react")} onClick={() => onReact?.(message)}>
-          <SmilePlus className="size-4" aria-hidden />
+          <FaceSlightlySmilingPlus className="size-4" aria-hidden />
         </MessageActionButton>
         <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply?.(message)}>
           <Reply className="size-4" aria-hidden />
@@ -202,7 +202,7 @@ export function ChatMessageHoverActions({
                 className="shrink-0 text-muted-foreground hover:text-foreground"
                 aria-label={t("chat.action_more")}
               >
-                <MoreHorizontal className="size-4" aria-hidden />
+                <Ellipsis className="size-4" aria-hidden />
               </Button>
             }
           />
@@ -217,7 +217,7 @@ export function ChatMessageHoverActions({
                   onClick={() => onCreateTask?.(message)}
                   disabled={!onCreateTask}
                 >
-                  <ListTodo className="size-4" aria-hidden />
+                  <MODULE_ICONS.tasks className="size-4" aria-hidden />
                   {t("chat.link.create_task")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onLinkTask?.(message)} disabled={!onLinkTask}>

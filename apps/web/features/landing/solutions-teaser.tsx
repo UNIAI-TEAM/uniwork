@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpRight, BriefcaseBusiness, Check, ChevronRight, Code2, MessageSquareText, Workflow } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, Check, ChevronRight, CodeXml, MessageSquareText, Workflow } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@uniwork/ui/brand";
@@ -13,7 +13,7 @@ type Audience = "leaders" | "product" | "operations";
 
 const AUDIENCES = [
   { key: "leaders", icon: BriefcaseBusiness, title: "landing.studio.leadTitle", description: "landing.studio.leadDesc", cta: "landing.studio.leadCta", href: `#${ANCHORS.platform}` },
-  { key: "product", icon: Code2, title: "landing.solutions.product.name", description: "landing.explorer.productSolution", cta: "landing.solutions.cardCta", href: SOLUTIONS.product.href },
+  { key: "product", icon: CodeXml, title: "landing.solutions.product.name", description: "landing.explorer.productSolution", cta: "landing.solutions.cardCta", href: SOLUTIONS.product.href },
   { key: "operations", icon: Workflow, title: "landing.solutions.operations.name", description: "landing.explorer.operationsSolution", cta: "landing.solutions.cardCta", href: SOLUTIONS.operations.href },
 ] as const;
 

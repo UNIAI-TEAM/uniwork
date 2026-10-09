@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FolderKanban, Pin, Plus, Search, Trash2, X } from "lucide-react";
+import { Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
@@ -33,6 +33,7 @@ import {
   CollectionPageHeaderAction,
   CollectionPageState,
 } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { navigateInternal, useOptionalNavigation } from "../navigation";
@@ -288,7 +289,7 @@ export function ProjectsListPage({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <CollectionPageHeader
-        icon={FolderKanban}
+        icon={MODULE_ICONS.projects}
         tone={moduleTone("projects")}
         title={t("projects.page.title")}
         count={projects.length}
@@ -303,7 +304,7 @@ export function ProjectsListPage({
 
       {showEmpty ? (
         <CollectionPageState
-          icon={FolderKanban}
+          icon={MODULE_ICONS.projects}
           tone={moduleTone("projects")}
           title={t("projects.page.empty")}
           actions={

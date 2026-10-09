@@ -1,5 +1,5 @@
 "use client";
-import { Bell, CalendarDays, ChevronDown, CircleHelp, Globe, Grid2X2, House, Maximize2, Palette, PanelLeftClose, Plus, Search, Settings, ShieldCheck, Sparkles, Sun, X } from "lucide-react";
+import { Bell, CalendarDays, ChevronDown, CircleQuestionMark, Globe, Grid2x2, House, Maximize2, Palette, PanelLeftClose, Plus, Search, Settings, ShieldCheck, Sparkles, Sun, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@uniwork/ui/brand";
@@ -94,19 +94,19 @@ function LovableSidebar({ feature }: { feature: ProductFeature }) {
       {["dashboard", "today", "calendar"].map(key => item(key as ProductFeature))}
       {PRODUCT_GROUPS.map(group => <div className="lovable-nav-group" key={group.key}><div className="lovable-nav-group-title">{t(`landing.catalog.groups.${group.key}`)}<ChevronDown /></div>
         {(group.key === "work" || group.key === "communication" || group.key === "results" || group.key === currentGroup) && <>
-          {group.key === "work" && <div className="lovable-nav-item"><Grid2X2 /><span>{copy("workspaces")}</span></div>}
+          {group.key === "work" && <div className="lovable-nav-item"><Grid2x2 /><span>{copy("workspaces")}</span></div>}
           {group.key === "work" ? (["projects", "tasks", "workflows"] as const).map(item) : PRODUCT_FEATURES.filter(entry => entry.group === group.key).map(entry => item(entry.key))}
         </>}
       </div>)}
     </div>
-    <div className="lovable-sidebar-bottom"><div><Settings />{copy("settings")}</div><div><CircleHelp />{copy("help")}</div><div><PanelLeftClose />{copy("collapse")}</div></div>
+    <div className="lovable-sidebar-bottom"><div><Settings />{copy("settings")}</div><div><CircleQuestionMark />{copy("help")}</div><div><PanelLeftClose />{copy("collapse")}</div></div>
   </aside>;
 }
 
 function LovableToolbar() {
   const { i18n } = useTranslation();
   const copy = usePreviewLabels();
-  return <div className="lovable-toolbar"><PanelLeftClose /><div className="lovable-global-search"><Search /><span>{copy("search")}</span><kbd>⌘K</kbd></div><span className="lovable-primary"><Plus />{copy("new")}</span><span className="lovable-ai-button"><Sparkles />AI</span><CircleHelp /><span className="lovable-language"><Globe />{i18n.language.startsWith("vi") ? "VI" : "EN"}</span><Palette /><Sun /><ShieldCheck /><Settings /><Bell /><CalendarDays /><div className="lovable-profile"><span>ML<i /></span><div><strong>Minh Linh</strong><small>{copy("member")}</small></div><ChevronDown /></div></div>;
+  return <div className="lovable-toolbar"><PanelLeftClose /><div className="lovable-global-search"><Search /><span>{copy("search")}</span><kbd>⌘K</kbd></div><span className="lovable-primary"><Plus />{copy("new")}</span><span className="lovable-ai-button"><Sparkles />AI</span><CircleQuestionMark /><span className="lovable-language"><Globe />{i18n.language.startsWith("vi") ? "VI" : "EN"}</span><Palette /><Sun /><ShieldCheck /><Settings /><Bell /><CalendarDays /><div className="lovable-profile"><span>ML<i /></span><div><strong>Minh Linh</strong><small>{copy("member")}</small></div><ChevronDown /></div></div>;
 }
 
 export function LovablePageHeading({ title, subtitle, children }: { title: string; subtitle?: string; children?: ReactNode }) {

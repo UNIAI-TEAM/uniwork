@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, X } from "lucide-react";
 import type { Attachment } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";

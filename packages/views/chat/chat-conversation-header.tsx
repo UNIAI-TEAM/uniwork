@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next";
 import {
   ChevronLeft,
   Disc3,
-  History,
+  RotateCcwClock,
   Info,
-  MoreHorizontal,
+  Ellipsis,
   PanelLeft,
   Phone,
   Search,
@@ -172,7 +172,7 @@ export function ChatConversationHeader({
         ) : null}
         {onCatchUp ? (
           <HeaderAction
-            icon={History}
+            icon={RotateCcwClock}
             label={catchUpAriaLabel}
             disabled={catchUpDisabled}
             onClick={onCatchUp}
@@ -218,7 +218,7 @@ export function ChatConversationHeader({
                 />
               }
             >
-              <MoreHorizontal className="size-4.5" aria-hidden />
+              <Ellipsis className="size-4.5" aria-hidden />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
               {onSearch ? (
@@ -241,7 +241,7 @@ export function ChatConversationHeader({
               ) : null}
               {onCatchUp ? (
                 <DropdownMenuItem disabled={catchUpDisabled} onClick={onCatchUp}>
-                  <History aria-hidden />
+                  <RotateCcwClock aria-hidden />
                   {catchUpAriaLabel}
                 </DropdownMenuItem>
               ) : null}

@@ -16,7 +16,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Layers, Plus, Settings2 } from "lucide-react";
+import { Layers, Plus, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useCurrentMember } from "@uniwork/core/permissions";
@@ -266,7 +266,7 @@ export function ViewBar({
             {t("tasks.view_bar.new")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setManageOpen(true)}>
-            <Settings2 className="size-3.5" aria-hidden />
+            <Settings className="size-3.5" aria-hidden />
             {t("tasks.view_bar.manage")}
           </DropdownMenuItem>
         </DropdownMenuContent>

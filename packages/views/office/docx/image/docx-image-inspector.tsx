@@ -6,9 +6,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
+  TextAlignCenter,
+  TextAlignStart,
+  TextAlignEnd,
   Crop,
   FlipHorizontal2,
   FlipVertical2,
@@ -45,10 +45,10 @@ import {
 import type { DocxImageEditing } from "./docx-image-commands";
 import { DocxImageCropDialog } from "./docx-image-crop-dialog";
 
-const ALIGN_ICONS: { align: DocxImageAlign; Icon: typeof AlignLeft }[] = [
-  { align: "left", Icon: AlignLeft },
-  { align: "center", Icon: AlignCenter },
-  { align: "right", Icon: AlignRight },
+const ALIGN_ICONS: { align: DocxImageAlign; Icon: typeof TextAlignStart }[] = [
+  { align: "left", Icon: TextAlignStart },
+  { align: "center", Icon: TextAlignCenter },
+  { align: "right", Icon: TextAlignEnd },
 ];
 
 function positionLabelKey(v: DocxImagePositionV, h: DocxImagePositionH): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreVertical } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingJoinRequest } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -113,7 +113,7 @@ export function MeetingJoinRequestRow({
             />
           }
         >
-          <MoreVertical aria-hidden className="size-4" />
+          <EllipsisVertical aria-hidden className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem disabled={rejecting} aria-label={t("meetings.rejectName", { name })} onClick={onReject}>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { FilterX, Save, X } from "lucide-react";
+import { FunnelX, Save, X } from "lucide-react";
 import type {
   FilterDimension,
   TaskDateFilter,
@@ -105,7 +105,7 @@ export function FilterChipsBar({
                   />
                 }
               >
-                <FilterX className="size-3.5" aria-hidden />
+                <FunnelX className="size-3.5" aria-hidden />
               </TooltipTrigger>
               <TooltipContent side="bottom">{clearLabel}</TooltipContent>
             </Tooltip>

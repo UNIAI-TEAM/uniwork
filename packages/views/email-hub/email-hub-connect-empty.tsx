@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { ConnectAppPasswordGuideDialog } from "./connect-app-password-guide-dialog";
 
@@ -26,7 +27,7 @@ export function EmailHubConnectEmpty({ aiEnabled, onConnect }: { aiEnabled: bool
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-10">
       <div className="w-full max-w-lg">
-        <IconTile icon={Mail} tone={moduleTone("email")} />
+        <IconTile icon={MODULE_ICONS.email} tone={moduleTone("email")} />
         <h1 className="mt-5 text-title-lg font-semibold text-balance">{t("email_hub.onboarding.title")}</h1>
         <p className="mt-2 text-body text-pretty text-muted-foreground">{t("email_hub.onboarding.body")}</p>
         <ul className="mt-6 space-y-3">

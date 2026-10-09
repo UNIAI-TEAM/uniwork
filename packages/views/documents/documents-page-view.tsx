@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FilePlus2, FileText, FolderTree, Upload } from "lucide-react";
+import { FilePlusCorner, FolderTree, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -29,6 +29,7 @@ import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
 } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { DocumentTree, DocumentTreeSheet } from "./document-tree";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
@@ -188,7 +189,7 @@ export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
         disabled={createPage.isPending}
         onClick={() => void newPage()}
       >
-        <FilePlus2 aria-hidden className="size-3.5" />
+        <FilePlusCorner aria-hidden className="size-3.5" />
         {t("documents.page.new_page")}
       </Button>
       <Button type="button" variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
@@ -252,7 +253,7 @@ export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <CollectionPageHeader
-        icon={FileText}
+        icon={MODULE_ICONS.documents}
         tone={moduleTone("documents")}
         title={t("documents.page.title")}
         // The count is the loaded rows of the active tab; while the first page
@@ -262,7 +263,7 @@ export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
         actions={
           <>
             <CollectionPageHeaderAction
-              icon={FilePlus2}
+              icon={FilePlusCorner}
               label={t("documents.page.new_page")}
               disabled={!enabled || createPage.isPending}
               onClick={() => void newPage()}

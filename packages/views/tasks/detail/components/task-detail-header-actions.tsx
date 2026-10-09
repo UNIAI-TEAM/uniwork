@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { Ellipsis } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useDeleteTask, usePutTask, useUpdateTask } from "@uniwork/core/tasks";
@@ -121,7 +121,7 @@ export function TaskDetailHeaderActions({
             />
           }
         >
-          <MoreHorizontal aria-hidden />
+          <Ellipsis aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
           <RowActionItems

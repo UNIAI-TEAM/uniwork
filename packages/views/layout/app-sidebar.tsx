@@ -1,23 +1,7 @@
 "use client";
 
 import { Fragment, useId, useRef } from "react";
-import {
-  Calendar,
-  CalendarDays,
-  ChevronDown,
-  FileText,
-  FolderKanban,
-  House,
-  Inbox,
-  ListTodo,
-  LogOut,
-  Mail,
-  MessageSquare,
-  Settings,
-  SquareCheckBig,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown, LogOut, Settings } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
@@ -55,15 +39,16 @@ import { UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { AppLink, useNavigation } from "../navigation";
 import { useWorkspace } from "./workspace-context";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
+import { MODULE_ICONS } from "./module-icons";
 import { moduleTone, type ModuleKey } from "./module-tones";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { pinHref, SidebarPins, useSidebarPins } from "./sidebar-pins";
 
 interface NavItem {
   key: "nav.home" | "nav.inbox" | "nav.email" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.calendar" | "nav.meetings" | "nav.documents" | "nav.chat" | "nav.people";
+  /** Names the item's glyph (module-icons.ts) and tint (module-tones.ts). */
   module: ModuleKey;
   href: string;
-  icon: LucideIcon;
   badge?: number;
   /** Active only on this exact path; the workspace root prefixes every other route. */
   exact?: boolean;
@@ -112,18 +97,18 @@ export function AppSidebar() {
     {
       id: "lead",
       items: [
-        { key: "nav.home", module: "home", href: ws.root(), icon: House, exact: true },
-        { key: "nav.inbox", module: "inbox", href: ws.inbox(), icon: Inbox, badge: unreadHere },
+        { key: "nav.home", module: "home", href: ws.root(), exact: true },
+        { key: "nav.inbox", module: "inbox", href: ws.inbox(), badge: unreadHere },
       ],
     },
     {
       id: "work",
       label: "nav.group_work",
       items: [
-        { key: "nav.tasks", module: "tasks", href: ws.tasks(), icon: SquareCheckBig },
-        { key: "nav.my_tasks", module: "my_tasks", href: ws.myTasks(), icon: ListTodo },
-        { key: "nav.projects", module: "projects", href: ws.projects(), icon: FolderKanban },
-        { key: "nav.calendar", module: "calendar", href: ws.calendar(), icon: Calendar },
+        { key: "nav.tasks", module: "tasks", href: ws.tasks() },
+        { key: "nav.my_tasks", module: "my_tasks", href: ws.myTasks() },
+        { key: "nav.projects", module: "projects", href: ws.projects() },
+        { key: "nav.calendar", module: "calendar", href: ws.calendar() },
       ],
     },
     {
@@ -134,15 +119,14 @@ export function AppSidebar() {
           key: "nav.email",
           module: "email",
           href: ws.email(),
-          icon: Mail,
           badge: emailUnreadHere > 0 ? emailUnreadHere : undefined,
         },
-        { key: "nav.meetings", module: "meetings", href: ws.meetings(), icon: CalendarDays },
+        { key: "nav.meetings", module: "meetings", href: ws.meetings() },
         ...(documentsEnabled
-          ? ([{ key: "nav.documents", module: "documents", href: ws.documents(), icon: FileText }] as NavItem[])
+          ? ([{ key: "nav.documents", module: "documents", href: ws.documents() }] as NavItem[])
           : []),
-        { key: "nav.chat", module: "chat", href: ws.chat(), icon: MessageSquare },
-        { key: "nav.people", module: "people", href: ws.people(), icon: Users },
+        { key: "nav.chat", module: "chat", href: ws.chat() },
+        { key: "nav.people", module: "people", href: ws.people() },
       ],
     },
   ];
@@ -189,7 +173,7 @@ export function AppSidebar() {
                 ) : null}
                 <SidebarGroupContent>
                   <SidebarMenu className="gap-0.5" aria-labelledby={label ? `${labelId}-${id}` : undefined}>
-                    {items.map(({ key, module, href, icon: Icon, badge, exact }) => {
+                    {items.map(({ key, module, href, badge, exact }) => {
                       const active = isActive(href, exact);
                       return (
                         <SidebarMenuItem key={href}>
@@ -216,7 +200,7 @@ export function AppSidebar() {
                               />
                             ) : null}
                             <IconTile
-                              icon={Icon}
+                              icon={MODULE_ICONS[module]}
                               size="xs"
                               variant="solid"
                               tone={moduleTone(module)}
