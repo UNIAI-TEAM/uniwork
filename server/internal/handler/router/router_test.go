@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -105,5 +106,24 @@ func TestMotionListIsNotOnTheCredentialBudget(t *testing.T) {
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/meetings/m1/motions", nil))
 	if rec.Code != http.StatusOK || rec.Body.String() != "ListMotions" {
 		t.Fatalf("GET motions = %d %q, want 200 from ListMotions", rec.Code, rec.Body.String())
+	}
+}
+
+// The BYOK proxy forwards these request headers to the vendor
+// (provider/byok_client.go). From a browser they only arrive when the CORS
+// preflight lists them.
+func TestCORSPreflightAllowsTheForwardedVendorHeaders(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000"}
+	mux := New(Deps{Cfg: cfg}, stubRoutes())
+	for _, header := range []string{"anthropic-beta", "openai-organization", "openai-project", "http-referer", "x-title"} {
+		req := httptest.NewRequest(http.MethodOptions, "/api/v1/orgs/o1/ai/byok/anthropic/messages", nil)
+		req.Header.Set("Origin", cfg.FrontendOrigin)
+		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+		req.Header.Set("Access-Control-Request-Headers", header)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.EqualFold(got, header) {
+			t.Errorf("preflight for %s: Access-Control-Allow-Headers = %q (status %d)", header, got, rec.Code)
+		}
 	}
 }
