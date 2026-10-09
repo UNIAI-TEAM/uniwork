@@ -1,9 +1,9 @@
 # W7/W7b evidence: Docs web frame served from apps/web (UNI-1013)
 
 Run 2026-10-08 against a production `next build` of this branch, the Go server
-built from this branch (dev lane `e2f4d6489`: W5d export wiring + W8 export route + org-scoped mint fix),
-Postgres from `.env.worktree`, and the pinned fork build `0.1.0-5bce54c`
-(clean, fork lane FINAL `5bce54c`, built with `npm run build:web` in the lane worktree).
+built from this branch (dev lane `1b1d5d9b3` (F3a server fixes, W8 export route) merged),
+Postgres from `.env.worktree`, and the pinned fork build `0.1.0-5a81008`
+(clean, fork lane `5a81008` (headless entry; protocol files unchanged since `5bce54c`), built with `npm run build:web` in the lane worktree).
 `office_docs_web` and `office_engine` are enabled by an ORGANIZATION override
 (`feature_flag_overrides.scope_type = 'organization'`), not a global one.
 
@@ -67,3 +67,12 @@ The spec picks its cases from `GET <frame>/manifest.json`:
   (`screenshots/06-bundle-not-installed-g3.png`): 1 passed. Before this change the page offered the pinned frame and got a 404 iframe.
 
 CI (`e2e` job) sets `OFFICE_DOCS_WEB_E2E=1`; with the `OFFICE_FRAME_SOURCE` secret it runs the installed cases, without it the not-installed one.
+
+## Engine real render on the pinned bundle (5a81008)
+
+`apps/office-engine` `docs-pdf.test.ts` against `apps/web/public/office-frame/docs/0.1.0-5a81008` (the pinned build),
+chromium headless-shell 1234: simple 1 page, kitchen-sink 1, long 34 (the desktop counts), 1.6 / 1.6 / 2.3 s per document;
+details in `docs/office/pdf-export-decision.md`. The e2e export step still ends in the 503 -> in-frame print fallback because
+this local stack runs no office engine.
+
+Re-run 2026-10-09 after merging dev lane `1b1d5d9b3`: installed 10 passed / 1 skipped, not installed 1 passed / 10 skipped.
