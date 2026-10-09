@@ -1,0 +1,73 @@
+$ pnpm lint
+
+> uniwork@ lint /workspace
+> bash scripts/lint-gate.sh
+
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/e2e, @uniwork/eslint-config, @uniwork/office-contracts, @uniwork/office-desktop, @uniwork/office-engine, @uniwork/office-engine-app, @uniwork/office-upstream, @uniwork/tsconfig, @uniwork/ui, @uniwork/views, @uniwork/web
+   • Running lint in 12 packages
+   • Remote caching disabled
+
+@uniwork/office-desktop:lint: cache miss, executing 50ac9c88bd3b7f55
+@uniwork/web:lint: cache miss, executing b0c788e07eaabc81
+@uniwork/core:lint: cache miss, executing 1f569ba9d23c5f36
+@uniwork/office-engine-app:lint: cache miss, executing 0da6435430b8f42e
+@uniwork/office-contracts:lint: cache miss, executing bafdba59c76d4893
+@uniwork/views:lint: cache miss, executing d2d19c639c0d5f8d
+@uniwork/office-engine:lint: cache miss, executing 57d3d9f9af44a353
+@uniwork/ui:lint: cache miss, executing 9a702bd8bc91a50b
+@uniwork/office-engine:lint: 
+@uniwork/office-engine:lint: > @uniwork/office-engine@0.0.0 lint /workspace/packages/office-engine
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: 
+@uniwork/web:lint: 
+@uniwork/web:lint: > @uniwork/web@0.0.0 lint /workspace/apps/web
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: 
+@uniwork/ui:lint: 
+@uniwork/ui:lint: > @uniwork/ui@0.0.0 lint /workspace/packages/ui
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: 
+@uniwork/core:lint: 
+@uniwork/core:lint: > @uniwork/core@0.0.0 lint /workspace/packages/core
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: 
+@uniwork/office-engine-app:lint: 
+@uniwork/office-engine-app:lint: > @uniwork/office-engine-app@0.0.0 lint /workspace/apps/office-engine
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/office-engine-app:lint: 
+@uniwork/office-desktop:lint: 
+@uniwork/office-desktop:lint: > @uniwork/office-desktop@0.1.0 lint /workspace/apps/office-desktop
+@uniwork/office-desktop:lint: > eslint . --max-warnings 0
+@uniwork/office-desktop:lint: 
+@uniwork/office-contracts:lint: 
+@uniwork/office-contracts:lint: > @uniwork/office-contracts@0.0.0 lint /workspace/packages/office-contracts
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: > @uniwork/views@0.0.0 lint /workspace/packages/views
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/chat/chat-page-view.tsx
+@uniwork/views:lint:   539:1  error  File has too many lines (504). Maximum allowed is 500  max-lines
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/settings/components/billing-tab.tsx
+@uniwork/views:lint:   129:6   warning  React Hook useEffect has a missing dependency: 'clearCheckoutQuery'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+@uniwork/views:lint:   199:11  error    packages/views must not reload the page. Use useNavigation().push()/replace()                                          no-restricted-syntax
+@uniwork/views:lint: 
+@uniwork/views:lint: ✖ 3 problems (2 errors, 1 warning)
+@uniwork/views:lint: 
+@uniwork/views:lint:  ELIFECYCLE  Command failed with exit code 1.
+@uniwork/views#lint:  ERROR  command (/workspace/packages/views) /home/ubuntu/.local/share/pnpm/.tools/pnpm/10.28.2/bin/pnpm run lint exited (1)
+
+ Tasks:    7 successful, 8 total
+Cached:    0 cached, 8 total
+  Time:    1m39.601s 
+Failed:    @uniwork/views#lint
+
+ ERROR  run failed: command  exited (1)
+
+lint: reported, not enforced — GATE_LEVEL=fast (docs/adr/0014).
+      Every finding above is real and fails the run at standard.

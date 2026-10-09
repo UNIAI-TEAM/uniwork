@@ -1,0 +1,2 @@
+$ cd server && go test ./internal/service -count=1 -run 'TestAICredential|Audit|Entitlement|Billing|Plan'
+ok  	github.com/unicomhub/uniwork/server/internal/service	90.066s

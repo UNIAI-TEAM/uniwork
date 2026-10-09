@@ -1,0 +1,2 @@
+$ cd server && go test ./internal/handler -count=1 -run 'TestAICredentialHTTP|TestIsolationMatrix|TestIsolationRealtime|TestEveryBodyIDFieldHasAReferenceCase|OpenAPI|Swagger'
+ok  	github.com/unicomhub/uniwork/server/internal/handler	112.259s

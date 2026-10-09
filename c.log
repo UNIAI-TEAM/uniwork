@@ -1,0 +1,2 @@
+$ cd server && go test ./migrations/... -count=1
+ok  	github.com/unicomhub/uniwork/server/migrations	12.272s
