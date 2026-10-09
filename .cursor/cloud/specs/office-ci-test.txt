@@ -1,0 +1,27 @@
+# Fork CI replica, shard 1: the `test` job of UNIAI-TEAM/uniwork-office .github/workflows/ci.yml, step for step.
+# Usage (from a uniwork-office worktree whose branch is pushed; see README "Fork CI replica"):
+#   node <runner>/cloud-runner.mjs suite --specs <runner>/specs/office-ci-test.txt,<runner>/specs/office-ci-e2e.txt --lane <slug> --out-dir <dir>
+# Not replicated: "Check Rust dependency licenses" (cargo-deny is not installed on the VM) and the
+# setup/cache steps (checkout, setup-node, rust toolchain, caches, npm ci, xmllint, fonts: covered by the office profile).
+# One shell command per line, each in its own bash -c, so FORMAT_BASE_REF is set inline on every line that needs it.
+# FORMAT_BASE_REF: HEAD^1 on main (a push event diffs against the previous commit), else merge-base with origin/main.
+git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse --short HEAD origin/main
+npm run licenses
+if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then FORMAT_BASE_REF=$(git rev-parse HEAD^1); else FORMAT_BASE_REF=$(git merge-base HEAD origin/main); fi; export FORMAT_BASE_REF; npm run format:check
+if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then FORMAT_BASE_REF=$(git rev-parse HEAD^1); else FORMAT_BASE_REF=$(git merge-base HEAD origin/main); fi; export FORMAT_BASE_REF; npm run check:theme-colors
+npm run check:brand
+npm run test:rebrand
+node --test tools/release/*.test.mjs
+npm run legal:check && npm run test:legal
+npm run check:egress
+set +e; files=$(git grep -I -l --all-match -e '^<<<<<<< ' -e '^=======$' -e '^>>>>>>> '); rc=$?; set -e; if [ "$rc" -eq 0 ]; then echo "Unresolved merge-conflict markers committed in:"; echo "$files"; exit 1; fi; if [ "$rc" -gt 1 ]; then exit "$rc"; fi
+if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then FORMAT_BASE_REF=$(git rev-parse HEAD^1); else FORMAT_BASE_REF=$(git merge-base HEAD origin/main); fi; export FORMAT_BASE_REF; npm run check:skill-version
+if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then FORMAT_BASE_REF=$(git rev-parse HEAD^1); else FORMAT_BASE_REF=$(git merge-base HEAD origin/main); fi; export FORMAT_BASE_REF; if [ -f tools/check-public-hygiene.mjs ]; then node tools/check-public-hygiene.mjs; else echo "public-hygiene gate not present in this checkout; skipped"; fi
+npm run check:english-comments
+npm run lint
+npm run typecheck
+npm run fixtures
+git diff --exit-code -- fixtures/generated
+command -v xmllint >/dev/null || { sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils; }
+npm test
+npm run fixtures -w @genoffice/sheets && npm run compat -w @genoffice/sheets

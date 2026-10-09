@@ -1,0 +1,13 @@
+# Fork CI replica, shard 2: the `e2e` job of UNIAI-TEAM/uniwork-office .github/workflows/ci.yml, step for step.
+# Usage: see office-ci-test.txt (pass both files to `suite --specs`; each file is its own VM shard).
+# Mentions test:e2e/electron, so run-tests.sh downloads the Electron binary before the first command.
+# Setup/cache steps and `npm ci` are covered by the office profile; the font install and the userns knob are
+# repeated here because they are cheap and idempotent. The artifact upload on failure is replaced by the logs
+# the runner pulls back.
+npm run build:all
+npm run fixtures -w @genoffice/sheets
+if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0; else echo "kernel.apparmor_restrict_unprivileged_userns not present, skipping"; fi
+dpkg -s fonts-crosextra-carlito fonts-crosextra-caladea fonts-noto-cjk >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-crosextra-carlito fonts-crosextra-caladea fonts-noto-cjk; }
+npx playwright install chromium
+npx playwright test --config apps/markdown/playwright.config.ts
+DEBUG=pw:browser xvfb-run --auto-servernum -- npm run test:e2e
