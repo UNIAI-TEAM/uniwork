@@ -481,6 +481,11 @@ type Routes struct {
 	CreateSavedSignature http.HandlerFunc
 	DeleteSavedSignature http.HandlerFunc
 
+	// Personal AI provider credentials (UNI-1008, ADR 0029).
+	ListAICredentials  http.HandlerFunc
+	SaveAICredential   http.HandlerFunc
+	DeleteAICredential http.HandlerFunc
+
 	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
 	// §5.3, §5.4; UNI-679, G1-05b).
 	ListDocuments          http.HandlerFunc

@@ -248,10 +248,6 @@ func main() {
 	taskSvc.Chat = chatSvc
 	meetingSvc.Chat = chatSvc
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
-	// BYOK proxy for the web host (UNI-1008). TODO(UNI-1008 W1): pass the
-	// AICredentialService as the resolver once it lands; nil answers
-	// credential_missing for every call until then.
-	aiBYOK := service.NewAIBYOKService(orgSvc, service.NewEntitlementService(pool, q), nil, gateway)
 	// Chat rooms and in-room meeting events are scopes a socket must be let into;
 	// both authorizers fail closed.
 	hub.SetAuthorizer(realtime.ScopeAuthorizers{
@@ -470,6 +466,20 @@ func main() {
 		log.Warn("connected calendars disabled", "err", err)
 	}
 	calendarConnectionSvc := service.NewCalendarConnectionService(pool, q, wsSvc, calendarBox, cfg)
+	// Personal AI provider keys (ADR 0029): without AI_CREDENTIAL_KEY the
+	// server still boots and the credential routes answer 503.
+	var aiCredentialBox *secretbox.Box
+	if key, err := secretbox.LoadKey("AI_CREDENTIAL_KEY"); err == nil {
+		aiCredentialBox, err = secretbox.New(key)
+		if err != nil {
+			log.Warn("AI provider credentials disabled", "err", err)
+		}
+	} else if os.Getenv("AI_CREDENTIAL_KEY") != "" {
+		log.Warn("AI provider credentials disabled", "err", err)
+	}
+	aiCredentialSvc := service.NewAICredentialService(pool, q, orgSvc, service.NewEntitlementService(pool, q), aiCredentialBox)
+	// BYOK proxy for the web host (UNI-1008): the stored key, resolved per call.
+	aiBYOK := service.NewAIBYOKService(orgSvc, service.NewEntitlementService(pool, q), aiCredentialSvc, gateway)
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
@@ -511,6 +521,7 @@ func main() {
 		FileAccess:          fileAccess,
 		Documents:           docSvc,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
+		AICredentials:       aiCredentialSvc,
 		OfficeLaunch:        officeLaunchSvc,
 		Office:              officeSvc,
 		Preview:             previewSvc,

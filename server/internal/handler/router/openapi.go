@@ -283,11 +283,6 @@ func pathParamSDI(path string) any {
 			Code string `path:"code" description:"Mã gói billing" example:"starter"`
 			Key  string `path:"key" description:"Khóa feature entitlement" example:"members.max"`
 		}{}
-	case "orgID,aiProvider":
-		return struct {
-			OrgID      string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
-			AiProvider string `path:"aiProvider" description:"Mã nhà cung cấp BYOK (bảng provider của server)" example:"anthropic"`
-		}{}
 	case "orgID,eventID":
 		return struct {
 			OrgID   string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
@@ -297,6 +292,11 @@ func pathParamSDI(path string) any {
 		return struct {
 			OrgID       string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
 			SignatureID string `path:"signatureID" description:"ULID chữ ký đã lưu" example:"01K6SIGN1P2Q3R4S5T6U7V8YA"`
+		}{}
+	case "orgID,aiProvider":
+		return struct {
+			OrgID      string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			AIProvider string `path:"aiProvider" description:"Mã nhà cung cấp AI (openai, anthropic, gemini, custom, …)" example:"openai"`
 		}{}
 	case "orgID,exportID":
 		return struct {

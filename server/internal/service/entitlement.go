@@ -40,7 +40,8 @@ const (
 var wiredFeatures = map[string]bool{
 	FeatureMembersMax: true, FeatureWorkspacesMax: true, FeatureTasksMax: true,
 	FeatureMeetingMinutes: true, FeatureMeetingRecording: true, FeatureMeetingAISummary: true,
-	FeatureAITokens: true, FeatureStorageBytes: true, FeatureOfficeAIBYOK: true,
+	FeatureAITokens: true, FeatureStorageBytes: true,
+	FeatureOfficeAIBYOK: true, FeatureOfficeAICloud: true,
 }
 
 // graceFeatures stay effective when the subscription is inactive, so an

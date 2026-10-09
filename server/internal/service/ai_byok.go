@@ -4,15 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
-
-// FeatureOfficeAIBYOK gates the web host's own-key AI: storing a key and
-// proxying through it (UNI-1008, contract D5).
-const FeatureOfficeAIBYOK = "office.ai_byok"
 
 // byokCredentialResolver decrypts the caller's stored key for one provider
 // (AICredentialService, UNI-1008 W1). ErrNotFound when none is stored.
@@ -40,9 +35,6 @@ func NewAIBYOKService(orgs *OrganizationService, ents byokEntitlements, creds by
 	return &AIBYOKService{orgs: orgs, ents: ents, creds: creds, gw: gw}
 }
 
-var errCredentialMissing = CodedError{Code: "credential_missing", Status: http.StatusNotFound,
-	Msg: "chưa lưu khóa API cho nhà cung cấp này", Err: ErrNotFound}
-
 // Proxy runs the gates in order — organization member, provider/route
 // match, plan entitlement, stored key — then hands the call to the gateway.
 // The caller copies the returned stream to the client and closes it.
@@ -58,11 +50,11 @@ func (s *AIBYOKService) Proxy(ctx context.Context, userID, orgID, providerID str
 		return nil, err
 	}
 	if s.creds == nil {
-		return nil, errCredentialMissing
+		return nil, errCredentialMissing()
 	}
 	cred, err := s.creds.Resolve(ctx, userID, orgID, providerID)
 	if errors.Is(err, ErrNotFound) {
-		return nil, errCredentialMissing
+		return nil, errCredentialMissing()
 	}
 	if err != nil {
 		return nil, err

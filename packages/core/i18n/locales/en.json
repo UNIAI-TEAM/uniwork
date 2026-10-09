@@ -560,7 +560,9 @@
         "ai_tokens": "AI tokens",
         "storage_bytes": "Storage",
         "sso_oidc": "SSO sign-in (OIDC)",
-        "documents_public_links": "Public links for documents"
+        "documents_public_links": "Public links for documents",
+        "office_ai_byok": "Office AI with your own key",
+        "office_ai_cloud": "Office cloud AI tools"
       },
       "errors": {
         "checkout_required": "Paid plans must be purchased through checkout; use Pay.",
