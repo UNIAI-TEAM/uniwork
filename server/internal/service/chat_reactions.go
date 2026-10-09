@@ -4,9 +4,19 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 const maxReactionEmojiLen = 16
+
+// A chat reaction is one emoji (a ZWJ family or a flag runs past 16 bytes),
+// and a message holds a bounded number of distinct ones: every reaction kind
+// is fanned out to the room and stored on the message row.
+const (
+	maxChatReactionEmojiBytes = 32
+	maxChatReactionKinds      = 50
+)
 
 type chatMessageMetadata struct {
 	Reactions        map[string][]string  `json:"reactions"`
@@ -37,16 +47,19 @@ func reactionCountsFromMetadata(meta chatMessageMetadata) map[string]int {
 }
 
 func toggleReactionInMetadata(raw []byte, userID, emoji string) ([]byte, error) {
-	emoji = strings.TrimSpace(emoji)
-	if emoji == "" || len(emoji) > maxReactionEmojiLen {
-		return nil, Invalid("emoji không hợp lệ")
+	emoji, err := validateChatReactionEmoji(emoji)
+	if err != nil {
+		return nil, err
 	}
 	userID = strings.ToUpper(strings.TrimSpace(userID))
 	meta := decodeChatMessageMetadata(raw)
 	if meta.Reactions == nil {
 		meta.Reactions = map[string][]string{}
 	}
-	ids := meta.Reactions[emoji]
+	ids, exists := meta.Reactions[emoji]
+	if !exists && len(meta.Reactions) >= maxChatReactionKinds {
+		return nil, Invalid("tin nhắn đã có quá nhiều loại cảm xúc")
+	}
 	found := false
 	next := make([]string, 0, len(ids))
 	for _, id := range ids {
@@ -72,6 +85,29 @@ func toggleReactionInMetadata(raw []byte, userID, emoji string) ([]byte, error) 
 		return patchMetadataKey(raw, "reactions", nil)
 	}
 	return patchMetadataKey(raw, "reactions", meta.Reactions)
+}
+
+// validateChatReactionEmoji accepts one bounded emoji: no letters, whitespace
+// or control characters, and at least one non-ASCII rune (a keycap such as
+// 1️⃣ keeps its ASCII digit).
+func validateChatReactionEmoji(emoji string) (string, error) {
+	emoji = strings.TrimSpace(emoji)
+	if emoji == "" || len(emoji) > maxChatReactionEmojiBytes {
+		return "", Invalid("emoji không hợp lệ")
+	}
+	nonASCII := false
+	for _, r := range emoji {
+		if unicode.IsLetter(r) || unicode.IsSpace(r) || unicode.IsControl(r) {
+			return "", Invalid("emoji không hợp lệ")
+		}
+		if r >= utf8.RuneSelf {
+			nonASCII = true
+		}
+	}
+	if !nonASCII {
+		return "", Invalid("emoji không hợp lệ")
+	}
+	return emoji, nil
 }
 
 // patchMetadataKey rewrites one top-level key of a message's metadata and

@@ -367,10 +367,14 @@ func TestChatMessageActions(t *testing.T) {
 	msgID := f.firstMessageID
 
 	res, out := doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "like"})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("text reaction: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "👍"})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("react: %d %v", res.StatusCode, out)
 	}
-	res, out = doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "like"})
+	res, out = doJSON(t, srv, "POST", base+"/"+msgID+"/reactions", tokB, map[string]string{"emoji": "👍"})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("unreact: %d %v", res.StatusCode, out)
 	}

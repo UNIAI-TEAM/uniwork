@@ -49,6 +49,35 @@ func TestToggleReactionInMetadata(t *testing.T) {
 	}
 }
 
+func TestChatReactionMustBeABoundedEmoji(t *testing.T) {
+	for _, ok := range []string{"👍", "❤️", "👨‍👩‍👧‍👦", "1️⃣", "🇻🇳"} {
+		if _, err := toggleReactionInMetadata(nil, "USER1", ok); err != nil {
+			t.Errorf("%q refused: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"like", "a👍", "ố", "👍 👍", "\x00", "123", strings.Repeat("👍", 9)} {
+		_, err := toggleReactionInMetadata(nil, "USER1", bad)
+		requireValidationError(t, err, bad)
+	}
+}
+
+func TestChatReactionKindsPerMessageAreCapped(t *testing.T) {
+	var raw []byte
+	for i := 0; i < maxChatReactionKinds; i++ {
+		next, err := toggleReactionInMetadata(raw, "USER1", string(rune(0x1F600+i)))
+		if err != nil {
+			t.Fatalf("reaction %d: %v", i, err)
+		}
+		raw = next
+	}
+	_, err := toggleReactionInMetadata(raw, "USER1", "🚀")
+	requireValidationError(t, err, "one kind past the cap")
+	// An existing kind still toggles at the cap.
+	if _, err := toggleReactionInMetadata(raw, "USER2", string(rune(0x1F600))); err != nil {
+		t.Fatalf("existing kind at the cap: %v", err)
+	}
+}
+
 // Reacting to a file, voice or poll message must not drop the rest of its
 // metadata: the attachment's object key lives beside the reactions.
 func TestToggleReactionKeepsOtherMetadata(t *testing.T) {
