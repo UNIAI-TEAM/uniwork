@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, Bookmark, Check, ListTodo, Trash2 } from "lucide-react";
+import { CircleAlert, Bookmark, Check, Trash2 } from "lucide-react";
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatFollowUpRecord } from "@uniwork/core/api/endpoints/chat";
@@ -24,6 +24,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { formatMessageDateTime, formatMessageTime, messageDayKey } from "./chat-message-time";
 import { describeChatMediaBody } from "./chat-expression-utils";
@@ -281,7 +282,7 @@ export function ChatFollowUpsSheet({
                   disabled={pending}
                   onClick={() => afterRowAction(item.id, onConvert(item.id))}
                 >
-                  <ListTodo className="size-3.5" aria-hidden />
+                  <MODULE_ICONS.tasks className="size-3.5" aria-hidden />
                   {t("chat.follow_up.convert")}
                 </Button>
                 <Button

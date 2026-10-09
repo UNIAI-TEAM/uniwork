@@ -15,6 +15,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { format } from "date-fns";
 import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { CalendarMeetingPanel } from "./calendar-meeting-panel";
@@ -193,7 +194,7 @@ export function CalendarPageView({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <CollectionPageHeader
-        icon={Calendar}
+        icon={MODULE_ICONS.calendar}
         tone={moduleTone("calendar")}
         title={t("calendar.title")}
       />

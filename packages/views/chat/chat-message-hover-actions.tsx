@@ -5,7 +5,6 @@ import {
   Bookmark,
   Copy,
   Link2,
-  ListTodo,
   MessageSquareText,
   Ellipsis,
   Pencil,
@@ -30,6 +29,7 @@ import {
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
+import { MODULE_ICONS } from "../layout/module-icons";
 
 /** Bubble + toolbar row: in-flow on sm+ so hover reaches the bar across the gap. */
 export function chatMessageActionsRailClass(isOwn: boolean): string {
@@ -217,7 +217,7 @@ export function ChatMessageHoverActions({
                   onClick={() => onCreateTask?.(message)}
                   disabled={!onCreateTask}
                 >
-                  <ListTodo className="size-4" aria-hidden />
+                  <MODULE_ICONS.tasks className="size-4" aria-hidden />
                   {t("chat.link.create_task")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onLinkTask?.(message)} disabled={!onLinkTask}>

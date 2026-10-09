@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { House, LayoutDashboard, SlidersHorizontal, TriangleAlert } from "lucide-react";
+import { LayoutDashboard, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { buildHomeHeadline, oldestOverdue } from "@uniwork/core/home/brief";
@@ -14,6 +14,7 @@ import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { formatMeetingDay, meetingDayKey, meetingLocale } from "../meetings/meeting-datetime";
@@ -209,7 +210,7 @@ export function HomeView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <CollectionPageHeader
-        icon={House}
+        icon={MODULE_ICONS.home}
         tone={moduleTone("home")}
         title={t("home.title")}
         actions={
