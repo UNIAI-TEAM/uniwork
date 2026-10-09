@@ -68,6 +68,9 @@ type Deps struct {
 	// Signatures is the per-user saved-signature store (UNI-925 B6); nil
 	// answers 501 on the signature routes until the server wires it.
 	Signatures *service.SignatureService
+	// AICredentials is the per-user AI provider key store (UNI-1008, ADR
+	// 0029); nil answers 503 ai_credentials_unavailable.
+	AICredentials *service.AICredentialService
 
 	// Office is the Office job service (G2-07, UNI-690); nil answers 503
 	// office_not_configured on the office routes, so Documents keeps working
@@ -611,6 +614,9 @@ func New(d Deps) http.Handler {
 		ListSavedSignatures:  h.listSavedSignatures,
 		CreateSavedSignature: h.createSavedSignature,
 		DeleteSavedSignature: h.deleteSavedSignature,
+		ListAICredentials:    h.listAICredentials,
+		SaveAICredential:     h.saveAICredential,
+		DeleteAICredential:   h.deleteAICredential,
 
 		ListDocuments:          h.listDocuments,
 		ListRecentDocuments:    h.listRecentDocuments,

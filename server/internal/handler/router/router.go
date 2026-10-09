@@ -161,6 +161,8 @@ func New(d Deps, h Routes) http.Handler {
 			registerFiles(authed, h)
 			registerDocuments(authed, h, d.FeatureFlags)
 			registerSignatures(authed, h)
+			// Personal AI keys: per signed-in person, 30/min (ADR 0029).
+			registerAICredentials(authed, h, mw.RateLimitByIdentity(d.Redis, 30, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOfficeLaunch(authed, h)
 			registerOfficeDesktopDownload(authed, h, mw.RateLimit(d.Redis, 10, time.Minute, proxies))
 			if d.PlatformRoles != nil {
