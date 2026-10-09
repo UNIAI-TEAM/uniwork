@@ -284,6 +284,13 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   organization/workspace clause, and only `internal/service/task_table*.go`
   imports it — `TestTableQueryOnlyFromTaskTableService` and the builder tests
   in that package hold it.
+- The Work Graph tables (`graph_nodes`, `graph_edges`, `graph_node_facts`,
+  `graph_dirty`) are a projection of the business tables (ADR 0019): only
+  `server/internal/graph/projector` writes them. The marker on the realtime
+  lane marks dirty nodes, the worker re-reads the sources, and
+  `cmd/graph-rebuild` (`--verify` counts drift) reproduces them, so a wrong
+  row is fixed by a rebuild, never by hand. `TestGraphTablesWrittenOnlyByProjector`
+  (`server/internal/arch_test.go`) holds it.
 
 ## Audit and Events
 

@@ -1,6 +1,6 @@
 # Work Graph lát 1 (C-11): catalogue, projector, rebuild, API đọc, panel trên trang việc — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — UNI-962 (sub-issue của UNI-460), nhánh `feature/UNI-962-c-11-lat-1-work-graph-catalogue-projecto`.
+> **Trạng thái:** shipped — UNI-962 (sub-issue của UNI-460), PR #203; điều chỉnh khi thực thi ghi ngay dưới, số đo ở spec §9.2.
 
 > **Điều chỉnh khi thực thi (2026-10-08).** Mã trong các task dưới đây là bản trước điều chỉnh; mã trên nhánh là nguồn đúng. Mỗi điều chỉnh có dòng `Ruling:` trong sổ thực thi và commit riêng:
 > - `GraphMarkDirty` dời mã sự kiện, người làm và `last_event_at` cùng nhau theo sự kiện mới nhất (`59708231`).

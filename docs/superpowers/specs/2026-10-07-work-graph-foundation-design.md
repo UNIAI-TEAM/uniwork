@@ -1,6 +1,6 @@
 # Work Graph nền (C-11): catalogue, projector, nối tay, panel Liên quan
 
-> **Trạng thái:** Đã duyệt (2026-10-07, quangpd). Thiết kế khái niệm đã chốt cùng chủ sở hữu sản phẩm ngày 2026-10-07 (mười quyết định, xem §1.2). ADR 0019 accepted. Kế hoạch: lát 1 trước, ba vá §9.1 song song. §13 ghi các điều chỉnh sau khi đối chiếu mã ngày 2026-10-07 (chờ xác nhận cùng hai kế hoạch).
+> **Trạng thái:** Đã duyệt (2026-10-07, quangpd). Thiết kế khái niệm đã chốt cùng chủ sở hữu sản phẩm ngày 2026-10-07 (mười quyết định, xem §1.2). ADR 0019 accepted. Thực thi: ba vá §9.1 đã merge (UNI-963, PR #197, 2026-10-08); lát 1 trong PR #203 (UNI-962), số đo cổng ở §9.2; lát 2–3 chưa làm. §13 ghi các điều chỉnh sau khi đối chiếu mã (2026-10-07, đã duyệt cùng hai kế hoạch) và khi thực thi (2026-10-08, dòng 19–26).
 
 **Roadmap:** C-11 (P1). Mở đường cho C-12 Decision record, Goal, Context Engine / A-04, A-01.
 **Issue:** chưa tạo.
@@ -476,6 +476,18 @@ Không thuộc điều kiện dữ liệu, ghi để không nhầm: việc tạo
 JSON hiển thị (`meeting-decisions-block.tsx`), chưa xác nhận và chưa nối tới việc;
 đó là C-12, đi ngay sau C-11.
 
+### 9.2 Kết quả đo lát 1 (2026-10-08)
+
+Đo trên máy dev (Postgres 16 trong colima, 2 CPU / 2 GiB), sau khi worker bắt kịp. Số ghi đúng như đo, không làm tròn về ngưỡng.
+
+| Cổng | Kết quả | Ghi chú |
+|---|---|---|
+| `ORIGINATED_FROM` cho việc có `origin_type = 'meeting'` | 0 thiếu / 3 việc | Đối chứng âm (xoá cạnh) cho 1; seed `cmd/seed` không tạo việc từ họp nên 0/0 ở đó |
+| Dựng lại giống hệt | `--verify` drift = 0 (105.006 node) | Rebuild lần đầu một tổ chức 100k việc: 457 s (< 10 phút) |
+| Cách ly | `TestIsolationMatrix` xanh, có gọi cả hai route; `TestIsolationRealtime` xanh | Trước khi develop sửa fixture B1 (#201, #202) thì phải áp tạm bản vá fixture mới chạy tới route |
+| Trễ | `uniwork_graph_projector_lag_seconds` p95 2,425 s | 300 thay đổi việc thật qua API, mọi mẫu ≤ 2,5 s |
+| Hiệu năng hàng xóm | k6 p95 84,61 ms ở 999.996 cạnh, 100% kiểm tra đạt | Chỉ node TASK bậc thấp (~9 hàng xóm); node ACTOR có hàng nghìn cạnh chưa đo |
+
 ## 10. Triển khai và hoàn tác
 
 Ba lát, mỗi lát một kế hoạch và một PR có thể bật riêng; ba vá §9.1 chạy song song với
@@ -550,3 +562,10 @@ quyết định) không đổi.
 | 17 | §9.1 | V3 chưa có màn | V3 đã có; chỉ thêm test | `4132dec2` |
 | 18 | §10 | Flag `graph` = consumer không đăng ký | Marker hỏi flag theo tổ chức | Đăng ký consumer chỉ xảy ra lúc khởi động, không có ngữ cảnh tổ chức |
 | 19 | §5.3 | Fact `due` lấy `due_at` khi có, `due_date` khi `due_at` NULL | Fact `due` theo `due_date` (`precision = 'date'`), trường mà trang việc gọi là "Hạn"; chỉ khi `due_date` NULL mới lấy `due_at` (`precision = 'datetime'`, dòng thời gian in kèm giờ:phút theo múi giờ người xem) | Kéo ô trong Lịch đặt cả `due_date` lẫn khung giờ `due_at` (`calendar/slot-prefill.ts`); thanh bên chỉ sửa `due_date` (`SetTaskDueDate` không đụng `due_at`). Theo `due_at` thì đổi Hạn không bao giờ vào dòng thời gian, còn dời khung giờ trong ngày hay thả lên hàng cả ngày (`calendar-drop-patch.ts` xoá `due_at`) lại ra dòng "Hạn đổi 15 thg 10 → 15 thg 10" |
+| 20 | §5.2 | Dòng bẩn giữ sự kiện mới nhất | Mã sự kiện, người làm và `last_event_at` đi cùng nhau theo sự kiện mới nhất (`GraphMarkDirty` chọn bằng `CASE` trên thời điểm) | Hai sự kiện đánh dấu không theo thứ tự từng làm cạnh trỏ sự kiện của người này với thời điểm của người kia; `59708231` |
+| 21 | §5.4 | `--verify` so mọi cột của node | So `occurred_at`, không so `source_updated_at` (vẫn ghi khi cột khác đổi) | Tin nhắn chat, sắp xếp phòng ban, chuyển chủ trì đổi `updated_at` của nguồn mà không có sự kiện nào được đánh dấu, nên verify không bao giờ về 0 trên tổ chức đang dùng; `460d7c2e`, `ccc8ee46` |
+| 22 | §5.3 | Nguồn bị xoá đóng mọi cạnh | Cạnh mở tới node đã xoá được đóng ở lần chiếu sau (và `--verify` đếm nó); node sống lại đánh dấu các node ở đầu kia của cạnh mà lần xoá đã đóng | Hai vòng worker song song có thể để lại cạnh tới node vừa xoá; lưu trữ rồi mở lại kênh từng làm việc mất "Được bàn trong"; `55a74b1c`, `74a55b68` |
+| 23 | §5.2 | Xoá tài khoản do rebuild bù | Xoá tài khoản ghi `member.deactivated` (membership còn hoạt động) hoặc `profile.updated` (đã bị vô hiệu) cho từng tổ chức, trong cùng transaction | Nghị định 13: tên thật không được còn trong `graph_nodes.title` sau khi người dùng xoá tài khoản; `437301e1`, `006e022a` |
+| 24 | §6 | (chưa nói) | Hàng xóm tại `at` trong quá khứ hiện tên và trạng thái hiện tại của node, ẩn node đã xoá ở hiện tại | Xoá là luật mạnh hơn; ảnh chụp node theo thời gian để lát sau |
+| 25 | §10 | `graph-rebuild --org` hoặc `--all` | `--verify` hằng tuần chạy theo từng tổ chức đã bật `graph`, sau khi `graph_dirty` của tổ chức đó về 0; `--all` chỉ khi `graph` đã bật toàn cục; CLI từ chối `--org` không tồn tại và đối số thừa; rebuild vẫn chiếu tổ chức bị đình chỉ | Tổ chức chưa bật flag luôn báo thiếu toàn bộ; gõ sai `--org` từng báo thành công mà không làm gì; `2d5c6c01`, `1ba6209b` |
+| 26 | §7 | Panel làm mới khi chính việc đổi | Mọi sự kiện việc và liên kết luồng làm mới đồ thị cả workspace (250 ms rồi 3 s) | Panel của việc A hiện tên và trạng thái của việc B; `3b9b74e9` |
