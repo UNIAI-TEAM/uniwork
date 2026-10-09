@@ -48,6 +48,11 @@ export interface DocsFrameSessionOptions {
 
 export interface DocsFrameSession {
   status: DocsFrameStatus;
+  /**
+   * The page's readonly, or (a module other than Docs) a minted token that
+   * cannot edit: writes are refused in the host and desktop-open is hidden.
+   */
+  viewOnly: boolean;
   /** Why the session failed: a token that could not be minted, or a fatal frame error. */
   failure: ProtocolErrorShape | null;
   dirty: boolean;
@@ -104,6 +109,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const scopeId = savedAs?.from === documentId ? savedAs.to : documentId;
   const tokenQuery = useOfficeFrameToken(wsId, scopeId);
   const token = tokenQuery.data ? docsFrameToken(tokenQuery.data) : null;
+  // A module other than Docs also honours the minted token's can_edit, so a view-only user is
+  // treated as readonly even when the page did not say so (Docs keeps the page's readonly).
+  const viewOnly = options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false);
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -111,8 +119,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [host, setHost] = useState<DocsFrameHost | null>(null);
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, viewOnly });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, viewOnly };
   const sentToken = useRef<string | null>(null);
 
   useEffect(() => {
@@ -133,8 +141,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
     const proxy = <K extends keyof ApiHandlers>(type: K, write: boolean, pick: (api: DocsFrameApi) => ((payload: never, call: never) => Promise<unknown>) | undefined) =>
       async (payload: FrameRequests[K]["payload"], { signal }: { signal: AbortSignal }) => {
-        const { options: current, scopeId: doc } = latest.current;
-        if (write && current.readonly) throw readOnly(type);
+        const { options: current, scopeId: doc, viewOnly: refused } = latest.current;
+        if (write && refused) throw readOnly(type);
         const run = pick(current.api);
         if (!run) throw new DocsProtocolError({ code: "unsupported", message: `${type} is not available on the web yet` });
         const { token: frameToken } = await currentToken();
@@ -151,9 +159,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         const frameToken = await currentToken();
         sentToken.current = frameToken.token;
         const { options: current, scopeId: doc, displayName: name } = latest.current;
-        // A module other than Docs also honours the minted token's can_edit: a view-only user gets
-        // the frame without save / save-as even when the page did not say readonly.
         const minted = queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
+        // The server derives the module from the stored file; a frame mounted for another
+        // module would edit bytes of a format it does not own (older servers send none).
+        if (minted?.module && minted.module !== module) {
+          throw new DocsProtocolError({
+            code: "malformed", message: `token is for module ${minted.module}, frame is ${module}`,
+            details: { tokenModule: minted.module, expectedModule: module },
+          });
+        }
+        // Same rule as the hook's viewOnly, read from the token this init carries.
         const viewOnly = current.readonly || (module !== "docs" && minted?.can_edit === false);
         return {
           ...frameToken,
@@ -268,5 +283,5 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     if (tokenFailure) void refetchToken();
     setAttempt((n) => n + 1);
   }, [refetchToken, tokenFailure]);
-  return { status: failure ? "failed" : status, failure, dirty, height, save, print, attempt, retry };
+  return { status: failure ? "failed" : status, viewOnly, failure, dirty, height, save, print, attempt, retry };
 }

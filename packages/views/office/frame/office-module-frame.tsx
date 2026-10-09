@@ -151,8 +151,11 @@ export function OfficeModuleFrame({
   // A module with a size cap (Sheets, GO-D3): a mint refused with 413 or a frame that answers its
   // open with too_large hands the document to the G3 editor the same way.
   const tooLarge = officeModuleSpec(module).maxBytes !== undefined && session.failure?.code === "too_large";
+  // The server derived another module than the page mounted (odd mime/name pairs): the G3 host,
+  // which judges the stored file itself, takes over.
+  const moduleMismatch = session.failure?.code === "malformed" && session.failure.details?.["tokenModule"] !== undefined;
   const refuse = useDocsFrameRefusal();
-  useEffect(() => { if (featureDisabled || tooLarge) refuse?.(); }, [featureDisabled, tooLarge, refuse]);
+  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch) refuse?.(); }, [featureDisabled, tooLarge, moduleMismatch, refuse]);
 
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
@@ -178,7 +181,7 @@ export function OfficeModuleFrame({
       data-state={session.status}
       data-dirty={dirty || undefined}
     >
-      {desktopOpen && !booting && !readonly ? (
+      {desktopOpen && !booting && !session.viewOnly ? (
         <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} workspaceId={wsId} dirty={dirty} save={() => save("user")} />
       ) : null}
       <iframe

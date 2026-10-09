@@ -21,20 +21,23 @@ const minted = {
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: true, module: "pdf",
 };
 
+let lastApi: DocsFrameApi | null = null;
+
 function fullApi(): DocsFrameApi {
   return {
     open: vi.fn(), save: vi.fn(), recents: vi.fn(), saveAs: vi.fn(), export: vi.fn(), addAttachments: vi.fn(), uploadImage: vi.fn(),
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, mint, refuse, desktopOpen }: { canEdit?: boolean; readonly?: boolean; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps } = {}) {
-  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit })) : Promise.reject(new Error(`unexpected ${path}`))));
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen }: { canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps } = {}) {
+  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : Promise.reject(new Error(`unexpected ${path}`))));
+  lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
         <DocsFrameRefusalContext.Provider value={refuse ?? null}>
-          <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={fullApi()} readonly={readonly} desktopOpen={desktopOpen} />
+          <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} />
         </DocsFrameRefusalContext.Provider>
       </ThemeProvider>
     </QueryClientProvider>,
@@ -60,6 +63,8 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, mi
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     ready: (payload: Record<string, unknown>) => post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, ...payload })),
     inits: () => received.filter((m) => m.kind === "request" && m.type === "init"),
+    request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
+    answerTo: (id: string) => received.find((m) => m.kind === "response" && m.id === id),
   };
 }
 
@@ -95,6 +100,30 @@ describe("OfficeModuleFrame", () => {
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { save: false, saveAs: false, print: true } });
+  });
+
+  it("refuses the writes of a user whose minted token cannot edit, though the page is not readonly", async () => {
+    const frame = mountFrame("markdown", { canEdit: false });
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(lastApi?.save).not.toHaveBeenCalled();
+  });
+
+  it("hands the document to the G3 editor when the server minted another module than the frame", async () => {
+    const refuse = vi.fn();
+    const frame = mountFrame("markdown", { refuse, tokenModule: "sheets" });
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(refuse).toHaveBeenCalled());
+    expect(frame.inits()).toHaveLength(0);
+  });
+
+  it("accepts a token without module from an older server", async () => {
+    const frame = mountFrame("pdf", { tokenModule: undefined, mint: () => Promise.resolve({ ...minted, module: undefined }) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
   });
 
   it("refuses a frame that runs another module's editor before any init", async () => {
@@ -201,6 +230,13 @@ describe("Open in desktop app in the module frame", () => {
 
   it("is hidden for a user who may only view, as in the G3 host", async () => {
     const frame = mountFrame("pdf", { desktopOpen: desktopOpen(), readonly: true });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(action()).toBeNull();
+  });
+
+  it("is hidden for a user whose minted token cannot edit", async () => {
+    const frame = mountFrame("pdf", { desktopOpen: desktopOpen(), canEdit: false });
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     expect(action()).toBeNull();
