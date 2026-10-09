@@ -542,7 +542,7 @@ describe("useRealtimeSync", () => {
     });
     client.emit({ type: "chat.message.created", payload: { room_id: "dm1", message_id: "m1" } });
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
     expect(invalidate).toHaveBeenCalledTimes(1);
@@ -580,7 +580,7 @@ describe("useRealtimeSync", () => {
     });
     client.emit({ type: "chat.message.created", payload: { room_id: "ws-room", message_id: "m1" } });
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
     // The room's own timeline is not loaded here, so it is marked stale for the
@@ -639,7 +639,7 @@ describe("useRealtimeSync", () => {
       payload: { room_id: "dm1", thread_root_id: "root1", message_id: "r1" },
     });
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
     expect(
@@ -659,7 +659,7 @@ describe("useRealtimeSync", () => {
     const { invalidate, client } = setup();
     client.emit({ type: "chat.room.activity", payload: { room_id: "dm1" } });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(500);
     });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["chat", "rooms", "ws1"]));
     vi.useRealTimers();

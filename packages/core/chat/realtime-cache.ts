@@ -177,24 +177,75 @@ function shouldIncrementUnreadLocally(room: ChatRoomRecord | undefined): boolean
   return room !== undefined && isDefaultWorkspaceChannel(room);
 }
 
+/** A loaded timeline of this room, or of one of its threads: the only reason to GET a message. */
+function isRoomTimelineCached(qc: QueryClient, wsId: string, roomId: string): boolean {
+  if (qc.getQueryData(chatKeys.roomMessages(wsId, roomId)) !== undefined) return true;
+  const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
+  if (wsRoom?.room_id === roomId && qc.getQueryData(chatKeys.messages(wsId)) !== undefined) {
+    return true;
+  }
+  return qc
+    .getQueriesData({ queryKey: ["chat", "thread-messages", wsId, roomId] })
+    .some(([, data]) => data !== undefined);
+}
+
+/**
+ * A message that just arrived cannot have task/doc links yet; a later link
+ * sends `chat.message.linked`. Recording it as linkless keeps the open room
+ * from asking the server for links on every frame.
+ */
+function recordNoLinksYet(qc: QueryClient, wsId: string, roomId: string, messageId: string): void {
+  const key = chatKeys.roomMessageLinksRoom(wsId, roomId);
+  const links = qc.getQueryData<Map<string, unknown[]>>(key);
+  if (!links || links.has(messageId)) return;
+  qc.setQueryData(key, new Map(links).set(messageId, []));
+}
+
+function bumpUnreadLocally(qc: QueryClient, wsId: string, roomId: string): void {
+  qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) =>
+    old?.map((room) =>
+      room.id === roomId && shouldIncrementUnreadLocally(room)
+        ? { ...room, unread_count: (room.unread_count ?? 0) + 1 }
+        : room,
+    ),
+  );
+}
+
+/**
+ * Apply one `chat.message.*` frame. `created` is true only for
+ * `chat.message.created`: edits and reactions are not unread.
+ */
 export async function fetchAndPatchChatMessage(
   qc: QueryClient,
   wsId: string,
   roomId: string,
   messageId: string,
+  created = false,
 ): Promise<void> {
+  const viewing = isViewingRoom(wsId, roomId);
+  if (!isRoomTimelineCached(qc, wsId, roomId)) {
+    // Nobody here shows this room: the next open loads it. The preview of a
+    // non-default room follows `chat.room.activity`; the default channel has
+    // none, so its badge counts here (preview catches up on the next refetch).
+    if (created && !viewing) bumpUnreadLocally(qc, wsId, roomId);
+    return;
+  }
+  const knownBefore =
+    qc
+      .getQueryData<ChatMessageRecord[]>(chatKeys.roomMessages(wsId, roomId))
+      ?.some((entry) => entry.id === messageId) ?? false;
   const message = await getChatRoomMessage(wsId, roomId, messageId);
   if (!message) return;
   patchMessageCaches(qc, wsId, roomId, message);
+  if (!knownBefore) recordNoLinksYet(qc, wsId, roomId, message.id);
   // Thread replies stay off the channel preview; followers get chat.thread.replied.
   if (isChatThreadReply(message)) return;
   const viewerId = currentUserId();
   const isOwn = viewerId != null && message.sender_id === viewerId;
-  const viewing = isViewingRoom(wsId, roomId);
   qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) => {
     const room = old?.find((entry) => entry.id === roomId);
     return patchRoomSidebarFromMessage(old, roomId, message, {
-      incrementUnread: !isOwn && !viewing && shouldIncrementUnreadLocally(room),
+      incrementUnread: created && !isOwn && !viewing && shouldIncrementUnreadLocally(room),
     });
   });
 }
@@ -250,7 +301,17 @@ export function invalidateChatMessageLinks(
 ): void {
   if (!messageId) return;
   void qc.invalidateQueries({ queryKey: chatKeys.messageLinks(wsId, messageId) });
-  void qc.invalidateQueries({ queryKey: chatKeys.roomMessageLinksRoot(wsId) });
+  // The room cache only fetches ids it lacks: forget this one so the open
+  // timeline asks for its links, and nothing else, again.
+  qc.setQueriesData<Map<string, unknown[]>>(
+    { queryKey: chatKeys.roomMessageLinksRoot(wsId) },
+    (links) => {
+      if (!links?.has(messageId)) return links;
+      const next = new Map(links);
+      next.delete(messageId);
+      return next;
+    },
+  );
 }
 
 /** `chat.message.linked` — refresh links for the message; leave message lists alone. */

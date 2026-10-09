@@ -118,8 +118,9 @@ describe("fetchAndPatchChatMessage unread", () => {
         mention_unread_count: 0,
       },
     ]);
+    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), []);
 
-    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1");
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", true);
 
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.last_message_body).toBe(
@@ -147,7 +148,7 @@ describe("fetchAndPatchChatMessage unread", () => {
     ]);
     qc.setQueryData(chatKeys.roomMessages("ws1", "ws-room"), []);
 
-    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m1");
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m1", true);
 
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(1);
   });
@@ -169,14 +170,16 @@ describe("fetchAndPatchChatMessage unread", () => {
     ]);
     qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), []);
 
-    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1");
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", true);
 
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
   });
 
-  it("does not seed roomMessages before the room timeline was loaded", async () => {
-    const message = sampleMessage("m1", "2026-01-01T11:00:00Z");
-    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(message);
+  // C2: every member online fetched every message of every room. Only a
+  // timeline someone has loaded is worth the GET; `chat.room.activity` owns
+  // the sidebar of the rest.
+  it("does not GET a message whose room timeline is not loaded", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoomMessage");
     const qc = new QueryClient();
     qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
       {
@@ -190,12 +193,69 @@ describe("fetchAndPatchChatMessage unread", () => {
       },
     ]);
 
-    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1");
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", true);
 
+    expect(get).not.toHaveBeenCalled();
     expect(qc.getQueryData(chatKeys.roomMessages("ws1", "room1"))).toBeUndefined();
-    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.last_message_body).toBe(
-      message.body,
-    );
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
+  });
+
+  it("counts a new default-channel message without a GET when its timeline is not loaded", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoomMessage");
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room",
+        kind: "channel",
+        is_default: true,
+        name: "General",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        unread_count: 2,
+        mention_unread_count: 0,
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m1", true);
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m0", false);
+
+    expect(get).not.toHaveBeenCalled();
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(3);
+  });
+
+  it("does not count an edit or a reaction as unread", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(sampleMessage("m1", "2026-01-01T11:00:00Z"));
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "room1",
+        kind: "channel",
+        is_default: true,
+        name: "General",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), [sampleMessage("m1", "2026-01-01T11:00:00Z")]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", false);
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
+  });
+
+  it("records a message new to a loaded timeline as having no links yet", async () => {
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(sampleMessage("m1", "2026-01-01T11:00:00Z"));
+    const qc = new QueryClient();
+    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), []);
+    qc.setQueryData(chatKeys.roomMessageLinksRoom("ws1", "room1"), new Map([["m0", []]]));
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", true);
+
+    const links = qc.getQueryData<Map<string, unknown[]>>(chatKeys.roomMessageLinksRoom("ws1", "room1"));
+    expect(links?.get("m1")).toEqual([]);
+    expect(links?.get("m0")).toEqual([]);
   });
 });
 
@@ -276,6 +336,23 @@ describe("message / thread link cache patches", () => {
       queryKey: chatKeys.messageLinks("ws1", "m1"),
     });
     expect(qc.getQueryData(chatKeys.roomMessages("ws1", "room1"))).toEqual(messages);
+  });
+
+  it("drops a linked message from the room links cache so only it is fetched again", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(
+      chatKeys.roomMessageLinksRoom("ws1", "room1"),
+      new Map([
+        ["m1", []],
+        ["m2", []],
+      ]),
+    );
+
+    patchChatMessageLinked(qc, "ws1", "room1", "m1");
+
+    const links = qc.getQueryData<Map<string, unknown[]>>(chatKeys.roomMessageLinksRoom("ws1", "room1"));
+    expect(links?.has("m1")).toBe(false);
+    expect(links?.has("m2")).toBe(true);
   });
 
   it("invalidates links for the thread root on chat.thread.linked", () => {

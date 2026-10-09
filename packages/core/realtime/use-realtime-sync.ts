@@ -382,7 +382,7 @@ function handleChatRealtimeEvent(
     case "chat.message.updated":
     case "chat.thread.replied": {
       if (roomId && messageId) {
-        chatScheduler.scheduleUpsert(roomId, messageId);
+        chatScheduler.scheduleUpsert(roomId, messageId, type === "chat.message.created");
         return true;
       }
       return false;
