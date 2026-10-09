@@ -24,6 +24,9 @@ concurrency:
 env:
   NODE_VERSION: "22"
   GO_VERSION: "1.27.0"
+  # The toolchain server/Dockerfile ships; govulncheck runs on it (see the
+  # rest shard). GO-2026-6612 / 6613 are fixed in net/http from go1.27.2.
+  GOVULN_GO_VERSION: "1.27.2"
   PNPM_VERSION: "10.28.2"
 
 jobs:
@@ -326,6 +329,16 @@ jobs:
         env:
           UNIWORK_GO_COVER_OUT: ${{ github.workspace }}/.go-tmp/cover-${{ matrix.shard }}.out
         run: bash scripts/test-go.sh $RACE --shard=${{ matrix.shard }} ${{ matrix.static }} --skip-floor
+      # govulncheck judges the standard library of the Go that runs it, so it
+      # runs on the toolchain server/Dockerfile ships (GOVULN_GO_VERSION), not
+      # on GO_VERSION: staticcheck v0.8.1 cannot read go1.27.2 export data
+      # yet, which keeps the build and the tests on 1.27.0. Move GO_VERSION up
+      # and drop this step's setup-go once a staticcheck release supports it.
+      - uses: actions/setup-go@v5
+        if: ${{ matrix.shard == 'rest' }}
+        with:
+          go-version: ${{ env.GOVULN_GO_VERSION }}
+          cache-dependency-path: server/go.sum
       - name: govulncheck
         if: ${{ matrix.shard == 'rest' }}
         # Reachability-based: only a vulnerability in a code path we call fails the job.
