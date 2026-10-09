@@ -1,6 +1,6 @@
 # W7/W7b evidence: Docs web frame served from apps/web (UNI-1013)
 
-Run 2026-10-09 (re-pin, lane F10) against the pinned fork build `0.1.0-8f34ddf` (fork lane = bd87597 + F11 fix 'hand opened document bytes to the renderer without fetch(blob:)'), dev SHA `63cf4aa19`, on top of the earlier run 2026-10-08 against a production `next build` of this branch, the Go server
+Run 2026-10-09 (re-pin, lane RP2) against the pinned fork build `0.1.0-8687750` (fork lane = 8f34ddf + F12 fix 'keep a whole Styles card clickable when the ribbon is narrow', CSS only), dev SHA `f1e0bb112`, (earlier the same day: `0.1.0-8f34ddf`, dev `63cf4aa19`), on top of the earlier run 2026-10-08 against a production `next build` of this branch, the Go server
 built from this branch (dev lane `1b1d5d9b3` (F3a server fixes, W8 export route) merged),
 Postgres from `.env.worktree`, and the pinned fork build `0.1.0-5a81008`
 (clean, fork lane `5a81008` (headless entry; protocol files unchanged since `5bce54c`), built with `npm run build:web` in the lane worktree).
@@ -88,3 +88,15 @@ Production `next build` + `next start`, Go server from this branch, both runs un
 - The fork menu renamed Save as from "Lưu thành…" to "Lưu dưới dạng…"; `e2e/office-docs-web.spec.ts` follows it (first run on 8f34ddf: 9 passed, this one case failed on the label only; re-run all green).
 - Vendored protocol files are byte-identical to fork `web/docs/protocol/{types,endpoint,host}.ts` at 8f34ddf (import specifiers aside); only the SHA header comments moved.
 - Screenshots refreshed in `screenshots/` (01-06).
+
+## Re-pin 2026-10-09: fork 0.1.0-8687750 (dev `f1e0bb112`)
+
+Fork lane 8687750 = 8f34ddf + F12 (Styles ribbon group keeps a whole clickable card when narrow; CSS only).
+Production `next build` + `next start`, Go server built from this branch, Postgres from `.env.worktree`,
+both runs under the shared build flock. The cloud VM cannot fetch the bundle, so this local run is the frame evidence (approved exception).
+
+- Installed bundle (`0.1.0-8687750`, 46 files verified by `office-frame-sync --check`): **10 passed, 1 skipped** (the not-installed case).
+- Bundle not installed (`public/office-frame` moved away, `OFFICE_FRAME_SOURCE` empty, web rebuilt): **1 passed, 10 skipped**.
+- `apps/web` `platform/office-frame` tests: 5 files, 52 tests passed; `packages/core` `docs-frame-host` + `docs-frame-api`: 29 passed.
+- Vendored protocol files are byte-identical to fork `web/docs/protocol/{types,endpoint,host}.ts` at 8687750 (import specifiers aside); only the SHA header comments moved.
+- Screenshots refreshed in `screenshots/` (01-06; 06 is identical to the previous run, the G3 editor did not change).
