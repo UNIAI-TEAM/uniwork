@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
@@ -88,11 +88,30 @@ describe("WorkspaceTopBar", () => {
     renderTopBar();
     const create = screen.getByRole("button", { name: /tạo việc/i });
     expect(create).toHaveTextContent("");
-    expect(create).toHaveClass("h-8", "w-8");
+    expect(create).toHaveClass("size-8");
     expect(screen.getByLabelText(/giao diện/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/ngôn ngữ/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();
     expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
+  });
+
+  it("draws every top-bar action at one size and tone, in one tight cluster", () => {
+    renderTopBar();
+    const create = screen.getByRole("button", { name: /tạo việc/i });
+    const cluster = create.parentElement;
+    expect(cluster).toHaveClass("gap-0.5");
+    const actions = [
+      screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i }),
+      ...within(cluster as HTMLElement).getAllByRole("button"),
+    ];
+    expect(actions.length).toBeGreaterThanOrEqual(5);
+    for (const action of actions) {
+      expect(action).toHaveClass("size-8", "text-muted-foreground");
+      // The tone sits on the button, so the ghost hover can lift the glyph.
+      expect(action.querySelector("svg")).not.toHaveClass("text-muted-foreground");
+    }
+    const search = screen.getByRole("button", { name: /tìm kiếm/i });
+    expect(search.querySelector("svg")).toHaveAttribute("stroke-width", "2");
   });
 
   it("shows the saved toast in the language just chosen, not the previous one", async () => {

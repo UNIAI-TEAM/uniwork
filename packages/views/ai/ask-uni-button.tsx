@@ -21,10 +21,10 @@ export function AskUniButton() {
     <Tooltip>
       <TooltipTrigger
         render={
-          <Button type="button" variant="ghost" size="icon-sm" className="h-8 w-8" aria-label={label} onClick={toggle} />
+          <Button type="button" variant="ghost" size="icon" className="text-muted-foreground" aria-label={label} onClick={toggle} />
         }
       >
-        <Sparkles aria-hidden className="size-4 text-muted-foreground" />
+        <Sparkles aria-hidden />
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
