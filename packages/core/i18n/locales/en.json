@@ -8022,6 +8022,7 @@
         "unsupported": "This action is not available on the web yet.",
         "timeout": "UniWork took too long to answer. Try again.",
         "busy": "Another save of this document is still running. Try again in a moment.",
+        "feature_disabled": "The new document editor is not turned on for your organization.",
         "internal": "Something went wrong in the document editor."
       }
     },

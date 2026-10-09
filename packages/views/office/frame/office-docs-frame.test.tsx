@@ -10,6 +10,7 @@ import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from 
 import { ThemeProvider, useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { leaveGuardAllows } from "../../navigation/leave-guard";
 import { requestMock } from "../../test/api-mock";
+import { DocsFrameRefusalContext } from "./docs-frame-refusal";
 import { OfficeDocsFrame, type OfficeDocsFrameProps } from "./office-docs-frame";
 
 const toastError = vi.hoisted(() => vi.fn());
@@ -302,6 +303,28 @@ describe("OfficeDocsFrame", () => {
     const frame = fakeFrame();
     await boot(frame);
     expect(frame.sent("request", "init")[0]?.payload).toMatchObject({ token: "tok-ok" });
+  });
+
+  it.each([[403], [404]])("says the editor is not turned on (not that the document is gone) when the mint is refused with feature_disabled (HTTP %i)", async (status) => {
+    serveTokens(() => Promise.reject(new ApiError("feature is disabled", "feature_disabled", status)));
+    mount({}, fakeApi(), false);
+    const alert = await screen.findByTestId("office-docs-frame-failed");
+    expect(alert.textContent).toContain("Trình soạn thảo tài liệu mới chưa được bật cho tổ chức của bạn.");
+    expect(alert.textContent).not.toContain("không còn tồn tại");
+  });
+
+  it("tells the switch around it to fall back when the mint is refused with feature_disabled", async () => {
+    serveTokens(() => Promise.reject(new ApiError("feature is disabled", "feature_disabled", 403)));
+    const refuse = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DocsFrameRefusalContext.Provider value={refuse}>
+          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+        </DocsFrameRefusalContext.Provider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(refuse).toHaveBeenCalledTimes(1));
   });
 
   it("exposes save and print controls to the hosting page", async () => {

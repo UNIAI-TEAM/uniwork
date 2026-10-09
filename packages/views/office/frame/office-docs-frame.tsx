@@ -12,6 +12,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { registerLeaveGuard } from "../../navigation/leave-guard";
 import { LeaveDialog } from "../leave-dialog";
+import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
 export interface OfficeDocsFrameControls {
@@ -42,7 +43,7 @@ export interface OfficeDocsFrameProps {
 
 const defaultDocsFrameApi = createDocsFrameApi();
 
-const KNOWN_ERRORS = new Set(["unauthorized", "forbidden", "not_found", "conflict", "too_large", "rate_limited", "network", "unsupported", "timeout", "busy"]);
+const KNOWN_ERRORS = new Set(["unauthorized", "forbidden", "not_found", "conflict", "too_large", "rate_limited", "network", "unsupported", "timeout", "busy", "feature_disabled"]);
 
 /** next-themes answers the resolved theme; without its provider the root class does. */
 function useFrameTheme(): Theme {
@@ -125,8 +126,13 @@ export function OfficeDocsFrame({
   }, [dirty]);
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
 
+  // The server refused the token mint because office_docs_web is off for this organization.
+  const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
+  const refuse = useDocsFrameRefusal();
+  useEffect(() => { if (featureDisabled) refuse?.(); }, [featureDisabled, refuse]);
+
   if (session.status === "failed") {
-    const code = session.failure?.code ?? "internal";
+    const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
     return (
       <div className={cn("p-4", className)} data-office-docs-frame data-state="failed">
         <Alert variant="destructive" role="alert" data-testid="office-docs-frame-failed">

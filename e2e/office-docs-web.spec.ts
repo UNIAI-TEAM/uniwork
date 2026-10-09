@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { e2eBaseUrl } from "./api-url";
 import {
@@ -9,12 +9,15 @@ import {
  * Docs web frame (UNI-1013): the genoffice Docs renderer served from
  * /office-frame/docs/<version>/ and opened for a DOCX behind `office_docs_web`.
  *
- * Two groups:
- *  - "frame serving" needs only the web app with a synced bundle
- *    (`pnpm --filter @uniwork/web office-frame:sync`): headers, caching, 404s.
- *  - "open, edit, save" needs the whole lane (W5 OfficeDocsFrame, W6 endpoints):
- *    sign in -> open a DOCX -> edit in the frame -> save -> a new Documents
- *    version holds the edit -> reopening shows it.
+ * Three groups, chosen by what the web build under test has installed (CI has the
+ * bundle only when the OFFICE_FRAME_SOURCE secret is set; a checkout without access to the
+ * private fork builds without it, and the web app must then keep every organization on G3):
+ *  - "frame serving" (bundle installed): headers, caching, 404s, CSP boot.
+ *  - "open, edit, save" (bundle installed): sign in -> open a DOCX -> edit in the frame ->
+ *    save -> a new Documents version holds the edit -> reopening shows it; save as, image,
+ *    PDF export, flag off, and a server-refused token falling back to G3.
+ *  - "bundle not installed" (bundle absent): flag on for the organization, yet the DOCX opens
+ *    in the G3 editor and no iframe is mounted.
  *
  * Run with OFFICE_DOCS_WEB_E2E=1. Evidence (traces, screenshots, the version
  * rows) lands in PLAYWRIGHT_OUTPUT_DIR (default e2e/test-results).
@@ -30,7 +33,20 @@ const FRAME_SELECTOR = 'iframe[src*="/office-frame/docs/"]';
 const PNG_1X1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 const EDITOR = '.ProseMirror[contenteditable="true"]';
 
+/** Whether the web build under test serves the pinned bundle. */
+async function frameInstalled(request: APIRequestContext): Promise<boolean> {
+  try {
+    return (await request.get(`${baseUrl}${frameBase}/manifest.json`)).ok();
+  } catch {
+    return false;
+  }
+}
+
 test.describe("frame serving", () => {
+  test.beforeEach(async ({ request }) => {
+    test.skip(!(await frameInstalled(request)), "the pinned Docs bundle is not installed in this web build");
+  });
+
   test("index.html carries the pinned CSP, same-origin framing and revalidation", async ({ request }) => {
     const response = await request.get(`${baseUrl}${frameBase}/${pin.entry}`);
     expect(response.status()).toBe(200);
@@ -84,7 +100,8 @@ async function signInAs(page: Page, email: string): Promise<void> {
 test.describe("open, edit, save", () => {
   let seeded: SeededDocx;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser, request }) => {
+    test.skip(!(await frameInstalled(request)), "the pinned Docs bundle is not installed in this web build");
     const context = await browser.newContext({ baseURL: baseUrl });
     try {
       seeded = await seedDocx(await context.newPage(), baseUrl, `docs-web-${Date.now().toString(36)}`);
@@ -165,7 +182,9 @@ test.describe("open, edit, save", () => {
     expect((await listVersions(request, token, seeded.documentId)).length).toBe(originalBefore.length);
 
     // The frame edits the copy: it shows the copy's content and the next save lands on the copy, never the original.
-    // (The page may mount a fresh frame for the new document id; the session-level rebind is covered in packages/views.)
+    // Intended: the page mounts a fresh frame for the new document id (the document screen swaps its host while the
+    // copy loads), so the copy opens clean from its stored version. The in-place rebind of a live frame is covered in
+    // packages/views (office-docs-frame.test.tsx); here we prove what the user sees and what the server stored.
     await expect(editor).toContainText(marker, { timeout: 60_000 });
     const second = `${marker}-again`;
     await editor.click();
@@ -233,6 +252,18 @@ test.describe("open, edit, save", () => {
     }
   });
 
+  test("a token mint the server refuses with feature_disabled falls back to the G3 editor", async ({ page }) => {
+    // The page's config answer says "on" (cached up to 5 minutes) while the server has already turned the flag off.
+    await page.route(/\/api\/v1\/documents\/[^/]+\/office\/frame-token$/, (route) => route.fulfill({
+      status: 403, contentType: "application/json", body: JSON.stringify({ error: { code: "feature_disabled", message: "feature is disabled" } }),
+    }));
+    await signInAs(page, seeded.account.email);
+    await page.goto(seeded.documentUrl);
+    await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
+    await expect(page.getByText("chưa được bật cho tổ chức")).toHaveCount(0);
+  });
+
   test("with the flag off the G3 editor stays the default and no frame mounts", async ({ page }) => {
     await setFlag("office_docs_web", seeded.organizationId, false);
     try {
@@ -242,6 +273,30 @@ test.describe("open, edit, save", () => {
       await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
     } finally {
       await setFlag("office_docs_web", seeded.organizationId, true);
+    }
+  });
+});
+
+test.describe("bundle not installed", () => {
+  test("a flag-on organization keeps the G3 editor and no iframe is mounted", async ({ page, browser, request }) => {
+    test.skip(await frameInstalled(request), "the pinned Docs bundle is installed in this web build");
+    const context = await browser.newContext({ baseURL: baseUrl });
+    let seeded: SeededDocx;
+    try {
+      seeded = await seedDocx(await context.newPage(), baseUrl, `docs-web-absent-${Date.now().toString(36)}`);
+    } finally {
+      await context.close();
+    }
+    await setFlag("office_engine", seeded.organizationId, true);
+    await setFlag("office_docs_web", seeded.organizationId, true);
+    try {
+      await signInAs(page, seeded.account.email);
+      await page.goto(seeded.documentUrl);
+      await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
+      await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
+      await page.screenshot({ path: test.info().outputPath("06-bundle-not-installed-g3.png") });
+    } finally {
+      await setFlag("office_docs_web", seeded.organizationId, false);
     }
   });
 });

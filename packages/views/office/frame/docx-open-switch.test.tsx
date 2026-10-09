@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { requestMock, wrap } from "../../test/api-mock";
+import { useEffect } from "react";
 import { DocxOpenSwitch } from "./docx-open-switch";
+import { useDocsFrameRefusal } from "./docs-frame-refusal";
 
 const ui = <DocxOpenSwitch organizationId="org1" docsFrame={<p>docs frame</p>} fallback={<p>g3 editor</p>} />;
 
@@ -25,6 +27,18 @@ describe("DocxOpenSwitch", () => {
   it("keeps the G3 editor when the flag is off or absent", async () => {
     answer({ office_engine: true });
     render(wrap(ui));
+    expect(await screen.findByText("g3 editor")).toBeTruthy();
+    expect(screen.queryByText("docs frame")).toBeNull();
+  });
+
+  it("falls back to the G3 editor when the frame reports the server refused its token (flag turned off after the page cached it)", async () => {
+    answer({ office_engine: true, office_docs_web: true });
+    function RefusedFrame() {
+      const refuse = useDocsFrameRefusal();
+      useEffect(() => { refuse?.(); }, [refuse]);
+      return <p>docs frame</p>;
+    }
+    render(wrap(<DocxOpenSwitch organizationId="org1" docsFrame={<RefusedFrame />} fallback={<p>g3 editor</p>} />));
     expect(await screen.findByText("g3 editor")).toBeTruthy();
     expect(screen.queryByText("docs frame")).toBeNull();
   });

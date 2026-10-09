@@ -453,6 +453,12 @@ jobs:
       # account and DOCX file through the API (no OFFICE_DOCUMENT_URL) and
       # needs no Office engine service: the web DOCX host is in the Next build.
       OFFICE_SHELL_E2E: "1"
+      # e2e/office-docs-web.spec.ts (UNI-1013). With the OFFICE_FRAME_SOURCE secret (an https
+      # .tar.gz of the fork's pinned Docs build, docs/office/docs-web-frame.md) the frame cases
+      # run; without it (a fork or a PR without secret access) the bundle is not installed and
+      # the spec runs its "not installed -> G3" case instead. It needs no office engine: the PDF
+      # step accepts the 503/501 print fallback.
+      OFFICE_DOCS_WEB_E2E: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -472,6 +478,8 @@ jobs:
           go build -o bin/server ./cmd/server
           nohup bin/server > /tmp/server.log 2>&1 &
       - name: Build and start the web app
+        env:
+          OFFICE_FRAME_SOURCE: ${{ secrets.OFFICE_FRAME_SOURCE }}
         run: |
           pnpm --filter @uniwork/web build
           # PORT above is the Go server's; `next start` reads the same variable.

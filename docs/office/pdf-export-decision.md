@@ -15,6 +15,31 @@ renderer and calling `page.pdf()`?
 wasm (PDF editing), the xlsx gateway and its Rust sidecar, and the Q7 converters.
 Option (a) therefore means adding LibreOffice to it. That is the arm measured as (a).
 
+## Re-verified on the pinned bundle (fork 5a81008)
+
+The numbers below this section were measured on the spike build (4a70857), whose
+renderer opened the input from `?open=`. The web bundle the product pins no longer has that
+path (documents open through the postMessage host), so the engine now loads the pinned build
+through the renderer's **headless entry**, `index.html?headless=1&open=/__input.docx`
+(fork 5a81008): top-level only, no handshake, light theme, print / `exportPdf` only. The
+renderer's own headless path (`consumeHeadlessExport` -> `exportPdf` / `printPdfBuffer`
+-> `headlessExportDone`) is unchanged, so the page shim works as before.
+
+`docs-pdf.test.ts`'s real-renderer cases ran against `apps/web/public/office-frame/docs/0.1.0-5a81008`
+(the bundle `docs.pin.json` pins) in Playwright's chromium headless-shell 1234, with the engine's
+own CDP driver (loopback server with the bundle's CSP, Fetch interception, `--no-sandbox` as the
+uid-sandboxed job runs it):
+
+| Fixture | Pages (desktop) | Pages (pinned bundle, engine) | Render wall |
+|---|---|---|---|
+| simple | 1 | **1** | 1.6 s |
+| kitchen-sink | 1 | **1** | 1.6 s |
+| long | 34 | **34** | 2.3 s |
+
+Latency is on the same class as the spike numbers (1.6 / 1.7 / 2.5 s) on a loaded box. Pixel
+fidelity against the desktop PDF was measured on the spike build only and was not re-run
+here; page counts are the cheap regression check, and the pixel diff scripts below still apply.
+
 ## Recommendation
 
 **(b) Headless Chromium rendering the pinned Docs web bundle, run as an office-engine
@@ -176,10 +201,30 @@ xvfb-run -a node_modules/electron/dist/electron --no-sandbox apps/shell \
 Run that in the fork after `npm run build -w @genoffice/docs` and
 `npm run build -w @genoffice/shell`.
 
-To run the engine prototype's real-renderer test, point the env var at a directory
-holding `bundle/` and `chromium`:
+To run the engine's real-renderer tests, point `UNIWORK_DOCS_PDF_TEST_ASSETS` at a directory
+holding `bundle/` (the **pinned** build: `apps/web/public/office-frame/docs/<version>`) and
+`chromium`; `UNIWORK_DOCS_PDF_TEST_FIXTURES` is a fork checkout, for the three measured
+fixtures (1 / 1 / 34 pages):
 
 ```sh
 UNIWORK_DOCS_PDF_TEST_ASSETS=<dir with bundle/ + chromium> \
+UNIWORK_DOCS_PDF_TEST_FIXTURES=<fork checkout> \
   pnpm --filter @uniwork/office-engine-app exec vitest run src/worker/docs-pdf.test.ts
 ```
+
+## Confinement of the renderer
+
+The job renders an untrusted DOCX in Chromium, so three things hold it:
+
+- **Network:** `--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1` leaves only
+  loopback. Loopback also hosts the engine's own listener, so the driver adds a CDP `Fetch`
+  interceptor that fails (`BlockedByClient`) every request whose origin is not this job's own
+  `http://127.0.0.1:<port>` (data:, blob: and about: stay). The loopback server also sends
+  the bundle's own `csp.json` policy (a strict fallback if it is unreadable).
+- **Sandbox:** `--no-sandbox` is passed only when the job runs under the engine's per-slot
+  uid sandbox (`RunMessage.sandboxed`), which is what confines it in a container where
+  Chromium's namespace sandbox cannot start. Without it (`OFFICE_ENGINE_SANDBOX=off`, a
+  non-root dev run) the job is refused as `engine_incompatible` / `sandbox_required`; it is
+  never run unconfined.
+- **Memory:** `--disable-dev-shm-usage` (a container's 64 MiB `/dev/shm` crashes Chromium on a
+  large document); the job tree is still limited by `OFFICE_ENGINE_MEMORY_MB`.

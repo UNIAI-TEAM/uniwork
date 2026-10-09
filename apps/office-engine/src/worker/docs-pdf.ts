@@ -11,9 +11,15 @@
 // so the engine takes no browser-automation dependency. The bundle and the
 // document are served from a loopback server that lives only for this job,
 // and every other host resolves to nothing: the renderer cannot reach the
-// network. Chromium's own sandbox is off because the job already runs under
-// its slot uid inside the container (sandbox.ts), and the supervisor owns and
-// kills the whole process tree, Chromium included.
+// network. Three layers hold the renderer to that server: the host resolver
+// maps every other name to nothing, a CDP Fetch interceptor fails every request
+// whose origin is not this job's own loopback port (127.0.0.1 also hosts the
+// engine's own listener and whatever else the container runs), and the server
+// sends the bundle's pinned Content-Security-Policy. Chromium's own sandbox is
+// off (--no-sandbox) only when the job runs under its per-slot uid
+// (sandbox.ts; the handler refuses the job otherwise), because a uid-dropped
+// process in a container cannot create the user namespaces Chromium's sandbox
+// needs; the supervisor owns and kills the whole process tree, Chromium included.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
@@ -66,6 +72,12 @@ export interface DocsPdfOptions {
   /** Job-private directory Chromium may use as its profile. */
   profileDir: string;
   timeoutMs: number;
+  /**
+   * Pass --no-sandbox. Only for a job already confined by the engine's per-slot
+   * uid sandbox; without it Chromium keeps (and, in a container, fails closed
+   * on) its own sandbox.
+   */
+  noSandbox: boolean;
 }
 
 /** printToPDF parameters for one print call, as desktop main builds them. */
@@ -100,12 +112,49 @@ export function resolveBundlePath(root: string, urlPath: string): string | null 
   return target === base || target.startsWith(base + sep) ? target : null;
 }
 
+/** Used when the bundle ships no readable csp.json: the frame's own policy, minus the framing it never needs here. */
+export const FALLBACK_CSP =
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'";
+
+/** The Content-Security-Policy the bundle was built to be served with (its csp.json `value`), else the fallback. */
+export async function bundleCsp(bundleDir: string): Promise<string> {
+  try {
+    const raw = JSON.parse(await readFile(join(bundleDir, "csp.json"), "utf8")) as { header?: unknown; value?: unknown };
+    if (typeof raw.value === "string" && raw.value.trim() !== "" && (raw.header === undefined || raw.header === "Content-Security-Policy")) return raw.value;
+  } catch {
+    // No readable policy file: the fallback below is just as strict.
+  }
+  return FALLBACK_CSP;
+}
+
+/**
+ * Whether the renderer may load `url`: this job's own loopback origin, plus the
+ * schemes that never leave the page. Everything else (another loopback port,
+ * another host, a file: URL) is failed before it is sent.
+ */
+export function isAllowedRequest(url: string, port: number): boolean {
+  if (/^(data|blob|about):/i.test(url)) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" && parsed.hostname === "127.0.0.1" && parsed.port === String(port);
+  } catch {
+    return false;
+  }
+}
+
 /** Serve the bundle and the one input document on 127.0.0.1 for this job. */
 export async function serveBundle(bundleDir: string, docx: Uint8Array): Promise<Server> {
+  const csp = await bundleCsp(bundleDir);
   const server = createServer((req, res) => {
     const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
     const reply = (status: number, body: Uint8Array | string, type = "text/plain") => {
-      res.writeHead(status, { "Content-Type": type, "Cache-Control": "no-store" });
+      res.writeHead(status, {
+        "Content-Type": type,
+        "Cache-Control": "no-store",
+        "Content-Security-Policy": csp,
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+      });
       res.end(body);
     };
     if (req.method !== "GET" && req.method !== "HEAD") return reply(405, "");
@@ -221,29 +270,32 @@ class CdpPipe {
   }
 }
 
+/** Chromium's command line for one job. */
+export function launchArgs(opts: Pick<DocsPdfOptions, "profileDir" | "noSandbox">): string[] {
+  return [
+    "--headless",
+    "--remote-debugging-pipe",
+    ...(opts.noSandbox ? ["--no-sandbox"] : []),
+    // A container's /dev/shm is 64 MiB by default; a large document crashes the renderer without this.
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-component-update",
+    "--disable-sync",
+    "--mute-audio",
+    "--font-render-hinting=none",
+    // Only the job's loopback server resolves; everything else fails fast.
+    "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
+    `--user-data-dir=${opts.profileDir}`,
+    "about:blank",
+  ];
+}
+
 function launch(opts: DocsPdfOptions): ChildProcess {
-  return spawn(
-    opts.chromiumPath,
-    [
-      "--headless",
-      "--remote-debugging-pipe",
-      "--no-sandbox",
-      "--disable-gpu",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--disable-extensions",
-      "--disable-background-networking",
-      "--disable-component-update",
-      "--disable-sync",
-      "--mute-audio",
-      "--font-render-hinting=none",
-      // Only the job's loopback server resolves; everything else fails fast.
-      "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
-      `--user-data-dir=${opts.profileDir}`,
-      "about:blank",
-    ],
-    { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] },
-  );
+  return spawn(opts.chromiumPath, launchArgs(opts), { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
 }
 
 interface PrintCall {
@@ -360,12 +412,24 @@ async function drive(
         return { ok: false, error: "unknown_call" };
     }
   };
+  // Fail every request that is not for this job's own origin (see isAllowedRequest).
+  cdp.onEvent((method, params, sid) => {
+    if (sid !== sessionId || method !== "Fetch.requestPaused") return;
+    const requestId = String(params.requestId);
+    const url = String((params.request as { url?: unknown } | undefined)?.url ?? "");
+    const verdict = isAllowedRequest(url, port)
+      ? cdp.send("Fetch.continueRequest", { requestId }, sessionId)
+      : cdp.send("Fetch.failRequest", { requestId, errorReason: "BlockedByClient" }, sessionId);
+    // A verdict racing the teardown has no page left to reach.
+    verdict.catch(() => {});
+  });
+  await cdp.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] }, sessionId);
   await cdp.send("Runtime.enable", {}, sessionId);
   await cdp.send("Runtime.addBinding", { name: "__uePdf" }, sessionId);
   await cdp.send("Page.enable", {}, sessionId);
   await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: PAGE_SHIM }, sessionId);
   await cdp.send("Emulation.setDeviceMetricsOverride", { ...VIEWPORT, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await cdp.send("Page.navigate", { url: `http://127.0.0.1:${port}/index.html?open=${INPUT_PATH}` }, sessionId);
+  await cdp.send("Page.navigate", { url: `http://127.0.0.1:${port}/index.html?headless=1&open=${INPUT_PATH}` }, sessionId);
   const report = await finished;
   if (!report.ok) throw new DocsPdfError("engine_result_invalid", `renderer_export_failed:${report.error ?? "unknown"}`.slice(0, 200));
   if (!result) throw new DocsPdfError("engine_result_invalid", "renderer_printed_nothing");

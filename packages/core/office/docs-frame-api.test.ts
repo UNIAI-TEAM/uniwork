@@ -85,31 +85,46 @@ describe("createDocsFrameApi", () => {
 
   it("saves as upload + commit on the etag, each with an Idempotency-Key", async () => {
     const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
       "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
       "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
     });
     const result = await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, call());
     expect(result).toMatchObject({ ok: true, versionId: "v-4", file: { etag: "8", versionId: "v-4" } });
-    const [upload, commit] = calls;
+    const [, upload, commit] = calls;
+    expect((upload?.init.body as FormData).get("file")).toMatchObject({ name: "Plan.docx" });
     expect(upload?.init.body).toBeInstanceOf(FormData);
     expect(JSON.parse(String(commit?.init.body))).toEqual({ upload_id: "up-1", base_revision: "7" });
     expect(header(upload!.init, "Idempotency-Key")).toMatch(/:upload$/);
     expect(header(commit!.init, "Idempotency-Key")).toMatch(/:commit$/);
   });
 
-  it("reads the current revision first when the frame sends no etag", async () => {
-    const { fetch, calls } = fakeFetch({
-      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
-      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "z" }),
-      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
-    });
-    await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4) }, call());
-    expect(JSON.parse(String(calls[2]?.init.body))).toMatchObject({ base_revision: "7" });
-    expect((calls[1]?.init.body as FormData).get("file")).toMatchObject({ name: "Plan.docx" });
+  it("refuses a save with no etag instead of rebasing onto the newest revision", async () => {
+    const { fetch, calls } = fakeFetch({});
+    await expect(createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4) }, call())).rejects.toMatchObject({ code: "malformed" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("derives one Idempotency-Key per logical save: a retry replays, another edit or base does not", async () => {
+    const keysOf = async (bytes: number[], etag: string) => {
+      const { fetch, calls } = fakeFetch({
+        "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+        "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "z" }),
+        "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+      });
+      await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new Uint8Array(bytes).buffer, etag }, call());
+      return [header(calls[1]!.init, "Idempotency-Key"), header(calls[2]!.init, "Idempotency-Key")];
+    };
+    const first = await keysOf([1, 2, 3], "7");
+    expect(await keysOf([1, 2, 3], "7")).toEqual(first);
+    expect(first[0]).not.toBe(first[1]);
+    expect((await keysOf([1, 2, 4], "7"))[1]).not.toBe(first[1]);
+    expect((await keysOf([1, 2, 3], "8"))[1]).not.toBe(first[1]);
   });
 
   it("answers a stale base (409 document_version_conflict) as a conflict, not a failure", async () => {
     const { fetch } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
       "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "z" }),
       "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json({ error: { code: "document_version_conflict", message: "stale" } }, 409),
     });
@@ -119,6 +134,7 @@ describe("createDocsFrameApi", () => {
 
   it("fails a save whose commit answer is malformed", async () => {
     const { fetch } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
       "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "z" }),
       "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json({ ok: true }),
     });
@@ -134,15 +150,8 @@ describe("createDocsFrameApi", () => {
     await expect(createDocsFrameApi({ apiUrl: API, fetch: drifted.fetch }).recents({}, call())).resolves.toEqual({ files: [] });
   });
 
-  it("uploads an image as an asset and returns its signed URL on the API origin", async () => {
-    const { fetch } = fakeFetch({
-      "POST /api/v1/office-frame/documents/doc-1/assets": () => json({
-        asset_id: "a-1", document_id: "doc-1", mime_type: "image/png", size_bytes: 3,
-        url: "/api/v1/office-frame/documents/doc-1/assets/a-1?sig=s", expires_at: "2026-10-08T11:00:00Z",
-      }),
-    });
-    await expect(createDocsFrameApi({ apiUrl: API, fetch }).uploadImage({ name: "p.png", mimeType: "image/png", data: new ArrayBuffer(3) }, call()))
-      .resolves.toEqual({ imageId: "a-1", url: `${API}/api/v1/office-frame/documents/doc-1/assets/a-1?sig=s` });
+  it("has no image-upload handler: the frame embeds data: URIs and an asset URL on the API origin could not load under img-src 'self'", () => {
+    expect((createDocsFrameApi() as unknown as Record<string, unknown>).uploadImage).toBeUndefined();
   });
 
   it("offers no attachments until their route exists", () => {
@@ -163,6 +172,16 @@ describe("createDocsFrameApi", () => {
       expect(form.get("file")).toBeInstanceOf(Blob);
       expect(header(calls[0]!.init, "Idempotency-Key")).toBeTruthy();
       expect(header(calls[0]!.init, "Authorization")).toBe("Bearer frame-tok");
+    });
+
+    it("keys one export by what is exported: a retry replays, other bytes do not", async () => {
+      const keyOf = async (bytes: number[]) => {
+        const { fetch, calls } = fakeFetch({ [EXPORT]: pdfAnswer });
+        await createDocsFrameApi({ apiUrl: API, fetch }).export!({ format: "pdf", data: new Uint8Array(bytes).buffer, name: "Plan.docx" }, call());
+        return header(calls[0]!.init, "Idempotency-Key");
+      };
+      expect(await keyOf([1, 2])).toBe(await keyOf([1, 2]));
+      expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 3]));
     });
 
     it("renders the stored version when there are no unsaved bytes", async () => {
@@ -245,6 +264,21 @@ describe("createDocsFrameApi saveAs", () => {
     expect(new Headers(create!.init.headers).get("Authorization")).toBe("Bearer session-tok");
     expect(new Headers(mint!.init.headers).get("Authorization")).toBe("Bearer session-tok");
     expect(header(open!.init, "Authorization")).toBe("Bearer copy-tok");
+  });
+
+  it("keys one save-as by workspace, name and bytes, so a retry replays the same copy", async () => {
+    const keyOf = async (bytes: number[], name = "Copy") => {
+      const { api, calls } = setup({
+        "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: COPY }),
+        "POST /api/v1/documents/doc-2/office/frame-token": () => json(COPY_TOKEN),
+        "GET /api/v1/office-frame/documents/doc-2": () => json(OPENED),
+      });
+      await api.saveAs!({ name, data: new Uint8Array(bytes).buffer }, call());
+      return new Headers(calls[0]!.init.headers).get("Idempotency-Key");
+    };
+    expect(await keyOf([1, 2])).toBe(await keyOf([1, 2]));
+    expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 3]));
+    expect(await keyOf([1, 2])).not.toBe(await keyOf([1, 2], "Other"));
   });
 
   it("degrades a malformed create or mint answer to a typed error", async () => {

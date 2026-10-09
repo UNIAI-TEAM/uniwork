@@ -1,8 +1,8 @@
-/* global fetch, Buffer */
+/* global fetch, Buffer, AbortSignal, console */
 // Install side of the Docs web frame bundle (UNI-1013): locate, verify and copy
 // a fork build into public/. Used by scripts/office-frame-sync.mjs.
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { assertMatchesPin, assertSafeVersion, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
 
@@ -31,18 +31,75 @@ export function loadBundle(dir, { allowDirty = false } = {}) {
   return { manifest, headers, manifestSha256: sha256Hex(manifestBytes) };
 }
 
-export async function materialize(source, scratch) {
+/**
+ * What an archive source may cost before anything is trusted: the real build is
+ * ~13 MiB raw / ~11 MiB gzip in 40 files, so these leave headroom, not freedom.
+ */
+/** @type {{ maxArchiveBytes: number, maxUnpackedBytes: number, maxEntries: number, timeoutMs: number }} */
+export const DEFAULT_ARCHIVE_LIMITS = Object.freeze({
+  maxArchiveBytes: 64 * 1024 * 1024,
+  maxUnpackedBytes: 160 * 1024 * 1024,
+  maxEntries: 2000,
+  timeoutMs: 120_000,
+});
+
+// `tar -tv` of GNU tar and busybox: type+mode, owner/group, size, date, time, name.
+const LISTING_LINE = /^([-dlhcbpsC])\S*\s+\S+\s+(\d+)\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?\s+(.+)$/;
+
+/**
+ * Lists an archive and refuses it before a byte is extracted: only regular
+ * files and directories, no absolute or `..` names, bounded entry count and
+ * unpacked size. A listing line it cannot read is a refusal, not a guess.
+ */
+export function assertSafeArchive(archive, limits = DEFAULT_ARCHIVE_LIMITS) {
+  if (statSync(archive).size > limits.maxArchiveBytes) throw new Error(`archive is larger than ${limits.maxArchiveBytes} bytes`);
+  const listing = execFileSync("tar", ["-tvzf", archive], { encoding: "utf8", timeout: limits.timeoutMs, maxBuffer: 16 * 1024 * 1024 });
+  let entries = 0;
+  let unpacked = 0;
+  for (const line of listing.split("\n")) {
+    if (line.trim() === "") continue;
+    const match = LISTING_LINE.exec(line);
+    if (!match) throw new Error(`archive listing line is not understood: ${JSON.stringify(line.slice(0, 120))}`);
+    const [, type, size, name] = match;
+    if (type !== "-" && type !== "d") throw new Error(`archive member ${JSON.stringify(name)} is not a regular file or directory (type ${type})`);
+    const path = name.replace(/^\.\//, "");
+    if (path.startsWith("/") || path.includes("\\") || path.includes("\0") || path.split("/").includes("..")) {
+      throw new Error(`archive member ${JSON.stringify(name)} escapes the bundle`);
+    }
+    entries += 1;
+    unpacked += Number(size);
+    if (entries > limits.maxEntries) throw new Error(`archive has more than ${limits.maxEntries} entries`);
+    if (unpacked > limits.maxUnpackedBytes) throw new Error(`archive unpacks to more than ${limits.maxUnpackedBytes} bytes`);
+  }
+}
+
+/** Downloads with a deadline and a byte cap (checked on the declared length and on what actually arrives). */
+async function download(url, target, limits) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(limits.timeoutMs) });
+  if (!response.ok) throw new Error(`GET ${url} -> ${response.status}`);
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (declared > limits.maxArchiveBytes) throw new Error(`archive is larger than ${limits.maxArchiveBytes} bytes`);
+  const chunks = [];
+  let received = 0;
+  for await (const chunk of response.body) {
+    received += chunk.length;
+    if (received > limits.maxArchiveBytes) throw new Error(`archive is larger than ${limits.maxArchiveBytes} bytes`);
+    chunks.push(chunk);
+  }
+  writeFileSync(target, Buffer.concat(chunks));
+}
+
+export async function materialize(source, scratch, limits = DEFAULT_ARCHIVE_LIMITS) {
   if (/^https:\/\//.test(source) || source.endsWith(".tar.gz") || source.endsWith(".tgz")) {
     let archive = resolve(source);
     if (/^https:\/\//.test(source)) {
-      const response = await fetch(source);
-      if (!response.ok) throw new Error(`GET ${source} -> ${response.status}`);
       archive = join(scratch, "bundle.tar.gz");
-      writeFileSync(archive, Buffer.from(await response.arrayBuffer()));
+      await download(source, archive, limits);
     }
+    assertSafeArchive(archive, limits);
     const out = join(scratch, "unpacked");
     mkdirSync(out);
-    execFileSync("tar", ["-xzf", archive, "-C", out], { stdio: "inherit" });
+    execFileSync("tar", ["-xzf", archive, "-C", out], { stdio: "inherit", timeout: limits.timeoutMs });
     return locateBundleDir(out);
   }
   return locateBundleDir(resolve(source));
@@ -83,3 +140,19 @@ export function checkInstalled(pin, root) {
   return true;
 }
 
+
+/**
+ * The version the web app may offer: the pinned one only when it is installed
+ * and verified against the pin. Anything else (never synced, partly deleted,
+ * tampered) is "" so the document screen keeps the G3 editor instead of
+ * mounting an iframe that 404s.
+ */
+export function offerableFrameVersion(pin, root) {
+  if (!pin) return "";
+  try {
+    return checkInstalled(pin, root) ? pin.version : "";
+  } catch (error) {
+    console.warn(`office-frame: ${pin.version} is installed but does not verify (${error.message}); the Docs frame is not offered`);
+    return "";
+  }
+}

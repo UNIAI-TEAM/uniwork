@@ -72,11 +72,18 @@ async function main() {
   }
   if (args.mode === "ensure") {
     if (!pin) return console.log("office-frame: no pin, nothing to serve (office_docs_web stays off)");
-    if (checkInstalled(pin, PUBLIC_ROOT)) return console.log(`office-frame: ${pin.version} already installed`);
+    let installed = false;
+    try {
+      installed = checkInstalled(pin, PUBLIC_ROOT);
+    } catch (error) {
+      console.warn(`office-frame: the installed ${pin.version} does not verify (${error.message})`);
+    }
+    if (installed) return console.log(`office-frame: ${pin.version} already installed`);
     if (!args.source) {
-      // The flag is off by default and the G3 editor remains the default, so a
-      // checkout without access to the fork still builds; the frame 404s.
-      return console.warn(`office-frame: ${pin.version} is pinned but not installed and OFFICE_FRAME_SOURCE is unset; /office-frame will 404`);
+      // A checkout without access to the fork still builds. next.config.mjs offers the frame only
+      // when the pinned bundle is installed and verifies, so with no bundle the G3 editor stays the
+      // editor for every organization, whatever office_docs_web says.
+      return console.warn(`office-frame: ${pin.version} is pinned but not installed and OFFICE_FRAME_SOURCE is unset; the Docs frame is not offered (G3 editor stays)`);
     }
   }
   if (!args.source) throw new Error("--from <dir|.tar.gz|https-url> or OFFICE_FRAME_SOURCE is required");

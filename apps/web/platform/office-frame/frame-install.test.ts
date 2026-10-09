@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildPin } from "./frame-bundle.mjs";
-import { checkInstalled, install, loadBundle, locateBundleDir, materialize } from "./frame-install.mjs";
+import { assertSafeArchive, checkInstalled, DEFAULT_ARCHIVE_LIMITS, install, loadBundle, locateBundleDir, materialize, offerableFrameVersion } from "./frame-install.mjs";
 import { writeBundle } from "./frame-fixture";
 
 const scratch = () => mkdtempSync(join(tmpdir(), "frame-install-"));
@@ -88,5 +88,74 @@ describe("materialize / locateBundleDir", () => {
     execFileSync("tar", ["-czf", archive, "-C", dir, "."]);
     const out = await materialize(archive, scratch());
     expect(loadBundle(out).manifest.version).toBe("0.1.0-abc1234");
+  });
+});
+
+describe("offerableFrameVersion", () => {
+  it("offers the pinned version only when it is installed and verifies", () => {
+    const root = join(scratch(), "docs");
+    const dir = writeBundle();
+    const bundle = loadBundle(dir);
+    const pin = buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers);
+    expect(offerableFrameVersion(null, root)).toBe("");
+    expect(offerableFrameVersion(pin, root)).toBe("");
+    const target = install(dir, bundle, root);
+    expect(offerableFrameVersion(pin, root)).toBe(pin.version);
+    writeFileSync(join(target, "index.html"), "<!doctype html><title>xxxx</title>");
+    expect(offerableFrameVersion(pin, root)).toBe("");
+  });
+});
+
+describe("archive sources are checked before they are extracted", () => {
+  const limits = { ...DEFAULT_ARCHIVE_LIMITS, timeoutMs: 20_000 };
+  const pack = (setup: (dir: string) => void, args: string[] = []) => {
+    const dir = scratch();
+    setup(dir);
+    const archive = join(scratch(), "x.tar.gz");
+    execFileSync("tar", ["-czf", archive, ...args, "-C", dir, "."]);
+    return archive;
+  };
+
+  it("accepts the build as an archive", async () => {
+    const dir = writeBundle();
+    const archive = join(scratch(), "ok.tar.gz");
+    execFileSync("tar", ["-czf", archive, "-C", dir, "."]);
+    expect(() => assertSafeArchive(archive, limits)).not.toThrow();
+  });
+  it("refuses a symlink member", () => {
+    const archive = pack((dir) => { writeFileSync(join(dir, "a"), "x"); symlinkSync("/etc/passwd", join(dir, "link")); });
+    expect(() => assertSafeArchive(archive, limits)).toThrow(/not a regular file or directory/);
+  });
+  it("refuses a member that climbs out of the bundle", () => {
+    const parent = scratch();
+    mkdirSync(join(parent, "inner"));
+    writeFileSync(join(parent, "evil.txt"), "x");
+    const archive = join(scratch(), "up.tar.gz");
+    execFileSync("tar", ["-czPf", archive, "-C", join(parent, "inner"), "../evil.txt"]);
+    expect(() => assertSafeArchive(archive, limits)).toThrow(/escapes the bundle/);
+  });
+  it("refuses an archive over the size, entry or unpacked-size cap", () => {
+    const dir = writeBundle();
+    const archive = join(scratch(), "big.tar.gz");
+    execFileSync("tar", ["-czf", archive, "-C", dir, "."]);
+    expect(() => assertSafeArchive(archive, { ...limits, maxArchiveBytes: 10 })).toThrow(/larger than/);
+    expect(() => assertSafeArchive(archive, { ...limits, maxEntries: 2 })).toThrow(/more than 2 entries/);
+    expect(() => assertSafeArchive(archive, { ...limits, maxUnpackedBytes: 5 })).toThrow(/unpacks to more than/);
+  });
+  it("does not extract a refused archive", async () => {
+    const archive = pack((dir) => { writeFileSync(join(dir, "a"), "x"); symlinkSync("/etc/passwd", join(dir, "link")); });
+    const out = scratch();
+    await expect(materialize(archive, out, limits)).rejects.toThrow(/regular file/);
+    expect(existsSync(join(out, "unpacked"))).toBe(false);
+  });
+  it("gives up on a download that exceeds the cap or never answers", async () => {
+    const body = (bytes: number) => new Response(new Uint8Array(bytes));
+    vi.stubGlobal("fetch", vi.fn(async () => body(2_000)));
+    await expect(materialize("https://files.test/b.tar.gz", scratch(), { ...limits, maxArchiveBytes: 1_000 })).rejects.toThrow(/larger than/);
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(init.signal.reason));
+    })));
+    await expect(materialize("https://files.test/b.tar.gz", scratch(), { ...limits, timeoutMs: 50 })).rejects.toThrow();
+    vi.unstubAllGlobals();
   });
 });
