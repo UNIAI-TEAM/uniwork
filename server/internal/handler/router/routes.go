@@ -257,6 +257,12 @@ type Routes struct {
 	WorkspaceAiUsage     http.HandlerFunc
 	OrganizationAiUsage  http.HandlerFunc
 
+	AiCloudStatus       http.HandlerFunc
+	AiCloudSearch       http.HandlerFunc
+	AiCloudImages       http.HandlerFunc
+	AiCloudAnalyzeMedia http.HandlerFunc
+	AiCloudTranscribe   http.HandlerFunc
+
 	ListPlans           http.HandlerFunc
 	GetSubscription     http.HandlerFunc
 	ChangePlan          http.HandlerFunc

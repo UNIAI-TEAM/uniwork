@@ -50,9 +50,12 @@ type Deps struct {
 	Billing             *service.BillingService
 	Notifications       *notification.Service
 	AskUNI              *service.AskUNIService
-	Meetings            *service.MeetingService
-	Chat                *service.ChatService
-	Hub                 *realtime.Hub
+	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
+	// cloud_unavailable on its routes.
+	AICloud  *service.AICloudService
+	Meetings *service.MeetingService
+	Chat     *service.ChatService
+	Hub      *realtime.Hub
 
 	// FileAccess is the FileService read path (T4); nil answers 501 on the
 	// file routes until the server wires it.
@@ -389,6 +392,12 @@ func New(d Deps) http.Handler {
 		DeleteAiConversation: h.deleteAiConversation,
 		WorkspaceAiUsage:     h.workspaceAiUsage,
 		OrganizationAiUsage:  h.organizationAiUsage,
+
+		AiCloudStatus:       h.aiCloudStatus,
+		AiCloudSearch:       h.aiCloudSearch,
+		AiCloudImages:       h.aiCloudImages,
+		AiCloudAnalyzeMedia: h.aiCloudAnalyzeMedia,
+		AiCloudTranscribe:   h.aiCloudTranscribe,
 
 		ListPlans:           h.listPlans,
 		GetSubscription:     h.getSubscription,

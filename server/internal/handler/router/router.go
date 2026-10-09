@@ -140,6 +140,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerBilling(authed, h)
 			registerNotifications(authed, h)
 			registerAI(authed, h)
+			registerAICloud(authed, h, mw.RateLimitByIdentity(d.Redis, 20, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerTasksSuite(authed, h)
