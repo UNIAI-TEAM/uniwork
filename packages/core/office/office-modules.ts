@@ -6,7 +6,8 @@ import type { Capabilities, OfficeModule } from "./docs-frame-protocol";
  * UNI-1015 slides, UNI-1016 sheets): one protocol, one frame host, one row
  * here per module. The server derives a token's module from the stored
  * format (`server/internal/service/office_frame_module.go`); this table must
- * name the same flag and format for each.
+ * name the same flag, format and size cap for each
+ * (`scripts/office-modules.test.mjs` fails when they differ).
  */
 
 /**

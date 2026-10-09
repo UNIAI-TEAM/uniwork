@@ -1,9 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ReactElement } from "react";
+import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import { officeModuleForFormat } from "@uniwork/core/office/office-modules";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { pinnedFrameVersion } from "../office-frame/frame-versions";
 import { detectDocumentFormat, type OfficeEditorHostProps } from "./editor-host";
@@ -29,13 +30,12 @@ const PptxHost = dynamic(() => import("./pptx-office-host").then((module) => mod
 const ModuleFrameHost = dynamic(() => import("../office-frame/module-frame-host").then((module) => module.ModuleFrameOrG3Host), { ssr: false, loading: LoadingEditor });
 
 /**
- * UNI-1014/1015/1016: the genoffice module frame when its bundle is installed
- * (the switch then reads the module's flag); the G3 host alone otherwise, so
- * nothing changes on a deployment without the bundle.
+ * The G3 host of each module other than Docs (UNI-927 P0-1: .pptx has its own
+ * browser host). The module comes from the same table that names its flag.
  */
-function withModuleFrame(module: OfficeModule, props: OfficeEditorHostProps, host: ReactElement) {
-  return pinnedFrameVersion(module) ? <ModuleFrameHost {...props} module={module} fallback={host} /> : host;
-}
+const G3_HOSTS: Readonly<Record<Exclude<OfficeModule, "docs">, ComponentType<OfficeEditorHostProps>>> = {
+  pdf: PdfHost, sheets: XlsxHost, markdown: MarkdownHost, html: HtmlHost, slides: PptxHost,
+};
 
 /** A format this host build has no editor for. Typed, never a silent fallback. */
 function UnsupportedHost({ format, title }: { format: string; title: string }) {
@@ -53,14 +53,15 @@ function UnsupportedHost({ format, title }: { format: string; title: string }) {
 export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
   useOfficeTabTitle(props.document.title);
   const format = detectDocumentFormat(props.document);
-  if (format === "pdf") return withModuleFrame("pdf", props, <PdfHost {...props} />);
+  const officeModule = officeModuleForFormat(format);
   // UNI-1013: the genoffice Docs frame when office_docs_web is on; the G3 host otherwise.
-  if (format === "docx") return <DocxFrameHost {...props} fallback={<DocxHost {...props} />} />;
-  if (format === "xlsx") return withModuleFrame("sheets", props, <XlsxHost {...props} />);
-  if (format === "md") return withModuleFrame("markdown", props, <MarkdownHost {...props} />);
-  if (format === "html") return withModuleFrame("html", props, <HtmlHost {...props} />);
-  // UNI-927 P0-1: .pptx has its own browser host.
-  if (format === "pptx") return withModuleFrame("slides", props, <PptxHost {...props} />);
+  if (officeModule === "docs") return <DocxFrameHost {...props} fallback={<DocxHost {...props} />} />;
+  if (officeModule) {
+    // UNI-1014/1015/1016: the module frame when its bundle is installed (the switch then reads
+    // the module's flag); the G3 host alone otherwise, so nothing changes without the bundle.
+    const G3Host = G3_HOSTS[officeModule];
+    return pinnedFrameVersion(officeModule) ? <ModuleFrameHost {...props} module={officeModule} fallback={<G3Host {...props} />} /> : <G3Host {...props} />;
+  }
   // The conversion-only sources (xls, odt) have no web editor yet.
   // Say so; do not route them to a host for a different format.
   return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;

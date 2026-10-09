@@ -35,7 +35,8 @@ var ErrOfficeFrameTooLarge = errors.New("office_frame_too_large")
 // officeFrameModules maps each module to the stored format it opens, the
 // organization-scoped flag that turns it on and the largest stored file it
 // opens (0 = no cap of its own). A format not listed here (xls, odt, anything
-// else) has no web frame.
+// else) has no web frame. packages/core/office/office-modules.ts tables the
+// same rows for the page; scripts/office-modules.test.mjs fails when they differ.
 var officeFrameModules = []struct {
 	module   string
 	format   office.Format
