@@ -115,3 +115,14 @@ SELECT EXISTS (
   SELECT 1 FROM refresh_tokens
   WHERE token_hash = $1 AND user_id = $2 AND session_id = $3
 );
+
+-- name: RefreshTokenRotatedOutWithin :one
+-- True when this digest is a token of the family that was rotated out less
+-- than grace_seconds ago. Refresh uses it to answer a retry whose response
+-- was lost instead of treating it as reuse.
+SELECT EXISTS (
+  SELECT 1 FROM refresh_tokens
+  WHERE token_hash = $1 AND user_id = $2 AND session_id = $3
+    AND revoked_at IS NOT NULL
+    AND revoked_at > now() - make_interval(secs => sqlc.arg(grace_seconds)::float8)
+);

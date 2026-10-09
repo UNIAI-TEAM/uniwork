@@ -55,10 +55,15 @@ describe("desktop auth against the real Go server", () => {
     expect(refreshTwo.status).toBe("signed-in");
     expect(refreshThree.status).toBe("signed-in");
 
-    // A stale pair is a real replay.  The server revokes the complete family;
-    // manager.refreshSession maps refresh_reused to the login-required state.
+    // A retry with the token just rotated out (its response was lost) gets the
+    // same refresh token back inside the server's short grace window.  A pair
+    // two rotations old is a real replay.  The server revokes the complete
+    // family; manager.refreshSession maps refresh_reused to login-required.
     const replay = await authorizeAndExchange(transport, origin, account.accessToken);
-    const replayRotated = await transport.refresh!({ deviceSessionId: replay.deviceSessionId, refreshToken: replay.refreshToken, deploymentId: profile.deploymentId });
+    const lost = await transport.refresh!({ deviceSessionId: replay.deviceSessionId, refreshToken: replay.refreshToken, deploymentId: profile.deploymentId });
+    const retried = await transport.refresh!({ deviceSessionId: replay.deviceSessionId, refreshToken: replay.refreshToken, deploymentId: profile.deploymentId });
+    expect(retried.refreshToken).toBe(lost.refreshToken);
+    const replayRotated = await transport.refresh!({ deviceSessionId: lost.deviceSessionId, refreshToken: lost.refreshToken, deploymentId: profile.deploymentId });
     const staleCredentials = createInMemoryCredentialStore();
     await staleCredentials.save(toCredentialSession(replay));
     const staleManager = createManager(transport, staleCredentials);
