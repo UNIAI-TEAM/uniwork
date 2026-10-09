@@ -5,6 +5,7 @@
 #
 #   run-tests.sh --branch B --sha S --lane L --spec-ref R --spec-sha256 H  # test round
 #   run-tests.sh --branch B --provision-only                 # just prepare
+#   ... --profile office                                      # another repository's stack
 #
 # Checks out origin/B, provisions the VM on first use (install.sh), reinstalls
 # dependencies when the lockfiles change, starts the services, runs each spec
@@ -13,6 +14,12 @@
 # root without the agent's secrets in its environment, redacts secret values
 # from the logs, publishes them to refs/test-results/L/S and prints the report
 # as the last stdout line: one JSON object.
+#
+# --profile picks the stack of the checked-out repository (default uniwork):
+#   uniwork  provision.sh / install.sh / start.sh; locks pnpm-lock.yaml, server/go.sum
+#   office   UNIAI-TEAM/uniwork-office (npm workspaces, Electron, Rust sidecar):
+#            provision-office.sh / install-office.sh / start-office.sh; locks
+#            package-lock.json, apps/sheets/native/xlsx-engine/Cargo.lock
 set -uo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -20,7 +27,7 @@ state=~/.uniwork-cloud/state
 results=/tmp/test-results
 mkdir -p "$state"
 
-branch="" sha="" lane="" spec_ref="" spec_sha="" provision_only=false
+branch="" sha="" lane="" spec_ref="" spec_sha="" provision_only=false profile=uniwork
 while [ $# -gt 0 ]; do
   case "$1" in
     --branch) branch=$2; shift 2 ;;
@@ -29,9 +36,22 @@ while [ $# -gt 0 ]; do
     --spec-ref) spec_ref=$2; shift 2 ;;
     --spec-sha256) spec_sha=$2; shift 2 ;;
     --provision-only) provision_only=true; shift ;;
+    --profile) profile=$2; shift 2 ;;
     *) echo "run-tests.sh: unknown argument $1" >&2; exit 2 ;;
   esac
 done
+
+case "$profile" in
+  uniwork)
+    provision_sh=provision.sh install_sh=install.sh start_sh=start.sh
+    locks=(pnpm-lock.yaml server/go.sum) clean_keep=() ;;
+  office)
+    provision_sh=provision-office.sh install_sh=install-office.sh start_sh=start-office.sh
+    locks=(package-lock.json apps/sheets/native/xlsx-engine/Cargo.lock)
+    # The sidecar's cargo target dir survives the per-round clean, so builds stay warm.
+    clean_keep=(-e apps/sheets/native/xlsx-engine/target) ;;
+  *) echo "run-tests.sh: unknown profile $profile" >&2; exit 2 ;;
+esac
 
 root=$(git rev-parse --show-toplevel)
 cd "$root"
@@ -59,7 +79,7 @@ if [ -n "$branch" ]; then
   if ! git fetch -q origin "$branch" || ! git reset -q --hard "origin/$branch"; then
     notes="could not check out origin/$branch"; report failed blocked ""; exit 0
   fi
-  git clean -qfdx -e .env -e node_modules -e '**/node_modules'
+  git clean -qfdx -e .env -e node_modules -e '**/node_modules' "${clean_keep[@]}"
 fi
 head=$(git rev-parse --short=8 HEAD)
 if [ -n "$sha" ] && [ "${head:0:7}" != "${sha:0:7}" ]; then
@@ -67,30 +87,32 @@ if [ -n "$sha" ] && [ "${head:0:7}" != "${sha:0:7}" ]; then
 fi
 
 if [ ! -f "$state/installed" ]; then
-  if ! bash "$here/install.sh" > /tmp/runner-install.log 2>&1; then
-    notes="install.sh failed: $(tail -3 /tmp/runner-install.log | tr '\n' ' ')"; report failed blocked ""; exit 0
+  if ! bash "$here/$install_sh" > /tmp/runner-install.log 2>&1; then
+    notes="$install_sh failed: $(tail -3 /tmp/runner-install.log | tr '\n' ' ')"; report failed blocked ""; exit 0
   fi
   touch "$state/installed"; provisioned=true; fresh_install=true
-  sha256sum pnpm-lock.yaml server/go.sum > "$state/locks"
-  sha256sum "$here/provision.sh" > "$state/provision"
+  sha256sum "${locks[@]}" > "$state/locks"
+  sha256sum "$here/$provision_sh" > "$state/provision"
 elif ! sha256sum -c --quiet "$state/provision" > /dev/null 2>&1; then
   # provision.sh changed on test/cursor-cloud-env: add the new stack to this warm VM.
-  if ! bash "$here/provision.sh" > /tmp/runner-provision.log 2>&1; then
-    notes="provision.sh failed: $(tail -3 /tmp/runner-provision.log | tr '\n' ' ')"; report failed blocked ""; exit 0
+  if ! bash "$here/$provision_sh" > /tmp/runner-provision.log 2>&1; then
+    notes="$provision_sh failed: $(tail -3 /tmp/runner-provision.log | tr '\n' ' ')"; report failed blocked ""; exit 0
   fi
-  sha256sum "$here/provision.sh" > "$state/provision"; provisioned=true
+  sha256sum "$here/$provision_sh" > "$state/provision"; provisioned=true
 fi
 if [ "$fresh_install" = false ] && ! sha256sum -c --quiet "$state/locks" > /dev/null 2>&1; then
-  if ! { pnpm install --frozen-lockfile && (cd server && go mod download); } > /tmp/runner-deps.log 2>&1; then
+  if [ "$profile" = office ]; then refresh_deps() { ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci; }
+  else refresh_deps() { pnpm install --frozen-lockfile && (cd server && go mod download); }; fi
+  if ! refresh_deps > /tmp/runner-deps.log 2>&1; then
     notes="dependency refresh failed: $(tail -3 /tmp/runner-deps.log | tr '\n' ' ')"; report failed blocked ""; exit 0
   fi
-  sha256sum pnpm-lock.yaml server/go.sum > "$state/locks"
+  sha256sum "${locks[@]}" > "$state/locks"
 fi
 
 # packages/office-upstream/dist is gitignored, so the git clean above wipes it on a warm
 # VM and every suite importing @uniwork/office-upstream/* fails to resolve. Rebuild the
 # browser artifacts the branch knows how to build before any spec command runs.
-for builder in "build-upstream.mjs --docx-browser" "build-xlsx-browser.mjs" "build-pptx-browser.mjs"; do
+[ "$profile" = uniwork ] && for builder in "build-upstream.mjs --docx-browser" "build-xlsx-browser.mjs" "build-pptx-browser.mjs"; do
   [ -f "scripts/office/${builder%% *}" ] || continue
   if ! node scripts/office/$builder > /tmp/runner-upstream.log 2>&1; then
     notes="office-upstream build failed (${builder%% *}): $(tail -3 /tmp/runner-upstream.log | tr '\n' ' ')"; report failed blocked ""; exit 0
@@ -98,8 +120,8 @@ for builder in "build-upstream.mjs --docx-browser" "build-xlsx-browser.mjs" "bui
 done
 
 t0=$(date +%s)
-if ! bash "$here/start.sh" > /tmp/runner-start.log 2>&1; then
-  notes="start.sh failed: $(tail -3 /tmp/runner-start.log | tr '\n' ' ')"; report failed blocked ""; exit 0
+if ! bash "$here/$start_sh" > /tmp/runner-start.log 2>&1; then
+  notes="$start_sh failed: $(tail -3 /tmp/runner-start.log | tr '\n' ' ')"; report failed blocked ""; exit 0
 fi
 start_seconds=$(( $(date +%s) - t0 ))
 
@@ -111,6 +133,18 @@ if ! git fetch -q origin "$spec_ref" || ! git show FETCH_HEAD:spec.txt > "$spec_
 fi
 if [ "$(sha256sum "$spec_file" | cut -d' ' -f1)" != "$spec_sha" ]; then
   notes="spec sha256 mismatch for $spec_ref"; report failed blocked ""; exit 0
+fi
+
+# The fork installs with ELECTRON_SKIP_BINARY_DOWNLOAD; a spec that drives the
+# Electron shell gets the binary here (it then stays in node_modules until the
+# next npm ci).
+if [ "$profile" = office ] && grep -qE 'test:e2e|electron' "$spec_file"; then
+  for d in node_modules/electron apps/shell/node_modules/electron; do
+    [ -f "$d/install.js" ] && [ ! -f "$d/path.txt" ] || continue
+    if ! node "$d/install.js" > /tmp/runner-electron.log 2>&1; then
+      notes="electron download failed: $(tail -3 /tmp/runner-electron.log | tr '\n' ' ')"; report failed blocked ""; exit 0
+    fi
+  done
 fi
 
 # The agent VM carries Cursor secrets (GH_TOKEN and every name listed in
@@ -138,14 +172,18 @@ while IFS= read -r cmd || [ -n "$cmd" ]; do
   code=$?
   dur=$(( $(date +%s) - t ))
   result=pass; [ "$code" -eq 0 ] || { result=fail; any_fail=true; }
-  CMD=$cmd RESULT=$result DUR=$dur CODE=$code LOG=$log node -e '
+  PROFILE=$profile CMD=$cmd RESULT=$result DUR=$dur CODE=$code LOG=$log node -e '
     const fs = require("fs");
     const lines = process.env.RESULT === "fail" ? fs.readFileSync(process.env.LOG, "utf8").split("\n") : [];
     const failures = [];
     for (const l of lines) {
       const go = l.match(/^\s*--- FAIL: (\S+)/);
       const vt = l.match(/^\s*(?:FAIL|×|✗)\s+(.+)/);
-      if (go || vt) failures.push({ test: (go ?? vt)[1].trim(), file: "", msg: "" });
+      // office: Playwright "✘  3 [project] › file:line › title", node:test "✖ name" / TAP "not ok 3 - name".
+      const fork = process.env.PROFILE === "office"
+        && (l.match(/^\s*✘\s+(?:\d+\s+)?(.*›.*?)(?:\s+\([\d.]+m?s\))?$/) ?? l.match(/^\s*✖\s+(.+?)(?:\s+\([\d.]+m?s\))?$/)
+          ?? l.match(/^\s*not ok \d+ - (.+)/));
+      if (go || vt || fork) failures.push({ test: (go ?? vt ?? fork)[1].trim(), file: "", msg: "" });
       const at = l.match(/^\s+(\S+\.(?:go|ts|tsx|js|mjs):\d+):\s*(.*)$/);
       if (at && failures.length && !failures.at(-1).file) Object.assign(failures.at(-1), { file: at[1], msg: at[2].slice(0, 200) });
       if (failures.length >= 20) break;

@@ -112,3 +112,53 @@ the per-round `git clean` leaves compiled dependencies warm.
 ```bash
 node <this dir>/cloud-runner.mjs test --spec <this dir>/specs/rust-sidecar.txt --lane <slug> --shard rust --out reports/<lane>/rust.md
 ```
+
+## Other repositories (`--repo`)
+
+The runner also drives a VM for `UNIAI-TEAM/uniwork-office` (the genoffice
+fork). Every command takes `--repo uniwork|uniwork-office` (or one of their
+GitHub URLs); without it the repository is the one the cwd's `origin` points
+at, else `uniwork`. So a lane in a fork worktree just runs the runner from
+there:
+
+```bash
+cd <uniwork-office worktree> && git push origin HEAD
+node <dev-uniwork test-cursor-cloud-env checkout>/.cursor/cloud/cloud-runner.mjs test --spec tests.txt --lane <slug> --out reports/<lane>/x.md
+node <same>/cloud-runner.mjs close        # when the lane is done
+```
+
+- `uniwork` stays the default and behaves as before: same state file names,
+  same prompt, same profile.
+- Another repository keeps its own state, `cloud-runner@<repo>[.<shard>].json`
+  in the worktree's git dir, and its own agent and VM (the agent is named
+  `runner <repo> <branch>`). `test`, `suite`, `--shard`, `ensure`, `collect`,
+  `status` and `close` act on the selected repository's runners; `pending`
+  records the repository, and spec refs (`refs/test-specs/...`), results refs
+  and log pulls go to that repository.
+- The runner scripts are never added to the fork. The fork VM fetches this
+  directory from `test/cursor-cloud-env` of the uniwork repository into a bare
+  side repository (`~/.uniwork-cloud/env.git`, shallow), with the VM's git
+  credentials, falling back to `GH_TOKEN` through a credential helper so the
+  token is never on a command line or in a log.
+- `run-tests.sh --profile office` selects the fork's profile:
+
+| | `uniwork` | `office` (uniwork-office) |
+| --- | --- | --- |
+| provision | `provision.sh`: Go, Node 22, pnpm, Postgres, Redis, MinIO, Rust 1.88, desktop libs | `provision-office.sh`: Node 22, Rust 1.88, xmllint, document fonts (Carlito, Caladea, Noto CJK), xvfb |
+| install | `install.sh`: `.env`, `pnpm install`, Go build, Playwright Chromium | `install-office.sh`: `npm ci` with `ELECTRON_SKIP_BINARY_DOWNLOAD=1`, Playwright Chromium + its system libs |
+| start | `start.sh`: services, databases, migrations | `start-office.sh`: allows unprivileged user namespaces for Electron (best effort) |
+| dependency refresh | `pnpm-lock.yaml`, `server/go.sum` | `package-lock.json`, `apps/sheets/native/xlsx-engine/Cargo.lock` (`npm ci`) |
+| kept across the per-round `git clean` | `node_modules` | `node_modules`, `apps/sheets/native/xlsx-engine/target` |
+| failures extracted | Go `--- FAIL`, vitest `FAIL`/`×` | the same plus Playwright `✘ ... ›`, node:test `✖`, TAP `not ok` |
+
+  A fork spec that mentions `test:e2e` or `electron` gets the Electron binary
+  downloaded before its commands run. Run the shell e2e under xvfb as CI does:
+  `xvfb-run --auto-servernum -- npm run test:e2e`. CI's `cargo-deny` license
+  step is not installed on the VM.
+
+Cost per round (Grok 4.6 high): a fresh fork VM (provision + `npm ci`) and a
+warm round are listed in the trial below; uniwork rounds cost the same as
+before (fresh VM about 12 cents, warm about 5).
+
+Linux hosts (the VPS) run the runner the same way: `CURSOR_API_KEY` comes from
+the environment, and every path the runner writes is built with `node:path`.

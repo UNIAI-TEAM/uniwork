@@ -28,6 +28,15 @@
 // runs are follow-ups on the same warm VM. A round is one command (run-tests.sh)
 // because every agent step re-reads the whole conversation.
 //
+// Every command takes --repo uniwork|uniwork-office|<url of one> (default: the
+// repository the cwd's origin points at, else uniwork). Each repository has a
+// profile (REPOS) that run-tests.sh follows: its provision/install/start
+// scripts, dependency lock files and failure patterns. A non-default repository
+// keeps its own state files (cloud-runner@<repo>[.<shard>].json), so one
+// worktree per repository gets its own VM; spec refs, results refs and log
+// pulls go to that repository. The runner scripts themselves always come from
+// test/cursor-cloud-env of the uniwork repository.
+//
 // Exit codes: 0 pass, 1 tests failed, 2 blocked or runner error.
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
@@ -36,8 +45,14 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { basename, dirname, join, resolve } from "node:path";
 
 const API = "https://api.cursor.com/v1";
-const REPO_URL = "https://github.com/UNIAI-TEAM/uniwork";
+const ENV_REPO_URL = "https://github.com/UNIAI-TEAM/uniwork";
 const ENV_BRANCH = "test/cursor-cloud-env";
+// name -> { url, profile }; the profile is run-tests.sh's --profile.
+const REPOS = {
+  uniwork: { url: ENV_REPO_URL, profile: "uniwork" },
+  "uniwork-office": { url: "https://github.com/UNIAI-TEAM/uniwork-office", profile: "office" },
+};
+const DEFAULT_REPO = "uniwork";
 // User 2026-10-02: runners use Grok 4.6 at high effort. --model takes
 // "<id>[:param=value,...]", e.g. "composer-2.5" or "grok-4.6:effort=medium".
 const DEFAULT_MODEL = "grok-4.6:effort=high,fast=false";
@@ -60,9 +75,21 @@ const REFRESH = [
   "git archive FETCH_HEAD .cursor/cloud | tar -x -C ~/.uniwork-cloud",
 ].join(" && ");
 
+// The same for a VM whose checkout is another repository: a shallow fetch into a
+// bare side repository (nothing lands in the tested checkout), with the VM's own
+// git credentials, and failing those GH_TOKEN through a credential helper, so
+// the token is never part of a command line or a log.
+const ENV_GIT = "~/.uniwork-cloud/env.git";
+const ENV_FETCH = `fetch -q --depth 1 ${ENV_REPO_URL} ${ENV_BRANCH}`;
+const REFRESH_FOREIGN = [
+  `mkdir -p ~/.uniwork-cloud && git init -q --bare ${ENV_GIT}`,
+  `{ git -C ${ENV_GIT} ${ENV_FETCH} 2> /dev/null || git -C ${ENV_GIT} -c credential.helper= -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' ${ENV_FETCH}; }`,
+  `git -C ${ENV_GIT} archive FETCH_HEAD .cursor/cloud | tar -x -C ~/.uniwork-cloud`,
+].join(" && ");
+
 function usage(msg) {
   if (msg) console.error(`cloud-runner: ${msg}`);
-  console.error("usage: cloud-runner.mjs ensure|test|suite|collect|status|close [--branch b] [--spec f] [--specs a,b] [--lane s] [--shard n] [--out f] [--out-dir d] [--model m] [--timeout s] [--all yes] [--detach yes]");
+  console.error("usage: cloud-runner.mjs ensure|test|suite|collect|status|close [--repo uniwork|uniwork-office|url] [--branch b] [--spec f] [--specs a,b] [--lane s] [--shard n] [--out f] [--out-dir d] [--model m] [--timeout s] [--all yes] [--detach yes]");
   process.exit(2);
 }
 
@@ -80,6 +107,38 @@ function parseArgs(argv) {
 
 function git(...args) {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
+}
+
+const normUrl = (u) => String(u).trim().replace(/^git@github\.com:/i, "https://github.com/")
+  .replace(/\.git$/i, "").replace(/\/+$/, "").toLowerCase();
+
+function originUrl() {
+  try {
+    return git("remote", "get-url", "origin");
+  } catch {
+    return "";
+  }
+}
+
+// { name, url, profile, remote } for a REPOS name. remote is "origin" when the
+// cwd's origin is that repository, else its URL, so pushes and fetches of spec
+// and results refs always reach the repository the VM checks out.
+function repoInfo(name) {
+  const { url, profile } = REPOS[name];
+  const origin = originUrl();
+  return { name, url, profile, remote: origin && normUrl(origin) === normUrl(url) ? "origin" : url };
+}
+
+// " --repo <name>" for printed follow-up commands; empty for the default repository.
+const repoArg = () => (REPO.name === DEFAULT_REPO ? "" : ` --repo ${REPO.name}`);
+
+// --repo (a REPOS name or one of their URLs), else the cwd's origin, else the default.
+function resolveRepo(opts) {
+  const byUrl = (u) => Object.keys(REPOS).find((n) => normUrl(REPOS[n].url) === normUrl(u));
+  if (!opts.repo) return repoInfo(byUrl(originUrl()) || DEFAULT_REPO);
+  const name = REPOS[opts.repo] ? opts.repo : byUrl(opts.repo);
+  if (!name) usage(`unknown repo ${opts.repo}; known: ${Object.keys(REPOS).join(", ")} or their URLs`);
+  return repoInfo(name);
 }
 
 function apiKey() {
@@ -121,8 +180,14 @@ function shardName(shard) {
   return shard || "";
 }
 
+// The default repository keeps the names it always had; another one is keyed by
+// its name, so a worktree can hold a runner per repository.
+function statePrefix() {
+  return REPO.name === DEFAULT_REPO ? "cloud-runner" : `cloud-runner@${REPO.name}`;
+}
+
 function statePath(shard) {
-  const name = shardName(shard) ? `cloud-runner.${shard}.json` : "cloud-runner.json";
+  const name = shardName(shard) ? `${statePrefix()}.${shard}.json` : `${statePrefix()}.json`;
   return join(resolve(git("rev-parse", "--git-dir")), name);
 }
 
@@ -135,13 +200,16 @@ function saveState(s, shard) {
   writeFileSync(statePath(shard), `${JSON.stringify(s, null, 2)}\n`);
 }
 
-// Every runner state file of this worktree as [shard ("" = default runner), path].
+// Every runner state file of this worktree for the selected repository as
+// [shard ("" = default runner), path].
 function allStates() {
   const dir = resolve(git("rev-parse", "--git-dir"));
+  const prefix = statePrefix();
   return readdirSync(dir)
-    .map((f) => /^cloud-runner(?:\.([A-Za-z0-9._-]+))?\.json$/.exec(f))
-    .filter(Boolean)
-    .map((m) => [m[1] || "", join(dir, m[0])]);
+    .filter((f) => f.startsWith(`${prefix}.`))
+    .map((f) => [/^\.(?:([A-Za-z0-9._-]+)\.)?json$/.exec(f.slice(prefix.length)), f])
+    .filter(([m]) => m)
+    .map(([m, f]) => [m[1] || "", join(dir, f)]);
 }
 
 function laneSlug(opts, branch) {
@@ -175,10 +243,10 @@ async function agentAlive(state) {
 
 async function createAgent(branch, model, prompt) {
   const r = await api("POST", "/agents", {
-    name: `runner ${branch}`.slice(0, 80),
+    name: `runner ${REPO.name === DEFAULT_REPO ? "" : `${REPO.name} `}${branch}`.slice(0, 80),
     prompt: { text: prompt },
     model: modelSpec(model),
-    repos: [{ url: REPO_URL, startingRef: branch }],
+    repos: [{ url: REPO.url, startingRef: branch }],
     env: { type: "cloud" },
     autoCreatePR: false,
   });
@@ -203,7 +271,7 @@ and wait for it to finish (up to 30 minutes on a new VM). Do not run anything
 else, do not edit, commit or push any file, do not open a PR, and do not look
 into failures:
 
-    ${REFRESH} && bash ~/.uniwork-cloud/.cursor/cloud/run-tests.sh ${args}
+    ${REPO.name === DEFAULT_REPO ? REFRESH : REFRESH_FOREIGN} && bash ~/.uniwork-cloud/.cursor/cloud/run-tests.sh ${args}${REPO.profile === "uniwork" ? "" : ` --profile ${REPO.profile}`}
 
 The last line it prints is a JSON object. Reply with only that object, unchanged,
 inside one \`\`\`json fence. If it printed no JSON, reply inside the fence with
@@ -225,7 +293,7 @@ function publishSpec(lane, sha, commands) {
     { encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "runner", GIT_AUTHOR_EMAIL: "runner@local",
       GIT_COMMITTER_NAME: "runner", GIT_COMMITTER_EMAIL: "runner@local" } }).trim();
   const ref = `refs/test-specs/${lane}/${sha}`;
-  git("push", "-q", "-f", "origin", `${commit}:${ref}`);
+  git("push", "-q", "-f", REPO.remote, `${commit}:${ref}`);
   return { ref, sha256: createHash("sha256").update(text).digest("hex") };
 }
 
@@ -300,7 +368,7 @@ function fetchLogs(ref, dir) {
     // fetch that lost a lock race.
     for (let attempt = 1; ; attempt += 1) {
       try {
-        git("fetch", "-q", "origin", `${ref}:${ref}`);
+        git("fetch", "-q", REPO.remote, `${ref}:${ref}`);
         break;
       } catch (e) {
         if (attempt >= 4) throw e;
@@ -329,7 +397,7 @@ async function cmdEnsure(opts) {
   }
   const model = opts.model || DEFAULT_MODEL;
   const { agentId, runId } = await createAgent(branch, model, ensurePrompt(branch));
-  state = { agentId, branch, model, lane: laneSlug(opts, branch), shard: shardName(opts.shard), createdAt: new Date().toISOString() };
+  state = { agentId, repo: REPO.name, branch, model, lane: laneSlug(opts, branch), shard: shardName(opts.shard), createdAt: new Date().toISOString() };
   saveState(state, opts.shard);
   console.log(`runner created: ${agentId}; provisioning (about 10 min)`);
   const run = await waitRun(agentId, runId, Number(opts.timeout || 1800));
@@ -345,9 +413,9 @@ async function cmdTest(opts) {
   if (commands.length === 0) usage("spec has no commands");
   const branch = git("rev-parse", "--abbrev-ref", "HEAD");
   const sha = git("rev-parse", "--short=8", "HEAD");
-  const remote = git("ls-remote", "origin", `refs/heads/${branch}`).split(/\s+/)[0] ?? "";
+  const remote = git("ls-remote", REPO.remote, `refs/heads/${branch}`).split(/\s+/)[0] ?? "";
   if (!remote.startsWith(git("rev-parse", "HEAD").slice(0, 12))) {
-    usage(`origin/${branch} is not at HEAD ${sha}; push the branch first`);
+    usage(`${REPO.name}:${branch} is not at HEAD ${sha}; push the branch first`);
   }
   let state = loadState(opts.shard);
   if (state?.pending) {
@@ -365,7 +433,7 @@ async function cmdTest(opts) {
     runId = await sendRun(agentId, prompt);
   } else {
     ({ agentId, runId } = await createAgent(branch, opts.model || DEFAULT_MODEL, prompt));
-    state = { agentId, branch, model: opts.model || DEFAULT_MODEL, lane, shard: shardName(opts.shard), createdAt: new Date().toISOString() };
+    state = { agentId, repo: REPO.name, branch, model: opts.model || DEFAULT_MODEL, lane, shard: shardName(opts.shard), createdAt: new Date().toISOString() };
   }
   // Saved before any wait: this is what collect resumes after a crash or shutdown.
   state.pending = {
@@ -376,7 +444,7 @@ async function cmdTest(opts) {
   saveState(state, opts.shard);
   console.log(`run ${runId} on ${agentId} for ${sha}`);
   if (opts.detach) {
-    console.log(`detached; collect later with: node ${process.argv[1]} collect${opts.shard ? ` --shard ${opts.shard}` : ""}`);
+    console.log(`detached; collect later with: node ${process.argv[1]} collect${repoArg()}${opts.shard ? ` --shard ${opts.shard}` : ""}`);
     return 0;
   }
   return finishPending(state, opts.shard);
@@ -391,7 +459,7 @@ async function finishPending(state, shard, timeoutOverride) {
   const after = await costCents(state.agentId);
   let logsDir = null;
   if (rep?.log_ref) logsDir = fetchLogs(rep.log_ref, p.out.replace(/\.md$/, ".logs"));
-  try { git("push", "-q", "origin", `:${p.specRef}`); } catch { /* best effort */ }
+  try { git("push", "-q", REPO.remote, `:${p.specRef}`); } catch { /* best effort */ }
   const valid = rep && String(rep.sha ?? "").slice(0, 7) === p.sha.slice(0, 7);
   writeReport(p.out, {
     lane: p.lane, sha: p.sha, branch: p.branch, agentId: state.agentId, runId: p.runId, runStatus: run.status,
@@ -452,9 +520,9 @@ async function closeOne(shard, laneOpt) {
   }
   const lane = laneOpt ? (shard ? `${laneOpt}-${shard}` : laneOpt) : state?.lane;
   if (lane) {
-    const refs = git("ls-remote", "origin", `refs/test-results/${lane}/*`, `refs/test-specs/${lane}/*`)
+    const refs = git("ls-remote", REPO.remote, `refs/test-results/${lane}/*`, `refs/test-specs/${lane}/*`)
       .split("\n").map((l) => l.split(/\s+/)[1]).filter(Boolean);
-    if (refs.length) git("push", "-q", "origin", ...refs.map((r) => `:${r}`));
+    if (refs.length) git("push", "-q", REPO.remote, ...refs.map((r) => `:${r}`));
     console.log(`deleted ${refs.length} results refs for ${lane}`);
   }
   if (existsSync(statePath(shard))) rmSync(statePath(shard));
@@ -483,7 +551,7 @@ async function cmdSuite(opts) {
   const names = ["pass", "fail", "blocked"];
   const results = await Promise.all(shards.map(({ spec, shard }) => new Promise((done) => {
     const out = join(outDir, `cloud-suite-${sha}-${shard}.md`);
-    const args = [process.argv[1], "test", "--spec", spec, "--shard", shard, "--out", out];
+    const args = [process.argv[1], "test", "--repo", REPO.name, "--spec", spec, "--shard", shard, "--out", out];
     for (const k of ["lane", "timeout", "model", "detach"]) if (opts[k]) args.push(`--${k}`, opts[k]);
     const started = Date.now();
     const child = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -493,7 +561,7 @@ async function cmdSuite(opts) {
   })));
   if (opts.detach) {
     const failed = results.filter((r) => r.code !== 0);
-    console.log(`suite: ${results.length - failed.length} shard(s) started detached; collect later with: node ${process.argv[1]} collect --all yes`);
+    console.log(`suite: ${results.length - failed.length} shard(s) started detached; collect later with: node ${process.argv[1]} collect${repoArg()} --all yes`);
     return failed.length ? 2 : 0;
   }
   const worst = results.some((r) => r.code !== 0 && r.code !== 1) ? 2 : results.some((r) => r.code === 1) ? 1 : 0;
@@ -515,6 +583,7 @@ ${rows}
 }
 
 const { cmd, opts } = parseArgs(process.argv.slice(2));
+const REPO = resolveRepo(opts);
 const handlers = { ensure: cmdEnsure, test: cmdTest, suite: cmdSuite, collect: cmdCollect, status: cmdStatus, close: cmdClose };
 if (!handlers[cmd]) usage(cmd ? `unknown command ${cmd}` : undefined);
 handlers[cmd](opts).then((code) => process.exit(code), (e) => {
