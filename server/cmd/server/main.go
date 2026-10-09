@@ -248,6 +248,10 @@ func main() {
 	taskSvc.Chat = chatSvc
 	meetingSvc.Chat = chatSvc
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
+	// BYOK proxy for the web host (UNI-1008). TODO(UNI-1008 W1): pass the
+	// AICredentialService as the resolver once it lands; nil answers
+	// credential_missing for every call until then.
+	aiBYOK := service.NewAIBYOKService(orgSvc, service.NewEntitlementService(pool, q), nil, gateway)
 	// Chat rooms and in-room meeting events are scopes a socket must be let into;
 	// both authorizers fail closed.
 	hub.SetAuthorizer(realtime.ScopeAuthorizers{
@@ -496,6 +500,7 @@ func main() {
 		Billing:             billingSvc,
 		Notifications:       notifSvc,
 		AskUNI:              askUNI,
+		AIBYOK:              aiBYOK,
 		Meetings:            meetingSvc,
 		Chat:                chatSvc,
 		Hub:                 hub,

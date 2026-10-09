@@ -257,6 +257,11 @@ type Routes struct {
 	WorkspaceAiUsage     http.HandlerFunc
 	OrganizationAiUsage  http.HandlerFunc
 
+	AiByokChatCompletions http.HandlerFunc
+	AiByokMessages        http.HandlerFunc
+	AiByokGenerate        http.HandlerFunc
+	AiByokModels          http.HandlerFunc
+
 	ListPlans           http.HandlerFunc
 	GetSubscription     http.HandlerFunc
 	ChangePlan          http.HandlerFunc

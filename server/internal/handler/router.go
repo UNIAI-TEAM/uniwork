@@ -8,6 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
@@ -50,9 +51,11 @@ type Deps struct {
 	Billing             *service.BillingService
 	Notifications       *notification.Service
 	AskUNI              *service.AskUNIService
-	Meetings            *service.MeetingService
-	Chat                *service.ChatService
-	Hub                 *realtime.Hub
+	// AIBYOK is the web host's own-key proxy (UNI-1008); nil answers 503.
+	AIBYOK   *service.AIBYOKService
+	Meetings *service.MeetingService
+	Chat     *service.ChatService
+	Hub      *realtime.Hub
 
 	// FileAccess is the FileService read path (T4); nil answers 501 on the
 	// file routes until the server wires it.
@@ -389,6 +392,11 @@ func New(d Deps) http.Handler {
 		DeleteAiConversation: h.deleteAiConversation,
 		WorkspaceAiUsage:     h.workspaceAiUsage,
 		OrganizationAiUsage:  h.organizationAiUsage,
+
+		AiByokChatCompletions: h.byokProxy(ai.ProxyChatCompletions),
+		AiByokMessages:        h.byokProxy(ai.ProxyMessages),
+		AiByokGenerate:        h.byokProxy(ai.ProxyGenerate),
+		AiByokModels:          h.byokProxy(ai.ProxyModels),
 
 		ListPlans:           h.listPlans,
 		GetSubscription:     h.getSubscription,
