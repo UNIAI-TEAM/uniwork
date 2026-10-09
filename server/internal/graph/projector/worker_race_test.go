@@ -9,7 +9,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// The test below stages two worker loops by hand: deliver runs the marker,
+// The tests below stage two worker loops by hand: deliver runs the marker,
 // claimOne takes a claim, and inFlight runs Worker.project up to its commit,
 // so another session's commit can land between a projection's read of the
 // source and the removal of its dirty row.
@@ -61,6 +61,46 @@ func TestAnExpiredClaimLeavesTheMarkOfALaterEdit(t *testing.T) {
 	}
 }
 
+// blocks(a, b) is the edge b→a, and only b's projection writes it. Remove the
+// dependency while b's projection is in flight, after it read the dependency
+// and opened the edge: a's projection runs under its own lock and cannot see
+// b's uncommitted edge, so it has nothing to mark. The removal has to mark b
+// itself, or the edge stays open with nothing dirty.
+func TestDependencyRemovedWhileThePeerProjectsClosesTheEdge(t *testing.T) {
+	f := newFixture(t)
+	a, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "A chặn B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "B chờ A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+
+	if _, err := f.tasks.SetDependency(f.ctx, service.Human(f.owner.ID), a.ID, service.SetDependencyInput{DependsOnTaskID: b.ID, Type: "blocks"}); err != nil {
+		t.Fatal(err)
+	}
+	f.deliver(t)
+	// a projects first and marks b: b has no edge into a yet. Hold back any
+	// mark b already has, so a's projection is what makes b due.
+	f.exec(t, `UPDATE graph_dirty SET available_at = now() + interval '1 hour' WHERE organization_id = $1 AND source_id = $2`,
+		f.orgID, b.ID)
+	f.inFlight(t, f.claimOne(t, a.ID))()
+	finishB := f.inFlight(t, f.claimOne(t, b.ID))
+
+	if err := f.tasks.RemoveDependency(f.ctx, service.Human(f.owner.ID), a.ID, b.ID, "blocks"); err != nil {
+		t.Fatal(err)
+	}
+	f.deliver(t)
+	f.inFlight(t, f.claimOne(t, a.ID))()
+	finishB()
+	f.sync(t)
+
+	eq(t, "b edges", f.openEdges(t, graph.NodeTask, b.ID), []string{})
+	eq(t, "a edges", f.openEdges(t, graph.NodeTask, a.ID), []string{})
+}
+
 // deliver hands every outbox row of the organization to the marker. Like sync,
 // it polls while a row is not claimable yet, for a DB clock that stepped back.
 func (f *fixture) deliver(t *testing.T) {
@@ -82,7 +122,7 @@ func (f *fixture) deliver(t *testing.T) {
 }
 
 // claimOne claims every dirty row that is due and returns source's, failing on
-// any other: the test above decides which loop holds which node. Like sync, it
+// any other: the tests above decide which loop holds which node. Like sync, it
 // polls while nothing is due yet, for a DB clock that stepped back.
 func (f *fixture) claimOne(t *testing.T, source string) db.GraphDirty {
 	t.Helper()
