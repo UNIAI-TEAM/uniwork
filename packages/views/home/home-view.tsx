@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { LayoutDashboard, SlidersHorizontal, TriangleAlert } from "lucide-react";
+import { LayoutDashboard, SlidersHorizontal, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { buildHomeHeadline, oldestOverdue } from "@uniwork/core/home/brief";
@@ -234,7 +234,7 @@ export function HomeView() {
             <div className="rounded-xl border border-surface-border bg-surface">
               <CollectionPageState
                 role="alert"
-                icon={TriangleAlert}
+                icon={CircleAlert}
                 tone="destructive"
                 title={t("home.error.title")}
                 description={t("home.error.description")}

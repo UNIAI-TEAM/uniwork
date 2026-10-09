@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Phone, RotateCw, X } from "lucide-react";
+import { Phone, X, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { voiceCallEndedMessage } from "./voice-call-copy";
 import { VoiceCallLabeledAction } from "./voice-call-floating-panel";
@@ -65,7 +65,7 @@ export function VoiceCallEndedPanel({
             ariaLabel={retry ? t("common.retry") : t("chat.voice_call_call_back")}
             tone="accept"
             onClick={onRetry}
-            icon={retry ? <RotateCw aria-hidden className="size-5" /> : <Phone aria-hidden className="size-5" />}
+            icon={retry ? <RefreshCw aria-hidden className="size-5" /> : <Phone aria-hidden className="size-5" />}
             compact
           />
         ) : null}

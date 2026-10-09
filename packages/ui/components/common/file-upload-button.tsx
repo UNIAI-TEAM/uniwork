@@ -33,7 +33,7 @@ function FileUploadButton({
     for (const file of files) onSelect(file);
   };
 
-  const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const iconSize = size === "sm" ? "size-3.5" : "size-4";
   const buttonSize = size === "sm" ? "icon-xs" : "icon-sm";
 
   return (

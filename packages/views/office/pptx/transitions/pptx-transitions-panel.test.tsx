@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { PPTX_TRANSITION_KINDS, type PptxTransitionKind } from "@uniwork/office-engine/pptx";
 import { PptxTransitionsPanel } from "./pptx-transitions-panel";
-import { Ban, Blend, Sparkles, ZoomIn } from "lucide-react";
+import { Ban, Blend, ZoomIn, ArrowRightLeft } from "lucide-react";
 import { isPptxTransitionKind, resolveSelectedKind, transitionKindIcon } from "./transition-gallery";
 import { PPTX_TRANSITIONS_I18N } from "./transitions-i18n";
 
@@ -61,11 +61,11 @@ describe("transition gallery helpers", () => {
     expect(resolveSelectedKind(null)).toBe("none");
   });
 
-  it("maps every kind to a decorative icon, Sparkles as the fallback (R2-13)", () => {
+  it("maps every kind to a decorative icon, the transitions glyph as the fallback (R2-13)", () => {
     expect(transitionKindIcon("fade")).toBe(Blend);
     expect(transitionKindIcon("zoom")).toBe(ZoomIn);
     expect(transitionKindIcon("none")).toBe(Ban);
-    expect(transitionKindIcon("dissolve")).toBe(Sparkles);
+    expect(transitionKindIcon("dissolve")).toBe(ArrowRightLeft);
   });
 
   it("draws an aria-hidden icon in every tile while the label stays the accessible name (R2-13)", () => {

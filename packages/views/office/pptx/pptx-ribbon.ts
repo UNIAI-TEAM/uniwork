@@ -44,11 +44,11 @@ import {
   Save,
   Search,
   Shapes,
-  Sparkles,
   StickyNote,
   Table,
   Type,
   Undo2,
+  Orbit,
 } from "lucide-react";
 import type { PptxCommand, PptxCommandId } from "./command-map";
 import type { PptxPanelKind } from "./pptx-panel-host";
@@ -115,7 +115,7 @@ const PPTX_COMMAND_ICONS: Partial<Record<PptxCommandId, RibbonIcon>> = {
   print: Printer,
   "speaker-notes": StickyNote,
   "masters-layouts": LayoutTemplate,
-  animations: Sparkles,
+  animations: Orbit,
   charts: ChartColumn,
   tables: Table,
   "embedded-fonts": CaseSensitive,
@@ -141,7 +141,7 @@ const PPTX_PANEL_ICONS: Partial<Record<PptxPanelKind, RibbonIcon>> = {
   transitions: ArrowRightLeft,
   comments: MessageSquare,
   notes: StickyNote,
-  animations: Sparkles,
+  animations: Orbit,
   tables: Table,
   charts: ChartColumn,
 };

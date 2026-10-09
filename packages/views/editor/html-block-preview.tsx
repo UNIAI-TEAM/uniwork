@@ -92,9 +92,9 @@ export function HtmlBlockPreview({ html, className }: HtmlBlockPreviewProps) {
           }
         >
           {view === "preview" ? (
-            <CodeIcon className="h-3.5 w-3.5" />
+            <CodeIcon className="size-3.5" />
           ) : (
-            <Eye className="h-3.5 w-3.5" />
+            <Eye className="size-3.5" />
           )}
         </button>
         {view === "preview" && (
@@ -105,7 +105,7 @@ export function HtmlBlockPreview({ html, className }: HtmlBlockPreviewProps) {
             title={t("editor.code_block.fullscreen")}
             aria-label={t("editor.code_block.fullscreen")}
           >
-            <Maximize2 className="h-3.5 w-3.5" />
+            <Maximize2 className="size-3.5" />
           </button>
         )}
         <button
@@ -116,9 +116,9 @@ export function HtmlBlockPreview({ html, className }: HtmlBlockPreviewProps) {
           aria-label={t("editor.code_block.copy_code")}
         >
           {copied ? (
-            <Check className="h-3.5 w-3.5" />
+            <Check className="size-3.5" />
           ) : (
-            <Copy className="h-3.5 w-3.5" />
+            <Copy className="size-3.5" />
           )}
         </button>
       </div>

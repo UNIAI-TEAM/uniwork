@@ -2,7 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleAlert, Check, LoaderCircle, RotateCw } from "lucide-react";
+import { CircleAlert, Check, LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Card, CardContent } from "@uniwork/ui/components/ui/card";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -252,7 +252,7 @@ export function SettingsLoadError({ children, onRetry }: { children?: ReactNode;
       <span className="min-w-0 flex-1 text-pretty text-foreground">{children ?? t("load_error")}</span>
       {onRetry ? (
         <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-          <RotateCw aria-hidden className="size-3.5" />
+          <RefreshCw aria-hidden className="size-3.5" />
           {t("retry")}
         </Button>
       ) : null}

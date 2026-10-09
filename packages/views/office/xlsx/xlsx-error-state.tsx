@@ -1,6 +1,6 @@
 "use client";
 
-import { TriangleAlert, FileExclamationPoint, LockKeyhole, ShieldAlert } from "lucide-react";
+import { FileExclamationPoint, LockKeyhole, ShieldAlert, CircleAlert } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { createLogger } from "@uniwork/core/logger";
@@ -18,7 +18,7 @@ const FAILURE_ICON = {
   password_required: LockKeyhole,
   unsupported_feature: ShieldAlert,
   not_office_file: FileExclamationPoint,
-  engine_error: TriangleAlert,
+  engine_error: CircleAlert,
   engine_unavailable: ShieldAlert,
 } as const;
 

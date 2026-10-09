@@ -8,8 +8,8 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
-  RotateCw,
   Search,
+  RefreshCw,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -200,7 +200,7 @@ export function CalendarFloatingSearch({
         id: "refresh",
         label: t("calendar.refresh"),
         keywords: "refresh reload lam moi",
-        icon: RotateCw,
+        icon: RefreshCw,
         action: onRefresh,
       },
     ],

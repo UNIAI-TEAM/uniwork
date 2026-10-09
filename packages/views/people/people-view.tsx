@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, RotateCw, SearchX, UserPlus, Users } from "lucide-react";
+import { Download, SearchX, UserPlus, Users, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { exportPeopleCsv } from "@uniwork/core/api/endpoints/people";
@@ -209,7 +209,7 @@ export function PeopleView() {
           description={t("people.error_description")}
           actions={
             <Button variant="outline" onClick={() => void refetch()} aria-busy={isRefetching || undefined}>
-              <RotateCw aria-hidden="true" className={isRefetching ? "motion-safe:animate-spin" : undefined} />
+              <RefreshCw aria-hidden="true" className={isRefetching ? "motion-safe:animate-spin" : undefined} />
               {t("common.retry")}
             </Button>
           }

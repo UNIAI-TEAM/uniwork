@@ -7,11 +7,11 @@ import {
   SquareKanban,
   ListChecks,
   Ellipsis,
-  Settings2,
   User,
   UserRound,
   Users,
   Video,
+  Wrench,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { QuestionnaireAnswers, Role, UseCase } from "@uniwork/core/onboarding";
@@ -44,7 +44,7 @@ export function StepAboutYou({
     { slug: "engineer", icon: <CodeXml />, label: r("engineer") },
     { slug: "manager", icon: <Users />, label: r("manager") },
     { slug: "product", icon: <Briefcase />, label: r("product") },
-    { slug: "ops", icon: <Settings2 />, label: r("ops") },
+    { slug: "ops", icon: <Wrench />, label: r("ops") },
     { slug: "sales", icon: <Handshake />, label: r("sales") },
     { slug: "hr", icon: <UserRound />, label: r("hr") },
     { slug: "student", icon: <GraduationCap />, label: r("student") },
