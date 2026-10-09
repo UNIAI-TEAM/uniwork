@@ -6,11 +6,14 @@ import (
 	"time"
 )
 
-// Simulates an org-scale client fleet: each user keeps workspace + user scopes
-// plus a capped set of chat room subscriptions (lazy sidebar).
-func TestOrgScale500ClientsLazyChatSubscribe(t *testing.T) {
+// TestHubInMemoryFanOut500ClientsLazyChatScopes holds 500 in-process clients,
+// each with workspace + user scopes plus a capped set of chat room
+// subscriptions (lazy sidebar), and broadcasts once. No socket, database or
+// Redis is involved, so it measures the hub's map walk only; chat under real
+// load is scripts/load/chat.
+func TestHubInMemoryFanOut500ClientsLazyChatScopes(t *testing.T) {
 	if testing.Short() {
-		t.Skip("org scale test: skipped with -short")
+		t.Skip("in-memory fan-out: skipped with -short")
 	}
 
 	const (
