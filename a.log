@@ -1,0 +1,5 @@
+$ npm run typecheck:web
+
+> genoffice@0.1.0 typecheck:web
+> tsc -p web/docs/protocol/tsconfig.json && tsc -p web/docs/bridge/tsconfig.json && tsc -p web/docs/build/tsconfig.json && tsc -p web/modules/tsconfig.json
+
