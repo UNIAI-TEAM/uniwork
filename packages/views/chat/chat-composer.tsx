@@ -161,7 +161,18 @@ export function ChatComposer({
   const submit = () => {
     if (!canSend) return;
     if (stagedFiles.length > 0 && onSendFile) {
-      for (const file of stagedFiles) void onSendFile(file);
+      // One upload at a time: the server holds each file in memory while it
+      // checks it, and a handful of large ones at once can exhaust the pod.
+      const files = stagedFiles;
+      void (async () => {
+        for (const file of files) {
+          try {
+            await onSendFile(file);
+          } catch {
+            // The sender reports its own failure; the next file still goes.
+          }
+        }
+      })();
       setStagedFiles([]);
     }
     if (draft.trim().length > 0) onSend();
