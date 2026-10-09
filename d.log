@@ -1,0 +1,5 @@
+$ cd server && go test ./internal/ai/... ./internal/middleware/... ./internal -count=1
+ok  	github.com/unicomhub/uniwork/server/internal/ai	8.538s
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	0.323s
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	0.534s
+ok  	github.com/unicomhub/uniwork/server/internal	0.749s

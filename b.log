@@ -1,0 +1,5 @@
+$ cd server && go test ./internal/handler/... -count=1 -timeout 20m
+ok  	github.com/unicomhub/uniwork/server/internal/handler	265.792s
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.007s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	1.405s

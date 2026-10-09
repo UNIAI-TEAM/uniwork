@@ -1,0 +1,41 @@
+$ pnpm --filter @uniwork/core test
+
+> @uniwork/core@0.0.0 test /workspace/packages/core
+> vitest run --coverage
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+      Coverage enabled with v8
+
+ ❯ realtime/use-realtime-sync.test.tsx (81 tests | 1 failed) 150ms
+     × patches workspace messages when the event targets the workspace room 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  realtime/use-realtime-sync.test.tsx > useRealtimeSync > patches workspace messages when the event targets the workspace room
+AssertionError: expected "invalidateQueries" to be called 1 times, but got 2 times
+ ❯ realtime/use-realtime-sync.test.tsx:544:24
+    542|       await Promise.resolve();
+    543|     });
+    544|     expect(invalidate).toHaveBeenCalledTimes(1);
+       |                        ^
+    545|     expect(keysCalled(invalidate)).toEqual([
+    546|       JSON.stringify(chatKeys.voiceRecordings("ws1", "ws-room")),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 208 passed | 1 skipped (210)
+      Tests  1 failed | 1856 passed | 1 skipped (1858)
+   Start at  06:47:53
+   Duration  50.31s (transform 3.60s, setup 29.21s, import 16.25s, tests 13.90s, environment 56.84s)
+
+/workspace/packages/core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/core@0.0.0 test: `vitest run --coverage`
+Exit status 1

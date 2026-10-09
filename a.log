@@ -1,0 +1,1 @@
+$ cd server && go build ./... && go vet ./... && test -z "$(gofmt -l .)"
