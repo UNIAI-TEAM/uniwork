@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -32,8 +33,7 @@ func (s *BillingService) RefundInvoiceOnProvider(ctx context.Context, adminID st
 		if err != nil {
 			return "", err
 		}
-		qin := s.vnpayQueryDRInput(ctx, s.q, intent, clientIP)
-		qev, qErr := vnp.QueryTransaction(ctx, qin)
+		qev, qErr := s.vnpayQueryDR(ctx, vnp, intent, clientIP)
 		if qErr != nil {
 			msg := fmt.Sprintf("VNPay không tra được giao dịch gốc: %v", qErr)
 			if errors.Is(qErr, billing.ErrInvalidWebhookSignature) {
@@ -54,8 +54,14 @@ func (s *BillingService) RefundInvoiceOnProvider(ctx context.Context, adminID st
 			txType = "03"
 		}
 		orderInfo := fmt.Sprintf("Hoàn tiền HĐ %s", inv.Number)
+		refundTxDate := intentVNPayTransactionDate(intent)
+		if pd := strings.TrimSpace(pgTextString(intent.ProviderPayDate)); len(pd) == 14 {
+			if t, err := time.ParseInLocation("20060102150405", pd, vnpayICT); err == nil {
+				refundTxDate = t
+			}
+		}
 		res, err := vnp.Refund(ctx, billing.RefundInput{
-			TxnRef: intent.ProviderTxnRef, TransactionDate: qin.TransactionDate, Amount: refundAmount,
+			TxnRef: intent.ProviderTxnRef, TransactionDate: refundTxDate, Amount: refundAmount,
 			TransactionType: txType,
 			OrderInfo:       orderInfo, CreateBy: adminID, ClientIP: clientIP, TransactionNo: txnNo,
 		})

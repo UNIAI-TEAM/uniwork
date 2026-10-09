@@ -114,8 +114,8 @@ func (v *VNPay) Refund(ctx context.Context, in RefundInput) (RefundResult, error
 	if err != nil {
 		return RefundResult{}, err
 	}
-	var resp map[string]string
-	if err := json.Unmarshal(raw, &resp); err != nil {
+	resp, err := decodeVNPayJSONMap(raw)
+	if err != nil {
 		return RefundResult{}, fmt.Errorf("vnpay: refund decode: %w", err)
 	}
 	if err := vnpVerifyRefundResponse(resp, v.cfg.HashSecret); err != nil {

@@ -47,7 +47,18 @@ func (s *BillingService) HandleProviderWebhook(ctx context.Context, ev billing.E
 		return true, nil
 	}
 	if err := s.applyProviderEvent(ctx, q, ev); err != nil {
-		return false, err
+		var term intentTerminalErr
+		if !errors.As(err, &term) {
+			return false, err
+		}
+		// Terminal mismatch/quota: intent→failed is committed; ack VNPay 00 so IPN is not retried forever.
+		if err := q.MarkWebhookInboxDone(ctx, inboxID); err != nil {
+			return false, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 	if err := q.MarkWebhookInboxDone(ctx, inboxID); err != nil {
 		return false, err

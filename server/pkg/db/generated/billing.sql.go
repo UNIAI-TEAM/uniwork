@@ -982,6 +982,7 @@ WHERE provider = 'vnpay' AND status = 'completed'
   AND (
     provider_bank_code IS NULL OR btrim(provider_bank_code) = ''
     OR provider_transaction_no IS NULL OR btrim(provider_transaction_no) = ''
+    OR provider_pay_date IS NULL OR btrim(provider_pay_date) = ''
   )
 ORDER BY COALESCE(completed_at, created_at) DESC
 LIMIT $1
@@ -1526,6 +1527,16 @@ UPDATE billing_payment_intents SET
     THEN btrim($4::text)
     ELSE provider_transaction_no
   END,
+  provider_order_info = CASE
+    WHEN $5::text IS NOT NULL AND btrim($5::text) <> ''
+    THEN btrim($5::text)
+    ELSE provider_order_info
+  END,
+  provider_pay_date = CASE
+    WHEN $6::text IS NOT NULL AND btrim($6::text) <> ''
+    THEN btrim($6::text)
+    ELSE provider_pay_date
+  END,
   updated_at = now()
 WHERE id = $1 AND organization_id = $2 AND status = 'completed'
 `
@@ -1535,6 +1546,8 @@ type PatchBillingPaymentIntentProviderMetaParams struct {
 	OrganizationID        string      `json:"organization_id"`
 	ProviderBankCode      pgtype.Text `json:"provider_bank_code"`
 	ProviderTransactionNo pgtype.Text `json:"provider_transaction_no"`
+	ProviderOrderInfo     pgtype.Text `json:"provider_order_info"`
+	ProviderPayDate       pgtype.Text `json:"provider_pay_date"`
 }
 
 func (q *Queries) PatchBillingPaymentIntentProviderMeta(ctx context.Context, arg PatchBillingPaymentIntentProviderMetaParams) error {
@@ -1543,6 +1556,8 @@ func (q *Queries) PatchBillingPaymentIntentProviderMeta(ctx context.Context, arg
 		arg.OrganizationID,
 		arg.ProviderBankCode,
 		arg.ProviderTransactionNo,
+		arg.ProviderOrderInfo,
+		arg.ProviderPayDate,
 	)
 	return err
 }

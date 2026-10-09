@@ -111,6 +111,41 @@ func TestHandleProviderWebhookDedupesInbox(t *testing.T) {
 	}
 }
 
+func TestHandleProviderWebhookAcksTerminalAmountMismatch(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	intentID := "01TESTVNAPYINTENT00004"
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO billing_payment_intents (
+		id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
+		amount, currency, status, expires_at
+	) SELECT $1, s.organization_id, s.id, $2, 'vnpay', $1, 500000, 'VND', 'pending', now() + interval '15 minutes'
+	  FROM subscriptions s WHERE s.organization_id = $3`,
+		intentID, "01TESTPLANpaid_team", f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	prov := billing.FromConfig(config.Config{BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: "secret"})
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, prov)
+	ev := billing.Event{
+		ProviderEventID: "bad-amt-webhook-1",
+		ProviderTxnRef:  intentID,
+		Paid:            true,
+		Amount:          1,
+		Currency:        "VND",
+	}
+	payload, err := ProviderWebhookPayloadJSON(ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok, err := f.billing.HandleProviderWebhook(f.ctx, ev, payload)
+	if err != nil || !ok {
+		t.Fatalf("terminal mismatch should ack: ok=%v err=%v", ok, err)
+	}
+	var status string
+	if err := f.pool.QueryRow(f.ctx, `SELECT status FROM billing_payment_intents WHERE id = $1`, intentID).Scan(&status); err != nil || status != "failed" {
+		t.Fatalf("intent status = %q err=%v", status, err)
+	}
+}
+
 func TestListInvoicesRequiresMember(t *testing.T) {
 	f := newBillingFixture(t)
 	outsider := registerVerified(t, f.q, f.auth, "inv-outsider@example.com", "Other")

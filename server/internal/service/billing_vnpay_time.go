@@ -6,10 +6,9 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// intentVNPayTransactionDate is the pay date VNPay QueryDr/refund expect (completed_at when known).
+// intentVNPayTransactionDate is the vnp_TransactionDate fallback for QueryDr/refund when
+// provider_pay_date is unset. Prefer intent created_at (matches Pay URL vnp_CreateDate) over
+// completed_at, which is server IPN time and often differs from vnp_PayDate by seconds.
 func intentVNPayTransactionDate(intent db.BillingPaymentIntent) time.Time {
-	if intent.CompletedAt.Valid {
-		return intent.CompletedAt.Time
-	}
 	return intent.CreatedAt.Time
 }
