@@ -79,11 +79,19 @@ report() { # stage_outcome test_verdict log_ref
     const fs = require("fs");
     const ran = fs.readFileSync(process.env.RAN, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
     const failures = ran.filter((r) => r.result === "fail").flatMap((r) => r.failures);
+    // Notes quote tails of install/push logs: scrub them like the pushed logs,
+    // plus any credentials in a URL.
+    const names = ["GH_TOKEN", "GITHUB_TOKEN", "CURSOR_API_KEY",
+      ...(process.env.CLOUD_AGENT_ALL_SECRET_NAMES || "").split(/[\s,]+/)];
+    let notes = process.env.NOTES || "";
+    for (const v of names.map((n) => n && process.env[n]).filter((v) => v && v.length >= 8)) notes = notes.split(v).join("[REDACTED]");
+    notes = notes.replace(/\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|key_[A-Za-z0-9]{32,})\b/g, "[REDACTED]")
+      .replace(/(\/\/[^\/\s:@]*:)[^@\s]+@/g, "$1[REDACTED]@");
     console.log(JSON.stringify({
       sha: process.env.HEAD_SHA, stage_outcome: process.env.STAGE, test_verdict: process.env.VERDICT,
       provisioned: process.env.PROV === "true", start_seconds: Number(process.env.START),
       ran: ran.map(({ cmd, result, duration_s, exit_code }) => ({ cmd, result, duration_s, exit_code })),
-      failures, not_run: [], log_ref: process.env.LOGREF || null, notes: process.env.NOTES,
+      failures, not_run: [], log_ref: process.env.LOGREF || null, notes,
     }));'
   rm -f "$ran_file"
 }
@@ -225,15 +233,15 @@ SECRET_NAMES=$secret_names RESULTS=$results node -e '
 log_ref="refs/test-results/$lane/$head"
 # The VM's own credentials may not reach a repository Cursor cannot open
 # (--repo-url); the fallback feeds GH_TOKEN through a credential helper so it
-# is never on a command line. The VM's GitHub auth (an insteadOf or extraheader
-# carrying Cursor's app token) would override a credential helper, so the URL
-# names a user (no insteadOf prefix matches it) and the extraheaders are cleared.
+# is never on a command line. The VM's global git config rewrites github.com
+# URLs to carry Cursor's app token (insteadOf), which wins over any helper, so
+# the fallback push reads no global or system config at all.
 push_with_gh_token() {
   if [ -z "${GH_TOKEN:-}" ]; then echo "fallback push: GH_TOKEN is not set"; return 1; fi
   echo "fallback push with GH_TOKEN"
-  git -c credential.helper= -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
-    -c http.extraheader= -c http.https://github.com/.extraheader= \
-    push -qf "https://x-access-token@${1#https://}" "HEAD:$log_ref"
+  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    git -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
+    push -qf "$1" "HEAD:$log_ref"
 }
 origin=$(git remote get-url origin)
 if ! (cd "$results" && export GIT_TERMINAL_PROMPT=0 && git init -q && git add -A \
