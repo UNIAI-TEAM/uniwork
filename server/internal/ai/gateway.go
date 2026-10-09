@@ -155,8 +155,12 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	resp, perr := g.p.Complete(cctx, creq)
 	cancel()
 	latency := g.now().Sub(started)
+	// The request may be gone (client hung up) while the vendor answered: the
+	// row still settles and the call is still charged.
+	sctx, cancelSettle := settleContext(ctx)
+	defer cancelSettle()
 	if perr != nil {
-		_ = g.finish(ctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
+		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
 		g.observe(req.Capability, "failed", latency)
 		g.log.Warn("ai: provider error", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds(), "err", perr)
 		if errors.Is(perr, provider.ErrUnsupportedMedia) {
@@ -166,15 +170,15 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	}
 	calls, denied := auditToolCalls(resp.ToolCalls, req.Tools)
 	if denied != "" {
-		_ = g.finish(ctx, row.ID, row.OrganizationID, resp, "failed", ErrToolNotAllowed.Code, latency, calls)
+		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrToolNotAllowed.Code, latency, calls)
 		g.observe(req.Capability, "failed", latency)
 		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))
 	}
-	if err := g.finish(ctx, row.ID, row.OrganizationID, resp, "succeeded", "", latency, calls); err != nil {
+	if err := g.finish(sctx, row.ID, row.OrganizationID, resp, "succeeded", "", latency, calls); err != nil {
 		return Response{}, err
 	}
 	if g.quota != nil {
-		if err := g.quota.Record(ctx, UsageRecord{
+		if err := g.quota.Record(sctx, UsageRecord{
 			OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID, Actor: req.Actor,
 			Tokens: int64(resp.InputTokens + resp.OutputTokens), UsageEventID: row.ID,
 		}); err != nil {
@@ -184,7 +188,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	// ai.usage.updated is workspace-scoped; an organization-tier call (media
 	// analysis for Office) has no workspace audience to tell.
 	if g.rec != nil && req.WorkspaceID != "" {
-		if err := g.rec.Emit(ctx, g.q, req.Actor, audit.Event{
+		if err := g.rec.Emit(sctx, g.q, req.Actor, audit.Event{
 			Topic: "ai.usage.updated", OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID,
 			Payload: map[string]string{"organization_id": req.OrganizationID, "workspace_id": req.WorkspaceID},
 		}); err != nil {

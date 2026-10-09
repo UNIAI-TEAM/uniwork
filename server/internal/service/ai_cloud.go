@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -266,6 +267,12 @@ func (s *AICloudService) AnalyzeMedia(ctx context.Context, userID, orgID string,
 		if strings.TrimSpace(m.MIME) == "" {
 			return "", Invalid("mỗi tệp cần mime")
 		}
+		// Only allowlisted types go further, so the value that reaches the
+		// prompt below is one of our own constants, never client text.
+		mime, ok := analyzeMIME(m.MIME)
+		if !ok {
+			return "", ai.ErrMediaUnsupported
+		}
 		p, err := decodeMedia(m, cloudMediaMaxBytes, "tổng dung lượng media tối đa 25 MiB")
 		if err != nil {
 			return "", err
@@ -274,7 +281,7 @@ func (s *AICloudService) AnalyzeMedia(ctx context.Context, userID, orgID string,
 			return "", Invalid("tổng dung lượng media tối đa 25 MiB")
 		}
 		parts = append(parts, p)
-		mimes = append(mimes, p.MIME)
+		mimes = append(mimes, mime)
 	}
 	if !s.gw.CloudAvailability().MediaAnalyze {
 		return "", ai.ErrCloudUnavailable
@@ -349,11 +356,38 @@ func decodeMedia(m CloudMedia, max int, tooLarge string) (provider.Part, error) 
 	if len(b) > max {
 		return provider.Part{}, Invalid(tooLarge)
 	}
-	return provider.Part{MIME: strings.ToLower(strings.TrimSpace(m.MIME)), Data: b}, nil
+	return provider.Part{MIME: canonicalMIME(m.MIME), Data: b}, nil
 }
 
+// canonicalMIME is the bare lower-case type: parameters such as ";codecs=opus"
+// (what MediaRecorder sends) are cut.
+func canonicalMIME(m string) string {
+	if i := strings.IndexByte(m, ';'); i >= 0 {
+		m = m[:i]
+	}
+	return strings.ToLower(strings.TrimSpace(m))
+}
+
+// analyzeMIMEs is what media/analyze accepts. A type the main provider cannot
+// read (video on Anthropic and OpenAI, PDF on OpenAI, audio on Anthropic) still
+// gets as far as the gateway, which answers 422 media_unsupported too.
+var analyzeMIMEs = map[string]bool{
+	"image/png": true, "image/jpeg": true, "image/webp": true, "image/gif": true,
+	"audio/mpeg": true, "audio/wav": true, "audio/mp4": true, "audio/webm": true,
+	"video/mp4": true, "video/webm": true, "application/pdf": true,
+}
+
+func analyzeMIME(m string) (string, bool) {
+	c := canonicalMIME(m)
+	return c, analyzeMIMEs[c]
+}
+
+// mimeToken is the shape of a type that may be copied into a multipart part
+// header: no control characters, no whitespace, bounded.
+var mimeToken = regexp.MustCompile(`^[a-z0-9]+/[a-z0-9.+-]{1,100}$`)
+
 func imageMIME(m string) bool {
-	switch strings.ToLower(strings.TrimSpace(m)) {
+	switch canonicalMIME(m) {
 	case "image/png", "image/jpeg", "image/webp":
 		return true
 	}
@@ -361,8 +395,8 @@ func imageMIME(m string) bool {
 }
 
 func audioMIME(m string) bool {
-	m = strings.ToLower(strings.TrimSpace(m))
-	return strings.HasPrefix(m, "audio/") || m == "video/mp4" || m == "video/webm"
+	m = canonicalMIME(m)
+	return mimeToken.MatchString(m) && (strings.HasPrefix(m, "audio/") || m == "video/mp4" || m == "video/webm")
 }
 
 // imageSize maps the client's hints onto the vendor's three sizes: an exact

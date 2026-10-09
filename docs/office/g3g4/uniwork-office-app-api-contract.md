@@ -105,6 +105,10 @@ dạng `{ "code": ..., "message": ... }`.
 | Tạo / cập nhật | `PUT /orgs/{orgID}/ai/credentials/{aiProvider}` | body `{ api_key?, base_url?, label? }`; `api_key` bắt buộc khi tạo, ≤ 4096; `label` ≤ 80; **201** khi tạo, **200** khi cập nhật |
 | Xóa | `DELETE /orgs/{orgID}/ai/credentials/{aiProvider}` | **204**; **404** nếu chưa có |
 
+`PUT` giữ nguyên `base_url` / `label` đã lưu khi body **bỏ qua** trường đó; chỉ chuỗi rỗng
+tường minh mới xóa (`base_url` rỗng = về endpoint mặc định). Bỏ qua `api_key` trên dòng đã có
+thì giữ khóa cũ.
+
 `Credential` = `{ provider, label, base_url, key_hint, created_at, updated_at }`. API **không
 bao giờ** trả khóa; `key_hint` là "…" + 4 ký tự cuối. Chỉ `PUT` cần entitlement
 `office.ai_byok`; `GET` và `DELETE` **không** bị chặn bởi entitlement (người dùng hạ plan vẫn xem và gỡ được khóa của mình). Cả `PUT` và `DELETE` ghi audit `ai.credential.saved` / `ai.credential.deleted` (payload chỉ có id +
@@ -125,11 +129,26 @@ route dưới đây và bỏ khóa. Server chọn endpoint từ bảng cố đ�
 | gemini | `POST /orgs/{orgID}/ai/byok/{aiProvider}/generate`, body `{ model, stream, request: <body Gemini gốc> }` |
 | Danh sách model | `GET /orgs/{orgID}/ai/byok/{aiProvider}/models` (JSON của nhà cung cấp, chuyển tiếp) |
 
-Giới hạn: body ≤ 16 MiB, phải là JSON; timeout phía server 15 s tới header, 10 phút tổng, nghỉ
-60 s giữa hai chunk. Header phản hồi chuyển tiếp: `content-type`, `retry-after`. Không hỗ
-trợ `codex`, `genspark`. Nhà cung cấp `custom` cần `base_url` `https://` công khai (rào SSRF,
+Giới hạn: body ≤ 16 MiB, phải là JSON; timeout phía server 15 s tới header (chỉ cho lệnh gọi
+streaming và `GET` model), 10 phút tổng, nghỉ 60 s giữa hai chunk; ghi xuống client có hạn chót
+60 s mỗi chunk. Người không phải thành viên tổ chức nhận **404**.
+
+- **Header request chuyển tiếp (allowlist theo giao thức)**: anthropic → `anthropic-beta`;
+  openai-compatible → `openai-organization`, `openai-project`, và với `openrouter` thêm
+  `http-referer`, `x-title`; gemini → không. Giá trị có ký tự điều khiển hoặc > 512 byte bị
+  bỏ; `authorization`, `x-api-key`, `x-goog-api-key`, `cookie` không bao giờ được chuyển, khóa
+  đã lưu luôn được gắn sau cùng.
+- **Phản hồi**: header chuyển tiếp chỉ `content-type`, `retry-after`. Luôn có
+  `X-Content-Type-Options: nosniff` và `Content-Security-Policy: default-src 'none'; sandbox`;
+  `content-type` chỉ giữ khi là `application/json`, `text/event-stream`, `text/plain`, còn lại
+  thành `application/octet-stream`. Body lỗi của nhà cung cấp được thay mọi chỗ lặp lại khóa
+  bằng `[redacted]`; body 2xx không bị lọc.
+
+Không hỗ trợ `codex`, `genspark`. Nhà cung cấp `custom` cần `base_url` `https://` công khai (rào SSRF,
 kiểm lại lúc dial, không theo redirect). Lệnh gọi ghi một sự kiện sử dụng (`office.byok`,
-`credits=0`); proxy **không** tiêu credit UniWork.
+`credits=0`); proxy **không** tiêu credit UniWork. Với openai-compatible ở chế độ stream, token
+chỉ được ghi khi client đặt `stream_options.include_usage` (body không bị viết lại), nếu không
+dòng sử dụng ghi 0 token.
 
 ### 3.3 Công cụ đám mây UniWork
 
@@ -140,20 +159,36 @@ trả 503.
 | --- | --- | --- |
 | Trạng thái + credit | `GET /orgs/{orgID}/ai/cloud` | `{ enabled, reason?, tools: { web_search, image_search, image_generate, media_analyze, transcribe }, credits: { unit: "ai.tokens", used, limit\|null, remaining\|null, period_end\|null } }`; **không bao giờ 403**: thiếu entitlement → `enabled:false` + `reason: "entitlement_required"` |
 | Tìm kiếm | `POST /orgs/{orgID}/ai/cloud/search` | `{ query ≤ 400, kind: "web"\|"image", max_results 1..10 (mặc định 6) }` → `{ results: [{ title, url, snippet, image_url?, thumbnail_url? }], answer? }` |
-| Sinh ảnh | `POST /orgs/{orgID}/ai/cloud/images` | `{ prompt ≤ 4000, aspect_ratio?, image_size?, reference_images?: [{ mime, data_base64 }] (≤ 4, mỗi ảnh ≤ 8 MiB) }` → `{ images: [{ mime, data_base64 }], model }`; body ≤ 40 MiB |
-| Phân tích media | `POST /orgs/{orgID}/ai/cloud/media/analyze` | `{ requirements ≤ 4000, media: [{ mime, data_base64 }] (≤ 4, tổng ≤ 25 MiB) }` → `{ text }` |
-| Phiên âm | `POST /orgs/{orgID}/ai/cloud/transcribe` | `{ prompt?, audio: { mime, data_base64 } (≤ 25 MiB) }` → `{ text }` |
+| Sinh ảnh | `POST /orgs/{orgID}/ai/cloud/images` | `{ prompt ≤ 4000, aspect_ratio?, image_size?, reference_images?: [{ mime, data_base64 }] (≤ 4, mỗi ảnh ≤ 8 MiB; png/jpeg/webp) }` → `{ images: [{ mime, data_base64 }], model }`; body ≤ **44 MiB** |
+| Phân tích media | `POST /orgs/{orgID}/ai/cloud/media/analyze` | `{ requirements ≤ 4000, locale?, media: [{ mime, data_base64 }] (≤ 4, tổng ≤ 25 MiB) }` → `{ text }`; body ≤ 36 MiB |
+| Phiên âm | `POST /orgs/{orgID}/ai/cloud/transcribe` | `{ prompt?, audio: { mime, data_base64 } (≤ 25 MiB) }` → `{ text }`; body ≤ 36 MiB |
 
 Client gửi **byte**; server không bao giờ tự tải URL media (không có mặt SSRF). Sinh slide vẫn
-ẩn, ngoài phạm vi.
+ẩn, ngoài phạm vi. Tìm kiếm: body ≤ 1 MiB.
+
+**MIME của phân tích media** (bỏ tham số như `;codecs=opus`, hạ chữ thường): `image/png`,
+`image/jpeg`, `image/webp`, `image/gif`, `audio/mpeg`, `audio/wav`, `audio/mp4`, `audio/webm`,
+`video/mp4`, `video/webm`, `application/pdf`. Loại khác → **422 `media_unsupported`**; loại trong
+danh sách nhưng mô hình chính không đọc được cũng 422. Chuỗi MIME của client không bao giờ vào
+prompt. MIME của phiên âm phải là token `type/subtype` (audio/*, video/mp4, video/webm), sai thì 400.
+
+**Biến môi trường server**: `AI_CREDENTIAL_KEY` (base64 32 byte; trống → route khóa 503),
+`AI_CLOUD_SEARCH_PROVIDER` (`tavily`\|`brave`\|`fake`) + `AI_CLOUD_SEARCH_API_KEY`,
+`AI_CLOUD_IMAGE_PROVIDER` (`openai`\|`fake`) + `_API_KEY`, `_MODEL` (mặc định `gpt-image-1`),
+`_BASE_URL`, `AI_CLOUD_TRANSCRIBE_PROVIDER` (`openai`\|`fake`) + `_API_KEY`, `_MODEL` (mặc định
+`whisper-1`), `_BASE_URL`. Phân tích media dùng nhà cung cấp chính của Gateway.
 
 ### 3.4 Entitlement, tín dụng, lỗi, giới hạn tốc độ
 
 - **Entitlement** (bảng `features`, fail-closed): `office.ai_byok` (`PUT` khóa + proxy; `GET`/`DELETE` khóa không bị chặn), `office.ai_cloud`
   (mọi công cụ đám mây). Cả hai bật ở các plan đã bật `ai.tokens`.
 - **Tín dụng** = meter `ai.tokens`. Trước mỗi lệnh gọi đám mây: `Can(office.ai_cloud)`, rồi
-  `CheckQuota`. Công cụ không có số token tính mức cố định: tìm kiếm 500, ảnh 4000/ảnh, phiên
-  âm 1000 mỗi phút bắt đầu; phân tích dùng token thật. Số còn lại đọc từ `GET .../ai/cloud`.
+  `CheckQuota`. Công cụ không có số token tính mức cố định (một bảng Go, `server/internal/ai/cloud.go`):
+  tìm kiếm 500, ảnh 4000/ảnh, phiên âm 1000 mỗi phút bắt đầu (tối thiểu 1 phút); phân tích dùng
+  token thật. Phiên âm tính theo thời lượng nhà cung cấp báo, nếu không báo thì ước lượng từ dung
+  lượng tệp theo bitrate điển hình của định dạng (ADR 0029, Quyết định 5). Lệnh gọi lỗi không tính;
+  lệnh gọi đã chạy được chốt (dòng sử dụng + meter) dù client ngắt kết nối. Số còn lại đọc từ
+  `GET .../ai/cloud`.
 - **Lỗi**:
 
 | Mã HTTP | `code` | Khi |
@@ -161,13 +196,16 @@ Client gửi **byte**; server không bao giờ tự tải URL media (không có 
 | 400 | `provider_not_supported`, `base_url_refused` | Nhà cung cấp ngoài danh sách / URL `custom` bị rào SSRF từ chối |
 | 402 | `credits_exhausted` | Hết token của kỳ (client hiện "hết credit") |
 | 403 | `entitlement_required` | Plan thiếu `office.ai_byok` hoặc `office.ai_cloud`; hoặc không phải thành viên |
-| 404 | `credential_missing` | Chưa có khóa cho nhà cung cấp này (hoặc không thấy tổ chức) |
+| 404 | `credential_missing` | Chưa có khóa cho nhà cung cấp này (hoặc không thấy tổ chức; cũng khi `AI_CREDENTIAL_KEY` đã đổi và khóa cũ không giải mã được — lưu lại khóa) |
+| 422 | `media_unsupported` | Loại tệp ngoài danh sách phân tích media hoặc mô hình không đọc được |
 | 424 | `provider_auth_failed` | Nhà cung cấp trả 401/403 cho khóa của người dùng |
 | 429 | — | Giới hạn tốc độ của UniWork hoặc 429 của nhà cung cấp (chuyển tiếp, kèm `retry-after`) |
 | 502 | `provider_unreachable` | Mạng/timeout tới nhà cung cấp |
 | 503 | `cloud_unavailable` | Công cụ đám mây chưa cấu hình ở server |
 
-- **Giới hạn tốc độ** (theo bearer user, cần Redis, fail-open): khóa 30/phút, proxy 60/phút, đám mây 20/phút.
+- **Giới hạn tốc độ** (theo bearer user và **theo nhóm route**, không theo URL; cần Redis,
+  fail-open): nhóm khóa (3 route) 30/phút, nhóm proxy (4 route, mọi nhà cung cấp và tổ chức) 60/phút,
+  nhóm đám mây (4 route công cụ; `GET .../ai/cloud` không tính) 20/phút. Vượt thì 429.
 - **Không bao giờ lộ khóa**: không có trong phản hồi, log, audit, lỗi, trace; lỗi của nhà cung cấp được lọc
   mọi chỗ lặp lại khóa thành `[redacted]`.
 
@@ -178,6 +216,12 @@ Proxy và công cụ đám mây được dựng thành tầng service để moun
 claim). Route frame nằm trên nhánh GO-B2/B3, **chờ merge gốc GO-B2/B3**; trang host web dùng
 được các route session ở trên ngay. Desktop **không đổi** ở v1: BYOK trực tiếp, chỉ dùng mục 3.3
 cho công cụ đám mây.
+
+**Giới hạn đã biết** (chi tiết ở ADR 0029): `GET`/`DELETE` khóa không bị chặn bởi entitlement;
+thành viên bị gỡ/vô hiệu hóa để lại khóa trong bảng (không dùng được, chỉ `DELETE` xóa); không
+xoay khóa chủ; stream openai-compatible chỉ ghi token khi có `include_usage`; body 2xx của nhà
+cung cấp không lọc khóa; hạn chót header 15 s chỉ cho streaming/`GET`; phiên âm không có thời
+lượng được ước lượng từ dung lượng; route frame chờ merge gốc GO-B2/B3.
 
 Trạng thái: các route Ask UNI cũ (`router/ai.go`: `GET /workspaces/{workspaceID}/ai/capabilities`,
 `.../ai/usage`, `GET /orgs/{orgID}/ai/usage`) phục vụ web và không đổi. Các route 3.1–3.3 là
