@@ -51,7 +51,7 @@ describe("ai-office endpoints", () => {
     expect(await listAiCredentials("o1")).toEqual({ items: [], providers: [] });
   });
 
-  it("saveAiCredential PUTs the body, parses the credential and throws on a malformed answer", async () => {
+  it("saveAiCredential PUTs the body, parses the credential and degrades on a malformed answer", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ provider: "openai", label: "work", key_hint: "…wxyz", created_at: "t", updated_at: "t" }, 201),
     );
@@ -60,8 +60,22 @@ describe("ai-office endpoints", () => {
     expect(callUrl(0)).toBe("http://api.test/api/v1/orgs/o1/ai/credentials/openai");
     expect(callInit(0).method).toBe("PUT");
     expect(JSON.parse(callInit(0).body as string)).toEqual({ api_key: "sk-secret", label: "work" });
+    // A malformed 2xx does not throw: it falls back to what the request said, never the key.
     vi.mocked(fetch).mockResolvedValueOnce(json({ provider: 7 }));
-    await expect(saveAiCredential("o1", "openai", { api_key: "k" })).rejects.toThrow("ai_credential_invalid");
+    const degraded = await saveAiCredential("o1", "openai", {
+      api_key: "sk-secret",
+      label: "work",
+      base_url: "https://x.test/v1",
+    });
+    expect(degraded).toEqual({
+      provider: "openai",
+      label: "work",
+      base_url: "https://x.test/v1",
+      key_hint: "…",
+      created_at: "",
+      updated_at: "",
+    });
+    expect(JSON.stringify(degraded)).not.toContain("sk-secret");
   });
 
   it("deleteAiCredential sends DELETE and tolerates an empty 204", async () => {
