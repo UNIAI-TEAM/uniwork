@@ -84,27 +84,73 @@ const cloudTimeout = 3 * time.Minute
 
 func cloudClient() *http.Client { return &http.Client{Timeout: cloudTimeout} }
 
-// doVendor sends req and decodes a 2xx JSON body into out. A non-2xx answer
-// is an error with the status and a short body snippet; the request headers
-// (where the key lives) are never part of it.
-func doVendor(client *http.Client, req *http.Request, out any) error {
+// doVendor sends req and decodes a 2xx JSON body into out. The errors it
+// returns reach the logs, so they carry the host, the path, the status and the
+// vendor's error code only: never the query string (a search text), the
+// vendor's message (it may echo the prompt or the key) or the request headers.
+// key is the vendor key the request carries; it is scrubbed from what is kept.
+func doVendor(client *http.Client, req *http.Request, key string, out any) error {
+	where := req.Method + " " + req.URL.Host + req.URL.Path
 	res, err := client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("provider: %s: %s", where, transportReason(err))
 	}
 	defer res.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(res.Body, 64<<20))
 	if err != nil {
-		return err
+		return fmt.Errorf("provider: %s: %s", where, transportReason(err))
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		snippet := string(data)
-		if len(snippet) > 200 {
-			snippet = snippet[:200]
-		}
-		return fmt.Errorf("provider: %s %s → %d: %s", req.Method, req.URL.Host+req.URL.Path, res.StatusCode, snippet)
+		return fmt.Errorf("provider: %s → %d%s", where, res.StatusCode, vendorErrorCode(data, key))
 	}
-	return json.Unmarshal(data, out)
+	if err := json.Unmarshal(data, out); err != nil {
+		return fmt.Errorf("provider: %s: unreadable answer", where)
+	}
+	return nil
+}
+
+// vendorErrorCode extracts " (code)" from a vendor error body shaped like
+// {"error":{"code"|"type":"..."}} or {"code":"..."}; anything else, and any
+// value that is not a short token, yields "". The key is redacted from it.
+func vendorErrorCode(body []byte, key string) string {
+	var env struct {
+		Code  json.RawMessage `json:"code"`
+		Error json.RawMessage `json:"error"`
+	}
+	if json.Unmarshal(body, &env) != nil {
+		return ""
+	}
+	pick := func(raw json.RawMessage) string {
+		var s string
+		if json.Unmarshal(raw, &s) == nil {
+			return s
+		}
+		return ""
+	}
+	code := pick(env.Code)
+	if code == "" {
+		var inner struct {
+			Code json.RawMessage `json:"code"`
+			Type json.RawMessage `json:"type"`
+		}
+		if json.Unmarshal(env.Error, &inner) == nil {
+			if code = pick(inner.Code); code == "" {
+				code = pick(inner.Type)
+			}
+		}
+	}
+	if len(code) == 0 || len(code) > 64 {
+		return ""
+	}
+	for _, r := range code {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '.' || r == '-') {
+			return ""
+		}
+	}
+	if key != "" && strings.Contains(code, key) {
+		code = "[redacted]"
+	}
+	return " (" + code + ")"
 }
 
 func trimBase(base, def string) string {
@@ -149,7 +195,7 @@ func (t *Tavily) Search(ctx context.Context, sr SearchRequest) (SearchResponse, 
 		// Images are strings, or {url, description} with descriptions on.
 		Images []json.RawMessage `json:"images"`
 	}
-	if err := doVendor(t.http, req, &out); err != nil {
+	if err := doVendor(t.http, req, t.apiKey, &out); err != nil {
 		return SearchResponse{}, err
 	}
 	resp := SearchResponse{Answer: out.Answer, Results: []SearchResult{}}
@@ -225,7 +271,7 @@ func (b *Brave) Search(ctx context.Context, sr SearchRequest) (SearchResponse, e
 			} `json:"properties"`
 		} `json:"results"`
 	}
-	if err := doVendor(b.http, req, &out); err != nil {
+	if err := doVendor(b.http, req, b.apiKey, &out); err != nil {
 		return SearchResponse{}, err
 	}
 	resp := SearchResponse{Results: []SearchResult{}}
@@ -263,6 +309,9 @@ func (o *OpenAIImages) Generate(ctx context.Context, ir ImageRequest) (ImageResp
 	if size == "" {
 		size = "auto"
 	}
+	if size == "auto" && strings.HasPrefix(o.model, "dall-e") {
+		size = "1024x1024" // dall-e refuses "auto"
+	}
 	var req *http.Request
 	var err error
 	if len(ir.ReferenceImages) == 0 {
@@ -294,7 +343,7 @@ func (o *OpenAIImages) Generate(ctx context.Context, ir ImageRequest) (ImageResp
 		} `json:"data"`
 		OutputFormat string `json:"output_format"`
 	}
-	if err := doVendor(o.http, req, &out); err != nil {
+	if err := doVendor(o.http, req, o.apiKey, &out); err != nil {
 		return ImageResponse{}, err
 	}
 	mimeType := "image/png"
@@ -356,7 +405,7 @@ func (o *OpenAITranscriber) Transcribe(ctx context.Context, tr TranscribeRequest
 			Seconds float64 `json:"seconds"`
 		} `json:"usage"`
 	}
-	if err := doVendor(o.http, req, &out); err != nil {
+	if err := doVendor(o.http, req, o.apiKey, &out); err != nil {
 		return TranscribeResponse{}, err
 	}
 	secs := out.Duration

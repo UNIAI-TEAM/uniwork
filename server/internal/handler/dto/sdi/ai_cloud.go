@@ -25,7 +25,7 @@ type AiCloudImageSDI struct {
 type AiCloudAnalyzeSDI struct {
 	Requirements string            `json:"requirements" minLength:"1" maxLength:"4000" description:"Người dùng cần gì từ các tệp" example:"Tóm tắt nội dung biểu đồ"`
 	Locale       string            `json:"locale,omitempty" description:"vi hoặc en; mặc định vi" example:"vi"`
-	Media        []AiCloudMediaSDI `json:"media" minItems:"1" maxItems:"4" description:"1..4 tệp, tổng ≤ 25 MiB"`
+	Media        []AiCloudMediaSDI `json:"media" minItems:"1" maxItems:"4" description:"1..4 tệp thuộc danh sách MIME cho phép (ảnh png/jpeg/webp/gif, audio mpeg/wav/mp4/webm, video mp4/webm, pdf), tổng ≤ 25 MiB"`
 }
 
 // AiCloudTranscribeSDI is POST /api/v1/orgs/{orgID}/ai/cloud/transcribe.

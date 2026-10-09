@@ -130,3 +130,63 @@ func TestMediaPartsMapping(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// m4: errors that reach the logs carry no search text, no vendor message and
+// no key; only the host, the path, the status and a short vendor error code.
+func TestCloudVendorErrorsKeepUserContentOutOfLogs(t *testing.T) {
+	const text, key = "lịch-khám-bí-mật", "secret-key-123"
+
+	// Transport failure: net/http's *url.Error embeds the whole URL, query
+	// included (Brave searches with GET ?q=).
+	dead := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := dead.URL
+	dead.Close()
+	_, err := NewBrave(url, key).Search(context.Background(), SearchRequest{Query: text, Kind: "web", MaxResults: 1})
+	if err == nil || strings.Contains(err.Error(), text) || strings.Contains(err.Error(), "q=") || strings.Contains(err.Error(), key) {
+		t.Fatalf("transport error leaks: %v", err)
+	}
+
+	// A vendor message that echoes the prompt and the key is dropped; only the
+	// error code survives.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"error":{"code":"invalid_prompt","message":"bad prompt `+text+` for key `+key+`"}}`)
+	}))
+	t.Cleanup(srv.Close)
+	_, err = NewTavily(srv.URL, key).Search(context.Background(), SearchRequest{Query: text, Kind: "web", MaxResults: 1})
+	if err == nil || !strings.Contains(err.Error(), "400") || !strings.Contains(err.Error(), "invalid_prompt") ||
+		strings.Contains(err.Error(), text) || strings.Contains(err.Error(), key) {
+		t.Fatalf("status error: %v", err)
+	}
+
+	// A code that is not a plain token, or that is the key itself, is not kept.
+	for body, want := range map[string]string{
+		`{"error":"free text ` + text + `"}`:               "",
+		`{"error":{"code":"has spaces and ` + text + `"}}`: "",
+		`{"code":"` + key + `"}`:                           " ([redacted])",
+		`{"error":{"type":"rate_limit_error"}}`:            " (rate_limit_error)",
+		`not json ` + text:                                 "",
+	} {
+		if got := vendorErrorCode([]byte(body), key); got != want {
+			t.Errorf("vendorErrorCode(%q) = %q, want %q", body, got, want)
+		}
+	}
+}
+
+// The dall-e models refuse size "auto".
+func TestOpenAIImagesDalleNeverGetsAutoSize(t *testing.T) {
+	var size string
+	srv := vendor(t, func(r *http.Request) {
+		var body struct {
+			Size string `json:"size"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		size = body.Size
+	}, `{"data":[{"b64_json":"`+base64.StdEncoding.EncodeToString([]byte{1})+`"}]}`)
+	if _, err := NewOpenAIImages(srv.URL, "k", "dall-e-3").Generate(context.Background(), ImageRequest{Prompt: "p", Size: "auto"}); err != nil {
+		t.Fatal(err)
+	}
+	if size != "1024x1024" {
+		t.Fatalf("dall-e size: %q", size)
+	}
+}

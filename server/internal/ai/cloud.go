@@ -146,7 +146,7 @@ func (g *Gateway) CloudTranscribe(ctx context.Context, call CloudCall, req provi
 	err := g.cloudRun(ctx, call, CapCloudTranscribe, g.cloud.Transcriber.Name(), g.cloud.Transcriber.Model(), func(ctx context.Context) (int64, error) {
 		resp, err := g.cloud.Transcriber.Transcribe(ctx, req)
 		out = resp
-		return TranscribeCharge(resp.Seconds), err
+		return TranscribeCharge(BilledAudioSeconds(resp.Seconds, req.Audio)), err
 	})
 	return out, err
 }
@@ -180,10 +180,16 @@ func (g *Gateway) cloudRun(ctx context.Context, call CloudCall, c Capability, pr
 		return err
 	}
 	started := g.now()
-	charge, perr := run(ctx)
+	// A started paid call is always metered: the vendor call and the
+	// settlement outlive a client that hung up, each with its own bound.
+	vctx, cancelVendor := context.WithTimeout(context.WithoutCancel(ctx), cloudCallTimeout)
+	charge, perr := run(vctx)
+	cancelVendor()
 	latency := g.now().Sub(started)
+	sctx, cancelSettle := settleContext(ctx)
+	defer cancelSettle()
 	finish := func(status, reason string, tokens int64) error {
-		_, err := g.q.AiFinishUsageEvent(ctx, db.AiFinishUsageEventParams{
+		_, err := g.q.AiFinishUsageEvent(sctx, db.AiFinishUsageEventParams{
 			ID: row.ID, Status: status, ReasonCode: optText(reason), InputTokens: int32(tokens),
 			LatencyMs: pgInt4(latency), ToolCalls: "[]",
 		})
@@ -195,11 +201,13 @@ func (g *Gateway) cloudRun(ctx context.Context, call CloudCall, c Capability, pr
 		g.log.Warn("ai: cloud tool error", "usage_event_id", row.ID, "capability", c, "latency_ms", latency.Milliseconds(), "err", perr)
 		return ErrProviderError.wrap(perr)
 	}
+	// The vendor has been paid; a row that will not settle must not also lose
+	// the charge or the result.
 	if err := finish("succeeded", "", charge); err != nil {
-		return err
+		g.log.Warn("ai: cloud usage finish", "usage_event_id", row.ID, "err", err)
 	}
 	if g.quota != nil {
-		if err := g.quota.Record(ctx, UsageRecord{
+		if err := g.quota.Record(sctx, UsageRecord{
 			OrganizationID: call.OrganizationID, Actor: call.Actor, Tokens: charge, UsageEventID: row.ID,
 		}); err != nil {
 			g.log.Warn("ai: quota record", "usage_event_id", row.ID, "err", err)
@@ -208,6 +216,21 @@ func (g *Gateway) cloudRun(ctx context.Context, call CloudCall, c Capability, pr
 	g.observe(c, "succeeded", latency)
 	g.log.Info("ai: cloud call", "usage_event_id", row.ID, "capability", c, "latency_ms", latency.Milliseconds())
 	return nil
+}
+
+// Bounds of a cloud call that outlives its request: the vendor call (the HTTP
+// client's own timeout is shorter) and the settlement that follows it.
+const (
+	cloudCallTimeout   = 4 * time.Minute
+	cloudSettleTimeout = 10 * time.Second
+)
+
+// settleContext is the context for finishing a usage row and recording the
+// meter: it keeps the request's values (correlation id) but not its
+// cancellation, so a client hang-up cannot leave a row pending or a paid call
+// uncharged (the BYOK proxy settles the same way).
+func settleContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), cloudSettleTimeout)
 }
 
 func pgInt4(d time.Duration) pgtype.Int4 {

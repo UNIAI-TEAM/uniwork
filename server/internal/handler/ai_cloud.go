@@ -15,9 +15,11 @@ import (
 )
 
 // Body caps of the cloud routes: base64 inflates bytes by 4/3, so a route
-// whose files may total 25 MiB decoded takes a 36 MiB body.
+// whose files may total 25 MiB decoded takes a 36 MiB body, and the images
+// route (4 reference images of 8 MiB each = 32 MiB decoded, ~42.7 MiB of
+// base64, plus a 4000-character prompt and the JSON around them) takes 44 MiB.
 const (
-	maxCloudImageBody = 40 << 20
+	maxCloudImageBody = 44 << 20
 	maxCloudMediaBody = 36 << 20
 )
 

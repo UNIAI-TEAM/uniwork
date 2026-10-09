@@ -39,7 +39,7 @@ func registerAICloud(r api, h Routes, toolLimit func(http.Handler) http.Handler)
 		})
 		tools.Post("/orgs/{orgID}/ai/cloud/images", h.AiCloudImages, apiOp{
 			summary:     "Office cloud image generation",
-			description: "Tạo ảnh từ mô tả và tối đa 4 ảnh tham chiếu; 4000 token-equivalent mỗi ảnh. Body ≤ 40 MiB." + errs,
+			description: "Tạo ảnh từ mô tả và tối đa 4 ảnh tham chiếu; 4000 token-equivalent mỗi ảnh. Body ≤ 44 MiB." + errs,
 			tags:        []string{"ai"},
 			sdi:         sdi.AiCloudImageSDI{},
 			sdo:         sdo.AiCloudImageSDO{},
@@ -47,7 +47,7 @@ func registerAICloud(r api, h Routes, toolLimit func(http.Handler) http.Handler)
 		})
 		tools.Post("/orgs/{orgID}/ai/cloud/media/analyze", h.AiCloudAnalyzeMedia, apiOp{
 			summary:     "Office cloud media analysis",
-			description: "Phân tích 1..4 tệp (tổng ≤ 25 MiB) theo yêu cầu; tính token thật. 422 media_unsupported khi mô hình không nhận loại tệp." + errs,
+			description: "Phân tích 1..4 tệp (tổng ≤ 25 MiB) theo yêu cầu; tính token thật. Chỉ nhận image/png, jpeg, webp, gif; audio/mpeg, wav, mp4, webm; video/mp4, webm; application/pdf — loại khác, hoặc loại mô hình không đọc được, trả 422 media_unsupported." + errs,
 			tags:        []string{"ai"},
 			sdi:         sdi.AiCloudAnalyzeSDI{},
 			sdo:         sdo.AiCloudTextSDO{},
@@ -55,7 +55,7 @@ func registerAICloud(r api, h Routes, toolLimit func(http.Handler) http.Handler)
 		})
 		tools.Post("/orgs/{orgID}/ai/cloud/transcribe", h.AiCloudTranscribe, apiOp{
 			summary:     "Office cloud transcription",
-			description: "Chuyển âm thanh (≤ 25 MiB) thành văn bản; 1000 token-equivalent mỗi phút bắt đầu." + errs,
+			description: "Chuyển âm thanh (≤ 25 MiB) thành văn bản; 1000 token-equivalent mỗi phút bắt đầu, tính theo thời lượng nhà cung cấp báo hoặc ước lượng từ dung lượng tệp." + errs,
 			tags:        []string{"ai"},
 			sdi:         sdi.AiCloudTranscribeSDI{},
 			sdo:         sdo.AiCloudTextSDO{},
