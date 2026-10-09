@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -324,5 +326,41 @@ func TestParseTrustedProxies_InvalidSkipped(t *testing.T) {
 	nets := ParseTrustedProxies("10.0.0.0/8, not-a-cidr, 172.16.0.0/12")
 	if len(nets) != 2 {
 		t.Fatalf("expected 2 valid CIDRs (invalid skipped), got %d", len(nets))
+	}
+}
+
+// Keyed by the concrete path, every message id was a fresh budget: one person
+// toggling reactions across messages was never limited. Per route, every id
+// under one pattern shares the caller's budget, and two callers behind one
+// address do not share theirs.
+func TestRateLimitPerRoute_SharesOneBudgetAcrossIDs(t *testing.T) {
+	rdb := newRedisTestClient(t)
+	who := func(r *http.Request) string { return r.Header.Get("X-Test-User") }
+	r := chi.NewRouter()
+	limit := RateLimitPerRoute(rdb, 2, time.Minute, nil, who)
+	r.With(limit).Post("/rooms/{roomID}/messages/{messageID}/reactions", okHandler)
+	r.With(limit).Post("/rooms/{roomID}/messages/{messageID}/pin", okHandler)
+
+	send := func(user, path string) int {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.RemoteAddr = "10.0.2.1:9000"
+		req.Header.Set("X-Test-User", user)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for i, path := range []string{"/rooms/r1/messages/m1/reactions", "/rooms/r2/messages/m2/reactions"} {
+		if code := send("alice", path); code != http.StatusOK {
+			t.Fatalf("request %d: status %d, want 200", i+1, code)
+		}
+	}
+	if code := send("alice", "/rooms/r3/messages/m3/reactions"); code != http.StatusTooManyRequests {
+		t.Fatalf("a third id under the same route: status %d, want 429", code)
+	}
+	if code := send("alice", "/rooms/r3/messages/m3/pin"); code != http.StatusOK {
+		t.Fatalf("another route: status %d, want its own budget", code)
+	}
+	if code := send("bob", "/rooms/r3/messages/m3/reactions"); code != http.StatusOK {
+		t.Fatalf("another caller on the same address: status %d, want their own budget", code)
 	}
 }

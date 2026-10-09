@@ -27,7 +27,7 @@ import (
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages
 //	POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages
-func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Handler) http.Handler) {
+func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit, chatTypingLimit func(http.Handler) http.Handler) {
 	r.Get("/workspaces/{workspaceID}/chat/users/lookup", h.LookupChatUser, apiOp{
 		summary:     "Lookup chat user",
 		description: "Tìm thành viên cùng tổ chức theo email hoặc user_id để bắt đầu DM.",
@@ -128,7 +128,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.WorkspaceChatRoomSDO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/chat/room", h.EnsureWorkspaceChatRoom, apiOp{
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/room", h.EnsureWorkspaceChatRoom, apiOp{
 		summary:     "Ensure workspace chat room",
 		description: "Tạo hoặc lấy phòng chat workspace.",
 		tags:        []string{"chat"},
@@ -180,7 +180,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.ChatRoomMemberDTO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/members", h.InviteChatGroupMembers, apiOp{
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/members", h.InviteChatGroupMembers, apiOp{
 		summary:     "Invite group members",
 		description: "Mời thêm thành viên vào nhóm chat.",
 		tags:        []string{"chat"},
@@ -188,7 +188,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
-	r.Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}", h.PatchChatRoom, apiOp{
+	r.With(chatRoomLimit).Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}", h.PatchChatRoom, apiOp{
 		summary:     "Update chat room settings",
 		description: "Đổi tên phòng hoặc cấu hình quyền thành viên (admin).",
 		tags:        []string{"chat"},
@@ -196,7 +196,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.ChatRoomMemberPermissionsDTO{},
 		auth:        true,
 	})
-	r.Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.PatchChatRoomMember, apiOp{
+	r.With(chatRoomLimit).Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.PatchChatRoomMember, apiOp{
 		summary:     "Update chat room member",
 		description: "Thăng/giáng admin phòng hoặc cấm/bỏ cấm gửi tin.",
 		tags:        []string{"chat"},
@@ -204,7 +204,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
-	r.Delete("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.RemoveChatRoomMember, apiOp{
+	r.With(chatRoomLimit).Delete("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.RemoveChatRoomMember, apiOp{
 		summary:     "Remove chat room member",
 		description: "Kick khỏi nhóm hoặc xóa khỏi workspace (phòng workspace).",
 		tags:        []string{"chat"},
@@ -290,7 +290,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote", h.VoteChatPollMessage, apiOp{
+	r.With(chatReactLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote", h.VoteChatPollMessage, apiOp{
 		summary:     "Vote on chat poll",
 		description: "Bỏ phiếu trên tin nhắn bình chọn.",
 		tags:        []string{"chat"},
@@ -298,7 +298,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/reactions", h.ToggleChatMessageReaction, apiOp{
+	r.With(chatReactLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/reactions", h.ToggleChatMessageReaction, apiOp{
 		summary:     "Toggle chat message reaction",
 		description: "Thêm hoặc gỡ biểu cảm trên tin nhắn.",
 		tags:        []string{"chat"},
@@ -321,14 +321,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/pin", h.ToggleChatMessagePin, apiOp{
+	r.With(chatReactLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/pin", h.ToggleChatMessagePin, apiOp{
 		summary:     "Toggle chat message pin",
 		description: "Ghim hoặc bỏ ghim tin nhắn trong phòng.",
 		tags:        []string{"chat"},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/invite", h.SignalChatVoiceInvite, apiOp{
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/invite", h.SignalChatVoiceInvite, apiOp{
 		summary:     "Signal voice call invite",
 		description: "Báo cuộc gọi thoại đến thành viên phòng chat.",
 		tags:        []string{"chat"},

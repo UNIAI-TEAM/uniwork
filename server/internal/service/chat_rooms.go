@@ -292,6 +292,10 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 	}
 	return s.roomSummaryWithPreview(ctx, userID, anchorWS, room.ID, room.Kind, room.Name, 0, memberSetKeyFromRoom(room), room.MemberPermissions)
 }
+
+// chatInviteMaxIDs caps the people one invite request names.
+const chatInviteMaxIDs = 100
+
 func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceID, roomID string, memberUserIDs []string) (ChatRoomSummary, error) {
 	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
@@ -309,14 +313,31 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	if len(ids) == 0 {
 		return ChatRoomSummary{}, Invalid("cần ít nhất một thành viên để mời")
 	}
+	if len(ids) > chatInviteMaxIDs {
+		return ChatRoomSummary{}, Invalid("mời tối đa 100 thành viên mỗi lần")
+	}
+	var current []string
 	if room.Kind == chatRoomKindGroup {
-		current, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
-		if err != nil {
+		if current, err = s.q.ListChatRoomMemberUserIDs(ctx, room.ID); err != nil {
 			return ChatRoomSummary{}, err
 		}
-		size := len(uniqueUserIDs(append(current, ids...)))
-		if size > maxChatGroupMembers {
+		if len(uniqueUserIDs(append(current, ids...))) > maxChatGroupMembers {
 			return ChatRoomSummary{}, errChatGroupTooLarge()
+		}
+	}
+	// Every added member is an event fanned out to every member. A channel's
+	// moderators decide who joins it; in a group anyone may add people while
+	// it stays small.
+	moderator, err := s.isChatRoomModerator(ctx, userID, room)
+	if err != nil {
+		return ChatRoomSummary{}, err
+	}
+	if !moderator {
+		if room.Kind == chatRoomKindChannel {
+			return ChatRoomSummary{}, ErrForbidden
+		}
+		if len(current)+len(ids) > chatSmallRoomMembers {
+			return ChatRoomSummary{}, ErrForbidden
 		}
 	}
 	tx, err := s.pool.Begin(ctx)
