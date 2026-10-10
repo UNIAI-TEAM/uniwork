@@ -65,6 +65,7 @@ func New(d Deps, h Routes) http.Handler {
 	r.Use(mw.ClientMetadata)
 	r.Use(mw.RequestLogger)
 	r.Use(chimw.Recoverer)
+	r.Use(mw.IdempotencyKeyFormat)
 	r.Use(mw.ContentSecurityPolicy)
 	if d.HTTPMetrics != nil {
 		r.Use(d.HTTPMetrics.Middleware)

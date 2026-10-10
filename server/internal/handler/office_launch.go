@@ -36,12 +36,19 @@ func (h *handlers) createOfficeLaunch(w http.ResponseWriter, r *http.Request) {
 	}
 	launchURL := ""
 	if strings.TrimSpace(in.ReturnHint) != "none" {
-		launchURL = "uniwork-office://open?ticket=" + url.QueryEscape(row.Ticket)
+		launchURL = officeLaunchURL(in.ClientID, row.Ticket)
 	}
 	respondOfficeJSON(w, http.StatusCreated, sdo.OfficeLaunchSessionSDO{
 		LaunchTicket: row.Ticket, LaunchURL: launchURL, ExpiresAt: row.ExpiresAt.UTC().Format(time.RFC3339),
 		DocumentID: row.DocumentID, Operation: row.Operation, Version: row.Version,
 	})
+}
+
+// officeLaunchURL is the deep link the client registered: the scheme is the
+// allow-listed client id (stable "uniwork-office", dev "uniwork-office-dev"),
+// so a dev build is never sent to the stable app's protocol handler.
+func officeLaunchURL(clientID, ticket string) string {
+	return strings.TrimSpace(clientID) + "://open?ticket=" + url.QueryEscape(ticket)
 }
 
 func (h *handlers) exchangeOfficeLaunch(w http.ResponseWriter, r *http.Request) {
