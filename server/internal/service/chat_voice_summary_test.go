@@ -5,11 +5,120 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// backdateVoiceCallAnswer moves a live call's answer time back by d, so the
+// server-measured duration covers d without the test sleeping.
+func backdateVoiceCallAnswer(t *testing.T, roomID, callID string, d time.Duration) {
+	t.Helper()
+	key := voiceCallSessionKey(roomID, callID)
+	raw, ok := voiceCallSessions.Load(key)
+	if !ok {
+		t.Fatalf("no live call %s", key)
+	}
+	sess := raw.(voiceCallSession)
+	if sess.acceptedAt == nil {
+		t.Fatalf("call %s was never answered", key)
+	}
+	at := sess.acceptedAt.Add(-d)
+	sess.acceptedAt = &at
+	voiceCallSessions.Store(key, sess)
+}
+
+// queuedVoiceSummaries counts the summary jobs queued for a room.
+func queuedVoiceSummaries(t *testing.T, pool *pgxpool.Pool, roomID string) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM outbox_events WHERE topic = 'chat.voice.call.completed' AND payload::jsonb->>'room_id' = $1`, roomID,
+	).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// talk runs one answered call of length d from caller to callee.
+func talk(t *testing.T, s *ChatService, caller, callee db.User, w db.Workspace, roomID, callID string, d time.Duration) {
+	t.Helper()
+	acceptDMVoiceCall(t, s, caller, callee, w, roomID, callID)
+	backdateVoiceCallAnswer(t, roomID, callID, d)
+	if err := s.SignalVoiceHangup(context.Background(), caller.ID, w.ID, roomID, callID); err != nil {
+		t.Fatalf("hangup: %v", err)
+	}
+}
+
+func aiChatFixture(t *testing.T) (*ChatService, *db.Queries, db.User, db.User, db.Workspace, *pgxpool.Pool) {
+	t.Helper()
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	s.SetAIGateway(ai.NewGateway(q, &provider.Fake{Reply: ai.FakeReply}, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
+	return s, q, ua, ub, w, pool
+}
+
+// A group call nobody else joins is not answered: the caller accepting their
+// own call neither starts the clock nor queues an LLM summary (H17).
+func TestGroupVoiceCallNeedsASecondParticipant(t *testing.T) {
+	s, q, ua, ub, w, pool := aiChatFixture(t)
+	ctx := context.Background()
+	uc := registerReminderPeer(t, pool, q, "voice-solo-c@example.com", "C", w.OrganizationID, w.ID)
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Solo", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "solo-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ua.ID, w.ID, group.ID, "solo-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, group.ID, "solo-1"); err != nil {
+		t.Fatal(err)
+	}
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, group.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, msg := range msgs {
+		if msg.VoiceCall != nil && (msg.VoiceCall.Outcome != voiceCallOutcomeUnanswered || msg.VoiceCall.DurationSeconds != 0) {
+			t.Fatalf("solo group call logged as %+v, want unanswered", msg.VoiceCall)
+		}
+	}
+	if n := queuedVoiceSummaries(t, pool, group.ID); n != 0 {
+		t.Fatalf("summaries queued for a solo call = %d, want 0", n)
+	}
+}
+
+// Summaries are capped per caller and per room each hour, so one member
+// cannot drain the organization's AI quota with fake calls (H17).
+func TestVoiceCallSummaryCaps(t *testing.T) {
+	s, _, ua, ub, w, pool := aiChatFixture(t)
+	dm, err := s.ResolveDM(context.Background(), ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range voiceSummaryCallerCapPerHour + 1 {
+		talk(t, s, ua, ub, w, dm.ID, "cap-a-"+string(rune('a'+i)), 45*time.Second)
+	}
+	if n := queuedVoiceSummaries(t, pool, dm.ID); n != voiceSummaryCallerCapPerHour {
+		t.Fatalf("caller cap: queued %d, want %d", n, voiceSummaryCallerCapPerHour)
+	}
+	for i := range voiceSummaryRoomCapPerHour {
+		talk(t, s, ub, ua, w, dm.ID, "cap-b-"+string(rune('a'+i)), 45*time.Second)
+	}
+	// ub stays under the caller cap, so the room cap is what stops the rest.
+	if n := queuedVoiceSummaries(t, pool, dm.ID); n != voiceSummaryRoomCapPerHour {
+		t.Fatalf("room cap: queued %d, want %d", n, voiceSummaryRoomCapPerHour)
+	}
+}
 
 func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
@@ -30,8 +139,8 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "summary-call-1"); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
-	duration := 45
-	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "summary-call-1", &duration); err != nil {
+	backdateVoiceCallAnswer(t, dm.ID, "summary-call-1", 45*time.Second)
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "summary-call-1"); err != nil {
 		t.Fatalf("hangup: %v", err)
 	}
 
@@ -103,8 +212,8 @@ func TestVoiceCallSummarySkipsWhenAIDisabled(t *testing.T) {
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "summary-call-2"); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
-	duration := 45
-	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "summary-call-2", &duration); err != nil {
+	backdateVoiceCallAnswer(t, dm.ID, "summary-call-2", 45*time.Second)
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "summary-call-2"); err != nil {
 		t.Fatalf("hangup: %v", err)
 	}
 

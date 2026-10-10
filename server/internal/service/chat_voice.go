@@ -168,19 +168,17 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 		invitedAt:      now,
 		participantIDs: []string{callerID},
 	}
-	// Group/channel calls connect immediately — there is no separate accept
-	// signal from the caller, but the log still needs a completed window.
-	if voiceCallMultiPartyKind(room.Kind) {
-		sess.acceptedAt = &now
-	}
 	voiceCallSessions.Store(voiceCallSessionKey(room.ID, callID), sess)
 	sweepVoiceCallSessions(now)
 }
 
-func (s *ChatService) trackVoiceCallAccept(roomID, callID string) {
+// trackVoiceCallAccept starts the call clock when someone other than the
+// caller first answers; a group call counts as answered only then (H17), and
+// a later joiner does not restart it.
+func (s *ChatService) trackVoiceCallAccept(roomID, callID, userID string) {
 	key := voiceCallSessionKey(roomID, callID)
 	sess, ok := loadVoiceCallSession(key)
-	if !ok {
+	if !ok || userID == sess.callerID || sess.acceptedAt != nil {
 		return
 	}
 	now := time.Now()
@@ -522,7 +520,7 @@ func (s *ChatService) authorizeVoiceSignalRoom(
 }
 
 func (s *ChatService) finalizeVoiceCall(
-	ctx context.Context, room db.ChatRoom, userID, callID string, clientDuration *int,
+	ctx context.Context, room db.ChatRoom, userID, callID string,
 ) error {
 	key := voiceCallSessionKey(room.ID, callID)
 	raw, ok := voiceCallSessions.LoadAndDelete(key)
@@ -530,7 +528,7 @@ func (s *ChatService) finalizeVoiceCall(
 		return nil
 	}
 	sess := raw.(voiceCallSession)
-	outcome, duration := voiceCallOutcome(sess, userID, clientDuration)
+	outcome, duration := voiceCallOutcome(sess, userID, time.Now())
 	participantIDs := voiceCallParticipantIDsForLog(room, sess)
 	participants, err := s.resolveVoiceCallParticipants(ctx, participantIDs)
 	if err != nil {
@@ -550,6 +548,17 @@ func (s *ChatService) finalizeVoiceCall(
 			})
 		}
 		metaMap["participants"] = rows
+	}
+	// The summary is an LLM job on the slow lane, so it needs a real call:
+	// answered by a second person, long enough, and within the hourly caps.
+	queueSummary := outcome == voiceCallOutcomeCompleted && duration >= voiceCallSummaryMinDuration && len(sess.participantIDs) >= 2
+	if queueSummary {
+		if queueSummary, err = s.voiceCallSummaryAllowed(ctx, room, sess.callerID); err != nil {
+			return err
+		}
+	}
+	if queueSummary {
+		metaMap["summary_queued"] = true
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
 	// Pre-create message id so recording metadata can reference it before insert.
@@ -573,7 +582,7 @@ func (s *ChatService) finalizeVoiceCall(
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
 	s.publishCreatedChatMessage(ctx, room, msg.ID)
 
-	if outcome == voiceCallOutcomeCompleted && duration >= voiceCallSummaryMinDuration {
+	if queueSummary {
 		endedAt := time.Now().UTC()
 		startedAt := endedAt.Add(-time.Duration(duration) * time.Second)
 		if sess.acceptedAt != nil {
@@ -599,16 +608,11 @@ func (s *ChatService) finalizeVoiceCall(
 	return nil
 }
 
-func voiceCallOutcome(sess voiceCallSession, hungUpBy string, clientDuration *int) (string, int) {
+// voiceCallOutcome measures a call by the server's own clock, from the first
+// answer to the hangup; the client's figure is never trusted (H17).
+func voiceCallOutcome(sess voiceCallSession, hungUpBy string, now time.Time) (string, int) {
 	if sess.acceptedAt != nil {
-		duration := int(time.Since(*sess.acceptedAt).Seconds())
-		if clientDuration != nil && *clientDuration > duration {
-			duration = *clientDuration
-		}
-		if duration < 0 {
-			duration = 0
-		}
-		return voiceCallOutcomeCompleted, duration
+		return voiceCallOutcomeCompleted, max(0, int(now.Sub(*sess.acceptedAt).Seconds()))
 	}
 	if hungUpBy != sess.callerID {
 		return voiceCallOutcomeDeclined, 0

@@ -102,8 +102,7 @@ func TestChatVoiceRecordingHangupStopsEgress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	duration := 12
-	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, callID, &duration); err != nil {
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, callID); err != nil {
 		t.Fatalf("hangup: %v", err)
 	}
 	if fp.StopRecordCalls != 1 {

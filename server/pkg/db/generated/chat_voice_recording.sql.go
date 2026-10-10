@@ -51,6 +51,45 @@ func (q *Queries) AttachChatVoiceRecordingCallLog(ctx context.Context, arg Attac
 	return i, err
 }
 
+const countQueuedVoiceCallSummaries = `-- name: CountQueuedVoiceCallSummaries :one
+SELECT
+  count(*) FILTER (WHERE sender_id = $1)::int AS by_caller,
+  count(*) FILTER (WHERE room_id = $2)::int AS by_room
+FROM chat_messages
+WHERE organization_id = $3 AND kind = 'voice_call_log'
+  AND created_at > $4
+  AND (sender_id = $1 OR room_id = $2)
+  AND metadata->>'summary_queued' = 'true'
+`
+
+type CountQueuedVoiceCallSummariesParams struct {
+	CallerID       string             `json:"caller_id"`
+	RoomID         string             `json:"room_id"`
+	OrganizationID string             `json:"organization_id"`
+	Since          pgtype.Timestamptz `json:"since"`
+}
+
+type CountQueuedVoiceCallSummariesRow struct {
+	ByCaller int32 `json:"by_caller"`
+	ByRoom   int32 `json:"by_room"`
+}
+
+// Call summaries queued since `since` by one caller and in one room (H17):
+// the call logs whose hangup queued an LLM summary. The caller side reads
+// idx_chat_messages_voice_call_sender, the room side
+// idx_chat_messages_room_created.
+func (q *Queries) CountQueuedVoiceCallSummaries(ctx context.Context, arg CountQueuedVoiceCallSummariesParams) (CountQueuedVoiceCallSummariesRow, error) {
+	row := q.db.QueryRow(ctx, countQueuedVoiceCallSummaries,
+		arg.CallerID,
+		arg.RoomID,
+		arg.OrganizationID,
+		arg.Since,
+	)
+	var i CountQueuedVoiceCallSummariesRow
+	err := row.Scan(&i.ByCaller, &i.ByRoom)
+	return i, err
+}
+
 const finishChatVoiceRecording = `-- name: FinishChatVoiceRecording :one
 UPDATE chat_voice_recordings
 SET status = $2,

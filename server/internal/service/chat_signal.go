@@ -60,7 +60,7 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 	if err := s.requireVoiceCallActor(ctx, room, userID, true); err != nil {
 		return err
 	}
-	s.trackVoiceCallAccept(roomID, callID)
+	s.trackVoiceCallAccept(roomID, callID, userID)
 	s.trackVoiceCallParticipant(roomID, callID, userID)
 	ev := Event{
 		Type: "chat.voice.accept",
@@ -73,7 +73,7 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 
 // SignalVoiceHangup notifies room members that a voice call ended.
 func (s *ChatService) SignalVoiceHangup(
-	ctx context.Context, userID, workspaceID, roomID, callID string, durationSeconds *int,
+	ctx context.Context, userID, workspaceID, roomID, callID string,
 ) error {
 	callID, err := normalizeVoiceCallID(callID)
 	if err != nil {
@@ -98,7 +98,7 @@ func (s *ChatService) SignalVoiceHangup(
 	}
 	s.trackVoiceCallParticipant(roomID, callID, userID)
 	s.stopVoiceRecordingOnHangup(ctx, room, callID, userID)
-	if logErr := s.finalizeVoiceCall(ctx, room, userID, callID, durationSeconds); logErr != nil {
+	if logErr := s.finalizeVoiceCall(ctx, room, userID, callID); logErr != nil {
 		return logErr
 	}
 	ev := Event{

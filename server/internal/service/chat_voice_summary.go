@@ -41,6 +41,31 @@ type VoiceCallSummaryInfo struct {
 
 func (s *ChatService) SetAIGateway(gw *ai.Gateway) { s.ai = gw }
 
+// Hourly caps on queued call summaries (H17): a member cannot spend the
+// organization's AI quota by placing calls in a room of their own.
+const (
+	voiceSummaryCallerCapPerHour = 5
+	voiceSummaryRoomCapPerHour   = 8
+)
+
+// voiceCallSummaryAllowed reports whether a finished call may queue an LLM
+// summary: AI is on and neither the caller nor the room has used its hourly
+// cap. The count and the insert are not atomic, so a burst of simultaneous
+// hangups can overshoot by a few; the caps bound spend, not exact counts.
+func (s *ChatService) voiceCallSummaryAllowed(ctx context.Context, room db.ChatRoom, callerID string) (bool, error) {
+	if s.ai == nil || !s.ai.Enabled() {
+		return false, nil
+	}
+	n, err := s.q.CountQueuedVoiceCallSummaries(ctx, db.CountQueuedVoiceCallSummariesParams{
+		CallerID: callerID, RoomID: room.ID, OrganizationID: room.OrganizationID,
+		Since: pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	if err != nil {
+		return false, err
+	}
+	return n.ByCaller < voiceSummaryCallerCapPerHour && n.ByRoom < voiceSummaryRoomCapPerHour, nil
+}
+
 func (s *ChatService) emitVoiceCallCompleted(ctx context.Context, room db.ChatRoom, payload map[string]string) error {
 	if s.ai == nil || !s.ai.Enabled() {
 		return nil

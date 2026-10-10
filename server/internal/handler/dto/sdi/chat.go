@@ -104,8 +104,7 @@ type MintChatVoiceTokenSDI struct {
 
 // VoiceSignalSDI is POST voice invite/hangup on a chat room.
 type VoiceSignalSDI struct {
-	CallID          string `json:"call_id" maxLength:"64" description:"Client-generated voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	DurationSeconds *int   `json:"duration_seconds,omitempty" description:"Connected call duration in seconds (hangup only)" example:"125"`
+	CallID string `json:"call_id" maxLength:"64" description:"Client-generated voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // ChatPresenceSDI is POST .../chat/presence.
