@@ -179,7 +179,8 @@ export function WorkspaceTopBar({
             onValueChange={(next) => {
               if (!next || next === themeValue) return;
               setTheme(next as ThemeValue);
-              toast.success(t("settings.preferences.toastSaved"), {
+              // Names the preference: on a document page a bare "Saved" reads as the document's save state.
+              toast.success(t("topbar.themeSaved"), {
                 id: "settings-auto-save",
               });
             }}
@@ -227,7 +228,7 @@ export function WorkspaceTopBar({
               document.documentElement.lang = locale;
               // The toast text resolves after the language switched, in the new language.
               void setLocale(locale).then(() => {
-                toast.success(i18n.t("settings.preferences.toastSaved", { lng: locale }), { id: "settings-auto-save" });
+                toast.success(i18n.t("topbar.languageSaved", { lng: locale }), { id: "settings-auto-save" });
               });
             }}
           >

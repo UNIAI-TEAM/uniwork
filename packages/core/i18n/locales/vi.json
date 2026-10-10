@@ -257,6 +257,8 @@
     "createTask": "Tạo việc",
     "theme": "Giao diện",
     "language": "Ngôn ngữ",
+    "themeSaved": "Đã lưu tùy chọn giao diện",
+    "languageSaved": "Đã lưu tùy chọn ngôn ngữ",
     "collapseSidebar": "Thu gọn thanh bên",
     "shortcutMac": "⌘K",
     "shortcutOther": "Ctrl+K",

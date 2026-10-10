@@ -258,6 +258,8 @@
     "createTask": "New task",
     "theme": "Theme",
     "language": "Language",
+    "themeSaved": "Theme preference saved",
+    "languageSaved": "Language preference saved",
     "collapseSidebar": "Collapse sidebar",
     "shortcutMac": "⌘K",
     "shortcutOther": "Ctrl+K",
