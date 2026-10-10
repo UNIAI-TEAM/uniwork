@@ -541,9 +541,12 @@ describe("useRealtimeSync", () => {
       vi.advanceTimersByTime(250);
       await Promise.resolve();
     });
-    expect(invalidate).toHaveBeenCalledTimes(1);
+    // The room's own timeline is not loaded here, so it is marked stale for the
+    // next open (UNI-950) while the loaded workspace list is patched in place.
+    expect(invalidate).toHaveBeenCalledTimes(2);
     expect(keysCalled(invalidate)).toEqual([
       JSON.stringify(chatKeys.voiceRecordings("ws1", "ws-room")),
+      JSON.stringify(chatKeys.roomMessages("ws1", "ws-room")),
     ]);
     expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.messages("ws1"))).toHaveLength(1);
     vi.useRealTimers();
