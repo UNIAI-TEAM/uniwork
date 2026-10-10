@@ -74,6 +74,33 @@ func TestAttachmentUploadRefusesOversizeBeforeReadingTheBody(t *testing.T) {
 	}
 }
 
+// Someone outside the workspace is refused before a byte of their attachment
+// is spooled to disk.
+func TestAttachmentUploadRefusesAnOutsiderBeforeReadingTheBody(t *testing.T) {
+	f := setupChatFixtureFiles(t, "upattout")
+	res, out := doJSON(t, f.srv, "POST", "/api/v1/workspaces/"+f.wsID+"/tasks", f.tokens["a"], map[string]string{"title": "Đính kèm"})
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
+		t.Fatalf("create task: %d %v", res.StatusCode, out)
+	}
+	taskID := out["task"].(map[string]any)["id"].(string)
+	outsider, _ := registerChatUser(t, f.srv, "out-upattout@example.com", "Outsider")
+	for _, path := range []string{
+		"/api/v1/tasks/" + taskID + "/attachments",
+		"/api/v1/workspaces/" + f.wsID + "/attachments",
+	} {
+		body := &unreadBody{}
+		req := httptest.NewRequest(http.MethodPost, path, body)
+		req.ContentLength = 1 << 20
+		req.Header.Set("Authorization", "Bearer "+outsider)
+		req.Header.Set("Content-Type", "multipart/form-data; boundary=x")
+		rec := httptest.NewRecorder()
+		f.srv.Config.Handler.ServeHTTP(rec, req)
+		if (rec.Code != http.StatusForbidden && rec.Code != http.StatusNotFound) || body.read {
+			t.Fatalf("%s: status=%d read=%v, want 403/404 and an unread body (%s)", path, rec.Code, body.read, rec.Body.String())
+		}
+	}
+}
+
 // The web and desktop clients append the file before client_msg_id,
 // duration_ms and reply_to_message_id; those trailing fields must still count.
 func TestChatUploadReadsFieldsSentAfterTheFile(t *testing.T) {

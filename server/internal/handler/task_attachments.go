@@ -66,7 +66,7 @@ func (h *handlers) listTaskAttachments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) uploadTaskAttachment(w http.ResponseWriter, r *http.Request) {
-	file, size, filename, contentType, release, ok := attachmentUpload(w, r)
+	file, size, filename, contentType, release, ok := h.attachmentUpload(w, r)
 	if !ok {
 		return
 	}
@@ -90,7 +90,7 @@ func (h *handlers) uploadTaskAttachment(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *handlers) uploadWorkspaceAttachment(w http.ResponseWriter, r *http.Request) {
-	file, size, filename, contentType, release, ok := attachmentUpload(w, r)
+	file, size, filename, contentType, release, ok := h.attachmentUpload(w, r)
 	if !ok {
 		return
 	}
@@ -106,11 +106,18 @@ func (h *handlers) uploadWorkspaceAttachment(w http.ResponseWriter, r *http.Requ
 
 // attachmentUpload unpacks an attachment envelope without a heap copy of the
 // file: the part arrives disk-backed (see uploadFormFile) and only its first
-// 512 bytes are read to sniff a missing type before it is rewound (C7).
-func attachmentUpload(w http.ResponseWriter, r *http.Request) (file multipart.File, size int64, filename, contentType string, release func(), ok bool) {
+// 512 bytes are read to sniff a missing type before it is rewound (C7). The
+// task or workspace gate runs before the body is read.
+func (h *handlers) attachmentUpload(w http.ResponseWriter, r *http.Request) (file multipart.File, size int64, filename, contentType string, release func(), ok bool) {
 	const tooLarge = "attachment must be at most 25 MiB"
 	release, ok = beginUpload(w, r, uploads, service.MaxAttachmentBytes+attachmentMultipartHeadroom, tooLarge)
 	if !ok {
+		return nil, 0, "", "", nil, false
+	}
+	ctx := r.Context()
+	if err := h.Tasks.AuthorizeAttachmentUpload(ctx, service.Human(middleware.UserID(ctx)), chi.URLParam(r, "taskID"), chi.URLParam(r, "workspaceID")); err != nil {
+		release()
+		h.mapServiceError(w, err)
 		return nil, 0, "", "", nil, false
 	}
 	file, header, ok := uploadFormFile(w, r, tooLarge)
