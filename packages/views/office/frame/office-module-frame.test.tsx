@@ -498,3 +498,81 @@ describe("Open in desktop app in the module frame", () => {
   });
 });
 
+describe("the frame's app.open request (A7)", () => {
+  const ticket = `ticket_${"a".repeat(40)}`;
+  const wiring = (launch: FrameDesktopOpenProps["launch"], createSession: NonNullable<FrameDesktopOpenProps["createSession"]> = vi.fn(async () => ({ launch_ticket: ticket }) as never)): FrameDesktopOpenProps => ({
+    deploymentId: "dep-1", savedVersion: 3, loadInstallers: vi.fn(async () => ({ installers: [] })), launch, createSession,
+  });
+  const ask = async (frame: ReturnType<typeof mountFrame>) => {
+    const id = frame.request("app.open", { feature: "pdf.ocr" });
+    await waitFor(() => expect(frame.answerTo(id)).toBeTruthy());
+    return frame.answerTo(id)!;
+  };
+
+  it("grants desktopOpen only where the header action exists", async () => {
+    const withAction = mountFrame("pdf", { desktopOpen: wiring(vi.fn(async () => "launched" as const)) });
+    await withAction.ready({ module: "pdf" });
+    await waitFor(() => expect(withAction.inits()).toHaveLength(1));
+    expect(withAction.inits()[0]?.payload).toMatchObject({ capabilities: { desktopOpen: true } });
+    cleanup();
+    const viewer = mountFrame("pdf", { desktopOpen: wiring(vi.fn(async () => "launched" as const)), canEdit: false });
+    await viewer.ready({ module: "pdf" });
+    await waitFor(() => expect(viewer.inits()).toHaveLength(1));
+    expect(viewer.inits()[0]?.payload).toMatchObject({ capabilities: { desktopOpen: false } });
+    cleanup();
+    const bare = mountFrame("pdf");
+    await bare.ready({ module: "pdf" });
+    await waitFor(() => expect(bare.inits()).toHaveLength(1));
+    expect(bare.inits()[0]?.payload).toMatchObject({ capabilities: { desktopOpen: false } });
+  });
+
+  it("launches the app through the header flow and answers launched", async () => {
+    const launch = vi.fn(async () => "launched" as const);
+    const createSession = vi.fn(async () => ({ launch_ticket: ticket }) as never);
+    const frame = mountFrame("pdf", { desktopOpen: wiring(launch, createSession) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(document.querySelector("[data-office-desktop-action]")).not.toBeNull());
+    const answer = await ask(frame);
+    expect(answer.payload).toEqual({ outcome: "launched" });
+    expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "edit", version: 3, deployment_id: "dep-1" }));
+    expect(launch).toHaveBeenCalledWith(expect.stringContaining("://open?ticket="));
+  });
+
+  it("opens the installer prompt when the app does not answer", async () => {
+    const frame = mountFrame("sheets", { desktopOpen: wiring(vi.fn(async () => "not-installed" as const)) });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(document.querySelector("[data-office-desktop-action]")).not.toBeNull());
+    const answer = await ask(frame);
+    expect(answer.payload).toEqual({ outcome: "installer" });
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+
+  it("answers unavailable when the ticket cannot be made", async () => {
+    const frame = mountFrame("pdf", { desktopOpen: wiring(vi.fn(), vi.fn(async () => null)) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(document.querySelector("[data-office-desktop-action]")).not.toBeNull());
+    expect((await ask(frame)).payload).toEqual({ outcome: "unavailable" });
+  });
+
+  it("answers unavailable to a frame the host did not grant it", async () => {
+    const frame = mountFrame("pdf");
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect((await ask(frame)).payload).toEqual({ outcome: "unavailable" });
+  });
+
+  it("waits on the unsaved-changes dialog and answers unavailable when it is cancelled", async () => {
+    const launch = vi.fn(async () => "launched" as const);
+    const frame = mountFrame("pdf", { desktopOpen: wiring(launch) });
+    await frame.ready({ module: "pdf" });
+    await waitFor(() => expect(document.querySelector("[data-office-desktop-action]")).not.toBeNull());
+    await frame.event("dirty", { dirty: true });
+    const id = frame.request("app.open", {});
+    await screen.findByRole("dialog");
+    expect(frame.answerTo(id)).toBeUndefined();
+    await act(async () => { screen.getByRole("button", { name: /cancel|hủy/i }).click(); });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toEqual({ outcome: "unavailable" }));
+    expect(launch).not.toHaveBeenCalled();
+  });
+});
+

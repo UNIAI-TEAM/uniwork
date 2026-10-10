@@ -4,6 +4,8 @@
 // SP1, H2, the AI1 capability keys and the C18a key wording in one lineage). Byte-identical except the relative import specifiers
 // (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
 // re-vendor, update this SHA.
+// A7 (UNI-1232) additive, ahead of the fork: capability `desktopOpen` and request `app.open` (AppOpenPayload/AppOpenResult),
+// same names and validators the fork adds as its first commit of the next lane; the lead's re-vendor replaces them.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
 /**
  * UniWork <-> genoffice Docs frame protocol (UNI-1013, lane GO-B2+B3).
@@ -266,6 +268,11 @@ export type Capability =
   | 'imageSearch'
   /** additive (C16): UniWork cloud image generation (and media analysis); effective only with `ai` */
   | 'imageGeneration'
+  /**
+   * additive (A7): the host can open the document in the desktop app (`app.open`). The frame offers its
+   * "use the app" action only with this grant and shows the message alone without it.
+   */
+  | 'desktopOpen'
 
 export type Capabilities = Partial<Record<Capability, boolean>>
 
@@ -283,6 +290,7 @@ export const CAPABILITY_KEYS: readonly Capability[] = [
   'webSearch',
   'imageSearch',
   'imageGeneration',
+  'desktopOpen',
 ]
 
 /**
@@ -625,6 +633,19 @@ export interface ConvertAltChunkHtmlResult {
   data: ArrayBuffer | null
 }
 
+export interface AppOpenPayload {
+  /** short opaque tag of the feature the user wanted (e.g. "pdf.ocr"); host diagnostics only, never shown or sent */
+  feature?: string
+}
+
+export interface AppOpenResult {
+  /**
+   * `launched`: the desktop app answered the deep link; `installer`: the host opened its install prompt;
+   * `unavailable`: no deployment binding, no committed version, or the action is busy
+   */
+  outcome: 'launched' | 'installer' | 'unavailable'
+}
+
 export interface CloseCheckResult {
   dirty: boolean
   /** true when the frame will autosave by itself (no prompt needed) */
@@ -686,6 +707,8 @@ export interface FrameRequests {
   'image.fetch': Rpc<ImageFetchPayload, ImageFetchResult>
   /** HTML altChunk -> docx bytes (desktop: main-process converter) */
   'convert.altChunkHtml': Rpc<ConvertAltChunkHtmlPayload, ConvertAltChunkHtmlResult>
+  /** additive (A7): open this document in the desktop app (the host runs its "Open in desktop app" flow) */
+  'app.open': Rpc<AppOpenPayload, AppOpenResult>
 }
 
 /** Events the frame sends to the host. */
@@ -750,6 +773,7 @@ const FRAME_REQUESTS: Record<FrameRequestType, true> = {
   'file.pick': true,
   'image.fetch': true,
   'convert.altChunkHtml': true,
+  'app.open': true,
 }
 const FRAME_EVENTS: Record<FrameEventType, true> = {
   ready: true,
@@ -970,6 +994,7 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
     (x.accept === undefined || (Array.isArray(x.accept) && x.accept.every(isStr))),
   'request:image.fetch': (x) => isObj(x) && isNonEmptyStr(x.url) && /^https?:\/\//i.test(x.url),
   'request:convert.altChunkHtml': (x) => isObj(x) && isStr(x.html),
+  'request:app.open': (x) => isObj(x) && isOpt(x.feature, isStr),
   // frame -> host events
   'event:ready': isReadyPayload,
   'event:dirty': (x) => isObj(x) && isBool(x.dirty),
@@ -1005,6 +1030,8 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
     isObj(x) &&
     (x.image === null || (isObj(x.image) && isStr(x.image.base64) && isStr(x.image.mime))),
   'response:convert.altChunkHtml': (x) => isObj(x) && (x.data === null || isBuffer(x.data)),
+  'response:app.open': (x) =>
+    isObj(x) && (x.outcome === 'launched' || x.outcome === 'installer' || x.outcome === 'unavailable'),
 }
 
 /** Outcome of `parseEnvelope`. */

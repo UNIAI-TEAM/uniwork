@@ -13,6 +13,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
 import { registerLeaveGuard } from "../../navigation/leave-guard";
+import type { DesktopOpenOutcome } from "../desktop-open-action";
 import { LeaveDialog } from "../leave-dialog";
 import { SaveStatus } from "../save-status";
 import { DocsFrameFailure } from "./docs-frame-failure";
@@ -103,12 +104,15 @@ export function OfficeModuleFrame({
   tRootRef.current = tRoot;
   const frameTitleRef = useRef(frameTitle);
   frameTitleRef.current = frameTitle;
+  // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
+  const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
+    onAppOpen: desktopOpen ? async () => (await appOpenRef.current?.()) ?? "unavailable" : undefined,
     onSavedAs: (copyId, name) => {
       // Say a copy was made: the copy opens in place and otherwise looks like the source.
       toast.success(tRootRef.current("documents.copy.done", { title: stripExtension(name) }));
@@ -245,7 +249,7 @@ export function OfficeModuleFrame({
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
       {desktopOpen && !booting && !session.viewOnly ? (
-        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} workspaceId={wsId} dirty={dirty} save={() => save("user")} />
+        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} workspaceId={wsId} dirty={dirty} save={() => save("user")} requestRef={appOpenRef} />
       ) : null}
       <iframe
         key={session.attempt}
