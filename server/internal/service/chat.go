@@ -168,7 +168,10 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 		return WorkspaceChat{}, err
 	}
 
-	if err := s.syncWorkspaceRoomMembers(ctx, room, workspaceID); err != nil {
+	// Membership commands keep the channel in step; this is the idempotent
+	// safety net for rows written before them (and the first open, which
+	// creates the room after its members already exist).
+	if err := syncDefaultChatRoomMembers(ctx, s.q, workspaceID); err != nil {
 		return WorkspaceChat{}, err
 	}
 	return WorkspaceChat{RoomID: room.ID, WorkspaceID: workspaceID}, nil
@@ -208,41 +211,27 @@ func (s *ChatService) createWorkspaceRoom(ctx context.Context, userID string, w 
 	return room, tx.Commit(ctx)
 }
 
-func (s *ChatService) syncWorkspaceRoomMembers(ctx context.Context, room db.ChatRoom, workspaceID string) error {
-	members, err := s.q.ListWorkspaceMembers(ctx, workspaceID)
-	if err != nil {
+// syncDefaultChatRoomMembers mirrors workspace_members into the workspace's
+// default channel in a fixed number of set-based statements: owners/admins
+// are raised to admin (never demoted), leavers marked left, the missing
+// added. Workspace membership commands run it with q bound to their
+// transaction; it is a no-op until the channel exists.
+func syncDefaultChatRoomMembers(ctx context.Context, q *db.Queries, workspaceID string) error {
+	if err := q.SyncDefaultChatRoomRoles(ctx, workspaceID); err != nil {
 		return err
 	}
-	keep := make(map[string]struct{}, len(members))
-	for _, m := range members {
-		keep[m.UserID] = struct{}{}
-		role := workspaceChatMemberRole(m.Role)
-		if err := s.syncRoomMember(ctx, room, workspaceID, m.UserID, role); err != nil {
-			return err
-		}
-	}
-	activeIDs, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
-	if err != nil {
+	missing, err := q.ListDefaultChatRoomMissingMembers(ctx, workspaceID)
+	if err != nil || len(missing) == 0 {
 		return err
 	}
-	for _, uid := range activeIDs {
-		if _, ok := keep[uid]; ok {
-			continue
-		}
-		if err := s.q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
-			RoomID: room.ID, UserID: uid,
-		}); err != nil {
-			return err
-		}
+	in := db.InsertChatRoomMembersParams{WorkspaceID: workspaceID, OrganizationID: missing[0].OrganizationID}
+	for _, m := range missing {
+		in.Ids = append(in.Ids, util.NewID())
+		in.RoomIds = append(in.RoomIds, m.RoomID)
+		in.UserIds = append(in.UserIds, m.UserID)
+		in.Roles = append(in.Roles, m.Role)
 	}
-	return nil
-}
-
-func workspaceChatMemberRole(wsRole string) string {
-	if wsRole == "owner" || wsRole == "admin" {
-		return "admin"
-	}
-	return "member"
+	return q.InsertChatRoomMembers(ctx, in)
 }
 
 // syncRoomMember adds the member when absent and raises an existing member to

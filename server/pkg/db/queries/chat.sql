@@ -821,3 +821,67 @@ WHERE f.user_id = sqlc.arg(user_id)
   )
 ORDER BY COALESCE(root.last_reply_at, root.created_at) DESC
 LIMIT sqlc.arg(result_limit);
+
+-- name: SyncDefaultChatRoomRoles :exec
+-- The default channel mirrors workspace_members: owners/admins become channel
+-- admins (never demoted), and anyone no longer in the workspace is marked left.
+WITH room AS (
+  SELECT id FROM chat_rooms
+  WHERE workspace_id = sqlc.arg(workspace_id)::text AND is_default AND archived_at IS NULL
+), raised AS (
+  UPDATE chat_room_members m SET role = 'admin', updated_at = now()
+  FROM workspace_members wm
+  WHERE m.room_id IN (SELECT id FROM room)
+    AND m.status IN ('invited', 'active') AND m.role != 'admin'
+    AND wm.workspace_id = sqlc.arg(workspace_id)::text AND wm.user_id = m.user_id
+    AND wm.role IN ('owner', 'admin')
+)
+UPDATE chat_room_members m SET status = 'left', left_at = now(), updated_at = now()
+WHERE m.room_id IN (SELECT id FROM room)
+  AND m.status IN ('invited', 'active')
+  AND NOT EXISTS (
+    SELECT 1 FROM workspace_members wm
+    WHERE wm.workspace_id = sqlc.arg(workspace_id)::text AND wm.user_id = m.user_id
+  );
+
+-- name: ListDefaultChatRoomMissingMembers :many
+-- Workspace members not yet in the default channel, with the role they join as.
+SELECT
+  r.id AS room_id,
+  r.organization_id,
+  wm.user_id,
+  (CASE WHEN wm.role IN ('owner', 'admin') THEN 'admin' ELSE 'member' END)::text AS role
+FROM chat_rooms r
+JOIN workspace_members wm ON wm.workspace_id = r.workspace_id
+WHERE r.workspace_id = sqlc.arg(workspace_id)::text AND r.is_default AND r.archived_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_room_members m
+    WHERE m.room_id = r.id AND m.user_id = wm.user_id AND m.status IN ('invited', 'active')
+  );
+
+-- name: InsertChatRoomMembers :exec
+-- One row per member; the unnests advance together, so ids[i] goes with
+-- room_ids[i], user_ids[i] and roles[i].
+INSERT INTO chat_room_members (
+  id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
+)
+SELECT
+  unnest(sqlc.arg(ids)::text[]),
+  unnest(sqlc.arg(room_ids)::text[]),
+  sqlc.arg(workspace_id)::text,
+  unnest(sqlc.arg(user_ids)::text[]),
+  unnest(sqlc.arg(roles)::text[]),
+  'active',
+  sqlc.arg(organization_id)::text,
+  now(), now(), now()
+ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING;
+
+-- name: LeaveDefaultChatRoomsInOrg :exec
+-- Leaving an organization drops every workspace row in it, so the person
+-- leaves each of its default channels in the same transaction.
+UPDATE chat_room_members m SET status = 'left', left_at = now(), updated_at = now()
+FROM chat_rooms r
+WHERE r.id = m.room_id AND r.organization_id = sqlc.arg(organization_id) AND r.is_default
+  AND m.organization_id = sqlc.arg(organization_id) AND m.user_id = sqlc.arg(user_id)
+  AND m.status IN ('invited', 'active');
+

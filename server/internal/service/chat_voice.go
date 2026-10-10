@@ -330,7 +330,7 @@ func (s *ChatService) requireVoiceTokenAccess(ctx context.Context, room db.ChatR
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		if syncErr := s.syncWorkspaceRoomMembers(ctx, room, wsID); syncErr != nil {
+		if syncErr := syncDefaultChatRoomMembers(ctx, s.q, wsID); syncErr != nil {
 			return syncErr
 		}
 		if _, retryErr := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{

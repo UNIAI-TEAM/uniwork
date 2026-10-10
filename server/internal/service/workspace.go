@@ -431,6 +431,9 @@ func (s *WorkspaceService) UpdateMemberRole(ctx context.Context, actorID, worksp
 	if err != nil {
 		return db.WorkspaceMember{}, err
 	}
+	if err := syncDefaultChatRoomMembers(ctx, q, workspaceID); err != nil {
+		return db.WorkspaceMember{}, err
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		Actor:        audit.User(actorID),
@@ -491,6 +494,9 @@ func (s *WorkspaceService) RemoveMember(ctx context.Context, actorID, workspaceI
 	if err := q.LeaveChatRoomsInWorkspaceForUser(ctx, db.LeaveChatRoomsInWorkspaceForUserParams{
 		WorkspaceID: pgtype.Text{String: workspaceID, Valid: true}, UserID: targetUserID,
 	}); err != nil {
+		return err
+	}
+	if err := syncDefaultChatRoomMembers(ctx, q, workspaceID); err != nil {
 		return err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -722,6 +728,9 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	}
 	if inv.WorkspaceID.Valid {
 		if err := qtx.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: ws.ID, OrganizationID: ws.OrganizationID, UserID: userID, Role: inv.Role}); err != nil {
+			return AcceptResult{}, err
+		}
+		if err := syncDefaultChatRoomMembers(ctx, qtx, ws.ID); err != nil {
 			return AcceptResult{}, err
 		}
 	}

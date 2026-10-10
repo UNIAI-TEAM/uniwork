@@ -375,12 +375,8 @@ func (s *ChatService) RemoveWorkspaceRoomMember(
 	if !adminLikeRole(actor.Role) {
 		return ErrForbidden
 	}
+	// RemoveMember also marks them left here, in its own transaction.
 	if err := s.ws.RemoveMember(ctx, actorID, workspaceID, targetUserID); err != nil {
-		return err
-	}
-	if err := s.q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
-		RoomID: roomID, UserID: targetUserID,
-	}); err != nil {
 		return err
 	}
 	s.publishChatRoomMembersEvent(ctx, roomID, Event{

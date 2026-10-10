@@ -1039,6 +1039,45 @@ func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMe
 	return i, err
 }
 
+const insertChatRoomMembers = `-- name: InsertChatRoomMembers :exec
+INSERT INTO chat_room_members (
+  id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
+)
+SELECT
+  unnest($1::text[]),
+  unnest($2::text[]),
+  $3::text,
+  unnest($4::text[]),
+  unnest($5::text[]),
+  'active',
+  $6::text,
+  now(), now(), now()
+ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING
+`
+
+type InsertChatRoomMembersParams struct {
+	Ids            []string `json:"ids"`
+	RoomIds        []string `json:"room_ids"`
+	WorkspaceID    string   `json:"workspace_id"`
+	UserIds        []string `json:"user_ids"`
+	Roles          []string `json:"roles"`
+	OrganizationID string   `json:"organization_id"`
+}
+
+// One row per member; the unnests advance together, so ids[i] goes with
+// room_ids[i], user_ids[i] and roles[i].
+func (q *Queries) InsertChatRoomMembers(ctx context.Context, arg InsertChatRoomMembersParams) error {
+	_, err := q.db.Exec(ctx, insertChatRoomMembers,
+		arg.Ids,
+		arg.RoomIds,
+		arg.WorkspaceID,
+		arg.UserIds,
+		arg.Roles,
+		arg.OrganizationID,
+	)
+	return err
+}
+
 const leaveChatRoomMember = `-- name: LeaveChatRoomMember :exec
 UPDATE chat_room_members
 SET status = 'left', left_at = now(), updated_at = now()
@@ -1089,6 +1128,26 @@ type LeaveChatRoomsInWorkspaceForUserParams struct {
 // to the organization and outlive one workspace membership.
 func (q *Queries) LeaveChatRoomsInWorkspaceForUser(ctx context.Context, arg LeaveChatRoomsInWorkspaceForUserParams) error {
 	_, err := q.db.Exec(ctx, leaveChatRoomsInWorkspaceForUser, arg.WorkspaceID, arg.UserID)
+	return err
+}
+
+const leaveDefaultChatRoomsInOrg = `-- name: LeaveDefaultChatRoomsInOrg :exec
+UPDATE chat_room_members m SET status = 'left', left_at = now(), updated_at = now()
+FROM chat_rooms r
+WHERE r.id = m.room_id AND r.organization_id = $1 AND r.is_default
+  AND m.organization_id = $1 AND m.user_id = $2
+  AND m.status IN ('invited', 'active')
+`
+
+type LeaveDefaultChatRoomsInOrgParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+// Leaving an organization drops every workspace row in it, so the person
+// leaves each of its default channels in the same transaction.
+func (q *Queries) LeaveDefaultChatRoomsInOrg(ctx context.Context, arg LeaveDefaultChatRoomsInOrgParams) error {
+	_, err := q.db.Exec(ctx, leaveDefaultChatRoomsInOrg, arg.OrganizationID, arg.UserID)
 	return err
 }
 
@@ -2420,6 +2479,54 @@ func (q *Queries) ListChatThreadsForFollower(ctx context.Context, arg ListChatTh
 	return items, nil
 }
 
+const listDefaultChatRoomMissingMembers = `-- name: ListDefaultChatRoomMissingMembers :many
+SELECT
+  r.id AS room_id,
+  r.organization_id,
+  wm.user_id,
+  (CASE WHEN wm.role IN ('owner', 'admin') THEN 'admin' ELSE 'member' END)::text AS role
+FROM chat_rooms r
+JOIN workspace_members wm ON wm.workspace_id = r.workspace_id
+WHERE r.workspace_id = $1::text AND r.is_default AND r.archived_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_room_members m
+    WHERE m.room_id = r.id AND m.user_id = wm.user_id AND m.status IN ('invited', 'active')
+  )
+`
+
+type ListDefaultChatRoomMissingMembersRow struct {
+	RoomID         string `json:"room_id"`
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+	Role           string `json:"role"`
+}
+
+// Workspace members not yet in the default channel, with the role they join as.
+func (q *Queries) ListDefaultChatRoomMissingMembers(ctx context.Context, workspaceID string) ([]ListDefaultChatRoomMissingMembersRow, error) {
+	rows, err := q.db.Query(ctx, listDefaultChatRoomMissingMembers, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDefaultChatRoomMissingMembersRow{}
+	for rows.Next() {
+		var i ListDefaultChatRoomMissingMembersRow
+		if err := rows.Scan(
+			&i.RoomID,
+			&i.OrganizationID,
+			&i.UserID,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markChatThreadRead = `-- name: MarkChatThreadRead :exec
 UPDATE chat_thread_followers
 SET last_read_at = $3, updated_at = now()
@@ -2604,6 +2711,34 @@ func (q *Queries) SoftDeleteChatMessage(ctx context.Context, arg SoftDeleteChatM
 		&i.OrganizationID,
 	)
 	return i, err
+}
+
+const syncDefaultChatRoomRoles = `-- name: SyncDefaultChatRoomRoles :exec
+WITH room AS (
+  SELECT id FROM chat_rooms
+  WHERE workspace_id = $1::text AND is_default AND archived_at IS NULL
+), raised AS (
+  UPDATE chat_room_members m SET role = 'admin', updated_at = now()
+  FROM workspace_members wm
+  WHERE m.room_id IN (SELECT id FROM room)
+    AND m.status IN ('invited', 'active') AND m.role != 'admin'
+    AND wm.workspace_id = $1::text AND wm.user_id = m.user_id
+    AND wm.role IN ('owner', 'admin')
+)
+UPDATE chat_room_members m SET status = 'left', left_at = now(), updated_at = now()
+WHERE m.room_id IN (SELECT id FROM room)
+  AND m.status IN ('invited', 'active')
+  AND NOT EXISTS (
+    SELECT 1 FROM workspace_members wm
+    WHERE wm.workspace_id = $1::text AND wm.user_id = m.user_id
+  )
+`
+
+// The default channel mirrors workspace_members: owners/admins become channel
+// admins (never demoted), and anyone no longer in the workspace is marked left.
+func (q *Queries) SyncDefaultChatRoomRoles(ctx context.Context, workspaceID string) error {
+	_, err := q.db.Exec(ctx, syncDefaultChatRoomRoles, workspaceID)
+	return err
 }
 
 const touchChatRoomUpdatedAt = `-- name: TouchChatRoomUpdatedAt :exec
