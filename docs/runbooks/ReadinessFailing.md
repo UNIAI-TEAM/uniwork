@@ -17,7 +17,7 @@
    Body có `ready` và `checks[]` với `name` ∈ `db`, `migrations`, `redis` (chỉ khi đặt `REDIS_URL`), `storage` (khi có adapter), mỗi check có `ok` và `detail`. Chỉ `db` và `migrations` làm `/readyz` trả 503; `redis` và `storage` fail vẫn 200, chỉ hiện trong body và trang admin.
    - `db` fail: Postgres không trả `SELECT 1` trong 2 s → DB chết, mạng, hoặc pool cạn (dashboard *UniWork · DB*).
    - `migrations` fail: `detail` nêu version đã áp dụng **cũ hơn** version embedded trong binary → deploy binary mới mà chưa chạy migrate. Binary cũ chạy trên schema mới hơn (rollback) vẫn ready.
-   - Redis hỏng không còn làm alert này kêu: xem `RealtimeRedisXReadErrors` và check `redis` trong body.
+   - Redis hỏng không còn làm alert này kêu: xem [RedisUnreachable](RedisUnreachable.md) (gauge `uniwork_readiness_dependency_up`, cũng có `dependency="storage"`) và check `redis` trong body.
 2. Postgres: `docker compose ps postgres`, `docker compose logs --since 10m postgres`. Redis tương tự.
 3. Nếu chỉ một node sau load balancer fail → node đó mất mạng tới DB; các node khác xanh thì traffic không ảnh hưởng.
 4. Build vừa đổi? `uniwork_build_info` trên dashboard *UniWork · API* — nếu commit mới và `migrations` fail thì đây là deploy thiếu bước migrate.

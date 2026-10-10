@@ -413,6 +413,7 @@ func main() {
 		digest.SetMetrics(reg.Notifications)
 		graphMarker.SetMetrics(reg.Graph)
 		graphWorker.SetMetrics(reg.Graph)
+		readiness.SetMetrics(reg.Readiness)
 	}
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()

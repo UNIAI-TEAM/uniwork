@@ -21,6 +21,13 @@ type Readiness struct {
 	pool    *pgxpool.Pool
 	rdb     *redis.Client
 	storage StorageProber
+	metrics ReadinessMetrics
+}
+
+// ReadinessMetrics records the advisory checks, so a Redis or storage outage
+// that leaves the node ready still raises an alert (RedisUnreachable).
+type ReadinessMetrics interface {
+	SetDependencyUp(dependency string, up bool)
 }
 
 // readinessTimeout bounds the db and schema checks. It is generous on
@@ -55,6 +62,13 @@ func (r *Readiness) WithStorageProber(p StorageProber) *Readiness {
 		r.storage = p
 	}
 	return r
+}
+
+// SetMetrics attaches the dependency gauge; nil (metrics off) records nothing.
+func (r *Readiness) SetMetrics(m ReadinessMetrics) {
+	if r != nil {
+		r.metrics = m
+	}
 }
 
 // ReadinessCheck is one probe's outcome.
@@ -99,15 +113,25 @@ func (r *Readiness) Check(ctx context.Context) ReadinessReport {
 	add("migrations", err, applied)
 	if r.rdb != nil {
 		rctx, cancel := context.WithTimeout(ctx, storageProbeTimeout)
-		add("redis", r.rdb.Ping(rctx).Err(), "")
+		err := r.rdb.Ping(rctx).Err()
 		cancel()
+		add("redis", err, "")
+		r.recordUp("redis", err)
 	}
 	if r.storage != nil {
 		sctx, cancel := context.WithTimeout(ctx, storageProbeTimeout)
-		add("storage", r.storage.Probe(sctx), "")
+		err := r.storage.Probe(sctx)
 		cancel()
+		add("storage", err, "")
+		r.recordUp("storage", err)
 	}
 	return rep
+}
+
+func (r *Readiness) recordUp(dependency string, err error) {
+	if r.metrics != nil {
+		r.metrics.SetDependencyUp(dependency, err == nil)
+	}
 }
 
 type errMigrationDrift struct{ applied, latest string }

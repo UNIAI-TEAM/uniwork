@@ -92,14 +92,31 @@ func TestReadinessRedisFailureIsAdvisory(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", MaxRetries: -1})
 	t.Cleanup(func() { _ = rdb.Close() })
 
-	rep := NewReadiness(pool, rdb).Check(context.Background())
+	gauge := fakeReadinessMetrics{}
+	r := NewReadiness(pool, rdb).WithStorageProber(&fakeProber{})
+	r.SetMetrics(gauge)
+	rep := r.Check(context.Background())
 	if !rep.Ready {
 		t.Fatalf("an unreachable Redis made the node not ready: %+v", rep)
 	}
 	if c := checkByName(rep, "redis"); c == nil || c.OK || c.Detail == "" {
 		t.Fatalf("redis check = %+v, want present and failing with detail", c)
 	}
+	// The gauge is the only alert left for a dead Redis (RedisUnreachable).
+	if up, ok := gauge["redis"]; !ok || up {
+		t.Fatalf("redis dependency gauge = %v (set %v), want down", up, ok)
+	}
+	if up := gauge["storage"]; !up {
+		t.Fatal("storage dependency gauge not up for a healthy prober")
+	}
+	if _, ok := gauge["db"]; ok {
+		t.Fatal("db gates readiness itself; it has no dependency gauge")
+	}
 }
+
+type fakeReadinessMetrics map[string]bool
+
+func (m fakeReadinessMetrics) SetDependencyUp(dependency string, up bool) { m[dependency] = up }
 
 // TestReadinessBudgetOutlastsAGCPause: the db budget is at least 2s so one
 // slow pool acquire under load does not flap the only pod out of rotation;
