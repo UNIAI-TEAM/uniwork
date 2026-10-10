@@ -321,7 +321,7 @@ func TestSendFileMessageRequiresRoomMembershipAndHonoursDMBlockFS(t *testing.T) 
 	if _, err := s.GetFileMessage(ctx, outsider.ID, w.ID, dm.ID, row.ID); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("outsider file get = %v, want ErrForbidden", err)
 	}
-	if _, _, err := s.OpenChatFileMessage(ctx, outsider.ID, w.ID, dm.ID, row.ID); !errors.Is(err, ErrForbidden) {
+	if _, _, err := s.OpenChatFileMessage(ctx, outsider.ID, w.ID, dm.ID, row.ID, false); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("outsider file open = %v, want ErrForbidden", err)
 	}
 	if _, err := s.GetVoiceMessage(ctx, outsider.ID, w.ID, dm.ID, row.ID); !errors.Is(err, ErrForbidden) {
@@ -433,7 +433,7 @@ func TestOpenChatFileMessageStreamsVerifiedBytes(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 
-	got, reader, err := s.OpenChatFileMessage(ctx, ub.ID, w.ID, dm.ID, row.ID)
+	got, reader, err := s.OpenChatFileMessage(ctx, ub.ID, w.ID, dm.ID, row.ID, false)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -686,7 +686,7 @@ func TestOpenChatFileMessageMetadataFileIDFallbackFS(t *testing.T) {
 		t.Fatalf("null the file_id column: %v", err)
 	}
 
-	got, reader, err := s.OpenChatFileMessage(ctx, ub.ID, w.ID, dm.ID, row.ID)
+	got, reader, err := s.OpenChatFileMessage(ctx, ub.ID, w.ID, dm.ID, row.ID, false)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

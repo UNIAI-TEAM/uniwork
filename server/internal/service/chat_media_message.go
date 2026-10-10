@@ -234,6 +234,12 @@ func (s *ChatService) commitChatMediaMessage(
 		}
 		return db.ChatMessage{}, false, err
 	}
+	if in.kind == "file" {
+		// The timeline shows photos as thumbnails (H15); the slow lane makes them.
+		if err := requestFileThumbnail(ctx, q, actor, file, scope); err != nil {
+			return db.ChatMessage{}, false, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.ChatMessage{}, false, err
 	}
@@ -324,12 +330,14 @@ func (s *ChatService) cancelStagedUpload(ctx context.Context, actor audit.Actor,
 }
 
 // openChatMediaMessage authorizes the read and opens the file bytes through
-// FileService. A pre-migration row still carries an object_key instead of a
+// FileService; variant asks for a derivative (the original when there is
+// none). A pre-migration row still carries an object_key instead of a
 // file_id; it returns an empty Reader so the handler can serve the legacy
 // object until the T9b backfill lands.
 func (s *ChatService) openChatMediaMessage(
 	ctx context.Context,
 	userID, workspaceID, roomID, messageID, wantKind string,
+	variant files.Variant,
 ) (ChatMessageRow, files.Reader, error) {
 	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if err != nil {
@@ -344,11 +352,8 @@ func (s *ChatService) openChatMediaMessage(
 	if err != nil {
 		return ChatMessageRow{}, files.Reader{}, err
 	}
-	u, err := s.q.GetUserByID(ctx, msg.SenderID)
-	if err != nil {
-		return ChatMessageRow{}, files.Reader{}, err
-	}
-	row := chatMessageRowFromDBForViewer(msg, u.DisplayName, userID)
+	// The byte stream never shows the sender, so no user lookup per view.
+	row := chatMessageRowFromDBForViewer(msg, "", userID)
 	var infoOk bool
 	switch wantKind {
 	case "file":
@@ -383,8 +388,9 @@ func (s *ChatService) openChatMediaMessage(
 		return ChatMessageRow{}, files.Reader{}, filesError(files.StorageUnavailable(errChatFilesNotConfigured))
 	}
 	rd, err := s.files.Open(ctx, files.OpenInput{
-		Scope:  chatFileScope(room),
-		FileID: files.FileID(fileID),
+		Scope:   chatFileScope(room),
+		FileID:  files.FileID(fileID),
+		Variant: variant,
 	})
 	if err != nil {
 		return ChatMessageRow{}, files.Reader{}, filesError(err)

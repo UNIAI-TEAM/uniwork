@@ -159,7 +159,18 @@ type OpenInput struct {
 	FileID FileID
 	Offset int64
 	Length int64
+	// Variant asks for a derivative of FileID (spec 2026-09-22,
+	// file_derivatives). It is authorized exactly like FileID; a file without
+	// that derivative - not made yet, or nothing to gain - streams the
+	// original, and Reader.File says which bytes came.
+	Variant Variant
 }
+
+// Variant names a derivative of a file. Empty is the original.
+type Variant string
+
+// VariantThumb is a bounded-size preview of an image (longest side 640px).
+const VariantThumb Variant = "thumb"
 
 // Reader is the proxy read path: the verified file view plus the bytes. The
 // caller owns Close, so a proxy handler that returns early still releases the

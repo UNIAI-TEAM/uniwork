@@ -22,7 +22,7 @@ import (
 // coordination, not business references. file_backfill_items is the
 // files-backfill ledger: a row records what a run did to a file, and must not
 // keep that file alive for the collector.
-var fileServiceTables = map[string]bool{"files": true, "file_upload_sessions": true, "file_jobs": true, "file_backfill_items": true}
+var fileServiceTables = map[string]bool{"files": true, "file_upload_sessions": true, "file_jobs": true, "file_backfill_items": true, "file_derivatives": true}
 
 var (
 	alterTableRe  = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?"?(\w+)"?(.*)`)

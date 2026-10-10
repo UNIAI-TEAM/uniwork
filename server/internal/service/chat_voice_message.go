@@ -283,7 +283,7 @@ func (s *ChatService) OpenChatVoiceMessage(
 	ctx context.Context,
 	userID, workspaceID, roomID, messageID string,
 ) (ChatMessageRow, files.Reader, error) {
-	return s.openChatMediaMessage(ctx, userID, workspaceID, roomID, messageID, "voice")
+	return s.openChatMediaMessage(ctx, userID, workspaceID, roomID, messageID, "voice", "")
 }
 
 // GetVoiceMessage authorizes both room and message and returns private object metadata.

@@ -291,6 +291,9 @@ var catalogue = []EventDef{
 	// Feature flags (F-11): every node drops its override cache.
 	{Topic: "flag.updated", Version: 1, Payload: []string{"flag_key"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
+	// FileService derivatives (H15): the slow lane makes a photo's thumbnail.
+	{Topic: "file.thumbnail_requested", Version: 1, Payload: []string{"file_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "audit.exported", Version: 1, Payload: []string{"export_id", "organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},

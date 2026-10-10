@@ -265,8 +265,9 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/file", h.StreamChatFileMessage, apiOp{
 		summary:     "Stream chat file message",
-		description: "Tải nội dung tệp đính kèm sau khi kiểm tra quyền phòng.",
+		description: "Tải nội dung tệp đính kèm sau khi kiểm tra quyền phòng. Ảnh được cache riêng tư 60 giây (private, max-age=60); tệp khác no-store.",
 		tags:        []string{"chat"},
+		sdi:         sdi.StreamChatFileMessageSDI{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}", h.GetChatRoomMessage, apiOp{

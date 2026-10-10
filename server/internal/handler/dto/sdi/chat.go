@@ -11,6 +11,11 @@ type ListChatMessagesSDI struct {
 	MarkRead string `query:"mark_read" description:"0 giữ nguyên last_read_at (CatchUp sau khi mở phòng chưa đọc)" example:"0"`
 }
 
+// StreamChatFileMessageSDI is GET .../messages/{messageID}/file.
+type StreamChatFileMessageSDI struct {
+	Variant string `query:"variant" enum:"thumb" description:"thumb: ảnh thu nhỏ (cạnh dài tối đa 640px) cho dòng thời gian; ảnh chưa có bản thu nhỏ trả về tệp gốc. Bỏ trống để tải tệp gốc" example:"thumb"`
+}
+
 // SendChatMessageSDI is POST /workspaces/{workspaceID}/chat/messages.
 type SendChatMessageSDI struct {
 	Body             string                 `json:"body" description:"Message text" example:"Xin chào team!"`

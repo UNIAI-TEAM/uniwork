@@ -827,6 +827,15 @@ type FileBackfillRun struct {
 	FinishedAt pgtype.Timestamptz `json:"finished_at"`
 }
 
+type FileDerivative struct {
+	SourceFileID     string             `json:"source_file_id"`
+	Variant          string             `json:"variant"`
+	FileID           string             `json:"file_id"`
+	ProcessorVersion int32              `json:"processor_version"`
+	OrganizationID   string             `json:"organization_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
 // FileService durable coordination jobs (cleanup, reconcile, abort_multipart) with lease ownership and generation fencing. Internal worker state; the organization_id copy aids cleanup invariants and cross-checks but is not an authorization grant.
 type FileJob struct {
 	// Opaque job id (ULID).
