@@ -54,6 +54,14 @@ describe("vi/en parity", () => {
     expect(mismatched).toEqual([]);
   });
 
+  it("không có chuỗi nào bị lỗi mã hoá (U+FFFD hoặc UTF-8 đọc nhầm thành Latin-1)", () => {
+    // Mojibake of a UTF-8 text decoded as Latin-1/CP1252 starts a pair with Ã/Â/Ä/Å or â + a C1 / punctuation char;
+    // real Vietnamese has no such pair, and U+FFFD marks bytes that were already lost (UNI-1232: office.format).
+    const mojibake = /[\u00c2-\u00c5][\u0080-\u00bf]|\u00e2[\u0080-\u00bf\u20ac]|\ufffd/;
+    const bad = (dict: Record<string, string>) => Object.entries(dict).filter(([, v]) => mojibake.test(v)).map(([k]) => k).sort();
+    expect({ vi: bad(VI), en: bad(EN) }).toEqual({ vi: [], en: [] });
+  });
+
   it("không có chuỗi tiếng Anh nào bị bỏ trống", () => {
     expect(Object.entries(EN).filter(([, v]) => v.trim() === "").map(([k]) => k)).toEqual([]);
   });
