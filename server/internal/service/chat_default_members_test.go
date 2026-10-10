@@ -121,6 +121,46 @@ func TestDeactivatedMemberStaysOutOfTheDefaultChannel(t *testing.T) {
 	}
 }
 
+// Reactivation gives back the rooms deactivation took: the private channel
+// and the group, which nothing else would re-add (UNI-1084).
+func TestReactivationRestoresTheRoomsDeactivationLeft(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-reactivate-c@example.com", "C")
+	addOrgMember(t, q, w.OrganizationID, uc.ID)
+	addWorkspaceMember(t, q, w.ID, uc.ID)
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "rieng", Visibility: chatVisibilityPrivate, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "g", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	members := NewOrganizationMemberService(s.pool, q, s.ws.orgs)
+	if _, err := members.Deactivate(ctx, ua.ID, w.OrganizationID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, roomID := range []string{ch.ID, group.ID} {
+		if got := defaultChannelRole(t, q, roomID, ub.ID); got != "" {
+			t.Fatalf("after deactivation: still in %s as %q", roomID, got)
+		}
+	}
+	if _, err := members.Reactivate(ctx, ua.ID, w.OrganizationID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, roomID := range []string{ch.ID, group.ID} {
+		if got := defaultChannelRole(t, q, roomID, ub.ID); got != "member" {
+			t.Fatalf("after reactivation: role in %s %q, want member", roomID, got)
+		}
+	}
+}
+
 // POST /chat/room runs the same number of statements for 3 members as for 23.
 func TestEnsureWorkspaceRoomIsConstantStatements(t *testing.T) {
 	s, _, q, ua, ub, w := chatFixture(t)

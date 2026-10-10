@@ -2566,6 +2566,32 @@ func (q *Queries) ReactivateChatRoomMember(ctx context.Context, arg ReactivateCh
 	return err
 }
 
+const restoreChatRoomsLeftAtDeactivation = `-- name: RestoreChatRoomsLeftAtDeactivation :exec
+UPDATE chat_room_members m SET status = 'active', left_at = NULL, updated_at = now()
+FROM organization_members om
+WHERE om.organization_id = $1 AND om.user_id = $2
+  AND om.deactivated_at IS NOT NULL
+  AND m.organization_id = $1 AND m.user_id = $2
+  AND m.status = 'left' AND m.left_at = om.deactivated_at
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_room_members a
+    WHERE a.room_id = m.room_id AND a.user_id = m.user_id AND a.status IN ('invited', 'active')
+  )
+`
+
+type RestoreChatRoomsLeftAtDeactivationParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+// Run before the deactivation is cleared. Deactivate marked the rows left in
+// its own transaction, so their left_at is the member's deactivated_at; a
+// room that already has an active row for them is left alone.
+func (q *Queries) RestoreChatRoomsLeftAtDeactivation(ctx context.Context, arg RestoreChatRoomsLeftAtDeactivationParams) error {
+	_, err := q.db.Exec(ctx, restoreChatRoomsLeftAtDeactivation, arg.OrganizationID, arg.UserID)
+	return err
+}
+
 const searchChatMessagesByRoom = `-- name: SearchChatMessagesByRoom :many
 SELECT
   m.id,

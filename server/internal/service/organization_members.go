@@ -305,6 +305,13 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	// Gives back the rooms Deactivate left; it reads deactivated_at, so it
+	// runs before the clear.
+	if err := q.RestoreChatRoomsLeftAtDeactivation(ctx, db.RestoreChatRoomsLeftAtDeactivationParams{
+		OrganizationID: orgID, UserID: targetID,
+	}); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	updated, err := q.ClearOrganizationMemberDeactivated(ctx, db.ClearOrganizationMemberDeactivatedParams{
 		OrganizationID: orgID, UserID: targetID,
 	})

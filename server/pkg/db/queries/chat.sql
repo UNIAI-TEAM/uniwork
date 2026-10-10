@@ -375,6 +375,21 @@ UPDATE chat_room_members
 SET status = 'left', left_at = now(), updated_at = now()
 WHERE organization_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
+-- name: RestoreChatRoomsLeftAtDeactivation :exec
+-- Run before the deactivation is cleared. Deactivate marked the rows left in
+-- its own transaction, so their left_at is the member's deactivated_at; a
+-- room that already has an active row for them is left alone.
+UPDATE chat_room_members m SET status = 'active', left_at = NULL, updated_at = now()
+FROM organization_members om
+WHERE om.organization_id = sqlc.arg(organization_id) AND om.user_id = sqlc.arg(user_id)
+  AND om.deactivated_at IS NOT NULL
+  AND m.organization_id = sqlc.arg(organization_id) AND m.user_id = sqlc.arg(user_id)
+  AND m.status = 'left' AND m.left_at = om.deactivated_at
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_room_members a
+    WHERE a.room_id = m.room_id AND a.user_id = m.user_id AND a.status IN ('invited', 'active')
+  );
+
 -- name: TouchChatRoomUpdatedAt :exec
 -- tenant: by-id
 UPDATE chat_rooms SET updated_at = now() WHERE id = $1;
