@@ -96,16 +96,15 @@ describe("OfficeModuleFrame", () => {
 
   const mintWithAI = (module: OfficeModule, ai: unknown) => () => Promise.resolve({ ...minted, module, ai });
 
-  it.each(["docs", "pdf", "markdown", "html", "slides"] as OfficeModule[])("grants the %s frame AI as far as the minted token's grant", async (module) => {
+  it.each(ALL_MODULES)("grants the %s frame AI as far as the minted token's grant", async (module) => {
     const frame = mountFrame(module, { mint: mintWithAI(module, { ai: true, web_search: true, image_search: false, image_generation: true }) });
     await frame.ready({ module });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: true, webSearch: true, imageSearch: false, imageGeneration: true } });
   });
 
-  it("keeps AI off for a module without AI panels, for a token without AI and for a malformed grant", async () => {
+  it("keeps AI off for a token without AI and for a malformed grant", async () => {
     const cases: [OfficeModule, unknown][] = [
-      ["sheets", { ai: true, web_search: true, image_search: true, image_generation: true }],
       ["pdf", { ai: false, web_search: true, image_search: true, image_generation: true }],
       ["markdown", "yes"],
       ["html", undefined],

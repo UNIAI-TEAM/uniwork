@@ -36,9 +36,9 @@ export interface OfficeModuleSpec {
   grant: OfficeModuleGrant;
   /**
    * The module's frame has AI panels (genoffice AI members on its preload
-   * globals: docs, pdf, markdown, html, slides). The host grants `ai` (and
-   * the cloud tool keys) only here and only as far as the minted token's AI
-   * grant allows (CONTRACT C16); a module without AI never gets the keys.
+   * globals; all six modules today). The host grants `ai` (and the cloud tool
+   * keys) only here and only as far as the minted token's AI grant allows
+   * (CONTRACT C16); a module without AI never gets the keys.
    */
   ai?: boolean;
   /**
@@ -90,8 +90,7 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   },
   sheets: {
     flag: "office_sheets_web", format: "xlsx", extension: "xlsx",
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT, maxBytes: SHEETS_MAX_BYTES, recovery: true,
-    // No `ai` on purpose: the Sheets frame ignores the grant today (docs/office/office-web-modules.md, "Why Sheets has no AI yet").
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT, maxBytes: SHEETS_MAX_BYTES, recovery: true, ai: true,
   },
 };
 
