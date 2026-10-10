@@ -134,6 +134,21 @@ describe("WSClient scoped subscribe", () => {
     vi.useRealTimers();
   });
 
+  // H11: the server closes with 4001 when the token expired or the session was
+  // revoked; reconnecting with the same token would only be refused again.
+  it("asks for a fresh session when the server ends it with 4001", () => {
+    const onSessionEnded = vi.fn();
+    const ws = new WSClient("ws://example.test/ws", { onSessionEnded });
+    ws.setAuth("tok", "acme/ws");
+    ws.connect();
+    FakeWebSocket.lastInstance!.onclose?.({ code: 1006 } as CloseEvent);
+    expect(onSessionEnded).not.toHaveBeenCalled();
+    ws.connect();
+    FakeWebSocket.lastInstance!.onclose?.({ code: 4001 } as CloseEvent);
+    expect(onSessionEnded).toHaveBeenCalledTimes(1);
+    ws.disconnect();
+  });
+
   it("notifies connection state listeners", () => {
     const ws = new WSClient("ws://example.test/ws");
     const states: string[] = [];

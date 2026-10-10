@@ -4,16 +4,23 @@ import { setAccessToken } from "../api/session";
 import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import type { User } from "../types/user";
+import * as auth from "../api/endpoints/auth";
 import { WSProvider } from "./provider";
 
+vi.mock("../api/endpoints/auth", () => ({ refreshSession: vi.fn(async () => null), logout: vi.fn() }));
+
 const sockets = vi.hoisted(
-  () => [] as { options: { resumed?: boolean } | undefined; connected: boolean }[],
+  () =>
+    [] as {
+      options: { resumed?: boolean; onSessionEnded?: () => void } | undefined;
+      connected: boolean;
+    }[],
 );
 
 vi.mock("../api/ws-client", () => ({
   WSClient: class {
     private entry: (typeof sockets)[number];
-    constructor(_url: string, options?: { resumed?: boolean }) {
+    constructor(_url: string, options?: { resumed?: boolean; onSessionEnded?: () => void }) {
       this.entry = { options, connected: false };
       sockets.push(this.entry);
     }
@@ -61,6 +68,20 @@ describe("WSProvider", () => {
 
     expect(sockets).toHaveLength(2);
     expect(sockets[1]?.options?.resumed).toBe(true);
+    unmount();
+  });
+
+  // H11: the server closes a socket whose token expired or whose session was
+  // revoked; the provider refreshes, and the new token rebuilds the socket.
+  it("refreshes the session when the server ends the socket's session", () => {
+    configureRuntime({ wsUrl: "ws://api.test" });
+    setSessionUser(user);
+    setAccessToken("t1");
+    const { unmount } = render(<WSProvider workspaceSlug="acme/main">{null}</WSProvider>);
+
+    sockets[0]?.options?.onSessionEnded?.();
+
+    expect(auth.refreshSession).toHaveBeenCalledTimes(1);
     unmount();
   });
 });

@@ -49,6 +49,8 @@ export function WSProvider({ children, workspaceSlug }: WSProviderProps) {
       logger: createLogger("ws"),
       identity: { platform: "web" },
       resumed: connectedSession.current === session,
+      // The new token the refresh brings rebuilds this socket (effect below).
+      onSessionEnded: () => void useAuthStore.getState().refreshSession(),
     });
     ws.setAuth(token, workspaceSlug);
     ws.connect();

@@ -19,6 +19,8 @@ const RECONNECT_MAX_DELAY_MS = 30_000;
 // sockets even when APISIX/read timeouts are long. Application ping keeps
 // data frames flowing; the server answers with {"type":"pong"}.
 const APP_PING_INTERVAL_MS = 25_000;
+// The server's close code for an expired access token or a revoked session.
+const CLOSE_SESSION_ENDED = 4001;
 
 export type WSConnectionState = "connecting" | "connected" | "disconnected";
 
@@ -54,6 +56,7 @@ export class WSClient {
   private hasConnectedBefore = false;
   /** This socket replaces an earlier one of the same session; see `resumed`. */
   private resumed = false;
+  private onSessionEnded: (() => void) | undefined;
   /** Set after auth_ack; cleared when the socket closes. Used by lobby join fallback. */
   private authenticated = false;
   // One-shot per connection. A non-conforming frame can repeat hundreds of
@@ -81,6 +84,12 @@ export class WSClient {
        * first auth runs the reconnect callbacks like a reconnect does.
        */
       resumed?: boolean;
+      /**
+       * Called when the server ends the socket's session (expired token,
+       * revoked session): the host refreshes it, and a new token rebuilds
+       * the socket.
+       */
+      onSessionEnded?: () => void;
     },
   ) {
     this.baseUrl = url;
@@ -89,6 +98,7 @@ export class WSClient {
     this.guestSession = options?.guestSession?.trim() ? options.guestSession.trim() : null;
     this.identity = options?.identity;
     this.resumed = options?.resumed ?? false;
+    this.onSessionEnded = options?.onSessionEnded;
   }
 
   setAuth(token: string | null, workspaceSlug: string) {
@@ -186,7 +196,8 @@ export class WSClient {
 
     // Every close reconnects, a server restart (1012) included: the delay's
     // full jitter is what spreads a whole pod's clients out.
-    this.ws.onclose = () => {
+    this.ws.onclose = (ev?: CloseEvent) => {
+      if (ev?.code === CLOSE_SESSION_ENDED) this.onSessionEnded?.();
       this.authenticated = false;
       this.stopAppPing();
       this.setConnectionState("disconnected");
