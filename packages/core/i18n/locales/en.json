@@ -337,12 +337,16 @@
         "chat_reminder": "Chat reminder",
         "email_hub_new_mail": "New mail (Email Hub)",
         "document_commented": "Document comment",
-        "document_mentioned": "Mentioned in a document"
+        "document_mentioned": "Mentioned in a document",
+        "chat_mentioned": "Mentioned in chat",
+        "chat_dm": "Direct messages",
+        "chat_thread_replied": "Replies in threads you follow"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
       "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
-      "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email."
+      "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email.",
+      "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden"
     },
     "page": {
       "title": "Settings",
@@ -4328,7 +4332,10 @@
       "chat_reminder": "Reminder: {{body}}",
       "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}",
       "document_commented": "{{actor}} commented on “{{document}}”",
-      "document_mentioned": "{{actor}} mentioned you in “{{document}}”"
+      "document_mentioned": "{{actor}} mentioned you in “{{document}}”",
+      "chat_mentioned": "{{actor}} mentioned you in {{room}}",
+      "chat_dm": "{{actor}} sent you a message",
+      "chat_thread_replied": "{{actor}} replied to a thread in {{room}}"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",

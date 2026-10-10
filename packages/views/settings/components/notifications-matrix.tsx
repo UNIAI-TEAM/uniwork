@@ -41,9 +41,19 @@ const CHECK_HIT = "mx-auto aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.
  * (an older server) reads as those same defaults, mirrored from `DefaultPrefs`
  * in `server/internal/notification/prefs.go`.
  */
+/** Mirrors DefaultPrefs in server/internal/notification/prefs.go. */
+const PUSH_BY_DEFAULT = new Set<Kind>([
+  "mentioned",
+  "document_mentioned",
+  "task_assigned",
+  "meeting_starting",
+  "chat_mentioned",
+  "chat_dm",
+  "chat_reminder",
+]);
+
 function serverDefault(kind: Kind): NotificationPreference {
-  const push = kind === "mentioned" || kind === "task_assigned" || kind === "meeting_starting" || kind === "chat_reminder";
-  return { kind, in_app: true, push, email: true };
+  return { kind, in_app: true, push: PUSH_BY_DEFAULT.has(kind), email: true };
 }
 
 /**

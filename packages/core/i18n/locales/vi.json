@@ -336,12 +336,16 @@
         "chat_reminder": "Nhắc hẹn trong chat",
         "email_hub_new_mail": "Thư mới (Email Hub)",
         "document_commented": "Bình luận trong tài liệu",
-        "document_mentioned": "Được nhắc đến trong tài liệu"
+        "document_mentioned": "Được nhắc đến trong tài liệu",
+        "chat_mentioned": "Được nhắc đến trong chat",
+        "chat_dm": "Tin nhắn riêng",
+        "chat_thread_replied": "Trả lời trong thread bạn theo dõi"
       },
       "all_kinds": "Mọi loại",
       "channel_all": "{{channel}} cho mọi loại",
       "push_unavailable_server": "Máy chủ này chưa bật thông báo đẩy, nên thông báo đến hộp việc và email.",
-      "push_unavailable_browser": "Trình duyệt này không nhận được thông báo đẩy, nên thông báo đến hộp việc và email."
+      "push_unavailable_browser": "Trình duyệt này không nhận được thông báo đẩy, nên thông báo đến hộp việc và email.",
+      "browser_banners_allow": "Cho phép báo tin nhắn mới khi tab UniWork đang ẩn"
     },
     "page": {
       "title": "Cài đặt",
@@ -4324,7 +4328,10 @@
       "chat_reminder": "Nhắc hẹn: {{body}}",
       "email_hub_new_mail": "Bạn có {{count}} thư chưa đọc · {{mailbox}}",
       "document_commented": "{{actor}} đã bình luận trong “{{document}}”",
-      "document_mentioned": "{{actor}} đã nhắc đến bạn trong “{{document}}”"
+      "document_mentioned": "{{actor}} đã nhắc đến bạn trong “{{document}}”",
+      "chat_mentioned": "{{actor}} đã nhắc đến bạn trong {{room}}",
+      "chat_dm": "{{actor}} đã nhắn tin cho bạn",
+      "chat_thread_replied": "{{actor}} đã trả lời thread trong {{room}}"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",

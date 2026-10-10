@@ -25,6 +25,9 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   email_hub_new_mail: moduleTone("email"),
   document_commented: moduleTone("documents"),
   document_mentioned: moduleTone("documents"),
+  chat_mentioned: moduleTone("chat"),
+  chat_dm: moduleTone("chat"),
+  chat_thread_replied: moduleTone("chat"),
 };
 
 export function kindTone(kind: string): Tint {

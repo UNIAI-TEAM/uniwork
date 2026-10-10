@@ -1,4 +1,5 @@
 "use client";
+import { useMemo } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
 import { listChatRoomMessages, type ChatRoomRecord } from "../api/endpoints/chat";
@@ -11,6 +12,8 @@ import {
   olderRoomPageParam,
   type RoomMessagesPageParam,
 } from "./room-timeline";
+import { chatUnreadBadge } from "./chat-room-helpers";
+import { useChatRoomPreferencesStore } from "./room-preferences-store";
 
 export function useWorkspaceChatRoom(workspaceId: string) {
   const authReady = useAuthStore((s) => s.status === "authed");
@@ -72,6 +75,16 @@ export function useChatRooms(workspaceId: string) {
     // sidebar honest even if a prior empty response was briefly cached.
     refetchOnReconnect: "always",
   });
+}
+
+/** The Chat nav badge and tab-title count for one workspace (see chatUnreadBadge). */
+export function useChatUnreadBadge(workspaceId: string): number {
+  const rooms = useChatRooms(workspaceId).data;
+  const byRoomId = useChatRoomPreferencesStore((s) => s.byRoomId);
+  return useMemo(
+    () => chatUnreadBadge(rooms ?? [], (id) => byRoomId[id]?.notificationsMuted ?? false),
+    [rooms, byRoomId],
+  );
 }
 
 export function useResolveDMRoom(workspaceId: string) {

@@ -31,6 +31,9 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   email_hub_new_mail: MODULE_ICONS.email,
   document_commented: MessageSquare,
   document_mentioned: AtSign,
+  chat_mentioned: AtSign,
+  chat_dm: MODULE_ICONS.chat,
+  chat_thread_replied: MessageSquare,
 };
 
 /** One glyph per kind; an unknown kind from a newer server gets the bell. */
