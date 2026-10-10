@@ -240,6 +240,13 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	if err != nil {
 		return db.OrganizationMember{}, err
 	}
+	// Room membership drives fan-out, follower and unread reads; a person the
+	// gates refuse must not stay listed in the organization's rooms.
+	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
+		OrganizationID: orgID, UserID: targetID,
+	}); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
 		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: -1, Actor: Human(actorID),
 	}); err != nil {
@@ -352,6 +359,11 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 		return err
 	}
 	if err := q.DeleteOrganizationMember(ctx, db.DeleteOrganizationMemberParams{
+		OrganizationID: orgID, UserID: actorID,
+	}); err != nil {
+		return err
+	}
+	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
 		OrganizationID: orgID, UserID: actorID,
 	}); err != nil {
 		return err

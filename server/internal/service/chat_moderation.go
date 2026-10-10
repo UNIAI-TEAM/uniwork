@@ -223,9 +223,30 @@ func (s *ChatService) removeGroupRoomMember(
 	if target.Role == "admin" && targetUserID != actorID {
 		return ErrForbidden
 	}
-	if err := s.q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	if err := q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
 		RoomID: room.ID, UserID: targetUserID,
 	}); err != nil {
+		return err
+	}
+	// The event also takes the room's realtime scope back from the member.
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
+		Actor:        audit.User(actorID),
+		Action:       audit.ActionChatRoomMemberRemoved,
+		ResourceType: "chat_room", ResourceID: room.ID,
+		Metadata: map[string]any{"member_id": targetUserID, "self_service": actorID == targetUserID},
+	}, audit.Event{Topic: "chat.room.member_removed", Payload: map[string]string{
+		"room_id": room.ID, "user_id": targetUserID,
+	}}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	s.publishChatRoomMembersEvent(ctx, room.ID, Event{

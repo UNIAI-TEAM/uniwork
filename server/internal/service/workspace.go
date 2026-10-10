@@ -488,6 +488,11 @@ func (s *WorkspaceService) RemoveMember(ctx context.Context, actorID, workspaceI
 	}); err != nil {
 		return err
 	}
+	if err := q.LeaveChatRoomsInWorkspaceForUser(ctx, db.LeaveChatRoomsInWorkspaceForUserParams{
+		WorkspaceID: pgtype.Text{String: workspaceID, Valid: true}, UserID: targetUserID,
+	}); err != nil {
+		return err
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		Actor:        audit.User(actorID),

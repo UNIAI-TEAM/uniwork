@@ -1056,6 +1056,42 @@ func (q *Queries) LeaveChatRoomMember(ctx context.Context, arg LeaveChatRoomMemb
 	return err
 }
 
+const leaveChatRoomsInOrganizationForUser = `-- name: LeaveChatRoomsInOrganizationForUser :exec
+UPDATE chat_room_members
+SET status = 'left', left_at = now(), updated_at = now()
+WHERE organization_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
+`
+
+type LeaveChatRoomsInOrganizationForUserParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+func (q *Queries) LeaveChatRoomsInOrganizationForUser(ctx context.Context, arg LeaveChatRoomsInOrganizationForUserParams) error {
+	_, err := q.db.Exec(ctx, leaveChatRoomsInOrganizationForUser, arg.OrganizationID, arg.UserID)
+	return err
+}
+
+const leaveChatRoomsInWorkspaceForUser = `-- name: LeaveChatRoomsInWorkspaceForUser :exec
+UPDATE chat_room_members m
+SET status = 'left', left_at = now(), updated_at = now()
+FROM chat_rooms r
+WHERE r.id = m.room_id AND r.workspace_id = $1 AND r.kind IN ('workspace', 'channel') AND m.user_id = $2
+  AND m.status IN ('invited', 'active')
+`
+
+type LeaveChatRoomsInWorkspaceForUserParams struct {
+	WorkspaceID pgtype.Text `json:"workspace_id"`
+	UserID      string      `json:"user_id"`
+}
+
+// The workspace's own rooms (default room, channels); groups and DMs belong
+// to the organization and outlive one workspace membership.
+func (q *Queries) LeaveChatRoomsInWorkspaceForUser(ctx context.Context, arg LeaveChatRoomsInWorkspaceForUserParams) error {
+	_, err := q.db.Exec(ctx, leaveChatRoomsInWorkspaceForUser, arg.WorkspaceID, arg.UserID)
+	return err
+}
+
 const listChatChannelsByProject = `-- name: ListChatChannelsByProject :many
 SELECT
   r.id,

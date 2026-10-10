@@ -318,6 +318,20 @@ UPDATE chat_room_members
 SET status = 'left', left_at = now(), updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
+-- name: LeaveChatRoomsInWorkspaceForUser :exec
+-- The workspace's own rooms (default room, channels); groups and DMs belong
+-- to the organization and outlive one workspace membership.
+UPDATE chat_room_members m
+SET status = 'left', left_at = now(), updated_at = now()
+FROM chat_rooms r
+WHERE r.id = m.room_id AND r.workspace_id = $1 AND r.kind IN ('workspace', 'channel') AND m.user_id = $2
+  AND m.status IN ('invited', 'active');
+
+-- name: LeaveChatRoomsInOrganizationForUser :exec
+UPDATE chat_room_members
+SET status = 'left', left_at = now(), updated_at = now()
+WHERE organization_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
+
 -- name: TouchChatRoomUpdatedAt :exec
 -- tenant: by-id
 UPDATE chat_rooms SET updated_at = now() WHERE id = $1;

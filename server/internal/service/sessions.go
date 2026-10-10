@@ -22,8 +22,15 @@ func (s *AuthService) RevokeSession(ctx context.Context, userID, sessionID strin
 	if n == 0 {
 		return ErrNotFound
 	}
-	s.recordAuth(ctx, audit.ActionAuthSessionRevoked, userID, map[string]any{"scope": "one", "session_id": sessionID})
+	s.recordAuth(ctx, audit.ActionAuthSessionRevoked, userID, map[string]any{"scope": "one", "session_id": sessionID},
+		sessionRevoked(userID, sessionID))
 	return nil
+}
+
+// sessionRevoked tells the realtime access revoker to close the sockets of
+// one session, or every one of userID's when sessionID is "".
+func sessionRevoked(userID, sessionID string) audit.Event {
+	return audit.Event{Topic: "session.revoked", Payload: map[string]string{"user_id": userID, "session_id": sessionID}}
 }
 
 // RevokeOtherSessions keeps only the caller's current session alive.
@@ -33,7 +40,10 @@ func (s *AuthService) RevokeOtherSessions(ctx context.Context, userID, currentSe
 		return 0, err
 	}
 	if n > 0 {
-		s.recordAuth(ctx, audit.ActionAuthSessionRevoked, userID, map[string]any{"scope": "others", "count": n})
+		// The ended sessions are not named here, so every socket closes; the
+		// caller's own reconnects once it has refreshed.
+		s.recordAuth(ctx, audit.ActionAuthSessionRevoked, userID, map[string]any{"scope": "others", "count": n},
+			sessionRevoked(userID, ""))
 	}
 	return n, nil
 }
