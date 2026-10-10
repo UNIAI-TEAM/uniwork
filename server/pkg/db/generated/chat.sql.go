@@ -2471,9 +2471,12 @@ SELECT
   (CASE WHEN wm.role IN ('owner', 'admin') THEN 'admin' ELSE 'member' END)::text AS role
 FROM chat_rooms r
 JOIN workspace_members wm ON wm.workspace_id = r.workspace_id
-JOIN organization_members om ON om.organization_id = r.organization_id
-  AND om.user_id = wm.user_id AND om.deactivated_at IS NULL
 WHERE r.workspace_id = $1::text AND r.is_default AND r.archived_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM organization_members om
+    WHERE om.organization_id = r.organization_id AND om.user_id = wm.user_id
+      AND om.deactivated_at IS NOT NULL
+  )
   AND NOT EXISTS (
     SELECT 1 FROM chat_room_members m
     WHERE m.room_id = r.id AND m.user_id = wm.user_id AND m.status IN ('invited', 'active')
@@ -2743,9 +2746,12 @@ WHERE m.room_id IN (SELECT id FROM room)
   AND m.status IN ('invited', 'active')
   AND NOT EXISTS (
     SELECT 1 FROM workspace_members wm
-    JOIN organization_members om ON om.organization_id = wm.organization_id
-      AND om.user_id = wm.user_id AND om.deactivated_at IS NULL
     WHERE wm.workspace_id = $1::text AND wm.user_id = m.user_id
+      AND NOT EXISTS (
+        SELECT 1 FROM organization_members om
+        WHERE om.organization_id = wm.organization_id AND om.user_id = wm.user_id
+          AND om.deactivated_at IS NOT NULL
+      )
   )
 `
 
