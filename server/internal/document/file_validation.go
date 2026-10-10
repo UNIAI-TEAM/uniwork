@@ -3,6 +3,7 @@ package document
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"image"
@@ -406,6 +407,13 @@ func validateWebP(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, erro
 	head = head[:n]
 	if len(head) < 30 || string(head[0:4]) != "RIFF" || string(head[8:12]) != "WEBP" {
 		return FileFacts{}, refuse(ReasonImageHeader, "not a WebP file")
+	}
+	// The RIFF length and the first chunk must fit the stored bytes: a stream cut
+	// short is stored as an image no browser decodes.
+	riff := int64(binary.LittleEndian.Uint32(head[4:8]))
+	chunk := int64(binary.LittleEndian.Uint32(head[16:20]))
+	if riff+8 > size || 20+chunk > riff+8 {
+		return FileFacts{}, refuse(ReasonImageHeader, "the WebP stream is truncated")
 	}
 	var w, h int
 	switch string(head[12:16]) {

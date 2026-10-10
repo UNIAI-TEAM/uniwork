@@ -236,8 +236,8 @@ var webpLossless1x1 = []byte("RIFF\x1a\x00\x00\x00WEBPVP8L\x0d\x00\x00\x00\x2f\x
 // with their pixel size, SVG, CSS and JavaScript as UTF-8 text.
 func TestValidateFileAcceptsPageSiblings(t *testing.T) {
 	gif := []byte("GIF89a\x02\x00\x03\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x02\x00\x03\x00\x00\x02\x02D\x01\x00;")
-	vp8x := append([]byte("RIFF\x00\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00\x00\x00\x00\x00"), 0x0f, 0x00, 0x00, 0x09, 0x00, 0x00)
-	vp8 := append([]byte("RIFF\x00\x00\x00\x00WEBPVP8 \x00\x00\x00\x00\x00\x00\x00\x9d\x01\x2a"), 0x05, 0x00, 0x07, 0x00)
+	vp8x := append([]byte("RIFF\x16\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00\x00\x00\x00\x00"), 0x0f, 0x00, 0x00, 0x09, 0x00, 0x00)
+	vp8 := append([]byte("RIFF\x16\x00\x00\x00WEBPVP8 \x0a\x00\x00\x00\x00\x00\x00\x9d\x01\x2a"), 0x05, 0x00, 0x07, 0x00)
 	cases := []struct {
 		name, contentType, format string
 		body                      []byte
@@ -264,10 +264,13 @@ func TestValidateFileAcceptsPageSiblings(t *testing.T) {
 	}
 	for name, body := range map[string][]byte{
 		"not riff":      []byte("GIF89a" + strings.Repeat("\x00", 40)),
-		"vp8 no start":  append([]byte("RIFF\x00\x00\x00\x00WEBPVP8 \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"), 0x05, 0x00, 0x07, 0x00),
-		"vp8l no sig":   append([]byte("RIFF\x00\x00\x00\x00WEBPVP8L\x00\x00\x00\x00\x00"), make([]byte, 10)...),
-		"unknown chunk": append([]byte("RIFF\x00\x00\x00\x00WEBPALPH"), make([]byte, 20)...),
+		"vp8 no start":  append([]byte("RIFF\x16\x00\x00\x00WEBPVP8 \x0a\x00\x00\x00\x00\x00\x00\x00\x00\x00"), 0x05, 0x00, 0x07, 0x00),
+		"vp8l no sig":   append([]byte("RIFF\x16\x00\x00\x00WEBPVP8L\x0a\x00\x00\x00\x00"), make([]byte, 10)...),
+		"unknown chunk": append([]byte("RIFF\x20\x00\x00\x00WEBPALPH\x0a\x00\x00\x00"), make([]byte, 20)...),
 		"truncated":     []byte("RIFF\x00\x00\x00\x00WEBPVP8L"),
+		// RA-8: lengths that do not fit the stored bytes.
+		"riff past the file": webpLossless1x1[:len(webpLossless1x1)-4],
+		"chunk past riff":    append(append([]byte{}, webpLossless1x1[:16]...), append([]byte{0xff, 0x00, 0x00, 0x00}, webpLossless1x1[20:]...)...),
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := validate(body, "image/webp", DefaultFileLimits)
