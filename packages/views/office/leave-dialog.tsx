@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -37,6 +37,9 @@ export interface LeaveDialogProps {
   /** Overrides the account save wording for a leave set that saves to the
    * device instead of the UniWork library. */
   saveLabel?: string;
+  /** Where focus goes when the dialog closes (Base UI `finalFocus`): a host whose editor
+   * is not a DOM element of this page (the Docs frame's iframe) puts it back there. */
+  finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
 }
 
 export interface DraftRecoveryPromptProps {
@@ -66,6 +69,7 @@ export function LeaveDialog({
   onDiscard,
   onChoice,
   saveLabel,
+  finalFocus,
 }: LeaveDialogProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.leave" });
   const [pending, setPending] = useState<LeaveChoice | null>(null);
@@ -115,6 +119,7 @@ export function LeaveDialog({
         showCloseButton={!pending}
         closeLabel={t("close")}
         aria-describedby="office-leave-description"
+        finalFocus={finalFocus}
       >
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { createOfficeFrameApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
@@ -175,6 +175,20 @@ export function OfficeModuleFrame({
     return () => { unregister(); window.removeEventListener("beforeunload", onBeforeUnload); };
   }, [dirty]);
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
+  // Closing the leave dialog (Stay, Escape, the close button) hands keyboard focus back to the
+  // editor in the frame, so Ctrl+S works without a click. Returning false keeps Base UI from
+  // putting it on the page element that had it before; the frame document keeps its own
+  // active element, so focusing its window lands in the editor.
+  const unmounting = useRef(false);
+  // A layout cleanup runs before the dialog's own on unmount: a leave that navigates away has no frame to refocus.
+  useLayoutEffect(() => () => { unmounting.current = true; }, []);
+  const focusFrame = () => {
+    const iframe = iframeRef.current;
+    if (unmounting.current || !iframe?.isConnected) return true;
+    iframe.focus();
+    try { iframe.contentWindow?.focus(); } catch { /* a frame that is not same-origin keeps the iframe focus */ }
+    return false;
+  };
 
   const headerStatus = useMemo(
     // Idle ("No changes") yields to the title on a phone; anything the user must know about
@@ -255,6 +269,7 @@ export function OfficeModuleFrame({
         onSave={() => save("navigate")}
         onDiscard={async () => true}
         onChoice={(choice) => { if (choice !== "stay") finishLeave(true); }}
+        finalFocus={focusFrame}
       />
     </div>
   );

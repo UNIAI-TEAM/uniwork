@@ -49,6 +49,16 @@ describe("DesktopOpenAction", () => {
     await waitFor(() => expect(launch).toHaveBeenCalledOnce());
   });
 
+  it("returns focus to the menu trigger when the menu closes with Escape", async () => {
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />);
+    const trigger = screen.getByRole("button", { name: "UniWork Office options" });
+    fireEvent.click(trigger);
+    const item = await screen.findByRole("menuitem", { name: "Open in UniWork Office" });
+    fireEvent.keyDown(item, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Open in UniWork Office" })).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it("folds into the page overflow menu on phones when rendered in a page header", async () => {
     render(
       <HeaderActionsSlotProvider>

@@ -44,6 +44,16 @@ function fakeApi(overrides: Partial<DocsFrameApi> = {}) {
   return api as unknown as DocsFrameApi & typeof api;
 }
 
+/** jsdom has no window.focus: the frame's focus hand-back lands on spies instead of a "not implemented" error. */
+function spyFrameFocus() {
+  const iframe = screen.getByTestId("office-docs-frame-iframe") as HTMLIFrameElement;
+  return {
+    iframe,
+    focusIframe: vi.spyOn(iframe, "focus"),
+    focusWindow: vi.spyOn(iframe.contentWindow!, "focus").mockImplementation(() => undefined),
+  };
+}
+
 function ThemeFlip() {
   const { setTheme } = useTheme();
   return <button type="button" onClick={() => setTheme("dark")}>flip</button>;
@@ -244,6 +254,7 @@ describe("OfficeDocsFrame", () => {
     mount();
     const frame = fakeFrame();
     await boot(frame);
+    spyFrameFocus();
     await expect(leaveGuardAllows("/elsewhere")).resolves.toBe(true);
     await frame.event("dirty", { dirty: true });
 
@@ -267,6 +278,27 @@ describe("OfficeDocsFrame", () => {
 
     await frame.event("dirty", { dirty: false });
     await expect(leaveGuardAllows("/elsewhere")).resolves.toBe(true);
+  });
+
+  it("hands keyboard focus back to the editor frame when the leave dialog closes with Stay or Escape", async () => {
+    mount();
+    const frame = fakeFrame();
+    await boot(frame);
+    await frame.event("dirty", { dirty: true });
+    const { focusIframe, focusWindow } = spyFrameFocus();
+
+    let leaving = leaveGuardAllows("/elsewhere");
+    fireEvent.click(await screen.findByRole("button", { name: "Ở lại" }));
+    await expect(leaving).resolves.toBe(false);
+    await waitFor(() => expect(focusWindow).toHaveBeenCalledTimes(1));
+    expect(focusIframe).toHaveBeenCalledTimes(1);
+
+    leaving = leaveGuardAllows("/elsewhere");
+    fireEvent.keyDown(await screen.findByRole("dialog"), { key: "Escape" });
+    await expect(leaving).resolves.toBe(false);
+    await waitFor(() => expect(focusWindow).toHaveBeenCalledTimes(2));
+    // Not on the page element that held focus before the dialog opened.
+    expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "flip" }));
   });
 
   it("prints the document on Ctrl+P from the page", async () => {
