@@ -1,6 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { paths } from "@uniwork/core/paths";
+import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { DocxOpenSwitch, OfficeDocsFrame } from "@uniwork/views/office";
 import type { OfficeEditorHostProps } from "../office/editor-host";
@@ -15,6 +17,7 @@ export interface DocsFrameHostConfig {
 function DocsFrameHost(props: OfficeEditorHostProps & DocsFrameHostConfig) {
   const { document, wsId, readonly, className, frameVersion, documentHref } = props;
   const { push } = useNavigation();
+  const { workspace } = useWorkspace();
   const deploymentId = useOfficeDeploymentId(document.organization_id);
   return (
     <OfficeDocsFrame
@@ -24,6 +27,7 @@ function DocsFrameHost(props: OfficeEditorHostProps & DocsFrameHostConfig) {
       frameVersion={frameVersion}
       readonly={readonly}
       className={className}
+      libraryHref={paths.workspace(workspace.organization_slug, workspace.slug).documents()}
       desktopOpen={frameDesktopOpen(document, deploymentId)}
       // Save as made a new document and the frame already edits it; follow it so the URL names what is open.
       onSavedAs={(copyId) => push(documentHref(copyId))}

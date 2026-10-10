@@ -10,6 +10,7 @@ import { docsFrameApiBase, docsFrameError, docsFrameToken, type DocsFrameApi, ty
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import {
   DocsProtocolError,
+  type AppOpenResult,
   type Capabilities,
   type FrameRequests,
   type OfficeModule,
@@ -74,6 +75,11 @@ export interface DocsFrameSessionOptions {
   copyName?: (name: string) => string;
   /** Non-fatal frame or proxy errors the user should hear about. */
   onError: (error: ProtocolErrorShape) => void;
+  /**
+   * The page's "Open in desktop app" flow, answering the frame's `app.open`. Present = the host grants
+   * `desktopOpen` (to a user who may edit); absent = the frame shows its "use the app" message alone.
+   */
+  onAppOpen?: () => Promise<AppOpenResult["outcome"]>;
 }
 
 export interface DocsFrameSession {
@@ -115,7 +121,7 @@ export interface DocsFrameSession {
  * by the server at mint); each cloud tool needs `ai` too. The frame then calls
  * the frame-token AI routes itself; a viewer keeps AI (it never saves).
  */
-export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant): Capabilities {
+export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false): Capabilities {
   const spec = officeModuleSpec(module);
   const grant = spec.grant;
   const on = (key: keyof Capabilities) => grant[key] === true;
@@ -127,6 +133,8 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, webSearch: ai && aiGrant?.web_search === true, imageSearch: ai && aiGrant?.image_search === true,
     imageGeneration: ai && aiGrant?.image_generation === true,
+    // The host's own "Open in desktop app" is only for a user who may edit (the G3 rule).
+    desktopOpen: desktopOpen && !readonly,
   };
 }
 
@@ -256,7 +264,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",
           locale: current.locale, theme: current.theme,
-          capabilities: officeModuleCapabilities(module, viewOnly, current.api, minted?.ai),
+          capabilities: officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen)),
           ...(name ? { user: { displayName: name } } : {}),
           ...(recovery ? { recovery } : {}),
         };
@@ -298,6 +306,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.export": proxy("api.export", false, (api) => api.export),
         "api.attachments.add": proxy("api.attachments.add", true, (api) => api.addAttachments),
         "api.images.upload": proxy("api.images.upload", true, (api) => api.uploadImage),
+        "app.open": async () => {
+          const { options: current, viewOnly: refused } = latest.current;
+          return { outcome: refused || !current.onAppOpen ? "unavailable" : await current.onAppOpen() };
+        },
       },
       onInitialized: () => { booted = true; setSlow(false); setStatus((now) => (now === "failed" ? now : "ready")); },
       onHandshakeError: (error) => {
@@ -309,7 +321,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
 
     endpoint.on("dirty", ({ dirty: next }) => {
       setDirty(next);
-      if (!next) setSaveState((now) => (now === "dirty" ? (savedOnce ? "saved" : "ready") : now));
+      // A failed save keeps "could not be confirmed" until the user edits again; the frame then
+      // reports dirty, and the unsaved edits (not the old failure) are what the header must say.
+      if (next) setSaveState((now) => (now === "error" ? "dirty" : now));
+      else setSaveState((now) => (now === "dirty" ? (savedOnce ? "saved" : "ready") : now));
     });
     endpoint.on("modal", ({ open }) => { setModal(open); });
     endpoint.on("title", ({ title }) => { latest.current.options.onTitle?.(title); });

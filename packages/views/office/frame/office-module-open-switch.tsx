@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useOfficeWebFlagEnabled } from "@uniwork/core/documents/office-enabled";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { Notice } from "../../common/notice";
 import { DocsFrameRefusalContext } from "./docs-frame-refusal";
+import { FrameFallbackNotice, type FrameFallbackReason } from "./frame-fallback-notice";
 
 export interface OfficeModuleOpenSwitchProps {
   module: OfficeModule;
@@ -34,23 +33,21 @@ export function OfficeModuleOpenSwitch({ module, organizationId, frame, fallback
   const state = useOfficeWebFlagEnabled(officeModuleSpec(module).flag, organizationId);
   const [frameMounted, setFrameMounted] = useState(false);
   // The frame was refused (flag off, size cap) or could not load: the G3 editor takes over, and
-  // says why when the cause is a frame that did not load.
-  const [refused, setRefused] = useState<{ explain: boolean } | null>(null);
+  // says why when the cause is a frame that did not load or a file over the size cap.
+  const [refused, setRefused] = useState<{ explain: FrameFallbackReason | null } | null>(null);
   if (state === "on" && !frameMounted) setFrameMounted(true);
 
   if (refused) {
     if (!refused.explain) return fallback;
     return (
       <>
-        <div className="shrink-0 px-4 pt-3" data-testid="office-frame-fallback-notice" data-office-module={module}>
-          <Notice tone="info" icon={Info} layout="inline">{t("fallback_notice")}</Notice>
-        </div>
+        <FrameFallbackNotice reason={refused.explain} module={module} />
         {fallback}
       </>
     );
   }
   if (frameMounted || state === "on") {
-    return <DocsFrameRefusalContext.Provider value={(reason) => setRefused({ explain: reason === "load" })}>{frame}</DocsFrameRefusalContext.Provider>;
+    return <DocsFrameRefusalContext.Provider value={(reason) => setRefused({ explain: reason ?? null })}>{frame}</DocsFrameRefusalContext.Provider>;
   }
   if (state === "loading") {
     return (

@@ -124,6 +124,18 @@ describe("ModuleFrameOrG3Host", () => {
     await render(host("sheets", false, { ...doc, file: { size_bytes: 10 * 1024 * 1024 + 1 } } as Document));
     expect(g3()).not.toBeNull();
     expect(configCalls()).toHaveLength(0);
+    // The reader is told why this workbook is not in the web editor.
+    const notice = container.querySelector('[data-testid="office-frame-fallback-notice"]');
+    expect(notice?.getAttribute("data-reason")).toBe("size");
+    expect(notice?.textContent).toContain("This file is too large for the web editor");
+  });
+
+  it("says nothing for a workbook under the cap", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ sheets: "0.2.0-abc1234" }));
+    answerConfig({ office_sheets_web: false });
+    await render(host("sheets", false, { ...doc, file: { size_bytes: 1024 } } as Document));
+    await until(() => g3() !== null);
+    expect(container.querySelector('[data-testid="office-frame-fallback-notice"]')).toBeNull();
   });
 
   it("keeps a view-only slides user on the G3 pptx host, and an editor on the frame", async () => {

@@ -13,6 +13,7 @@ import { requestMock } from "../../test/api-mock";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DocsFrameRefusalContext } from "./docs-frame-refusal";
 import { OfficeDocsFrame, type OfficeDocsFrameProps } from "./office-docs-frame";
+import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 
 const toastError = vi.hoisted(() => vi.fn());
 const toastSuccess = vi.hoisted(() => vi.fn());
@@ -59,15 +60,19 @@ function ThemeFlip() {
   return <button type="button" onClick={() => setTheme("dark")}>flip</button>;
 }
 
+const navigation: NavigationAdapter = { push: vi.fn(), replace: vi.fn(), back: vi.fn(), pathname: "/", searchParams: new URLSearchParams(), getShareableUrl: (path) => path };
+
 function mount(props: Partial<OfficeDocsFrameProps> = {}, api = fakeApi(), tokens = true) {
   if (tokens) serveTokens();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui = (extra: Partial<OfficeDocsFrameProps> = {}): ReactElement => (
     <QueryClientProvider client={client}>
-      <ThemeProvider defaultTheme="light" enableSystem={false}>
-        <ThemeFlip />
-        <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
-      </ThemeProvider>
+      <NavigationProvider value={navigation}>
+        <ThemeProvider defaultTheme="light" enableSystem={false}>
+          <ThemeFlip />
+          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
+        </ThemeProvider>
+      </NavigationProvider>
     </QueryClientProvider>
   );
   const view = render(ui());
@@ -332,12 +337,21 @@ describe("OfficeDocsFrame", () => {
     expect(mintCalls()).toHaveLength(1);
   });
 
-  it("shows a retry when no token can be minted", async () => {
-    serveTokens((n) => (n === 1 ? Promise.reject(new ApiError("no", "forbidden", 403)) : Promise.resolve(minted("tok-ok"))));
-    mount({}, fakeApi(), false);
+  it("gives a denied reader the reason and the way back to the list, never a retry", async () => {
+    serveTokens(() => Promise.reject(new ApiError("no", "forbidden", 403)));
+    mount({ libraryHref: "/acme/ops/documents" }, fakeApi(), false);
     const alert = await screen.findByTestId("office-docs-frame-failed");
     expect(alert.getAttribute("data-failure-kind")).toBe("denied");
     expect(alert.textContent).toContain("Bạn không có quyền truy cập tài liệu này.");
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Về thư viện tài liệu" })).toHaveAttribute("href", "/acme/ops/documents");
+  });
+
+  it("shows a retry when the token mint failed for a reason a retry can fix", async () => {
+    serveTokens((n) => (n === 1 ? Promise.reject(new ApiError("down", "internal", 500)) : Promise.resolve(minted("tok-ok"))));
+    mount({}, fakeApi(), false);
+    const alert = await screen.findByTestId("office-docs-frame-failed");
+    expect(alert.getAttribute("data-failure-kind")).toBe("failed");
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     const frame = fakeFrame();
     await boot(frame);
@@ -405,23 +419,65 @@ describe("OfficeDocsFrame", () => {
       </QueryClientProvider>,
     );
     const header = screen.getByTestId("page-header");
+    // The status text without the Save button that sits beside it.
+    const statusText = () => {
+      const copy = header.cloneNode(true) as HTMLElement;
+      copy.querySelector("[data-office-frame-save]")?.remove();
+      return copy.textContent;
+    };
+    const saveButton = () => header.querySelector("[data-office-frame-save]");
     expect(header.textContent).toBe("");
     const frame = fakeFrame();
     await boot(frame);
-    await waitFor(() => expect(header.textContent).toBe("Chưa có thay đổi"));
+    await waitFor(() => expect(statusText()).toBe("Chưa có thay đổi"));
+    // Nothing to save: the button stays in the tab order but is quiet, named in full for assistive tech.
+    expect(saveButton()?.getAttribute("aria-disabled")).toBe("true");
+    expect(saveButton()?.getAttribute("aria-label")).toBe("Lưu vào UniWork");
     await frame.event("dirty", { dirty: true });
-    await waitFor(() => expect(header.textContent).toBe("Chưa lưu"));
+    await waitFor(() => expect(saveButton()?.getAttribute("aria-disabled")).toBeNull());
+    await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
     const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
-    await waitFor(() => expect(header.textContent).toBe("Đang lưu…"));
+    await waitFor(() => expect(statusText()).toBe("Đang lưu…"));
     await act(async () => { finish({ ok: true, file: FILE, versionId: "v2" }); });
     await waitFor(() => expect(frame.answerTo(id)).toBeTruthy());
     // The answer came back before the frame's dirty:false: still unsaved until the frame says clean.
-    expect(header.textContent).toBe("Chưa lưu");
+    expect(statusText()).toBe("Chưa lưu");
     await frame.event("dirty", { dirty: false });
     await frame.event("saved", { file: FILE, versionId: "v2" });
-    await waitFor(() => expect(header.textContent).toBe("Đã lưu"));
+    await waitFor(() => expect(statusText()).toBe("Đã lưu"));
     await frame.event("dirty", { dirty: true });
-    await waitFor(() => expect(header.textContent).toBe("Chưa lưu"));
+    await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
+  });
+
+  it("leaves the failed-save state when the next edit reports dirty", async () => {
+    const save = vi.fn(async () => { throw new DocsProtocolError({ code: "network", message: "offline" }); });
+    serveTokens();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <HeaderActionsSlotProvider>
+          <header data-testid="page-header"><HeaderActionsSlot /></header>
+          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
+        </HeaderActionsSlotProvider>
+      </QueryClientProvider>,
+    );
+    const header = screen.getByTestId("page-header");
+    // The status text without the Save button that sits beside it.
+    const statusText = () => {
+      const copy = header.cloneNode(true) as HTMLElement;
+      copy.querySelector("[data-office-frame-save]")?.remove();
+      return copy.textContent;
+    };
+    const frame = fakeFrame();
+    await boot(frame);
+    await frame.event("dirty", { dirty: true });
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
+    await waitFor(() => expect(frame.answerTo(id)?.error).toBeTruthy());
+    // The failure holds although the frame still reports dirty.
+    await waitFor(() => expect(statusText()).toContain("Chưa xác nhận được việc lưu"));
+    // The next edit reports dirty again: the header goes back to "Unsaved".
+    await frame.event("dirty", { dirty: true });
+    await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
   });
 
   it("says the editor is unavailable on this server (no retry) and offers the standard editor", async () => {

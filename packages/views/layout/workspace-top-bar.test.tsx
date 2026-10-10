@@ -95,7 +95,7 @@ describe("WorkspaceTopBar", () => {
     expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
   });
 
-  it("shows the saved toast in the language just chosen, not the previous one", async () => {
+  it("names the language preference in the toast, in the language just chosen", async () => {
     const success = vi.spyOn(toast, "success").mockImplementation(() => "t");
     await setLocale("vi");
     renderTopBar();
@@ -103,7 +103,7 @@ describe("WorkspaceTopBar", () => {
     await user.click(screen.getByLabelText(/ngôn ngữ/i));
     await user.click(await screen.findByRole("menuitemradio", { name: /english/i }));
     await waitFor(() => expect(success).toHaveBeenCalled());
-    expect(success.mock.calls[0]?.[0]).toBe("Saved");
+    expect(success.mock.calls[0]?.[0]).toBe("Language preference saved");
     success.mockRestore();
     await setLocale("vi");
   });

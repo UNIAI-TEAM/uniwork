@@ -231,9 +231,69 @@ is open (frame `ready`) and only for a user who may edit; the same installer,
 platform-hint, download and launch wiring. The frame has no save coordinator,
 so a small adapter (`frame-desktop-open.tsx`) feeds the action the frame's
 dirty state and save, and the version a frame save committed is read back as
-the document's current version. The launch target (GO-A6) and installer URLs
-(GO-A8) come later. Evidence: `reports/uni-1014-evidence/desktop-open/`
-(header button, installer menu, install prompt; vi + en, light + dark).
+the document's current version. The launch target and installer links are
+already in this branch: `POST /documents/{id}/office/sessions` (GO-A6 launch
+ticket) -> `uniwork-office[-dev]://open?ticket=` (parsed by
+`apps/office-desktop/main/deep-links/parser.ts`), and `GET
+/office/desktop/download` fed by `OFFICE_INSTALLER_{DEV,BETA,STABLE}_URLS`
+(GO-A8). Without those env values the install prompt says the channel has no
+installer yet; that is deployment config, not code. Evidence:
+`reports/uni-1014-evidence/desktop-open/` (header button, installer menu,
+install prompt; vi + en, light + dark).
+
+### Frame request `app.open` (A7 contract, additive)
+
+A frame that cannot do something on the web (PDF OCR, Markdown Source mode,
+...) shows "Open in the UniWork Office app to use this feature" plus an action.
+That action calls ONE host request; the frame never builds a deep link.
+
+- Capability `desktopOpen` (boolean, host-granted): the host grants it only
+  when its own "Open in desktop app" action is available (editor open, user
+  may edit, deployment id known). Without it the frame shows the message only.
+- Frame -> host request `app.open`, payload `{ feature?: string }` (a short
+  opaque tag such as `pdf.ocr`, for the host's own dev diagnostics only; never
+  shown, never sent to a server), result `{ outcome: "launched" | "installer" |
+  "unavailable" }`.
+- The host runs exactly the header button's flow (`DesktopOpenAction`): the
+  dirty dialog when the frame has unsaved edits, then the launch session and
+  the deep link, then the installer prompt when the app did not answer.
+  `launched` = the browser tab hid after the deep link; `installer` = the
+  install prompt was opened; `unavailable` = no deployment id / no committed
+  version / the action is busy (the host also shows its own `role="alert"`).
+- Additive: an old host does not know `app.open` (the frame sees `unsupported`
+  and keeps the message only); an old frame never sends it.
+
+## Host chrome around the frames (UNI-1232 polish)
+
+What the UniWork page owns around every module frame, one behaviour for all six:
+
+- **Header on a phone.** A file's breadcrumb crumbs hide below `sm` (the back
+  control stands in), so the title truncates with the full name as a tooltip
+  instead of collapsing to a letter. The frame's header cluster is status +
+  a **Save** button (`data-office-frame-save`): an icon with an accessible
+  name "Save to UniWork" on a phone, labelled from `sm`, quiet (outline,
+  `aria-disabled`, still in the tab order) while nothing is unsaved. The
+  desktop actions fold into the page's overflow menu below `sm`.
+- **View-only is announced once.** For a file the banner under the header
+  (title + reason, one live region) is the announcement; the header chip is
+  gone (a page keeps the chip only where its banner is hidden). The frames hide
+  their own chip through the `viewOnlyChip` capability.
+- **Preference toasts name the preference** ("Language preference saved"), so
+  a language or theme switch never reads as the document's save state.
+- **Failure panel.** A denied reader (403/404) gets the reason and a link back
+  to the workspace document list, never "Try again"; retry stays for network,
+  load and generic failures.
+- **Failed save.** The header keeps "Save could not be confirmed" until the
+  frame reports dirty again (the next edit), then says "Unsaved".
+- **Standard-editor notice.** A workbook over the Sheets cap (host gate or the
+  frame answering `too_large`) opens in the G3 editor under one sentence:
+  "This file is too large for the web editor, so it opened in the standard
+  editor". The frame-load fallback keeps its own sentence (`reason` = `size` |
+  `load`, `data-testid="office-frame-fallback-notice"`).
+- **Leave dialog = the reference look**: filled primary, close X named Close,
+  blurred scrim, focus trap, and on close the host focuses the iframe and its
+  window (the same signal for every module; the frames' focus-return bridge
+  listens for it).
 
 ## AI in the frame (CONTRACT C16, ADR 0029 D9)
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { createOfficeFrameApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
@@ -13,6 +14,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
 import { registerLeaveGuard } from "../../navigation/leave-guard";
+import type { DesktopOpenOutcome } from "../desktop-open-action";
 import { LeaveDialog } from "../leave-dialog";
 import { SaveStatus } from "../save-status";
 import { DocsFrameFailure } from "./docs-frame-failure";
@@ -51,6 +53,8 @@ export interface OfficeModuleFrameProps {
    * Shown once the frame is ready and only for a user who may edit, the G3 rule; absent = no action.
    */
   desktopOpen?: FrameDesktopOpenProps;
+  /** The workspace's document list: a reader who is refused the document is offered the way back there. */
+  libraryHref?: string;
   className?: string;
 }
 
@@ -86,7 +90,7 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, className,
 }: OfficeModuleFrameProps) {
   const frameApi = api ?? defaultFrameApi(module);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
@@ -103,12 +107,15 @@ export function OfficeModuleFrame({
   tRootRef.current = tRoot;
   const frameTitleRef = useRef(frameTitle);
   frameTitleRef.current = frameTitle;
+  // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
+  const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
+    onAppOpen: desktopOpen ? async () => (await appOpenRef.current?.()) ?? "unavailable" : undefined,
     onSavedAs: (copyId, name) => {
       // Say a copy was made: the copy opens in place and otherwise looks like the source.
       toast.success(tRootRef.current("documents.copy.done", { title: stripExtension(name) }));
@@ -192,11 +199,33 @@ export function OfficeModuleFrame({
     return false;
   };
 
+  // Save stays reachable in the page header at every width (an icon on a phone, labelled from `sm`).
+  // Like the G3 header it is quiet while nothing is unsaved and stays in the tab order when it is.
+  const saveLabel = tRoot("office.shell.save_to_cloud");
+  const saveQuiet = saveState === "ready" || saveState === "saved";
+  const saving = saveState === "saving";
   const headerStatus = useMemo(
     // Idle ("No changes") yields to the title on a phone; anything the user must know about
     // (unsaved, saving, saved, failed) stays visible at every width.
-    () => <SaveStatus status={saveState} compact className={cn("mr-2 whitespace-nowrap", saveState === "ready" ? "hidden sm:flex" : "flex")} />,
-    [saveState],
+    () => (
+      <>
+        <SaveStatus status={saveState} compact className={cn("mr-2 whitespace-nowrap", saveState === "ready" ? "hidden sm:flex" : "flex")} />
+        <Button
+          type="button"
+          size="sm"
+          variant={saveQuiet ? "outline" : "default"}
+          aria-disabled={saveQuiet || saving || undefined}
+          aria-label={saveLabel}
+          title={saveLabel}
+          onClick={() => { if (!saveQuiet && !saving) void save("user"); }}
+          data-office-frame-save
+        >
+          <Save aria-hidden />
+          <span className="sr-only sm:not-sr-only">{tRoot("office.shell.save")}</span>
+        </Button>
+      </>
+    ),
+    [saveState, saveQuiet, saving, saveLabel, save, tRoot],
   );
 
   // The server refused the token mint because the module's flag is off for this organization.
@@ -212,7 +241,7 @@ export function OfficeModuleFrame({
   const bundleFailed = session.failure?.details?.["frameBundle"] !== undefined;
   const refuse = useDocsFrameRefusal();
   // A frame that did not load is the one switch the G3 host explains to the reader.
-  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch || bundleFailed) refuse?.(bundleFailed ? "load" : undefined); }, [featureDisabled, tooLarge, moduleMismatch, bundleFailed, refuse]);
+  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch || bundleFailed) refuse?.(tooLarge ? "size" : bundleFailed ? "load" : undefined); }, [featureDisabled, tooLarge, moduleMismatch, bundleFailed, refuse]);
 
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
@@ -224,6 +253,7 @@ export function OfficeModuleFrame({
         module={module}
         onRetry={session.retry}
         onUseStandardEditor={refuse ? () => refuse() : null}
+        libraryHref={libraryHref}
       />
     );
   }
@@ -245,7 +275,7 @@ export function OfficeModuleFrame({
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
       {desktopOpen && !booting && !session.viewOnly ? (
-        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} workspaceId={wsId} dirty={dirty} save={() => save("user")} />
+        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} workspaceId={wsId} dirty={dirty} save={() => save("user")} requestRef={appOpenRef} />
       ) : null}
       <iframe
         key={session.attempt}

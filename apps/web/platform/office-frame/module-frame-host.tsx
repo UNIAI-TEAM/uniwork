@@ -6,7 +6,7 @@ import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec, officeModuleTooLarge } from "@uniwork/core/office/office-modules";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
-import { OfficeModuleFrame, OfficeModuleOpenSwitch } from "@uniwork/views/office";
+import { FrameFallbackNotice, OfficeModuleFrame, OfficeModuleOpenSwitch } from "@uniwork/views/office";
 import type { OfficeEditorHostProps } from "../office/editor-host";
 import { frameDesktopOpen, useOfficeDeploymentId } from "../office/desktop-open-props";
 import { pinnedFrameVersion } from "./frame-versions";
@@ -27,6 +27,7 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string }) {
       frameVersion={frameVersion}
       readonly={readonly}
       className={className}
+      libraryHref={paths.workspace(workspace.organization_slug, workspace.slug).documents()}
       desktopOpen={frameDesktopOpen(document, deploymentId)}
       // Save as made a new document and the frame already edits it; follow it so the URL names what is open.
       onSavedAs={(copyId) => push(paths.workspace(workspace.organization_slug, workspace.slug).document(copyId))}
@@ -46,7 +47,10 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string }) {
 export function ModuleFrameOrG3Host(props: ModuleHostProps & { fallback: ReactNode }) {
   const frameVersion = pinnedFrameVersion(props.module);
   if (!frameVersion || (props.readonly && officeModuleSpec(props.module).viewOnlyInG3)) return props.fallback;
-  if (officeModuleTooLarge(props.module, props.document.file?.size_bytes)) return props.fallback;
+  // Over the module's size cap (Sheets): the standard editor opens it, and one sentence says why.
+  if (officeModuleTooLarge(props.module, props.document.file?.size_bytes)) {
+    return <><FrameFallbackNotice reason="size" module={props.module} />{props.fallback}</>;
+  }
   const { fallback, ...hostProps } = props;
   return (
     <OfficeModuleOpenSwitch

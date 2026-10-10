@@ -257,6 +257,8 @@
     "createTask": "Tạo việc",
     "theme": "Giao diện",
     "language": "Ngôn ngữ",
+    "themeSaved": "Đã lưu tùy chọn giao diện",
+    "languageSaved": "Đã lưu tùy chọn ngôn ngữ",
     "collapseSidebar": "Thu gọn thanh bên",
     "shortcutMac": "⌘K",
     "shortcutOther": "Ctrl+K",
@@ -7528,7 +7530,7 @@
       "back_to_library": "Về thư viện tài liệu",
       "back_to_owner": "Về Kết quả công việc",
       "readonly_title": "Bạn chỉ có quyền xem",
-      "readonly_description": "Bạn xem được bản đã lưu trên server nhưng không sửa được. Cần quyền edit để sửa nội dung.",
+      "readonly_description": "Bạn xem được bản đã lưu trên server nhưng không chỉnh sửa được. Cần có quyền chỉnh sửa để thay đổi nội dung.",
       "revoked_title": "Bạn không còn quyền xem tài liệu này",
       "revoked_description": "Nội dung đã bị ẩn theo quyền hiện tại. Xin lại quyền truy cập nếu bạn cần xem tiếp."
     },
@@ -8013,6 +8015,7 @@
         "use_standard": "Dùng trình soạn thảo tiêu chuẩn"
       },
       "fallback_notice": "Không tải được trình soạn thảo mới; bạn đang dùng trình soạn thảo tiêu chuẩn.",
+      "fallback_notice_size": "Tệp này quá lớn cho trình soạn thảo web, nên được mở bằng trình soạn thảo tiêu chuẩn.",
       "failure": {
         "unavailable": {
           "title": "Chưa dùng được trình soạn thảo tài liệu mới",
@@ -8030,7 +8033,8 @@
         "denied": {
           "title": "Không mở được tài liệu này",
           "forbidden": "Bạn không có quyền truy cập tài liệu này.",
-          "not_found": "Tài liệu không còn tồn tại hoặc đã được chuyển đi."
+          "not_found": "Tài liệu không còn tồn tại hoặc đã được chuyển đi.",
+          "back_to_library": "Về thư viện tài liệu"
         },
         "failed": {
           "title": "Không mở được tài liệu",

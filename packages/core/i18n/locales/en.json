@@ -258,6 +258,8 @@
     "createTask": "New task",
     "theme": "Theme",
     "language": "Language",
+    "themeSaved": "Theme preference saved",
+    "languageSaved": "Language preference saved",
     "collapseSidebar": "Collapse sidebar",
     "shortcutMac": "⌘K",
     "shortcutOther": "Ctrl+K",
@@ -8018,6 +8020,7 @@
         "use_standard": "Use the standard editor"
       },
       "fallback_notice": "The new editor could not load; you are using the standard editor.",
+      "fallback_notice_size": "This file is too large for the web editor, so it opened in the standard editor.",
       "failure": {
         "unavailable": {
           "title": "The new document editor is not available",
@@ -8035,7 +8038,8 @@
         "denied": {
           "title": "This document cannot be opened",
           "forbidden": "You do not have access to this document.",
-          "not_found": "This document no longer exists or was moved."
+          "not_found": "This document no longer exists or was moved.",
+          "back_to_library": "Back to documents"
         },
         "failed": {
           "title": "The document could not open",

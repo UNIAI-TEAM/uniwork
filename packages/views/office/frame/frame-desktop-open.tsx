@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type MutableRefObject } from "react";
 import type { SaveCoordinatorState } from "@uniwork/core/office";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
-import { DesktopOpenAction, type DesktopOpenActionProps } from "../desktop-open-action";
+import { DesktopOpenAction, type DesktopOpenActionProps, type DesktopOpenOutcome } from "../desktop-open-action";
 import type { OfficeSaveCoordinatorLike } from "../office-shell";
 
 /** What the page hands the frame for "Open in desktop app": the same wiring the G3 host uses. */
@@ -16,6 +16,8 @@ interface FrameDesktopOpenActionProps {
   dirty: boolean;
   /** The frame's own save; resolves true once the bytes are a new version. */
   save: () => Promise<boolean>;
+  /** Filled with the button's flow so the frame's `app.open` request can run it. */
+  requestRef?: MutableRefObject<(() => Promise<DesktopOpenOutcome>) | null>;
 }
 
 /**
@@ -24,7 +26,7 @@ interface FrameDesktopOpenActionProps {
  * has no header slot). The frame has no save coordinator, so a small adapter
  * stands in for one: only its dirty fields and `save` are read by the action.
  */
-export function FrameDesktopOpenAction({ desktopOpen, documentId, workspaceId, dirty, save }: FrameDesktopOpenActionProps) {
+export function FrameDesktopOpenAction({ desktopOpen, documentId, workspaceId, dirty, save, requestRef }: FrameDesktopOpenActionProps) {
   const headerSlot = useHeaderActionsSlotAvailable();
   const latest = useRef({ dirty, save });
   latest.current = { dirty, save };
@@ -42,7 +44,7 @@ export function FrameDesktopOpenAction({ desktopOpen, documentId, workspaceId, d
     },
     save: async () => ({ accepted: await latest.current.save() }),
   }), [documentId, workspaceId]);
-  const action = <DesktopOpenAction {...desktopOpen} documentId={documentId} dirty={dirty} saveCoordinator={coordinator} />;
+  const action = <DesktopOpenAction {...desktopOpen} documentId={documentId} dirty={dirty} saveCoordinator={coordinator} requestRef={requestRef} />;
   if (headerSlot) return <HeaderActionsFill actions={action} />;
   return (
     <div className="flex items-center justify-end gap-2 border-b border-border bg-background px-3 py-1.5" data-office-frame-toolbar>
