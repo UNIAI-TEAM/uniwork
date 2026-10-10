@@ -41,7 +41,7 @@ export interface OfficeSaveOutcome {
 
 export type OfficeLaunchSessionFactory = (
   documentId: string,
-  body: { operation: "edit"; version: number; deployment_id: string; client_id: string; return_hint: "office" },
+  body: { operation: "edit"; version?: number; deployment_id: string; client_id: string; return_hint: "office" },
 ) => Promise<OfficeLaunchSessionResponse | null>;
 
 export interface DesktopOpenActionProps {
@@ -152,8 +152,12 @@ export function DesktopOpenAction({
     setWorking(true);
     setError(null);
     try {
+      // `version` names a HISTORICAL version and makes the server force a
+      // read-only session; the committed version being handed off is the
+      // current one, so the body leaves it out. The check above only proves
+      // the editor knows what it is handing off.
       const session = await createSession(documentId, {
-        operation: "edit", version, deployment_id: deploymentId, client_id: clientId, return_hint: "office",
+        operation: "edit", deployment_id: deploymentId, client_id: clientId, return_hint: "office",
       });
       if (!session) {
         setError(t("ticket_failed"));

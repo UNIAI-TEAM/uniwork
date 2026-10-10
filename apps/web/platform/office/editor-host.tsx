@@ -112,19 +112,24 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   // unavailable they ask for stable and show the "no installer" state.
   const [publishedChannel, setPublishedChannel] = useState<OfficeChannel | null>(null);
   const channelReady = useRef<Promise<OfficeChannel>>(Promise.resolve("stable"));
+  // One public-config read feeds the installer channel and, unless a host
+  // pins one, the deployment binding the launch ticket is created against.
+  // The binding stays undefined (never guessed) when the config does not
+  // advertise it; the desktop open action then fails closed.
+  const [configDeploymentId, setConfigDeploymentId] = useState<string | undefined>(undefined);
   useEffect(() => {
-    if (officeChannelOverride) {
-      channelReady.current = Promise.resolve(officeChannelOverride);
-      return undefined;
-    }
+    if (officeChannelOverride) channelReady.current = Promise.resolve(officeChannelOverride);
+    if (officeChannelOverride && officeDeploymentId) return undefined;
     let active = true;
-    const ready = getPublicConfig(document.organization_id)
-      .then((config) => selectOfficeInstallerChannel(config.office_installers) ?? "stable")
-      .catch((): OfficeChannel => "stable");
-    channelReady.current = ready;
-    void ready.then((channel) => { if (active) setPublishedChannel(channel); });
+    const config = getPublicConfig(document.organization_id).catch(() => null);
+    if (!officeChannelOverride) {
+      const ready = config.then((value): OfficeChannel => (value ? selectOfficeInstallerChannel(value.office_installers) : null) ?? "stable");
+      channelReady.current = ready;
+      void ready.then((channel) => { if (active) setPublishedChannel(channel); });
+    }
+    void config.then((value) => { if (active) setConfigDeploymentId(value?.office_deployment_id); });
     return () => { active = false; };
-  }, [officeChannelOverride, document.organization_id]);
+  }, [officeChannelOverride, officeDeploymentId, document.organization_id]);
   const officeChannel: OfficeChannel = officeChannelOverride ?? publishedChannel ?? "stable";
   const formatName = useOfficeFormatName();
   const activeSession = formatAdapter?.session ?? session;
@@ -296,7 +301,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
     <DesktopOpenAction
       placement={placement}
       documentId={document.id}
-      deploymentId={officeDeploymentId}
+      deploymentId={officeDeploymentId ?? configDeploymentId}
       savedVersion={document.current_version}
       dirty={dirty}
       saveCoordinator={activeSession.coordinator}

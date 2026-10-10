@@ -9285,6 +9285,7 @@
         "size": "Size: {{value}}",
         "size_mb": "{{value}} MB",
         "version_line": "Version {{version}} · {{channel}} channel",
+        "zip_note": "Downloads as a ZIP that contains the installer.",
         "version_unknown": "unknown",
         "unsigned": "unsigned",
         "mac_chip_help": "Not sure which chip? Check Apple menu → About This Mac.",

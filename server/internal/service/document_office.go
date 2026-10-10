@@ -279,7 +279,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 		Actor: actor, Purpose: files.DocumentFile, Scope: scope, OperationID: officeOperationID(jobID), Deadline: deadline,
 	})
 	if err != nil {
-		return db.OfficeJob{}, err
+		return db.OfficeJob{}, documentFileError(err)
 	}
 	row, err := s.q.InsertOfficeJob(ctx, db.InsertOfficeJobParams{
 		ID: jobID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, DocumentID: in.DocumentID,
@@ -411,7 +411,7 @@ func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.
 			OperationID: officeOperationID(row.ID), Deadline: row.DeadlineAt.Time,
 		})
 		if err != nil {
-			return row, err
+			return row, documentFileError(err)
 		}
 		return s.dispatch(ctx, row, in, input, out.WriteTarget)
 	}
@@ -436,7 +436,7 @@ func (s *DocumentOfficeService) jobInput(ctx context.Context, in OfficeJobInput)
 func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope, id files.FileID, want pgtype.Text) (officeInput, error) {
 	r, err := s.files.Open(ctx, files.OpenInput{Scope: scope, FileID: id})
 	if err != nil {
-		return officeInput{}, err
+		return officeInput{}, documentFileError(err)
 	}
 	defer r.Close()
 	limit := documentFileMaxBytes()
@@ -694,10 +694,14 @@ func (s *DocumentOfficeService) OpenOfficeJobOutput(ctx context.Context, actor A
 	if row.State != string(office.JobCompleted) || !row.OutputFileID.Valid || row.OutputFileID.String == "" {
 		return files.Reader{}, ErrOfficeJobNotCommittable
 	}
-	return s.files.Open(ctx, files.OpenInput{
+	r, err := s.files.Open(ctx, files.OpenInput{
 		Scope:  files.Scope{OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID},
 		FileID: files.FileID(row.OutputFileID.String),
 	})
+	if err != nil {
+		return files.Reader{}, documentFileError(err)
+	}
+	return r, nil
 }
 
 // ClaimOfficeJobOutputInTx is the hand-off to the commit path (G1-03): inside

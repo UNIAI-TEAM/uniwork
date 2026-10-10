@@ -9279,6 +9279,7 @@
         "size": "Dung lượng: {{value}}",
         "size_mb": "{{value}} MB",
         "version_line": "Phiên bản {{version}} · kênh {{channel}}",
+        "zip_note": "Tải về dưới dạng tệp ZIP chứa bộ cài.",
         "version_unknown": "chưa rõ",
         "unsigned": "chưa ký",
         "mac_chip_help": "Không chắc loại chip? Xem tại menu Apple → Giới thiệu máy Mac này.",
