@@ -354,6 +354,7 @@ func isoWalk(t *testing.T, h http.Handler) []isoRoute {
 // isoWritesLast are the writes the write-control pass runs at the very end,
 // because other routes still need what they remove.
 var isoWritesLast = map[string]string{
+	"POST /api/v1/orgs/{org}/members/{userID}/deactivate":                              "it ends the peer's room memberships, which the chat member routes act on",
 	"POST /api/v1/orgs/{org}/transfer-ownership":                                       "the owner stops being one",
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/accounts/{accountID}":           "the other Email Hub routes name the mailbox in their query",
 	"DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}": "the thread routes name the message under a shorter path",
