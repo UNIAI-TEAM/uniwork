@@ -104,6 +104,14 @@ func (s *ChatService) SendReminderMessage(
 	}); err != nil {
 		return ChatMessageRow{}, err
 	}
+	// A due reminder notifies every member, so it takes the same gate as @all.
+	roomMemberIDs, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := s.requireMayNotifyRoom(ctx, userID, room, len(roomMemberIDs)); err != nil {
+		return ChatMessageRow{}, err
+	}
 
 	repeat := normalizeReminderRepeat(in.Repeat)
 	payload := ChatReminderPayload{

@@ -37,6 +37,22 @@ func errChatMentionAllForbidden() error {
 	return coded(http.StatusForbidden, "chat_mention_all_forbidden", "chỉ quản trị phòng mới được nhắc @all trong phòng đông người")
 }
 
+// requireMayNotifyRoom refuses a message that notifies every member (@all, a
+// reminder) from a non-moderator once the room is past chatSmallRoomMembers.
+func (s *ChatService) requireMayNotifyRoom(ctx context.Context, senderID string, room db.ChatRoom, members int) error {
+	if members <= chatSmallRoomMembers {
+		return nil
+	}
+	ok, err := s.isChatRoomModerator(ctx, senderID, room)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errChatMentionAllForbidden()
+	}
+	return nil
+}
+
 // chatMentions is who a message mentions: the members it names, and whether
 // it says @all. Recipients is everyone to notify.
 type chatMentions struct {
@@ -66,13 +82,9 @@ func (s *ChatService) resolveMentionRecipients(
 	if err != nil {
 		return chatMentions{}, err
 	}
-	if mentionsAll && len(roomMemberIDs) > chatSmallRoomMembers {
-		ok, err := s.isChatRoomModerator(ctx, senderID, room)
-		if err != nil {
+	if mentionsAll {
+		if err := s.requireMayNotifyRoom(ctx, senderID, room, len(roomMemberIDs)); err != nil {
 			return chatMentions{}, err
-		}
-		if !ok {
-			return chatMentions{}, errChatMentionAllForbidden()
 		}
 	}
 	active := make(map[string]struct{}, len(roomMemberIDs))

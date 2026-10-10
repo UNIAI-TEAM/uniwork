@@ -280,3 +280,24 @@ func TestChatReminderSendRestricted(t *testing.T) {
 	})
 	requireReminderValidationError(t, err, "muted member")
 }
+
+// A due reminder notifies every member, so in a large room it is the
+// moderators' call, exactly as @all is (UNI-1089).
+func TestReminderInALargeRoomIsForModerators(t *testing.T) {
+	s, _, _, ua, ub, w := reminderFixture(t)
+	ctx := context.Background()
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "nhac-viec", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	smallChatRoom(t, 1)
+	in := SendReminderMessageInput{Body: "Nộp báo cáo", RemindAt: futureRemindAt()}
+	if _, err := s.SendReminderMessage(ctx, ub.ID, w.ID, ch.ID, in); !codedIs(err, "chat_mention_all_forbidden") {
+		t.Fatalf("member reminder in a large room: want chat_mention_all_forbidden, got %v", err)
+	}
+	if _, err := s.SendReminderMessage(ctx, ua.ID, w.ID, ch.ID, in); err != nil {
+		t.Fatalf("channel owner reminder in a large room: %v", err)
+	}
+}
