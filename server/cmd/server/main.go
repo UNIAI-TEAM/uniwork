@@ -352,7 +352,8 @@ func main() {
 	dispatcher.Register(realtimeConsumer)
 	// Sockets are checked only when they connect or subscribe; this closes
 	// the ones a committed removal, kick or sign-out has taken access from.
-	dispatcher.Register(realtime.NewAccessRevoker(hub, membershipCache))
+	// Notify lane: a kick re-asks the database once per holding socket.
+	dispatcher.RegisterLane(outbox.LaneNotify, realtime.NewAccessRevoker(hub, membershipCache))
 	auditExports := service.NewAuditExportConsumer(q, store)
 	auditExports.SetFileService(pool, fileSvc)
 	dispatcher.RegisterLane(outbox.LaneSlow, auditExports)
