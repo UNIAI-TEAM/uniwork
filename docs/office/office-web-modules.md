@@ -263,6 +263,38 @@ That action calls ONE host request; the frame never builds a deep link.
 - Additive: an old host does not know `app.open` (the frame sees `unsupported`
   and keeps the message only); an old frame never sends it.
 
+## Host chrome around the frames (UNI-1232 polish)
+
+What the UniWork page owns around every module frame, one behaviour for all six:
+
+- **Header on a phone.** A file's breadcrumb crumbs hide below `sm` (the back
+  control stands in), so the title truncates with the full name as a tooltip
+  instead of collapsing to a letter. The frame's header cluster is status +
+  a **Save** button (`data-office-frame-save`): an icon with an accessible
+  name "Save to UniWork" on a phone, labelled from `sm`, quiet (outline,
+  `aria-disabled`, still in the tab order) while nothing is unsaved. The
+  desktop actions fold into the page's overflow menu below `sm`.
+- **View-only is announced once.** For a file the banner under the header
+  (title + reason, one live region) is the announcement; the header chip is
+  gone (a page keeps the chip only where its banner is hidden). The frames hide
+  their own chip through the `viewOnlyChip` capability.
+- **Preference toasts name the preference** ("Language preference saved"), so
+  a language or theme switch never reads as the document's save state.
+- **Failure panel.** A denied reader (403/404) gets the reason and a link back
+  to the workspace document list, never "Try again"; retry stays for network,
+  load and generic failures.
+- **Failed save.** The header keeps "Save could not be confirmed" until the
+  frame reports dirty again (the next edit), then says "Unsaved".
+- **Standard-editor notice.** A workbook over the Sheets cap (host gate or the
+  frame answering `too_large`) opens in the G3 editor under one sentence:
+  "This file is too large for the web editor, so it opened in the standard
+  editor". The frame-load fallback keeps its own sentence (`reason` = `size` |
+  `load`, `data-testid="office-frame-fallback-notice"`).
+- **Leave dialog = the reference look**: filled primary, close X named Close,
+  blurred scrim, focus trap, and on close the host focuses the iframe and its
+  window (the same signal for every module; the frames' focus-return bridge
+  listens for it).
+
 ## AI in the frame (CONTRACT C16, ADR 0029 D9)
 
 The frame calls GO-A7's AI routes itself, same origin, with
