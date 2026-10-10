@@ -5,7 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
+import { chatKeys } from "@uniwork/core/chat";
 import { reminderBodyLabel } from "@uniwork/core/chat/reminder-utils";
+import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline";
 import { useOptionalWS } from "@uniwork/core/realtime";
 
 type ReminderDuePayload = { room_id?: unknown; message_id?: unknown } | null | undefined;
@@ -28,9 +30,8 @@ export function useChatReminderNotifications(workspaceId: string): void {
       if (typeof messageId !== "string" || !messageId) return;
       // The frame carries ids only; the body comes from whatever room is cached.
       let row: ChatMessageRecord | undefined;
-      for (const [, rows] of qc.getQueriesData<unknown>({ queryKey: ["chat", "room-messages", workspaceId] })) {
-        if (!Array.isArray(rows)) continue;
-        row = (rows as ChatMessageRecord[]).find((r) => r.id === messageId);
+      for (const [, data] of qc.getQueriesData<RoomTimeline>({ queryKey: chatKeys.roomMessagesRoot(workspaceId) })) {
+        row = data && flattenRoomTimeline(data).find((r) => r.id === messageId);
         if (row) break;
       }
       toast.info(t("chat.reminder_due_toast", { body: reminderBodyLabel({ body: row?.reminder?.body ?? row?.body }) }));

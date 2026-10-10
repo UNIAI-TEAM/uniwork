@@ -11,8 +11,9 @@ export const chatKeys = {
   roomMessagesRoot: (wsId: string) => ["chat", "room-messages", wsId] as const,
   /**
    * Older history the room bulletin pages in on request, from a frozen cursor.
-   * Deliberately outside the "room-messages" prefix: those entries are flat
-   * arrays that writers patch in place; these are infinite-query pages.
+   * Deliberately outside the "room-messages" prefix: those entries are each a
+   * room's own timeline (`RoomTimeline`, patched in place by realtime and
+   * mutations); these pages page from a frozen cursor and are never patched.
    */
   roomBulletinOlder: (wsId: string, roomId: string, from: string) =>
     ["chat", "room-bulletin-older", wsId, roomId, from] as const,

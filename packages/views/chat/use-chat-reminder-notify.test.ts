@@ -87,7 +87,7 @@ describe("useChatReminderNotifications", () => {
     vi.useFakeTimers();
     try {
       const qc = new QueryClient();
-      qc.setQueryData(["chat", "room-messages", WORKSPACE_ID, "room1"], [reminderRow("r1", "Họp team")]);
+      qc.setQueryData(["chat", "room-messages", WORKSPACE_ID, "room1"], { pages: [[reminderRow("r1", "Họp team")]], pageParams: [null] });
       const { calls } = installClient();
       renderReminders(qc);
       vi.advanceTimersByTime(24 * 60 * 60_000);
@@ -100,7 +100,7 @@ describe("useChatReminderNotifications", () => {
 
   it("toasts the cached reminder body when the server says it is due", () => {
     const qc = new QueryClient();
-    qc.setQueryData(["chat", "room-messages", WORKSPACE_ID, "room1"], [reminderRow("r1", "Họp team")]);
+    qc.setQueryData(["chat", "room-messages", WORKSPACE_ID, "room1"], { pages: [[reminderRow("r1", "Họp team")]], pageParams: [null] });
     const { emit } = installClient();
     renderReminders(qc);
     emit({ room_id: "room1", message_id: "r1" });
