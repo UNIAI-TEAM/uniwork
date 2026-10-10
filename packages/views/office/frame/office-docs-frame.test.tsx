@@ -449,6 +449,37 @@ describe("OfficeDocsFrame", () => {
     await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
   });
 
+  it("leaves the failed-save state when the next edit reports dirty", async () => {
+    const save = vi.fn(async () => { throw new DocsProtocolError({ code: "network", message: "offline" }); });
+    serveTokens();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <HeaderActionsSlotProvider>
+          <header data-testid="page-header"><HeaderActionsSlot /></header>
+          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
+        </HeaderActionsSlotProvider>
+      </QueryClientProvider>,
+    );
+    const header = screen.getByTestId("page-header");
+    // The status text without the Save button that sits beside it.
+    const statusText = () => {
+      const copy = header.cloneNode(true) as HTMLElement;
+      copy.querySelector("[data-office-frame-save]")?.remove();
+      return copy.textContent;
+    };
+    const frame = fakeFrame();
+    await boot(frame);
+    await frame.event("dirty", { dirty: true });
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
+    await waitFor(() => expect(frame.answerTo(id)?.error).toBeTruthy());
+    // The failure holds although the frame still reports dirty.
+    await waitFor(() => expect(statusText()).toContain("Chưa xác nhận được việc lưu"));
+    // The next edit reports dirty again: the header goes back to "Unsaved".
+    await frame.event("dirty", { dirty: true });
+    await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
+  });
+
   it("says the editor is unavailable on this server (no retry) and offers the standard editor", async () => {
     serveTokens(() => Promise.reject(new ApiError("office frame is not configured", "storage_unavailable", 501)));
     const refuse = vi.fn();

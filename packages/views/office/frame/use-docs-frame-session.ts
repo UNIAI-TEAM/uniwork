@@ -321,7 +321,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
 
     endpoint.on("dirty", ({ dirty: next }) => {
       setDirty(next);
-      if (!next) setSaveState((now) => (now === "dirty" ? (savedOnce ? "saved" : "ready") : now));
+      // A failed save keeps "could not be confirmed" until the user edits again; the frame then
+      // reports dirty, and the unsaved edits (not the old failure) are what the header must say.
+      if (next) setSaveState((now) => (now === "error" ? "dirty" : now));
+      else setSaveState((now) => (now === "dirty" ? (savedOnce ? "saved" : "ready") : now));
     });
     endpoint.on("modal", ({ open }) => { setModal(open); });
     endpoint.on("title", ({ title }) => { latest.current.options.onTitle?.(title); });
