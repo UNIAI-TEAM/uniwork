@@ -574,9 +574,14 @@ and `assets/a.png` may both appear), values are origin-relative URLs.
 - sibling: `/api/v1/office-frame/documents/{id}/linked/{linkedDocumentId}?sig=ofl1....`
 
 `GET`/`HEAD` with `credentials: 'omit'`. A signature binds the document, the
-target and the user, lives `OfficeFrameAssetURLTTL` (1 hour; the frame token
-stays 10 min) and every request rechecks view access, so a revoked share stops
-it at once. The web app (`apps/web/next.config.mjs` rewrites) proxies exactly
+target and the user and every request rechecks view access, so a revoked share
+stops it at once. Lifetime: `OfficeFrameAssetURLTTL` (1 hour) for the Markdown
+and HTML frames; a Docs image URL keeps the token's 10 minutes, as shipped in
+UNI-1013. The sibling route takes the signature ALONE: a frame token as Bearer,
+of any module and the document's own included, answers 401 (a token binds its
+own document; a sibling is another document), and a signature naming any module
+but markdown/html is refused. Sessions longer than the hour ask for fresh URLs
+(next section). The web app (`apps/web/next.config.mjs` rewrites) proxies exactly
 these two byte paths to the API origin, so they are same-origin with the frame
 (`img-src 'self'`, `connect-src 'self'`) wherever the API lives. Responses:
 `Content-Type` by the file's extension (`image/png|jpeg|gif|webp`,
@@ -605,3 +610,51 @@ inline `<script>`, fetched same-origin from the map), so no policy is widened.
 asset store's display/read paths (upload stays PNG/JPEG/GIF/WebP), inline
 mapped CSS/JS into the preview copy, and treat a mapped URL answering 401/403
 as missing. No new message types and no protocol version change.
+
+### Fresh URLs and paths typed after the open (CONTRACT A1b, UNI-1232)
+
+Two gaps of the open answer, one request. The URLs of the open answer live 1
+hour while a document can stay open longer, and a relative path the user types
+or edits after the open (`![](./new.png)`) has no URL. Both are "paths as written
+in the document -> signed URLs", so the frame asks again with the paths it holds.
+
+**Server.** `POST /api/v1/office-frame/documents/{id}/assets/resolve`, frame
+token, markdown and html modules only (any other answers 404):
+
+```json
+{ "paths": ["assets/logo.png", "./img/new.svg"] }
+```
+answers `{"items": [{"path": "assets/logo.png", "url": "...", "expires_at": "<RFC3339>"}]}`
+in request order, a path that resolves to nothing absent. Same normalisation,
+order (document asset, then sibling file walk) and view ACL as the open answer
+(`OfficeFrameService.ResolvePaths` is the one code path for both); a call runs
+the Documents ACL on at most 100 distinct documents and takes 1..50 paths (more
+answers 400); the signatures are the ones above, so nothing is served by this
+route itself. It reads, so it records no audit row.
+
+Why paths and not ids: a signature for a sibling is only ever issued for a path
+the document names, so the server re-walks the relation on every call; an id-based
+`assets/sign` for linked files would sign any viewable file of the workspace.
+`POST .../assets/sign` stays asset ids of the token's own document (Docs images).
+
+**Protocol (additive, no version change).** One frame -> host request, sent
+by the Markdown/HTML frames only, at their own pace:
+
+```ts
+'api.assets.resolve': Rpc<ApiAssetsResolvePayload, ApiAssetsResolveResult>
+interface ApiAssetsResolvePayload { fileId?: string; paths: string[] }   // 1..50, as written
+interface ApiAssetsResolveResult { assets: Record<string, string> }       // as OpenPayload.assets
+```
+The result has the rules of `OpenPayload.assets` (same-origin frame routes,
+`credentials: 'omit'`). The host answers `unsupported` when its API has no
+`resolveAssets` (older hosts): the frame keeps the URLs it has. The frame sends it
+(a) for a path it meets that `assets` does not name, when the user wrote or edited
+it, and (b) for every mapped path shortly before the URLs' lifetime ends (the open
+answer's URLs live 1 h: refresh at about 50 min, and once more when a mapped URL
+answers 401 mid-session). A path that comes back absent is shown as missing, as on
+open. The frame needs no capability for it.
+
+**Host.** `DocsFrameApi.resolveAssets(payload, call)` over the frame client's
+`resolveAssets(documentId, paths)`; the answer keeps only frame routes, like
+`OpenPayload.assets`. The frame token still expires every 10 minutes and is
+re-minted by the host as before; the resolve call rides the token the frame holds.
