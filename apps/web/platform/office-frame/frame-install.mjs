@@ -5,7 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { assertMatchesPin, assertModule, assertSafeVersion, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
+import { assertMatchesPin, assertModule, assertSafeVersion, parseCspDocuments, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
 
 /** Finds the directory holding manifest.json: the source itself, or its only child. */
 export function locateBundleDir(source) {
@@ -49,13 +49,20 @@ export function loadBundle(dir, { allowDirty = false } = {}) {
   if (manifest.dirty && !allowDirty) {
     throw new Error(`${manifest.version} was built from a dirty fork checkout and cannot be reproduced; build from a clean commit (or pass --allow-dirty for a local run, never commit that pin)`);
   }
-  const headers = parseCspManifest(JSON.parse(readFileSync(join(dir, "csp.json"), "utf8")));
+  const csp = JSON.parse(readFileSync(join(dir, "csp.json"), "utf8"));
+  const headers = parseCspManifest(csp);
+  const documents = parseCspDocuments(csp);
+  // A policy for a file the build does not hold would be served for nothing; refuse it.
+  const listed = new Set(manifest.files.map((f) => f.path));
+  for (const doc of documents) {
+    if (!listed.has(doc.path.slice(1))) throw new Error(`csp.json gives ${doc.path} its own policy but the manifest does not list it`);
+  }
   for (const file of manifest.files) {
     const bytes = readFileSync(join(dir, file.path));
     if (bytes.length !== file.bytes) throw new Error(`${file.path}: ${bytes.length} bytes, manifest says ${file.bytes}`);
     if (sha256Hex(bytes) !== file.sha256) throw new Error(`${file.path}: sha256 differs from the manifest`);
   }
-  return { manifest, headers, manifestSha256: sha256Hex(manifestBytes) };
+  return { manifest, headers, documents, manifestSha256: sha256Hex(manifestBytes) };
 }
 
 /**
@@ -155,10 +162,16 @@ export function install(dir, bundle, root) {
   return target;
 }
 
-/** The pin carries the headers the frame is served with; the bundle's csp.json must still agree. */
-export function assertHeadersMatchPin(pin, headers) {
+/**
+ * The pin carries the headers the frame is served with, and the policies of
+ * the documents that have their own; the bundle's csp.json must still agree.
+ */
+export function assertHeadersMatchPin(pin, headers, documents = []) {
   if (JSON.stringify(pin.headers) !== JSON.stringify(headers)) {
     throw new Error("csp.json differs from the pinned headers; re-pin deliberately with --pin");
+  }
+  if (JSON.stringify(pin.documents ?? []) !== JSON.stringify(documents)) {
+    throw new Error("csp.json differs from the pinned document policies; re-pin deliberately with --pin");
   }
 }
 
@@ -168,7 +181,7 @@ export function checkInstalled(pin, root) {
   if (!existsSync(join(dir, "manifest.json"))) return false;
   const bundle = loadBundle(dir, { allowDirty: true });
   assertMatchesPin(pin, bundle.manifest, bundle.manifestSha256);
-  assertHeadersMatchPin(pin, bundle.headers);
+  assertHeadersMatchPin(pin, bundle.headers, bundle.documents);
   return true;
 }
 

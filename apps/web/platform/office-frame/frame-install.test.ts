@@ -37,6 +37,44 @@ describe("loadBundle", () => {
   });
 });
 
+describe("per-document policies of a build (the html preview)", () => {
+  const PREVIEW = "default-src 'none'; connect-src 'none'; form-action 'none'; sandbox allow-scripts allow-forms; frame-ancestors 'self'";
+  const htmlBundle = (documents: unknown = [{ path: "/preview.html", value: PREVIEW }]) => writeBundle({
+    module: "html",
+    files: { "index.html": "<!doctype html>", "preview.html": "<!doctype html><title>preview</title>", "assets/app-1a2b.js": "export {}" },
+    csp: { header: "Content-Security-Policy", value: "default-src 'self'; frame-src 'self'; frame-ancestors 'self'", documents },
+  });
+
+  it("loads them, pins them and re-verifies them once installed", () => {
+    const dir = htmlBundle();
+    const bundle = loadBundle(dir);
+    expect(bundle.documents).toEqual([{ path: "/preview.html", value: PREVIEW }]);
+    const root = join(scratch(), "html");
+    install(dir, bundle, root);
+    const pin = buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers, bundle.documents);
+    expect(pin.documents).toEqual(bundle.documents);
+    expect(checkInstalled(pin, root)).toBe(true);
+  });
+  it("notices a changed or dropped document policy against the pin", () => {
+    const dir = htmlBundle();
+    const bundle = loadBundle(dir);
+    const root = join(scratch(), "html");
+    install(dir, bundle, root);
+    const dropped = buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers);
+    expect(() => checkInstalled(dropped, root)).toThrow(/document policies/);
+    const loosened = buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers, [{ path: "/preview.html", value: PREVIEW.replace("allow-forms", "allow-forms allow-modals") }]);
+    expect(() => checkInstalled(loosened, root)).toThrow(/document policies/);
+  });
+  it("refuses a policy for a file the manifest does not list, and an unsafe policy", () => {
+    expect(() => loadBundle(htmlBundle([{ path: "/other.html", value: PREVIEW }]))).toThrow(/does not list/);
+    expect(() => loadBundle(htmlBundle([{ path: "/preview.html", value: PREVIEW.replace("allow-forms", "allow-same-origin") }]))).toThrow(/sandbox flag/);
+  });
+  it("a build without documents has none and matches a pin without them", () => {
+    const bundle = loadBundle(writeBundle());
+    expect(bundle.documents).toEqual([]);
+  });
+});
+
 describe("install / checkInstalled", () => {
   it("copies the listed files plus manifest and csp, replaces older versions, and re-verifies", () => {
     const root = join(scratch(), "docs");

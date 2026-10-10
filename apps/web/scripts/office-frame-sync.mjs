@@ -20,8 +20,9 @@
 // The bundles themselves are NOT checked in (17 MiB each, regenerated per fork
 // build; the repo's own precedent is the git-ignored pdfium wasm). What is
 // checked in is platform/office-frame/<module>.pin.json: version, fork gitSha,
-// the sha256 of the build's manifest.json (which digests every file) and the
-// response headers.
+// the sha256 of the build's manifest.json (which digests every file), the
+// response headers and the policies of the documents that have their own (the
+// html module's preview.html).
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -52,13 +53,13 @@ async function sync({ source, modules, named, repin, allowDirty }) {
       if (bundle.manifest.module !== module) throw new Error(`${dir} is a ${bundle.manifest.module} build, not ${module}`);
       const pin = readPin(pinPath(module));
       if (repin) {
-        writeFileSync(pinPath(module), `${JSON.stringify(buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers), null, 2)}\n`);
+        writeFileSync(pinPath(module), `${JSON.stringify(buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers, bundle.documents), null, 2)}\n`);
         console.log(`office-frame: pinned ${module} ${bundle.manifest.version} (${bundle.manifest.gitSha.slice(0, 12)})`);
       } else if (!pin) {
         throw new Error(`no ${module}.pin.json; run with --pin once to record the build you intend to serve`);
       } else {
         assertMatchesPin(pin, bundle.manifest, bundle.manifestSha256);
-        assertHeadersMatchPin(pin, bundle.headers);
+        assertHeadersMatchPin(pin, bundle.headers, bundle.documents);
       }
       const target = install(dir, bundle, publicRoot(module));
       console.log(`office-frame: ${module} ${bundle.manifest.files.length} files verified, installed at ${target}`);

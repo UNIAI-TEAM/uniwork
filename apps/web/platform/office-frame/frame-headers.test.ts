@@ -67,6 +67,30 @@ describe("per-module rules", () => {
   });
 });
 
+describe("a document with its own policy", () => {
+  const PREVIEW = "default-src 'none'; connect-src 'none'; form-action 'none'; sandbox allow-scripts allow-forms; frame-ancestors 'self'";
+  const htmlPin = buildPin(parseManifest({ version: "1.0.0-abc1234", gitSha: "abc1234", entry: "index.html", files: [{ path: "index.html", bytes: 1, sha256: sha256Hex("x") }, { path: "preview.html", bytes: 1, sha256: sha256Hex("p") }] }), sha256Hex("m"), pin.headers, [{ path: "/preview.html", value: PREVIEW }]);
+  const rules = officeFrameHeaderRules({ html: htmlPin });
+  const html = rules.filter((r) => r.source.startsWith("/office-frame/html/"));
+
+  it("serves /office-frame/html/<v>/preview.html with its own CSP, after the module's rules so it wins", () => {
+    expect(html.map((r) => r.source)).toEqual([
+      "/office-frame/html/:path*", "/office-frame/html/:version/:file", "/office-frame/html/:version/:dir/:rest+", "/office-frame/html/:version/preview.html",
+    ]);
+    const doc = byKey(html[3]!);
+    expect(doc["Content-Security-Policy"]).toBe(PREVIEW);
+    expect(byKey(html[0]!)["Content-Security-Policy"]).toBe("default-src 'self'; worker-src 'self' blob:; frame-ancestors 'self'");
+  });
+  it("keeps the host-owned headers on the document and takes no other header from the policy", () => {
+    expect(byKey(html[3]!)).toMatchObject({ "X-Frame-Options": "SAMEORIGIN", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" });
+    expect(html[3]!.headers.map((h) => h.key.toLowerCase()).filter((k) => k === "content-security-policy")).toHaveLength(1);
+  });
+  it("gives no other path, and no other module, a document rule", () => {
+    expect(rules.filter((r) => r.source.endsWith("preview.html"))).toHaveLength(1);
+    expect(officeFrameHeaderRules({ docs: pin, html: null }).some((r) => r.source.endsWith("preview.html"))).toBe(false);
+  });
+});
+
 describe("the checked-in pin", () => {
   it("parses, carries the frame-ancestors policy and is not a dirty build", () => {
     const checkedIn = readPin();

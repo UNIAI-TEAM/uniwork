@@ -184,13 +184,109 @@ export function parseCspManifest(raw) {
 }
 
 /**
- * @typedef {{ schema: 1, version: string, gitSha: string, entry: string, manifestSha256: string, headers: Record<string, string> }} FramePin
+ * A document of the bundle that is served with its OWN policy instead of the
+ * module's (the html module's preview.html, which runs the previewed page's
+ * scripts). `path` is the bundle-relative file with a leading slash, `value`
+ * the complete Content-Security-Policy header.
+ * @typedef {{ path: string, value: string }} FrameDocumentPolicy
+ */
+
+const DOCUMENT_PATH_RE = /^\/[0-9A-Za-z._-]+(?:\/[0-9A-Za-z._-]+)*$/;
+// Flags that would give a sandboxed document an origin, top navigation or an unsandboxed popup back.
+const FORBIDDEN_SANDBOX_FLAG = /^allow-(?:same-origin|top-navigation.*|popups-to-escape-sandbox|storage-access-by-user-activation)$/;
+
+/**
+ * @param {string} policy
+ * @returns {Map<string, string[]>}
+ */
+function directivesOf(policy) {
+  /** @type {Map<string, string[]>} */
+  const out = new Map();
+  for (const part of policy.split(";")) {
+    const [name, ...sources] = part.trim().split(/\s+/);
+    if (name) out.set(name.toLowerCase(), sources);
+  }
+  return out;
+}
+
+/**
+ * A document policy may only ever be the sandboxed, opaque-origin kind: the
+ * document runs the page's scripts, so the host refuses anything that could
+ * give it the frame's origin, the network or the UniWork API (the fork's
+ * builder refuses the same things; this is the host's own check of what it
+ * serves). The policy must sandbox itself without same-origin, top
+ * navigation or escaping popups, must not name 'self' anywhere, and has
+ * default-src, connect-src and form-action 'none'.
+ * @param {string} path
+ * @param {string} policy
+ */
+function assertSandboxedDocumentPolicy(path, policy) {
+  const directives = directivesOf(policy);
+  const sandbox = directives.get("sandbox");
+  if (!sandbox) throw new Error(`document policy for ${path} must carry a sandbox directive`);
+  for (const flag of sandbox) {
+    if (!/^allow-[a-z-]+$/.test(flag) || FORBIDDEN_SANDBOX_FLAG.test(flag)) {
+      throw new Error(`document policy for ${path}: sandbox flag ${JSON.stringify(flag)} is not allowed`);
+    }
+  }
+  for (const [name, sources] of directives) {
+    // frame-ancestors is the frame's own ('self', enforced above); nothing else may reach this origin by URL.
+    if (name !== "frame-ancestors" && sources.some((source) => source.toLowerCase() === "'self'")) throw new Error(`document policy for ${path} must not name 'self' (${name})`);
+  }
+  for (const name of ["default-src", "connect-src", "form-action"]) {
+    if ((directives.get(name) ?? []).join(" ") !== "'none'") throw new Error(`document policy for ${path}: ${name} must be 'none'`);
+  }
+}
+
+/**
+ * Validates a list of per-document policies (a pin's `documents`, csp.json's
+ * `documents`): safe distinct exact paths other than the entry, sandboxed
+ * policies, frame-ancestors forced to 'self' like the frame's own. Sorted by
+ * path so a pin and a bundle compare equal whatever order the bundle emits.
+ * @param {unknown} raw
+ * @returns {FrameDocumentPolicy[]}
+ */
+function normalizeDocuments(raw) {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) throw new Error("documents must be a list");
+  const seen = new Set();
+  const out = raw.map((row) => {
+    const r = /** @type {Record<string, unknown>} */ (row && typeof row === "object" ? row : {});
+    const path = r.path;
+    if (typeof path !== "string" || !DOCUMENT_PATH_RE.test(path) || path.split("/").some((segment) => /^\.+$/.test(segment))) throw new Error(`document path ${JSON.stringify(path)} is not one bundle file`);
+    if (path === "/index.html") throw new Error("index.html takes the module's own policy, not a document policy");
+    if (seen.has(path)) throw new Error(`documents lists ${path} twice`);
+    seen.add(path);
+    const value = typeof r.value === "string"
+      ? r.value
+      : r.directives && typeof r.directives === "object" ? policyFromDirectives(/** @type {Record<string, unknown>} */ (r.directives)) : "";
+    if (!value.trim()) throw new Error(`document policy for ${path} is empty`);
+    const policy = enforceFrameAncestors(value);
+    assertSandboxedDocumentPolicy(path, policy);
+    return { path, value: policy };
+  });
+  return out.sort((a, b) => (a.path < b.path ? -1 : 1));
+}
+
+/**
+ * The per-document policies of the fork's csp.json (`documents`, absent = none).
+ * @param {unknown} raw
+ * @returns {FrameDocumentPolicy[]}
+ */
+export function parseCspDocuments(raw) {
+  if (!raw || typeof raw !== "object") throw new Error("csp.json is not an object");
+  return normalizeDocuments(/** @type {Record<string, unknown>} */ (raw).documents);
+}
+
+/**
+ * @typedef {{ schema: 1, version: string, gitSha: string, entry: string, manifestSha256: string, headers: Record<string, string>, documents?: FrameDocumentPolicy[] }} FramePin
  */
 
 /**
  * The checked-in pin: which build is served, the digest of its manifest.json
  * (the manifest in turn digests every file), and the headers it must be served
- * with, so a policy change shows up in review next to the version bump.
+ * with (plus the policies of any document that has its own), so a policy
+ * change shows up in review next to the version bump.
  * @param {unknown} raw
  * @returns {FramePin}
  */
@@ -203,17 +299,19 @@ export function parsePin(raw) {
   const entry = assertSafeBundlePath(p.entry);
   if (typeof p.manifestSha256 !== "string" || !SHA256_RE.test(p.manifestSha256)) throw new Error("pin manifestSha256 is not a hex digest");
   const headers = parseCspManifest({ headers: p.headers });
-  return { schema: 1, version, gitSha: p.gitSha, entry, manifestSha256: p.manifestSha256, headers };
+  const documents = normalizeDocuments(p.documents);
+  return { schema: 1, version, gitSha: p.gitSha, entry, manifestSha256: p.manifestSha256, headers, ...(documents.length ? { documents } : {}) };
 }
 
 /**
  * @param {FrameManifest} manifest
  * @param {string} manifestSha256
  * @param {Record<string, string>} headers
+ * @param {FrameDocumentPolicy[]} [documents] the bundle's per-document policies; left out of the pin when there are none
  * @returns {FramePin}
  */
-export function buildPin(manifest, manifestSha256, headers) {
-  return { schema: 1, version: manifest.version, gitSha: manifest.gitSha, entry: manifest.entry, manifestSha256, headers };
+export function buildPin(manifest, manifestSha256, headers, documents = []) {
+  return { schema: 1, version: manifest.version, gitSha: manifest.gitSha, entry: manifest.entry, manifestSha256, headers, ...(documents.length ? { documents } : {}) };
 }
 
 /**

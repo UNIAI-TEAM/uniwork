@@ -54,7 +54,9 @@ export function readPins() {
  * header wins). Caching is split per module so the two rules never overlap:
  * files named by a content hash live below a directory (assets/…) and are
  * immutable for a year, the top-level files of a version (index.html,
- * manifest.json, csp.json) are revalidated every time.
+ * manifest.json, csp.json) are revalidated every time. A pinned document that
+ * has its own policy (`documents`, e.g. html's preview.html) gets one more
+ * rule with that policy instead of the module's.
  * @param {Record<string, import("./frame-bundle.mjs").FramePin | null>} pins
  */
 export function officeFrameHeaderRules(pins) {
@@ -66,18 +68,22 @@ export function officeFrameHeaderRules(pins) {
         { source: `${root}/:path*`, headers: securityHeaders(pins[module] ?? null) },
         { source: `${root}/:version/:file`, headers: [{ key: "Cache-Control", value: REVALIDATE }] },
         { source: `${root}/:version/:dir/:rest+`, headers: [{ key: "Cache-Control", value: IMMUTABLE }] },
+        // A document with its own policy (the html preview) comes after the module's rule, so its
+        // policy replaces the module's for that one path and every other path keeps the module's.
+        ...(pins[module]?.documents ?? []).map((doc) => ({ source: `${root}/:version${doc.path}`, headers: securityHeaders(pins[module] ?? null, doc.value) })),
       ];
     }),
   ];
 }
 
 /**
- * The pinned CSP (or the locked-down one without a pin) plus the headers the
- * host owns, which a bundle's csp.json can never override.
+ * The pinned CSP (or the locked-down one without a pin, or a document's own)
+ * plus the headers the host owns, which a bundle's csp.json can never override.
  * @param {import("./frame-bundle.mjs").FramePin | null} pin
+ * @param {string} [documentPolicy] the policy of one document that has its own
  */
-function securityHeaders(pin) {
-  const csp = enforceFrameAncestors(pin?.headers[CSP_HEADER] ?? LOCKED_DOWN_CSP);
+function securityHeaders(pin, documentPolicy) {
+  const csp = enforceFrameAncestors(documentPolicy ?? pin?.headers[CSP_HEADER] ?? LOCKED_DOWN_CSP);
   const owned = new Set([CSP_HEADER, "x-frame-options", "x-content-type-options", "referrer-policy", "cache-control"].map((n) => n.toLowerCase()));
   const extra = Object.entries(pin?.headers ?? {}).filter(([name]) => !owned.has(name.toLowerCase()));
   return [
