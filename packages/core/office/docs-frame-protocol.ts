@@ -1,13 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at 98e1d2076693b9be767382ad361a28381bfbde37
-// (fork branch feature/UNI-1014-web-modules, the lane head 98e1d20: DR1 draft recovery, the modal event,
-// SP1, H2, the AI1 capability keys and the C18a key wording in one lineage). Byte-identical except the relative import specifiers
-// (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
-// re-vendor, update this SHA.
-// A7 (UNI-1232): plus the fork lane commit f723f28 (capability `desktopOpen`, request `app.open`), applied as that commit's
-// diff ahead of the lead's re-vendor, which replaces this file wholesale.
-// A1b (UNI-1232): plus the additive request `api.assets.resolve` (fresh URLs and typed relative paths; contract
-// docs/office/office-web-modules.md "CONTRACT A1b"), ahead of the same re-vendor.
+// web/docs/protocol/types.ts at 0e384f8f20389163877f756e89be898008613d7a
+// (fork branch feature/UNI-1232-web-polish, the lane head 0e384f8: DR1 draft recovery, the modal event, SP1, H2, the AI1
+// capability keys, the C18a key wording, app.open (A7) and api.assets.resolve (A1b) in one lineage). Byte-identical except the
+// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change
+// the fork, re-vendor, update this SHA.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
 /**
  * UniWork <-> genoffice Docs frame protocol (UNI-1013, lane GO-B2+B3).
@@ -553,17 +549,6 @@ export interface ApiImageUploadResult {
   url: string
 }
 
-export interface ApiAssetsResolvePayload {
-  fileId?: string
-  /** relative paths as written in the document (1..50) */
-  paths: string[]
-}
-
-export interface ApiAssetsResolveResult {
-  /** path as sent -> URL, with the rules of `OpenPayload.assets`; a path that resolves to nothing is absent */
-  assets: Record<string, string>
-}
-
 // ---------------------------------------------------------------- event payloads
 
 export interface DirtyPayload {
@@ -652,6 +637,18 @@ export interface AppOpenResult {
   outcome: AppOpenOutcome
 }
 
+export interface ApiAssetsResolvePayload {
+  /** the open document (default: the document of the frame's token) */
+  fileId?: string
+  /** relative paths as written in the document ("assets/x.png", "./img/y.svg") (1..50) */
+  paths: string[]
+}
+
+export interface ApiAssetsResolveResult {
+  /** path as sent -> URL, with the rules of `OpenPayload.assets`; a path that resolves to nothing is absent */
+  assets: Record<string, string>
+}
+
 export interface ConvertAltChunkHtmlPayload {
   html: string
 }
@@ -716,8 +713,6 @@ export interface FrameRequests {
   'api.export': Rpc<ApiExportPayload, ApiExportResult>
   'api.attachments.add': Rpc<ApiAttachmentsAddPayload, ApiAttachmentsAddResult>
   'api.images.upload': Rpc<ApiImageUploadPayload, ApiImageUploadResult>
-  /** additive (A1b): fresh URLs for relative paths the document holds (an unsupported host: keep the URLs you have) */
-  'api.assets.resolve': Rpc<ApiAssetsResolvePayload, ApiAssetsResolveResult>
   /** UniWork file picker (desktop: native open dialog) */
   'file.pick': Rpc<FilePickPayload, FilePickResult>
   /** fetch a remote image for insertion (frame CSP blocks arbitrary origins) */
@@ -726,6 +721,12 @@ export interface FrameRequests {
   'convert.altChunkHtml': Rpc<ConvertAltChunkHtmlPayload, ConvertAltChunkHtmlResult>
   /** additive (A7): run the host's "Open in desktop app" flow; send only with the `desktopOpen` capability */
   'app.open': Rpc<AppOpenPayload, AppOpenResult>
+  /**
+   * additive (A1b, Markdown/HTML frames): fresh URLs for relative paths as written in the document
+   * (typed after the open, or the open answer's URLs about to expire). An old host answers
+   * `unsupported`; the frame keeps the URLs it has.
+   */
+  'api.assets.resolve': Rpc<ApiAssetsResolvePayload, ApiAssetsResolveResult>
 }
 
 /** Events the frame sends to the host. */
@@ -787,11 +788,11 @@ const FRAME_REQUESTS: Record<FrameRequestType, true> = {
   'api.export': true,
   'api.attachments.add': true,
   'api.images.upload': true,
-  'api.assets.resolve': true,
   'file.pick': true,
   'image.fetch': true,
   'convert.altChunkHtml': true,
   'app.open': true,
+  'api.assets.resolve': true,
 }
 const FRAME_EVENTS: Record<FrameEventType, true> = {
   ready: true,
@@ -1006,8 +1007,6 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
   'request:api.attachments.add': (x) =>
     isObj(x) && Array.isArray(x.files) && x.files.every(isUploadItem),
   'request:api.images.upload': (x) => isObj(x) && isUploadItem(x) && isOpt(x.fileId, isStr),
-  'request:api.assets.resolve': (x) =>
-    isObj(x) && isOpt(x.fileId, isStr) && Array.isArray(x.paths) && x.paths.length >= 1 && x.paths.length <= 50 && x.paths.every(isNonEmptyStr),
   'request:file.pick': (x) =>
     isObj(x) &&
     (x.purpose === 'open' || x.purpose === 'insert') &&
@@ -1015,6 +1014,13 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
   'request:image.fetch': (x) => isObj(x) && isNonEmptyStr(x.url) && /^https?:\/\//i.test(x.url),
   'request:convert.altChunkHtml': (x) => isObj(x) && isStr(x.html),
   'request:app.open': (x) => isObj(x) && isOpt(x.feature, isStr),
+  'request:api.assets.resolve': (x) =>
+    isObj(x) &&
+    isOpt(x.fileId, isStr) &&
+    Array.isArray(x.paths) &&
+    x.paths.length >= 1 &&
+    x.paths.length <= 50 &&
+    x.paths.every(isNonEmptyStr),
   // frame -> host events
   'event:ready': isReadyPayload,
   'event:dirty': (x) => isObj(x) && isBool(x.dirty),
@@ -1044,12 +1050,12 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
     Array.isArray(x.rejected) &&
     x.rejected.every(isStr),
   'response:api.images.upload': (x) => isObj(x) && isNonEmptyStr(x.imageId) && isNonEmptyStr(x.url),
-  'response:api.assets.resolve': (x) => isObj(x) && isAssetMap(x.assets),
   'response:doc.closeCheck': (x) => isObj(x) && isBool(x.dirty) && isBool(x.autoSave),
   'response:file.pick': (x) => isObj(x) && (x.file === null || isOpenPayload(x.file)),
   'response:image.fetch': (x) =>
     isObj(x) &&
     (x.image === null || (isObj(x.image) && isStr(x.image.base64) && isStr(x.image.mime))),
+  'response:api.assets.resolve': (x) => isObj(x) && isAssetMap(x.assets),
   'response:app.open': (x) =>
     isObj(x) && isStr(x.outcome) && (APP_OPEN_OUTCOMES as readonly string[]).includes(x.outcome),
   'response:convert.altChunkHtml': (x) => isObj(x) && (x.data === null || isBuffer(x.data)),

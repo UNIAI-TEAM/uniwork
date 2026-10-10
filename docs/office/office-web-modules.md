@@ -354,16 +354,17 @@ hides every AI entry, as before. The capability keys are re-vendored from the
 fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
 
 The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
-the fork lane head `98e1d20` (branch `feature/UNI-1014-web-modules`), which holds
+the fork lane head `0e384f8` (branch `feature/UNI-1232-web-polish`), which holds
 DR1 draft recovery (`InitPayload.recovery`), the `modal` event, SP1, H2, the
-AI1 capability keys and the SH4 Sheets AI in one lineage, so nothing is merged by hand any more. They
+AI1 capability keys, the SH4 Sheets AI, the A7 `app.open` request and the A1b `api.assets.resolve` request in one lineage, so nothing is merged by hand any more. They
 are byte-identical to the fork's `web/docs/protocol/{types,endpoint,host}.ts`
 except the relative import specifiers; the bodies did not change between the
 earlier `f1679cb` + AI1 `c044fa9` vendoring, `11a5eba` and `36e9e23`, only the headers.
 `36e9e23..9b5e409` changed `types.ts` in one comment (`InitRecovery.key` is persisted
 per user, C18a); `9b5e409..98e1d20` changed nothing under `web/docs/protocol/` (the `08fafd4..98e1d20`
-range only touched its README). No type,
-message or version changed. The
+range only touched its README). `98e1d20..0e384f8` added `app.open` (capability `desktopOpen`) and
+`api.assets.resolve`, which the dev copy already carried as patches; the re-vendor to `0e384f8` only moved those
+blocks into the fork's order and replaced the headers. The
 bundles in "Pinned builds" are built from the same commit.
 
 Tests: `server/internal/handler/office_frame_ai_test.go` (every route through
@@ -450,15 +451,16 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, the lane head `98e1d20`
-(`0.1.0-98e1d20` = `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
+All six modules are pinned to one fork commit, the lane head `0e384f8`
+(branch `feature/UNI-1232-web-polish`; `0.1.0-0e384f8` = `98e1d20` + the UNI-1232 web polish of the six modules
+(round 2 minors and nits, `app.open`, `api.assets.resolve`); `98e1d20` was `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
 dialog, the AI panel and failed-save wording fixes in PDF, Markdown and HTML
 (DP5 re-pin); `08fafd4` was `9b5e409` + the GO-A6 merge (UniWork documents), the
 `uniworkState` stub of every module's web API, the PDF close-save origin and the
 Sheets view-only lock kept off the frame; `9b5e409` itself was `36e9e23` + SH4
 Sheets AI, the FF1 hardening fixes and the per-platform wasm checksum; built clean:
 no `-dirty` suffix, `npm run build:web -- --all` in a detached worktree of
-`98e1d20`, not the fork lane's own checkout). The pins'
+`0e384f8`, not the fork lane's own checkout). The pins'
 headers did not change from `36e9e23`, only version, SHA and manifest digest. Written by
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
@@ -486,7 +488,7 @@ the frame, and the host refuses to pin or serve one that is not that kind.
 
 **Archive limits.** `DEFAULT_ARCHIVE_LIMITS` in `frame-install.mjs` (64 MiB
 archive, 160 MiB unpacked, 2000 entries) were sized for one Docs build. The
-six builds in one `dist-web` root measure 31.8 MiB as a `.tar.gz`, 72.4 MiB
+six builds in one `dist-web` root measure 31.9 MiB as a `.tar.gz`, 72.8 MiB
 unpacked, 644 entries (`tar -C dist-web -czf dist-web.tar.gz .`), so the
 limits hold with about 2x headroom and are unchanged; the whole tarball was
 installed through `materialize` + `loadBundle` by the sync run above. Raise
@@ -499,7 +501,7 @@ tarball (or https URL to one) of the fork's whole `dist-web` root, holding
 
 ```bash
 # in the fork checkout, at the commit the pins name
-npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (98e1d20: 31.8 MiB as a tarball)
+npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (0e384f8: 31.9 MiB as a tarball)
 tar -C dist-web -czf dist-web.tar.gz .
 # publish dist-web.tar.gz where the secret's URL points; the sync verifies it against the pins
 ```
@@ -521,7 +523,8 @@ the **linux-arm64 build made on bro** (wasm sha256 `e56985bc...27cd`, arm64
 line of the fork file). A tarball built on an x64 machine (the CI secret, if it is
 built there) holds a different Sheets wasm, so `office-frame-sync` refuses it
 against this pin: publish the secret from the bro tarball
-(`dist-web-0.1.0-98e1d20.tar.gz`), or re-pin from an x64 build and let CI use that
+(`dist-web-0.1.0-0e384f8.tar.gz`, sha256 `da523c07...1538`, next to it in the `.sha256` file; the wasm in it is the arm64
+line `e56985bc...27cd`, unchanged since `98e1d20`), or re-pin from an x64 build and let CI use that
 one; never mix the two.
 
 Open: the `e2e` job's secret to be re-published by whoever holds it from the
