@@ -8079,11 +8079,21 @@
       "loading": "Opening the document editor…",
       "frame_label": "Document editor: {{title}}",
       "retry": "Try again",
+      "slow": {
+        "title": "The editor is taking longer than usual",
+        "description": "Your document is still opening. This can happen on a slow connection.",
+        "use_standard": "Use the standard editor"
+      },
+      "fallback_notice": "The new editor could not load; you are using the standard editor.",
       "failure": {
         "unavailable": {
           "title": "The new document editor is not available",
           "description": "This UniWork server is not set up for it yet.",
           "use_standard": "Open in the standard editor"
+        },
+        "load": {
+          "title": "The editor could not load",
+          "description": "The editor files did not load, so the document could not open. Try again, or open it in the standard editor."
         },
         "network": {
           "title": "Could not connect to UniWork",
@@ -9429,6 +9439,7 @@
       "save": "Save to UniWork",
       "keep": "Keep draft on this device",
       "discard": "Discard changes",
+      "close": "Close",
       "stay": "Stay",
       "working": "Working…",
       "write_failed": "The action could not be confirmed. The document stays open.",

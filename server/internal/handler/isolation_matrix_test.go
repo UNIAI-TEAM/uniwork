@@ -558,6 +558,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{signatureID}":
 		return tn.get(t, "signature")
 	case "{aiProvider}":
+		if under("/office-frame/") {
+			return isoFrameAIProvider
+		}
 		return isoAIProvider
 	case "{launchSessionID}":
 		return tn.get(t, "launchSession")

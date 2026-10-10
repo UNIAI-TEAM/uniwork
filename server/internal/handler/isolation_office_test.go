@@ -27,6 +27,12 @@ const (
 // vocabulary, not a row, so both tenants name the same one.
 const isoAIProvider = "openai"
 
+// isoFrameAIProvider is the provider the frame AI routes name: the frame and
+// session routes reach the same personal rows, so each gets its own key, or
+// the frame route's delete control would remove the row the session route's
+// delete control expects.
+const isoFrameAIProvider = "anthropic"
+
 // isoSignaturePNG is a 1x1 PNG, base64 as the signature route takes it.
 const isoSignaturePNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 
@@ -48,6 +54,7 @@ func (w *isoWorld) buildOffice(t *testing.T, tn *isoTenant) {
 	// A personal AI provider key. The answer carries its hint only, never the
 	// key, so there is no id to keep: the row is named by the provider.
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/ai/credentials/"+isoAIProvider, tn.token, isoAICredentialPut(w, tn).json)
+	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/ai/credentials/"+isoFrameAIProvider, tn.token, isoAICredentialPut(w, tn).json)
 
 	out = w.call(t, "POST", "/api/v1/documents/"+tn.ids["fileDocument"]+"/office/sessions", tn.token, map[string]any{
 		"operation": "edit", "client_id": isoOfficeClient, "deployment_id": isoOfficeDeployment,
@@ -143,11 +150,6 @@ func isoSignaturePost(_ *isoWorld, tn *isoTenant) isoBody {
 	return isoBody{json: map[string]any{"label": tn.marker + " signature", "content_type": "image/png", "image": isoSignaturePNG}}
 }
 
-// isoAICredentialPut is the body of a personal AI provider key.
-func isoAICredentialPut(_ *isoWorld, tn *isoTenant) isoBody {
-	return isoBody{json: map[string]any{"api_key": "sk-iso-" + tn.tag + "-0123456789", "label": tn.marker + " ai key"}}
-}
-
 const isoDocxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 // isoFrameDocx is the DOCX the frame fixtures and bodies upload.
@@ -197,4 +199,9 @@ func (w *isoWorld) buildOfficeFrame(t *testing.T, tn *isoTenant) {
 // isoFrameSign asks for a signed URL of the tenant's own frame image.
 func isoFrameSign(_ *isoWorld, tn *isoTenant) isoBody {
 	return isoBody{json: map[string]any{"asset_ids": []string{tn.ids["frameAsset"]}}}
+}
+
+// isoAICredentialPut is the body of a personal AI provider key.
+func isoAICredentialPut(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"api_key": "sk-iso-" + tn.tag + "-0123456789", "label": tn.marker + " ai key"}}
 }

@@ -1,13 +1,22 @@
 import { createContext, useContext } from "react";
 
 /**
- * Set by `DocxOpenSwitch` around the Docs frame: the frame calls it when the
- * server refuses to mint its token because `office_docs_web` is off for the
+ * Set by `OfficeModuleOpenSwitch` around a module frame: the frame calls it when the
+ * server refuses to mint its token because its module's flag is off for the
  * document's organization (the answer the page's cached config has not caught
- * up with yet), so the switch can show the G3 editor instead of an error.
+ * up with yet), or - for a module with a size cap (Sheets) - because the
+ * document is too large for the frame, so the switch can show the G3 editor
+ * instead of an error.
+ *
+ * `reason: "load"` says the switch happened because the frame's own files did
+ * not load, so the G3 host explains it (inline notice) instead of changing
+ * editor without a word. No reason = a flag, a size cap or the reader's own
+ * choice, which need no explanation.
  */
-export const DocsFrameRefusalContext = createContext<(() => void) | null>(null);
+export type DocsFrameRefusal = (reason?: "load") => void;
 
-export function useDocsFrameRefusal(): (() => void) | null {
+export const DocsFrameRefusalContext = createContext<DocsFrameRefusal | null>(null);
+
+export function useDocsFrameRefusal(): DocsFrameRefusal | null {
   return useContext(DocsFrameRefusalContext);
 }

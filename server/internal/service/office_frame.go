@@ -15,8 +15,8 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// OfficeFrameService mints and checks the token of the Office Docs web frame
-// (UNI-1013). The host page mints one with its session; the frame presents it
+// OfficeFrameService mints and checks the token of the Office web frames: the
+// Docs frame (UNI-1013) and the other genoffice modules (UNI-1014/1015/1016). The host page mints one with its session; the frame presents it
 // as its only credential. A token is stateless and server-signed, and binds
 // exactly one document, its workspace and organization, and the user. It
 // grants nothing by itself: every request it carries is re-authorized through
@@ -38,7 +38,6 @@ const OfficeFrameTokenTTL = 10 * time.Minute
 const (
 	officeFrameTokenPrefix = "oft1."
 	officeFrameAssetPrefix = "ofa1."
-	officeFrameDocxMime    = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
 
 // ErrOfficeFrameToken is every invalid, expired or foreign frame credential;
@@ -54,6 +53,18 @@ type OfficeFrameClaims struct {
 	UserID         string `json:"u"`
 	ExpiresAt      int64  `json:"e"`
 	Nonce          string `json:"n"`
+	// Module is the genoffice web module the token opens, derived from the
+	// document's stored format at mint. Empty is docs: a Docs token carries no
+	// m, so tokens minted before modules existed stay valid and mean docs.
+	Module string `json:"m,omitempty"`
+}
+
+// ModuleName is the token's module, with the absent claim read as docs.
+func (c OfficeFrameClaims) ModuleName() string {
+	if c.Module == "" {
+		return OfficeFrameModuleDocs
+	}
+	return c.Module
 }
 
 // OfficeFrameToken is a minted token with what the host needs to hand over.
@@ -69,6 +80,7 @@ type OfficeFrameDocument struct {
 	Document db.Document
 	Access   DocumentAccess
 	File     DocumentFileInfo
+	Module   string
 }
 
 // OfficeFrameAssetURL is one signed image URL.
@@ -85,6 +97,9 @@ type officeFrameAssetClaims struct {
 	OrganizationID string `json:"o"`
 	UserID         string `json:"u"`
 	ExpiresAt      int64  `json:"e"`
+	// Module is the token's m, carried over so the byte route checks the flag
+	// of the module the URL was signed for; empty is docs, as on a token.
+	Module string `json:"m,omitempty"`
 }
 
 // NewOfficeFrameService derives its signing key from secret (the JWT secret)
@@ -114,8 +129,8 @@ func (s *OfficeFrameService) SetTTL(ttl time.Duration) {
 	}
 }
 
-// Mint checks that actor may view documentID, that it is a live DOCX file
-// document, and signs a token for it. The caller cannot choose the lifetime
+// Mint checks that actor may view documentID, that it is a live file document
+// one of the web modules opens, and signs a token for it bound to that module. The caller cannot choose the lifetime
 // or any bound id.
 func (s *OfficeFrameService) Mint(ctx context.Context, actor Actor, documentID string) (OfficeFrameToken, error) {
 	if s == nil || actor.Kind != "human" || actor.ID == "" {
@@ -124,6 +139,17 @@ func (s *OfficeFrameService) Mint(ctx context.Context, actor Actor, documentID s
 	d, err := s.load(ctx, actor, documentID)
 	if err != nil {
 		return OfficeFrameToken{}, err
+	}
+	// After the ACL check, so a non-member still learns nothing about the file.
+	// The refusal still names the module (no token is signed), so the handler
+	// can answer the module's flag before the size.
+	if limit := officeFrameModuleMaxBytes(d.Module); limit > 0 && d.File.SizeBytes > limit {
+		refused := OfficeFrameClaims{Version: 1, DocumentID: d.Document.ID, WorkspaceID: d.Document.WorkspaceID,
+			OrganizationID: d.Document.OrganizationID, UserID: actor.ID}
+		if d.Module != OfficeFrameModuleDocs {
+			refused.Module = d.Module
+		}
+		return OfficeFrameToken{Claims: refused}, ErrOfficeFrameTooLarge
 	}
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
@@ -134,6 +160,9 @@ func (s *OfficeFrameService) Mint(ctx context.Context, actor Actor, documentID s
 		Version: 1, DocumentID: d.Document.ID, WorkspaceID: d.Document.WorkspaceID,
 		OrganizationID: d.Document.OrganizationID, UserID: actor.ID,
 		ExpiresAt: expires.UnixMilli(), Nonce: base64.RawURLEncoding.EncodeToString(nonce),
+	}
+	if d.Module != OfficeFrameModuleDocs {
+		claims.Module = d.Module
 	}
 	token, err := s.sign(officeFrameTokenPrefix, claims)
 	if err != nil {
@@ -152,6 +181,13 @@ func (s *OfficeFrameService) Verify(token string) (OfficeFrameClaims, error) {
 	if claims.Version != 1 || claims.DocumentID == "" || claims.WorkspaceID == "" || claims.OrganizationID == "" || claims.UserID == "" || claims.ExpiresAt <= s.now().UnixMilli() {
 		return OfficeFrameClaims{}, ErrOfficeFrameToken
 	}
+	if claims.Module == OfficeFrameModuleDocs {
+		// Mint never writes m for docs: one spelling per token.
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	if _, ok := OfficeFrameModuleFlag(claims.ModuleName()); !ok {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
 	return claims, nil
 }
 
@@ -166,21 +202,22 @@ func (s *OfficeFrameService) Open(ctx context.Context, claims OfficeFrameClaims)
 }
 
 // Authorize rechecks that the token's user may still view its document and
-// that the document is still the DOCX in the workspace the token names; a
-// document moved to another workspace is refused like a missing one.
+// that the document is still in the workspace the token names and still of the
+// token's module; a document moved to another workspace, or whose current
+// version is now another format, is refused like a missing one.
 func (s *OfficeFrameService) Authorize(ctx context.Context, claims OfficeFrameClaims) (OfficeFrameDocument, error) {
 	d, err := s.load(ctx, Human(claims.UserID), claims.DocumentID)
 	if err != nil {
 		return OfficeFrameDocument{}, err
 	}
-	if d.Document.WorkspaceID != claims.WorkspaceID || d.Document.OrganizationID != claims.OrganizationID {
+	if d.Document.WorkspaceID != claims.WorkspaceID || d.Document.OrganizationID != claims.OrganizationID || d.Module != claims.ModuleName() {
 		return OfficeFrameDocument{}, ErrNotFound
 	}
 	return d, nil
 }
 
-// load authorizes view and keeps only live DOCX file documents: the frame is
-// the genoffice Docs editor and opens nothing else.
+// load authorizes view and keeps only live file documents a web module
+// opens; the module comes from the stored file, never from the caller.
 func (s *OfficeFrameService) load(ctx context.Context, actor Actor, documentID string) (OfficeFrameDocument, error) {
 	doc, access, err := s.documents.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
 	if err != nil {
@@ -193,15 +230,14 @@ func (s *OfficeFrameService) load(ctx context.Context, actor Actor, documentID s
 	if err != nil {
 		return OfficeFrameDocument{}, err
 	}
-	if file == nil || !officeFrameIsDocx(file.MimeType, file.Filename) {
+	if file == nil {
 		return OfficeFrameDocument{}, ErrNotFound
 	}
-	return OfficeFrameDocument{Document: doc, Access: access, File: *file}, nil
-}
-
-func officeFrameIsDocx(mime, filename string) bool {
-	base, _, _ := strings.Cut(strings.ToLower(mime), ";")
-	return strings.TrimSpace(base) == officeFrameDocxMime || strings.HasSuffix(strings.ToLower(filename), ".docx")
+	module, ok := officeFrameModuleOf(file.MimeType, file.Filename)
+	if !ok {
+		return OfficeFrameDocument{}, ErrNotFound
+	}
+	return OfficeFrameDocument{Document: doc, Access: access, File: *file, Module: module}, nil
 }
 
 // SignAsset returns a URL for one image of the token's document that an <img>
@@ -212,6 +248,7 @@ func (s *OfficeFrameService) SignAsset(claims OfficeFrameClaims, assetID string)
 	sig, err := s.sign(officeFrameAssetPrefix, officeFrameAssetClaims{
 		DocumentID: claims.DocumentID, AssetID: assetID, WorkspaceID: claims.WorkspaceID,
 		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: expires.UnixMilli(),
+		Module: claims.Module,
 	})
 	if err != nil {
 		return OfficeFrameAssetURL{}, err
@@ -234,8 +271,16 @@ func (s *OfficeFrameService) VerifyAsset(sig, documentID, assetID string) (Offic
 	if claims.DocumentID != documentID || claims.AssetID != assetID || claims.UserID == "" || claims.ExpiresAt <= s.now().UnixMilli() {
 		return OfficeFrameClaims{}, ErrOfficeFrameToken
 	}
-	return OfficeFrameClaims{Version: 1, DocumentID: claims.DocumentID, WorkspaceID: claims.WorkspaceID,
-		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: claims.ExpiresAt}, nil
+	// The same module rules as Verify: one spelling for docs, no unknown module.
+	if claims.Module == OfficeFrameModuleDocs {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	out := OfficeFrameClaims{Version: 1, DocumentID: claims.DocumentID, WorkspaceID: claims.WorkspaceID,
+		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: claims.ExpiresAt, Module: claims.Module}
+	if _, ok := OfficeFrameModuleFlag(out.ModuleName()); !ok {
+		return OfficeFrameClaims{}, ErrOfficeFrameToken
+	}
+	return out, nil
 }
 
 // SignAssets signs URLs for assets that belong to the token's document, after
@@ -259,9 +304,10 @@ func (s *OfficeFrameService) SignAssets(ctx context.Context, claims OfficeFrameC
 	return out, nil
 }
 
-// Recents lists the user's recently opened or edited DOCX file documents in
-// the token's workspace. It reuses the Documents recent list (the same ACL
-// filter) and keeps only what the frame can open, judged as load judges it:
+// Recents lists the user's recently opened or edited file documents of the
+// token's module in its workspace. It reuses the Documents recent list (the
+// same ACL filter) and keeps only what the frame can open, judged as load
+// judges it:
 // the current version's mime type or its stored file name. The current
 // versions come in one query and the file names in one batch resolve.
 func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClaims, limit int) ([]db.Document, error) {
@@ -311,7 +357,7 @@ func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClai
 		if n := names[files.FileID(v.FileID.String)]; n != "" {
 			name = n
 		}
-		if !officeFrameIsDocx(v.MimeType.String, name) {
+		if m, ok := officeFrameModuleOf(v.MimeType.String, name); !ok || m != claims.ModuleName() {
 			continue
 		}
 		out = append(out, doc)

@@ -57,11 +57,17 @@ describe("LeaveDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it("names the corner close button Close, so Stay is announced once", () => {
+    render(<LeaveDialog open onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} />);
+    expect(screen.getAllByRole("button", { name: "Stay" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
+
   it("closes on Stay without running a write", () => {
     const onOpenChange = vi.fn();
     const onSave = vi.fn(async () => true);
     render(<LeaveDialog open onOpenChange={onOpenChange} onSave={onSave} onKeepDraft={async () => true} onDiscard={async () => true} />);
-    fireEvent.click(screen.getAllByRole("button", { name: "Stay" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Stay" }));
     expect(onSave).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

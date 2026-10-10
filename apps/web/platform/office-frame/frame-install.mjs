@@ -1,10 +1,11 @@
 /* global fetch, Buffer, AbortSignal, console */
-// Install side of the Docs web frame bundle (UNI-1013): locate, verify and copy
-// a fork build into public/. Used by scripts/office-frame-sync.mjs.
+// Install side of the genoffice web frame bundles (UNI-1013 docs, UNI-1014
+// modules): locate, verify and copy a fork build into public/. Used by
+// scripts/office-frame-sync.mjs.
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { assertMatchesPin, assertSafeVersion, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
+import { assertMatchesPin, assertModule, assertSafeVersion, parseCspDocuments, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
 
 /** Finds the directory holding manifest.json: the source itself, or its only child. */
 export function locateBundleDir(source) {
@@ -15,6 +16,32 @@ export function locateBundleDir(source) {
   throw new Error(`no manifest.json in ${source} (${holders.length} candidate version directories)`);
 }
 
+/** The module a version directory's manifest names (absent = docs). */
+function manifestModule(dir) {
+  return parseManifest(JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"))).module;
+}
+
+/**
+ * Finds one module's version directory in a source, or null when the source
+ * has no build of that module. Accepted layouts: a dist-web root holding
+ * `<module>/<version>/` directories (the fork's `build:web:all`); one module's
+ * directory holding its version (the docs-only `dist-web/docs` of UNI-1013);
+ * or a version directory itself. In the last two the manifest's module decides.
+ */
+export function locateModuleBundle(source, module) {
+  assertModule(module);
+  if (existsSync(join(source, "manifest.json"))) return manifestModule(source) === module ? source : null;
+  const own = join(source, module);
+  if (existsSync(own) && statSync(own).isDirectory()) return locateBundleDir(own);
+  const versions = readdirSync(source, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(join(source, e.name, "manifest.json")))
+    .map((e) => join(source, e.name));
+  if (versions.length === 0) return null;
+  const matching = versions.filter((dir) => manifestModule(dir) === module);
+  if (matching.length > 1) throw new Error(`${source} holds ${matching.length} ${module} versions; point the source at one`);
+  return matching[0] ?? null;
+}
+
 /** Reads and checks a bundle directory against its own manifest. Returns what the install needs. */
 export function loadBundle(dir, { allowDirty = false } = {}) {
   const manifestBytes = readFileSync(join(dir, "manifest.json"));
@@ -22,13 +49,20 @@ export function loadBundle(dir, { allowDirty = false } = {}) {
   if (manifest.dirty && !allowDirty) {
     throw new Error(`${manifest.version} was built from a dirty fork checkout and cannot be reproduced; build from a clean commit (or pass --allow-dirty for a local run, never commit that pin)`);
   }
-  const headers = parseCspManifest(JSON.parse(readFileSync(join(dir, "csp.json"), "utf8")));
+  const csp = JSON.parse(readFileSync(join(dir, "csp.json"), "utf8"));
+  const headers = parseCspManifest(csp);
+  const documents = parseCspDocuments(csp);
+  // A policy for a file the build does not hold would be served for nothing; refuse it.
+  const listed = new Set(manifest.files.map((f) => f.path));
+  for (const doc of documents) {
+    if (!listed.has(doc.path.slice(1))) throw new Error(`csp.json gives ${doc.path} its own policy but the manifest does not list it`);
+  }
   for (const file of manifest.files) {
     const bytes = readFileSync(join(dir, file.path));
     if (bytes.length !== file.bytes) throw new Error(`${file.path}: ${bytes.length} bytes, manifest says ${file.bytes}`);
     if (sha256Hex(bytes) !== file.sha256) throw new Error(`${file.path}: sha256 differs from the manifest`);
   }
-  return { manifest, headers, manifestSha256: sha256Hex(manifestBytes) };
+  return { manifest, headers, documents, manifestSha256: sha256Hex(manifestBytes) };
 }
 
 /**
@@ -89,6 +123,11 @@ async function download(url, target, limits) {
   writeFileSync(target, Buffer.concat(chunks));
 }
 
+/**
+ * The source as a local directory: an archive (or an https URL to one) is
+ * checked and unpacked into scratch; a directory is used as it is. The result
+ * is the source root, which `locateModuleBundle` searches per module.
+ */
 export async function materialize(source, scratch, limits = DEFAULT_ARCHIVE_LIMITS) {
   if (/^https:\/\//.test(source) || source.endsWith(".tar.gz") || source.endsWith(".tgz")) {
     let archive = resolve(source);
@@ -100,9 +139,9 @@ export async function materialize(source, scratch, limits = DEFAULT_ARCHIVE_LIMI
     const out = join(scratch, "unpacked");
     mkdirSync(out);
     execFileSync("tar", ["-xzf", archive, "-C", out], { stdio: "inherit", timeout: limits.timeoutMs });
-    return locateBundleDir(out);
+    return out;
   }
-  return locateBundleDir(resolve(source));
+  return resolve(source);
 }
 
 /** Copies the verified files into public/, replacing any older version directories. */
@@ -123,10 +162,16 @@ export function install(dir, bundle, root) {
   return target;
 }
 
-/** The pin carries the headers the frame is served with; the bundle's csp.json must still agree. */
-export function assertHeadersMatchPin(pin, headers) {
+/**
+ * The pin carries the headers the frame is served with, and the policies of
+ * the documents that have their own; the bundle's csp.json must still agree.
+ */
+export function assertHeadersMatchPin(pin, headers, documents = []) {
   if (JSON.stringify(pin.headers) !== JSON.stringify(headers)) {
     throw new Error("csp.json differs from the pinned headers; re-pin deliberately with --pin");
+  }
+  if (JSON.stringify(pin.documents ?? []) !== JSON.stringify(documents)) {
+    throw new Error("csp.json differs from the pinned document policies; re-pin deliberately with --pin");
   }
 }
 
@@ -136,7 +181,7 @@ export function checkInstalled(pin, root) {
   if (!existsSync(join(dir, "manifest.json"))) return false;
   const bundle = loadBundle(dir, { allowDirty: true });
   assertMatchesPin(pin, bundle.manifest, bundle.manifestSha256);
-  assertHeadersMatchPin(pin, bundle.headers);
+  assertHeadersMatchPin(pin, bundle.headers, bundle.documents);
   return true;
 }
 
@@ -152,7 +197,7 @@ export function offerableFrameVersion(pin, root) {
   try {
     return checkInstalled(pin, root) ? pin.version : "";
   } catch (error) {
-    console.warn(`office-frame: ${pin.version} is installed but does not verify (${error.message}); the Docs frame is not offered`);
+    console.warn(`office-frame: ${pin.version} is installed but does not verify (${error.message}); this frame is not offered`);
     return "";
   }
 }

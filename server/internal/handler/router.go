@@ -145,6 +145,7 @@ func New(d Deps) http.Handler {
 	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	aiMount := h.aiMountable(sessionAIActor)
+	frameAI := h.aiMountable(h.frameAIActor)
 	return rt.New(rt.Deps{
 		Cfg:           d.Cfg,
 		Minter:        d.Minter,
@@ -633,6 +634,19 @@ func New(d Deps) http.Handler {
 		GetOfficeFrameAsset:      h.getOfficeFrameAsset,
 		ExportOfficeFramePDF:     h.exportOfficeFramePDF,
 
+		OfficeFrameAiCredentialsList:     frameAI.CredentialsList,
+		OfficeFrameAiCredentialSave:      frameAI.CredentialSave,
+		OfficeFrameAiCredentialDelete:    frameAI.CredentialDelete,
+		OfficeFrameAiByokChatCompletions: frameAI.ByokChatCompletions,
+		OfficeFrameAiByokMessages:        frameAI.ByokMessages,
+		OfficeFrameAiByokGenerate:        frameAI.ByokGenerate,
+		OfficeFrameAiByokModels:          frameAI.ByokModels,
+		OfficeFrameAiCloudStatus:         frameAI.CloudStatus,
+		OfficeFrameAiCloudSearch:         frameAI.CloudSearch,
+		OfficeFrameAiCloudImages:         frameAI.CloudImages,
+		OfficeFrameAiCloudAnalyzeMedia:   frameAI.CloudAnalyzeMedia,
+		OfficeFrameAiCloudTranscribe:     frameAI.CloudTranscribe,
+
 		ListDocumentComments:          h.listDocumentComments,
 		CreateDocumentComment:         h.createDocumentComment,
 		UpdateDocumentComment:         h.updateDocumentComment,
@@ -648,9 +662,9 @@ func New(d Deps) http.Handler {
 		ListSavedSignatures:  h.listSavedSignatures,
 		CreateSavedSignature: h.createSavedSignature,
 		DeleteSavedSignature: h.deleteSavedSignature,
-		ListAICredentials:    h.listAICredentials,
-		SaveAICredential:     h.saveAICredential,
-		DeleteAICredential:   h.deleteAICredential,
+		ListAICredentials:    aiMount.CredentialsList,
+		SaveAICredential:     aiMount.CredentialSave,
+		DeleteAICredential:   aiMount.CredentialDelete,
 
 		ListDocuments:          h.listDocuments,
 		ListRecentDocuments:    h.listRecentDocuments,

@@ -1,8 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at 86877508786f5304edf73784a9900427db7ada0f
-// (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
-// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
-// ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
+// web/docs/protocol/types.ts at 98e1d2076693b9be767382ad361a28381bfbde37
+// (fork branch feature/UNI-1014-web-modules, the lane head 98e1d20: DR1 draft recovery, the modal event,
+// SP1, H2, the AI1 capability keys and the C18a key wording in one lineage). Byte-identical except the relative import specifiers
+// (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
+// re-vendor, update this SHA.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
 /**
  * UniWork <-> genoffice Docs frame protocol (UNI-1013, lane GO-B2+B3).
@@ -195,6 +196,52 @@ export function toProtocolError(err: unknown): DocsProtocolError {
 
 export type Theme = 'light' | 'dark'
 
+/**
+ * Which genoffice editor a frame bundle is (lane GO-B4/B5/B6, additive). One protocol serves every
+ * module; `ready.module` says what the frame is and `init.module` what the host opens in it. Absent
+ * on either side means 'docs' (frames and hosts from before the field existed).
+ */
+export type OfficeModule = 'docs' | 'pdf' | 'markdown' | 'html' | 'slides' | 'sheets'
+
+export const OFFICE_MODULES: readonly OfficeModule[] = [
+  'docs',
+  'pdf',
+  'markdown',
+  'html',
+  'slides',
+  'sheets',
+]
+
+/** absent = 'docs' */
+export const DEFAULT_OFFICE_MODULE: OfficeModule = 'docs'
+
+export function isOfficeModule(x: unknown): x is OfficeModule {
+  return typeof x === 'string' && (OFFICE_MODULES as readonly string[]).includes(x)
+}
+
+/** the module a `ready` / `init` payload names (absent = 'docs') */
+export function moduleOf(payload: { module?: OfficeModule } | null | undefined): OfficeModule {
+  return payload?.module ?? DEFAULT_OFFICE_MODULE
+}
+
+/**
+ * Host-side check before `init`: does the frame that said `ready` run the editor for the
+ * document's module? Returns the `malformed` error to fail the handshake with, or null when they
+ * match. (A docs document never opens in the PDF frame, whatever URL the frame was loaded from.)
+ */
+export function checkFrameModule(
+  ready: { module?: OfficeModule },
+  expected: OfficeModule,
+): DocsProtocolError | null {
+  const frame = moduleOf(ready)
+  if (frame === expected) return null
+  return new DocsProtocolError({
+    code: 'malformed',
+    message: `frame module "${frame}" cannot open a "${expected}" document`,
+    details: { frameModule: frame, expectedModule: expected },
+  })
+}
+
 /** Feature switches the host grants the frame. Unknown keys must be ignored. */
 export type Capability =
   | 'save'
@@ -207,8 +254,18 @@ export type Capability =
   | 'exportHtml'
   | 'attachments'
   | 'images'
-  /** stays false on the web in this lane (AI/search/image stubbed + hidden) */
+  /**
+   * AI panels (GO-A7 web AI contract, CONTRACT C16): the frame calls the frame-token AI routes
+   * itself (/office-frame/documents/{id}/ai/...). Grant it only when the org entitlement and those
+   * routes are live; without it every AI entry stays hidden.
+   */
   | 'ai'
+  /** additive (C16): UniWork cloud web search for the AI tools; effective only together with `ai` */
+  | 'webSearch'
+  /** additive (C16): UniWork cloud image search for the AI tools; effective only together with `ai` */
+  | 'imageSearch'
+  /** additive (C16): UniWork cloud image generation (and media analysis); effective only with `ai` */
+  | 'imageGeneration'
 
 export type Capabilities = Partial<Record<Capability, boolean>>
 
@@ -223,6 +280,9 @@ export const CAPABILITY_KEYS: readonly Capability[] = [
   'attachments',
   'images',
   'ai',
+  'webSearch',
+  'imageSearch',
+  'imageGeneration',
 ]
 
 /**
@@ -281,6 +341,8 @@ export interface ReadyPayload {
    * and the host restarts the handshake.
    */
   instanceId?: string
+  /** the editor this bundle runs (additive, GO-B4/B5/B6); absent = 'docs' */
+  module?: OfficeModule
 }
 
 export interface InitPayload extends TokenPayload {
@@ -296,6 +358,39 @@ export interface InitPayload extends TokenPayload {
   capabilities: Capabilities
   /** optional: open this immediately (saves a round-trip vs. a later `open`) */
   open?: OpenPayload
+  /**
+   * the document's module (additive, GO-B4/B5/B6); absent = 'docs'. A frame running another
+   * module refuses the `init` with `malformed`.
+   */
+  module?: OfficeModule
+  /**
+   * the signed-in user as editors show them (additive, GO-B4: PDF note author, comment author).
+   * Display data only, never an identity the frame may authorise with.
+   */
+  user?: InitUser
+  /**
+   * web draft recovery (additive, CONTRACT C18). Absent = recovery off (the frame shows nothing).
+   */
+  recovery?: InitRecovery
+}
+
+/**
+ * The host's draft-recovery grant: the frame encrypts its local IndexedDB draft copies
+ * ("uniwork-office-frame-drafts") with `key` and keys them by `scope`.
+ */
+export interface InitRecovery {
+  /**
+   * AES-GCM 256, generated by the host with extractable=false and persisted per user in the
+   * frame-drafts IndexedDB ("keys" store, C18a), passed by structured clone (again in a later
+   * init after a reload)
+   */
+  key: CryptoKey
+  /** "<userId>:<documentId>", opaque to the frame */
+  scope: string
+}
+
+export interface InitUser {
+  displayName: string
 }
 
 export interface InitAck {
@@ -310,6 +405,12 @@ export interface InitAck {
 export interface OpenPayload {
   file: FileMeta
   source: FileSource
+  /**
+   * relative resource path (as written in the document, e.g. "assets/x.png") -> URL the frame may
+   * load it from (additive, GO-B4: Markdown/HTML documents with relative images). Same rules as
+   * `FileSource {kind:'url'}`: same-origin with the frame (CSP), fetched with credentials: 'omit'.
+   */
+  assets?: Record<string, string>
 }
 
 export interface OpenResult {
@@ -743,8 +844,25 @@ export function isFileSource(x: unknown): x is FileSource {
   return x.kind === 'bytes' && isBuffer(x.data)
 }
 
+function isAssetMap(x: unknown): x is Record<string, string> {
+  return isObj(x) && Object.entries(x).every(([k, v]) => k.length > 0 && isNonEmptyStr(v))
+}
+
 export function isOpenPayload(x: unknown): x is OpenPayload {
-  return isObj(x) && isFileMeta(x.file) && isFileSource(x.source)
+  return isObj(x) && isFileMeta(x.file) && isFileSource(x.source) && isOpt(x.assets, isAssetMap)
+}
+
+function isInitUser(x: unknown): x is InitUser {
+  return isObj(x) && isStr(x.displayName)
+}
+
+export function isInitRecovery(x: unknown): x is InitRecovery {
+  return (
+    isObj(x) &&
+    typeof CryptoKey !== 'undefined' &&
+    x.key instanceof CryptoKey &&
+    isNonEmptyStr(x.scope)
+  )
 }
 
 export function isReadyPayload(x: unknown): x is ReadyPayload {
@@ -753,7 +871,8 @@ export function isReadyPayload(x: unknown): x is ReadyPayload {
     isFiniteNum(x.protocolVersion) &&
     isOpt(x.frameVersion, isStr) &&
     isCapabilities(x.capabilities) &&
-    isOpt(x.instanceId, isStr)
+    isOpt(x.instanceId, isStr) &&
+    isOpt(x.module, isOfficeModule)
   )
 }
 
@@ -769,7 +888,10 @@ export function isInitPayload(x: unknown): x is InitPayload {
     isNonEmptyStr(x.locale) &&
     isTheme(x.theme) &&
     isCapabilities(x.capabilities) &&
-    isOpt(x.open, isOpenPayload)
+    isOpt(x.open, isOpenPayload) &&
+    isOpt(x.module, isOfficeModule) &&
+    isOpt(x.user, isInitUser) &&
+    isOpt(x.recovery, isInitRecovery)
   )
 }
 

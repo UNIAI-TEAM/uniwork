@@ -73,6 +73,7 @@ func (w *officeWorld) mintFrameToken(t *testing.T, documentID string) map[string
 	return out
 }
 
+// The flag is on by default (CONTRACT C14); an organization override turns it off.
 func TestOfficeFrameTokenNeedsTheFlag(t *testing.T) {
 	w := newOfficeWorld(t, true)
 	// The flag defaults on (UNI-1013); an organization override turns it off.
@@ -101,9 +102,16 @@ func TestOfficeFrameOpenSaveConflictReopen(t *testing.T) {
 		t.Fatalf("expires_in = %v, want ~600", minted["expires_in"])
 	}
 
-	// Only DOCX file documents get a frame; a non-member gets the same 404.
-	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+markdownID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
+	// A markdown file is another module's document: its own flag (switched
+	// off here for the organization) decides. A format with no web module gets
+	// no frame; a non-member gets the same 404.
+	setOfficeFrameFlagFor(t, w.q, "office_markdown_web", w.orgID, false)
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+markdownID+"/office/frame-token", w.token, nil); res.StatusCode != 403 {
 		t.Fatalf("markdown mint = %d %v", res.StatusCode, out)
+	}
+	textID := w.createDocx(t, "notes.txt", []byte("plain text\n"))
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+textID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
+		t.Fatalf("text mint = %d %v", res.StatusCode, out)
 	}
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/frame-token", w.outsiderToken(t), nil); res.StatusCode != 404 {
 		t.Fatalf("outsider mint = %d %v", res.StatusCode, out)
@@ -146,7 +154,7 @@ func TestOfficeFrameOpenSaveConflictReopen(t *testing.T) {
 	_ = json.Unmarshal(raw, &up)
 	res, saved := doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", token, map[string]string{"Idempotency-Key": "frame-save-1"},
 		map[string]string{"upload_id": up.UploadID, "base_revision": revision})
-	if res.StatusCode != 200 || saved["revision"] == revision || saved["download_url"] != base+"/content?version=2" {
+	if res.StatusCode != 200 || saved["revision"] == revision || saved["download_url"] != base+"/content?version=2" || saved["module"] != "docs" {
 		t.Fatalf("commit = %d %v", res.StatusCode, saved)
 	}
 
@@ -313,13 +321,14 @@ func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
 		t.Fatalf("save under the org override = %d", code)
 	}
 
-	// Another organization, same server, with the override off: closed.
+	// Another organization, same server, its override off: closed.
 	other := w.outsiderToken(t)
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/orgs", other, map[string]string{"name": "Other Org", "slug": "other-org"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create other org: %d %v", res.StatusCode, out)
 	}
 	otherOrg := out["organization"].(map[string]any)["id"].(string)
+	setOfficeDocsWebFor(t, w.q, otherOrg, false)
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/orgs/"+otherOrg+"/workspaces", other, map[string]string{"name": "Other WS", "slug": "other-ws"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create other ws: %d %v", res.StatusCode, out)

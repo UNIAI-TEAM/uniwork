@@ -75,6 +75,7 @@ catalog:
   vitest: "^4.1.0"
   "@vitest/coverage-v8": "^4.1.0"
   jsdom: "26.1.0"
+  fake-indexeddb: "6.2.5"
   "@vitejs/plugin-react": "^6.0.1"
   "@testing-library/react": "^16.3.2"
   "@testing-library/jest-dom": "^6.9.1"

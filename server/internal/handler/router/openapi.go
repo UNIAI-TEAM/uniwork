@@ -412,6 +412,11 @@ func pathParamSDI(path string) any {
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 		}{}
+	case "documentID,aiProvider":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu của token khung" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			AIProvider string `path:"aiProvider" description:"Mã nhà cung cấp AI (openai, anthropic, gemini, custom, …)" example:"openai"`
+		}{}
 	case "documentID,versionNo":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`

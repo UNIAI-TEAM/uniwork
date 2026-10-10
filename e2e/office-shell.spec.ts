@@ -5,6 +5,7 @@ import { basename, resolve } from "node:path";
 import { createRecordingAccount } from "./meeting-recording-fixture";
 import { VI_LOCALE_STATE } from "./locale-state";
 import { e2eApiUrl, e2eBaseUrl } from "./api-url";
+import { setFlag } from "./office-docs-web-fixtures";
 
 /**
  * Shell browser contract over the bound DOCX host. The format lanes own the
@@ -147,6 +148,10 @@ test.beforeAll(async ({ browser }) => {
     ? { documentUrl: suppliedDocumentUrl, flagOffUrl: suppliedFlagOffUrl ?? suppliedDocumentUrl, email: "", organizationId: null }
     : await seedOfficeFixture(browser);
   await setOfficeFlag(true, officeFixture.organizationId);
+  // This contract is about the G3 DOCX host. office_docs_web is on by default
+  // (CONTRACT C14), so a build with the Docs frame installed would open the
+  // frame instead: switch it off for the seeded organization.
+  if (officeFixture.organizationId) await setFlag("office_docs_web", officeFixture.organizationId, false);
 });
 
 test.beforeEach(async ({ page }) => {

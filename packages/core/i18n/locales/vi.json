@@ -8074,11 +8074,21 @@
       "loading": "Đang mở trình soạn thảo tài liệu…",
       "frame_label": "Trình soạn thảo tài liệu: {{title}}",
       "retry": "Thử lại",
+      "slow": {
+        "title": "Trình soạn thảo đang mở lâu hơn bình thường",
+        "description": "Tài liệu vẫn đang được mở. Điều này có thể xảy ra khi kết nối chậm.",
+        "use_standard": "Dùng trình soạn thảo tiêu chuẩn"
+      },
+      "fallback_notice": "Không tải được trình soạn thảo mới; bạn đang dùng trình soạn thảo tiêu chuẩn.",
       "failure": {
         "unavailable": {
           "title": "Chưa dùng được trình soạn thảo tài liệu mới",
           "description": "Máy chủ UniWork này chưa được thiết lập cho trình soạn thảo mới.",
           "use_standard": "Mở bằng trình soạn thảo tiêu chuẩn"
+        },
+        "load": {
+          "title": "Không tải được trình soạn thảo",
+          "description": "Các tệp của trình soạn thảo không tải được nên chưa mở được tài liệu. Hãy thử lại hoặc mở bằng trình soạn thảo tiêu chuẩn."
         },
         "network": {
           "title": "Không kết nối được tới UniWork",
@@ -9423,6 +9433,7 @@
       "save": "Lưu lên UniWork",
       "keep": "Giữ nháp trên thiết bị",
       "discard": "Bỏ thay đổi",
+      "close": "Đóng",
       "stay": "Ở lại",
       "working": "Đang xử lý…",
       "write_failed": "Không thể xác nhận thao tác. Tài liệu vẫn mở.",

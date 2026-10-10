@@ -68,9 +68,18 @@ export function useOfficeEnabled(organizationId: string | undefined, format: str
  * and states as `useOfficeEnabled`: only a settled `on` mounts the frame.
  */
 export function useOfficeDocsWebEnabled(organizationId: string | undefined): OfficeEnabledState {
-  const global = useFlag(OFFICE_DOCS_WEB_FLAG, true);
+  return useOfficeWebFlagEnabled(OFFICE_DOCS_WEB_FLAG, organizationId);
+}
+
+/**
+ * The same answer for any genoffice web module's flag (`office_pdf_web`,
+ * `office_slides_web`, …; UNI-1014/1015/1016): default on like Docs (CONTRACT C14), an explicit
+ * override of false turns it off, an absent key reads on.
+ */
+export function useOfficeWebFlagEnabled(flag: string, organizationId: string | undefined): OfficeEnabledState {
+  const global = useFlag(flag, true);
   const scoped = useOrganizationOfficeConfig(organizationId);
   if (!organizationId) return global ? "on" : "off";
-  if (scoped.data) return scoped.data.flags[OFFICE_DOCS_WEB_FLAG] !== false ? "on" : "off";
+  if (scoped.data) return scoped.data.flags[flag] !== false ? "on" : "off";
   return scoped.isError ? "unknown" : "loading";
 }

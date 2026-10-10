@@ -12,6 +12,10 @@ type OfficeFrameTokenSDO struct {
 	WorkspaceID    string `json:"workspace_id" description:"ULID workspace của tài liệu" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	OrganizationID string `json:"organization_id" description:"ULID tổ chức của tài liệu" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	CanEdit        bool   `json:"can_edit" description:"Người dùng có quyền sửa (save/asset) lúc cấp; server vẫn kiểm lại mỗi request" example:"true"`
+	Module         string `json:"module" description:"Module web genoffice mở tài liệu, suy từ định dạng tệp đã lưu: docs, pdf, markdown, html, slides, sheets" example:"docs"`
+	// AI is the AI grant for this document's organization; all false when the
+	// plan or the server has no web AI.
+	AI OfficeFrameAIGrantSDO `json:"ai" description:"Quyền AI host được cấp cho khung (ai, web_search, image_search, image_generation)"`
 }
 
 // OfficeFrameDocumentSDO is the frame's view of the document: GET
@@ -25,12 +29,14 @@ type OfficeFrameDocumentSDO struct {
 	Title          string          `json:"title" example:"Kế hoạch Q4.docx"`
 	Revision       string          `json:"revision" description:"Revision hiện tại dạng chuỗi thập phân; gửi lại làm base_revision khi save" example:"41"`
 	CanEdit        bool            `json:"can_edit" example:"true"`
+	Module         string          `json:"module" description:"Module web của token: docs, pdf, markdown, html, slides, sheets" example:"docs"`
 	File           DocumentFileDTO `json:"file"`
 	DownloadURL    string          `json:"download_url" description:"Route tải byte của version hiện tại, đọc bằng token khung" example:"/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7/content?version=3"`
 	UpdatedAt      string          `json:"updated_at" example:"2026-10-08T10:00:00Z"`
 }
 
-// OfficeFrameRecentDTO is one recent DOCX in the token's workspace.
+// OfficeFrameRecentDTO is one recent document of the token's module in its
+// workspace.
 type OfficeFrameRecentDTO struct {
 	DocumentID string `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Title      string `json:"title" example:"Biên bản họp.docx"`
@@ -69,4 +75,15 @@ type OfficeFrameAssetSDO struct {
 // /api/v1/office-frame/documents/{documentID}/assets/sign.
 type OfficeFrameAssetURLsSDO struct {
 	Items []OfficeFrameAssetURLDTO `json:"items"`
+}
+
+// OfficeFrameAIGrantSDO is the AI part of a frame token answer (UNI-1014, ADR
+// 0029): which AI capabilities the host may grant the frame for this
+// document. Read once at mint from GO-A7's entitlement checks; every AI route
+// on the frame mount still checks membership, entitlement and credits itself.
+type OfficeFrameAIGrantSDO struct {
+	AI              bool `json:"ai" description:"Khung được bật AI (BYOK qua /office-frame/.../ai): tổ chức có office.ai_byok và kho khóa đã cấu hình" example:"true"`
+	WebSearch       bool `json:"web_search" description:"Tìm web đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"true"`
+	ImageSearch     bool `json:"image_search" description:"Tìm ảnh đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"false"`
+	ImageGeneration bool `json:"image_generation" description:"Sinh ảnh và phân tích media đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"false"`
 }

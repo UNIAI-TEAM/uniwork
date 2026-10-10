@@ -210,6 +210,14 @@ describe("SaveStatus", () => {
     expect(document.getElementById(status.getAttribute("aria-describedby")!)).toHaveTextContent("The document was kept. Try again.");
   });
 
+  it("draws the compact failure as a chip and never takes focus (no stray focus ring in the header)", () => {
+    render(<SaveStatus status="error" compact />);
+    const status = screen.getByTestId("office-save-error-compact");
+    expect(status).not.toHaveAttribute("tabindex");
+    expect(status).toHaveClass("border", "rounded-md", "px-2");
+    expect(document.activeElement).not.toBe(status);
+  });
+
   it.each([
     ["saved-cloud", "Saved", "Saved to UniWork"],
     ["not-sent", "Unsaved", "Changes not sent"],

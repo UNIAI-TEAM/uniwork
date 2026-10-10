@@ -8,7 +8,7 @@ package sdi
 // /api/v1/office-frame/documents/{documentID}/uploads (multipart): the save
 // intent. The staged bytes become a version only through .../versions/commit.
 type UploadOfficeFrameFileSDI struct {
-	File []byte `formData:"file" description:"Byte DOCX mới; purpose document_file, ≤ 50 MiB"`
+	File []byte `formData:"file" description:"Byte mới của tài liệu (cùng định dạng với module của token); purpose document_file, ≤ 50 MiB"`
 }
 
 // CommitOfficeFrameVersionSDI is POST

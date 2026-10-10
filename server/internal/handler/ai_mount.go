@@ -13,7 +13,7 @@ import (
 )
 
 // AIActorResolver names who is calling an AI route and for which organization.
-// The BYOK proxy and cloud handlers read nothing else from the request, so a
+// The credential, BYOK proxy and cloud handlers read nothing else from the request, so a
 // router group with another credential (the web Office frame's frame token)
 // mounts the same handlers by passing its own resolver. A resolver only
 // identifies: membership, entitlement and credits are still decided by the
@@ -34,8 +34,12 @@ var errAIActorMissing = errors.New("ai: no authenticated user")
 
 // AIMountable is the AI handler set for a router group to mount under its own
 // paths. The handlers need the same path-parameter names as the session
-// routes for what is not the actor: {aiProvider} on the BYOK routes.
+// routes for what is not the actor: {aiProvider} on the BYOK and credential
+// routes.
 type AIMountable struct {
+	CredentialsList     http.HandlerFunc
+	CredentialSave      http.HandlerFunc
+	CredentialDelete    http.HandlerFunc
 	ByokChatCompletions http.HandlerFunc
 	ByokMessages        http.HandlerFunc
 	ByokGenerate        http.HandlerFunc
@@ -57,6 +61,9 @@ func NewAIMountable(d Deps, resolve AIActorResolver) AIMountable {
 func (h *handlers) aiMountable(resolve AIActorResolver) AIMountable {
 	a := &aiHandlers{handlers: h, actor: resolve}
 	return AIMountable{
+		CredentialsList:     a.listAICredentials,
+		CredentialSave:      a.saveAICredential,
+		CredentialDelete:    a.deleteAICredential,
 		ByokChatCompletions: a.byokProxy(ai.ProxyChatCompletions),
 		ByokMessages:        a.byokProxy(ai.ProxyMessages),
 		ByokGenerate:        a.byokProxy(ai.ProxyGenerate),
@@ -69,7 +76,7 @@ func (h *handlers) aiMountable(resolve AIActorResolver) AIMountable {
 	}
 }
 
-// aiHandlers are the BYOK proxy and cloud handlers bound to one resolver.
+// aiHandlers are the credential, BYOK proxy and cloud handlers bound to one resolver.
 type aiHandlers struct {
 	*handlers
 	actor AIActorResolver

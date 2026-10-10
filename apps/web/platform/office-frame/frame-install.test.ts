@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 import { buildPin } from "./frame-bundle.mjs";
-import { assertSafeArchive, checkInstalled, DEFAULT_ARCHIVE_LIMITS, install, loadBundle, locateBundleDir, materialize, offerableFrameVersion } from "./frame-install.mjs";
+import { assertSafeArchive, checkInstalled, DEFAULT_ARCHIVE_LIMITS, install, loadBundle, locateBundleDir, locateModuleBundle, materialize, offerableFrameVersion } from "./frame-install.mjs";
 import { writeBundle } from "./frame-fixture";
 
 const scratch = () => mkdtempSync(join(tmpdir(), "frame-install-"));
@@ -34,6 +34,44 @@ describe("loadBundle", () => {
   });
   it("refuses a csp.json that lets another origin frame the editor", () => {
     expect(() => loadBundle(writeBundle({ csp: { policy: "default-src 'self'; frame-ancestors *" } }))).toThrow(/frame-ancestors/);
+  });
+});
+
+describe("per-document policies of a build (the html preview)", () => {
+  const PREVIEW = "default-src 'none'; connect-src 'none'; form-action 'none'; sandbox allow-scripts allow-forms; frame-ancestors 'self'";
+  const htmlBundle = (documents: unknown = [{ path: "/preview.html", value: PREVIEW }]) => writeBundle({
+    module: "html",
+    files: { "index.html": "<!doctype html>", "preview.html": "<!doctype html><title>preview</title>", "assets/app-1a2b.js": "export {}" },
+    csp: { header: "Content-Security-Policy", value: "default-src 'self'; frame-src 'self'; frame-ancestors 'self'", documents },
+  });
+
+  it("loads them, pins them and re-verifies them once installed", () => {
+    const dir = htmlBundle();
+    const bundle = loadBundle(dir);
+    expect(bundle.documents).toEqual([{ path: "/preview.html", value: PREVIEW }]);
+    const root = join(scratch(), "html");
+    install(dir, bundle, root);
+    const pin = buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers, bundle.documents);
+    expect(pin.documents).toEqual(bundle.documents);
+    expect(checkInstalled(pin, root)).toBe(true);
+  });
+  it("notices a changed or dropped document policy against the pin", () => {
+    const dir = htmlBundle();
+    const bundle = loadBundle(dir);
+    const root = join(scratch(), "html");
+    install(dir, bundle, root);
+    const dropped = buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers);
+    expect(() => checkInstalled(dropped, root)).toThrow(/document policies/);
+    const loosened = buildPin(bundle.manifest, bundle.manifestSha256, bundle.headers, [{ path: "/preview.html", value: PREVIEW.replace("allow-forms", "allow-forms allow-modals") }]);
+    expect(() => checkInstalled(loosened, root)).toThrow(/document policies/);
+  });
+  it("refuses a policy for a file the manifest does not list, and an unsafe policy", () => {
+    expect(() => loadBundle(htmlBundle([{ path: "/other.html", value: PREVIEW }]))).toThrow(/does not list/);
+    expect(() => loadBundle(htmlBundle([{ path: "/preview.html", value: PREVIEW.replace("allow-forms", "allow-same-origin") }]))).toThrow(/sandbox flag/);
+  });
+  it("a build without documents has none and matches a pin without them", () => {
+    const bundle = loadBundle(writeBundle());
+    expect(bundle.documents).toEqual([]);
   });
 });
 
@@ -88,6 +126,50 @@ describe("materialize / locateBundleDir", () => {
     execFileSync("tar", ["-czf", archive, "-C", dir, "."]);
     const out = await materialize(archive, scratch());
     expect(loadBundle(out).manifest.version).toBe("0.1.0-abc1234");
+  });
+});
+
+describe("locateModuleBundle", () => {
+  /** A dist-web root as `build:web:all` writes it: <module>/<version>/. */
+  const distWeb = (modules: string[]) => {
+    const root = scratch();
+    for (const name of modules) {
+      const dir = writeBundle({ module: name === "docs" ? undefined : name, version: `0.1.0-${name}` });
+      mkdirSync(join(root, name));
+      renameSync(dir, join(root, name, `0.1.0-${name}`));
+    }
+    return root;
+  };
+
+  it("finds each module under a dist-web root, and nothing for a module the root lacks", () => {
+    const root = distWeb(["docs", "pdf", "sheets"]);
+    expect(loadBundle(locateModuleBundle(root, "docs")!).manifest.version).toBe("0.1.0-docs");
+    expect(loadBundle(locateModuleBundle(root, "pdf")!).manifest.module).toBe("pdf");
+    expect(locateModuleBundle(root, "slides")).toBeNull();
+  });
+
+  it("keeps the docs-only layouts working: dist-web/docs, or the version directory itself", () => {
+    const root = distWeb(["docs"]);
+    expect(locateModuleBundle(join(root, "docs"), "docs")).toBe(join(root, "docs", "0.1.0-docs"));
+    expect(locateModuleBundle(join(root, "docs", "0.1.0-docs"), "docs")).toBe(join(root, "docs", "0.1.0-docs"));
+    // A docs build never passes for another module, whichever layout names it.
+    expect(locateModuleBundle(join(root, "docs"), "pdf")).toBeNull();
+    expect(locateModuleBundle(join(root, "docs", "0.1.0-docs"), "pdf")).toBeNull();
+  });
+
+  it("matches a version directory by its manifest's module, and refuses an unknown module name", () => {
+    const parent = scratch();
+    renameSync(writeBundle({ module: "slides", version: "0.2.0-s" }), join(parent, "0.2.0-s"));
+    expect(locateModuleBundle(parent, "slides")).toBe(join(parent, "0.2.0-s"));
+    expect(locateModuleBundle(parent, "docs")).toBeNull();
+    expect(() => locateModuleBundle(parent, "../x")).toThrow(/unknown office frame module/);
+  });
+
+  it("finds a module inside an archive of a dist-web root", async () => {
+    const archive = join(scratch(), "dist-web.tar.gz");
+    execFileSync("tar", ["-czf", archive, "-C", distWeb(["docs", "html"]), "."]);
+    const out = await materialize(archive, scratch());
+    expect(loadBundle(locateModuleBundle(out, "html")!).manifest.module).toBe("html");
   });
 });
 

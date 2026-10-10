@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,7 +27,10 @@ type officeFrameCtxKey struct{}
 // exactly that asset. A session token is not a frame token and is refused.
 // A token for another document answers 404 like a missing one. The user and
 // organization land in the context so the flag gates and the reused document
-// handlers act as that user.
+// handlers act as that user. The flag of the token's module (office_docs_web,
+// office_pdf_web, ...) is evaluated here, for the token's organization, since
+// only the token names the module: off answers 404 feature_disabled exactly as
+// the route-level flag middleware does.
 func (h *handlers) officeFrameAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if h.OfficeFrame == nil {
@@ -57,6 +61,10 @@ func (h *handlers) officeFrameAuth(next http.Handler) http.Handler {
 		telemetry.SetActor(r.Context(), claims.UserID, string(audit.KindHuman), platform)
 		ctx := middleware.WithUserID(r.Context(), claims.UserID)
 		ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: claims.UserID, WorkspaceID: claims.WorkspaceID, OrganizationID: claims.OrganizationID})
+		if !officeFrameModuleEnabled(ctx, h.FeatureFlags, claims) {
+			respondError(w, http.StatusNotFound, "feature_disabled", "feature is disabled")
+			return
+		}
 		ctx = context.WithValue(ctx, officeFrameCtxKey{}, claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -77,14 +85,14 @@ func officeFrameTokenSDO(t service.OfficeFrameToken, now time.Time) sdo.OfficeFr
 		Token: t.Token, TokenType: "Bearer", ExpiresAt: t.ExpiresAt.UTC().Format(time.RFC3339),
 		ExpiresIn:  max(0, int(t.ExpiresAt.Sub(now).Seconds())),
 		DocumentID: t.Claims.DocumentID, WorkspaceID: t.Claims.WorkspaceID, OrganizationID: t.Claims.OrganizationID,
-		CanEdit: t.CanEdit,
+		CanEdit: t.CanEdit, Module: t.Claims.ModuleName(),
 	}
 }
 
 func officeFrameDocumentSDO(d service.OfficeFrameDocument) sdo.OfficeFrameDocumentSDO {
 	out := sdo.OfficeFrameDocumentSDO{
 		DocumentID: d.Document.ID, WorkspaceID: d.Document.WorkspaceID, OrganizationID: d.Document.OrganizationID,
-		Title: d.Document.Title, Revision: strconv.FormatInt(d.Document.Revision, 10),
+		Title: d.Document.Title, Revision: strconv.FormatInt(d.Document.Revision, 10), Module: d.Module,
 		CanEdit:     d.Access.Level == service.DocumentLevelEdit || d.Access.Level == service.DocumentLevelManage,
 		File:        documentFileDTO(d.File),
 		DownloadURL: "/api/v1/office-frame/documents/" + d.Document.ID + "/content?version=" + strconv.Itoa(int(d.File.Version)),
@@ -103,6 +111,16 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	t, err := h.OfficeFrame.Mint(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"))
+	if errors.Is(err, service.ErrOfficeFrameTooLarge) && !officeFrameModuleEnabled(r.Context(), h.FeatureFlags, t.Claims) {
+		// The flag answers first: off is 403 whatever the size.
+		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
+		return
+	}
+	if errors.Is(err, service.ErrOfficeFrameTooLarge) {
+		// Over the module's size cap (Sheets, GO-D3): the host opens the G3 editor instead.
+		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "document is too large for the web frame")
+		return
+	}
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -114,22 +132,29 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 	// nothing a non-member could not already see.
 	// 403 feature_disabled, not 404: the host must tell "the frame is off for
 	// this organization" (fall back to the G3 editor) from "no such document".
-	if !officeDocsWebEnabled(r.Context(), h.FeatureFlags, t.Claims) {
+	if !officeFrameModuleEnabled(r.Context(), h.FeatureFlags, t.Claims) {
 		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
 		return
 	}
-	respondOfficeJSON(w, http.StatusCreated, officeFrameTokenSDO(t, time.Now()))
+	out := officeFrameTokenSDO(t, time.Now())
+	out.AI = h.officeFrameAIGrant(r.Context(), t.Claims)
+	respondOfficeJSON(w, http.StatusCreated, out)
 }
 
-// officeDocsWebEnabled evaluates office_docs_web for the user, workspace and
-// organization a frame token is bound to.
-func officeDocsWebEnabled(ctx context.Context, flags *featureflag.Service, claims service.OfficeFrameClaims) bool {
+// officeFrameModuleEnabled evaluates the flag of the token's module
+// (office_docs_web for a token without m) for the user, workspace and
+// organization the token is bound to. A token naming no known module is off.
+func officeFrameModuleEnabled(ctx context.Context, flags *featureflag.Service, claims service.OfficeFrameClaims) bool {
+	key, ok := service.OfficeFrameModuleFlag(claims.ModuleName())
+	if !ok {
+		return false
+	}
 	def := false
-	if f, ok := featureflags.Lookup("office_docs_web"); ok {
+	if f, ok := featureflags.Lookup(key); ok {
 		def = f.Default
 	}
 	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: claims.UserID, WorkspaceID: claims.WorkspaceID, OrganizationID: claims.OrganizationID})
-	return flags.IsEnabled(ctx, "office_docs_web", def)
+	return flags.IsEnabled(ctx, key, def)
 }
 
 // openOfficeFrameDocument is GET /office-frame/documents/{documentID}.
@@ -190,7 +215,7 @@ func (h *handlers) commitOfficeFrameVersion(w http.ResponseWriter, r *http.Reque
 		h.mapServiceError(w, err)
 		return
 	}
-	respondOfficeJSON(w, http.StatusOK, officeFrameDocumentSDO(service.OfficeFrameDocument{Document: res.Document, Access: res.Access, File: res.File}))
+	respondOfficeJSON(w, http.StatusOK, officeFrameDocumentSDO(service.OfficeFrameDocument{Document: res.Document, Access: res.Access, File: res.File, Module: claims.ModuleName()}))
 }
 
 // listOfficeFrameRecents is GET /office-frame/documents/{documentID}/recents.

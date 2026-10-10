@@ -1,8 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at 86877508786f5304edf73784a9900427db7ada0f
-// (lane branch feature/UNI-1013-docs-web-bridge). Byte-identical except the
-// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
-// ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
+// web/docs/protocol/endpoint.ts at 98e1d2076693b9be767382ad361a28381bfbde37
+// (fork branch feature/UNI-1014-web-modules, the lane head 98e1d20: DR1 draft recovery, the modal event,
+// SP1, H2, the AI1 capability keys and the C18a key wording in one lineage). Byte-identical except the relative import specifiers
+// (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
+// re-vendor, update this SHA.
 /**
  * Shared postMessage engine for host.ts and client.ts: origin/source checks,
  * request/response correlation with ids + timeouts + cancellation, error

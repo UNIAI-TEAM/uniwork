@@ -16,6 +16,17 @@ const enc = encodeURIComponent;
 const id = z.string().min(1).max(128);
 const rfc3339 = z.string().min(1);
 
+// The AI the host may grant the frame (GO-A7 entitlement read at mint, UNI-1014). A field that
+// drifts reads as off: the grant only shows AI, every frame AI route still gates itself.
+const officeFrameAIGrantSchema = z.object({
+  ai: z.boolean().catch(false),
+  web_search: z.boolean().catch(false),
+  image_search: z.boolean().catch(false),
+  image_generation: z.boolean().catch(false),
+});
+
+export type OfficeFrameAIGrant = z.infer<typeof officeFrameAIGrantSchema>;
+
 export const officeFrameTokenSchema = z.object({
   token: z.string().min(1),
   token_type: z.string(),
@@ -25,6 +36,10 @@ export const officeFrameTokenSchema = z.object({
   workspace_id: id,
   organization_id: id,
   can_edit: z.boolean(),
+  /** The genoffice web module the server derived from the stored format (absent from older servers = docs). */
+  module: z.string().optional(),
+  /** Absent (older servers) or malformed = no AI grant. */
+  ai: officeFrameAIGrantSchema.optional().catch(undefined),
 });
 
 const officeFrameFileSchema = z.object({
@@ -47,6 +62,7 @@ export const officeFrameDocumentSchema = z.object({
   file: officeFrameFileSchema,
   download_url: z.string().min(1),
   updated_at: z.string().optional(),
+  module: z.string().optional(),
 });
 
 export const officeFrameUploadSchema = z.object({
@@ -92,9 +108,10 @@ export type OfficeFrameAssetUrls = z.infer<typeof officeFrameAssetUrlsSchema>;
 
 /** POST /api/v1/documents/{documentID}/office/frame-token — host session only.
  *  Null when the answer does not match the contract. Rejects with ApiError
- *  403 `feature_disabled` when office_docs_web is off for the document's
- *  organization (the host falls back to the G3 editor), distinct from the
- *  404 `not_found` of a missing, foreign or non-DOCX document. */
+ *  403 `feature_disabled` when the flag of the document's module
+ *  (office_docs_web, office_pdf_web, …) is off for its organization (the host
+ *  falls back to the G3 editor), distinct from the 404 `not_found` of a
+ *  missing or foreign document, or one of a format no web module opens. */
 export async function mintOfficeFrameToken(
   documentId: string,
   opts?: Pick<RequestOpts, "signal" | "correlationId">,

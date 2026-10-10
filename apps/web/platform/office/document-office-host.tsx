@@ -24,6 +24,14 @@ const MarkdownHost = dynamic(() => import("./md-html-adapter").then((module) => 
 const HtmlHost = dynamic(() => import("./md-html-adapter").then((module) => module.HtmlOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 const PptxHost = dynamic(() => import("./pptx-office-host").then((module) => module.PptxOfficeEditorHost), { ssr: false, loading: LoadingEditor });
 
+/**
+ * The G3 host of each format the web opens (UNI-927 P0-1: .pptx has its own
+ * browser host). Keyed by format, the id `detectDocumentFormat` answers.
+ */
+const G3_HOSTS: Readonly<Record<string, ComponentType<OfficeEditorHostProps>>> = {
+  docx: DocxHost, pdf: PdfHost, xlsx: XlsxHost, md: MarkdownHost, html: HtmlHost, pptx: PptxHost,
+};
+
 /** A format this host build has no editor for. Typed, never a silent fallback. */
 function UnsupportedHost({ format, title }: { format: string; title: string }) {
   const { t } = useTranslation();
@@ -38,25 +46,27 @@ function UnsupportedHost({ format, title }: { format: string; title: string }) {
 }
 
 /**
- * What a .docx opens in instead of the G3 editor: the app layer injects the
- * Docs frame switch here (UNI-1013), which renders `fallback` (the G3 host)
- * whenever the frame is not offered. Injected rather than imported so the
- * frame's app wiring (pinned build, workspace routes) stays outside this
- * browser-isolated surface (scripts/office/check-boundaries.mjs).
+ * What a document of a genoffice module opens in instead of its G3 editor: the
+ * app layer injects the frame switch here (UNI-1013 Docs, UNI-1014/1015/1016 the
+ * other modules), which renders `fallback` (the format's G3 host) whenever the
+ * frame is not offered. Injected rather than imported so the frame's app wiring
+ * (pinned builds, workspace routes, the format-to-module table of
+ * @uniwork/core) stays outside this browser-isolated surface
+ * (scripts/office/check-boundaries.mjs).
  */
-export type DocxFrameSlot = ComponentType<OfficeEditorHostProps & { fallback: ReactNode }>;
+export interface OfficeFrameWiring<M extends string> {
+  /** The module that opens a `detectDocumentFormat` id; null for a format with no web module. */
+  moduleForFormat: (format: string) => M | null;
+  Frame: ComponentType<OfficeEditorHostProps & { module: M; fallback: ReactNode }>;
+}
 
-export function createDocumentOfficeEditorHost(DocxFrame: DocxFrameSlot): ComponentType<OfficeEditorHostProps> {
+export function createDocumentOfficeEditorHost<M extends string>({ moduleForFormat, Frame }: OfficeFrameWiring<M>): ComponentType<OfficeEditorHostProps> {
   return function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
     useOfficeTabTitle(props.document.title);
     const format = detectDocumentFormat(props.document);
-    if (format === "pdf") return <PdfHost {...props} />;
-    if (format === "docx") return <DocxFrame {...props} fallback={<DocxHost {...props} />} />;
-    if (format === "xlsx") return <XlsxHost {...props} />;
-    if (format === "md") return <MarkdownHost {...props} />;
-    if (format === "html") return <HtmlHost {...props} />;
-    // UNI-927 P0-1: .pptx has its own browser host.
-    if (format === "pptx") return <PptxHost {...props} />;
+    const officeModule = moduleForFormat(format);
+    const G3Host = G3_HOSTS[format];
+    if (officeModule && G3Host) return <Frame {...props} module={officeModule} fallback={<G3Host {...props} />} />;
     // The conversion-only sources (xls, odt) have no web editor yet.
     // Say so; do not route them to a host for a different format.
     return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;
