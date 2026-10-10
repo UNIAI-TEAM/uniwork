@@ -411,7 +411,8 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 		if _, _, revokeErr := revokeDesktopFamily(ctx, q, device.UserID, device.SessionFamilyID); revokeErr != nil {
 			return DesktopSession{}, revokeErr
 		}
-		if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(device.UserID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: device.ID, Metadata: map[string]any{"reason": "refresh_reuse"}}); err != nil {
+		if err := auditRecorder.Record(ctx, q, audit.Entry{OrganizationID: audit.NoOrganization, Actor: audit.User(device.UserID), Action: audit.ActionAuthDesktopSessionRevoked, ResourceType: "device_session", ResourceID: device.ID, Metadata: map[string]any{"reason": "refresh_reuse"}},
+			sessionRevoked(device.UserID, "")); err != nil {
 			return DesktopSession{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
