@@ -1133,6 +1133,7 @@ type subPayload struct {
 
 // recoverPump keeps a panic in one socket's pump from killing the process:
 // it is logged, and the pump's own cleanup tears down that socket only.
+// Defer it directly (recover only works there) and first, so it runs last.
 func (c *Client) recoverPump(pump string) {
 	if r := recover(); r != nil {
 		slog.Error("ws: pump panic", "pump", pump, "panic", r, "stack", string(debug.Stack()),
@@ -1141,8 +1142,8 @@ func (c *Client) recoverPump(pump string) {
 }
 
 func (c *Client) readPump() {
+	defer c.recoverPump("read")
 	defer func() {
-		c.recoverPump("read")
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
@@ -1351,6 +1352,7 @@ func (c *Client) sendJSON(v any) {
 }
 
 func (c *Client) writePump() {
+	defer c.recoverPump("write")
 	ticker := time.NewTicker(pingPeriod)
 	// Application keepalive beats edge/LB idle cuts (~50s) that ignore
 	// WebSocket control frames. Interval stays under the observed cut.
@@ -1362,7 +1364,6 @@ func (c *Client) writePump() {
 		expired = expiry.C
 	}
 	defer func() {
-		c.recoverPump("write")
 		ticker.Stop()
 		appKeepalive.Stop()
 		c.conn.Close()
