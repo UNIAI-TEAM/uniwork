@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"golang.org/x/sync/semaphore"
@@ -144,5 +145,25 @@ func TestBeginUploadShedsPastTheInflightBudget(t *testing.T) {
 	release()
 	if rec, _, ok := start(81); ok || rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("over-cap Content-Length ok=%v status=%d, want 413", ok, rec.Code)
+	}
+}
+
+// net/http removes multipart temp files only for the request it created, and
+// the router hands the handler a copy, so the handler must remove them itself.
+func TestUploadRemovesItsMultipartTempFiles(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
+	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
+	f := setupChatFixtureFiles(t, "uptmp")
+	// Past uploadFormMemory, so the part spills to a temp file.
+	content := append(append([]byte{}, tinyPDF...), bytes.Repeat([]byte(" "), 2*uploadFormMemory)...)
+	res, out := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID, "big.pdf", "application/pdf", "tmp-file-1", content)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("upload status = %d out=%v", res.StatusCode, out)
+	}
+	left, _ := filepath.Glob(filepath.Join(tmp, "multipart-*"))
+	if len(left) != 0 {
+		t.Fatalf("multipart temp files left behind: %v", left)
 	}
 }

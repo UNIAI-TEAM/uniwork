@@ -17,14 +17,16 @@ const uploadInflightBytes = 128 << 20
 var uploads = semaphore.NewWeighted(uploadInflightBytes)
 
 // uploadFormMemory is how much of a file part ParseMultipartForm keeps in
-// heap; a larger part goes to a temp file, which net/http removes once the
-// handler returns. It replaces r.FormFile's implicit 32 MiB.
+// heap; a larger part goes to a temp file, which release removes (net/http
+// only cleans up the request it created, never the copies middleware pass
+// down). It replaces r.FormFile's implicit 32 MiB.
 const uploadFormMemory = 256 << 10
 
 // beginUpload refuses an upload on its headers, before any body byte is read:
 // a declared Content-Length over limit is 413, and a full budget is 503. A
 // body without Content-Length is charged the whole limit. On success the body
-// is capped at limit and the caller defers release.
+// is capped at limit and the caller defers release, after closing the file,
+// so it also removes the parsed form's temp files.
 func beginUpload(w http.ResponseWriter, r *http.Request, sem *semaphore.Weighted, limit int64, tooLarge string) (release func(), ok bool) {
 	if r.ContentLength > limit {
 		respondError(w, http.StatusRequestEntityTooLarge, "too_large", tooLarge)
@@ -40,7 +42,12 @@ func beginUpload(w http.ResponseWriter, r *http.Request, sem *semaphore.Weighted
 		return nil, false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
-	return func() { sem.Release(n) }, true
+	return func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+		sem.Release(n)
+	}, true
 }
 
 // uploadFormFile parses the multipart body with file parts spooled to disk
