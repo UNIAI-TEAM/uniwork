@@ -135,6 +135,29 @@ describe("OfficeInstallPrompt", () => {
     expect(within(list).getByText(first)).toBeInTheDocument();
     expect(within(list).getAllByText(second).length).toBeGreaterThan(0);
   });
+  it("offers the unsigned Mac quarantine fix with the real file name, copyable, only for macOS", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const item = { ...option("darwin-arm64"), url: "https://downloads.test/UniWork%20Office_0.1.0.dmg" };
+    const view = render(<OfficeInstallPrompt {...props({ installers: [item, option("win32-x64")], platformHint: { platform: "darwin-arm64", confidence: "certain" } })} />);
+    fireEvent.click(screen.getByRole("button", { name: "After downloading" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Can't open on Mac?" }));
+    expect(await screen.findByText(/Open Anyway/)).toBeInTheDocument();
+    expect(screen.getByText("xattr -d com.apple.quarantine ~/Downloads/'UniWork Office_0.1.0.dmg'")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Copy command" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("xattr -d com.apple.quarantine ~/Downloads/'UniWork Office_0.1.0.dmg'"));
+    fireEvent.click(screen.getByRole("radio", { name: "Windows" }));
+    fireEvent.click(screen.getByRole("button", { name: "After downloading" }));
+    await screen.findByRole("list");
+    expect(screen.queryByRole("button", { name: "Can't open on Mac?" })).not.toBeInTheDocument();
+    view.unmount();
+  });
+  it("hides the Mac quarantine note for a signed macOS build", async () => {
+    render(<OfficeInstallPrompt {...props({ installers: [{ ...option("darwin-arm64"), unsigned: false }], platformHint: { platform: "darwin-arm64", confidence: "certain" } })} />);
+    fireEvent.click(screen.getByRole("button", { name: "After downloading" }));
+    await screen.findByRole("list");
+    expect(screen.queryByRole("button", { name: "Can't open on Mac?" })).not.toBeInTheDocument();
+  });
   it("resets the artifact, guide and status when the dialog opens again", async () => {
     const p = props();
     const view = render(<OfficeInstallPrompt {...p} />);

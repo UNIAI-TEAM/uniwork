@@ -9310,6 +9310,10 @@
         "copy_command": "Copy command",
         "copied": "Copied",
         "copy_failed": "Could not copy. Try again.",
+        "mac_blocked": "Can't open on Mac?",
+        "mac_blocked_intro": "If macOS says the file \"is damaged and can't be opened\", it is blocked because this build is not signed yet. The file is not damaged.",
+        "mac_blocked_terminal": "Option 1: open Terminal and run the following command, then open the file again.",
+        "mac_blocked_settings": "Option 2: try to open the file once, then go to System Settings → Privacy & Security, scroll down and select Open Anyway.",
         "fmt": {
           "win_exe": "x64 · .exe",
           "win_exe_hint": "Intel / AMD",

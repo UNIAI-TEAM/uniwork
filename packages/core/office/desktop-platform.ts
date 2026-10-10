@@ -14,6 +14,7 @@ export const DESKTOP_INSTALLER_COMMANDS: Partial<Record<string, string>> = {
   deb_install: "sudo apt install ./{{file}}",
   appimage_run: "chmod +x ./{{file}} && ./{{file}}",
   appimage_fuse: "sudo apt install libfuse2",
+  mac_quarantine: "xattr -d com.apple.quarantine ~/Downloads/{{file}}",
 };
 
 export type DesktopPlatform = keyof typeof DESKTOP_INSTALLER_KINDS;

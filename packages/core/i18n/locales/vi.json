@@ -9304,6 +9304,10 @@
         "copy_command": "Sao chép lệnh",
         "copied": "Đã sao chép",
         "copy_failed": "Chưa sao chép được. Thử lại.",
+        "mac_blocked": "Không mở được trên Mac?",
+        "mac_blocked_intro": "Nếu macOS báo tệp \"is damaged and can't be opened\", đó là do bản này chưa được ký nên bị chặn. Tệp không hỏng.",
+        "mac_blocked_terminal": "Cách 1: mở Terminal và chạy lệnh sau, rồi mở lại tệp.",
+        "mac_blocked_settings": "Cách 2: thử mở tệp một lần, rồi vào System Settings → Privacy & Security, cuộn xuống và chọn Open Anyway.",
         "fmt": {
           "win_exe": "x64 · .exe",
           "win_exe_hint": "Intel / AMD",
