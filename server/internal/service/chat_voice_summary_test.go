@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -231,5 +233,52 @@ func TestVoiceCallSummarySkipsWhenAIDisabled(t *testing.T) {
 		if msg.VoiceCallSummary != nil {
 			t.Fatalf("unexpected summary without AI: %+v", msg)
 		}
+	}
+}
+
+// failingQueryRow fails the one query whose text contains match.
+type failingQueryRow struct {
+	db.DBTX
+	match string
+}
+
+func (f failingQueryRow) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if strings.Contains(sql, f.match) {
+		return errRow{}
+	}
+	return f.DBTX.QueryRow(ctx, sql, args...)
+}
+
+type errRow struct{}
+
+func (errRow) Scan(...any) error { return errors.New("injected query failure") }
+
+// The hangup has already taken the session out of the map when it reads the
+// summary caps, so a cap it cannot read skips the summary and keeps the call
+// log rather than failing the hangup (UNI-1090).
+func TestVoiceHangupKeepsTheCallLogWhenTheSummaryCapFails(t *testing.T) {
+	s, _, ua, ub, w, pool := aiChatFixture(t)
+	ctx := context.Background()
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.q = db.New(failingQueryRow{DBTX: pool, match: "-- name: CountQueuedVoiceCallSummaries "})
+	talk(t, s, ua, ub, w, dm.ID, "cap-unreadable", 45*time.Second)
+	if n := queuedVoiceSummaries(t, pool, dm.ID); n != 0 {
+		t.Fatalf("queued %d summaries with unreadable caps, want 0", n)
+	}
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, dm.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logs := 0
+	for _, m := range msgs {
+		if m.Kind == "voice_call_log" {
+			logs++
+		}
+	}
+	if logs != 1 {
+		t.Fatalf("call logs = %d, want 1", logs)
 	}
 }

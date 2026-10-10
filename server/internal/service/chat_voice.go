@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -553,8 +554,12 @@ func (s *ChatService) finalizeVoiceCall(
 	// answered by a second person, long enough, and within the hourly caps.
 	queueSummary := outcome == voiceCallOutcomeCompleted && duration >= voiceCallSummaryMinDuration && len(sess.participantIDs) >= 2
 	if queueSummary {
+		// The session is already gone from the map: failing here would lose
+		// the call log, so a cap that cannot be read only skips the summary.
 		if queueSummary, err = s.voiceCallSummaryAllowed(ctx, room, sess.callerID); err != nil {
-			return err
+			slog.Error("voice call summary cap unreadable; summary skipped",
+				"room_id", room.ID, "call_id", callID, "error", err)
+			queueSummary = false
 		}
 	}
 	if queueSummary {
