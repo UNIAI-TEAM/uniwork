@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-
 	"errors"
+	"slices"
+
 	"github.com/jackc/pgx/v5"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -43,17 +44,9 @@ func (s *ChatService) publishChatRoomMembersEvent(ctx context.Context, roomID st
 	if err != nil {
 		return
 	}
-	seen := make(map[string]struct{}, len(ids))
-	for _, userID := range ids {
-		if userID == "" {
-			continue
-		}
-		if _, ok := seen[userID]; ok {
-			continue
-		}
-		seen[userID] = struct{}{}
-		s.pub.SendToUser(ctx, userID, ev)
-	}
+	slices.Sort(ids)
+	ids = slices.DeleteFunc(slices.Compact(ids), func(id string) bool { return id == "" })
+	s.pub.SendToUsers(ctx, ids, ev)
 }
 
 func (s *ChatService) publishChatRoomActivity(ctx context.Context, roomID string) {

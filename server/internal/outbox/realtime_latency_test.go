@@ -15,6 +15,9 @@ func (f *fakePub) PublishScope(context.Context, string, string, string, map[stri
 	f.n++
 }
 func (f *fakePub) PublishUser(context.Context, string, string, map[string]string) { f.n++ }
+func (f *fakePub) PublishUsers(context.Context, []string, string, map[string]string) {
+	f.n++
+}
 
 type fakeLatency struct {
 	topic string

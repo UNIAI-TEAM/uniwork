@@ -234,17 +234,14 @@ func (s *ChatService) publishMentionNotifications(
 	if len(mentionedUserIDs) == 0 {
 		return
 	}
-	payload := map[string]string{
-		"room_id":    room.ID,
-		"message_id": messageID,
-		"sender_id":  senderID,
-	}
-	for _, userID := range mentionedUserIDs {
-		s.pub.SendToUser(ctx, userID, Event{
-			Type:    "chat.mention.created",
-			Payload: payload,
-		})
-	}
+	s.pub.SendToUsers(ctx, mentionedUserIDs, Event{
+		Type: "chat.mention.created",
+		Payload: map[string]string{
+			"room_id":    room.ID,
+			"message_id": messageID,
+			"sender_id":  senderID,
+		},
+	})
 }
 
 func (s *ChatService) roomMentionUnread(

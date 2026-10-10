@@ -95,6 +95,9 @@ func main() {
 			log.Error("redis url", "err", err)
 			os.Exit(1)
 		}
+		// Without it go-redis ignores context deadlines on the socket, and a
+		// slow Redis holds each call for its full read timeout.
+		opt.ContextTimeoutEnabled = true
 		rdb = redis.NewClient(opt)
 		if err := redisotel.InstrumentTracing(rdb); err != nil {
 			log.Warn("redis tracing", "err", err)
@@ -161,6 +164,12 @@ func main() {
 		broadcaster = realtime.NewDualWriteBroadcaster(hub, relay)
 	}
 	pub := realtime.NewPublisher(broadcaster, log)
+	// Room-wide frames (SendToUsers) are delivered here, off the request that
+	// raised them; it stops after everything that publishes, before the relay.
+	fanoutCtx, fanoutCancel := context.WithCancel(context.Background())
+	defer fanoutCancel()
+	fanoutDone := make(chan struct{})
+	go func() { pub.Run(fanoutCtx); close(fanoutDone) }()
 	// SMTP when SMTP_HOST is set; otherwise messages (and verification codes)
 	// are printed to the log, which is what local development runs on.
 	sender, err := mail.New(mail.SMTPConfig{
@@ -655,6 +664,12 @@ func main() {
 	case <-billingWorkersDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("billing: workers did not stop in time")
+	}
+	fanoutCancel()
+	select {
+	case <-fanoutDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("realtime: fan-out queue did not drain in time")
 	}
 	if relay != nil {
 		relay.Stop()

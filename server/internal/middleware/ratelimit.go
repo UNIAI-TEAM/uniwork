@@ -59,12 +59,13 @@ func ParseTrustedProxies(raw string) []*net.IPNet {
 // request proceeds unlimited (fail-open), as on any other Redis error.
 const rateLimitRedisTimeout = 100 * time.Millisecond
 
-// rateLimitMaxInFlight caps the Redis calls one limiter has outstanding. The
-// client is built without ContextTimeoutEnabled, so a call the limiter gave
-// up on keeps its pool connection until go-redis' own read timeout; under a
-// hung Redis the limiter in front of every request would hold one connection
-// per request, up to the whole pool. Past the cap the limiter skips Redis and
-// fails open at once, so it never holds more connections than this.
+// rateLimitMaxInFlight caps the Redis calls one limiter has outstanding. On a
+// client built without ContextTimeoutEnabled (the server's has it), a call
+// the limiter gave up on keeps its pool connection until go-redis' own read
+// timeout; under a hung Redis the limiter in front of every request would
+// hold one connection per request, up to the whole pool. Past the cap the
+// limiter skips Redis and fails open at once, so it never holds more
+// connections than this.
 const rateLimitMaxInFlight = 64
 
 var errRateLimitSaturated = errors.New("ratelimit: too many redis calls in flight")

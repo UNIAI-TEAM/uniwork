@@ -24,6 +24,8 @@ type capturePublisher struct {
 	// sent records where each event went, as "<type> -> <scope>:<id>", so a
 	// test can tell a workspace broadcast from a room or user delivery.
 	sent []string
+	// batches is the type of each SendToUsers call.
+	batches []string
 }
 
 func (c *capturePublisher) Publish(_ context.Context, workspaceID string, ev Event) {
@@ -39,6 +41,15 @@ func (c *capturePublisher) PublishToScope(_ context.Context, scopeType, scopeID 
 func (c *capturePublisher) SendToUser(_ context.Context, userID string, ev Event) {
 	c.events = append(c.events, ev)
 	c.sent = append(c.sent, ev.Type+" -> user:"+userID)
+}
+
+// SendToUsers records one delivery per user, as SendToUser does, and the
+// batch itself in batches.
+func (c *capturePublisher) SendToUsers(ctx context.Context, userIDs []string, ev Event) {
+	c.batches = append(c.batches, ev.Type)
+	for _, id := range userIDs {
+		c.SendToUser(ctx, id, ev)
+	}
 }
 
 // sentTo lists where events of type typ went, in order.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -462,17 +463,13 @@ func (s *ChatService) notifyThreadFollowers(
 	if err != nil {
 		return
 	}
-	for _, id := range ids {
-		if id == "" || id == senderID {
-			continue
-		}
-		s.pub.SendToUser(ctx, id, Event{
-			Type: "chat.thread.replied",
-			Payload: map[string]string{
-				"room_id": room.ID, "thread_root_id": threadRootID, "message_id": messageID,
-			},
-		})
-	}
+	ids = slices.DeleteFunc(ids, func(id string) bool { return id == "" || id == senderID })
+	s.pub.SendToUsers(ctx, ids, Event{
+		Type: "chat.thread.replied",
+		Payload: map[string]string{
+			"room_id": room.ID, "thread_root_id": threadRootID, "message_id": messageID,
+		},
+	})
 }
 
 func chatMessageRowFromThreadListRow(row db.ListChatThreadMessagesRow, viewerID string) ChatMessageRow {

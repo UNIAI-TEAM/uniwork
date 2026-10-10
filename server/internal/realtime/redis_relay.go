@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -664,6 +665,70 @@ func (d *DualWriteBroadcaster) publish(scopeType, scopeID, exclude string, messa
 		return
 	}
 	_ = d.relay.PublishWithID(scopeType, scopeID, exclude, message, id)
+}
+
+// SendToUsers delivers one frame to many users: their sockets here at once,
+// and through the relay only the users connected to another node.
+func (d *DualWriteBroadcaster) SendToUsers(userIDs []string, message []byte) {
+	id := ulid.Make().String()
+	frame := injectEventID(message, id)
+	for _, userID := range userIDs {
+		d.local.fanoutUser(userID, frame, "", id)
+	}
+	if r, ok := d.relay.(*RedisRelay); ok {
+		r.xaddRemoteUsers(userIDs, message, id)
+		return
+	}
+	for _, userID := range userIDs {
+		_ = d.relay.PublishWithID(ScopeUser, userID, "", message, id)
+	}
+}
+
+// xaddRemoteUsers appends frame, already delivered on this node, to the
+// stream of each user another node holds a socket for. Two round trips
+// whatever the count: one reads the users' node registries, one writes.
+func (r *RedisRelay) xaddRemoteUsers(userIDs []string, frame []byte, id string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	live := &redis.ZRangeBy{Min: strconv.FormatInt(time.Now().Unix(), 10), Max: "+inf"}
+	nodes := make([]*redis.StringSliceCmd, len(userIDs))
+	if _, err := r.writeRDB.Pipelined(ctx, func(p redis.Pipeliner) error {
+		for i, userID := range userIDs {
+			nodes[i] = p.ZRangeByScore(ctx, NodesKey(ScopeUser, userID), live)
+		}
+		return nil
+	}); err != nil {
+		M.SetRedisLastError(err.Error())
+		slog.Warn("realtime/redis: user node lookup failed", "error", err, "users", len(userIDs))
+		return
+	}
+	var remote []string
+	for i, userID := range userIDs {
+		if slices.ContainsFunc(nodes[i].Val(), func(n string) bool { return n != r.nodeID }) {
+			remote = append(remote, userID)
+		}
+	}
+	if len(remote) == 0 {
+		return
+	}
+	start := time.Now()
+	if _, err := r.writeRDB.Pipelined(ctx, func(p redis.Pipeliner) error {
+		for _, userID := range remote {
+			ev := newEnvelope(r.nodeID, ScopeUser, userID, "", frame, id)
+			ev.LocalDelivered = true
+			stream := StreamKey(ScopeUser, userID)
+			p.XAdd(ctx, &redis.XAddArgs{Stream: stream, MaxLen: streamMaxLen, Approx: true, Values: envelopeRedisValues(ev)})
+			p.Expire(ctx, stream, streamIdleTTL)
+		}
+		return nil
+	}); err != nil {
+		M.RedisXAddErrors.Add(1)
+		M.SetRedisLastError(err.Error())
+		slog.Warn("realtime/redis: batched XADD failed", "error", err, "users", len(remote))
+		return
+	}
+	M.RedisXAddTotal.Add(int64(len(remote)))
+	M.RedisLastXAddLagMicros.Store(time.Since(start).Microseconds())
 }
 
 // PublishWithID is like publish but uses a caller-supplied event id so the
