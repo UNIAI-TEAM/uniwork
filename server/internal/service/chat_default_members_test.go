@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -77,6 +78,46 @@ func TestWorkspaceMembershipChangesReachTheDefaultChannel(t *testing.T) {
 	}
 	if got := defaultChannelRole(t, q, room.RoomID, ub.ID); got != "" {
 		t.Fatalf("after leaving the organization: still in the default channel as %q", got)
+	}
+}
+
+// Deactivation keeps the workspace row, so the safety net must not read it
+// as a member to re-add: the person stays out of the default channel, and a
+// row left active behind Deactivate's back is marked left (UNI-1084).
+func TestDeactivatedMemberStaysOutOfTheDefaultChannel(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := defaultChannelRole(t, q, room.RoomID, ub.ID); got != "member" {
+		t.Fatalf("before deactivation: role %q, want member", got)
+	}
+	members := NewOrganizationMemberService(s.pool, q, s.ws.orgs)
+	if _, err := members.Deactivate(ctx, ua.ID, w.OrganizationID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := defaultChannelRole(t, q, room.RoomID, ub.ID); got != "" {
+		t.Fatalf("after deactivation and a chat open: back in the default channel as %q", got)
+	}
+
+	if err := q.InsertChatRoomMembers(ctx, db.InsertChatRoomMembersParams{
+		Ids: []string{util.NewID()}, RoomIds: []string{room.RoomID}, WorkspaceID: w.ID,
+		UserIds: []string{ub.ID}, Roles: []string{"member"}, OrganizationID: w.OrganizationID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := defaultChannelRole(t, q, room.RoomID, ub.ID); got != "" {
+		t.Fatalf("a deactivated member's active row survived the sync as %q", got)
 	}
 }
 

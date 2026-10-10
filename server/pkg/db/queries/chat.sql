@@ -828,7 +828,8 @@ LIMIT sqlc.arg(result_limit);
 
 -- name: SyncDefaultChatRoomRoles :exec
 -- The default channel mirrors workspace_members: owners/admins become channel
--- admins (never demoted), and anyone no longer in the workspace is marked left.
+-- admins (never demoted), and anyone no longer in the workspace, or deactivated
+-- in the organization (which keeps the workspace row), is marked left.
 WITH room AS (
   SELECT id FROM chat_rooms
   WHERE workspace_id = sqlc.arg(workspace_id)::text AND is_default AND archived_at IS NULL
@@ -845,11 +846,14 @@ WHERE m.room_id IN (SELECT id FROM room)
   AND m.status IN ('invited', 'active')
   AND NOT EXISTS (
     SELECT 1 FROM workspace_members wm
+    JOIN organization_members om ON om.organization_id = wm.organization_id
+      AND om.user_id = wm.user_id AND om.deactivated_at IS NULL
     WHERE wm.workspace_id = sqlc.arg(workspace_id)::text AND wm.user_id = m.user_id
   );
 
 -- name: ListDefaultChatRoomMissingMembers :many
--- Workspace members not yet in the default channel, with the role they join as.
+-- Active workspace members not yet in the default channel, with the role they
+-- join as.
 SELECT
   r.id AS room_id,
   r.organization_id,
@@ -857,6 +861,8 @@ SELECT
   (CASE WHEN wm.role IN ('owner', 'admin') THEN 'admin' ELSE 'member' END)::text AS role
 FROM chat_rooms r
 JOIN workspace_members wm ON wm.workspace_id = r.workspace_id
+JOIN organization_members om ON om.organization_id = r.organization_id
+  AND om.user_id = wm.user_id AND om.deactivated_at IS NULL
 WHERE r.workspace_id = sqlc.arg(workspace_id)::text AND r.is_default AND r.archived_at IS NULL
   AND NOT EXISTS (
     SELECT 1 FROM chat_room_members m

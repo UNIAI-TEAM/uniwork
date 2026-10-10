@@ -2491,6 +2491,8 @@ SELECT
   (CASE WHEN wm.role IN ('owner', 'admin') THEN 'admin' ELSE 'member' END)::text AS role
 FROM chat_rooms r
 JOIN workspace_members wm ON wm.workspace_id = r.workspace_id
+JOIN organization_members om ON om.organization_id = r.organization_id
+  AND om.user_id = wm.user_id AND om.deactivated_at IS NULL
 WHERE r.workspace_id = $1::text AND r.is_default AND r.archived_at IS NULL
   AND NOT EXISTS (
     SELECT 1 FROM chat_room_members m
@@ -2505,7 +2507,8 @@ type ListDefaultChatRoomMissingMembersRow struct {
 	Role           string `json:"role"`
 }
 
-// Workspace members not yet in the default channel, with the role they join as.
+// Active workspace members not yet in the default channel, with the role they
+// join as.
 func (q *Queries) ListDefaultChatRoomMissingMembers(ctx context.Context, workspaceID string) ([]ListDefaultChatRoomMissingMembersRow, error) {
 	rows, err := q.db.Query(ctx, listDefaultChatRoomMissingMembers, workspaceID)
 	if err != nil {
@@ -2734,12 +2737,15 @@ WHERE m.room_id IN (SELECT id FROM room)
   AND m.status IN ('invited', 'active')
   AND NOT EXISTS (
     SELECT 1 FROM workspace_members wm
+    JOIN organization_members om ON om.organization_id = wm.organization_id
+      AND om.user_id = wm.user_id AND om.deactivated_at IS NULL
     WHERE wm.workspace_id = $1::text AND wm.user_id = m.user_id
   )
 `
 
 // The default channel mirrors workspace_members: owners/admins become channel
-// admins (never demoted), and anyone no longer in the workspace is marked left.
+// admins (never demoted), and anyone no longer in the workspace, or deactivated
+// in the organization (which keeps the workspace row), is marked left.
 func (q *Queries) SyncDefaultChatRoomRoles(ctx context.Context, workspaceID string) error {
 	_, err := q.db.Exec(ctx, syncDefaultChatRoomRoles, workspaceID)
 	return err
