@@ -50,8 +50,7 @@ and keep the G3 host (or its unsupported state).
 ## Bundles, pins, sync, headers (`apps/web`)
 
 - One pin per module: `apps/web/platform/office-frame/<module>.pin.json`
-  (`docs.pin.json` unchanged; the other modules have none until their worker
-  pins a build). The manifest may name its `module`; absent is docs, and a
+  (all six are checked in, see "Pinned builds" below). The manifest may name its `module`; absent is docs, and a
   build is refused for a module it does not name.
 - `office-frame-sync.mjs`: `--module <m>` (default docs), `--all` (every pinned
   module; with `--pin`, every module present in the source), `--check` takes
@@ -204,11 +203,13 @@ hides every AI entry, as before. The capability keys are re-vendored from the
 fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
 
 The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
-the fork integration head `f1679cb` (branch `zone17th/uni-1014-mm3`: DR1 draft
-recovery `InitPayload.recovery`, the `modal` event, SP1, H2) with AI1's
-capability-key hunks (`c044fa9`) applied on top by a clean 3-way merge, since
-the fork has not merged AI1 into the integration yet. When it does, re-vendor
-from that merge head (the file headers say so).
+the fork lane head `36e9e23` (branch `feature/UNI-1014-web-modules`), which holds
+DR1 draft recovery (`InitPayload.recovery`), the `modal` event, SP1, H2 and the
+AI1 capability keys in one commit, so nothing is merged by hand any more. They
+are byte-identical to the fork's `web/docs/protocol/{types,endpoint,host}.ts`
+except the relative import specifiers; the bodies did not change between the
+earlier `f1679cb` + AI1 `c044fa9` vendoring, `11a5eba` and `36e9e23`, only the headers. The
+bundles in "Pinned builds" are built from the same commit.
 
 Tests: `server/internal/handler/office_frame_ai_test.go` (every route through
 the frame token, refusals, per-request ACL, entitlement, flag, SSE pass-through,
@@ -220,8 +221,9 @@ shared budgets), `TestIsolationMatrix` rows, `TestAIBYOKServiceEnabled`,
 ### Why Sheets has no AI yet (an omission in the fork, not an entitlement rule)
 
 `officeModuleSpec("sheets").ai` is unset on purpose, and flipping it here would
-do nothing today. Checked on the fork's integration head `f1679cb` and AI1's
-`c044fa9`:
+do nothing today. Checked on the fork lane head `11a5eba` (it still held on
+`f1679cb` and AI1's `c044fa9`); the Sheets follow-ups of `36e9e23` (cached
+formula values at save, view-only grid guard, wasm panic recovery) do not touch it:
 
 - The server does not gate by module: the frame-token AI routes and the mint's
   `ai` grant (`officeFrameAIGrant`) are the same for a Sheets token as for a
@@ -285,56 +287,99 @@ with `OFFICE_MODULES_WEB_E2E=1` and skips itself unless the web build under
 test installed that module's pinned bundle:
 
 ```bash
-# fork lane: npm run build:web -- --module markdown   (or build:web:all)
-node apps/web/scripts/office-frame-sync.mjs --module markdown --pin --from <fork>/dist-web   # local pin
-pnpm --filter @uniwork/web build && <start server + next start>
+# fork checkout at the pinned commit: npm run build:web:all && tar -C dist-web -czf dist-web.tar.gz .
+OFFICE_FRAME_SOURCE=$PWD/dist-web.tar.gz pnpm --filter @uniwork/web build   # installs every pinned module
+<start server + next start>
 OFFICE_MODULES_WEB_E2E=1 E2E_BASE_URL=http://localhost:$FRONTEND_PORT \
-  pnpm --filter @uniwork/e2e exec playwright test office-markdown-web.spec.ts
+  pnpm --filter @uniwork/e2e exec playwright test office-docs-web.spec.ts office-markdown-web.spec.ts office-modules-web.spec.ts
 ```
 
-`office-markdown-web.spec.ts` is the first: serving headers, open + handshake
-(`data-state="ready"` on the host wrapper), flag off -> G3; the edit -> save
--> reopen case is `test.fixme` until the fork's markdown module saves. CI
-runs in the `e2e` job (`OFFICE_MODULES_WEB_E2E=1`, next to `OFFICE_DOCS_WEB_E2E`).
-Like the Docs spec, its cases choose themselves from the installed manifests: a
+(A new pin for one module: `node apps/web/scripts/office-frame-sync.mjs --module <m> --pin --from <fork>/dist-web`.)
+
+`office-markdown-web.spec.ts`: serving headers, open + handshake
+(`data-state="ready"` on the host wrapper), the Desktop-open button in vi/en x
+light/dark, edit -> save -> reopen (a new stored version holding the edit, and
+the frame showing it after a reload), flag off -> G3.
+`office-modules-web.spec.ts` is table-driven over the other four modules, one
+stored document each (pdf `pdf-text-editable.pdf`, html page, pptx
+`pptx-standard-business.pptx`, xlsx `xlsx-compatibility-basic.xlsx`): the
+module's iframe is served from its pinned base, the handshake completes with
+no CSP violation and no G3 host next to it; html (source pane) and sheets (A1
+through the Name Box) additionally save one edit and the spec reads the new
+version back from the server. pdf and slides are open-only here, their editing
+round trips live in the fork's own e2e (annotate/ink, presenter).
+CI runs them in the `e2e` job (`OFFICE_MODULES_WEB_E2E=1`, next to
+`OFFICE_DOCS_WEB_E2E`).
+Like the Docs spec, each case chooses itself from the installed manifests: a
 module pin plus an `OFFICE_FRAME_SOURCE` holding that module's build runs the
-frame cases; without a bundle (no pin committed yet, or no secret access) only
-the "bundle not installed -> G3" case runs and the frame cases skip. A module
-spec copies that shape, so adding one needs no CI change.
+frame cases; without the bundle (no secret access) only the markdown spec's
+"bundle not installed -> G3" case runs and the frame cases skip. A new
+module spec copies that shape, so adding one needs no CI change.
 
-## Module pins: TODO (not now, the fork lane is not final)
+## Pinned builds
 
-Only `docs.pin.json` is checked in (fork `8687750`). Nothing else is pinned
-until the fork's web-modules lane is final; the list of what to pin then:
+All six modules are pinned to one fork commit, the lane head `36e9e23`
+(`0.1.0-36e9e23` = `11a5eba` + the SH3 Sheets follow-ups; built clean: no
+`-dirty` suffix, `npm run build:web:all` in a detached worktree of `36e9e23`,
+not the fork lane's own checkout).
+`docs.pin.json` moved off the UNI-1013 pin `8687750`. Written by
+`node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
+and verified file by file on install.
 
-1. Build the fork from a clean commit (`npm run build:web:all`; a dirty build is
-   refused) and run `node apps/web/scripts/office-frame-sync.mjs --all --pin
-   --from <fork>/dist-web`. That writes `pdf`, `markdown`, `html`, `slides`,
-   `sheets` pins and re-pins `docs` to the same fork head (the Docs pin then
-   moves from `8687750`).
-2. Read each pin diff in review, it is the policy review: `html` must show
-   `frame-src 'self'` in `headers` and `documents: [{path: "/preview.html"}]`
-   with the sandboxed policy; `pdf` and `sheets` show `'wasm-unsafe-eval'` (and
-   the worker sources) and nothing wider; every module has `frame-ancestors
-   'self'`.
-3. The archive limits of `frame-install.mjs` (`DEFAULT_ARCHIVE_LIMITS`: 64 MiB
-   archive, 160 MiB unpacked, 2000 entries) were sized for one ~13 MiB Docs
-   build. Six module builds in one `OFFICE_FRAME_SOURCE` tarball (pdf and sheets
-   carry wasm) are likely to pass them: measure the real `dist-web` and raise the
-   limits, or publish one archive per module.
-4. Point CI's `OFFICE_FRAME_SOURCE` (e2e job) at a dist-web root holding every
-   pinned module, then run each module spec with `OFFICE_MODULES_WEB_E2E=1`,
-   including the html preview isolation check against the served headers
-   (`/office-frame/html/<v>/preview.html`).
-5. `next build` offers a module only when its pinned bundle verifies
-   (`NEXT_PUBLIC_OFFICE_FRAME_VERSIONS`): confirm the map lists all six.
-6. Re-vendor `docs-frame-{protocol,endpoint,host}.ts` from the same final fork
-   head (the headers still name `f1679cb` + AI1 `c044fa9`) so the vendored
-   protocol and the pinned bundles come from one commit.
-7. The Sheets AI question above, if the fork wires it by then.
+| module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
+| --- | --- | --- | --- | --- | --- | --- |
+| `docs` | `docs.pin.json` | 46 | 16.73 MiB | 11.68 MiB | 4.92 MiB | none |
+| `pdf` | `pdf.pin.json` | 229 | 13.70 MiB | 7.02 MiB | 1.76 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
+| `markdown` | `markdown.pin.json` | 90 | 7.90 MiB | 2.55 MiB | 2.80 MiB | none |
+| `html` | `html.pin.json` | 7 | 1.73 MiB | 0.57 MiB | 1.72 MiB | `frame-src 'self'` + `documents[/preview.html]` |
+| `slides` | `slides.pin.json` | 19 | 5.47 MiB | 2.25 MiB | 4.15 MiB | `media-src blob:` |
+| `sheets` | `sheets.pin.json` | 219 | 26.78 MiB | 7.64 MiB | 3.28 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
+
+Policy review of the pin diffs (what a reviewer of a re-pin checks): every
+module keeps `default-src 'none'`, `connect-src 'self'`, `base-uri 'self'`,
+`form-action 'self'` and `frame-ancestors 'self'`; only `pdf` and `sheets` have
+`'wasm-unsafe-eval'` and nobody has `'unsafe-eval'` in the frame policy.
+`html` is the one with a `documents` entry: `/preview.html` carries its own
+sandboxed policy (`sandbox allow-scripts allow-forms allow-popups allow-modals`,
+no `allow-same-origin`, `connect-src 'none'`, `form-action 'none'`,
+`frame-ancestors 'self'`). That policy lets the previewed page's own scripts
+run (`script-src 'unsafe-inline' 'unsafe-eval' https:`, as the desktop preview
+does, CONTRACT C15(1)); it is the policy of an opaque-origin document, never of
+the frame, and the host refuses to pin or serve one that is not that kind.
+
+**Archive limits.** `DEFAULT_ARCHIVE_LIMITS` in `frame-install.mjs` (64 MiB
+archive, 160 MiB unpacked, 2000 entries) were sized for one Docs build. The
+six builds in one `dist-web` root measure 31.8 MiB as a `.tar.gz`, 72.4 MiB
+unpacked, 644 entries (`tar -C dist-web -czf dist-web.tar.gz .`), so the
+limits hold with about 2x headroom and are unchanged; the whole tarball was
+installed through `materialize` + `loadBundle` by the sync run above. Raise
+them (with the reason) when a rebuild approaches them: `sheets` is the
+biggest, 27 MiB of the 72 MiB.
+
+**`OFFICE_FRAME_SOURCE` (CI secret and image builds).** It must now be a
+tarball (or https URL to one) of the fork's whole `dist-web` root, holding
+`<module>/<version>/` for every pinned module:
+
+```bash
+# in the fork checkout, at the commit the pins name
+npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (36e9e23: 31.8 MiB as a tarball)
+tar -C dist-web -czf dist-web.tar.gz .
+# publish dist-web.tar.gz where the secret's URL points; the sync verifies it against the pins
+```
+
+The Docs-only layout (a `dist-web/docs` tarball, as the secret held for
+UNI-1013) still installs docs and warns that the other five are missing: with
+that secret the `e2e` job runs the docs frame cases and the other modules'
+cases skip (each module spec skips itself when its bundle is not installed),
+so update the secret together with the pins. `next build` offers a module only
+when its pinned bundle installs and verifies
+(`NEXT_PUBLIC_OFFICE_FRAME_VERSIONS`); with all six installed it lists all six.
+
+Open: the Sheets AI question above; the `e2e` job's secret to be re-published
+by whoever holds it (the fork CI does not publish a `dist-web` tarball).
 
 ## Not done here
 
-Module bundles, pins and module-specific capability keys belong to the module
-workers. The Sheets sidecar question (GO-D3) keeps sidecar-only operations
-hidden through capability keys.
+Module-specific capability keys belong to the module workers. The Sheets
+sidecar question (GO-D3) keeps sidecar-only operations hidden through
+capability keys.
