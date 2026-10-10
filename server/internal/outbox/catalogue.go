@@ -172,6 +172,8 @@ var catalogue = []EventDef{
 	{Topic: "chat.reminder.due", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_added", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	// One row per invite, however many people it adds (C10).
+	{Topic: "chat.room.members_added", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_removed", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	// A read goes to the reader's own tabs and, in a DM, to the peer: nobody
 	// else renders it, and every client that hears one reloads its sidebar.

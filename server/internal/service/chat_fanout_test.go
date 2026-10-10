@@ -13,6 +13,16 @@ import (
 // chatGroupOf creates a group of the fixture's owner and n new org members.
 func chatGroupOf(t *testing.T, s *ChatService, q *db.Queries, ownerID string, w db.Workspace, n int) (ChatRoomSummary, []string) {
 	t.Helper()
+	ids := newOrgUsers(t, q, w, n)
+	group, err := s.CreateGroup(context.Background(), ownerID, w.ID, CreateGroupInput{Name: "Fan-out", MemberUserIDs: ids})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return group, ids
+}
+
+func newOrgUsers(t *testing.T, q *db.Queries, w db.Workspace, n int) []string {
+	t.Helper()
 	ctx := context.Background()
 	ids := make([]string, 0, n)
 	for i := range n {
@@ -25,11 +35,7 @@ func chatGroupOf(t *testing.T, s *ChatService, q *db.Queries, ownerID string, w 
 		addOrgMember(t, q, w.OrganizationID, u.ID)
 		ids = append(ids, u.ID)
 	}
-	group, err := s.CreateGroup(ctx, ownerID, w.ID, CreateGroupInput{Name: "Fan-out", MemberUserIDs: ids})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return group, ids
+	return ids
 }
 
 func countOf(xs []string, x string) int {
@@ -59,5 +65,35 @@ func TestRoomMessageFansOutAsOneBatch(t *testing.T) {
 	}
 	if n := len(pub.sentTo("chat.mention.created")); n != 4 {
 		t.Fatalf("@all reached %d members, want the 4 besides the sender", n)
+	}
+}
+
+// C10: inviting N people writes one outbox row for the batch, which every
+// member hears once, and still one audit row per person added.
+func TestInviteWritesOneMembersAddedEvent(t *testing.T) {
+	s, _, q, ua, _, w := chatFixture(t)
+	ctx := context.Background()
+	group, _ := chatGroupOf(t, s, q, ua.ID, w, 2)
+	invited := newOrgUsers(t, q, w, 3)
+	if _, err := s.InviteGroupMembers(ctx, ua.ID, w.ID, group.ID, invited); err != nil {
+		t.Fatal(err)
+	}
+
+	count := func(sql string) int {
+		t.Helper()
+		var n int
+		if err := s.pool.QueryRow(ctx, sql, group.ID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := count(`SELECT count(*) FROM outbox_events WHERE topic = 'chat.room.members_added' AND payload::jsonb->>'room_id' = $1`); n != 1 {
+		t.Fatalf("members_added rows = %d, want 1", n)
+	}
+	if n := count(`SELECT count(*) FROM outbox_events WHERE topic = 'chat.room.member_added' AND payload::jsonb->>'room_id' = $1`); n != 0 {
+		t.Fatalf("per-member member_added rows = %d, want 0", n)
+	}
+	if n := count(`SELECT count(*) FROM audit_events WHERE action = 'chat.room.member_added' AND resource_id = $1`); n != 3 {
+		t.Fatalf("audit rows = %d, want one per invited member", n)
 	}
 }

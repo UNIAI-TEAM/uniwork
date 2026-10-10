@@ -93,6 +93,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.room.activity` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
 | `chat.room.created` | 1 | `room_id` | — | room | outbox |
 | `chat.room.member_added` | 1 | `room_id`, `user_id` | — | room | outbox |
+| `chat.room.members_added` | 1 | `room_id` | — | room | outbox |
 | `chat.room.member_removed` | 1 | `room_id`, `user_id` | — | room | outbox |
 | `chat.room.read` | 1 | `room_id`, `user_id` | — | user | ephemeral |
 | `chat.room.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |

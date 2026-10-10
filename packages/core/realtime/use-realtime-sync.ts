@@ -152,6 +152,7 @@ function keysFor(
     case "chat.room.created":
     case "chat.room.updated":
     case "chat.room.member_added":
+    case "chat.room.members_added":
     case "chat.room.member_removed": {
       push(chatKeys.rooms(wsId));
       push(chatKeys.room(wsId));

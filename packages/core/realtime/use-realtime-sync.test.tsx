@@ -684,6 +684,20 @@ describe("useRealtimeSync", () => {
     vi.useRealTimers();
   });
 
+  // C10: one invite is one frame, which refreshes the room list and members.
+  it("refreshes the room list and members on chat.room.members_added", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.members_added", payload: { room_id: "g1" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    const called = keysCalled(invalidate);
+    expect(called).toContain(JSON.stringify(chatKeys.rooms("ws1")));
+    expect(called).toContain(JSON.stringify(chatKeys.roomMembers("ws1", "g1")));
+    vi.useRealTimers();
+  });
+
   it("invalidates message links on chat.message.linked without dropping message cache", () => {
     const qc = new QueryClient();
     const messages = [

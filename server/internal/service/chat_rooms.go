@@ -346,6 +346,10 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	// One event for the whole invite, on the first member's audit row: the
+	// consumer reads the room's members when it delivers, so each member hears
+	// it once instead of once per person added.
+	membersAdded := []audit.Event{{Topic: "chat.room.members_added", Payload: map[string]string{"room_id": roomID}}}
 	for _, id := range ids {
 		if id == userID {
 			continue
@@ -366,11 +370,10 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 			Action:       audit.ActionChatRoomMemberAdded,
 			ResourceType: "chat_room", ResourceID: roomID,
 			Metadata: map[string]any{"member_id": id},
-		}, audit.Event{Topic: "chat.room.member_added", Payload: map[string]string{
-			"room_id": roomID, "user_id": id,
-		}}); err != nil {
+		}, membersAdded...); err != nil {
 			return ChatRoomSummary{}, err
 		}
+		membersAdded = nil
 	}
 	_ = q.TouchChatRoomUpdatedAt(ctx, roomID)
 	if err := tx.Commit(ctx); err != nil {
