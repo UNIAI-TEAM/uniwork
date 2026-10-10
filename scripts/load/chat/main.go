@@ -576,6 +576,11 @@ func (e *env) idle(d time.Duration) (stmtsPerSec, cpuPerSec float64) {
 	return (b.stmts - a.stmts) / s, (b.cpu - a.cpu) / s
 }
 
+// livenessTimeout is livenessProbe.timeoutSeconds in
+// deploy/app/uniwork/templates/deployment-be.yaml: a slower /healthz is a
+// restart in production, so it counts as a failure here.
+const livenessTimeout = 3 * time.Second
+
 // watch samples RSS and /healthz once a second until stop is closed.
 func (e *env) watch(stop <-chan struct{}) (maxRSS *atomic.Int64, healthFails *atomic.Int64, done <-chan struct{}) {
 	maxRSS, healthFails = &atomic.Int64{}, &atomic.Int64{}
@@ -585,7 +590,7 @@ func (e *env) watch(stop <-chan struct{}) (maxRSS *atomic.Int64, healthFails *at
 		t := time.NewTicker(time.Second)
 		defer t.Stop()
 		for {
-			if st, _ := e.call(nil, "GET", "/healthz", nil, nil); st != http.StatusOK {
+			if st, took := e.call(nil, "GET", "/healthz", nil, nil); st != http.StatusOK || took > livenessTimeout {
 				healthFails.Add(1)
 			} else if rss := int64(e.scrape().rss); rss > maxRSS.Load() {
 				maxRSS.Store(rss)
