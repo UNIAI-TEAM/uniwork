@@ -68,6 +68,24 @@ and keep the G3 host (or its unsupported state).
   headers (Next applies matching rules in order and the last value of a header
   wins), with the same caching split per module. One module's pin never
   reaches another module's paths.
+- A document of a bundle with its own policy (`documents`): the html module's
+  `preview.html` runs the previewed page's scripts, so the fork serves it with
+  a sandboxed, opaque-origin CSP of its own (fork 2a3725b, `csp.json`
+  `documents[{path, value, directives}]`; the frame's own policy only gains
+  `frame-src 'self'`). The pin carries them as an optional
+  `documents: [{path, value}]` (a pin without any keeps its shape, docs.pin.json
+  is unchanged), the sync verifies them like the headers (`--pin` records them,
+  a changed or dropped one fails the check until a deliberate re-pin), and
+  `officeFrameHeaderRules` adds one rule after the module's own,
+  `/office-frame/<module>/:version/<path>`, with that policy instead of the
+  module's (X-Frame-Options, nosniff and the referrer policy stay the host's).
+  The host refuses to pin or serve a document policy that is not the
+  sandboxed kind: it needs a `sandbox` without `allow-same-origin`, top
+  navigation or escaping popups, `default-src`, `connect-src` and `form-action`
+  `'none'`, no `'self'` (only `frame-ancestors 'self'`, forced), an exact
+  file path other than `index.html`, and the manifest must list the file.
+  Tests: `frame-bundle.test.ts`, `frame-install.test.ts`,
+  `frame-headers.test.ts`.
 - `next.config.mjs` inlines `NEXT_PUBLIC_OFFICE_FRAME_VERSIONS`, a JSON map of
   the modules whose pinned bundle is installed and verifies, and keeps
   `NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION` for docs.
@@ -103,9 +121,15 @@ and keep the G3 host (or its unsupported state).
 - `createOfficeFrameApi(module)` is the API over the same routes: a save
   uploads the module's mime type under the stored name, a save-as appends the
   module's extension, and only docs has `export`.
-- `document-office-host.tsx` routes pdf/md/html/pptx/xlsx through
-  `ModuleFrameOrG3Host` only when `pinnedFrameVersion(module)` is set; without
-  an installed bundle the existing G3 host renders exactly as before.
+- `platform/office/document-office-host.tsx` is browser-isolated
+  (`scripts/office/check-boundaries.mjs`), so the app layer injects the frame
+  into it: `createDocumentOfficeEditorHost({ moduleForFormat, Frame })`, and
+  `platform/office-frame/document-host.tsx` supplies both (the format-to-module
+  table, and `PinnedFrame`, which reads the pins and the workspace routes).
+  Every format with a module goes through `Frame` with its G3 host as the
+  fallback; `PinnedFrame` renders the fallback alone, asking no flag, when
+  `pinnedFrameVersion(module)` is empty, so without an installed bundle the
+  existing G3 host renders exactly as before.
 
 ## Open in desktop app (GD3)
 
