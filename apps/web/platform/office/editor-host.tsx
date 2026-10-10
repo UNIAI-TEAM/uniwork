@@ -107,16 +107,22 @@ export function OfficeEditorHost<TSnapshot = unknown>({
 }: OfficeEditorHostProps<TSnapshot>) {
   const { t } = useTranslation();
   // The channel that actually publishes installers (stable > beta > dev); an
-  // explicit prop wins. Until the config answers, ask for stable, as before.
+  // explicit prop wins. Requests that name a channel wait for the config
+  // (channelReady) so none goes out with a guess; if the config is
+  // unavailable they ask for stable and show the "no installer" state.
   const [publishedChannel, setPublishedChannel] = useState<OfficeChannel | null>(null);
+  const channelReady = useRef<Promise<OfficeChannel>>(Promise.resolve("stable"));
   useEffect(() => {
-    if (officeChannelOverride) return undefined;
+    if (officeChannelOverride) {
+      channelReady.current = Promise.resolve(officeChannelOverride);
+      return undefined;
+    }
     let active = true;
-    void getPublicConfig(document.organization_id).then((config) => {
-      if (active) setPublishedChannel(selectOfficeInstallerChannel(config.office_installers));
-    }).catch(() => {
-      // Config unavailable: keep the default channel and its "no installer" state.
-    });
+    const ready = getPublicConfig(document.organization_id)
+      .then((config) => selectOfficeInstallerChannel(config.office_installers) ?? "stable")
+      .catch((): OfficeChannel => "stable");
+    channelReady.current = ready;
+    void ready.then((channel) => { if (active) setPublishedChannel(channel); });
     return () => { active = false; };
   }, [officeChannelOverride, document.organization_id]);
   const officeChannel: OfficeChannel = officeChannelOverride ?? publishedChannel ?? "stable";
@@ -308,7 +314,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
       channel={officeChannel}
       installers={installers}
       loadInstallers={async () => {
-        const profile = await getOfficeDesktopDownload(document.organization_id, officeChannel);
+        const profile = await getOfficeDesktopDownload(document.organization_id, await channelReady.current);
         return { installers: profile?.installers ?? [], supportedPlatforms: profile?.supported_platforms ?? DESKTOP_PLATFORMS };
       }}
       loadPlatformHint={async () => {
@@ -318,7 +324,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         return detectDesktopPlatform({ userAgent: navigator.userAgent, userAgentData: data ? { platform: data.platform, mobile: data.mobile, ...entropy } : undefined });
       }}
       downloadInstaller={async (platform) => {
-        const blob = await downloadOfficeDesktopBundle(document.organization_id, officeChannel, platform);
+        const blob = await downloadOfficeDesktopBundle(document.organization_id, await channelReady.current, platform);
         const url = URL.createObjectURL(blob);
         const link = window.document.createElement("a");
         link.href = url; link.download = "UniWork-Office.zip";

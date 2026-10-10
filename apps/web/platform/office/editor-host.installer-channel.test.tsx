@@ -77,4 +77,23 @@ describe("OfficeEditorHost installer channel (UNI-1009)", () => {
     expect(getOfficeDesktopDownload).toHaveBeenCalledWith("org", "stable");
     act(() => root.unmount());
   });
+
+  it("waits for the config before asking for a channel", async () => {
+    let release!: (value: unknown) => void;
+    getPublicConfig.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    const root = await openDownloadDialog();
+    expect(getOfficeDesktopDownload).not.toHaveBeenCalled();
+    await act(async () => { release({ office_installers: { dev: [devInstaller], beta: [], stable: [] } }); });
+    await settle();
+    expect(getOfficeDesktopDownload).toHaveBeenCalledTimes(1);
+    expect(getOfficeDesktopDownload).toHaveBeenCalledWith("org", "dev");
+    act(() => root.unmount());
+  });
+
+  it("falls back to stable when the config request fails", async () => {
+    getPublicConfig.mockRejectedValue(new Error("offline"));
+    const root = await openDownloadDialog();
+    expect(getOfficeDesktopDownload).toHaveBeenCalledWith("org", "stable");
+    act(() => root.unmount());
+  });
 });
