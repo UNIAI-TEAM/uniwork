@@ -1,0 +1,50 @@
+$ xvfb-run --auto-servernum -- npm run test:e2e -- --repeat-each=10 --retries=0 --reporter=list e2e/docs-spell-suggestions.spec.ts:71 e2e/markdown-tab.spec.ts:101
+
+> genoffice@0.1.0 test:e2e
+> playwright test --config e2e/playwright.config.ts --repeat-each=10 --retries=0 --reporter=list e2e/docs-spell-suggestions.spec.ts:71 e2e/markdown-tab.spec.ts:101
+
+
+Running 20 tests using 1 worker
+
+(node:19506) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.9s)
+  ✓   2 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.3s)
+(node:19679) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   3 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.7s)
+  ✓   4 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:19851) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   5 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.9s)
+  ✓   6 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.3s)
+(node:20020) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   7 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.9s)
+  ✓   8 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.4s)
+(node:20196) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   9 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.9s)
+  ✓  10 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.4s)
+(node:20366) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  11 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.8s)
+  ✓  12 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:20538) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  13 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.8s)
+  ✓  14 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:20713) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  15 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.9s)
+  ✓  16 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:20892) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  17 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.8s)
+  ✓  18 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.3s)
+(node:21063) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  19 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.8s)
+  ✓  20 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.3s)
+
+  20 passed (1.6m)
