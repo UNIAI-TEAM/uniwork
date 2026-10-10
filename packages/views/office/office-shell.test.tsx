@@ -423,6 +423,22 @@ describe("OfficeShell", () => {
     },
   );
 
+  // A pure viewer already reads the page's one "view access only" notice; the shell adds neither a
+  // header chip nor a banner about a draft that cannot exist. An editor who lost access keeps both.
+  it.each(["readonly", "blocked", "incompatible"] as const)("says nothing more about a %s status to a viewer", (saveStatus) => {
+    const { container } = render(<OfficeShell title="Document" editor={<div />} saveStatus={saveStatus} viewOnly />);
+    expect(container.querySelector("[data-office-shell] > [role=alert]")).toBeNull();
+    expect(screen.queryByTestId("office-save-permission")).toBeNull();
+    expect(screen.queryByTestId("office-save-permission-compact")).toBeNull();
+    expect(screen.queryByText(/Giữ bản nháp|bản nháp/)).toBeNull();
+  });
+
+  it("still tells an editor who lost access to keep the draft", () => {
+    const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveStatus="blocked" />);
+    expect(container.querySelector("[data-office-shell] > [role=alert]")).not.toBeNull();
+    expect(screen.getByTestId("office-save-permission-compact")).toBeInTheDocument();
+  });
+
   it.each(["ready", "dirty", "saving", "saved"] as const)("renders no save banner for %s", (saveStatus) => {
     const { container } = render(<OfficeShell title="Document" editor={<div />} editorReady saveStatus={saveStatus} />);
     expect(container.querySelector("[data-office-shell] > [role=alert]")).toBeNull();

@@ -50,6 +50,11 @@ export interface OfficeShellProps {
   saveDestination?: "cloud" | "local";
   editorReady?: boolean;
   /**
+   * The reader may only view this document. The page already announces that once ("view access
+   * only"), so the shell adds no permission chip or banner of its own: a viewer has no draft to keep.
+   */
+  viewOnly?: boolean;
+  /**
    * UNI-928 md/html END polish. The header Save is always quiet (outline +
    * `aria-disabled`) while the save state is "ready" or "saved" (UNI-927);
    * when true it is also quiet before any save state is known, since the
@@ -145,6 +150,7 @@ export function OfficeShell({
   saveLabel: providedSaveLabel,
   saveDestination = "cloud",
   editorReady = false,
+  viewOnly = false,
   saveQuietWhenClean = false,
   embedded = false,
   className,
@@ -165,13 +171,13 @@ export function OfficeShell({
   // Keep the control in the tab order while an intent is running so its
   // disabled state communicates the single coordinator guard.
   const canSave = editorReady && Boolean(saveCoordinator || onSave);
-  const showSaveStatus = editorReady || (saveStatus ?? coordinatorState?.state ?? "ready") !== "ready";
+  const showSaveStatus = !viewOnly && (editorReady || (saveStatus ?? coordinatorState?.state ?? "ready") !== "ready");
   const saveStatusValue = saveStatus ?? coordinatorState?.state ?? "ready";
   // A clean document (never edited, or just saved): Save stays in the tab order
   // (aria-disabled, not disabled) but is inert and not primary, so it never
   // contradicts the status. Any edit publishes "dirty" and re-enables it.
   const nothingToSave = ["ready", "saved"].includes(saveStatus ?? coordinatorState?.state ?? "");
-  const showSaveAlert = ["permission", "conflict", "error", "blocked", "readonly", "incompatible"].includes(saveStatusValue);
+  const showSaveAlert = !viewOnly && ["permission", "conflict", "error", "blocked", "readonly", "incompatible"].includes(saveStatusValue);
   // saveQuietWhenClean (md/html) also quiets Save before any save state is
   // known, using the same clean predicate the status text uses ("ready").
   const quietSave = !effectiveSaving && (nothingToSave || (saveQuietWhenClean && saveStatusValue === "ready"));
