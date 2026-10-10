@@ -1,0 +1,405 @@
+$ npm run test:rebrand
+
+> genoffice@0.1.0 test:rebrand
+> node --test tools/rebrand/brand-scan.test.mjs tools/rebrand/rebrand.test.mjs tools/rebrand/sync-upstream.test.mjs
+
+TAP version 13
+# Subtest: catalog: flags brand in the value, ignores identifier keys
+ok 1 - catalog: flags brand in the value, ignores identifier keys
+  ---
+  duration_ms: 2.976057
+  type: 'test'
+  ...
+# Subtest: catalog: inflections and hyphenated compounds still count as the brand
+ok 2 - catalog: inflections and hyphenated compounds still count as the brand
+  ---
+  duration_ms: 1.659091
+  type: 'test'
+  ...
+# Subtest: code identifiers and the lowercase CLI command are not brand hits
+ok 3 - code identifiers and the lowercase CLI command are not brand hits
+  ---
+  duration_ms: 0.264926
+  type: 'test'
+  ...
+# Subtest: org and domain forms are brand hits even in lowercase
+ok 4 - org and domain forms are brand hits even in lowercase
+  ---
+  duration_ms: 0.151784
+  type: 'test'
+  ...
+# Subtest: source: comment lines are skipped, string literals are not
+ok 5 - source: comment lines are skipped, string literals are not
+  ---
+  duration_ms: 0.591893
+  type: 'test'
+  ...
+# Subtest: source: a glob inside a string does not open a block comment
+ok 6 - source: a glob inside a string does not open a block comment
+  ---
+  duration_ms: 0.307511
+  type: 'test'
+  ...
+# Subtest: installer config is scanned in full, comments included
+ok 7 - installer config is scanned in full, comments included
+  ---
+  duration_ms: 0.31009
+  type: 'test'
+  ...
+# Subtest: package.json: productName and metadata are scanned, name and dependencies are not
+ok 8 - package.json: productName and metadata are scanned, name and dependencies are not
+  ---
+  duration_ms: 0.33603
+  type: 'test'
+  ...
+# Subtest: out-of-scope paths are never scanned
+ok 9 - out-of-scope paths are never scanned
+  ---
+  duration_ms: 0.344254
+  type: 'test'
+  ...
+# Subtest: allowlist entries need a reason and suppress matching hits only
+ok 10 - allowlist entries need a reason and suppress matching hits only
+  ---
+  duration_ms: 0.674947
+  type: 'test'
+  ...
+# Subtest: a debt entry that no longer matches is reported as unused
+ok 11 - a debt entry that no longer matches is reported as unused
+  ---
+  duration_ms: 0.15506
+  type: 'test'
+  ...
+# Subtest: the shipped allowlist file is well formed
+ok 12 - the shipped allowlist file is well formed
+  ---
+  duration_ms: 0.196807
+  type: 'test'
+  ...
+# Subtest: scope covers the shipped CLI launchers, packaging recipes, CLI README and MCP bridge
+ok 13 - scope covers the shipped CLI launchers, packaging recipes, CLI README and MCP bridge
+  ---
+  duration_ms: 0.162075
+  type: 'test'
+  ...
+# Subtest: catalog and source: internal tracker ids are violations, comments are not
+ok 14 - catalog and source: internal tracker ids are violations, comments are not
+  ---
+  duration_ms: 0.163096
+  type: 'test'
+  ...
+# Subtest: internal planning vocabulary in user-visible strings is a violation
+ok 15 - internal planning vocabulary in user-visible strings is a violation
+  ---
+  duration_ms: 0.470505
+  type: 'test'
+  ...
+# Subtest: source: the upstream .desktop id is flagged, the UniWork one and comments are not
+ok 16 - source: the upstream .desktop id is flagged, the UniWork one and comments are not
+  ---
+  duration_ms: 0.666643
+  type: 'test'
+  ...
+# Subtest: a permanent entry that matches nothing is reported separately from debt
+ok 17 - a permanent entry that matches nothing is reported separately from debt
+  ---
+  duration_ms: 0.1169
+  type: 'test'
+  ...
+# Subtest: user-visible GitHub wording and repo links are violations, camel-case identifiers and comments are not
+ok 18 - user-visible GitHub wording and repo links are violations, camel-case identifiers and comments are not
+  ---
+  duration_ms: 0.315919
+  type: 'test'
+  ...
+# Subtest: GitHub allowlist entries are reasoned and suppress only their file
+ok 19 - GitHub allowlist entries are reasoned and suppress only their file
+  ---
+  duration_ms: 0.178847
+  type: 'test'
+  ...
+# Subtest: analytics endpoints and GA4 credentials in product code or packaging config are violations
+ok 20 - analytics endpoints and GA4 credentials in product code or packaging config are violations
+  ---
+  duration_ms: 0.183724
+  type: 'test'
+  ...
+# Subtest: rewrites product names, ids and catalog values
+ok 21 - rewrites product names, ids and catalog values
+  ---
+  duration_ms: 18.37716
+  type: 'test'
+  ...
+# Subtest: never touches tests or license text
+ok 22 - never touches tests or license text
+  ---
+  duration_ms: 9.550237
+  type: 'test'
+  ...
+# Subtest: is idempotent and --check style dry runs write nothing
+ok 23 - is idempotent and --check style dry runs write nothing
+  ---
+  duration_ms: 18.591675
+  type: 'test'
+  ...
+# Subtest: glob matching
+ok 24 - glob matching
+  ---
+  duration_ms: 0.227499
+  type: 'test'
+  ...
+# Subtest: CLI launchers start the renamed app binaries
+ok 25 - CLI launchers start the renamed app binaries
+  ---
+  duration_ms: 12.531713
+  type: 'test'
+  ...
+# Subtest: CLI binary paths are fixed in the prettier-wrapped multi-line shape too
+ok 26 - CLI binary paths are fixed in the prettier-wrapped multi-line shape too
+  ---
+  duration_ms: 22.187524
+  type: 'test'
+  ...
+# Subtest: en and vi errNoApiKey keep the UniWork wording after an upstream merge
+ok 27 - en and vi errNoApiKey keep the UniWork wording after an upstream merge
+  ---
+  duration_ms: 30.40183
+  type: 'test'
+  ...
+# Subtest: vi errNoApiKey keeps the UniWork wording after an upstream merge
+ok 28 - vi errNoApiKey keeps the UniWork wording after an upstream merge
+  ---
+  duration_ms: 10.589632
+  type: 'test'
+  ...
+# Subtest: origin links point at the UNIAI-TEAM repo, from upstream and from the old fork
+ok 29 - origin links point at the UNIAI-TEAM repo, from upstream and from the old fork
+  ---
+  duration_ms: 11.092183
+  type: 'test'
+  ...
+# Subtest: first-run welcome copy is re-applied per locale and survives a merge
+ok 30 - first-run welcome copy is re-applied per locale and survives a merge
+  ---
+  duration_ms: 14.13659
+  type: 'test'
+  ...
+# Subtest: the Linux default-app desktop id follows desktopName
+ok 31 - the Linux default-app desktop id follows desktopName
+  ---
+  duration_ms: 10.57072
+  type: 'test'
+  ...
+# Subtest: cli-gui-binary-paths matches the real upstream shape of resources.ts
+ok 32 - cli-gui-binary-paths matches the real upstream shape of resources.ts
+  ---
+  duration_ms: 9.736992
+  type: 'test'
+  ...
+# Subtest: "Genspark AI" becomes "AI" only as a label, not inside a sentence
+ok 33 - "Genspark AI" becomes "AI" only as a label, not inside a sentence
+  ---
+  duration_ms: 9.911417
+  type: 'test'
+  ...
+# Subtest: the post-install ln -s hint quotes the spaced install dir
+ok 34 - the post-install ln -s hint quotes the spaced install dir
+  ---
+  duration_ms: 8.966213
+  type: 'test'
+  ...
+# Subtest: GitHub, GenTeam and usage-statistics strings are dropped from every locale and stay dropped
+ok 35 - GitHub, GenTeam and usage-statistics strings are dropped from every locale and stay dropped
+  ---
+  duration_ms: 9.959525
+  type: 'test'
+  ...
+# Subtest: step 3 of the welcome dialog is rewritten in every locale, double-quoted upstream values included
+ok 36 - step 3 of the welcome dialog is rewritten in every locale, double-quoted upstream values included
+  ---
+  duration_ms: 9.920971
+  type: 'test'
+  ...
+# Subtest: the icon overlay carries every Linux hicolor size at its real dimensions
+ok 37 - the icon overlay carries every Linux hicolor size at its real dimensions
+  ---
+  duration_ms: 1.284673
+  type: 'test'
+  ...
+# Subtest: icon.ico holds 16..256 px entries and icon.icns the PNG slots macOS reads
+ok 38 - icon.ico holds 16..256 px entries and icon.icns the PNG slots macOS reads
+  ---
+  duration_ms: 0.341115
+  type: 'test'
+  ...
+# Subtest: the logo SVG is the icon source of truth and is never copied into the repo
+ok 39 - the logo SVG is the icon source of truth and is never copied into the repo
+  ---
+  duration_ms: 4.036665
+  type: 'test'
+  ...
+# Subtest: the standalone Docs app ships the same icons as the shell
+ok 40 - the standalone Docs app ships the same icons as the shell
+  ---
+  duration_ms: 0.436081
+  type: 'test'
+  ...
+# Subtest: Integrations prose names the product and keeps the command in parentheses, idempotently
+ok 41 - Integrations prose names the product and keeps the command in parentheses, idempotently
+  ---
+  duration_ms: 9.879641
+  type: 'test'
+  ...
+# Subtest: the fork banner loses the internal ticket sentence but keeps the attribution line
+ok 42 - the fork banner loses the internal ticket sentence but keeps the attribution line
+  ---
+  duration_ms: 9.531373
+  type: 'test'
+  ...
+# Subtest: shell maintainer / vendor map onto legal.json, and legal.json keeps its attribution
+ok 43 - shell maintainer / vendor map onto legal.json, and legal.json keeps its attribution
+  ---
+  duration_ms: 9.333011
+  type: 'test'
+  ...
+# Subtest: parseArgs reads flags and rejects unknown ones
+ok 44 - parseArgs reads flags and rejects unknown ones
+  ---
+  duration_ms: 2.37818
+  type: 'test'
+  ...
+# Subtest: up to date: no branch, no commit, exit 0
+ok 45 - up to date: no branch, no commit, exit 0
+  ---
+  duration_ms: 68.69111
+  type: 'test'
+  ...
+# Subtest: clean apply: branch with patch, rebrand and base-bump commits
+ok 46 - clean apply: branch with patch, rebrand and base-bump commits
+  ---
+  duration_ms: 118.577503
+  type: 'test'
+  ...
+# Subtest: binary files in the diff apply byte for byte
+ok 47 - binary files in the diff apply byte for byte
+  ---
+  duration_ms: 90.2494
+  type: 'test'
+  ...
+# Subtest: conflicts stop after apply and leave the tree for a human; --continue finishes
+ok 48 - conflicts stop after apply and leave the tree for a human; --continue finishes
+  ---
+  duration_ms: 114.537154
+  type: 'test'
+  ...
+# Subtest: --commit-conflicts commits the markers and finishes the remaining steps
+ok 49 - --commit-conflicts commits the markers and finishes the remaining steps
+  ---
+  duration_ms: 94.620111
+  type: 'test'
+  ...
+# Subtest: a file the fork deleted cannot be 3-way merged: reported as failed, the rest applies
+ok 50 - a file the fork deleted cannot be 3-way merged: reported as failed, the rest applies
+  ---
+  duration_ms: 97.323891
+  type: 'test'
+  ...
+# Subtest: dry run changes nothing in the repo and is repeatable
+ok 51 - dry run changes nothing in the repo and is repeatable
+  ---
+  duration_ms: 192.270167
+  type: 'test'
+  ...
+# Subtest: already prepared: a second run with the same target changes nothing
+ok 52 - already prepared: a second run with the same target changes nothing
+  ---
+  duration_ms: 127.235898
+  type: 'test'
+  ...
+# Subtest: refuses a dirty working tree
+ok 53 - refuses a dirty working tree
+  ---
+  duration_ms: 48.646583
+  type: 'test'
+  ...
+# Subtest: --exclude leaves paths out of the patch and lists them
+ok 54 - --exclude leaves paths out of the patch and lists them
+  ---
+  duration_ms: 72.071157
+  type: 'test'
+  ...
+# Subtest: a failing or crashing check makes the run exit 2 instead of aborting
+ok 55 - a failing or crashing check makes the run exit 2 instead of aborting
+  ---
+  duration_ms: 84.412187
+  type: 'test'
+  ...
+# Subtest: parsePorcelainZ keeps both paths of a rename entry
+ok 56 - parsePorcelainZ keeps both paths of a rename entry
+  ---
+  duration_ms: 0.11038
+  type: 'test'
+  ...
+# Subtest: refuses a target that does not descend from the base unless --force
+ok 57 - refuses a target that does not descend from the base unless --force
+  ---
+  duration_ms: 136.566324
+  type: 'test'
+  ...
+# Subtest: an existing origin sync branch that is not prepared fails early, nothing created
+ok 58 - an existing origin sync branch that is not prepared fails early, nothing created
+  ---
+  duration_ms: 54.275214
+  type: 'test'
+  ...
+# Subtest: a runtime error after the branch was created rolls back to the original branch
+ok 59 - a runtime error after the branch was created rolls back to the original branch
+  ---
+  duration_ms: 98.28251
+  type: 'test'
+  ...
+# Subtest: a formatting failure counts as exit 2; --ci makes a missing Prettier a failure
+ok 60 - a formatting failure counts as exit 2; --ci makes a missing Prettier a failure
+  ---
+  duration_ms: 85.778076
+  type: 'test'
+  ...
+# Subtest: egress check runs from the trusted copy when check:egress exists, and a hit is exit 2
+ok 61 - egress check runs from the trusted copy when check:egress exists, and a hit is exit 2
+  ---
+  duration_ms: 193.621068
+  type: 'test'
+  ...
+# Subtest: report: upstream text in code spans, failed files flagged loudly, PR body truncated
+ok 62 - report: upstream text in code spans, failed files flagged loudly, PR body truncated
+  ---
+  duration_ms: 94.74249
+  type: 'test'
+  ...
+# Subtest: legal headers are refreshed from the trusted copy in the base-bump commit
+ok 63 - legal headers are refreshed from the trusted copy in the base-bump commit
+  ---
+  duration_ms: 102.673693
+  type: 'test'
+  ...
+# Subtest: without a legal script the bump commit keeps its plain title
+ok 64 - without a legal script the bump commit keeps its plain title
+  ---
+  duration_ms: 72.546452
+  type: 'test'
+  ...
+# Subtest: a failing legal sync is exit 2
+ok 65 - a failing legal sync is exit 2
+  ---
+  duration_ms: 83.097383
+  type: 'test'
+  ...
+1..65
+# tests 65
+# suites 0
+# pass 65
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2153.376467
