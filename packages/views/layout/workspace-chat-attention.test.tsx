@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
 import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences-store";
 import { initI18n } from "@uniwork/core/i18n";
+import { registerSystemNotificationClickHandler } from "@uniwork/core/platform";
 import type { User, Workspace } from "@uniwork/core/types";
 import { requestMock } from "../test/api-mock";
 import { WorkspaceChatAttention } from "./workspace-chat-attention";
@@ -24,9 +25,9 @@ const room = (id: string, unread: number, mentions: number) => ({
   id, kind: "channel", name: id, workspace_id: "ws1", member_user_ids: [],
   unread_count: unread, mention_unread_count: mentions,
 });
-const dm = (id: string, updated: string) => ({
+const dm = (id: string, updated: string, actor = "Bình") => ({
   id, kind: "chat_dm", resource_type: "chat_message", resource_id: "m1", resource_parent_id: "r1",
-  title_key: "notifications.kind.chat_dm", params: { actor: "Bình" }, created_at: updated, updated_at: updated,
+  title_key: "notifications.kind.chat_dm", params: { actor }, created_at: updated, updated_at: updated,
 });
 
 let notifications: unknown[] = [];
@@ -101,5 +102,45 @@ describe("WorkspaceChatAttention", () => {
       await client.invalidateQueries({ queryKey: ["notifications"] });
     });
     await waitFor(() => expect(shown).toEqual(["Bình đã nhắn tin cho bạn"]));
+  });
+
+  // UNI-1074: a row older than everything seen (pulled into the top 20 when
+  // newer ones were read) is not news either; and a click opens the message.
+  it("banners only rows newer than the newest seen, and carries where a click goes", async () => {
+    const shown: Array<{ title: string; tag?: string }> = [];
+    const instances: Array<{ onclick: (() => void) | null }> = [];
+    class FakeNotification {
+      static permission = "granted";
+      onclick: (() => void) | null = null;
+      constructor(title: string, options?: NotificationOptions) {
+        shown.push({ title, tag: options?.tag });
+        instances.push(this);
+      }
+      close() {}
+    }
+    vi.stubGlobal("Notification", FakeNotification);
+    const clicked = vi.fn();
+    registerSystemNotificationClickHandler(clicked);
+    setHidden(true);
+    notifications = [dm("seen", "2026-10-09T01:00:00Z")];
+    const { client } = renderAttention();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(expect.stringContaining("/api/v1/me/notifications?")));
+    await act(async () => {
+      await client.refetchQueries();
+    });
+
+    notifications = [
+      dm("new", "2026-10-09T02:00:00Z", "Chi"),
+      dm("seen", "2026-10-09T01:00:00Z"),
+      dm("old", "2026-10-08T00:00:00Z", "Dũng"),
+    ];
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["notifications"] });
+    });
+    await waitFor(() => expect(shown).toEqual([{ title: "Chi đã nhắn tin cho bạn", tag: "new" }]));
+
+    instances[0]?.onclick?.();
+    expect(clicked).toHaveBeenCalledWith(expect.objectContaining({ href: "/acme/team/chat?room=r1&message=m1" }));
+    registerSystemNotificationClickHandler(null);
   });
 });

@@ -7,6 +7,7 @@ import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences
 import { useNotifications } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
 import { getWebNotificationPermission, showWebNotification } from "@uniwork/core/platform";
+import { resourceHref } from "../notifications/resource-href";
 import { useWorkspace } from "./workspace-context";
 
 const TITLE_COUNT = /^\(\d+\) /;
@@ -47,21 +48,32 @@ export function WorkspaceChatAttention() {
   const push = usePush();
   const banners = getWebNotificationPermission() === "granted" && !push.subscribed;
   const recent = useNotifications({ unreadOnly: true, limit: 20, enabled: banners });
-  const seen = useRef<Map<string, string> | null>(null);
+  /** Newest `updated_at ?? created_at` seen so far; null before the first load. */
+  const newestSeen = useRef<number | null>(null);
   useEffect(() => {
     const rows = recent.data?.notifications;
     if (!rows) return;
-    const before = seen.current;
-    seen.current = new Map(rows.map((n) => [n.id, n.updated_at ?? n.created_at]));
+    const stamp = (n: (typeof rows)[number]) => Date.parse(n.updated_at ?? n.created_at) || 0;
+    const before = newestSeen.current;
+    newestSeen.current = Math.max(before ?? -Infinity, ...rows.map(stamp));
     // The first load is the backlog, not news; a visible tab has the inbox.
-    if (!before || document.visibilityState !== "hidden") return;
+    if (before === null || document.visibilityState !== "hidden") return;
     const muted = useChatRoomPreferencesStore.getState().isNotificationsMuted;
     for (const n of rows) {
-      if (!BANNER_KINDS.has(n.kind) || before.get(n.id) === (n.updated_at ?? n.created_at)) continue;
+      // Only what is newer than anything seen: an old row the top-20 window
+      // pulls in once newer ones are read is not news (UNI-1074).
+      if (!BANNER_KINDS.has(n.kind) || stamp(n) <= before) continue;
       if (n.resource_parent_id && muted(n.resource_parent_id)) continue;
       // The id is the tag: a merged row replaces its earlier banner.
-      showWebNotification({ slug: workspace.slug, itemId: n.id, issueKey: n.id, title: t(n.title_key, n.params), body: "" });
+      showWebNotification({
+        slug: workspace.slug,
+        itemId: n.id,
+        issueKey: n.id,
+        href: resourceHref(n, workspace),
+        title: t(n.title_key, n.params),
+        body: "",
+      });
     }
-  }, [recent.data, t, workspace.slug]);
+  }, [recent.data, t, workspace]);
   return null;
 }
