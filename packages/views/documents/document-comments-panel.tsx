@@ -35,7 +35,7 @@ import {
 } from "../comments/comment-thread";
 import { toastApiError } from "../toast-api-error";
 import { useOptionalWorkspace } from "../layout/workspace-context";
-import { useDocumentCommentsChrome } from "./document-comments-context";
+import { documentCommentsCopy, useDocumentCommentsChrome } from "./document-comments-context";
 
 /** Tailwind `xl` — the breakpoint where the detail row can afford a rail. */
 const DESKTOP_QUERY = "(min-width: 1280px)";
@@ -305,7 +305,7 @@ function CommentsPane({
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {comments.length === 0 ? (
           <p className="text-caption text-muted-foreground" data-testid="document-comments-empty">
-            {t("documents.comments.empty")}
+            {t(documentCommentsCopy(doc).empty)}
           </p>
         ) : null}
         {openThreads.map(renderThread)}
@@ -333,7 +333,7 @@ function CommentsPane({
       <header className="flex items-center gap-2 border-b border-border px-4 py-3">
         <MessageSquare aria-hidden className="size-4 text-muted-foreground" />
         <h2 className="min-w-0 truncate text-body font-semibold text-foreground">
-          {t("documents.comments.title")}
+          {t(documentCommentsCopy(doc).title)}
         </h2>
         {query.isSuccess ? (
           <span className="shrink-0 text-caption text-muted-foreground">
@@ -345,7 +345,7 @@ function CommentsPane({
           variant="ghost"
           size="icon-sm"
           className="ml-auto shrink-0"
-          aria-label={t("documents.comments.close")}
+          aria-label={t(documentCommentsCopy(doc).close)}
           onClick={onClose}
         >
           <X aria-hidden />
@@ -386,7 +386,7 @@ export function DocumentCommentsPanel() {
   if (desktop) {
     return (
       <aside
-        aria-label={t("documents.comments.title")}
+        aria-label={t(documentCommentsCopy(doc).title)}
         className="flex w-96 min-w-0 shrink-0 flex-col border-l border-border"
       >
         <CommentsPane wsId={wsId} doc={doc} onClose={close} />

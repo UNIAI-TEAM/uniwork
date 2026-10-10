@@ -278,6 +278,10 @@ What the UniWork page owns around every module frame, one behaviour for all six:
   (title + reason, one live region) is the announcement; the header chip is
   gone (a page keeps the chip only where its banner is hidden). The frames hide
   their own chip through the `viewOnlyChip` capability.
+- **Two comment surfaces, two names.** The page drawer of an office file is
+  "File discussion" (the discussion about the file); the editor's own pane keeps
+  the editor's word for notes inside the document ("Comments in this document"
+  where the module words it so). A page document keeps "Comments".
 - **Preference toasts name the preference** ("Language preference saved"), so
   a language or theme switch never reads as the document's save state.
 - **Failure panel.** A denied reader (403/404) gets the reason and a link back

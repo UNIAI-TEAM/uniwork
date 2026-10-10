@@ -27,6 +27,16 @@ interface DocumentCommentsChrome {
   triggerRef: RefObject<HTMLButtonElement | null>;
 }
 
+/**
+ * An office file opens in an editor with its own Comments pane (notes inside the document); this
+ * drawer then holds the discussion about the file, and says so, so the two never both read "Comments".
+ */
+export function documentCommentsCopy(doc: Pick<Document, "kind">) {
+  return doc.kind === "file"
+    ? ({ open: "documents.comments.file_open", title: "documents.comments.file_title", close: "documents.comments.file_close", empty: "documents.comments.file_empty" } as const)
+    : ({ open: "documents.comments.open", title: "documents.comments.title", close: "documents.comments.close", empty: "documents.comments.empty" } as const);
+}
+
 const DocumentCommentsChromeContext = createContext<DocumentCommentsChrome | null>(null);
 
 export function DocumentCommentsProvider({
@@ -81,6 +91,7 @@ export function DocumentCommentsHeaderActions() {
   // The document payload carries the organization; the workspace context is
   // the fallback for a server that omitted it.
   const orgId = chrome.doc.organization_id || workspace?.workspace.organization_id || "";
+  const copy = documentCommentsCopy(chrome.doc);
   return (
     <div className={folded ? "hidden shrink-0 items-center gap-1 sm:flex" : "contents"} data-document-comments-actions>
       <DocumentFavoriteToggle documentId={chrome.doc.id} orgId={orgId} />
@@ -89,13 +100,13 @@ export function DocumentCommentsHeaderActions() {
         type="button"
         variant="ghost"
         size="sm"
-        aria-label={t("documents.comments.open")}
+        aria-label={t(copy.open)}
         aria-expanded={chrome.open}
         aria-controls="document-comments-panel"
         onClick={() => chrome.setOpen(!chrome.open)}
       >
         <MessageSquare aria-hidden className="size-4" />
-        <span className="hidden sm:inline">{t("documents.comments.open")}</span>
+        <span className="hidden sm:inline">{t(copy.open)}</span>
       </Button>
     </div>
   );
