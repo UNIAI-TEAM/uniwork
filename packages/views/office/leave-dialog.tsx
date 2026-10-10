@@ -20,7 +20,7 @@ export type LeaveChoice = "save" | "keep" | "discard" | "stay";
 // translucent tint lets the dark label drop under 4.5:1 (4.18 measured). The opaque
 // soft pair holds 6.25 light / 5.58 dark on any ground; hover marks the edge instead
 // of deepening the tint.
-const DISCARD_CLASS = "bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft hover:border-destructive/40 dark:bg-destructive-soft dark:hover:bg-destructive-soft";
+export const DISCARD_CLASS = "bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft hover:border-destructive/40 dark:bg-destructive-soft dark:hover:bg-destructive-soft";
 
 export interface LeaveDialogProps {
   open: boolean;

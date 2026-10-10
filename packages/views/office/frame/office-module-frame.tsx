@@ -21,6 +21,7 @@ import { DocsFrameFailure } from "./docs-frame-failure";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
+import { SaveConflictDialog } from "./save-conflict-dialog";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
 export interface OfficeModuleFrameControls {
@@ -318,6 +319,7 @@ export function OfficeModuleFrame({
         onChoice={(choice) => { if (choice !== "stay") finishLeave(true); }}
         finalFocus={focusFrame}
       />
+      <SaveConflictDialog open={session.conflict} onKeep={session.keepEdits} onReload={session.reloadLatest} finalFocus={focusFrame} />
     </div>
   );
 }

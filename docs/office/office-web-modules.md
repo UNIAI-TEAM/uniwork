@@ -285,6 +285,18 @@ What the UniWork page owns around every module frame, one behaviour for all six:
   load and generic failures.
 - **Failed save.** The header keeps "Save could not be confirmed" until the
   frame reports dirty again (the next edit), then says "Unsaved".
+- **Save conflict has one owner per save.** A save the frame starts (Ctrl+S)
+  opens the frame's own Reload latest / Overwrite / Cancel dialog; the host
+  hears only a non-fatal `error` event and shows nothing. A save the page starts
+  (header Save, `reason: "user"`) answers `{ ok: false, error: { code: "conflict" } }`
+  and the **host** asks, in the page language: "Someone saved a newer version"
+  with **Keep my edits** (default) and **Reload latest** (a fresh frame, the
+  page's own copy refetched). A leave-dialog save (`navigate`) keeps its inline
+  failure line. The server words its messages in the *account* language, so
+  `ProtocolErrorShape.message` never carries them: it is the English developer
+  text `<api code> (HTTP <status>)` (`document_version_conflict (HTTP 409)`),
+  the stable code is `details.apiCode`, and a frame that shows a notice maps
+  `code` to page-language copy itself.
 - **Standard-editor notice.** A workbook over the Sheets cap (host gate or the
   frame answering `too_large`) opens in the G3 editor under one sentence:
   "This file is too large for the web editor, so it opened in the standard

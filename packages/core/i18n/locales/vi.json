@@ -8015,6 +8015,13 @@
         "use_standard": "Dùng trình soạn thảo tiêu chuẩn"
       },
       "fallback_notice": "Không tải được trình soạn thảo mới; bạn đang dùng trình soạn thảo tiêu chuẩn.",
+      "save_conflict": {
+        "title": "Có người vừa lưu phiên bản mới hơn",
+        "description": "Thay đổi của bạn chưa được lưu. Tải lại để xem phiên bản mới nhất; bản này sẽ thay thế nội dung đang mở ở đây. Hoặc giữ nguyên để sao chép phần đã sửa trước.",
+        "keep": "Giữ thay đổi của tôi",
+        "reload": "Tải bản mới nhất",
+        "close": "Đóng"
+      },
       "fallback_notice_size": "Tệp này quá lớn cho trình soạn thảo web, nên được mở bằng trình soạn thảo tiêu chuẩn.",
       "failure": {
         "unavailable": {

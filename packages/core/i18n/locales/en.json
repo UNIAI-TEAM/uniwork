@@ -8020,6 +8020,13 @@
         "use_standard": "Use the standard editor"
       },
       "fallback_notice": "The new editor could not load; you are using the standard editor.",
+      "save_conflict": {
+        "title": "Someone saved a newer version",
+        "description": "Your changes were not saved. Reload to see the latest version, which replaces what you have open here, or keep your edits open so you can copy them out first.",
+        "keep": "Keep my edits",
+        "reload": "Reload latest",
+        "close": "Close"
+      },
       "fallback_notice_size": "This file is too large for the web editor, so it opened in the standard editor.",
       "failure": {
         "unavailable": {

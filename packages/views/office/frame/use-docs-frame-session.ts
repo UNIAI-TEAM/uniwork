@@ -97,6 +97,15 @@ export interface DocsFrameSession {
   saveState: DocsFrameSaveState;
   /** The frame shows one of its own dialogs (its `modal` event); the page dims its chrome meanwhile. */
   modal: boolean;
+  /**
+   * A save the page asked for (header Save) met a newer version on the server. The frame leaves the
+   * UI of a host-initiated save to the host, so the page asks Reload latest / Keep my edits.
+   */
+  conflict: boolean;
+  /** Keep the edits open: the dialog closes, the frame stays as it is. */
+  keepEdits: () => void;
+  /** Drop the local edits and open the newest version in a fresh frame. */
+  reloadLatest: () => void;
   /** Content height the frame last reported, in CSS px. */
   height: number | null;
   /** Ask the frame to save (leave dialog). Resolves true once the bytes are a new version. */
@@ -170,6 +179,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<DocsFrameSaveState>("ready");
   const [modal, setModal] = useState(false);
+  const [conflict, setConflict] = useState(false);
   const [height, setHeight] = useState<number | null>(null);
   const [host, setHost] = useState<DocsFrameHost | null>(null);
 
@@ -185,6 +195,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     setDirty(false);
     setSaveState("ready");
     setModal(false);
+    setConflict(false);
     sentToken.current = null;
     // A clean frame after a save reads "saved"; one never saved reads "ready".
     let savedOnce = false;
@@ -395,13 +406,20 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
 
   const save = useCallback(async (reason: "user" | "navigate") => {
     if (!host) return false;
+    // A save the user asked for from the page: a stale base is the host's to explain (the frame
+    // opens its own Reload / Overwrite dialog only for the saves it starts itself). The leave
+    // dialog's save keeps its own inline failure line.
+    const fail = (error: ProtocolErrorShape) => {
+      if (reason === "user" && error.code === "conflict") setConflict(true);
+      else latest.current.options.onError(error);
+    };
     try {
       const result = await host.save({ reason });
       if (result.ok) return true;
-      latest.current.options.onError(result.error);
+      fail(result.error);
       return false;
     } catch (error) {
-      latest.current.options.onError(shapeOf(error));
+      fail(shapeOf(error));
       return false;
     }
   }, [host]);
@@ -425,9 +443,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     if (tokenFailure) void refetchToken();
     setAttempt((n) => n + 1);
   }, [refetchToken, tokenFailure]);
+  const keepEdits = useCallback(() => { setConflict(false); }, []);
+  const reloadLatest = useCallback(() => {
+    // The page's own copy of the document is behind too: refetch it with the frame.
+    void queryClient.invalidateQueries({ queryKey: documentKeys.detail(wsId, scopeId) });
+    retry();
+  }, [queryClient, retry, scopeId, wsId]);
   return { status: failure ? "failed" : status, slow: slow && status === "booting" && !failure, viewOnly, failure, dirty,
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
     modal: modal && status === "ready" && !failure,
+    conflict: conflict && status === "ready" && !failure, keepEdits, reloadLatest,
     height, save, print, attempt, retry };
 }

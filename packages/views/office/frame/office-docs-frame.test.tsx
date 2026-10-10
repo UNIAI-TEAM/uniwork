@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { officeFrameKeys } from "@uniwork/core/documents/office-frame-hooks";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from "@uniwork/core/office/docs-frame-protocol";
@@ -387,9 +388,94 @@ describe("OfficeDocsFrame", () => {
     await boot(frame);
     const saving = controlsRef.current!.save();
     await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
-    await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "conflict", message: "412" } });
+    await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "forbidden", message: "403" } });
     await expect(saving).resolves.toBe(false);
     expect(toastError).toHaveBeenCalledTimes(1);
+  });
+
+  describe("a header Save that meets a newer version on the server", () => {
+    const SERVER_SENTENCE = "tài liệu đã có phiên bản mới hơn kể từ lần bạn mở nó";
+
+    // jsdom has no window.focus, and a reload swaps in an iframe nobody could spy on yet.
+    let contentWindow: MockInstance;
+    beforeEach(() => {
+      const real = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow")!.get!;
+      contentWindow = vi.spyOn(HTMLIFrameElement.prototype, "contentWindow", "get").mockImplementation(function (this: HTMLIFrameElement) {
+        const win = real.call(this) as Window | null;
+        if (win) win.focus = () => undefined;
+        return win;
+      });
+    });
+    afterEach(() => { contentWindow.mockRestore(); });
+
+    async function conflicted(props: Partial<OfficeDocsFrameProps> = {}) {
+      const controlsRef = { current: null as { save: () => Promise<boolean>; print: () => Promise<boolean> } | null };
+      const { client } = mount({ controlsRef, ...props });
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      const saving = controlsRef.current!.save();
+      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
+      await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "conflict", message: SERVER_SENTENCE, status: 409 } });
+      await expect(saving).resolves.toBe(false);
+      return { frame, client };
+    }
+
+    it("asks Reload latest or Keep my edits in the page language, with neither a toast nor the server's sentence", async () => {
+      await conflicted();
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent("Có người vừa lưu phiên bản mới hơn");
+      expect(dialog).not.toHaveTextContent(SERVER_SENTENCE);
+      expect(screen.getByRole("button", { name: "Tải bản mới nhất" })).toBeInTheDocument();
+      // The safe choice holds focus.
+      expect(screen.getByRole("button", { name: "Giữ thay đổi của tôi" })).toHaveFocus();
+      expect(toastError).not.toHaveBeenCalled();
+    });
+
+    it("keeps the edits open when asked: the same frame, still unsaved", async () => {
+      await conflicted();
+      const before = screen.getByTestId("office-docs-frame-iframe");
+      const focusIframe = vi.spyOn(before as HTMLIFrameElement, "focus");
+      fireEvent.click(await screen.findByRole("button", { name: "Giữ thay đổi của tôi" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(screen.getByTestId("office-docs-frame-iframe")).toBe(before);
+      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-dirty");
+      // Closing the dialog hands the keyboard back to the editor, like the leave dialog does.
+      await waitFor(() => expect(focusIframe).toHaveBeenCalled());
+    });
+
+    it("reloads the newest version into a fresh frame and refetches the page's own copy", async () => {
+      const { client } = await conflicted();
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+      const before = screen.getByTestId("office-docs-frame-iframe");
+      fireEvent.click(await screen.findByRole("button", { name: "Tải bản mới nhất" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(screen.getByTestId("office-docs-frame-iframe")).not.toBe(before);
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: documentKeys.detail("ws-1", "doc-1") });
+    });
+
+    it("names the newer version in English on an English page", async () => {
+      await setLocale("en");
+      await conflicted();
+      expect(await screen.findByRole("dialog")).toHaveTextContent("Someone saved a newer version");
+      expect(screen.getByRole("button", { name: "Reload latest" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Keep my edits" })).toBeInTheDocument();
+    });
+
+    it("leaves the leave dialog's own save failure alone (no second dialog on top of it)", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      const leaving = leaveGuardAllows("/elsewhere");
+      fireEvent.click(await screen.findByRole("button", { name: "Lưu lên UniWork" }));
+      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
+      await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "conflict", message: SERVER_SENTENCE, status: 409 } });
+      await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("dialog", { name: "Có người vừa lưu phiên bản mới hơn" })).toBeNull();
+      fireEvent.click(await screen.findByRole("button", { name: "Ở lại" }));
+      await expect(leaving).resolves.toBe(false);
+    });
   });
 
   it("names a save-as copy of the source the way UniWork names a copy", async () => {

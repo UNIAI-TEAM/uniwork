@@ -93,11 +93,15 @@ export function docsFrameError(error: unknown): DocsProtocolError {
     // 504 is the server giving up on a slow render. Both are not "internal".
     // 503 office_not_configured is the same fact as 501 for the frame: this deployment has no engine.
     const noRenderer = error.status === 501 || (error.status === 503 && error.code === "office_not_configured");
+    // The server words its message in the ACCOUNT language, which is not the page's: the frame
+    // gets the stable code (`details.apiCode`, plus this English developer text) and maps it to
+    // page-language copy itself. The sentence never travels.
+    const message = error.code ? `${error.code} (HTTP ${error.status})` : `HTTP ${error.status}`;
     const shape = noRenderer
-      ? { code: "unsupported" as const, message: error.message, status: error.status }
+      ? { code: "unsupported" as const, message, status: error.status }
       : error.status === 504
-        ? { code: "timeout" as const, message: error.message, status: 504, retryable: true }
-        : errorFromHttpStatus(error.status, error.message).toShape();
+        ? { code: "timeout" as const, message, status: 504, retryable: true }
+        : errorFromHttpStatus(error.status, message).toShape();
     return new DocsProtocolError({ ...shape, details: { apiCode: error.code } });
   }
   return toProtocolError(error);
