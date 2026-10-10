@@ -156,6 +156,8 @@ fi
 # browser artifacts the branch knows how to build before any spec command runs.
 [ "$profile" = uniwork ] && for builder in "build-upstream.mjs --docx-browser" "build-xlsx-browser.mjs" "build-pptx-browser.mjs"; do
   [ -f "scripts/office/${builder%% *}" ] || continue
+  # A branch whose script predates the flag (e.g. test/cursor-cloud-env itself) has nothing to build here.
+  case "$builder" in *" "*) grep -q -- "${builder#* }" "scripts/office/${builder%% *}" || continue ;; esac
   if ! node scripts/office/$builder > /tmp/runner-upstream.log 2>&1; then
     notes="office-upstream build failed (${builder%% *}): $(tail -3 /tmp/runner-upstream.log | tr '\n' ' ')"; report failed blocked ""; exit 0
   fi
