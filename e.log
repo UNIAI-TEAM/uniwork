@@ -1,0 +1,212 @@
+$ xvfb-run --auto-servernum -- npm run test:e2e -- --repeat-each=5 --retries=0 --reporter=list e2e/docs-spell-suggestions.spec.ts:71 e2e/markdown-tab.spec.ts:101
+
+> genoffice@0.1.0 test:e2e
+> playwright test --config e2e/playwright.config.ts --repeat-each=5 --retries=0 --reporter=list e2e/docs-spell-suggestions.spec.ts:71 e2e/markdown-tab.spec.ts:101
+
+
+Running 10 tests using 1 worker
+
+(node:13281) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (22.0s)
+(node:13373) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   2 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (retry #1) (7.6s)
+  ✘   3 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.1s)
+(node:13549) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.1s)
+(node:13639) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (retry #1) (7.1s)
+(node:13730) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   6 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:13826) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.1s)
+(node:13916) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (retry #1) (7.1s)
+(node:14007) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:14100) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.1s)
+(node:14193) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  11 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (retry #1) (7.6s)
+  ✓  12 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.1s)
+(node:14366) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  13 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (7.6s)
+  ✓  14 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.1s)
+
+
+  1) e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      190 |     await editor.mouse.click(blank.x, blank.y)
+      191 |     await editor.waitForTimeout(500)
+    > 192 |     expect(await redUnder(editor, (await wordRect(editor, 'lazyy'))!)).toBeGreaterThan(0)
+          |                                                                        ^
+      193 |
+      194 |     await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+      195 |     await expect.poll(() => pageText(editor), POLL).toContain('jumsp')
+        at /home/ubuntu/work/uniwork-office/e2e/docs-spell-suggestions.spec.ts:192:72
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one-repeat1/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      190 |     await editor.mouse.click(blank.x, blank.y)
+      191 |     await editor.waitForTimeout(500)
+    > 192 |     expect(await redUnder(editor, (await wordRect(editor, 'lazyy'))!)).toBeGreaterThan(0)
+          |                                                                        ^
+      193 |
+      194 |     await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+      195 |     await expect.poll(() => pageText(editor), POLL).toContain('jumsp')
+        at /home/ubuntu/work/uniwork-office/e2e/docs-spell-suggestions.spec.ts:192:72
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one-retry1-repeat1/error-context.md
+
+  2) e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      190 |     await editor.mouse.click(blank.x, blank.y)
+      191 |     await editor.waitForTimeout(500)
+    > 192 |     expect(await redUnder(editor, (await wordRect(editor, 'lazyy'))!)).toBeGreaterThan(0)
+          |                                                                        ^
+      193 |
+      194 |     await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+      195 |     await expect.poll(() => pageText(editor), POLL).toContain('jumsp')
+        at /home/ubuntu/work/uniwork-office/e2e/docs-spell-suggestions.spec.ts:192:72
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one-repeat2/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      190 |     await editor.mouse.click(blank.x, blank.y)
+      191 |     await editor.waitForTimeout(500)
+    > 192 |     expect(await redUnder(editor, (await wordRect(editor, 'lazyy'))!)).toBeGreaterThan(0)
+          |                                                                        ^
+      193 |
+      194 |     await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+      195 |     await expect.poll(() => pageText(editor), POLL).toContain('jumsp')
+        at /home/ubuntu/work/uniwork-office/e2e/docs-spell-suggestions.spec.ts:192:72
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one-retry1-repeat2/error-context.md
+
+  3) e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back 
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected substring: "# Hello"
+    Received string:    "---
+    title: Note
+    ---···
+    # Appended line.Hello·
+    Some **bold** text.
+    "
+
+      143 |       const saved = await readFile(mdPath, 'utf8')
+      144 |       expect(saved.startsWith('---\ntitle: Note\n---\n')).toBe(true)
+    > 145 |       expect(saved).toContain('# Hello')
+          |                     ^
+      146 |       expect(saved).toContain('**bold**')
+      147 |       expect(saved).toContain('Appended line.')
+      148 |       expect(saved.endsWith('\n')).toBe(true)
+        at /home/ubuntu/work/uniwork-office/e2e/markdown-tab.spec.ts:145:21
+
+    Error Context: e2e/test-results/markdown-tab-markdown-edit-7ea48-rgv-edits-and-saves-it-back/error-context.md
+
+  4) e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back 
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected substring: "# Hello"
+    Received string:    "---
+    title: Note
+    ---···
+    # Appended line.Hello·
+    Some **bold** text.
+    "
+
+      143 |       const saved = await readFile(mdPath, 'utf8')
+      144 |       expect(saved.startsWith('---\ntitle: Note\n---\n')).toBe(true)
+    > 145 |       expect(saved).toContain('# Hello')
+          |                     ^
+      146 |       expect(saved).toContain('**bold**')
+      147 |       expect(saved).toContain('Appended line.')
+      148 |       expect(saved.endsWith('\n')).toBe(true)
+        at /home/ubuntu/work/uniwork-office/e2e/markdown-tab.spec.ts:145:21
+
+    Error Context: e2e/test-results/markdown-tab-markdown-edit-7ea48-rgv-edits-and-saves-it-back-repeat2/error-context.md
+
+  5) e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+
+    Error: expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "jumsp"
+    Received string:        "The quick brown fox jumsp over the qzv22309x lazyy dog "
+
+    Call Log:
+    - Timeout 15000ms exceeded while waiting on the predicate
+
+      185 |     await editor.locator('.ctx-menu .ctx-item-strong').first().click()
+      186 |     await expect.poll(() => pageText(editor), POLL).toContain(`fox ${suggestion} over`)
+    > 187 |     await expect.poll(() => pageText(editor), POLL).not.toContain('jumsp')
+          |                                                         ^
+      188 |     // the fix went through Blink, so the paragraph's other misspelling keeps
+      189 |     // its marker (a scripted text-node rewrite would have dropped it)
+      190 |     await editor.mouse.click(blank.x, blank.y)
+        at /home/ubuntu/work/uniwork-office/e2e/docs-spell-suggestions.spec.ts:187:57
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one/error-context.md
+
+  6) e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      190 |     await editor.mouse.click(blank.x, blank.y)
+      191 |     await editor.waitForTimeout(500)
+    > 192 |     expect(await redUnder(editor, (await wordRect(editor, 'lazyy'))!)).toBeGreaterThan(0)
+          |                                                                        ^
+      193 |
+      194 |     await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+      195 |     await expect.poll(() => pageText(editor), POLL).toContain('jumsp')
+        at /home/ubuntu/work/uniwork-office/e2e/docs-spell-suggestions.spec.ts:192:72
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one-repeat3/error-context.md
+
+  4 failed
+    e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+    e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+    e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back 
+    e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back 
+  2 flaky
+    e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+    e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+  4 passed (1.5m)
