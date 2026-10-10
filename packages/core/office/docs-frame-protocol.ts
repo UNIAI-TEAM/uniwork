@@ -1,14 +1,14 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at 4e3e867083f969687c61e714e969ca23c218e008
-// (lane branch feature/UNI-1014-web-modules, framework commit of GO-B4/B5/B6). Byte-identical except the
-// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
-// ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
+// web/docs/protocol/types.ts at f1679cbfdcb583fcf0c4ef936e16c771392ed010
+// (fork branch zone17th/uni-1014-mm3, the web-modules integration head: DR1 draft recovery ec9a86c, the
+// B2B3 modal event, SP1, H2). Byte-identical except the relative import specifiers (./types ->
+// ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
+// re-vendor, update this SHA.
 // The AI capability keys (`ai` doc, `webSearch`, `imageSearch`, `imageGeneration`, CONTRACT C16) are
-// re-vendored from worker AI1's fork commit c044fa9 (branch zone17th/uni-1014-ai1); the rest of the
-// file is still the SHA above until the lane merges AI1 and this header moves to that merge.
-// TODO(UNI-1014 DR1): `InitPayload.recovery` / `InitRecovery` / `isInitRecovery` are vendored
-// ahead of the fork from lane CONTRACT C18 (draft recovery, additive, PROTOCOL_VERSION stays 1).
-// Re-vendor this file from the fork commit of worker DR1 once it lands and put its SHA above.
+// applied on top from worker AI1's fork commit c044fa99ac564ea1ada747b4917167963432a756 (branch zone17th/uni-1014-ai1, c044fa9),
+// because the fork integration has not merged AI1 yet: this file is the integration head plus that one
+// hunk set (a clean 3-way merge). When the fork merges AI1, re-vendor from the merge head and drop
+// this paragraph.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
 /**
  * UniWork <-> genoffice Docs frame protocol (UNI-1013, lane GO-B2+B3).
@@ -556,6 +556,15 @@ export interface TitlePayload {
   title: string
 }
 
+/**
+ * The frame opened / closed one of its own modal dialogs (save conflict, discard prompt, fatal
+ * notice). Its scrim only covers the iframe; a host may dim its own chrome around it while
+ * `open` is true. Advisory: hosts that ignore it lose nothing.
+ */
+export interface ModalPayload {
+  open: boolean
+}
+
 export interface ThemePayload {
   theme: Theme
 }
@@ -689,6 +698,8 @@ export interface FrameEvents {
   ready: ReadyPayload
   dirty: DirtyPayload
   title: TitlePayload
+  /** additive (UNI-1013 F4): a frame modal is open / closed */
+  modal: ModalPayload
   resize: ResizePayload
   saved: SavedPayload
   error: ErrorEventPayload
@@ -748,6 +759,7 @@ const FRAME_EVENTS: Record<FrameEventType, true> = {
   ready: true,
   dirty: true,
   title: true,
+  modal: true,
   resize: true,
   saved: true,
   error: true,
@@ -966,6 +978,7 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
   'event:ready': isReadyPayload,
   'event:dirty': (x) => isObj(x) && isBool(x.dirty),
   'event:title': (x) => isObj(x) && isStr(x.title),
+  'event:modal': (x) => isObj(x) && isBool(x.open),
   'event:resize': (x) => isObj(x) && isFiniteNum(x.height) && x.height >= 0,
   'event:saved': (x) =>
     isObj(x) && isFileMeta(x.file) && isOpt(x.versionId, isStr) && isBool(x.initiatedByFrame),

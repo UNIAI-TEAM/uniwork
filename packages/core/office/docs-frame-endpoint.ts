@@ -1,8 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/endpoint.ts at 4e3e867083f969687c61e714e969ca23c218e008
-// (lane branch feature/UNI-1014-web-modules, framework commit of GO-B4/B5/B6). Byte-identical except the
-// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
-// ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
+// web/docs/protocol/endpoint.ts at f1679cbfdcb583fcf0c4ef936e16c771392ed010
+// (fork branch zone17th/uni-1014-mm3, the web-modules integration head: DR1 draft recovery ec9a86c, the
+// B2B3 modal event, SP1, H2). Byte-identical except the relative import specifiers (./types ->
+// ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
+// re-vendor, update this SHA.
 /**
  * Shared postMessage engine for host.ts and client.ts: origin/source checks,
  * request/response correlation with ids + timeouts + cancellation, error

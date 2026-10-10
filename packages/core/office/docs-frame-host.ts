@@ -1,8 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at 4e3e867083f969687c61e714e969ca23c218e008
-// (lane branch feature/UNI-1014-web-modules, framework commit of GO-B4/B5/B6). Byte-identical except the
-// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint ->
-// ./docs-frame-endpoint). Do not edit here: change the fork, re-vendor, update this SHA.
+// web/docs/protocol/host.ts at f1679cbfdcb583fcf0c4ef936e16c771392ed010
+// (fork branch zone17th/uni-1014-mm3, the web-modules integration head: DR1 draft recovery ec9a86c, the
+// B2B3 modal event, SP1, H2). Byte-identical except the relative import specifiers (./types ->
+// ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
+// re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
 /**
  * Host-side protocol endpoint (runs in the UniWork page that embeds the
@@ -118,7 +119,7 @@ export interface DocsFrameHost {
   setLanguage(locale: string): void
   /** proactive token rotation */
   pushToken(token: TokenPayload): void
-  on<K extends 'dirty' | 'title' | 'resize' | 'saved' | 'error'>(
+  on<K extends 'dirty' | 'title' | 'modal' | 'resize' | 'saved' | 'error'>(
     type: K,
     listener: FrameEventListener<K>,
   ): () => void

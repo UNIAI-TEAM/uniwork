@@ -203,6 +203,13 @@ a view-only user keeps AI (it still cannot save). Without the grant the frame
 hides every AI entry, as before. The capability keys are re-vendored from the
 fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
 
+The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
+the fork integration head `f1679cb` (branch `zone17th/uni-1014-mm3`: DR1 draft
+recovery `InitPayload.recovery`, the `modal` event, SP1, H2) with AI1's
+capability-key hunks (`c044fa9`) applied on top by a clean 3-way merge, since
+the fork has not merged AI1 into the integration yet. When it does, re-vendor
+from that merge head (the file headers say so).
+
 Tests: `server/internal/handler/office_frame_ai_test.go` (every route through
 the frame token, refusals, per-request ACL, entitlement, flag, SSE pass-through,
 the grant), `server/internal/handler/router/office_frame_ai_test.go` (binding,
