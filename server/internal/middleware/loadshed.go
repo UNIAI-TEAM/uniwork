@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -35,6 +36,7 @@ func LoadShed(max int, skip ...string) func(http.Handler) http.Handler {
 			select {
 			case slots <- struct{}{}:
 				defer func() { <-slots }()
+				setBodyDeadline(w, r)
 				next.ServeHTTP(w, r)
 			default:
 				w.Header().Set("Retry-After", "2")
@@ -43,6 +45,22 @@ func LoadShed(max int, skip ...string) func(http.Handler) http.Handler {
 				_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("server_busy", "server is busy, retry shortly"))
 			}
 		})
+	}
+}
+
+// bodyReadTimeout is how long an admitted request may take to send its body.
+// The server sets no ReadTimeout (WebSockets outlive any request deadline),
+// so without it a client trickling a body holds its slot forever.
+var bodyReadTimeout = 60 * time.Second
+
+// setBodyDeadline bounds the read of a request body. net/http clears the
+// deadline itself once the body hits EOF, so a handler still working after
+// that keeps its context. A request without a body is left alone: its
+// background read is already running and the deadline would cancel it.
+// ErrNotSupported (a writer that does not reach the conn) leaves it unbounded.
+func setBodyDeadline(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil && r.Body != http.NoBody {
+		_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(bodyReadTimeout))
 	}
 }
 

@@ -1,10 +1,13 @@
 package middleware
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // Past the in-flight bound the server answers 503 with Retry-After instead
@@ -70,5 +73,59 @@ func TestLoadShedRefusesPastTheBound(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/x", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("after the burst: status %d, want 200", rec.Code)
+	}
+}
+
+// An admitted request has bodyReadTimeout to send its body, so a client that
+// stalls mid-body gives its slot back. A handler still working once its body
+// is in, or one with no body, keeps its context past the deadline.
+func TestLoadShedCutsOffAStalledBody(t *testing.T) {
+	old := bodyReadTimeout
+	bodyReadTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { bodyReadTimeout = old })
+	readErr := make(chan error, 1)
+	srv := httptest.NewServer(LoadShed(1)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := io.ReadAll(r.Body); err != nil {
+			readErr <- err
+			w.WriteHeader(http.StatusRequestTimeout)
+			return
+		}
+		time.Sleep(3 * bodyReadTimeout)
+		if r.Context().Err() != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})))
+	defer srv.Close()
+
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	go func() { _, _ = pw.Write([]byte("partial")) }() // and then nothing more
+	stalled, _ := http.NewRequest(http.MethodPost, srv.URL+"/upload", pr)
+	go func() {
+		if res, err := srv.Client().Do(stalled); err == nil {
+			_ = res.Body.Close()
+		}
+	}()
+	select {
+	case <-readErr:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stalled body was never cut off")
+	}
+
+	for _, tc := range []struct {
+		method string
+		body   io.Reader
+	}{{http.MethodPost, strings.NewReader("whole")}, {http.MethodGet, nil}} {
+		req, _ := http.NewRequest(tc.method, srv.URL+"/work", tc.body)
+		res, err := srv.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Errorf("%s slower than the deadline: status %d, want 200 with its context intact", tc.method, res.StatusCode)
+		}
 	}
 }

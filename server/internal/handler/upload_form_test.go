@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -9,6 +10,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"golang.org/x/sync/semaphore"
 
@@ -145,6 +147,37 @@ func TestBeginUploadShedsPastTheInflightBudget(t *testing.T) {
 	release()
 	if rec, _, ok := start(81); ok || rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("over-cap Content-Length ok=%v status=%d, want 413", ok, rec.Code)
+	}
+}
+
+// An upload that stops sending is cut off at its read deadline instead of
+// holding its share of the upload budget (and its load-shed slot) forever.
+// It goes through the real router, so every wrapped writer must still reach
+// the connection.
+func TestUploadCutsOffAStalledBody(t *testing.T) {
+	old := uploadReadTime
+	uploadReadTime = func(int64) time.Duration { return 300 * time.Millisecond }
+	t.Cleanup(func() { uploadReadTime = old })
+	f := setupChatFixtureFiles(t, "upstall")
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	go func() {
+		_, _ = pw.Write([]byte("--x\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.pdf\"\r\n\r\n%PDF-1.7\n"))
+	}() // and then nothing more
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	// The transport waits for its body writer, which waits on the pipe.
+	go func() { <-ctx.Done(); _ = pw.CloseWithError(ctx.Err()) }()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, f.srv.URL+"/api/v1/workspaces/"+f.wsID+"/chat/rooms/"+f.dmRoomID+"/messages/file", pr)
+	req.Header.Set("Authorization", "Bearer "+f.tokens["a"])
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("stalled upload was never cut off: %v", err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("stalled upload status = %d, want 400", res.StatusCode)
 	}
 }
 

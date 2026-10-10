@@ -4,6 +4,7 @@ import (
 	"errors"
 	"mime/multipart"
 	"net/http"
+	"time"
 
 	"golang.org/x/sync/semaphore"
 )
@@ -21,6 +22,16 @@ var uploads = semaphore.NewWeighted(uploadInflightBytes)
 // only cleans up the request it created, never the copies middleware pass
 // down). It replaces r.FormFile's implicit 32 MiB.
 const uploadFormMemory = 256 << 10
+
+// uploadMinRate is the slowest upload, in bytes per second, a route waits for
+// on top of a minute: a full 25 MiB attachment gets 2m40s to arrive.
+const uploadMinRate = 256 << 10
+
+// uploadReadTime is how long an upload of at most limit bytes may take to
+// arrive. A variable so tests can shorten it.
+var uploadReadTime = func(limit int64) time.Duration {
+	return time.Minute + time.Duration(limit/uploadMinRate)*time.Second
+}
 
 // beginUpload refuses an upload on its headers, before any body byte is read:
 // a declared Content-Length over limit is 413, and a full budget is 503. A
@@ -41,6 +52,9 @@ func beginUpload(w http.ResponseWriter, r *http.Request, sem *semaphore.Weighted
 		respondError(w, http.StatusServiceUnavailable, "uploads_busy", "too many uploads in progress, retry shortly")
 		return nil, false
 	}
+	// Replaces LoadShed's shorter deadline; net/http lifts it at the body's
+	// EOF. ErrNotSupported leaves the body unbounded in time, as before.
+	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(uploadReadTime(limit)))
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	return func() {
 		if r.MultipartForm != nil {
