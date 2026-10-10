@@ -3,8 +3,7 @@ package middleware
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/gorilla/websocket"
+	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -13,10 +12,11 @@ import (
 // answers 503 with Retry-After at once instead of queueing: a burst queued
 // into a 512 MiB pod (everyone opening the app at 9 a.m.) ran it out of memory
 // and took every request down with it. Exact skip paths (the probes) pass
-// through, so a shedding pod still reports itself alive and ready, and so does
-// a WebSocket upgrade, which would hold its slot for the connection's life.
-// A forged Upgrade header only exempts a GET from the bound. A max of zero or
-// less turns it off (a Config built by hand in tests).
+// through, so a shedding pod still reports itself alive and ready, and so do
+// the two WebSocket routes, whose connections would hold a slot for their
+// whole life. They are exempt by path, not by Upgrade header, which any
+// request can carry. A max of zero or less turns it off (a Config built by
+// hand in tests).
 func LoadShed(max int, skip ...string) func(http.Handler) http.Handler {
 	if max <= 0 {
 		return func(next http.Handler) http.Handler { return next }
@@ -28,7 +28,7 @@ func LoadShed(max int, skip ...string) func(http.Handler) http.Handler {
 	slots := make(chan struct{}, max)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if exempt[r.URL.Path] || (r.Method == http.MethodGet && websocket.IsWebSocketUpgrade(r)) {
+			if exempt[r.URL.Path] || isWebSocketPath(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -44,4 +44,11 @@ func LoadShed(max int, skip ...string) func(http.Handler) http.Handler {
 			}
 		})
 	}
+}
+
+// isWebSocketPath matches the realtime socket and the meeting lobby socket
+// (router: /api/v1/ws and /api/v1/meetings/{meetingID}/lobby-ws).
+func isWebSocketPath(path string) bool {
+	return path == "/api/v1/ws" ||
+		(strings.HasPrefix(path, "/api/v1/meetings/") && strings.HasSuffix(path, "/lobby-ws"))
 }
