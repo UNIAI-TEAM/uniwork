@@ -884,10 +884,26 @@ func (h *Hub) disconnect(userID string, code int, text string, match func(*Clien
 	if r, ok := h.scopeAuthorizer().(ScopeRevoker); ok {
 		r.RevokeScope(userID, "", "")
 	}
+	h.closeWhere(code, text, func(c *Client) bool { return c.userID == userID && match(c) })
+}
+
+// DisconnectOrganization closes every socket on this node connected to a
+// workspace of organizationID and returns them. Scope grants need no revoking:
+// they are keyed by workspace, and reconnecting to one of these is refused.
+func (h *Hub) DisconnectOrganization(organizationID string) []*Client {
+	if organizationID == "" {
+		return nil
+	}
+	return h.closeWhere(websocket.ClosePolicyViolation, "organization suspended", func(c *Client) bool {
+		return c.organizationID == organizationID
+	})
+}
+
+func (h *Hub) closeWhere(code int, text string, match func(*Client) bool) []*Client {
 	h.mu.RLock()
 	var hit []*Client
 	for c := range h.clients {
-		if c.userID == userID && c.conn != nil && match(c) {
+		if c.conn != nil && match(c) {
 			hit = append(hit, c)
 		}
 	}
@@ -895,6 +911,7 @@ func (h *Hub) disconnect(userID string, code int, text string, match func(*Clien
 	for _, c := range hit {
 		go c.closeWith(code, text)
 	}
+	return hit
 }
 
 // RevokeScope asks the authorizer afresh, past its cache, whether each of

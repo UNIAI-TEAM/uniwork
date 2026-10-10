@@ -45,13 +45,28 @@ func (a *AccessRevoker) disconnectLater(userID, workspaceID string) {
 func (*AccessRevoker) Name() string { return "realtime_access_revoker" }
 
 func (*AccessRevoker) Topics() []string {
-	return []string{"member.removed", "member.deactivated", "member.left", "chat.room.member_removed", "session.revoked"}
+	return []string{"member.removed", "member.deactivated", "member.left", "chat.room.member_removed", "session.revoked", "organization.suspended"}
 }
 
 func (a *AccessRevoker) Handle(ctx context.Context, ev outbox.Row) error {
 	var p map[string]string
 	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
 		return fmt.Errorf("realtime_access_revoker: payload of %s: %w", ev.ID, err)
+	}
+	if ev.Topic == "organization.suspended" {
+		// One row per owner/admin names that user, but the suspension ends
+		// every member's access. The cache has no per-organization index, so
+		// only the memberships of sockets closed here are dropped; a member
+		// with none open may reconnect on a cached yes until its TTL.
+		orgID := p["organization_id"]
+		time.AfterFunc(a.grace, func() {
+			for _, c := range a.hub.DisconnectOrganization(orgID) {
+				if a.members != nil {
+					a.members.Invalidate(context.Background(), c.userID, c.workspaceID)
+				}
+			}
+		})
+		return nil
 	}
 	userID := p["user_id"]
 	if userID == "" {
