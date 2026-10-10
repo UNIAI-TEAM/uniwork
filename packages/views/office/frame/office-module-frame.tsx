@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { createOfficeFrameApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
@@ -52,9 +53,9 @@ export interface OfficeModuleFrameProps {
    * Shown once the frame is ready and only for a user who may edit, the G3 rule; absent = no action.
    */
   desktopOpen?: FrameDesktopOpenProps;
-  className?: string;
   /** The workspace's document list: a reader who is refused the document is offered the way back there. */
   libraryHref?: string;
+  className?: string;
 }
 
 // One stateless API per module, shared by every frame of it.
@@ -198,11 +199,33 @@ export function OfficeModuleFrame({
     return false;
   };
 
+  // Save stays reachable in the page header at every width (an icon on a phone, labelled from `sm`).
+  // Like the G3 header it is quiet while nothing is unsaved and stays in the tab order when it is.
+  const saveLabel = tRoot("office.shell.save_to_cloud");
+  const saveQuiet = saveState === "ready" || saveState === "saved";
+  const saving = saveState === "saving";
   const headerStatus = useMemo(
     // Idle ("No changes") yields to the title on a phone; anything the user must know about
     // (unsaved, saving, saved, failed) stays visible at every width.
-    () => <SaveStatus status={saveState} compact className={cn("mr-2 whitespace-nowrap", saveState === "ready" ? "hidden sm:flex" : "flex")} />,
-    [saveState],
+    () => (
+      <>
+        <SaveStatus status={saveState} compact className={cn("mr-2 whitespace-nowrap", saveState === "ready" ? "hidden sm:flex" : "flex")} />
+        <Button
+          type="button"
+          size="sm"
+          variant={saveQuiet ? "outline" : "default"}
+          aria-disabled={saveQuiet || saving || undefined}
+          aria-label={saveLabel}
+          title={saveLabel}
+          onClick={() => { if (!saveQuiet && !saving) void save("user"); }}
+          data-office-frame-save
+        >
+          <Save aria-hidden />
+          <span className="sr-only sm:not-sr-only">{tRoot("office.shell.save")}</span>
+        </Button>
+      </>
+    ),
+    [saveState, saveQuiet, saving, saveLabel, save, tRoot],
   );
 
   // The server refused the token mint because the module's flag is off for this organization.
@@ -230,6 +253,7 @@ export function OfficeModuleFrame({
         module={module}
         onRetry={session.retry}
         onUseStandardEditor={refuse ? () => refuse() : null}
+        libraryHref={libraryHref}
       />
     );
   }
@@ -253,7 +277,6 @@ export function OfficeModuleFrame({
       {desktopOpen && !booting && !session.viewOnly ? (
         <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} workspaceId={wsId} dirty={dirty} save={() => save("user")} requestRef={appOpenRef} />
       ) : null}
-        libraryHref={libraryHref}
       <iframe
         key={session.attempt}
         ref={iframeRef}

@@ -7530,7 +7530,7 @@
       "back_to_library": "Về thư viện tài liệu",
       "back_to_owner": "Về Kết quả công việc",
       "readonly_title": "Bạn chỉ có quyền xem",
-      "readonly_description": "Bạn xem được bản đã lưu trên server nhưng không sửa được. Cần quyền edit để sửa nội dung.",
+      "readonly_description": "Bạn xem được bản đã lưu trên server nhưng không chỉnh sửa được. Cần có quyền chỉnh sửa để thay đổi nội dung.",
       "revoked_title": "Bạn không còn quyền xem tài liệu này",
       "revoked_description": "Nội dung đã bị ẩn theo quyền hiện tại. Xin lại quyền truy cập nếu bạn cần xem tiếp."
     },

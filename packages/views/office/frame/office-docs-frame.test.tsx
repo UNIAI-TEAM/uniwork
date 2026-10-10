@@ -419,23 +419,34 @@ describe("OfficeDocsFrame", () => {
       </QueryClientProvider>,
     );
     const header = screen.getByTestId("page-header");
+    // The status text without the Save button that sits beside it.
+    const statusText = () => {
+      const copy = header.cloneNode(true) as HTMLElement;
+      copy.querySelector("[data-office-frame-save]")?.remove();
+      return copy.textContent;
+    };
+    const saveButton = () => header.querySelector("[data-office-frame-save]");
     expect(header.textContent).toBe("");
     const frame = fakeFrame();
     await boot(frame);
-    await waitFor(() => expect(header.textContent).toBe("Chưa có thay đổi"));
+    await waitFor(() => expect(statusText()).toBe("Chưa có thay đổi"));
+    // Nothing to save: the button stays in the tab order but is quiet, named in full for assistive tech.
+    expect(saveButton()?.getAttribute("aria-disabled")).toBe("true");
+    expect(saveButton()?.getAttribute("aria-label")).toBe("Lưu vào UniWork");
     await frame.event("dirty", { dirty: true });
-    await waitFor(() => expect(header.textContent).toBe("Chưa lưu"));
+    await waitFor(() => expect(saveButton()?.getAttribute("aria-disabled")).toBeNull());
+    await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
     const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
-    await waitFor(() => expect(header.textContent).toBe("Đang lưu…"));
+    await waitFor(() => expect(statusText()).toBe("Đang lưu…"));
     await act(async () => { finish({ ok: true, file: FILE, versionId: "v2" }); });
     await waitFor(() => expect(frame.answerTo(id)).toBeTruthy());
     // The answer came back before the frame's dirty:false: still unsaved until the frame says clean.
-    expect(header.textContent).toBe("Chưa lưu");
+    expect(statusText()).toBe("Chưa lưu");
     await frame.event("dirty", { dirty: false });
     await frame.event("saved", { file: FILE, versionId: "v2" });
-    await waitFor(() => expect(header.textContent).toBe("Đã lưu"));
+    await waitFor(() => expect(statusText()).toBe("Đã lưu"));
     await frame.event("dirty", { dirty: true });
-    await waitFor(() => expect(header.textContent).toBe("Chưa lưu"));
+    await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
   });
 
   it("says the editor is unavailable on this server (no retry) and offers the standard editor", async () => {

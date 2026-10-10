@@ -77,4 +77,19 @@ describe("DocumentWorkspace on a file document", () => {
     expect(screen.getAllByText(t("documents.detail.readonly_description"))).toHaveLength(1);
     expect(screen.queryByTestId("document-file-readonly")).toBeNull();
   });
+
+  it("announces view-only once on a file, in the banner, and gives the title the width on a phone", async () => {
+    orgConfig({ office_engine: true });
+    renderWorkspace(testClient(), fileDocument({ my_level: "view" }));
+    await screen.findByTestId("office-host");
+    // One visible announcement (the banner, with its reason); the header chip is gone.
+    expect(screen.getAllByText(t("documents.detail.readonly_title"), { exact: false })).toHaveLength(1);
+    const banner = screen.getByRole("status");
+    expect(banner).toHaveTextContent(t("documents.detail.readonly_description"));
+    expect(banner.className).not.toContain("hidden");
+    // The title carries the full name for a tooltip; the crumb leaves room on a phone.
+    const title = screen.getByText("Báo cáo");
+    expect(title).toHaveAttribute("title", "Báo cáo");
+    expect(screen.getByRole("link", { name: t("documents.detail.breadcrumb_library") })).toHaveClass("hidden", "sm:inline");
+  });
 });

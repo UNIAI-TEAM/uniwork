@@ -28,11 +28,16 @@ interface BreadcrumbHeaderProps {
   /** Additional classes for the action wrapper at a specific host breakpoint. */
   actionsClassName?: string;
   leading?: ReactNode;
+  /**
+   * Hide the ancestor crumbs below `sm`, so a page that already has a back
+   * control gives the leaf the width (a long title otherwise shrinks to one letter).
+   */
+  collapseAncestors?: boolean;
   className?: string;
 }
 
 /** Detail-page header: `ancestor › ancestor › leaf  [actions]`. */
-export function BreadcrumbHeader({ segments, leaf, actions, actionsClassName, leading, className }: BreadcrumbHeaderProps) {
+export function BreadcrumbHeader({ segments, leaf, actions, actionsClassName, leading, collapseAncestors = false, className }: BreadcrumbHeaderProps) {
   return (
     <PageHeader leading={leading} className={cn("bg-background text-body", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
@@ -44,16 +49,17 @@ export function BreadcrumbHeader({ segments, leaf, actions, actionsClassName, le
                 className={cn(
                   "text-muted-foreground transition-colors hover:text-foreground",
                   segment.className ?? "shrink-0",
+                  collapseAncestors && "hidden sm:inline",
                 )}
               >
                 {segment.label}
               </AppLink>
             ) : (
-              <span className={cn("text-muted-foreground", segment.className ?? "shrink-0")}>
+              <span className={cn("text-muted-foreground", segment.className ?? "shrink-0", collapseAncestors && "hidden sm:inline")}>
                 {segment.label}
               </span>
             )}
-            <ChevronRight aria-hidden className="size-3 shrink-0 text-faint-foreground" />
+            <ChevronRight aria-hidden className={cn("size-3 shrink-0 text-faint-foreground", collapseAncestors && "hidden sm:block")} />
           </Fragment>
         ))}
         <span className="min-w-0 truncate">{leaf}</span>

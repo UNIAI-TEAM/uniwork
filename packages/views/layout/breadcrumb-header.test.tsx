@@ -45,3 +45,32 @@ describe("BreadcrumbHeader action wrapper", () => {
     expect(within(actions).getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 });
+
+describe("BreadcrumbHeader on a phone", () => {
+  function renderCollapsed(collapseAncestors: boolean) {
+    const view = render(
+      <NavigationProvider value={navigation}>
+        <BreadcrumbHeader
+          segments={[{ href: "/documents", label: "Documents" }]}
+          leaf="A very long document title that must stay readable"
+          actions={<button type="button">Save</button>}
+          collapseAncestors={collapseAncestors}
+        />
+      </NavigationProvider>,
+    );
+    return within(view.container);
+  }
+
+  it("hides the ancestor crumbs below sm so the leaf keeps the width, and keeps them from sm up", () => {
+    const view = renderCollapsed(true);
+    expect(view.getByRole("link", { name: "Documents" })).toHaveClass("hidden", "sm:inline");
+    // The leaf is never hidden and truncates instead of collapsing to a letter.
+    const leaf = view.getByText("A very long document title that must stay readable");
+    expect(leaf).toHaveClass("min-w-0", "truncate");
+  });
+
+  it("keeps the crumbs at every width by default", () => {
+    const view = renderCollapsed(false);
+    expect(view.getByRole("link", { name: "Documents" })).not.toHaveClass("hidden");
+  });
+});
