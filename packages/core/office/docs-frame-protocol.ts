@@ -1,14 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/types.ts at f1679cbfdcb583fcf0c4ef936e16c771392ed010
-// (fork branch zone17th/uni-1014-mm3, the web-modules integration head: DR1 draft recovery ec9a86c, the
-// B2B3 modal event, SP1, H2). Byte-identical except the relative import specifiers (./types ->
-// ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
+// web/docs/protocol/types.ts at 36e9e234de93801f3b93f41a061688a583df827f
+// (fork branch feature/UNI-1014-web-modules, the lane head 36e9e23: DR1 draft recovery, the modal event,
+// SP1, H2 and the AI1 capability keys in one commit). Byte-identical except the relative import specifiers
+// (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
 // re-vendor, update this SHA.
-// The AI capability keys (`ai` doc, `webSearch`, `imageSearch`, `imageGeneration`, CONTRACT C16) are
-// applied on top from worker AI1's fork commit c044fa99ac564ea1ada747b4917167963432a756 (branch zone17th/uni-1014-ai1, c044fa9),
-// because the fork integration has not merged AI1 yet: this file is the integration head plus that one
-// hunk set (a clean 3-way merge). When the fork merges AI1, re-vendor from the merge head and drop
-// this paragraph.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
 /**
  * UniWork <-> genoffice Docs frame protocol (UNI-1013, lane GO-B2+B3).
