@@ -1,0 +1,69 @@
+$ npx playwright test --config apps/markdown/playwright.config.ts
+
+Running 46 tests using 1 worker
+
+(node:111233) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[browser-console] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME
+  ✓   1 apps/markdown/tests/browser/docx-image-export.spec.ts:8:5 › an SVG picture is rasterized into the docx instead of collapsing to alt text (698ms)
+[browser-console] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME
+[browser-console] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME
+  ✓   2 apps/markdown/tests/browser/image-export.spec.ts:7:7 › PNG export canceled with a broken image (480ms)
+[browser-console] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME
+[browser-console] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME
+  ✓   3 apps/markdown/tests/browser/image-export.spec.ts:7:7 › PNG export failed with a broken image (1.3s)
+[browser-console] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME
+[browser-console] Failed to load resource: net::ERR_UNKNOWN_URL_SCHEME
+  ✓   4 apps/markdown/tests/browser/image-export.spec.ts:7:7 › PNG export completed with a broken image (1.3s)
+  ✓   5 apps/markdown/tests/browser/math-clipboard.spec.ts:59:7 › native clipboard: $E=mc^2$ (947ms)
+  ✓   6 apps/markdown/tests/browser/math-clipboard.spec.ts:59:7 › native clipboard: \(E=mc^2\) (935ms)
+  ✓   7 apps/markdown/tests/browser/math-clipboard.spec.ts:59:7 › native clipboard: $$
+x^2 + y^2
+$$ (912ms)
+  ✓   8 apps/markdown/tests/browser/math-clipboard.spec.ts:59:7 › native clipboard: \[
+x^2 + y^2
+\] (898ms)
+  ✓   9 apps/markdown/tests/browser/math-clipboard.spec.ts:76:5 › native rich clipboard keeps marks and recovers TeX once (512ms)
+  ✓  10 apps/markdown/tests/browser/math-clipboard.spec.ts:86:5 › native rich clipboard converts delimited formulas (499ms)
+  ✓  11 apps/markdown/tests/browser/math-clipboard.spec.ts:93:5 › paste as plain text preserves formula source (485ms)
+  ✓  12 apps/markdown/tests/browser/math-clipboard.spec.ts:101:5 › code, currency and escaped brackets stay literal (573ms)
+  ✓  13 apps/markdown/tests/browser/math-clipboard.spec.ts:120:7 › native rich clipboard recognizes display math across line breaks: <p>\[<br>x^2 + y^2<br>\]</p> (495ms)
+  ✓  14 apps/markdown/tests/browser/math-clipboard.spec.ts:120:7 › native rich clipboard recognizes display math across line breaks: <p>$$<br><span>x^2 + y^2</span><br>$$</p> (495ms)
+  ✓  15 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:8:7 › save and MCP read use the default serializer (470ms)
+  ✓  16 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:8:7 › save and MCP read use the opt-in serializer (461ms)
+  ✓  17 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:58:7 › Save As preserves raw HTML and rebases the source map for subsequent saves (437ms)
+  ✓  18 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:58:7 › Save As preserves raw HTML and rebases the snapshot for subsequent saves (419ms)
+  ✓  19 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › heading Enter at 3, flag false: subsequent typing stays in the split block (473ms)
+  ✓  20 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › heading Enter at 6, flag false: subsequent typing stays in the split block (484ms)
+  ✓  21 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › paragraph Enter at 3, flag false: subsequent typing stays in the split block (474ms)
+  ✓  22 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › paragraph Enter at 6, flag false: subsequent typing stays in the split block (479ms)
+  ✓  23 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › bullet list Enter at 3, flag false: subsequent typing stays in the split block (475ms)
+  ✓  24 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › bullet list Enter at 6, flag false: subsequent typing stays in the split block (482ms)
+  ✓  25 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › ordered list Enter at 3, flag false: subsequent typing stays in the split block (468ms)
+  ✓  26 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › ordered list Enter at 6, flag false: subsequent typing stays in the split block (478ms)
+  ✓  27 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › task list Enter at 3, flag false: subsequent typing stays in the split block (471ms)
+  ✓  28 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › task list Enter at 6, flag false: subsequent typing stays in the split block (479ms)
+{"bytes":127000,"flag":false,"samples":20,"p95":16.90000000037253,"max":17}
+  ✓  29 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:138:9 › records insertion-to-frame timings at 127000 bytes, flag false (901ms)
+{"bytes":317000,"flag":false,"samples":20,"p95":17,"max":17}
+  ✓  30 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:138:9 › records insertion-to-frame timings at 317000 bytes, flag false (1.0s)
+  ✓  31 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › heading Enter at 3, flag true: subsequent typing stays in the split block (498ms)
+  ✓  32 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › heading Enter at 6, flag true: subsequent typing stays in the split block (482ms)
+  ✓  33 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › paragraph Enter at 3, flag true: subsequent typing stays in the split block (481ms)
+  ✓  34 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › paragraph Enter at 6, flag true: subsequent typing stays in the split block (470ms)
+  ✓  35 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › bullet list Enter at 3, flag true: subsequent typing stays in the split block (479ms)
+  ✓  36 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › bullet list Enter at 6, flag true: subsequent typing stays in the split block (475ms)
+  ✓  37 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › ordered list Enter at 3, flag true: subsequent typing stays in the split block (476ms)
+  ✓  38 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › ordered list Enter at 6, flag true: subsequent typing stays in the split block (524ms)
+  ✓  39 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › task list Enter at 3, flag true: subsequent typing stays in the split block (491ms)
+  ✓  40 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:83:11 › task list Enter at 6, flag true: subsequent typing stays in the split block (478ms)
+{"bytes":127000,"flag":true,"samples":20,"p95":16.90000000037253,"max":17}
+  ✓  41 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:138:9 › records insertion-to-frame timings at 127000 bytes, flag true (893ms)
+{"bytes":317000,"flag":true,"samples":20,"p95":16.90000000037253,"max":16.90000000037253}
+  ✓  42 apps/markdown/tests/browser/roundtrip-serializer.spec.ts:138:9 › records insertion-to-frame timings at 317000 bytes, flag true (1.0s)
+  ✓  43 apps/markdown/tests/browser/source-view.spec.ts:13:5 › the source view shows the exact file text and routes edits through the editor (715ms)
+  ✓  44 apps/markdown/tests/browser/source-view.spec.ts:38:5 › Cmd/Ctrl+E toggles the source view (458ms)
+  ✓  45 apps/markdown/tests/browser/source-view.spec.ts:50:5 › editor-shaped ribbon commands stand down while the source view is open (458ms)
+  ✓  46 apps/markdown/tests/browser/source-view.spec.ts:60:5 › a write that landed while the pane sat unfocused is picked up on refocus (558ms)
+
+  46 passed (30.6s)
