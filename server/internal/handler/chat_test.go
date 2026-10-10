@@ -259,6 +259,17 @@ func TestChatRoomMessages(t *testing.T) {
 	if len(out["messages"].([]any)) != 2 {
 		t.Fatalf("messages len = %d", len(out["messages"].([]any)))
 	}
+	// That read moved the caller's pointer, which the room list now carries.
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/rooms", tokA, nil)
+	readAt := ""
+	for _, raw := range out["rooms"].([]any) {
+		if room := raw.(map[string]any); room["id"] == f.groupRoomID {
+			readAt, _ = room["last_read_at"].(string)
+		}
+	}
+	if _, err := time.Parse(time.RFC3339, readAt); res.StatusCode != http.StatusOK || err != nil {
+		t.Fatalf("room last_read_at: %d %q %v", res.StatusCode, readAt, err)
+	}
 
 	res, out = doJSON(t, srv, "GET", base+"?limit=1", tokA, nil)
 	if res.StatusCode != http.StatusOK {

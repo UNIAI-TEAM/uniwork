@@ -237,6 +237,7 @@ SELECT
   r.member_set_key,
   r.member_permissions,
   r.updated_at,
+  mem.last_read_at AS my_last_read_at,
   COALESCE(
     (
       SELECT COUNT(*)::int
@@ -373,6 +374,7 @@ SELECT
   r.is_default,
   r.member_permissions,
   r.updated_at,
+  mem.last_read_at AS my_last_read_at,
   COALESCE(
     (
       SELECT COUNT(*)::int

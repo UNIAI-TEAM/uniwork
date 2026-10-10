@@ -619,6 +619,7 @@ func (s *ChatService) channelSummaryFromMineRow(ctx context.Context, userID stri
 	sum.Topic = row.Topic
 	sum.IsDefault = row.IsDefault
 	sum.ProjectID = textOrEmpty(row.ProjectID)
+	sum.LastReadAt = timePtr(row.MyLastReadAt)
 	if row.LastMessageAt.Valid {
 		t := row.LastMessageAt.Time
 		sum.LastMessageAt = &t

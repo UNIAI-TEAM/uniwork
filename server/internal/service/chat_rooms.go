@@ -36,7 +36,10 @@ type ChatRoomSummary struct {
 	PeerEmail          string
 	PeerDisplayName    string
 	// PeerLastReadAt is the DM peer's read cursor (nil for non-DM or never read).
-	PeerLastReadAt        *time.Time
+	PeerLastReadAt *time.Time
+	// LastReadAt is the caller's own read cursor (nil if never read): where
+	// the client draws "new messages" and starts a catch-up summary.
+	LastReadAt            *time.Time
 	LastMessageBody       string
 	LastMessageKind       string
 	LastMessageSenderID   string
@@ -64,7 +67,7 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 
 	wsRoom, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
 	if err == nil {
-		unread, uErr := s.roomUnread(ctx, userID, wsRoom.ID, workspaceID)
+		unread, lastRead, uErr := s.roomUnread(ctx, userID, wsRoom.ID, workspaceID)
 		if uErr != nil {
 			return nil, uErr
 		}
@@ -80,6 +83,7 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 			Topic:             wsRoom.Topic,
 			IsDefault:         wsRoom.IsDefault,
 			ProjectID:         textOrEmpty(wsRoom.ProjectID),
+			LastReadAt:        timePtr(lastRead),
 		}
 		if preview, pErr := s.q.GetLatestChatMessageByRoom(ctx, db.GetLatestChatMessageByRoomParams{
 			RoomID: wsRoom.ID, WorkspaceID: workspaceID,
@@ -140,6 +144,7 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 			row.LastMessageBody, row.LastMessageKind, row.LastMessageSenderID,
 			row.LastMessageSenderName, row.LastMessageAt,
 		))
+		summary.LastReadAt = timePtr(row.MyLastReadAt)
 		out = append(out, summary)
 	}
 
@@ -164,25 +169,23 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 	return out, nil
 }
 
-func (s *ChatService) roomUnread(ctx context.Context, userID, roomID, anchorWorkspaceID string) (int, error) {
+// roomUnread counts the caller's unread messages and returns their read cursor.
+func (s *ChatService) roomUnread(ctx context.Context, userID, roomID, anchorWorkspaceID string) (int, pgtype.Timestamptz, error) {
 	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil
+		return 0, pgtype.Timestamptz{}, nil
 	}
 	if err != nil {
-		return 0, err
+		return 0, pgtype.Timestamptz{}, err
 	}
-	var since pgtype.Timestamptz
-	if member.LastReadAt.Valid {
-		since = member.LastReadAt
-	}
+	since := member.LastReadAt
 	rows, err := s.q.ListChatMessagesByRoom(ctx, db.ListChatMessagesByRoomParams{
 		RoomID: roomID, WorkspaceID: anchorWorkspaceID, BeforeAt: pgtype.Timestamptz{}, MsgLimit: 500,
 	})
 	if err != nil {
-		return 0, err
+		return 0, since, err
 	}
 	count := 0
 	for _, row := range rows {
@@ -194,7 +197,7 @@ func (s *ChatService) roomUnread(ctx context.Context, userID, roomID, anchorWork
 		}
 		count++
 	}
-	return count, nil
+	return count, since, nil
 }
 
 // ResolveDM finds or creates a 1:1 dm room scoped to the workspace organization.

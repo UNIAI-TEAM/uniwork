@@ -207,6 +207,8 @@ export const ChatRoomSchema = z.object({
   peer_email: z.string().optional(),
   peer_display_name: z.string().optional(),
   peer_last_read_at: z.string().optional(),
+  /** The caller's own read pointer: where "new messages" starts. */
+  last_read_at: z.string().optional().catch(undefined),
   last_message_body: z.string().optional(),
   last_message_kind: z.string().optional(),
   last_message_sender_id: z.string().optional(),

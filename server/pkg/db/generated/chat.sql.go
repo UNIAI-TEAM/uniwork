@@ -1271,6 +1271,7 @@ SELECT
   r.is_default,
   r.member_permissions,
   r.updated_at,
+  mem.last_read_at AS my_last_read_at,
   COALESCE(
     (
       SELECT COUNT(*)::int
@@ -1338,6 +1339,7 @@ type ListChatChannelsMineRow struct {
 	IsDefault             bool               `json:"is_default"`
 	MemberPermissions     []byte             `json:"member_permissions"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
 	UnreadCount           interface{}        `json:"unread_count"`
 	LastMessageBody       string             `json:"last_message_body"`
 	LastMessageKind       string             `json:"last_message_kind"`
@@ -1371,6 +1373,7 @@ func (q *Queries) ListChatChannelsMine(ctx context.Context, arg ListChatChannels
 			&i.IsDefault,
 			&i.MemberPermissions,
 			&i.UpdatedAt,
+			&i.MyLastReadAt,
 			&i.UnreadCount,
 			&i.LastMessageBody,
 			&i.LastMessageKind,
@@ -1955,6 +1958,7 @@ SELECT
   r.member_set_key,
   r.member_permissions,
   r.updated_at,
+  mem.last_read_at AS my_last_read_at,
   COALESCE(
     (
       SELECT COUNT(*)::int
@@ -2018,6 +2022,7 @@ type ListChatRoomsForMemberRow struct {
 	MemberSetKey          pgtype.Text        `json:"member_set_key"`
 	MemberPermissions     []byte             `json:"member_permissions"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
 	UnreadCount           interface{}        `json:"unread_count"`
 	LastMessageBody       string             `json:"last_message_body"`
 	LastMessageKind       string             `json:"last_message_kind"`
@@ -2043,6 +2048,7 @@ func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsF
 			&i.MemberSetKey,
 			&i.MemberPermissions,
 			&i.UpdatedAt,
+			&i.MyLastReadAt,
 			&i.UnreadCount,
 			&i.LastMessageBody,
 			&i.LastMessageKind,

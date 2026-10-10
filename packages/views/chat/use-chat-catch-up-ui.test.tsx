@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
@@ -43,6 +44,22 @@ describe("useChatCatchUpUi", () => {
     expect(result.current.result).toEqual(brief);
     act(() => result.current.setOpen(false));
     expect(mocks.markRead).toHaveBeenCalledWith("room1");
+  });
+
+  // H6: opening the room marks it read, so the brief and the "Tin mới" line
+  // start from the pointer the sidebar held before the room opened.
+  it("keeps the pre-open read pointer and asks the brief to start there", async () => {
+    mocks.catchUp.mockResolvedValue(brief);
+    const qc = new QueryClient();
+    qc.setQueryData(["chat", "rooms", "ws1"], [
+      { id: "room1", unread_count: 4, mention_unread_count: 0, last_read_at: "2026-09-05T00:00:00.123456Z" },
+    ]);
+    const { result } = renderHook(() => useChatCatchUpUi("ws1", "room1"), {
+      wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+    expect(result.current.unreadSince).toBe("2026-09-05T00:00:00.123456Z");
+    await act(async () => result.current.onCatchUp?.());
+    expect(mocks.catchUp).toHaveBeenCalledWith(expect.objectContaining({ since: "2026-09-05T00:00:00.123456Z" }));
   });
 
   it("does not mark read again on close when the summary failed", async () => {

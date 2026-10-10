@@ -177,6 +177,9 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
 	}
+	if r.LastReadAt != nil {
+		out.LastReadAt = r.LastReadAt.UTC().Format(time.RFC3339Nano)
+	}
 	if r.LastMessageAt != nil {
 		out.LastMessageAt = r.LastMessageAt.Format(time.RFC3339)
 	}

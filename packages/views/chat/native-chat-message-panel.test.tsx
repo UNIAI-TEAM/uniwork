@@ -230,6 +230,17 @@ describe("NativeChatMessagePanel", () => {
     expect(status()?.textContent).toBe("Binh: Mới đây");
   });
 
+  it("draws 'Tin mới' above the first message from someone else after the pre-open read pointer", () => {
+    rows = [
+      ...BASE_ROWS,
+      { id: "m3", sender_id: "u2", body: "Later", kind: "text", created_at: "2026-01-01T10:05:00.000Z", reactions: {} },
+    ];
+    render(wrap(panel({ unreadSince: "2026-01-01T10:00:30.000Z" })));
+    const divider = screen.getByRole("separator", { name: "Tin mới" });
+    expect(divider.parentElement?.textContent).toContain("Later");
+    expect(screen.getAllByRole("separator", { name: "Tin mới" })).toHaveLength(1);
+  });
+
   // The cursor itself is chosen by useChatRoomMessages (core chat-hooks-rooms.test).
   it("offers a button for older history and asks the room timeline for its next page", async () => {
     rows = Array.from({ length: 80 }, (_, i) => ({

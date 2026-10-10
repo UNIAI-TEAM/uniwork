@@ -178,6 +178,20 @@ describe("chat endpoints", () => {
     expect(rooms[0]?.id).toBe("room-dm");
   });
 
+  it("listChatRooms reads the caller's read pointer and degrades a drifted one", async () => {
+    const room = { kind: "dm", name: "Peer", workspace_id: "ws1", member_user_ids: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...room, id: "r1", last_read_at: "2026-09-05T00:00:00.123456Z" },
+          { ...room, id: "r2", last_read_at: 42 },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((r) => r.last_read_at)).toEqual(["2026-09-05T00:00:00.123456Z", undefined]);
+  });
+
   it("listChatRoomMessages keeps valid messages when one row is malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({

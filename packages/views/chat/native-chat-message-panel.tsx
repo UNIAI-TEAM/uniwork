@@ -13,6 +13,7 @@ import {
   useChatRoomMessages,
   useChatThreadMessages,
   useClearDeliveredChatSends,
+  useMarkChatRoomReadAtLatest,
 } from "@uniwork/core/chat";
 import { ChatMessagesSkeleton } from "./chat-conversation-skeleton";
 import {
@@ -61,6 +62,7 @@ export function NativeChatMessagePanel({
   /** Thread API is channel/group/workspace only — never DM (work-hub decision 8). */
   threadsEnabled = false,
   peerLastReadAt = null,
+  unreadSince = null,
   onFollowUp,
   onActiveThreadRootIdChange,
   onFocusComposer,
@@ -84,6 +86,8 @@ export function NativeChatMessagePanel({
   canSendMessages?: boolean;
   threadsEnabled?: boolean;
   peerLastReadAt?: string | null;
+  /** The reader's read pointer from before the room opened: "Tin mới" goes after it. */
+  unreadSince?: string | null;
   onFollowUp?: (message: ChatMessage) => void;
   onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
   /** Puts the caret back in the composer (after reply, thread, cancel, delete). */
@@ -120,6 +124,12 @@ export function NativeChatMessagePanel({
   const threadQuery = useChatThreadMessages(workspaceId, roomId, threadRoot?.id ?? "", threadsEnabled && !!threadRoot);
   useClearDeliveredChatSends(latestRows);
   useClearDeliveredChatSends(threadQuery.data ?? []);
+  useMarkChatRoomReadAtLatest(
+    workspaceId,
+    roomId,
+    latestRows[latestRows.length - 1]?.id ?? null,
+    !awayFromLatest && !threadRoot && !anchorMessages,
+  );
   const pendingEntries = usePendingChatMessagesStore(useShallow((state) => state.listForRoom(workspaceId, roomId)));
   const outboxEntries = useChatSendOutboxStore(
     useShallow((state) =>
@@ -225,6 +235,7 @@ export function NativeChatMessagePanel({
 
   useEffect(() => {
     stickToBottomRef.current = true;
+    setAwayFromLatest(false);
     onReplyToChange(null);
     setThreadRoot(null);
     setAnchorMessages(null);
@@ -312,8 +323,8 @@ export function NativeChatMessagePanel({
   );
 
   const layout = useMemo(
-    () => layoutNativeChatMessages(messages, { currentUserId, youLabel, nameContext, peerLastReadAt }),
-    [currentUserId, messages, nameContext, peerLastReadAt, youLabel],
+    () => layoutNativeChatMessages(messages, { currentUserId, youLabel, nameContext, peerLastReadAt, unreadSince }),
+    [currentUserId, messages, nameContext, peerLastReadAt, unreadSince, youLabel],
   );
   const rowContext = useMemo<NativeChatMessageContext>(
     () => ({
