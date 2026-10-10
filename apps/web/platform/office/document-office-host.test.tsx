@@ -1,4 +1,4 @@
-import { act, createElement, useEffect, useState, type ComponentType } from "react";
+import { act, createElement, useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Document } from "@uniwork/core/types/document";
@@ -20,10 +20,6 @@ vi.mock("next/dynamic", () => ({
   },
 }));
 vi.mock("./docx-office-host", () => ({ DocxOfficeEditorHost: Object.assign(() => null, { __name: "docx" }) }));
-// A .docx goes through the Docs-frame switch (UNI-1013), which falls back to the G3 host.
-vi.mock("../office-frame/docs-frame-host", () => ({ DocxFrameOrG3Host: Object.assign(() => null, { __name: "docx-frame-switch" }) }));
-// pdf, md, html, pptx and xlsx go through the module-frame switch only when their bundle is installed (UNI-1014).
-vi.mock("../office-frame/module-frame-host", () => ({ ModuleFrameOrG3Host: Object.assign(() => null, { __name: "module-frame-switch" }) }));
 vi.mock("./xlsx-office-host", () => ({ XlsxOfficeEditorHost: Object.assign(() => null, { __name: "xlsx" }) }));
 vi.mock("./pdf-office-host", () => ({ PdfOfficeEditorHost: Object.assign(() => null, { __name: "pdf" }) }));
 vi.mock("./pptx-office-host", () => ({ PptxOfficeEditorHost: Object.assign(() => null, { __name: "pptx" }) }));
@@ -32,7 +28,13 @@ vi.mock("./md-html-adapter", () => ({
   HtmlOfficeEditorHost: Object.assign(() => null, { __name: "html" }),
 }));
 
-import { DocumentOfficeEditorHost } from "./document-office-host";
+import { createDocumentOfficeEditorHost } from "./document-office-host";
+
+// Every genoffice module (docs, pdf, markdown, html, slides, sheets) goes through the injected frame
+// slot (UNI-1013/1014), handed its module and the module's G3 host as its fallback.
+const MODULES: Record<string, string> = { docx: "docs", xlsx: "sheets", pdf: "pdf", md: "markdown", html: "html", pptx: "slides" };
+const Frame = ({ module, fallback }: { module: string; fallback: ReactNode }) => createElement("div", { "data-frame-slot": module }, fallback);
+const DocumentOfficeEditorHost = createDocumentOfficeEditorHost({ moduleForFormat: (format) => MODULES[format] ?? null, Frame });
 
 const file = (filename: string, mime_type: string) => ({ file_id: "f", version_id: "v1", version: 1, filename, mime_type, size_bytes: 10, checksum_sha256: "0".repeat(64) });
 const documentFor = (filename: string, mime_type: string) => ({ id: "doc-1", title: "Doc", organization_id: "org", workspace_id: "ws", revision: "1", file: file(filename, mime_type) }) as Document;
@@ -54,7 +56,7 @@ async function route(document: Document) {
 
 describe("document office host routing", () => {
   it.each([
-    ["report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx-frame-switch"],
+    ["report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"],
     ["book.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"],
     ["paper.pdf", "application/pdf", "pdf"],
     ["notes.md", "text/markdown", "md"],
@@ -101,20 +103,19 @@ describe("document office host routing", () => {
   });
 
   it.each([
+    ["report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docs"],
     ["book.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "sheets"],
     ["paper.pdf", "application/pdf", "pdf"],
     ["notes.md", "text/markdown", "markdown"],
     ["page.html", "text/html", "html"],
     ["slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "slides"],
-  ])("routes %s through the module-frame switch once the %s bundle is installed", async (filename, mime, module) => {
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ [module]: "0.1.0-abc1234" }));
+  ])("hands %s to the frame slot as the %s module, with the G3 host as its fallback", async (filename, mime, module) => {
     await route(documentFor(filename, mime));
-    expect(container.querySelector('[data-format-host="module-frame-switch"]')).not.toBeNull();
+    expect(container.querySelector(`[data-frame-slot="${module}"] [data-format-host]`)).not.toBeNull();
   });
 
-  it("keeps the G3 host of a format whose module has no bundle, whatever else is installed", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ docs: "0.1.0-abc1234", slides: "0.1.0-abc1234" }));
-    await route(documentFor("paper.pdf", "application/pdf"));
-    expect(container.querySelector('[data-format-host="pdf"]')).not.toBeNull();
+  it("does not offer the frame slot for a format with no web editor", async () => {
+    await route(documentFor("legacy.xls", "application/vnd.ms-excel"));
+    expect(container.querySelector("[data-frame-slot]")).toBeNull();
   });
 });

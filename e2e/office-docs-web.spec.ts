@@ -16,7 +16,7 @@ import {
  *  - "open, edit, save" (bundle installed): sign in -> open a DOCX -> edit in the frame ->
  *    save -> a new Documents version holds the edit -> reopening shows it; save as, image,
  *    PDF export, flag off, and a server-refused token falling back to G3.
- *  - "bundle not installed" (bundle absent): flag on for the organization, yet the DOCX opens
+ *  - "bundle not installed" (bundle absent): flag on by default, yet the DOCX opens
  *    in the G3 editor and no iframe is mounted.
  *
  * Run with OFFICE_DOCS_WEB_E2E=1. Evidence (traces, screenshots, the version
@@ -108,13 +108,8 @@ test.describe("open, edit, save", () => {
     } finally {
       await context.close();
     }
+    // office_docs_web defaults on (UNI-1013): the frame cases need no override of their own.
     await setFlag("office_engine", seeded.organizationId, true);
-    await setFlag("office_docs_web", seeded.organizationId, true);
-  });
-
-  test.afterAll(async () => {
-    // Close the seeded organization's frame again (the flag defaults on; this organization is the suite's own).
-    if (seeded) await setFlag("office_docs_web", seeded.organizationId, false);
   });
 
   test("a DOCX opens in the frame, an edit is saved as a new version and survives a reopen", async ({ page, request }) => {
@@ -166,7 +161,7 @@ test.describe("open, edit, save", () => {
     await page.keyboard.press("Control+End");
     await page.keyboard.type(` ${marker}`);
     await page.frameLocator(FRAME_SELECTOR).getByText("Tệp", { exact: true }).first().click();
-    await page.frameLocator(FRAME_SELECTOR).getByText("Lưu thành…").first().click();
+    await page.frameLocator(FRAME_SELECTOR).getByText("Lưu dưới dạng…").first().click();
 
     // The page follows the copy: same workspace, another document id.
     await expect(page).not.toHaveURL(seeded.documentUrl, { timeout: 60_000 });
@@ -264,7 +259,7 @@ test.describe("open, edit, save", () => {
     await expect(page.getByText("chưa được bật cho tổ chức")).toHaveCount(0);
   });
 
-  test("with the flag off the G3 editor stays the default and no frame mounts", async ({ page }) => {
+  test("an organization override turning the flag off keeps the G3 editor and no frame mounts", async ({ page }) => {
     await setFlag("office_docs_web", seeded.organizationId, false);
     try {
       await signInAs(page, seeded.account.email);
@@ -287,16 +282,12 @@ test.describe("bundle not installed", () => {
     } finally {
       await context.close();
     }
+    // The flag is on by default; no override is written.
     await setFlag("office_engine", seeded.organizationId, true);
-    await setFlag("office_docs_web", seeded.organizationId, true);
-    try {
-      await signInAs(page, seeded.account.email);
-      await page.goto(seeded.documentUrl);
-      await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
-      await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
-      await page.screenshot({ path: test.info().outputPath("06-bundle-not-installed-g3.png") });
-    } finally {
-      await setFlag("office_docs_web", seeded.organizationId, false);
-    }
+    await signInAs(page, seeded.account.email);
+    await page.goto(seeded.documentUrl);
+    await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath("06-bundle-not-installed-g3.png") });
   });
 });

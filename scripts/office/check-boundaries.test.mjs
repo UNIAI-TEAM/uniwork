@@ -391,6 +391,10 @@ test("a regex literal is not a comment and does not false-positive", () => {
 test("object keys, member access and local shadows are not bare globals", () => {
   assert.deepEqual(bareNodeGlobals("export const o = { process: 1 };\n"), []);
   assert.deepEqual(bareNodeGlobals("export const v = foo.Buffer;\n"), []);
+  // An optional member of a type (the protocol's `module?: OfficeModule`) is a key, not the global.
+  assert.deepEqual(bareNodeGlobals("export interface P {\n  module?: string\n}\nexport const f = (x: { module?: string }) => x;\n"), []);
+  // Optional chaining on the global is still a reference.
+  assert.deepEqual(bareNodeGlobals("export const e = process?.env;\n"), ["process"]);
   assert.deepEqual(bareNodeGlobals("export function f(process) { return process; }\n"), []);
   assert.deepEqual(
     bareNodeGlobals('import { dynamic } from "next/dynamic";\nconst h = dynamic(() => import("./x").then((module) => module.X));\n'),

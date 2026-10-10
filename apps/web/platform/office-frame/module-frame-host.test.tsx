@@ -109,9 +109,9 @@ describe("ModuleFrameOrG3Host", () => {
     expect(mocks.push).toHaveBeenCalledWith("/acme/ops/documents/copy-9");
   });
 
-  it("keeps the G3 host when only another module's flag is on", async () => {
+  it("keeps the G3 host when the module's own flag is overridden off, whatever the other modules say", async () => {
     vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ sheets: "0.2.0-abc1234" }));
-    answerConfig({ office_docs_web: true, office_slides_web: true });
+    answerConfig({ office_sheets_web: false, office_docs_web: true, office_slides_web: true });
     await render(host());
     await until(() => g3() !== null);
     expect(g3()).not.toBeNull();

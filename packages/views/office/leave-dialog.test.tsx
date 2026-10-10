@@ -87,6 +87,14 @@ describe("DraftRecoveryPrompt", () => {
     expect(screen.getByText("Draft conflict")).toBeInTheDocument();
   });
 
+  it("paints Discard on the opaque soft destructive pair, not a translucent tint (visual V1 #3)", () => {
+    // In dark the footer's raised fill under bg-destructive/20 measured 4.18:1; the soft pair holds 5.58.
+    render(<LeaveDialog open dirty onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} />);
+    const discard = screen.getByRole("button", { name: "Discard changes" });
+    for (const name of ["bg-destructive-soft", "text-destructive-soft-foreground", "dark:bg-destructive-soft"]) expect(discard.className.split(" ")).toContain(name);
+    expect(discard.className).not.toMatch(/(^| )(dark:)?(hover:)?bg-destructive\/\d+/);
+  });
+
   it("keeps the destructive action last at every width (F9)", () => {
     // visual-r2 F9: the footer flipped order between 768 ("Keep draft" first)
     // and 390 ("Discard draft" first, destructive on top) because the mobile

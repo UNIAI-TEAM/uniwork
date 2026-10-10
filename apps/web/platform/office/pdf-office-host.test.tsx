@@ -26,8 +26,11 @@ vi.mock("next/dynamic", async () => {
   };
 });
 
-import { DocumentOfficeEditorHost } from "./document-office-host";
+import { createDocumentOfficeEditorHost } from "./document-office-host";
 import { PdfOfficeEditorHost } from "./pdf-office-host";
+
+// The frame slot only renders its fallback here, so a PDF reaches the G3 PDF host.
+const DocumentOfficeEditorHost = createDocumentOfficeEditorHost({ moduleForFormat: (format) => (format === "pdf" ? "pdf" : null), Frame: ({ fallback }) => fallback });
 
 const documentFor = (id: string) => ({ id, title: "Spec", organization_id: "org", workspace_id: "ws", revision: "1", file: { version_id: "version-1", filename: "spec.pdf", mime_type: "application/pdf" } }) as Document;
 /** The engine service binds no pdf handlers, so every pdf row is unbound. */

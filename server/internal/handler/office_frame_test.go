@@ -76,11 +76,12 @@ func (w *officeWorld) mintFrameToken(t *testing.T, documentID string) map[string
 // The flag is on by default (CONTRACT C14); an organization override turns it off.
 func TestOfficeFrameTokenNeedsTheFlag(t *testing.T) {
 	w := newOfficeWorld(t, true)
+	// The flag defaults on (UNI-1013); an organization override turns it off.
 	setOfficeDocsWebFor(t, w.q, w.orgID, false)
 	documentID := w.createDocx(t, "plan.docx", frameDocx(t, "a"))
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/frame-token", w.token, nil)
 	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "feature_disabled" {
-		t.Fatalf("flag off mint = %d %v", res.StatusCode, out)
+		t.Fatalf("org override off mint = %d %v", res.StatusCode, out)
 	}
 }
 
@@ -344,6 +345,7 @@ func TestOfficeFrameFlagIsEvaluatedPerOrganization(t *testing.T) {
 	}
 	_ = json.Unmarshal(raw, &created)
 	otherDoc := created.Document.ID
+	setOfficeDocsWebFor(t, w.q, otherOrg, false)
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+otherDoc+"/office/frame-token", other, nil)
 	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "feature_disabled" {
 		t.Fatalf("mint in the organization with the override off = %d %v", res.StatusCode, out)

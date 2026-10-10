@@ -245,14 +245,14 @@ function answer(flags: unknown) {
 describe("OfficeModuleOpenSwitch", () => {
   const ui = <OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<p>pdf frame</p>} fallback={<p>g3 editor</p>} />;
 
-  it("opens the module's frame only on its own flag", async () => {
+  it("opens the module's frame when its flag is on or absent (default on, CONTRACT C14)", async () => {
     answer({ office_engine: true, office_pdf_web: true });
     render(wrap(ui));
     expect(await screen.findByText("pdf frame")).toBeTruthy();
   });
 
-  it("keeps the G3 editor when only another module's flag is on", async () => {
-    answer({ office_engine: true, office_docs_web: true, office_slides_web: true });
+  it("keeps the G3 editor when the module's own flag is overridden off, whatever the other modules say", async () => {
+    answer({ office_engine: true, office_pdf_web: false, office_docs_web: true, office_slides_web: true });
     render(wrap(ui));
     expect(await screen.findByText("g3 editor")).toBeTruthy();
     expect(screen.queryByText("pdf frame")).toBeNull();

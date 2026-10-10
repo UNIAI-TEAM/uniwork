@@ -431,6 +431,8 @@ export function bareNodeGlobals(source) {
     const name = match[0];
     if (bound.has(name)) continue;
     const after = code.slice(match.index + name.length);
+    // `module?: T` can only be an optional member of a type, never the global, wherever the line starts.
+    if (/^\s*\?\s*:/.test(after)) continue;
     if (/^\s*:/.test(after)) {
       const before = code.slice(0, match.index).replace(/\s+$/, "").slice(-1);
       if (before === "" || "{,(;".includes(before)) continue;

@@ -64,7 +64,7 @@ export function useOfficeEnabled(organizationId: string | undefined, format: str
 
 /**
  * Whether a .docx opens in the genoffice Docs frame instead of the G3 editor
- * (`office_docs_web`, UNI-1013; on by default on the server since 2026-10-09). Same organization-scoped answer
+ * (`office_docs_web`, UNI-1013; default on, an explicit override of false turns it off). Same organization-scoped answer
  * and states as `useOfficeEnabled`: only a settled `on` mounts the frame.
  */
 export function useOfficeDocsWebEnabled(organizationId: string | undefined): OfficeEnabledState {
@@ -73,12 +73,13 @@ export function useOfficeDocsWebEnabled(organizationId: string | undefined): Off
 
 /**
  * The same answer for any genoffice web module's flag (`office_pdf_web`,
- * `office_slides_web`, …; UNI-1014/1015/1016, on by default on the server since 2026-10-09; an absent key reads off).
+ * `office_slides_web`, …; UNI-1014/1015/1016): default on like Docs (CONTRACT C14), an explicit
+ * override of false turns it off, an absent key reads on.
  */
 export function useOfficeWebFlagEnabled(flag: string, organizationId: string | undefined): OfficeEnabledState {
-  const global = useFlag(flag, false);
+  const global = useFlag(flag, true);
   const scoped = useOrganizationOfficeConfig(organizationId);
   if (!organizationId) return global ? "on" : "off";
-  if (scoped.data) return scoped.data.flags[flag] === true ? "on" : "off";
+  if (scoped.data) return scoped.data.flags[flag] !== false ? "on" : "off";
   return scoped.isError ? "unknown" : "loading";
 }

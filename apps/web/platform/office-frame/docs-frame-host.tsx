@@ -1,17 +1,19 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { paths } from "@uniwork/core/paths";
-import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { DocxOpenSwitch, OfficeDocsFrame } from "@uniwork/views/office";
 import type { OfficeEditorHostProps } from "../office/editor-host";
 import { frameDesktopOpen, useOfficeDeploymentId } from "../office/desktop-open-props";
-import { pinnedFrameVersion } from "./frame-versions";
 
-function DocsFrameHost(props: OfficeEditorHostProps & { frameVersion: string }) {
-  const { document, wsId, readonly, className, frameVersion } = props;
-  const { workspace } = useWorkspace();
+/** What the app layer hands the frame host: the pinned build and the route of a document in this workspace. */
+export interface DocsFrameHostConfig {
+  frameVersion: string;
+  documentHref: (documentId: string) => string;
+}
+
+function DocsFrameHost(props: OfficeEditorHostProps & DocsFrameHostConfig) {
+  const { document, wsId, readonly, className, frameVersion, documentHref } = props;
   const { push } = useNavigation();
   const deploymentId = useOfficeDeploymentId(document.organization_id);
   return (
@@ -24,24 +26,22 @@ function DocsFrameHost(props: OfficeEditorHostProps & { frameVersion: string }) 
       className={className}
       desktopOpen={frameDesktopOpen(document, deploymentId)}
       // Save as made a new document and the frame already edits it; follow it so the URL names what is open.
-      onSavedAs={(copyId) => push(paths.workspace(workspace.organization_slug, workspace.slug).document(copyId))}
+      onSavedAs={(copyId) => push(documentHref(copyId))}
     />
   );
 }
 
 /**
  * A .docx opens in the genoffice Docs frame when `office_docs_web` is on for the
- * document's organization and a build is pinned; the G3 editor (`fallback`)
- * otherwise, and until the flag's answer arrives.
+ * document's organization; the G3 editor (`fallback`) otherwise, and until the
+ * flag's answer arrives. Only mounted when a build is pinned (see document-host).
  */
-export function DocxFrameOrG3Host(props: OfficeEditorHostProps & { fallback: ReactNode }) {
-  const frameVersion = pinnedFrameVersion("docs");
-  if (!frameVersion) return props.fallback;
+export function DocxFrameOrG3Host(props: OfficeEditorHostProps & DocsFrameHostConfig & { fallback: ReactNode }) {
   const { fallback, ...hostProps } = props;
   return (
     <DocxOpenSwitch
       organizationId={hostProps.document.organization_id}
-      docsFrame={<DocsFrameHost {...hostProps} frameVersion={frameVersion} />}
+      docsFrame={<DocsFrameHost {...hostProps} />}
       fallback={fallback}
     />
   );

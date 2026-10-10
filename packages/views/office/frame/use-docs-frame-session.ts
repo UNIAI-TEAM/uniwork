@@ -23,6 +23,9 @@ import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 
 export type DocsFrameStatus = "booting" | "ready" | "failed";
 
+/** What the page header says about the frame's edits: driven by its dirty / saved events and the save proxy. */
+export type DocsFrameSaveState = "ready" | "dirty" | "saving" | "saved" | "error";
+
 export interface DocsFrameSessionOptions {
   iframeRef: RefObject<HTMLIFrameElement | null>;
   /** Exact origin of the frame document. */
@@ -42,7 +45,9 @@ export interface DocsFrameSessionOptions {
   onTitle?: (title: string) => void;
   onSaved?: (saved: SavedPayload) => void;
   /** The frame saved a copy: it now edits that new document (the page may follow it). */
-  onSavedAs?: (documentId: string) => void;
+  onSavedAs?: (documentId: string, name: string) => void;
+  /** Names a save-as copy before it is created (the frame asks with the source's own name). */
+  copyName?: (name: string) => string;
   /** Non-fatal frame or proxy errors the user should hear about. */
   onError: (error: ProtocolErrorShape) => void;
 }
@@ -57,6 +62,9 @@ export interface DocsFrameSession {
   /** Why the session failed: a token that could not be minted, or a fatal frame error. */
   failure: ProtocolErrorShape | null;
   dirty: boolean;
+  saveState: DocsFrameSaveState;
+  /** The frame shows one of its own dialogs (its `modal` event); the page dims its chrome meanwhile. */
+  modal: boolean;
   /** Content height the frame last reported, in CSS px. */
   height: number | null;
   /** Ask the frame to save (leave dialog). Resolves true once the bytes are a new version. */
@@ -125,6 +133,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [saveState, setSaveState] = useState<DocsFrameSaveState>("ready");
+  const [modal, setModal] = useState(false);
   const [height, setHeight] = useState<number | null>(null);
   const [host, setHost] = useState<DocsFrameHost | null>(null);
 
@@ -137,7 +147,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     setStatus("booting");
     setFatal(null);
     setDirty(false);
+    setSaveState("ready");
+    setModal(false);
     sentToken.current = null;
+    // A clean frame after a save reads "saved"; one never saved reads "ready".
+    let savedOnce = false;
 
     const currentToken = async (): Promise<TokenPayload> => {
       const { options: { wsId: ws }, scopeId: doc } = latest.current;
@@ -160,6 +174,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       };
 
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
+    const save = proxy("api.save", true, (api) => api.save);
+    // A save the frame starts (its button, Ctrl+S, the leave dialog) passes through here.
+    const tracked = <T,>(run: () => Promise<T>, settled: (result: T) => DocsFrameSaveState) => {
+      setSaveState("saving");
+      return run().then(
+        (result) => { setSaveState(settled(result)); return result; },
+        // A save the user cancelled leaves the edits unsaved, not failed.
+        (error: unknown) => { setSaveState(shapeOf(error).code === "cancelled" ? "dirty" : "error"); throw error; },
+      );
+    };
     const endpoint = createDocsFrameHost({
       self: window,
       frame: () => iframeRef.current?.contentWindow ?? null,
@@ -204,9 +228,15 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       },
       api: {
         "api.open": proxy("api.open", false, (api) => api.open),
-        "api.save": proxy("api.save", true, (api) => api.save),
+        "api.save": (payload, context) => tracked(() => save(payload, context), (result) => {
+          if (!result.ok) return "dirty";
+          savedOnce = true;
+          return "saved";
+        }),
         "api.saveAs": async (payload, context) => {
-          const { save, rebind } = (await saveAs(payload, context)) as unknown as DocsFrameSavedAs;
+          const name = latest.current.options.copyName?.(payload.name) ?? payload.name;
+          const { save: saved, rebind } = (await tracked(() => saveAs({ ...payload, name }, context), () => "saved")) as unknown as DocsFrameSavedAs;
+          savedOnce = true;
           // Switch the frame to the copy before it hears the answer: token first, then scope.
           const { options: current } = latest.current;
           queryClient.setQueryData(officeFrameKeys.token(current.wsId, rebind.documentId), rebind.token);
@@ -219,8 +249,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           // navigation to the copy must not meet the leave dialog (the frame's dirty:false
           // event only arrives after this answer).
           setDirty(false);
-          current.onSavedAs?.(rebind.documentId);
-          return save;
+          current.onSavedAs?.(rebind.documentId, name);
+          return saved;
         },
         "api.recents": proxy("api.recents", false, (api) => api.recents),
         "api.export": proxy("api.export", false, (api) => api.export),
@@ -235,10 +265,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       },
     });
 
-    endpoint.on("dirty", ({ dirty: next }) => { setDirty(next); });
+    endpoint.on("dirty", ({ dirty: next }) => {
+      setDirty(next);
+      if (!next) setSaveState((now) => (now === "dirty" ? (savedOnce ? "saved" : "ready") : now));
+    });
+    endpoint.on("modal", ({ open }) => { setModal(open); });
     endpoint.on("title", ({ title }) => { latest.current.options.onTitle?.(title); });
     endpoint.on("resize", ({ height: next }) => { setHeight(next); });
     endpoint.on("saved", (saved) => {
+      savedOnce = true;
+      setSaveState("saved");
       const { options: { wsId: ws, onSaved }, scopeId: doc } = latest.current;
       void queryClient.invalidateQueries({ queryKey: documentKeys.detail(ws, doc) });
       onSaved?.(saved);
@@ -299,5 +335,9 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     if (tokenFailure) void refetchToken();
     setAttempt((n) => n + 1);
   }, [refetchToken, tokenFailure]);
-  return { status: failure ? "failed" : status, viewOnly, failure, dirty, height, save, print, attempt, retry };
+  return { status: failure ? "failed" : status, viewOnly, failure, dirty,
+    // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
+    saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
+    modal: modal && status === "ready" && !failure,
+    height, save, print, attempt, retry };
 }

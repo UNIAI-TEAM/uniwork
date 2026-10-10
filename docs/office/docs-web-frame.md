@@ -51,7 +51,7 @@ installed and verified is a no-op; otherwise it syncs from
 without access to the fork still builds. `next.config.mjs` offers the frame
 (`NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION`) only when the pinned bundle is
 installed and verifies against the pin, so without a bundle every organization
-keeps the G3 editor whatever `office_docs_web` says (no 404 iframe).
+keeps the G3 editor even with `office_docs_web` on (no 404 iframe).
 
 An archive source (`.tar.gz`, or an https URL to one) is listed before it is
 extracted: only regular files and directories, no absolute or `..` names, at
