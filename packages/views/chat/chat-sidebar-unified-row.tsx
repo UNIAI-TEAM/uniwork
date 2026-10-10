@@ -1,6 +1,6 @@
 "use client";
 
-import { Hash, Home, Lock, Users } from "lucide-react";
+import { Hash, House, Lock, Users } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
@@ -158,7 +158,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     return (
       <SidebarNavItem
         {...shared}
-        avatar={<ChatRoomMark icon={Home} active={active} />}
+        avatar={<ChatRoomMark icon={House} active={active} />}
         title={workspaceTitle}
         fallbackSubtitle={t("chat.workspace_room_subtitle")}
         contacts={contacts}

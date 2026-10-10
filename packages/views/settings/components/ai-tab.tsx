@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ShieldAlert, Sparkles } from "lucide-react";
+import { CircleAlert, ShieldAlert, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiCapabilities } from "@uniwork/core/ai";
 import { useMyMembership } from "@uniwork/core/workspaces";
@@ -43,7 +43,7 @@ export function AiTab() {
       <SettingsTab title={t("title")} description={t("description")}>
         <Notice
           tone="destructive"
-          icon={AlertCircle}
+          icon={CircleAlert}
           layout="inline"
           live="assertive"
           action={
@@ -79,7 +79,7 @@ export function AiTab() {
       {caps.isError ? (
         <Notice
           tone="destructive"
-          icon={AlertCircle}
+          icon={CircleAlert}
           layout="inline"
           live="assertive"
           action={

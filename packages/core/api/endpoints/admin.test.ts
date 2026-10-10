@@ -15,6 +15,7 @@ import {
   listAdminInvoices,
   listAdminPaymentIntents,
   listAdminPlans,
+  refundAdminInvoice,
   setFlagOverride,
   updateAdminPlan,
   suspendOrganization,
@@ -219,5 +220,29 @@ describe("admin endpoints", () => {
     expect(await updateAdminPlan("starter", body)).toMatchObject({ code: "starter" });
     vi.mocked(fetch).mockResolvedValueOnce(json({ plan: { code: true } }));
     expect(await updateAdminPlan("starter", body)).toBeNull();
+  });
+
+  it("refundAdminInvoice returns refund_pending without throwing after a 200", async () => {
+    const invoice = {
+      id: "inv1",
+      organization_id: "org1",
+      org_slug: "sd",
+      org_name: "Test",
+      number: "UW-2026-01",
+      status: "refund_pending",
+      provider: "vnpay",
+      amount_paid: 499_000,
+      currency: "VND",
+      refund_requested_at: "2026-10-09T09:53:26+07:00",
+      refund_provider_ref: "15699766",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invoice }));
+    await expect(
+      refundAdminInvoice({ invoiceId: "inv1", reason: "hihihihihihih" }),
+    ).resolves.toMatchObject({ status: "refund_pending" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invoice: { id: "inv1", bad: true } }));
+    await expect(
+      refundAdminInvoice({ invoiceId: "inv1", reason: "hihihihihihih" }),
+    ).resolves.toMatchObject({ id: "inv1" });
   });
 });

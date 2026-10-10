@@ -98,6 +98,7 @@ func FromConfig(cfg config.Config) Provider {
 		p, err := NewVNPay(VNPayConfig{
 			TMNCode: cfg.VNPayTMNCode, HashSecret: cfg.VNPayHashSecret,
 			PaymentURL: cfg.VNPayPaymentURL, IPNURL: ipn,
+			QueryURL: cfg.VNPayMerchantAPIURL,
 		})
 		if err != nil {
 			return stub{name: "vnpay"}

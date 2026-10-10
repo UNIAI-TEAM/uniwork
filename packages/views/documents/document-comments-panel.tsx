@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { MessageSquare, RotateCw, X } from "lucide-react";
+import { MessageSquare, X, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { documentCommentDraftKey, useDocumentCommentDraftStore } from "@uniwork/core/documents/comment-drafts";
@@ -294,7 +294,7 @@ function CommentsPane({
               className="mt-3"
               onClick={() => void query.refetch()}
             >
-              <RotateCw aria-hidden className="size-3.5" />
+              <RefreshCw aria-hidden className="size-3.5" />
               {t("documents.comments.retry")}
             </Button>
           ) : null}

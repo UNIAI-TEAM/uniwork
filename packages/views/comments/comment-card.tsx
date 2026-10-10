@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { CheckCircle2, ChevronRight, Copy, MoreHorizontal, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { CircleCheck, ChevronRight, Copy, Ellipsis, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
@@ -136,13 +136,13 @@ function CommentEntry<T extends CommentLike>({
         {collapse?.open !== false ? <div className="ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t(`${tPrefix}.comment_actions`)} />}>
-              <MoreHorizontal aria-hidden />
+              <Ellipsis aria-hidden />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => void copyText(comment.body)}><Copy aria-hidden />{t(`${tPrefix}.comment_copy`)}</DropdownMenuItem>
               {callbacks.onResolveToggle ? (
                 <DropdownMenuItem onClick={() => callbacks.onResolveToggle?.(comment.id, !resolved)}>
-                  {resolved ? <RotateCcw aria-hidden /> : <CheckCircle2 aria-hidden />}
+                  {resolved ? <RotateCcw aria-hidden /> : <CircleCheck aria-hidden />}
                   {resolved ? t(`${tPrefix}.comment_unresolve`) : t(`${tPrefix}.comment_resolve`)}
                 </DropdownMenuItem>
               ) : null}

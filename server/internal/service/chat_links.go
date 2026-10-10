@@ -475,20 +475,36 @@ func (s *ChatService) SyncThreadTask(
 	return row, nil
 }
 
-// UnsyncThreadTask removes the thread↔task link.
+// UnsyncThreadTask removes the thread↔task link with its audit row and a
+// chat.thread.unlinked event in one transaction (ADR 0009); the Work Graph
+// closes the task's DISCUSSED_IN edge from that event (C-11 §5.2).
 func (s *ChatService) UnsyncThreadTask(ctx context.Context, userID, workspaceID, threadRootID string) error {
 	_, root, err := s.loadThreadRootAcrossRooms(ctx, userID, workspaceID, threadRootID)
 	if err != nil {
 		return err
 	}
-	n, err := s.q.DeleteChatThreadTaskLinkByThread(ctx, db.DeleteChatThreadTaskLinkByThreadParams{
-		ThreadRootID: root.ID, WorkspaceID: workspaceID,
-	})
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if n == 0 {
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	link, err := q.UnlinkChatThreadTask(ctx, db.UnlinkChatThreadTaskParams{ThreadRootID: root.ID, WorkspaceID: workspaceID})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
-	return nil
+	if err != nil {
+		return err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: link.OrganizationID, WorkspaceID: link.WorkspaceID,
+		Actor: Human(userID), Action: audit.ActionChatThreadTaskUnlinked,
+		ResourceType: "chat_thread", ResourceID: root.ID,
+		Metadata: map[string]any{"task_id": link.TaskID, "direction": link.Direction},
+	}, audit.Event{Topic: "chat.thread.unlinked", Payload: map[string]string{
+		"room_id": link.RoomID, "thread_root_id": root.ID, "task_id": link.TaskID,
+	}}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

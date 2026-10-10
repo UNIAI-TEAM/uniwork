@@ -9,6 +9,9 @@ import { assertWebUsesE2eApi, e2eApiUrl } from "./api-url";
  * row a platform admin would, in its own database only, then waits until the
  * public config reports the flag on. The server caches overrides for up to
  * 30 s (featureflags.CacheTTL) and a direct write sends no flag.updated event.
+ * The Work Graph flags ride along: `graph` lets the projector mark nodes and
+ * `graph_ui` shows the task page's Related and Timeline sections. Only
+ * `graph_ui` is public, so it stands in for both in the wait below.
  */
 const url =
   process.env.E2E_DATABASE_URL ??
@@ -22,11 +25,14 @@ export default async function globalSetup(): Promise<void> {
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
-    await client.query(
-      `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
-       VALUES ('e2e-documents-global', 'documents', 'global', '', true, 'e2e: documents specs', 'e2e', 'system')
-       ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = true`,
-    );
+    for (const key of ["documents", "graph", "graph_ui"]) {
+      await client.query(
+        `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
+         VALUES ($1, $2, 'global', '', true, 'e2e: flag on for specs', 'e2e', 'system')
+         ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = true`,
+        [`e2e-${key}-global`, key],
+      );
+    }
   } finally {
     await client.end();
   }
@@ -37,13 +43,13 @@ export default async function globalSetup(): Promise<void> {
       const res = await fetch(`${api}/api/v1/config`);
       if (res.ok) {
         const body = (await res.json()) as { flags?: Record<string, boolean> };
-        if (body.flags?.documents === true) return;
+        if (body.flags?.documents === true && body.flags?.graph_ui === true) return;
       }
     } catch {
       // The API may still be starting; keep polling until the deadline.
     }
     if (Date.now() > deadline) {
-      throw new Error("documents flag is still off after 45 s; is the API up on " + api + "?");
+      throw new Error("documents/graph_ui flags are still off after 45 s; is the API up on " + api + "?");
     }
     await new Promise((resolve) => setTimeout(resolve, 2_000));
   }

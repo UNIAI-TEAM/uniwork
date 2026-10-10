@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CalendarDays } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { localDay } from "@uniwork/core/home/brief";
 import { paths } from "@uniwork/core/paths";
@@ -9,6 +9,7 @@ import type { HomeSummary } from "@uniwork/core/types/home";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { formatMeetingDay, formatMeetingTimes, meetingLocale } from "../meetings/meeting-datetime";
@@ -125,7 +126,7 @@ export function HomeUpcoming({
     <PanelCard
       id="home-upcoming"
       title={t("home.section.upcoming")}
-      icon={CalendarDays}
+      icon={MODULE_ICONS.meetings}
       iconTone={moduleTone("meetings")}
       flush
       className="@container/upcoming shadow-none"

@@ -11,7 +11,7 @@ import {
   Mic,
   MicOff,
   MonitorUp,
-  MoreHorizontal,
+  Ellipsis,
   PanelBottom,
   PhoneOff,
   Sparkles,
@@ -317,7 +317,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                       />
                     }
                   >
-                    <MoreHorizontal aria-hidden />
+                    <Ellipsis aria-hidden />
                   </TooltipTrigger>
                   <TooltipContent side="top">{t("meetings.more")}</TooltipContent>
                 </Tooltip>

@@ -172,6 +172,8 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		AIBYOK:  service.NewAIBYOKService(orgs, ents, aiCredentials, gateway),
 		AICloud: service.NewAICloudService(orgs, ents, gateway),
 	}
+	d.Graph = service.NewGraphService(q, orgs, ws, chatSvc)
+	d.Graph.SetFlags(flags)
 	return d, pool
 }
 

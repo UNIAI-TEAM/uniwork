@@ -12,6 +12,7 @@ import { emitQuotaThreshold } from "../billing/quota-threshold-bus";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
 import { documentKeys } from "../documents/keys";
+import { graphKeys } from "../graph/keys";
 import {
   invalidateEmailHubReadingCachesForAccount,
   invalidateEmailHubThreadsForAccount,
@@ -34,6 +35,9 @@ import {
   TRANSCRIPT_INVALIDATE_MS,
 } from "./invalidate-scheduler";
 import { shouldInvalidateCalendar } from "./should-invalidate-calendar";
+
+/** The projector trails a task event (ADR 0019); the second graph refresh waits it out. */
+const GRAPH_INVALIDATE_MS = 3_000;
 
 /**
  * Central WS → cache sync for one workspace.
@@ -409,7 +413,8 @@ function handleChatRealtimeEvent(
       }
       return false;
     }
-    case "chat.thread.linked": {
+    case "chat.thread.linked":
+    case "chat.thread.unlinked": {
       const threadRootId = payload.thread_root_id;
       if (threadRootId) {
         chatScheduler.scheduleThreadLinked(roomId ?? "", threadRootId);
@@ -463,7 +468,24 @@ function allWorkspaceKeys(wsId: string) {
     // different branch of the same feature.
     documentKeys.workspace(wsId),
     documentKeys.favoritesRoot,
+    graphKeys.workspace(wsId),
   ];
+}
+
+/**
+ * Events after which the projector re-reads a TASK node. The refresh covers
+ * the whole workspace graph, not that node: an open Related panel lists its
+ * neighbours by title and status, and the changed task may be one of them.
+ */
+function changesTaskGraph(type: WSEventType, payload: Record<string, string>): boolean {
+  if (!payload.task_id) return false;
+  return (
+    type === "task.created" ||
+    type === "task.updated" ||
+    type === "task.deleted" ||
+    type === "chat.thread.linked" ||
+    type === "chat.thread.unlinked"
+  );
 }
 
 function isMeetingDetailKey(queryKey: readonly unknown[]): boolean {
@@ -483,11 +505,18 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
     const scheduler = createInvalidateScheduler(qc);
     const transcriptScheduler = createInvalidateScheduler(qc, TRANSCRIPT_INVALIDATE_MS);
     const tallyScheduler = createInvalidateScheduler(qc, MOTION_TALLY_INVALIDATE_MS);
+    const graphScheduler = createInvalidateScheduler(qc, GRAPH_INVALIDATE_MS);
     const chatScheduler = createChatRealtimePatchScheduler(qc, wsId);
 
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
       const eventType = RENAMED_EVENTS[msg.type] ?? (msg.type as WSEventType);
+      if (changesTaskGraph(eventType, payload)) {
+        // The graph trails its sources (ADR 0019): refresh now and once more
+        // later. Ahead of every early return and of the patched-detail skip.
+        scheduler.schedule(graphKeys.workspace(wsId));
+        graphScheduler.schedule(graphKeys.workspace(wsId));
+      }
       if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
         if (
           payload.room_id &&
@@ -537,6 +566,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       scheduler.dispose();
       transcriptScheduler.dispose();
       tallyScheduler.dispose();
+      graphScheduler.dispose();
       void chatScheduler.dispose();
     };
   }, [client, wsId, qc]);

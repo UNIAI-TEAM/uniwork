@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, CalendarDays, Maximize2, Minimize2, MoreHorizontal, PanelBottomClose, X } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Maximize2, Minimize2, Ellipsis, PanelBottomClose, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
@@ -290,7 +290,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         {showDueDate ? <CreateTaskDateField value={draft.dueDate} label={t("tasks.dueDate")} kind="due" open={dueDateOpen} onOpenChange={setDueDateOpen} onChange={(dueDate) => updateDraft({ dueDate })} /> : null}
         {!showPriority || !showDueDate ? (
           <DropdownMenu>
-            <DropdownMenuTrigger render={<PillButton aria-label={t("tasks.create.more_fields")} />}><MoreHorizontal className="size-3.5" aria-hidden /></DropdownMenuTrigger>
+            <DropdownMenuTrigger render={<PillButton aria-label={t("tasks.create.more_fields")} />}><Ellipsis className="size-3.5" aria-hidden /></DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-44">
               {!showPriority ? <DropdownMenuItem onClick={() => setShowPriority(true)}><PriorityIcon priority="none" className="size-3.5" />{t("tasks.create.agent_set_priority")}</DropdownMenuItem> : null}
               {!showDueDate ? <DropdownMenuItem onClick={() => { setShowDueDate(true); setTimeout(() => setDueDateOpen(true), 0); }}><CalendarDays className="size-3.5 text-muted-foreground" aria-hidden />{t("tasks.create.agent_set_due_date")}</DropdownMenuItem> : null}

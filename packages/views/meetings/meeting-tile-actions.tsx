@@ -1,7 +1,7 @@
 "use client";
 import { useRef, type ComponentProps } from "react";
 import type { Participant } from "livekit-client";
-import { Eye, EyeOff, Maximize, MicOff, Minimize, MoreVertical, Pin, PinOff } from "lucide-react";
+import { Eye, EyeOff, Maximize, MicOff, Minimize, EllipsisVertical, Pin, PinOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -149,7 +149,7 @@ export function MeetingTileActions({
             />
           }
         >
-          <MoreVertical aria-hidden className={compact ? "size-3.5" : "size-4"} />
+          <EllipsisVertical aria-hidden className={compact ? "size-3.5" : "size-4"} />
         </DropdownMenuTrigger>
         {/* `dark`: the menu opens over the dark stage, as the tile's own chip does. */}
         <DropdownMenuContent align="end" className="dark min-w-44">

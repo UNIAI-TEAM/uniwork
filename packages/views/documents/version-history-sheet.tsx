@@ -1,7 +1,7 @@
 "use client";
 
 import { lazy, Suspense, useRef, useState } from "react";
-import { Download, Eye, History, RotateCcw, Tag } from "lucide-react";
+import { Download, Eye, RotateCcwClock, RotateCcw, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -323,7 +323,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
                     {versions.isFetchingNextPage ? (
                       <Spinner aria-hidden role="presentation" />
                     ) : (
-                      <History aria-hidden className="size-3.5" />
+                      <RotateCcwClock aria-hidden className="size-3.5" />
                     )}
                     {t("documents.versions.load_more")}
                   </Button>

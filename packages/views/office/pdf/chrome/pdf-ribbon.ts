@@ -1,6 +1,6 @@
 import {
   Combine,
-  FilePlus2,
+  FilePlusCorner,
   Highlighter,
   ImagePlus,
   ListRestart,
@@ -63,7 +63,7 @@ const PDF_RIBBON_ICONS: Readonly<Partial<Record<PdfCommandId, RibbonIcon>>> = {
   [PDF_COMMANDS.forms]: TextCursorInput,
   [PDF_COMMANDS.editText]: Type,
   [PDF_COMMANDS.replaceImage]: ImagePlus,
-  [PDF_COMMANDS.insertPage]: FilePlus2,
+  [PDF_COMMANDS.insertPage]: FilePlusCorner,
   [PDF_COMMANDS.deletePage]: Trash2,
   [PDF_COMMANDS.rotatePage]: RotateCw,
   [PDF_COMMANDS.reorderPage]: ListRestart,

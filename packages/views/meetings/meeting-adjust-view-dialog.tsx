@@ -1,6 +1,5 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -116,7 +115,6 @@ export function MeetingAdjustViewDialog({
               <RadioGroupItem value={layout} id={`view-layout-${layout}`} />
               <span className="flex min-w-0 flex-1 items-center gap-1.5 text-body text-foreground">
                 {t(layoutLabelKey(layout))}
-                {layout === "auto" ? <Sparkles aria-hidden className="size-3.5 text-brand" /> : null}
               </span>
               <LayoutPreview layout={layout} />
             </label>

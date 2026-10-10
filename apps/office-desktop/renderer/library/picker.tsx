@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Building2, LayoutGrid, Server, UserRound, type LucideIcon } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
@@ -8,14 +9,11 @@ import type { DesktopLibraryContextResponse } from "../../shared/ipc";
 export type PickerGroup = keyof DesktopLibraryContextResponse;
 const GROUPS: readonly PickerGroup[] = ["deployments", "accounts", "organizations", "workspaces"];
 
+const PICKER_ICONS = { deployments: Server, accounts: UserRound, organizations: Building2, workspaces: LayoutGrid } satisfies Record<PickerGroup, LucideIcon>;
+
 function PickerIcon({ group, className = "size-5" }: { group: PickerGroup; className?: string }) {
-  const paths = {
-    deployments: "M4 3h16v7H4zM4 14h16v7H4zM7 6h.01M7 17h.01",
-    accounts: "M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0M4 21v-2a8 8 0 0 1 16 0v2",
-    organizations: "M5 21V3h14v18M3 21h18M9 7h1M14 7h1M9 11h1M14 11h1M10 21v-6h4v6",
-    workspaces: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
-  };
-  return <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[group]} /></svg>;
+  const Icon = PICKER_ICONS[group];
+  return <Icon className={className} aria-hidden />;
 }
 
 export interface LibraryPickerSelection {

@@ -163,6 +163,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerCalendar(authed, h)
 			registerEmailHub(authed, h)
 			registerAudit(authed, h)
+			registerGraph(authed, h)
 			registerMeetings(authed, h)
 			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
 			// Presence beats from every shell page and typing: per signed-in

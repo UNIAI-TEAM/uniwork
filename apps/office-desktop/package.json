@@ -30,6 +30,7 @@
     "@uniwork/views": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "i18next": "catalog:",
+    "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",

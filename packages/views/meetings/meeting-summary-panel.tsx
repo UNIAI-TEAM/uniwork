@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { ChevronDown, FileAudio, History, ListChecks, Sparkles } from "lucide-react";
+import { ChevronDown, FileHeadphone, RotateCcwClock, ListChecks, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api/http";
@@ -343,7 +343,7 @@ export function MeetingSummaryPanel({
             <ul className="space-y-1.5">
               {(recordings ?? []).map((r) => (
                 <li key={r.id} className="flex items-center gap-2 text-body text-foreground">
-                  <FileAudio aria-hidden className="size-4 shrink-0 text-faint-foreground" />
+                  <FileHeadphone aria-hidden className="size-4 shrink-0 text-faint-foreground" />
                   <span className="text-caption tabular-nums text-muted-foreground">
                     {r.started_at ? formatMeetingStart(r.started_at, meetingLocale(i18n.language)) : null}
                   </span>
@@ -437,7 +437,7 @@ function SummaryAttribution({
       </p>
       {facts.stale ? (
         <p data-testid="ai-summary-stale" className="flex items-center gap-1.5 text-caption text-muted-foreground">
-          <History aria-hidden className="size-3.5 shrink-0" />
+          <RotateCcwClock aria-hidden className="size-3.5 shrink-0" />
           {t("meetings.summaryStale")}
         </p>
       ) : null}

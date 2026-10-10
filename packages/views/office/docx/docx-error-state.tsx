@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, FileWarning, LockKeyhole, ShieldAlert } from "lucide-react";
+import { FileExclamationPoint, LockKeyhole, ShieldAlert, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Notice } from "../../common/notice";
@@ -9,15 +9,15 @@ import { OfficeTooLargeNotice } from "../too-large-notice";
 import type { DocxOpenFailure } from "./types";
 
 const FAILURE_ICON = {
-  corrupted: FileWarning,
+  corrupted: FileExclamationPoint,
   password_cancelled: LockKeyhole,
   password_required: LockKeyhole,
   wrong_password: LockKeyhole,
-  engine_error: AlertTriangle,
+  engine_error: CircleAlert,
   unsupported_feature: ShieldAlert,
-  not_office_file: FileWarning,
-  io_error: AlertTriangle,
-  too_large: AlertTriangle,
+  not_office_file: FileExclamationPoint,
+  io_error: CircleAlert,
+  too_large: CircleAlert,
 } as const;
 
 function failureKey(failureClass: string): keyof typeof FAILURE_ICON | null {
@@ -33,7 +33,7 @@ export function DocxErrorState({
 }) {
   const { t } = useTranslation();
   if (isOfficeTooLarge(failure)) return <OfficeTooLargeNotice format="docx" />;
-  const Icon = FAILURE_ICON[failureKey(failure.failure_class) ?? "engine_error"] ?? AlertTriangle;
+  const Icon = FAILURE_ICON[failureKey(failure.failure_class) ?? "engine_error"] ?? CircleAlert;
   const reason = failure.message ?? t(`office.docx.errors.${failure.failure_class}`, {
     defaultValue: t("office.docx.errors.unknown"),
   });

@@ -17,7 +17,7 @@
  * formula; anything else falls through untouched.
  */
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { FunctionSquare, Sigma } from "lucide-react";
+import { SquareFunction, Sigma } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Extension } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
@@ -282,7 +282,7 @@ export function MathPopover({ math, disabled = false, onApply }: MathPopoverProp
               }}
               data-toolbar-math-insert-inline
             >
-              <FunctionSquare aria-hidden />
+              <SquareFunction aria-hidden />
               {t("office.markdown.math.insertInline")}
             </Button>
           )}

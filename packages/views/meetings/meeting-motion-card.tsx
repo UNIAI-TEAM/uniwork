@@ -1,6 +1,6 @@
 "use client";
 import { useId, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, CircleCheck, Eye, EyeOff, Lock, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CircleCheck, Eye, EyeOff, Lock, Ellipsis, Pencil, Play, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { tallyPercent } from "@uniwork/core/meetings/motions";
@@ -179,7 +179,7 @@ export function MeetingMotionCard({
                 />
               }
             >
-              <MoreHorizontal aria-hidden className="size-4" />
+              <Ellipsis aria-hidden className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-40">
               <DropdownMenuItem onClick={onEdit}>

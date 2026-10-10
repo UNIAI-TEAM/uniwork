@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { LayoutGrid, ListFilter, Rows3, Search, Settings2, X } from "lucide-react";
+import { LayoutGrid, ListFilter, Rows3, Search, X, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   PEOPLE_COLUMN_KEYS,
@@ -262,7 +262,7 @@ export function PeopleToolbar({
             <PopoverTrigger
               render={
                 <Button variant="toolbar" size="sm" className={cn(TOOLBAR_BUTTON, "hidden @2xl/people:inline-flex")}>
-                  <Settings2 aria-hidden="true" className="size-3.5" />
+                  <SlidersHorizontal aria-hidden="true" className="size-3.5" />
                   <span className="max-md:sr-only">{t("people.display")}</span>
                 </Button>
               }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Ref } from "react";
-import { CircleHelp } from "lucide-react";
+import { CircleQuestionMark } from "lucide-react";
 import type { XlsxWorkbookSnapshot } from "@uniwork/office-engine/xlsx";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -94,7 +94,7 @@ export function XlsxFrameStatusBar({ stateLabel, documentKey, host, selection, d
             data-testid="xlsx-status-help"
             onClick={onOpenShortcuts}
           >
-            <CircleHelp aria-hidden />
+            <CircleQuestionMark aria-hidden />
           </Button>
         ) : null
       }

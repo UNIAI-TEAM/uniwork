@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, File, FileText, FolderTree, RotateCw } from "lucide-react";
+import { ChevronRight, File, FileText, FolderTree, RefreshCw } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -531,7 +531,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className }
       <div className={cn("space-y-2 p-3", className)}>
         <p className="text-caption text-muted-foreground">{t("documents.tree.error_title")}</p>
         <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
-          <RotateCw aria-hidden className="size-3.5" />
+          <RefreshCw aria-hidden className="size-3.5" />
           {t("documents.tree.retry")}
         </Button>
       </div>

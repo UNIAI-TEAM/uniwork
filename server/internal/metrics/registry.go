@@ -31,6 +31,7 @@ type Registry struct {
 	Documents     *Documents
 	Office        *Office
 	Billing       *Billing
+	Graph         *Graph
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -53,6 +54,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		reg.MustRegister(NewMeetingLagCollector(opts.Pool))
 		reg.MustRegister(NewDocumentLagCollector(opts.Pool))
 		reg.MustRegister(NewOutboxLagCollector(opts.Pool))
+		reg.MustRegister(NewGraphDirtyCollector(opts.Pool))
 	}
 	if opts.Realtime != nil {
 		reg.MustRegister(NewRealtimeCollector(opts.Realtime))
@@ -88,6 +90,8 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	reg.MustRegister(officeMetrics.Collectors()...)
 	billingMetrics := NewBilling()
 	reg.MustRegister(billingMetrics.Collectors()...)
+	graphMetrics := NewGraph()
+	reg.MustRegister(graphMetrics.Collectors()...)
 
 	return &Registry{
 		Gatherer:      reg,
@@ -101,6 +105,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Documents:     documentMetrics,
 		Office:        officeMetrics,
 		Billing:       billingMetrics,
+		Graph:         graphMetrics,
 	}
 }
 

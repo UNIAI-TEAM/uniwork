@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, TriangleAlert } from "lucide-react";
+import { CalendarClock, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubScheduledSendItem } from "@uniwork/core/api/endpoints/email-hub";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -18,7 +18,7 @@ export function EmailHubScheduledListItem({ row, onSelect }: EmailHubScheduledLi
   const locale = emailHubLocale(i18n.language);
   const recipients = row.to.join(", ");
   const failed = isScheduledSendFailed(row.status);
-  const Icon = failed ? TriangleAlert : CalendarClock;
+  const Icon = failed ? CircleAlert : CalendarClock;
 
   return (
     <li className="border-b border-border/70 transition-colors duration-(--duration-fast) hover:bg-muted/60 focus-within:bg-muted/60">

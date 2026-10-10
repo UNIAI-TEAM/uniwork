@@ -35,3 +35,16 @@ func TestOfficeLaunchConfigDefaultsAndAllowlist(t *testing.T) {
 		t.Fatalf("clock injection failed: %v", got)
 	}
 }
+
+func TestOfficeLaunchAllowsEveryConfiguredDesktopClient(t *testing.T) {
+	s := NewOfficeLaunchService(nil, config.Config{
+		DesktopAuthClients: []config.DesktopAuthClient{
+			{ID: "uniwork-office", RedirectURIs: []string{"uniwork-office://auth/callback"}},
+			{ID: "uniwork-office-dev", RedirectURIs: []string{"uniwork-office-dev://auth/callback"}},
+		},
+		DesktopAuthDeploymentIDs: []string{"default"},
+	})
+	if !s.allowed("uniwork-office", "default") || !s.allowed("uniwork-office-dev", "default") || s.allowed("uniwork-office-beta", "default") {
+		t.Fatal("launch allowlist does not follow DESKTOP_AUTH_CLIENTS")
+	}
+}

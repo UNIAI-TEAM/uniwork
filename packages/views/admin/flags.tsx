@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Flag } from "lucide-react";
+import { CircleAlert, Flag } from "lucide-react";
 import { useAdminFlags, useAllFlagOverrides } from "@uniwork/core/admin";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -24,7 +24,7 @@ export function AdminFlagsView() {
         </div>
       ) : flags.isError ? (
         <CollectionPageState
-          icon={AlertCircle}
+          icon={CircleAlert}
           tone="destructive"
           role="alert"
           title={t("error_title")}

@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Receipt } from "lucide-react";
+import { CircleAlert, Receipt } from "lucide-react";
 import { useInvoices } from "@uniwork/core/billing";
 import type { Invoice } from "@uniwork/core/types";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
@@ -132,7 +132,7 @@ export function InvoicesPanel({ orgId }: InvoicesPanelProps) {
   } else if (invoices.isError) {
     body = (
       <CollectionPageState
-        icon={AlertCircle}
+        icon={CircleAlert}
         tone="destructive"
         role="alert"
         headingLevel={3}

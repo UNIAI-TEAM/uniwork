@@ -271,7 +271,7 @@ export function TaskFilterMenu({
                     status={option.key}
                     category={option.category}
                     color={option.color}
-                    className="h-3.5 w-3.5"
+                    className="size-3.5"
                   />
                   {option.label}
                   {count > 0 ? (

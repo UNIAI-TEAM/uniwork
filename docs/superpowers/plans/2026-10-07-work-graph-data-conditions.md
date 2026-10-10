@@ -1,6 +1,6 @@
 # Điều kiện dữ liệu của Work Graph (C-11 §9.1: V1, V2, V3) — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — UNI-963 (sub-issue của UNI-460), nhánh `feature/UNI-963-c-11-9-1-dieu-kien-du-lieu-nhac-tom-tat`.
+> **Trạng thái:** shipped — UNI-963 (sub-issue của UNI-460), PR #197 merge vào develop 2026-10-08.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CircleHelp } from "lucide-react";
+import { CircleQuestionMark } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
@@ -131,7 +131,7 @@ export function HtmlStatusBar({
             data-testid="html-shortcuts-help-trigger"
             onClick={() => setHelpOpen(true)}
           >
-            <CircleHelp aria-hidden />
+            <CircleQuestionMark aria-hidden />
           </Button>
         }
       />

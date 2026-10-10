@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Link2, Search, Waypoints } from "lucide-react";
+import { CircleAlert, Link2, Search, Waypoints } from "lucide-react";
 import { toast } from "sonner";
 import { useAdminTrace } from "@uniwork/core/admin";
 import { paths } from "@uniwork/core/paths";
@@ -169,7 +169,7 @@ export function AdminTraceView() {
         </div>
       ) : trace.isError ? (
         <CollectionPageState
-          icon={AlertCircle}
+          icon={CircleAlert}
           tone="destructive"
           role="alert"
           title={t("error_title")}

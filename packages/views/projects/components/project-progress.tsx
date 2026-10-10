@@ -11,8 +11,8 @@ export function ProjectProgressRing({ project }: { project: Project }) {
   const pct = Math.round((completedCount / totalCount) * 100);
   return (
     <span className="flex items-center gap-1.5">
-      <span className="relative h-3.5 w-3.5">
-        <svg className="h-3.5 w-3.5 -rotate-90" viewBox="0 0 16 16" aria-hidden>
+      <span className="relative size-3.5">
+        <svg className="size-3.5 -rotate-90" viewBox="0 0 16 16" aria-hidden>
           <circle
             className="text-muted"
             strokeWidth="2"
