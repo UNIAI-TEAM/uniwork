@@ -8032,7 +8032,8 @@
         "denied": {
           "title": "Không mở được tài liệu này",
           "forbidden": "Bạn không có quyền truy cập tài liệu này.",
-          "not_found": "Tài liệu không còn tồn tại hoặc đã được chuyển đi."
+          "not_found": "Tài liệu không còn tồn tại hoặc đã được chuyển đi.",
+          "back_to_library": "Về thư viện tài liệu"
         },
         "failed": {
           "title": "Không mở được tài liệu",

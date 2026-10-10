@@ -27,6 +27,7 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string }) {
       frameVersion={frameVersion}
       readonly={readonly}
       className={className}
+      libraryHref={paths.workspace(workspace.organization_slug, workspace.slug).documents()}
       desktopOpen={frameDesktopOpen(document, deploymentId)}
       // Save as made a new document and the frame already edits it; follow it so the URL names what is open.
       onSavedAs={(copyId) => push(paths.workspace(workspace.organization_slug, workspace.slug).document(copyId))}

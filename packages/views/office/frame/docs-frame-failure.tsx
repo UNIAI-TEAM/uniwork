@@ -3,8 +3,9 @@
 import { AlertTriangle, Info, LockKeyhole, WifiOff, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ProtocolErrorShape } from "@uniwork/core/office/docs-frame-protocol";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { AppLink } from "../../navigation";
 import { Notice, type NoticeTone } from "../../common/notice";
 
 /**
@@ -44,13 +45,15 @@ export interface DocsFrameFailureProps {
   onRetry: () => void;
   /** Open the document in the standard editor instead; offered when the frame is unavailable. */
   onUseStandardEditor?: (() => void) | null;
+  /** Where the document list lives; a denied reader gets a way back there instead of a retry. */
+  libraryHref?: string;
   /** The genoffice module that failed, for tests and diagnostics (data-office-module). */
   module?: string;
   className?: string;
 }
 
 /** The frame's failed state, laid out like the G3 editor's (`DocxErrorState`). */
-export function DocsFrameFailure({ failure, code, onRetry, onUseStandardEditor, module, className }: DocsFrameFailureProps) {
+export function DocsFrameFailure({ failure, code, onRetry, onUseStandardEditor, libraryHref, module, className }: DocsFrameFailureProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const kind = code === "feature_disabled" ? "unavailable" : docsFrameFailureKind(failure);
   const { icon, tone } = VIEW[kind];
@@ -64,6 +67,10 @@ export function DocsFrameFailure({ failure, code, onRetry, onUseStandardEditor, 
         : t(`failure.${kind}.description`);
   // A frame that never loaded can be retried, and the standard editor is the way around it.
   const fallback = kind === "unavailable" || kind === "load" ? onUseStandardEditor : null;
+  // Trying again cannot change a permission answer (or a deployment without the editor): a denial
+  // names its reason and offers the way back to the list.
+  const canRetry = kind !== "unavailable" && kind !== "denied";
+  const toLibrary = kind === "denied" ? libraryHref : undefined;
   return (
     <section
       className={cn("flex min-h-64 flex-1 items-center justify-center p-6", className)}
@@ -75,12 +82,17 @@ export function DocsFrameFailure({ failure, code, onRetry, onUseStandardEditor, 
         <div className="space-y-1" data-testid="office-docs-frame-failed" data-failure-kind={kind}>
           <p className="text-body font-semibold">{title}</p>
           <p>{body}</p>
-          {kind === "unavailable" && !fallback ? null : (
+          {!canRetry && !fallback && !toLibrary ? null : (
             <div className="mt-2 flex flex-wrap gap-2">
-              {kind !== "unavailable" ? (
+              {canRetry ? (
                 <Button type="button" variant="outline" size="sm" onClick={onRetry}>
                   {t("retry")}
                 </Button>
+              ) : null}
+              {toLibrary ? (
+                <AppLink href={toLibrary} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                  {t("failure.denied.back_to_library")}
+                </AppLink>
               ) : null}
               {fallback ? (
                 <Button type="button" variant="outline" size="sm" onClick={fallback}>

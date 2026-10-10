@@ -13,6 +13,7 @@ import { requestMock } from "../../test/api-mock";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DocsFrameRefusalContext } from "./docs-frame-refusal";
 import { OfficeDocsFrame, type OfficeDocsFrameProps } from "./office-docs-frame";
+import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 
 const toastError = vi.hoisted(() => vi.fn());
 const toastSuccess = vi.hoisted(() => vi.fn());
@@ -59,15 +60,19 @@ function ThemeFlip() {
   return <button type="button" onClick={() => setTheme("dark")}>flip</button>;
 }
 
+const navigation: NavigationAdapter = { push: vi.fn(), replace: vi.fn(), back: vi.fn(), pathname: "/", searchParams: new URLSearchParams(), getShareableUrl: (path) => path };
+
 function mount(props: Partial<OfficeDocsFrameProps> = {}, api = fakeApi(), tokens = true) {
   if (tokens) serveTokens();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui = (extra: Partial<OfficeDocsFrameProps> = {}): ReactElement => (
     <QueryClientProvider client={client}>
-      <ThemeProvider defaultTheme="light" enableSystem={false}>
-        <ThemeFlip />
-        <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
-      </ThemeProvider>
+      <NavigationProvider value={navigation}>
+        <ThemeProvider defaultTheme="light" enableSystem={false}>
+          <ThemeFlip />
+          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
+        </ThemeProvider>
+      </NavigationProvider>
     </QueryClientProvider>
   );
   const view = render(ui());
@@ -332,12 +337,21 @@ describe("OfficeDocsFrame", () => {
     expect(mintCalls()).toHaveLength(1);
   });
 
-  it("shows a retry when no token can be minted", async () => {
-    serveTokens((n) => (n === 1 ? Promise.reject(new ApiError("no", "forbidden", 403)) : Promise.resolve(minted("tok-ok"))));
-    mount({}, fakeApi(), false);
+  it("gives a denied reader the reason and the way back to the list, never a retry", async () => {
+    serveTokens(() => Promise.reject(new ApiError("no", "forbidden", 403)));
+    mount({ libraryHref: "/acme/ops/documents" }, fakeApi(), false);
     const alert = await screen.findByTestId("office-docs-frame-failed");
     expect(alert.getAttribute("data-failure-kind")).toBe("denied");
     expect(alert.textContent).toContain("Bạn không có quyền truy cập tài liệu này.");
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Về thư viện tài liệu" })).toHaveAttribute("href", "/acme/ops/documents");
+  });
+
+  it("shows a retry when the token mint failed for a reason a retry can fix", async () => {
+    serveTokens((n) => (n === 1 ? Promise.reject(new ApiError("down", "internal", 500)) : Promise.resolve(minted("tok-ok"))));
+    mount({}, fakeApi(), false);
+    const alert = await screen.findByTestId("office-docs-frame-failed");
+    expect(alert.getAttribute("data-failure-kind")).toBe("failed");
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     const frame = fakeFrame();
     await boot(frame);

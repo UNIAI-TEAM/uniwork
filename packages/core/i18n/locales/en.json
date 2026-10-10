@@ -8037,7 +8037,8 @@
         "denied": {
           "title": "This document cannot be opened",
           "forbidden": "You do not have access to this document.",
-          "not_found": "This document no longer exists or was moved."
+          "not_found": "This document no longer exists or was moved.",
+          "back_to_library": "Back to documents"
         },
         "failed": {
           "title": "The document could not open",

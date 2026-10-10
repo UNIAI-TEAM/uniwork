@@ -53,6 +53,8 @@ export interface OfficeModuleFrameProps {
    */
   desktopOpen?: FrameDesktopOpenProps;
   className?: string;
+  /** The workspace's document list: a reader who is refused the document is offered the way back there. */
+  libraryHref?: string;
 }
 
 // One stateless API per module, shared by every frame of it.
@@ -87,7 +89,7 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, documentId, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, className,
 }: OfficeModuleFrameProps) {
   const frameApi = api ?? defaultFrameApi(module);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
@@ -251,6 +253,7 @@ export function OfficeModuleFrame({
       {desktopOpen && !booting && !session.viewOnly ? (
         <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} workspaceId={wsId} dirty={dirty} save={() => save("user")} requestRef={appOpenRef} />
       ) : null}
+        libraryHref={libraryHref}
       <iframe
         key={session.attempt}
         ref={iframeRef}
