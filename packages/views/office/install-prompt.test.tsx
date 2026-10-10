@@ -181,6 +181,10 @@ describe("OfficeInstallPrompt", () => {
     expect(screen.queryByText(/Size:/)).not.toBeInTheDocument();
     expect(screen.getByText(/Version 0.1.0-dev.1/)).toBeInTheDocument();
     expect(screen.getByText("unsigned")).toBeInTheDocument();
+    // A filled warning chip (semantic soft tokens, defined in :root and .dark), not an outline chip whose border vanishes on the muted panel in dark mode.
+    const pill = screen.getByTestId("installer-unsigned");
+    expect(pill).toHaveClass("bg-warning-soft", "text-warning-soft-foreground");
+    expect(pill).not.toHaveClass("bg-primary", "text-primary-foreground");
     fireEvent.click(screen.getByRole("button", { name: "After downloading" }));
     fireEvent.click(await screen.findByRole("button", { name: "Copy command" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("sudo apt install ./'a file.deb'"));
