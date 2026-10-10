@@ -565,24 +565,20 @@ func (s *ChatService) patchVoiceCallLogRecording(ctx context.Context, rec db.Cha
 	if err != nil {
 		return
 	}
-	var meta map[string]any
-	if len(msg.Metadata) > 0 {
-		_ = json.Unmarshal(msg.Metadata, &meta)
-	}
-	if meta == nil {
-		meta = map[string]any{}
-	}
-	meta["recording_id"] = rec.ID
-	meta["recording_status"] = rec.Status
-	if rec.FileUrl.Valid && rec.FileUrl.String != "" {
-		meta["recording_url"] = rec.FileUrl.String
-	}
-	raw, err := json.Marshal(meta)
-	if err != nil {
-		return
-	}
-	updated, err := s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: msg.ID, RoomID: msg.RoomID, WorkspaceID: msg.WorkspaceID, Metadata: raw,
+	updated, err := s.mutateChatMessageMetadata(ctx, msg.ID, msg.RoomID, msg.WorkspaceID, func(locked db.ChatMessage) ([]byte, error) {
+		var meta map[string]any
+		if len(locked.Metadata) > 0 {
+			_ = json.Unmarshal(locked.Metadata, &meta)
+		}
+		if meta == nil {
+			meta = map[string]any{}
+		}
+		meta["recording_id"] = rec.ID
+		meta["recording_status"] = rec.Status
+		if rec.FileUrl.Valid && rec.FileUrl.String != "" {
+			meta["recording_url"] = rec.FileUrl.String
+		}
+		return json.Marshal(meta)
 	})
 	if err != nil {
 		return

@@ -204,7 +204,7 @@ func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[
 	if err != nil {
 		return err
 	}
-	return patchCallLogSummaryMessageID(ctx, s.q, callLogID, roomID, wsID, summaryMsgID)
+	return s.patchCallLogSummaryMessageID(ctx, callLogID, roomID, wsID, summaryMsgID)
 }
 
 func (s *ChatService) chatPathBase(ctx context.Context, workspaceID string) (string, error) {
@@ -343,25 +343,17 @@ func summaryMessageIDFromCallLog(ctx context.Context, q *db.Queries, callLogID s
 	return strings.TrimSpace(meta.SummaryMessageID)
 }
 
-func patchCallLogSummaryMessageID(ctx context.Context, q *db.Queries, callLogID, roomID, wsID, summaryMsgID string) error {
-	msg, err := q.GetChatMessageByID(ctx, callLogID)
-	if err != nil {
-		return err
-	}
-	var meta map[string]any
-	if len(msg.Metadata) > 0 {
-		_ = json.Unmarshal(msg.Metadata, &meta)
-	}
-	if meta == nil {
-		meta = map[string]any{}
-	}
-	meta["summary_message_id"] = summaryMsgID
-	raw, err := json.Marshal(meta)
-	if err != nil {
-		return err
-	}
-	_, err = q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: callLogID, RoomID: roomID, WorkspaceID: wsID, Metadata: raw,
+func (s *ChatService) patchCallLogSummaryMessageID(ctx context.Context, callLogID, roomID, wsID, summaryMsgID string) error {
+	_, err := s.mutateChatMessageMetadata(ctx, callLogID, roomID, wsID, func(msg db.ChatMessage) ([]byte, error) {
+		var meta map[string]any
+		if len(msg.Metadata) > 0 {
+			_ = json.Unmarshal(msg.Metadata, &meta)
+		}
+		if meta == nil {
+			meta = map[string]any{}
+		}
+		meta["summary_message_id"] = summaryMsgID
+		return json.Marshal(meta)
 	})
 	return err
 }
