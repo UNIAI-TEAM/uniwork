@@ -554,7 +554,10 @@ climbs past the workspace root; at most 512 bytes) and tries, in order:
    and the last segment a live file document whose stored file name (else its
    title) equals it. The caller must be able to view THAT document too (its own
    ACL, rechecked on every byte request), it must be in the same workspace, and
-   only these types resolve: PNG, JPEG, GIF, WebP, SVG, CSS, JavaScript.
+   only these types resolve: PNG, JPEG, GIF, WebP, SVG, CSS, JavaScript. `..`
+   climbs only through live ancestors the caller may view (a trashed or
+   unviewable one ends the walk), and one open or resolve call runs the ACL on at
+   most 100 distinct documents: a path that would need one more stays unresolved.
 
 Nothing else resolves: a path that matches neither is simply absent from the
 map (the frame shows its missing-picture placeholder).
@@ -583,7 +586,12 @@ own document; a sibling is another document), and a signature naming any module
 but markdown/html is refused. Sessions longer than the hour ask for fresh URLs
 (next section). The web app (`apps/web/next.config.mjs` rewrites) proxies exactly
 these two byte paths to the API origin, so they are same-origin with the frame
-(`img-src 'self'`, `connect-src 'self'`) wherever the API lives. Responses:
+(`img-src 'self'`, `connect-src 'self'`) wherever the API lives. `credentials:
+'omit'` holds for the frame's `fetch` calls only: an `<img>` or `<link>` load of
+these same-origin paths sends the app origin's cookies through the rewrite, and
+the API ignores them on these two routes (the signature is the only credential;
+the destination host is fixed by `NEXT_PUBLIC_API_URL`, never taken from the
+request). Responses:
 `Content-Type` by the file's extension (`image/png|jpeg|gif|webp`,
 `image/svg+xml`, `text/css; charset=utf-8`, `text/javascript; charset=utf-8`),
 `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox;
