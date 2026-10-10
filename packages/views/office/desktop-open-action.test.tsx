@@ -81,7 +81,7 @@ describe("DesktopOpenAction", () => {
     expect(screen.getByRole("button", { name: "Try again" })).not.toBeDisabled();
   });
   it("opens the committed version without leaking document metadata", async () => {
-    const createSession = vi.fn(async (_id: string, body: { version: number }) => { expect(body).toEqual(expect.objectContaining({ version: 2 })); expect(JSON.stringify(body)).not.toMatch(/title|path|token|bytes/i); return session; });
+    const createSession = vi.fn(async (_id: string, body: { version?: number }) => { expect(body).toEqual(expect.objectContaining({ operation: "edit" })); expect(body).not.toHaveProperty("version"); expect(JSON.stringify(body)).not.toMatch(/title|path|token|bytes/i); return session; });
     const launch = vi.fn(async () => "launched" as const);
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={createSession} launch={launch} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
@@ -92,7 +92,7 @@ describe("DesktopOpenAction", () => {
   it("offers save/open-saved/cancel for a dirty editor and waits for Save", async () => {
     let saved = false;
     const save = vi.fn(async () => { saved = true; return { accepted: true, receipt: { version: 3 } }; });
-    const createSession = vi.fn(async (_id: string, body: { version: number }) => { expect(body.version).toBe(3); return { ...session, version: 3 }; });
+    const createSession = vi.fn(async (_id: string, body: { version?: number }) => { expect(body).not.toHaveProperty("version"); return { ...session, version: 3 }; });
     const fake: OfficeSaveCoordinatorLike = {
       save,
       getState: () => ({ state: saved ? "saved" : "dirty", identity: {} as never, dirtyGeneration: saved ? 2 : 2, lastSavedGeneration: saved ? 2 : 1, activeIntentId: null, error: null }),
@@ -113,8 +113,8 @@ describe("DesktopOpenAction", () => {
       revision: "3", checksumSha256: "a", sizeBytes: 1, engineName: "engine", engineVersion: "1",
       contractVersion: "1", protocolVersion: "1",
     } }));
-    const createSession = vi.fn(async (_id: string, body: { version: number }) => {
-      expect(body.version).toBe(3);
+    const createSession = vi.fn(async (_id: string, body: { version?: number }) => {
+      expect(body).not.toHaveProperty("version");
       return { ...session, version: 3 };
     });
     const fake: OfficeSaveCoordinatorLike = {
@@ -128,13 +128,13 @@ describe("DesktopOpenAction", () => {
   });
 
   it("opens the last committed version or cancels without saving", async () => {
-    const createSession = vi.fn(async (_id: string, body: { version: number }) => ({ ...session, version: body.version }));
+    const createSession = vi.fn(async () => ({ ...session }));
     const save = vi.fn(async () => ({ accepted: true, receipt: { version: 3 } }));
     const saveCoordinator = coordinator({ save });
     const { unmount } = render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={saveCoordinator} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
     fireEvent.click(screen.getByRole("button", { name: "Open last saved version" }));
-    await waitFor(() => expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ version: 2 })));
+    await waitFor(() => expect(createSession).toHaveBeenCalledWith("doc-1", expect.not.objectContaining({ version: expect.anything() })));
     expect(save).not.toHaveBeenCalled();
     unmount();
 

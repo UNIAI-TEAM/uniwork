@@ -156,6 +156,7 @@ function InstallerPicker({
             <span className="font-medium text-foreground">{t("version_line", { version: selected.version ?? t("version_unknown"), channel })}</span>
             {selected.unsigned ? <Badge variant="outline" className="text-caption">{t("unsigned")}</Badge> : null}
           </div>
+          <p>{t("zip_note")}</p>
         </div>
         <InstallerInstructions key={selected.platform} installer={selected} file={filename} open={instructionsOpen} onOpenChange={setInstructionsOpen} />
       </> : null}

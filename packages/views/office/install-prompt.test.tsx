@@ -56,6 +56,10 @@ describe("OfficeInstallPrompt", () => {
     expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Windows" })).toHaveAttribute("aria-checked", "true");
   });
+  it("says the download is a ZIP holding the installer (GOA9-r1-09)", () => {
+    render(<OfficeInstallPrompt {...props({ installers: [option("win32-x64")] })} />);
+    expect(screen.getByText("Downloads as a ZIP that contains the installer.")).toBeInTheDocument();
+  });
   it("shows a supported OS with no channel artifact as an unavailable selectable card", () => {
     render(<OfficeInstallPrompt {...props({ installers: [option("win32-x64")], platformHint: { platform: "darwin-arm64", confidence: "uncertain" } })} />);
     expect(screen.getByRole("radio", { name: "macOS" })).toHaveAttribute("aria-disabled", "true");
