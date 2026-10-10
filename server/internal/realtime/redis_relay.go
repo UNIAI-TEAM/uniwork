@@ -28,7 +28,9 @@ func HeartbeatKey(nodeID string) string {
 }
 
 const (
-	streamMaxLen        int64 = 10000
+	// streamMaxLen bounds each scope's stream. A consumer reads 32 entries
+	// per call as soon as they land, so it only needs room for a burst.
+	streamMaxLen        int64 = 1000
 	heartbeatTTL              = 90 * time.Second
 	heartbeatPeriod           = 30 * time.Second
 	consumerIdleGrace         = 10 * time.Minute

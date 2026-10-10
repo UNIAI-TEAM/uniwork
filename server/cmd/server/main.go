@@ -155,10 +155,11 @@ func main() {
 	// Without Redis every event fans out in-process only. With it, the relay
 	// writes each event to a per-scope stream and consumes the streams this
 	// node has subscribers for, so several API nodes deliver each other's
-	// events; DualWrite keeps local delivery immediate.
+	// events; DualWrite keeps local delivery immediate. A single replica has
+	// no other node to reach and turns it off (REALTIME_RELAY=false).
 	var broadcaster realtime.Broadcaster = hub
 	var relay *realtime.RedisRelay
-	if rdb != nil {
+	if rdb != nil && cfg.RealtimeRelay {
 		relay = realtime.NewRedisRelayWithClients(hub, rdb, realtime.NewRelayReadClient(rdb))
 		relay.Start(ctx)
 		broadcaster = realtime.NewDualWriteBroadcaster(hub, relay)
