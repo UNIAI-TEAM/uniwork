@@ -8,7 +8,7 @@ import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { OfficeModuleFrame, OfficeModuleOpenSwitch } from "@uniwork/views/office";
 import type { OfficeEditorHostProps } from "../office/editor-host";
-import { frameDesktopOpen, useOfficeDeploymentId } from "../office/desktop-open-props";
+import { useFrameDesktopOpen } from "../office/desktop-open-props";
 import { pinnedFrameVersion } from "./frame-versions";
 
 type ModuleHostProps = OfficeEditorHostProps & { module: OfficeModule };
@@ -17,7 +17,7 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string }) {
   const { module, document, wsId, readonly, className, frameVersion } = props;
   const { workspace } = useWorkspace();
   const { push } = useNavigation();
-  const deploymentId = useOfficeDeploymentId(document.organization_id);
+  const desktopOpen = useFrameDesktopOpen(document);
   return (
     <OfficeModuleFrame
       module={module}
@@ -27,7 +27,7 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string }) {
       frameVersion={frameVersion}
       readonly={readonly}
       className={className}
-      desktopOpen={frameDesktopOpen(document, deploymentId)}
+      desktopOpen={desktopOpen}
       // Save as made a new document and the frame already edits it; follow it so the URL names what is open.
       onSavedAs={(copyId) => push(paths.workspace(workspace.organization_slug, workspace.slug).document(copyId))}
     />

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useNavigation } from "@uniwork/views/navigation";
 import { DocxOpenSwitch, OfficeDocsFrame } from "@uniwork/views/office";
 import type { OfficeEditorHostProps } from "../office/editor-host";
-import { frameDesktopOpen, useOfficeDeploymentId } from "../office/desktop-open-props";
+import { useFrameDesktopOpen } from "../office/desktop-open-props";
 
 /** What the app layer hands the frame host: the pinned build and the route of a document in this workspace. */
 export interface DocsFrameHostConfig {
@@ -15,7 +15,7 @@ export interface DocsFrameHostConfig {
 function DocsFrameHost(props: OfficeEditorHostProps & DocsFrameHostConfig) {
   const { document, wsId, readonly, className, frameVersion, documentHref } = props;
   const { push } = useNavigation();
-  const deploymentId = useOfficeDeploymentId(document.organization_id);
+  const desktopOpen = useFrameDesktopOpen(document);
   return (
     <OfficeDocsFrame
       wsId={wsId}
@@ -24,7 +24,7 @@ function DocsFrameHost(props: OfficeEditorHostProps & DocsFrameHostConfig) {
       frameVersion={frameVersion}
       readonly={readonly}
       className={className}
-      desktopOpen={frameDesktopOpen(document, deploymentId)}
+      desktopOpen={desktopOpen}
       // Save as made a new document and the frame already edits it; follow it so the URL names what is open.
       onSavedAs={(copyId) => push(documentHref(copyId))}
     />

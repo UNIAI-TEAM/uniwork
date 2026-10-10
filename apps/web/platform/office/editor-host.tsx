@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ComponentType } from "react";
 import type { Document } from "@uniwork/core/types/document";
-import { selectOfficeInstallerChannel, type OfficeInstallerOption, type OfficeCapabilityEntry, type OfficeHost, type SaveCoordinatorState, type StableSnapshot } from "@uniwork/core/office";
+import { type OfficeInstallerOption, type OfficeCapabilityEntry, type OfficeHost, type SaveCoordinatorState, type StableSnapshot } from "@uniwork/core/office";
 import { registerLeaveGuard } from "@uniwork/views/navigation";
 import { DesktopOpenAction, OfficeShell, OfficeTooLargeProvider, type OfficeChannel } from "@uniwork/views/office";
 import { useOfficeFormatName } from "@uniwork/views/office/editor-slot";
@@ -12,9 +12,8 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
-import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
 import { downloadDocumentFile } from "@uniwork/core/api/endpoints/documents";
-import { desktopOpenAllowed, desktopOpenWiring } from "./desktop-open-props";
+import { desktopOpenAllowed, desktopOpenWiring, useOfficeConfigBinding } from "./desktop-open-props";
 export * from "./editor-host-core";
 
 export interface OfficeEditorHostProps<TSnapshot = unknown> {
@@ -104,31 +103,9 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   officeDeploymentId,
 }: OfficeEditorHostProps<TSnapshot>) {
   const { t } = useTranslation();
-  // The channel that actually publishes installers (stable > beta > dev); an
-  // explicit prop wins. Requests that name a channel wait for the config
-  // (channelReady) so none goes out with a guess; if the config is
-  // unavailable they ask for stable and show the "no installer" state.
-  const [publishedChannel, setPublishedChannel] = useState<OfficeChannel | null>(null);
-  const channelReady = useRef<Promise<OfficeChannel>>(Promise.resolve("stable"));
-  // One public-config read feeds the installer channel and, unless a host
-  // pins one, the deployment binding the launch ticket is created against.
-  // The binding stays undefined (never guessed) when the config does not
-  // advertise it; the desktop open action then fails closed.
-  const [configDeploymentId, setConfigDeploymentId] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    if (officeChannelOverride) channelReady.current = Promise.resolve(officeChannelOverride);
-    if (officeChannelOverride && officeDeploymentId) return undefined;
-    let active = true;
-    const config = getPublicConfig(document.organization_id).catch(() => null);
-    if (!officeChannelOverride) {
-      const ready = config.then((value): OfficeChannel => (value ? selectOfficeInstallerChannel(value.office_installers) : null) ?? "stable");
-      channelReady.current = ready;
-      void ready.then((channel) => { if (active) setPublishedChannel(channel); });
-    }
-    void config.then((value) => { if (active) setConfigDeploymentId(value?.office_deployment_id); });
-    return () => { active = false; };
-  }, [officeChannelOverride, officeDeploymentId, document.organization_id]);
-  const officeChannel: OfficeChannel = officeChannelOverride ?? publishedChannel ?? "stable";
+  // The installer channel and deployment binding are one shared read (the
+  // module frames use it too); an explicit prop wins.
+  const { channel: officeChannel, channelReady, deploymentId: boundDeploymentId } = useOfficeConfigBinding(document.organization_id, { channel: officeChannelOverride, deploymentId: officeDeploymentId });
   const formatName = useOfficeFormatName();
   const activeSession = formatAdapter?.session ?? session;
   const activeEditorView = formatAdapter?.editorView ?? editorView;
@@ -299,12 +276,12 @@ export function OfficeEditorHost<TSnapshot = unknown>({
     <DesktopOpenAction
       placement={placement}
       documentId={document.id}
-      deploymentId={officeDeploymentId ?? configDeploymentId}
+      deploymentId={boundDeploymentId}
       savedVersion={document.current_version}
       dirty={dirty}
       saveCoordinator={activeSession.coordinator}
       installers={installers}
-      {...desktopOpenWiring(document, officeChannel, () => channelReady.current)}
+      {...desktopOpenWiring(document, officeChannel, channelReady)}
     />
   ) : null;
   const downloadDocument = async () => {

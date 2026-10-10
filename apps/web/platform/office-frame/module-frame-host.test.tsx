@@ -9,7 +9,11 @@ import { NavigationProvider, type NavigationAdapter } from "@uniwork/views/navig
 
 // Only the transport and the heavy frame component are replaced: the real
 // open switch, flag hook and config schema answer from the mocked request.
-const mocks = vi.hoisted(() => ({ request: vi.fn(), frameProps: vi.fn(), push: vi.fn() }));
+const mocks = vi.hoisted(() => ({ request: vi.fn(), frameProps: vi.fn(), push: vi.fn(), downloadProfile: vi.fn() }));
+vi.mock("@uniwork/core/api/endpoints/office-desktop", async (orig) => ({
+  ...(await orig<typeof import("@uniwork/core/api/endpoints/office-desktop")>()),
+  getOfficeDesktopDownload: mocks.downloadProfile,
+}));
 vi.mock("@uniwork/core/api/http", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/api/http")>()),
   request: (...a: unknown[]) => mocks.request(...a),
@@ -31,9 +35,9 @@ let root: Root;
 let container: HTMLDivElement;
 
 /** The organization's public config (a healthy answer always carries office_engine): module flags and the deployment binding. */
-function answerConfig(flags: Record<string, boolean>) {
+function answerConfig(flags: Record<string, boolean>, officeInstallers?: Record<string, unknown[]>) {
   mocks.request.mockImplementation((path: string) => (path === "/api/v1/config?organization_id=org-1"
-    ? Promise.resolve({ flags: { office_engine: true, ...flags }, office_deployment_id: "dep-7" })
+    ? Promise.resolve({ flags: { office_engine: true, ...flags }, office_deployment_id: "dep-7", ...(officeInstallers ? { office_installers: officeInstallers } : {}) })
     : Promise.reject(new Error(`unexpected ${path}`))));
 }
 
@@ -107,6 +111,31 @@ describe("ModuleFrameOrG3Host", () => {
     expect(last.desktopOpen.loadInstallers).toBeTypeOf("function");
     (mocks.frameProps.mock.calls[0]![0] as { onSavedAs: (id: string) => void }).onSavedAs("copy-9");
     expect(mocks.push).toHaveBeenCalledWith("/acme/ops/documents/copy-9");
+  });
+
+  describe("installer channel of the desktop open action", () => {
+    const row = (channel: string) => ({ platform: "win32-x64", kind: ".exe", url: `https://dl.example/${channel}/UniWork-Office.exe` });
+    const loadInstallers = async (officeInstallers: Record<string, unknown[]>) => {
+      vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ sheets: "0.2.0-abc1234" }));
+      answerConfig({ office_sheets_web: true }, officeInstallers);
+      mocks.downloadProfile.mockResolvedValue({ installers: [], supported_platforms: ["win32-x64"] });
+      await render(host());
+      await until(() => (mocks.frameProps.mock.calls.at(-1)?.[0] as { desktopOpen?: { channel?: string } } | undefined)?.desktopOpen?.channel !== undefined && mocks.request.mock.calls.length > 0);
+      await settle();
+      const last = mocks.frameProps.mock.calls.at(-1)![0] as { desktopOpen: { channel: string; loadInstallers: () => Promise<unknown> } };
+      await act(async () => { await last.desktopOpen.loadInstallers(); });
+      return last.desktopOpen.channel;
+    };
+
+    it("lists the dev installers when only the dev channel publishes one", async () => {
+      expect(await loadInstallers({ dev: [row("dev")], beta: [], stable: [] })).toBe("dev");
+      expect(mocks.downloadProfile).toHaveBeenCalledWith("org-1", "dev");
+    });
+
+    it("prefers stable when stable publishes an installer", async () => {
+      expect(await loadInstallers({ dev: [row("dev")], beta: [], stable: [row("stable")] })).toBe("stable");
+      expect(mocks.downloadProfile).toHaveBeenCalledWith("org-1", "stable");
+    });
   });
 
   it("keeps the G3 host when the module's own flag is overridden off, whatever the other modules say", async () => {

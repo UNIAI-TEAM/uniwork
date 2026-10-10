@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
 import { getDocument } from "@uniwork/core/api/endpoints/documents";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
 import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
-import { detectDesktopPlatform, DESKTOP_PLATFORMS, type DesktopPlatformHints } from "@uniwork/core/office";
+import { detectDesktopPlatform, DESKTOP_PLATFORMS, selectOfficeInstallerChannel, type DesktopPlatformHints } from "@uniwork/core/office";
 import type { Document } from "@uniwork/core/types/document";
 import type { DesktopOpenActionProps, FrameDesktopOpenProps, OfficeChannel, OfficeSaveOutcome } from "@uniwork/views/office";
 import { launchOfficeDeepLink } from "./desktop-handoff";
@@ -73,9 +73,9 @@ export function desktopOpenWiring(
  * receipt, so the version it committed is read back as the document's
  * current version once the save resolved (null keeps the editor open).
  */
-export function frameDesktopOpen(document: Pick<Document, "id" | "organization_id" | "current_version">, deploymentId: string | undefined, channel: OfficeChannel = "stable"): FrameDesktopOpenProps {
+export function frameDesktopOpen(document: Pick<Document, "id" | "organization_id" | "current_version">, deploymentId: string | undefined, channel: OfficeChannel = "stable", channelReady?: () => Promise<OfficeChannel>): FrameDesktopOpenProps {
   return {
-    ...desktopOpenWiring(document, channel),
+    ...desktopOpenWiring(document, channel, channelReady),
     deploymentId,
     savedVersion: document.current_version,
     versionAfterSave: async () => {
@@ -89,20 +89,48 @@ export function frameDesktopOpen(document: Pick<Document, "id" | "organization_i
   };
 }
 
+interface OfficeConfigBinding {
+  /** The channel that publishes installers (stable > beta > dev); a pin wins. */
+  channel: OfficeChannel;
+  /** Settles once the channel is known; read when a request is made, never at render. */
+  channelReady: () => Promise<OfficeChannel>;
+  /** Undefined (never guessed) until the config answers, so the action fails closed. */
+  deploymentId: string | undefined;
+}
+
 /**
- * The deployment binding the server config advertises for the organization;
- * undefined (never guessed) until it answers, so the action fails closed.
+ * The one public-config read behind "Open in desktop app" for every web host
+ * (the G3 editor and the module/docs frames): which channel publishes
+ * installers and which deployment the launch ticket binds to. A pinned channel
+ * or deployment id wins and is not read from the config. Requests that name a
+ * channel wait on `channelReady`; if the config is unavailable they ask for
+ * stable and show the "no installer" state.
  */
-export function useOfficeDeploymentId(organizationId: string): string | undefined {
-  const [deploymentId, setDeploymentId] = useState<string | undefined>(undefined);
+export function useOfficeConfigBinding(organizationId: string, pinned: { channel?: OfficeChannel; deploymentId?: string } = {}): OfficeConfigBinding {
+  const { channel: pinnedChannel, deploymentId: pinnedDeploymentId } = pinned;
+  const [publishedChannel, setPublishedChannel] = useState<OfficeChannel | null>(null);
+  const [configDeploymentId, setConfigDeploymentId] = useState<string | undefined>(undefined);
+  const ready = useRef<Promise<OfficeChannel>>(Promise.resolve("stable"));
   useEffect(() => {
+    if (pinnedChannel) ready.current = Promise.resolve(pinnedChannel);
+    if (pinnedChannel && pinnedDeploymentId) return undefined;
     let active = true;
-    void getPublicConfig(organizationId).then((config) => {
-      if (active) setDeploymentId(config.office_deployment_id);
-    }).catch(() => {
-      // Config unavailable: stay closed rather than guess a deployment id.
-    });
+    const config = getPublicConfig(organizationId).catch(() => null);
+    if (!pinnedChannel) {
+      const settled = config.then((value): OfficeChannel => (value ? selectOfficeInstallerChannel(value.office_installers) : null) ?? "stable");
+      ready.current = settled;
+      void settled.then((channel) => { if (active) setPublishedChannel(channel); });
+    }
+    // Config unavailable: the binding stays undefined rather than a guessed id.
+    void config.then((value) => { if (active) setConfigDeploymentId(value?.office_deployment_id); });
     return () => { active = false; };
-  }, [organizationId]);
-  return deploymentId;
+  }, [pinnedChannel, pinnedDeploymentId, organizationId]);
+  const channelReady = useCallback(() => ready.current, []);
+  return { channel: pinnedChannel ?? publishedChannel ?? "stable", channelReady, deploymentId: pinnedDeploymentId ?? configDeploymentId };
+}
+
+/** `frameDesktopOpen` bound to the published installer channel and deployment of the document's organization. */
+export function useFrameDesktopOpen(document: Pick<Document, "id" | "organization_id" | "current_version">): FrameDesktopOpenProps {
+  const { channel, channelReady, deploymentId } = useOfficeConfigBinding(document.organization_id);
+  return frameDesktopOpen(document, deploymentId, channel, channelReady);
 }
