@@ -78,6 +78,13 @@ describe("OfficeInstallPrompt", () => {
     const p = props({ channel: "stable", installers: [...DESKTOP_PLATFORMS.map(option), { ...option("win32-x64"), platform: "unknown" } as unknown as OfficeInstallerOption], reason: "error" });
     const view = render(<OfficeInstallPrompt {...p} />);
     expect(screen.getByText("Install link unavailable")).toBeInTheDocument();
+    // Plain secondary text, not an outlined box that reads as a disabled input field.
+    const note = screen.getByText("Install link unavailable");
+    expect(note.closest("[data-slot=alert]")).toBeNull();
+    expect(note.tagName).toBe("P");
+    expect(note).toHaveAttribute("role", "status");
+    expect(note.className).toContain("text-muted-foreground");
+    expect(note.className).not.toMatch(/\bborder\b/);
     expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open again" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Not now" })).toHaveFocus());
