@@ -284,7 +284,10 @@ fork's `docs/web-modules/sheets-sidecar.md`):
   The module's flag answers first: with it off the mint is 403
   `feature_disabled` whatever the size.
 - Frame gate: when the Sheets frame fails its open with `too_large` (sum of
-  worksheet XML over 40 MB, checked in the frame) - or the mint answered 413 -
+  uncompressed worksheet XML over 80 MiB = 80 * 1024 * 1024 bytes,
+  `MAX_WORKSHEET_XML_BYTES` in the fork's `web/modules/sheets/engine/wasm-transport.ts`,
+  checked in the frame; a separate, much larger number than the 10 MiB stored-file
+  cap above) - or the mint answered 413 -
   `OfficeModuleFrame` hands the document to the G3 host through the same
   refusal path as `feature_disabled`. A module without a cap shows the error.
 
