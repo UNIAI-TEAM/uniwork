@@ -32,6 +32,17 @@ func TestPercentileIsNearestRank(t *testing.T) {
 	}
 }
 
+func TestOlderThanPrefersTheOpaqueCursor(t *testing.T) {
+	m := pagedMessage{CreatedAt: "2026-10-09T17:15:09+07:00", Cursor: "a+b/="}
+	if got := m.olderThan(); got != "&cursor=a%2Bb%2F%3D" {
+		t.Fatalf("with cursor = %s", got)
+	}
+	m.Cursor = ""
+	if got := m.olderThan(); got != "&before=2026-10-09T10:15:09.000Z" {
+		t.Fatalf("without cursor = %s", got)
+	}
+}
+
 func TestClientCursorMatchesDateToISOString(t *testing.T) {
 	if got := clientCursor("2026-10-09T17:15:09.123456+07:00"); got != "2026-10-09T10:15:09.123Z" {
 		t.Fatalf("cursor = %s", got)

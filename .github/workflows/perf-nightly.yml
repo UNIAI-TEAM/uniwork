@@ -7,7 +7,7 @@
 # small dataset, and does block that PR.
 #
 # The chat-load job runs scripts/load/chat (docs/chat-assessment.md §8)
-# against a one-organization chat dataset. The abuse scenario must pass;
+# against a one-organization chat dataset. Correctness and abuse must pass;
 # the others report until the chat fixes they measure land.
 #
 # The schedule tests `develop`, where work lands; GitHub always reads a
@@ -199,12 +199,12 @@ jobs:
           GOMAXPROCS=1 GOMEMLIMIT=400MiB nohup bin/server > /tmp/server.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:8080/readyz && break; sleep 1; done
           curl -sf http://localhost:8080/readyz
-      - name: Chat scenarios (abuse must pass; the rest report until their fixes land)
+      - name: Chat scenarios (correctness and abuse must pass; the rest report until their fixes land)
         working-directory: scripts/load/chat
         run: |
           mkdir -p ../results
           go run . -base http://localhost:8080 -metrics http://127.0.0.1:9090/metrics \
-            -report-only fanout,channel,sidebar,burst,correctness -out ../results/chat-load.json
+            -report-only fanout,channel,sidebar,burst -out ../results/chat-load.json
       - name: Keep results 90 days
         if: always()
         uses: actions/upload-artifact@v4

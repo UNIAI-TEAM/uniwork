@@ -47,7 +47,8 @@ type env struct {
 	mu          sync.Mutex
 	users       []*vu
 	loggedAt    time.Time
-	wsID, room0 string // the workspace and its default channel
+	shed        atomic.Int64 // 503s retried after Retry-After
+	wsID, room0 string       // the workspace and its default channel
 }
 
 type vu struct {
@@ -94,9 +95,10 @@ func main() {
 		}
 		r := &result{Name: name, ReportOnly: slices.Contains(soft, name), Metrics: map[string]any{}}
 		fmt.Fprintf(os.Stderr, "== %s\n", name)
-		start := time.Now()
+		start, shed := time.Now(), e.shed.Load()
 		run(e, r)
 		r.Seconds = time.Since(start).Seconds()
+		r.Metrics["shed_503_retried"] = e.shed.Load() - shed
 		r.OK = true
 		for _, c := range r.Checks {
 			r.OK = r.OK && c.OK
@@ -189,42 +191,54 @@ func percentile(v []float64, p float64) float64 {
 
 // call sends one request as u (nil u: anonymous) and decodes a 2xx body into
 // out. A transport error is status 0.
+//
+// A 503 (load shed) is retried after its Retry-After, up to four times, as
+// the web client's retry loops do; the duration then covers every attempt.
 func (e *env) call(u *vu, method, path string, body, out any) (int, time.Duration) {
-	var rd io.Reader
+	var payload []byte
 	ct := "application/json"
 	switch b := body.(type) {
 	case nil:
 	case *multipartBody:
-		rd, ct = b.r, b.ct
+		payload, ct = b.raw, b.ct
 	default:
-		raw, _ := json.Marshal(b)
-		rd = bytes.NewReader(raw)
-	}
-	req, _ := http.NewRequest(method, e.base+path, rd)
-	req.Header.Set("Content-Type", ct)
-	if u != nil {
-		req.Header.Set("X-Forwarded-For", u.ip)
-		if u.token != "" {
-			req.Header.Set("Authorization", "Bearer "+u.token)
-		}
+		payload, _ = json.Marshal(b)
 	}
 	start := time.Now()
-	res, err := e.hc.Do(req)
-	if err != nil {
-		return 0, time.Since(start)
+	for attempt := 0; ; attempt++ {
+		req, _ := http.NewRequest(method, e.base+path, bytes.NewReader(payload))
+		req.Header.Set("Content-Type", ct)
+		if u != nil {
+			req.Header.Set("X-Forwarded-For", u.ip)
+			if u.token != "" {
+				req.Header.Set("Authorization", "Bearer "+u.token)
+			}
+		}
+		res, err := e.hc.Do(req)
+		if err != nil {
+			return 0, time.Since(start)
+		}
+		raw, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		if res.StatusCode == http.StatusServiceUnavailable && attempt < 4 {
+			e.shed.Add(1)
+			wait, err := strconv.Atoi(res.Header.Get("Retry-After"))
+			if err != nil || wait < 1 {
+				wait = 1
+			}
+			time.Sleep(time.Duration(wait) * time.Second)
+			continue
+		}
+		if out != nil && res.StatusCode/100 == 2 {
+			_ = json.Unmarshal(raw, out)
+		}
+		return res.StatusCode, time.Since(start)
 	}
-	defer res.Body.Close()
-	raw, _ := io.ReadAll(res.Body)
-	took := time.Since(start)
-	if out != nil && res.StatusCode/100 == 2 {
-		_ = json.Unmarshal(raw, out)
-	}
-	return res.StatusCode, took
 }
 
 type multipartBody struct {
-	r  io.Reader
-	ct string
+	raw []byte
+	ct  string
 }
 
 func ok(status int) bool { return status/100 == 2 }

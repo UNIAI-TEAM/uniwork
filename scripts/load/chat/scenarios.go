@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"mime/multipart"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -274,43 +275,38 @@ type roomsBody struct {
 	} `json:"rooms"`
 }
 
-// (9) Correctness (§3.2 J): a room taking 7 messages/s, paged back with the
-// web client's cursor, must show every message; 200 concurrent votes on one
-// poll must all count.
+// (9) Correctness (§3.2 J): a room taking 7 messages/s, paged back the way
+// the web client pages (olderThan in chat-messages.ts), must show every
+// message; every vote acknowledged out of 200 concurrent ones must count.
 func scenarioCorrectness(e *env, r *result) {
 	us := e.need(max(8, e.votes+1))
 	senders := us[1:8] // 1 message/s each stays inside the per-user write budget
 	room := e.channel(us[0], "paging", senders)
 	msgs, failed := e.sendLoop(senders, room, 7, e.dur, nil)
-	seen, pages := map[string]int{}, 0
-	before := ""
+	seen, pages, older := map[string]int{}, 0, ""
 	for pages < 10_000 {
 		var page struct {
-			Messages []struct {
-				ID        string `json:"id"`
-				CreatedAt string `json:"created_at"`
-			} `json:"messages"`
+			Messages []pagedMessage `json:"messages"`
 		}
-		path := "/chat/rooms/" + room + "/messages?limit=50"
-		if before != "" {
-			path += "&before=" + before
-		}
-		if st, _ := e.call(us[0], "GET", e.ws(path), nil, &page); !ok(st) {
+		if st, _ := e.call(us[0], "GET", e.ws("/chat/rooms/"+room+"/messages?limit=50"+older), nil, &page); !ok(st) {
 			fatal("page %d: %d", pages, st)
 		}
 		pages++
-		oldest := ""
-		for _, m := range page.Messages {
+		var oldest *pagedMessage
+		for i, m := range page.Messages {
 			seen[m.ID]++
-			if oldest == "" || m.CreatedAt < oldest {
-				oldest = m.CreatedAt
+			if oldest == nil || m.CreatedAt < oldest.CreatedAt || (m.CreatedAt == oldest.CreatedAt && m.ID < oldest.ID) {
+				oldest = &page.Messages[i]
 			}
 		}
-		next := clientCursor(oldest)
-		if len(page.Messages) < 50 || next == "" || next == before {
+		if len(page.Messages) < 50 || oldest == nil {
 			break
 		}
-		before = next
+		next := oldest.olderThan()
+		if next == older {
+			break
+		}
+		older = next
 	}
 	missed, dup := 0, 0
 	for _, m := range msgs {
@@ -337,6 +333,7 @@ func scenarioCorrectness(e *env, r *result) {
 					ID    string `json:"id"`
 					Votes int    `json:"votes"`
 				} `json:"options"`
+				VotesByUser map[string][]string `json:"votes_by_user"`
 			} `json:"poll"`
 		} `json:"message"`
 	}
@@ -349,7 +346,8 @@ func scenarioCorrectness(e *env, r *result) {
 	votePath := e.ws("/chat/rooms/" + pollRoom + "/messages/" + poll.Message.ID + "/poll/vote")
 	gate := make(chan struct{})
 	var wg sync.WaitGroup
-	var accepted, refused atomic.Int64
+	var refused atomic.Int64
+	var acked sync.Map // voter id -> acknowledged with a 2xx
 	statuses := &tally{}
 	for i, v := range voters {
 		wg.Add(1)
@@ -359,7 +357,7 @@ func scenarioCorrectness(e *env, r *result) {
 			st, _ := e.call(v, "POST", votePath, map[string]string{"option_id": poll.Message.Poll.Options[i%2].ID}, nil)
 			statuses.add(st)
 			if ok(st) {
-				accepted.Add(1)
+				acked.Store(strings.ToUpper(v.id), true)
 			} else {
 				refused.Add(1)
 			}
@@ -368,15 +366,42 @@ func scenarioCorrectness(e *env, r *result) {
 	close(gate)
 	wg.Wait()
 	e.call(us[0], "GET", e.ws("/chat/rooms/"+pollRoom+"/messages/"+poll.Message.ID), nil, &poll)
-	counted := 0
+	counted, accepted, lost := 0, 0, 0
 	for _, o := range poll.Message.Poll.Options {
 		counted += o.Votes
 	}
-	r.Metrics["votes_accepted"] = accepted.Load()
+	stored := map[string]bool{}
+	for id, picks := range poll.Message.Poll.VotesByUser {
+		stored[strings.ToUpper(id)] = len(picks) > 0
+	}
+	// Lost = acknowledged to the voter but absent from the stored poll.
+	acked.Range(func(id, _ any) bool {
+		accepted++
+		if !stored[id.(string)] {
+			lost++
+		}
+		return true
+	})
+	r.Metrics["votes_accepted"] = accepted
 	r.Metrics["votes_counted"] = counted
 	r.Metrics["vote_statuses"] = statuses.by
-	r.atMost("votes lost", float64(accepted.Load()-int64(counted)), 0)
-	r.atMost("votes refused", float64(refused.Load()), 0)
+	r.atMost("votes lost", float64(lost), 0)
+	r.atMost("votes refused (after Retry-After retries)", float64(refused.Load()), 0)
+}
+
+type pagedMessage struct {
+	ID        string `json:"id"`
+	CreatedAt string `json:"created_at"`
+	Cursor    string `json:"cursor"`
+}
+
+// olderThan is the query for the page before m: its opaque cursor verbatim,
+// or, from a server that sends none, the `before` the client derives.
+func (m pagedMessage) olderThan() string {
+	if m.Cursor != "" {
+		return "&cursor=" + url.QueryEscape(m.Cursor)
+	}
+	return "&before=" + clientCursor(m.CreatedAt)
 }
 
 // clientCursor is what native-chat-message-panel.tsx sends as `before`:
@@ -441,7 +466,7 @@ func scenarioAbuse(e *env, r *result) {
 			fw, _ := mw.CreateFormFile("file", fmt.Sprintf("load-%d.txt", i))
 			_, _ = fw.Write(bytes.Repeat([]byte("load test upload\n"), 24*mib/17))
 			_ = mw.Close()
-			st, _ := e.call(senders[i], "POST", e.ws("/chat/rooms/"+room+"/messages/file"), &multipartBody{&buf, mw.FormDataContentType()}, nil)
+			st, _ := e.call(senders[i], "POST", e.ws("/chat/rooms/"+room+"/messages/file"), &multipartBody{buf.Bytes(), mw.FormDataContentType()}, nil)
 			uploads.add(st)
 			if st == 0 || st >= 500 {
 				upload5xx.Add(1)
