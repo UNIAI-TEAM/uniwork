@@ -189,9 +189,9 @@ export function useUpdateChatRoomSettings(workspaceId: string) {
         name: input.name,
         member_permissions: input.member_permissions,
       }),
-    onSuccess: (_data, variables) => {
+    // Settings change no message (the server writes none): the timeline stays.
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
-      void qc.invalidateQueries({ queryKey: chatKeys.roomMessages(workspaceId, variables.roomId) });
     },
   });
 }

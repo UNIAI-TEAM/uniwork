@@ -8,7 +8,12 @@ import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
-import { insertCreatedRoomMessage, patchRoomSidebarFromMessage } from "./realtime-cache";
+import {
+  applyChatMessageResponse,
+  insertCreatedRoomMessage,
+  patchChatMessageDeleted,
+  patchRoomSidebarFromMessage,
+} from "./realtime-cache";
 
 export function useSendChatRoomMessage(workspaceId: string) {
   const qc = useQueryClient();
@@ -76,10 +81,8 @@ export function useSendChatVoiceMessage(workspaceId: string) {
       client_msg_id: string;
       reply_to_message_id?: string;
     }) => chat.sendChatVoiceMessage(workspaceId, input.roomId, input),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
@@ -96,10 +99,8 @@ export function useSendChatFileMessage(workspaceId: string) {
       client_msg_id: string;
       reply_to_message_id?: string;
     }) => chat.sendChatFileMessage(workspaceId, input.roomId, input),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
@@ -111,10 +112,8 @@ export function useVoteChatPollMessage(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; messageId: string; optionId: string }) =>
       chat.voteChatPollMessage(workspaceId, input.roomId, input.messageId, input.optionId),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
     },
   });
 }
@@ -124,10 +123,8 @@ export function useToggleChatReaction(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; messageId: string; emoji: string }) =>
       chat.toggleChatMessageReaction(workspaceId, input.roomId, input.messageId, input.emoji),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
     },
   });
 }
@@ -137,10 +134,8 @@ export function useEditChatMessage(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; messageId: string; body: string }) =>
       chat.editChatRoomMessage(workspaceId, input.roomId, input.messageId, input.body),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
     },
   });
@@ -152,9 +147,7 @@ export function useDeleteChatMessage(workspaceId: string) {
     mutationFn: (input: { roomId: string; messageId: string }) =>
       chat.deleteChatRoomMessage(workspaceId, input.roomId, input.messageId),
     onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+      patchChatMessageDeleted(qc, workspaceId, variables.roomId, variables.messageId);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
@@ -166,10 +159,8 @@ export function useToggleChatMessagePin(workspaceId: string) {
   return useMutation({
     mutationFn: (input: { roomId: string; messageId: string }) =>
       chat.toggleChatMessagePin(workspaceId, input.roomId, input.messageId),
-    onSuccess: (_data, variables) => {
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
     },
   });
 }

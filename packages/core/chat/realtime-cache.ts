@@ -195,6 +195,22 @@ function patchMessageCaches(
   );
 }
 
+/**
+ * A chat mutation's answer: the server's copy of the message it sent or
+ * changed goes into the caches, so the room is not refetched page by page
+ * (UNI-1077). Without one, the room refetches.
+ */
+export function applyChatMessageResponse(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  message: ChatMessageRecord | null,
+  created: boolean,
+): void {
+  if (message) patchMessageCaches(qc, wsId, roomId, message, created);
+  else void qc.invalidateQueries({ queryKey: chatKeys.roomMessages(wsId, roomId) });
+}
+
 function isViewingRoom(wsId: string, roomId: string): boolean {
   const active = useActiveChatRoomStore.getState();
   return active.workspaceId === wsId && active.roomId === roomId;

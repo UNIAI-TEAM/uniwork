@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { chatKeys } from "./hooks";
 import { deliverChatTextMessage, flushChatSendOutbox } from "./deliver-chat-text-message";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
+import { applyChatMessageResponse } from "./realtime-cache";
 import { useChatSendOutboxStore } from "./send-outbox-store";
 import { useOptionalWS, useWSReconnect } from "../realtime";
 
@@ -29,14 +30,10 @@ export function useChatSendOutboxFlush(workspaceId: string, senderId: string): v
 
     flushingRef.current = true;
     try {
-      await flushChatSendOutbox(workspaceId, senderId, (payload) =>
-        deliverChatTextMessage(workspaceId, payload),
-      );
-      for (const entry of pending) {
-        void qc.invalidateQueries({
-          queryKey: chatKeys.roomMessages(workspaceId, entry.roomId),
-        });
-      }
+      await flushChatSendOutbox(workspaceId, senderId, async (payload) => {
+        const message = await deliverChatTextMessage(workspaceId, payload);
+        applyChatMessageResponse(qc, workspaceId, payload.roomId, message, true);
+      });
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     } finally {
