@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -286,12 +287,14 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	if len(ids) > chatInviteMaxIDs {
 		return ChatRoomSummary{}, Invalid("mời tối đa 100 thành viên mỗi lần")
 	}
-	var current []string
+	var size int // the group's member count once the invite lands
 	if room.Kind == chatRoomKindGroup {
-		if current, err = s.q.ListChatRoomMemberUserIDs(ctx, room.ID); err != nil {
+		current, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
+		if err != nil {
 			return ChatRoomSummary{}, err
 		}
-		if len(uniqueUserIDs(append(current, ids...))) > maxChatGroupMembers {
+		size = len(uniqueUserIDs(append(slices.Clip(current), ids...)))
+		if size > maxChatGroupMembers {
 			return ChatRoomSummary{}, errChatGroupTooLarge()
 		}
 	}
@@ -306,8 +309,18 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 		if room.Kind == chatRoomKindChannel {
 			return ChatRoomSummary{}, ErrForbidden
 		}
-		if len(current)+len(ids) > chatSmallRoomMembers {
+		if size > chatSmallRoomMembers {
 			return ChatRoomSummary{}, ErrForbidden
+		}
+	}
+	// Checked before Begin so the transaction holds no locks while these
+	// reads take other pool connections.
+	for _, id := range ids {
+		if id == userID {
+			continue
+		}
+		if err := s.requireOrgPeer(ctx, orgID, id); err != nil {
+			return ChatRoomSummary{}, err
 		}
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -323,9 +336,6 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	for _, id := range ids {
 		if id == userID {
 			continue
-		}
-		if err := s.requireOrgPeer(ctx, orgID, id); err != nil {
-			return ChatRoomSummary{}, err
 		}
 		added, err := s.addRoomMember(ctx, q, room, anchorWS, id, "member")
 		if err != nil {

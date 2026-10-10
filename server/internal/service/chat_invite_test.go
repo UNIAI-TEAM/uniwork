@@ -46,7 +46,19 @@ func TestInviteMembersNeedsAModeratorOutsideSmallGroups(t *testing.T) {
 	if _, err := s.InviteGroupMembers(ctx, ub.ID, w.ID, group.ID, []string{ud.ID}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("member invite past the small-group bound: want ErrForbidden, got %v", err)
 	}
+	// Naming someone already in the group does not grow it (UNI-1073).
+	if _, err := s.InviteGroupMembers(ctx, ub.ID, w.ID, group.ID, []string{uc.ID}); err != nil {
+		t.Fatalf("member re-invite of an existing member at the bound: %v", err)
+	}
 	smallChatRoom(t, 50)
+	// One outsider refuses the whole invite before anything is written.
+	outsider := registerVerified(t, q, as, "chat-invite-x@example.com", "X")
+	if _, err := s.InviteGroupMembers(ctx, ub.ID, w.ID, group.ID, []string{ud.ID, outsider.ID}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("invite naming a non-member of the organization: want ErrNotFound, got %v", err)
+	}
+	if ids, err := q.ListChatRoomMemberUserIDs(ctx, group.ID); err != nil || len(ids) != 3 {
+		t.Fatalf("a refused invite left members %v (err %v), want the 3 it started with", ids, err)
+	}
 	if _, err := s.InviteGroupMembers(ctx, ub.ID, w.ID, group.ID, []string{ud.ID}); err != nil {
 		t.Fatalf("member invite into a small group: %v", err)
 	}
