@@ -255,7 +255,8 @@ func (s *ChatService) roomMentionUnread(
 	if err != nil {
 		return 0, nil
 	}
-	var since pgtype.Timestamptz
+	// Same bound as the sidebar: a member who never read counts from joining.
+	since := member.JoinedAt
 	if member.LastReadAt.Valid {
 		since = member.LastReadAt
 	}

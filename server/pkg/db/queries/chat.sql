@@ -239,7 +239,9 @@ SELECT
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
   -- Badges stop at 100 (the client shows 99+), so a room left unread for
-  -- months costs the same as one read a minute ago.
+  -- months costs the same as one read a minute ago. Both count the main
+  -- timeline only (opening a room reads that, not threads) and, for a member
+  -- who never read, from when they joined.
   (
     SELECT COUNT(*)::int FROM (
       SELECT 1
@@ -247,8 +249,9 @@ SELECT
       WHERE m.room_id = r.id
         AND m.workspace_id = r.workspace_id
         AND m.deleted_at IS NULL
+        AND m.thread_root_id IS NULL
         AND m.sender_id != sqlc.arg(user_id)
-        AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
+        AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
       LIMIT 100
     ) unread
   ) AS unread_count,
@@ -264,7 +267,7 @@ SELECT
         AND m.thread_root_id IS NULL
         AND (m.metadata ? 'mentioned_user_ids' OR m.metadata ? 'mentions_all')
         AND m.sender_id != sqlc.arg(user_id)
-        AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
+        AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
         AND (m.metadata -> 'mentioned_user_ids' ? sqlc.arg(user_id)::text OR m.metadata @> '{"mentions_all": true}')
       LIMIT 100
     ) mentioned
@@ -437,8 +440,9 @@ SELECT
       WHERE m.room_id = r.id
         AND m.workspace_id = r.workspace_id
         AND m.deleted_at IS NULL
+        AND m.thread_root_id IS NULL
         AND m.sender_id != sqlc.arg(user_id)
-        AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
+        AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
       LIMIT 100
     ) unread
   ) AS unread_count,
@@ -452,7 +456,7 @@ SELECT
         AND m.thread_root_id IS NULL
         AND (m.metadata ? 'mentioned_user_ids' OR m.metadata ? 'mentions_all')
         AND m.sender_id != sqlc.arg(user_id)
-        AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
+        AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
         AND (m.metadata -> 'mentioned_user_ids' ? sqlc.arg(user_id)::text OR m.metadata @> '{"mentions_all": true}')
       LIMIT 100
     ) mentioned

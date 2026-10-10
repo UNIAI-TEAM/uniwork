@@ -148,3 +148,93 @@ func TestListChatRoomsIsConstantStatements(t *testing.T) {
 		}
 	}
 }
+
+// Opening a room reads its main timeline, so a thread reply newer than the
+// last main message must not keep the room unread after the open.
+func TestThreadRepliesDoNotKeepARoomUnread(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	uc := chatTestUser(t, q, w, "thread-unread-c@example.com")
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "thread-unread", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, roomID := range []string{group.ID, ch.ID} {
+		root, err := s.SendRoomMessage(ctx, ub.ID, w.ID, roomID, SendChatMessageInput{Body: "root"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.SendThreadReply(ctx, ub.ID, w.ID, roomID, root.ID, SendChatMessageInput{Body: "reply"}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.ListRoomMessages(ctx, ua.ID, w.ID, roomID, ListChatMessagesInput{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rooms, err := s.ListChatRooms(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rooms {
+		if (r.ID == group.ID || r.ID == ch.ID) && r.UnreadCount != 0 {
+			t.Fatalf("%s %s unread after opening = %d, want 0", r.Kind, r.ID, r.UnreadCount)
+		}
+	}
+}
+
+// A member who has never read a room counts from when they joined: history
+// from before is not unread, and an old @all is not their mention.
+func TestUnreadStartsAtJoinForAMemberWhoNeverRead(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	uc := chatTestUser(t, q, w, "late-joiner-c@example.com")
+	ud := chatTestUser(t, q, w, "late-joiner-d@example.com")
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "late-joiner", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, roomID := range []string{ch.ID, group.ID} {
+		if _, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: mentionAllBody}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	joined, err := s.JoinChannel(ctx, uc.ID, w.ID, ch.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if joined.MentionUnreadCount != 0 {
+		t.Fatalf("join summary mentions = %d, want 0", joined.MentionUnreadCount)
+	}
+	if _, err := s.InviteGroupMembers(ctx, ua.ID, w.ID, group.ID, []string{ud.ID}); err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range []db.User{uc, ud} {
+		rooms, err := s.ListChatRooms(ctx, u.ID, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range rooms {
+			if (u.ID == uc.ID && r.ID == ch.ID) || (u.ID == ud.ID && r.ID == group.ID) {
+				if r.UnreadCount != 0 || r.MentionUnreadCount != 0 {
+					t.Fatalf("%s %s for a late joiner: unread %d mentions %d, want 0 and 0", r.Kind, r.ID, r.UnreadCount, r.MentionUnreadCount)
+				}
+			}
+		}
+	}
+}
