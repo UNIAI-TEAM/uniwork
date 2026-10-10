@@ -104,7 +104,11 @@ function ImageAttachment({
   const { t } = useTranslation();
   const file = message.file;
   const name = file?.filename || t("chat.file_untitled");
-  const { url, status } = useChatFileObjectUrl(workspaceId, roomId, message.id, true);
+  // A GIF keeps its animation, so it loads whole; any other photo shows its
+  // thumbnail and loads the original only when opened.
+  const isGif = file?.content_type === "image/gif";
+  const { url, status } = useChatFileObjectUrl(workspaceId, roomId, message.id, true, isGif ? undefined : "thumb");
+  const loadOriginal = useChatFileBlobLoader(workspaceId, roomId);
   const [aspect, setAspect] = useState(() => imageAspectByMessage.get(message.id) ?? null);
   const rememberAspect = (img: HTMLImageElement) => {
     if (!img.naturalWidth || !img.naturalHeight) return;
@@ -130,10 +134,10 @@ function ImageAttachment({
       </div>
     );
   }
-  const open = () => window.open(url, "_blank", "noopener,noreferrer");
   const openLabel = t("chat.message_list.file_open_named", { name });
   const imgClass = "block max-h-56 max-w-full object-contain";
-  if (file?.content_type === "image/gif") {
+  if (isGif) {
+    const open = () => window.open(url, "_blank", "noopener,noreferrer");
     // The GIF carries its own play/pause button, so opening it is a button
     // of its own rather than the whole picture.
     return (
@@ -152,13 +156,32 @@ function ImageAttachment({
       </div>
     );
   }
+  const openOriginal = () => {
+    // The tab opens inside the click, before the download, so no popup
+    // blocker refuses it; the original is put into it once it arrives.
+    const tab = window.open("", "_blank");
+    if (!tab) return;
+    tab.opener = null;
+    loadOriginal(message.id).then(
+      (blob) => {
+        const href = URL.createObjectURL(blob);
+        tab.location.href = href;
+        // The tab has its own copy once loaded; the URL need not outlive that.
+        window.setTimeout(() => URL.revokeObjectURL(href), 60_000);
+      },
+      (err: unknown) => {
+        tab.close();
+        toastChatError(err, t, t("chat.file_download_failed"));
+      },
+    );
+  };
   return (
     <button
       type="button"
       className="block max-w-full overflow-hidden"
       style={aspect ? undefined : boxStyle}
       aria-label={openLabel}
-      onClick={open}
+      onClick={openOriginal}
     >
       {/* Authenticated blob URL — not a public CDN asset. */}
       <img src={url} alt={name} className={imgClass} onLoad={(e) => rememberAspect(e.currentTarget)} />

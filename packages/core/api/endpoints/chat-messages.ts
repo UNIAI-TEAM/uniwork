@@ -206,13 +206,18 @@ export async function sendChatFileMessage(
   return parsed.message ?? null;
 }
 
+/** "thumb" is a photo's preview (longest side 640px); the server sends the original until one exists. */
+export type ChatFileVariant = "thumb";
+
 export function loadChatFileBlob(
   workspaceId: string,
   roomId: string,
   messageId: string,
+  variant?: ChatFileVariant,
 ): Promise<Blob> {
+  const query = variant ? `?variant=${variant}` : "";
   return requestBlob(
-    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/file`,
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/file${query}`,
   );
 }
 

@@ -184,17 +184,19 @@ const CHAT_BLOB_GC_MS = 5 * 60_000;
  * The bytes of a file message (image or PDF preview, reply thumbnail). Keyed
  * by message, so the timeline rebuilding its rows or the list remounting one
  * reads the cached Blob instead of downloading it again; callers create
- * their own object URL from it and revoke it on unmount.
+ * their own object URL from it and revoke it on unmount. `variant: "thumb"`
+ * is the timeline's photo preview, cached apart from the original.
  */
 export function useChatFileBlob(
   workspaceId: string,
   roomId: string,
   messageId: string,
   enabled = true,
+  variant?: chat.ChatFileVariant,
 ) {
   return useQuery({
-    queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId),
-    queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId),
+    queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId, variant),
+    queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId, variant),
     enabled: !!workspaceId && !!roomId && !!messageId && enabled,
     staleTime: Infinity,
     gcTime: CHAT_BLOB_GC_MS,

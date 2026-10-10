@@ -379,6 +379,16 @@ describe("chat endpoints", () => {
     );
     const blob = await loadChatFileBlob("ws1", "room1", "message1");
     expect(blob.type).toBe("application/pdf");
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toMatch(/\/messages\/message1\/file$/);
+  });
+
+  it("loadChatFileBlob asks for the thumbnail variant", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response("jpg", { headers: { "Content-Type": "image/jpeg" } }),
+    );
+    const blob = await loadChatFileBlob("ws1", "room1", "message1", "thumb");
+    expect(blob.type).toBe("image/jpeg");
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toMatch(/\/messages\/message1\/file\?variant=thumb$/);
   });
 
   it("loadChatVoiceBlob returns authenticated binary response", async () => {
