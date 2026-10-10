@@ -316,8 +316,10 @@ export function OfficeEditorHost<TSnapshot = unknown>({
               : t("office.editor.capability_hint")}</AlertDescription>
           </Alert>
         )}
-        saveCoordinator={activeSession?.coordinator}
-        saveState={coordinatorState}
+        // A view-only member has nothing to save, and the page's own banner already says so: the
+        // coordinator's "readonly" state would add a red permission alert on top of the viewer.
+        saveCoordinator={readonly ? undefined : activeSession?.coordinator}
+        saveState={readonly ? null : coordinatorState}
         editorReady={Boolean(activeSession && viewReady && !readonly && effectiveCapability.status === "available")}
         // Lane additive (UNI-928 md/html END): only the text formats quiet the
         // Save when clean; every other format keeps the primary button.

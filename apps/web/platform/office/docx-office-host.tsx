@@ -65,10 +65,6 @@ export function DocxOfficeEditorHost(props: OfficeEditorHostProps) {
       } catch {
         // A capability fetch failure is not an editor failure: no warnings.
       }
-      if (readonly) {
-        if (active) setLoaded({ key, capability });
-        return;
-      }
       try {
         const { createDocxFormatAdapter } = await import("./docx-adapter");
         if (!active) return;
