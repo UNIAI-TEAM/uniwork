@@ -478,6 +478,7 @@ type Routes struct {
 	ListOfficeFrameRecents   http.HandlerFunc
 	UploadOfficeFrameAsset   http.HandlerFunc
 	SignOfficeFrameAssets    http.HandlerFunc
+	ResolveOfficeFrameAssets http.HandlerFunc
 	GetOfficeFrameAsset      http.HandlerFunc
 	GetOfficeFrameLinked     http.HandlerFunc
 	// PDF export of the frame's document (UNI-1013, W8).

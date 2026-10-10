@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/files/filescontract"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -66,7 +67,7 @@ func (w *officeWorld) createFolder(t *testing.T, parentID, title string) string 
 // Remote, missing and non-loadable references are absent. Each URL loads
 // without a header, typed by extension, with the sandbox CSP and nosniff.
 func TestOfficeFrameOpenResolvesRelativeReferences(t *testing.T) {
-	w := newOfficeWorld(t, true)
+	w, frames, _ := newFrameClockWorld(t)
 	site := w.createFolder(t, "", "Site")
 	img := w.createFolder(t, site, "img")
 	w.createFileIn(t, "", "top.png", docsPNG)
@@ -123,8 +124,9 @@ func TestOfficeFrameOpenResolvesRelativeReferences(t *testing.T) {
 	}
 
 	// A sibling signature names one file: another id, a tampered signature
-	// or the asset route are refused; a bearer token still reads it, and a
-	// file the frames never load (the HTML page itself) is not found.
+	// or the asset route are refused; a bearer token does not read it (the
+	// signature is the only credential, TestOfficeFrameLinkedTakesNoFrameToken),
+	// and a file the frames never load (the HTML page itself) is not found.
 	cssURL := assets["style.css"].(string)
 	sig := cssURL[strings.Index(cssURL, "?sig=")+len("?sig="):]
 	for _, path := range []string{
@@ -136,13 +138,22 @@ func TestOfficeFrameOpenResolvesRelativeReferences(t *testing.T) {
 			t.Fatalf("GET %s = %d, want 401", path, res.StatusCode)
 		}
 	}
-	if res, body := doBytes(t, w.srv, "GET", base+"/linked/"+css, token); res.StatusCode != 200 || !bytes.Equal(body, sampleBody(t, "text/css")) {
-		t.Fatalf("bearer linked = %d", res.StatusCode)
+	if res, body := doBytes(t, w.srv, "GET", cssURL, ""); res.StatusCode != 200 || !bytes.Equal(body, sampleBody(t, "text/css")) {
+		t.Fatalf("signed linked = %d", res.StatusCode)
 	}
-	if res, _ := doBytes(t, w.srv, "HEAD", base+"/linked/"+css, token); res.StatusCode != 200 {
+	if res, _ := doBytes(t, w.srv, "HEAD", cssURL, ""); res.StatusCode != 200 {
 		t.Fatalf("HEAD linked = %d", res.StatusCode)
 	}
-	if res, _ := doBytes(t, w.srv, "GET", base+"/linked/"+documentID, token); res.StatusCode != 404 {
+	if res, _ := doBytes(t, w.srv, "GET", base+"/linked/"+css, token); res.StatusCode != 401 {
+		t.Fatalf("bearer linked = %d, want 401", res.StatusCode)
+	}
+	// The HTML page itself is a file the frames never load, whoever signs for it.
+	pageURL, err := frames.SignLinked(service.OfficeFrameClaims{Version: 1, DocumentID: documentID, WorkspaceID: w.wsID, OrganizationID: w.orgID,
+		UserID: w.userID, Module: service.OfficeFrameModuleHTML}, documentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, _ := doBytes(t, w.srv, "GET", pageURL.URL, ""); res.StatusCode != 404 {
 		t.Fatalf("linked html page = %d, want 404", res.StatusCode)
 	}
 	// A session token is not a frame credential.
@@ -169,7 +180,7 @@ func TestOfficeFrameOpenHasNoAssetsOutsideTextModules(t *testing.T) {
 // Another member who may not view a sibling (it sits under a restricted
 // page) gets the document without it, and its byte route refuses them.
 func TestOfficeFrameSiblingNeedsItsOwnViewAccess(t *testing.T) {
-	w := newOfficeWorld(t, true)
+	w, frames, _ := newFrameClockWorld(t)
 	documentID := w.createFileIn(t, "", "notes.md", []byte("![a](Private/secret.png) ![b](open.png)\n"))
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token,
 		map[string]any{"title": "Private", "kind": "page", "visibility": "restricted"})
@@ -205,7 +216,14 @@ func TestOfficeFrameSiblingNeedsItsOwnViewAccess(t *testing.T) {
 	if _, ok := assets["Private/secret.png"]; ok || assets["open.png"] == nil || len(assets) != 1 {
 		t.Fatalf("member assets = %v, want only open.png", assets)
 	}
-	if res, _ := doBytes(t, w.srv, "GET", "/api/v1/office-frame/documents/"+documentID+"/linked/"+secret, token); res.StatusCode != 404 && res.StatusCode != 403 {
+	// Even a signature naming the secret (the member's own, forged here: the
+	// server never issues one for it) reads nothing: view is rechecked on the file.
+	forged, err := frames.SignLinked(service.OfficeFrameClaims{Version: 1, DocumentID: documentID, WorkspaceID: w.wsID, OrganizationID: w.orgID,
+		UserID: w.outsider, Module: service.OfficeFrameModuleMarkdown}, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, _ := doBytes(t, w.srv, "GET", forged.URL, ""); res.StatusCode != 404 && res.StatusCode != 403 {
 		t.Fatalf("linked secret = %d, want refusal", res.StatusCode)
 	}
 }

@@ -98,14 +98,24 @@ func TestOfficeFrameAssetSignatureNamesOneAsset(t *testing.T) {
 			t.Errorf("VerifyAsset accepted module %q", m)
 		}
 	}
-	// An image URL outlives a token (the frame maps paths once per open) but not
-	// OfficeFrameAssetURLTTL.
+	// A Docs image URL lives as long as a token (as UNI-1013 shipped it); the
+	// Markdown/HTML frames get OfficeFrameAssetURLTTL (RA-2).
+	md := claims
+	md.Module = OfficeFrameModuleMarkdown
+	signedMD, err := s.SignAsset(md, "asset")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mdSig := signedMD.URL[strings.Index(signedMD.URL, "?sig=")+len("?sig="):]
 	now = now.Add(OfficeFrameTokenTTL)
-	if _, err := s.VerifyAsset(sig, "doc", "asset"); err != nil {
-		t.Fatalf("VerifyAsset refused a signature inside its lifetime: %v", err)
+	if _, err := s.VerifyAsset(sig, "doc", "asset"); err == nil {
+		t.Fatal("a Docs image URL outlived the token")
+	}
+	if _, err := s.VerifyAsset(mdSig, "doc", "asset"); err != nil {
+		t.Fatalf("a Markdown image URL refused inside its hour: %v", err)
 	}
 	now = now.Add(OfficeFrameAssetURLTTL - OfficeFrameTokenTTL)
-	if _, err := s.VerifyAsset(sig, "doc", "asset"); err == nil {
+	if _, err := s.VerifyAsset(mdSig, "doc", "asset"); err == nil {
 		t.Fatal("VerifyAsset accepted an expired signature")
 	}
 }

@@ -25,11 +25,13 @@ import (
 // becomes a signed URL an <img>, a stylesheet fetch or a script fetch in the
 // frame loads without a header; every byte request rechecks view access.
 
-// OfficeFrameAssetURLTTL is the lifetime of a signed asset or sibling URL.
-// Longer than a frame token: the frame maps paths to URLs once per open and
-// re-reads them for exports and re-renders. Each request still rechecks view
-// access, so a revoked share or membership stops the URL at once; the
-// lifetime only bounds a leaked URL of something the user may still see.
+// OfficeFrameAssetURLTTL is the lifetime of a signed asset or sibling URL of a
+// Markdown/HTML frame. Longer than a frame token: the frame maps paths to URLs
+// once per open and re-reads them for exports and re-renders, and asks the
+// host for fresh ones (api.assets.resolve) when a session outlives it. Each
+// request still rechecks view access, so a revoked share or membership stops
+// the URL at once; the lifetime only bounds a leaked URL of something the user
+// may still see. A Docs asset URL keeps the lifetime of the token (UNI-1013).
 const OfficeFrameAssetURLTTL = time.Hour
 
 const (
@@ -45,6 +47,12 @@ const (
 	officeFrameMaxWalk = 16
 	// officeFrameMaxChildren caps the children of one folder a walk reads.
 	officeFrameMaxChildren = 2000
+	// OfficeFrameMaxACLChecks caps the distinct documents one open or resolve
+	// call runs the Documents ACL on (several queries each); a path that would
+	// need one more is left unresolved, never refused.
+	OfficeFrameMaxACLChecks = 100
+	// OfficeFrameResolveMaxPaths caps one resolve call (POST .../assets/resolve).
+	OfficeFrameResolveMaxPaths = 50
 )
 
 // officeFrameLinkedType is a sibling file type the frames may load: the type
@@ -105,7 +113,7 @@ type OfficeFrameLinkedFile struct {
 // claims loads it. The signature binds the frame's document, the sibling and
 // the user; the byte route rechecks view on both.
 func (s *OfficeFrameService) SignLinked(claims OfficeFrameClaims, linkedID string) (OfficeFrameAssetURL, error) {
-	expires := s.now().Add(OfficeFrameAssetURLTTL)
+	expires := s.now().Add(s.urlTTL(claims))
 	sig, err := s.sign(officeFrameLinkedPrefix, officeFrameLinkedClaims{
 		DocumentID: claims.DocumentID, LinkedID: linkedID, WorkspaceID: claims.WorkspaceID,
 		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: expires.UnixMilli(),
@@ -132,24 +140,33 @@ func (s *OfficeFrameService) VerifyLinked(sig, documentID, linkedID string) (Off
 		claims.WorkspaceID == "" || claims.OrganizationID == "" || claims.ExpiresAt <= s.now().UnixMilli() {
 		return OfficeFrameClaims{}, ErrOfficeFrameToken
 	}
-	if claims.Module == OfficeFrameModuleDocs {
+	// Only the Markdown and HTML frames load siblings; a signature naming any
+	// other module (or the explicit docs spelling) is not one the server issued.
+	if !officeFrameLoadsSiblings(claims.Module) {
 		return OfficeFrameClaims{}, ErrOfficeFrameToken
 	}
-	out := OfficeFrameClaims{Version: 1, DocumentID: claims.DocumentID, WorkspaceID: claims.WorkspaceID,
-		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: claims.ExpiresAt, Module: claims.Module}
-	if _, ok := OfficeFrameModuleFlag(out.ModuleName()); !ok {
-		return OfficeFrameClaims{}, ErrOfficeFrameToken
-	}
-	return out, nil
+	return OfficeFrameClaims{Version: 1, DocumentID: claims.DocumentID, WorkspaceID: claims.WorkspaceID,
+		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: claims.ExpiresAt, Module: claims.Module}, nil
+}
+
+// officeFrameLoadsSiblings is true for the modules whose documents point at
+// pictures, stylesheets and scripts by relative path.
+func officeFrameLoadsSiblings(module string) bool {
+	return module == OfficeFrameModuleMarkdown || module == OfficeFrameModuleHTML
 }
 
 // OpenLinked opens a sibling file document for the frame of claims: view on
-// the frame's document (Authorize) and on the sibling itself, both in the
-// token's workspace, a live file of a type the frames load. Anything else is
-// not found.
+// the frame's document (Authorize, a Markdown or HTML one) and on the sibling
+// itself, both in the token's workspace, a live file of a type the frames load.
+// Anything else is not found. The handler reaches it only with a signature
+// issued for this document and file (VerifyLinked), never a frame token.
 func (s *OfficeFrameService) OpenLinked(ctx context.Context, claims OfficeFrameClaims, linkedID string) (OfficeFrameLinkedFile, error) {
-	if _, err := s.Authorize(ctx, claims); err != nil {
+	d, err := s.Authorize(ctx, claims)
+	if err != nil {
 		return OfficeFrameLinkedFile{}, err
+	}
+	if !officeFrameLoadsSiblings(d.Module) {
+		return OfficeFrameLinkedFile{}, ErrNotFound
 	}
 	doc, _, err := s.documents.authorizeDocument(ctx, Human(claims.UserID), linkedID, DocumentLevelView)
 	if err != nil {
@@ -202,6 +219,26 @@ func (s *OfficeFrameService) OpenAssets(ctx context.Context, claims OfficeFrameC
 		out[p] = u.URL
 	}
 	return out
+}
+
+// Resolve is the frame's request for URLs of relative paths it holds: fresh
+// ones for the paths of the open answer when its signatures near their end,
+// and the URLs of paths typed after the open. The same normalisation, walk and
+// ACL as the open (ResolvePaths); a path that resolves to nothing is left out.
+// Only Markdown and HTML documents have relative paths.
+func (s *OfficeFrameService) Resolve(ctx context.Context, claims OfficeFrameClaims, paths []string) (map[string]OfficeFrameAssetURL, error) {
+	// The caller is decided first: a refused caller never learns the call's limits.
+	d, err := s.Authorize(ctx, claims)
+	if err != nil {
+		return nil, err
+	}
+	if !officeFrameLoadsSiblings(d.Module) {
+		return nil, ErrNotFound
+	}
+	if len(paths) == 0 || len(paths) > OfficeFrameResolveMaxPaths {
+		return nil, Invalid("paths cần từ 1 đến 50 mục")
+	}
+	return s.ResolvePaths(ctx, claims, d, paths)
 }
 
 // ResolvePaths signs the paths that resolve (as written → URL); a path that
@@ -314,6 +351,7 @@ type officeFrameWalk struct {
 	children map[string][]db.Document
 	names    map[string]string // document id -> stored file name
 	viewable map[string]bool
+	checks   int // ACL evaluations run so far (OfficeFrameMaxACLChecks)
 }
 
 // assetsByName maps the stored file name of each asset of the document to
@@ -362,6 +400,15 @@ func (w *officeFrameWalk) sibling(ctx context.Context, segs []string) (string, e
 			if err != nil {
 				return "", err
 			}
+			// A trashed or unviewable ancestor ends the walk: its live children
+			// are not "next to" a document the user reaches through it.
+			if up.ArchivedAt.Valid {
+				return "", nil
+			}
+			ok, err := w.canView(ctx, up)
+			if err != nil || !ok {
+				return "", err
+			}
 			parent = up.ParentID
 			continue
 		}
@@ -372,7 +419,7 @@ func (w *officeFrameWalk) sibling(ctx context.Context, segs []string) (string, e
 		next := ""
 		for _, k := range kids {
 			if k.Title == seg {
-				ok, err := w.canView(ctx, k.ID)
+				ok, err := w.canView(ctx, k)
 				if err != nil {
 					return "", err
 				}
@@ -409,7 +456,7 @@ func (w *officeFrameWalk) sibling(ctx context.Context, segs []string) (string, e
 			if name != last {
 				continue
 			}
-			ok, err := w.canView(ctx, k.ID)
+			ok, err := w.canView(ctx, k)
 			if err != nil {
 				return "", err
 			}
@@ -486,20 +533,32 @@ func (w *officeFrameWalk) nameFiles(ctx context.Context, kids []db.Document) err
 }
 
 // canView is the user's view access to a document of the walk, decided by
-// the Documents ACL (organization gate, shares, restrictions) once per id.
-func (w *officeFrameWalk) canView(ctx context.Context, id string) (bool, error) {
+// the Documents ACL (organization gate, shares, restrictions; the same
+// effectiveLevel and decideDocumentAccess authorizeDocument runs, on the row
+// the walk already holds) once per id. A call runs at most
+// OfficeFrameMaxACLChecks of them: one more distinct document is reported as
+// not viewable and not remembered, so the open stays bounded however many
+// files its references name.
+func (w *officeFrameWalk) canView(ctx context.Context, doc db.Document) (bool, error) {
 	if w.viewable == nil {
 		w.viewable = map[string]bool{}
 	}
-	if ok, done := w.viewable[id]; done {
+	if ok, done := w.viewable[doc.ID]; done {
 		return ok, nil
 	}
-	_, _, err := w.s.documents.authorizeDocument(ctx, Human(w.claims.UserID), id, DocumentLevelView)
+	if w.checks >= OfficeFrameMaxACLChecks {
+		return false, nil
+	}
+	w.checks++
+	access, err := w.s.documents.effectiveLevel(ctx, w.s.documents.q, Human(w.claims.UserID), doc)
+	if err == nil {
+		err = decideDocumentAccess(doc, access, DocumentLevelView)
+	}
 	ok := err == nil
 	// A refusal of any kind is "not viewable"; only a cancelled call stops the walk.
 	if err != nil && ctx.Err() != nil {
 		return false, ctx.Err()
 	}
-	w.viewable[id] = ok
+	w.viewable[doc.ID] = ok
 	return ok, nil
 }

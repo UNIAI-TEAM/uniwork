@@ -25,7 +25,8 @@ type officeFrameCtxKey struct{}
 
 // officeFrameAuth is the only credential check of /api/v1/office-frame/*: the
 // frame token as Bearer, or on an image GET the ?sig= of a URL signed for
-// exactly that asset. A session token is not a frame token and is refused.
+// exactly that asset; a sibling file (.../linked/{id}) takes the ?sig= alone.
+// A session token is not a frame token and is refused.
 // A token for another document answers 404 like a missing one. The user and
 // organization land in the context so the flag gates and the reused document
 // handlers act as that user. The flag of the token's module (office_docs_web,
@@ -43,13 +44,25 @@ func (h *handlers) officeFrameAuth(next http.Handler) http.Handler {
 			claims service.OfficeFrameClaims
 			err    error
 		)
-		if token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && token != "" {
+		sig := r.URL.Query().Get("sig")
+		safe := r.Method == http.MethodGet || r.Method == http.MethodHead
+		token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		bearer = bearer && token != ""
+		switch linkedID, assetID := chi.URLParam(r, "linkedDocumentID"), chi.URLParam(r, "assetID"); {
+		case linkedID != "":
+			// A sibling file opens only through the signature the open answer (or a
+			// resolve) minted for exactly this document and file, never through a
+			// frame token: a token binds its own document alone.
+			if sig != "" && safe {
+				claims, err = h.OfficeFrame.VerifyLinked(sig, documentID, linkedID)
+			} else {
+				err = service.ErrOfficeFrameToken
+			}
+		case bearer:
 			claims, err = h.OfficeFrame.Verify(token)
-		} else if sig, assetID := r.URL.Query().Get("sig"), chi.URLParam(r, "assetID"); sig != "" && assetID != "" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+		case sig != "" && assetID != "" && safe:
 			claims, err = h.OfficeFrame.VerifyAsset(sig, documentID, assetID)
-		} else if linkedID := chi.URLParam(r, "linkedDocumentID"); sig != "" && linkedID != "" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
-			claims, err = h.OfficeFrame.VerifyLinked(sig, documentID, linkedID)
-		} else {
+		default:
 			err = service.ErrOfficeFrameToken
 		}
 		if err != nil {
@@ -313,6 +326,29 @@ func (h *handlers) signOfficeFrameAssets(w http.ResponseWriter, r *http.Request)
 	out := sdo.OfficeFrameAssetURLsSDO{Items: make([]sdo.OfficeFrameAssetURLDTO, 0, len(urls))}
 	for _, u := range urls {
 		out.Items = append(out.Items, sdo.OfficeFrameAssetURLDTO{AssetID: u.AssetID, URL: u.URL, ExpiresAt: u.ExpiresAt.UTC().Format(time.RFC3339)})
+	}
+	respondOfficeJSON(w, http.StatusOK, out)
+}
+
+// resolveOfficeFrameAssets is POST /office-frame/documents/{documentID}/assets/resolve.
+func (h *handlers) resolveOfficeFrameAssets(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ResolveOfficeFrameAssetsSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	resolved, err := h.OfficeFrame.Resolve(r.Context(), officeFrameClaims(r), in.Paths)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.OfficeFrameResolvedPathsSDO{Items: make([]sdo.OfficeFrameResolvedPathDTO, 0, len(resolved))}
+	for _, p := range in.Paths {
+		u, ok := resolved[p]
+		if !ok {
+			continue
+		}
+		out.Items = append(out.Items, sdo.OfficeFrameResolvedPathDTO{Path: p, URL: u.URL, ExpiresAt: u.ExpiresAt.UTC().Format(time.RFC3339)})
+		delete(resolved, p) // a path sent twice answers once
 	}
 	respondOfficeJSON(w, http.StatusOK, out)
 }

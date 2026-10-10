@@ -81,6 +81,21 @@ type OfficeFrameAssetURLsSDO struct {
 	Items []OfficeFrameAssetURLDTO `json:"items"`
 }
 
+// OfficeFrameResolvedPathDTO is one relative path of a resolve call with the
+// signed same-origin URL it now loads from.
+type OfficeFrameResolvedPathDTO struct {
+	Path      string `json:"path" description:"Đường dẫn đúng như gửi lên" example:"assets/logo.png"`
+	URL       string `json:"url" description:"Route first-party có chữ ký (asset của tài liệu hoặc file cùng thư mục)" example:"/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7/assets/01J8X4AST0N1P2Q3R4S5T6U7V8?sig=ofa1.abc"`
+	ExpiresAt string `json:"expires_at" example:"2026-10-08T11:00:00Z"`
+}
+
+// OfficeFrameResolvedPathsSDO is POST
+// /api/v1/office-frame/documents/{documentID}/assets/resolve: the paths that
+// resolve, in request order; a path that resolves to nothing is absent.
+type OfficeFrameResolvedPathsSDO struct {
+	Items []OfficeFrameResolvedPathDTO `json:"items"`
+}
+
 // OfficeFrameAIGrantSDO is the AI part of a frame token answer (UNI-1014, ADR
 // 0029): which AI capabilities the host may grant the frame for this
 // document. Read once at mint from GO-A7's entitlement checks; every AI route

@@ -375,7 +375,12 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/office-frame/documents/{documentID}/versions/commit":                                     {body: isoIdem(map[string]string{"upload_id": "frameUpload"}, map[string]any{"base_revision": "0"})},
 	"POST /api/v1/office-frame/documents/{documentID}/assets":                                              {body: isoFile("dot.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/office-frame/documents/{documentID}/assets/sign":                                         {body: isoFrameSign},
-	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                                          {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil)},
+	"POST /api/v1/office-frame/documents/{documentID}/assets/resolve":                                      {body: isoJSON(map[string]any{"paths": []string{"missing.png"}})},
+	// A sibling file opens through the signature alone (a frame token is refused 401, so is no
+	// signature): the control and the signed-URL cases are the frame-linked subtest.
+	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
+	"HEAD /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}": {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
+	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil)},
 	// GO-A7's AI on the frame token (UNI-1014): the same bodies and vendor exemptions as the session rows.
 	"PUT /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}":            {body: isoAICredentialPut},
 	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions": {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},

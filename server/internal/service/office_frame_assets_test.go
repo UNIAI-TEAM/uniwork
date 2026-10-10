@@ -39,6 +39,27 @@ func TestOfficeFrameLinkedSignatureNamesOneFile(t *testing.T) {
 	if _, err := s.VerifyLinked(asset.URL[strings.Index(asset.URL, "?sig=")+len("?sig="):], "doc", "css"); err == nil {
 		t.Fatal("VerifyLinked accepted an image signature")
 	}
+	// Only the Markdown and HTML frames load siblings: a signature naming any
+	// other module, the explicit docs spelling or none is not one the server issued.
+	for _, m := range []string{"", OfficeFrameModuleDocs, OfficeFrameModulePDF, OfficeFrameModuleSlides, OfficeFrameModuleSheets, "word"} {
+		forged, err := s.sign(officeFrameLinkedPrefix, officeFrameLinkedClaims{DocumentID: "doc", LinkedID: "css", WorkspaceID: "ws",
+			OrganizationID: "org", UserID: "u", ExpiresAt: now.Add(time.Minute).UnixMilli(), Module: m})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.VerifyLinked(forged, "doc", "css"); err == nil {
+			t.Errorf("VerifyLinked accepted module %q", m)
+		}
+	}
+	// Markdown signs too, for the hour the HTML one lives.
+	claims.Module = OfficeFrameModuleMarkdown
+	md, err := s.SignLinked(claims, "css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !md.ExpiresAt.Equal(now.Add(OfficeFrameAssetURLTTL)) {
+		t.Fatalf("markdown sibling URL expires %v, want %v", md.ExpiresAt, now.Add(OfficeFrameAssetURLTTL))
+	}
 	now = now.Add(OfficeFrameAssetURLTTL)
 	if _, err := s.VerifyLinked(sig, "doc", "css"); err == nil {
 		t.Fatal("VerifyLinked accepted an expired signature")

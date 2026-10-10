@@ -83,6 +83,10 @@ type isoWorld struct {
 	// its place on /api/v1/office-frame/*, the only credential those routes
 	// take, so every pass attacks them as the same caller.
 	frameTokens map[string]string
+	// frameMarkdown is the same for the tenant's Markdown document: session
+	// token -> {document id, its frame token}. do() prefers it on that
+	// document's own routes (resolve, linked), which a DOCX token cannot open.
+	frameMarkdown map[string][2]string
 }
 
 // newIsolationServer wires every service the production binary wires
@@ -280,6 +284,9 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 		req.Header.Set("Content-Type", contentType)
 	}
 	if frame, ok := w.frameTokens[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/") {
+		if md, ok := w.frameMarkdown[token]; ok && strings.HasPrefix(path, "/api/v1/office-frame/documents/"+md[0]) {
+			frame = md[1]
+		}
 		token = frame
 	}
 	if token != "" {
@@ -452,6 +459,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 	}
 	// The frame token stays; it is now sent in place of the new session.
 	w.frameTokens[tn.token] = tn.ids["frameToken"]
+	w.frameMarkdown[tn.token] = [2]string{tn.ids["frameMarkdown"], tn.ids["frameMarkdownToken"]}
 	return tn
 }
 

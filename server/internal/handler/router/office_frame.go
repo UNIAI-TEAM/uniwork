@@ -30,6 +30,7 @@ import (
 //	GET    /api/v1/office-frame/documents/{documentID}/recents
 //	POST   /api/v1/office-frame/documents/{documentID}/assets
 //	POST   /api/v1/office-frame/documents/{documentID}/assets/sign
+//	POST   /api/v1/office-frame/documents/{documentID}/assets/resolve    (md/html: relative paths -> signed URLs)
 //	GET    /api/v1/office-frame/documents/{documentID}/assets/{assetID} (bytes; HEAD)
 //	GET    /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID} (bytes; HEAD)
 func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
@@ -96,6 +97,12 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 		description: "Frame token only: fresh signed URLs for assets of the token's document. An asset of another document answers 404.",
 		tags:        []string{"documents"}, sdi: sdi.SignOfficeFrameAssetsSDI{}, sdo: sdo.OfficeFrameAssetURLsSDO{}, auth: true,
 	})
+	f.Post("/office-frame/documents/{documentID}/assets/resolve", h.ResolveOfficeFrameAssets, apiOp{
+		summary: "Resolve relative paths of a Markdown/HTML document to signed URLs",
+		description: "Frame token only, Markdown and HTML modules (any other answers 404): {paths} (1..50) as written in the document get the same normalisation, tree walk and view ACL as the open answer's assets map. " +
+			"Used for fresh URLs when a session outlives the signatures and for paths typed after the open; a path that resolves to nothing is absent from items.",
+		tags: []string{"documents"}, sdi: sdi.ResolveOfficeFrameAssetsSDI{}, sdo: sdo.OfficeFrameResolvedPathsSDO{}, auth: true,
+	})
 	f.Get("/office-frame/documents/{documentID}/assets/{assetID}", h.GetOfficeFrameAsset, apiOp{
 		summary:     "Stream an image of the frame's document",
 		description: "Frame token as Bearer, or the ?sig= of a signed URL bound to this asset. Rechecks view access on every request. Cache-Control: private, no-store.",
@@ -109,7 +116,7 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 	})
 	f.Get("/office-frame/documents/{documentID}/linked/{linkedDocumentID}", h.GetOfficeFrameLinked, apiOp{
 		summary: "Stream a file next to the frame's Markdown/HTML document",
-		description: "Frame token as Bearer, or the ?sig= of a URL the open answer's assets map signed for exactly this file. " +
+		description: "The ?sig= of a URL the open answer's (or a resolve's) assets map signed for exactly this document and file; a frame token as Bearer is refused with 401, as is a signature naming another module than Markdown or HTML. " +
 			"A live file document in the token's workspace that the token's user may view (rechecked on every request, together with the frame's document) and of a type the frames load: PNG, JPEG, GIF, WebP, SVG, CSS, JavaScript; anything else answers 404. " +
 			"Content-Type by the file's extension, nosniff, Content-Security-Policy sandbox, Cache-Control: private, no-store.",
 		tags: []string{"documents"}, produces: "application/octet-stream", auth: true,
