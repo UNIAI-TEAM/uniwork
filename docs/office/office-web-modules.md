@@ -370,7 +370,7 @@ hides every AI entry, as before. The capability keys are re-vendored from the
 fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
 
 The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
-the fork lane head `2161dd6` (branch `feature/UNI-1232-web-polish`), which holds
+the fork lane head `2df3391` (branch `feature/UNI-1232-web-polish`), which holds
 DR1 draft recovery (`InitPayload.recovery`), the `modal` event, SP1, H2, the
 AI1 capability keys, the SH4 Sheets AI, the A7 `app.open` request and the A1b `api.assets.resolve` request in one lineage, so nothing is merged by hand any more. They
 are byte-identical to the fork's `web/docs/protocol/{types,endpoint,host}.ts`
@@ -378,7 +378,7 @@ except the relative import specifiers; the bodies did not change between the
 earlier `f1679cb` + AI1 `c044fa9` vendoring, `11a5eba` and `36e9e23`, only the headers.
 `36e9e23..9b5e409` changed `types.ts` in one comment (`InitRecovery.key` is persisted
 per user, C18a); `9b5e409..98e1d20` changed nothing under `web/docs/protocol/` (the `08fafd4..98e1d20`
-range only touched its README). `98e1d20..2161dd6` (nothing changed after `0e384f8`) added `app.open` (capability `desktopOpen`) and
+range only touched its README). `98e1d20..2df3391` (nothing changed after `0e384f8`) added `app.open` (capability `desktopOpen`) and
 `api.assets.resolve`, which the dev copy already carried as patches; the re-vendor to `0e384f8` only moved those
 blocks into the fork's order and replaced the headers. The
 bundles in "Pinned builds" are built from the same commit.
@@ -467,28 +467,28 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, the lane head `2161dd6`
-(branch `feature/UNI-1232-web-polish`; `0.1.0-2161dd6` = `98e1d20` + the UNI-1232 web polish of the six modules
-(round 2 minors and nits, `app.open`, `api.assets.resolve`) + the five fork CI fixes (FX); `98e1d20` was `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
+All six modules are pinned to one fork commit, the lane head `2df3391`
+(branch `feature/UNI-1232-web-polish`; `0.1.0-2df3391` = `98e1d20` + the UNI-1232 web polish of the six modules
+(round 2 minors and nits, `app.open`, `api.assets.resolve`) + the five fork CI fixes (FX) + the host-save conflict wording and the last web-module polish fixes (FX2, FX3, FX4, an MT test fix); `98e1d20` was `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
 dialog, the AI panel and failed-save wording fixes in PDF, Markdown and HTML
 (DP5 re-pin); `08fafd4` was `9b5e409` + the GO-A6 merge (UniWork documents), the
 `uniworkState` stub of every module's web API, the PDF close-save origin and the
 Sheets view-only lock kept off the frame; `9b5e409` itself was `36e9e23` + SH4
 Sheets AI, the FF1 hardening fixes and the per-platform wasm checksum; built clean:
 no `-dirty` suffix, `npm run build:web -- --all` in a detached worktree of
-`2161dd6`, not the fork lane's own checkout). The pins'
+`2df3391`, not the fork lane's own checkout). The pins'
 headers did not change from `36e9e23`, only version, SHA and manifest digest. Written by
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
 | module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
 | --- | --- | --- | --- | --- | --- | --- |
-| `docs` | `docs.pin.json` | 46 | 16.74 MiB | 11.69 MiB | 4.93 MiB | none |
-| `pdf` | `pdf.pin.json` | 229 | 13.70 MiB | 7.02 MiB | 1.76 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
-| `markdown` | `markdown.pin.json` | 90 | 7.91 MiB | 2.55 MiB | 2.81 MiB | none |
-| `html` | `html.pin.json` | 7 | 1.74 MiB | 0.57 MiB | 1.73 MiB | `frame-src 'self'` + `documents[/preview.html]` |
-| `slides` | `slides.pin.json` | 19 | 5.48 MiB | 2.25 MiB | 4.15 MiB | `media-src blob:` |
-| `sheets` | `sheets.pin.json` | 219 | 26.79 MiB | 7.64 MiB | 3.29 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
+| `docs` | `docs.pin.json` | 46 | 16.79 MiB | 11.70 MiB | 4.98 MiB | none |
+| `pdf` | `pdf.pin.json` | 229 | 13.75 MiB | 7.04 MiB | 1.82 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
+| `markdown` | `markdown.pin.json` | 90 | 7.96 MiB | 2.56 MiB | 2.86 MiB | none |
+| `html` | `html.pin.json` | 7 | 1.79 MiB | 0.59 MiB | 1.78 MiB | `frame-src 'self'` + `documents[/preview.html]` |
+| `slides` | `slides.pin.json` | 19 | 5.53 MiB | 2.27 MiB | 4.21 MiB | `media-src blob:` |
+| `sheets` | `sheets.pin.json` | 219 | 26.83 MiB | 7.65 MiB | 3.33 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
 
 Policy review of the pin diffs (what a reviewer of a re-pin checks): every
 module keeps `default-src 'none'`, `connect-src 'self'`, `base-uri 'self'`,
@@ -517,7 +517,7 @@ tarball (or https URL to one) of the fork's whole `dist-web` root, holding
 
 ```bash
 # in the fork checkout, at the commit the pins name
-npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (2161dd6: 31.9 MiB as a tarball)
+npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (2df3391: 31.9 MiB as a tarball)
 tar -C dist-web -czf dist-web.tar.gz .
 # publish dist-web.tar.gz where the secret's URL points; the sync verifies it against the pins
 ```
@@ -539,7 +539,7 @@ the **linux-arm64 build made on bro** (wasm sha256 `e56985bc...27cd`, arm64
 line of the fork file). A tarball built on an x64 machine (the CI secret, if it is
 built there) holds a different Sheets wasm, so `office-frame-sync` refuses it
 against this pin: publish the secret from the bro tarball
-(`dist-web-0.1.0-2161dd6.tar.gz`, sha256 `7c30921c...23ee3`, next to it in the `.sha256` file; the wasm in it is the arm64
+(`dist-web-0.1.0-2df3391.tar.gz`, sha256 `8d69c2fd...54eaa`, next to it in the `.sha256` file; the wasm in it is the arm64
 line `e56985bc...27cd`, unchanged since `98e1d20`), or re-pin from an x64 build and let CI use that
 one; never mix the two.
 
