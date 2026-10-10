@@ -7,7 +7,7 @@ import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import { stopChatVoicePlayback } from "@uniwork/core/chat/voice-playback-store";
-import { listChatRoomMessages, listChatRoomMessagesAround, olderThan } from "@uniwork/core/api/endpoints/chat";
+import { listChatRoomMessagesAround } from "@uniwork/core/api/endpoints/chat";
 import {
   useChatRoomMessageLinks,
   useChatRoomMessages,
@@ -24,7 +24,7 @@ import {
 } from "./native-chat-panel-bars";
 import type { ChatMessageLinkRecord } from "@uniwork/core/api/endpoints/chat-links";
 import type { ChatMessage } from "./chat-messages";
-import { CHAT_MESSAGE_INITIAL, CHAT_MESSAGE_MAX_IN_MEMORY, CHAT_MESSAGE_PAGE_SIZE } from "./chat-messages";
+import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 import { ChatMessageLinksProvider } from "./chat-message-links-context";
 import { ChatReplyComposerBar } from "./chat-reply-quote";
 import { toastChatError } from "./chat-error-message";
@@ -95,9 +95,6 @@ export function NativeChatMessagePanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const programmaticScrollRef = useRef(false);
-  const [olderMessages, setOlderMessages] = useState<ChatMessage[]>([]);
-  const [loadingOlder, setLoadingOlder] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
   const [threadRoot, setThreadRoot] = useState<ChatMessage | null>(null);
   const [anchorMessages, setAnchorMessages] = useState<ChatMessage[] | null>(null);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
@@ -109,11 +106,14 @@ export function NativeChatMessagePanel({
   const [localAnchor, setLocalAnchor] = useState<{ roomId: string; id: string } | null>(null);
   const localAnchorId = localAnchor?.roomId === roomId ? localAnchor.id : null;
   const activeAnchorId = anchorMessageId ?? localAnchorId;
-  const { data: latestRows = [], isPending: latestPending } = useChatRoomMessages(
-    workspaceId,
-    roomId,
-    CHAT_MESSAGE_INITIAL,
-  );
+  // Every loaded page of the room, newest page first in the cache, one list here.
+  const {
+    data: latestRows = [],
+    isPending: latestPending,
+    hasNextPage: hasMore,
+    isFetchingNextPage: loadingOlder,
+    fetchNextPage,
+  } = useChatRoomMessages(workspaceId, roomId, CHAT_MESSAGE_INITIAL);
   // Mirrors stickToBottomRef for rendering: the "back to latest" button shows
   // only once the reader has scrolled away from the newest message.
   const [awayFromLatest, setAwayFromLatest] = useState(false);
@@ -133,13 +133,12 @@ export function NativeChatMessagePanel({
       buildMainTimelineMessages({
         anchorMessages,
         latestRows,
-        olderMessages,
         pendingEntries,
         outboxEntries,
         currentUserId,
         threadsEnabled,
       }),
-    [anchorMessages, currentUserId, latestRows, olderMessages, outboxEntries, pendingEntries, threadsEnabled],
+    [anchorMessages, currentUserId, latestRows, outboxEntries, pendingEntries, threadsEnabled],
   );
 
   const messages = useMemo(() => {
@@ -227,7 +226,6 @@ export function NativeChatMessagePanel({
   useEffect(() => {
     stickToBottomRef.current = true;
     onReplyToChange(null);
-    setOlderMessages([]);
     setThreadRoot(null);
     setAnchorMessages(null);
     setHighlightMessageId(null);
@@ -236,12 +234,6 @@ export function NativeChatMessagePanel({
     // One voice player per room: leaving the room stops it.
     return () => stopChatVoicePlayback();
   }, [roomId, onReplyToChange, onActiveThreadRootIdChange]);
-
-  // Only seed hasMore from the initial page when we are not holding older pages.
-  useEffect(() => {
-    if (olderMessages.length > 0) return;
-    setHasMore(latestRows.length >= CHAT_MESSAGE_INITIAL);
-  }, [roomId, latestRows.length, olderMessages.length]);
 
   useEffect(() => {
     if (!activeAnchorId) {
@@ -257,8 +249,6 @@ export function NativeChatMessagePanel({
         if (cancelled) return;
         setAnchorMessages(rows.map(toChatMessage));
         setHighlightMessageId(activeAnchorId);
-        setOlderMessages([]);
-        setHasMore(true);
         stickToBottomRef.current = false;
       })
       .catch((err: unknown) => {
@@ -284,38 +274,18 @@ export function NativeChatMessagePanel({
   }, [highlightMessageId]);
 
   const loadOlder = useCallback(async () => {
-    if (loadingOlder || allMessages.length === 0 || threadRoot || anchorMessages) return;
+    if (loadingOlder || !hasMore || threadRoot || anchorMessages) return;
     stickToBottomRef.current = false;
-    setLoadingOlder(true);
-    const el = scrollRef.current;
-    const prevHeight = el?.scrollHeight ?? 0;
-    try {
-      const oldest = allMessages[0];
-      if (!oldest) return;
-      const rows = await listChatRoomMessages(workspaceId, roomId, {
-        ...olderThan({ cursor: oldest.cursor, created_at: new Date(oldest.ts).toISOString() }),
-        limit: CHAT_MESSAGE_PAGE_SIZE,
-      });
-      const older = rows.map(toChatMessage);
-      setHasMore(rows.length >= CHAT_MESSAGE_PAGE_SIZE);
-      setOlderMessages((prev) => {
-        const seen = new Set(prev.map((m) => m.id));
-        const merged = [...older.filter((m) => !seen.has(m.id)), ...prev].sort((a, b) => a.ts - b.ts);
-        if (merged.length <= CHAT_MESSAGE_MAX_IN_MEMORY) return merged;
-        return merged.slice(merged.length - CHAT_MESSAGE_MAX_IN_MEMORY);
-      });
-    } catch (err) {
-      // Scrolling up again (or the button) retries; nothing was lost.
-      toastChatError(err, t, t("chat.message_list.load_older_failed"));
-    } finally {
-      setLoadingOlder(false);
-      requestAnimationFrame(() => {
-        const node = scrollRef.current;
-        if (!node) return;
-        node.scrollTop = node.scrollHeight - prevHeight;
-      });
-    }
-  }, [allMessages, anchorMessages, loadingOlder, roomId, t, threadRoot, workspaceId]);
+    const prevHeight = scrollRef.current?.scrollHeight ?? 0;
+    const result = await fetchNextPage();
+    // Scrolling up again (or the button) retries; nothing was lost.
+    if (result.isFetchNextPageError) toastChatError(result.error, t, t("chat.message_list.load_older_failed"));
+    requestAnimationFrame(() => {
+      const node = scrollRef.current;
+      if (!node) return;
+      node.scrollTop = node.scrollHeight - prevHeight;
+    });
+  }, [anchorMessages, fetchNextPage, hasMore, loadingOlder, t, threadRoot]);
 
   const onScroll = () => {
     if (programmaticScrollRef.current) return;

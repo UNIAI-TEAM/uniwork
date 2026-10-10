@@ -1,14 +1,14 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
-import type { ChatMessageRecord, ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
+import type { ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
 import { ApiError } from "../api/http";
 import { runWithChatSendRetry } from "./send-retry";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
-import { mergeMessageIntoList, patchRoomSidebarFromMessage } from "./realtime-cache";
+import { insertCreatedRoomMessage, patchRoomSidebarFromMessage } from "./realtime-cache";
 
 export function useSendChatRoomMessage(workspaceId: string) {
   const qc = useQueryClient();
@@ -51,10 +51,7 @@ export function useSendChatRoomMessage(workspaceId: string) {
         usePendingChatMessagesStore.getState().remove(variables.client_msg_id);
       }
       if (data) {
-        qc.setQueryData<ChatMessageRecord[]>(
-          chatKeys.roomMessages(workspaceId, variables.roomId),
-          (old) => mergeMessageIntoList(old, data),
-        );
+        insertCreatedRoomMessage(qc, workspaceId, variables.roomId, data);
         qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) =>
           patchRoomSidebarFromMessage(old, variables.roomId, data),
         );

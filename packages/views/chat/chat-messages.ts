@@ -81,6 +81,3 @@ export interface ChatMessage {
   deliveryStatus?: "sending" | "queued";
 }
 export const CHAT_MESSAGE_INITIAL = 80;
-export const CHAT_MESSAGE_PAGE_SIZE = 50;
-/** Max messages kept in panel memory when scrolling history. */
-export const CHAT_MESSAGE_MAX_IN_MEMORY = 1000;

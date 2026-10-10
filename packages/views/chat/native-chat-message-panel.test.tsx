@@ -9,6 +9,7 @@ import { NativeChatMessagePanel } from "./native-chat-message-panel";
 const toggleReaction = vi.fn().mockResolvedValue(undefined);
 const deleteMessage = vi.fn();
 const editMessage = vi.fn();
+const fetchNextPage = vi.fn().mockResolvedValue({ isFetchNextPageError: false });
 
 type Row = {
   id: string;
@@ -45,20 +46,20 @@ let rows: Row[] = BASE_ROWS;
 
 vi.mock("@uniwork/core/chat", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/chat")>()),
-  useChatRoomMessages: () => ({ data: rows, isPending: false }),
+  useChatRoomMessages: () => ({
+    data: rows,
+    isPending: false,
+    hasNextPage: rows.length >= 80,
+    isFetchingNextPage: false,
+    fetchNextPage,
+  }),
   useToggleChatReaction: () => ({ mutateAsync: toggleReaction }),
   useDeleteChatMessage: () => ({ mutateAsync: deleteMessage, isPending: false }),
   useEditChatMessage: () => ({ mutateAsync: editMessage, isPending: false }),
 }));
 
-vi.mock("@uniwork/core/api/endpoints/chat", async (orig) => ({
-  ...(await orig<typeof import("@uniwork/core/api/endpoints/chat")>()),
-  listChatRoomMessages: vi.fn().mockResolvedValue([]),
-}));
-
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 import { toast } from "sonner";
-import { listChatRoomMessages } from "@uniwork/core/api/endpoints/chat";
 
 // @tanstack/react-virtual needs layout measurements that jsdom cannot provide,
 // so render rows synchronously in this test.
@@ -229,7 +230,8 @@ describe("NativeChatMessagePanel", () => {
     expect(status()?.textContent).toBe("Binh: Mới đây");
   });
 
-  it("offers a button for older history and pages from the oldest row's cursor", async () => {
+  // The cursor itself is chosen by useChatRoomMessages (core chat-hooks-rooms.test).
+  it("offers a button for older history and asks the room timeline for its next page", async () => {
     rows = Array.from({ length: 80 }, (_, i) => ({
       id: `h${i}`,
       sender_id: "u2",
@@ -241,9 +243,6 @@ describe("NativeChatMessagePanel", () => {
     }));
     render(wrap(panel()));
     fireEvent.click(screen.getByRole("button", { name: "Tải tin cũ hơn" }));
-    await waitFor(() =>
-      expect(listChatRoomMessages).toHaveBeenCalledWith("ws1", "room1", expect.objectContaining({ cursor: "c0" })),
-    );
-    expect(vi.mocked(listChatRoomMessages).mock.calls[0]?.[2]).not.toHaveProperty("before");
+    await waitFor(() => expect(fetchNextPage).toHaveBeenCalledTimes(1));
   });
 });

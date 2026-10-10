@@ -7,8 +7,14 @@ import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
 import { isDefaultWorkspaceChannel } from "./chat-room-helpers";
 import { useActiveChatRoomStore } from "./active-chat-room-store";
-
-export const CHAT_MESSAGE_CACHE_MAX = 1000;
+import {
+  CHAT_MESSAGE_CACHE_MAX,
+  insertCreatedTimelineMessage,
+  mapRoomTimeline,
+  replaceTimelineMessage,
+  roomTimelineHas,
+  type RoomTimeline,
+} from "./room-timeline";
 
 export function mergeMessageIntoList(
   existing: ChatMessageRecord[] | undefined,
@@ -24,6 +30,13 @@ export function mergeMessageIntoList(
         );
   if (next.length <= CHAT_MESSAGE_CACHE_MAX) return next;
   return next.slice(next.length - CHAT_MESSAGE_CACHE_MAX);
+}
+
+/** An update to a flat list: replace in place, never insert. */
+function replaceMessageInList(existing: ChatMessageRecord[], message: ChatMessageRecord): ChatMessageRecord[] {
+  return existing.some((entry) => entry.id === message.id)
+    ? existing.map((entry) => (entry.id === message.id ? message : entry))
+    : existing;
 }
 
 export function removeMessageFromList(
@@ -87,20 +100,34 @@ export function bumpThreadRootReplyCount(
   });
 }
 
-function patchRoomMessageListIfLoaded(
+/**
+ * Patch a loaded room timeline. A patch that cannot keep it contiguous
+ * returns null, and so does a timeline not loaded: both refetch (UNI-950).
+ */
+function patchRoomTimelineIfLoaded(
   qc: QueryClient,
   wsId: string,
   roomId: string,
-  patch: (existing: ChatMessageRecord[]) => ChatMessageRecord[],
+  patch: (existing: RoomTimeline) => RoomTimeline | null,
 ): void {
   const key = chatKeys.roomMessages(wsId, roomId);
-  const existing = qc.getQueryData<ChatMessageRecord[]>(key);
-  if (existing === undefined) {
-    // Sidebar preview updated elsewhere; mark timeline stale for the next open (UNI-950).
+  const existing = qc.getQueryData<RoomTimeline>(key);
+  const next = existing === undefined ? null : patch(existing);
+  if (next === null) {
     void qc.invalidateQueries({ queryKey: key });
     return;
   }
-  qc.setQueryData<ChatMessageRecord[]>(key, patch(existing));
+  if (next !== existing) qc.setQueryData<RoomTimeline>(key, next);
+}
+
+/** A message this client just sent or learned was created: onto the newest page. */
+export function insertCreatedRoomMessage(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  message: ChatMessageRecord,
+): void {
+  patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) => insertCreatedTimelineMessage(existing, message));
 }
 
 function patchWorkspaceMessageListIfLoaded(
@@ -137,25 +164,26 @@ function patchThreadReplyCaches(
     return bumpThreadRootReplyCount(withoutReply, message) ?? withoutReply;
   };
 
-  patchRoomMessageListIfLoaded(qc, wsId, roomId, patchMainList);
+  patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) => mapRoomTimeline(existing, patchMainList));
   patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, patchMainList);
 }
 
+/** `created` places a new message; anything else only replaces a loaded one (H4). */
 function patchMessageCaches(
   qc: QueryClient,
   wsId: string,
   roomId: string,
   message: ChatMessageRecord,
+  created: boolean,
 ): void {
   if (isChatThreadReply(message)) {
     patchThreadReplyCaches(qc, wsId, roomId, message);
     return;
   }
-  patchRoomMessageListIfLoaded(qc, wsId, roomId, (existing) =>
-    mergeMessageIntoList(existing, message),
-  );
+  if (created) insertCreatedRoomMessage(qc, wsId, roomId, message);
+  else patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) => replaceTimelineMessage(existing, message));
   patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, (existing) =>
-    mergeMessageIntoList(existing, message),
+    created ? mergeMessageIntoList(existing, message) : replaceMessageInList(existing, message),
   );
 }
 
@@ -230,13 +258,13 @@ export async function fetchAndPatchChatMessage(
     if (created && !viewing) bumpUnreadLocally(qc, wsId, roomId);
     return;
   }
-  const knownBefore =
-    qc
-      .getQueryData<ChatMessageRecord[]>(chatKeys.roomMessages(wsId, roomId))
-      ?.some((entry) => entry.id === messageId) ?? false;
+  const knownBefore = roomTimelineHas(
+    qc.getQueryData<RoomTimeline>(chatKeys.roomMessages(wsId, roomId)),
+    messageId,
+  );
   const message = await getChatRoomMessage(wsId, roomId, messageId);
   if (!message) return;
-  patchMessageCaches(qc, wsId, roomId, message);
+  patchMessageCaches(qc, wsId, roomId, message, created);
   if (!knownBefore) recordNoLinksYet(qc, wsId, roomId, message.id);
   // Thread replies stay off the channel preview; followers get chat.thread.replied.
   if (isChatThreadReply(message)) return;
@@ -256,8 +284,10 @@ export function patchChatMessageDeleted(
   roomId: string,
   messageId: string,
 ): void {
-  patchRoomMessageListIfLoaded(qc, wsId, roomId, (existing) =>
-    removeMessageFromList(existing, messageId),
+  patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) =>
+    roomTimelineHas(existing, messageId)
+      ? mapRoomTimeline(existing, (page) => removeMessageFromList(page, messageId))
+      : existing,
   );
   patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, (existing) =>
     removeMessageFromList(existing, messageId),

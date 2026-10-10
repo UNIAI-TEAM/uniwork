@@ -1,10 +1,16 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
 import { listChatRoomMessages, type ChatRoomRecord } from "../api/endpoints/chat";
 import { workspaceKeys } from "../workspaces/hooks";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
+import {
+  CHAT_HISTORY_PAGE_SIZE,
+  flattenRoomTimeline,
+  olderRoomPageParam,
+  type RoomMessagesPageParam,
+} from "./room-timeline";
 
 export function useWorkspaceChatRoom(workspaceId: string) {
   const authReady = useAuthStore((s) => s.status === "authed");
@@ -187,13 +193,22 @@ export function useChatRoomMessages(
   // Default false: listing must not clear unread before CatchUp. Callers that
   // intentionally advance the cursor pass markRead: true (or use MarkRoomRead).
   const markRead = options?.markRead === true;
-  return useQuery({
+  // One infinite query per room (H4): older pages chain from the newest by
+  // cursor, and a refetch re-chains them, so the timeline never has a hole.
+  return useInfiniteQuery({
     queryKey: chatKeys.roomMessages(workspaceId, roomId ?? ""),
-    queryFn: () =>
-      listChatRoomMessages(workspaceId, roomId!, {
-        limit,
-        mark_read: markRead,
-      }),
+    queryFn: ({ pageParam }: { pageParam: RoomMessagesPageParam }) =>
+      listChatRoomMessages(
+        workspaceId,
+        roomId!,
+        pageParam === null
+          ? { limit, mark_read: markRead }
+          : { ...pageParam, limit: CHAT_HISTORY_PAGE_SIZE, mark_read: false },
+      ),
+    initialPageParam: null as RoomMessagesPageParam,
+    getNextPageParam: (lastPage, allPages, lastPageParam) =>
+      olderRoomPageParam(lastPage, allPages, lastPageParam, limit),
+    select: flattenRoomTimeline,
     enabled: !!workspaceId && !!roomId && authReady,
     staleTime: 5_000,
     refetchOnReconnect: "always",

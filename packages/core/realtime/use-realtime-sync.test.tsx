@@ -5,6 +5,7 @@ import * as chatApi from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
+import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline";
 import { graphKeys } from "../graph/keys";
 import type { Task } from "../types/task";
 import { useRealtimeSync } from "./use-realtime-sync";
@@ -40,6 +41,11 @@ function setup() {
   });
   return { qc, invalidate, client };
 }
+
+const timelineRows = (qc: QueryClient, roomId: string) => {
+  const data = qc.getQueryData<RoomTimeline>(chatKeys.roomMessages("ws1", roomId));
+  return data ? flattenRoomTimeline(data) : [];
+};
 
 const keysCalled = (spy: { mock: { calls: unknown[][] } }) =>
   spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
@@ -534,7 +540,7 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), []);
+    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), { pages: [[]], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -549,7 +555,7 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toEqual([
       JSON.stringify(chatKeys.voiceRecordings("ws1", "dm1")),
     ]);
-    expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))).toHaveLength(1);
+    expect(timelineRows(qc, "dm1")).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -613,8 +619,9 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), [
-      {
+    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), {
+      pageParams: [null],
+      pages: [[{
         id: "root1",
         room_id: "dm1",
         workspace_id: "ws1",
@@ -628,8 +635,8 @@ describe("useRealtimeSync", () => {
         reactions: {},
         reply_count: 0,
         thread_unread: false,
-      },
-    ]);
+      }]],
+    });
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
       wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
@@ -642,12 +649,8 @@ describe("useRealtimeSync", () => {
       vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
-    expect(
-      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))?.map((m) => m.id),
-    ).toEqual(["root1"]);
-    expect(
-      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))?.[0]?.reply_count,
-    ).toBe(1);
+    expect(timelineRows(qc, "dm1").map((m) => m.id)).toEqual(["root1"]);
+    expect(timelineRows(qc, "dm1")[0]?.reply_count).toBe(1);
     expect(
       qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.threadMessages("ws1", "dm1", "root1")),
     ).toHaveLength(1);
@@ -717,7 +720,7 @@ describe("useRealtimeSync", () => {
         thread_unread: false,
       },
     ];
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), messages);
+    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), { pages: [messages], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -730,7 +733,7 @@ describe("useRealtimeSync", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: chatKeys.messageLinks("ws1", "m1"),
     });
-    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "dm1"))).toEqual(messages);
+    expect(timelineRows(qc, "dm1")).toEqual(messages);
   });
 
   // Documents frames are ids-only: the workspace root is the prefix of every
