@@ -5,6 +5,7 @@ import type { WSMessage } from "../api/ws-types";
 import { useChatRoomScopes } from "./use-chat-room-scopes";
 
 const listeners = new Set<(msg: WSMessage) => void>();
+const reconnectListeners = new Set<() => void>();
 const subscribe = vi.fn();
 const unsubscribe = vi.fn();
 const client = {
@@ -13,6 +14,10 @@ const client = {
   onAny: (handler: (msg: WSMessage) => void) => {
     listeners.add(handler);
     return () => listeners.delete(handler);
+  },
+  onReconnect: (handler: () => void) => {
+    reconnectListeners.add(handler);
+    return () => reconnectListeners.delete(handler);
   },
 } as unknown as WSClient;
 
@@ -99,6 +104,24 @@ describe("useChatRoomScopes", () => {
         vi.advanceTimersByTime(60_000);
       }
       expect(subscribe).toHaveBeenCalledTimes(4);
+      unmount();
+    });
+
+    // UNI-1078: the counters never reset, so after one bad spell a room's
+    // lookup failures on a later connection were never retried.
+    it("starts the backoff over on a reconnect", () => {
+      const { unmount } = renderHook(() => useChatRoomScopes(["a"]));
+      for (let i = 0; i < 10; i += 1) {
+        emit("subscribe_error", { scope: "chat", id: "a", error: "lookup_failed" });
+        vi.advanceTimersByTime(60_000);
+      }
+      subscribe.mockClear();
+
+      for (const handler of [...reconnectListeners]) handler();
+      emit("subscribe_error", { scope: "chat", id: "a", error: "lookup_failed" });
+      vi.advanceTimersByTime(60_000);
+
+      expect(subscribe).toHaveBeenCalledExactlyOnceWith("chat", "a");
       unmount();
     });
   });

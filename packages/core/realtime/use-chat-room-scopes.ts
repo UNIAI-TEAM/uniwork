@@ -28,6 +28,14 @@ export function useChatRoomScopes(roomIds: readonly string[]): void {
   useEffect(() => {
     if (!client) return;
     const retries = retriesRef.current;
+    const clearRetries = () => {
+      for (const retry of retries.values()) {
+        if (retry.timer !== null) clearTimeout(retry.timer);
+      }
+      retries.clear();
+    };
+    // A new connection replays every scope: its lookup failures get the full backoff again.
+    const stopReconnect = client.onReconnect(clearRetries);
     const stopListening = client.onAny((msg) => {
       const type = msg.type as string;
       if (type !== "subscribe_ack" && type !== "subscribe_error") return;
@@ -50,10 +58,8 @@ export function useChatRoomScopes(roomIds: readonly string[]): void {
     });
     return () => {
       stopListening();
-      for (const retry of retries.values()) {
-        if (retry.timer !== null) clearTimeout(retry.timer);
-      }
-      retries.clear();
+      stopReconnect();
+      clearRetries();
       for (const id of activeRef.current) {
         client.unsubscribe(WS_SCOPE_CHAT, id);
       }
