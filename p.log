@@ -1,0 +1,121 @@
+$ npm run typecheck
+
+> genoffice@0.1.0 typecheck
+> npm run typecheck -w @genoffice/i18n && npm run typecheck -w @uniwork/edu-core && npm run typecheck -w @uniwork/practice-core && npm run typecheck -w @uniwork/office-bridge-contracts && npm run typecheck -w @uniwork/office-bridge && npm run typecheck -w @uniwork/office-bridge-adapter && npm run typecheck -w @genoffice/electron-utils && npm run typecheck -w @genoffice/font-metrics && npm run typecheck -w @genoffice/zip-gate && npm run typecheck -w @genoffice/docx-engine && npm run typecheck -w @genoffice/pdf2docx && npm run typecheck -w @genoffice/html2docx && npm run typecheck -w @genoffice/file-parse && npm run typecheck -w @genoffice/pptx-engine && npm run typecheck -w @genoffice/xlsx-gateway && npm run typecheck -w @genoffice/pptx-ops && npm run typecheck -w @genoffice/pptx-render && npm run typecheck -w @genoffice/pipelines && npm run typecheck -w @genoffice/ai-search && npm run typecheck -w @genoffice/agent-core && npm run typecheck -w @genoffice/ai-provider && npm run typecheck -w @genoffice/project-store && npm run typecheck -w @genoffice/cli && npm run typecheck -w @genoffice/ui && npm run typecheck -w @genoffice/docs && npm run typecheck -w @genoffice/sheets && npm run typecheck -w @genoffice/shell && npm run typecheck -w @genoffice/slides && npm run typecheck -w @genoffice/pdf && npm run typecheck -w @genoffice/markdown && npm run typecheck -w @genoffice/html
+
+
+> @genoffice/i18n@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @uniwork/edu-core@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @uniwork/practice-core@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @uniwork/office-bridge-contracts@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @uniwork/office-bridge@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @uniwork/office-bridge-adapter@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/electron-utils@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/font-metrics@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/zip-gate@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/docx-engine@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/pdf2docx@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/html2docx@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/file-parse@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/pptx-engine@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/xlsx-gateway@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/pptx-ops@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/pptx-render@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/pipelines@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/ai-search@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/agent-core@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/ai-provider@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/project-store@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/cli@0.10.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/ui@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/docs@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/sheets@0.1.0 typecheck
+> tsc --noEmit
+
+src/renderer/App.tsx(637,40): error TS2345: Argument of type '{ sessionId: string; name: string; sha256: string; entryCount: number; sheets: { id: string; name: string; rowCount: number; columnCount: number; columnWidths: { startColumn: number; endColumn: number; ... 4 more ...; styleIndex?: number | undefined; }[]; ... 27 more ...; hasScopedDefinedNames?: boolean | undefined;...' is not assignable to parameter of type '{ uniworkBound?: boolean; readOnly: boolean; } | null | undefined'.
+  Type '{ sessionId: string; name: string; sha256: string; entryCount: number; sheets: { id: string; name: string; rowCount: number; columnCount: number; columnWidths: { startColumn: number; endColumn: number; ... 4 more ...; styleIndex?: number | undefined; }[]; ... 27 more ...; hasScopedDefinedNames?: boolean | undefined;...' is not assignable to type '{ uniworkBound?: boolean; readOnly: boolean; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+    Types of property 'uniworkBound' are incompatible.
+      Type 'boolean | undefined' is not assignable to type 'boolean'.
+        Type 'undefined' is not assignable to type 'boolean'.
+npm error Lifecycle script `typecheck` failed with error:
+npm error code 2
+npm error path /home/ubuntu/work/uniwork-office/apps/sheets
+npm error workspace @genoffice/sheets@0.1.0
+npm error location /home/ubuntu/work/uniwork-office/apps/sheets
+npm error command failed
+npm error command sh -c tsc --noEmit

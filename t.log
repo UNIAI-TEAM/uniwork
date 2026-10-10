@@ -1,0 +1,286 @@
+$ extra=$(dpkg -l | awk '/^ii/ && $2 ~ /^fonts-/ {print $2}' | grep -vxE 'fonts-dejavu-core|fonts-liberation'); sudo apt-get purge -y $extra xfonts-base xfonts-cyrillic xfonts-encodings xfonts-scalable xfonts-terminus xfonts-utils >/dev/null 2>&1; rm -rf apps/sheets/native/xlsx-engine/target; npm test
+
+> genoffice@0.1.0 test
+> npm run test -w @genoffice/i18n && npm run test -w @uniwork/edu-core && npm run test -w @uniwork/practice-core && npm run test -w @uniwork/office-bridge-contracts && npm run test -w @uniwork/office-bridge && npm run test -w @uniwork/office-bridge-adapter && npm run test -w @genoffice/electron-utils && npm run test -w @genoffice/font-metrics && npm run test -w @genoffice/zip-gate && npm run test -w @genoffice/docx-engine && npm run test -w @genoffice/pdf2docx && npm run test -w @genoffice/html2docx && npm run test -w @genoffice/file-parse && npm run test -w @genoffice/pptx-engine && npm run test -w @genoffice/xlsx-gateway && npm run test -w @genoffice/pptx-ops && npm run test -w @genoffice/pptx-render && npm run test -w @genoffice/pipelines && npm run test -w @genoffice/ai-search && npm run test -w @genoffice/agent-core && npm run test -w @genoffice/ai-provider && npm run test -w @genoffice/project-store && npm run test -w @genoffice/cli && npm run test -w @genoffice/ui && npm run test -w @genoffice/docs && npm run test -w @genoffice/sheets && npm run test -w @genoffice/shell && npm run test -w @genoffice/slides && npm run test -w @genoffice/pdf && npm run test -w @genoffice/markdown && npm run test -w @genoffice/html
+
+
+> @genoffice/i18n@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/i18n
+
+
+ Test Files  1 passed (1)
+      Tests  26 passed (26)
+   Start at  17:06:10
+   Duration  205ms (transform 73ms, setup 0ms, import 88ms, tests 13ms, environment 0ms)
+
+
+> @uniwork/edu-core@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/edu-core
+
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  17:06:10
+   Duration  219ms (transform 93ms, setup 0ms, import 114ms, tests 5ms, environment 0ms)
+
+
+> @uniwork/practice-core@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/practice-core
+
+
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
+   Start at  17:06:11
+   Duration  265ms (transform 202ms, setup 0ms, import 249ms, tests 11ms, environment 0ms)
+
+
+> @uniwork/office-bridge-contracts@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/office-bridge-contracts
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  17:06:11
+   Duration  173ms (transform 41ms, setup 0ms, import 80ms, tests 5ms, environment 0ms)
+
+
+> @uniwork/office-bridge@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/office-bridge
+
+
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+   Start at  17:06:12
+   Duration  224ms (transform 142ms, setup 0ms, import 231ms, tests 28ms, environment 0ms)
+
+
+> @uniwork/office-bridge-adapter@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/office-bridge-adapter
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  17:06:12
+   Duration  358ms (transform 124ms, setup 0ms, import 188ms, tests 81ms, environment 0ms)
+
+
+> @genoffice/electron-utils@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/electron-utils
+
+
+ Test Files  18 passed (18)
+      Tests  256 passed (256)
+   Start at  17:06:13
+   Duration  5.23s (transform 467ms, setup 0ms, import 915ms, tests 7.12s, environment 1ms)
+
+
+> @genoffice/font-metrics@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/font-metrics
+
+
+ Test Files  5 passed (5)
+      Tests  25 passed (25)
+   Start at  17:06:19
+   Duration  329ms (transform 171ms, setup 0ms, import 281ms, tests 53ms, environment 0ms)
+
+
+> @genoffice/zip-gate@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/zip-gate
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  17:06:19
+   Duration  211ms (transform 48ms, setup 0ms, import 74ms, tests 49ms, environment 0ms)
+
+
+> @genoffice/docx-engine@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/docx-engine
+
+
+ Test Files  175 passed (175)
+      Tests  1699 passed | 1 skipped (1700)
+   Start at  17:06:20
+   Duration  24.48s (transform 3.74s, setup 0ms, import 28.43s, tests 28.45s, environment 12ms)
+
+
+> @genoffice/pdf2docx@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pdf2docx
+
+
+ Test Files  54 passed (54)
+      Tests  815 passed | 7 skipped (822)
+   Start at  17:06:45
+   Duration  9.12s (transform 3.50s, setup 0ms, import 8.75s, tests 13.13s, environment 3ms)
+
+
+> @genoffice/html2docx@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/html2docx
+
+
+ Test Files  13 passed (13)
+      Tests  110 passed (110)
+   Start at  17:06:54
+   Duration  148.09s (transform 618ms, setup 0ms, import 2.34s, tests 150.25s, environment 1ms)
+
+
+> @genoffice/file-parse@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/file-parse
+
+
+ Test Files  7 passed (7)
+      Tests  124 passed (124)
+   Start at  17:09:23
+   Duration  2.26s (transform 2.33s, setup 0ms, import 3.67s, tests 1.50s, environment 0ms)
+
+
+> @genoffice/pptx-engine@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pptx-engine
+
+
+ Test Files  116 passed | 1 skipped (117)
+      Tests  1211 passed | 1 skipped (1212)
+   Start at  17:09:25
+   Duration  21.02s (transform 3.10s, setup 0ms, import 14.71s, tests 36.70s, environment 8ms)
+
+
+> @genoffice/xlsx-gateway@0.1.0 test
+> vitest run --passWithNoTests
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/xlsx-gateway
+
+
+ Test Files  38 passed (38)
+      Tests  248 passed (248)
+   Start at  17:09:47
+   Duration  2.56s (transform 1.37s, setup 0ms, import 2.87s, tests 1.00s, environment 2ms)
+
+
+> @genoffice/pptx-ops@0.1.0 test
+> vitest run --passWithNoTests
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pptx-ops
+
+
+ Test Files  11 passed (11)
+      Tests  62 passed (62)
+   Start at  17:09:50
+   Duration  1.77s (transform 2.13s, setup 0ms, import 3.41s, tests 596ms, environment 1ms)
+
+
+> @genoffice/pptx-render@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pptx-render
+
+
+ Test Files  25 passed (25)
+      Tests  381 passed (381)
+   Start at  17:09:52
+   Duration  4.08s (transform 1.31s, setup 0ms, import 2.41s, tests 7.34s, environment 2ms)
+
+
+> @genoffice/pipelines@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/pipelines
+
+
+ Test Files  6 passed (6)
+      Tests  77 passed (77)
+   Start at  17:09:56
+   Duration  1.15s (transform 1.74s, setup 0ms, import 2.44s, tests 311ms, environment 0ms)
+
+
+> @genoffice/ai-search@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ai-search
+
+ ❯ tests/serply.test.ts (7 tests | 1 failed) 32ms
+     × tests a Serply key with one query and reports a rejected key 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/serply.test.ts > Serply settings wiring > tests a Serply key with one query and reports a rejected key
+AssertionError: expected { ok: false, …(2) } to deeply equal { Object (ok, error) }
+
+- Expected
++ Received
+
+  {
+    "error": "API key is empty",
++   "errorKind": "invalid_key",
+    "ok": false,
+  }
+
+ ❯ tests/serply.test.ts:212:52
+    210|     expect(bad.ok).toBe(false)
+    211|     expect(bad.error).toMatch(/serply/)
+    212|     expect(await testSearchProvider('serply', '')).toEqual({ ok: false…
+       |                                                    ^
+    213|   })
+    214| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 9 passed (10)
+      Tests  1 failed | 121 passed (122)
+   Start at  17:09:58
+   Duration  1.06s (transform 706ms, setup 0ms, import 1.76s, tests 246ms, environment 1ms)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /home/ubuntu/work/uniwork-office/packages/ai-search
+npm error workspace @genoffice/ai-search@0.1.0
+npm error location /home/ubuntu/work/uniwork-office/packages/ai-search
+npm error command failed
+npm error command sh -c vitest run
