@@ -28,13 +28,13 @@ func TestWebSessionMarkRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	uid, sid, isWeb, err := m.ParseAccess(web)
-	if err != nil || uid != "user_123" || sid != "sess_1" || !isWeb {
-		t.Fatalf("ParseAccess(web) = %q %q %v %v", uid, sid, isWeb, err)
+	at, err := m.ParseAccessToken(web)
+	if err != nil || at.UserID != "user_123" || at.SessionID != "sess_1" || !at.Web {
+		t.Fatalf("ParseAccessToken(web) = %+v %v", at, err)
 	}
 	desktop, _ := m.MintSession("user_123", "dev_1")
-	if _, _, isWeb, err := m.ParseAccess(desktop); err != nil || isWeb {
-		t.Fatalf("ParseAccess(desktop) web=%v err=%v, want false nil", isWeb, err)
+	if at, err := m.ParseAccessToken(desktop); err != nil || at.Web {
+		t.Fatalf("ParseAccessToken(desktop) web=%v err=%v, want false nil", at.Web, err)
 	}
 }
 

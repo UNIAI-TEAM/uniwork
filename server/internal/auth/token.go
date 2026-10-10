@@ -92,14 +92,8 @@ func (m TokenMinter) Parse(token string) (string, error) {
 // ParseSession returns user id and session id ("" for tokens minted before
 // sessions carried an id).
 func (m TokenMinter) ParseSession(token string) (userID, sessionID string, err error) {
-	userID, sessionID, _, err = m.ParseAccess(token)
-	return userID, sessionID, err
-}
-
-// ParseAccess is ParseSession plus the browser-session mark.
-func (m TokenMinter) ParseAccess(token string) (userID, sessionID string, web bool, err error) {
 	at, err := m.ParseAccessToken(token)
-	return at.UserID, at.SessionID, at.Web, err
+	return at.UserID, at.SessionID, err
 }
 
 // AccessToken is what a verified access token says about its holder.
@@ -109,8 +103,9 @@ type AccessToken struct {
 	ExpiresAt         time.Time
 }
 
-// ParseAccessToken is ParseAccess plus the expiry, for a holder that outlives
-// one request (a WebSocket).
+// ParseAccessToken returns what a verified access token says: user, session,
+// the browser-session mark and the expiry (for a holder that outlives one
+// request, a WebSocket).
 func (m TokenMinter) ParseAccessToken(token string) (AccessToken, error) {
 	claims, err := m.parse(token)
 	if err != nil {

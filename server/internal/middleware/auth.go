@@ -29,12 +29,13 @@ func RequireAuthWithDevice(m auth.TokenMinter, check func(context.Context, strin
 				writeUnauthorized(w, "missing bearer token")
 				return
 			}
-			uid, sid, web, err := m.ParseAccess(token)
+			at, err := m.ParseAccessToken(token)
 			if err != nil {
 				writeUnauthorized(w, "invalid token")
 				return
 			}
-			if check != nil && !web {
+			uid, sid := at.UserID, at.SessionID
+			if check != nil && !at.Web {
 				if err := check(r.Context(), uid, sid); err != nil {
 					if codedErrorCode(err) == "device_revoked" {
 						writeDeviceRevoked(w)

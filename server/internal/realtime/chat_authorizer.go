@@ -15,7 +15,8 @@ type ChatScopeGate interface {
 // replays its chat scopes on reconnect, so a deploy or network blip would
 // otherwise cost several queries per room per socket. Unlike meetings the
 // decision is not released on unsubscribe: it is that replay the cache is
-// for, and a member removed from a room keeps it at most this long.
+// for. A kick does not wait out the TTL: AccessRevoker's RevokeScope forgets
+// the grant and re-asks for every socket holding the room.
 const chatScopeTTL = 30 * time.Second
 
 // ChatScopeAuthorizer adapts ChatScopeGate to ScopeAuthorizer and keeps
