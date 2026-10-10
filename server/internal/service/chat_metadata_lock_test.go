@@ -98,3 +98,31 @@ func TestChatConcurrentReactionsAndPinAreNotLost(t *testing.T) {
 		t.Fatalf("reactions=%d pinned=%v, want %d and pinned", got.Reactions["👍"], got.Pinned, len(users))
 	}
 }
+
+// An edit rewrites the mention flags under the same row lock as reactions, so
+// reacting while the author edits keeps every reaction.
+func TestChatConcurrentReactionsAndEditAreNotLost(t *testing.T) {
+	s, _, ua, w, roomID, users := chatCrowd(t, 50)
+	ctx := context.Background()
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "react"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	editor := db.User{ID: ua.ID}
+	edited := "[@C](mention://member/" + users[0].ID + ") đã sửa"
+	runConcurrently(t, append([]db.User{editor}, users...), func(u db.User) error {
+		if u.ID == ua.ID {
+			_, err := s.EditChatMessage(ctx, u.ID, w.ID, roomID, msg.ID, edited)
+			return err
+		}
+		_, err := s.ToggleChatMessageReaction(ctx, u.ID, w.ID, roomID, msg.ID, "👍")
+		return err
+	})
+	got, err := s.GetRoomMessage(ctx, ua.ID, w.ID, roomID, msg.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Reactions["👍"] != len(users) || got.Body != edited {
+		t.Fatalf("reactions=%d body=%q, want %d and the edit", got.Reactions["👍"], got.Body, len(users))
+	}
+}

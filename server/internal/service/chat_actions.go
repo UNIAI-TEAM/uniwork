@@ -41,7 +41,11 @@ func (s *ChatService) EditChatMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	updated, err = s.persistMessageMentions(ctx, s.q, updated, mentions)
+	// Always rewritten, under the row lock: an edit that drops every mention
+	// must clear the old flags without losing a concurrent reaction.
+	updated, err = s.mutateChatMessageMetadata(ctx, updated.ID, roomID, anchorWS, func(msg db.ChatMessage) ([]byte, error) {
+		return encodeMentionsMetadata(msg.Metadata, mentions)
+	})
 	if err != nil {
 		return ChatMessageRow{}, err
 	}

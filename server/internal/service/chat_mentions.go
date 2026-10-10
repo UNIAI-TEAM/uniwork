@@ -183,7 +183,8 @@ func encodeMentionsMetadata(raw []byte, m chatMentions) ([]byte, error) {
 	meta := decodeChatMessageMetadata(raw)
 	meta.MentionedUserIDs = m.Named
 	meta.MentionsAll = m.All
-	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 && !meta.MentionsAll {
+	if len(meta.Reactions) == 0 && !meta.Pinned && len(meta.MentionedUserIDs) == 0 && !meta.MentionsAll &&
+		meta.Priority == "" && meta.Poll == nil && meta.Reminder == nil && meta.Note == nil && meta.Post == nil {
 		return []byte("{}"), nil
 	}
 	return json.Marshal(meta)

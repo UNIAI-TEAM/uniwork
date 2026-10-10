@@ -83,3 +83,40 @@ func TestMentionAllInALargeRoomIsForModerators(t *testing.T) {
 		t.Fatalf("member @all in a small room: %v", err)
 	}
 }
+
+// Editing @all (or a name) out of a message drops the mention flags, so the
+// badge it raised goes with it; the rest of the metadata stays.
+func TestEditingMentionsOutClearsTheBadge(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "edit-mentions", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{mentionAllBody, "[@B](mention://member/" + ub.ID + ") xem"} {
+		sent, err := s.SendRoomMessage(ctx, ua.ID, w.ID, ch.ID, SendChatMessageInput{Body: body, Priority: "important"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, err := s.roomMentionUnread(ctx, ub.ID, ch.ID, w.ID); err != nil || n != 1 {
+			t.Fatalf("badge before the edit = %d, %v; want 1", n, err)
+		}
+		if _, err := s.EditChatMessage(ctx, ua.ID, w.ID, ch.ID, sent.ID, "x"); err != nil {
+			t.Fatal(err)
+		}
+		row, err := q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{ID: sent.ID, RoomID: ch.ID, WorkspaceID: w.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta := decodeChatMessageMetadata(row.Metadata); meta.MentionsAll || len(meta.MentionedUserIDs) != 0 || meta.Priority != "important" {
+			t.Fatalf("metadata after editing %q out = %s, want no mentions and the priority kept", body, row.Metadata)
+		}
+		if n, err := s.roomMentionUnread(ctx, ub.ID, ch.ID, w.ID); err != nil || n != 0 {
+			t.Fatalf("badge after editing %q out = %d, %v; want 0", body, n, err)
+		}
+	}
+}
