@@ -53,6 +53,19 @@ func (g *grantCache) forget(key scopeGrantKey) {
 	g.mu.Unlock()
 }
 
+// RevokeScope forgets userID's decisions on scopeID in every workspace, or
+// all of userID's when scopeID is "". Each authorizer has a cache of its
+// own, so the scope type needs no check here.
+func (g *grantCache) RevokeScope(userID, _, scopeID string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for k := range g.allowed {
+		if k.userID == userID && (scopeID == "" || k.scopeID == scopeID) {
+			delete(g.allowed, k)
+		}
+	}
+}
+
 func (g *grantCache) cached(key scopeGrantKey) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()

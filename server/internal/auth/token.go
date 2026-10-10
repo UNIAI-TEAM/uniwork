@@ -98,14 +98,32 @@ func (m TokenMinter) ParseSession(token string) (userID, sessionID string, err e
 
 // ParseAccess is ParseSession plus the browser-session mark.
 func (m TokenMinter) ParseAccess(token string) (userID, sessionID string, web bool, err error) {
+	at, err := m.ParseAccessToken(token)
+	return at.UserID, at.SessionID, at.Web, err
+}
+
+// AccessToken is what a verified access token says about its holder.
+type AccessToken struct {
+	UserID, SessionID string
+	Web               bool
+	ExpiresAt         time.Time
+}
+
+// ParseAccessToken is ParseAccess plus the expiry, for a holder that outlives
+// one request (a WebSocket).
+func (m TokenMinter) ParseAccessToken(token string) (AccessToken, error) {
 	claims, err := m.parse(token)
 	if err != nil {
-		return "", "", false, err
+		return AccessToken{}, err
 	}
 	if len(claims.Audience) != 0 {
-		return "", "", false, fmt.Errorf("not an access token")
+		return AccessToken{}, fmt.Errorf("not an access token")
 	}
-	return claims.Subject, claims.ID, claims.Web, nil
+	at := AccessToken{UserID: claims.Subject, SessionID: claims.ID, Web: claims.Web}
+	if claims.ExpiresAt != nil {
+		at.ExpiresAt = claims.ExpiresAt.Time
+	}
+	return at, nil
 }
 
 // ParseMFA returns the user id of a challenge token and nothing else.

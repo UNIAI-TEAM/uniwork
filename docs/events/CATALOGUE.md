@@ -185,6 +185,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `recording.ready` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `recording.started` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `recording.stopped` | 1 | `meeting_id` | — | meeting | ephemeral |
+| `session.revoked` | 1 | `user_id`, `session_id` | — | - | outbox |
 | `subscription.changed` | 1 | `organization_id`, `subscription_id`, `user_id` | — | user | outbox |
 | `summary.created` | 1 | `meeting_id` | — | workspace | ephemeral |
 | `task.comment_added` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |

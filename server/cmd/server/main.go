@@ -350,6 +350,9 @@ func main() {
 	dispatcher.RegisterLane(outbox.LaneProvider, meetingSvc.ProviderConsumer())
 	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
 	dispatcher.Register(realtimeConsumer)
+	// Sockets are checked only when they connect or subscribe; this closes
+	// the ones a committed removal, kick or sign-out has taken access from.
+	dispatcher.Register(realtime.NewAccessRevoker(hub, membershipCache))
 	auditExports := service.NewAuditExportConsumer(q, store)
 	auditExports.SetFileService(pool, fileSvc)
 	dispatcher.RegisterLane(outbox.LaneSlow, auditExports)

@@ -141,6 +141,9 @@ var catalogue = []EventDef{
 	{Topic: "member.reactivated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.left", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "organization.ownership_transferred", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// A signed-out session (session_id, or every one of the user's when it is
+	// empty) loses its sockets; the realtime access revoker is the consumer.
+	{Topic: "session.revoked", Version: 1, Payload: []string{"user_id", "session_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Directory and departments (F-03): everyone in the organization sees the
 	// same list, so they refresh on the organization scope.
