@@ -175,6 +175,17 @@ for (const c of CASES) {
       expect(violations).toEqual([]);
     });
 
+    test(`a ${c.module} frame bundle that answers 404 falls back to the G3 host, not an endless skeleton`, async ({ page }) => {
+      // A bundle missing on the server: the iframe fires no error for an HTTP 404, so the host probes it.
+      await page.route(`**/office-frame/${c.module}/**/index.html`, (route) => route.fulfill({ status: 404, contentType: "text/plain", body: "not found" }));
+      await signInAs(page, seeded.account.email);
+      await page.goto(seeded.documentUrl);
+      await expect(page.locator("[data-office-editor-host]").first()).toBeVisible({ timeout: 60_000 });
+      await expect(moduleFrameHost(page, c.module)).toHaveCount(0);
+      await expect(page.getByTestId("office-docs-frame-loading")).toHaveCount(0);
+      await page.screenshot({ path: test.info().outputPath(`03-${c.module}-bundle-missing-g3.png`) });
+    });
+
     if (c.edit) {
       test(`an edit in the ${c.module} frame is saved as a new version`, async ({ page, context, request }) => {
         // The frame follows the app's locale; the specs drive its English labels.
