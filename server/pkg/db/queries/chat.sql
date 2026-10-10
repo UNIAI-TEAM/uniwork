@@ -238,18 +238,46 @@ SELECT
   r.member_permissions,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
-  COALESCE(
-    (
-      SELECT COUNT(*)::int
+  -- Badges stop at 100 (the client shows 99+), so a room left unread for
+  -- months costs the same as one read a minute ago.
+  (
+    SELECT COUNT(*)::int FROM (
+      SELECT 1
       FROM chat_messages m
       WHERE m.room_id = r.id
         AND m.workspace_id = r.workspace_id
         AND m.deleted_at IS NULL
         AND m.sender_id != sqlc.arg(user_id)
         AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
-    ),
-    0
+      LIMIT 100
+    ) unread
   ) AS unread_count,
+  -- Mentions of the caller, by name or @all, in the main timeline. The
+  -- metadata key test repeats idx_chat_messages_mentions' predicate.
+  (
+    SELECT COUNT(*)::int FROM (
+      SELECT 1
+      FROM chat_messages m
+      WHERE m.room_id = r.id
+        AND m.workspace_id = r.workspace_id
+        AND m.deleted_at IS NULL
+        AND m.thread_root_id IS NULL
+        AND (m.metadata ? 'mentioned_user_ids' OR m.metadata ? 'mentions_all')
+        AND m.sender_id != sqlc.arg(user_id)
+        AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
+        AND (m.metadata -> 'mentioned_user_ids' ? sqlc.arg(user_id)::text OR m.metadata @> '{"mentions_all": true}')
+      LIMIT 100
+    ) mentioned
+  ) AS mention_unread_count,
+  ARRAY(
+    SELECT o.user_id FROM chat_room_members o
+    WHERE o.room_id = r.id AND o.status IN ('invited', 'active') AND o.user_id != sqlc.arg(user_id)
+    ORDER BY o.user_id
+  )::text[] AS member_user_ids,
+  COALESCE(peer.id, '') AS peer_user_id,
+  COALESCE(peer.email, '') AS peer_email,
+  COALESCE(peer.display_name, '') AS peer_display_name,
+  peer.last_read_at AS peer_last_read_at,
   COALESCE(last_msg.body, '') AS last_message_body,
   COALESCE(last_msg.kind, '') AS last_message_kind,
   COALESCE(last_msg.sender_id, '') AS last_message_sender_id,
@@ -273,6 +301,18 @@ LEFT JOIN LATERAL (
   ORDER BY m.created_at DESC
   LIMIT 1
 ) last_msg ON true
+LEFT JOIN LATERAL (
+  -- A DM's peer comes from its member set, so it survives the peer leaving;
+  -- their read cursor only while they are still in the room.
+  SELECT u.id, u.email, u.display_name, pm.last_read_at
+  FROM users u
+  LEFT JOIN chat_room_members pm
+    ON pm.room_id = r.id AND pm.user_id = u.id AND pm.status IN ('invited', 'active')
+  WHERE r.kind = 'dm'
+    AND u.id = ANY (string_to_array(r.member_set_key, '|'))
+    AND u.id != sqlc.arg(user_id)
+  LIMIT 1
+) peer ON true
 WHERE r.organization_id = sqlc.arg(organization_id)
   AND r.kind IN ('dm', 'group')
   AND mem.status IN ('invited', 'active')
@@ -389,18 +429,41 @@ SELECT
   r.member_permissions,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
-  COALESCE(
-    (
-      SELECT COUNT(*)::int
+  -- Same capped badges as ListChatRoomsForMember.
+  (
+    SELECT COUNT(*)::int FROM (
+      SELECT 1
       FROM chat_messages m
       WHERE m.room_id = r.id
         AND m.workspace_id = r.workspace_id
         AND m.deleted_at IS NULL
         AND m.sender_id != sqlc.arg(user_id)
         AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
-    ),
-    0
+      LIMIT 100
+    ) unread
   ) AS unread_count,
+  (
+    SELECT COUNT(*)::int FROM (
+      SELECT 1
+      FROM chat_messages m
+      WHERE m.room_id = r.id
+        AND m.workspace_id = r.workspace_id
+        AND m.deleted_at IS NULL
+        AND m.thread_root_id IS NULL
+        AND (m.metadata ? 'mentioned_user_ids' OR m.metadata ? 'mentions_all')
+        AND m.sender_id != sqlc.arg(user_id)
+        AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
+        AND (m.metadata -> 'mentioned_user_ids' ? sqlc.arg(user_id)::text OR m.metadata @> '{"mentions_all": true}')
+      LIMIT 100
+    ) mentioned
+  ) AS mention_unread_count,
+  -- The default channel is the whole workspace; its roster is not a sidebar field.
+  ARRAY(
+    SELECT o.user_id FROM chat_room_members o
+    WHERE o.room_id = r.id AND NOT r.is_default
+      AND o.status IN ('invited', 'active') AND o.user_id != sqlc.arg(user_id)
+    ORDER BY o.user_id
+  )::text[] AS member_user_ids,
   -- COALESCE: empty channels have no last_msg row; sqlc maps these as string.
   COALESCE(last_msg.body, '') AS last_message_body,
   COALESCE(last_msg.kind, '') AS last_message_kind,
@@ -758,4 +821,3 @@ WHERE f.user_id = sqlc.arg(user_id)
   )
 ORDER BY COALESCE(root.last_reply_at, root.created_at) DESC
 LIMIT sqlc.arg(result_limit);
-

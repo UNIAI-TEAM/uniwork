@@ -57,47 +57,28 @@ type CreateGroupInput struct {
 	MemberUserIDs []string
 }
 
-// ListChatRooms returns dm, group, workspace/default, and joined channels for a workspace member.
+// ListChatRooms returns dm, group, workspace/default, and joined channels for a
+// workspace member. Every badge, preview and DM peer comes from the two list
+// queries, so the statement count does not grow with the number of rooms (C3).
 func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID string) ([]ChatRoomSummary, error) {
 	w, err := s.workspaceForChat(ctx, userID, workspaceID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]ChatRoomSummary, 0)
-
-	wsRoom, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
-	if err == nil {
-		unread, lastRead, uErr := s.roomUnread(ctx, userID, wsRoom.ID, workspaceID)
-		if uErr != nil {
-			return nil, uErr
-		}
-		mentionUnread, mErr := s.roomMentionUnread(ctx, userID, wsRoom.ID, workspaceID)
-		if mErr != nil {
-			return nil, mErr
-		}
-		wsSummary := ChatRoomSummary{
-			ID: wsRoom.ID, Kind: wsRoom.Kind, Name: wsRoom.Name,
-			WorkspaceID: workspaceID, UnreadCount: unread, MentionUnreadCount: mentionUnread,
-			MemberPermissions: memberPermissionsFromRaw(wsRoom.MemberPermissions),
-			Visibility:        wsRoom.Visibility,
-			Topic:             wsRoom.Topic,
-			IsDefault:         wsRoom.IsDefault,
-			ProjectID:         textOrEmpty(wsRoom.ProjectID),
-			LastReadAt:        timePtr(lastRead),
-		}
-		if preview, pErr := s.q.GetLatestChatMessageByRoom(ctx, db.GetLatestChatMessageByRoomParams{
-			RoomID: wsRoom.ID, WorkspaceID: workspaceID,
-		}); pErr == nil {
-			applyLastMessagePreview(&wsSummary, &chatLastMessagePreview{
-				Body: preview.Body, Kind: preview.Kind, SenderID: preview.SenderID,
-				SenderDisplayName: preview.SenderDisplayName, CreatedAt: preview.CreatedAt.Time,
-			})
-		} else if !errors.Is(pErr, pgx.ErrNoRows) {
-			return nil, pErr
-		}
-		out = append(out, wsSummary)
-	} else if !errors.Is(err, pgx.ErrNoRows) {
+	// ListChatRoomsForMember stays dm/group-only; channels are workspace-scoped via ListChatChannelsMine.
+	channelRows, err := s.q.ListChatChannelsMine(ctx, db.ListChatChannelsMineParams{
+		UserID: userID, WorkspaceID: pgtype.Text{String: workspaceID, Valid: true},
+	})
+	if err != nil {
 		return nil, err
+	}
+	out := make([]ChatRoomSummary, 0, len(channelRows)+1)
+	if len(channelRows) > 0 && channelRows[0].IsDefault {
+		out = append(out, channelSummaryFromMineRow(channelRows[0]))
+	} else if def, err := s.defaultRoomForNonMember(ctx, workspaceID); err != nil {
+		return nil, err
+	} else if def != nil {
+		out = append(out, *def)
 	}
 
 	blockedPeers := map[string]struct{}{}
@@ -123,22 +104,29 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		}, userID) {
 			continue
 		}
+		if row.Kind == chatRoomKindDM && row.PeerUserID != "" {
+			if _, blocked := blockedPeers[strings.ToUpper(row.PeerUserID)]; blocked {
+				continue
+			}
+		}
 		anchorWS := workspaceID
 		if row.WorkspaceID.Valid {
 			anchorWS = row.WorkspaceID.String
 		}
-		memberSetKey := ""
-		if row.MemberSetKey.Valid {
-			memberSetKey = row.MemberSetKey.String
+		summary := ChatRoomSummary{
+			ID: row.ID, Kind: row.Kind, Name: row.Name, WorkspaceID: anchorWS,
+			MemberUserIDs: row.MemberUserIds, UnreadCount: int(row.UnreadCount),
+			MentionUnreadCount: int(row.MentionUnreadCount),
+			MemberPermissions:  memberPermissionsFromRaw(row.MemberPermissions),
+			PeerUserID:         row.PeerUserID, PeerEmail: row.PeerEmail, PeerDisplayName: row.PeerDisplayName,
+			LastReadAt: timePtr(row.MyLastReadAt),
 		}
-		summary, err := s.roomSummary(ctx, userID, anchorWS, row.ID, row.Kind, row.Name, chatUnreadCount(row.UnreadCount), memberSetKey, row.MemberPermissions)
-		if err != nil {
-			return nil, err
+		if row.Kind == chatRoomKindDM && strings.TrimSpace(summary.Name) == "" {
+			summary.Name = row.PeerDisplayName
 		}
-		if summary.Kind == chatRoomKindDM && summary.PeerUserID != "" {
-			if _, blocked := blockedPeers[strings.ToUpper(summary.PeerUserID)]; blocked {
-				continue
-			}
+		if row.PeerLastReadAt.Valid {
+			t := row.PeerLastReadAt.Time
+			summary.PeerLastReadAt = &t
 		}
 		applyLastMessagePreview(&summary, lastMessagePreviewFromListRow(
 			row.LastMessageBody, row.LastMessageKind, row.LastMessageSenderID,
@@ -148,56 +136,35 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		out = append(out, summary)
 	}
 
-	// ListChatRoomsForMember stays dm/group-only; channels are workspace-scoped via ListChatChannelsMine.
-	channelRows, err := s.q.ListChatChannelsMine(ctx, db.ListChatChannelsMineParams{
-		UserID: userID, WorkspaceID: pgtype.Text{String: workspaceID, Valid: true},
-	})
-	if err != nil {
-		// Do not fail the whole sidebar (DMs/groups) if channel preview scan breaks.
-		return out, nil
-	}
 	for _, row := range channelRows {
 		if row.IsDefault {
-			continue // already included via GetWorkspaceChatRoom
+			continue // already first
 		}
-		summary, err := s.channelSummaryFromMineRow(ctx, userID, row)
-		if err != nil {
-			continue
-		}
-		out = append(out, summary)
+		out = append(out, channelSummaryFromMineRow(row))
 	}
 	return out, nil
 }
 
-// roomUnread counts the caller's unread messages and returns their read cursor.
-func (s *ChatService) roomUnread(ctx context.Context, userID, roomID, anchorWorkspaceID string) (int, pgtype.Timestamptz, error) {
-	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
-		RoomID: roomID, UserID: userID,
-	})
+// defaultRoomForNonMember is the default channel's row for a caller who is not
+// in it (an organization admin with no workspace row): no badges, as before.
+func (s *ChatService) defaultRoomForNonMember(ctx context.Context, workspaceID string) (*ChatRoomSummary, error) {
+	wsRoom, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, pgtype.Timestamptz{}, nil
+		return nil, nil
 	}
 	if err != nil {
-		return 0, pgtype.Timestamptz{}, err
+		return nil, err
 	}
-	since := member.LastReadAt
-	rows, err := s.q.ListChatMessagesByRoom(ctx, db.ListChatMessagesByRoomParams{
-		RoomID: roomID, WorkspaceID: anchorWorkspaceID, BeforeAt: pgtype.Timestamptz{}, MsgLimit: 500,
-	})
-	if err != nil {
-		return 0, since, err
+	sum := ChatRoomSummary{
+		ID: wsRoom.ID, Kind: wsRoom.Kind, Name: wsRoom.Name, WorkspaceID: workspaceID,
+		MemberPermissions: memberPermissionsFromRaw(wsRoom.MemberPermissions),
+		Visibility:        wsRoom.Visibility, Topic: wsRoom.Topic, IsDefault: wsRoom.IsDefault,
+		ProjectID: textOrEmpty(wsRoom.ProjectID),
 	}
-	count := 0
-	for _, row := range rows {
-		if row.SenderID == userID {
-			continue
-		}
-		if since.Valid && !row.CreatedAt.Time.After(since.Time) {
-			continue
-		}
-		count++
+	if err := s.attachLastMessagePreview(ctx, &sum, wsRoom.ID, workspaceID); err != nil {
+		return nil, err
 	}
-	return count, since, nil
+	return &sum, nil
 }
 
 // ResolveDM finds or creates a 1:1 dm room scoped to the workspace organization.
@@ -758,19 +725,6 @@ func uniqueUserIDs(userIDs []string) []string {
 
 func normalizeUserIDs(userIDs []string) []string {
 	return uniqueUserIDs(userIDs)
-}
-
-func chatUnreadCount(v interface{}) int {
-	switch n := v.(type) {
-	case int32:
-		return int(n)
-	case int64:
-		return int(n)
-	case int:
-		return n
-	default:
-		return 0
-	}
 }
 
 func defaultGroupNameFromUsers(ctx context.Context, q *db.Queries, memberIDs []string) string {

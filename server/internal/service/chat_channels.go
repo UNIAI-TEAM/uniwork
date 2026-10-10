@@ -189,11 +189,7 @@ func (s *ChatService) ListChannels(ctx context.Context, userID, workspaceID stri
 		}
 		out := make([]ChatRoomSummary, 0, len(rows))
 		for _, row := range rows {
-			sum, err := s.channelSummaryFromMineRow(ctx, userID, row)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, sum)
+			out = append(out, channelSummaryFromMineRow(row))
 		}
 		return out, nil
 	case "discoverable":
@@ -606,20 +602,15 @@ func (s *ChatService) channelSummaryFromRoom(ctx context.Context, userID string,
 	return sum, nil
 }
 
-func (s *ChatService) channelSummaryFromMineRow(ctx context.Context, userID string, row db.ListChatChannelsMineRow) (ChatRoomSummary, error) {
-	wsID := ""
-	if row.WorkspaceID.Valid {
-		wsID = row.WorkspaceID.String
+func channelSummaryFromMineRow(row db.ListChatChannelsMineRow) ChatRoomSummary {
+	sum := ChatRoomSummary{
+		ID: row.ID, Kind: row.Kind, Name: row.Name, WorkspaceID: textOrEmpty(row.WorkspaceID),
+		MemberUserIDs: row.MemberUserIds, UnreadCount: int(row.UnreadCount),
+		MentionUnreadCount: int(row.MentionUnreadCount),
+		MemberPermissions:  memberPermissionsFromRaw(row.MemberPermissions),
+		Visibility:         row.Visibility, Topic: row.Topic, IsDefault: row.IsDefault,
+		ProjectID: textOrEmpty(row.ProjectID), LastReadAt: timePtr(row.MyLastReadAt),
 	}
-	sum, err := s.roomSummary(ctx, userID, wsID, row.ID, row.Kind, row.Name, chatUnreadCount(row.UnreadCount), "", row.MemberPermissions)
-	if err != nil {
-		return ChatRoomSummary{}, err
-	}
-	sum.Visibility = row.Visibility
-	sum.Topic = row.Topic
-	sum.IsDefault = row.IsDefault
-	sum.ProjectID = textOrEmpty(row.ProjectID)
-	sum.LastReadAt = timePtr(row.MyLastReadAt)
 	if row.LastMessageAt.Valid {
 		t := row.LastMessageAt.Time
 		sum.LastMessageAt = &t
@@ -628,7 +619,7 @@ func (s *ChatService) channelSummaryFromMineRow(ctx context.Context, userID stri
 		sum.LastMessageSenderID = row.LastMessageSenderID
 		sum.LastMessageSenderName = row.LastMessageSenderName
 	}
-	return sum, nil
+	return sum
 }
 
 func channelSummaryFromDiscoverRow(row db.ListChatChannelsDiscoverableRow) ChatRoomSummary {
