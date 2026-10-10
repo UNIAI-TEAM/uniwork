@@ -63,6 +63,38 @@ describe("LeaveDialog", () => {
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
+  // The reference look every frame dialog is aligned to: filled primary, close X, blurred scrim.
+  it("is the reference dialog: filled primary, outlined/ghost others, blurred scrim", () => {
+    render(<LeaveDialog open onOpenChange={vi.fn()} onSave={async () => true} onKeepDraft={async () => true} onDiscard={async () => true} />);
+    const save = screen.getByRole("button", { name: "Save to UniWork" });
+    expect(save.className).toContain("bg-primary");
+    expect(screen.getByRole("button", { name: "Keep draft on this device" }).className).not.toContain("bg-primary");
+    const scrim = document.querySelector('[data-slot="dialog-overlay"]');
+    expect(scrim?.className).toContain("backdrop-blur");
+  });
+
+  it("moves focus into the dialog and keeps it there while it is open", async () => {
+    render(<button type="button">page</button>);
+    const page = screen.getByRole("button", { name: "page" });
+    page.focus();
+    render(<LeaveDialog open onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} />);
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    // Tab from the last control wraps inside the dialog instead of reaching the page.
+    const buttons = Array.from(dialog.querySelectorAll("button"));
+    buttons[buttons.length - 1]!.focus();
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    expect(page).not.toHaveFocus();
+  });
+
+  it("hands focus to the host's finalFocus when it closes (the editor frame, not the page)", async () => {
+    const finalFocus = vi.fn(() => false);
+    const view = render(<LeaveDialog open onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} finalFocus={finalFocus} />);
+    await screen.findByRole("dialog");
+    view.rerender(<LeaveDialog open={false} onOpenChange={vi.fn()} onSave={async () => true} onDiscard={async () => true} finalFocus={finalFocus} />);
+    await waitFor(() => expect(finalFocus).toHaveBeenCalled());
+  });
+
   it("closes on Stay without running a write", () => {
     const onOpenChange = vi.fn();
     const onSave = vi.fn(async () => true);

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
@@ -12,6 +12,7 @@ import { requestMock, wrap } from "../../test/api-mock";
 import { DocsFrameRefusalContext, useDocsFrameRefusal } from "./docs-frame-refusal";
 import type { FrameDesktopOpenProps } from "./frame-desktop-open";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
+import { leaveGuardAllows } from "../../navigation/leave-guard";
 import { OfficeModuleFrame } from "./office-module-frame";
 import { OfficeModuleOpenSwitch } from "./office-module-open-switch";
 
@@ -505,6 +506,23 @@ describe("Open in desktop app in the module frame", () => {
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     expect(action()).toBeNull();
+  });
+});
+
+describe("the leave dialog hands focus back to every module's frame", () => {
+  it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("%s: Stay puts focus on the iframe and its window", async (module) => {
+    const frame = mountFrame(module);
+    await frame.ready(module === "docs" ? {} : { module });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await frame.event("dirty", { dirty: true });
+    // jsdom has no window.focus: the hand-back lands on spies.
+    const focusIframe = vi.spyOn(frame.iframe, "focus");
+    const focusWindow = vi.spyOn(frame.iframe.contentWindow!, "focus").mockImplementation(() => undefined);
+    const leaving = leaveGuardAllows("/elsewhere");
+    fireEvent.click(await screen.findByRole("button", { name: "Ở lại" }));
+    await expect(leaving).resolves.toBe(false);
+    await waitFor(() => expect(focusWindow).toHaveBeenCalledTimes(1));
+    expect(focusIframe).toHaveBeenCalledTimes(1);
   });
 });
 
