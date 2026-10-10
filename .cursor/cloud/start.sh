@@ -23,8 +23,22 @@ for db in uniwork uniwork_test; do
     || sudo -u postgres createdb -O uniwork "$db"
 done
 
-redis-cli ping > /dev/null 2>&1 || sudo redis-server --daemonize yes
+# Redis must be the 7.4 build provision.sh puts in /usr/local/bin: the distro 7.0.15 fails six relay tests
+# (server/internal/realtime). A warm VM may still be running the old server; replace it.
+redis_bin=/usr/local/bin/redis-server
+redis_ver() { "$redis_bin" --version | sed -n 's/.* v=\([0-9.]*\).*/\1/p'; }
+redis_min_ok() { [ "$(printf '%s\n7.4\n' "$1" | sort -V | head -n1)" = 7.4 ]; }
+[ -x "$redis_bin" ] || { echo "FATAL: $redis_bin missing; run provision.sh (Redis 7.4)" >&2; exit 1; }
+redis_min_ok "$(redis_ver)" || { echo "FATAL: $redis_bin is Redis $(redis_ver), need >= 7.4" >&2; exit 1; }
+if redis-cli ping > /dev/null 2>&1; then
+  running=$(redis-cli info server | tr -d '\r' | sed -n 's/^redis_version://p')
+  redis_min_ok "$running" || { redis-cli shutdown nosave > /dev/null 2>&1 || true; sleep 1; }
+fi
+redis-cli ping > /dev/null 2>&1 || sudo "$redis_bin" --daemonize yes
 until redis-cli ping > /dev/null 2>&1; do sleep 1; done
+running=$(redis-cli info server | tr -d '\r' | sed -n 's/^redis_version://p')
+echo "redis-server $(redis_ver) at $redis_bin, running $running"
+redis_min_ok "$running" || { echo "FATAL: running Redis $running < 7.4" >&2; exit 1; }
 
 if ! curl -sf http://localhost:9000/minio/health/live > /dev/null; then
   MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin \

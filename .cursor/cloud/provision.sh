@@ -7,6 +7,7 @@ set -euo pipefail
 
 GO_VERSION=1.27.0
 NODE_MAJOR=22
+REDIS_VERSION=7.4.2
 PNPM_VERSION=10.28.2
 PLAYWRIGHT_VERSION=1.62.1
 # The office-upstream xlsx sidecar (xlsx-engine crate, edition 2024).
@@ -35,6 +36,19 @@ for p in "${packages[@]}"; do dpkg -s "$p" > /dev/null 2>&1 || missing+=("$p"); 
 if [ "${#missing[@]}" -gt 0 ]; then
   $SUDO apt-get update -q
   $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "${missing[@]}"
+fi
+
+# Redis 7.4 (CI: redis:7-alpine = 7.4.x). The noble package is 7.0.15, where six relay tests in
+# server/internal/realtime fail ("consumer ... never started reading"). Built from the pinned source tarball into
+# /usr/local/bin, which leads PATH over /usr/bin; the apt package stays installed but unused.
+if [ ! -f "$MARKERS/redis-$REDIS_VERSION" ] || [ ! -x /usr/local/bin/redis-server ] \
+  || [ "$(/usr/local/bin/redis-server --version | sed -n 's/.* v=\([0-9.]*\).*/\1/p')" != "$REDIS_VERSION" ]; then
+  tmp=$(mktemp -d)
+  curl -fsSL "https://github.com/redis/redis/archive/refs/tags/${REDIS_VERSION}.tar.gz" | tar -xz -C "$tmp" --strip-components=1
+  make -C "$tmp" -j"$(nproc)" BUILD_TLS=no > "$tmp/build.log" 2>&1 || { tail -20 "$tmp/build.log"; exit 1; }
+  $SUDO make -C "$tmp" install PREFIX=/usr/local > /dev/null
+  rm -rf "$tmp"
+  $SUDO touch "$MARKERS/redis-$REDIS_VERSION"
 fi
 
 if [ "$(/usr/local/go/bin/go env GOVERSION 2>/dev/null)" != "go${GO_VERSION}" ]; then

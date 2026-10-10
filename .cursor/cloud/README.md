@@ -5,9 +5,9 @@ of a developer machine.
 
 | File | Role |
 | --- | --- |
-| `provision.sh` | System toolchain and services: Go, Node, pnpm, Postgres 16, Redis 7, MinIO, Chromium libraries. Versions follow `.github/workflows/ci.yml`. Idempotent. |
+| `provision.sh` | System toolchain and services: Go, Node, pnpm, Postgres 16, Redis 7.4.2 (built from source into `/usr/local/bin`), MinIO, Chromium libraries. Versions follow `.github/workflows/ci.yml`. Idempotent. |
 | `install.sh` | Snapshot build: `provision.sh`, `.env`, `pnpm install`, Go modules and build, Playwright Chromium. Idempotent. |
-| `start.sh` | Every agent boot: starts Postgres, Redis and MinIO, creates `uniwork`, `uniwork_test` and the `uniwork-test` bucket, runs `make migrate-up`. |
+| `start.sh` | Every agent boot: starts Postgres, Redis (7.4 only: replaces a running older server, fails loudly below 7.4) and MinIO, creates `uniwork`, `uniwork_test` and the `uniwork-test` bucket, runs `make migrate-up`. |
 | `write-env.sh` | Writes `.env` = `.env.example` + `cloud.env`, readable by both `make` and `. .env`. |
 | `cloud.env` | CI-equivalent values. No secrets. |
 | `../Dockerfile`, `../environment.json` | The same setup as a repository-level environment. Cursor reads that file from the default branch only, so it applies once this lands on `main`. |
@@ -159,7 +159,7 @@ node <same>/cloud-runner.mjs close        # when the lane is done
 
 | | `uniwork` | `office` (uniwork-office) |
 | --- | --- | --- |
-| provision | `provision.sh`: Go, Node 22, pnpm, Postgres, Redis, MinIO, Rust 1.88, desktop libs | `provision-office.sh`: Node 22, Rust 1.88, xmllint, document fonts (Carlito, Caladea, Noto CJK), xvfb |
+| provision | `provision.sh`: Go, Node 22, pnpm, Postgres, Redis 7.4.2 (source build), Rust 1.88, desktop libs | `provision-office.sh`: Node 22, Rust 1.88, xmllint, document fonts (Carlito, Caladea, Noto CJK), xvfb |
 | install | `install.sh`: `.env`, `pnpm install`, Go build, Playwright Chromium | `install-office.sh`: `npm ci` with `ELECTRON_SKIP_BINARY_DOWNLOAD=1`, Playwright Chromium + its system libs |
 | start | `start.sh`: services, databases, migrations | `start-office.sh`: allows unprivileged user namespaces for Electron (best effort) |
 | dependency refresh | `pnpm-lock.yaml`, `server/go.sum` | `package-lock.json`, `apps/sheets/native/xlsx-engine/Cargo.lock` (`npm ci`) |
