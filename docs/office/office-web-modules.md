@@ -236,12 +236,14 @@ hides every AI entry, as before. The capability keys are re-vendored from the
 fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
 
 The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
-the fork lane head `36e9e23` (branch `feature/UNI-1014-web-modules`), which holds
-DR1 draft recovery (`InitPayload.recovery`), the `modal` event, SP1, H2 and the
-AI1 capability keys in one commit, so nothing is merged by hand any more. They
+the fork lane head `9b5e409` (branch `feature/UNI-1014-web-modules`), which holds
+DR1 draft recovery (`InitPayload.recovery`), the `modal` event, SP1, H2, the
+AI1 capability keys and the SH4 Sheets AI in one lineage, so nothing is merged by hand any more. They
 are byte-identical to the fork's `web/docs/protocol/{types,endpoint,host}.ts`
 except the relative import specifiers; the bodies did not change between the
-earlier `f1679cb` + AI1 `c044fa9` vendoring, `11a5eba` and `36e9e23`, only the headers. The
+earlier `f1679cb` + AI1 `c044fa9` vendoring, `11a5eba` and `36e9e23`, only the headers.
+`36e9e23..9b5e409` changed `types.ts` in one comment (`InitRecovery.key` is persisted
+per user, C18a); no type, message or version changed. The
 bundles in "Pinned builds" are built from the same commit.
 
 Tests: `server/internal/handler/office_frame_ai_test.go` (every route through
@@ -325,11 +327,11 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, the lane head `36e9e23`
-(`0.1.0-36e9e23` = `11a5eba` + the SH3 Sheets follow-ups; built clean: no
-`-dirty` suffix, `npm run build:web:all` in a detached worktree of `36e9e23`,
-not the fork lane's own checkout).
-`docs.pin.json` moved off the UNI-1013 pin `8687750`. Written by
+All six modules are pinned to one fork commit, the lane head `9b5e409`
+(`0.1.0-9b5e409` = `36e9e23` + SH4 Sheets AI, the FF1 hardening fixes (frame
+database, AI token path containment, recovery) and the per-platform wasm checksum; built clean: no `-dirty` suffix, `npm run build:web -- --all` in a
+detached worktree of `9b5e409`, not the fork lane's own checkout). The pins'
+headers did not change from `36e9e23`, only version, SHA and manifest digest. Written by
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
@@ -369,7 +371,7 @@ tarball (or https URL to one) of the fork's whole `dist-web` root, holding
 
 ```bash
 # in the fork checkout, at the commit the pins name
-npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (36e9e23: 31.8 MiB as a tarball)
+npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (9b5e409: 31.8 MiB as a tarball)
 tar -C dist-web -czf dist-web.tar.gz .
 # publish dist-web.tar.gz where the secret's URL points; the sync verifies it against the pins
 ```
@@ -382,8 +384,20 @@ so update the secret together with the pins. `next build` offers a module only
 when its pinned bundle installs and verifies
 (`NEXT_PUBLIC_OFFICE_FRAME_VERSIONS`); with all six installed it lists all six.
 
-Open: the Sheets AI question above; the `e2e` job's secret to be re-published
-by whoever holds it (the fork CI does not publish a `dist-web` tarball).
+**The Sheets wasm differs per platform.** The xlsx engine's `xlsx-sidecar.wasm`
+is byte-different on linux-arm64 and linux-x64 from the same inputs, so the fork
+keeps one checksum line per platform
+(`apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256`) and
+`manifestSha256` in `sheets.pin.json` covers the wasm bytes. The pin is therefore
+the **linux-arm64 build made on bro** (wasm sha256 `e56985bc...27cd`, arm64
+line of the fork file). A tarball built on an x64 machine (the CI secret, if it is
+built there) holds a different Sheets wasm, so `office-frame-sync` refuses it
+against this pin: publish the secret from the bro tarball
+(`dist-web-0.1.0-9b5e409.tar.gz`), or re-pin from an x64 build and let CI use that
+one; never mix the two.
+
+Open: the `e2e` job's secret to be re-published by whoever holds it from the
+tarball above (the fork CI does not publish a `dist-web` tarball).
 
 ## Not done here
 
