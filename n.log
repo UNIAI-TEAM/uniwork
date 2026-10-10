@@ -1,0 +1,77 @@
+$ pnpm lint
+
+> uniwork@ lint /workspace
+> bash scripts/lint-gate.sh
+
+• turbo 2.10.11
+
+   • Packages in scope: @uniwork/core, @uniwork/e2e, @uniwork/eslint-config, @uniwork/office-contracts, @uniwork/office-desktop, @uniwork/office-engine, @uniwork/office-engine-app, @uniwork/office-upstream, @uniwork/tsconfig, @uniwork/ui, @uniwork/views, @uniwork/web
+   • Running lint in 12 packages
+   • Remote caching disabled
+
+@uniwork/views:lint: cache miss, executing eb6f0211eed87b56
+@uniwork/core:lint: cache miss, executing f879eae8e4353e00
+@uniwork/office-engine-app:lint: cache miss, executing 677cafd70e1bf300
+@uniwork/web:lint: cache miss, executing a5fd3208c35c442b
+@uniwork/ui:lint: cache miss, executing 625031a7374150d4
+@uniwork/office-contracts:lint: cache miss, executing eb3e05a157c7ea87
+@uniwork/office-desktop:lint: cache miss, executing 6558cd03a3304973
+@uniwork/office-engine:lint: cache miss, executing 79420e75fa7a02ca
+@uniwork/office-desktop:lint: 
+@uniwork/office-desktop:lint: > @uniwork/office-desktop@0.1.0 lint /workspace/apps/office-desktop
+@uniwork/office-desktop:lint: > eslint . --max-warnings 0
+@uniwork/office-desktop:lint: 
+@uniwork/office-engine:lint: 
+@uniwork/office-engine:lint: > @uniwork/office-engine@0.0.0 lint /workspace/packages/office-engine
+@uniwork/office-engine:lint: > eslint . --max-warnings 0
+@uniwork/office-engine:lint: 
+@uniwork/web:lint: 
+@uniwork/web:lint: > @uniwork/web@0.0.0 lint /workspace/apps/web
+@uniwork/web:lint: > eslint . --max-warnings 0
+@uniwork/web:lint: 
+@uniwork/office-engine-app:lint: 
+@uniwork/office-engine-app:lint: > @uniwork/office-engine-app@0.0.0 lint /workspace/apps/office-engine
+@uniwork/office-engine-app:lint: > eslint . --max-warnings 0
+@uniwork/office-engine-app:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: > @uniwork/views@0.0.0 lint /workspace/packages/views
+@uniwork/views:lint: > eslint . --max-warnings 0
+@uniwork/views:lint: 
+@uniwork/core:lint: 
+@uniwork/core:lint: > @uniwork/core@0.0.0 lint /workspace/packages/core
+@uniwork/core:lint: > eslint . --max-warnings 0
+@uniwork/core:lint: 
+@uniwork/ui:lint: 
+@uniwork/ui:lint: > @uniwork/ui@0.0.0 lint /workspace/packages/ui
+@uniwork/ui:lint: > eslint . --max-warnings 0
+@uniwork/ui:lint: 
+@uniwork/office-contracts:lint: 
+@uniwork/office-contracts:lint: > @uniwork/office-contracts@0.0.0 lint /workspace/packages/office-contracts
+@uniwork/office-contracts:lint: > eslint . --max-warnings 0
+@uniwork/office-contracts:lint: 
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/admin/admin-billing-ui.tsx
+@uniwork/views:lint:   152:15  error  Use <DateField> (packages/views/common) or <TimeInput> from @uniwork/ui, not a native date/time input  no-restricted-syntax
+@uniwork/views:lint:   165:15  error  Use <DateField> (packages/views/common) or <TimeInput> from @uniwork/ui, not a native date/time input  no-restricted-syntax
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/chat/chat-page-view.tsx
+@uniwork/views:lint:   539:1  error  File has too many lines (504). Maximum allowed is 500  max-lines
+@uniwork/views:lint: 
+@uniwork/views:lint: /workspace/packages/views/settings/components/billing-tab.tsx
+@uniwork/views:lint:   129:6   warning  React Hook useEffect has a missing dependency: 'clearCheckoutQuery'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+@uniwork/views:lint:   199:11  error    packages/views must not reload the page. Use useNavigation().push()/replace()                                          no-restricted-syntax
+@uniwork/views:lint: 
+@uniwork/views:lint: ✖ 5 problems (4 errors, 1 warning)
+@uniwork/views:lint: 
+@uniwork/views:lint:  ELIFECYCLE  Command failed with exit code 1.
+@uniwork/views#lint:  ERROR  command (/workspace/packages/views) /home/ubuntu/.local/share/pnpm/.tools/pnpm/10.28.2/bin/pnpm run lint exited (1)
+
+ Tasks:    7 successful, 8 total
+Cached:    0 cached, 8 total
+  Time:    1m39.051s 
+Failed:    @uniwork/views#lint
+
+ ERROR  run failed: command  exited (1)
+
+lint: reported, not enforced — GATE_LEVEL=fast (docs/adr/0014).
+      Every finding above is real and fails the run at standard.
