@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver, type QueryKey } from "@tanstack/react-query";
 import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import * as chatApi from "../api/endpoints/chat";
@@ -30,6 +30,12 @@ function fakeClient() {
     reconnect: () => reconnectHandlers.forEach((h) => h()),
   };
   return client as unknown as WSClient & typeof client;
+}
+
+/** A chat list a screen shows: realtime only asks the server for those (UNI-1078). */
+function shown(qc: QueryClient, queryKey: QueryKey, data: unknown) {
+  qc.setQueryData(queryKey, data);
+  new QueryObserver(qc, { queryKey, enabled: false }).subscribe(() => {});
 }
 
 function setup() {
@@ -556,7 +562,7 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), { pages: [[]], pageParams: [null] });
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [[]], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -594,7 +600,7 @@ describe("useRealtimeSync", () => {
     });
     const qc = new QueryClient();
     qc.setQueryData(chatKeys.room("ws1"), { workspace_id: "ws1", room_id: "ws-room" });
-    qc.setQueryData(chatKeys.messages("ws1"), []);
+    shown(qc, chatKeys.messages("ws1"), []);
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -635,7 +641,7 @@ describe("useRealtimeSync", () => {
       thread_unread: false,
     });
     const qc = new QueryClient();
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), {
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), {
       pageParams: [null],
       pages: [[{
         id: "root1",
@@ -736,7 +742,7 @@ describe("useRealtimeSync", () => {
         thread_unread: false,
       },
     ];
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), { pages: [messages], pageParams: [null] });
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [messages], pageParams: [null] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
@@ -855,7 +861,7 @@ describe("useRealtimeSync", () => {
     const list = vi.spyOn(chatApi, "listChatRoomMessages").mockResolvedValue([]);
     const { qc, invalidate, client } = setup();
     const newest = { ...messageRow("m1"), cursor: "1.m1" };
-    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), { pages: [[newest]], pageParams: [null] });
+    shown(qc, chatKeys.roomMessages("ws1", "dm1"), { pages: [[newest]], pageParams: [null] });
     client.reconnect();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);

@@ -1,6 +1,6 @@
 "use client";
 
-import type { QueryClient } from "@tanstack/react-query";
+import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat";
 import { getChatRoomMessage } from "../api/endpoints/chat";
 import { useAuthStore } from "../auth/store";
@@ -11,7 +11,9 @@ import {
   CHAT_MESSAGE_CACHE_MAX,
   insertCreatedTimelineMessage,
   mapRoomTimeline,
+  markStaleUnlessObserved,
   replaceTimelineMessage,
+  roomTimelineFetchInFlight,
   roomTimelineHas,
   type RoomTimeline,
 } from "./room-timeline";
@@ -103,6 +105,7 @@ export function bumpThreadRootReplyCount(
 /**
  * Patch a loaded room timeline. A patch that cannot keep it contiguous
  * returns null, and so does a timeline not loaded: both refetch (UNI-950).
+ * While the timeline fetches, the patch waits for it (patches are idempotent).
  */
 function patchRoomTimelineIfLoaded(
   qc: QueryClient,
@@ -111,6 +114,11 @@ function patchRoomTimelineIfLoaded(
   patch: (existing: RoomTimeline) => RoomTimeline | null,
 ): void {
   const key = chatKeys.roomMessages(wsId, roomId);
+  const inFlight = roomTimelineFetchInFlight(qc, key);
+  if (inFlight) {
+    void inFlight.then(() => patchRoomTimelineIfLoaded(qc, wsId, roomId, patch));
+    return;
+  }
   const existing = qc.getQueryData<RoomTimeline>(key);
   const next = existing === undefined ? null : patch(existing);
   if (next === null) {
@@ -205,16 +213,22 @@ function shouldIncrementUnreadLocally(room: ChatRoomRecord | undefined): boolean
   return room !== undefined && isDefaultWorkspaceChannel(room);
 }
 
-/** A loaded timeline of this room, or of one of its threads: the only reason to GET a message. */
-function isRoomTimelineCached(qc: QueryClient, wsId: string, roomId: string): boolean {
-  if (qc.getQueryData(chatKeys.roomMessages(wsId, roomId)) !== undefined) return true;
+/**
+ * A shown timeline of this room, or of one of its threads: the only reason to
+ * GET a message. One loaded but not shown is marked stale instead (UNI-1078).
+ */
+function isRoomTimelineShown(qc: QueryClient, wsId: string, roomId: string): boolean {
   const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
-  if (wsRoom?.room_id === roomId && qc.getQueryData(chatKeys.messages(wsId)) !== undefined) {
-    return true;
+  const keys: QueryKey[] = [
+    chatKeys.roomMessages(wsId, roomId),
+    ...(wsRoom?.room_id === roomId ? [chatKeys.messages(wsId)] : []),
+    ...qc.getQueriesData({ queryKey: ["chat", "thread-messages", wsId, roomId] }).map(([key]) => key),
+  ];
+  let shown = false;
+  for (const key of keys) {
+    if (qc.getQueryData(key) !== undefined && markStaleUnlessObserved(qc, key)) shown = true;
   }
-  return qc
-    .getQueriesData({ queryKey: ["chat", "thread-messages", wsId, roomId] })
-    .some(([, data]) => data !== undefined);
+  return shown;
 }
 
 /**
@@ -250,8 +264,10 @@ export async function fetchAndPatchChatMessage(
   messageId: string,
   created = false,
 ): Promise<void> {
+  // A frame during the room's first load is applied after it.
+  await roomTimelineFetchInFlight(qc, chatKeys.roomMessages(wsId, roomId));
   const viewing = isViewingRoom(wsId, roomId);
-  if (!isRoomTimelineCached(qc, wsId, roomId)) {
+  if (!isRoomTimelineShown(qc, wsId, roomId)) {
     // Nobody here shows this room: the next open loads it. The preview of a
     // non-default room follows `chat.room.activity`; the default channel has
     // none, so its badge counts here (preview catches up on the next refetch).

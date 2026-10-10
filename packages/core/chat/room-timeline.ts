@@ -1,4 +1,4 @@
-import type { InfiniteData, QueryClient } from "@tanstack/react-query";
+import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 import { listChatRoomMessages, olderThan, type ChatMessageRecord } from "../api/endpoints/chat";
 import { WS_SCOPE_CHAT } from "../realtime/scopes";
 import { chatKeys } from "./chat-keys";
@@ -140,12 +140,34 @@ export function refreshRoomTimelineOnOpen(qc: QueryClient, wsId: string, roomId:
   void qc.invalidateQueries({ queryKey: key });
 }
 
+/**
+ * An infinite query writes back the pages it started from when a fetch ends,
+ * so a patch made meanwhile (a frame during the first load or a
+ * fetchNextPage) is lost. The fetch in flight, settled, to patch after
+ * (UNI-1077); undefined when none is. Its error is the query's to report.
+ */
+export function roomTimelineFetchInFlight(qc: QueryClient, key: QueryKey): Promise<unknown> | undefined {
+  if (qc.getQueryState(key)?.fetchStatus !== "fetching") return undefined;
+  return qc.getQueryCache().find({ queryKey: key, exact: true })?.promise?.catch(() => undefined);
+}
+
+/**
+ * True when a screen shows this cache entry. One nobody shows is not worth a
+ * request: it is marked stale instead, so its next open refetches (UNI-1078).
+ */
+export function markStaleUnlessObserved(qc: QueryClient, key: QueryKey): boolean {
+  if ((qc.getQueryCache().find({ queryKey: key, exact: true })?.getObserversCount() ?? 0) > 0) return true;
+  void qc.invalidateQueries({ queryKey: key, exact: true, refetchType: "none" });
+  return false;
+}
+
 const catchUpsInFlight = new Map<string, Promise<void>>();
+const catchUpsQueued = new Map<string, Promise<void>>();
 
 async function readMissedMessages(qc: QueryClient, wsId: string, roomId: string): Promise<void> {
   const key = chatKeys.roomMessages(wsId, roomId);
   const data = qc.getQueryData<RoomTimeline>(key);
-  if (!data) return;
+  if (!data || !markStaleUnlessObserved(qc, key)) return;
   const newest = newestTimelineMessage(data);
   // An empty room or a server without cursors: the newest page is the catch-up.
   if (!newest?.cursor) {
@@ -163,6 +185,7 @@ async function readMissedMessages(qc: QueryClient, wsId: string, roomId: string)
     void qc.invalidateQueries({ queryKey: key });
     return;
   }
+  await roomTimelineFetchInFlight(qc, key);
   // A full page may not be all that was missed: refetch rather than guess.
   let next = rows.length >= CHAT_HISTORY_PAGE_SIZE ? null : (qc.getQueryData<RoomTimeline>(key) ?? null);
   for (const row of rows) {
@@ -177,11 +200,24 @@ async function readMissedMessages(qc: QueryClient, wsId: string, roomId: string)
  * After a (re)subscribe or a reconnect, read the messages newer than the
  * newest loaded one and append them (H5). Frames sent while the socket was
  * down are gone; this closes that gap without refetching every loaded page.
+ * An ask while one runs gets one read after it, shared by every ask made
+ * meanwhile: the running one may have started before the scope was
+ * admitted, and so missed what came between (UNI-1078).
  */
 export function catchUpRoomTimeline(qc: QueryClient, wsId: string, roomId: string): Promise<void> {
   const id = `${wsId}/${roomId}`;
   const running = catchUpsInFlight.get(id);
-  if (running) return running;
+  if (running) {
+    const queued = catchUpsQueued.get(id);
+    if (queued) return queued;
+    const followUp = () => {
+      catchUpsQueued.delete(id);
+      return catchUpRoomTimeline(qc, wsId, roomId);
+    };
+    const next = running.then(followUp, followUp);
+    catchUpsQueued.set(id, next);
+    return next;
+  }
   const run = readMissedMessages(qc, wsId, roomId).finally(() => catchUpsInFlight.delete(id));
   catchUpsInFlight.set(id, run);
   return run;

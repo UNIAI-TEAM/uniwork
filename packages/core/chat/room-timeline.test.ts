@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as chatApi from "../api/endpoints/chat";
 import type { ChatMessageRecord } from "../api/endpoints/chat";
@@ -6,6 +6,7 @@ import { chatKeys } from "./chat-keys";
 import {
   CHAT_HISTORY_PAGE_SIZE,
   CHAT_MESSAGE_CACHE_MAX,
+  catchUpLoadedRoomTimelines,
   catchUpRoomTimeline,
   flattenRoomTimeline,
   insertCreatedTimelineMessage,
@@ -98,11 +99,16 @@ describe("room timeline", () => {
 describe("catchUpRoomTimeline", () => {
   afterEach(() => vi.restoreAllMocks());
   const key = chatKeys.roomMessages("ws1", "room1");
+  /** A timeline a screen shows: only those catch up (UNI-1078). */
+  const shown = (qc: QueryClient, data: RoomTimeline) => {
+    qc.setQueryData(key, data);
+    new QueryObserver(qc, { queryKey: key, enabled: false }).subscribe(() => {});
+  };
 
   it("appends what arrived after the newest loaded message", async () => {
     const list = vi.spyOn(chatApi, "listChatRoomMessages").mockResolvedValue([msg("c", 3), msg("d", 4)]);
     const qc = new QueryClient();
-    qc.setQueryData(key, timeline([msg("b", 2)], [msg("a", 1)]));
+    shown(qc, timeline([msg("b", 2)], [msg("a", 1)]));
 
     await catchUpRoomTimeline(qc, "ws1", "room1");
 
@@ -115,7 +121,7 @@ describe("catchUpRoomTimeline", () => {
       Array.from({ length: CHAT_HISTORY_PAGE_SIZE }, (_, i) => msg(`n${i}`, 3)),
     );
     const qc = new QueryClient();
-    qc.setQueryData(key, timeline([msg("b", 2)]));
+    shown(qc, timeline([msg("b", 2)]));
     const invalidate = vi.spyOn(qc, "invalidateQueries");
 
     await catchUpRoomTimeline(qc, "ws1", "room1");
@@ -130,11 +136,34 @@ describe("catchUpRoomTimeline", () => {
     expect(list).not.toHaveBeenCalled();
   });
 
-  it("asks once when a reconnect and a resubscribe overlap", async () => {
+  // UNI-1078: the running read may have started before the scope was
+  // admitted, so an ask during it gets one more read after it, never more.
+  it("reads once more after a running catch-up, however many ask meanwhile", async () => {
     const list = vi.spyOn(chatApi, "listChatRoomMessages").mockResolvedValue([]);
     const qc = new QueryClient();
-    qc.setQueryData(key, timeline([msg("b", 2)]));
+    shown(qc, timeline([msg("b", 2)]));
+    await Promise.all([
+      catchUpRoomTimeline(qc, "ws1", "room1"),
+      catchUpRoomTimeline(qc, "ws1", "room1"),
+      catchUpRoomTimeline(qc, "ws1", "room1"),
+    ]);
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps what the follow-up read found", async () => {
+    vi.spyOn(chatApi, "listChatRoomMessages").mockResolvedValueOnce([]).mockResolvedValueOnce([msg("c", 3)]);
+    const qc = new QueryClient();
+    shown(qc, timeline([msg("b", 2)]));
     await Promise.all([catchUpRoomTimeline(qc, "ws1", "room1"), catchUpRoomTimeline(qc, "ws1", "room1")]);
-    expect(list).toHaveBeenCalledTimes(1);
+    expect(ids(qc.getQueryData<RoomTimeline>(key)!)).toEqual(["b", "c"]);
+  });
+
+  it("only marks stale a loaded timeline nobody shows", async () => {
+    const list = vi.spyOn(chatApi, "listChatRoomMessages");
+    const qc = new QueryClient();
+    qc.setQueryData(key, timeline([msg("b", 2)]));
+    catchUpLoadedRoomTimelines(qc, "ws1");
+    await vi.waitFor(() => expect(qc.getQueryState(key)?.isInvalidated).toBe(true));
+    expect(list).not.toHaveBeenCalled();
   });
 });
