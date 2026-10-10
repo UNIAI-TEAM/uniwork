@@ -766,7 +766,7 @@ Bộ đo dùng cho báo cáo này (Go, mô phỏng client web) nên được đ�
 3. **Phòng nhóm** (bảng D). 300 người, 60 nhóm, 6 tin/s. Ngưỡng như trên.
 4. **Sidebar** (bảng E). Người dùng 300 phòng. Ngưỡng: p95 dưới 300 ms, tối đa 10 câu lệnh mỗi lần. Thêm một test Go đếm số câu lệnh bằng pgx tracer.
 5. **Chuyển phòng và đọc** (F). 200 người, mỗi người đổi phòng mỗi 30 s. Ngưỡng: `GET /chat/rooms` không tăng theo số người khác.
-6. **Đợt mở app** (G). 300 người tải trang chat trong 60 s. Ngưỡng: mọi client sẵn sàng trong 10 s, RSS dưới 400 MiB, 0 subscription lỗi.
+6. **Đợt mở app** (G). 300 người tải trang chat trong 60 s. Ngưỡng: mọi client sẵn sàng trong 10 s, RSS dưới 480 MiB (giới hạn pod 512Mi trừ khoảng dư; GOMEMLIMIT 400MiB chỉ là mục tiêu GC), 0 subscription lỗi.
 7. **Deploy** (H). Restart giữa chừng với 500 socket. Ngưỡng: subscribe lại xong trong 10 s, không lỗi `readyz`, không mất tin.
 8. **NAT văn phòng** (I). 300 người trên một IP. Ngưỡng: 0 tin thất bại vì 429.
 9. **Tính đúng** (J). Phòng 7 tin/s, cuộn hết lịch sử. Ngưỡng: 0 tin bị bỏ sót. 200 phiếu bầu đồng thời: 0 phiếu mất.

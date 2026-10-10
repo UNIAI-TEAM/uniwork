@@ -51,3 +51,27 @@ func TestClientCursorMatchesDateToISOString(t *testing.T) {
 		t.Fatalf("cursor = %s", got)
 	}
 }
+
+// A duplicate on one socket must not hide a miss on another.
+func TestArrivalsCountMissedPairsNotTotals(t *testing.T) {
+	msgs := []sent{{id: "m1", start: time.Now()}, {id: "m2", start: time.Now()}}
+	a := &arrivals{}
+	a.add(0, "m1")
+	a.add(0, "m2")
+	a.add(1, "m1")
+	a.add(1, "m1") // socket 1 sees m1 twice and never m2
+	a.add(1, "other")
+	lat, missed, dups := a.latency(msgs, 2)
+	if missed != 1 || dups != 1 || len(lat.ms) != 3 {
+		t.Fatalf("missed=%d dups=%d samples=%d, want 1 1 3", missed, dups, len(lat.ms))
+	}
+}
+
+// A setup failure becomes a failed check on that scenario, not an exit.
+func TestRunScenarioRecordsFatalAsFailedCheck(t *testing.T) {
+	r := &result{Name: "x"}
+	runScenario(func(*env, *result) { fatal("no %s", "channel") }, nil, r)
+	if len(r.Checks) != 1 || r.Checks[0].OK || r.Checks[0].Name != "setup: no channel" {
+		t.Fatalf("checks = %+v", r.Checks)
+	}
+}

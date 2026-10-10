@@ -1,7 +1,8 @@
 // chat-load drives the chat API and WebSocket the way the web client does
 // (docs/chat-assessment.md §3.1) and checks the §8 thresholds. It prints a
 // JSON summary and exits 1 when a checked threshold fails, 2 when it cannot
-// run at all.
+// run at all. A scenario that cannot set up (login, channel, socket) records
+// a failed check instead, so -report-only still applies and the rest run.
 //
 // Dataset: one organization from server/cmd/seed (user<N>@perf.local /
 // password123, everyone in the default channel, user0 in every seeded group):
@@ -91,12 +92,12 @@ func main() {
 	for _, name := range strings.Split(*scenarios, ",") {
 		run, ok := all[strings.TrimSpace(name)]
 		if !ok {
-			fatal("unknown scenario %q", name)
+			die("unknown scenario %q", name)
 		}
 		r := &result{Name: name, ReportOnly: slices.Contains(soft, name), Metrics: map[string]any{}}
 		fmt.Fprintf(os.Stderr, "== %s\n", name)
 		start, shed := time.Now(), e.shed.Load()
-		run(e, r)
+		runScenario(run, e, r)
 		r.Seconds = time.Since(start).Seconds()
 		r.Metrics["shed_503_retried"] = e.shed.Load() - shed
 		r.OK = true
@@ -112,7 +113,7 @@ func main() {
 	fmt.Println(string(b))
 	if *out != "" {
 		if err := os.WriteFile(*out, b, 0o644); err != nil {
-			fatal("write %s: %v", *out, err)
+			die("write %s: %v", *out, err)
 		}
 	}
 	if !summary.OK {
@@ -120,9 +121,36 @@ func main() {
 	}
 }
 
-func fatal(format string, args ...any) {
+// die stops the whole run: it cannot start, or cannot write its summary.
+func die(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "chat-load: "+format+"\n", args...)
 	os.Exit(2)
+}
+
+// setupError is what fatal panics with; runScenario recovers it.
+type setupError string
+
+// fatal aborts the current scenario. Call it only from the scenario's own
+// goroutine: a panic in another goroutine cannot be recovered.
+func fatal(format string, args ...any) {
+	panic(setupError(fmt.Sprintf(format, args...)))
+}
+
+// runScenario runs one scenario and turns a fatal into a failed check.
+func runScenario(run func(*env, *result), e *env, r *result) {
+	defer func() {
+		p := recover()
+		if p == nil {
+			return
+		}
+		msg, ok := p.(setupError)
+		if !ok {
+			panic(p)
+		}
+		fmt.Fprintf(os.Stderr, "chat-load: %s: %s\n", r.Name, msg)
+		r.Checks = append(r.Checks, check{Name: "setup: " + string(msg), Value: 1, Limit: 0})
+	}()
+	run(e, r)
 }
 
 // --- results ---------------------------------------------------------------
@@ -141,7 +169,6 @@ type result struct {
 	Seconds    float64        `json:"seconds"`
 	Metrics    map[string]any `json:"metrics"`
 	Checks     []check        `json:"checks"`
-	Skipped    []string       `json:"skipped,omitempty"`
 }
 
 // atMost records a threshold: value must not exceed limit.
@@ -168,12 +195,6 @@ func (s *samples) pct(p float64) float64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return percentile(s.ms, p)
-}
-
-func (s *samples) n() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.ms)
 }
 
 // percentile is nearest-rank; 0 for no samples.
@@ -354,9 +375,8 @@ func (e *env) channel(owner *vu, name string, members []*vu) string {
 }
 
 type sent struct {
-	id        string
-	createdAt string
-	start     time.Time
+	id    string
+	start time.Time
 }
 
 // sendLoop posts rate messages per second into room for d, rotating senders,
@@ -379,8 +399,7 @@ func (e *env) sendLoop(senders []*vu, room string, rate float64, d time.Duration
 			defer wg.Done()
 			var res struct {
 				Message struct {
-					ID        string `json:"id"`
-					CreatedAt string `json:"created_at"`
+					ID string `json:"id"`
 				} `json:"message"`
 			}
 			start := time.Now()
@@ -396,7 +415,7 @@ func (e *env) sendLoop(senders []*vu, room string, rate float64, d time.Duration
 			if post != nil {
 				post.add(took)
 			}
-			out = append(out, sent{res.Message.ID, res.Message.CreatedAt, start})
+			out = append(out, sent{res.Message.ID, start})
 		}(n)
 	}
 }
@@ -525,13 +544,23 @@ type snap struct {
 }
 
 func (e *env) scrape() snap {
-	res, err := e.hc.Get(e.metricsURL)
+	s, err := e.tryScrape()
 	if err != nil {
 		fatal("metrics %s: %v", e.metricsURL, err)
 	}
+	return s
+}
+
+// tryScrape is scrape for goroutines other than the scenario's, which must
+// not call fatal.
+func (e *env) tryScrape() (snap, error) {
+	res, err := e.hc.Get(e.metricsURL)
+	if err != nil {
+		return snap{}, err
+	}
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)
-	return parseMetrics(string(raw), time.Now())
+	return parseMetrics(string(raw), time.Now()), nil
 }
 
 // parseMetrics sums each family over its labels.
@@ -592,8 +621,8 @@ func (e *env) watch(stop <-chan struct{}) (maxRSS *atomic.Int64, healthFails *at
 		for {
 			if st, took := e.call(nil, "GET", "/healthz", nil, nil); st != http.StatusOK || took > livenessTimeout {
 				healthFails.Add(1)
-			} else if rss := int64(e.scrape().rss); rss > maxRSS.Load() {
-				maxRSS.Store(rss)
+			} else if s, err := e.tryScrape(); err == nil && int64(s.rss) > maxRSS.Load() {
+				maxRSS.Store(int64(s.rss))
 			}
 			select {
 			case <-stop:

@@ -7,8 +7,10 @@
 # small dataset, and does block that PR.
 #
 # The chat-load job runs scripts/load/chat (docs/chat-assessment.md §8)
-# against a one-organization chat dataset. Correctness and abuse must pass;
-# the others report until the chat fixes they measure land.
+# against a one-organization chat dataset. Correctness and abuse run first
+# and must pass; the others report until the chat fixes they measure land. A
+# scenario that cannot set up is a failed check of that scenario, so it
+# neither stops the later ones nor fails a report-only run.
 #
 # The schedule tests `develop`, where work lands; GitHub always reads a
 # scheduled workflow from the default branch, so this file must reach `main`
@@ -188,6 +190,11 @@ jobs:
           cache-dependency-path: |
             server/go.sum
             scripts/load/chat/go.sum
+      - name: Vet and test the load generator
+        working-directory: scripts/load/chat
+        run: |
+          go vet ./...
+          go test ./...
       - name: Build, migrate, seed, start
         run: |
           cd server
@@ -195,7 +202,8 @@ jobs:
           go run ./cmd/migrate up
           # 1,200 people in the default channel; user0 in 300 groups.
           go run ./cmd/seed --orgs 1 --users 1200 --tasks 1000 --chat-groups 300 --chat-messages 2000
-          # One core and the pod's memory limit, as close to production as a runner gets.
+          # One core and production's GOMEMLIMIT (the pod limit is 512Mi), as
+          # close to production as a runner gets.
           GOMAXPROCS=1 GOMEMLIMIT=400MiB nohup bin/server > /tmp/server.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:8080/readyz && break; sleep 1; done
           curl -sf http://localhost:8080/readyz
@@ -204,6 +212,7 @@ jobs:
         run: |
           mkdir -p ../results
           go run . -base http://localhost:8080 -metrics http://127.0.0.1:9090/metrics \
+            -scenarios correctness,abuse,fanout,channel,sidebar,burst \
             -report-only fanout,channel,sidebar,burst -out ../results/chat-load.json
       - name: Keep results 90 days
         if: always()

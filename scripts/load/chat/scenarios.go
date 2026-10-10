@@ -14,47 +14,67 @@ import (
 
 const mib = 1 << 20
 
-// arrivals records when each socket first saw each message id.
-type arrivals struct {
-	mu sync.Mutex
-	at []struct {
-		id string
-		t  time.Time
-	}
+// rssLimitMiB is the RSS a run may reach: the pod's 512Mi limit
+// (deploy/app/uniwork/values.yaml) minus 32 MiB headroom. GOMEMLIMIT (400MiB)
+// is a GC target the heap may pass, not the line where the pod is killed.
+const rssLimitMiB = 480
+
+// arrival is one socket seeing one message id.
+type arrival struct {
+	sock int
+	id   string
+	t    time.Time
 }
 
-func (a *arrivals) add(id string) {
+// arrivals records every frame each socket saw.
+type arrivals struct {
+	mu sync.Mutex
+	at []arrival
+}
+
+func (a *arrivals) add(sock int, id string) {
 	a.mu.Lock()
-	a.at = append(a.at, struct {
-		id string
-		t  time.Time
-	}{id, time.Now()})
+	a.at = append(a.at, arrival{sock, id, time.Now()})
 	a.mu.Unlock()
 }
 
-// latency joins arrivals with the send start of each message.
-func (a *arrivals) latency(msgs []sent) (*samples, int) {
+// latency joins the first arrival of each (socket, message) pair with the
+// send start of the message. missed counts the pairs of socks × msgs never
+// seen; dups counts repeat arrivals, which must not stand in for a miss.
+func (a *arrivals) latency(msgs []sent, socks int) (lat *samples, missed, dups int) {
 	start := make(map[string]time.Time, len(msgs))
 	for _, m := range msgs {
 		start[m.id] = m.start
 	}
-	s := &samples{}
+	type pair struct {
+		sock int
+		id   string
+	}
+	seen := map[pair]bool{}
+	lat = &samples{}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	matched := 0
 	for _, x := range a.at {
-		if t, ok := start[x.id]; ok {
-			s.add(x.t.Sub(t))
-			matched++
+		t, ok := start[x.id]
+		if !ok {
+			continue
+		}
+		if k := (pair{x.sock, x.id}); seen[k] {
+			dups++
+		} else {
+			seen[k] = true
+			lat.add(x.t.Sub(t))
 		}
 	}
-	return s, matched
+	return lat, len(msgs)*socks - len(seen), dups
 }
 
-// openSockets dials one reading socket per user, subscribed to room.
+// openSockets dials one reading socket per user, subscribed to room. On any
+// failure it closes what it opened and aborts the scenario.
 func (e *env) openSockets(users []*vu, room string, onFrame func(u *vu, f frame)) []*sock {
 	socks := make([]*sock, len(users))
 	var wg sync.WaitGroup
+	var failed atomic.Pointer[string]
 	sem := make(chan struct{}, 32)
 	for i, u := range users {
 		wg.Add(1)
@@ -63,15 +83,22 @@ func (e *env) openSockets(users []*vu, room string, onFrame func(u *vu, f frame)
 			defer func() { <-sem; wg.Done() }()
 			s, err := e.dial(u, 25*time.Second, 0, func(f frame) { onFrame(u, f) })
 			if err != nil {
-				fatal("dial user%d: %v", u.i, err)
-			}
-			if err := s.subscribe(room); err != nil || !s.settled(1, 30*time.Second) || s.refused.Load() > 0 {
-				fatal("subscribe user%d to %s refused", u.i, room)
+				msg := fmt.Sprintf("dial user%d: %v", u.i, err)
+				failed.CompareAndSwap(nil, &msg)
+				return
 			}
 			socks[i] = s
+			if err := s.subscribe(room); err != nil || !s.settled(1, 30*time.Second) || s.refused.Load() > 0 {
+				msg := fmt.Sprintf("subscribe user%d to %s refused", u.i, room)
+				failed.CompareAndSwap(nil, &msg)
+			}
 		}()
 	}
 	wg.Wait()
+	if msg := failed.Load(); msg != nil {
+		closeAll(socks)
+		fatal("%s", *msg)
+	}
 	return socks
 }
 
@@ -90,9 +117,9 @@ func scenarioFanout(e *env, r *result) {
 		us := e.need(size)
 		room := e.channel(us[0], "fanout", us[1:])
 		got := &arrivals{}
-		socks := e.openSockets(us, room, func(_ *vu, f frame) {
+		socks := e.openSockets(us, room, func(u *vu, f frame) {
 			if f.Type == "chat.message.created" && f.str("room_id") == room {
-				got.add(f.str("message_id"))
+				got.add(u.i, f.str("message_id"))
 			}
 		})
 		_, idleCPU := e.idle(3 * time.Second)
@@ -102,16 +129,17 @@ func scenarioFanout(e *env, r *result) {
 		time.Sleep(3 * time.Second)
 		after := e.scrape()
 		closeAll(socks)
-		lat, frames := got.latency(msgs)
+		lat, missed, dups := got.latency(msgs, size)
 		perMsg := 1000 * (after.cpu - before.cpu - idleCPU*after.at.Sub(before.at).Seconds()) / float64(max(1, len(msgs)))
 		cpu = append(cpu, perMsg)
 		r.Metrics[fmt.Sprintf("room_%d", size)] = map[string]any{
 			"sockets": size, "messages": len(msgs), "post_p50_ms": post.pct(.5), "post_p95_ms": post.pct(.95),
 			"frame_p50_ms": lat.pct(.5), "frame_p95_ms": lat.pct(.95), "cpu_ms_per_message": round(perMsg),
+			"frames_duplicated": dups,
 		}
 		r.atMost(fmt.Sprintf("room %d: POST p95 ms", size), post.pct(.95), 300)
 		r.atMost(fmt.Sprintf("room %d: failed sends", size), float64(failed), 0)
-		r.atMost(fmt.Sprintf("room %d: frames missed", size), float64(len(msgs)*size-frames), 0)
+		r.atMost(fmt.Sprintf("room %d: frames missed", size), float64(missed), 0)
 	}
 	if len(cpu) > 1 && cpu[0] > 0 {
 		// "CPU per message does not grow with members": allow 2x for noise.
@@ -135,7 +163,7 @@ func scenarioChannel(e *env, r *result) {
 			id := f.str("message_id")
 			time.AfterFunc(jitter(250*time.Millisecond, 250*time.Millisecond), func() {
 				if st, _ := e.call(u, "GET", e.ws("/chat/rooms/"+room+"/messages/"+id), nil, nil); ok(st) {
-					shown.add(id)
+					shown.add(u.i, id)
 				} else {
 					getFails.Add(1)
 				}
@@ -158,16 +186,17 @@ func scenarioChannel(e *env, r *result) {
 	time.Sleep(3 * time.Second)
 	after := e.scrape()
 	closeAll(socks)
-	lat, _ := shown.latency(msgs)
+	lat, neverShown, dups := shown.latency(msgs, len(viewers))
 	stmts := after.stmts - before.stmts - idleStmts*after.at.Sub(before.at).Seconds()
 	perRecipient := stmts / float64(max(1, len(msgs)*len(viewers)))
 	r.Metrics["viewers"] = len(viewers)
 	r.Metrics["messages"] = len(msgs)
 	r.Metrics["post_p95_ms"] = post.pct(.95)
 	r.Metrics["shown_p50_ms"] = lat.pct(.5)
+	r.Metrics["shown_twice"] = dups
 	r.Metrics["statements_per_message"] = round(stmts / float64(max(1, len(msgs))))
 	r.atMost("message shown p95 ms", lat.pct(.95), 1000)
-	r.atMost("messages never shown", float64(len(msgs)*len(viewers)-lat.n()), 0)
+	r.atMost("messages never shown", float64(neverShown), 0)
 	r.atMost("statements per message per recipient", perRecipient, 5)
 	r.atMost("db pool waits", after.waits-before.waits, 0)
 	r.atMost("failed sends + client GETs", float64(failed)+float64(getFails.Load()), 0)
@@ -265,7 +294,7 @@ func scenarioBurst(e *env, r *result) {
 	r.atMost("slowest client ready ms", ready.pct(1), 10_000)
 	r.atMost("subscriptions failed", float64(subFails.Load()), 0)
 	r.atMost("page-load requests failed + sockets not opened", float64(reqFails.Load()+dialFails.Load()), 0)
-	r.atMost("max RSS MiB", float64(maxRSS.Load())/mib, 400)
+	r.atMost("max RSS MiB", float64(maxRSS.Load())/mib, rssLimitMiB)
 	r.atMost("healthz failures", float64(healthFails.Load()), 0)
 }
 
@@ -423,14 +452,11 @@ func scenarioAbuse(e *env, r *result) {
 	us := e.need(2 + e.abusers + senderN)
 	observer, abusers, senders := us[1], us[2:2+e.abusers], us[2+e.abusers:]
 	room := e.channel(us[0], "abuse", us[1:])
-	stop := make(chan struct{})
-	maxRSS, healthFails, watched := e.watch(stop)
-	before := e.scrape()
 
 	got := &arrivals{}
-	obs := e.openSockets([]*vu{observer}, room, func(_ *vu, f frame) {
+	obs := e.openSockets([]*vu{observer}, room, func(u *vu, f frame) {
 		if f.Type == "chat.message.created" && f.str("room_id") == room {
-			got.add(f.str("message_id"))
+			got.add(u.i, f.str("message_id"))
 		}
 	})
 	var bad []*sock
@@ -438,11 +464,17 @@ func scenarioAbuse(e *env, r *result) {
 		// Pings every second, never reads, 4 KiB receive buffer.
 		s, err := e.dial(u, time.Second, 4096, nil)
 		if err != nil {
+			closeAll(append(obs, bad...))
 			fatal("dial abuser user%d: %v", u.i, err)
 		}
 		_ = s.subscribe(room)
 		bad = append(bad, s)
 	}
+	before := e.scrape()
+	// The watcher starts once nothing can abort the scenario, so it never
+	// outlives it.
+	stop := make(chan struct{})
+	maxRSS, healthFails, watched := e.watch(stop)
 	// 1.5 messages/s per sender stays inside the per-user write budget.
 	msgs, failed := e.sendLoop(senders, room, 1.5*senderN, e.dur, nil)
 
@@ -478,7 +510,7 @@ func scenarioAbuse(e *env, r *result) {
 	close(stop)
 	<-watched
 	closeAll(append(obs, bad...))
-	_, frames := got.latency(msgs)
+	_, missed, dups := got.latency(msgs, 1)
 	r.Metrics["messages"] = len(msgs)
 	r.Metrics["poll_1mib_status"] = pollStatus
 	r.Metrics["upload_statuses"] = uploads.by
@@ -486,12 +518,13 @@ func scenarioAbuse(e *env, r *result) {
 	// eviction path (C1) was not reached on this host.
 	r.Metrics["slow_sockets_evicted"] = e.scrape().evictions - before.evictions
 	r.Metrics["max_rss_mib"] = maxRSS.Load() / mib
+	r.Metrics["frames_duplicated"] = dups
 	r.atMost("healthz failures (process down)", float64(healthFails.Load()), 0)
-	r.atMost("frames missed by the reading socket", float64(len(msgs)-frames), 0)
+	r.atMost("frames missed by the reading socket", float64(missed), 0)
 	r.atMost("failed sends", float64(failed), 0)
 	r.atMost("1 MiB poll accepted (1 = yes)", b2f(ok(pollStatus)), 0)
 	r.atMost("uploads answered 5xx or dropped", float64(upload5xx.Load()), 0)
-	r.atMost("max RSS MiB", float64(maxRSS.Load())/mib, 400)
+	r.atMost("max RSS MiB", float64(maxRSS.Load())/mib, rssLimitMiB)
 }
 
 func b2f(b bool) float64 {
