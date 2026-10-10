@@ -1,0 +1,432 @@
+$ node --test scripts/*.test.mjs
+TAP version 13
+# Subtest: slice 6 locale strings have no source brand or Issue domain
+ok 1 - slice 6 locale strings have no source brand or Issue domain
+  ---
+  duration_ms: 56.472763
+  ...
+# Subtest: agent integration suite UI has no source brand or Issue domain
+ok 2 - agent integration suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 41.324712
+  ...
+# Subtest: every alert has a runbook_url whose file exists and is named after the alert
+ok 3 - every alert has a runbook_url whose file exists and is named after the alert
+  ---
+  duration_ms: 1.482177
+  ...
+# Subtest: every runbook has the four sections in order and a status line
+ok 4 - every runbook has the four sections in order and a status line
+  ---
+  duration_ms: 6.822045
+  ...
+# Subtest: every runbook is referenced by an alert
+ok 5 - every runbook is referenced by an alert
+  ---
+  duration_ms: 0.298575
+  ...
+# Subtest: runbook index lists every alert
+ok 6 - runbook index lists every alert
+  ---
+  duration_ms: 0.77229
+  ...
+# Subtest: every raster asset was built from the SVG currently committed
+ok 7 - every raster asset was built from the SVG currently committed
+  ---
+  duration_ms: 3.860794
+  ...
+# Subtest: the link-preview cards were built from the template currently committed
+ok 8 - the link-preview cards were built from the template currently committed
+  ---
+  duration_ms: 1.006414
+  ...
+# Subtest: every SVG source is recorded, and every recorded source exists
+ok 9 - every SVG source is recorded, and every recorded source exists
+  ---
+  duration_ms: 3.241685
+  ...
+# Subtest: every asset the lock names is on disk
+ok 10 - every asset the lock names is on disk
+  ---
+  duration_ms: 0.348464
+  ...
+# Subtest: every platform icon is opaque to its corners
+ok 11 - every platform icon is opaque to its corners
+  ---
+  duration_ms: 6.64842
+  ...
+# Subtest: the Next.js metadata files exist under app/
+ok 12 - the Next.js metadata files exist under app/
+  ---
+  duration_ms: 0.146178
+  ...
+# Subtest: every icon the manifest lists exists in public/
+ok 13 - every icon the manifest lists exists in public/
+  ---
+  duration_ms: 0.452279
+  ...
+# Subtest: the logo gradient never leaks into the token layer
+ok 14 - the logo gradient never leaks into the token layer
+  ---
+  duration_ms: 0.510844
+  ...
+# Subtest: the manifest theme colour is the brand token's value
+ok 15 - the manifest theme colour is the brand token's value
+  ---
+  duration_ms: 0.512758
+  ...
+# Subtest: pnpm catalog declares every shared dependency the port needs
+ok 16 - pnpm catalog declares every shared dependency the port needs
+  ---
+  duration_ms: 0.931827
+  ...
+# Subtest: every variable the server reads is documented in .env.example
+ok 17 - every variable the server reads is documented in .env.example
+  ---
+  duration_ms: 30.783896
+  ...
+# Subtest: the Go catalogue and the documented table agree
+ok 18 - the Go catalogue and the documented table agree
+  ---
+  duration_ms: 19.804309
+  ...
+# Subtest: every catalogue row has the one-line shape this file parses
+ok 19 - every catalogue row has the one-line shape this file parses
+  ---
+  duration_ms: 1.132079
+  ...
+# Subtest: the client knows every event that has a realtime audience
+ok 20 - the client knows every event that has a realtime audience
+  ---
+  duration_ms: 2.233518
+  ...
+# Subtest: event names follow <entity>.<verb> and carry no version
+ok 21 - event names follow <entity>.<verb> and carry no version
+  ---
+  duration_ms: 1.194511
+  ...
+# Subtest: payload keys are ids or revisions; content travels only through Patch
+ok 22 - payload keys are ids or revisions; content travels only through Patch
+  ---
+  duration_ms: 1.947216
+  ...
+# Subtest: the patchable task fields are exactly the ones ADR 0015 accepted
+ok 23 - the patchable task fields are exactly the ones ADR 0015 accepted
+  ---
+  duration_ms: 0.4949
+  ...
+# Subtest: the client decodes exactly the fields task.updated lists in Patch
+ok 24 - the client decodes exactly the fields task.updated lists in Patch
+  ---
+  duration_ms: 3.025592
+  ...
+# Subtest: every event has a scope or is explicitly infrastructure
+ok 25 - every event has a scope or is explicitly infrastructure
+  ---
+  duration_ms: 0.758626
+  ...
+# Subtest: AGENTS.md is CLAUDE.md, not a shorter copy of it
+ok 26 - AGENTS.md is CLAUDE.md, not a shorter copy of it
+  ---
+  duration_ms: 2.4713
+  ...
+# Subtest: no editor-specific rules tree is tracked beside AGENTS.md
+ok 27 - no editor-specific rules tree is tracked beside AGENTS.md
+  ---
+  duration_ms: 4.632303
+  ...
+# Subtest: pnpm install wires core.hooksPath at .githooks
+ok 28 - pnpm install wires core.hooksPath at .githooks
+  ---
+  duration_ms: 0.350886
+  ...
+# Subtest: both hooks exist and are executable
+ok 29 - both hooks exist and are executable
+  ---
+  duration_ms: 0.204694
+  ...
+# Subtest: the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+ok 30 - the commit-msg hook enforces exactly the prefixes CLAUDE.md documents
+  ---
+  duration_ms: 1.580999
+  ...
+# Subtest: the commit-msg hook accepts this repo's whole history
+ok 31 - the commit-msg hook accepts this repo's whole history
+  ---
+  duration_ms: 49.669927
+  ...
+# Subtest: make doctor reads pinned versions from the files that own them
+ok 32 - make doctor reads pinned versions from the files that own them
+  ---
+  duration_ms: 1.784738
+  ...
+# Subtest: the docs a newcomer is pointed at exist
+ok 33 - the docs a newcomer is pointed at exist
+  ---
+  duration_ms: 0.178852
+  ...
+# Subtest: GATE_LEVEL is one word and every gate that claims to read it does
+ok 34 - GATE_LEVEL is one word and every gate that claims to read it does
+  ---
+  duration_ms: 7.963738
+  ...
+# Subtest: the PR template ticks exactly the DoD items the DoD page lists
+ok 35 - the PR template ticks exactly the DoD items the DoD page lists
+  ---
+  duration_ms: 0.504648
+  ...
+# Subtest: every ADR is numbered once and carries a status
+ok 36 - every ADR is numbered once and carries a status
+  ---
+  duration_ms: 8.204246
+  ...
+# Subtest: every plan says whether it shipped
+ok 37 - every plan says whether it shipped
+  ---
+  duration_ms: 20.531248
+  ...
+# Subtest: every path CLAUDE.md names still exists
+ok 38 - every path CLAUDE.md names still exists
+  ---
+  duration_ms: 0.907559
+  ...
+# Subtest: CLAUDE.md lists exactly the packages/core modules no host reaches
+ok 39 - CLAUDE.md lists exactly the packages/core modules no host reaches
+  ---
+  duration_ms: 207.716307
+  ...
+# Subtest: the UniAI tracking glue is wired: script, hook, workflow, rules
+ok 40 - the UniAI tracking glue is wired: script, hook, workflow, rules
+  ---
+  duration_ms: 0.605642
+  ...
+# Subtest: chat.* i18n keys match between vi and en
+ok 41 - chat.* i18n keys match between vi and en
+  ---
+  duration_ms: 54.314991
+  ...
+# Subtest: packages/core/i18n/locales/vi.json has no duplicate keys
+ok 42 - packages/core/i18n/locales/vi.json has no duplicate keys
+  ---
+  duration_ms: 2866.090445
+  ...
+# Subtest: packages/core/i18n/locales/en.json has no duplicate keys
+ok 43 - packages/core/i18n/locales/en.json has no duplicate keys
+  ---
+  duration_ms: 2831.705283
+  ...
+# Subtest: the scanner reports real duplicates and only those
+ok 44 - the scanner reports real duplicates and only those
+  ---
+  duration_ms: 0.378696
+  ...
+# Subtest: every committed image matches the hash the generator recorded
+ok 45 - every committed image matches the hash the generator recorded
+  ---
+  duration_ms: 4.251231
+  ...
+# Subtest: the prompts, the lock and the files on disk agree
+ok 46 - the prompts, the lock and the files on disk agree
+  ---
+  duration_ms: 0.304151
+  ...
+# Subtest: every image was rendered from the prompt now in the repo
+ok 47 - every image was rendered from the prompt now in the repo
+  ---
+  duration_ms: 0.305335
+  ...
+# Subtest: the component resolver and the prompts agree on what is localized
+ok 48 - the component resolver and the prompts agree on what is localized
+  ---
+  duration_ms: 0.233302
+  ...
+# Subtest: the artwork stays inside its weight budget
+ok 49 - the artwork stays inside its weight budget
+  ---
+  duration_ms: 0.14184
+  ...
+# Subtest: every vendored mark still matches the upstream artwork
+ok 50 - every vendored mark still matches the upstream artwork
+  ---
+  duration_ms: 2.188608
+  ...
+# Subtest: the generated module carries exactly the paths the lock recorded
+ok 51 - the generated module carries exactly the paths the lock recorded
+  ---
+  duration_ms: 0.205742
+  ...
+# Subtest: no vendored mark carries its own colour
+ok 52 - no vendored mark carries its own colour
+  ---
+  duration_ms: 0.314897
+  ...
+# Subtest: horse v2 preserves transparent, lightweight provenance
+ok 53 - horse v2 preserves transparent, lightweight provenance
+  ---
+  duration_ms: 1.792216
+  ...
+# Subtest: horse v2-blink preserves transparent, lightweight provenance
+ok 54 - horse v2-blink preserves transparent, lightweight provenance
+  ---
+  duration_ms: 0.798775
+  ...
+# Subtest: 3D hero uses the shared mark without a hand-drawn brand substitute
+ok 55 - 3D hero uses the shared mark without a hand-drawn brand substitute
+  ---
+  duration_ms: 1.157535
+  ...
+# Subtest: original motion assets match provenance and stay within the mobile budget
+ok 56 - original motion assets match provenance and stay within the mobile budget
+  ---
+  duration_ms: 1.62227
+  ...
+# Subtest: studio assets preserve their exact prompts and optimized WebP byte counts
+ok 57 - studio assets preserve their exact prompts and optimized WebP byte counts
+  ---
+  duration_ms: 2.413712
+  ...
+# Subtest: the committed alias list matches the installed lucide-react
+ok 58 - the committed alias list matches the installed lucide-react
+  ---
+  duration_ms: 14.596829
+  ...
+# Subtest: no source file imports a deprecated lucide alias
+not ok 59 - no source file imports a deprecated lucide alias
+  ---
+  duration_ms: 173.477011
+  location: '/workspace/scripts/lucide-aliases.test.mjs:17:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    deprecated lucide aliases:
+    packages/views/office/frame/docs-frame-failure.tsx: AlertTriangle → TriangleAlert
+    + actual - expected
+    
+    + [
+    +   'packages/views/office/frame/docs-frame-failure.tsx: AlertTriangle → TriangleAlert'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'packages/views/office/frame/docs-frame-failure.tsx: AlertTriangle → TriangleAlert'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/lucide-aliases.test.mjs:34:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: spinners go through Spinner, not a raw LoaderCircle
+ok 60 - spinners go through Spinner, not a raw LoaderCircle
+  ---
+  duration_ms: 10.721333
+  ...
+# Subtest: no --uw-* token references remain
+ok 61 - no --uw-* token references remain
+  ---
+  duration_ms: 87.139225
+  ...
+# Subtest: no legacy token utilities remain
+ok 62 - no legacy token utilities remain
+  ---
+  duration_ms: 61.781313
+  ...
+# Subtest: no slog line carries an email or display name attribute
+ok 63 - no slog line carries an email or display name attribute
+  ---
+  duration_ms: 44.194585
+  ...
+# Subtest: no plan code literal outside the billing package
+ok 64 - no plan code literal outside the billing package
+  ---
+  duration_ms: 213.707036
+  ...
+# Subtest: no usf branding survives the port
+ok 65 - no usf branding survives the port
+  ---
+  duration_ms: 100.394431
+  ...
+# Subtest: projects suite UI has no source brand or Issue domain
+ok 66 - projects suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 7.460762
+  ...
+# Subtest: slice-2 route catalogue pins Work Management API surface
+ok 67 - slice-2 route catalogue pins Work Management API surface
+  ---
+  duration_ms: 3.932326
+  ...
+# Subtest: slice 5 locale strings have no source brand or Issue domain
+ok 68 - slice 5 locale strings have no source brand or Issue domain
+  ---
+  duration_ms: 44.501214
+  ...
+# Subtest: task detail suite UI has no source brand or Issue domain
+ok 69 - task detail suite UI has no source brand or Issue domain
+  ---
+  duration_ms: 54.056437
+  ...
+# Subtest: Tasks parity manifest pins and classifies the complete baseline
+ok 70 - Tasks parity manifest pins and classifies the complete baseline
+  ---
+  duration_ms: 27.111548
+  ...
+# Subtest: Task parity generator emits a byte-stable manifest from a fixed Git fixture
+ok 71 - Task parity generator emits a byte-stable manifest from a fixed Git fixture
+  ---
+  duration_ms: 116.908798
+  ...
+# Subtest: slice-1 verification overlay marks only owned capability entries
+ok 72 - slice-1 verification overlay marks only owned capability entries
+  ---
+  duration_ms: 0.838241
+  ...
+# Subtest: slice-2 verification overlay marks only owned API entries
+ok 73 - slice-2 verification overlay marks only owned API entries
+  ---
+  duration_ms: 0.701293
+  ...
+# Subtest: slice-3 verification overlay marks only owned UI entries
+ok 74 - slice-3 verification overlay marks only owned UI entries
+  ---
+  duration_ms: 0.517174
+  ...
+# Subtest: slice-4 verification overlay marks only owned projects entries
+ok 75 - slice-4 verification overlay marks only owned projects entries
+  ---
+  duration_ms: 0.458625
+  ...
+# Subtest: slice-5 verification overlay marks only owned detail entries
+ok 76 - slice-5 verification overlay marks only owned detail entries
+  ---
+  duration_ms: 0.726029
+  ...
+# Subtest: slice-6 verification overlay marks only owned agent-integration entries
+ok 77 - slice-6 verification overlay marks only owned agent-integration entries
+  ---
+  duration_ms: 1.355807
+  ...
+# Subtest: collection UI has no source brand or Issue domain
+ok 78 - collection UI has no source brand or Issue domain
+  ---
+  duration_ms: 48.464615
+  ...
+# Subtest: parity flag identifier is gone from apps, packages, and server
+ok 79 - parity flag identifier is gone from apps, packages, and server
+  ---
+  duration_ms: 59.340106
+  ...
+1..79
+# tests 79
+# suites 0
+# pass 78
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5891.973995
