@@ -77,7 +77,7 @@ type CountQueuedVoiceCallSummariesRow struct {
 // Call summaries queued since `since` by one caller and in one room (H17):
 // the call logs whose hangup queued an LLM summary. The caller side reads
 // idx_chat_messages_voice_call_sender, the room side
-// idx_chat_messages_room_created.
+// idx_chat_messages_room_created_id.
 func (q *Queries) CountQueuedVoiceCallSummaries(ctx context.Context, arg CountQueuedVoiceCallSummariesParams) (CountQueuedVoiceCallSummariesRow, error) {
 	row := q.db.QueryRow(ctx, countQueuedVoiceCallSummaries,
 		arg.CallerID,

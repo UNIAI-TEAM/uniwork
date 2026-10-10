@@ -74,7 +74,7 @@ LIMIT $3;
 -- Call summaries queued since `since` by one caller and in one room (H17):
 -- the call logs whose hangup queued an LLM summary. The caller side reads
 -- idx_chat_messages_voice_call_sender, the room side
--- idx_chat_messages_room_created.
+-- idx_chat_messages_room_created_id.
 SELECT
   count(*) FILTER (WHERE sender_id = sqlc.arg('caller_id'))::int AS by_caller,
   count(*) FILTER (WHERE room_id = sqlc.arg('room_id'))::int AS by_room
