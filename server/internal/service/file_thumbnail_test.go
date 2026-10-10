@@ -118,6 +118,32 @@ func TestMakeThumbnailAppliesEXIFOrientation(t *testing.T) {
 	}
 }
 
+// The pod has 512 MiB, so the decode budget counts bytes, not pixels: a
+// 16-bit PNG holds 8 B/px and a progressive JPEG keeps every coefficient.
+func TestThumbnailDecodeBudget(t *testing.T) {
+	t.Parallel()
+	for name, c := range map[string]struct {
+		cfg  image.Config
+		ct   string
+		want bool
+	}{
+		"12 MP phone photo":     {image.Config{ColorModel: color.YCbCrModel, Width: 4032, Height: 3024}, "image/jpeg", true},
+		"24 MP jpeg":            {image.Config{ColorModel: color.YCbCrModel, Width: 6000, Height: 4000}, "image/jpeg", false},
+		"16 MP rgba png":        {image.Config{ColorModel: color.NRGBAModel, Width: 4096, Height: 4096}, "image/png", true},
+		"20 MP rgba png":        {image.Config{ColorModel: color.NRGBAModel, Width: 5000, Height: 4000}, "image/png", false},
+		"40 MP paletted png":    {image.Config{ColorModel: color.Palette{color.Black}, Width: 8000, Height: 5000}, "image/png", true},
+		"16-bit rgba png":       {image.Config{ColorModel: color.NRGBA64Model, Width: 1000, Height: 1000}, "image/png", false},
+		"16-bit rgb png":        {image.Config{ColorModel: color.RGBA64Model, Width: 1000, Height: 1000}, "image/png", false},
+		"16-bit grey png":       {image.Config{ColorModel: color.Gray16Model, Width: 1000, Height: 1000}, "image/png", false},
+		"8-bit grey png, 60 MP": {image.Config{ColorModel: color.GrayModel, Width: 10000, Height: 6000}, "image/png", true},
+		"8-bit grey png, 80 MP": {image.Config{ColorModel: color.GrayModel, Width: 10000, Height: 8000}, "image/png", false},
+	} {
+		if got := decodeFits(c.cfg, c.ct); got != c.want {
+			t.Errorf("%s: decodeFits = %v, want %v", name, got, c.want)
+		}
+	}
+}
+
 func TestFileThumbnailableTypes(t *testing.T) {
 	t.Parallel()
 	for ct, want := range map[string]bool{

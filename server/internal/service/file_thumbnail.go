@@ -12,9 +12,15 @@ import (
 const (
 	// thumbMaxSide bounds the longest side of a thumbnail, in pixels.
 	thumbMaxSide = 640
-	// thumbMaxPixels refuses to decode anything larger (a decompression bomb
-	// fits in a few bytes); such an image keeps serving its original.
-	thumbMaxPixels = 50_000_000
+	// thumbMaxDecodeBytes bounds the pixel buffer a PNG decodes into (a
+	// decompression bomb fits in a few bytes); a larger image keeps serving
+	// its original.
+	thumbMaxDecodeBytes = 64 << 20
+	// thumbMaxJPEGPixels bounds a JPEG by pixels instead: a progressive one
+	// also holds every DCT coefficient (4 B per sample, beside its planes),
+	// up to ~15 B/px at 4:4:4, so ~190 MiB at this cap. 12.5 MP keeps a
+	// 12 MP phone photo.
+	thumbMaxJPEGPixels = 12_500_000
 )
 
 // fileThumbnailable reports whether makeThumbnail can work on a type with the
@@ -39,7 +45,7 @@ func makeThumbnail(src []byte, contentType string) (out []byte, outType string, 
 	}
 	cfg, err := decodeConfig(bytes.NewReader(src))
 	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 ||
-		int64(cfg.Width)*int64(cfg.Height) > thumbMaxPixels ||
+		!decodeFits(cfg, contentType) ||
 		max(cfg.Width, cfg.Height) <= thumbMaxSide {
 		return nil, "", false
 	}
@@ -61,6 +67,27 @@ func makeThumbnail(src []byte, contentType string) (out []byte, outType string, 
 		return nil, "", false
 	}
 	return buf.Bytes(), contentType, true
+}
+
+// decodeFits reports whether decoding an image with header cfg stays inside
+// the memory budget. A 16-bit PNG (up to 8 B/px) is refused outright.
+func decodeFits(cfg image.Config, contentType string) bool {
+	pixels := int64(cfg.Width) * int64(cfg.Height)
+	if contentType == "image/jpeg" {
+		return pixels <= thumbMaxJPEGPixels
+	}
+	bytesPerPixel := int64(4)
+	if _, paletted := cfg.ColorModel.(color.Palette); paletted {
+		bytesPerPixel = 1
+	} else {
+		switch cfg.ColorModel {
+		case color.RGBA64Model, color.NRGBA64Model, color.Gray16Model:
+			return false
+		case color.GrayModel:
+			bytesPerPixel = 1
+		}
+	}
+	return pixels*bytesPerPixel <= thumbMaxDecodeBytes
 }
 
 // downscale averages every source pixel into the box it falls in (an area
