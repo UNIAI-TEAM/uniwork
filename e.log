@@ -1,0 +1,2 @@
+$ cd server && go test ./internal/service -count=1 -run 'Office|Document|Audit'
+ok  	github.com/unicomhub/uniwork/server/internal/service	195.541s
