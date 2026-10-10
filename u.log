@@ -1,0 +1,86 @@
+$ npm run fixtures -w @genoffice/sheets && npm run compat -w @genoffice/sheets
+
+> @genoffice/sheets@0.1.0 fixtures
+> tsx scripts/generate-fixtures.ts
+
+Generated fixtures/generated/compatibility-basic.xlsx
+Generated fixtures/generated/compatibility-edit.xlsx
+Generated fixtures/generated/compatibility-structure.xlsx
+Generated fixtures/generated/compatibility-sheets.xlsx
+Generated fixtures/generated/compatibility-kitchen-sink.xlsx
+Generated fixtures/generated/compatibility-macro.xlsm
+
+> @genoffice/sheets@0.1.0 compat
+> tsx scripts/verify-compatibility.ts
+
+{
+  "passed": true,
+  "fixtureCount": 5,
+  "fixtures": [
+    {
+      "fixture": "compatibility-basic.xlsx",
+      "passed": true,
+      "touchedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "changedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "removedEntries": [],
+      "unexpectedChanges": [],
+      "preservedEntryCount": 7
+    },
+    {
+      "fixture": "compatibility-edit.xlsx",
+      "passed": true,
+      "touchedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "changedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "removedEntries": [],
+      "unexpectedChanges": [],
+      "preservedEntryCount": 8
+    },
+    {
+      "fixture": "compatibility-structure.xlsx",
+      "passed": true,
+      "touchedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "changedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "removedEntries": [],
+      "unexpectedChanges": [],
+      "preservedEntryCount": 7
+    },
+    {
+      "fixture": "compatibility-sheets.xlsx",
+      "passed": true,
+      "touchedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "changedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "removedEntries": [],
+      "unexpectedChanges": [],
+      "preservedEntryCount": 9
+    },
+    {
+      "fixture": "compatibility-kitchen-sink.xlsx",
+      "passed": true,
+      "touchedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "changedEntries": [
+        "xl/worksheets/sheet1.xml"
+      ],
+      "removedEntries": [],
+      "unexpectedChanges": [],
+      "preservedEntryCount": 15
+    }
+  ]
+}
