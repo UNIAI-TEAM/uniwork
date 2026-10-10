@@ -22,6 +22,7 @@ const (
 	mimeOctetStream = "application/octet-stream"
 	mimeZip         = "application/zip"
 	mimeTextPlain   = "text/plain"
+	mimeTextXML     = "text/xml"
 	mimeOgg         = "application/ogg"
 	mimeVideoMP4    = "video/mp4"
 	mimeAudioMP4    = "audio/mp4"
@@ -52,7 +53,17 @@ var textByExtension = map[string]string{
 	".csv":    "text/csv",
 	".ndjson": "application/x-ndjson",
 	".md":     "text/markdown",
+	// The files next to an HTML page (UNI-1232): its stylesheet and scripts,
+	// served to the Office HTML preview by type.
+	".css": "text/css",
+	".js":  "text/javascript",
+	".mjs": "text/javascript",
 }
+
+// mimeSVG is an SVG picture: UTF-8 text or XML named .svg whose head opens an
+// <svg> element. Only Documents stores it as such; it is never served inline
+// outside an <img> (sandbox CSP + nosniff on every Documents byte route).
+const mimeSVG = "image/svg+xml"
 
 // DetectContentType is the one verified-type rule of FileService (FS-C1 v1
 // errata): the type a File carries is what its bytes prove, and the filename
@@ -64,9 +75,11 @@ var textByExtension = map[string]string{
 //     OOXML type; any other zip stays application/zip, whatever its name.
 //   - An OLE compound file is DOC, XLS or PPT by its extension; with any other
 //     extension it is application/octet-stream.
-//   - Non-empty valid UTF-8 text named .csv, .ndjson or .md is text/csv,
-//     application/x-ndjson or text/markdown; any other text keeps the
-//     sniffer's type.
+//   - Non-empty valid UTF-8 text named .csv, .ndjson, .md, .css or .js/.mjs
+//     is text/csv, application/x-ndjson, text/markdown, text/css or
+//     text/javascript; any other text keeps the sniffer's type.
+//   - UTF-8 text or XML named .svg whose head holds an <svg element is
+//     image/svg+xml.
 //   - An Ogg stream whose first page opens an Opus, Vorbis, FLAC or Speex
 //     stream is audio/ogg, a Theora one video/ogg, anything else
 //     application/ogg. A well-formed ftyp box is the MP4 family whatever its
@@ -99,6 +112,11 @@ func DetectContentType(head []byte, filename string) string {
 			return ct
 		}
 		return mimeOctetStream
+	case (sniffed == mimeTextPlain || sniffed == mimeTextXML) && ext == ".svg":
+		if len(head) > 0 && validUTF8Head(head, truncated) && bytes.Contains(bytes.ToLower(head), []byte("<svg")) {
+			return mimeSVG
+		}
+		return sniffed
 	case sniffed == mimeTextPlain:
 		if ct, ok := textByExtension[ext]; ok && len(head) > 0 && validUTF8Head(head, truncated) {
 			return ct

@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	_ "image/jpeg" // register the decoders DecodeConfig needs
+	_ "image/gif" // register the decoders DecodeConfig needs
+	_ "image/jpeg"
 	_ "image/png"
 	"io"
 	"path"
@@ -100,6 +101,13 @@ const (
 	mimeODT  = "application/vnd.oasis.opendocument.text"
 	mimePNG  = "image/png"
 	mimeJPEG = "image/jpeg"
+	mimeGIF  = "image/gif"
+	mimeWebP = "image/webp"
+	// The files next to a Markdown/HTML page (UNI-1232): text the Office
+	// frames load by relative path, never an editor's own format.
+	mimeSVG = "image/svg+xml"
+	mimeCSS = "text/css"
+	mimeJS  = "text/javascript"
 )
 
 // ooxmlMainPart is the part each editor opens first; a package without it is
@@ -137,12 +145,14 @@ func ValidateFile(r io.ReaderAt, size int64, contentType string, limits FileLimi
 		return validatePDF(r, size)
 	case mimeDOC, mimeXLS, mimePPT:
 		return validateOLE(r, size, base)
-	case mimeText, mimeMD, mimeHTML:
+	case mimeText, mimeMD, mimeHTML, mimeCSS, mimeJS, mimeSVG:
 		// HTML is text the editor opens as text; the preview sandbox (G2-06),
 		// not this validator, is what keeps a rendered HTML document safe.
 		return validateText(r, size, limits)
-	case mimePNG, mimeJPEG:
+	case mimePNG, mimeJPEG, mimeGIF:
 		return validateImage(r, size, limits)
+	case mimeWebP:
+		return validateWebP(r, size, limits)
 	default:
 		return FileFacts{}, refuse(ReasonUnknownType, "no editor opens %q", base)
 	}
@@ -385,4 +395,41 @@ func min64(a, b int64) int64 {
 		return a
 	}
 	return b
+}
+
+// validateWebP reads the pixel size from the first chunk of a WebP file (the
+// standard library has no WebP decoder): VP8X carries the canvas size, a
+// lossy VP8 frame and a lossless VP8L bitstream carry the image size.
+func validateWebP(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, error) {
+	head := make([]byte, 30)
+	n, _ := r.ReadAt(head, 0)
+	head = head[:n]
+	if len(head) < 30 || string(head[0:4]) != "RIFF" || string(head[8:12]) != "WEBP" {
+		return FileFacts{}, refuse(ReasonImageHeader, "not a WebP file")
+	}
+	var w, h int
+	switch string(head[12:16]) {
+	case "VP8X":
+		w = 1 + (int(head[24]) | int(head[25])<<8 | int(head[26])<<16)
+		h = 1 + (int(head[27]) | int(head[28])<<8 | int(head[29])<<16)
+	case "VP8 ":
+		if head[23] != 0x9d || head[24] != 0x01 || head[25] != 0x2a {
+			return FileFacts{}, refuse(ReasonImageHeader, "the VP8 frame has no start code")
+		}
+		w = int(head[26]) | int(head[27]&0x3f)<<8
+		h = int(head[28]) | int(head[29]&0x3f)<<8
+	case "VP8L":
+		if head[20] != 0x2f {
+			return FileFacts{}, refuse(ReasonImageHeader, "the VP8L stream has no signature")
+		}
+		bits := uint32(head[21]) | uint32(head[22])<<8 | uint32(head[23])<<16 | uint32(head[24])<<24
+		w = 1 + int(bits&0x3fff)
+		h = 1 + int(bits>>14&0x3fff)
+	default:
+		return FileFacts{}, refuse(ReasonImageHeader, "unknown WebP chunk %q", head[12:16])
+	}
+	if w <= 0 || h <= 0 || int64(w)*int64(h) > limits.MaxImagePixels {
+		return FileFacts{}, refuse(ReasonImageDimensions, "%dx%d is outside the allowed pixel count", w, h)
+	}
+	return FileFacts{Format: "image", Width: w, Height: h}, nil
 }

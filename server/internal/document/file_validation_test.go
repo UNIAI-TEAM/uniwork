@@ -228,3 +228,50 @@ func TestValidateTextAcrossChunkBoundary(t *testing.T) {
 		t.Fatalf("refused valid UTF-8 across a chunk: %v", err)
 	}
 }
+
+// webpLossless1x1 is a real 1x1 lossless WebP (VP8L).
+var webpLossless1x1 = []byte("RIFF\x1a\x00\x00\x00WEBPVP8L\x0d\x00\x00\x00\x2f\x00\x00\x00\x10\x07\x10\x11\x11\x88\x88\xfe\x07\x00")
+
+// The files next to a Markdown/HTML page (UNI-1232): GIF and WebP pictures
+// with their pixel size, SVG, CSS and JavaScript as UTF-8 text.
+func TestValidateFileAcceptsPageSiblings(t *testing.T) {
+	gif := []byte("GIF89a\x02\x00\x03\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x02\x00\x03\x00\x00\x02\x02D\x01\x00;")
+	vp8x := append([]byte("RIFF\x00\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00\x00\x00\x00\x00"), 0x0f, 0x00, 0x00, 0x09, 0x00, 0x00)
+	vp8 := append([]byte("RIFF\x00\x00\x00\x00WEBPVP8 \x00\x00\x00\x00\x00\x00\x00\x9d\x01\x2a"), 0x05, 0x00, 0x07, 0x00)
+	cases := []struct {
+		name, contentType, format string
+		body                      []byte
+		w, h                      int
+	}{
+		{"gif", "image/gif", "image", gif, 2, 3},
+		{"webp lossless", "image/webp", "image", webpLossless1x1, 1, 1},
+		{"webp extended", "image/webp", "image", vp8x, 16, 10},
+		{"webp lossy", "image/webp", "image", vp8, 5, 7},
+		{"svg", "image/svg+xml", "text", []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`), 0, 0},
+		{"css", "text/css", "text", []byte("body { color: #222 }\n"), 0, 0},
+		{"js", "text/javascript", "text", []byte("document.title = 'Biên bản'\n"), 0, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			facts, err := validate(c.body, c.contentType, DefaultFileLimits)
+			if err != nil {
+				t.Fatalf("refused: %v", err)
+			}
+			if facts.Format != c.format || facts.Width != c.w || facts.Height != c.h {
+				t.Fatalf("facts = %+v, want %s %dx%d", facts, c.format, c.w, c.h)
+			}
+		})
+	}
+	for name, body := range map[string][]byte{
+		"not riff":      []byte("GIF89a" + strings.Repeat("\x00", 40)),
+		"vp8 no start":  append([]byte("RIFF\x00\x00\x00\x00WEBPVP8 \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"), 0x05, 0x00, 0x07, 0x00),
+		"vp8l no sig":   append([]byte("RIFF\x00\x00\x00\x00WEBPVP8L\x00\x00\x00\x00\x00"), make([]byte, 10)...),
+		"unknown chunk": append([]byte("RIFF\x00\x00\x00\x00WEBPALPH"), make([]byte, 20)...),
+		"truncated":     []byte("RIFF\x00\x00\x00\x00WEBPVP8L"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := validate(body, "image/webp", DefaultFileLimits)
+			wantReason(t, err, ReasonImageHeader)
+		})
+	}
+}
