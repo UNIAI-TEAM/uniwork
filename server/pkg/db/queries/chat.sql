@@ -703,8 +703,18 @@ WHERE thread_root_id = $1 AND user_id = $2;
 
 -- name: ListChatThreadFollowerUserIDs :many
 -- tenant: parent thread_root_id
-SELECT user_id FROM chat_thread_followers
-WHERE thread_root_id = $1 AND muted = false;
+-- Only followers who can still read the room (H12): a public channel, or
+-- current membership.
+SELECT f.user_id FROM chat_thread_followers f
+INNER JOIN chat_rooms r ON r.id = f.room_id AND r.archived_at IS NULL
+WHERE f.thread_root_id = $1 AND f.muted = false
+  AND (
+    (r.kind = 'channel' AND r.visibility = 'public')
+    OR EXISTS (
+      SELECT 1 FROM chat_room_members mem
+      WHERE mem.room_id = f.room_id AND mem.user_id = f.user_id AND mem.status IN ('invited', 'active')
+    )
+  );
 
 -- name: ListChatThreadsForFollower :many
 SELECT
@@ -726,10 +736,19 @@ SELECT
   END AS unread
 FROM chat_thread_followers f
 INNER JOIN chat_messages root ON root.id = f.thread_root_id AND root.deleted_at IS NULL
+INNER JOIN chat_rooms r ON r.id = f.room_id AND r.archived_at IS NULL
 WHERE f.user_id = sqlc.arg(user_id)
   AND f.workspace_id = sqlc.arg(workspace_id)
   AND f.muted = false
   AND root.reply_count > 0
+  -- Only rooms the follower can still read (H12).
+  AND (
+    (r.kind = 'channel' AND r.visibility = 'public')
+    OR EXISTS (
+      SELECT 1 FROM chat_room_members mem
+      WHERE mem.room_id = f.room_id AND mem.user_id = f.user_id AND mem.status IN ('invited', 'active')
+    )
+  )
   AND (
     sqlc.arg(unread_only)::bool = false
     OR (

@@ -539,6 +539,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "voiceMessage")
 		case strings.HasSuffix(pattern, "/poll/vote"):
 			return tn.get(t, "pollMessage")
+		case strings.HasSuffix(pattern, "/task-sync"):
+			// A group thread cannot sync to a task (H12); a public channel's can.
+			return tn.get(t, "channelMessage")
 		}
 		return tn.get(t, "message")
 	case "{followUpID}":

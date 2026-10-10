@@ -99,7 +99,9 @@ func (w *graphWorld) threadIDs(t *testing.T, userID, taskID string) []string {
 
 func (w *graphWorld) privateThreadTask(t *testing.T, members []string) (roomID, taskID string) {
 	t.Helper()
-	ch, err := w.chat.CreateChannel(w.ctx, w.owner.ID, w.wsID, CreateChannelInput{Name: "kin", Visibility: "private", MemberUserIDs: members})
+	// A private room refuses a new sync (H12); a link made while the channel
+	// was public survives it turning private, and that is what the graph hides.
+	ch, err := w.chat.CreateChannel(w.ctx, w.owner.ID, w.wsID, CreateChannelInput{Name: "kin", Visibility: "public", MemberUserIDs: members})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,6 +114,10 @@ func (w *graphWorld) privateThreadTask(t *testing.T, members []string) (roomID, 
 		t.Fatal(err)
 	}
 	if _, err := w.chat.SyncThreadTask(w.ctx, w.owner.ID, w.wsID, root.ID, SyncThreadTaskInput{TaskID: task.ID, Direction: "both"}); err != nil {
+		t.Fatal(err)
+	}
+	private := chatVisibilityPrivate
+	if _, err := w.chat.UpdateChannel(w.ctx, w.owner.ID, w.wsID, ch.ID, UpdateChannelInput{Visibility: &private}); err != nil {
 		t.Fatal(err)
 	}
 	return ch.ID, task.ID

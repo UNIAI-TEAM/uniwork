@@ -58,6 +58,15 @@ LEFT JOIN LATERAL (
 WHERE f.workspace_id = $1
   AND f.user_id = $2
   AND ($4::bool OR f.completed_at IS NULL)
+  -- Only rooms the user can still read (H12).
+  AND r.archived_at IS NULL
+  AND (
+    (r.kind = 'channel' AND r.visibility = 'public')
+    OR EXISTS (
+      SELECT 1 FROM chat_room_members acc
+      WHERE acc.room_id = f.room_id AND acc.user_id = f.user_id AND acc.status IN ('invited', 'active')
+    )
+  )
 ORDER BY
   CASE WHEN f.completed_at IS NULL THEN 0 ELSE 1 END,
   f.due_at ASC NULLS LAST,
