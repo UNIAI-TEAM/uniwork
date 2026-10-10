@@ -11,6 +11,7 @@ import { ApiError } from "@uniwork/core/api/http";
 import { requestMock, wrap } from "../../test/api-mock";
 import { DocsFrameRefusalContext, useDocsFrameRefusal } from "./docs-frame-refusal";
 import type { FrameDesktopOpenProps } from "./frame-desktop-open";
+import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { OfficeModuleFrame } from "./office-module-frame";
 import { OfficeModuleOpenSwitch } from "./office-module-open-switch";
 
@@ -30,15 +31,16 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen }: { canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false }: { inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps } = {}) {
   requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : Promise.reject(new Error(`unexpected ${path}`))));
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const framed = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} />;
   render(
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
         <DocsFrameRefusalContext.Provider value={refuse ?? null}>
-          <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} />
+          {inHeader ? <HeaderActionsSlotProvider><HeaderActionsSlot />{framed}</HeaderActionsSlotProvider> : framed}
         </DocsFrameRefusalContext.Provider>
       </ThemeProvider>
     </QueryClientProvider>,
@@ -221,6 +223,20 @@ describe("OfficeModuleFrame", () => {
     mountFrame("pdf", { refuse, mint: () => Promise.reject(new ApiError("too large", "too_large", 413)) });
     expect(await screen.findByTestId("office-docs-frame-failed")).toBeTruthy();
     expect(refuse).not.toHaveBeenCalled();
+  });
+
+  it("keeps the save state in the page header at phone width once there is something to say", async () => {
+    const frame = mountFrame("slides", { inHeader: true });
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
+    await frame.ready({ module: "slides" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const chip = () => document.querySelector("[data-header-actions-slot] [data-testid^='office-save-']")!;
+    // Idle: hidden below sm, shown from sm up.
+    await waitFor(() => expect(chip()).toHaveClass("hidden", "sm:flex"));
+    await frame.event("dirty", { dirty: true });
+    await waitFor(() => expect(chip()).toHaveClass("flex"));
+    expect(chip()).not.toHaveClass("hidden");
+    expect(chip()).toHaveTextContent("Chưa lưu");
   });
 
   describe("a frame bundle that never loads (404/5xx on index.html)", () => {

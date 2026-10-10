@@ -177,7 +177,9 @@ export function OfficeModuleFrame({
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
 
   const headerStatus = useMemo(
-    () => <SaveStatus status={saveState} compact className="mr-2 hidden whitespace-nowrap sm:flex" />,
+    // Idle ("No changes") yields to the title on a phone; anything the user must know about
+    // (unsaved, saving, saved, failed) stays visible at every width.
+    () => <SaveStatus status={saveState} compact className={cn("mr-2 whitespace-nowrap", saveState === "ready" ? "hidden sm:flex" : "flex")} />,
     [saveState],
   );
 
