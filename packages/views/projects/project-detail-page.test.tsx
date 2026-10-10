@@ -35,9 +35,14 @@ const project = {
   task_count: 1,
   done_count: 0,
   resource_count: 0,
+  created_by: "u1",
+  created_by_kind: "human",
   created_at: "2026-06-01T00:00:00Z",
   updated_at: "2026-06-01T00:00:00Z",
 };
+
+// The project the mock serves; a test swaps it for a peer's.
+let servedProject: Record<string, unknown> = project;
 
 const taskInProject = {
   id: "t-in",
@@ -62,11 +67,17 @@ beforeEach(() => {
   setSessionUser(me);
   clearTaskSurfaceViewState("project:p1");
   getTaskSurfaceViewStore("project:p1").getState().setViewMode("list");
+  servedProject = project;
   requestMock.mockReset();
   requestMock.mockImplementation((path: unknown, init?: { body?: unknown }) => {
     const p = String(path);
     if (p.match(/\/projects\/p1$/) && !p.includes("/resources")) {
-      return Promise.resolve({ project });
+      return Promise.resolve({ project: servedProject });
+    }
+    if (p.endsWith("/workspaces/w1/me")) {
+      return Promise.resolve({
+        membership: { user_id: "u1", role: "member", source: "membership" },
+      });
     }
     if (p.includes("/projects/p1/resources")) {
       return Promise.resolve({ resources: [], total: 0 });
@@ -298,6 +309,45 @@ describe("ProjectDetailPage", () => {
         body: { description: "Ship **projects** suite", revision: 1 },
       });
     }, LONG);
+  });
+
+  it("shows a peer's project read-only and offers nothing that saves (UNI-898)", async () => {
+    servedProject = { ...project, created_by: "u2" };
+    render(
+      wrapWithNav(
+        <ProjectDetailPage workspaceId="w1" projectId="p1" onOpenTask={vi.fn()} onBack={vi.fn()} />,
+      ),
+    );
+
+    const sidebar = await screen.findByRole("complementary", { name: "Chi tiết dự án" }, LONG);
+    const inSidebar = within(sidebar);
+    expect(
+      await inSidebar.findByText(
+        "Chỉ người tạo, người phụ trách hoặc quản trị viên workspace mới sửa được dự án này.",
+        undefined,
+        LONG,
+      ),
+    ).toBeInTheDocument();
+    expect(inSidebar.getByRole("heading", { name: "Q3 launch" })).toBeInTheDocument();
+    expect(inSidebar.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(inSidebar.queryByRole("button", { name: "Chọn biểu tượng" })).not.toBeInTheDocument();
+    expect(inSidebar.queryByRole("button", { name: "Trạng thái: Đang làm" })).not.toBeInTheDocument();
+    expect(inSidebar.getByText("Đang làm")).toBeInTheDocument();
+    expect(inSidebar.getByRole("button", { name: "Ngày bắt đầu: Chọn ngày" })).toBeDisabled();
+    expect(inSidebar.getByText("Ship projects suite")).toBeInTheDocument();
+  });
+
+  it("lets the member the project is assigned to edit it", async () => {
+    servedProject = { ...project, created_by: "u2", lead_type: "member", lead_id: "u1" };
+    render(
+      wrapWithNav(
+        <ProjectDetailPage workspaceId="w1" projectId="p1" onOpenTask={vi.fn()} onBack={vi.fn()} />,
+      ),
+    );
+
+    const title = await screen.findByRole("textbox", { name: "Tiêu đề dự án" }, LONG);
+    await waitFor(() => expect(title).toHaveTextContent("Q3 launch"));
+    expect(screen.getByRole("button", { name: "Trạng thái: Đang làm" })).toBeInTheDocument();
   });
 
   it("pins the project from the header and shows it pinned before the server answers", async () => {

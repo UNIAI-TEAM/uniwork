@@ -46,12 +46,16 @@ func TestMarkerIgnoresDisabledOrganizations(t *testing.T) {
 	if m.marked["task.updated/disabled"] != 1 || m.marked["task.updated/no_org"] != 1 || m.marked["task.updated/no_id"] != 1 {
 		t.Fatalf("marked = %v", m.marked)
 	}
-	// A retried row folds into the same dirty row.
+	// A retried row folds into the same dirty row, with a new mark_seq.
+	before := f.count(t, `SELECT mark_seq FROM graph_dirty WHERE source_id = 't1'`)
 	if err := marker.Handle(f.ctx, row("e1", "task.updated", `{"task_id":"t1"}`, "org-on")); err != nil {
 		t.Fatal(err)
 	}
-	if n := f.count(t, `SELECT mark_seq FROM graph_dirty WHERE source_id = 't1'`); n != 2 {
-		t.Fatalf("mark_seq = %d, want 2", n)
+	if n := f.count(t, `SELECT count(*) FROM graph_dirty WHERE source_id = 't1'`); n != 1 {
+		t.Fatalf("dirty rows for t1 = %d, want 1", n)
+	}
+	if n := f.count(t, `SELECT mark_seq FROM graph_dirty WHERE source_id = 't1'`); n == before {
+		t.Fatalf("mark_seq = %d after the retry, want a value other than the first mark's", n)
 	}
 	if err := marker.Handle(f.ctx, row("e9", "task.updated", `not json`, "org-on")); err == nil {
 		t.Fatal("malformed payload must fail (retried, then dead-lettered like other consumers)")

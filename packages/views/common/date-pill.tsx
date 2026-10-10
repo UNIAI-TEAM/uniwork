@@ -24,6 +24,7 @@ export function DatePill({
   open,
   onOpenChange,
   onChange,
+  disabled = false,
 }: {
   value: string | null;
   label: string;
@@ -34,6 +35,7 @@ export function DatePill({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onChange: (value: string | null) => void;
+  disabled?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const overdue = highlightOverdue && !!value && value < toDateOnly(new Date());
@@ -49,10 +51,11 @@ export function DatePill({
       formatOptions={shortDateFormat(value)}
       open={open}
       onOpenChange={onOpenChange}
+      disabled={disabled}
       triggerRender={
         <button
           type="button"
-          className="-mx-1 flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-caption transition-colors hover:bg-accent/30"
+          className="-mx-1 flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-caption transition-colors hover:bg-accent/30 disabled:cursor-default disabled:hover:bg-transparent"
         />
       }
       renderTrigger={(text, isSelected) => (

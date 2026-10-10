@@ -120,7 +120,7 @@ func TestProjectTaskDependenciesAndOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, b := created[0], created[1]
-	// blocks(a, b): b depends on a → edge b→a, owned by b; the event names a.
+	// blocks(a, b): b depends on a → edge b→a, owned by b; the events name both.
 	if _, err := f.tasks.SetDependency(f.ctx, service.Human(f.owner.ID), a.ID, service.SetDependencyInput{DependsOnTaskID: b.ID, Type: "blocks"}); err != nil {
 		t.Fatal(err)
 	}
@@ -133,6 +133,43 @@ func TestProjectTaskDependenciesAndOrigin(t *testing.T) {
 	}
 	f.sync(t)
 	eq(t, "b edges after removal", f.openEdges(t, graph.NodeTask, b.ID), []string{"ORIGINATED_FROM>MEETING:" + m.ID})
+}
+
+// A dependency change names both tasks, so the owner of DEPENDS_ON (the
+// from end) is marked by its own event. A row that reaches task_dependencies
+// without one, written directly here, still reaches the owner through the
+// other end: projecting the to end marks the owner whenever its edge and the
+// rows disagree (spec §13 #11, kept as a backstop by #28).
+func TestProjectingTheBlockingTaskMarksTheOwnerOfAnUnnamedDependency(t *testing.T) {
+	f := newFixture(t)
+	a, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "Chặn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: "Bị chặn"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.sync(t)
+	refA, refB := NodeRef{Type: graph.NodeTask, SourceID: a.ID}, NodeRef{Type: graph.NodeTask, SourceID: b.ID}
+
+	// blocks(a, b): the row is a's, the edge b→a is b's.
+	f.exec(t, `INSERT INTO task_dependencies (id, organization_id, workspace_id, task_id, depends_on_task_id, type)
+		VALUES ('dep-unnamed', $1, $2, $3, $4, 'blocks')`, f.orgID, f.wsID, a.ID, b.ID)
+	f.project(t, refA, outboxEvent("ev-dep-added"))
+	if !f.dirty(t, refB) {
+		t.Fatal("projecting a did not mark b, whose DEPENDS_ON edge the new row wants")
+	}
+	f.sync(t)
+	eq(t, "b edges", f.openEdges(t, graph.NodeTask, b.ID), []string{"DEPENDS_ON>TASK:" + a.ID})
+
+	f.exec(t, `DELETE FROM task_dependencies WHERE organization_id = $1 AND id = 'dep-unnamed'`, f.orgID)
+	f.project(t, refA, outboxEvent("ev-dep-removed"))
+	if !f.dirty(t, refB) {
+		t.Fatal("projecting a did not mark b, whose open DEPENDS_ON edge lost its row")
+	}
+	f.sync(t)
+	eq(t, "b edges after removal", f.openEdges(t, graph.NodeTask, b.ID), []string{})
 }
 
 func TestProjectTaskDeleteClosesEveryEdge(t *testing.T) {

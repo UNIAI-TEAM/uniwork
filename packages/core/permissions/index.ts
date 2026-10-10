@@ -17,4 +17,4 @@ export {
   canTransferOwnership,
 } from "./rules";
 export { useCurrentMember, useOrgMembership } from "./use-current-member";
-export { usePeoplePermissions, useAuditPermissions, useBillingPermissions, useOrgPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";
+export { usePeoplePermissions, useAuditPermissions, useBillingPermissions, useOrgPermissions, useProjectPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";

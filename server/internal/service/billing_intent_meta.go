@@ -40,25 +40,37 @@ func markIntentCompletedParams(intentID, orgID, bankCode, txnNo string, ev billi
 }
 
 func (s *BillingService) patchIntentProviderMeta(ctx context.Context, q *db.Queries, intent db.BillingPaymentIntent, ev billing.Event) error {
-	bankCode, txnNo := vnpayProviderMetaFromEvent(ev)
-	if bankCode == "" && txnNo == "" {
+	bankCode, txnNo, orderInfo, payDate := vnpayMetaFromProviderEvent(ev)
+	if !bankCode.Valid && !txnNo.Valid && !orderInfo.Valid && !payDate.Valid {
 		return nil
 	}
 	hasBank := intent.ProviderBankCode.Valid && strings.TrimSpace(intent.ProviderBankCode.String) != ""
 	hasTxn := intent.ProviderTransactionNo.Valid && strings.TrimSpace(intent.ProviderTransactionNo.String) != ""
-	if hasBank && hasTxn {
+	hasOrder := intent.ProviderOrderInfo.Valid && strings.TrimSpace(intent.ProviderOrderInfo.String) != ""
+	hasPayDate := intent.ProviderPayDate.Valid && strings.TrimSpace(intent.ProviderPayDate.String) != ""
+	if hasBank && hasTxn && hasOrder && hasPayDate {
 		return nil
 	}
-	var bankArg, txnArg pgtype.Text
-	if bankCode != "" {
-		bankArg = pgtype.Text{String: bankCode, Valid: true}
+	var bankArg, txnArg, orderArg, payArg pgtype.Text
+	if bankCode.Valid && !hasBank {
+		bankArg = bankCode
 	}
-	if txnNo != "" {
-		txnArg = pgtype.Text{String: txnNo, Valid: true}
+	if txnNo.Valid && !hasTxn {
+		txnArg = txnNo
+	}
+	if orderInfo.Valid && !hasOrder {
+		orderArg = orderInfo
+	}
+	if payDate.Valid && !hasPayDate {
+		payArg = payDate
+	}
+	if !bankArg.Valid && !txnArg.Valid && !orderArg.Valid && !payArg.Valid {
+		return nil
 	}
 	return q.PatchBillingPaymentIntentProviderMeta(ctx, db.PatchBillingPaymentIntentProviderMetaParams{
 		ID: intent.ID, OrganizationID: intent.OrganizationID,
 		ProviderBankCode: bankArg, ProviderTransactionNo: txnArg,
+		ProviderOrderInfo: orderArg, ProviderPayDate: payArg,
 	})
 }
 
@@ -76,12 +88,16 @@ func (s *BillingService) ProcessIntentProviderMetaBackfill(ctx context.Context) 
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		ev, err := vnp.QueryTransaction(ctx, vnpayQueryDRInputFromBackfillRow(ctx, s.q, row, ""))
+		intent := db.BillingPaymentIntent{
+			ID: row.ID, OrganizationID: row.OrganizationID, PlanID: row.PlanID,
+			ProviderTxnRef: row.ProviderTxnRef, ProviderOrderInfo: row.ProviderOrderInfo,
+			ProviderPayDate: row.ProviderPayDate, CreatedAt: row.CreatedAt, CompletedAt: row.CompletedAt,
+		}
+		ev, err := s.vnpayQueryDR(ctx, vnp, intent, "")
 		if err != nil {
 			s.billingLogWarn("billing intent meta backfill querydr", err, "intent_id", row.ID)
 			continue
 		}
-		intent := db.BillingPaymentIntent{ID: row.ID, OrganizationID: row.OrganizationID}
 		if err := s.patchIntentProviderMeta(ctx, s.q, intent, ev); err != nil {
 			s.billingLogWarn("billing intent meta backfill patch", err, "intent_id", row.ID)
 		}

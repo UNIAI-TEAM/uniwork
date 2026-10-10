@@ -20,6 +20,8 @@ type ProjectDTO struct {
 	TaskCount      int64   `json:"task_count"`
 	DoneCount      int64   `json:"done_count"`
 	ResourceCount  int64   `json:"resource_count"`
+	CreatedBy      string  `json:"created_by" description:"Creator id; with lead_id it decides who may edit" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind  string  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
 	CreatedAt      string  `json:"created_at"`
 	UpdatedAt      string  `json:"updated_at"`
 }

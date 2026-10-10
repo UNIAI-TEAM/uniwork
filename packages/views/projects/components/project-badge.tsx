@@ -36,7 +36,8 @@ function asPriority(value: string): ProjectPriority {
 
 /**
  * Status dropdown. `badge` is the tinted pill of list rows and cards; `plain`
- * is the dot + label of the detail sidebar.
+ * is the dot + label of the detail sidebar. `disabled` shows the same status
+ * as text, for a project the viewer may not edit.
  */
 export function ProjectStatusBadge({
   project,
@@ -44,17 +45,48 @@ export function ProjectStatusBadge({
   triggerClassName,
   align = "end",
   appearance = "badge",
+  disabled = false,
 }: {
   project: Project;
   onUpdate: (patch: { status: ProjectStatus }) => void;
   triggerClassName?: string;
   align?: "start" | "end" | "center";
   appearance?: "badge" | "plain";
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const status = asStatus(project.status);
   const cfg = PROJECT_STATUS_CONFIG[status];
   const label = t(`projects.status.${status}`);
+
+  if (disabled) {
+    return appearance === "plain" ? (
+      <span
+        className={cn(
+          "-mx-1 inline-flex items-center gap-1.5 px-1 py-0.5 text-caption",
+          triggerClassName,
+        )}
+      >
+        <span
+          aria-hidden
+          data-slot="project-status-dot"
+          className={cn("size-2 shrink-0 rounded-full", cfg.dotColor)}
+        />
+        {label}
+      </span>
+    ) : (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-caption font-medium",
+          cfg.badgeBg,
+          cfg.badgeText,
+          triggerClassName,
+        )}
+      >
+        {label}
+      </span>
+    );
+  }
 
   return (
     <DropdownMenu>
@@ -109,15 +141,33 @@ export function ProjectPriorityBadge({
   onUpdate,
   triggerClassName,
   align = "end",
+  disabled = false,
 }: {
   project: Project;
   onUpdate: (patch: { priority: ProjectPriority }) => void;
   triggerClassName?: string;
   align?: "start" | "end" | "center";
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const priority = asPriority(project.priority);
   const cfg = PROJECT_PRIORITY_CONFIG[priority];
+
+  if (disabled) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-caption font-medium",
+          triggerClassName,
+        )}
+      >
+        <PriorityIcon priority={priority} />
+        <span className={cn("text-caption", cfg.color)}>
+          {t(`projects.priority.${priority}`)}
+        </span>
+      </span>
+    );
+  }
 
   return (
     <DropdownMenu>

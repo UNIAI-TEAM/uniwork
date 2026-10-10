@@ -28,13 +28,18 @@ function PropRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Status / priority / lead / date pickers for project detail. */
+/**
+ * Status / priority / lead / date pickers for project detail. `readOnly`
+ * shows the same values for a project the viewer may not edit.
+ */
 export function ProjectProperties({
   workspaceId,
   project,
+  readOnly = false,
 }: {
   workspaceId: string;
   project: Project;
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const save = useProjectFieldSave(workspaceId, project);
@@ -49,10 +54,16 @@ export function ProjectProperties({
             onUpdate={save}
             align="start"
             appearance="plain"
+            disabled={readOnly}
           />
         </PropRow>
         <PropRow label={t("projects.table.priority")}>
-          <ProjectPriorityBadge project={project} onUpdate={save} align="start" />
+          <ProjectPriorityBadge
+            project={project}
+            onUpdate={save}
+            align="start"
+            disabled={readOnly}
+          />
         </PropRow>
         <PropRow label={t("projects.table.lead")}>
           <ProjectLeadPicker
@@ -60,6 +71,7 @@ export function ProjectProperties({
             options={leadOptions}
             onChange={save}
             labelClassName="text-foreground"
+            disabled={readOnly}
           />
         </PropRow>
         <PropRow label={t("projects.detail.prop_start_date")}>
@@ -69,6 +81,7 @@ export function ProjectProperties({
             icon={<CalendarClock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />}
             max={project.due_date ?? undefined}
             onChange={(start_date) => save({ start_date })}
+            disabled={readOnly}
           />
         </PropRow>
         <PropRow label={t("projects.detail.prop_due_date")}>
@@ -79,6 +92,7 @@ export function ProjectProperties({
             min={project.start_date ?? undefined}
             highlightOverdue={project.status !== "completed" && project.status !== "cancelled"}
             onChange={(due_date) => save({ due_date })}
+            disabled={readOnly}
           />
         </PropRow>
       </div>

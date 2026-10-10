@@ -40,14 +40,8 @@ func (s *TaskService) ListProjectResources(ctx context.Context, actor Actor, wor
 }
 
 func (s *TaskService) CreateProjectResource(ctx context.Context, actor Actor, workspaceID, projectID string, in CreateProjectResourceInput) (db.ProjectResource, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return db.ProjectResource{}, err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	ws, _, err := s.authorizeProjectEdit(ctx, actor, workspaceID, projectID)
 	if err != nil {
-		return db.ProjectResource{}, err
-	}
-	if _, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID); err != nil {
 		return db.ProjectResource{}, err
 	}
 	nr, err := normalizeResourceInput(in)
@@ -87,10 +81,7 @@ func (s *TaskService) CreateProjectResource(ctx context.Context, actor Actor, wo
 }
 
 func (s *TaskService) UpdateProjectResource(ctx context.Context, actor Actor, workspaceID, projectID, resourceID string, in UpdateProjectResourceInput) (db.ProjectResource, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return db.ProjectResource{}, err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	ws, _, err := s.authorizeProjectEdit(ctx, actor, workspaceID, projectID)
 	if err != nil {
 		return db.ProjectResource{}, err
 	}
@@ -141,10 +132,7 @@ func (s *TaskService) UpdateProjectResource(ctx context.Context, actor Actor, wo
 }
 
 func (s *TaskService) DeleteProjectResource(ctx context.Context, actor Actor, workspaceID, projectID, resourceID string) error {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	ws, _, err := s.authorizeProjectEdit(ctx, actor, workspaceID, projectID)
 	if err != nil {
 		return err
 	}

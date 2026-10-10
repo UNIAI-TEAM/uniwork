@@ -167,6 +167,16 @@ UPDATE billing_payment_intents SET
     THEN btrim(sqlc.narg('provider_transaction_no')::text)
     ELSE provider_transaction_no
   END,
+  provider_order_info = CASE
+    WHEN sqlc.narg('provider_order_info')::text IS NOT NULL AND btrim(sqlc.narg('provider_order_info')::text) <> ''
+    THEN btrim(sqlc.narg('provider_order_info')::text)
+    ELSE provider_order_info
+  END,
+  provider_pay_date = CASE
+    WHEN sqlc.narg('provider_pay_date')::text IS NOT NULL AND btrim(sqlc.narg('provider_pay_date')::text) <> ''
+    THEN btrim(sqlc.narg('provider_pay_date')::text)
+    ELSE provider_pay_date
+  END,
   updated_at = now()
 WHERE id = $1 AND organization_id = $2 AND status = 'completed';
 
@@ -178,6 +188,7 @@ WHERE provider = 'vnpay' AND status = 'completed'
   AND (
     provider_bank_code IS NULL OR btrim(provider_bank_code) = ''
     OR provider_transaction_no IS NULL OR btrim(provider_transaction_no) = ''
+    OR provider_pay_date IS NULL OR btrim(provider_pay_date) = ''
   )
 ORDER BY COALESCE(completed_at, created_at) DESC
 LIMIT $1;
