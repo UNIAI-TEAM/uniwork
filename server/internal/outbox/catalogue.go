@@ -168,6 +168,11 @@ var catalogue = []EventDef{
 	{Topic: "chat.follow_up.updated", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "chat.follow_up.completed", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "chat.follow_up.deleted", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Notification feed (H1): consumed by internal/notification only; the open
+	// chat page still hears chat.mention.created and chat.message.created.
+	{Topic: "chat.message.mentioned", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.dm.received", Version: 1, Payload: []string{"room_id", "message_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.thread.reply_received", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_linked", Version: 1, Payload: []string{"thread_root_id", "message_id", "task_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.reminder.due", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},

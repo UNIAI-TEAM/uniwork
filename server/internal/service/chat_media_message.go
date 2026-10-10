@@ -240,6 +240,9 @@ func (s *ChatService) commitChatMediaMessage(
 			return db.ChatMessage{}, false, err
 		}
 	}
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", chatMentions{}); err != nil {
+		return db.ChatMessage{}, false, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.ChatMessage{}, false, err
 	}

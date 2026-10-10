@@ -81,6 +81,10 @@ var rules = map[string]rule{
 	"chat.reminder.due":      ruleChatReminderDue,
 	"email_hub.new_mail":     ruleEmailHubNewMail,
 	"meeting.ended":          ruleMeetingEnded,
+
+	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
+	"chat.dm.received":           chatMessageRule(KindChatDM),
+	"chat.thread.reply_received": chatMessageRule(KindChatThreadReplied),
 }
 
 // snippetRunes bounds what of a comment body lands in params: enough to
@@ -535,15 +539,8 @@ func ruleEmailHubNewMail(ctx context.Context, e env, ev outbox.Row, p map[string
 	}
 	wsID := p["workspace_id"]
 	if wsID == "" {
-		workspaces, lerr := e.q.ListWorkspacesForUser(ctx, p["user_id"])
-		if lerr != nil {
-			return nil, lerr
-		}
-		for _, w := range workspaces {
-			if w.OrganizationID == acc.OrganizationID {
-				wsID = w.ID
-				break
-			}
+		if wsID, err = userWorkspaceIn(ctx, e.q, p["user_id"], acc.OrganizationID); err != nil {
+			return nil, err
 		}
 	}
 	params := map[string]string{

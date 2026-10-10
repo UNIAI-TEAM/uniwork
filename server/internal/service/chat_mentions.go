@@ -210,6 +210,7 @@ func messageMentionsCurrentUser(raw []byte, userID string) bool {
 
 func (s *ChatService) persistMessageMentions(
 	ctx context.Context,
+	q *db.Queries,
 	msg db.ChatMessage,
 	m chatMentions,
 ) (db.ChatMessage, error) {
@@ -220,7 +221,7 @@ func (s *ChatService) persistMessageMentions(
 	if err != nil {
 		return msg, err
 	}
-	return s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
+	return q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
 		ID: msg.ID, RoomID: msg.RoomID, WorkspaceID: msg.WorkspaceID, Metadata: meta,
 	})
 }

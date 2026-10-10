@@ -24,6 +24,9 @@ var titles = map[string]map[string]string{
 		KindEmailHubNewMail:        "Bạn có {{count}} thư chưa đọc · {{mailbox}}",
 		KindDocumentCommented:      "{{actor}} đã bình luận trong “{{document}}”",
 		KindDocumentMentioned:      "{{actor}} đã nhắc đến bạn trong “{{document}}”",
+		KindChatMentioned:          "{{actor}} đã nhắc đến bạn trong {{room}}",
+		KindChatDM:                 "{{actor}} đã nhắn tin cho bạn",
+		KindChatThreadReplied:      "{{actor}} đã trả lời thread trong {{room}}",
 	},
 	"en": {
 		KindTaskAssigned:           "{{actor}} assigned you “{{task}}”",
@@ -41,6 +44,9 @@ var titles = map[string]map[string]string{
 		KindEmailHubNewMail:        "You have {{count}} unread message(s) · {{mailbox}}",
 		KindDocumentCommented:      "{{actor}} commented on “{{document}}”",
 		KindDocumentMentioned:      "{{actor}} mentioned you in “{{document}}”",
+		KindChatMentioned:          "{{actor}} mentioned you in {{room}}",
+		KindChatDM:                 "{{actor}} sent you a message",
+		KindChatThreadReplied:      "{{actor}} replied to a thread in {{room}}",
 	},
 }
 

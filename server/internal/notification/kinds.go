@@ -30,6 +30,11 @@ const (
 	// the document, not a task.
 	KindDocumentCommented = "document_commented"
 	KindDocumentMentioned = "document_mentioned"
+	// Chat (H1): one row per room or thread while unread, so a burst of
+	// messages is one notification and one push.
+	KindChatMentioned     = "chat_mentioned"
+	KindChatDM            = "chat_dm"
+	KindChatThreadReplied = "chat_thread_replied"
 )
 
 // Kinds is the list in display order.
@@ -38,6 +43,7 @@ var Kinds = []string{
 	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,
+	KindChatMentioned, KindChatDM, KindChatThreadReplied,
 }
 
 var kindSet = func() map[string]bool {

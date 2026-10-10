@@ -41,7 +41,7 @@ func (s *ChatService) EditChatMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	updated, err = s.persistMessageMentions(ctx, updated, mentions)
+	updated, err = s.persistMessageMentions(ctx, s.q, updated, mentions)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}

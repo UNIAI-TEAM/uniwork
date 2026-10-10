@@ -565,7 +565,14 @@ func (s *ChatService) sendMessage(
 	if clientMsgID != "" {
 		clientMsg = pgtype.Text{String: clientMsgID, Valid: true}
 	}
-	msg, err := s.q.CreateChatMessage(ctx, db.CreateChatMessageParams{
+	// One transaction: the message and its notification rows commit together.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
 		OrganizationID:   room.OrganizationID,
@@ -586,7 +593,7 @@ func (s *ChatService) sendMessage(
 		}
 		return ChatMessageRow{}, err
 	}
-	msg, err = s.persistMessageMentions(ctx, msg, mentions)
+	msg, err = s.persistMessageMentions(ctx, q, msg, mentions)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -595,12 +602,18 @@ func (s *ChatService) sendMessage(
 		if err != nil {
 			return ChatMessageRow{}, err
 		}
-		msg, err = s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
+		msg, err = q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
 			ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: meta,
 		})
 		if err != nil {
 			return ChatMessageRow{}, err
 		}
+	}
+	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", mentions); err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ChatMessageRow{}, err
 	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
