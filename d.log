@@ -1,0 +1,1 @@
+$ (set -a; . ./.env; set +a; PORT=3217 nohup pnpm --filter @uniwork/web start > /tmp/web-3217.log 2>&1 &)

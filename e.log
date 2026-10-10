@@ -1,0 +1,3 @@
+$ for i in $(seq 1 60); do curl -sf http://localhost:8217/healthz && break; sleep 1; done; for i in $(seq 1 90); do curl -sf http://localhost:3217 > /dev/null && break; sleep 1; done; curl -sf http://localhost:8217/readyz && curl -sf http://localhost:3217 > /dev/null
+{"status":"ok"}
+{"ready":true,"checks":[{"name":"db","ok":true},{"name":"migrations","ok":true,"detail":"9991791524388002_office_ai_features"},{"name":"redis","ok":true},{"name":"storage","ok":true}]}

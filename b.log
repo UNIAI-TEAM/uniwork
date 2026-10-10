@@ -1,0 +1,1 @@
+$ (set -a; . ./.env; set +a; cd server && go build -o bin/server ./cmd/server && PORT=8217 API_PUBLIC_URL=http://localhost:8217 FRONTEND_ORIGIN=http://localhost:3217 nohup bin/server > /tmp/server-8217.log 2>&1 &)

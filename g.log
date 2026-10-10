@@ -1,0 +1,56 @@
+$ NEXT_PUBLIC_API_URL=http://localhost:8217 NEXT_PUBLIC_WS_URL=ws://localhost:8217 E2E_BASE_URL=http://localhost:3217 OFFICE_SHELL_E2E=1 OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1 pnpm --filter @uniwork/e2e exec playwright test e2e/office-shell.spec.ts e2e/office-docs-web.spec.ts e2e/office-markdown-web.spec.ts e2e/office-markdown-assets-web.spec.ts e2e/office-modules-web.spec.ts
+
+Running 45 tests using 1 worker
+
+(node:17843) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17843) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -   1 office-docs-web.spec.ts:50:3 › frame serving › index.html carries the pinned CSP, same-origin framing and revalidation
+  -   2 office-docs-web.spec.ts:63:3 › frame serving › hashed assets and fonts are immutable and match the manifest digest
+  -   3 office-docs-web.spec.ts:76:3 › frame serving › an unpinned version is a 404 that still carries the locked-down policy
+  -   4 office-docs-web.spec.ts:82:3 › frame serving › the frame boots under its own CSP without a single violation
+  -   5 office-docs-web.spec.ts:115:3 › open, edit, save › a DOCX opens in the frame, an edit is saved as a new version and survives a reopen
+  -   6 office-docs-web.spec.ts:152:3 › open, edit, save › Save as makes a copy, the page follows it and the frame keeps editing the copy
+  -   7 office-docs-web.spec.ts:195:3 › open, edit, save › an inserted image passes the frame CSP and is stored in the docx
+  -   8 office-docs-web.spec.ts:223:3 › open, edit, save › PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback
+  -   9 office-docs-web.spec.ts:250:3 › open, edit, save › a token mint the server refuses with feature_disabled falls back to the G3 editor
+  -  10 office-docs-web.spec.ts:262:3 › open, edit, save › an organization override turning the flag off keeps the G3 editor and no frame mounts
+  ✓  11 office-docs-web.spec.ts:276:3 › bundle not installed › a flag-on organization keeps the G3 editor and no iframe is mounted (3.5s)
+  -  12 office-markdown-assets-web.spec.ts:64:3 › markdown pictures › a relative picture resolves, and a pasted one is stored as a document asset
+  -  13 office-markdown-web.spec.ts:30:3 › bundle installed › index.html is served with the module's pinned CSP and same-origin framing
+  -  14 office-markdown-web.spec.ts:60:5 › bundle installed › open, edit, save › a .md opens in the markdown frame and the handshake completes
+  -  15 office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (vi, light)
+  -  16 office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (vi, dark)
+  -  17 office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (en, light)
+  -  18 office-markdown-web.spec.ts:76:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (en, dark)
+  -  19 office-markdown-web.spec.ts:90:5 › bundle installed › open, edit, save › an edit is saved as a new version and survives a reopen
+  -  20 office-markdown-web.spec.ts:110:5 › bundle installed › open, edit, save › with the flag off the G3 editor opens and no frame mounts
+  ✓  21 office-markdown-web.spec.ts:125:3 › bundle not installed › a flag-on organization keeps the G3 editor and no iframe is mounted (31.0s)
+  -  22 office-modules-web.spec.ts:115:5 › served headers › pdf: index.html is served with the pinned policy
+  -  23 office-modules-web.spec.ts:115:5 › served headers › html: index.html is served with the pinned policy
+  -  24 office-modules-web.spec.ts:115:5 › served headers › slides: index.html is served with the pinned policy
+  -  25 office-modules-web.spec.ts:115:5 › served headers › sheets: index.html is served with the pinned policy
+  -  26 office-modules-web.spec.ts:126:3 › served headers › html: preview.html is served with its own sandboxed policy, not the frame's
+  -  27 office-modules-web.spec.ts:163:5 › pdf module › a text.pdf opens in the pdf frame and the handshake completes
+  -  28 office-modules-web.spec.ts:178:5 › pdf module › a pdf frame bundle that answers 404 falls back to the G3 host, not an endless skeleton
+  -  29 office-modules-web.spec.ts:190:7 › pdf module › a frame whose script is blocked falls back to the G3 host at once and says why
+  -  30 office-modules-web.spec.ts:163:5 › html module › a page.html opens in the html frame and the handshake completes
+  -  31 office-modules-web.spec.ts:178:5 › html module › a html frame bundle that answers 404 falls back to the G3 host, not an endless skeleton
+  -  32 office-modules-web.spec.ts:207:7 › html module › an edit in the html frame is saved as a new version
+  -  33 office-modules-web.spec.ts:163:5 › slides module › a deck.pptx opens in the slides frame and the handshake completes
+  -  34 office-modules-web.spec.ts:178:5 › slides module › a slides frame bundle that answers 404 falls back to the G3 host, not an endless skeleton
+  -  35 office-modules-web.spec.ts:163:5 › sheets module › a book.xlsx opens in the sheets frame and the handshake completes
+  -  36 office-modules-web.spec.ts:178:5 › sheets module › a sheets frame bundle that answers 404 falls back to the G3 host, not an endless skeleton
+  -  37 office-modules-web.spec.ts:207:7 › sheets module › an edit in the sheets frame is saved as a new version
+  ✓  38 office-shell.spec.ts:161:1 › an unsaved edit survives a reload as a recoverable local draft (9.1s)
+  ✓  39 office-shell.spec.ts:183:1 › keeps bound Office header actions reachable at 390px without nested scrolling (2.5s)
+  ✓  40 office-shell.spec.ts:220:3 › holds the shell at 360px in both themes (2.8s)
+  ✓  41 office-shell.spec.ts:220:3 › holds the shell at 375px in both themes (3.1s)
+  ✓  42 office-shell.spec.ts:220:3 › holds the shell at 768px in both themes (3.3s)
+  ✓  43 office-shell.spec.ts:220:3 › holds the shell at 1280px in both themes (2.9s)
+  ✓  44 office-shell.spec.ts:242:1 › keyboard-only navigation keeps focus visible on the bound shell (2.6s)
+  ✓  45 office-shell.spec.ts:251:1 › flag off leaves the existing file view unchanged (2.7s)
+
+  35 skipped
+  10 passed (2.0m)
