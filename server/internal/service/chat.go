@@ -106,6 +106,9 @@ type ChatMessageRow struct {
 type ListChatMessagesInput struct {
 	// Cursor is a row's Cursor(): the page strictly older than that row.
 	Cursor string
+	// After is a row's Cursor(): the messages strictly newer than that row,
+	// oldest first (catch-up after a reconnect). Exclusive with Cursor/Before.
+	After string
 	// Before is the legacy second-precision cursor; it skips messages that
 	// share the boundary second, so Cursor wins when both are set.
 	Before *time.Time
@@ -408,6 +411,9 @@ func (s *ChatService) listMessages(
 	if limit > maxChatMessageLimit {
 		limit = maxChatMessageLimit
 	}
+	if in.After != "" {
+		return s.listMessagesAfter(ctx, userID, workspaceID, roomID, in.After, in.Cursor != "" || in.Before != nil, limit)
+	}
 	var before pgtype.Timestamptz
 	var beforeID string
 	switch {
@@ -440,6 +446,33 @@ func (s *ChatService) listMessages(
 	if !in.SkipMarkRead && !before.Valid && len(out) > 0 {
 		last := out[len(out)-1]
 		s.markChatRoomRead(ctx, room, userID, pgtype.Timestamptz{Time: last.CreatedAt, Valid: true})
+	}
+	return out, nil
+}
+
+// listMessagesAfter reads forward from a cursor. It never marks read: the
+// caller is filling a gap, not opening the room.
+func (s *ChatService) listMessagesAfter(
+	ctx context.Context, userID, workspaceID, roomID, after string, withOlder bool, limit int,
+) ([]ChatMessageRow, error) {
+	if withOlder {
+		return nil, Invalid("chỉ dùng một trong cursor/before hoặc after")
+	}
+	at, id, err := decodeFeedCursor(after)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListChatMessagesByRoomAfter(ctx, db.ListChatMessagesByRoomAfterParams{
+		RoomID: roomID, WorkspaceID: workspaceID,
+		AfterAt: pgtype.Timestamptz{Time: at, Valid: true}, AfterID: id,
+		MsgLimit: int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ChatMessageRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, chatMessageRowFromListRow(db.ListChatMessagesByRoomRow(row), userID))
 	}
 	return out, nil
 }

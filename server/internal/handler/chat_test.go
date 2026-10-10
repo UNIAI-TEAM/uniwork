@@ -285,6 +285,17 @@ func TestChatRoomMessages(t *testing.T) {
 		t.Fatalf("older page: %d %v", res.StatusCode, out)
 	}
 
+	older := out["messages"].([]any)[0].(map[string]any)
+	res, out = doJSON(t, srv, "GET", base+"?limit=10&after="+url.QueryEscape(older["cursor"].(string)), tokA, nil)
+	if res.StatusCode != http.StatusOK || len(out["messages"].([]any)) != 1 ||
+		out["messages"].([]any)[0].(map[string]any)["id"] != newest["id"] {
+		t.Fatalf("newer page: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", base+"?after="+url.QueryEscape(cursor)+"&cursor="+url.QueryEscape(cursor), tokA, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("after with cursor: %d %v", res.StatusCode, out)
+	}
+
 	res, out = doJSON(t, srv, "GET", base+"?cursor=not-a-cursor", tokA, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad cursor: %d %v", res.StatusCode, out)

@@ -205,6 +205,7 @@ func parseChatMessageListQuery(r *http.Request) (service.ListChatMessagesInput, 
 	skipMarkRead := strings.TrimSpace(r.URL.Query().Get("mark_read")) == "0"
 	return service.ListChatMessagesInput{
 		Cursor: strings.TrimSpace(r.URL.Query().Get("cursor")),
+		After:  strings.TrimSpace(r.URL.Query().Get("after")),
 		Before: before, Limit: limit, SkipMarkRead: skipMarkRead,
 	}, nil
 }

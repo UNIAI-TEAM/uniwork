@@ -248,6 +248,14 @@ describe("chat endpoints", () => {
     expect(messages.map((m) => m.cursor)).toEqual(["1788566400123456.m1", undefined]);
   });
 
+  it("listChatRoomMessages reads forward with after and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: "nope" }));
+    expect(await listChatRoomMessages("ws1", "room1", { after: "1788566400123456.m1", limit: 50 })).toEqual([]);
+    const url = String(vi.mocked(fetch).mock.calls[0]?.[0]);
+    expect(url).toContain("after=1788566400123456.m1");
+    expect(url).not.toContain("cursor=");
+  });
+
   it("olderThan prefers the opaque cursor and falls back to before without one", () => {
     expect(olderThan({ cursor: "1.m1", created_at: "2026-09-05T00:00:00Z" })).toEqual({ cursor: "1.m1" });
     expect(olderThan({ created_at: "2026-09-05T00:00:00Z" })).toEqual({ before: "2026-09-05T00:00:00Z" });

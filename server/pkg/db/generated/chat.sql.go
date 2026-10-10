@@ -1685,6 +1685,105 @@ func (q *Queries) ListChatMessagesByRoom(ctx context.Context, arg ListChatMessag
 	return items, nil
 }
 
+const listChatMessagesByRoomAfter = `-- name: ListChatMessagesByRoomAfter :many
+SELECT
+  m.id,
+  m.room_id,
+  m.workspace_id,
+  m.sender_id,
+  m.kind,
+  m.body,
+  m.metadata,
+  m.reply_to_message_id,
+  m.thread_root_id,
+  m.reply_count,
+  m.last_reply_at,
+  m.edited_at,
+  m.created_at,
+  m.client_msg_id,
+  u.display_name AS sender_display_name
+FROM chat_messages m
+INNER JOIN users u ON u.id = m.sender_id
+WHERE m.room_id = $1
+  AND m.workspace_id = $2
+  AND m.deleted_at IS NULL
+  AND m.thread_root_id IS NULL
+  AND m.created_at >= $3::timestamptz
+  AND (m.created_at, m.id) > ($3::timestamptz, $4::text)
+ORDER BY m.created_at ASC, m.id ASC
+LIMIT $5
+`
+
+type ListChatMessagesByRoomAfterParams struct {
+	RoomID      string             `json:"room_id"`
+	WorkspaceID string             `json:"workspace_id"`
+	AfterAt     pgtype.Timestamptz `json:"after_at"`
+	AfterID     string             `json:"after_id"`
+	MsgLimit    int32              `json:"msg_limit"`
+}
+
+type ListChatMessagesByRoomAfterRow struct {
+	ID                string             `json:"id"`
+	RoomID            string             `json:"room_id"`
+	WorkspaceID       string             `json:"workspace_id"`
+	SenderID          string             `json:"sender_id"`
+	Kind              string             `json:"kind"`
+	Body              string             `json:"body"`
+	Metadata          []byte             `json:"metadata"`
+	ReplyToMessageID  pgtype.Text        `json:"reply_to_message_id"`
+	ThreadRootID      pgtype.Text        `json:"thread_root_id"`
+	ReplyCount        int32              `json:"reply_count"`
+	LastReplyAt       pgtype.Timestamptz `json:"last_reply_at"`
+	EditedAt          pgtype.Timestamptz `json:"edited_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ClientMsgID       pgtype.Text        `json:"client_msg_id"`
+	SenderDisplayName string             `json:"sender_display_name"`
+}
+
+// Catch-up page: the main-timeline messages just newer than (after_at,
+// after_id), oldest first. Same columns as ListChatMessagesByRoom.
+func (q *Queries) ListChatMessagesByRoomAfter(ctx context.Context, arg ListChatMessagesByRoomAfterParams) ([]ListChatMessagesByRoomAfterRow, error) {
+	rows, err := q.db.Query(ctx, listChatMessagesByRoomAfter,
+		arg.RoomID,
+		arg.WorkspaceID,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.MsgLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListChatMessagesByRoomAfterRow{}
+	for rows.Next() {
+		var i ListChatMessagesByRoomAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RoomID,
+			&i.WorkspaceID,
+			&i.SenderID,
+			&i.Kind,
+			&i.Body,
+			&i.Metadata,
+			&i.ReplyToMessageID,
+			&i.ThreadRootID,
+			&i.ReplyCount,
+			&i.LastReplyAt,
+			&i.EditedAt,
+			&i.CreatedAt,
+			&i.ClientMsgID,
+			&i.SenderDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChatMessagesInRoomBetween = `-- name: ListChatMessagesInRoomBetween :many
 SELECT
   m.id,

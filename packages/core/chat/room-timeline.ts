@@ -1,5 +1,6 @@
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
-import { olderThan, type ChatMessageRecord } from "../api/endpoints/chat";
+import { listChatRoomMessages, olderThan, type ChatMessageRecord } from "../api/endpoints/chat";
+import { WS_SCOPE_CHAT } from "../realtime/scopes";
 import { chatKeys } from "./chat-keys";
 
 /** Most messages one room timeline keeps in memory across its pages. */
@@ -137,4 +138,71 @@ export function refreshRoomTimelineOnOpen(qc: QueryClient, wsId: string, roomId:
   const data = qc.getQueryData<RoomTimeline>(key);
   if (data) qc.setQueryData<RoomTimeline>(key, keepRoomTimelineHead(data));
   void qc.invalidateQueries({ queryKey: key });
+}
+
+const catchUpsInFlight = new Map<string, Promise<void>>();
+
+async function readMissedMessages(qc: QueryClient, wsId: string, roomId: string): Promise<void> {
+  const key = chatKeys.roomMessages(wsId, roomId);
+  const data = qc.getQueryData<RoomTimeline>(key);
+  if (!data) return;
+  const newest = newestTimelineMessage(data);
+  // An empty room or a server without cursors: the newest page is the catch-up.
+  if (!newest?.cursor) {
+    void qc.invalidateQueries({ queryKey: key });
+    return;
+  }
+  let rows: ChatMessageRecord[];
+  try {
+    rows = await listChatRoomMessages(wsId, roomId, {
+      after: newest.cursor,
+      limit: CHAT_HISTORY_PAGE_SIZE,
+      mark_read: false,
+    });
+  } catch {
+    void qc.invalidateQueries({ queryKey: key });
+    return;
+  }
+  // A full page may not be all that was missed: refetch rather than guess.
+  let next = rows.length >= CHAT_HISTORY_PAGE_SIZE ? null : (qc.getQueryData<RoomTimeline>(key) ?? null);
+  for (const row of rows) {
+    if (!next) break;
+    next = insertCreatedTimelineMessage(next, row);
+  }
+  if (next) qc.setQueryData<RoomTimeline>(key, next);
+  else void qc.invalidateQueries({ queryKey: key });
+}
+
+/**
+ * After a (re)subscribe or a reconnect, read the messages newer than the
+ * newest loaded one and append them (H5). Frames sent while the socket was
+ * down are gone; this closes that gap without refetching every loaded page.
+ */
+export function catchUpRoomTimeline(qc: QueryClient, wsId: string, roomId: string): Promise<void> {
+  const id = `${wsId}/${roomId}`;
+  const running = catchUpsInFlight.get(id);
+  if (running) return running;
+  const run = readMissedMessages(qc, wsId, roomId).finally(() => catchUpsInFlight.delete(id));
+  catchUpsInFlight.set(id, run);
+  return run;
+}
+
+/** A room scope (re)admitted reads what it missed while it was not; true when the frame was that ack. */
+export function catchUpOnChatSubscribeAck(
+  qc: QueryClient,
+  wsId: string,
+  type: string,
+  payload: Record<string, string>,
+): boolean {
+  if (type !== "subscribe_ack" || payload.scope !== WS_SCOPE_CHAT || !payload.id) return false;
+  void catchUpRoomTimeline(qc, wsId, payload.id);
+  return true;
+}
+
+/** After a reconnect: every room timeline loaded in this workspace catches up. */
+export function catchUpLoadedRoomTimelines(qc: QueryClient, wsId: string): void {
+  for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
+    const roomId = queryKey[3];
+    if (data !== undefined && typeof roomId === "string" && roomId) void catchUpRoomTimeline(qc, wsId, roomId);
+  }
 }

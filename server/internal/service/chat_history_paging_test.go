@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 )
@@ -43,5 +44,36 @@ func TestChatHistoryPagingKeepsSameInstantMessages(t *testing.T) {
 	}
 	if len(seen) != total {
 		t.Fatalf("paged %d of %d messages", len(seen), total)
+	}
+
+	// Forward from the oldest page's first row: the same messages, oldest first.
+	first, err := s.ListRoomMessages(ctx, ua.ID, w.ID, roomID, ListChatMessagesInput{Limit: total})
+	if err != nil || len(first) != total {
+		t.Fatalf("all rows: %d %v", len(first), err)
+	}
+	after := ListChatMessagesInput{Limit: 7, After: first[0].Cursor()}
+	forward := []string{first[0].ID}
+	for len(forward) < total {
+		rows, err := s.ListRoomMessages(ctx, ua.ID, w.ID, roomID, after)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		for _, r := range rows {
+			forward = append(forward, r.ID)
+		}
+		after.After = rows[len(rows)-1].Cursor()
+	}
+	for i, r := range first {
+		if i >= len(forward) || forward[i] != r.ID {
+			t.Fatalf("forward paging diverged at %d: %v", i, forward)
+		}
+	}
+	if _, err := s.ListRoomMessages(ctx, ua.ID, w.ID, roomID, ListChatMessagesInput{
+		After: first[0].Cursor(), Cursor: first[0].Cursor(),
+	}); !errors.As(err, new(ValidationError)) {
+		t.Fatalf("after with cursor: %v", err)
 	}
 }

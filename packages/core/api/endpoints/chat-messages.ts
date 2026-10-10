@@ -7,10 +7,12 @@ import type { ChatMessageRecord } from "./chat-schemas";
 export async function listChatRoomMessages(
   workspaceId: string,
   roomId: string,
-  options?: { cursor?: string; before?: string; limit?: number; mark_read?: boolean },
+  options?: { cursor?: string; after?: string; before?: string; limit?: number; mark_read?: boolean },
 ): Promise<ChatMessageRecord[]> {
   const params = new URLSearchParams();
   if (options?.cursor) params.set("cursor", options.cursor);
+  // A message's cursor: the messages newer than it, oldest first (catch-up).
+  if (options?.after) params.set("after", options.after);
   if (options?.before) params.set("before", options.before);
   if (options?.limit) params.set("limit", String(options.limit));
   // Default true (omit param). mark_read=0 preserves last_read for CatchUp.

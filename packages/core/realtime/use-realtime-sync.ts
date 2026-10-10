@@ -11,6 +11,7 @@ import { auditKeys } from "../audit/hooks";
 import { emitQuotaThreshold } from "../billing/quota-threshold-bus";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
+import { catchUpLoadedRoomTimelines, catchUpOnChatSubscribeAck } from "../chat/room-timeline";
 import { documentKeys } from "../documents/keys";
 import { graphKeys } from "../graph/keys";
 import {
@@ -454,8 +455,7 @@ function allWorkspaceKeys(wsId: string) {
     taskKeys.projects(wsId),
     chatKeys.rooms(wsId),
     chatKeys.room(wsId),
-    // Open conversations go stale while the socket is down (BE restart).
-    chatKeys.roomMessagesRoot(wsId),
+    // Open room timelines catch up by cursor instead (catchUpLoadedRoomTimelines).
     chatKeys.messages(wsId),
     chatKeys.threadMessagesRoot(wsId),
     meetingKeys.list(wsId),
@@ -516,6 +516,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
 
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
+      if (catchUpOnChatSubscribeAck(qc, wsId, msg.type, payload)) return;
       const eventType = RENAMED_EVENTS[msg.type] ?? (msg.type as WSEventType);
       if (changesTaskGraph(eventType, payload)) {
         // The graph trails its sources (ADR 0019): refresh now and once more
@@ -572,6 +573,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         if (isChatRoomsKey(wsId, queryKey)) chatScheduler.scheduleRoomActivity();
         else scheduler.schedule(queryKey);
       }
+      catchUpLoadedRoomTimelines(qc, wsId);
     });
     return () => {
       offAny();

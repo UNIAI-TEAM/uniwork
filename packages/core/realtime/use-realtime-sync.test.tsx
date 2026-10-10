@@ -47,6 +47,22 @@ const timelineRows = (qc: QueryClient, roomId: string) => {
   return data ? flattenRoomTimeline(data) : [];
 };
 
+const messageRow = (id: string): chatApi.ChatMessageRecord => ({
+  id,
+  room_id: "dm1",
+  workspace_id: "ws1",
+  sender_id: "u2",
+  sender_display_name: "Bob",
+  kind: "text",
+  body: id,
+  created_at: "2026-01-01T10:00:00Z",
+  pinned: false,
+  mentioned_user_ids: [],
+  reactions: {},
+  reply_count: 0,
+  thread_unread: false,
+});
+
 const keysCalled = (spy: { mock: { calls: unknown[][] } }) =>
   spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
 
@@ -833,6 +849,27 @@ describe("useRealtimeSync", () => {
     );
   });
 
+  // H5: an open timeline reads what it missed instead of refetching every page.
+  it("catches open chat timelines up after a reconnect and a chat resubscribe", async () => {
+    vi.useFakeTimers();
+    const list = vi.spyOn(chatApi, "listChatRoomMessages").mockResolvedValue([]);
+    const { qc, invalidate, client } = setup();
+    const newest = { ...messageRow("m1"), cursor: "1.m1" };
+    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), { pages: [[newest]], pageParams: [null] });
+    client.reconnect();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    client.emit({ type: "subscribe_ack", payload: { scope: "chat", id: "dm1" } } as unknown as WSMessage);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(list).toHaveBeenCalledWith("ws1", "dm1", expect.objectContaining({ after: "1.m1" }));
+    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(chatKeys.roomMessagesRoot("ws1")));
+    vi.useRealTimers();
+  });
+
   it("invalidates workspace keys and open chat timelines after a reconnect", async () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
@@ -851,7 +888,6 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["projects", "ws1"]),
         JSON.stringify(["chat", "rooms", "ws1"]),
         JSON.stringify(["chat", "room", "ws1"]),
-        JSON.stringify(["chat", "room-messages", "ws1"]),
         JSON.stringify(["chat", "messages", "ws1"]),
         JSON.stringify(["chat", "thread-messages", "ws1"]),
         JSON.stringify(["meetings", "ws1"]),

@@ -73,6 +73,36 @@ WHERE m.room_id = $1
 ORDER BY m.created_at DESC, m.id DESC
 LIMIT sqlc.arg(msg_limit);
 
+-- name: ListChatMessagesByRoomAfter :many
+-- Catch-up page: the main-timeline messages just newer than (after_at,
+-- after_id), oldest first. Same columns as ListChatMessagesByRoom.
+SELECT
+  m.id,
+  m.room_id,
+  m.workspace_id,
+  m.sender_id,
+  m.kind,
+  m.body,
+  m.metadata,
+  m.reply_to_message_id,
+  m.thread_root_id,
+  m.reply_count,
+  m.last_reply_at,
+  m.edited_at,
+  m.created_at,
+  m.client_msg_id,
+  u.display_name AS sender_display_name
+FROM chat_messages m
+INNER JOIN users u ON u.id = m.sender_id
+WHERE m.room_id = $1
+  AND m.workspace_id = $2
+  AND m.deleted_at IS NULL
+  AND m.thread_root_id IS NULL
+  AND m.created_at >= sqlc.arg(after_at)::timestamptz
+  AND (m.created_at, m.id) > (sqlc.arg(after_at)::timestamptz, sqlc.arg(after_id)::text)
+ORDER BY m.created_at ASC, m.id ASC
+LIMIT sqlc.arg(msg_limit);
+
 -- name: CreateChatPollMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id
