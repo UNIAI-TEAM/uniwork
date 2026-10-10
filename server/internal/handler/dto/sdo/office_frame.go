@@ -33,6 +33,10 @@ type OfficeFrameDocumentSDO struct {
 	File           DocumentFileDTO `json:"file"`
 	DownloadURL    string          `json:"download_url" description:"Route tải byte của version hiện tại, đọc bằng token khung" example:"/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7/content?version=3"`
 	UpdatedAt      string          `json:"updated_at" example:"2026-10-08T10:00:00Z"`
+	// Assets is set on open for the markdown and html modules (UNI-1232):
+	// every relative reference of the current version that resolves, as
+	// written in the document, to a signed same-origin URL.
+	Assets map[string]string `json:"assets,omitempty" description:"Markdown/HTML: đường dẫn tương đối như viết trong tài liệu -> URL có chữ ký (asset của tài liệu hoặc file cùng thư mục); đường dẫn không phân giải được thì vắng" example:"{\"assets/logo.png\":\"/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7/assets/01J8X4AST0N1P2Q3R4S5T6U7V8?sig=ofa1.abc\"}"`
 }
 
 // OfficeFrameRecentDTO is one recent document of the token's module in its

@@ -16,6 +16,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
@@ -46,6 +47,8 @@ func (h *handlers) officeFrameAuth(next http.Handler) http.Handler {
 			claims, err = h.OfficeFrame.Verify(token)
 		} else if sig, assetID := r.URL.Query().Get("sig"), chi.URLParam(r, "assetID"); sig != "" && assetID != "" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
 			claims, err = h.OfficeFrame.VerifyAsset(sig, documentID, assetID)
+		} else if linkedID := chi.URLParam(r, "linkedDocumentID"); sig != "" && linkedID != "" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			claims, err = h.OfficeFrame.VerifyLinked(sig, documentID, linkedID)
 		} else {
 			err = service.ErrOfficeFrameToken
 		}
@@ -157,14 +160,19 @@ func officeFrameModuleEnabled(ctx context.Context, flags *featureflag.Service, c
 	return flags.IsEnabled(ctx, key, def)
 }
 
-// openOfficeFrameDocument is GET /office-frame/documents/{documentID}.
+// openOfficeFrameDocument is GET /office-frame/documents/{documentID}. A
+// Markdown/HTML document also answers the signed URLs of its relative
+// references (`assets`).
 func (h *handlers) openOfficeFrameDocument(w http.ResponseWriter, r *http.Request) {
-	d, err := h.OfficeFrame.Open(r.Context(), officeFrameClaims(r))
+	claims := officeFrameClaims(r)
+	d, err := h.OfficeFrame.Open(r.Context(), claims)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondOfficeJSON(w, http.StatusOK, officeFrameDocumentSDO(d))
+	out := officeFrameDocumentSDO(d)
+	out.Assets = h.OfficeFrame.OpenAssets(r.Context(), claims, d)
+	respondOfficeJSON(w, http.StatusOK, out)
 }
 
 // getOfficeFrameContent is GET|HEAD /office-frame/documents/{documentID}/content:
@@ -317,4 +325,26 @@ func (h *handlers) getOfficeFrameAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.getDocumentAsset(w, r)
+}
+
+// getOfficeFrameLinked is GET|HEAD
+// /office-frame/documents/{documentID}/linked/{linkedDocumentID}: the bytes of
+// a file document next to a Markdown/HTML document (a picture, stylesheet or
+// script it loads by relative path), typed by its extension. The same headers
+// as every Documents byte route: sandbox CSP, nosniff, no-store.
+func (h *handlers) getOfficeFrameLinked(w http.ResponseWriter, r *http.Request) {
+	f, err := h.OfficeFrame.OpenLinked(r.Context(), officeFrameClaims(r), chi.URLParam(r, "linkedDocumentID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	defer f.Reader.Close()
+	h.serveDocumentFile(w, r, documentFilePayload{
+		Body:        f.Reader.Body,
+		SizeBytes:   f.Reader.File.SizeBytes,
+		ContentType: f.ContentType,
+		Filename:    f.Filename,
+		Disposition: storage.ContentDisposition(f.ContentType, f.Filename),
+		Checksum:    f.Reader.File.ChecksumSHA256,
+	}, service.DocumentByteRange{}, false)
 }

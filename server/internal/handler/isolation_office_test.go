@@ -172,7 +172,7 @@ var isoFrameDocx = func() []byte {
 // buildOfficeFrame gives the tenant an Office Docs frame: a DOCX file
 // document, a frame token minted by the owner's session (registered so do()
 // sends it on the frame routes), bytes staged through the frame for a save,
-// and an image attached through the frame.
+// an image attached through the frame and a picture document next to it.
 func (w *isoWorld) buildOfficeFrame(t *testing.T, tn *isoTenant) {
 	t.Helper()
 	out := w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
@@ -180,6 +180,13 @@ func (w *isoWorld) buildOfficeFrame(t *testing.T, tn *isoTenant) {
 		contentType: isoDocxMime, content: isoFrameDocx,
 	})
 	tn.ids["frameDocument"] = isoID(t, out, "document")
+	// A picture next to it, which a Markdown/HTML frame would load through
+	// .../linked/{linkedDocumentID} (UNI-1232).
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": tn.marker + " Picture"}, filename: strings.ToLower(tn.marker) + ".png",
+		contentType: "image/png", content: docsPNG,
+	})
+	tn.ids["frameSibling"] = isoID(t, out, "document")
 	out = w.call(t, "POST", "/api/v1/documents/"+tn.ids["frameDocument"]+"/office/frame-token", tn.token, nil)
 	tn.ids["frameToken"] = isoString(t, out, "token")
 	if w.frameTokens == nil {

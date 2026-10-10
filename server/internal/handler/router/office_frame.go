@@ -31,6 +31,7 @@ import (
 //	POST   /api/v1/office-frame/documents/{documentID}/assets
 //	POST   /api/v1/office-frame/documents/{documentID}/assets/sign
 //	GET    /api/v1/office-frame/documents/{documentID}/assets/{assetID} (bytes; HEAD)
+//	GET    /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID} (bytes; HEAD)
 func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
 	// The module flags are not middleware here: they are organization-scoped
 	// and only the document names its organization and format, so
@@ -103,6 +104,19 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 	f.r.Head("/office-frame/documents/{documentID}/assets/{assetID}", h.GetOfficeFrameAsset)
 	f.cat.add(http.MethodHead, joinRoute(f.prefix, "/office-frame/documents/{documentID}/assets/{assetID}"), apiOp{
 		summary:     "Headers of a frame image",
+		description: "Như GET nhưng không có body.",
+		tags:        []string{"documents"},
+	})
+	f.Get("/office-frame/documents/{documentID}/linked/{linkedDocumentID}", h.GetOfficeFrameLinked, apiOp{
+		summary: "Stream a file next to the frame's Markdown/HTML document",
+		description: "Frame token as Bearer, or the ?sig= of a URL the open answer's assets map signed for exactly this file. " +
+			"A live file document in the token's workspace that the token's user may view (rechecked on every request, together with the frame's document) and of a type the frames load: PNG, JPEG, GIF, WebP, SVG, CSS, JavaScript; anything else answers 404. " +
+			"Content-Type by the file's extension, nosniff, Content-Security-Policy sandbox, Cache-Control: private, no-store.",
+		tags: []string{"documents"}, produces: "application/octet-stream", auth: true,
+	})
+	f.r.Head("/office-frame/documents/{documentID}/linked/{linkedDocumentID}", h.GetOfficeFrameLinked)
+	f.cat.add(http.MethodHead, joinRoute(f.prefix, "/office-frame/documents/{documentID}/linked/{linkedDocumentID}"), apiOp{
+		summary:     "Headers of a file next to the frame's document",
 		description: "Như GET nhưng không có body.",
 		tags:        []string{"documents"},
 	})

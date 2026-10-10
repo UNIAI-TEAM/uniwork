@@ -555,6 +555,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "frameAsset")
 		}
 		return tn.get(t, "asset")
+	case "{linkedDocumentID}":
+		return tn.get(t, "frameSibling")
 	case "{signatureID}":
 		return tn.get(t, "signature")
 	case "{aiProvider}":

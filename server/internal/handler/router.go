@@ -623,6 +623,7 @@ func New(d Deps) http.Handler {
 		UploadOfficeFrameAsset:   h.uploadOfficeFrameAsset,
 		SignOfficeFrameAssets:    h.signOfficeFrameAssets,
 		GetOfficeFrameAsset:      h.getOfficeFrameAsset,
+		GetOfficeFrameLinked:     h.getOfficeFrameLinked,
 		ExportOfficeFramePDF:     h.exportOfficeFramePDF,
 
 		OfficeFrameAiCredentialsList:     frameAI.CredentialsList,

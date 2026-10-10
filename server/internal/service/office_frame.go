@@ -29,8 +29,8 @@ type OfficeFrameService struct {
 	now       func() time.Time
 }
 
-// OfficeFrameTokenTTL is the lifetime of a frame token and of a signed image
-// URL. There is no token-to-token renewal: before it ends the frame sends the
+// OfficeFrameTokenTTL is the lifetime of a frame token (a signed image URL
+// lives OfficeFrameAssetURLTTL). There is no token-to-token renewal: before it ends the frame sends the
 // protocol's token.refresh and the host re-mints with its session, so a token
 // never outlives the session that minted it by more than one TTL.
 const OfficeFrameTokenTTL = 10 * time.Minute
@@ -242,9 +242,9 @@ func (s *OfficeFrameService) load(ctx context.Context, actor Actor, documentID s
 
 // SignAsset returns a URL for one image of the token's document that an <img>
 // can load without a header. The signature binds the asset, the document and
-// the user and lives as long as a token; the byte route still rechecks view.
+// the user and lives OfficeFrameAssetURLTTL; the byte route still rechecks view.
 func (s *OfficeFrameService) SignAsset(claims OfficeFrameClaims, assetID string) (OfficeFrameAssetURL, error) {
-	expires := s.now().Add(s.ttl)
+	expires := s.now().Add(OfficeFrameAssetURLTTL)
 	sig, err := s.sign(officeFrameAssetPrefix, officeFrameAssetClaims{
 		DocumentID: claims.DocumentID, AssetID: assetID, WorkspaceID: claims.WorkspaceID,
 		OrganizationID: claims.OrganizationID, UserID: claims.UserID, ExpiresAt: expires.UnixMilli(),

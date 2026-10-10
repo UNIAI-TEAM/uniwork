@@ -98,7 +98,13 @@ func TestOfficeFrameAssetSignatureNamesOneAsset(t *testing.T) {
 			t.Errorf("VerifyAsset accepted module %q", m)
 		}
 	}
+	// An image URL outlives a token (the frame maps paths once per open) but not
+	// OfficeFrameAssetURLTTL.
 	now = now.Add(OfficeFrameTokenTTL)
+	if _, err := s.VerifyAsset(sig, "doc", "asset"); err != nil {
+		t.Fatalf("VerifyAsset refused a signature inside its lifetime: %v", err)
+	}
+	now = now.Add(OfficeFrameAssetURLTTL - OfficeFrameTokenTTL)
 	if _, err := s.VerifyAsset(sig, "doc", "asset"); err == nil {
 		t.Fatal("VerifyAsset accepted an expired signature")
 	}
