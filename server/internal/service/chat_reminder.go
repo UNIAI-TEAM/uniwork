@@ -116,8 +116,20 @@ func (s *ChatService) SendReminderMessage(
 		return ChatMessageRow{}, err
 	}
 
+	u, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	_, tz := homeLocation(u.Timezone)
+
 	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.CreateChatReminderMessage(ctx, db.CreateChatReminderMessageParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	msg, err := q.CreateChatReminderMessage(ctx, db.CreateChatReminderMessageParams{
 		ID:             util.NewID(),
 		RoomID:         room.ID,
 		OrganizationID: room.OrganizationID,
@@ -129,9 +141,16 @@ func (s *ChatService) SendReminderMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-
-	u, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
+	// The due row the reminder worker fires from (H16); the creator's zone
+	// keeps a repeat on the same wall-clock time.
+	if err := q.CreateChatReminder(ctx, db.CreateChatReminderParams{
+		MessageID: msg.ID, OrganizationID: room.OrganizationID, WorkspaceID: anchorWS,
+		RoomID: room.ID, CreatedBy: userID, Repeat: repeat, Timezone: tz,
+		RemindAt: pgtype.Timestamptz{Time: remindAt, Valid: true},
+	}); err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return ChatMessageRow{}, err
 	}
 	createdAt := msg.CreatedAt.Time

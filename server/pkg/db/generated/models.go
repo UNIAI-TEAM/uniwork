@@ -266,6 +266,22 @@ type ChatMessageLink struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type ChatReminder struct {
+	MessageID      string             `json:"message_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RoomID         string             `json:"room_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	Repeat         string             `json:"repeat"`
+	Timezone       string             `json:"timezone"`
+	RemindAt       pgtype.Timestamptz `json:"remind_at"`
+	Occurrence     int32              `json:"occurrence"`
+	NextFireAt     pgtype.Timestamptz `json:"next_fire_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ChatRoom struct {
 	ID                string             `json:"id"`
 	Kind              string             `json:"kind"`

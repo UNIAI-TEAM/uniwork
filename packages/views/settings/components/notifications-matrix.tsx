@@ -42,7 +42,7 @@ const CHECK_HIT = "mx-auto aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.
  * in `server/internal/notification/prefs.go`.
  */
 function serverDefault(kind: Kind): NotificationPreference {
-  const push = kind === "mentioned" || kind === "task_assigned" || kind === "meeting_starting";
+  const push = kind === "mentioned" || kind === "task_assigned" || kind === "meeting_starting" || kind === "chat_reminder";
   return { kind, in_app: true, push, email: true };
 }
 

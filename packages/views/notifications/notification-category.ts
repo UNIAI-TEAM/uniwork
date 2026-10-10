@@ -15,6 +15,7 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   mentioned: "mentions",
   task_commented: "mentions",
   chat_follow_up: "mentions",
+  chat_reminder: "mentions",
   document_commented: "mentions",
   document_mentioned: "mentions",
   task_assigned: "assigned",

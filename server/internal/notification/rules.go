@@ -78,6 +78,7 @@ var rules = map[string]rule{
 	"member.role_changed":    ruleRoleChanged,
 	"audit.exported":         ruleAuditExported,
 	"chat.follow_up.created": ruleChatFollowUpCreated,
+	"chat.reminder.due":      ruleChatReminderDue,
 	"email_hub.new_mail":     ruleEmailHubNewMail,
 	"meeting.ended":          ruleMeetingEnded,
 }
@@ -575,6 +576,32 @@ func ruleChatFollowUpCreated(ctx context.Context, e env, ev outbox.Row, p map[st
 		ResourceType: "chat_message", ResourceID: p["message_id"],
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
 	}}, nil
+}
+
+// ruleChatReminderDue tells every member of the room a reminder posted there
+// is due (H16): the reminder worker emits the event per occurrence, so a
+// repeat lands as a new delivery merged into the same unread row.
+func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	msg, err := e.q.GetChatMessageByID(ctx, p["message_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if msg.DeletedAt.Valid {
+		return nil, nil
+	}
+	members, err := e.q.ListChatRoomMemberUserIDs(ctx, msg.RoomID)
+	if err != nil {
+		return nil, err
+	}
+	r := newRecipients(ctx, e, ev, msg.WorkspaceID)
+	for _, uid := range members {
+		r.add(uid)
+	}
+	return r.drafts(msg.OrganizationID, KindChatReminder, "chat_reminder:"+msg.ID,
+		"chat_message", msg.ID, map[string]string{"body": snippet(msg.Body)}), nil
 }
 
 // ruleMeetingEnded nudges the host to summarize a meeting that has something

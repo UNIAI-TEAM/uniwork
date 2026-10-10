@@ -412,6 +412,10 @@ func main() {
 	go func() { billingSvc.RunWorkers(runCtx); close(billingWorkersDone) }()
 	go digest.Run(runCtx)
 	go notification.NewMeetingReminder(notifConsumer).Run(runCtx)
+	// Chat reminders (H16) fire from here, not the browser; stops with
+	// runCancel and is awaited below.
+	chatRemindersDone := make(chan struct{})
+	go func() { chatSvc.NewChatReminderWorker().Run(runCtx); close(chatRemindersDone) }()
 	// Run returns only once every lane has stopped, so awaiting dispatcherDone
 	// at shutdown awaits all of them.
 	dispatcherDone := make(chan struct{})
@@ -621,6 +625,11 @@ func main() {
 	case <-meetingAutoEndDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("meetings: auto-end did not stop in time")
+	}
+	select {
+	case <-chatRemindersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("chat: reminder worker did not stop in time")
 	}
 	select {
 	case <-fileGCDone:

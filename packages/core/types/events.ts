@@ -32,6 +32,7 @@ export const WS_EVENT_TYPES = [
   "chat.message.deleted",
   "chat.message.linked",
   "chat.message.updated",
+  "chat.reminder.due",
   "chat.room.activity",
   "chat.room.created",
   "chat.room.member_added",

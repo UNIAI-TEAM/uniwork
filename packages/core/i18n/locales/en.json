@@ -334,6 +334,7 @@
         "role_changed": "Role changed",
         "audit_export_ready": "Audit export ready",
         "chat_follow_up": "Message to follow up",
+        "chat_reminder": "Chat reminder",
         "email_hub_new_mail": "New mail (Email Hub)",
         "document_commented": "Document comment",
         "document_mentioned": "Mentioned in a document"
@@ -4324,6 +4325,7 @@
       "role_changed": "{{actor}} changed your role to {{role}}",
       "audit_export_ready": "Your audit export is ready",
       "chat_follow_up": "You saved a follow-up on a message",
+      "chat_reminder": "Reminder: {{body}}",
       "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}",
       "document_commented": "{{actor}} commented on “{{document}}”",
       "document_mentioned": "{{actor}} mentioned you in “{{document}}”"

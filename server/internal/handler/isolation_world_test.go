@@ -542,6 +542,9 @@ func (w *isoWorld) buildChat(t *testing.T, tn *isoTenant) {
 	})
 	tn.ids["pollMessage"] = isoID(t, out, "message")
 	tn.ids["pollOption"] = isoString(t, out["message"].(map[string]any)["poll"].(map[string]any)["options"].([]any)[0].(map[string]any), "id")
+	w.call(t, "POST", rp+"/messages", tn.token, map[string]any{
+		"client_msg_id": util.NewID(), "reminder": map[string]any{"body": m + " reminder", "remind_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "repeat": "weekly"},
+	})
 	out = w.upload(t, rp+"/messages/file", tn.token, isoMultipart{
 		fields: map[string]string{"client_msg_id": util.NewID()}, filename: strings.ToLower(m) + ".pdf", contentType: "application/pdf", content: tinyPDF,
 	})

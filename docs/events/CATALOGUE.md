@@ -89,6 +89,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.follow_up.completed` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |
 | `chat.follow_up.deleted` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |
 | `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | — | - | outbox |
+| `chat.reminder.due` | 1 | `room_id`, `message_id` | — | room | outbox |
 | `chat.room.activity` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
 | `chat.room.created` | 1 | `room_id` | — | room | outbox |
 | `chat.room.member_added` | 1 | `room_id`, `user_id` | — | room | outbox |
