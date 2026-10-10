@@ -1,0 +1,1 @@
+$ cd server && test -z "$(gofmt -l ./internal ./migrations ./pkg ./cmd)"
