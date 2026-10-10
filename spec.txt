@@ -1,0 +1,8 @@
+pnpm typecheck
+pnpm lint
+pnpm knip
+pnpm --filter @uniwork/core test
+pnpm --filter @uniwork/views test
+pnpm --filter @uniwork/web test
+node --test scripts/office-modules.test.mjs scripts/governance.test.mjs
+pnpm --filter @uniwork/web build
