@@ -198,7 +198,7 @@ GO-A7's cloud status reports that tool (`office.ai_cloud` + a configured
 provider). Anything that fails reads as off. The host
 (`officeModuleCapabilities`) grants `ai`, `webSearch`, `imageSearch`,
 `imageGeneration` only to a module with AI panels (`officeModuleSpec(m).ai`:
-docs, pdf, markdown, html, slides; not sheets) and only as far as that grant;
+docs, pdf, markdown, html, slides; not sheets, see below) and only as far as that grant;
 a view-only user keeps AI (it still cannot save). Without the grant the frame
 hides every AI entry, as before. The capability keys are re-vendored from the
 fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
@@ -216,6 +216,44 @@ the grant), `server/internal/handler/router/office_frame_ai_test.go` (binding,
 shared budgets), `TestIsolationMatrix` rows, `TestAIBYOKServiceEnabled`,
 `packages/views/office/frame/office-module-frame.test.tsx` and
 `packages/core/api/endpoints/office-frame.test.ts` (grant).
+
+### Why Sheets has no AI yet (an omission in the fork, not an entitlement rule)
+
+`officeModuleSpec("sheets").ai` is unset on purpose, and flipping it here would
+do nothing today. Checked on the fork's integration head `f1679cb` and AI1's
+`c044fa9`:
+
+- The server does not gate by module: the frame-token AI routes and the mint's
+  `ai` grant (`officeFrameAIGrant`) are the same for a Sheets token as for a
+  Docs one, and `office.ai_byok` / `office.ai_cloud` are organization
+  entitlements, not per format. No billing or entitlement reason.
+- The Sheets frame never reads the grant. `web/modules/sheets/capabilities.ts`
+  hardcodes `ai`, `webSearch`, `imageSearch` and `imageGeneration` to `false`,
+  and `sheetsHostGrants` only maps `open`, `recents`, `save` and `saveAs` from
+  what the host grants. The Sheets bridge spreads `docs/bridge/ai`'s
+  "unavailable" stubs instead of installing AI1's `createWebAi` / `withWebAi`
+  (`web/docs/bridge/module-bridge.ts` does that for the modules that opt in), so
+  even a host that sent `ai: true` would leave the AI dock hidden. The fork's
+  Sheets doc (`docs/web-modules/sheets-sidecar.md`, API table rows 7, 47-51)
+  records "HIDE `ai`" from the GO-D2 time, when AI was off for the whole web;
+  AI1 (c044fa9, screenshots for docs and markdown) did not extend it to Sheets.
+- The desktop Sheets AI (`apps/sheets/src/renderer/ai/*`) leans on four
+  desktop-only members that stay hidden on the web: `createDocument`,
+  `readLocalImage` (op-executor), `openWorkbooksForMerge` (chat attachments;
+  `mergeWorkbooks` is hidden by CONTRACT C11) and `autoRenameWorkbook`. The
+  rest (chat, plan operations, range aggregate via `read_range`, formula audit
+  via `read_formula_cells`) runs on the WASM engine the web Sheets frame
+  already has.
+
+To enable it, a fork Sheets worker (not this host): map the host's `ai`,
+`webSearch`, `imageSearch` and `imageGeneration` in `sheetsHostGrants` to the
+renderer keys, install the shared web AI bridge on the Sheets globals (and add
+`AI_FRAME_CAPABILITIES` to the frame's `ready`), keep the four desktop-only
+members hidden, and add a Sheets AI e2e on the test host's fake AI routes. Then
+here: set `ai: true` on `sheets` in `office-modules.ts` and move the
+`["sheets", ...]` case in `office-module-frame.test.tsx` from "no AI keys" to
+the AI table. Until then the host stays correct: a Sheets frame gets no AI
+keys and the user sees no AI entry.
 
 ## Sheets size cap (GO-D3 = C)
 
@@ -263,6 +301,37 @@ module pin plus an `OFFICE_FRAME_SOURCE` holding that module's build runs the
 frame cases; without a bundle (no pin committed yet, or no secret access) only
 the "bundle not installed -> G3" case runs and the frame cases skip. A module
 spec copies that shape, so adding one needs no CI change.
+
+## Module pins: TODO (not now, the fork lane is not final)
+
+Only `docs.pin.json` is checked in (fork `8687750`). Nothing else is pinned
+until the fork's web-modules lane is final; the list of what to pin then:
+
+1. Build the fork from a clean commit (`npm run build:web:all`; a dirty build is
+   refused) and run `node apps/web/scripts/office-frame-sync.mjs --all --pin
+   --from <fork>/dist-web`. That writes `pdf`, `markdown`, `html`, `slides`,
+   `sheets` pins and re-pins `docs` to the same fork head (the Docs pin then
+   moves from `8687750`).
+2. Read each pin diff in review, it is the policy review: `html` must show
+   `frame-src 'self'` in `headers` and `documents: [{path: "/preview.html"}]`
+   with the sandboxed policy; `pdf` and `sheets` show `'wasm-unsafe-eval'` (and
+   the worker sources) and nothing wider; every module has `frame-ancestors
+   'self'`.
+3. The archive limits of `frame-install.mjs` (`DEFAULT_ARCHIVE_LIMITS`: 64 MiB
+   archive, 160 MiB unpacked, 2000 entries) were sized for one ~13 MiB Docs
+   build. Six module builds in one `OFFICE_FRAME_SOURCE` tarball (pdf and sheets
+   carry wasm) are likely to pass them: measure the real `dist-web` and raise the
+   limits, or publish one archive per module.
+4. Point CI's `OFFICE_FRAME_SOURCE` (e2e job) at a dist-web root holding every
+   pinned module, then run each module spec with `OFFICE_MODULES_WEB_E2E=1`,
+   including the html preview isolation check against the served headers
+   (`/office-frame/html/<v>/preview.html`).
+5. `next build` offers a module only when its pinned bundle verifies
+   (`NEXT_PUBLIC_OFFICE_FRAME_VERSIONS`): confirm the map lists all six.
+6. Re-vendor `docs-frame-{protocol,endpoint,host}.ts` from the same final fork
+   head (the headers still name `f1679cb` + AI1 `c044fa9`) so the vendored
+   protocol and the pinned bundles come from one commit.
+7. The Sheets AI question above, if the fork wires it by then.
 
 ## Not done here
 

@@ -91,6 +91,7 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   sheets: {
     flag: "office_sheets_web", format: "xlsx", extension: "xlsx",
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", grant: EDIT_PRINT, maxBytes: SHEETS_MAX_BYTES, recovery: true,
+    // No `ai` on purpose: the Sheets frame ignores the grant today (docs/office/office-web-modules.md, "Why Sheets has no AI yet").
   },
 };
 
