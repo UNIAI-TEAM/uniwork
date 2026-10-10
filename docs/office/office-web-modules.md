@@ -131,6 +131,39 @@ and keep the G3 host (or its unsupported state).
   `pinnedFrameVersion(module)` is empty, so without an installed bundle the
   existing G3 host renders exactly as before.
 
+## Draft recovery (CONTRACT C18, C18a)
+
+Every genoffice frame keeps an encrypted copy of the document being edited in
+its own IndexedDB (database `uniwork-office-frame-drafts`, store `drafts`) and
+offers it back after a crash, a closed tab or a reload. The copy is useful only
+because the frame can decrypt it again, so the key must outlive the page.
+
+- The host (`packages/core/office/draft-session-key.ts`) owns one AES-GCM 256
+  key per user, generated non-extractable. It is persisted as a structured-clone
+  `CryptoKey` in the same database, store `keys`, record key = userId; the bytes
+  are never exported, so they are in neither storage nor the server. The first
+  need creates it; a reload and a second tab of that user read the same record
+  (the get-or-put is one readwrite transaction, so two tabs racing on first use
+  agree). Every frame gets the key in `init`, again after a frame reload.
+- The host creates both stores (`drafts`, `keys`) at database version 1, the
+  version the frame opens, because the frame only creates `drafts` on an upgrade.
+- Sign-out and a user switch call `endOfficeDraftSession()`, which deletes the
+  whole database: the drafts and the keys together. A new sign-in gets a new
+  key, so nothing written earlier can be read. It never touches the G3 web
+  host's `uniwork-office-drafts`, whose drafts outlive sign-out on purpose. A
+  key load waits behind a delete already issued, so a user switch cannot wipe
+  the new user's key.
+- Where IndexedDB is unavailable (private mode, a refusing browser) the key
+  lives in the host's memory: recovery then survives a frame reload, not a page
+  reload. Nothing else degrades.
+- User-facing wording: recovers after a crash, a closed tab or a reload, until
+  you sign out.
+
+Tests: `packages/core/office/draft-session-key.test.ts` (fake-indexeddb: the key
+persists across a simulated reload and between racing tabs, non-extractable,
+deleted on sign-out, different per user, the G3 database untouched, memory
+fallback) and `packages/core/auth/store.test.ts` (logout ends the session).
+
 ## Open in desktop app (GD3)
 
 Every module frame, Docs included, carries the G3 editor's "Open in desktop
