@@ -3,7 +3,6 @@
 import { File, FileText, RotateCcwClock, Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { useDocumentList, useRecentDocuments } from "@uniwork/core/documents/hooks-collections";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { useDebouncedValue } from "@uniwork/core/hooks/use-debounced-value";
@@ -25,6 +24,7 @@ import {
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import { MODULE_ICONS } from "../layout/module-icons";
+import { usePreferenceSavedToast } from "../layout/preference-toast";
 
 /** How many recent tasks the palette lists; the store keeps more. */
 const RECENT_TASKS_SHOWN = 5;
@@ -41,6 +41,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
   const { setTheme } = useTheme();
   const localeAdapter = useLocaleAdapter();
   const { t, i18n } = useTranslation();
+  const notifySaved = usePreferenceSavedToast();
   const recentTasks = useRecentTasks(workspace.id);
   const documentsEnabled = useFlag("documents", false);
 
@@ -102,7 +103,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
     document.documentElement.lang = next;
     // The toast text resolves after the language switched, in the new language.
     void setLocale(next).then(() => {
-      toast.success(i18n.t("settings.preferences.toastSaved", { lng: next }), { id: "settings-auto-save" });
+      notifySaved(next);
     });
   };
 
@@ -189,7 +190,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               onSelect={() =>
                 run(() => {
                   setTheme("light");
-                  toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+                  notifySaved();
                 })
               }
             >
@@ -201,7 +202,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               onSelect={() =>
                 run(() => {
                   setTheme("dark");
-                  toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+                  notifySaved();
                 })
               }
             >
@@ -213,7 +214,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               onSelect={() =>
                 run(() => {
                   setTheme("system");
-                  toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+                  notifySaved();
                 })
               }
             >

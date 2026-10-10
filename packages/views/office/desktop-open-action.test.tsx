@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { OfficeSaveCoordinatorLike } from "./office-shell";
@@ -183,6 +183,23 @@ describe("DesktopOpenAction", () => {
     expect(screen.getByText("Install link unavailable")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Install UniWork Office" })).not.toBeInTheDocument();
+  });
+
+  it("closes the install prompt when the app takes the focus after the launch timed out (GOA9-r4-05)", async () => {
+    const launch = vi.fn(async () => "not-installed" as const);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} createSession={async () => session} launch={launch} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    expect(await screen.findByText("Get UniWork Office for desktop")).toBeInTheDocument();
+    act(() => { window.dispatchEvent(new Event("blur")); });
+    await waitFor(() => expect(screen.queryByText("Get UniWork Office for desktop")).not.toBeInTheDocument());
+  });
+
+  it("keeps the Download prompt open when the page loses focus", async () => {
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} />);
+    await openDownload();
+    expect(await screen.findByText("Get UniWork Office for desktop")).toBeInTheDocument();
+    act(() => { window.dispatchEvent(new Event("blur")); });
+    expect(screen.getByText("Get UniWork Office for desktop")).toBeInTheDocument();
   });
 
   it("keeps the editor intact when the ticket callback reports an error", async () => {
