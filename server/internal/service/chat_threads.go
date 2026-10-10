@@ -156,6 +156,13 @@ func (s *ChatService) SendThreadReply(
 		}
 	}
 
+	// Before the transaction: resolving reads through the pool, and holding a
+	// connection while waiting for another can drain it under load.
+	mentions, err := s.resolveMentionRecipients(ctx, userID, room, body)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+
 	orgID := room.OrganizationID
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -209,10 +216,6 @@ func (s *ChatService) SendThreadReply(
 		return ChatMessageRow{}, err
 	}
 
-	mentions, err := s.resolveMentionRecipients(ctx, userID, room, body)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
 	if len(mentions.Recipients) > 0 {
 		meta, err := encodeMentionsMetadata(msg.Metadata, mentions)
 		if err != nil {
