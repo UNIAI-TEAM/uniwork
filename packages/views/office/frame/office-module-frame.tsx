@@ -241,7 +241,7 @@ export function OfficeModuleFrame({
   const bundleFailed = session.failure?.details?.["frameBundle"] !== undefined;
   const refuse = useDocsFrameRefusal();
   // A frame that did not load is the one switch the G3 host explains to the reader.
-  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch || bundleFailed) refuse?.(bundleFailed ? "load" : undefined); }, [featureDisabled, tooLarge, moduleMismatch, bundleFailed, refuse]);
+  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch || bundleFailed) refuse?.(tooLarge ? "size" : bundleFailed ? "load" : undefined); }, [featureDisabled, tooLarge, moduleMismatch, bundleFailed, refuse]);
 
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";

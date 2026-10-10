@@ -8020,6 +8020,7 @@
         "use_standard": "Use the standard editor"
       },
       "fallback_notice": "The new editor could not load; you are using the standard editor.",
+      "fallback_notice_size": "This file is too large for the web editor, so it opened in the standard editor.",
       "failure": {
         "unavailable": {
           "title": "The new document editor is not available",

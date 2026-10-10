@@ -8015,6 +8015,7 @@
         "use_standard": "Dùng trình soạn thảo tiêu chuẩn"
       },
       "fallback_notice": "Không tải được trình soạn thảo mới; bạn đang dùng trình soạn thảo tiêu chuẩn.",
+      "fallback_notice_size": "Tệp này quá lớn cho trình soạn thảo web, nên được mở bằng trình soạn thảo tiêu chuẩn.",
       "failure": {
         "unavailable": {
           "title": "Chưa dùng được trình soạn thảo tài liệu mới",
