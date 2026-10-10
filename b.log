@@ -1,0 +1,55 @@
+$ npm run test -w @genoffice/ai-provider
+
+> @genoffice/ai-provider@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ai-provider
+
+ ❯ tests/ai-chat-handlers-untagged.test.ts (2 tests | 1 failed) 10ms
+     × apps/docs/src/main/docs-main.ts untags the no-model notice 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/ai-chat-handlers-untagged.test.ts > non-stream ai:chat replies > apps/docs/src/main/docs-main.ts untags the no-model notice
+AssertionError: expected 'ipcMain.handle(\'ai:chat\', (_event, …' to contain 'noModelMessage('
+
+- Expected
++ Received
+
+- noModelMessage(
++ ipcMain.handle('ai:chat', (_event, request: AiChatRequest) => runAiChat(request))
++
++   // settings > AI model "Test": the chat model answers one ping; a failure keeps its raw text in the log
++   ipcMain.handle('ai:settings-test', async (_event, request: AiChatRequest) => {
++     const result = await runAiChat(request)
++     if (result.ok) return { ok: true }
++     return logAiTest(
++       'model',
++       String(request?.settings?.provider ?? ''),
++       aiTestFailure(result.errorKind ?? 'failed', result.error ?? ''),
++     )
+
+ ❯ tests/ai-chat-handlers-untagged.test.ts:37:20
+     35|     it(`${file} untags the no-model notice`, () => {
+     36|       const body = handlerBody(file, start)
+     37|       expect(body).toContain('noModelMessage(')
+       |                    ^
+     38|       expect(body).toContain('aiNoticeBody(noModelMessage(')
+     39|       expect(body).not.toContain('[[ai-notice:')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 34 passed (35)
+      Tests  1 failed | 454 passed (455)
+   Start at  18:58:26
+   Duration  2.90s (transform 865ms, setup 0ms, import 1.51s, tests 3.23s, environment 2ms)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /home/ubuntu/work/uniwork-office/packages/ai-provider
+npm error workspace @genoffice/ai-provider@0.1.0
+npm error location /home/ubuntu/work/uniwork-office/packages/ai-provider
+npm error command failed
+npm error command sh -c vitest run

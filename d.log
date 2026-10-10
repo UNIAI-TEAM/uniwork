@@ -1,0 +1,14 @@
+$ npm run test -w @genoffice/cli
+
+> @genoffice/cli@0.10.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/cli
+
+
+ Test Files  52 passed (52)
+      Tests  401 passed | 29 skipped (430)
+   Start at  18:58:30
+   Duration  23.82s (transform 13.09s, setup 0ms, import 36.63s, tests 28.39s, environment 3ms)
+

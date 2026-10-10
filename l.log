@@ -1,0 +1,14 @@
+$ npm run test -w @genoffice/html
+
+> @genoffice/html@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/html
+
+
+ Test Files  38 passed (38)
+      Tests  282 passed (282)
+   Start at  19:05:47
+   Duration  8.90s (transform 3.21s, setup 0ms, import 5.97s, tests 2.87s, environment 13.78s)
+
