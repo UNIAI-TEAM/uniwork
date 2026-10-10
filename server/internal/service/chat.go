@@ -613,7 +613,7 @@ func (s *ChatService) sendMessage(
 		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentions.Recipients)
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }

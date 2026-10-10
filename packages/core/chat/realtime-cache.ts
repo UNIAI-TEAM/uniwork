@@ -271,7 +271,8 @@ function bumpUnreadLocally(qc: QueryClient, wsId: string, roomId: string): void 
 
 /**
  * Apply one `chat.message.*` frame. `created` is true only for
- * `chat.message.created`: edits and reactions are not unread.
+ * `chat.message.created`: edits and reactions are not unread. `senderId` is
+ * that frame's `sender_id`, when it carries one.
  */
 export async function fetchAndPatchChatMessage(
   qc: QueryClient,
@@ -279,6 +280,7 @@ export async function fetchAndPatchChatMessage(
   roomId: string,
   messageId: string,
   created = false,
+  senderId?: string,
 ): Promise<void> {
   // A frame during the room's first load is applied after it.
   await roomTimelineFetchInFlight(qc, chatKeys.roomMessages(wsId, roomId));
@@ -287,7 +289,8 @@ export async function fetchAndPatchChatMessage(
     // Nobody here shows this room: the next open loads it. The preview of a
     // non-default room follows `chat.room.activity`; the default channel has
     // none, so its badge counts here (preview catches up on the next refetch).
-    if (created && !viewing) bumpUnreadLocally(qc, wsId, roomId);
+    // The frame names the sender: one's own message (another tab or device) is not unread.
+    if (created && !viewing && senderId !== currentUserId()) bumpUnreadLocally(qc, wsId, roomId);
     return;
   }
   const knownBefore = roomTimelineHas(

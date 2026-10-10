@@ -37,17 +37,17 @@ describe("createChatRealtimePatchScheduler", () => {
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
     scheduler.scheduleUpsert("room1", "m1");
     await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
-    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", false);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", false, undefined);
     await scheduler.dispose();
   });
 
-  it("passes on whether the message was created, even when a later frame updates it", async () => {
+  it("passes on whether the message was created and who sent it, even when a later frame updates it", async () => {
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
-    scheduler.scheduleUpsert("room1", "m1", true);
+    scheduler.scheduleUpsert("room1", "m1", true, "u2");
     scheduler.scheduleUpsert("room1", "m1");
     await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
     expect(fetchAndPatchChatMessage).toHaveBeenCalledTimes(1);
-    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", true);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", true, "u2");
     await scheduler.dispose();
   });
 
@@ -61,7 +61,7 @@ describe("createChatRealtimePatchScheduler", () => {
     scheduler.scheduleUpsert("room1", "m2");
     scheduler.scheduleRoomActivity();
     await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
-    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m2", false);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m2", false, undefined);
     expect(invalidate).toHaveBeenCalled();
     await scheduler.dispose();
   });
@@ -93,7 +93,7 @@ describe("createChatRealtimePatchScheduler", () => {
     scheduler.scheduleUpsert("room1", "m1");
     await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
     expect(patchChatMessageDeleted).not.toHaveBeenCalled();
-    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", false);
+    expect(fetchAndPatchChatMessage).toHaveBeenCalledWith(qc, "ws1", "room1", "m1", false, undefined);
     await scheduler.dispose();
   });
 

@@ -247,7 +247,7 @@ func (s *ChatService) postVoiceCallSummaryMessage(
 		return "", err
 	}
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	return msg.ID, nil
 }
 

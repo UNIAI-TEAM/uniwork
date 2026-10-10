@@ -2,6 +2,7 @@ import { InfiniteQueryObserver, QueryClient, QueryObserver, type QueryKey } from
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat";
 import * as chatApi from "../api/endpoints/chat";
+import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import { chatKeys } from "./hooks";
 import {
   bumpThreadRootReplyCount,
@@ -238,6 +239,27 @@ describe("fetchAndPatchChatMessage unread", () => {
 
     expect(get).not.toHaveBeenCalled();
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(3);
+  });
+
+  // UNI-1079: a message this user sent from another tab or device counted as unread.
+  it("does not count the user's own default-channel message", async () => {
+    setSessionUser({
+      id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+    });
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room", kind: "channel", is_default: true, name: "General", workspace_id: "ws1",
+        member_user_ids: [], unread_count: 2, mention_unread_count: 0,
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m1", true, "u1");
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m2", true, "u2");
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(3);
+    resetAuthStoreForTests();
   });
 
   it("does not count an edit or a reaction as unread", async () => {

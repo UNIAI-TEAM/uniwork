@@ -14,7 +14,7 @@ const DEBOUNCE_MS = 250;
 /** Spread the flush so every member online does not fetch in the same instant. */
 const JITTER_MS = 250;
 
-type PendingUpsert = { roomId: string; messageId: string; created: boolean };
+type PendingUpsert = { roomId: string; messageId: string; created: boolean; senderId?: string };
 type PendingDelete = { roomId: string; messageId: string };
 type PendingMention = { roomId: string; senderId: string };
 
@@ -51,7 +51,7 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
     // or the sidebar refresh below.
     await Promise.allSettled(
       upsertBatch.map((entry) =>
-        fetchAndPatchChatMessage(qc, wsId, entry.roomId, entry.messageId, entry.created),
+        fetchAndPatchChatMessage(qc, wsId, entry.roomId, entry.messageId, entry.created, entry.senderId),
       ),
     );
     // After preview patches: server unread/mention counts win (avoids +1 then
@@ -73,10 +73,15 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
   };
 
   return {
-    scheduleUpsert(roomId: string, messageId: string, created = false) {
+    scheduleUpsert(roomId: string, messageId: string, created = false, senderId?: string) {
       deletes.delete(messageId);
-      const pendingCreated = upserts.get(messageId)?.created ?? false;
-      upserts.set(messageId, { roomId, messageId, created: created || pendingCreated });
+      const pending = upserts.get(messageId);
+      upserts.set(messageId, {
+        roomId,
+        messageId,
+        created: created || (pending?.created ?? false),
+        senderId: senderId ?? pending?.senderId,
+      });
       scheduleFlush();
     },
     scheduleDelete(roomId: string, messageId: string) {

@@ -213,7 +213,7 @@ func (s *ChatService) CreateFileMessage(
 		LastReadAt: pgtype.Timestamptz{Time: msg.CreatedAt.Time, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, prep.room.ID)
-	s.publishCreatedChatMessage(ctx, prep.room, msg.ID)
+	s.publishCreatedChatMessage(ctx, prep.room, msg.ID, msg.SenderID)
 	return chatMessageRowFromDB(msg, prep.senderName), true, nil
 }
 

@@ -177,7 +177,7 @@ func (c *ChatTaskSyncConsumer) syncTaskToChat(ctx context.Context, payload map[s
 				"room_id": link.RoomID, "thread_root_id": link.ThreadRootID, "message_id": msg.ID,
 			},
 		})
-		c.chat.publishCreatedChatMessage(ctx, db.ChatRoom{ID: link.RoomID, WorkspaceID: pgtype.Text{String: anchorWS, Valid: true}}, msg.ID)
+		c.chat.publishCreatedChatMessage(ctx, db.ChatRoom{ID: link.RoomID, WorkspaceID: pgtype.Text{String: anchorWS, Valid: true}}, msg.ID, msg.SenderID)
 	}
 	return nil
 }

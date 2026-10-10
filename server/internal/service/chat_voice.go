@@ -580,7 +580,7 @@ func (s *ChatService) finalizeVoiceCall(
 		return err
 	}
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	s.publishCreatedChatMessage(ctx, room, msg.ID)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 
 	if queueSummary {
 		endedAt := time.Now().UTC()

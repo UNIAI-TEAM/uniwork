@@ -191,7 +191,7 @@ var catalogue = []EventDef{
 	// Message and typing rows of the workspace's default channel go to the
 	// workspace, whose members are that channel's; every other room's go to
 	// chat:{room} only.
-	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.updated", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.deleted", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	// A mention is addressed to the person mentioned, not to the room, so it

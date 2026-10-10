@@ -75,7 +75,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |
 | `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id` | — | user | ephemeral |
 | `chat.message` | 1 | `meeting_id` | — | meeting | ephemeral |
-| `chat.message.created` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
+| `chat.message.created` | 1 | `room_id`, `message_id`, `sender_id` | — | chat | ephemeral |
 | `chat.message.deleted` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.message.updated` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.channel.archived` | 1 | `room_id`, `workspace_id` | — | workspace | outbox |

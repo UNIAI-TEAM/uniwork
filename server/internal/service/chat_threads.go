@@ -274,7 +274,7 @@ func (s *ChatService) SendThreadReply(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	s.publishCreatedChatMessage(ctx, room, msg.ID)
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	s.publishChatRoomEvent(ctx, room.ID, Event{
 		Type: "chat.thread.replied",
 		Payload: map[string]string{
