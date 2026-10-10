@@ -4,8 +4,8 @@
 // SP1, H2, the AI1 capability keys and the C18a key wording in one lineage). Byte-identical except the relative import specifiers
 // (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
 // re-vendor, update this SHA.
-// A7 (UNI-1232) additive, ahead of the fork: capability `desktopOpen` and request `app.open` (AppOpenPayload/AppOpenResult),
-// same names and validators the fork adds as its first commit of the next lane; the lead's re-vendor replaces them.
+// A7 (UNI-1232): plus the fork lane commit f723f28 (capability `desktopOpen`, request `app.open`), applied as that commit's
+// diff ahead of the lead's re-vendor, which replaces this file wholesale.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
 /**
  * UniWork <-> genoffice Docs frame protocol (UNI-1013, lane GO-B2+B3).
@@ -269,8 +269,9 @@ export type Capability =
   /** additive (C16): UniWork cloud image generation (and media analysis); effective only with `ai` */
   | 'imageGeneration'
   /**
-   * additive (A7): the host can open the document in the desktop app (`app.open`). The frame offers its
-   * "use the app" action only with this grant and shows the message alone without it.
+   * additive (A7 contract): the host can run its own "Open in desktop app" flow for the frame's
+   * `app.open` request. Default false; granted only when the host's own action is available. Without
+   * it the frame shows the "use the app" message only.
    */
   | 'desktopOpen'
 
@@ -624,6 +625,20 @@ export interface ImageFetchResult {
   image: { base64: string; mime: string } | null
 }
 
+export interface AppOpenPayload {
+  /** short opaque tag (e.g. "pdf.ocr") for the host's own dev diagnostics; never shown, never sent to a server */
+  feature?: string
+}
+
+/** launched = the browser tab hid after the deep link; installer = the install prompt opened; unavailable = no launch possible (the host shows its own alert) */
+export type AppOpenOutcome = 'launched' | 'installer' | 'unavailable'
+
+export const APP_OPEN_OUTCOMES: readonly AppOpenOutcome[] = ['launched', 'installer', 'unavailable']
+
+export interface AppOpenResult {
+  outcome: AppOpenOutcome
+}
+
 export interface ConvertAltChunkHtmlPayload {
   html: string
 }
@@ -631,19 +646,6 @@ export interface ConvertAltChunkHtmlPayload {
 export interface ConvertAltChunkHtmlResult {
   /** converted docx bytes, null when conversion is unavailable/failed */
   data: ArrayBuffer | null
-}
-
-export interface AppOpenPayload {
-  /** short opaque tag of the feature the user wanted (e.g. "pdf.ocr"); host diagnostics only, never shown or sent */
-  feature?: string
-}
-
-export interface AppOpenResult {
-  /**
-   * `launched`: the desktop app answered the deep link; `installer`: the host opened its install prompt;
-   * `unavailable`: no deployment binding, no committed version, or the action is busy
-   */
-  outcome: 'launched' | 'installer' | 'unavailable'
 }
 
 export interface CloseCheckResult {
@@ -707,7 +709,7 @@ export interface FrameRequests {
   'image.fetch': Rpc<ImageFetchPayload, ImageFetchResult>
   /** HTML altChunk -> docx bytes (desktop: main-process converter) */
   'convert.altChunkHtml': Rpc<ConvertAltChunkHtmlPayload, ConvertAltChunkHtmlResult>
-  /** additive (A7): open this document in the desktop app (the host runs its "Open in desktop app" flow) */
+  /** additive (A7): run the host's "Open in desktop app" flow; send only with the `desktopOpen` capability */
   'app.open': Rpc<AppOpenPayload, AppOpenResult>
 }
 
@@ -1029,9 +1031,9 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
   'response:image.fetch': (x) =>
     isObj(x) &&
     (x.image === null || (isObj(x.image) && isStr(x.image.base64) && isStr(x.image.mime))),
-  'response:convert.altChunkHtml': (x) => isObj(x) && (x.data === null || isBuffer(x.data)),
   'response:app.open': (x) =>
-    isObj(x) && (x.outcome === 'launched' || x.outcome === 'installer' || x.outcome === 'unavailable'),
+    isObj(x) && isStr(x.outcome) && (APP_OPEN_OUTCOMES as readonly string[]).includes(x.outcome),
+  'response:convert.altChunkHtml': (x) => isObj(x) && (x.data === null || isBuffer(x.data)),
 }
 
 /** Outcome of `parseEnvelope`. */
