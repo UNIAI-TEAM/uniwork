@@ -1131,26 +1131,6 @@ func (q *Queries) LeaveChatRoomsInWorkspaceForUser(ctx context.Context, arg Leav
 	return err
 }
 
-const leaveDefaultChatRoomsInOrg = `-- name: LeaveDefaultChatRoomsInOrg :exec
-UPDATE chat_room_members m SET status = 'left', left_at = now(), updated_at = now()
-FROM chat_rooms r
-WHERE r.id = m.room_id AND r.organization_id = $1 AND r.is_default
-  AND m.organization_id = $1 AND m.user_id = $2
-  AND m.status IN ('invited', 'active')
-`
-
-type LeaveDefaultChatRoomsInOrgParams struct {
-	OrganizationID string `json:"organization_id"`
-	UserID         string `json:"user_id"`
-}
-
-// Leaving an organization drops every workspace row in it, so the person
-// leaves each of its default channels in the same transaction.
-func (q *Queries) LeaveDefaultChatRoomsInOrg(ctx context.Context, arg LeaveDefaultChatRoomsInOrgParams) error {
-	_, err := q.db.Exec(ctx, leaveDefaultChatRoomsInOrg, arg.OrganizationID, arg.UserID)
-	return err
-}
-
 const listChatChannelsByProject = `-- name: ListChatChannelsByProject :many
 SELECT
   r.id,

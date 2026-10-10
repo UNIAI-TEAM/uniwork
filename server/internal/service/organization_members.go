@@ -358,11 +358,6 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 	}); err != nil {
 		return err
 	}
-	if err := q.LeaveDefaultChatRoomsInOrg(ctx, db.LeaveDefaultChatRoomsInOrgParams{
-		OrganizationID: orgID, UserID: actorID,
-	}); err != nil {
-		return err
-	}
 	if err := q.DeleteOrganizationMember(ctx, db.DeleteOrganizationMemberParams{
 		OrganizationID: orgID, UserID: actorID,
 	}); err != nil {

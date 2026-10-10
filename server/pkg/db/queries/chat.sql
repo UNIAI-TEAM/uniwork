@@ -886,12 +886,3 @@ SELECT
   now(), now(), now()
 ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING;
 
--- name: LeaveDefaultChatRoomsInOrg :exec
--- Leaving an organization drops every workspace row in it, so the person
--- leaves each of its default channels in the same transaction.
-UPDATE chat_room_members m SET status = 'left', left_at = now(), updated_at = now()
-FROM chat_rooms r
-WHERE r.id = m.room_id AND r.organization_id = sqlc.arg(organization_id) AND r.is_default
-  AND m.organization_id = sqlc.arg(organization_id) AND m.user_id = sqlc.arg(user_id)
-  AND m.status IN ('invited', 'active');
-
