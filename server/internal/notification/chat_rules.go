@@ -48,13 +48,9 @@ func chatMessageRule(kind string) rule {
 		} else if err != nil {
 			return nil, err
 		}
-		wsID := room.WorkspaceID.String
-		if wsID == "" {
-			// An organization-level DM or group opens from any workspace of
-			// the recipient's in that organization.
-			if wsID, err = userWorkspaceIn(ctx, e.q, userID, room.OrganizationID); err != nil || wsID == "" {
-				return nil, err
-			}
+		wsID, err := chatRecipientWorkspace(ctx, e, room, userID)
+		if err != nil || wsID == "" {
+			return nil, err
 		}
 		var groupKey string
 		switch kind {
@@ -70,6 +66,24 @@ func chatMessageRule(kind string) rule {
 		params := map[string]string{"actor": actorName(ctx, e.q, ev), "room": room.Name}
 		return r.drafts(room.OrganizationID, kind, groupKey, "chat_message", msg.ID, params), nil
 	}
+}
+
+// chatRecipientWorkspace is the workspace a chat notification for userID
+// links to. A channel belongs to its workspace. A DM or group belongs to the
+// organization and is only stamped with the creator's workspace, so a
+// recipient outside it gets one of their own; the workspace gate the caller
+// runs on the result still refuses deactivated and suspended members.
+func chatRecipientWorkspace(ctx context.Context, e env, room db.ChatRoom, userID string) (string, error) {
+	anchor := room.WorkspaceID.String
+	if anchor != "" && room.Kind != "dm" && room.Kind != "group" {
+		return anchor, nil
+	}
+	if anchor != "" {
+		if _, err := e.members.RequireMember(ctx, anchor, userID); err == nil {
+			return anchor, nil
+		}
+	}
+	return userWorkspaceIn(ctx, e.q, userID, room.OrganizationID)
 }
 
 func userWorkspaceIn(ctx context.Context, q *db.Queries, userID, orgID string) (string, error) {

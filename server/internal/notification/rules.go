@@ -589,16 +589,32 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 	if msg.DeletedAt.Valid {
 		return nil, nil
 	}
+	room, err := e.q.GetChatRoomByID(ctx, msg.RoomID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
 	members, err := e.q.ListChatRoomMemberUserIDs(ctx, msg.RoomID)
 	if err != nil {
 		return nil, err
 	}
-	r := newRecipients(ctx, e, ev, msg.WorkspaceID)
+	var out []Draft
 	for _, uid := range members {
+		wsID, err := chatRecipientWorkspace(ctx, e, room, uid)
+		if err != nil {
+			return nil, err
+		}
+		if wsID == "" {
+			continue
+		}
+		r := newRecipients(ctx, e, ev, wsID)
 		r.add(uid)
+		out = append(out, r.drafts(msg.OrganizationID, KindChatReminder, "chat_reminder:"+msg.ID,
+			"chat_message", msg.ID, map[string]string{"body": snippet(msg.Body)})...)
 	}
-	return r.drafts(msg.OrganizationID, KindChatReminder, "chat_reminder:"+msg.ID,
-		"chat_message", msg.ID, map[string]string{"body": snippet(msg.Body)}), nil
+	return out, nil
 }
 
 // ruleMeetingEnded nudges the host to summarize a meeting that has something
