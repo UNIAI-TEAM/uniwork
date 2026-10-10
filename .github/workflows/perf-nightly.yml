@@ -5,6 +5,10 @@
 #
 # On a pull request labelled `perf` only the 50 VU smoke runs, against a
 # small dataset, and does block that PR.
+#
+# The schedule tests `develop`, where work lands; GitHub always reads a
+# scheduled workflow from the default branch, so this file must reach `main`
+# for that to take effect.
 name: Perf
 
 on:
@@ -60,10 +64,23 @@ jobs:
       LOG_FORMAT: json
       LOG_LEVEL: warn
       METRICS_ADDR: 127.0.0.1:9090
+      # config.Load refuses to start without the preview group, and an unset
+      # STORAGE_BACKEND means MinIO, which this job does not run.
+      PREVIEW_ORIGIN: http://localhost:3001
+      PREVIEW_CAPABILITY_SECRET: perf-preview-capability-secret-0000000000
+      PREVIEW_ASSET_TTL: 10m
+      PREVIEW_ASSET_MAX_BYTES: "10485760"
+      STORAGE_BACKEND: local
+      LOCAL_UPLOAD_DIR: /tmp/uniwork-uploads
+      # k6 sends a per-user X-Forwarded-For (perf-lib.js); without this every
+      # VU shares 127.0.0.1's budget and setup() measures 429s.
+      TRUSTED_PROXIES: 127.0.0.1/32,::1/128
       BASE_URL: http://localhost:8080
       NIGHTLY: ${{ github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -96,6 +113,10 @@ jobs:
         if: env.NIGHTLY == 'true'
         continue-on-error: true
         run: k6 run --summary-export=scripts/load/results/read-5000.json scripts/load/read-5000.k6.js
+      - name: Chat read 5000 VU (report only until phase C)
+        if: env.NIGHTLY == 'true'
+        continue-on-error: true
+        run: k6 run --summary-export=scripts/load/results/chat-read-5000.json scripts/load/chat-read-5000.k6.js
       - name: Keep results 90 days
         if: always()
         uses: actions/upload-artifact@v4
