@@ -459,10 +459,12 @@ jobs:
       # the spec runs its "not installed -> G3" case instead. It needs no office engine: the PDF
       # step accepts the 503/501 print fallback.
       OFFICE_DOCS_WEB_E2E: "1"
-      # e2e/office-markdown-web.spec.ts and the module helpers (UNI-1014). Same shape as the
-      # Docs spec: the frame cases choose themselves from the installed manifests (a module
-      # pin + OFFICE_FRAME_SOURCE holding that module's build); without a bundle the spec
-      # runs its "bundle not installed -> G3" case instead.
+      # e2e/office-markdown-web.spec.ts, e2e/office-modules-web.spec.ts and the module helpers
+      # (UNI-1014). Same shape as the Docs spec: the frame cases choose themselves from the
+      # installed manifests (a module pin + OFFICE_FRAME_SOURCE holding that module's build);
+      # without a bundle the markdown spec runs its "bundle not installed -> G3" case instead.
+      # OFFICE_FRAME_SOURCE must be a .tar.gz of the fork's whole dist-web root (every pinned
+      # module under <module>/<version>/, docs/office/office-web-modules.md "Pinned builds").
       OFFICE_MODULES_WEB_E2E: "1"
     steps:
       - uses: actions/checkout@v4

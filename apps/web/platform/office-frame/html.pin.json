@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "version": "0.1.0-36e9e23",
+  "gitSha": "36e9e23",
+  "entry": "index.html",
+  "manifestSha256": "7567ce9c5fd25e9b0d1906d44392dc7bbd500b35354de742eedaa4d19b3a3102",
+  "headers": {
+    "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+  },
+  "documents": [
+    {
+      "path": "/preview.html",
+      "value": "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; media-src data: blob: https:; connect-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri https:; form-action 'none'; sandbox allow-scripts allow-forms allow-popups allow-modals; frame-ancestors 'self'"
+    }
+  ]
+}

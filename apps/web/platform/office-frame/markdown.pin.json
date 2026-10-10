@@ -3,7 +3,7 @@
   "version": "0.1.0-36e9e23",
   "gitSha": "36e9e23",
   "entry": "index.html",
-  "manifestSha256": "bc59e93a554f3ea871c2ce7f28e1da05400718052686d17fa19e84b4f2ebe902",
+  "manifestSha256": "70440a605d67240239209514c08a583eaea4b82e11953a44646fb706a179dbe5",
   "headers": {
     "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
   }

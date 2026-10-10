@@ -87,16 +87,15 @@ test.describe("bundle installed", () => {
       }
     }
 
-    // PENDING (MH): save is being wired in the fork's markdown module; un-fixme once the bundle saves.
-    test.fixme("an edit is saved as a new version and survives a reopen", async ({ page, request }) => {
+    test("an edit is saved as a new version and survives a reopen", async ({ page, request }) => {
       const marker = `uw-md-web-${Date.now().toString(36)}`;
       const before = await listVersions(request, seeded.account.token, seeded.documentId);
       await signInAs(page, seeded.account.email);
       await page.goto(seeded.documentUrl);
       await expect(moduleFrameHost(page, "markdown")).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
-      const editor = page.frameLocator(FRAME_SELECTOR).locator('[contenteditable="true"]').first();
-      await editor.click();
-      await page.keyboard.press("Control+End");
+      const editor = page.frameLocator(FRAME_SELECTOR).locator(".doc-editor");
+      await editor.locator("p", { hasText: "Đoạn đầu tiên." }).click();
+      await page.keyboard.press("End");
       await page.keyboard.type(` ${marker}`);
       await page.keyboard.press("Control+s");
       await expect.poll(async () => (await listVersions(request, seeded.account.token, seeded.documentId)).length, { timeout: 60_000, intervals: [1_000] })
@@ -105,7 +104,7 @@ test.describe("bundle installed", () => {
       expect((await versionBytes(request, seeded.account.token, seeded.documentId, newest.version)).toString("utf8")).toContain(marker);
       await page.goto("about:blank");
       await page.goto(seeded.documentUrl);
-      await expect(page.frameLocator(FRAME_SELECTOR).locator('[contenteditable="true"]').first()).toContainText(marker, { timeout: 60_000 });
+      await expect(page.frameLocator(FRAME_SELECTOR).locator(".doc-editor")).toContainText(marker, { timeout: 60_000 });
     });
 
     test("with the flag off the G3 editor opens and no frame mounts", async ({ page }) => {
