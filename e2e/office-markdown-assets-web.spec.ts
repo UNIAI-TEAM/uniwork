@@ -74,7 +74,8 @@ test.describe("markdown pictures", () => {
     // Paste a picture at the end of the last paragraph.
     await editor.locator("p", { hasText: "Đoạn cuối." }).click();
     await page.keyboard.press("End");
-    await editor.locator(".ProseMirror").evaluate((el, b64) => {
+    // `.doc-editor` is a class on the ProseMirror contenteditable itself, not a wrapper around it.
+    await editor.evaluate((el, b64) => {
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
       const data = new DataTransfer();
       data.items.add(new File([bytes], "pasted.png", { type: "image/png" }));
