@@ -32,7 +32,8 @@ func projectDTO(p db.Project, stats service.ProjectView) sdo.ProjectDTO {
 		StartDate: projectDate(p.StartDate), DueDate: projectDate(p.DueDate),
 		Revision: p.Revision, TaskCount: stats.TaskCount, DoneCount: stats.DoneCount,
 		ResourceCount: stats.ResourceCount,
-		CreatedAt:     viewTime(p.CreatedAt), UpdatedAt: viewTime(p.UpdatedAt),
+		CreatedBy:     p.CreatedBy, CreatedByKind: p.CreatedByKind,
+		CreatedAt: viewTime(p.CreatedAt), UpdatedAt: viewTime(p.UpdatedAt),
 	}
 }
 

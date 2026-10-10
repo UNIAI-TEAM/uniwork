@@ -4998,6 +4998,8 @@
       "prop_due_date": "Due date",
       "description_placeholder": "Add description…",
       "description_hint": "Shared with agents as context for every task in this project.",
+      "description_empty": "No description yet.",
+      "read_only": "Only the creator, the lead or a workspace admin can edit this project.",
       "sidebar_toggle": "Show or hide project details",
       "sidebar_label": "Project details"
     },

@@ -83,10 +83,8 @@ func (w *Worker) Drain(ctx context.Context, batch int32) (int, error) {
 
 func (w *Worker) one(ctx context.Context, r db.GraphDirty) {
 	ref := NodeRef{Type: graph.NodeType(r.NodeType), SourceID: r.SourceID}
-	ev := EventInfo{EvidenceKind: EvidenceOutboxEvent, EvidenceID: r.LastEventID, At: r.LastEventAt.Time,
-		ActorKind: r.ActorKind, ActorID: r.ActorID}
 	result := "ok"
-	if err := w.project(ctx, r, ref, ev); err != nil {
+	if err := w.project(ctx, r, ref, eventOf(r)); err != nil {
 		result = "error"
 		w.log.Warn("graph: projection failed", "organization_id", r.OrganizationID, "node_type", r.NodeType,
 			"source_id", r.SourceID, "attempts", r.Attempts, "err", err)
@@ -118,21 +116,33 @@ func (w *Worker) project(ctx context.Context, r db.GraphDirty, ref NodeRef, ev E
 	if _, err := Project(ctx, q, r.OrganizationID, ref, ev); err != nil {
 		return err
 	}
+	if err := settle(ctx, q, r); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// eventOf is the event a dirty row carries, the latest one marked into it:
+// what the row's projection writes is dated, cited and attributed by it.
+func eventOf(r db.GraphDirty) EventInfo {
+	return EventInfo{EvidenceKind: EvidenceOutboxEvent, EvidenceID: r.LastEventID, At: r.LastEventAt.Time,
+		ActorKind: r.ActorKind, ActorID: r.ActorID}
+}
+
+// settle removes the dirty row claim r took, on the projection's transaction.
+// A row marked again since then keeps its new mark_seq and is released for
+// the next claim.
+func settle(ctx context.Context, q *db.Queries, r db.GraphDirty) error {
 	n, err := q.GraphDoneDirty(ctx, db.GraphDoneDirtyParams{
 		OrganizationID: r.OrganizationID, NodeType: r.NodeType, SourceID: r.SourceID, MarkSeq: r.MarkSeq,
 	})
-	if err != nil {
+	if err != nil || n > 0 {
 		return err
 	}
-	if n == 0 {
-		// Marked again while projecting: leave it for the next claim.
-		if err := q.GraphReleaseDirty(ctx, db.GraphReleaseDirtyParams{
-			OrganizationID: r.OrganizationID, NodeType: r.NodeType, SourceID: r.SourceID,
-		}); err != nil {
-			return err
-		}
-	}
-	return tx.Commit(ctx)
+	// Marked again while projecting: leave it for the next claim.
+	return q.GraphReleaseDirty(ctx, db.GraphReleaseDirtyParams{
+		OrganizationID: r.OrganizationID, NodeType: r.NodeType, SourceID: r.SourceID,
+	})
 }
 
 // backoff: 2 s, 4 s, … capped at 5 minutes.
