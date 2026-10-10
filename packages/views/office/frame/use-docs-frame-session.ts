@@ -21,6 +21,15 @@ import {
 import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-session-key";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 
+/**
+ * No handshake within this long = the bundle never loaded. A cold Sheets/Docs load takes up to
+ * ~40 s on a busy box, so the cap sits above that.
+ */
+const BOOT_TIMEOUT_MS = 60_000;
+
+/** `details.frameBundle` on a session failure: the frame document itself could not be loaded. */
+export type DocsFrameBundleFailure = "missing" | "timeout";
+
 export type DocsFrameStatus = "booting" | "ready" | "failed";
 
 /** What the page header says about the frame's edits: driven by its dirty / saved events and the save proxy. */
@@ -30,6 +39,10 @@ export interface DocsFrameSessionOptions {
   iframeRef: RefObject<HTMLIFrameElement | null>;
   /** Exact origin of the frame document. */
   frameOrigin: string;
+  /** URL of the frame document; probed once per attempt so a missing bundle (404/5xx) fails fast. */
+  frameSrc?: string;
+  /** How long the frame may take to complete its handshake before the open counts as failed. */
+  bootTimeoutMs?: number;
   api: DocsFrameApi;
   /**
    * The document's genoffice module (default docs). The host refuses a frame
@@ -152,6 +165,20 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     sentToken.current = null;
     // A clean frame after a save reads "saved"; one never saved reads "ready".
     let savedOnce = false;
+    // The frame document may never answer (404/5xx on index.html loads a dead page, and an iframe
+    // fires no error event for that): until the handshake completes, a probe and a timer decide.
+    let booted = false;
+    const failBoot = (frameBundle: DocsFrameBundleFailure) => {
+      if (booted) return;
+      booted = true;
+      setFatal({
+        code: frameBundle === "timeout" ? "timeout" : "internal",
+        message: frameBundle === "timeout" ? "frame did not start in time" : "frame bundle could not be loaded",
+        retryable: true,
+        details: { frameBundle },
+      });
+      setStatus("failed");
+    };
 
     const currentToken = async (): Promise<TokenPayload> => {
       const { options: { wsId: ws }, scopeId: doc } = latest.current;
@@ -257,7 +284,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.attachments.add": proxy("api.attachments.add", true, (api) => api.addAttachments),
         "api.images.upload": proxy("api.images.upload", true, (api) => api.uploadImage),
       },
-      onInitialized: () => { setStatus((now) => (now === "failed" ? now : "ready")); },
+      onInitialized: () => { booted = true; setStatus((now) => (now === "failed" ? now : "ready")); },
       onHandshakeError: (error) => {
         if (error.code === "cancelled") return;
         setFatal(error.toShape());
@@ -286,8 +313,19 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (error.code === "conflict" && !isFatal) return;
       latest.current.options.onError(error);
     });
+    const probe = new AbortController();
+    const bootTimer = setTimeout(() => failBoot("timeout"), latest.current.options.bootTimeoutMs ?? BOOT_TIMEOUT_MS);
+    const frameSrc = latest.current.options.frameSrc;
+    if (frameSrc) {
+      // Only an HTTP answer >= 400 counts: a probe that cannot run (offline, blocked) leaves the
+      // verdict to the timer and the handshake.
+      void fetch(frameSrc, { credentials: "same-origin", signal: probe.signal }).then(
+        (response) => { if (response.status >= 400) failBoot("missing"); },
+        () => undefined,
+      );
+    }
     setHost(endpoint);
-    return () => { endpoint.dispose(); setHost(null); };
+    return () => { clearTimeout(bootTimer); probe.abort(); booted = true; endpoint.dispose(); setHost(null); };
   }, [attempt, documentId, frameOrigin, iframeRef, module, queryClient, wsId]);
 
   // Proactive rotation: a re-minted token reaches the frame before the old one expires.

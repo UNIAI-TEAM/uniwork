@@ -223,6 +223,71 @@ describe("OfficeModuleFrame", () => {
     expect(refuse).not.toHaveBeenCalled();
   });
 
+  describe("a frame bundle that never loads (404/5xx on index.html)", () => {
+    afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+
+    it.each(["docs", "pdf", "markdown", "html", "slides", "sheets"] as const)("fails fast and hands %s to the G3 editor when the bundle answers 404", async (module) => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 404 })));
+      const refuse = vi.fn();
+      mountFrame(module, { refuse });
+      await waitFor(() => expect(refuse).toHaveBeenCalled());
+      expect(await screen.findByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
+      expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull();
+    });
+
+    it("shows a styled retryable error, not the skeleton, when no G3 editor is wired", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 503 })));
+      mountFrame("slides");
+      const failed = await screen.findByTestId("office-docs-frame-failed");
+      expect(failed).toHaveTextContent("Không tải được trình soạn thảo");
+      expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Mở bằng trình soạn thảo tiêu chuẩn" })).toBeNull();
+      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "failed");
+    });
+
+    it("offers both the retry and the standard editor when a G3 editor exists", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 500 })));
+      const refuse = vi.fn();
+      mountFrame("pdf", { refuse });
+      await screen.findByTestId("office-docs-frame-failed");
+      expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Mở bằng trình soạn thảo tiêu chuẩn" })).toBeInTheDocument();
+    });
+
+    it("keeps booting when the probe answers 200 or cannot run", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+      const refuse = vi.fn();
+      mountFrame("html", { refuse });
+      await waitFor(() => expect(fetch).toHaveBeenCalledWith("/office-frame/html/1.0.0/index.html", expect.anything()));
+      expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
+      expect(refuse).not.toHaveBeenCalled();
+    });
+
+    it("fails when the frame never completes its handshake in time", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const refuse = vi.fn();
+      mountFrame("slides", { refuse });
+      await act(async () => { vi.advanceTimersByTime(59_000); });
+      expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
+      await act(async () => { vi.advanceTimersByTime(2_000); });
+      expect(screen.getByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
+      expect(refuse).toHaveBeenCalled();
+    });
+
+    it("stops the clock once the handshake completes", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const frame = mountFrame("pdf");
+      await act(async () => { await Promise.resolve(); });
+      await frame.ready({ module: "pdf" });
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      await act(async () => { vi.advanceTimersByTime(120_000); });
+      expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
+      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready");
+    });
+  });
+
   it("keeps the Docs grant for docs", async () => {
     const frame = mountFrame("docs");
     expect(frame.iframe.getAttribute("src")).toBe("/office-frame/docs/1.0.0/index.html");

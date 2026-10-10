@@ -8013,6 +8013,10 @@
           "description": "Máy chủ UniWork này chưa được thiết lập cho trình soạn thảo mới.",
           "use_standard": "Mở bằng trình soạn thảo tiêu chuẩn"
         },
+        "load": {
+          "title": "Không tải được trình soạn thảo",
+          "description": "Các tệp của trình soạn thảo không tải được nên chưa mở được tài liệu. Hãy thử lại hoặc mở bằng trình soạn thảo tiêu chuẩn."
+        },
         "network": {
           "title": "Không kết nối được tới UniWork",
           "description": "Hãy kiểm tra kết nối mạng rồi thử lại."
@@ -9355,6 +9359,7 @@
       "save": "Lưu lên UniWork",
       "keep": "Giữ nháp trên thiết bị",
       "discard": "Bỏ thay đổi",
+      "close": "Đóng",
       "stay": "Ở lại",
       "working": "Đang xử lý…",
       "write_failed": "Không thể xác nhận thao tác. Tài liệu vẫn mở.",

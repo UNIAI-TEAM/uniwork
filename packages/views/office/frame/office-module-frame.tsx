@@ -103,7 +103,7 @@ export function OfficeModuleFrame({
   frameTitleRef.current = frameTitle;
 
   const session = useDocsFrameSession({
-    iframeRef, frameOrigin, api: frameApi, module, wsId, documentId, readonly,
+    iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, documentId, readonly,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
@@ -177,7 +177,7 @@ export function OfficeModuleFrame({
   useEffect(() => () => { leaveResolve.current?.(false); }, []);
 
   const headerStatus = useMemo(
-    () => <SaveStatus status={saveState} compact className="hidden whitespace-nowrap px-1 sm:flex" />,
+    () => <SaveStatus status={saveState} compact className="mr-2 hidden whitespace-nowrap sm:flex" />,
     [saveState],
   );
 
@@ -189,8 +189,11 @@ export function OfficeModuleFrame({
   // The server derived another module than the page mounted (odd mime/name pairs): the G3 host,
   // which judges the stored file itself, takes over.
   const moduleMismatch = session.failure?.code === "malformed" && session.failure.details?.["tokenModule"] !== undefined;
+  // The frame bundle itself never loaded (404/5xx, or no handshake in time): not a document problem,
+  // so the G3 editor takes over where the page has one, and the failure panel explains it where not.
+  const bundleFailed = session.failure?.details?.["frameBundle"] !== undefined;
   const refuse = useDocsFrameRefusal();
-  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch) refuse?.(); }, [featureDisabled, tooLarge, moduleMismatch, refuse]);
+  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch || bundleFailed) refuse?.(); }, [featureDisabled, tooLarge, moduleMismatch, bundleFailed, refuse]);
 
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
