@@ -113,7 +113,7 @@ export function LeaveDialog({
       <DialogContent
         className="sm:max-w-md"
         showCloseButton={!pending}
-        closeLabel={t("stay")}
+        closeLabel={t("close")}
         aria-describedby="office-leave-description"
       >
         <DialogHeader>

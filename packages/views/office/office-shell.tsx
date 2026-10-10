@@ -225,7 +225,7 @@ export function OfficeShell({
       {showSaveStatus ? (
         <SaveStatus
           status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} compact
-          className="hidden whitespace-nowrap px-1 sm:flex"
+          className="mr-2 hidden whitespace-nowrap sm:flex"
         />
       ) : null}
       {canSave ? (

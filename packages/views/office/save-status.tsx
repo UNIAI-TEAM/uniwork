@@ -107,8 +107,10 @@ export function SaveStatus({
   const alertRef = useRef<HTMLDivElement>(null);
   const descriptionId = useId();
   useEffect(() => {
-    if (normalized === "permission" || normalized === "conflict" || normalized === "error") alertRef.current?.focus();
-  }, [normalized]);
+    // The header chip never takes focus: it sits among header controls, and a programmatic focus drew a
+    // stray focus ring around it (visual test H-01/MK-04). Its message is read through aria-describedby.
+    if (!compact && (normalized === "permission" || normalized === "conflict" || normalized === "error")) alertRef.current?.focus();
+  }, [normalized, compact]);
 
   const title = t(`status.${normalized}`);
   const body = unfixable ? t(`fix.${unfixable}`) : t(`description.${normalized}`);
@@ -140,10 +142,9 @@ export function SaveStatus({
   ) : destructive && compact ? (
     <div
       ref={alertRef}
-      tabIndex={-1}
       aria-describedby={descriptionId}
       title={body}
-      className={cn("flex min-w-0 max-w-full items-center gap-1 text-caption text-destructive", className)}
+      className={cn("flex min-w-0 max-w-full items-center gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-caption text-destructive", className)}
       data-testid={`office-save-${normalized}-compact`}
     >
       <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
