@@ -1,0 +1,85 @@
+$ xvfb-run --auto-servernum -- npm run test:e2e -- --repeat-each=10 --retries=0 --reporter=list e2e/docs-spell-suggestions.spec.ts:71 e2e/markdown-tab.spec.ts:101
+
+> genoffice@0.1.0 test:e2e
+> playwright test --config e2e/playwright.config.ts --repeat-each=10 --retries=0 --reporter=list e2e/docs-spell-suggestions.spec.ts:71 e2e/markdown-tab.spec.ts:101
+
+
+Running 20 tests using 1 worker
+
+(node:16477) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=6f,67,20 | 43 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv88603x lazyy dog " tail=6f,67,20 | 44 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv88603x lazyy dog " tail=6f,67,20 | 44 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv88603x lazyy dog " tail=6f,67,20 | 44 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv88603x lazyy dog " tail=6f,67,20 | 46 beforeinput insertReplacementText | 47 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv88603x lazyy dog " tail=6f,67,20 | 48 characterData "The quick brown fox jumps over the qzv88603x lazyy dog " tail=6f,67,20
+  ✓   1 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.3s)
+  ✓   2 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.3s)
+(node:16648) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=67,20,20 | 1 characterData "The quick brown fox jumsp over the qzv98615x lazyy dog " tail=6f,67,20 | 39 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv98615x lazyy dog " tail=6f,67,20 | 40 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv98615x lazyy dog " tail=6f,67,20 | 41 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv98615x lazyy dog " tail=6f,67,20 | 41 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv98615x lazyy dog " tail=6f,67,20 | 43 beforeinput insertReplacementText | 44 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv98615x lazyy dog " tail=6f,67,20 | 44 characterData "The quick brown fox jumps over the qzv98615x lazyy dog " tail=6f,67,20
+  ✓   3 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.3s)
+  ✓   4 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:16829) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=67,20,20 | 46 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv8407x lazyy dog " tail=6f,67,20 | 47 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv8407x lazyy dog " tail=6f,67,20 | 48 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv8407x lazyy dog " tail=6f,67,20 | 48 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv8407x lazyy dog " tail=6f,67,20 | 49 beforeinput insertReplacementText | 51 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv8407x lazyy dog  " tail=67,20,20 | 51 characterData "The quick brown fox jumps over the qzv8407x lazyy dog  " tail=67,20,20 | 68 characterData "The quick brown fox jumsp over the qzv8407x lazyy dog " tail=6f,67,20 | 68 characterData "The quick brown fox jumsp over the qzv8407x lazyy dog " tail=6f,67,20
+  ✘   5 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.1s)
+(node:16922) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=67,20,20 | 11 characterData "The quick brown fox jumsp over the qzv16866x lazyy dog " tail=6f,67,20 | 26 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv16866x lazyy dog " tail=6f,67,20 | 27 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv16866x lazyy dog " tail=6f,67,20 | 28 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv16866x lazyy dog " tail=6f,67,20 | 28 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv16866x lazyy dog " tail=6f,67,20 | 29 beforeinput insertReplacementText | 30 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv16866x lazyy dog " tail=6f,67,20 | 30 characterData "The quick brown fox jumps over the qzv16866x lazyy dog " tail=6f,67,20
+  ✓   6 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (retry #1) (8.2s)
+  ✓   7 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:17095) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=6f,67,20 | 36 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv26554x lazyy dog " tail=6f,67,20 | 38 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv26554x lazyy dog " tail=6f,67,20 | 38 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv26554x lazyy dog " tail=6f,67,20 | 38 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv26554x lazyy dog " tail=6f,67,20 | 40 beforeinput insertReplacementText | 41 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv26554x lazyy dog " tail=6f,67,20 | 41 characterData "The quick brown fox jumps over the qzv26554x lazyy dog " tail=6f,67,20
+  ✓   8 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.2s)
+  ✓   9 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:17268) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=67,20,20 | 21 characterData "The quick brown fox jumsp over the qzv36308x lazyy dog " tail=6f,67,20 | 41 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv36308x lazyy dog " tail=6f,67,20 | 42 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv36308x lazyy dog " tail=6f,67,20 | 42 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv36308x lazyy dog " tail=6f,67,20 | 42 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv36308x lazyy dog " tail=6f,67,20 | 45 beforeinput insertReplacementText | 46 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv36308x lazyy dog " tail=6f,67,20 | 46 characterData "The quick brown fox jumps over the qzv36308x lazyy dog " tail=6f,67,20
+  ✓  10 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.2s)
+  ✓  11 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.3s)
+(node:17438) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=6f,67,20 | 27 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv46183x lazyy dog " tail=6f,67,20 | 28 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv46183x lazyy dog " tail=6f,67,20 | 28 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv46183x lazyy dog " tail=6f,67,20 | 28 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv46183x lazyy dog " tail=6f,67,20 | 30 beforeinput insertReplacementText | 31 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv46183x lazyy dog " tail=6f,67,20 | 31 characterData "The quick brown fox jumps over the qzv46183x lazyy dog " tail=6f,67,20
+  ✓  12 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.2s)
+  ✓  13 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.3s)
+(node:17610) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=67,20,20 | 5 characterData "The quick brown fox jumsp over the qzv56016x lazyy dog " tail=6f,67,20 | 48 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv56016x lazyy dog " tail=6f,67,20 | 49 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv56016x lazyy dog " tail=6f,67,20 | 49 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv56016x lazyy dog " tail=6f,67,20 | 49 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv56016x lazyy dog " tail=6f,67,20 | 52 beforeinput insertReplacementText | 53 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv56016x lazyy dog " tail=6f,67,20 | 53 characterData "The quick brown fox jumps over the qzv56016x lazyy dog " tail=6f,67,20
+  ✓  14 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.2s)
+  ✓  15 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.4s)
+(node:17786) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=67,20,20 | 16 characterData "The quick brown fox jumsp over the qzv65993x lazyy dog " tail=6f,67,20 | 36 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv65993x lazyy dog " tail=6f,67,20 | 37 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv65993x lazyy dog " tail=6f,67,20 | 37 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv65993x lazyy dog " tail=6f,67,20 | 37 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv65993x lazyy dog " tail=6f,67,20 | 39 beforeinput insertReplacementText | 40 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv65993x lazyy dog " tail=6f,67,20 | 40 characterData "The quick brown fox jumps over the qzv65993x lazyy dog " tail=6f,67,20
+  ✓  16 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.3s)
+  ✓  17 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.3s)
+(node:17961) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=67,20,20 | 38 characterData "The quick brown fox jumsp over the qzv75828x lazyy dog " tail=6f,67,20 | 42 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv75828x lazyy dog " tail=6f,67,20 | 43 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv75828x lazyy dog " tail=6f,67,20 | 43 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv75828x lazyy dog " tail=6f,67,20 | 43 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv75828x lazyy dog " tail=6f,67,20 | 45 beforeinput insertReplacementText | 46 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv75828x lazyy dog " tail=6f,67,20 | 46 characterData "The quick brown fox jumps over the qzv75828x lazyy dog " tail=6f,67,20
+  ✓  18 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.2s)
+  ✓  19 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.2s)
+(node:18134) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[spell-diag] 0 state tail=6f,67,20 dom tail=67,20,20 | 13 characterData "The quick brown fox jumsp over the qzv85619x lazyy dog " tail=6f,67,20 | 34 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv85619x lazyy dog " tail=6f,67,20 | 35 tr doc=false sel=true@21-26 ui= text="The quick brown fox jumsp over the qzv85619x lazyy dog " tail=6f,67,20 | 36 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv85619x lazyy dog " tail=6f,67,20 | 36 tr doc=false sel=false@21-26 ui= text="The quick brown fox jumsp over the qzv85619x lazyy dog " tail=6f,67,20 | 38 beforeinput insertReplacementText | 39 tr doc=true sel=true@26-26 ui= text="The quick brown fox jumps over the qzv85619x lazyy dog " tail=6f,67,20 | 39 characterData "The quick brown fox jumps over the qzv85619x lazyy dog " tail=6f,67,20
+  ✓  20 e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one (8.2s)
+  ✓  21 e2e/markdown-tab.spec.ts:101:7 › markdown editor › opens a .md file from argv, edits and saves it back (1.3s)
+
+
+  1) e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      236 |     await editor.mouse.click(blank.x, blank.y)
+      237 |     await editor.waitForTimeout(500)
+    > 238 |     expect(await redUnder(editor, (await wordRect(editor, 'lazyy'))!)).toBeGreaterThan(0)
+          |                                                                        ^
+      239 |
+      240 |     await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+      241 |     await expect.poll(() => pageText(editor), POLL).toContain('jumsp')
+        at /home/ubuntu/work/uniwork-office/e2e/docs-spell-suggestions.spec.ts:238:72
+
+    Error Context: e2e/test-results/docs-spell-suggestions-con-ee0a3-suggestions-and-applies-one-repeat2/error-context.md
+
+  1 flaky
+    e2e/docs-spell-suggestions.spec.ts:71:5 › context menu offers spelling suggestions and applies one 
+  19 passed (1.8m)

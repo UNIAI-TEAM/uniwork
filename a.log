@@ -1,0 +1,647 @@
+$ npm run build:all
+
+> genoffice@0.1.0 build:all
+> npm run build -w @genoffice/docs && npm run build -w @genoffice/sheets && npm run build -w @genoffice/slides && npm run build -w @genoffice/pdf && npm run build -w @genoffice/markdown && npm run build -w @genoffice/html && npm run build -w @genoffice/cli && npm run build -w @genoffice/shell
+
+
+> @genoffice/docs@0.1.0 build
+> electron-vite build
+
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 844 modules transformed.
+rendering chunks...
+out/main/ppt-BHIGZr4q.js     42.29 kB
+out/main/index.js         4,561.95 kB
+✓ built in 4.63s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 18 modules transformed.
+rendering chunks...
+out/preload/index.js  27.33 kB
+✓ built in 53ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 565 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                                                  0.71 kB
+../../out/renderer/assets/send-enter-off-B0IfWMyy.png                          4.25 kB
+../../out/renderer/assets/GenOfficeCheLatinKR-CFVfemg_.woff2                   8.30 kB
+../../out/renderer/assets/GenOfficePoppins-Bold-subset-CLJyStaw.woff2         14.13 kB
+../../out/renderer/assets/GenOfficePoppins-Regular-subset-RElVmxhA.woff2      14.16 kB
+../../out/renderer/assets/GenOfficeUIKanaJP-Regular-Bj_7JzTT.woff2            25.29 kB
+../../out/renderer/assets/GenOfficeUIKanaJP-Bold-DbcaglVT.woff2               26.20 kB
+../../out/renderer/assets/GenOfficeDMSans-Bold-subset-DVFBF4J5.woff2          28.43 kB
+../../out/renderer/assets/GenOfficeDMSans-Regular-subset-DEQZCK4K.woff2       28.63 kB
+../../out/renderer/assets/GenOfficeTamil-Regular-DLISHPmH.woff2               33.07 kB
+../../out/renderer/assets/Caladea-Bold-D8qQyaGr.ttf                           58.89 kB
+../../out/renderer/assets/Caladea-Regular-BTbwo_Qo.ttf                        58.96 kB
+../../out/renderer/assets/Caladea-BoldItalic-wZEKqfeH.ttf                     61.83 kB
+../../out/renderer/assets/Caladea-Italic-B_Jy4Zu6.ttf                         61.86 kB
+../../out/renderer/assets/NotoSansArabic-Regular-subset-D207GVuU.woff2        63.67 kB
+../../out/renderer/assets/NotoNaskhArabic-Regular-subset-DQSqx2ZA.woff2       69.62 kB
+../../out/renderer/assets/GenOfficeSansKR-Regular-subset-CVxxonE8.woff2      266.13 kB
+../../out/renderer/assets/LiberationMono-Italic-BaW6sbi8.ttf                 281.54 kB
+../../out/renderer/assets/GenOfficeGothicKR-Regular-subset-Bkvj_MFZ.woff2    281.98 kB
+../../out/renderer/assets/LiberationMono-BoldItalic-CW50-m9W.ttf             284.07 kB
+../../out/renderer/assets/LiberationMono-Bold-JpIqZVyK.ttf                   308.00 kB
+../../out/renderer/assets/LiberationMono-Regular-CscJ8ftk.ttf                319.51 kB
+../../out/renderer/assets/LiberationSerif-Bold-CT7WGLoV.ttf                  370.10 kB
+../../out/renderer/assets/LiberationSerif-Italic-Bwtmn-ni.ttf                375.63 kB
+../../out/renderer/assets/LiberationSerif-BoldItalic-DHf5skZ4.ttf            376.77 kB
+../../out/renderer/assets/LiberationSerif-Regular-DREh6cMU.ttf               393.58 kB
+../../out/renderer/assets/LiberationSans-BoldItalic-BC07J_j6.ttf             409.00 kB
+../../out/renderer/assets/LiberationSans-Regular-CqxnOoBp.ttf                410.71 kB
+../../out/renderer/assets/LiberationSans-Bold-CAnzDFU4.ttf                   414.46 kB
+../../out/renderer/assets/LiberationSans-Italic-D6GtLuAT.ttf                 415.82 kB
+../../out/renderer/assets/GenOfficeSerifKR-Regular-subset-BkQyd75u.woff2     512.44 kB
+../../out/renderer/assets/Carlito-Italic-KkZUqxJW.ttf                        619.05 kB
+../../out/renderer/assets/Carlito-Regular-Cbe9FLjp.ttf                       631.71 kB
+../../out/renderer/assets/Carlito-Bold-BhbXr__n.ttf                          686.24 kB
+../../out/renderer/assets/Carlito-BoldItalic-0dXjwGA0.ttf                    812.34 kB
+../../out/renderer/assets/pdf.worker.min-CLrFZWeq.mjs                      1,312.45 kB
+../../out/renderer/assets/parse-worker-BvZ2Avxv.js                         1,319.25 kB
+../../out/renderer/assets/NotoSansCJKsc-Regular-subset-BuHGXxnc.woff2      2,533.16 kB
+../../out/renderer/assets/NotoSerifCJKsc-Regular-subset-CLPB6QGT.woff2     3,495.93 kB
+../../out/renderer/assets/index-CTfXw3R3.css                                 415.11 kB
+../../out/renderer/assets/pdf.worker.min-C-u9zQLr.js                           0.13 kB
+../../out/renderer/assets/pdf-B8NFvxwz.js                                  1,011.92 kB
+../../out/renderer/assets/index-NadIL3F8.js                                7,807.76 kB
+✓ built in 7.62s
+
+> @genoffice/sheets@0.1.0 build
+> npm run native:build && electron-vite build
+
+
+> @genoffice/sheets@0.1.0 native:build
+> cargo build --release --manifest-path native/xlsx-engine/Cargo.toml --config native/xlsx-engine/.cargo/config.toml
+
+    Finished `release` profile [optimized] target(s) in 0.10s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 587 modules transformed.
+rendering chunks...
+out/main/ppt-BHIGZr4q.js            42.29 kB
+out/main/index-D2L-LUW1.js         750.47 kB
+out/main/pdf-B6l8FRA5.js         1,013.76 kB
+out/main/pdf.worker-NB1PBVQH.js  2,340.46 kB
+out/main/index.js                2,997.93 kB
+✓ built in 5.87s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 3 modules transformed.
+rendering chunks...
+out/preload/index.js  141.02 kB
+✓ built in 109ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 3830 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                                       0.64 kB
+../../out/renderer/assets/send-enter-off-B0IfWMyy.png               4.25 kB
+../../out/renderer/assets/Carlito-Italic-KkZUqxJW.ttf             619.05 kB
+../../out/renderer/assets/Carlito-Regular-Cbe9FLjp.ttf            631.71 kB
+../../out/renderer/assets/Carlito-Bold-BhbXr__n.ttf               686.24 kB
+../../out/renderer/assets/Carlito-BoldItalic-0dXjwGA0.ttf         812.34 kB
+../../out/renderer/assets/index-BoAeCNui.css                      279.75 kB
+../../out/renderer/assets/zh-CN-FKUeMEZa.js                         0.32 kB
+../../out/renderer/assets/it-IT-BSPGHKjn.js                         0.32 kB
+../../out/renderer/assets/zh-TW-CcxxW-fx.js                         0.32 kB
+../../out/renderer/assets/pt-BR-NAJgKD_2.js                         0.32 kB
+../../out/renderer/assets/es-ES-FFYT2lS9.js                         0.33 kB
+../../out/renderer/assets/pl-PL-BT0Lt9HG.js                         0.33 kB
+../../out/renderer/assets/ko-KR-Q2rCZTvu.js                         0.33 kB
+../../out/renderer/assets/vi-VN-D1na2wnI.js                         0.33 kB
+../../out/renderer/assets/fr-FR-B5Hg-nG_.js                         0.34 kB
+../../out/renderer/assets/de-DE-BFhER2s_.js                         0.34 kB
+../../out/renderer/assets/id-ID-cL5QHIkg.js                         0.34 kB
+../../out/renderer/assets/ja-JP-QkEwsNJD.js                         0.36 kB
+../../out/renderer/assets/ar-SA-CXRVkRoh.js                         0.37 kB
+../../out/renderer/assets/ru-RU-BpHOJucO.js                         0.43 kB
+../../out/renderer/assets/pa-C54UG8eN-C289aRic.js                   0.54 kB
+../../out/renderer/assets/or-50rxpoq4-CKqO0QN6.js                   0.58 kB
+../../out/renderer/assets/gu-Bjl0l-cf-wLi0mXrk.js                   0.59 kB
+../../out/renderer/assets/hi-DsAaTPCC-0oXXR9W5.js                   0.62 kB
+../../out/renderer/assets/mr-CjWJPVmH-DEKWXvtC.js                   0.62 kB
+../../out/renderer/assets/as-BPtSu6VN-BRA2d3pp.js                   0.64 kB
+../../out/renderer/assets/bn-NCLZcWHi-D2KtSTkr.js                   0.64 kB
+../../out/renderer/assets/te-B5Spl2Jk-DKbqLYh4.js                   0.64 kB
+../../out/renderer/assets/kn-C6Lov-DP-DO8F4Tga.js                   0.65 kB
+../../out/renderer/assets/ta-BcghgTbD-Cai0wUPn.js                   0.73 kB
+../../out/renderer/assets/ml-2xLVYkVY-BGEScgvb.js                   0.82 kB
+../../out/renderer/assets/pi-B9cgjyG1-BCynSWdr.js                   0.87 kB
+../../out/renderer/assets/zh-CN-DcyXQIAx.js                         1.16 kB
+../../out/renderer/assets/zh-TW-BAuZ4gsP.js                         1.16 kB
+../../out/renderer/assets/ko-KR-C7Io5g_C.js                         1.28 kB
+../../out/renderer/assets/id-ID-BVn8SDuQ.js                         1.29 kB
+../../out/renderer/assets/pl-PL-DQnxkOaX.js                         1.30 kB
+../../out/renderer/assets/zh-latn-pinyin-BdYb-Ey_-UC2Ykr4P.js       1.30 kB
+../../out/renderer/assets/it-IT-B4mW1nc_.js                         1.34 kB
+../../out/renderer/assets/es-ES-pl1Q4JU8.js                         1.35 kB
+../../out/renderer/assets/de-DE-CINpw0PU.js                         1.35 kB
+../../out/renderer/assets/pt-BR-B1A71xeF.js                         1.36 kB
+../../out/renderer/assets/fr-FR-BWE3w7YJ.js                         1.37 kB
+../../out/renderer/assets/ja-JP-B7J92-Vq.js                         1.43 kB
+../../out/renderer/assets/ar-SA-C-8B2sa6.js                         1.44 kB
+../../out/renderer/assets/eu-Ctv_kq9Z-Cks5q4oj.js                   1.53 kB
+../../out/renderer/assets/vi-VN-Bh6FWawS.js                         1.54 kB
+../../out/renderer/assets/zh-CN-C3EDx3zk.js                         1.56 kB
+../../out/renderer/assets/id-ID-DCet8Az-.js                         1.59 kB
+../../out/renderer/assets/zh-TW-DyBWiiSn.js                         1.60 kB
+../../out/renderer/assets/de-DE-BbwBtdAm.js                         1.67 kB
+../../out/renderer/assets/ko-KR-7kryf4Gm.js                         1.75 kB
+../../out/renderer/assets/it-IT-DN1jLGn7.js                         1.75 kB
+../../out/renderer/assets/pl-PL-B4ZiFrrZ.js                         1.77 kB
+../../out/renderer/assets/es-ES-TyUNRKPf.js                         1.80 kB
+../../out/renderer/assets/ja-JP--riP2bTL.js                         1.80 kB
+../../out/renderer/assets/pt-BR-Bm9MrCe_.js                         1.84 kB
+../../out/renderer/assets/fr-FR-CdvOlr-2.js                         1.90 kB
+../../out/renderer/assets/vi-VN-BXnohlvL.js                         1.93 kB
+../../out/renderer/assets/ru-RU-DPwdIwsM.js                         2.02 kB
+../../out/renderer/assets/ar-SA-BbCC0Nyn.js                         2.03 kB
+../../out/renderer/assets/ru-RU-BPowykaO.js                         2.23 kB
+../../out/renderer/assets/pt-Cum2_NUC-BIKGx1hO.js                   2.31 kB
+../../out/renderer/assets/zh-TW-JiB9vMLB.js                         2.43 kB
+../../out/renderer/assets/zh-CN-B0il5ahV.js                         2.43 kB
+../../out/renderer/assets/oc-P_i3-xLA-DsUOXMQD.js                   2.57 kB
+../../out/renderer/assets/kmr-Cfwhwuff-B-KiPlp3.js                  2.75 kB
+../../out/renderer/assets/id-DifDyWg9-Dz9P_puV.js                   2.77 kB
+../../out/renderer/assets/it-IT-DJEbmINy.js                         2.77 kB
+../../out/renderer/assets/ko-KR-CfLgFZK4.js                         2.78 kB
+../../out/renderer/assets/de-DE-Y7ecDEoe.js                         2.78 kB
+../../out/renderer/assets/es-ES-dHbMQ6je.js                         2.80 kB
+../../out/renderer/assets/pt-BR-CnNv96p0.js                         2.80 kB
+../../out/renderer/assets/id-ID-BczFrLs3.js                         2.82 kB
+../../out/renderer/assets/pl-PL-DkcpU88j.js                         2.87 kB
+../../out/renderer/assets/vi-VN-DOAcRFNu.js                         2.88 kB
+../../out/renderer/assets/fr-FR-DdI2nhRA.js                         2.89 kB
+../../out/renderer/assets/ja-JP-C8nHDBX4.js                         2.91 kB
+../../out/renderer/assets/ar-SA-BRMWFV_3.js                         3.18 kB
+../../out/renderer/assets/fi-RW5VB8Yp-CloSDd5R.js                   3.21 kB
+../../out/renderer/assets/la-DuvHjUWw-DHKd_s9q.js                   3.21 kB
+../../out/renderer/assets/pms-BRGfm5gS-D7eF7JvK.js                  3.39 kB
+../../out/renderer/assets/zh-CN-CQ3qcZte.js                         3.59 kB
+../../out/renderer/assets/zh-TW-CfdN9JQR.js                         3.59 kB
+../../out/renderer/assets/it-Bt_Meacx-DW0whi0u.js                   3.64 kB
+../../out/renderer/assets/ru-RU-FZr7OvNB.js                         3.65 kB
+../../out/renderer/assets/zh-TW-DUPg4fte.js                         3.68 kB
+../../out/renderer/assets/zh-CN-wROP_CoE.js                         3.68 kB
+../../out/renderer/assets/rm-C0MIK9N4-CtXRfXwR.js                   3.69 kB
+../../out/renderer/assets/mul-ethi-D_CMSMEq-BJCO9BlO.js             3.71 kB
+../../out/renderer/assets/id-ID-D30sH_BA.js                         3.79 kB
+../../out/renderer/assets/fur-AC12wySk-CBBh0qht.js                  3.92 kB
+../../out/renderer/assets/tr-CIHIuzqc-BRmPg68h.js                   3.98 kB
+../../out/renderer/assets/ko-KR-BiHkAn2t.js                         4.03 kB
+../../out/renderer/assets/it-IT-DZtIuIYG.js                         4.06 kB
+../../out/renderer/assets/es-ES-CsvRnWxp.js                         4.06 kB
+../../out/renderer/assets/de-DE-CRFtLkoX.js                         4.07 kB
+../../out/renderer/assets/pl-PL-DN6sH0f1.js                         4.07 kB
+../../out/renderer/assets/ja-JP-Bf57frti.js                         4.08 kB
+../../out/renderer/assets/pt-BR-C-_566Ep.js                         4.10 kB
+../../out/renderer/assets/ko-KR-CO5pbs78.js                         4.11 kB
+../../out/renderer/assets/id-ID-BQEDAr-E.js                         4.18 kB
+../../out/renderer/assets/pt-BR-DjuAKTVq.js                         4.21 kB
+../../out/renderer/assets/fr-FR-6r2OXsq1.js                         4.22 kB
+../../out/renderer/assets/pl-PL-DHOS2tY6.js                         4.24 kB
+../../out/renderer/assets/it-IT-BUgMA41Z.js                         4.25 kB
+../../out/renderer/assets/ja-JP-DbiJFsrt.js                         4.25 kB
+../../out/renderer/assets/es-ES-Dd7WK9EQ.js                         4.25 kB
+../../out/renderer/assets/vi-VN-CbE3EdQV.js                         4.25 kB
+../../out/renderer/assets/de-DE-QsQwQgIy.js                         4.32 kB
+../../out/renderer/assets/vi-VN-C6-BauAa.js                         4.34 kB
+../../out/renderer/assets/fr-FR-DCmvUWSa.js                         4.42 kB
+../../out/renderer/assets/zh-TW-Bryh4NJ9.js                         4.43 kB
+../../out/renderer/assets/zh-CN-Bm8IKB_8.js                         4.44 kB
+../../out/renderer/assets/ar-SA-kqGML9Bz.js                         4.59 kB
+../../out/renderer/assets/ko-KR-ZLSpOFlu.js                         4.67 kB
+../../out/renderer/assets/mn-cyrl-x-lmc-3aetruI8-BGezHEbR.js        4.85 kB
+../../out/renderer/assets/el-monoton-D3aKqTz2-C7Dj3t8L.js           4.89 kB
+../../out/renderer/assets/de-DE-DPh2fs-o.js                         4.94 kB
+../../out/renderer/assets/id-ID-BkbgtvK5.js                         4.97 kB
+../../out/renderer/assets/ar-SA-ba9WcjML.js                         4.98 kB
+../../out/renderer/assets/es-ES-B4XJ5FbG.js                         4.98 kB
+../../out/renderer/assets/pt-BR-CaKyIErd.js                         5.01 kB
+../../out/renderer/assets/it-IT-BJHMNuaB.js                         5.01 kB
+../../out/renderer/assets/ja-JP-D5ryvaXk.js                         5.03 kB
+../../out/renderer/assets/pl-PL-BMLSbN7t.js                         5.06 kB
+../../out/renderer/assets/fr-FR-Cvzu1zzT.js                         5.25 kB
+../../out/renderer/assets/vi-VN-BeI-qkL9.js                         5.41 kB
+../../out/renderer/assets/ru-RU-DQgQhUCp.js                         5.67 kB
+../../out/renderer/assets/ru-RU-BV9hkInw.js                         5.73 kB
+../../out/renderer/assets/ar-SA-C7GFGF9T.js                         5.93 kB
+../../out/renderer/assets/ia-Cr4TJH0c-C6a-e-Dj.js                   6.56 kB
+../../out/renderer/assets/ru-RU-DEDT27yw.js                         6.63 kB
+../../out/renderer/assets/cop-C3sk0IUo-C8rmq-mf.js                  6.90 kB
+../../out/renderer/assets/ro-0fmdH0HA-Dgc3hCQP.js                   7.28 kB
+../../out/renderer/assets/ca-SUf6Y2Om-4YYrF7D4.js                   8.01 kB
+../../out/renderer/assets/la-x-classic-yTyAOQEt-DfZknpxy.js         8.95 kB
+../../out/renderer/assets/sa-CKY9c_Vq-Ci_yq_nB.js                   9.73 kB
+../../out/renderer/assets/hr-DT1SBBes-qQvmVP7S.js                  11.38 kB
+../../out/renderer/assets/hy-e995ysyO-CQNr6JSB.js                  11.95 kB
+../../out/renderer/assets/mn-cyrl-lHM4n0oC-BhdxkmdX.js             12.17 kB
+../../out/renderer/assets/sl-DpiklF-D-BDe1PmyZ.js                  12.62 kB
+../../out/renderer/assets/da-CCDXfXtG-C6piIYvN.js                  12.74 kB
+../../out/renderer/assets/zh-TW-CZqE_EBH.js                        13.00 kB
+../../out/renderer/assets/zh-CN-CyTCXm0I.js                        13.23 kB
+../../out/renderer/assets/hsb-DC_ITc1e-Cfm_aA_B.js                 14.20 kB
+../../out/renderer/assets/id-ID-BwH8u0yd.js                        14.33 kB
+../../out/renderer/assets/it-IT-wIWSr_1q.js                        14.76 kB
+../../out/renderer/assets/lt-BBe8DlDF-DtlA9rsC.js                  14.78 kB
+../../out/renderer/assets/es-ES-C8P8e92B.js                        14.85 kB
+../../out/renderer/assets/pt-BR-CFoFBxdz.js                        14.88 kB
+../../out/renderer/assets/pl-PL-CuTHVYkR.js                        15.07 kB
+../../out/renderer/assets/ko-KR-Rdu_Rnoi.js                        15.10 kB
+../../out/renderer/assets/de-DE-UyoT3OFO.js                        15.41 kB
+../../out/renderer/assets/fr-FR-cKx9Qfmq.js                        15.50 kB
+../../out/renderer/assets/vi-VN-Cf5GGgUR.js                        16.40 kB
+../../out/renderer/assets/tk-BMbKB10q-DNRkC-pL.js                  16.98 kB
+../../out/renderer/assets/ja-JP-D9FZnjIT.js                        16.98 kB
+../../out/renderer/assets/ar-SA-CEVlQepm.js                        17.44 kB
+../../out/renderer/assets/el-polyton-ogVWcTzh-3hQ3_5V8.js          17.65 kB
+../../out/renderer/assets/ru-RU-BrCWvwE8.js                        20.22 kB
+../../out/renderer/assets/la-x-liturgic-CXeQb4FY-DTe6oXWw.js       22.84 kB
+../../out/renderer/assets/fr-BC2onEz9-B1BYHADY.js                  24.15 kB
+../../out/renderer/assets/ka-jyoLzyDE-BLB-V1lz.js                  26.20 kB
+../../out/renderer/assets/be-CrQ0smca-DuPPDo85.js                  27.85 kB
+../../out/renderer/assets/sh-latn-sRy4Tuaj-B7Pprjwx.js             30.39 kB
+../../out/renderer/assets/sk-_iOeDNrQ-DqBgP115.js                  31.74 kB
+../../out/renderer/assets/sr-cyrl-Dpzrbd0W-Dw0eEBrg.js             32.27 kB
+../../out/renderer/assets/sh-cyrl-BpCRFOmq-B2Lh5Alp.js             33.10 kB
+../../out/renderer/assets/gl-DZGc-K_G-BBvFm_J1.js                  33.66 kB
+../../out/renderer/assets/cs-CmAteokq-D-GFbZkE.js                  39.80 kB
+../../out/renderer/assets/es-DcaaHPU_-DVBhSqkX.js                  44.14 kB
+../../out/renderer/assets/pl-9fg-ESVt-Dc8CHLY1.js                  46.21 kB
+../../out/renderer/assets/et-B_spaleu-Db4qA7uM.js                  47.22 kB
+../../out/renderer/assets/is-BT8UVRze-i5pSEnjg.js                  48.42 kB
+../../out/renderer/assets/sv-CFm5y56M-BVAzsIUi.js                  56.82 kB
+../../out/renderer/assets/bg-CrQqGwni-CREWvG4t.js                  56.94 kB
+../../out/renderer/assets/uk-Dir3oxLs-BS0jT5id.js                  64.01 kB
+../../out/renderer/assets/th-DWX5iPSo-DJ6gR5Ug.js                  68.64 kB
+../../out/renderer/assets/grc-DOlGgO8T-C45HXf-r.js                 71.63 kB
+../../out/renderer/assets/cy-BBPa6z2x-Dz9q6g42.js                  80.21 kB
+../../out/renderer/assets/ga-Cn6LkudM-BcR3t3dJ.js                  82.39 kB
+../../out/renderer/assets/ru-v4l-ayaq-CfO_VOSH.js                  86.25 kB
+../../out/renderer/assets/en-gb-B7Al27b_-BJlV3ZpD.js              105.44 kB
+../../out/renderer/assets/lv-Q2BBHnzp-DXaKRahI.js                 112.69 kB
+../../out/renderer/assets/nl-BHQJ6Gvn-DVAPWIGp.js                 138.73 kB
+../../out/renderer/assets/cu-CBUlrW6Y-B6XjYaXV.js                 168.92 kB
+../../out/renderer/assets/af-DK_CjRn6-Cp38c8Xu.js                 180.84 kB
+../../out/renderer/assets/de-ch-1901-hVThVHVb-CD9ndUrR.js         264.36 kB
+../../out/renderer/assets/de-1996-BL6awyxG-DJBaU2Ij.js            266.96 kB
+../../out/renderer/assets/de-1901-CWoAOigE-BlrbOJIy.js            270.06 kB
+../../out/renderer/assets/no-B8ItS0F3-CYxBnhIW.js                 342.46 kB
+../../out/renderer/assets/nb-DI8u59ch-DXDxUDDo.js                 342.49 kB
+../../out/renderer/assets/nn-ntZvarUK-U4EJzxc1.js                 342.49 kB
+../../out/renderer/assets/zh-TW-Dase0Juu.js                       371.11 kB
+../../out/renderer/assets/zh-CN-tMFkHdIZ.js                       373.10 kB
+../../out/renderer/assets/ko-KR-C2VrUGeT.js                       398.34 kB
+../../out/renderer/assets/id-ID-DHJ19E72.js                       403.36 kB
+../../out/renderer/assets/pl-PL-BRJCNBpD.js                       404.10 kB
+../../out/renderer/assets/it-IT-uoFqqxc2.js                       404.83 kB
+../../out/renderer/assets/pt-BR-CfFqvTZa.js                       405.03 kB
+../../out/renderer/assets/de-DE-c8v0jQZS.js                       405.88 kB
+../../out/renderer/assets/fr-FR-CNgV1Nn-.js                       407.19 kB
+../../out/renderer/assets/ar-SA-DXfivk0a.js                       409.74 kB
+../../out/renderer/assets/es-ES-CnXHTzqz.js                       423.90 kB
+../../out/renderer/assets/ja-JP-C-6zXhgf.js                       448.86 kB
+../../out/renderer/assets/vi-VN-D2qixhw-.js                       462.88 kB
+../../out/renderer/assets/ru-RU-Br9DxUVK.js                       627.67 kB
+../../out/renderer/assets/hu-DVk7Y_ka-DX3GX0Md.js                 765.42 kB
+../../out/renderer/assets/index-7qdlayvb.js                    20,656.27 kB
+✓ built in 19.14s
+
+> @genoffice/slides@0.1.0 build
+> electron-vite build
+
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 873 modules transformed.
+rendering chunks...
+out/main/chunks/harfbuzz-CVplwa31.wasm             421.96 kB
+out/main/chunks/Carlito-Italic-KkZUqxJW.ttf        619.05 kB
+out/main/chunks/Carlito-Regular-Cbe9FLjp.ttf       631.71 kB
+out/main/chunks/Carlito-Bold-BhbXr__n.ttf          686.24 kB
+out/main/chunks/Carlito-BoldItalic-0dXjwGA0.ttf    812.34 kB
+out/main/ppt-BHIGZr4q.js                            42.29 kB
+out/main/index-D2L-LUW1.js                         750.47 kB
+out/main/pdf-B6l8FRA5.js                         1,013.76 kB
+out/main/pdf.worker-NB1PBVQH.js                  2,340.46 kB
+out/main/index.js                                4,384.06 kB
+✓ built in 7.13s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+out/preload/index.js  22.54 kB
+✓ built in 22ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 518 modules transformed.
+[plugin vite:reporter] 
+(!) /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/export-render.tsx is dynamically imported by /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/zoom-actions.ts but also statically imported by /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/ai/AiPanel.tsx, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/clipboard-actions.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/components/PrintDialog.tsx, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/export-pages.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/file-actions.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/slide-actions.ts, dynamic import will not move module into another chunk.
+
+rendering chunks...
+../../out/renderer/index.html                                  0.84 kB
+../../out/renderer/assets/send-enter-off-B0IfWMyy.png          4.25 kB
+../../out/renderer/assets/marble-D7ttTB12.png                  9.07 kB
+../../out/renderer/assets/parchment-BKiptb7w.png              17.39 kB
+../../out/renderer/assets/paper-DUijYpax.png                  19.39 kB
+../../out/renderer/assets/canvas-BRJXZk8M.png                 23.00 kB
+../../out/renderer/assets/wood-D70XEBVa.png                   23.40 kB
+../../out/renderer/assets/denim-DTrT_oct.png                  29.17 kB
+../../out/renderer/assets/cork-BseXy6tu.png                   29.53 kB
+../../out/renderer/assets/granite--1xJtYY3.png                41.09 kB
+../../out/renderer/assets/Carlito-Italic-KkZUqxJW.ttf        619.05 kB
+../../out/renderer/assets/Carlito-Regular-Cbe9FLjp.ttf       631.71 kB
+../../out/renderer/assets/Carlito-Bold-BhbXr__n.ttf          686.24 kB
+../../out/renderer/assets/Carlito-BoldItalic-0dXjwGA0.ttf    812.34 kB
+../../out/renderer/assets/index-2N8n9qvv.css                 214.69 kB
+../../out/renderer/assets/index-CkpaAmB_.js                5,295.35 kB
+✓ built in 3.06s
+
+> @genoffice/pdf@0.1.0 build
+> electron-vite build
+
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 582 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /home/ubuntu/work/uniwork-office/apps/pdf/src/main/text-edit.ts is dynamically imported by /home/ubuntu/work/uniwork-office/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/save-pdf.ts but also statically imported by /home/ubuntu/work/uniwork-office/apps/pdf/src/main/annot-delete.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/image-edit.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/redaction.ts, dynamic import will not move module into another chunk.
+
+out/main/ocr-2PnH0gin.js               3.12 kB
+out/main/annot-delete-DubhLpER.js      3.66 kB
+out/main/image-edit-Bzhgi4Tt.js       15.31 kB
+out/main/index-MbjUHvFF.js           268.21 kB
+out/main/index.js                  1,843.53 kB
+✓ built in 2.25s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 3 modules transformed.
+rendering chunks...
+out/preload/index.js  11.97 kB
+✓ built in 16ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 165 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                              0.77 kB
+../../out/renderer/assets/send-enter-off-B0IfWMyy.png      4.25 kB
+../../out/renderer/assets/pdf.worker.min-CLrFZWeq.mjs  1,312.45 kB
+../../out/renderer/assets/index-Cki92iJ8.css             106.53 kB
+../../out/renderer/assets/index-CHajyDbM.js            2,903.75 kB
+[vite-plugin-static-copy] Copied 3 items.
+✓ built in 1.96s
+
+> @genoffice/markdown@0.1.0 build
+> electron-vite build
+
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 384 modules transformed.
+rendering chunks...
+out/main/index.js  697.52 kB
+✓ built in 1.17s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 3 modules transformed.
+rendering chunks...
+out/preload/index.js  12.00 kB
+✓ built in 20ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2513 modules transformed.
+../../node_modules/wavedrom/lib/eva.js (17:21): Use of eval in "../../node_modules/wavedrom/lib/eva.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+../../node_modules/wavedrom/lib/eva.js (23:21): Use of eval in "../../node_modules/wavedrom/lib/eva.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+rendering chunks...
+../../out/renderer/index.html                                           0.66 kB
+../../out/renderer/assets/send-enter-off-B0IfWMyy.png                   4.25 kB
+../../out/renderer/assets/KaTeX_Size3-Regular-CTq5MqoE.woff             4.42 kB
+../../out/renderer/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2            4.93 kB
+../../out/renderer/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2            5.21 kB
+../../out/renderer/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2            5.47 kB
+../../out/renderer/assets/KaTeX_Size4-Regular-BF-4gkZK.woff             5.98 kB
+../../out/renderer/assets/KaTeX_Size2-Regular-oD1tc_U0.woff             6.19 kB
+../../out/renderer/assets/KaTeX_Size1-Regular-C195tn64.woff             6.50 kB
+../../out/renderer/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2      6.91 kB
+../../out/renderer/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2         6.91 kB
+../../out/renderer/assets/KaTeX_Size3-Regular-DgpXs0kz.ttf              7.59 kB
+../../out/renderer/assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff       7.66 kB
+../../out/renderer/assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff          7.72 kB
+../../out/renderer/assets/KaTeX_Script-Regular-D3wIWfF6.woff2           9.64 kB
+../../out/renderer/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2       10.34 kB
+../../out/renderer/assets/KaTeX_Size4-Regular-DWFBv043.ttf             10.36 kB
+../../out/renderer/assets/KaTeX_Script-Regular-D5yQViql.woff           10.59 kB
+../../out/renderer/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2         11.32 kB
+../../out/renderer/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2            11.35 kB
+../../out/renderer/assets/KaTeX_Size2-Regular-B7gKUWhC.ttf             11.51 kB
+../../out/renderer/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2        12.03 kB
+../../out/renderer/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2          12.22 kB
+../../out/renderer/assets/KaTeX_Size1-Regular-Dbsnue_I.ttf             12.23 kB
+../../out/renderer/assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff        12.32 kB
+../../out/renderer/assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf       12.34 kB
+../../out/renderer/assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf          12.37 kB
+../../out/renderer/assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff          13.21 kB
+../../out/renderer/assets/KaTeX_Fraktur-Bold-BsDP51OF.woff             13.30 kB
+../../out/renderer/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2      13.57 kB
+../../out/renderer/assets/KaTeX_SansSerif-Italic-DN2j7dab.woff         14.11 kB
+../../out/renderer/assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff           14.41 kB
+../../out/renderer/assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff       16.03 kB
+../../out/renderer/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2         16.40 kB
+../../out/renderer/assets/KaTeX_Math-Italic-t53AETM-.woff2             16.44 kB
+../../out/renderer/assets/KaTeX_Script-Regular-C5JkGWo-.ttf            16.65 kB
+../../out/renderer/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2         16.78 kB
+../../out/renderer/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2             16.99 kB
+../../out/renderer/assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff          18.67 kB
+../../out/renderer/assets/KaTeX_Math-Italic-DA0__PXp.woff              18.75 kB
+../../out/renderer/assets/KaTeX_Main-BoldItalic-SpSLRI95.woff          19.41 kB
+../../out/renderer/assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf         19.44 kB
+../../out/renderer/assets/KaTeX_Fraktur-Regular-CB_wures.ttf           19.57 kB
+../../out/renderer/assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf              19.58 kB
+../../out/renderer/assets/KaTeX_Main-Italic-BMLOBm91.woff              19.68 kB
+../../out/renderer/assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf          22.36 kB
+../../out/renderer/assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf            24.50 kB
+../../out/renderer/assets/KaTeX_Main-Bold-Cx986IdX.woff2               25.32 kB
+../../out/renderer/assets/KaTeX_Main-Regular-B22Nviop.woff2            26.27 kB
+../../out/renderer/assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf        27.56 kB
+../../out/renderer/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2             28.08 kB
+../../out/renderer/assets/KaTeX_Main-Bold-Jm3AIy58.woff                29.91 kB
+../../out/renderer/assets/KaTeX_Main-Regular-Dr94JaBh.woff             30.77 kB
+../../out/renderer/assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf           31.20 kB
+../../out/renderer/assets/KaTeX_Math-Italic-flOr_0UB.ttf               31.31 kB
+../../out/renderer/assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf           32.97 kB
+../../out/renderer/assets/KaTeX_AMS-Regular-DMm9YOAa.woff              33.52 kB
+../../out/renderer/assets/KaTeX_Main-Italic-3WenGoN9.ttf               33.58 kB
+../../out/renderer/assets/KaTeX_Main-Bold-waoOVXN0.ttf                 51.34 kB
+../../out/renderer/assets/KaTeX_Main-Regular-ypZvNtVU.ttf              53.58 kB
+../../out/renderer/assets/KaTeX_AMS-Regular-DRggAlZN.ttf               63.63 kB
+../../out/renderer/assets/pdf.worker.min-CLrFZWeq.mjs               1,312.45 kB
+../../out/renderer/assets/index-B56qpnLo.css                          112.47 kB
+../../out/renderer/assets/pdf.worker.min-C-u9zQLr.js                    0.13 kB
+../../out/renderer/assets/channel-71eJh0jG.js                           0.20 kB
+../../out/renderer/assets/init-ZxktEp_H.js                              0.26 kB
+../../out/renderer/assets/chunk-JWPE2WC7-CL3tE18L.js                    0.37 kB
+../../out/renderer/assets/chunk-2Q5K7J3B-CoMsG3Wj.js                    0.38 kB
+../../out/renderer/assets/chunk-5VM5RSS4-C6QtpmZT.js                    0.43 kB
+../../out/renderer/assets/chunk-XXDRQBXY-BH4FFIdH.js                    0.48 kB
+../../out/renderer/assets/stateDiagram-v2-MP3YSRHH-BZ2_ZhEY.js          0.71 kB
+../../out/renderer/assets/classDiagram-ZZMXUADV-ChcLleyV.js             0.75 kB
+../../out/renderer/assets/classDiagram-v2-VYDZK3BY-ChcLleyV.js          0.75 kB
+../../out/renderer/assets/swimlanesDiagram-VR7AAH4N-COKCFC7A.js         0.75 kB
+../../out/renderer/assets/infoDiagram-27XIBGKW-B4PWUPlA.js              0.99 kB
+../../out/renderer/assets/chunk-POPQ4Y6H-BbiJ0xmw.js                    1.07 kB
+../../out/renderer/assets/sizeCapture-INFHLROL-Bckh9Yqs.js              1.78 kB
+../../out/renderer/assets/ordinal-CxptdPJm.js                           2.20 kB
+../../out/renderer/assets/railroadDiagram-O6MQD6OU-D6w1rtwU.js          2.82 kB
+../../out/renderer/assets/abnfDiagram-VCTEODGH-CO0KZS9x.js              3.45 kB
+../../out/renderer/assets/pegDiagram-XKGWAZYB-DWvSSzJC.js               3.69 kB
+../../out/renderer/assets/chunk-F27PBJKO-B5Jj7Xag.js                    3.75 kB
+../../out/renderer/assets/ebnfDiagram-PWID7BFC-BUPgCZR3.js              3.86 kB
+../../out/renderer/assets/arc-CjfKJNvw.js                               6.95 kB
+../../out/renderer/assets/diagram-Z3DM3KII-BJrHlbyD.js                  7.35 kB
+../../out/renderer/assets/defaultLocale-B2RvLBDe.js                     9.37 kB
+../../out/renderer/assets/linear-B6UkBiRi.js                           11.25 kB
+../../out/renderer/assets/diagram-UQ7AKVKN-Bc4LJKJg.js                 11.42 kB
+../../out/renderer/assets/pieDiagram-E7YTZNPT-B4oqEfdu.js              12.54 kB
+../../out/renderer/assets/diagram-S7CK7UJ4-CnnUmAhm.js                 16.01 kB
+../../out/renderer/assets/cynefinDiagram-5FMLGOSQ-yRhQt8ej.js          18.33 kB
+../../out/renderer/assets/stateDiagram-D77RDMKH-CjzC7pDf.js            19.03 kB
+../../out/renderer/assets/diagram-VSXAHHWV-Bbkh3gW7.js                 21.57 kB
+../../out/renderer/assets/dagre-GXQ25YYZ-BnhWkaif.js                   23.29 kB
+../../out/renderer/assets/chunk-SVP7TREG-BYAohRna.js                   30.85 kB
+../../out/renderer/assets/diagram-VX7I27RA-D6ztRNKY.js                 32.35 kB
+../../out/renderer/assets/ishikawaDiagram-5VMMS53U-DNvCHPjt.js         35.07 kB
+../../out/renderer/assets/kanban-definition-UXKFOSKX-B26DbNws.js       38.11 kB
+../../out/renderer/assets/index-D-O6Lobk.js                            39.70 kB
+../../out/renderer/assets/mindmap-definition-YA3MSWOX-BUK-QEY8.js      43.29 kB
+../../out/renderer/assets/wardleyDiagram-VM6X3IG4-DZno63Vx.js          44.51 kB
+../../out/renderer/assets/journeyDiagram-3NMN7TZE-Dw6fvsvr.js          45.28 kB
+../../out/renderer/assets/sankeyDiagram-P5KCCOFB-CEpGgIST.js           46.14 kB
+../../out/renderer/assets/requirementDiagram-BXWQKSXE-Xcdbo9nb.js      52.54 kB
+../../out/renderer/assets/erDiagram-RLTQ6QDP-CIfB2bXk.js               56.19 kB
+../../out/renderer/assets/gitGraphDiagram-WWUBYQGX-NvPxGdpB.js         57.47 kB
+../../out/renderer/assets/timeline-definition-24CTP7MA-Dtbt6scq.js     60.48 kB
+../../out/renderer/assets/quadrantDiagram-AXDQQJYC-C4koVLXN.js         61.63 kB
+../../out/renderer/assets/chunk-IMKFNOWR-DkZkwNeT.js                   72.85 kB
+../../out/renderer/assets/blockDiagram-I7D4REHJ-BhoSMIJ3.js            76.00 kB
+../../out/renderer/assets/layout-Bt65GAy6.js                           78.73 kB
+../../out/renderer/assets/xychartDiagram-S5SC5T6Z-MnYhq_3e.js          83.25 kB
+../../out/renderer/assets/chunk-TICWLB2K-D47QygUp.js                   84.47 kB
+../../out/renderer/assets/vennDiagram-4TSXK5OY-Ci1M5LzV.js             88.83 kB
+../../out/renderer/assets/flowDiagram-HODETNUW-BmZiTGiB.js            105.34 kB
+../../out/renderer/assets/c4Diagram-7LVT6UL2-D3D8b2oF.js              111.12 kB
+../../out/renderer/assets/ganttDiagram-EL5Y4UJY-Wjss1T-P.js           133.55 kB
+../../out/renderer/assets/index-CG4WPQOm.js                           174.93 kB
+../../out/renderer/assets/sequenceDiagram-WJ2MYXX4-EPVZhsje.js        201.65 kB
+../../out/renderer/assets/cose-bilkent-JH36ORCC-Dzt16zab.js           214.53 kB
+../../out/renderer/assets/swimlanes-42K2YHIH-yTLw0Fno.js              298.66 kB
+../../out/renderer/assets/architectureDiagram-5GKGNRK7-DlufwR5M.js    423.23 kB
+../../out/renderer/assets/cytoscape.esm-Ct9zsnh1.js                   961.04 kB
+../../out/renderer/assets/pdf-B8NFvxwz.js                           1,011.92 kB
+../../out/renderer/assets/mermaid.core-C_AVeqZ1.js                  1,225.85 kB
+../../out/renderer/assets/cynefin-OW5HDTMX-BFZUbt32.js              1,304.47 kB
+../../out/renderer/assets/index-DdqHJfM-.js                         5,210.13 kB
+✓ built in 10.96s
+
+> @genoffice/html@0.1.0 build
+> electron-vite build
+
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 651 modules transformed.
+rendering chunks...
+out/main/ppt-BHIGZr4q.js            42.29 kB
+out/main/pdf-B6l8FRA5.js         1,013.76 kB
+out/main/pdf.worker-NB1PBVQH.js  2,340.46 kB
+out/main/index.js                3,333.87 kB
+✓ built in 5.77s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 3 modules transformed.
+rendering chunks...
+out/preload/index.js  11.52 kB
+✓ built in 17ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 245 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                              0.68 kB
+../../out/renderer/assets/send-enter-off-B0IfWMyy.png      4.25 kB
+../../out/renderer/assets/index-CQwXQJMI.css              93.50 kB
+../../out/renderer/assets/index-BIXV8WrV.js            2,702.26 kB
+✓ built in 1.69s
+
+> @genoffice/cli@0.10.0 build
+> node build.mjs && node collect-deps.mjs
+
+
+  dist/genoffice.cjs  13.2mb ⚠️
+
+⚡ Done in 442ms
+genoffice deps: 47 packages → dist/node_modules
+
+> @genoffice/shell@0.11.0 build
+> electron-vite build
+
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 1897 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /home/ubuntu/work/uniwork-office/apps/pdf/src/main/text-edit.ts is dynamically imported by /home/ubuntu/work/uniwork-office/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/pdf-main.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/save-pdf.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/save-pdf.ts but also statically imported by /home/ubuntu/work/uniwork-office/apps/pdf/src/main/annot-delete.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/image-edit.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/read-text.ts, /home/ubuntu/work/uniwork-office/apps/pdf/src/main/redaction.ts, dynamic import will not move module into another chunk.
+
+out/main/chunks/menu-pdf-IWzaKAPM.png                 0.11 kB
+out/main/chunks/menu-pptx-B-5nlFu-.png                0.27 kB
+out/main/chunks/menu-xlsx-D1ETn33r.png                0.30 kB
+out/main/chunks/menu-docx-CaJ93Biu.png                0.30 kB
+out/main/chunks/menu-md-D1G8pv4K.png                  0.42 kB
+out/main/chunks/menu-pptx@2x-k-uSrZ_N.png             0.43 kB
+out/main/chunks/menu-html-BqQjM_T0.png                0.43 kB
+out/main/chunks/menu-pdf@2x-BlOOpVEW.png              0.49 kB
+out/main/chunks/menu-xlsx@2x-BCbWE1PH.png             0.50 kB
+out/main/chunks/menu-home@2x-DklesmJt.png             0.52 kB
+out/main/chunks/menu-docx@2x-xjkcfgR-.png             0.53 kB
+out/main/chunks/menu-md@2x-DqJbAJX3.png               0.77 kB
+out/main/chunks/menu-html@2x-DPfkhFFT.png             0.90 kB
+out/main/chunks/ppt-d10PvgLp.js                      42.36 kB
+out/main/chunks/harfbuzz-CVplwa31.wasm              421.96 kB
+out/main/chunks/Carlito-Italic-KkZUqxJW.ttf         619.05 kB
+out/main/chunks/Carlito-Regular-Cbe9FLjp.ttf        631.71 kB
+out/main/chunks/Carlito-Bold-BhbXr__n.ttf           686.24 kB
+out/main/chunks/Carlito-BoldItalic-0dXjwGA0.ttf     812.34 kB
+out/main/chunks/pdf-B6l8FRA5.js                   1,013.76 kB
+out/main/extract-worker-CRafWYnY.js               1,547.97 kB
+out/main/chunks/pdf.worker-NB1PBVQH.js            2,340.46 kB
+out/main/ocr-DylNBwk4.js                              1.57 kB
+out/main/annot-delete-DubhLpER.js                     3.66 kB
+out/main/image-edit-Db7hgboY.js                      15.32 kB
+out/main/index-CrqKaREP.js                           16.42 kB
+out/main/ppt-BHIGZr4q.js                             42.29 kB
+out/main/index-MbjUHvFF.js                          268.21 kB
+out/main/index-DlHob_LR.js                          750.47 kB
+out/main/pdf-B6l8FRA5.js                          1,013.76 kB
+out/main/pdf.worker-NB1PBVQH.js                   2,340.46 kB
+out/main/index.js                                11,206.63 kB
+✓ built in 17.17s
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 26 modules transformed.
+rendering chunks...
+out/preload/pdf-password.js   0.89 kB
+out/preload/update.js         1.05 kB
+out/preload/index.js         69.75 kB
+✓ built in 78ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 329 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                                        0.67 kB
+../../out/renderer/update.html                                       5.14 kB
+../../out/renderer/pdf-password.html                                 9.18 kB
+../../out/renderer/assets/app-icon-D9R8oDUQ.png                     27.10 kB
+../../out/renderer/assets/health-body-mannequin-3d-C8O8L483.jpg    109.64 kB
+../../out/renderer/assets/index-BZL6lGRQ.css                       211.01 kB
+../../out/renderer/assets/update-BVAMVo1e.js                         2.24 kB
+../../out/renderer/assets/pdf-password-BczXYSzC.js                   2.77 kB
+../../out/renderer/assets/index-BrySplNu.js                      2,643.15 kB
+✓ built in 1.50s
