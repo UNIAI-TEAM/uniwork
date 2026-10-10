@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Download, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OfficeSaveCoordinatorLike } from "./office-shell";
@@ -31,6 +31,9 @@ import {
 import { OfficeInstallPrompt } from "./install-prompt";
 
 const EMPTY_INSTALLERS: OfficeInstallerOption[] = [];
+/** A browser protocol prompt can be answered long after the launch timeout;
+ * the app then takes the focus, which closes a not-installed prompt this soon. */
+const LATE_HANDOFF_GRACE_MS = 60_000;
 const UNKNOWN_PLATFORM: DesktopPlatformGuess = { platform: null, confidence: "unsupported" };
 
 export interface OfficeSaveOutcome {
@@ -121,6 +124,7 @@ export function DesktopOpenAction({
   const [resolvedPlatforms, setResolvedPlatforms] = useState(supportedPlatforms);
   const [resolvedHint, setResolvedHint] = useState(platformHint);
   const [hintRequested, setHintRequested] = useState(false);
+  const launchedAt = useRef(0);
   const headerSlot = useHeaderActionsSlotAvailable();
   const inline = placement === "inline";
   const inPageHeader = headerSlot && !inline;
@@ -133,6 +137,20 @@ export function DesktopOpenAction({
     setCoordinatorState(saveCoordinator.getState());
     return saveCoordinator.subscribe(setCoordinatorState);
   }, [saveCoordinator]);
+  // The page cannot tell whether the browser's protocol prompt was accepted, so
+  // a focus or visibility change soon after a failed launch means the app did
+  // answer: drop the "did not respond" prompt instead of contradicting it.
+  useEffect(() => {
+    if (!installOpen || installReason !== "not-installed") return;
+    const onHandoff = () => { if (Date.now() - launchedAt.current < LATE_HANDOFF_GRACE_MS) setInstallOpen(false); };
+    const onVisibility = () => { if (document.visibilityState === "hidden") onHandoff(); };
+    window.addEventListener("blur", onHandoff);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("blur", onHandoff);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [installOpen, installReason]);
   useEffect(() => setResolvedInstallers(installers), [installers]);
   useEffect(() => setResolvedPlatforms(supportedPlatforms), [supportedPlatforms]);
   useEffect(() => setResolvedHint(platformHint), [platformHint]);
@@ -170,6 +188,7 @@ export function DesktopOpenAction({
         setError(t("ticket_failed"));
         return;
       }
+      launchedAt.current = Date.now();
       const outcome = launch ? await launch(url) : "not-installed";
       if (outcome !== "launched") await openInstallPrompt(outcome === "expired" ? "expired" : outcome === "error" ? "error" : "not-installed");
     } catch {

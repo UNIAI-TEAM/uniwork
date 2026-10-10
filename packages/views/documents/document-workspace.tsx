@@ -20,6 +20,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
+import { QuietPreferenceToast } from "../layout/preference-toast";
 import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
@@ -449,6 +450,8 @@ export function DocumentWorkspace({
 
   return (
     <HeaderActionsSlotProvider>
+      {/* Nothing here can be saved, so a theme or language change must not toast "Saved". */}
+      <QuietPreferenceToast quiet={!canEdit} />
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <BreadcrumbHeader
         leading={
