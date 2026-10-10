@@ -22,13 +22,22 @@ import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 
 /**
- * No handshake within this long = the bundle never loaded. A cold Sheets/Docs load takes up to
- * ~40 s on a busy box, so the cap sits above that.
+ * No handshake within this long = the bundle never loaded, and the page falls back to the G3
+ * editor. A frame that hangs is far more common than one that needs longer (a normal open
+ * completes in a few seconds), and a minute of bare skeleton reads as a dead page; 25 s keeps
+ * room for a cold start on a slow link while the slow state below explains the wait from 8 s on.
  */
-const BOOT_TIMEOUT_MS = 60_000;
+const BOOT_TIMEOUT_MS = 25_000;
 
-/** `details.frameBundle` on a session failure: the frame document itself could not be loaded. */
-export type DocsFrameBundleFailure = "missing" | "timeout";
+/** No handshake yet after this long: the page says the editor is taking longer than usual. */
+const SLOW_AFTER_MS = 8_000;
+
+/**
+ * `details.frameBundle` on a session failure: the frame document itself could not be loaded
+ * (`missing`: 404/5xx on index.html), one of its scripts did not load (`script`), or it never
+ * completed the handshake in time (`timeout`).
+ */
+export type DocsFrameBundleFailure = "missing" | "script" | "timeout";
 
 export type DocsFrameStatus = "booting" | "ready" | "failed";
 
@@ -43,6 +52,8 @@ export interface DocsFrameSessionOptions {
   frameSrc?: string;
   /** How long the frame may take to complete its handshake before the open counts as failed. */
   bootTimeoutMs?: number;
+  /** How long before an open that has not completed its handshake counts as slow (`slow`). */
+  slowAfterMs?: number;
   api: DocsFrameApi;
   /**
    * The document's genoffice module (default docs). The host refuses a frame
@@ -67,6 +78,8 @@ export interface DocsFrameSessionOptions {
 
 export interface DocsFrameSession {
   status: DocsFrameStatus;
+  /** Still booting after `slowAfterMs`: the page explains the wait instead of showing a bare skeleton. */
+  slow: boolean;
   /**
    * The page's readonly, or (a module other than Docs) a minted token that
    * cannot edit: writes are refused in the host and desktop-open is hidden.
@@ -144,6 +157,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   // treated as readonly even when the page did not say so (Docs keeps the page's readonly).
   const viewOnly = options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false);
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
+  const [slow, setSlow] = useState(false);
   const [fatal, setFatal] = useState<ProtocolErrorShape | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<DocsFrameSaveState>("ready");
@@ -158,6 +172,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
 
   useEffect(() => {
     setStatus("booting");
+    setSlow(false);
     setFatal(null);
     setDirty(false);
     setSaveState("ready");
@@ -284,7 +299,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.attachments.add": proxy("api.attachments.add", true, (api) => api.addAttachments),
         "api.images.upload": proxy("api.images.upload", true, (api) => api.uploadImage),
       },
-      onInitialized: () => { booted = true; setStatus((now) => (now === "failed" ? now : "ready")); },
+      onInitialized: () => { booted = true; setSlow(false); setStatus((now) => (now === "failed" ? now : "ready")); },
       onHandshakeError: (error) => {
         if (error.code === "cancelled") return;
         setFatal(error.toShape());
@@ -315,6 +330,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     });
     const probe = new AbortController();
     const bootTimer = setTimeout(() => failBoot("timeout"), latest.current.options.bootTimeoutMs ?? BOOT_TIMEOUT_MS);
+    const slowTimer = setTimeout(() => { if (!booted) setSlow(true); }, latest.current.options.slowAfterMs ?? SLOW_AFTER_MS);
     const frameSrc = latest.current.options.frameSrc;
     if (frameSrc) {
       // Only an HTTP answer >= 400 counts: a probe that cannot run (offline, blocked) leaves the
@@ -324,8 +340,27 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         () => undefined,
       );
     }
+    // A module script that failed to load (404/5xx, a blocked or dropped request) leaves a frame that
+    // loads fine and then never starts: its script error does not reach the page, and the load event
+    // still fires. Once the frame document has loaded, probe its scripts (served from the HTTP cache
+    // when they did load) and fall back at once instead of waiting out the boot timer.
+    const iframe = iframeRef.current;
+    const onFrameLoad = () => {
+      if (booted) return;
+      let sources: string[] = [];
+      try {
+        sources = Array.from(iframe?.contentDocument?.querySelectorAll("script[src]") ?? []).map((el) => (el as HTMLScriptElement).src);
+      } catch { return; /* a frame that is not same-origin cannot be inspected; the timer decides */ }
+      for (const source of sources) {
+        void fetch(source, { credentials: "same-origin", cache: "force-cache", signal: probe.signal }).then(
+          (response) => { if (response.status >= 400) failBoot("script"); },
+          (error: unknown) => { if (!(error instanceof DOMException && error.name === "AbortError")) failBoot("script"); },
+        );
+      }
+    };
+    iframe?.addEventListener("load", onFrameLoad);
     setHost(endpoint);
-    return () => { clearTimeout(bootTimer); probe.abort(); booted = true; endpoint.dispose(); setHost(null); };
+    return () => { clearTimeout(bootTimer); clearTimeout(slowTimer); iframe?.removeEventListener("load", onFrameLoad); probe.abort(); booted = true; endpoint.dispose(); setHost(null); };
   }, [attempt, documentId, frameOrigin, iframeRef, module, queryClient, wsId]);
 
   // Proactive rotation: a re-minted token reaches the frame before the old one expires.
@@ -373,7 +408,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     if (tokenFailure) void refetchToken();
     setAttempt((n) => n + 1);
   }, [refetchToken, tokenFailure]);
-  return { status: failure ? "failed" : status, viewOnly, failure, dirty,
+  return { status: failure ? "failed" : status, slow: slow && status === "booting" && !failure, viewOnly, failure, dirty,
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
     modal: modal && status === "ready" && !failure,

@@ -8012,6 +8012,12 @@
       "loading": "Opening the document editor…",
       "frame_label": "Document editor: {{title}}",
       "retry": "Try again",
+      "slow": {
+        "title": "The editor is taking longer than usual",
+        "description": "Your document is still opening. This can happen on a slow connection.",
+        "use_standard": "Use the standard editor"
+      },
+      "fallback_notice": "The new editor could not load; you are using the standard editor.",
       "failure": {
         "unavailable": {
           "title": "The new document editor is not available",

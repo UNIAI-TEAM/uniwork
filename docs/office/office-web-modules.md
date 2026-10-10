@@ -130,26 +130,48 @@ and keep the G3 host (or its unsupported state).
   `pinnedFrameVersion(module)` is empty, so without an installed bundle the
   existing G3 host renders exactly as before.
 
-## When the frame never boots (visual S-03, FV1)
+## When the frame never boots (visual S-03, FV1; slow-frame FL)
 
 A bundle that answers 404/5xx on `index.html` loads a dead page into the
 iframe, and an iframe fires no error event for that, so without a guard the host
 would sit on the loading skeleton forever (every module, Docs included).
-`useDocsFrameSession` therefore guards each attempt twice: it probes the frame
-document once (`frameSrc`; an HTTP status >= 400 fails at once) and arms a 60 s
-handshake timer (`BOOT_TIMEOUT_MS`, above the ~40 s cold Sheets/Docs load; the
-timer, not the probe, covers a bundle that loads but never says `ready`). Either
-ends the boot with a failure tagged `details.frameBundle` (`missing` | `timeout`).
-A probe that cannot run (offline, blocked) never fails the open: the timer and
-the handshake decide.
+`useDocsFrameSession` therefore guards each attempt three ways:
 
-`OfficeModuleFrame` hands that failure to the open switch like `feature_disabled`
-and `too_large`, so the G3 editor takes over (`useDocsFrameRefusal`). Where no G3
+- It probes the frame document once (`frameSrc`; an HTTP status >= 400 fails at
+  once).
+- Once the iframe fires `load` without the handshake having completed, it probes
+  every `script[src]` of the frame document (`cache: "force-cache"`, so a script
+  that did load is answered from the HTTP cache). A script that answers >= 400,
+  or cannot be fetched at all, fails the boot at once (`frameBundle: "script"`):
+  a module script that fails to load does not reach the page as an error, and the
+  frame document still loads, so this is the early signal. A frame document the
+  page cannot inspect, and a probe that merely cannot run, leave the verdict to
+  the timer.
+- A 25 s handshake timer (`BOOT_TIMEOUT_MS`, was 60 s) covers a bundle that loads
+  but never says `ready`. A hung frame is far more common than one that needs
+  longer, and a minute of bare skeleton reads as a dead page; 25 s still leaves
+  room for a cold start on a slow link.
+
+Any of them ends the boot with a failure tagged `details.frameBundle`
+(`missing` | `script` | `timeout`). Between 8 s (`SLOW_AFTER_MS`) and the verdict the
+skeleton gives way to a "taking longer than usual" state (`slow`, spinner and one
+line): "Use the standard editor" switches to the G3 host now where the page has
+one, "Try again" (a fresh attempt, the clock restarts) where it has not.
+
+`OfficeModuleFrame` hands a failure to the open switch like `feature_disabled`
+and `too_large`, so the G3 editor takes over (`useDocsFrameRefusal`). The
+refusal carries a reason: a frame that did not load passes `"load"`, and
+`OfficeModuleOpenSwitch` then shows a short inline notice above the G3 host
+("The new editor could not load; you are using the standard editor", Sheets
+S-07) so the switch is explained; a flag, a size cap or the reader's own click
+on "Use the standard editor" switch without one. Where no G3
 host is wired, `DocsFrameFailure` shows the styled "the editor could not load"
 panel with Try again (plus "Use the standard editor" when one is offered).
 Tests: `apps/web/platform/office-frame/module-frame-boot-fallback.test.tsx`,
-`packages/views/office/frame/office-module-frame.test.tsx`; e2e
-`e2e/office-modules-web.spec.ts` (a missing module bundle falls back to the G3 host).
+`packages/views/office/frame/office-module-frame.test.tsx` (fake timers: the 8 s
+slow state, the 25 s fallback, the script probe, the notice); e2e
+`e2e/office-modules-web.spec.ts` (a missing module bundle, and a blocked frame
+script, fall back to the G3 host with the notice).
 
 ## Keyboard focus around the frame (visual F-12)
 

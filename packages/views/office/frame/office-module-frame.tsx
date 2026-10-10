@@ -7,7 +7,9 @@ import { createOfficeFrameApi, type DocsFrameApi } from "@uniwork/core/office/do
 import type { OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
 import { officeFrameSrc, officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
 import { registerLeaveGuard } from "../../navigation/leave-guard";
@@ -209,7 +211,8 @@ export function OfficeModuleFrame({
   // so the G3 editor takes over where the page has one, and the failure panel explains it where not.
   const bundleFailed = session.failure?.details?.["frameBundle"] !== undefined;
   const refuse = useDocsFrameRefusal();
-  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch || bundleFailed) refuse?.(); }, [featureDisabled, tooLarge, moduleMismatch, bundleFailed, refuse]);
+  // A frame that did not load is the one switch the G3 host explains to the reader.
+  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch || bundleFailed) refuse?.(bundleFailed ? "load" : undefined); }, [featureDisabled, tooLarge, moduleMismatch, bundleFailed, refuse]);
 
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
@@ -220,7 +223,7 @@ export function OfficeModuleFrame({
         code={KNOWN_ERRORS.has(code) ? code : "internal"}
         module={module}
         onRetry={session.retry}
-        onUseStandardEditor={refuse}
+        onUseStandardEditor={refuse ? () => refuse() : null}
       />
     );
   }
@@ -255,7 +258,21 @@ export function OfficeModuleFrame({
         referrerPolicy="same-origin"
         data-testid="office-docs-frame-iframe"
       />
-      {booting ? (
+      {booting && session.slow ? (
+        <div className="absolute inset-0 flex items-center justify-center p-6" data-testid="office-docs-frame-slow" role="status" aria-live="polite">
+          <div className="flex max-w-md flex-col items-center gap-3 text-center">
+            <Spinner className="size-6 text-muted-foreground motion-reduce:animate-none" />
+            <div className="space-y-1">
+              <p className="text-body font-semibold">{t("slow.title")}</p>
+              <p className="text-caption text-muted-foreground text-pretty">{t("slow.description")}</p>
+            </div>
+            {/* Where the page has a G3 editor, switching now beats waiting; otherwise the reader can only retry. */}
+            <Button type="button" variant="outline" size="sm" onClick={refuse ? () => refuse() : session.retry}>
+              {refuse ? t("slow.use_standard") : t("retry")}
+            </Button>
+          </div>
+        </div>
+      ) : booting ? (
         <div className="absolute inset-0 space-y-3 p-4" role="status" aria-live="polite" data-testid="office-docs-frame-loading">
           <Skeleton className="h-9 w-full" />
           <Skeleton className="mx-auto h-[min(55vh,32rem)] min-h-48 w-full max-w-3xl" />

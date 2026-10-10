@@ -284,11 +284,88 @@ describe("OfficeModuleFrame", () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       const refuse = vi.fn();
       mountFrame("slides", { refuse });
-      await act(async () => { vi.advanceTimersByTime(59_000); });
+      await act(async () => { vi.advanceTimersByTime(24_000); });
       expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
       await act(async () => { vi.advanceTimersByTime(2_000); });
       expect(screen.getByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
-      expect(refuse).toHaveBeenCalled();
+      expect(refuse).toHaveBeenCalledWith("load");
+    });
+
+    describe("an open that takes longer than usual", () => {
+      it("explains the wait after 8 s and offers the standard editor where the page has one", async () => {
+        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const refuse = vi.fn();
+        mountFrame("sheets", { refuse });
+        await act(async () => { vi.advanceTimersByTime(7_000); });
+        expect(screen.queryByTestId("office-docs-frame-slow")).toBeNull();
+        expect(screen.getByTestId("office-docs-frame-loading")).toBeInTheDocument();
+        await act(async () => { vi.advanceTimersByTime(2_000); });
+        const slow = screen.getByTestId("office-docs-frame-slow");
+        expect(slow).toHaveTextContent("Trình soạn thảo đang mở lâu hơn bình thường");
+        expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull();
+        expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+        act(() => { screen.getByRole("button", { name: "Dùng trình soạn thảo tiêu chuẩn" }).click(); });
+        // The reader's own choice: no explanation needed in the G3 host.
+        expect(refuse).toHaveBeenCalledWith();
+      });
+
+      it("offers a retry that restarts the wait where there is no standard editor", async () => {
+        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        mountFrame("slides");
+        await act(async () => { vi.advanceTimersByTime(9_000); });
+        expect(screen.queryByRole("button", { name: "Dùng trình soạn thảo tiêu chuẩn" })).toBeNull();
+        act(() => { screen.getByRole("button", { name: "Thử lại" }).click(); });
+        expect(screen.queryByTestId("office-docs-frame-slow")).toBeNull();
+        expect(screen.getByTestId("office-docs-frame-loading")).toBeInTheDocument();
+      });
+
+      it("drops the slow state once the frame is ready", async () => {
+        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const frame = mountFrame("pdf");
+        await act(async () => { vi.advanceTimersByTime(9_000); });
+        expect(screen.getByTestId("office-docs-frame-slow")).toBeInTheDocument();
+        await frame.ready({ module: "pdf" });
+        await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+        expect(screen.queryByTestId("office-docs-frame-slow")).toBeNull();
+        expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready");
+      });
+    });
+
+    describe("a frame script that fails to load", () => {
+      // The frame document loads, one of its module scripts does not: the iframe still fires `load`.
+      const loadFrameWithScript = (frame: ReturnType<typeof mountFrame>) => {
+        // jsdom does not load the frame document: give it the one script the real bundle has.
+        const doc = { querySelectorAll: () => [{ src: "http://localhost:3000/office-frame/pdf/1.0.0/assets/index-abc.js" }] };
+        Object.defineProperty(frame.iframe, "contentDocument", { configurable: true, get: () => doc });
+        act(() => { frame.iframe.dispatchEvent(new Event("load")); });
+      };
+
+      it.each([
+        ["a 404", () => Promise.resolve({ status: 404 })],
+        ["a blocked request", () => Promise.reject(new TypeError("Failed to fetch"))],
+      ])("hands the document to the G3 editor at once on %s", async (_name, answer) => {
+        vi.stubGlobal("fetch", vi.fn((url: string) => (url.endsWith("index.html") ? Promise.resolve({ status: 200 }) : answer())));
+        const refuse = vi.fn();
+        const frame = mountFrame("pdf", { refuse });
+        loadFrameWithScript(frame);
+        await waitFor(() => expect(refuse).toHaveBeenCalledWith("load"));
+        expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/office-frame/pdf/1.0.0/assets/index-abc.js"), expect.objectContaining({ cache: "force-cache" }));
+        expect(await screen.findByTestId("office-docs-frame-failed")).toHaveAttribute("data-failure-kind", "load");
+      });
+
+      it("leaves a script that loaded alone", async () => {
+        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+        const refuse = vi.fn();
+        const frame = mountFrame("pdf", { refuse });
+        loadFrameWithScript(frame);
+        await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+        await act(async () => { await Promise.resolve(); });
+        expect(refuse).not.toHaveBeenCalled();
+        expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
+      });
     });
 
     it("stops the clock once the handshake completes", async () => {
@@ -323,6 +400,30 @@ function answer(flags: unknown) {
 }
 
 describe("OfficeModuleOpenSwitch", () => {
+  const refusedFrame = (reason?: "load") => function RefusedFrame() {
+    const refuse = useDocsFrameRefusal();
+    useEffect(() => { refuse?.(reason); }, [refuse]);
+    return <p>pdf frame</p>;
+  };
+  const Frame = ({ reason }: { reason?: "load" }) => {
+    const Refused = refusedFrame(reason);
+    return <Refused />;
+  };
+
+  it("explains the switch in the G3 host when the frame could not load", async () => {
+    answer({ office_engine: true, office_pdf_web: true });
+    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<Frame reason="load" />} fallback={<p>g3 editor</p>} />));
+    expect(await screen.findByText("g3 editor")).toBeTruthy();
+    expect(screen.getByTestId("office-frame-fallback-notice")).toHaveTextContent("Không tải được trình soạn thảo mới; bạn đang dùng trình soạn thảo tiêu chuẩn.");
+  });
+
+  it("switches without a notice for a flag, a size cap or the reader's own choice", async () => {
+    answer({ office_engine: true, office_pdf_web: true });
+    render(wrap(<OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<Frame />} fallback={<p>g3 editor</p>} />));
+    expect(await screen.findByText("g3 editor")).toBeTruthy();
+    expect(screen.queryByTestId("office-frame-fallback-notice")).toBeNull();
+  });
+
   const ui = <OfficeModuleOpenSwitch module="pdf" organizationId="org1" frame={<p>pdf frame</p>} fallback={<p>g3 editor</p>} />;
 
   it("opens the module's frame when its flag is on or absent (default on, CONTRACT C14)", async () => {

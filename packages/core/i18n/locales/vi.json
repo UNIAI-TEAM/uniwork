@@ -8007,6 +8007,12 @@
       "loading": "Đang mở trình soạn thảo tài liệu…",
       "frame_label": "Trình soạn thảo tài liệu: {{title}}",
       "retry": "Thử lại",
+      "slow": {
+        "title": "Trình soạn thảo đang mở lâu hơn bình thường",
+        "description": "Tài liệu vẫn đang được mở. Điều này có thể xảy ra khi kết nối chậm.",
+        "use_standard": "Dùng trình soạn thảo tiêu chuẩn"
+      },
+      "fallback_notice": "Không tải được trình soạn thảo mới; bạn đang dùng trình soạn thảo tiêu chuẩn.",
       "failure": {
         "unavailable": {
           "title": "Chưa dùng được trình soạn thảo tài liệu mới",

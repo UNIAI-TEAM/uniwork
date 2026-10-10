@@ -186,6 +186,23 @@ for (const c of CASES) {
       await page.screenshot({ path: test.info().outputPath(`03-${c.module}-bundle-missing-g3.png`) });
     });
 
+    if (c.module === "pdf") {
+      test("a frame whose script is blocked falls back to the G3 host at once and says why", async ({ page, context }) => {
+        // The frame document loads but its bundle script never does: no error reaches the page, so the
+        // host probes the scripts once the frame has loaded instead of waiting out the boot timer.
+        await context.addCookies([{ name: "uniwork-locale", value: "en", url: baseUrl }]);
+        await page.route(`**/office-frame/${c.module}/**/*.js`, (route) => route.abort("failed"));
+        await signInAs(page, seeded.account.email);
+        const startedAt = Date.now();
+        await page.goto(seeded.documentUrl);
+        await expect(page.locator("[data-office-editor-host]").first()).toBeVisible({ timeout: 20_000 });
+        expect(Date.now() - startedAt, "the switch must not wait for the 25 s boot timer").toBeLessThan(20_000);
+        await expect(moduleFrameHost(page, c.module)).toHaveCount(0);
+        await expect(page.getByTestId("office-frame-fallback-notice")).toContainText("The new editor could not load; you are using the standard editor.");
+        await page.screenshot({ path: test.info().outputPath(`04-${c.module}-script-blocked-g3.png`) });
+      });
+    }
+
     if (c.edit) {
       test(`an edit in the ${c.module} frame is saved as a new version`, async ({ page, context, request }) => {
         // The frame follows the app's locale; the specs drive its English labels.
