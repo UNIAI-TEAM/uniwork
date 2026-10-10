@@ -1,0 +1,11 @@
+$ echo "node $(node -v) at $(command -v node)"; type -a node; ls -l /usr/bin/node 2>&1; /usr/bin/node -v 2>&1; node -e "new (require('node:sqlite').DatabaseSync)(':memory:').exec('create virtual table t using fts5(x)')" 2>&1 | grep -v ExperimentalWarning || true; node -e "new (require('node:sqlite').DatabaseSync)(':memory:').exec('create virtual table t using fts5(x)')" >/dev/null 2>&1 || { echo "FATAL: node $(node -v) at $(command -v node) has no FTS5 in node:sqlite"; exit 1; }
+node v22.23.3 at /home/ubuntu/.uniwork-cloud/node-bin/node
+node is /home/ubuntu/.uniwork-cloud/node-bin/node
+node is /usr/bin/node
+node is /exec-daemon/node
+node is /home/ubuntu/.nvm/versions/node/v22.22.2/bin/node
+node is /usr/bin/node
+node is /bin/node
+-rwxr-xr-x 1 root root 124827920 Sep 23 07:56 /usr/bin/node
+v22.23.3
+(Use `node --trace-warnings ...` to show where the warning was created)

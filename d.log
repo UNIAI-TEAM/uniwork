@@ -1,0 +1,8 @@
+$ if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then FORMAT_BASE_REF=$(git rev-parse HEAD^1); else FORMAT_BASE_REF=$(git merge-base HEAD origin/main); fi; export FORMAT_BASE_REF; npm run format:check
+
+> genoffice@0.1.0 format:check
+> node tools/format-changed.mjs --check
+
+Checking formatting...
+[warn] apps/shell/tests/uniwork-auth-manager.test.ts
+[warn] Code style issues found in the above file. Run Prettier with --write to fix.

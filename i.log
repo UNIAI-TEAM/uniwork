@@ -1,0 +1,80 @@
+$ npm run legal:check && npm run test:legal
+
+> genoffice@0.1.0 legal:check
+> node tools/legal/sync-legal.mjs --check
+
+legal:check: NOTICE, MODIFICATIONS and package metadata match legal.json
+
+> genoffice@0.1.0 test:legal
+> node --test tools/legal/sync-legal.test.mjs
+
+TAP version 13
+# Subtest: legal.json carries the upstream NOTICE verbatim and a non-repository homepage
+ok 1 - legal.json carries the upstream NOTICE verbatim and a non-repository homepage
+  ---
+  duration_ms: 1.053132
+  type: 'test'
+  ...
+# Subtest: NOTICE header: fork first, upstream NOTICE verbatim, body untouched
+ok 2 - NOTICE header: fork first, upstream NOTICE verbatim, body untouched
+  ---
+  duration_ms: 0.589804
+  type: 'test'
+  ...
+# Subtest: NOTICE header follows legal.json
+ok 3 - NOTICE header follows legal.json
+  ---
+  duration_ms: 0.175227
+  type: 'test'
+  ...
+# Subtest: NOTICE without the anchor paragraph fails loudly
+ok 4 - NOTICE without the anchor paragraph fails loudly
+  ---
+  duration_ms: 0.350454
+  type: 'test'
+  ...
+# Subtest: MODIFICATIONS header names company, year and the upstream commit
+ok 5 - MODIFICATIONS header names company, year and the upstream commit
+  ---
+  duration_ms: 0.403322
+  type: 'test'
+  ...
+# Subtest: wrap keeps lines short and never starts a line with the company suffix
+ok 6 - wrap keeps lines short and never starts a line with the company suffix
+  ---
+  duration_ms: 0.25412
+  type: 'test'
+  ...
+# Subtest: package.json: shell gets author + homepage, apps get the author, docs the copyright
+ok 7 - package.json: shell gets author + homepage, apps get the author, docs the copyright
+  ---
+  duration_ms: 0.667498
+  type: 'test'
+  ...
+# Subtest: validateLegal rejects a repository homepage and missing fields
+ok 8 - validateLegal rejects a repository homepage and missing fields
+  ---
+  duration_ms: 0.198116
+  type: 'test'
+  ...
+# Subtest: syncLegal on a scratch tree: dry run writes nothing, a write run converges
+ok 9 - syncLegal on a scratch tree: dry run writes nothing, a write run converges
+  ---
+  duration_ms: 3.768011
+  type: 'test'
+  ...
+# Subtest: the checked-in tree is in sync with legal.json
+ok 10 - the checked-in tree is in sync with legal.json
+  ---
+  duration_ms: 1.404996
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 62.459752
