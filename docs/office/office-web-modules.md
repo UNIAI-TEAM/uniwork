@@ -130,6 +130,42 @@ and keep the G3 host (or its unsupported state).
   `pinnedFrameVersion(module)` is empty, so without an installed bundle the
   existing G3 host renders exactly as before.
 
+## When the frame never boots (visual S-03, FV1)
+
+A bundle that answers 404/5xx on `index.html` loads a dead page into the
+iframe, and an iframe fires no error event for that, so without a guard the host
+would sit on the loading skeleton forever (every module, Docs included).
+`useDocsFrameSession` therefore guards each attempt twice: it probes the frame
+document once (`frameSrc`; an HTTP status >= 400 fails at once) and arms a 60 s
+handshake timer (`BOOT_TIMEOUT_MS`, above the ~40 s cold Sheets/Docs load; the
+timer, not the probe, covers a bundle that loads but never says `ready`). Either
+ends the boot with a failure tagged `details.frameBundle` (`missing` | `timeout`).
+A probe that cannot run (offline, blocked) never fails the open: the timer and
+the handshake decide.
+
+`OfficeModuleFrame` hands that failure to the open switch like `feature_disabled`
+and `too_large`, so the G3 editor takes over (`useDocsFrameRefusal`). Where no G3
+host is wired, `DocsFrameFailure` shows the styled "the editor could not load"
+panel with Try again (plus "Use the standard editor" when one is offered).
+Tests: `apps/web/platform/office-frame/module-frame-boot-fallback.test.tsx`,
+`packages/views/office/frame/office-module-frame.test.tsx`; e2e
+`e2e/office-modules-web.spec.ts` (a missing module bundle falls back to the G3 host).
+
+## Keyboard focus around the frame (visual F-12)
+
+Focus inside the iframe is invisible to the page, so the host puts it back where
+the user was:
+
+- The leave dialog (Save / Discard / Stay) passes `finalFocus` to its Base UI
+  popup; closing it by Stay, Escape or the close button focuses the iframe and its
+  window instead of the page element that held focus before. The frame document
+  keeps its own active element, so the editor receives it and Ctrl+S works
+  without a click. A leave that navigates away skips it (the frame is unmounting).
+- The "Open in desktop app" split menu returns focus to its chevron trigger on
+  Escape (Base UI's default, now pinned by `desktop-open-action.test.tsx`).
+
+Tests: `packages/views/office/frame/office-docs-frame.test.tsx`.
+
 ## Draft recovery (CONTRACT C18, C18a)
 
 Every genoffice frame keeps an encrypted copy of the document being edited in
@@ -236,14 +272,15 @@ hides every AI entry, as before. The capability keys are re-vendored from the
 fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
 
 The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
-the fork lane head `08fafd4` (branch `feature/UNI-1014-web-modules`), which holds
+the fork lane head `98e1d20` (branch `feature/UNI-1014-web-modules`), which holds
 DR1 draft recovery (`InitPayload.recovery`), the `modal` event, SP1, H2, the
 AI1 capability keys and the SH4 Sheets AI in one lineage, so nothing is merged by hand any more. They
 are byte-identical to the fork's `web/docs/protocol/{types,endpoint,host}.ts`
 except the relative import specifiers; the bodies did not change between the
 earlier `f1679cb` + AI1 `c044fa9` vendoring, `11a5eba` and `36e9e23`, only the headers.
 `36e9e23..9b5e409` changed `types.ts` in one comment (`InitRecovery.key` is persisted
-per user, C18a); `9b5e409..08fafd4` changed nothing under `web/docs/protocol/`. No type,
+per user, C18a); `9b5e409..98e1d20` changed nothing under `web/docs/protocol/` (the `08fafd4..98e1d20`
+range only touched its README). No type,
 message or version changed. The
 bundles in "Pinned builds" are built from the same commit.
 
@@ -331,13 +368,15 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, the lane head `08fafd4`
-(`0.1.0-08fafd4` = `9b5e409` + the GO-A6 merge (UniWork documents), the
+All six modules are pinned to one fork commit, the lane head `98e1d20`
+(`0.1.0-98e1d20` = `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
+dialog, the AI panel and failed-save wording fixes in PDF, Markdown and HTML
+(DP5 re-pin); `08fafd4` was `9b5e409` + the GO-A6 merge (UniWork documents), the
 `uniworkState` stub of every module's web API, the PDF close-save origin and the
 Sheets view-only lock kept off the frame; `9b5e409` itself was `36e9e23` + SH4
 Sheets AI, the FF1 hardening fixes and the per-platform wasm checksum; built clean:
 no `-dirty` suffix, `npm run build:web -- --all` in a detached worktree of
-`08fafd4`, not the fork lane's own checkout). The pins'
+`98e1d20`, not the fork lane's own checkout). The pins'
 headers did not change from `36e9e23`, only version, SHA and manifest digest. Written by
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
@@ -378,7 +417,7 @@ tarball (or https URL to one) of the fork's whole `dist-web` root, holding
 
 ```bash
 # in the fork checkout, at the commit the pins name
-npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (08fafd4: 31.8 MiB as a tarball)
+npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (98e1d20: 31.8 MiB as a tarball)
 tar -C dist-web -czf dist-web.tar.gz .
 # publish dist-web.tar.gz where the secret's URL points; the sync verifies it against the pins
 ```
@@ -400,7 +439,7 @@ the **linux-arm64 build made on bro** (wasm sha256 `e56985bc...27cd`, arm64
 line of the fork file). A tarball built on an x64 machine (the CI secret, if it is
 built there) holds a different Sheets wasm, so `office-frame-sync` refuses it
 against this pin: publish the secret from the bro tarball
-(`dist-web-0.1.0-08fafd4.tar.gz`), or re-pin from an x64 build and let CI use that
+(`dist-web-0.1.0-98e1d20.tar.gz`), or re-pin from an x64 build and let CI use that
 one; never mix the two.
 
 Open: the `e2e` job's secret to be re-published by whoever holds it from the
