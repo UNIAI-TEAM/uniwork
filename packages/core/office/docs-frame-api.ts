@@ -14,6 +14,8 @@ import {
   errorFromHttpStatus,
   toProtocolError,
   type ApiAttachmentsAddPayload,
+  type ApiAssetsResolvePayload,
+  type ApiAssetsResolveResult,
   type ApiAttachmentsAddResult,
   type ApiExportPayload,
   type ApiExportResult,
@@ -61,6 +63,8 @@ export interface DocsFrameApi {
   recents(payload: ApiRecentsPayload, call: DocsFrameCall): Promise<ApiRecentsResult>;
   /** Not implemented by `createDocsFrameApi` (see there); an absent method answers `unsupported`. */
   uploadImage?(payload: ApiImageUploadPayload, call: DocsFrameCall): Promise<ApiImageUploadResult>;
+  /** Markdown/HTML: fresh URLs and the URLs of paths typed after the open (CONTRACT A1b). */
+  resolveAssets?(payload: ApiAssetsResolvePayload, call: DocsFrameCall): Promise<ApiAssetsResolveResult>;
   saveAs?(payload: ApiSaveAsPayload, call: DocsFrameCall): Promise<DocsFrameSavedAs>;
   export?(payload: ApiExportPayload, call: DocsFrameCall): Promise<ApiExportResult>;
   addAttachments?(payload: ApiAttachmentsAddPayload, call: DocsFrameCall): Promise<ApiAttachmentsAddResult>;
@@ -119,9 +123,14 @@ function fileMeta(doc: OfficeFrameDocument): FileMeta {
   };
 }
 
-/** A signed byte route of the office-frame API, as the server answers it (origin-relative). */
+/**
+ * A signed byte route of the office-frame API, as the server answers it
+ * (origin-relative): exactly `.../documents/{ULID}/(assets|linked)/{ULID}?sig=...`, so a
+ * `..` segment or another path under the prefix never reaches the frame.
+ */
+const FRAME_ROUTE = /^\/api\/v1\/office-frame\/documents\/[0-9A-Z]{26}\/(?:assets|linked)\/[0-9A-Z]{26}\?sig=[A-Za-z0-9._-]+$/;
 function isFrameRoute(url: string): boolean {
-  return url.startsWith("/api/v1/office-frame/documents/");
+  return FRAME_ROUTE.test(url);
 }
 
 /**
@@ -263,7 +272,26 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
 
     ...(module === "docs" ? { export: exportPdf } : {}),
     ...(module !== "docs" && officeModuleSpec(module).grant.images ? { uploadImage } : {}),
+    ...(module === "markdown" || module === "html" ? { resolveAssets } : {}),
   };
+
+  /**
+   * Relative paths of a Markdown/HTML document -> signed frame URLs, by the same server walk
+   * as the open answer's `assets` (CONTRACT A1b): fresh URLs before the open's expire, and the
+   * URLs of paths the user typed after the open. Only requested paths and frame routes come back.
+   */
+  function resolveAssets(payload: ApiAssetsResolvePayload, call: DocsFrameCall): Promise<ApiAssetsResolveResult> {
+    return run(async () => {
+      if (payload.fileId !== undefined) sameDocument(payload.fileId, call);
+      const asked = new Set(payload.paths);
+      const resolved = await clientFor(call).resolveAssets(call.documentId, payload.paths);
+      const assets: Record<string, string> = {};
+      for (const item of resolved.items) {
+        if (asked.has(item.path) && isFrameRoute(item.url)) assets[item.path] = item.url;
+      }
+      return { assets };
+    });
+  }
 
   /**
    * A pasted or dropped picture of a Markdown/HTML document (UNI-1232): stored as

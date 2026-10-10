@@ -6,6 +6,8 @@
 // re-vendor, update this SHA.
 // A7 (UNI-1232): plus the fork lane commit f723f28 (capability `desktopOpen`, request `app.open`), applied as that commit's
 // diff ahead of the lead's re-vendor, which replaces this file wholesale.
+// A1b (UNI-1232): plus the additive request `api.assets.resolve` (fresh URLs and typed relative paths; contract
+// docs/office/office-web-modules.md "CONTRACT A1b"), ahead of the same re-vendor.
 /* eslint-disable max-lines -- vendored contract file, kept identical to the fork */
 /**
  * UniWork <-> genoffice Docs frame protocol (UNI-1013, lane GO-B2+B3).
@@ -551,6 +553,17 @@ export interface ApiImageUploadResult {
   url: string
 }
 
+export interface ApiAssetsResolvePayload {
+  fileId?: string
+  /** relative paths as written in the document (1..50) */
+  paths: string[]
+}
+
+export interface ApiAssetsResolveResult {
+  /** path as sent -> URL, with the rules of `OpenPayload.assets`; a path that resolves to nothing is absent */
+  assets: Record<string, string>
+}
+
 // ---------------------------------------------------------------- event payloads
 
 export interface DirtyPayload {
@@ -703,6 +716,8 @@ export interface FrameRequests {
   'api.export': Rpc<ApiExportPayload, ApiExportResult>
   'api.attachments.add': Rpc<ApiAttachmentsAddPayload, ApiAttachmentsAddResult>
   'api.images.upload': Rpc<ApiImageUploadPayload, ApiImageUploadResult>
+  /** additive (A1b): fresh URLs for relative paths the document holds (an unsupported host: keep the URLs you have) */
+  'api.assets.resolve': Rpc<ApiAssetsResolvePayload, ApiAssetsResolveResult>
   /** UniWork file picker (desktop: native open dialog) */
   'file.pick': Rpc<FilePickPayload, FilePickResult>
   /** fetch a remote image for insertion (frame CSP blocks arbitrary origins) */
@@ -772,6 +787,7 @@ const FRAME_REQUESTS: Record<FrameRequestType, true> = {
   'api.export': true,
   'api.attachments.add': true,
   'api.images.upload': true,
+  'api.assets.resolve': true,
   'file.pick': true,
   'image.fetch': true,
   'convert.altChunkHtml': true,
@@ -990,6 +1006,8 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
   'request:api.attachments.add': (x) =>
     isObj(x) && Array.isArray(x.files) && x.files.every(isUploadItem),
   'request:api.images.upload': (x) => isObj(x) && isUploadItem(x) && isOpt(x.fileId, isStr),
+  'request:api.assets.resolve': (x) =>
+    isObj(x) && isOpt(x.fileId, isStr) && Array.isArray(x.paths) && x.paths.length >= 1 && x.paths.length <= 50 && x.paths.every(isNonEmptyStr),
   'request:file.pick': (x) =>
     isObj(x) &&
     (x.purpose === 'open' || x.purpose === 'insert') &&
@@ -1026,6 +1044,7 @@ const PAYLOAD_VALIDATORS: Record<string, (x: unknown) => boolean> = {
     Array.isArray(x.rejected) &&
     x.rejected.every(isStr),
   'response:api.images.upload': (x) => isObj(x) && isNonEmptyStr(x.imageId) && isNonEmptyStr(x.url),
+  'response:api.assets.resolve': (x) => isObj(x) && isAssetMap(x.assets),
   'response:doc.closeCheck': (x) => isObj(x) && isBool(x.dirty) && isBool(x.autoSave),
   'response:file.pick': (x) => isObj(x) && (x.file === null || isOpenPayload(x.file)),
   'response:image.fetch': (x) =>

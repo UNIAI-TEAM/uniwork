@@ -306,6 +306,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.export": proxy("api.export", false, (api) => api.export),
         "api.attachments.add": proxy("api.attachments.add", true, (api) => api.addAttachments),
         "api.images.upload": proxy("api.images.upload", true, (api) => api.uploadImage),
+        // A read of the user's own document, so a viewer may ask too.
+        "api.assets.resolve": proxy("api.assets.resolve", false, (api) => api.resolveAssets),
         "app.open": async () => {
           const { options: current, viewOnly: refused } = latest.current;
           return { outcome: refused || !current.onAppOpen ? "unavailable" : await current.onAppOpen() };

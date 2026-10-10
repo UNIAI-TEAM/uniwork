@@ -103,12 +103,18 @@ export const officeFrameAssetSchema = z.object({
 
 export const officeFrameAssetUrlsSchema = z.object({ items: z.array(officeFrameAssetUrlSchema) });
 
+/** POST .../assets/resolve: the relative paths that resolved, in request order. */
+export const officeFrameResolvedPathsSchema = z.object({
+  items: z.array(z.object({ path: z.string().min(1), url: z.string().min(1), expires_at: rfc3339 })),
+});
+
 export type OfficeFrameToken = z.infer<typeof officeFrameTokenSchema>;
 export type OfficeFrameDocument = z.infer<typeof officeFrameDocumentSchema>;
 export type OfficeFrameUpload = z.infer<typeof officeFrameUploadSchema>;
 export type OfficeFrameRecents = z.infer<typeof officeFrameRecentsSchema>;
 export type OfficeFrameAsset = z.infer<typeof officeFrameAssetSchema>;
 export type OfficeFrameAssetUrls = z.infer<typeof officeFrameAssetUrlsSchema>;
+export type OfficeFrameResolvedPaths = z.infer<typeof officeFrameResolvedPathsSchema>;
 
 /** POST /api/v1/documents/{documentID}/office/frame-token — host session only.
  *  Null when the answer does not match the contract. Rejects with ApiError
@@ -149,6 +155,8 @@ export interface OfficeFrameClient {
   recents(documentId: string, limit?: number): Promise<OfficeFrameRecents>;
   uploadAsset(documentId: string, file: Blob, filename: string, idempotencyKey?: string): Promise<OfficeFrameAsset | null>;
   signAssets(documentId: string, assetIds: string[]): Promise<OfficeFrameAssetUrls>;
+  /** Markdown/HTML: signed URLs for relative paths as written (1..50); fresh ones and paths typed after the open. */
+  resolveAssets(documentId: string, paths: string[]): Promise<OfficeFrameResolvedPaths>;
   /**
    * PDF of the live bytes (`file`, the editor's unsaved docx) or of a stored
    * `version` (default: current). Null when a 200 is not a PDF. 501
@@ -252,6 +260,10 @@ export function createOfficeFrameClient(options: OfficeFrameClientOptions): Offi
       };
       const pdf = parseWithFallback(answer, officeFramePdfSchema, null, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/export/pdf" });
       return pdf ? bytes : null;
+    },
+    async resolveAssets(documentId, paths) {
+      const raw = await json(`${docPath(documentId)}/assets/resolve`, { method: "POST", body: JSON.stringify({ paths }) });
+      return parseWithFallback<OfficeFrameResolvedPaths>(raw, officeFrameResolvedPathsSchema, { items: [] }, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/assets/resolve" });
     },
     async signAssets(documentId, assetIds) {
       const raw = await json(`${docPath(documentId)}/assets/sign`, { method: "POST", body: JSON.stringify({ asset_ids: assetIds }) });

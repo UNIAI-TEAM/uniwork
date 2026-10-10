@@ -186,6 +186,34 @@ describe("OfficeModuleFrame", () => {
     expect(lastApi?.uploadImage).not.toHaveBeenCalled();
   });
 
+  // A1b (UNI-1232): fresh URLs for the open answer's paths and URLs of paths typed after the open.
+  it("answers api.assets.resolve through the API with the frame's own token, a viewer included", async () => {
+    const frame = mountFrame("markdown", { canEdit: false });
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const assets = { "a.png": "/api/v1/office-frame/documents/01J8X4DOC0N1P2Q3R4S5T6U7V8/linked/01J8X4LNK0N1P2Q3R4S5T6U7V8?sig=ofl1.x.y" };
+    const resolveAssets = vi.fn().mockResolvedValue({ assets });
+    (lastApi as { resolveAssets?: unknown }).resolveAssets = resolveAssets;
+    const id = frame.request("api.assets.resolve", { fileId: "doc-1", paths: ["a.png", "./typed.png"] });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toEqual({ assets }));
+    expect(resolveAssets).toHaveBeenCalledWith({ fileId: "doc-1", paths: ["a.png", "./typed.png"] }, expect.objectContaining({ workspaceId: "ws-1", documentId: "doc-1", token: "tok-1" }));
+  });
+
+  it("answers api.assets.resolve unsupported from a host API without it, and malformed when out of bounds", async () => {
+    const frame = mountFrame("markdown");
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    const unsupported = frame.request("api.assets.resolve", { paths: ["a.png"] });
+    await waitFor(() => expect(frame.answerTo(unsupported)?.error?.code).toBe("unsupported"));
+    const resolveAssets = vi.fn();
+    (lastApi as { resolveAssets?: unknown }).resolveAssets = resolveAssets;
+    for (const paths of [[], Array.from({ length: 51 }, (_, i) => `p${i}.png`), [""]]) {
+      const bad = frame.request("api.assets.resolve", { paths });
+      await waitFor(() => expect(frame.answerTo(bad)?.error?.code).toBe("malformed"));
+    }
+    expect(resolveAssets).not.toHaveBeenCalled();
+  });
+
   it("hands the document to the G3 editor when the server minted another module than the frame", async () => {
     const refuse = vi.fn();
     const frame = mountFrame("markdown", { refuse, tokenModule: "sheets" });
