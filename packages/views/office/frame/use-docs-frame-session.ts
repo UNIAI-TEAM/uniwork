@@ -124,7 +124,7 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     ...grant,
     save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents"), print: on("print"),
     exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
-    attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly,
+    attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, webSearch: ai && aiGrant?.web_search === true, imageSearch: ai && aiGrant?.image_search === true,
     imageGeneration: ai && aiGrant?.image_generation === true,
   };

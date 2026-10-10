@@ -96,6 +96,20 @@ describe("Office Docs frame endpoints", () => {
     expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer oft1.frame");
   });
 
+  it("parses the Markdown/HTML assets map and reads a drifted one as absent", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
+    const assets = { "assets/a.png": asset.url, "style.css": `/api/v1/office-frame/documents/${docId}/linked/01J8X4DOC1N1P2Q3R4S5T6U7?sig=ofl1.x.y` };
+    f.mockResolvedValueOnce(json({ ...document, module: "html", assets }));
+    await expect(client.open(docId)).resolves.toMatchObject({ assets });
+    for (const drifted of [["a.png"], "a.png", { "a.png": 3 }, { "": "/x" }]) {
+      f.mockResolvedValueOnce(json({ ...document, assets: drifted }));
+      const opened = await client.open(docId);
+      expect(opened?.document_id).toBe(docId);
+      expect(opened?.assets).toBeUndefined();
+    }
+  });
+
   it("runs the save flow and surfaces a conflict as a 409 ApiError", async () => {
     const f = vi.fn<typeof fetch>();
     const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });

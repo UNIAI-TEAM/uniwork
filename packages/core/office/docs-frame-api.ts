@@ -119,6 +119,20 @@ function fileMeta(doc: OfficeFrameDocument): FileMeta {
   };
 }
 
+/** A signed byte route of the office-frame API, as the server answers it (origin-relative). */
+function isFrameRoute(url: string): boolean {
+  return url.startsWith("/api/v1/office-frame/documents/");
+}
+
+/**
+ * The open answer's relative-path map as `OpenPayload.assets`: only frame routes, which
+ * the web app serves same-origin with the frame (its CSP loads nothing else).
+ */
+function frameAssets(doc: OfficeFrameDocument): Record<string, string> | undefined {
+  const entries = Object.entries(doc.assets ?? {}).filter(([, url]) => isFrameRoute(url));
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
 /** The token opens exactly one document; anything else is refused before a round trip. */
 function sameDocument(fileId: string, call: DocsFrameCall): void {
   if (fileId !== call.documentId) {
@@ -152,11 +166,10 @@ export type DocsFrameApiOptions = Pick<OfficeFrameClientOptions, "apiUrl" | "fet
  *     docsFrame={<OfficeDocsFrame wsId documentId title frameVersion={pin} />} />`
  * and passes `api={createDocsFrameApi({ apiUrl })}` only for another API origin.
  * It keeps no per-document state, so one instance serves every frame.
- * There is no image-upload handler on purpose: the frame embeds images as
- * `data:` URIs inside the docx and never sends `api.images.upload`, and a
- * signed asset URL on the API origin could not load under the frame's
- * `img-src 'self' data: blob:` anyway. An `api.images.upload` request answers
- * `unsupported`.
+ * There is no image-upload handler for Docs on purpose: the frame embeds images
+ * as `data:` URIs inside the docx and never sends `api.images.upload`; an
+ * `api.images.upload` request answers `unsupported`. Markdown and HTML have one
+ * (see `createOfficeFrameApi`).
  * Save-as has no frame route by design: the host creates the copy with its own
  * session and mints a frame token for it. Export renders a PDF on the server
  * (HTML export has no route). Attachments have no route yet and answer
@@ -192,7 +205,8 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       const doc = await client.open(payload.fileId);
       if (!doc) throw malformed("office-frame open");
       const bytes = await (await client.content(doc.download_url, call.signal)).arrayBuffer();
-      return { file: fileMeta(doc), source: { kind: "bytes", data: bytes } };
+      const assets = frameAssets(doc);
+      return { file: fileMeta(doc), source: { kind: "bytes", data: bytes }, ...(assets ? { assets } : {}) };
     }),
 
     save: (payload, call) => run(async () => {
@@ -248,7 +262,24 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
     }),
 
     ...(module === "docs" ? { export: exportPdf } : {}),
+    ...(module !== "docs" && officeModuleSpec(module).grant.images ? { uploadImage } : {}),
   };
+
+  /**
+   * A pasted or dropped picture of a Markdown/HTML document (UNI-1232): stored as
+   * a document asset under the name the frame chose, so the `assets/<name>` it
+   * writes resolves again on the next open. The answer's signed URL is what the
+   * frame displays now.
+   */
+  function uploadImage(payload: ApiImageUploadPayload, call: DocsFrameCall): Promise<ApiImageUploadResult> {
+    return run(async () => {
+      if (payload.fileId !== undefined) sameDocument(payload.fileId, call);
+      const key = await operationKey("image", [call.documentId, payload.name], payload.data);
+      const asset = await clientFor(call).uploadAsset(call.documentId, new Blob([payload.data], { type: payload.mimeType }), payload.name, key);
+      if (!asset || !isFrameRoute(asset.url)) throw malformed("office-frame assets");
+      return { imageId: asset.asset_id, url: asset.url };
+    });
+  }
 
   function exportPdf(payload: ApiExportPayload, call: DocsFrameCall): Promise<ApiExportResult> {
     return run(async () => {

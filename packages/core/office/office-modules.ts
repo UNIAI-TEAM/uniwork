@@ -29,9 +29,9 @@ export interface OfficeModuleSpec {
   /**
    * Capability grants (off = the frame hides the action). Recents, file pick
    * and attachments stay off for every module but Docs, and only Docs has the
-   * server PDF export. Images stay off for markdown/html: the G3 web host
-   * neither resolves relative images nor uploads pasted ones, so the frame
-   * gets no `open.assets` map and no upload handler either.
+   * server PDF export. Markdown and HTML grant images (UNI-1232): their open
+   * carries `assets` (relative path -> signed same-origin URL) and a pasted
+   * picture uploads as a document asset through `api.images.upload`.
    */
   grant: OfficeModuleGrant;
   /**
@@ -72,7 +72,7 @@ export interface OfficeModuleSpec {
 const SHEETS_MAX_BYTES = 10 * 1024 * 1024;
 
 const EDIT_PRINT: OfficeModuleGrant = { save: true, saveAs: true, print: true };
-const EDIT_PRINT_HTML: OfficeModuleGrant = { save: true, saveAs: true, print: true, exportHtml: true };
+const EDIT_PRINT_HTML_IMAGES: OfficeModuleGrant = { save: true, saveAs: true, print: true, exportHtml: true, images: true };
 
 const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   docs: {
@@ -82,8 +82,8 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
     recovery: true, ai: true,
   },
   pdf: { flag: "office_pdf_web", format: "pdf", extension: "pdf", mimeType: "application/pdf", grant: EDIT_PRINT, recovery: true, ai: true },
-  markdown: { flag: "office_markdown_web", format: "md", extension: "md", mimeType: "text/markdown", grant: EDIT_PRINT_HTML, recovery: true, ai: true },
-  html: { flag: "office_html_web", format: "html", extension: "html", mimeType: "text/html", grant: EDIT_PRINT_HTML, recovery: true, ai: true },
+  markdown: { flag: "office_markdown_web", format: "md", extension: "md", mimeType: "text/markdown", grant: EDIT_PRINT_HTML_IMAGES, recovery: true, ai: true },
+  html: { flag: "office_html_web", format: "html", extension: "html", mimeType: "text/html", grant: EDIT_PRINT_HTML_IMAGES, recovery: true, ai: true },
   slides: {
     flag: "office_slides_web", format: "pptx", extension: "pptx",
     mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", grant: EDIT_PRINT, viewOnlyInG3: true, recovery: true, ai: true,

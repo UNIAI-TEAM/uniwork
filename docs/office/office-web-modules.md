@@ -101,15 +101,15 @@ and keep the G3 host (or its unsupported state).
 - Capabilities come from one table, `officeModuleSpec(module).grant` in
   `packages/core/office/office-modules.ts`, narrowed by readonly and by the
   API. Docs keeps its UNI-1013 grant. pdf, slides, sheets: save, save-as,
-  print; markdown, html: also exportHtml. Recents, file pick and attachments
+  print; markdown, html: also exportHtml and images. Recents, file pick and attachments
   stay off outside Docs and only Docs has the server PDF export.
-- Images (markdown/html): off, and `open.assets` is not filled. The G3 web
-  host does not resolve relative images either (its image port is unwired,
-  the engine manifest carries no asset ids, and the preview asset proxy is a
-  separate origin the frame's `img-src 'self' data: blob:` could not load),
-  and it has no paste upload. When G3 gains them, fill `open.assets` with
-  same-origin URLs or `data:` URIs and grant `images` with an upload handler
-  over the asset routes.
+- Images (markdown/html, UNI-1232): granted with edit access. `api.open`
+  fills `open.assets` from the open answer (relative path -> signed frame
+  route, see "Images and sibling files in Markdown/HTML" below) and
+  `api.images.upload` stores a pasted picture as a document asset; Docs keeps
+  `data:` URIs and no upload handler. `next.config.mjs` proxies the two signed
+  byte routes to the API origin (`frame-asset-rewrites.mjs`), so they are
+  same-origin with the frame.
 - `init.user = {displayName}` is the signed-in user's display name, for every
   module including Docs (comment and note authors). Display data only.
 - View-only: a user who may view but not edit (the page's `readonly`, or

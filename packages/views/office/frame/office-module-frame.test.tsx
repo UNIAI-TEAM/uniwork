@@ -91,7 +91,8 @@ describe("OfficeModuleFrame", () => {
     const frame = mountFrame("markdown");
     await frame.ready({ module: "markdown" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
-    expect(frame.inits()[0]?.payload).toMatchObject({ user: { displayName: "Nguyễn An" }, capabilities: { exportHtml: true, save: true } });
+    // images (UNI-1232): pasted pictures upload as document assets through api.images.upload.
+    expect(frame.inits()[0]?.payload).toMatchObject({ user: { displayName: "Nguyễn An" }, capabilities: { exportHtml: true, save: true, images: true } });
   });
 
   const ALL_MODULES: OfficeModule[] = ["docs", "pdf", "markdown", "html", "slides", "sheets"];
@@ -177,6 +178,11 @@ describe("OfficeModuleFrame", () => {
     const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
     expect(lastApi?.save).not.toHaveBeenCalled();
+    // A viewer gets no picture upload either (its relative pictures still resolve through open).
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { images: false } });
+    const upload = frame.request("api.images.upload", { fileId: "doc-1", name: "image-1.png", mimeType: "image/png", data: new ArrayBuffer(1) });
+    await waitFor(() => expect(frame.answerTo(upload)?.error?.code).toBe("forbidden"));
+    expect(lastApi?.uploadImage).not.toHaveBeenCalled();
   });
 
   it("hands the document to the G3 editor when the server minted another module than the frame", async () => {

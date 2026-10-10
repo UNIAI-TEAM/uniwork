@@ -36,10 +36,10 @@ describe("office module table", () => {
     expect(docsFrameSrc("1.0.0")).toBe("/office-frame/docs/1.0.0/index.html");
   });
 
-  it("grants each module what its frame implements: no recents, attachments, images or server PDF export outside docs", () => {
+  it("grants each module what its frame implements: no recents, attachments or server PDF export outside docs; images for markdown/html", () => {
     expect(officeModuleSpec("pdf").grant).toEqual({ save: true, saveAs: true, print: true });
-    expect(officeModuleSpec("markdown").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true });
-    expect(officeModuleSpec("html").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true });
+    expect(officeModuleSpec("markdown").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true, images: true });
+    expect(officeModuleSpec("html").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true, images: true });
     expect(officeModuleSpec("slides").grant).toEqual({ save: true, saveAs: true, print: true });
     expect(officeModuleSpec("sheets").grant).toEqual({ save: true, saveAs: true, print: true });
   });
@@ -73,6 +73,59 @@ describe("createOfficeFrameApi for a module", () => {
     const file = (seen[1]?.body as FormData).get("file") as File;
     expect(file.name).toBe("Deck.pptx");
     expect(file.type).toBe("application/vnd.openxmlformats-officedocument.presentationml.presentation");
+  });
+
+  it("hands a Markdown/HTML frame the signed frame routes of its relative references, and nothing else", async () => {
+    const asset = "/api/v1/office-frame/documents/doc-1/assets/a-1?sig=ofa1.x";
+    const linked = "/api/v1/office-frame/documents/doc-1/linked/d-2?sig=ofl1.x";
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input).slice(API.length);
+      if (path === "/api/v1/office-frame/documents/doc-1") {
+        return json({ ...DOC, module: "html", assets: { "assets/a.png": asset, "style.css": linked, "evil.png": "https://evil.test/x.png" } });
+      }
+      return new Response("<p>x</p>");
+    }) as unknown as typeof globalThis.fetch;
+    const opened = await createOfficeFrameApi("html", { apiUrl: API, fetch }).open({ fileId: "doc-1" }, call());
+    expect(opened.assets).toEqual({ "assets/a.png": asset, "style.css": linked });
+
+    const plain = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/doc-1") ? json({ ...DOC, module: "markdown" }) : new Response("# x")) as unknown as typeof globalThis.fetch;
+    expect(await createOfficeFrameApi("markdown", { apiUrl: API, fetch: plain }).open({ fileId: "doc-1" }, call())).not.toHaveProperty("assets");
+  });
+
+  it("uploads a pasted Markdown/HTML picture as a document asset under the frame's name", async () => {
+    const seen: { path: string; init: RequestInit }[] = [];
+    const url = "/api/v1/office-frame/documents/doc-1/assets/01J8X4AST0N1P2Q3R4S5T6U7V8?sig=ofa1.x";
+    const fetch = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      seen.push({ path: `${init.method ?? "GET"} ${String(input).slice(API.length)}`, init });
+      return new Response(JSON.stringify({
+        asset_id: "01J8X4AST0N1P2Q3R4S5T6U7V8", document_id: "doc-1", mime_type: "image/png", size_bytes: 3, url, expires_at: "2026-10-10T11:00:00Z",
+      }), { status: 201, headers: { "Content-Type": "application/json" } });
+    }) as unknown as typeof globalThis.fetch;
+    const api = createOfficeFrameApi("markdown", { apiUrl: API, fetch });
+    const name = "image-20261010-101530-k3f9.png";
+    await expect(api.uploadImage?.({ fileId: "doc-1", name, mimeType: "image/png", data: new Uint8Array([1, 2, 3]).buffer }, call()))
+      .resolves.toEqual({ imageId: "01J8X4AST0N1P2Q3R4S5T6U7V8", url });
+    expect(seen[0]?.path).toBe("POST /api/v1/office-frame/documents/doc-1/assets");
+    const file = (seen[0]?.init.body as FormData).get("file") as File;
+    expect(file.name).toBe(name);
+    expect(file.type).toBe("image/png");
+    expect((seen[0]?.init.headers as Record<string, string>)["Idempotency-Key"]).toMatch(/^frame-image-/);
+    // Another document's id is refused before a round trip.
+    await expect(api.uploadImage?.({ fileId: "doc-2", name, mimeType: "image/png", data: new ArrayBuffer(1) }, call())).rejects.toMatchObject({ code: "forbidden" });
+    expect(seen).toHaveLength(1);
+  });
+
+  it("fails an upload whose answer is malformed or not a frame route", async () => {
+    for (const body of [{ nope: true }, { asset_id: "a", document_id: "doc-1", mime_type: "image/png", size_bytes: 1, url: "https://evil.test/x", expires_at: "2026-10-10T11:00:00Z" }]) {
+      const fetch = vi.fn(async () => new Response(JSON.stringify(body), { status: 201 })) as unknown as typeof globalThis.fetch;
+      await expect(createOfficeFrameApi("html", { apiUrl: API, fetch }).uploadImage?.({ name: "a.png", mimeType: "image/png", data: new ArrayBuffer(1) }, call()))
+        .rejects.toMatchObject({ code: "internal" });
+    }
+  });
+
+  it("has an image upload only where the grant says so (markdown, html)", () => {
+    expect(OFFICE_MODULES.filter((m) => createOfficeFrameApi(m).uploadImage)).toEqual(["markdown", "html"]);
   });
 
   it("has no server PDF export outside docs (the frame prints in place)", () => {

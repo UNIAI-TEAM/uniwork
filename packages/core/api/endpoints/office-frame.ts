@@ -63,6 +63,10 @@ export const officeFrameDocumentSchema = z.object({
   download_url: z.string().min(1),
   updated_at: z.string().optional(),
   module: z.string().optional(),
+  // Markdown/HTML (UNI-1232): relative path as written -> signed frame route.
+  // A drifted map is dropped, never the whole open: the pictures then show
+  // as missing and the document still opens.
+  assets: z.record(z.string().min(1), z.string().min(1)).optional().catch(undefined),
 });
 
 export const officeFrameUploadSchema = z.object({
