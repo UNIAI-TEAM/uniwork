@@ -29,6 +29,7 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
     body: record.body,
     kind: record.kind,
     ts: Date.parse(record.created_at),
+    cursor: record.cursor,
     replyToEventId: record.reply_to_message_id,
     threadRootId: record.thread_root_id,
     replyCount: record.reply_count,

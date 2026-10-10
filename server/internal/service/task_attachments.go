@@ -147,6 +147,17 @@ func (s *TaskService) UploadTaskAttachment(ctx context.Context, actor Actor, tas
 	return s.uploadAttachment(ctx, actor, task.OrganizationID, task.WorkspaceID, &taskID, p, filename, contentType, size, r)
 }
 
+// AuthorizeAttachmentUpload is the gate of UploadTaskAttachment (taskID set)
+// or UploadWorkspaceAttachment, exposed so the upload handlers can refuse an
+// outsider before reading a byte of the body.
+func (s *TaskService) AuthorizeAttachmentUpload(ctx context.Context, actor Actor, taskID, workspaceID string) error {
+	if taskID != "" {
+		_, err := s.authorizeActor(ctx, actor, taskID)
+		return err
+	}
+	return s.ws.requireActorMember(ctx, workspaceID, actor)
+}
+
 // UploadWorkspaceAttachment stages a file before its task exists. CreateTaskSuite
 // claims the returned id atomically; unclaimed rows expire after 24 hours.
 func (s *TaskService) UploadWorkspaceAttachment(ctx context.Context, actor Actor, workspaceID, purpose, filename, contentType string, size int64, r io.Reader) (db.Attachment, error) {

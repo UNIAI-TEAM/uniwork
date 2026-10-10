@@ -30,7 +30,7 @@ type SendNoteMessageInput struct {
 	ReplyToMessageID *string
 }
 
-func noteFromMetadata(kind string, raw []byte, body string) *ChatNoteInfo {
+func noteFromMetadata(kind string, meta chatMessageMetadata, body string) *ChatNoteInfo {
 	if kind != chatMessageKindNote {
 		return nil
 	}
@@ -38,7 +38,6 @@ func noteFromMetadata(kind string, raw []byte, body string) *ChatNoteInfo {
 	if content == "" {
 		return nil
 	}
-	meta := decodeChatMessageMetadata(raw)
 	pinToTop := meta.Pinned
 	if meta.Note != nil && meta.Note.PinToTop {
 		pinToTop = true
@@ -118,19 +117,6 @@ func (s *ChatService) SendNoteMessage(
 		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	ev := Event{
-		Type: "chat.message.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
 }

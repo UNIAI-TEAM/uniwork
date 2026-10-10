@@ -266,6 +266,22 @@ type ChatMessageLink struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type ChatReminder struct {
+	MessageID      string             `json:"message_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RoomID         string             `json:"room_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	Repeat         string             `json:"repeat"`
+	Timezone       string             `json:"timezone"`
+	RemindAt       pgtype.Timestamptz `json:"remind_at"`
+	Occurrence     int32              `json:"occurrence"`
+	NextFireAt     pgtype.Timestamptz `json:"next_fire_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ChatRoom struct {
 	ID                string             `json:"id"`
 	Kind              string             `json:"kind"`
@@ -809,6 +825,15 @@ type FileBackfillRun struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+}
+
+type FileDerivative struct {
+	SourceFileID     string             `json:"source_file_id"`
+	Variant          string             `json:"variant"`
+	FileID           string             `json:"file_id"`
+	ProcessorVersion int32              `json:"processor_version"`
+	OrganizationID   string             `json:"organization_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 // FileService durable coordination jobs (cleanup, reconcile, abort_multipart) with lease ownership and generation fencing. Internal worker state; the organization_id copy aids cleanup invariants and cross-checks but is not an authorization grant.

@@ -14,6 +14,7 @@ import { WorkspaceProvider } from "./workspace-context";
 import { EntitlementGateToastHost } from "./entitlement-gate-toast";
 import { WorkspaceRealtimeSync } from "./workspace-realtime-sync";
 import { WorkspaceChatPresence } from "./workspace-chat-presence";
+import { WorkspaceChatAttention } from "./workspace-chat-attention";
 import { ChatVoiceCallHost } from "../chat/chat-voice-call-host";
 
 interface DashboardLayoutProps {
@@ -57,6 +58,7 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
                 <WorkspaceRealtimeSync />
                 <EntitlementGateToastHost />
                 <WorkspaceChatPresence />
+                <WorkspaceChatAttention />
                 <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
                   {/* First in the DOM so it is the first tab stop; visible only
                       while focused. */}

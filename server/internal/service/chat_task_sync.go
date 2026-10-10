@@ -82,6 +82,17 @@ func (c *ChatTaskSyncConsumer) syncChatToTask(ctx context.Context, payload map[s
 	if link.TaskID != taskID {
 		return nil
 	}
+	// A room made private after the link was made stops feeding the task.
+	room, err := c.q.GetChatRoomByID(ctx, link.RoomID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if chatRoomIsPrivate(room) {
+		return nil
+	}
 	if _, err := c.q.GetTask(ctx, taskID); errors.Is(err, pgx.ErrNoRows) {
 		return c.dropLinkAndNotify(ctx, link, "Task đã bị xóa — đã ngắt đồng bộ thread.")
 	} else if err != nil {
@@ -166,7 +177,7 @@ func (c *ChatTaskSyncConsumer) syncTaskToChat(ctx context.Context, payload map[s
 				"room_id": link.RoomID, "thread_root_id": link.ThreadRootID, "message_id": msg.ID,
 			},
 		})
-		c.chat.publishCreatedChatMessage(ctx, db.ChatRoom{ID: link.RoomID, WorkspaceID: pgtype.Text{String: anchorWS, Valid: true}}, msg.ID)
+		c.chat.publishCreatedChatMessage(ctx, db.ChatRoom{ID: link.RoomID, WorkspaceID: pgtype.Text{String: anchorWS, Valid: true}}, msg.ID, msg.SenderID)
 	}
 	return nil
 }

@@ -9,8 +9,8 @@ type EventHandler = (payload: unknown, actorId?: string, actorType?: string) => 
 const UNPARSEABLE_LOG_MAX_CHARS = 200;
 
 // Reconnect backoff parameters. A flat delay causes a thundering herd when many
-// clients reconnect after a server restart; exponential backoff with jitter
-// spreads the reconnection attempts over time. The client retries indefinitely
+// clients reconnect after a server restart; exponential backoff with full
+// jitter (a random delay in [0, backoff]) spreads the reconnection attempts. The client retries indefinitely
 // (capped at RECONNECT_MAX_DELAY_MS) because the web/desktop UI does not yet
 // expose a visible disconnected state or manual retry action.
 const RECONNECT_BASE_DELAY_MS = 1_000;
@@ -19,6 +19,8 @@ const RECONNECT_MAX_DELAY_MS = 30_000;
 // sockets even when APISIX/read timeouts are long. Application ping keeps
 // data frames flowing; the server answers with {"type":"pong"}.
 const APP_PING_INTERVAL_MS = 25_000;
+// The server's close code for an expired access token or a revoked session.
+const CLOSE_SESSION_ENDED = 4001;
 
 export type WSConnectionState = "connecting" | "connected" | "disconnected";
 
@@ -52,6 +54,9 @@ export class WSClient {
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempt = 0;
   private hasConnectedBefore = false;
+  /** This socket replaces an earlier one of the same session; see `resumed`. */
+  private resumed = false;
+  private onSessionEnded: (() => void) | undefined;
   /** Set after auth_ack; cleared when the socket closes. Used by lobby join fallback. */
   private authenticated = false;
   // One-shot per connection. A non-conforming frame can repeat hundreds of
@@ -73,6 +78,18 @@ export class WSClient {
       cookieAuth?: boolean;
       guestSession?: string | null;
       identity?: WSClientIdentity;
+      /**
+       * True when this client replaces a connected socket of the same
+       * session (token rotation): events in the gap were missed, so its
+       * first auth runs the reconnect callbacks like a reconnect does.
+       */
+      resumed?: boolean;
+      /**
+       * Called when the server ends the socket's session (expired token,
+       * revoked session): the host refreshes it, and a new token rebuilds
+       * the socket.
+       */
+      onSessionEnded?: () => void;
     },
   ) {
     this.baseUrl = url;
@@ -80,6 +97,8 @@ export class WSClient {
     this.cookieAuth = options?.cookieAuth ?? false;
     this.guestSession = options?.guestSession?.trim() ? options.guestSession.trim() : null;
     this.identity = options?.identity;
+    this.resumed = options?.resumed ?? false;
+    this.onSessionEnded = options?.onSessionEnded;
   }
 
   setAuth(token: string | null, workspaceSlug: string) {
@@ -175,7 +194,10 @@ export class WSClient {
       }
     };
 
-    this.ws.onclose = () => {
+    // Every close reconnects, a server restart (1012) included: the delay's
+    // full jitter is what spreads a whole pod's clients out.
+    this.ws.onclose = (ev?: CloseEvent) => {
+      if (ev?.code === CLOSE_SESSION_ENDED) this.onSessionEnded?.();
       this.authenticated = false;
       this.stopAppPing();
       this.setConnectionState("disconnected");
@@ -189,7 +211,7 @@ export class WSClient {
   }
 
   /**
-   * Schedule a reconnection attempt with exponential backoff and jitter.
+   * Schedule a reconnection attempt with exponential backoff and full jitter.
    * Retries indefinitely with a capped delay because the web/desktop UI
    * does not yet expose a visible disconnected state or manual retry action.
    */
@@ -198,12 +220,9 @@ export class WSClient {
       RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempt,
       RECONNECT_MAX_DELAY_MS,
     );
-    // ±20 % jitter so clients that disconnected at the same time don't
-    // reconnect in lockstep.
-    const jitter = base * 0.2 * (Math.random() * 2 - 1);
-    const delay = Math.round(
-      Math.min(base + jitter, RECONNECT_MAX_DELAY_MS),
-    );
+    // Full jitter: ±20 % around 1s put a restarted pod's clients back within
+    // 400ms of each other; anywhere in [0, base] spreads them over the window.
+    const delay = Math.round(Math.random() * base);
 
     this.reconnectAttempt++;
     this.logger.warn(
@@ -216,7 +235,8 @@ export class WSClient {
     this.authenticated = true;
     this.setConnectionState("connected");
     this.logger.info("connected");
-    const recoveredConnection = this.hasConnectedBefore || this.reconnectAttempt > 0;
+    const recoveredConnection = this.hasConnectedBefore || this.reconnectAttempt > 0 || this.resumed;
+    this.resumed = false;
     this.reconnectAttempt = 0;
     this.startAppPing();
     if (recoveredConnection) {

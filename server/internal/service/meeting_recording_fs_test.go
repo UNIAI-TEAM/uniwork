@@ -52,6 +52,7 @@ func (p *countingPublisher) Publish(_ context.Context, _ string, ev Event) {
 
 func (p *countingPublisher) PublishToScope(context.Context, string, string, Event) {}
 func (p *countingPublisher) SendToUser(context.Context, string, Event)             {}
+func (p *countingPublisher) SendToUsers(context.Context, []string, Event)          {}
 
 func (p *countingPublisher) count(eventType string) int {
 	p.mu.Lock()

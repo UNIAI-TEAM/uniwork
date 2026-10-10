@@ -179,7 +179,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	})
 
 	d.Hub.SetAuthorizer(realtime.ScopeAuthorizers{
-		realtime.ScopeChat:    realtime.ChatScopeAuthorizer{Gate: d.Chat},
+		realtime.ScopeChat:    realtime.NewChatScopeAuthorizer(d.Chat),
 		realtime.ScopeMeeting: realtime.NewMeetingScopeAuthorizer(d.Meetings),
 	})
 	d.Hub.SetOrganizationResolver(d.Workspaces.OrganizationOf)
@@ -533,6 +533,12 @@ func (w *isoWorld) buildChat(t *testing.T, tn *isoTenant) {
 	tn.ids["room"] = isoID(t, out, "room")
 	out = w.call(t, "POST", ws+"/chat/channels", tn.token, map[string]any{"name": strings.ToLower(m) + "-channel", "visibility": "public", "topic": m + " topic"})
 	tn.ids["channel"] = isoID(t, out, "room", "channel")
+	// Thread↔task sync is for public rooms only (H12). Its own channel, so the
+	// write pass archiving tn.ids["channel"] leaves the synced thread alone.
+	out = w.call(t, "POST", ws+"/chat/channels", tn.token, map[string]any{"name": strings.ToLower(m) + "-sync", "visibility": "public"})
+	syncChannel := isoID(t, out, "room", "channel")
+	out = w.call(t, "POST", ws+"/chat/rooms/"+syncChannel+"/messages", tn.token, map[string]any{"body": m + " channel message", "client_msg_id": util.NewID()})
+	tn.ids["channelMessage"] = isoID(t, out, "message")
 	rp := ws + "/chat/rooms/" + tn.ids["room"]
 	out = w.call(t, "POST", rp+"/messages", tn.token, map[string]any{"body": m + " chat message", "client_msg_id": util.NewID()})
 	tn.ids["message"] = isoID(t, out, "message")
@@ -542,6 +548,9 @@ func (w *isoWorld) buildChat(t *testing.T, tn *isoTenant) {
 	})
 	tn.ids["pollMessage"] = isoID(t, out, "message")
 	tn.ids["pollOption"] = isoString(t, out["message"].(map[string]any)["poll"].(map[string]any)["options"].([]any)[0].(map[string]any), "id")
+	w.call(t, "POST", rp+"/messages", tn.token, map[string]any{
+		"client_msg_id": util.NewID(), "reminder": map[string]any{"body": m + " reminder", "remind_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "repeat": "weekly"},
+	})
 	out = w.upload(t, rp+"/messages/file", tn.token, isoMultipart{
 		fields: map[string]string{"client_msg_id": util.NewID()}, filename: strings.ToLower(m) + ".pdf", contentType: "application/pdf", content: tinyPDF,
 	})
@@ -764,7 +773,7 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/audit/retention", tn.token, map[string]any{"retain_days": 180})
 	w.call(t, "PUT", ws+"/chat/users/"+tn.peerID+"/nickname", tn.token, map[string]any{"nickname": m + " nick"})
 	w.call(t, "POST", ws+"/chat/users/"+tn.thirdID+"/block", tn.peerToken, nil)
-	w.call(t, "POST", ws+"/chat/threads/"+tn.ids["message"]+"/task-sync", tn.token, map[string]any{"task_id": tn.ids["task2"]})
+	w.call(t, "POST", ws+"/chat/threads/"+tn.ids["channelMessage"]+"/task-sync", tn.token, map[string]any{"task_id": tn.ids["task2"]})
 	// A call ringing in the group: the voice routes act on a live call.
 	w.call(t, "POST", ws+"/chat/rooms/"+tn.ids["room"]+"/voice/invite", tn.token, map[string]any{"call_id": tn.ids["callID"]})
 

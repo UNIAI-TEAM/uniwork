@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
+import { useChatUnreadBadge } from "@uniwork/core/chat";
 import { useEmailHubUnreadCount } from "@uniwork/core/email-hub/hooks";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
@@ -90,6 +91,7 @@ export function AppSidebar() {
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
   const emailUnread = useEmailHubUnreadCount(workspace.id);
   const emailUnreadHere = emailUnread.data?.unread ?? 0;
+  const chatUnread = useChatUnreadBadge(workspace.id);
   const labelId = useId();
   const reduceMotion = useReducedMotion() ?? false;
 
@@ -125,7 +127,7 @@ export function AppSidebar() {
         ...(documentsEnabled
           ? ([{ key: "nav.documents", module: "documents", href: ws.documents() }] as NavItem[])
           : []),
-        { key: "nav.chat", module: "chat", href: ws.chat() },
+        { key: "nav.chat", module: "chat", href: ws.chat(), badge: chatUnread > 0 ? chatUnread : undefined },
         { key: "nav.people", module: "people", href: ws.people() },
       ],
     },

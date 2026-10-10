@@ -3,7 +3,6 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { CalendarDays, Plus, SearchX, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { nextMissedAt, useMeetingStatistics, useMeetings } from "@uniwork/core/meetings";
-import { useWorkspaceEvents } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
@@ -57,7 +56,6 @@ export function MeetingsPageView({
   onOpenRoom: (id: string) => void;
 }) {
   const { t } = useTranslation();
-  useWorkspaceEvents(workspaceId);
   const params = useListParams();
   const { status, page, write } = params;
   // The field answers every keystroke; the URL and the request follow when React is idle.

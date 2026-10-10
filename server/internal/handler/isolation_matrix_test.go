@@ -354,6 +354,7 @@ func isoWalk(t *testing.T, h http.Handler) []isoRoute {
 // isoWritesLast are the writes the write-control pass runs at the very end,
 // because other routes still need what they remove.
 var isoWritesLast = map[string]string{
+	"POST /api/v1/orgs/{org}/members/{userID}/deactivate":                              "it ends the peer's room memberships, which the chat member routes act on",
 	"POST /api/v1/orgs/{org}/transfer-ownership":                                       "the owner stops being one",
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/accounts/{accountID}":           "the other Email Hub routes name the mailbox in their query",
 	"DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}": "the thread routes name the message under a shorter path",
@@ -538,6 +539,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "voiceMessage")
 		case strings.HasSuffix(pattern, "/poll/vote"):
 			return tn.get(t, "pollMessage")
+		case strings.HasSuffix(pattern, "/task-sync"):
+			// A group thread cannot sync to a task (H12); a public channel's can.
+			return tn.get(t, "channelMessage")
 		}
 		return tn.get(t, "message")
 	case "{followUpID}":
@@ -1024,6 +1028,7 @@ var isoUnseeded = map[string]string{
 	"file_backfill_items":     "operator ledger of cmd/files-backfill, exempt from ADR 0008 (tenantExemptTables)",
 	"meeting_reminders":       "written only by the meeting reminder job (internal/notification); no route fills it",
 	"graph_dirty":             "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
+	"file_derivatives":        "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
 }
 
 // isoDigestSkip lists tenant tables a refused request is allowed to write:

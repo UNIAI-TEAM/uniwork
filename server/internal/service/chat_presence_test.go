@@ -45,6 +45,10 @@ func (r *presenceRecorder) SendToUser(context.Context, string, Event) {
 	panic("presence publishes to the workspace only")
 }
 
+func (r *presenceRecorder) SendToUsers(context.Context, []string, Event) {
+	panic("presence publishes to the workspace only")
+}
+
 func (r *presenceRecorder) take() []presenceFrame {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { createElement } from "react";
 import type { ReactNode } from "react";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { toast } from "sonner";
@@ -12,24 +12,46 @@ vi.mock("sonner", () => ({
   toast: { info: vi.fn() },
 }));
 
+type Handler = (payload: unknown) => void;
+
+const wsState = vi.hoisted(() => ({
+  client: null as { on: (event: string, cb: Handler) => () => void } | null,
+}));
+
+vi.mock("@uniwork/core/realtime", () => ({
+  useOptionalWS: () => (wsState.client ? { client: wsState.client } : null),
+}));
+
 beforeAll(() => {
   initI18n();
 });
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  wsState.client = null;
   vi.mocked(toast.info).mockClear();
 });
 
-afterEach(() => {
-  vi.useRealTimers();
-});
-
 const WORKSPACE_ID = "ws1";
-const ROOM_KEY = ["chat", "room-messages", WORKSPACE_ID, "room1"];
-const OTHER_ROOM_KEY = ["chat", "room-messages", WORKSPACE_ID, "room2"];
 
-function reminderRow(id: string, remindAt: string, body = "Họp team"): ChatMessageRecord {
+function installClient() {
+  const calls: Array<{ event: string; cb: Handler }> = [];
+  const off = vi.fn();
+  wsState.client = {
+    on: (event: string, cb: Handler) => {
+      calls.push({ event, cb });
+      return off;
+    },
+  };
+  return {
+    calls,
+    off,
+    emit: (payload: unknown) => {
+      for (const { cb } of calls) cb(payload);
+    },
+  };
+}
+
+function reminderRow(id: string, body: string): ChatMessageRecord {
   return {
     id,
     room_id: "room1",
@@ -44,20 +66,8 @@ function reminderRow(id: string, remindAt: string, body = "Họp team"): ChatMes
     reactions: {},
     reply_count: 0,
     thread_unread: false,
-    reminder: { body, remind_at: remindAt, repeat: "none" },
+    reminder: { body, remind_at: new Date().toISOString(), repeat: "none" },
   };
-}
-
-function textRow(id: string): ChatMessageRecord {
-  const row = reminderRow(id, new Date(Date.now() + 60_000).toISOString(), "hello");
-  delete row.reminder;
-  return { ...row, kind: "text" };
-}
-
-function reminderKindWithoutPayload(id: string): ChatMessageRecord {
-  const row = reminderRow(id, new Date(Date.now() + 60_000).toISOString());
-  delete row.reminder;
-  return row;
 }
 
 function renderReminders(qc: QueryClient) {
@@ -67,81 +77,50 @@ function renderReminders(qc: QueryClient) {
   });
 }
 
-function futureIso(offsetMs: number): string {
-  return new Date(Date.now() + offsetMs).toISOString();
-}
-
 describe("useChatReminderNotifications", () => {
-  it("fires a toast when a cached reminder becomes due", () => {
-    const qc = new QueryClient();
-    qc.setQueryData(ROOM_KEY, [reminderRow("r1", futureIso(60_000))]);
-    renderReminders(qc);
-
-    expect(toast.info).not.toHaveBeenCalled();
-    act(() => {
-      vi.advanceTimersByTime(60_000);
-    });
-    expect(toast.info).toHaveBeenCalledTimes(1);
-  });
-
-  it("ignores non-reminder rows, missing payloads, non-array data, and invalid or past due dates", () => {
-    const qc = new QueryClient();
-    qc.setQueryData(ROOM_KEY, [
-      textRow("t1"),
-      reminderKindWithoutPayload("r-missing"),
-      reminderRow("r-bad-date", "not-a-date"),
-      reminderRow("r-past", new Date(Date.now() - 60_000).toISOString()),
-    ]);
-    qc.setQueryData(OTHER_ROOM_KEY, "not-an-array");
-    renderReminders(qc);
-
-    act(() => {
-      vi.advanceTimersByTime(10 * 60_000);
-    });
+  it("does nothing without a WS client", () => {
+    renderReminders(new QueryClient());
     expect(toast.info).not.toHaveBeenCalled();
   });
 
-  it("fires only once for duplicate entries and skips already-fired reminders on resync", () => {
-    const qc = new QueryClient();
-    const due = futureIso(60_000);
-    qc.setQueryData(ROOM_KEY, [reminderRow("r1", due)]);
-    qc.setQueryData(OTHER_ROOM_KEY, [reminderRow("r1", due)]);
-    renderReminders(qc);
-
-    act(() => {
-      vi.advanceTimersByTime(60_000);
-    });
-    expect(toast.info).toHaveBeenCalledTimes(1);
-
-    qc.setQueryData(ROOM_KEY, [reminderRow("r1", due), reminderRow("r2", futureIso(120_000))]);
-    act(() => {
-      vi.advanceTimersByTime(120_000);
-    });
-    expect(toast.info).toHaveBeenCalledTimes(2);
+  it("never fires from a client timer: only the server's chat.reminder.due toasts", () => {
+    vi.useFakeTimers();
+    try {
+      const qc = new QueryClient();
+      qc.setQueryData(["chat", "room-messages", WORKSPACE_ID, "room1"], { pages: [[reminderRow("r1", "Họp team")]], pageParams: [null] });
+      const { calls } = installClient();
+      renderReminders(qc);
+      vi.advanceTimersByTime(24 * 60 * 60_000);
+      expect(toast.info).not.toHaveBeenCalled();
+      expect(calls.map((c) => c.event)).toEqual(["chat.reminder.due"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("does not schedule duplicate timers when the cache sync produces the same snapshot", () => {
+  it("toasts the cached reminder body when the server says it is due", () => {
     const qc = new QueryClient();
-    const due = futureIso(60_000);
-    qc.setQueryData(ROOM_KEY, [reminderRow("r1", due)]);
+    qc.setQueryData(["chat", "room-messages", WORKSPACE_ID, "room1"], { pages: [[reminderRow("r1", "Họp team")]], pageParams: [null] });
+    const { emit } = installClient();
     renderReminders(qc);
+    emit({ room_id: "room1", message_id: "r1" });
+    expect(toast.info).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.info).mock.calls[0]?.[0]).toContain("Họp team");
+  });
 
-    qc.setQueryData(ROOM_KEY, [reminderRow("r1", due)]);
-    act(() => {
-      vi.advanceTimersByTime(60_000);
-    });
+  it("still toasts when the message is not cached, and ignores frames without a message id", () => {
+    const { emit } = installClient();
+    renderReminders(new QueryClient());
+    emit({ room_id: "room9" });
+    expect(toast.info).not.toHaveBeenCalled();
+    emit({ room_id: "room9", message_id: "unknown" });
     expect(toast.info).toHaveBeenCalledTimes(1);
   });
 
-  it("clears pending timers on unmount", () => {
-    const qc = new QueryClient();
-    qc.setQueryData(ROOM_KEY, [reminderRow("r1", futureIso(60_000))]);
-    const { unmount } = renderReminders(qc);
-
+  it("unsubscribes on unmount", () => {
+    const { off } = installClient();
+    const { unmount } = renderReminders(new QueryClient());
     unmount();
-    act(() => {
-      vi.advanceTimersByTime(120_000);
-    });
-    expect(toast.info).not.toHaveBeenCalled();
+    expect(off).toHaveBeenCalledTimes(1);
   });
 });

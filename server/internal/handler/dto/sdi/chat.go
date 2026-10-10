@@ -3,6 +3,20 @@ package sdi
 // EnsureWorkspaceChatRoomSDI is POST /workspaces/{workspaceID}/chat/room.
 type EnsureWorkspaceChatRoomSDI struct{}
 
+// ListChatMessagesSDI documents GET .../chat/messages and .../chat/rooms/{roomID}/messages query params.
+type ListChatMessagesSDI struct {
+	Cursor   string `query:"cursor" description:"Trường cursor của tin cũ nhất đang có, gửi lại nguyên văn để lấy trang cũ hơn" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	After    string `query:"after" description:"Trường cursor của tin mới nhất đang có: trả các tin mới hơn, cũ trước (bắt kịp sau khi kết nối lại); không dùng cùng cursor/before" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	Before   string `query:"before" description:"Cũ: mốc RFC3339, có thể bỏ sót tin cùng giây; dùng cursor thay thế" example:"2026-03-26T10:00:00Z"`
+	Limit    int    `query:"limit" description:"Số tin mỗi trang" example:"50"`
+	MarkRead string `query:"mark_read" description:"0 giữ nguyên last_read_at (CatchUp sau khi mở phòng chưa đọc)" example:"0"`
+}
+
+// StreamChatFileMessageSDI is GET .../messages/{messageID}/file.
+type StreamChatFileMessageSDI struct {
+	Variant string `query:"variant" enum:"thumb" description:"thumb: ảnh thu nhỏ (cạnh dài tối đa 640px) cho dòng thời gian; ảnh chưa có bản thu nhỏ trả về tệp gốc. Bỏ trống để tải tệp gốc" example:"thumb"`
+}
+
 // SendChatMessageSDI is POST /workspaces/{workspaceID}/chat/messages.
 type SendChatMessageSDI struct {
 	Body             string                 `json:"body" description:"Message text" example:"Xin chào team!"`
@@ -91,13 +105,12 @@ type InviteGroupMembersSDI struct {
 // MintChatVoiceTokenSDI is POST /chat/voice/token.
 type MintChatVoiceTokenSDI struct {
 	RoomID string `json:"room_id" description:"Native UniWork chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
-	CallID string `json:"call_id" description:"Active voice call id from invite" example:"550e8400-e29b-41d4-a716-446655440000"`
+	CallID string `json:"call_id" maxLength:"64" description:"Active voice call id from invite" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // VoiceSignalSDI is POST voice invite/hangup on a chat room.
 type VoiceSignalSDI struct {
-	CallID          string `json:"call_id" description:"Client-generated voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	DurationSeconds *int   `json:"duration_seconds,omitempty" description:"Connected call duration in seconds (hangup only)" example:"125"`
+	CallID string `json:"call_id" maxLength:"64" description:"Client-generated voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // ChatPresenceSDI is POST .../chat/presence.

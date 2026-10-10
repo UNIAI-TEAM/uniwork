@@ -139,6 +139,10 @@ func TestDesktopRefreshUnknownTokenDoesNotRevokeFamily(t *testing.T) {
 	if reason != "refresh_reuse" {
 		t.Fatalf("reuse audit reasons = %q, want one refresh_reuse row", reason)
 	}
+	// The revoked family's open sockets must close too, not just its tokens.
+	if got := outboxPayloads(t, svc.pool, "session.revoked"); len(got) != 1 || got[0]["user_id"] != owner || got[0]["session_id"] != "" {
+		t.Fatalf("session.revoked events after reuse = %v, want one closing every socket of the owner", got)
+	}
 	if _, err := svc.Refresh(ctx, sess.DeviceSessionID, rotated.RefreshToken, "default"); !errors.Is(err, ErrDesktopDeviceRevoked) {
 		t.Fatalf("successor token after reuse = %v, want ErrDesktopDeviceRevoked", err)
 	}

@@ -7,7 +7,7 @@ class FakeWebSocket {
   static sent: string[] = [];
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((ev?: CloseEvent) => void) | null = null;
   onerror: (() => void) | null = null;
   readyState = WebSocket.OPEN;
   constructor(url: string) {
@@ -88,6 +88,65 @@ describe("WSClient scoped subscribe", () => {
       payload: { scope: "chat", id: "room-1" },
     });
     vi.useRealTimers();
+  });
+
+  it("runs reconnect callbacks on the first auth of a socket that replaces another", () => {
+    const resumed = new WSClient("ws://example.test/ws", { resumed: true });
+    const fresh = new WSClient("ws://example.test/ws");
+    const onResumed = vi.fn();
+    const onFresh = vi.fn();
+    resumed.onReconnect(onResumed);
+    fresh.onReconnect(onFresh);
+
+    for (const ws of [resumed, fresh]) {
+      ws.setAuth("tok", "acme/ws");
+      ws.connect();
+      FakeWebSocket.lastInstance!.onmessage?.({ data: JSON.stringify({ type: "auth_ack" }) });
+    }
+
+    expect(onResumed).toHaveBeenCalledTimes(1);
+    expect(onFresh).not.toHaveBeenCalled();
+    // Not a reconnect for the banner: the session never looked disconnected.
+    expect(resumed.hasEverConnected()).toBe(true);
+  });
+
+  // H10: a flat ±20 % around 1s sends a whole restarted pod's clients back
+  // within 400ms of each other; full jitter spreads them over the window.
+  it("reconnects after a random delay up to the backoff, also on a 1012 restart", () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const ws = new WSClient("ws://example.test/ws");
+    ws.setAuth("tok", "acme/ws");
+    ws.connect();
+    const first = FakeWebSocket.lastInstance!;
+    first.onclose?.({ code: 1012 } as CloseEvent);
+    vi.advanceTimersByTime(499);
+    expect(FakeWebSocket.lastInstance).toBe(first);
+    vi.advanceTimersByTime(1);
+    expect(FakeWebSocket.lastInstance).not.toBe(first);
+
+    random.mockReturnValue(0);
+    const second = FakeWebSocket.lastInstance!;
+    second.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(0);
+    expect(FakeWebSocket.lastInstance).not.toBe(second);
+    random.mockRestore();
+    vi.useRealTimers();
+  });
+
+  // H11: the server closes with 4001 when the token expired or the session was
+  // revoked; reconnecting with the same token would only be refused again.
+  it("asks for a fresh session when the server ends it with 4001", () => {
+    const onSessionEnded = vi.fn();
+    const ws = new WSClient("ws://example.test/ws", { onSessionEnded });
+    ws.setAuth("tok", "acme/ws");
+    ws.connect();
+    FakeWebSocket.lastInstance!.onclose?.({ code: 1006 } as CloseEvent);
+    expect(onSessionEnded).not.toHaveBeenCalled();
+    ws.connect();
+    FakeWebSocket.lastInstance!.onclose?.({ code: 4001 } as CloseEvent);
+    expect(onSessionEnded).toHaveBeenCalledTimes(1);
+    ws.disconnect();
   });
 
   it("notifies connection state listeners", () => {

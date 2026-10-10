@@ -251,6 +251,47 @@ describe("useChatPageActions", () => {
     expect(deps.setConnectError).toHaveBeenCalledWith("Không thể gửi tin nhắn tới người này.");
   });
 
+  // H7: a 429 while online said "saved, will send when online" and parked
+  // the message until the next socket rebuild.
+  it("tells a rate-limited sender to wait instead of queueing as offline", async () => {
+    const deps = buildDeps({
+      sendRoomMessage: {
+        mutateAsync: vi.fn().mockRejectedValue(new ApiError("slow down", "rate_limited", 429)),
+      },
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.provisionAndSend();
+    });
+
+    expect(deps.setConnectError).toHaveBeenCalledWith(
+      "Bạn đang gửi quá nhanh. Tin chưa được gửi, chờ một chút rồi gửi lại.",
+    );
+    expect(deps.setDraft).not.toHaveBeenCalledWith("");
+    const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
+    expect(useChatSendOutboxStore.getState().entries).toEqual([]);
+  });
+
+  it("queues a failed thread reply with its thread root", async () => {
+    const deps = buildDeps({
+      activeThreadRootId: "root1",
+      sendThreadMessage: {
+        mutateAsync: vi.fn().mockRejectedValue(new ApiError("down", "internal", 503)),
+      },
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.provisionAndSend();
+    });
+
+    const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
+    expect(useChatSendOutboxStore.getState().entries).toEqual([
+      expect.objectContaining({ roomId: "room1", body: "hello", thread_root_id: "root1" }),
+    ]);
+  });
+
   it("tracks an optimistic pending row while sending online", async () => {
     let resolveSend: ((value: null) => void) | undefined;
     const deps = buildDeps({

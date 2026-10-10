@@ -22,7 +22,7 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	out := sdo.ChatMessageDTO{
 		ID: m.ID, RoomID: m.RoomID, WorkspaceID: m.WorkspaceID,
 		SenderID: m.SenderID, SenderDisplayName: m.SenderDisplayName,
-		Kind: kind, Body: m.Body, CreatedAt: m.CreatedAt.Format(time.RFC3339),
+		Kind: kind, Body: m.Body, CreatedAt: m.CreatedAt.Format(time.RFC3339), Cursor: m.Cursor(),
 	}
 	if m.ReplyToMessageID != nil {
 		out.ReplyToMessageID = m.ReplyToMessageID
@@ -177,6 +177,9 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
 	}
+	if r.LastReadAt != nil {
+		out.LastReadAt = r.LastReadAt.UTC().Format(time.RFC3339Nano)
+	}
 	if r.LastMessageAt != nil {
 		out.LastMessageAt = r.LastMessageAt.Format(time.RFC3339)
 	}
@@ -203,7 +206,11 @@ func parseChatMessageListQuery(r *http.Request) (service.ListChatMessagesInput, 
 	}
 	// mark_read=0 keeps last_read_at so CatchUp still sees unread after open.
 	skipMarkRead := strings.TrimSpace(r.URL.Query().Get("mark_read")) == "0"
-	return service.ListChatMessagesInput{Before: before, Limit: limit, SkipMarkRead: skipMarkRead}, nil
+	return service.ListChatMessagesInput{
+		Cursor: strings.TrimSpace(r.URL.Query().Get("cursor")),
+		After:  strings.TrimSpace(r.URL.Query().Get("after")),
+		Before: before, Limit: limit, SkipMarkRead: skipMarkRead,
+	}, nil
 }
 
 func (h *handlers) getWorkspaceChatRoom(w http.ResponseWriter, r *http.Request) {

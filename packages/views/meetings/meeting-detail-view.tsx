@@ -16,7 +16,7 @@ import {
 } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
-import { useMeetingScope, useWorkspaceEvents } from "@uniwork/core/realtime";
+import { useMeetingScope } from "@uniwork/core/realtime";
 import { ApiError } from "@uniwork/core/api";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -58,7 +58,6 @@ export function MeetingDetailView({
 }) {
   const { t } = useTranslation();
   const { workspace, user } = useWorkspace();
-  useWorkspaceEvents(workspaceId);
   // In-room events (roll, motions, transcript) are meeting-scoped; the detail
   // page shows them live, so it holds the meeting open like the room does.
   useMeetingScope(meetingId);

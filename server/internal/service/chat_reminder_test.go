@@ -83,26 +83,26 @@ func TestReminderEncodeDecodeMetadata(t *testing.T) {
 	if err != nil || len(meta) == 0 {
 		t.Fatalf("encode: err=%v meta=%s", err, meta)
 	}
-	info := reminderFromMetadata(chatMessageKindReminder, meta)
+	info := reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata(meta))
 	if info == nil || info.Body != "Họp nhóm" || info.Repeat != "daily" || info.RemindAt == "" {
 		t.Fatalf("decode: %+v", info)
 	}
 }
 
 func TestReminderFromMetadataBranches(t *testing.T) {
-	if reminderFromMetadata("note", []byte(`{"reminder":{"body":"x"}}`)) != nil {
+	if reminderFromMetadata("note", decodeChatMessageMetadata([]byte(`{"reminder":{"body":"x"}}`))) != nil {
 		t.Fatal("wrong kind should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, nil) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata(nil)) != nil {
 		t.Fatal("empty raw should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, []byte(`{}`)) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata([]byte(`{}`))) != nil {
 		t.Fatal("missing reminder should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, []byte(`{"reminder":{"body":"   "}}`)) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata([]byte(`{"reminder":{"body":"   "}}`))) != nil {
 		t.Fatal("blank body should be nil")
 	}
-	if reminderFromMetadata(chatMessageKindReminder, []byte(`not-json`)) != nil {
+	if reminderFromMetadata(chatMessageKindReminder, decodeChatMessageMetadata([]byte(`not-json`))) != nil {
 		t.Fatal("invalid json should be nil")
 	}
 }
@@ -279,4 +279,25 @@ func TestChatReminderSendRestricted(t *testing.T) {
 		Body: "Nhắc việc", RemindAt: futureRemindAt(),
 	})
 	requireReminderValidationError(t, err, "muted member")
+}
+
+// A due reminder notifies every member, so in a large room it is the
+// moderators' call, exactly as @all is (UNI-1089).
+func TestReminderInALargeRoomIsForModerators(t *testing.T) {
+	s, _, _, ua, ub, w := reminderFixture(t)
+	ctx := context.Background()
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "nhac-viec", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	smallChatRoom(t, 1)
+	in := SendReminderMessageInput{Body: "Nộp báo cáo", RemindAt: futureRemindAt()}
+	if _, err := s.SendReminderMessage(ctx, ub.ID, w.ID, ch.ID, in); !codedIs(err, "chat_mention_all_forbidden") {
+		t.Fatalf("member reminder in a large room: want chat_mention_all_forbidden, got %v", err)
+	}
+	if _, err := s.SendReminderMessage(ctx, ua.ID, w.ID, ch.ID, in); err != nil {
+		t.Fatalf("channel owner reminder in a large room: %v", err)
+	}
 }

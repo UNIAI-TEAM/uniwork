@@ -87,6 +87,42 @@ func TestAdminRoutesNeedPlatformRoleSource(t *testing.T) {
 	}
 }
 
+// The router sheds load past HTTP_MAX_IN_FLIGHT with a 503 the browser can
+// read (CORS headers and Retry-After), while the probes keep answering.
+func TestRouterShedsLoadPastTheInFlightBound(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000", HTTPMaxInFlight: 1}
+	h := stubRoutes()
+	entered, release := make(chan struct{}), make(chan struct{})
+	h.Config = func(w http.ResponseWriter, _ *http.Request) {
+		close(entered)
+		<-release
+	}
+	mux := New(Deps{Cfg: cfg}, h)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/config", nil))
+	}()
+	<-entered
+	defer func() { close(release); <-done }()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/config", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" {
+		t.Fatalf("over the bound: %d Retry-After=%q, want 503 with Retry-After", rec.Code, rec.Header().Get("Retry-After"))
+	}
+	if rec.Header().Get("Access-Control-Allow-Origin") == "" {
+		t.Fatal("a shed response without CORS headers is unreadable to the browser")
+	}
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if rec.Code == http.StatusServiceUnavailable {
+		t.Fatal("/healthz was shed")
+	}
+}
+
 // The motions list is refetched by every client in the room after every
 // ballot, and a formal meeting often sits behind one office NAT. Behind the
 // 60/min credential budget a refused refetch right after a vote opens hides

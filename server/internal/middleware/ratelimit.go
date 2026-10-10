@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
@@ -58,12 +59,13 @@ func ParseTrustedProxies(raw string) []*net.IPNet {
 // request proceeds unlimited (fail-open), as on any other Redis error.
 const rateLimitRedisTimeout = 100 * time.Millisecond
 
-// rateLimitMaxInFlight caps the Redis calls one limiter has outstanding. The
-// client is built without ContextTimeoutEnabled, so a call the limiter gave
-// up on keeps its pool connection until go-redis' own read timeout; under a
-// hung Redis the limiter in front of every request would hold one connection
-// per request, up to the whole pool. Past the cap the limiter skips Redis and
-// fails open at once, so it never holds more connections than this.
+// rateLimitMaxInFlight caps the Redis calls one limiter has outstanding. On a
+// client built without ContextTimeoutEnabled (the server's has it), a call
+// the limiter gave up on keeps its pool connection until go-redis' own read
+// timeout; under a hung Redis the limiter in front of every request would
+// hold one connection per request, up to the whole pool. Past the cap the
+// limiter skips Redis and fails open at once, so it never holds more
+// connections than this.
 const rateLimitMaxInFlight = 64
 
 var errRateLimitSaturated = errors.New("ratelimit: too many redis calls in flight")
@@ -92,6 +94,26 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 // address (an office NAT) each get the whole budget. A request it cannot
 // name falls back to the IP key. A nil identity is RateLimit.
 func RateLimitByIdentity(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc) func(http.Handler) http.Handler {
+	return rateLimit(rdb, limit, window, trustedProxies, identity, func(r *http.Request) string { return r.URL.Path })
+}
+
+// RateLimitPerRoute is RateLimitByIdentity keyed by the matched route pattern
+// instead of the concrete path, so every id under one route shares the
+// caller's budget: keyed by path, each message or room id was a fresh one. It
+// belongs on a route (r.With), where chi has matched the pattern; before
+// routing there is none and it keys by the path.
+func RateLimitPerRoute(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc) func(http.Handler) http.Handler {
+	return rateLimit(rdb, limit, window, trustedProxies, identity, func(r *http.Request) string {
+		if rc := chi.RouteContext(r.Context()); rc != nil {
+			if pattern := rc.RoutePattern(); pattern != "" {
+				return r.Method + pattern
+			}
+		}
+		return r.URL.Path
+	})
+}
+
+func rateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxies []*net.IPNet, identity IdentityFunc, route func(*http.Request) string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if rdb == nil {
 			return next
@@ -111,7 +133,7 @@ func RateLimitByIdentity(rdb *redis.Client, limit int, window time.Duration, tru
 					subject = identitySubject(id)
 				}
 			}
-			key := rateLimitKey(limit, r.URL.Path, subject)
+			key := rateLimitKey(limit, route(r), subject)
 
 			count, err := countRequest(r.Context(), rdb, inFlight, key, window)
 			if err != nil {

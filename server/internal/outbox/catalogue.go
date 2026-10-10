@@ -141,6 +141,9 @@ var catalogue = []EventDef{
 	{Topic: "member.reactivated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.left", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "organization.ownership_transferred", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// A signed-out session (session_id, or every one of the user's when it is
+	// empty) loses its sockets; the realtime access revoker is the consumer.
+	{Topic: "session.revoked", Version: 1, Payload: []string{"user_id", "session_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Directory and departments (F-03): everyone in the organization sees the
 	// same list, so they refresh on the organization scope.
@@ -168,14 +171,27 @@ var catalogue = []EventDef{
 	{Topic: "chat.follow_up.updated", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "chat.follow_up.completed", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "chat.follow_up.deleted", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Notification feed (H1): consumed by internal/notification only; the open
+	// chat page still hears chat.mention.created and chat.message.created.
+	{Topic: "chat.message.mentioned", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.dm.received", Version: 1, Payload: []string{"room_id", "message_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.thread.reply_received", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_linked", Version: 1, Payload: []string{"thread_root_id", "message_id", "task_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.reminder.due", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_added", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	// One row per invite, however many people it adds (C10).
+	{Topic: "chat.room.members_added", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_removed", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
-	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// A read goes to the reader's own tabs and, in a DM, to the peer: nobody
+	// else renders it, and every client that hears one reloads its sidebar.
+	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// Message and typing rows of the workspace's default channel go to the
+	// workspace, whose members are that channel's; every other room's go to
+	// chat:{room} only.
+	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.updated", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.deleted", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	// A mention is addressed to the person mentioned, not to the room, so it
@@ -282,6 +298,9 @@ var catalogue = []EventDef{
 
 	// Feature flags (F-11): every node drops its override cache.
 	{Topic: "flag.updated", Version: 1, Payload: []string{"flag_key"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+
+	// FileService derivatives (H15): the slow lane makes a photo's thumbnail.
+	{Topic: "file.thumbnail_requested", Version: 1, Payload: []string{"file_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},

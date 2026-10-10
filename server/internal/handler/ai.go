@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -62,8 +63,17 @@ func (h *handlers) chatCatchUp(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	var since *time.Time
+	if raw := strings.TrimSpace(in.Since); raw != "" {
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "since must be RFC3339")
+			return
+		}
+		since = &t
+	}
 	res, err := h.AskUNI.CatchUp(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), service.CatchUpInput{
-		RoomID: in.RoomID, ThreadRootID: in.ThreadRootID, Locale: in.Locale,
+		RoomID: in.RoomID, ThreadRootID: in.ThreadRootID, Locale: in.Locale, Since: since,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

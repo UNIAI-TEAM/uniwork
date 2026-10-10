@@ -11,6 +11,7 @@ import { auditKeys } from "../audit/hooks";
 import { emitQuotaThreshold } from "../billing/quota-threshold-bus";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
+import { catchUpLoadedRoomTimelines, catchUpOnChatSubscribeAck } from "../chat/room-timeline";
 import { documentKeys } from "../documents/keys";
 import { graphKeys } from "../graph/keys";
 import {
@@ -152,6 +153,7 @@ function keysFor(
     case "chat.room.created":
     case "chat.room.updated":
     case "chat.room.member_added":
+    case "chat.room.members_added":
     case "chat.room.member_removed": {
       push(chatKeys.rooms(wsId));
       push(chatKeys.room(wsId));
@@ -382,7 +384,7 @@ function handleChatRealtimeEvent(
     case "chat.message.updated":
     case "chat.thread.replied": {
       if (roomId && messageId) {
-        chatScheduler.scheduleUpsert(roomId, messageId);
+        chatScheduler.scheduleUpsert(roomId, messageId, type === "chat.message.created", payload.sender_id);
         return true;
       }
       return false;
@@ -453,8 +455,7 @@ function allWorkspaceKeys(wsId: string) {
     taskKeys.projects(wsId),
     chatKeys.rooms(wsId),
     chatKeys.room(wsId),
-    // Open conversations go stale while the socket is down (BE restart).
-    chatKeys.roomMessagesRoot(wsId),
+    // Open room timelines catch up by cursor instead (catchUpLoadedRoomTimelines).
     chatKeys.messages(wsId),
     chatKeys.threadMessagesRoot(wsId),
     meetingKeys.list(wsId),
@@ -492,6 +493,11 @@ function isMeetingDetailKey(queryKey: readonly unknown[]): boolean {
   return Array.isArray(queryKey) && queryKey[0] === "meeting" && typeof queryKey[1] === "string";
 }
 
+/** The sidebar list: every refresh of it goes through the chat scheduler. */
+function isChatRoomsKey(wsId: string, queryKey: readonly unknown[]): boolean {
+  return JSON.stringify(queryKey) === JSON.stringify(chatKeys.rooms(wsId));
+}
+
 function isTranscriptKey(queryKey: readonly unknown[]): boolean {
   return Array.isArray(queryKey) && queryKey[0] === "meeting-transcript";
 }
@@ -510,6 +516,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
 
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
+      if (catchUpOnChatSubscribeAck(qc, wsId, msg.type, payload)) return;
       const eventType = RENAMED_EVENTS[msg.type] ?? (msg.type as WSEventType);
       if (changesTaskGraph(eventType, payload)) {
         // The graph trails its sources (ADR 0019): refresh now and once more
@@ -539,6 +546,10 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {
+        if (isChatRoomsKey(wsId, queryKey)) {
+          chatScheduler.scheduleRoomActivity();
+          continue;
+        }
         if (
           isMeetingDetailKey(queryKey) &&
           payload.meeting_id &&
@@ -558,7 +569,11 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       }
     });
     const offReconnect = client.onReconnect(() => {
-      for (const queryKey of allWorkspaceKeys(wsId)) scheduler.schedule(queryKey);
+      for (const queryKey of allWorkspaceKeys(wsId)) {
+        if (isChatRoomsKey(wsId, queryKey)) chatScheduler.scheduleRoomActivity();
+        else scheduler.schedule(queryKey);
+      }
+      catchUpLoadedRoomTimelines(qc, wsId);
     });
     return () => {
       offAny();

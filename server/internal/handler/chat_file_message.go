@@ -151,41 +151,37 @@ func (h *handlers) sendChatFileMessage(w http.ResponseWriter, r *http.Request) {
 
 // sendChatFileMessageFS is the FileService send: the handler only unpacks the
 // multipart envelope; verification, dedupe and claim all live in the service.
+// The room gate and the byte budget run before the body is read, and the file
+// part reaches the service disk-backed, never as a heap copy (C7).
 func (h *handlers) sendChatFileMessageFS(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, service.MaxChatFileMessageBytes+chatFileMultipartHeadroom)
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		var tooBig *http.MaxBytesError
-		if errors.As(err, &tooBig) {
-			respondError(w, http.StatusRequestEntityTooLarge, "too_large", "file must be at most 25 MiB")
-			return
-		}
-		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" is required`)
+	const tooLarge = "file must be at most 25 MiB"
+	release, ok := beginUpload(w, r, uploads, service.MaxChatFileMessageBytes+chatFileMultipartHeadroom, tooLarge)
+	if !ok {
+		return
+	}
+	defer release()
+	ctx := r.Context()
+	userID, workspaceID, roomID := middleware.UserID(ctx), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID")
+	if err := h.Chat.AuthorizeMediaSend(ctx, userID, workspaceID, roomID); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	file, header, ok := uploadFormFile(w, r, tooLarge)
+	if !ok {
 		return
 	}
 	defer file.Close()
-
-	data, err := io.ReadAll(io.LimitReader(file, service.MaxChatFileMessageBytes+1))
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "could not read file")
+	if header.Size > service.MaxChatFileMessageBytes {
+		respondError(w, http.StatusRequestEntityTooLarge, "too_large", tooLarge)
 		return
-	}
-	if len(data) > service.MaxChatFileMessageBytes {
-		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "file must be at most 25 MiB")
-		return
-	}
-	filename := ""
-	if header != nil {
-		filename = header.Filename
 	}
 	var replyTo *string
 	if raw := strings.TrimSpace(r.FormValue("reply_to_message_id")); raw != "" {
 		replyTo = &raw
 	}
-	ctx := r.Context()
-	msg, err := h.Chat.SendFileMessage(ctx, middleware.UserID(ctx), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), service.SendFileMessageInput{
-		Filename:         filename,
-		Body:             bytes.NewReader(data),
+	msg, err := h.Chat.SendFileMessage(ctx, userID, workspaceID, roomID, service.SendFileMessageInput{
+		Filename:         header.Filename,
+		Body:             file,
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      strings.TrimSpace(r.FormValue("client_msg_id")),
 	})
@@ -198,9 +194,14 @@ func (h *handlers) sendChatFileMessageFS(w http.ResponseWriter, r *http.Request)
 
 func (h *handlers) streamChatFileMessage(w http.ResponseWriter, r *http.Request) {
 	// Reader handles rows written by either path: file_id rows open through
-	// FileService, object_key rows still read the storage object.
+	// FileService, object_key rows still read the storage object (which has
+	// no thumbnails, so a variant there serves the original).
+	thumb, ok := chatFileThumb(w, r)
+	if !ok {
+		return
+	}
 	if h.Chat.FilesService() != nil {
-		h.streamChatFileMessageFS(w, r)
+		h.streamChatFileMessageFS(w, r, thumb)
 		return
 	}
 	if h.Storage == nil {
@@ -226,15 +227,7 @@ func (h *handlers) streamChatFileMessage(w http.ResponseWriter, r *http.Request)
 	}
 	defer reader.Close()
 
-	disposition := "attachment"
-	if strings.HasPrefix(msg.File.ContentType, "image/") {
-		disposition = "inline"
-	}
-	w.Header().Set("Content-Type", msg.File.ContentType)
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", msg.File.SizeBytes))
-	w.Header().Set("Cache-Control", "private, no-store")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename=%q`, disposition, msg.File.Filename))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
+	setChatFileHeaders(w, msg.File.ContentType, msg.File.SizeBytes, msg.File.Filename)
 	if _, err := io.Copy(w, reader); err != nil {
 		h.Log.Error("chat file stream", "err", err, "message_id", msg.ID)
 	}
@@ -242,7 +235,7 @@ func (h *handlers) streamChatFileMessage(w http.ResponseWriter, r *http.Request)
 
 // streamChatFileMessageFS opens through FileService; a pre-migration row still
 // serves its storage object until the T9b backfill lands.
-func (h *handlers) streamChatFileMessageFS(w http.ResponseWriter, r *http.Request) {
+func (h *handlers) streamChatFileMessageFS(w http.ResponseWriter, r *http.Request, thumb bool) {
 	ctx := r.Context()
 	msg, reader, err := h.Chat.OpenChatFileMessage(
 		ctx,
@@ -250,6 +243,7 @@ func (h *handlers) streamChatFileMessageFS(w http.ResponseWriter, r *http.Reques
 		chi.URLParam(r, "workspaceID"),
 		chi.URLParam(r, "roomID"),
 		chi.URLParam(r, "messageID"),
+		thumb,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -273,16 +267,44 @@ func (h *handlers) streamChatFileMessageFS(w http.ResponseWriter, r *http.Reques
 	}
 	defer body.Close()
 
-	disposition := "attachment"
-	if strings.HasPrefix(msg.File.ContentType, "image/") {
-		disposition = "inline"
+	// A thumbnail differs from the message's snapshot; FileService says what
+	// it streamed.
+	contentType, size := msg.File.ContentType, msg.File.SizeBytes
+	if reader.Body != nil {
+		contentType, size = reader.File.ContentType, reader.File.SizeBytes
 	}
-	w.Header().Set("Content-Type", msg.File.ContentType)
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", msg.File.SizeBytes))
-	w.Header().Set("Cache-Control", "private, no-store")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename=%q`, disposition, msg.File.Filename))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
+	setChatFileHeaders(w, contentType, size, msg.File.Filename)
 	if _, err := io.Copy(w, body); err != nil {
 		h.Log.Error("chat file stream", "err", err, "message_id", msg.ID)
 	}
+}
+
+// chatFileThumb reads ?variant=: "" is the original, "thumb" the photo's
+// thumbnail; anything else is refused before the room is even looked at.
+func chatFileThumb(w http.ResponseWriter, r *http.Request) (thumb, ok bool) {
+	switch r.URL.Query().Get("variant") {
+	case "":
+		return false, true
+	case "thumb":
+		return true, true
+	default:
+		respondError(w, http.StatusBadRequest, "invalid_request", `variant must be "thumb" or absent`)
+		return false, false
+	}
+}
+
+// setChatFileHeaders: every viewer scrolling a busy room re-requests its
+// photos, so an image may sit in the private browser cache for a minute (a
+// revoked member keeps what they already saw for at most that long). Other
+// files stay no-store and download as attachments.
+func setChatFileHeaders(w http.ResponseWriter, contentType string, size int64, filename string) {
+	disposition, cache := "attachment", "private, no-store"
+	if strings.HasPrefix(contentType, "image/") {
+		disposition, cache = "inline", "private, max-age=60"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", size))
+	w.Header().Set("Cache-Control", cache)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename=%q`, disposition, filename))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 }

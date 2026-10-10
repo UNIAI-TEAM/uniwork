@@ -39,12 +39,11 @@ type SendPostMessageInput struct {
 	ReplyToMessageID *string
 }
 
-func postFromMetadata(kind string, raw []byte, body string) *ChatPostInfo {
+func postFromMetadata(kind string, meta chatMessageMetadata, body string) *ChatPostInfo {
 	if kind != chatMessageKindPost {
 		return nil
 	}
 	content := strings.TrimSpace(body)
-	meta := decodeChatMessageMetadata(raw)
 	title := ""
 	pinToTop := meta.Pinned
 	if meta.Post != nil {
@@ -140,19 +139,6 @@ func (s *ChatService) SendPostMessage(
 		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	ev := Event{
-		Type: "chat.message.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
 }

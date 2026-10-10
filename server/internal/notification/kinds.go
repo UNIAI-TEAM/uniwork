@@ -22,20 +22,28 @@ const (
 	KindRoleChanged            = "role_changed"
 	KindAuditExportReady       = "audit_export_ready"
 	KindChatFollowUp           = "chat_follow_up"
-	KindEmailHubNewMail        = "email_hub_new_mail"
+	// A chat reminder came due (H16), fired by the server's reminder worker.
+	KindChatReminder    = "chat_reminder"
+	KindEmailHubNewMail = "email_hub_new_mail"
 	// Document comments (G1-07, UNI-681): distinct kinds because the gate is
 	// document read access, not workspace membership - and the titles name
 	// the document, not a task.
 	KindDocumentCommented = "document_commented"
 	KindDocumentMentioned = "document_mentioned"
+	// Chat (H1): one row per room or thread while unread, so a burst of
+	// messages is one notification and one push.
+	KindChatMentioned     = "chat_mentioned"
+	KindChatDM            = "chat_dm"
+	KindChatThreadReplied = "chat_thread_replied"
 )
 
 // Kinds is the list in display order.
 var Kinds = []string{
 	KindTaskAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
 	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
-	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindEmailHubNewMail,
+	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,
+	KindChatMentioned, KindChatDM, KindChatThreadReplied,
 }
 
 var kindSet = func() map[string]bool {

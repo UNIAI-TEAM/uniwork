@@ -50,6 +50,32 @@ DATABASE_URL=… go run ./server/cmd/seed --orgs 5 --users 200 --tasks 20000
 BASE_URL=http://localhost:8080 SEED_USERS=200 k6 run scripts/load/smoke.k6.js
 ```
 
+The seed also writes chat: per workspace a default channel holding every
+member, `--chat-groups` groups (default 20) that all include the owner, and
+`--chat-messages` messages (default 200). The API needs
+`TRUSTED_PROXIES=127.0.0.1/32,::1/128`: `perf-lib.js` gives every user its own
+`X-Forwarded-For`, or `setup()` runs out of the per-IP login budget.
+
+## Chat (H19, `docs/chat-assessment.md` §8)
+
+`chat/` is a Go load generator (its own module) that behaves like the web
+client: `GET /api/v1/ws`, an `auth` first frame, lazy subscribe to at most 25
+rooms, a ping every 25 s, and in client-simulation mode the GETs the client
+runs after a frame. Each virtual user has its own `X-Forwarded-For`. It reads
+statement counts, pool waits, CPU and RSS from the server's `/metrics`, prints
+a JSON summary and exits 1 when a threshold fails (`-report-only` lists
+scenarios that report without failing). Scenarios: `fanout` (§8.1),
+`channel` (§8.2), `sidebar` (§8.4), `burst` (§8.6), `correctness` (§8.9),
+`abuse` (§8.10). Not covered: group rooms (§8.3), room switching (§8.5), a
+restart mid-run (§8.7) and one shared office IP (§8.8). The nightly
+`chat-load` job runs all six on one core.
+
+```sh
+(cd server && DATABASE_URL=… go run ./cmd/seed --orgs 1 --users 1200 --tasks 1000 --chat-groups 300 --chat-messages 2000)
+TRUSTED_PROXIES=127.0.0.1/32,::1/128 server/bin/server &
+(cd scripts/load/chat && go run . -base http://localhost:8080 -metrics http://127.0.0.1:9090/metrics -duration 20s)
+```
+
 ## Documents (C-01 §9.4, G1-09)
 
 Three baselines for the documents module, run by hand (not in CI, not in the

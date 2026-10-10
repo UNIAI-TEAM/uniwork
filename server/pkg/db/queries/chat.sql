@@ -38,7 +38,7 @@ WHERE room_id = $1 AND status IN ('invited', 'active');
 -- name: UpdateChatRoomMemberLastRead :exec
 -- tenant: parent room_id
 UPDATE chat_room_members
-SET last_read_at = $3, updated_at = now()
+SET last_read_at = GREATEST(last_read_at, $3), updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
 -- name: ListChatMessagesByRoom :many
@@ -64,8 +64,43 @@ WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
   AND m.thread_root_id IS NULL
-  AND (sqlc.narg(before_at)::timestamptz IS NULL OR m.created_at < sqlc.narg(before_at))
-ORDER BY m.created_at DESC
+  -- Keyset page older than (before_at, before_id). An empty before_id sorts
+  -- below every id, so a bare legacy timestamp stays strictly-before.
+  AND (sqlc.narg(before_at)::timestamptz IS NULL OR (
+    m.created_at <= sqlc.narg(before_at)::timestamptz
+    AND (m.created_at, m.id) < (sqlc.narg(before_at)::timestamptz, sqlc.arg(before_id)::text)
+  ))
+ORDER BY m.created_at DESC, m.id DESC
+LIMIT sqlc.arg(msg_limit);
+
+-- name: ListChatMessagesByRoomAfter :many
+-- Catch-up page: the main-timeline messages just newer than (after_at,
+-- after_id), oldest first. Same columns as ListChatMessagesByRoom.
+SELECT
+  m.id,
+  m.room_id,
+  m.workspace_id,
+  m.sender_id,
+  m.kind,
+  m.body,
+  m.metadata,
+  m.reply_to_message_id,
+  m.thread_root_id,
+  m.reply_count,
+  m.last_reply_at,
+  m.edited_at,
+  m.created_at,
+  m.client_msg_id,
+  u.display_name AS sender_display_name
+FROM chat_messages m
+INNER JOIN users u ON u.id = m.sender_id
+WHERE m.room_id = $1
+  AND m.workspace_id = $2
+  AND m.deleted_at IS NULL
+  AND m.thread_root_id IS NULL
+  AND m.created_at >= sqlc.arg(after_at)::timestamptz
+  AND (m.created_at, m.id) > (sqlc.arg(after_at)::timestamptz, sqlc.arg(after_id)::text)
+ORDER BY m.created_at ASC, m.id ASC
 LIMIT sqlc.arg(msg_limit);
 
 -- name: CreateChatPollMessage :one
@@ -149,6 +184,12 @@ INSERT INTO chat_messages (
 SELECT * FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL;
 
+-- name: GetChatMessageInRoomForUpdate :one
+-- Locks the row so a metadata read-modify-write cannot lose a concurrent one.
+SELECT * FROM chat_messages
+WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
+FOR UPDATE;
+
 -- name: UpdateChatMessageMetadata :one
 UPDATE chat_messages
 SET metadata = $4
@@ -196,18 +237,50 @@ SELECT
   r.member_set_key,
   r.member_permissions,
   r.updated_at,
-  COALESCE(
-    (
-      SELECT COUNT(*)::int
+  mem.last_read_at AS my_last_read_at,
+  -- Badges stop at 100 (the client shows 99+), so a room left unread for
+  -- months costs the same as one read a minute ago. Both count the main
+  -- timeline only (opening a room reads that, not threads) and, for a member
+  -- who never read, from when they joined.
+  (
+    SELECT COUNT(*)::int FROM (
+      SELECT 1
       FROM chat_messages m
       WHERE m.room_id = r.id
         AND m.workspace_id = r.workspace_id
         AND m.deleted_at IS NULL
+        AND m.thread_root_id IS NULL
         AND m.sender_id != sqlc.arg(user_id)
-        AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
-    ),
-    0
+        AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
+      LIMIT 100
+    ) unread
   ) AS unread_count,
+  -- Mentions of the caller, by name or @all, in the main timeline. The
+  -- metadata key test repeats idx_chat_messages_mentions' predicate.
+  (
+    SELECT COUNT(*)::int FROM (
+      SELECT 1
+      FROM chat_messages m
+      WHERE m.room_id = r.id
+        AND m.workspace_id = r.workspace_id
+        AND m.deleted_at IS NULL
+        AND m.thread_root_id IS NULL
+        AND (m.metadata ? 'mentioned_user_ids' OR m.metadata ? 'mentions_all')
+        AND m.sender_id != sqlc.arg(user_id)
+        AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
+        AND (m.metadata -> 'mentioned_user_ids' ? sqlc.arg(user_id)::text OR m.metadata @> '{"mentions_all": true}')
+      LIMIT 100
+    ) mentioned
+  ) AS mention_unread_count,
+  ARRAY(
+    SELECT o.user_id FROM chat_room_members o
+    WHERE o.room_id = r.id AND o.status IN ('invited', 'active') AND o.user_id != sqlc.arg(user_id)
+    ORDER BY o.user_id
+  )::text[] AS member_user_ids,
+  COALESCE(peer.id, '') AS peer_user_id,
+  COALESCE(peer.email, '') AS peer_email,
+  COALESCE(peer.display_name, '') AS peer_display_name,
+  peer.last_read_at AS peer_last_read_at,
   COALESCE(last_msg.body, '') AS last_message_body,
   COALESCE(last_msg.kind, '') AS last_message_kind,
   COALESCE(last_msg.sender_id, '') AS last_message_sender_id,
@@ -231,6 +304,18 @@ LEFT JOIN LATERAL (
   ORDER BY m.created_at DESC
   LIMIT 1
 ) last_msg ON true
+LEFT JOIN LATERAL (
+  -- A DM's peer comes from its member set, so it survives the peer leaving;
+  -- their read cursor only while they are still in the room.
+  SELECT u.id, u.email, u.display_name, pm.last_read_at
+  FROM users u
+  LEFT JOIN chat_room_members pm
+    ON pm.room_id = r.id AND pm.user_id = u.id AND pm.status IN ('invited', 'active')
+  WHERE r.kind = 'dm'
+    AND u.id = ANY (string_to_array(r.member_set_key, '|'))
+    AND u.id != sqlc.arg(user_id)
+  LIMIT 1
+) peer ON true
 WHERE r.organization_id = sqlc.arg(organization_id)
   AND r.kind IN ('dm', 'group')
   AND mem.status IN ('invited', 'active')
@@ -275,6 +360,35 @@ WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 UPDATE chat_room_members
 SET status = 'left', left_at = now(), updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
+
+-- name: LeaveChatRoomsInWorkspaceForUser :exec
+-- The workspace's own rooms (default room, channels); groups and DMs belong
+-- to the organization and outlive one workspace membership.
+UPDATE chat_room_members m
+SET status = 'left', left_at = now(), updated_at = now()
+FROM chat_rooms r
+WHERE r.id = m.room_id AND r.workspace_id = $1 AND r.kind IN ('workspace', 'channel') AND m.user_id = $2
+  AND m.status IN ('invited', 'active');
+
+-- name: LeaveChatRoomsInOrganizationForUser :exec
+UPDATE chat_room_members
+SET status = 'left', left_at = now(), updated_at = now()
+WHERE organization_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
+
+-- name: RestoreChatRoomsLeftAtDeactivation :exec
+-- Run before the deactivation is cleared. Deactivate marked the rows left in
+-- its own transaction, so their left_at is the member's deactivated_at; a
+-- room that already has an active row for them is left alone.
+UPDATE chat_room_members m SET status = 'active', left_at = NULL, updated_at = now()
+FROM organization_members om
+WHERE om.organization_id = sqlc.arg(organization_id) AND om.user_id = sqlc.arg(user_id)
+  AND om.deactivated_at IS NOT NULL
+  AND m.organization_id = sqlc.arg(organization_id) AND m.user_id = sqlc.arg(user_id)
+  AND m.status = 'left' AND m.left_at = om.deactivated_at
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_room_members a
+    WHERE a.room_id = m.room_id AND a.user_id = m.user_id AND a.status IN ('invited', 'active')
+  );
 
 -- name: TouchChatRoomUpdatedAt :exec
 -- tenant: by-id
@@ -332,18 +446,43 @@ SELECT
   r.is_default,
   r.member_permissions,
   r.updated_at,
-  COALESCE(
-    (
-      SELECT COUNT(*)::int
+  mem.last_read_at AS my_last_read_at,
+  -- Same capped badges as ListChatRoomsForMember.
+  (
+    SELECT COUNT(*)::int FROM (
+      SELECT 1
       FROM chat_messages m
       WHERE m.room_id = r.id
         AND m.workspace_id = r.workspace_id
         AND m.deleted_at IS NULL
+        AND m.thread_root_id IS NULL
         AND m.sender_id != sqlc.arg(user_id)
-        AND m.created_at > COALESCE(mem.last_read_at, '1970-01-01'::timestamptz)
-    ),
-    0
+        AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
+      LIMIT 100
+    ) unread
   ) AS unread_count,
+  (
+    SELECT COUNT(*)::int FROM (
+      SELECT 1
+      FROM chat_messages m
+      WHERE m.room_id = r.id
+        AND m.workspace_id = r.workspace_id
+        AND m.deleted_at IS NULL
+        AND m.thread_root_id IS NULL
+        AND (m.metadata ? 'mentioned_user_ids' OR m.metadata ? 'mentions_all')
+        AND m.sender_id != sqlc.arg(user_id)
+        AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
+        AND (m.metadata -> 'mentioned_user_ids' ? sqlc.arg(user_id)::text OR m.metadata @> '{"mentions_all": true}')
+      LIMIT 100
+    ) mentioned
+  ) AS mention_unread_count,
+  -- The default channel is the whole workspace; its roster is not a sidebar field.
+  ARRAY(
+    SELECT o.user_id FROM chat_room_members o
+    WHERE o.room_id = r.id AND NOT r.is_default
+      AND o.status IN ('invited', 'active') AND o.user_id != sqlc.arg(user_id)
+    ORDER BY o.user_id
+  )::text[] AS member_user_ids,
   -- COALESCE: empty channels have no last_msg row; sqlc maps these as string.
   COALESCE(last_msg.body, '') AS last_message_body,
   COALESCE(last_msg.kind, '') AS last_message_kind,
@@ -646,8 +785,18 @@ WHERE thread_root_id = $1 AND user_id = $2;
 
 -- name: ListChatThreadFollowerUserIDs :many
 -- tenant: parent thread_root_id
-SELECT user_id FROM chat_thread_followers
-WHERE thread_root_id = $1 AND muted = false;
+-- Only followers who can still read the room (H12): a public channel, or
+-- current membership.
+SELECT f.user_id FROM chat_thread_followers f
+INNER JOIN chat_rooms r ON r.id = f.room_id AND r.archived_at IS NULL
+WHERE f.thread_root_id = $1 AND f.muted = false
+  AND (
+    (r.kind = 'channel' AND r.visibility = 'public')
+    OR EXISTS (
+      SELECT 1 FROM chat_room_members mem
+      WHERE mem.room_id = f.room_id AND mem.user_id = f.user_id AND mem.status IN ('invited', 'active')
+    )
+  );
 
 -- name: ListChatThreadsForFollower :many
 SELECT
@@ -669,10 +818,19 @@ SELECT
   END AS unread
 FROM chat_thread_followers f
 INNER JOIN chat_messages root ON root.id = f.thread_root_id AND root.deleted_at IS NULL
+INNER JOIN chat_rooms r ON r.id = f.room_id AND r.archived_at IS NULL
 WHERE f.user_id = sqlc.arg(user_id)
   AND f.workspace_id = sqlc.arg(workspace_id)
   AND f.muted = false
   AND root.reply_count > 0
+  -- Only rooms the follower can still read (H12).
+  AND (
+    (r.kind = 'channel' AND r.visibility = 'public')
+    OR EXISTS (
+      SELECT 1 FROM chat_room_members mem
+      WHERE mem.room_id = f.room_id AND mem.user_id = f.user_id AND mem.status IN ('invited', 'active')
+    )
+  )
   AND (
     sqlc.arg(unread_only)::bool = false
     OR (
@@ -682,4 +840,70 @@ WHERE f.user_id = sqlc.arg(user_id)
   )
 ORDER BY COALESCE(root.last_reply_at, root.created_at) DESC
 LIMIT sqlc.arg(result_limit);
+
+-- name: SyncDefaultChatRoomRoles :exec
+-- The default channel mirrors workspace_members: owners/admins become channel
+-- admins (never demoted), and anyone no longer in the workspace, or deactivated
+-- in the organization (which keeps the workspace row), is marked left.
+WITH room AS (
+  SELECT id FROM chat_rooms
+  WHERE workspace_id = sqlc.arg(workspace_id)::text AND is_default AND archived_at IS NULL
+), raised AS (
+  UPDATE chat_room_members m SET role = 'admin', updated_at = now()
+  FROM workspace_members wm
+  WHERE m.room_id IN (SELECT id FROM room)
+    AND m.status IN ('invited', 'active') AND m.role != 'admin'
+    AND wm.workspace_id = sqlc.arg(workspace_id)::text AND wm.user_id = m.user_id
+    AND wm.role IN ('owner', 'admin')
+)
+UPDATE chat_room_members m SET status = 'left', left_at = now(), updated_at = now()
+WHERE m.room_id IN (SELECT id FROM room)
+  AND m.status IN ('invited', 'active')
+  AND NOT EXISTS (
+    SELECT 1 FROM workspace_members wm
+    WHERE wm.workspace_id = sqlc.arg(workspace_id)::text AND wm.user_id = m.user_id
+      AND NOT EXISTS (
+        SELECT 1 FROM organization_members om
+        WHERE om.organization_id = wm.organization_id AND om.user_id = wm.user_id
+          AND om.deactivated_at IS NOT NULL
+      )
+  );
+
+-- name: ListDefaultChatRoomMissingMembers :many
+-- Active workspace members not yet in the default channel, with the role they
+-- join as.
+SELECT
+  r.id AS room_id,
+  r.organization_id,
+  wm.user_id,
+  (CASE WHEN wm.role IN ('owner', 'admin') THEN 'admin' ELSE 'member' END)::text AS role
+FROM chat_rooms r
+JOIN workspace_members wm ON wm.workspace_id = r.workspace_id
+WHERE r.workspace_id = sqlc.arg(workspace_id)::text AND r.is_default AND r.archived_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM organization_members om
+    WHERE om.organization_id = r.organization_id AND om.user_id = wm.user_id
+      AND om.deactivated_at IS NOT NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM chat_room_members m
+    WHERE m.room_id = r.id AND m.user_id = wm.user_id AND m.status IN ('invited', 'active')
+  );
+
+-- name: InsertChatRoomMembers :exec
+-- One row per member; the unnests advance together, so ids[i] goes with
+-- room_ids[i], user_ids[i] and roles[i].
+INSERT INTO chat_room_members (
+  id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
+)
+SELECT
+  unnest(sqlc.arg(ids)::text[]),
+  unnest(sqlc.arg(room_ids)::text[]),
+  sqlc.arg(workspace_id)::text,
+  unnest(sqlc.arg(user_ids)::text[]),
+  unnest(sqlc.arg(roles)::text[]),
+  'active',
+  sqlc.arg(organization_id)::text,
+  now(), now(), now()
+ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING;
 

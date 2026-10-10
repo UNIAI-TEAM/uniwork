@@ -100,6 +100,9 @@ func New(d Deps, h Routes) http.Handler {
 		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After"},
 		AllowCredentials: true,
 	}))
+	// Inside CORS, so a shed request still carries the headers the browser
+	// needs to read its 503 and Retry-After, and preflights never count.
+	r.Use(mw.LoadShed(d.Cfg.HTTPMaxInFlight, "/healthz", "/readyz"))
 	cat := &apiCatalog{}
 	root := newAPI(r, cat)
 	registerMeta(root, r, d.Storage, h)
@@ -149,12 +152,21 @@ func New(d Deps, h Routes) http.Handler {
 			registerAudit(authed, h)
 			registerGraph(authed, h)
 			registerMeetings(authed, h)
-			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
+			// Chat writes budget per signed-in person and per route: an office
+			// NAT must not pool everyone's sends, and walking message or room
+			// ids must not mint a fresh budget per id.
+			chatWriteLimit := mw.RateLimitPerRoute(d.Redis, 120, time.Minute, proxies, bearerUser(d.Minter))
+			// Reactions, pins and votes: each one makes every open client
+			// refetch the message.
+			chatReactLimit := mw.RateLimitPerRoute(d.Redis, 60, time.Minute, proxies, bearerUser(d.Minter))
+			// Room administration, member invites, call invites and the
+			// default-room sync: each fans out to every member of a room.
+			chatRoomLimit := mw.RateLimitPerRoute(d.Redis, 20, time.Minute, proxies, bearerUser(d.Minter))
 			// Presence beats from every shell page and typing: per signed-in
 			// person, so an office NAT does not pool everyone's budget.
 			chatTypingLimit := mw.RateLimitByIdentity(d.Redis, 30, time.Minute, proxies, bearerUser(d.Minter))
-			registerChat(authed, h, chatWriteLimit, chatTypingLimit)
-			registerChatChannels(authed, h, chatWriteLimit)
+			registerChat(authed, h, chatWriteLimit, chatReactLimit, chatRoomLimit, chatTypingLimit)
+			registerChatChannels(authed, h, chatWriteLimit, chatRoomLimit)
 			registerChatThreads(authed, h, chatWriteLimit)
 			registerChatLinks(authed, h, chatWriteLimit)
 			registerChatFollowUps(authed, h, chatWriteLimit)

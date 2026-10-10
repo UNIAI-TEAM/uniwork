@@ -48,6 +48,7 @@ var topicNodes = map[string]topicRef{
 	"chat.channel.archived":    {graph.NodeThread, "room_id"},
 	"chat.room.created":        {graph.NodeThread, "room_id"},
 	"chat.room.member_added":   {graph.NodeThread, "room_id"},
+	"chat.room.members_added":  {graph.NodeThread, "room_id"},
 	"chat.room.member_removed": {graph.NodeThread, "room_id"},
 }
 

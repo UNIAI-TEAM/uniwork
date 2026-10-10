@@ -64,6 +64,26 @@ func TestMembershipCache_TTL(t *testing.T) {
 	}
 }
 
+func TestMembershipCache_InvalidateUserDropsEveryWorkspaceOfThatUserOnly(t *testing.T) {
+	rdb := newRedisTestClient(t)
+	c := NewMembershipCache(rdb)
+	ctx := context.Background()
+
+	c.Set(ctx, "user-1", "ws-1")
+	c.Set(ctx, "user-1", "ws-2")
+	c.Set(ctx, "user-10", "ws-1")
+
+	c.InvalidateUser(ctx, "user-1")
+	if c.Get(ctx, "user-1", "ws-1") || c.Get(ctx, "user-1", "ws-2") {
+		t.Fatal("user-1 should be invalidated in every workspace")
+	}
+	if !c.Get(ctx, "user-10", "ws-1") {
+		t.Fatal("user-10 must not match user-1's pattern")
+	}
+	var nilCache *MembershipCache
+	nilCache.InvalidateUser(ctx, "user-1") // no panic
+}
+
 func TestMembershipCache_IsolatesKeysByUser(t *testing.T) {
 	rdb := newRedisTestClient(t)
 	c := NewMembershipCache(rdb)

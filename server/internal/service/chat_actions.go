@@ -26,6 +26,11 @@ func (s *ChatService) EditChatMessage(
 	if err := s.requireCanSendInRoom(ctx, userID, roomID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
+	// Before the update: a refused @all must not leave the new body behind.
+	mentions, err := s.resolveMentionRecipients(ctx, userID, room, body)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
 	anchorWS := roomAnchorWorkspaceID(room)
 	updated, err := s.q.UpdateChatMessageBody(ctx, db.UpdateChatMessageBodyParams{
 		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, Body: body, SenderID: userID,
@@ -36,11 +41,11 @@ func (s *ChatService) EditChatMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	mentionedUserIDs, err := s.resolveMentionRecipients(ctx, userID, room, body)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	updated, err = s.persistMessageMentions(ctx, updated, mentionedUserIDs)
+	// Always rewritten, under the row lock: an edit that drops every mention
+	// must clear the old flags without losing a concurrent reaction.
+	updated, err = s.mutateChatMessageMetadata(ctx, updated.ID, roomID, anchorWS, func(msg db.ChatMessage) ([]byte, error) {
+		return encodeMentionsMetadata(msg.Metadata, mentions)
+	})
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -100,7 +105,6 @@ func (s *ChatService) DeleteChatMessage(
 }
 
 func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.ChatRoom, messageID string) {
-	anchorWS := roomAnchorWorkspaceID(room)
 	ev := Event{
 		Type: "chat.message.deleted",
 		Payload: map[string]string{
@@ -108,13 +112,7 @@ func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.Cha
 			"message_id": messageID,
 		},
 	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishChatMessageChange(ctx, room, ev)
 }
 
 // ToggleChatMessagePin toggles whether a message is pinned in the room.
@@ -130,23 +128,13 @@ func (s *ChatService) ToggleChatMessagePin(
 	}); err != nil {
 		return ChatMessageRow{}, err
 	}
-	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
-		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ChatMessageRow{}, ErrNotFound
-	}
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	meta, pinned, err := togglePinInMetadata(msg.Metadata)
-	if err != nil {
-		return ChatMessageRow{}, err
-	}
-	updated, err := s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, Metadata: meta,
-	})
+	var pinned bool
+	updated, err := s.mutateChatMessageMetadata(ctx, messageID, roomID, roomAnchorWorkspaceID(room),
+		func(msg db.ChatMessage) ([]byte, error) {
+			meta, p, err := togglePinInMetadata(msg.Metadata)
+			pinned = p
+			return meta, err
+		})
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -161,7 +149,6 @@ func (s *ChatService) ToggleChatMessagePin(
 }
 
 func (s *ChatService) publishChatMessageUpdated(ctx context.Context, room db.ChatRoom, messageID string) {
-	anchorWS := roomAnchorWorkspaceID(room)
 	ev := Event{
 		Type: "chat.message.updated",
 		Payload: map[string]string{
@@ -169,9 +156,20 @@ func (s *ChatService) publishChatMessageUpdated(ctx context.Context, room db.Cha
 			"message_id": messageID,
 		},
 	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
+	s.publishChatMessageChange(ctx, room, ev)
+}
+
+// publishChatMessageChange sends an edit, delete, reaction or pin of a
+// message. The default channel's members are the workspace, so it goes there;
+// any other channel's goes to chat:{room} only, like before without a
+// per-member activity frame (one per reaction would reload every member's
+// sidebar). DMs and groups also refresh their members' sidebar previews.
+func (s *ChatService) publishChatMessageChange(ctx context.Context, room db.ChatRoom, ev Event) {
+	switch {
+	case isWorkspaceDefaultRoom(room):
+		s.pub.Publish(ctx, roomAnchorWorkspaceID(room), ev)
+	case room.Kind == chatRoomKindChannel:
+		s.publishChatRoomEvent(ctx, room.ID, ev)
 	default:
 		s.publishChatRoomEvent(ctx, room.ID, ev)
 		s.publishChatRoomActivity(ctx, room.ID)

@@ -14,6 +14,15 @@ const mfaAudience = "mfa"
 
 const mfaTokenTTL = 5 * time.Minute
 
+// accessClaims adds the browser-session mark to the registered claims.
+type accessClaims struct {
+	jwt.RegisteredClaims
+	// Web marks a browser session, which never has a device_sessions row.
+	// Only AuthService sets it; desktop tokens leave it false, so a token
+	// minted before the mark existed is still checked against its device.
+	Web bool `json:"web,omitempty"`
+}
+
 type TokenMinter struct {
 	Secret []byte
 	TTL    time.Duration
@@ -26,13 +35,22 @@ func (m TokenMinter) Mint(userID string) (string, error) {
 }
 
 func (m TokenMinter) MintSession(userID, sessionID string) (string, error) {
+	return m.mintAccess(userID, sessionID, false)
+}
+
+// MintWebSession issues a browser-session access token (see accessClaims.Web).
+func (m TokenMinter) MintWebSession(userID, sessionID string) (string, error) {
+	return m.mintAccess(userID, sessionID, true)
+}
+
+func (m TokenMinter) mintAccess(userID, sessionID string, web bool) (string, error) {
 	now := time.Now()
-	claims := jwt.RegisteredClaims{
+	claims := accessClaims{RegisteredClaims: jwt.RegisteredClaims{
 		Subject:   userID,
 		ID:        sessionID,
 		IssuedAt:  jwt.NewNumericDate(now),
 		ExpiresAt: jwt.NewNumericDate(now.Add(m.TTL)),
-	}
+	}, Web: web}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.Secret)
 }
 
@@ -48,8 +66,8 @@ func (m TokenMinter) MintMFA(userID string) (string, error) {
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.Secret)
 }
 
-func (m TokenMinter) parse(token string) (*jwt.RegisteredClaims, error) {
-	parsed, err := jwt.ParseWithClaims(token, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
+func (m TokenMinter) parse(token string) (*accessClaims, error) {
+	parsed, err := jwt.ParseWithClaims(token, &accessClaims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method")
 		}
@@ -58,7 +76,7 @@ func (m TokenMinter) parse(token string) (*jwt.RegisteredClaims, error) {
 	if err != nil {
 		return nil, err
 	}
-	claims, ok := parsed.Claims.(*jwt.RegisteredClaims)
+	claims, ok := parsed.Claims.(*accessClaims)
 	if !ok || claims.Subject == "" {
 		return nil, fmt.Errorf("invalid claims")
 	}
@@ -74,14 +92,33 @@ func (m TokenMinter) Parse(token string) (string, error) {
 // ParseSession returns user id and session id ("" for tokens minted before
 // sessions carried an id).
 func (m TokenMinter) ParseSession(token string) (userID, sessionID string, err error) {
+	at, err := m.ParseAccessToken(token)
+	return at.UserID, at.SessionID, err
+}
+
+// AccessToken is what a verified access token says about its holder.
+type AccessToken struct {
+	UserID, SessionID string
+	Web               bool
+	ExpiresAt         time.Time
+}
+
+// ParseAccessToken returns what a verified access token says: user, session,
+// the browser-session mark and the expiry (for a holder that outlives one
+// request, a WebSocket).
+func (m TokenMinter) ParseAccessToken(token string) (AccessToken, error) {
 	claims, err := m.parse(token)
 	if err != nil {
-		return "", "", err
+		return AccessToken{}, err
 	}
 	if len(claims.Audience) != 0 {
-		return "", "", fmt.Errorf("not an access token")
+		return AccessToken{}, fmt.Errorf("not an access token")
 	}
-	return claims.Subject, claims.ID, nil
+	at := AccessToken{UserID: claims.Subject, SessionID: claims.ID, Web: claims.Web}
+	if claims.ExpiresAt != nil {
+		at.ExpiresAt = claims.ExpiresAt.Time
+	}
+	return at, nil
 }
 
 // ParseMFA returns the user id of a challenge token and nothing else.

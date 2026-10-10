@@ -232,7 +232,8 @@ func TestChatFileMessageIdempotentResendKeepsOneMessage(t *testing.T) {
 	if got := stream.Header.Get("Content-Disposition"); got != `inline; filename="anh.png"` {
 		t.Fatalf("image disposition = %q", got)
 	}
-	if got := stream.Header.Get("Cache-Control"); got != "private, no-store" {
+	// H15: an image may sit in the private browser cache for a minute.
+	if got := stream.Header.Get("Cache-Control"); got != "private, max-age=60" {
 		t.Fatalf("image cache control = %q", got)
 	}
 }

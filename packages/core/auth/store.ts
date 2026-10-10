@@ -19,6 +19,12 @@ export interface AuthState {
    */
   initialize: () => Promise<void>;
   setUser: (user: User) => void;
+  /**
+   * Trade the refresh cookie for a new access token after the server ended
+   * the current one (a realtime socket closed with "session ended"). A
+   * refused refresh clears the token, which drops the store to anon.
+   */
+  refreshSession: () => Promise<void>;
   logout: () => Promise<void>;
   /** Platform hook run after logout — the web app clears the query cache here. */
   setOnLogout: (cb: (() => void) | null) => void;
@@ -73,6 +79,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => {
     initialized = true;
     set({ user, status: "authed" });
+  },
+
+  refreshSession: async () => {
+    await auth.refreshSession();
   },
 
   logout: async () => {

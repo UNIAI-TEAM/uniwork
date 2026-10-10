@@ -25,6 +25,8 @@ export interface SystemNotificationPayload {
   itemId: string;
   /** `?issue=<…>` selector for the inbox page (issue id, else the item id). */
   issueKey: string;
+  /** Same-origin path a click opens (the room, the inbox…); the host's click handler navigates there. */
+  href: string;
   title: string;
   body: string;
 }
@@ -37,9 +39,9 @@ type ClickHandler = (payload: SystemNotificationPayload) => void;
 let clickHandler: ClickHandler | null = null;
 
 /**
- * Register how a clicked web notification routes (focus + navigate to the
- * source workspace's inbox, focused on the item). Called once by the web app
- * shell; pass `null` to unregister. Desktop does NOT use this — it routes
+ * Register how a clicked web notification routes (navigate to its `href`).
+ * Called once by the web app shell (`apps/web/platform/navigation.tsx`);
+ * pass `null` to unregister. Desktop does NOT use this — it routes
  * through its own Electron IPC bridge (`onInboxOpen`).
  */
 export function registerSystemNotificationClickHandler(

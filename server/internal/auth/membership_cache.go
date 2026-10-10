@@ -84,3 +84,21 @@ func (c *MembershipCache) Invalidate(ctx context.Context, userID, workspaceID st
 		slog.Warn("membership_cache: invalidate failed", "error", err)
 	}
 }
+
+// InvalidateUser removes the user's entries in every workspace, for a change
+// (deactivation, leaving an organization) that does not name them. It scans
+// the keyspace, so it is for rare administrative events only.
+func (c *MembershipCache) InvalidateUser(ctx context.Context, userID string) {
+	if c == nil || userID == "" {
+		return
+	}
+	iter := c.rdb.Scan(ctx, 0, membershipKey(userID, "*"), 500).Iterator()
+	for iter.Next(ctx) {
+		if err := c.rdb.Del(ctx, iter.Val()).Err(); err != nil {
+			slog.Warn("membership_cache: invalidate user failed", "error", err)
+		}
+	}
+	if err := iter.Err(); err != nil {
+		slog.Warn("membership_cache: invalidate user scan failed", "error", err)
+	}
+}

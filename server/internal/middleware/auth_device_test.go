@@ -38,9 +38,11 @@ func TestRequireAuthWithDeviceRejectsARevokedDesktopSession(t *testing.T) {
 			}
 			return codedErr{code: "device_revoked"}
 		}, http.StatusUnauthorized, "device_revoked", false},
-		{"other checker failure stays a plain unauthorized", func(context.Context, string, string) error {
+		// A DB timeout says nothing about the session: 401 would make the
+		// client refresh and, if that fails too, sign the user out (H8).
+		{"infrastructure failure is 503, never 401", func(context.Context, string, string) error {
 			return errors.New("db down")
-		}, http.StatusUnauthorized, "unauthorized", false},
+		}, http.StatusServiceUnavailable, "unavailable", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -65,6 +67,33 @@ func TestRequireAuthWithDeviceRejectsARevokedDesktopSession(t *testing.T) {
 			if tc.wantCode == "device_revoked" && rec.Header().Get("Cache-Control") != "no-store" {
 				t.Fatalf("device_revoked response must be no-store, got %q", rec.Header().Get("Cache-Control"))
 			}
+			if tc.wantStatus == http.StatusServiceUnavailable && rec.Header().Get("Retry-After") == "" {
+				t.Fatal("503 must carry Retry-After")
+			}
 		})
+	}
+}
+
+// A browser session never has a device row, so its token skips the lookup:
+// one DB round trip less on every authenticated request.
+func TestRequireAuthWithDeviceSkipsTheLookupForWebSessions(t *testing.T) {
+	minter := auth.TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
+	token, err := minter.MintWebSession("user-1", "sess-1")
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+	called := false
+	check := func(context.Context, string, string) error { called = true; return errors.New("db down") }
+	var gotSID string
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSID = SessionID(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	RequireAuthWithDevice(minter, check)(next).ServeHTTP(rec, req)
+	if called || rec.Code != http.StatusOK || gotSID != "sess-1" {
+		t.Fatalf("checker called=%v status=%d sid=%q, want false 200 sess-1", called, rec.Code, gotSID)
 	}
 }

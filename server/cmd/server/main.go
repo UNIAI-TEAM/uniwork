@@ -95,6 +95,9 @@ func main() {
 			log.Error("redis url", "err", err)
 			os.Exit(1)
 		}
+		// Without it go-redis ignores context deadlines on the socket, and a
+		// slow Redis holds each call for its full read timeout.
+		opt.ContextTimeoutEnabled = true
 		rdb = redis.NewClient(opt)
 		if err := redisotel.InstrumentTracing(rdb); err != nil {
 			log.Warn("redis tracing", "err", err)
@@ -152,15 +155,22 @@ func main() {
 	// Without Redis every event fans out in-process only. With it, the relay
 	// writes each event to a per-scope stream and consumes the streams this
 	// node has subscribers for, so several API nodes deliver each other's
-	// events; DualWrite keeps local delivery immediate.
+	// events; DualWrite keeps local delivery immediate. A single replica has
+	// no other node to reach and turns it off (REALTIME_RELAY=false).
 	var broadcaster realtime.Broadcaster = hub
 	var relay *realtime.RedisRelay
-	if rdb != nil {
+	if rdb != nil && cfg.RealtimeRelay {
 		relay = realtime.NewRedisRelayWithClients(hub, rdb, realtime.NewRelayReadClient(rdb))
 		relay.Start(ctx)
 		broadcaster = realtime.NewDualWriteBroadcaster(hub, relay)
 	}
 	pub := realtime.NewPublisher(broadcaster, log)
+	// Room-wide frames (SendToUsers) are delivered here, off the request that
+	// raised them; it stops after everything that publishes, before the relay.
+	fanoutCtx, fanoutCancel := context.WithCancel(context.Background())
+	defer fanoutCancel()
+	fanoutDone := make(chan struct{})
+	go func() { pub.Run(fanoutCtx); close(fanoutDone) }()
 	// SMTP when SMTP_HOST is set; otherwise messages (and verification codes)
 	// are printed to the log, which is what local development runs on.
 	sender, err := mail.New(mail.SMTPConfig{
@@ -252,7 +262,7 @@ func main() {
 	// Chat rooms and in-room meeting events are scopes a socket must be let into;
 	// both authorizers fail closed.
 	hub.SetAuthorizer(realtime.ScopeAuthorizers{
-		realtime.ScopeChat:    realtime.ChatScopeAuthorizer{Gate: chatSvc},
+		realtime.ScopeChat:    realtime.NewChatScopeAuthorizer(chatSvc),
 		realtime.ScopeMeeting: realtime.NewMeetingScopeAuthorizer(meetingSvc),
 	})
 	// Directory and department events belong to the organization, so every
@@ -340,12 +350,17 @@ func main() {
 	dispatcher.RegisterLane(outbox.LaneProvider, meetingSvc.ProviderConsumer())
 	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
 	dispatcher.Register(realtimeConsumer)
+	// Sockets are checked only when they connect or subscribe; this closes
+	// the ones a committed removal, kick or sign-out has taken access from.
+	// Notify lane: a kick re-asks the database once per holding socket.
+	dispatcher.RegisterLane(outbox.LaneNotify, realtime.NewAccessRevoker(hub, membershipCache))
 	auditExports := service.NewAuditExportConsumer(q, store)
 	auditExports.SetFileService(pool, fileSvc)
 	dispatcher.RegisterLane(outbox.LaneSlow, auditExports)
 	dispatcher.RegisterLane(outbox.LaneSlow, outbox.WebhookConsumer{})
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
+	dispatcher.RegisterLane(outbox.LaneSlow, service.NewFileThumbnailConsumer(fileSvc))
 	// Notifications are the first bounded context fed purely by the outbox:
 	// the consumer turns committed events into inbox rows, the push consumer
 	// delivers notification.push, and two jobs (digest, reminder) run beside
@@ -399,6 +414,7 @@ func main() {
 		digest.SetMetrics(reg.Notifications)
 		graphMarker.SetMetrics(reg.Graph)
 		graphWorker.SetMetrics(reg.Graph)
+		readiness.SetMetrics(reg.Readiness)
 	}
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
@@ -412,6 +428,10 @@ func main() {
 	go func() { billingSvc.RunWorkers(runCtx); close(billingWorkersDone) }()
 	go digest.Run(runCtx)
 	go notification.NewMeetingReminder(notifConsumer).Run(runCtx)
+	// Chat reminders (H16) fire from here, not the browser; stops with
+	// runCancel and is awaited below.
+	chatRemindersDone := make(chan struct{})
+	go func() { chatSvc.NewChatReminderWorker().Run(runCtx); close(chatRemindersDone) }()
 	// Run returns only once every lane has stopped, so awaiting dispatcherDone
 	// at shutdown awaits all of them.
 	dispatcherDone := make(chan struct{})
@@ -583,9 +603,15 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	// srv.Shutdown never sees hijacked WebSockets. Close them with 1012 in
+	// batches over 8s, inside the same 10s budget, so clients reconnect to
+	// the other nodes gradually; events keep flowing to the ones still open.
+	wsDrained := make(chan struct{})
+	go func() { hub.DrainConnections(shutdownCtx, 8*time.Second); close(wsDrained) }()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Warn("http shutdown", "err", err)
 	}
+	<-wsDrained
 	stopWorker()
 	select {
 	case <-outboxDone:
@@ -617,6 +643,11 @@ func main() {
 		log.Warn("meetings: auto-end did not stop in time")
 	}
 	select {
+	case <-chatRemindersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("chat: reminder worker did not stop in time")
+	}
+	select {
 	case <-fileGCDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("files: gc worker did not stop in time")
@@ -640,6 +671,12 @@ func main() {
 	case <-billingWorkersDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("billing: workers did not stop in time")
+	}
+	fanoutCancel()
+	select {
+	case <-fanoutDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("realtime: fan-out queue did not drain in time")
 	}
 	if relay != nil {
 		relay.Stop()

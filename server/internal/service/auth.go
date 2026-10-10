@@ -84,14 +84,14 @@ func sessionMetaFrom(ctx context.Context) SessionMeta {
 // A failure to write the audit row must not fail the request it describes: the
 // person still logged in, and a log that can refuse a login is a worse
 // availability risk than a gap in the log. It is logged instead.
-func (s *AuthService) recordAuth(ctx context.Context, action, userID string, meta map[string]any) {
+func (s *AuthService) recordAuth(ctx context.Context, action, userID string, meta map[string]any, emit ...audit.Event) {
 	if err := auditRecorder.Record(ctx, s.q, audit.Entry{
 		OrganizationID: audit.NoOrganization,
 		Actor:          audit.User(userID),
 		Action:         action,
 		ResourceType:   "user", ResourceID: userID,
 		Metadata: meta,
-	}); err != nil {
+	}, emit...); err != nil {
 		slog.Warn("audit: credential event not recorded", "action", action, "err", err)
 	}
 }
@@ -227,7 +227,8 @@ func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
 		if _, err := s.q.RevokeSessionForUser(ctx, db.RevokeSessionForUserParams{UserID: rt.UserID, SessionID: rt.SessionID}); err != nil {
 			return err
 		}
-		s.recordAuth(ctx, audit.ActionAuthSessionRevoked, rt.UserID, map[string]any{"scope": "one", "reason": "logout"})
+		s.recordAuth(ctx, audit.ActionAuthSessionRevoked, rt.UserID, map[string]any{"scope": "one", "reason": "logout"},
+			sessionRevoked(rt.UserID, rt.SessionID))
 	}
 	return nil
 }
@@ -370,7 +371,7 @@ func (s *AuthService) mintSession(ctx context.Context, u db.User, sessionID, inh
 		sessionID = util.NewID()
 		newDevice = s.isNewDevice(ctx, u.ID, meta.UserAgent)
 	}
-	access, err := s.minter.MintSession(u.ID, sessionID)
+	access, err := s.minter.MintWebSession(u.ID, sessionID)
 	if err != nil {
 		return Session{}, err
 	}

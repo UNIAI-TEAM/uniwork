@@ -17,7 +17,7 @@ import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { messageGrouping } from "./native-chat-message-grouping";
 import { messageDayKey } from "./chat-message-time";
-import { ChatDaySeparator } from "./chat-day-separator";
+import { ChatDaySeparator, ChatUnreadSeparator } from "./chat-day-separator";
 
 export type NativeChatMessageActions = {
   onReply: (message: ChatMessage | null) => void;
@@ -49,6 +49,8 @@ export type NativeChatMessageContext = {
 /** Per-row flags, worked out once for the whole timeline. */
 export type NativeChatRowLayout = {
   opensDay: boolean;
+  /** First message from someone else after the reader's pre-open read pointer. */
+  opensUnread: boolean;
   compactTop: boolean;
   showAvatar: boolean;
   lastOfRun: boolean;
@@ -66,17 +68,25 @@ export type NativeChatRowLayout = {
  */
 export function layoutNativeChatMessages(
   messages: ChatMessage[],
-  input: { currentUserId: string; youLabel: string; nameContext: NameContextEntry[]; peerLastReadAt: string | null },
+  input: {
+    currentUserId: string;
+    youLabel: string;
+    nameContext: NameContextEntry[];
+    peerLastReadAt: string | null;
+    unreadSince?: string | null;
+  },
 ): NativeChatRowLayout[] {
   const names = new Map(input.nameContext.map((entry) => [entry.user_id, entry.display_name?.trim() ?? ""]));
   const byId = new Map(messages.map((message) => [message.id, message]));
   const receiptIndex = latestSeenOwnMessageIndex(messages, input.currentUserId, input.peerLastReadAt);
   const grouping = messages.map((_, index) => messageGrouping(messages, index));
+  const unreadIndex = firstUnreadIndex(messages, input.currentUserId, input.unreadSince ?? null);
   return messages.map((message, index) => {
     const previous = messages[index - 1];
     const next = grouping[index + 1];
     return {
       opensDay: !previous || messageDayKey(previous.ts) !== messageDayKey(message.ts),
+      opensUnread: index === unreadIndex,
       compactTop: grouping[index]?.compactTop ?? false,
       showAvatar: grouping[index]?.showAvatar ?? true,
       lastOfRun: !next || !next.compactTop,
@@ -96,6 +106,20 @@ export function layoutNativeChatMessages(
           : undefined,
     };
   });
+}
+
+/** Sent-at in ms, from the micro-precision cursor when there is one (created_at is whole seconds). */
+function sentAtMs(message: ChatMessage): number {
+  const micros = Number(message.cursor?.split(".")[0]);
+  return Number.isFinite(micros) && micros > 0 ? micros / 1000 : message.ts;
+}
+
+function firstUnreadIndex(messages: ChatMessage[], currentUserId: string, since: string | null): number {
+  const at = since ? Date.parse(since) : Number.NaN;
+  if (Number.isNaN(at)) return -1;
+  return messages.findIndex(
+    (message) => message.sender !== currentUserId && !message.deliveryStatus && sentAtMs(message) > at,
+  );
 }
 
 function MessageBody({
@@ -218,10 +242,11 @@ export const NativeChatMessageItem = memo(function NativeChatMessageItem({
   highlighted: boolean;
 }) {
   const body = <MessageBody message={message} layout={layout} context={context} highlighted={highlighted} />;
-  if (!layout.opensDay) return body;
+  if (!layout.opensDay && !layout.opensUnread) return body;
   return (
     <div>
-      <ChatDaySeparator ts={message.ts} />
+      {layout.opensDay ? <ChatDaySeparator ts={message.ts} /> : null}
+      {layout.opensUnread ? <ChatUnreadSeparator /> : null}
       {body}
     </div>
   );
@@ -239,6 +264,7 @@ function sameRow(
   const b = next.layout;
   return (
     a.opensDay === b.opensDay &&
+    a.opensUnread === b.opensUnread &&
     a.compactTop === b.compactTop &&
     a.showAvatar === b.showAvatar &&
     a.lastOfRun === b.lastOfRun &&

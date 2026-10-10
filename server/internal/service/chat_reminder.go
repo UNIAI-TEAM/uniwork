@@ -42,12 +42,8 @@ type SendReminderMessageInput struct {
 	ReplyToMessageID *string
 }
 
-func reminderFromMetadata(kind string, raw []byte) *ChatReminderInfo {
-	if kind != chatMessageKindReminder || len(raw) == 0 {
-		return nil
-	}
-	meta := decodeChatMessageMetadata(raw)
-	if meta.Reminder == nil || strings.TrimSpace(meta.Reminder.Body) == "" {
+func reminderFromMetadata(kind string, meta chatMessageMetadata) *ChatReminderInfo {
+	if kind != chatMessageKindReminder || meta.Reminder == nil || strings.TrimSpace(meta.Reminder.Body) == "" {
 		return nil
 	}
 	return &ChatReminderInfo{
@@ -108,6 +104,14 @@ func (s *ChatService) SendReminderMessage(
 	}); err != nil {
 		return ChatMessageRow{}, err
 	}
+	// A due reminder notifies every member, so it takes the same gate as @all.
+	roomMemberIDs, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := s.requireMayNotifyRoom(ctx, userID, room, len(roomMemberIDs)); err != nil {
+		return ChatMessageRow{}, err
+	}
 
 	repeat := normalizeReminderRepeat(in.Repeat)
 	payload := ChatReminderPayload{
@@ -120,8 +124,20 @@ func (s *ChatService) SendReminderMessage(
 		return ChatMessageRow{}, err
 	}
 
+	u, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	_, tz := homeLocation(u.Timezone)
+
 	anchorWS := roomAnchorWorkspaceID(room)
-	msg, err := s.q.CreateChatReminderMessage(ctx, db.CreateChatReminderMessageParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	msg, err := q.CreateChatReminderMessage(ctx, db.CreateChatReminderMessageParams{
 		ID:             util.NewID(),
 		RoomID:         room.ID,
 		OrganizationID: room.OrganizationID,
@@ -133,9 +149,16 @@ func (s *ChatService) SendReminderMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-
-	u, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
+	// The due row the reminder worker fires from (H16); the creator's zone
+	// keeps a repeat on the same wall-clock time.
+	if err := q.CreateChatReminder(ctx, db.CreateChatReminderParams{
+		MessageID: msg.ID, OrganizationID: room.OrganizationID, WorkspaceID: anchorWS,
+		RoomID: room.ID, CreatedBy: userID, Repeat: repeat, Timezone: tz,
+		RemindAt: pgtype.Timestamptz{Time: remindAt, Valid: true},
+	}); err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return ChatMessageRow{}, err
 	}
 	createdAt := msg.CreatedAt.Time
@@ -143,19 +166,6 @@ func (s *ChatService) SendReminderMessage(
 		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	ev := Event{
-		Type: "chat.message.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace, chatRoomKindChannel:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID)
 	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
 }

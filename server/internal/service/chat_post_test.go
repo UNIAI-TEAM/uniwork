@@ -14,7 +14,7 @@ func TestPostEncodeDecodeMetadata(t *testing.T) {
 	if err != nil || len(meta) == 0 {
 		t.Fatalf("encode pinned: err=%v meta=%s", err, meta)
 	}
-	info := postFromMetadata(chatMessageKindPost, meta, "  Nội dung dài  ")
+	info := postFromMetadata(chatMessageKindPost, decodeChatMessageMetadata(meta), "  Nội dung dài  ")
 	if info == nil || info.Title != "Thông báo nghỉ lễ" || info.Body != "Nội dung dài" || !info.PinToTop {
 		t.Fatalf("decode pinned: %+v", info)
 	}
@@ -23,20 +23,20 @@ func TestPostEncodeDecodeMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode plain: %v", err)
 	}
-	info = postFromMetadata(chatMessageKindPost, plain, "Body")
+	info = postFromMetadata(chatMessageKindPost, decodeChatMessageMetadata(plain), "Body")
 	if info == nil || info.Title != "Update" || info.PinToTop {
 		t.Fatalf("decode plain: %+v", info)
 	}
 }
 
 func TestPostFromMetadataBranches(t *testing.T) {
-	if postFromMetadata("note", nil, "x") != nil {
+	if postFromMetadata("note", decodeChatMessageMetadata(nil), "x") != nil {
 		t.Fatal("wrong kind should be nil")
 	}
-	if postFromMetadata(chatMessageKindPost, nil, "   ") != nil {
+	if postFromMetadata(chatMessageKindPost, decodeChatMessageMetadata(nil), "   ") != nil {
 		t.Fatal("blank title+body should be nil")
 	}
-	if got := postFromMetadata(chatMessageKindPost, []byte(`{"post":{"title":"Hi"}}`), "Body"); got == nil || got.Title != "Hi" {
+	if got := postFromMetadata(chatMessageKindPost, decodeChatMessageMetadata([]byte(`{"post":{"title":"Hi"}}`)), "Body"); got == nil || got.Title != "Hi" {
 		t.Fatalf("title from metadata: %+v", got)
 	}
 }

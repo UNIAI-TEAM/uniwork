@@ -67,7 +67,7 @@ func TestMeetingScopeFailsClosedWithoutAnAuthorizer(t *testing.T) {
 
 	// A chat-only authorizer has nothing to say about meetings either.
 	hub2 := NewHub()
-	hub2.SetAuthorizer(ChatScopeAuthorizer{})
+	hub2.SetAuthorizer(NewChatScopeAuthorizer(nil))
 	c2 := newDirectHubClient(hub2, "u1", "ws1")
 	c2.handleSubscribe(ScopeMeeting, "m1")
 	assertSubscribeError(t, c2, "forbidden")

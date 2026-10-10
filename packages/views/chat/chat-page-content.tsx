@@ -441,6 +441,7 @@ export function ChatPageContent({
                   }
                   onFollowUp={followUpUi.onFollowUp}
                   onActiveThreadRootIdChange={onActiveThreadRootIdChange}
+                  unreadSince={catchUpUi.unreadSince}
                   refreshKey={messageRefreshKey}
                   showSenderName={
                     target.kind === "workspace" ||

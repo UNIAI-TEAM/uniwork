@@ -13,9 +13,13 @@ export const NOTIFICATION_KINDS = [
   "role_changed",
   "audit_export_ready",
   "chat_follow_up",
+  "chat_reminder",
   "email_hub_new_mail",
   "document_commented",
   "document_mentioned",
+  "chat_mentioned",
+  "chat_dm",
+  "chat_thread_replied",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

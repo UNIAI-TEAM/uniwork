@@ -14,11 +14,10 @@
    ```sh
    curl -s -o /dev/stderr -w '%{http_code}\n' http://<api>:8080/readyz | jq
    ```
-   Body có `ready` và `checks[]` với `name` ∈ `db`, `migrations`, `redis` (redis chỉ khi đặt `REDIS_URL`), mỗi check có `ok` và `detail`.
-   - `db` fail: Postgres không trả `SELECT 1` trong 500 ms → DB chết, mạng, hoặc pool cạn (dashboard *UniWork · DB*).
-   - `migrations` fail: `detail` nêu version đã áp dụng ≠ version embedded trong binary → deploy binary mới mà chưa chạy migrate (hoặc rollback binary sau khi đã migrate).
-   - `redis` fail: Redis không PING.
-   - **`/readyz` không kiểm S3**: không có probe rẻ cho bucket (quyết định 8 trong plan). Upload lỗi mà readyz vẫn xanh → xem log `storage:` và `S3_*` trong env, không phải alert này.
+   Body có `ready` và `checks[]` với `name` ∈ `db`, `migrations`, `redis` (chỉ khi đặt `REDIS_URL`), `storage` (khi có adapter), mỗi check có `ok` và `detail`. Chỉ `db` và `migrations` làm `/readyz` trả 503; `redis` và `storage` fail vẫn 200, chỉ hiện trong body và trang admin.
+   - `db` fail: Postgres không trả `SELECT 1` trong 2 s → DB chết, mạng, hoặc pool cạn (dashboard *UniWork · DB*).
+   - `migrations` fail: `detail` nêu version đã áp dụng **cũ hơn** version embedded trong binary → deploy binary mới mà chưa chạy migrate. Binary cũ chạy trên schema mới hơn (rollback) vẫn ready.
+   - Redis hỏng không còn làm alert này kêu: xem [RedisUnreachable](RedisUnreachable.md) (gauge `uniwork_readiness_dependency_up`, cũng có `dependency="storage"`) và check `redis` trong body.
 2. Postgres: `docker compose ps postgres`, `docker compose logs --since 10m postgres`. Redis tương tự.
 3. Nếu chỉ một node sau load balancer fail → node đó mất mạng tới DB; các node khác xanh thì traffic không ảnh hưởng.
 4. Build vừa đổi? `uniwork_build_info` trên dashboard *UniWork · API* — nếu commit mới và `migrations` fail thì đây là deploy thiếu bước migrate.
@@ -30,9 +29,7 @@
   make migrate-up              # dùng DATABASE_URL của env hiện tại
   # hoặc trong container: docker compose exec server /app/migrate up
   ```
-  Binary cũ hơn DB (đã migrate rồi mới rollback) → deploy lại binary mới hoặc `make migrate-down` **chỉ khi** migration có `.down.sql` an toàn dữ liệu.
 - `db` fail → khởi động Postgres, kiểm tra ổ đĩa đầy (`df -h` trên volume `pgdata`), `max_connections`. API tự nối lại, không cần restart.
-- `redis` fail → khởi động Redis; nếu Redis không thiết yếu cho cài đặt này, bỏ `REDIS_URL` (realtime chạy trong tiến trình, chỉ đúng khi có một replica API).
 - Mọi thứ xanh mà probe vẫn fail → blackbox không tới được `server:8080` (đổi tên service/port trong compose?) — sửa `deploy/prometheus.yml`, không phải API.
 
 ## Leo thang

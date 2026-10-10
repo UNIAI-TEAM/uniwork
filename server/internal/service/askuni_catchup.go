@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -24,6 +23,9 @@ type CatchUpInput struct {
 	RoomID       string
 	ThreadRootID string
 	Locale       string
+	// Since is the room read pointer the client saw before opening the room
+	// (opening marks it read). Room scope only; nil uses the stored pointer.
+	Since *time.Time
 }
 
 // CatchUpActionItemDTO is one suggested follow-up; creating a task is a
@@ -66,7 +68,7 @@ func (s *AskUNIService) CatchUp(ctx context.Context, userID, workspaceID string,
 		return CatchUpResult{}, err
 	}
 
-	msgs, since, scope, mode, err := s.catchUpMessages(ctx, userID, workspaceID, roomID, strings.TrimSpace(in.ThreadRootID))
+	msgs, since, scope, mode, err := s.catchUpMessages(ctx, userID, workspaceID, roomID, strings.TrimSpace(in.ThreadRootID), in.Since)
 	if err != nil {
 		return CatchUpResult{}, err
 	}
@@ -100,7 +102,14 @@ func (s *AskUNIService) CatchUp(ctx context.Context, userID, workspaceID string,
 		sources = append(sources, ai.Source{Kind: "chat", Title: title, Href: href, Excerpt: excerpt})
 		idByHref[href] = m.ID
 	}
+	// BuildContext keeps the head; the brief is about the latest, so hand it
+	// the most recent sources, still oldest first.
+	truncatedHead := len(sources) > ai.MaxSources
+	if truncatedHead {
+		sources = sources[len(sources)-ai.MaxSources:]
+	}
 	pack, truncated := ai.BuildContext(sources)
+	truncated = truncated || truncatedHead
 	if len(pack) == 0 {
 		return empty, nil
 	}
@@ -164,7 +173,7 @@ func catchUpExcerpt(m ChatMessageRow) string {
 }
 
 func (s *AskUNIService) catchUpMessages(
-	ctx context.Context, userID, workspaceID, roomID, threadRootID string,
+	ctx context.Context, userID, workspaceID, roomID, threadRootID string, clientSince *time.Time,
 ) ([]ChatMessageRow, time.Time, string, string, error) {
 	room, err := s.chat.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if err != nil {
@@ -202,24 +211,18 @@ func (s *AskUNIService) catchUpMessages(
 		return out, since, scope, catchUpCursorMode(usedCursor), nil
 	}
 
-	anchorWS := roomAnchorWorkspaceID(room)
-	rows, err := s.q.ListChatMessagesAfterInRoom(ctx, db.ListChatMessagesAfterInRoomParams{
-		RoomID: roomID, WorkspaceID: anchorWS,
-		AfterAt:  pgtype.Timestamptz{Time: since, Valid: true},
-		MsgLimit: int32(catchUpMsgLimit),
-	})
+	// The room is readable, so a client pointer only picks the window; one in
+	// the future would hide everything and is ignored.
+	if clientSince != nil && clientSince.Before(s.now()) {
+		since, usedCursor = clientSince.UTC(), true
+	}
+	// The newest page of the main timeline, oldest first: the backlog's most
+	// recent end, which is what a reader catching up needs.
+	rows, err := s.chat.listMessages(ctx, userID, room, ListChatMessagesInput{Limit: catchUpMsgLimit, SkipMarkRead: true})
 	if err != nil {
 		return nil, time.Time{}, "", "", err
 	}
-	out := make([]ChatMessageRow, 0, len(rows))
-	for _, row := range rows {
-		msg := chatMessageRowFromAfterRow(row, userID)
-		if msg.SenderID == userID {
-			continue
-		}
-		out = append(out, msg)
-	}
-	return out, since, scope, catchUpCursorMode(usedCursor), nil
+	return catchUpInboundAfter(rows, userID, since), since, scope, catchUpCursorMode(usedCursor), nil
 }
 
 // catchUpCursorMode is "unread" when membership/follower last_read drove the

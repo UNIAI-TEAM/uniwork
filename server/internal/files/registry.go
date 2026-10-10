@@ -174,8 +174,13 @@ var (
 	// chatFileMIMETypes mirrors supportedChatFileContentTypes in the chat
 	// message pipeline, plus text/csv and text/markdown: that pipeline sniffed
 	// both as text/plain and accepted them, and DetectContentType now names
-	// them by their extension.
-	chatFileMIMETypes = []string{"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain", "text/csv", "text/markdown"}
+	// them by their extension. service.TestChatFileAllowlistsAgree holds this
+	// list, that one and the composer's together.
+	chatFileMIMETypes = []string{
+		"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain", "text/csv", "text/markdown",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	}
 	// plainTextCanonicalTypes keeps a text file named .ndjson what the task
 	// attachment and chat file pipelines store today: they sniff it as
 	// text/plain and accept it. NDJSON is an export format, not an upload

@@ -213,7 +213,7 @@ func (s *ChatService) CreateFileMessage(
 		LastReadAt: pgtype.Timestamptz{Time: msg.CreatedAt.Time, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, prep.room.ID)
-	s.publishCreatedChatMessage(ctx, prep.room, msg.ID)
+	s.publishCreatedChatMessage(ctx, prep.room, msg.ID, msg.SenderID)
 	return chatMessageRowFromDB(msg, prep.senderName), true, nil
 }
 
@@ -224,7 +224,7 @@ func (s *ChatService) CreateFileMessage(
 // Prepare/Create pair stays for the unwired path until the module cutover.
 type SendFileMessageInput struct {
 	Filename         string
-	Body             io.Reader
+	Body             io.ReadSeeker
 	ReplyToMessageID *string
 	ClientMsgID      string
 }
@@ -257,13 +257,19 @@ func (s *ChatService) SendFileMessage(
 }
 
 // OpenChatFileMessage authorizes the read and opens the file bytes through
-// FileService. An empty Reader means a pre-migration row whose bytes still
-// sit behind the legacy storage object key.
+// FileService; thumb asks for the photo's thumbnail, which is the original
+// until one exists. An empty Reader means a pre-migration row whose bytes
+// still sit behind the legacy storage object key.
 func (s *ChatService) OpenChatFileMessage(
 	ctx context.Context,
 	userID, workspaceID, roomID, messageID string,
+	thumb bool,
 ) (ChatMessageRow, files.Reader, error) {
-	return s.openChatMediaMessage(ctx, userID, workspaceID, roomID, messageID, "file")
+	var variant files.Variant
+	if thumb {
+		variant = files.VariantThumb
+	}
+	return s.openChatMediaMessage(ctx, userID, workspaceID, roomID, messageID, "file", variant)
 }
 
 // GetFileMessage authorizes room/message and returns private object metadata.

@@ -240,6 +240,13 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	if err != nil {
 		return db.OrganizationMember{}, err
 	}
+	// Room membership drives fan-out, follower and unread reads; a person the
+	// gates refuse must not stay listed in the organization's rooms.
+	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
+		OrganizationID: orgID, UserID: targetID,
+	}); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
 		OrganizationID: orgID, Meter: FeatureMembersMax, Delta: -1, Actor: Human(actorID),
 	}); err != nil {
@@ -298,6 +305,13 @@ func (s *OrganizationMemberService) Reactivate(ctx context.Context, actorID, org
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	// Gives back the rooms Deactivate left; it reads deactivated_at, so it
+	// runs before the clear.
+	if err := q.RestoreChatRoomsLeftAtDeactivation(ctx, db.RestoreChatRoomsLeftAtDeactivationParams{
+		OrganizationID: orgID, UserID: targetID,
+	}); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	updated, err := q.ClearOrganizationMemberDeactivated(ctx, db.ClearOrganizationMemberDeactivatedParams{
 		OrganizationID: orgID, UserID: targetID,
 	})
@@ -352,6 +366,11 @@ func (s *OrganizationMemberService) Leave(ctx context.Context, actorID, orgID st
 		return err
 	}
 	if err := q.DeleteOrganizationMember(ctx, db.DeleteOrganizationMemberParams{
+		OrganizationID: orgID, UserID: actorID,
+	}); err != nil {
+		return err
+	}
+	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
 		OrganizationID: orgID, UserID: actorID,
 	}); err != nil {
 		return err

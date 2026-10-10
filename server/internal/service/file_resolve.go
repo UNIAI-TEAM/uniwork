@@ -211,6 +211,13 @@ func (s *FileService) openRecord(ctx context.Context, in files.OpenInput, keep r
 	if err := sessionGrant(rec.session, s.now()); err != nil {
 		return files.Reader{}, err
 	}
+	// The source passed every check above, which is what authorizes its
+	// derivative; without one the original is the variant.
+	if derived, ok, err := s.derivativeRecord(ctx, in); err != nil {
+		return files.Reader{}, err
+	} else if ok {
+		rec = derived
+	}
 	view := fileView(rec.file)
 	if in.Offset >= view.SizeBytes {
 		// Past the end is an empty read, as the fake answers; the proxy route

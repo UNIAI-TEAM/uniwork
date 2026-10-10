@@ -1,10 +1,19 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
 import { listChatRoomMessages, type ChatRoomRecord } from "../api/endpoints/chat";
 import { workspaceKeys } from "../workspaces/hooks";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
+import {
+  CHAT_HISTORY_PAGE_SIZE,
+  flattenRoomTimeline,
+  olderRoomPageParam,
+  type RoomMessagesPageParam,
+} from "./room-timeline";
+import { chatUnreadBadge } from "./chat-room-helpers";
+import { useChatRoomPreferencesStore } from "./room-preferences-store";
 
 export function useWorkspaceChatRoom(workspaceId: string) {
   const authReady = useAuthStore((s) => s.status === "authed");
@@ -60,12 +69,22 @@ export function useChatRooms(workspaceId: string) {
   const authReady = useAuthStore((s) => s.status === "authed");
   return useQuery({
     queryKey: chatKeys.rooms(workspaceId),
-    queryFn: () => chat.listChatRooms(workspaceId),
+    queryFn: ({ signal }) => chat.listChatRooms(workspaceId, signal),
     enabled: !!workspaceId && authReady,
     // After BE restart the reconnect path invalidates this key; keep the
     // sidebar honest even if a prior empty response was briefly cached.
     refetchOnReconnect: "always",
   });
+}
+
+/** The Chat nav badge and tab-title count for one workspace (see chatUnreadBadge). */
+export function useChatUnreadBadge(workspaceId: string): number {
+  const rooms = useChatRooms(workspaceId).data;
+  const byRoomId = useChatRoomPreferencesStore((s) => s.byRoomId);
+  return useMemo(
+    () => chatUnreadBadge(rooms ?? [], (id) => byRoomId[id]?.notificationsMuted ?? false),
+    [rooms, byRoomId],
+  );
 }
 
 export function useResolveDMRoom(workspaceId: string) {
@@ -170,9 +189,9 @@ export function useUpdateChatRoomSettings(workspaceId: string) {
         name: input.name,
         member_permissions: input.member_permissions,
       }),
-    onSuccess: (_data, variables) => {
+    // Settings change no message (the server writes none): the timeline stays.
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
-      void qc.invalidateQueries({ queryKey: chatKeys.roomMessages(workspaceId, variables.roomId) });
     },
   });
 }
@@ -187,13 +206,22 @@ export function useChatRoomMessages(
   // Default false: listing must not clear unread before CatchUp. Callers that
   // intentionally advance the cursor pass markRead: true (or use MarkRoomRead).
   const markRead = options?.markRead === true;
-  return useQuery({
+  // One infinite query per room (H4): older pages chain from the newest by
+  // cursor, and a refetch re-chains them, so the timeline never has a hole.
+  return useInfiniteQuery({
     queryKey: chatKeys.roomMessages(workspaceId, roomId ?? ""),
-    queryFn: () =>
-      listChatRoomMessages(workspaceId, roomId!, {
-        limit,
-        mark_read: markRead,
-      }),
+    queryFn: ({ pageParam }: { pageParam: RoomMessagesPageParam }) =>
+      listChatRoomMessages(
+        workspaceId,
+        roomId!,
+        pageParam === null
+          ? { limit, mark_read: markRead }
+          : { ...pageParam, limit: CHAT_HISTORY_PAGE_SIZE, mark_read: false },
+      ),
+    initialPageParam: null as RoomMessagesPageParam,
+    getNextPageParam: (lastPage, allPages, lastPageParam) =>
+      olderRoomPageParam(lastPage, allPages, lastPageParam, limit),
+    select: flattenRoomTimeline,
     enabled: !!workspaceId && !!roomId && authReady,
     staleTime: 5_000,
     refetchOnReconnect: "always",
