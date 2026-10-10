@@ -472,3 +472,76 @@ tarball above (the fork CI does not publish a `dist-web` tarball).
 Module-specific capability keys belong to the module workers. The Sheets
 sidecar question (GO-D3) keeps sidecar-only operations hidden through
 capability keys.
+
+## Images and sibling files in Markdown/HTML (CONTRACT A1, UNI-1232)
+
+Markdown and HTML documents written on the desktop point at pictures (and, for
+HTML, stylesheets and scripts) by a RELATIVE path. On UniWork these resolve as
+follows; the host fills `OpenPayload.assets` with what resolves and grants
+`images` so pasted pictures become document assets instead of `data:` URIs.
+
+**Where a relative path resolves.** The server normalizes a path as written in
+the document (strip `./`, one percent-decode, drop `?query` and `#fragment`;
+refuse absolute paths, schemes, `\`, empty or `.` segments, and a `..` that
+climbs past the workspace root; at most 512 bytes) and tries, in order:
+
+1. a **document asset** of this document: `assets/<name>` is the newest asset
+   whose stored file name is `<name>` (what the frame's `api.images.upload`
+   sent as `name`);
+2. a **sibling file document** in the Documents tree: the path walks from the
+   document's parent (`parent_id`; none = the workspace root), each directory
+   segment a child page or document whose title equals it, `..` one level up,
+   and the last segment a live file document whose stored file name (else its
+   title) equals it. The caller must be able to view THAT document too (its own
+   ACL, rechecked on every byte request), it must be in the same workspace, and
+   only these types resolve: PNG, JPEG, GIF, WebP, SVG, CSS, JavaScript.
+
+Nothing else resolves: a path that matches neither is simply absent from the
+map (the frame shows its missing-picture placeholder).
+
+**Open.** `GET /api/v1/office-frame/documents/{id}` (frame token) answers, for
+the markdown and html modules only, `assets: {"<path as written>": "<url>"}`
+for every relative reference the current version uses (Markdown `![](..)`,
+reference definitions, `<img src>`, `<source src>`, `srcset` entries,
+`<link href>`, `<script src>`, `poster`, CSS `url(..)`; at most 200 paths, the
+document read up to 4 MiB). The host copies it into `OpenPayload.assets`
+(`api.open`); keys are exactly as written in the document (e.g. `./assets/a.png`
+and `assets/a.png` may both appear), values are origin-relative URLs.
+
+**URLs.** Every value is a same-origin, header-less, signed URL:
+
+- asset: `/api/v1/office-frame/documents/{id}/assets/{assetId}?sig=ofa1....`
+- sibling: `/api/v1/office-frame/documents/{id}/linked/{linkedDocumentId}?sig=ofl1....`
+
+`GET`/`HEAD` with `credentials: 'omit'`. A signature binds the document, the
+target and the user, lives `OfficeFrameAssetURLTTL` (1 hour; the frame token
+stays 10 min) and every request rechecks view access, so a revoked share stops
+it at once. The web app (`apps/web/next.config.mjs` rewrites) proxies exactly
+these two byte paths to the API origin, so they are same-origin with the frame
+(`img-src 'self'`, `connect-src 'self'`) wherever the API lives. Responses:
+`Content-Type` by the file's extension (`image/png|jpeg|gif|webp`,
+`image/svg+xml`, `text/css; charset=utf-8`, `text/javascript; charset=utf-8`),
+`X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox;
+default-src 'none'` (an SVG opened directly runs no script; inside `<img>` it
+never does), `Cache-Control: private, no-store`.
+
+**Paste / drop upload.** With `images` granted (markdown and html, edit access
+only) the frame sends `api.images.upload` `{fileId, name, mimeType, data}`
+with `name` = `image-<stamp>-<rand>.<ext>`; the host posts it as multipart
+`file` (filename = `name`) to `POST /api/v1/office-frame/documents/{id}/assets`
+(frame token, edit access, ≤ 10 MiB, PNG/JPEG/GIF/WebP; SVG is not uploaded:
+the frame keeps a pasted SVG as a `data:` URI) and answers
+`{imageId: asset_id, url}`; the frame authors `assets/<name>` and learns the
+URL. On the next open the server resolves `assets/<name>` through rule 1. A
+failed upload is a protocol error; the frame embeds the picture instead.
+
+**HTML preview.** `preview.html` keeps its sandboxed opaque-origin policy
+unchanged (`img-src data: blob: https:`, `connect-src 'none'`): the frame
+inlines what the preview needs before handing the copy over (pictures as
+`data:` URIs as today, mapped stylesheets as `<style>`, mapped scripts as
+inline `<script>`, fetched same-origin from the map), so no policy is widened.
+
+**Frame side (fork) to do.** Accept `image/webp` and `image/svg+xml` in the
+asset store's display/read paths (upload stays PNG/JPEG/GIF/WebP), inline
+mapped CSS/JS into the preview copy, and treat a mapped URL answering 401/403
+as missing. No new message types and no protocol version change.
