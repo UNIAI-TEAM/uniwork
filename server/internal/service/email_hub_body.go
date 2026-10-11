@@ -172,7 +172,7 @@ func (s *EmailHubService) prefetchUncachedBodies(ctx context.Context, acc db.Ema
 	if !s.gov.tryWithIMAP(acc.ID, func() error {
 		sess, mailboxes, openErr := s.openIMAPWithMailboxes(ctx, acc)
 		if openErr != nil {
-			s.log.Warn("email hub prefetch imap failed", "account_id", acc.ID, "err", openErr)
+			s.log.Warn("email hub prefetch imap failed", "account_id", acc.ID, "code", emailHubErrCode(openErr))
 			return openErr
 		}
 		defer sess.Close()
@@ -206,7 +206,7 @@ func (s *EmailHubService) recordBodyPrefetchFailure(threadID string, err error) 
 		s.log.Debug("email hub prefetch body deferred", "thread_id", threadID, "err", err)
 	default:
 		s.gov.deferBodyPrefetch(threadID, emailHubPrefetchFailureBackoff)
-		s.log.Warn("email hub prefetch body failed", "thread_id", threadID, "err", err)
+		s.log.Warn("email hub prefetch body failed", "thread_id", threadID, "code", emailHubErrCode(err))
 	}
 }
 

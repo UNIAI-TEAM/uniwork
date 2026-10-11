@@ -5,10 +5,12 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
@@ -104,7 +106,7 @@ func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID 
 	if s.testHookInitialSync != nil {
 		s.testHookInitialSync(ctx, row)
 	} else if _, _, syncErr := s.syncAccount(ctx, row, false, true); syncErr != nil {
-		s.log.Warn("email hub initial sync failed", "account_id", row.ID, "err", syncErr)
+		s.log.Warn("email hub initial sync failed", "account_id", row.ID, "code", emailHubErrCode(syncErr))
 	}
 	updated, err := s.q.GetEmailHubAccount(ctx, db.GetEmailHubAccountParams{
 		ID: row.ID, UserID: actor.ID, OrganizationID: ws.OrganizationID,
@@ -129,7 +131,7 @@ func (s *EmailHubService) resetEmailHubServerCache(ctx context.Context, acc db.E
 		s.gov.forgetMailboxes(acc.ID)
 		return cleanUpDisconnectedEmailHubAccount(ctx, s.q, acc.ID, acc.OrganizationID)
 	}); err != nil {
-		s.log.Warn("email hub server change cleanup failed", "account_id", acc.ID)
+		s.log.Warn("email hub server change cleanup failed", "account_id", acc.ID, "code", emailHubErrCode(err))
 	}
 }
 
@@ -243,4 +245,50 @@ func classifyEmailHubConnectError(err error) (string, error) {
 	default:
 		return "connect_failed", ErrEmailHubConnectFailed
 	}
+}
+
+// emailHubErrCode names a mail-server failure for a log line. Dial, DNS and
+// TLS errors and server replies can carry the host, so logs carry this instead.
+func emailHubErrCode(err error) string {
+	var pgErr *pgconn.PgError
+	switch {
+	// Before the classifier: context.DeadlineExceeded is also a net.Error.
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case errors.Is(err, ErrEmailHubReauthRequired):
+		return "auth_failed"
+	case errors.As(err, &pgErr):
+		return "db"
+	}
+	code, _ := classifyEmailHubConnectError(err)
+	return code
+}
+
+// redactEmailHubMailErr is what an exported method hands a handler for a
+// mail-server failure: the errors handlers map survive, anything else becomes
+// its code, so mapServiceError's 500 log never prints a host.
+func redactEmailHubMailErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	for _, keep := range []error{
+		ErrEmailHubReauthRequired, ErrNotFound, ErrEmailHubNotConfigured, ErrEmailHubSMTPDisabled,
+		context.Canceled, context.DeadlineExceeded,
+	} {
+		if errors.Is(err, keep) {
+			return keep // the bare sentinel: the text wrapped around it may name the host
+		}
+	}
+	var ve ValidationError
+	var ce CodedError
+	var pgErr *pgconn.PgError
+	switch {
+	case errors.As(err, &ve):
+		return ve
+	case errors.As(err, &ce):
+		return ce
+	case errors.As(err, &pgErr):
+		return pgErr
+	}
+	return fmt.Errorf("email hub mail server: %s", emailHubErrCode(err))
 }

@@ -291,7 +291,7 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 	defer s.gov.endInteractive(accountID)
 	body, err := s.fetchThreadBodyInteractive(ctx, acc, row)
 	if err != nil {
-		s.log.Warn("email hub fetch body failed", "thread_id", threadID, "err", err)
+		s.log.Warn("email hub fetch body failed", "thread_id", threadID, "code", emailHubErrCode(err))
 		return view, nil
 	}
 	if imapclient.BodyIsSnippetPlaceholder(body.HTML, body.Text, view.Snippet) {
@@ -587,13 +587,13 @@ func (s *EmailHubService) syncMarkUnreadOnIMAP(acc db.EmailHubAccount, row db.Em
 	_ = s.gov.withIMAP(acc.ID, func() error {
 		sess, mailboxes, err := s.openIMAPWithMailboxes(context.Background(), acc)
 		if err != nil {
-			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "err", err)
+			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "code", emailHubErrCode(err))
 			return err
 		}
 		defer sess.Close()
 		mailbox := mailboxes.Resolve(row.Folder)
 		if imapErr := sess.MarkUnread(mailbox, uint32(row.ImapUid)); imapErr != nil {
-			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "err", imapErr)
+			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "code", emailHubErrCode(imapErr))
 			return imapErr
 		}
 		return nil
@@ -604,13 +604,13 @@ func (s *EmailHubService) syncMarkReadOnIMAP(acc db.EmailHubAccount, row db.Emai
 	_ = s.gov.withIMAP(acc.ID, func() error {
 		sess, mailboxes, err := s.openIMAPWithMailboxes(context.Background(), acc)
 		if err != nil {
-			s.log.Warn("email hub mark read imap failed", "thread_id", threadID, "err", err)
+			s.log.Warn("email hub mark read imap failed", "thread_id", threadID, "code", emailHubErrCode(err))
 			return err
 		}
 		defer sess.Close()
 		mailbox := mailboxes.Resolve(row.Folder)
 		if imapErr := sess.MarkRead(mailbox, uint32(row.ImapUid)); imapErr != nil {
-			s.log.Warn("email hub mark read imap failed", "thread_id", threadID, "err", imapErr)
+			s.log.Warn("email hub mark read imap failed", "thread_id", threadID, "code", emailHubErrCode(imapErr))
 			return imapErr
 		}
 		return nil
@@ -621,13 +621,13 @@ func (s *EmailHubService) syncMarkStarredOnIMAP(acc db.EmailHubAccount, row db.E
 	_ = s.gov.withIMAP(acc.ID, func() error {
 		sess, mailboxes, err := s.openIMAPWithMailboxes(context.Background(), acc)
 		if err != nil {
-			s.log.Warn("email hub mark starred imap failed", "thread_id", threadID, "err", err)
+			s.log.Warn("email hub mark starred imap failed", "thread_id", threadID, "code", emailHubErrCode(err))
 			return err
 		}
 		defer sess.Close()
 		mailbox := mailboxes.Resolve(row.Folder)
 		if imapErr := sess.MarkStarred(mailbox, uint32(row.ImapUid), starred); imapErr != nil {
-			s.log.Warn("email hub mark starred imap failed", "thread_id", threadID, "err", imapErr)
+			s.log.Warn("email hub mark starred imap failed", "thread_id", threadID, "code", emailHubErrCode(imapErr))
 			return imapErr
 		}
 		return nil
@@ -664,7 +664,7 @@ func (s *EmailHubService) Sync(
 		synced, newUnread, syncErr = s.syncSingleFolder(ctx, acc, folder, reconcile, force, live, false)
 	}
 	if syncErr != nil {
-		return false, syncErr
+		return false, redactEmailHubMailErr(syncErr)
 	}
 	if synced {
 		s.emitInboxChanged(ctx, acc)

@@ -61,7 +61,7 @@ func (s *EmailHubService) ListThreads(
 			ids, indexErr := s.indexSearchResults(ctx, acc, searchFolder, query)
 			if indexErr != nil {
 				s.log.Warn("email hub imap search failed",
-					"account_id", acc.ID, "folder", searchFolder, "err", indexErr)
+					"account_id", acc.ID, "folder", searchFolder, "code", emailHubErrCode(indexErr))
 			}
 			hitIDs = append(hitIDs, ids...)
 		}
@@ -101,7 +101,7 @@ func (s *EmailHubService) ListThreads(
 		listAllowsBackfill(in) && backfillSupportedFolder(folder) {
 		if _, backfillErr := s.backfillOlderThreads(ctx, acc, folder, cursorUID); backfillErr != nil {
 			s.log.Warn("email hub backfill failed",
-				"account_id", acc.ID, "folder", folder, "before_uid", cursorUID, "err", backfillErr)
+				"account_id", acc.ID, "folder", folder, "before_uid", cursorUID, "code", emailHubErrCode(backfillErr))
 		} else {
 			rows, err = s.listThreadRows(ctx, in, ws.OrganizationID, folder, hitIDs, beforeSent, beforeID, limit)
 			if err != nil {

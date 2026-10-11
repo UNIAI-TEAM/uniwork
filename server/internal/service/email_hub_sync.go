@@ -120,7 +120,7 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 		defaults := imapclient.MailboxMap(emailhub.DefaultMailboxMap(acc.Provider))
 		mailboxes, listErr := sess.MailboxMap(defaults)
 		if listErr != nil {
-			s.log.Warn("email hub list mailboxes failed", "account_id", acc.ID, "err", listErr)
+			s.log.Warn("email hub list mailboxes failed", "account_id", acc.ID, "code", emailHubErrCode(listErr))
 			mailboxes = defaults
 		}
 		s.gov.setMailboxes(acc.ID, mailboxes)
@@ -130,7 +130,7 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 			var folderNewUnread int
 			state, folderNewUnread, folderErr = s.syncAccountFolderSession(ctx, acc, folder, state, reconcile, sess, mailboxes)
 			if folderErr != nil {
-				s.log.Warn("email hub folder sync failed", "account_id", acc.ID, "folder", folder, "err", folderErr)
+				s.log.Warn("email hub folder sync failed", "account_id", acc.ID, "folder", folder, "code", emailHubErrCode(folderErr))
 				lastErr = folderErr
 				continue
 			}
@@ -341,7 +341,7 @@ func (s *EmailHubService) syncSingleFolder(
 			var listErr error
 			mailboxes, listErr = sess.MailboxMap(defaults)
 			if listErr != nil {
-				s.log.Warn("email hub list mailboxes failed", "account_id", acc.ID, "err", listErr)
+				s.log.Warn("email hub list mailboxes failed", "account_id", acc.ID, "code", emailHubErrCode(listErr))
 				mailboxes = defaults
 			}
 			s.gov.setMailboxes(acc.ID, mailboxes)
@@ -466,7 +466,7 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 		if s.handleAuthError(ctx, acc, creds.Version, err) {
 			err = ErrEmailHubReauthRequired
 		}
-		return false, err
+		return false, redactEmailHubMailErr(err)
 	}
 	defer sess.Close()
 
@@ -482,7 +482,7 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			return false, nil
 		}
-		return false, err
+		return false, redactEmailHubMailErr(err)
 	}
 	if !changed {
 		return false, nil
@@ -496,7 +496,7 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 
 	state, _, err := s.syncAccountFolderSession(ctx, acc, emailHubFolderInbox, parseEmailHubSyncState(acc.SyncState), false, sess, mailboxes)
 	if err != nil {
-		return false, err
+		return false, redactEmailHubMailErr(err)
 	}
 	if s.staleEmailHubSnapshot(acc) {
 		return false, nil
@@ -590,7 +590,7 @@ func (s *EmailHubService) runWorkerBatch(ctx context.Context, reconcile bool) {
 				}
 			}
 			if syncErr != nil {
-				s.log.Warn("email hub worker sync failed", "account_id", acc.ID, "reconcile", reconcile, "err", syncErr)
+				s.log.Warn("email hub worker sync failed", "account_id", acc.ID, "reconcile", reconcile, "code", emailHubErrCode(syncErr))
 			} else {
 				s.enforceEmailHubAccountRetention(ctx, acc)
 			}

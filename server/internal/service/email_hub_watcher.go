@@ -208,7 +208,7 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 			if errors.Is(err, ErrEmailHubReauthRequired) {
 				return
 			}
-			s.log.Warn("email hub watcher idle failed", "account_id", accountID, "err", err)
+			s.log.Warn("email hub watcher idle failed", "account_id", accountID, "code", emailHubErrCode(err))
 			if !retry() {
 				return
 			}
@@ -222,7 +222,7 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 		beforeUnread := s.inboxUnreadForAccount(ctx, acc)
 		synced, newUnread, syncErr := s.syncSingleFolder(ctx, acc, emailHubFolderInbox, false, true, false, true)
 		if syncErr != nil {
-			s.log.Warn("email hub watcher sync failed", "account_id", accountID, "err", syncErr)
+			s.log.Warn("email hub watcher sync failed", "account_id", accountID, "code", emailHubErrCode(syncErr))
 			if !retry() {
 				return
 			}
