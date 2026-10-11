@@ -533,8 +533,10 @@ tar -C dist-web -czf dist-web.tar.gz .
 # publish dist-web.tar.gz where the secret's URL points; the sync verifies it against the pins
 ```
 
-The Docs-only layout (a `dist-web/docs` tarball, as the secret held for
-UNI-1013) still installs docs and warns that the other five are missing: with
+A production build (`NODE_ENV=production`, the web image) refuses anything short
+of all six modules; the Docs-only layout (a `dist-web/docs` tarball, as the
+secret held for UNI-1013) still installs docs and warns, in a development or
+test build, that the other five are missing: with
 that secret the `e2e` job runs the docs frame cases and the other modules'
 cases skip (each module spec skips itself when its bundle is not installed),
 so update the secret together with the pins. `next build` offers a module only

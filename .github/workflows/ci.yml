@@ -493,6 +493,10 @@ jobs:
           go build -o bin/server ./cmd/server
           nohup bin/server > /tmp/server.log 2>&1 &
       - name: Build and start the web app
+        # No NODE_ENV=production here on purpose: that is what makes apps/web/scripts/
+        # office-frame-sync.mjs --ensure fail without a complete source (the image build in
+        # apps/web/Dockerfile sets it), and a PR without secret access must still build and run
+        # the "bundle not installed" cases. With the secret, the source installs all six modules.
         env:
           OFFICE_FRAME_SOURCE: ${{ secrets.OFFICE_FRAME_SOURCE }}
         run: |

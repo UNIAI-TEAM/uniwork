@@ -57,9 +57,14 @@ An archive source (`.tar.gz`, or an https URL to one) is listed before it is
 extracted: only regular files and directories, no absolute or `..` names, at
 most 2000 entries, 160 MiB unpacked, 64 MiB archive, and a 120 s deadline for
 the download and the tar calls. Its manifest and every file digest are then
-checked before anything is copied into `public/`. A deployment that wants the frame must set
-`OFFICE_FRAME_SOURCE` at image build time (the web Dockerfile runs
-`pnpm build`).
+checked before anything is copied into `public/`. A deployment must set
+`OFFICE_FRAME_SOURCE` at image build time: the web Dockerfile runs
+`pnpm build` with `NODE_ENV=production`, and a production build fails
+(`office-frame-sync.mjs --ensure`, `platform/office-frame/frame-production.mjs`)
+unless all six modules are installed and verified. The source reaches the
+Dockerfile as a build arg: `ci/Jenkinsfile.production-app.groovy` (secret-text
+credential `OFFICE_FRAME_SOURCE_CREDENTIALS_ID`) and `docker-compose.prod.yml`.
+Development and test builds (no `NODE_ENV=production`) still build without it.
 
 ## Headers (`apps/web/next.config.mjs` -> `platform/office-frame/frame-headers.mjs`)
 

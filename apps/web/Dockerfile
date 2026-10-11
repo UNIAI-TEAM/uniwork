@@ -13,17 +13,20 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
-# The genoffice Docs web build pinned in apps/web/platform/office-frame/docs.pin.json
-# (docs/office/docs-web-frame.md): an https URL to a .tar.gz of the fork's
-# dist-web/docs/<version>. Unset, the image builds without the frame (/office-frame
-# answers 404): Office documents cannot open on the web, only download / open in
-# the app. There is no in-page editor to fall back to.
+# The genoffice web builds pinned in apps/web/platform/office-frame/<module>.pin.json
+# (docs/office/docs-web-frame.md): an https URL to a .tar.gz of the fork's whole
+# dist-web root, carrying all six modules (docs, pdf, markdown, html, slides, sheets).
+# Required: the build below runs with NODE_ENV=production, and
+# apps/web/scripts/office-frame-sync.mjs --ensure fails it when the source is unset
+# or lacks a module, so an image never ships without the editing UI. Pass it as a
+# build arg from a secret, never as a literal in a file.
 ARG OFFICE_FRAME_SOURCE=
 ENV OFFICE_FRAME_SOURCE=$OFFICE_FRAME_SOURCE
 
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @uniwork/web build
+# NODE_ENV only on this command: set earlier it would make `pnpm install` skip devDependencies.
+RUN NODE_ENV=production pnpm --filter @uniwork/web build
 
 FROM node:22-alpine
 # Prepare pnpm as root so runtime (uid 1001) does not need to write /.cache.
