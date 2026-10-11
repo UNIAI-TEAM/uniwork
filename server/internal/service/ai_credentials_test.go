@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
@@ -372,6 +373,96 @@ func TestAICredentialModelIsSavedWithoutTheKey(t *testing.T) {
 		WHERE action = 'ai.credential.saved' AND organization_id = $1
 		  AND metadata::jsonb ->> 'model' = 'gpt-4.1-mini' AND metadata::jsonb ->> 'model_changed' = 'true'`, f.orgID).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("audit rows naming the model change = %d, %v", n, err)
+	}
+}
+
+// m7: two saves of one credential from two tabs. The test plays the model-only
+// PUT by hand up to the point where it holds the row (read FOR UPDATE, model
+// written, not yet committed), starts the real label-only SaveAICredential,
+// waits - from a connection of its own - until that save is blocked on the
+// row, then commits. The label save must read the committed model and write it
+// back; without the row lock it read the old one and put it back over the
+// choice.
+func TestAICredentialConcurrentSavesKeepEachOthersFields(t *testing.T) {
+	f := newAICredentialFixture(t)
+	owner := Human(f.owner.ID)
+	if _, _, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "openai", SaveAICredentialInput{
+		APIKey: strPtr(testAIKey), Label: strPtr("Work"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	watch, err := pgx.ConnectConfig(f.ctx, f.pool.Config().ConnConfig.Copy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = watch.Close(f.ctx) }()
+
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(f.ctx) }()
+	q := f.q.WithTx(tx)
+	stored, err := q.GetProviderCredentialForUpdate(f.ctx, db.GetProviderCredentialForUpdateParams{
+		OrganizationID: f.orgID, UserID: f.owner.ID, Provider: "openai",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpdateProviderCredentialSettings(f.ctx, db.UpdateProviderCredentialSettingsParams{
+		OrganizationID: f.orgID, UserID: f.owner.ID, Provider: "openai",
+		Label: stored.Label, BaseUrl: stored.BaseUrl, Model: "gpt-4.1-mini", ModelSet: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var holderPID uint32
+	if err := tx.QueryRow(f.ctx, `SELECT pg_backend_pid()`).Scan(&holderPID); err != nil {
+		t.Fatal(err)
+	}
+
+	type saved struct {
+		cred AICredential
+		err  error
+	}
+	done := make(chan saved, 1)
+	go func() {
+		cred, _, err := f.svc.SaveAICredential(f.ctx, owner, f.orgID, "openai", SaveAICredentialInput{Label: strPtr("Home")})
+		done <- saved{cred, err}
+	}()
+	deadline := time.Now().Add(10 * time.Second)
+	for blocked := false; !blocked; time.Sleep(20 * time.Millisecond) {
+		select {
+		case r := <-done:
+			t.Fatalf("the label save finished (%+v, %v) while the model save held the row", r.cred, r.err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the label save never blocked behind the model save")
+		}
+		var n int
+		if err := watch.QueryRow(f.ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'
+			  AND pid <> pg_backend_pid() AND pid <> $1`, holderPID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		blocked = n > 0
+	}
+	if err := tx.Commit(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	var r saved
+	select {
+	case r = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the label save did not finish after the model save committed")
+	}
+	if r.err != nil || r.cred.Label != "Home" || r.cred.Model != "gpt-4.1-mini" {
+		t.Fatalf("label save = %+v, %v; want label Home and the model the other tab chose", r.cred, r.err)
+	}
+	list, err := f.svc.ListAICredentials(f.ctx, owner, f.orgID)
+	if err != nil || len(list) != 1 || list[0].Label != "Home" || list[0].Model != "gpt-4.1-mini" || list[0].ModelUpdatedAt.IsZero() {
+		t.Fatalf("stored credential = %+v, %v; neither save may be lost", list, err)
 	}
 }
 
