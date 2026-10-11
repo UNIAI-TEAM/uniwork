@@ -248,7 +248,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
       ) : (
         <Notice tone="info" icon={FileText} layout="inline">
           <span className="font-medium text-foreground">{t("documents.file.no_web_editor_title")}</span>{" "}
-          {t("documents.file.no_web_editor_description")}
+          {t(readonly ? "documents.file.no_web_editor_description_readonly" : "documents.file.no_web_editor_description")}
         </Notice>
       )}
 

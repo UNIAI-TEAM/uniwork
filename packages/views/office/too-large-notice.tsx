@@ -73,7 +73,7 @@ export function OfficeTooLargeNotice({ format }: { format: string }) {
   const desktop = useOfficeDesktopActionAvailable();
   return (
     <section className="flex min-h-64 flex-1 items-center justify-center p-6" data-testid="office-too-large">
-      <Notice tone="warning" icon={FileExclamationPoint} layout="inline" live="assertive" className="w-full max-w-xl">
+      <Notice tone="warning" icon={FileExclamationPoint} layout="inline" live="assertive" className="w-full max-w-xl sm:w-fit">
         <div className="space-y-2">
           <p className="text-body font-semibold">{t("title")}</p>
           <p>{t(desktop ? "description" : "description_download_only", { format: formatName(format) })}</p>

@@ -480,7 +480,7 @@ describe("OfficeModuleOpenSwitch", () => {
     render(wrap(ui));
     const failed = await screen.findByTestId("office-docs-frame-failed");
     expect(failed).toHaveAttribute("data-failure-kind", "unavailable");
-    expect(failed).toHaveTextContent("Tổ chức của bạn chưa bật chỉnh sửa loại tệp này trên web.");
+    expect(failed).toHaveTextContent("Tổ chức của bạn chưa bật mở loại tệp này trên web.");
     expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
     expect(screen.queryByText("pdf frame")).toBeNull();
   });

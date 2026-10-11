@@ -125,6 +125,21 @@ describe("DocumentFileView", () => {
     expect(screen.getByRole("button", { name: t("documents.file.new_version") })).toBeInTheDocument();
   });
 
+  it("tells a reader what they can do now, without the upload a reader does not have", async () => {
+    mockApi();
+    renderView(fileDocument({ my_level: "view" }), true);
+
+    expect(screen.getByText(t("documents.file.no_web_editor_description_readonly"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.file.no_web_editor_description"))).toBeNull();
+  });
+
+  it("offers the editor the upload in the same notice", async () => {
+    mockApi();
+    renderView();
+
+    expect(screen.getByText(t("documents.file.no_web_editor_description"))).toBeInTheDocument();
+  });
+
   it("hides the write actions on a read-only file", async () => {
     mockApi();
     renderView(fileDocument({ my_level: "view" }), true);

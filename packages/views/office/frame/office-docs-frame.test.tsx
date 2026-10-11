@@ -371,7 +371,7 @@ describe("OfficeDocsFrame", () => {
     serveTokens(() => Promise.reject(new ApiError("feature is disabled", "feature_disabled", status)));
     mount({}, fakeApi(), false);
     const alert = await screen.findByTestId("office-docs-frame-failed");
-    expect(alert.textContent).toContain("Tổ chức của bạn chưa bật chỉnh sửa loại tệp này trên web.");
+    expect(alert.textContent).toContain("Tổ chức của bạn chưa bật mở loại tệp này trên web.");
     expect(alert.textContent).not.toContain("không còn tồn tại");
   });
 

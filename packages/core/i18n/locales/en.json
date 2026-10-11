@@ -7690,8 +7690,9 @@
       "reason_restore": "restore",
       "reason_agent": "agent",
       "unknown_reason": "other",
-      "no_web_editor_title": "Not editable in the browser yet",
-      "no_web_editor_description": "UniWork Office opens this format in a later step. For now, download it or upload a new version.",
+      "no_web_editor_title": "Not editable in the browser",
+      "no_web_editor_description": "This format does not open in the browser. Download it to open it in an app on your computer, or upload a new version.",
+      "no_web_editor_description_readonly": "This format does not open in the browser. Download it to open it in an app on your computer.",
       "office_off_title": "{{format}} editing is turned off",
       "office_off_description": "Editing {{format}} files is turned off for this organization. You can still download the file or upload a new version.",
       "office_checking": "Checking whether {{format}} editing is available for this organization…",
@@ -8131,7 +8132,7 @@
           "title": "The document could not open",
           "description": "UniWork ran into a problem opening this document. Try again in a moment."
         },
-        "feature_disabled_download_only": "Your organization has not turned on editing this file type on the web. Download the file instead."
+        "feature_disabled_download_only": "Your organization has not turned on opening this file type on the web. Download the file instead."
       },
       "errors": {
         "unauthorized": "Your editing session expired. Try again.",
@@ -8144,7 +8145,7 @@
         "unsupported": "This action is not available on the web yet.",
         "timeout": "UniWork took too long to answer. Try again.",
         "busy": "Another save of this document is still running. Try again in a moment.",
-        "feature_disabled": "Your organization has not turned on editing this file type on the web. Open the file in UniWork Office or download it.",
+        "feature_disabled": "Your organization has not turned on opening this file type on the web. Open the file in UniWork Office or download it.",
         "internal": "Something went wrong in the document editor."
       }
     },
