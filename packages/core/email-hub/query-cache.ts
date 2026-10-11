@@ -116,7 +116,7 @@ export function invalidateEmailHubForRealtime(
   invalidateEmailHubReadingCachesForAccount(qc, wsId, accountId);
   invalidateEmailHubUnread(qc, wsId);
   void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "sidebar-counts", accountId] });
-  // inbox_changed also announces a mailbox the server disconnected after refused logins.
+  // inbox_changed also announces a mailbox whose login the server now refuses (needs_reconnect).
   if (inboxChanged) void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
 }
 

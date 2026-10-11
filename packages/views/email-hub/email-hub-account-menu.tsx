@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronsUpDown, Plus, Unplug } from "lucide-react";
+import { ChevronsUpDown, Plus, RefreshCw, Unplug } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubAccount } from "@uniwork/core/types/email-hub";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,7 @@ export interface EmailHubAccountMenuProps {
   onSelectAccount: (accountId: string) => void;
   onDisconnect: (accountId: string, onDone: () => void) => void;
   onAddAccount: () => void;
+  onReconnect: (accountId: string) => void;
 }
 
 /**
@@ -40,6 +42,7 @@ export function EmailHubAccountMenu({
   onSelectAccount,
   onDisconnect,
   onAddAccount,
+  onReconnect,
   className,
   compact = false,
 }: EmailHubAccountMenuProps & { className?: string; compact?: boolean }) {
@@ -85,11 +88,22 @@ export function EmailHubAccountMenu({
               {accounts.map((acc) => (
                 <DropdownMenuRadioItem key={acc.id} value={acc.id}>
                   <span className="truncate">{acc.email_address}</span>
+                  {acc.needs_reconnect ? (
+                    <Badge variant="destructive" className="ml-auto">
+                      {t("email_hub.reconnect.badge")}
+                    </Badge>
+                  ) : null}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          {active?.needs_reconnect ? (
+            <DropdownMenuItem onClick={() => onReconnect(active.id)}>
+              <RefreshCw aria-hidden />
+              {t("email_hub.reconnect.menu", { email: active.email_address })}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onClick={onAddAccount}>
             <Plus aria-hidden />
             {t("email_hub.add_account")}

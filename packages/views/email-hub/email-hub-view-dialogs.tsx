@@ -8,8 +8,8 @@ import { ConnectAccountDialog } from "./connect-account-dialog";
 export function EmailHubViewDialogs({
   wsId,
   accountId,
-  connectOpen,
-  onConnectOpenChange,
+  connectEmail,
+  onConnectEmailChange,
   onConnected,
   composeOpen,
   onComposeOpenChange,
@@ -19,8 +19,9 @@ export function EmailHubViewDialogs({
 }: {
   wsId: string;
   accountId: string | null;
-  connectOpen: boolean;
-  onConnectOpenChange: (open: boolean) => void;
+  /** null: closed; "": connect a new mailbox; an address: reconnect that one. */
+  connectEmail: string | null;
+  onConnectEmailChange: (email: string | null) => void;
   onConnected: (id: string) => void;
   composeOpen: boolean;
   onComposeOpenChange: (open: boolean) => void;
@@ -30,7 +31,15 @@ export function EmailHubViewDialogs({
 }) {
   return (
     <>
-      <ConnectAccountDialog wsId={wsId} open={connectOpen} onOpenChange={onConnectOpenChange} onConnected={onConnected} />
+      <ConnectAccountDialog
+        wsId={wsId}
+        open={connectEmail !== null}
+        reconnectEmail={connectEmail || undefined}
+        onOpenChange={(open) => {
+          if (!open) onConnectEmailChange(null);
+        }}
+        onConnected={onConnected}
+      />
       <ComposeEmailDialog
         wsId={wsId}
         accountId={accountId}

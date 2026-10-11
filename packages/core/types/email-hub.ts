@@ -6,6 +6,10 @@ export const EmailHubAccountSchema = z.object({
   provider: z.string(),
   connected_at: z.string(),
   last_sync_at: z.string().optional(),
+  // An older server sends none of these; the defaults read as a healthy password account.
+  auth_kind: z.string().default("password"),
+  needs_reconnect: z.boolean().default(false),
+  auth_failed_reason: z.string().default(""),
 });
 
 export const EmailHubWatchSchema = z.object({

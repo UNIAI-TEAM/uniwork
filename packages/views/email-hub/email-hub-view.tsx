@@ -66,7 +66,7 @@ export function EmailHubView() {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [hasAttachmentsOnly, setHasAttachmentsOnly] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
-  const [connectOpen, setConnectOpen] = useState(false);
+  const [connectEmail, setConnectEmail] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<ComposeMode>("new");
   const [composeSource, setComposeSource] = useState<EmailHubThread | null>(null);
@@ -101,7 +101,6 @@ export function EmailHubView() {
   const scheduled = useEmailHubScheduledSends(wsId, accountId);
   const readingEmail = !!selectedId;
   const hoverPrefetchTimers = useRef(new Map<string, number>());
-  useEmailHubLiveSync(wsId, accountId, folder === "INBOX" || folder === "STARRED", readingEmail && !isScheduledFolder);
 
   useEffect(() => {
     const timers = hoverPrefetchTimers.current;
@@ -202,6 +201,8 @@ export function EmailHubView() {
     detail.data?.id === selectedId ? detail.data : selectedRow?.id === selectedId ? selectedRow : null;
   const readableBody = emailHubHasReadableBody(detail.data);
   const activeAccount = accountList.find((acc) => acc.id === accountId);
+  // A mailbox that needs reconnecting answers every watch and pull with 409: keep them off.
+  useEmailHubLiveSync(wsId, accountId, (folder === "INBOX" || folder === "STARRED") && !activeAccount?.needs_reconnect, readingEmail && !isScheduledFolder);
   const aiOpen = wideAi ? aiRailOpen : aiSheetOpen;
   const toggleAi = useCallback(
     () => (wideAi ? setAiRailOpen((v) => !v) : setAiSheetOpen((v) => !v)),
@@ -272,7 +273,7 @@ export function EmailHubView() {
     accountId,
     setAccountId,
     setSelectedId,
-    setConnectOpen,
+    setConnectEmail,
     disconnect,
     useCallback((err: unknown) => toastApiError(err, t("email_hub.disconnect_error")), [t]),
   );
@@ -338,8 +339,8 @@ export function EmailHubView() {
     <EmailHubViewDialogs
       wsId={wsId}
       accountId={accountId}
-      connectOpen={connectOpen}
-      onConnectOpenChange={setConnectOpen}
+      connectEmail={connectEmail}
+      onConnectEmailChange={setConnectEmail}
       onConnected={(id) => {
         setAccountId(id);
         setFolder("INBOX");
@@ -363,7 +364,7 @@ export function EmailHubView() {
   if (accountList.length === 0) {
     return (
       <div className={frame}>
-        <EmailHubConnectEmpty aiEnabled={aiEnabled} onConnect={() => setConnectOpen(true)} />
+        <EmailHubConnectEmpty aiEnabled={aiEnabled} onConnect={() => setConnectEmail("")} />
         {dialogs}
       </div>
     );
@@ -407,6 +408,7 @@ export function EmailHubView() {
       ) : (
         <EmailHubViewListPanel
           returnFocusId={lastOpenedRef.current}
+          reconnect={activeAccount?.needs_reconnect ? () => accountMenu.onReconnect(activeAccount.id) : undefined}
           header={{
             nav,
             accountMenu,

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { errorCode } from "../api/http";
 import * as api from "../api/endpoints/email-hub";
-import { invalidateEmailHubThreadsForAccount, invalidateEmailHubUnread } from "./query-cache";
+import { emailHubKeys, invalidateEmailHubThreadsForAccount, invalidateEmailHubUnread } from "./query-cache";
 
 const emailHubLazySyncFolders = new Set(["SENT", "DRAFTS", "TRASH", "ARCHIVE", "SPAM"]);
 /** IMAP-heavy folders: soft sync once when opened; force sync still when list is empty. */
@@ -189,6 +190,16 @@ const emailHubLivePollMs = 45_000;
 const emailHubSafetyPollMs = 5 * 60_000;
 
 /**
+ * A 409 email_hub_reauth_required means the cached account list is stale. Refetch it
+ * once: it brings needs_reconnect, and the page then turns this hook off.
+ */
+function refetchAccountsOnReauth(err: unknown, seen: { current: boolean }, qc: QueryClient, wsId: string) {
+  if (seen.current || errorCode(err) !== "email_hub_reauth_required") return;
+  seen.current = true;
+  void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
+}
+
+/**
  * Server-side INBOX watch while Email Hub is open. Changes arrive via WebSocket;
  * heartbeat re-subscribes after reconnect. Rare poll when not reading a message.
  */
@@ -199,18 +210,20 @@ export function useEmailHubLiveSync(
   readingEmail = false,
 ) {
   const qc = useQueryClient();
+  const reauthSeen = useRef(false);
   // The server stops the watch on DELETE and keeps it while heartbeats renew
   // its lease, so this effect must not re-run when the reader opens a message.
   useEffect(() => {
     if (!enabled || !accountId) return;
+    reauthSeen.current = false;
     let cancelled = false;
 
     const subscribe = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       try {
         await api.subscribeEmailHubInboxWatch(wsId, accountId);
-      } catch {
-        /* retry on next heartbeat */
+      } catch (err) {
+        refetchAccountsOnReauth(err, reauthSeen, qc, wsId);
       }
     };
 
@@ -226,7 +239,7 @@ export function useEmailHubLiveSync(
       document.removeEventListener("visibilitychange", onVisible);
       void api.unsubscribeEmailHubInboxWatch(wsId, accountId).catch(() => {});
     };
-  }, [wsId, accountId, enabled]);
+  }, [wsId, accountId, enabled, qc]);
 
   useEffect(() => {
     if (!enabled || !accountId) return;
@@ -239,8 +252,8 @@ export function useEmailHubLiveSync(
           invalidateEmailHubThreadsForAccount(qc, wsId, accountId);
           invalidateEmailHubUnread(qc, wsId);
         }
-      } catch {
-        /* retry on next tick */
+      } catch (err) {
+        refetchAccountsOnReauth(err, reauthSeen, qc, wsId);
       }
     };
 
