@@ -27,7 +27,7 @@ export function TextField({
       {input.type === "password" ? (
         <PasswordInput {...control} />
       ) : input.readOnly ? (
-        <InputGroup className="bg-muted dark:bg-muted">
+        <InputGroup className="bg-muted pointer-coarse:min-h-11 dark:bg-muted">
           <InputGroupInput {...control} className="text-muted-foreground" />
           <InputGroupAddon align="inline-end">
             <Lock aria-hidden />
