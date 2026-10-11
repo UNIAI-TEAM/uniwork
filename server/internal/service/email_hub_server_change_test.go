@@ -161,6 +161,17 @@ func TestEmailHubReconnectToAnotherServerDropsTheCache(t *testing.T) {
 	if threads, _, _ := emailHubCacheCounts(t, pool, acc.ID); threads != 1 {
 		t.Fatalf("a stale reconcile touched the new server's cache, threads=%d", threads)
 	}
+
+	// Body prefetch on the old snapshot would dial the old host and write the
+	// old server's bodies onto the new rows: it must not even start.
+	if n := svc.prefetchUncachedBodies(ctx, acc, emailhub.FolderInbox, 10); n != 0 {
+		t.Fatalf("a stale prefetch cached %d bodies", n)
+	}
+	svc.scheduleBodyPrefetch(acc, emailhub.FolderInbox)
+	if !svc.gov.tryBeginBodyPrefetch(acc.ID, emailhub.FolderInbox) {
+		t.Fatal("a stale snapshot started a body prefetch goroutine")
+	}
+	svc.gov.endBodyPrefetch(acc.ID, emailhub.FolderInbox)
 }
 
 // assertEmailHubCacheKept checks a same-server reconnect: mail, cursor and

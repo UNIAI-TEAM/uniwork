@@ -92,7 +92,7 @@ func pgTextString(t pgtype.Text) string {
 }
 
 func (s *EmailHubService) scheduleBodyPrefetch(acc db.EmailHubAccount, folder string) {
-	if !s.Enabled() || s.gov.interactiveActive(acc.ID) {
+	if !s.Enabled() || s.gov.interactiveActive(acc.ID) || s.staleEmailHubSnapshot(acc) {
 		return
 	}
 	if !s.gov.tryBeginBodyPrefetch(acc.ID, folder) {
@@ -118,6 +118,9 @@ func (s *EmailHubService) scheduleBodyPrefetch(acc db.EmailHubAccount, folder st
 }
 
 func (s *EmailHubService) prefetchUncachedBodies(ctx context.Context, acc db.EmailHubAccount, folder string, limit int32) int {
+	if s.staleEmailHubSnapshot(acc) {
+		return 0
+	}
 	lim := retention.FromEnv()
 	if lim.MaxBodyCachedPerFolder > 0 {
 		n, err := s.q.CountEmailHubThreadsBodyCached(ctx, db.CountEmailHubThreadsBodyCachedParams{
@@ -176,6 +179,9 @@ func (s *EmailHubService) prefetchUncachedBodies(ctx context.Context, acc db.Ema
 		for _, row := range chunk {
 			if ctx.Err() != nil {
 				return ctx.Err()
+			}
+			if s.staleEmailHubSnapshot(acc) {
+				return nil
 			}
 			if _, cacheErr := s.cacheThreadBodyIMAP(ctx, row, sess, mailboxes); cacheErr != nil {
 				s.recordBodyPrefetchFailure(row.ID, cacheErr)

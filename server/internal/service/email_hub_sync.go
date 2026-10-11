@@ -146,6 +146,9 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 		}
 		return false, 0, err
 	}
+	if s.staleEmailHubSnapshot(acc) {
+		return false, 0, nil
+	}
 	s.gov.loginSucceeded(acc.ID)
 	if !inboxOK {
 		return false, 0, lastErr
@@ -198,6 +201,13 @@ func (s *EmailHubService) syncAccountFolderSession(
 
 	newUnread := countNewUnreadInboxItems(result.Items, logicalFolder, prevLastUID, reconcile)
 
+	// Re-check after the network round trip: a reconnect may have wiped the cache meanwhile.
+	// shortcut: callers outside withIMAP (WatchInbox, search, backfill) can still lose the race
+	// between this check and the write; closing it needs a credential_version condition in the
+	// thread SQL, upgrade if that window is ever seen in practice.
+	if s.staleEmailHubSnapshot(acc) {
+		return state, 0, nil
+	}
 	if cursor.UIDValidity != 0 && result.UIDValidity != 0 && cursor.UIDValidity != result.UIDValidity {
 		if err := s.q.DeleteEmailHubThreadsInFolder(ctx, db.DeleteEmailHubThreadsInFolderParams{
 			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: logicalFolder,
@@ -353,6 +363,9 @@ func (s *EmailHubService) syncSingleFolder(
 		}
 		return false, 0, err
 	}
+	if s.staleEmailHubSnapshot(acc) {
+		return false, 0, nil
+	}
 	s.gov.loginSucceeded(acc.ID)
 	raw, err := json.Marshal(state)
 	if err != nil {
@@ -484,6 +497,9 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 	state, _, err := s.syncAccountFolderSession(ctx, acc, emailHubFolderInbox, parseEmailHubSyncState(acc.SyncState), false, sess, mailboxes)
 	if err != nil {
 		return false, err
+	}
+	if s.staleEmailHubSnapshot(acc) {
+		return false, nil
 	}
 	raw, err := json.Marshal(state)
 	if err != nil {
