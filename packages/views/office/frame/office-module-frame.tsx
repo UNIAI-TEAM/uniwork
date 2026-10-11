@@ -232,7 +232,7 @@ export function OfficeModuleFrame({
   // The server refused the token mint because the module's flag is off for this organization.
   const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
   // A module with a size cap (Sheets, GO-D3): a mint refused with 413 or a frame that answers its
-  // open with too_large hands the document to the G3 editor the same way.
+  // open with too_large (80 MB of worksheet XML) tells the switch to show the too-large notice.
   const tooLarge = officeModuleSpec(module).maxBytes !== undefined && session.failure?.code === "too_large";
   // The server derived another module than the page mounted (odd mime/name pairs): the G3 host,
   // which judges the stored file itself, takes over.

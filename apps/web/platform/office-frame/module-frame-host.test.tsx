@@ -9,7 +9,24 @@ import { NavigationProvider, type NavigationAdapter } from "@uniwork/views/navig
 
 // Only the transport and the heavy frame component are replaced: the real
 // open switch, flag hook and config schema answer from the mocked request.
-const mocks = vi.hoisted(() => ({ request: vi.fn(), frameProps: vi.fn(), push: vi.fn(), downloadProfile: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  request: vi.fn(), frameProps: vi.fn(), push: vi.fn(), downloadProfile: vi.fn(),
+  // What the mocked frame tells the switch as it mounts: a size refusal, a load failure, or nothing.
+  frameRefusal: { reason: undefined as "size" | "load" | undefined },
+  createSession: vi.fn(), launch: vi.fn(), downloadFile: vi.fn(),
+}));
+vi.mock("@uniwork/core/api/endpoints/office-launch", async (orig) => ({
+  ...(await orig<typeof import("@uniwork/core/api/endpoints/office-launch")>()),
+  createOfficeLaunchSession: (...a: unknown[]) => mocks.createSession(...a),
+}));
+vi.mock("../office/desktop-handoff", async (orig) => ({
+  ...(await orig<typeof import("../office/desktop-handoff")>()),
+  launchOfficeDeepLink: (...a: unknown[]) => mocks.launch(...a),
+}));
+vi.mock("@uniwork/core/api/endpoints/documents", async (orig) => ({
+  ...(await orig<typeof import("@uniwork/core/api/endpoints/documents")>()),
+  downloadDocumentFile: (...a: unknown[]) => mocks.downloadFile(...a),
+}));
 vi.mock("@uniwork/core/api/endpoints/office-desktop", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/api/endpoints/office-desktop")>()),
   getOfficeDesktopDownload: mocks.downloadProfile,
@@ -18,10 +35,19 @@ vi.mock("@uniwork/core/api/http", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/api/http")>()),
   request: (...a: unknown[]) => mocks.request(...a),
 }));
-vi.mock("@uniwork/views/office", async (orig) => ({
-  ...(await orig<typeof import("@uniwork/views/office")>()),
-  OfficeModuleFrame: (props: Record<string, unknown>) => { mocks.frameProps(props); return createElement("i", { "data-testid": "frame" }); },
-}));
+vi.mock("@uniwork/views/office", async (orig) => {
+  const { useEffect } = await import("react");
+  const { useDocsFrameRefusal } = await import("../../../../packages/views/office/frame/docs-frame-refusal");
+  return {
+    ...(await orig<typeof import("@uniwork/views/office")>()),
+    OfficeModuleFrame: function MockFrame(props: Record<string, unknown>) {
+      mocks.frameProps(props);
+      const refuse = useDocsFrameRefusal();
+      useEffect(() => { if (mocks.frameRefusal.reason) refuse?.(mocks.frameRefusal.reason); }, [refuse]);
+      return createElement("i", { "data-testid": "frame" });
+    },
+  };
+});
 
 import { pinnedFrameVersion } from "./frame-versions";
 import { ModuleFrameOrG3Host } from "./module-frame-host";
@@ -47,6 +73,10 @@ beforeEach(() => {
   mocks.request.mockReset();
   mocks.frameProps.mockReset();
   mocks.push.mockReset();
+  mocks.frameRefusal.reason = undefined;
+  mocks.createSession.mockReset();
+  mocks.launch.mockReset();
+  mocks.downloadFile.mockReset();
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -147,16 +177,89 @@ describe("ModuleFrameOrG3Host", () => {
     expect(frame()).toBeNull();
   });
 
-  it("keeps a workbook over the Sheets cap on the G3 xlsx host without asking for a token", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ sheets: "0.2.0-abc1234" }));
-    answerConfig({ office_sheets_web: true });
-    await render(host("sheets", false, { ...doc, file: { size_bytes: 10 * 1024 * 1024 + 1 } } as Document));
-    expect(g3()).not.toBeNull();
-    expect(configCalls()).toHaveLength(0);
-    // The reader is told why this workbook is not in the web editor.
-    const notice = container.querySelector('[data-testid="office-frame-fallback-notice"]');
-    expect(notice?.getAttribute("data-reason")).toBe("size");
-    expect(notice?.textContent).toContain("This file is too large for the web editor");
+  describe("a workbook above the Sheets cap", () => {
+    const ticket = `ticket_${"a".repeat(32)}`;
+    const session = { launch_ticket: ticket, launch_url: `uniwork-office://open?ticket=${ticket}`, expires_at: "2026-10-01T00:00:00Z", document_id: "doc-1", operation: "edit" as const, version: 2 };
+    const big = { ...doc, current_version: 2, file: { size_bytes: 10 * 1024 * 1024 + 1, filename: "big.xlsx" } } as Document;
+    const tooLargeNotice = () => container.querySelector('[data-testid="office-too-large"]');
+    const buttonByText = (text: string) => Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.includes(text));
+    const click = async (el: Element | undefined) => { await act(async () => { el?.dispatchEvent(new MouseEvent("click", { bubbles: true })); }); await settle(); };
+
+    beforeEach(() => {
+      vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ sheets: "0.2.0-abc1234" }));
+      answerConfig({ office_sheets_web: true });
+    });
+
+    const expectNoEditor = () => {
+      expect(g3()).toBeNull();
+      expect(frame()).toBeNull();
+      expect(container.querySelector('[data-testid="office-frame-fallback-notice"]')).toBeNull();
+      expect(tooLargeNotice()?.textContent).toContain("File is too large to edit on the web");
+    };
+
+    it("shows the open-in-the-app notice, not the G3 xlsx editor, on the stored-size pre-check, without asking for a token", async () => {
+      await render(host("sheets", false, big));
+      expectNoEditor();
+      // Only the public config (for the launch deployment) is read; no frame mounts, so no token is asked.
+      expect(mocks.request.mock.calls.every(([path]) => String(path).startsWith("/api/v1/config"))).toBe(true);
+      expect(mocks.frameProps).not.toHaveBeenCalled();
+      expect(buttonByText("Open in UniWork Office")).toBeDefined();
+      expect(buttonByText("Download")).toBeDefined();
+    });
+
+    it("shows the same notice when the frame reports the worksheet gate (too_large)", async () => {
+      mocks.frameRefusal.reason = "size";
+      await render(host("sheets", false, { ...doc, file: { size_bytes: 2048 } } as Document));
+      await until(() => tooLargeNotice() !== null);
+      expect(mocks.frameProps).toHaveBeenCalled();
+      expectNoEditor();
+    });
+
+    it("keeps the G3 editor for a frame that did not load, and says so", async () => {
+      mocks.frameRefusal.reason = "load";
+      await render(host("sheets", false, { ...doc, file: { size_bytes: 2048 } } as Document));
+      await until(() => g3() !== null);
+      expect(g3()).not.toBeNull();
+      expect(tooLargeNotice()).toBeNull();
+      expect(container.querySelector('[data-testid="office-frame-fallback-notice"]')?.getAttribute("data-reason")).toBe("load");
+    });
+
+    it("keeps the primary button on the launch-ticket path, and the installer prompt when the app is missing", async () => {
+      mocks.createSession.mockResolvedValue(session);
+      mocks.launch.mockResolvedValue("not-installed");
+      mocks.downloadProfile.mockResolvedValue({ installers: [], supported_platforms: ["win32-x64"] });
+      await render(host("sheets", false, big));
+      await until(() => buttonByText("Open in UniWork Office") !== undefined);
+      // The deployment binding arrives with the public config.
+      await until(() => configCalls().length > 0);
+      await settle();
+      await click(buttonByText("Open in UniWork Office"));
+      await until(() => mocks.launch.mock.calls.length > 0);
+      expect(mocks.createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "edit", deployment_id: "dep-7" }));
+      expect(mocks.launch).toHaveBeenCalledWith(`uniwork-office://open?ticket=${ticket}`);
+      await until(() => mocks.downloadProfile.mock.calls.length > 0);
+      expect(mocks.downloadProfile).toHaveBeenCalledWith("org-1", "stable");
+    });
+
+    it("downloads the file itself with the secondary button", async () => {
+      mocks.downloadFile.mockResolvedValue(new Blob(["x"]));
+      const createObjectURL = vi.fn(() => "blob:big");
+      Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
+      const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+      await render(host("sheets", false, big));
+      await click(buttonByText("Download"));
+      expect(mocks.downloadFile).toHaveBeenCalledWith("doc-1");
+      expect(createObjectURL).toHaveBeenCalled();
+      expect(anchorClick).toHaveBeenCalled();
+      anchorClick.mockRestore();
+    });
+
+    it("offers a view-only user the download alone", async () => {
+      await render(host("sheets", true, big));
+      expectNoEditor();
+      expect(buttonByText("Open in UniWork Office")).toBeUndefined();
+      expect(buttonByText("Download")).toBeDefined();
+    });
   });
 
   it("says nothing for a workbook under the cap", async () => {
