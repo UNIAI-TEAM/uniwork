@@ -82,7 +82,7 @@ export function DocsFrameFailure({ failure, code, onRetry, libraryHref, module, 
       data-office-module={module}
       data-state="failed"
     >
-      <Notice tone={tone} icon={icon} layout="inline" live="assertive" className="w-full max-w-xl">
+      <Notice tone={tone} icon={icon} layout="inline" live="assertive" className="w-full max-w-xl sm:w-fit">
         <div className="space-y-1" data-testid="office-docs-frame-failed" data-failure-kind={kind}>
           <p className="text-body font-semibold">{title}</p>
           <p>{body}</p>
