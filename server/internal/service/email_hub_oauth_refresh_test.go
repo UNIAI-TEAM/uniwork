@@ -557,3 +557,37 @@ func TestEmailHubOAuthTransientRefreshKeepsState(t *testing.T) {
 		t.Fatalf("a raw oauth2 error must log as oauth_refresh_failed, got %q", code)
 	}
 }
+
+// A transient token-endpoint failure at send time is answered like an SMTP
+// failure (retryable, ErrEmailHubSendFailed), not as an internal error, and a
+// scheduled send records a classified last_error, never the raw error.
+func TestEmailHubOAuthTransientRefreshOnSendIsASendFailure(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	ts := newEmailHubTokenServer(t, func(w http.ResponseWriter, _ *http.Request, _ string) {
+		writeEmailHubTokenError(w, http.StatusServiceUnavailable, "temporarily_unavailable")
+	})
+	useEmailHubTokenServer(svc, ts)
+	acc := oauthEmailHubAccount(t, svc, pool, seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID), "oauth_google", emailHubSoon())
+	calls := countSMTPSends(svc, nil)
+	in := SendEmailHubInput{AccountID: acc.ID, To: []string{"dest@example.com"}, Subject: "Hi", BodyText: "Body"}
+
+	_, err := svc.Send(ctx, Human(user.ID), ws.ID, in)
+	if !errors.Is(err, ErrEmailHubSendFailed) || errors.Is(err, ErrEmailHubReauthRequired) {
+		t.Fatalf("5xx: err = %v, want ErrEmailHubSendFailed", err)
+	}
+	svc.oauth = nil // EMAIL_HUB_GOOGLE_* removed
+	if _, err = svc.Send(ctx, Human(user.ID), ws.ID, in); !errors.Is(err, ErrEmailHubSendFailed) {
+		t.Fatalf("no provider: err = %v, want ErrEmailHubSendFailed", err)
+	}
+
+	id := seedDueEmailHubScheduledSend(t, q, ws, user.ID, acc.ID)
+	svc.runScheduledSendOnce(ctx)
+	status, lastErr := scheduledSendOutcome(t, pool, id)
+	if status != "failed" || lastErr != "smtp send failed: oauth_not_configured" {
+		t.Fatalf("status=%q last_error=%q, want failed/classified code", status, lastErr)
+	}
+	if n := calls.Load(); n != 0 {
+		t.Fatalf("a send without a token went to SMTP %d times", n)
+	}
+}

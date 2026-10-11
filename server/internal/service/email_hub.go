@@ -432,6 +432,12 @@ func (s *EmailHubService) sendOutboundMail(
 	}
 	creds, err := s.credentials(ctx, acc)
 	if err != nil {
+		// A token endpoint that is down is retryable like an SMTP outage; the code, never the provider's text, travels on.
+		if errors.Is(err, errEmailHubOAuthRefreshFailed) || errors.Is(err, errEmailHubOAuthNotConfigured) {
+			code := emailHubErrCode(err)
+			s.log.Warn("email hub send failed", "account_id", acc.ID, "code", code)
+			return EmailHubThreadView{}, fmt.Errorf("%w: %s", ErrEmailHubSendFailed, code)
+		}
 		return EmailHubThreadView{}, err
 	}
 	send := smtpclient.Send
