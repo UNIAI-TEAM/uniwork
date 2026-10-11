@@ -67,7 +67,11 @@ describe("useEmailHubLiveSync", () => {
     renderHook(() => useEmailHubLiveSync("ws1", "acc1"), { wrapper: wrapperFor(qc) });
 
     await waitFor(() => expect(api.syncEmailHub).toHaveBeenCalled());
-    await Promise.resolve();
+    // Wait until both rejections have reached the hook's catch blocks, then one more task for anything they queue.
+    const calls = [api.subscribeEmailHubInboxWatch, api.syncEmailHub].map((fn) => vi.mocked(fn).mock.results[0]?.value);
+    expect(calls.every((call) => call instanceof Promise)).toBe(true);
+    await Promise.allSettled(calls);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(invalidate).not.toHaveBeenCalled();
   });
 });
