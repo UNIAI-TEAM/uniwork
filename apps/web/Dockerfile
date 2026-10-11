@@ -19,12 +19,13 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
 # Required: the build below runs with NODE_ENV=production, and
 # apps/web/scripts/office-frame-sync.mjs --ensure fails it when the source is unset
 # or lacks a module, so an image never ships without the editing UI. Pass it as a
-# build arg from a secret, never as a literal in a file.
-ARG OFFICE_FRAME_SOURCE=
-ENV OFFICE_FRAME_SOURCE=$OFFICE_FRAME_SOURCE
+# build arg from a secret, never as a literal in a file. The ARG is declared just
+# before the build, after `pnpm install`, so the secret reaches neither the install
+# layer nor the builder stage's ENV.
 
 COPY . .
 RUN pnpm install --frozen-lockfile
+ARG OFFICE_FRAME_SOURCE=
 # NODE_ENV only on this command: set earlier it would make `pnpm install` skip devDependencies.
 RUN NODE_ENV=production pnpm --filter @uniwork/web build
 

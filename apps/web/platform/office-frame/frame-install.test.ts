@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 import { buildPin } from "./frame-bundle.mjs";
-import { assertSafeArchive, checkInstalled, DEFAULT_ARCHIVE_LIMITS, install, loadBundle, locateBundleDir, locateModuleBundle, materialize, offerableFrameVersion } from "./frame-install.mjs";
+import { assertSafeArchive, checkInstalled, DEFAULT_ARCHIVE_LIMITS, install, loadBundle, locateBundleDir, locateModuleBundle, materialize, offerableFrameVersion, redactSourceUrl } from "./frame-install.mjs";
 import { writeBundle } from "./frame-fixture";
 
 const scratch = () => mkdtempSync(join(tmpdir(), "frame-install-"));
@@ -239,5 +239,18 @@ describe("archive sources are checked before they are extracted", () => {
     })));
     await expect(materialize("https://files.test/b.tar.gz", scratch(), { ...limits, timeoutMs: 50 })).rejects.toThrow();
     vi.unstubAllGlobals();
+  });
+});
+
+describe("redactSourceUrl", () => {
+  it("keeps scheme and host only, whatever secret rides in the userinfo, path or query", () => {
+    const shown = redactSourceUrl("https://user:pw@files.test:8443/s3cret-path/dist-web.tar.gz?token=abc123#frag");
+    expect(shown).toBe("https://files.test:8443");
+    for (const secret of ["user", "pw", "s3cret-path", "token", "abc123", "frag"]) expect(shown).not.toContain(secret);
+  });
+
+  it("replaces a value that is not a URL with a fixed placeholder", () => {
+    expect(redactSourceUrl("/home/ci/secret-dir/dist-web.tar.gz")).toBe("<source>");
+    expect(redactSourceUrl("")).toBe("<source>");
   });
 });

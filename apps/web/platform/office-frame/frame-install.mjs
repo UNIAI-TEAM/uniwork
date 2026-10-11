@@ -7,6 +7,20 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, r
 import { dirname, join, resolve } from "node:path";
 import { assertMatchesPin, assertModule, assertSafeVersion, parseCspDocuments, parseCspManifest, parseManifest, sha256Hex } from "./frame-bundle.mjs";
 
+/**
+ * The source for logs: scheme and host only. A source URL is a secret (token in the query, userinfo
+ * or path), so nothing else of it may reach a warning or an error; a local path or other
+ * non-URL value is replaced by a fixed placeholder.
+ */
+export function redactSourceUrl(source) {
+  try {
+    const { protocol, host } = new URL(source);
+    return host ? `${protocol}//${host}` : "<source>";
+  } catch {
+    return "<source>";
+  }
+}
+
 /** Finds the directory holding manifest.json: the source itself, or its only child. */
 export function locateBundleDir(source) {
   if (existsSync(join(source, "manifest.json"))) return source;
@@ -110,7 +124,7 @@ export function assertSafeArchive(archive, limits = DEFAULT_ARCHIVE_LIMITS) {
 /** Downloads with a deadline and a byte cap (checked on the declared length and on what actually arrives). */
 async function download(url, target, limits) {
   const response = await fetch(url, { signal: AbortSignal.timeout(limits.timeoutMs) });
-  if (!response.ok) throw new Error(`GET ${url} -> ${response.status}`);
+  if (!response.ok) throw new Error(`GET ${redactSourceUrl(url)} -> ${response.status}`);
   const declared = Number(response.headers.get("content-length") ?? 0);
   if (declared > limits.maxArchiveBytes) throw new Error(`archive is larger than ${limits.maxArchiveBytes} bytes`);
   const chunks = [];
