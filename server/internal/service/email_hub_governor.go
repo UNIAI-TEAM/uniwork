@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -208,6 +209,31 @@ func (g *emailHubGovernor) withIMAP(accountID string, fn func() error) error {
 	gt.imapMu.Lock()
 	defer gt.imapMu.Unlock()
 	return fn()
+}
+
+// withIMAPCtx is withIMAP whose wait for the lock ends with ctx. sync.Mutex has
+// no cancellable Lock, so a goroutine takes it and hands it straight back when
+// ctx won the race.
+func (g *emailHubGovernor) withIMAPCtx(ctx context.Context, accountID string, fn func() error) error {
+	gt := g.gate(accountID)
+	locked := make(chan struct{})
+	abandoned := make(chan struct{})
+	go func() {
+		gt.imapMu.Lock()
+		select {
+		case locked <- struct{}{}:
+		case <-abandoned:
+			gt.imapMu.Unlock()
+		}
+	}()
+	select {
+	case <-locked:
+		defer gt.imapMu.Unlock()
+		return fn()
+	case <-ctx.Done():
+		close(abandoned)
+		return ctx.Err()
+	}
 }
 
 // tryWithIMAP runs fn only when no other background IMAP work holds the lock.

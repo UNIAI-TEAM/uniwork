@@ -20,7 +20,7 @@ func (s *EmailHubService) appendSentCopy(ctx context.Context, acc db.EmailHubAcc
 	if s.testHookAppendSent != nil {
 		uid, err = s.testHookAppendSent(ctx, acc, raw)
 	} else {
-		err = s.gov.withIMAP(acc.ID, func() error {
+		err = s.gov.withIMAPCtx(ctx, acc.ID, func() error {
 			// An auth refusal here already went through handleAuthError.
 			sess, mailboxes, openErr := s.openIMAPWithMailboxes(ctx, acc)
 			if openErr != nil {

@@ -207,3 +207,46 @@ func TestEmailHubScheduledSendAppendsCustomSentCopy(t *testing.T) {
 		t.Fatalf("APPEND calls = %d, want 1 for a scheduled send", len(*appended))
 	}
 }
+
+// A sync holding the account's IMAP lock must not hang a send whose mail SMTP
+// already delivered: the wait for the lock ends with the request context.
+func TestEmailHubSendAppendWaitEndsWithContext(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	var logs bytes.Buffer
+	svc.log = slog.New(slog.NewTextHandler(&logs, nil))
+	acc := seedSentAppendAccount(t, svc, q, user.ID, ws.OrganizationID, "mail.acme.example")
+	svc.testHookSMTPSend = func(context.Context, smtpclient.Credentials, smtpclient.Message) (string, []byte, error) {
+		return sentCopyMsgID, sentCopyRaw, nil
+	}
+	gt := svc.gov.gate(acc.ID)
+	gt.imapMu.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = svc.Send(ctx, Human(user.ID), ws.ID, sentCopyMail(acc.ID))
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		gt.imapMu.Unlock()
+		t.Fatal("Send is still waiting for the IMAP lock after its context expired")
+	}
+	gt.imapMu.Unlock()
+	if !strings.Contains(logs.String(), "code=timeout") {
+		t.Fatalf("want the abandoned APPEND logged as code=timeout:\n%s", logs.String())
+	}
+	// The abandoned waiter must hand the lock back, not keep it.
+	locked := make(chan struct{})
+	go func() {
+		gt.imapMu.Lock()
+		close(locked)
+		gt.imapMu.Unlock()
+	}()
+	select {
+	case <-locked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the abandoned waiter kept the IMAP lock")
+	}
+}
