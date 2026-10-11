@@ -1,6 +1,6 @@
 # Email Hub GĐ2 — máy chủ IMAP/SMTP tùy chỉnh và APPEND vào Sent (UNI-1238)
 
-> **Trạng thái:** in-progress — plan GĐ2 của spec OAuth/máy chủ tùy chỉnh; thực thi bằng subagent-driven-development trên nhánh `feature/UNI-1238-email-hub-gd2-may-chu-imap-smtp-tuy-chin`, xếp chồng trên GĐ1 (PR #220) (2026-10-11).
+> **Trạng thái:** in-progress — GĐ2 đã triển khai trên nhánh `feature/UNI-1238-email-hub-gd2-may-chu-imap-smtp-tuy-chin` (2026-10-11), kiểm chứng bằng test có chọn lọc ở máy; bộ test đầy đủ chạy trên CI. PR chờ review.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

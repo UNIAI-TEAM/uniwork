@@ -1,6 +1,6 @@
 # Runbook — Email Hub: xác thực hộp thư và kết nối lại
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-11 · **Thành phần:** `EmailHubService` trong tiến trình API (`server/internal/service/email_hub*.go`), worker sync và watcher IDLE · **Liên quan:** ADR 0022, ADR 0025, spec `2026-10-11-email-hub-oauth-custom-server-design.md`, UNI-1237
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-11 · **Thành phần:** `EmailHubService` trong tiến trình API (`server/internal/service/email_hub*.go`), worker sync và watcher IDLE · **Liên quan:** ADR 0022, ADR 0025, spec `2026-10-11-email-hub-oauth-custom-server-design.md`, UNI-1237, UNI-1238
 
 Một tài khoản Email Hub (`email_hub_accounts`) ở một trong ba trạng thái:
 
@@ -85,19 +85,93 @@ center → Users → Mail → *Manage email apps*) hoặc cho cả tenant
 
 ### Kết nối thất bại
 
+Trường máy chủ được kiểm tra trước mọi lần dial, nên ba mã đầu không bao giờ chạm mạng.
+
 | Mã API | Ý nghĩa | Xử lý |
 | --- | --- | --- |
-| `email_hub_already_connected` (409) | Địa chỉ đã có tài khoản `active` cùng kiểu xác thực, cùng máy chủ; kiểm tra chạy trước khi dial | Không phải lỗi; người dùng đã kết nối rồi |
-| `email_hub_unreachable` (400) | DNS không phân giải, TCP/TLS không xong trong hạn, **hoặc** host phân giải ra IP bị `netguard` chặn | Cố ý gộp chung để API không thành công cụ dò mạng nội bộ |
-| `email_hub_tls_required` (400) | Máy chủ không có TLS ngầm định, hoặc không quảng bá `STARTTLS` | Hộp thư không có TLS sẽ không được hỗ trợ |
+| `email_hub_unsupported` (400) | Không có trường máy chủ và tên miền không thuộc danh sách nhà cung cấp có sẵn (`emailhub.ProviderForEmail`) | Chọn *Tên miền riêng* và nhập máy chủ IMAP/SMTP |
+| `email_hub_invalid_server` (400) | Có trường máy chủ nhưng thiếu một trong sáu trường, hoặc một trường sai định dạng: host có scheme, cổng hay đường dẫn (`imaps://…`, `mail.example.com:993`), nhãn rỗng (`mail..example.com`), dài quá 253 ký tự; port ngoài `25, 143, 465, 587, 993`; bảo mật khác `tls`/`starttls`; tên đăng nhập quá 320 ký tự. `error.fields.field` là tên trường SDI (`imap_host`, `smtp_port`, `username`, …) | Client hiện lỗi ngay cạnh ô đó. Port gửi dạng chuỗi (`"imap_port": "993"`) không tới được bước này: `decode` trả `400 invalid_request` |
+| `email_hub_host_not_allowed` (400) | Host là IP literal thuộc dải `netguard` chặn (loopback, private, link-local như `169.254.169.254`, kể cả dạng IPv4-mapped `::ffff:10.0.0.1`) | Dùng hostname hoặc IP công khai của máy chủ thư |
+| `email_hub_already_connected` (409) | Địa chỉ đã có tài khoản `active` cùng kiểu xác thực, cùng host + port IMAP (đã chuẩn hoá); kiểm tra chạy trước khi dial. Chỉ đổi SMTP hoặc tên đăng nhập trên một tài khoản `active` cũng nhận mã này | Không phải lỗi. Muốn đổi riêng phần SMTP của tài khoản đang chạy thì ngắt kết nối rồi kết nối lại (cache tải lại từ đầu) |
+| `email_hub_unreachable` (400) | DNS không phân giải; TCP/TLS không xong trong hạn; chứng chỉ không khớp host đã nhập (hay gặp ở cPanel dùng chứng chỉ chung của máy chủ); chọn STARTTLS cho cổng 993/465 (treo ở lời chào tới hết hạn); **hoặc** hostname phân giải ra IP bị `netguard` chặn | Cố ý gộp chung để API không thành công cụ dò mạng nội bộ. Hỏi nhà cung cấp hosting hostname ghi trên chứng chỉ (thường là `server.<hosting>`, không phải `mail.<tên miền>`) và kiểm tra cặp cổng/bảo mật |
+| `email_hub_tls_required` (400) | Máy chủ không có TLS ngầm định, không quảng bá `STARTTLS`, hoặc bảo mật không khớp cổng (chọn TLS cho 143/587 thì máy chủ chào bằng văn bản thường) | Cặp thường dùng: IMAP 993 + TLS hoặc 143 + STARTTLS; SMTP 465 + TLS hoặc 587 + STARTTLS. Hộp thư không có TLS không được hỗ trợ |
+| `email_hub_connect_failed` (400) | Máy chủ từ chối đăng nhập | Sai mật khẩu, hoặc máy chủ cần tên đăng nhập khác địa chỉ email (điền ô *Tên đăng nhập*) |
 | `email_hub_smtp_disabled` (400) | Như mục M365 ở trên, phát hiện ngay lúc kết nối | Bật SMTP AUTH rồi kết nối lại |
+| `rate_limited` (429) | Quá 10 lần kết nối / 10 phút cho mỗi người dùng (cần Redis) | Chờ vài phút |
 
-Route kết nối giới hạn 10 lần / 10 phút cho mỗi người dùng (cần Redis). Bị `429` thì chờ.
-Log của kết nối và gửi chỉ ghi mã đã phân loại (`host_not_allowed`, `tls_required`,
-`unreachable`, `auth_failed`, `smtp_disabled`, `connect_failed`) kèm `account_id` /
-`user_id` / `provider`; host, email và phản hồi thô của máy chủ không có ở đó. Các đường
-sync, watcher IDLE, tải body, chuyển thư mục và đánh dấu đã đọc thì vẫn ghi `err` thô
-(có thể chứa host và câu trả lời của máy chủ) cho tới GĐ2, khi máy chủ tùy chỉnh ra mắt.
+Mọi dòng log trên đường chạm máy chủ thư chỉ ghi mã đã phân loại ở khoá `code`, kèm
+`account_id` / `thread_id` / `user_id` / `provider`. Các đường đó gồm: kết nối, gửi, APPEND,
+sync, watcher IDLE, tải body và attachment, tìm IMAP, chuyển thư mục, đánh dấu. Các mã gồm
+`unreachable`, `host_not_allowed`, `tls_required`, `auth_failed`, `smtp_disabled`,
+`connect_failed`, `timeout`, `db`.
+
+Host, email, tên đăng nhập và phản hồi thô của máy chủ không có trong log. Lỗi trả lên handler
+cũng đã được rút gọn thành `email hub mail server: <code>`, nên log 500 mặc định cũng không
+chứa host.
+
+Khi log có `host_not_allowed` mà API trả `email_hub_unreachable`, hostname đã phân giải ra IP
+bị chặn. Khi IP literal bị chặn, API trả thẳng `email_hub_host_not_allowed`.
+
+Cần biết máy chủ của một tài khoản thì đọc dòng của nó. Không dán kết quả ra kênh chung:
+
+```sql
+SELECT provider, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security
+FROM email_hub_accounts WHERE id = '<account_id>';
+```
+
+### Kết nối lại đổi máy chủ
+
+Kết nối lại một tài khoản `needs_reconnect` giữ nguyên id. Host được so sánh sau khi chuẩn hoá
+(chữ thường, bỏ dấu chấm cuối, punycode), nên `MAIL.Example.COM.` và `mail.example.com` là
+cùng một máy chủ.
+
+Chỉ khi host hoặc port IMAP thật sự đổi, `sync_state` mới về rỗng, ngay trong transaction kết
+nối. Sau commit, server làm các bước sau:
+
+1. Dừng watcher IDLE. Client đăng ký lại sau khi tải lại danh sách tài khoản.
+2. Quên bản đồ thư mục đã cache.
+3. Xoá threads, attachments, tóm tắt AI và huỷ hẹn giờ gửi của tài khoản.
+4. Sync lại từ đầu.
+
+Công việc đọc tài khoản trước lần kết nối lại (một lượt sync, IDLE hay tìm IMAP còn chạy) bị
+chặn trên node này theo `credential_version`, nên không ghi được thread, không prune được, và
+lệnh ghi `sync_state` có điều kiện `credential_version` nên cũng không ghi được.
+
+Đổi riêng SMTP hoặc tên đăng nhập thì giữ nguyên cache. Nếu bước dọn cache lỗi, kết nối vẫn
+thành công: có một dòng Warn `email hub server change cleanup failed` kèm `account_id` và
+`code`, và lần sync sau ghi đè dữ liệu cũ.
+
+Xem các lần kết nối lại có đổi máy chủ:
+
+```sql
+SELECT occurred_at,
+       metadata::jsonb->>'provider'       AS provider,
+       metadata::jsonb->>'reconnected'    AS reconnected,
+       metadata::jsonb->>'server_changed' AS server_changed
+FROM audit_events
+WHERE action = 'email_hub_account.connected' AND resource_id = '<account_id>'
+ORDER BY occurred_at DESC LIMIT 10;
+```
+
+### Thư đã gửi thiếu trong Sent trên máy chủ (APPEND)
+
+Áp dụng cho `provider = 'custom'` có máy chủ IMAP không phải Gmail hay Microsoft
+(`emailhub.ServerSavesSent`). Sau khi SMTP gửi xong, server `APPEND` đúng bản MIME đã gửi (cờ
+`\Seen`) vào thư mục SPECIAL-USE `\Sent`, không có thì vào `SENT`. Hẹn giờ gửi đi cùng đường
+này.
+
+Tài khoản `custom` trỏ vào `imap.gmail.com` hoặc `outlook.office365.com` (Workspace/M365 trên
+tên miền riêng) không APPEND, vì máy chủ tự lưu thư đã gửi.
+
+- Thành công: máy chủ có UIDPLUS thì dòng Sent cục bộ nhận ngay UID thật. Không có UIDPLUS
+  thì dòng giữ UID tạm, và lần sync Sent kế tiếp hợp nhất theo `Message-ID`. Cả hai trường
+  hợp, Sent hiện đúng một bản.
+- Thất bại: chỉ ghi log `email hub sent copy append failed` kèm `account_id` và `code`. Lần
+  gửi vẫn thành công (201) và không thử lại. Thư tới người nhận nhưng không có bản trong Sent
+  trên máy chủ, và dòng Sent cục bộ (UID tạm) biến mất ở lần làm mới Sent kế tiếp.
+  - `auth_failed` đi qua luồng *cần kết nối lại* như mọi lỗi xác thực khác.
+  - Lý do khác thường là hộp thư đầy quota, hoặc máy chủ không có thư mục Sent. Người dùng
+    tạo thư mục Sent hoặc giải phóng dung lượng trong webmail.
 
 ### Migration dedupe và unique index
 
