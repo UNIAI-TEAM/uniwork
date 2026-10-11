@@ -55,7 +55,7 @@ func (s *EmailHubService) CompleteOAuth(ctx context.Context, provider, rawState,
 		return fail(EmailHubOAuthFailed, "not_configured")
 	}
 	st, ok := s.openOAuthState(rawState)
-	if !ok || st.Provider != provider || time.Now().Unix() > st.Exp {
+	if !ok || st.Provider != provider { // openOAuthState already refuses an expired state
 		return fail(EmailHubOAuthStateInvalid, "state")
 	}
 	// An empty cookie never matches, even a state sealed with an empty nonce.

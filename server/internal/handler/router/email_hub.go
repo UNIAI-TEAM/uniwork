@@ -7,8 +7,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-// tag: email-hub — IMAP mailboxes connected with a password: an App Password on a
-// preset provider, or the mailbox password on the member's own IMAP/SMTP server.
+// tag: email-hub — IMAP mailboxes connected with an App Password on a preset
+// provider, with the password of the member's own IMAP/SMTP server, or by
+// signing in with Google or Microsoft.
 //
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/providers
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/accounts
