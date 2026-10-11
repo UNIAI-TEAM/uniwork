@@ -45,6 +45,11 @@ pipeline {
       description: 'Jenkins credentials ID for Git checkout'
     )
     string(
+      name: 'OFFICE_FRAME_SOURCE_CREDENTIALS_ID',
+      defaultValue: 'uniwork.office-frame-source',
+      description: 'Jenkins "Secret text" credential holding OFFICE_FRAME_SOURCE: an https URL to a .tar.gz of the genoffice dist-web root with all six modules. The FE build fails without it.'
+    )
+    string(
       name: 'HARBOR_CREDENTIALS_ID',
       defaultValue: 'fsales.registry.harbor.id',
       description: 'Jenkins Harbor credentials (never hardcode secrets)'
@@ -127,16 +132,24 @@ pipeline {
             script {
               def serviceTag = 'uniwork-fe'
               def imageName = "${env.REGISTRY}/${serviceTag}:${env.IMAGE_TAG}"
-              sh """
-                docker build \\
-                  --memory=${env.DOCKER_BUILD_MEMORY} \\
-                  --memory-swap=${env.DOCKER_BUILD_MEMORY} \\
-                  --build-arg NEXT_PUBLIC_API_URL=https://uniwork.unicomhub.com \\
-                  --build-arg NEXT_PUBLIC_WS_URL=wss://uniwork.unicomhub.com \\
-                  --build-arg NEXT_PUBLIC_APP_URL=https://uniwork.unicomhub.com \\
-                  -t ${imageName} \\
-                  -f apps/web/Dockerfile .
-              """
+              // The frame source is a credential: the shell expands it (\$OFFICE_FRAME_SOURCE),
+              // Groovy never interpolates it into the command text.
+              withCredentials([string(
+                credentialsId: "${params.OFFICE_FRAME_SOURCE_CREDENTIALS_ID}",
+                variable: 'OFFICE_FRAME_SOURCE'
+              )]) {
+                sh """
+                  docker build \\
+                    --memory=${env.DOCKER_BUILD_MEMORY} \\
+                    --memory-swap=${env.DOCKER_BUILD_MEMORY} \\
+                    --build-arg NEXT_PUBLIC_API_URL=https://uniwork.unicomhub.com \\
+                    --build-arg NEXT_PUBLIC_WS_URL=wss://uniwork.unicomhub.com \\
+                    --build-arg NEXT_PUBLIC_APP_URL=https://uniwork.unicomhub.com \\
+                    --build-arg OFFICE_FRAME_SOURCE="\$OFFICE_FRAME_SOURCE" \\
+                    -t ${imageName} \\
+                    -f apps/web/Dockerfile .
+                """
+              }
               pushImage(imageName, serviceTag)
             }
           }

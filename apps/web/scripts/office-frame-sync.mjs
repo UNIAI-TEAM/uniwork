@@ -11,7 +11,8 @@
 //   (add --allow-dirty for a local run of a build made from an uncommitted fork checkout; never commit that pin)
 //   node scripts/office-frame-sync.mjs --check [--module m | --all]     verify what is installed
 //   node scripts/office-frame-sync.mjs --ensure                         build hook, every pinned module: check,
-//                                                                       else sync from OFFICE_FRAME_SOURCE, else warn
+//                                                                       else sync from OFFICE_FRAME_SOURCE, else warn;
+//                                                                       with NODE_ENV=production, fail unless all six are installed
 //
 // A source is a dist-web root holding <module>/ directories (or a tarball of
 // one), one module's directory holding its version (the docs-only layout of
@@ -29,6 +30,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertMatchesPin, assertModule, buildPin, OFFICE_MODULES } from "../platform/office-frame/frame-bundle.mjs";
 import { assertHeadersMatchPin, checkInstalled, install, loadBundle, locateModuleBundle, materialize } from "../platform/office-frame/frame-install.mjs";
+import { assertFrameComplete, isProductionBuild } from "../platform/office-frame/frame-production.mjs";
 import { pinPath, readPin } from "../platform/office-frame/frame-headers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -109,6 +111,35 @@ function ensureInstalled(module) {
   return false;
 }
 
+/**
+ * Build hook: installs what is pinned and not yet installed, then (production builds only) fails
+ * unless all six modules ended up installed and verified. Elsewhere a missing bundle only warns.
+ */
+async function ensure(args, modules, named) {
+  const production = isProductionBuild(process.env);
+  if (modules.length === 0) console.log("office-frame: no pin, nothing to serve (every office_*_web flag stays off)");
+  const missing = modules.filter((module) => !ensureInstalled(module));
+  if (missing.length > 0 && args.source) {
+    await sync({ ...args, modules: missing, named });
+  } else if (missing.length > 0 && !production) {
+    // A checkout without access to the fork still builds. next.config.mjs offers a frame only
+    // when its pinned bundle is installed and verifies, so with no bundle every organization sees
+    // the "not set up" notice for that module, whatever the module's flag says.
+    console.warn(`office-frame: ${missing.join(", ")} pinned but not installed and OFFICE_FRAME_SOURCE is unset; those documents cannot open on the web, only download / open in the app`);
+  }
+  const pinned = OFFICE_MODULES.filter((module) => readPin(pinPath(module)));
+  assertFrameComplete({ production, source: args.source, pinned, installed: pinned.filter(isInstalled) });
+}
+
+/** Silent check: is the pinned build of module installed and verified? */
+function isInstalled(module) {
+  try {
+    return checkInstalled(readPin(pinPath(module)), publicRoot(module));
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const { modules, named } = selectModules(args);
@@ -122,18 +153,7 @@ async function main() {
     }
     return;
   }
-  if (args.mode === "ensure") {
-    if (modules.length === 0) return console.log("office-frame: no pin, nothing to serve (every office_*_web flag stays off)");
-    const missing = modules.filter((module) => !ensureInstalled(module));
-    if (missing.length === 0) return;
-    if (!args.source) {
-      // A checkout without access to the fork still builds. next.config.mjs offers a frame only
-      // when its pinned bundle is installed and verifies, so with no bundle every organization sees
-      // the "not set up" notice for that module, whatever the module's flag says.
-      return console.warn(`office-frame: ${missing.join(", ")} pinned but not installed and OFFICE_FRAME_SOURCE is unset; those documents cannot open on the web, only download / open in the app`);
-    }
-    return sync({ ...args, modules: missing, named });
-  }
+  if (args.mode === "ensure") return ensure(args, modules, named);
   if (!args.source) throw new Error("--from <dir|.tar.gz|https-url> or OFFICE_FRAME_SOURCE is required");
   if (modules.length === 0) throw new Error("no module is pinned; name one with --module, or pin with --all --pin");
   await sync({ ...args, modules, named });
