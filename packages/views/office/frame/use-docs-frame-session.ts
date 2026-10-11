@@ -23,8 +23,8 @@ import { getOfficeDraftKey, officeDraftScope } from "@uniwork/core/office/draft-
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 
 /**
- * No handshake within this long = the bundle never loaded, and the page falls back to the G3
- * editor. A frame that hangs is far more common than one that needs longer (a normal open
+ * No handshake within this long = the bundle never loaded, and the page shows the load failure
+ * (Retry, open in UniWork Office, Download). A frame that hangs is far more common than one that needs longer (a normal open
  * completes in a few seconds), and a minute of bare skeleton reads as a dead page; 25 s keeps
  * room for a cold start on a slow link while the slow state below explains the wait from 8 s on.
  */
@@ -142,7 +142,7 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, webSearch: ai && aiGrant?.web_search === true, imageSearch: ai && aiGrant?.image_search === true,
     imageGeneration: ai && aiGrant?.image_generation === true,
-    // The host's own "Open in desktop app" is only for a user who may edit (the G3 rule).
+    // The host's own "Open in desktop app" is only for a user who may edit.
     desktopOpen: desktopOpen && !readonly,
   };
 }

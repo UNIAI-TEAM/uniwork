@@ -189,8 +189,8 @@ export function checkInstalled(pin, root) {
 /**
  * The version the web app may offer: the pinned one only when it is installed
  * and verified against the pin. Anything else (never synced, partly deleted,
- * tampered) is "" so the document screen keeps the G3 editor instead of
- * mounting an iframe that 404s.
+ * tampered) is "" so the document screen says the server is not set up instead
+ * of mounting an iframe that 404s.
  */
 export function offerableFrameVersion(pin, root) {
   if (!pin) return "";

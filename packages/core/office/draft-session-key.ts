@@ -14,8 +14,8 @@
 /**
  * The frame-side IndexedDB database holding the encrypted drafts and, in the
  * "keys" store, their keys (same origin as the page). Not
- * "uniwork-office-drafts": that one belongs to the G3 web host
- * (apps/web/platform/office/draft-store.ts), whose drafts outlive sign-out.
+ * "uniwork-office-drafts": that one was written by the removed web editors
+ * and is left as it is.
  */
 const OFFICE_DRAFTS_DB = "uniwork-office-frame-drafts";
 const KEYS_STORE = "keys";

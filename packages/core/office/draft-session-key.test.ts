@@ -125,7 +125,7 @@ describe("office draft session key", () => {
     await expect(open(second, sealed)).rejects.toThrow();
   });
 
-  it("sign-out deletes the whole frame database and leaves the G3 drafts database alone", async () => {
+  it("sign-out deletes the whole frame database and leaves the old editors' drafts database alone", async () => {
     const g3 = await openDb(G3_DB, 1);
     await request(g3.transaction("drafts", "readwrite").objectStore("drafts").put("kept", "doc1"));
     g3.close();

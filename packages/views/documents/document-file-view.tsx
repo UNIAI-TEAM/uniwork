@@ -77,7 +77,7 @@ function Fact({ label, value, mono }: { label: string; value: string; mono?: boo
  * (POST uploads + POST versions/commit, C-01 §14.4).
  *
  * There is deliberately no Office "Edit" button: opening an Office format
- * needs the engine consumer and a checked capability (G3), and a button that
+ * needs the engine consumer and a checked capability, and a button that
  * cannot open anything is worse than saying the format is not editable here
  * yet.
  */

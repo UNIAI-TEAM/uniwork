@@ -120,7 +120,7 @@ export type OfficeFrameResolvedPaths = z.infer<typeof officeFrameResolvedPathsSc
  *  Null when the answer does not match the contract. Rejects with ApiError
  *  403 `feature_disabled` when the flag of the document's module
  *  (office_docs_web, office_pdf_web, …) is off for its organization (the host
- *  falls back to the G3 editor), distinct from the 404 `not_found` of a
+ *  shows the unavailable notice), distinct from the 404 `not_found` of a
  *  missing or foreign document, or one of a format no web module opens. */
 export async function mintOfficeFrameToken(
   documentId: string,

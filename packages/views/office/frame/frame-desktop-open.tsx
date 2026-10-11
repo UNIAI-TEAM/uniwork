@@ -4,7 +4,7 @@ import { useMemo, useRef, type MutableRefObject } from "react";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
 import { DesktopOpenAction, type DesktopOpenActionProps, type DesktopOpenOutcome, type OfficeSaveCoordinatorLike, type OfficeSaveStateLike } from "../desktop-open-action";
 
-/** What the page hands the frame for "Open in desktop app": the same wiring the G3 host uses. */
+/** What the page hands the frame for "Open in desktop app" (apps/web/platform/office-frame/desktop-open-props.ts). */
 export type FrameDesktopOpenProps = Omit<DesktopOpenActionProps, "documentId" | "dirty" | "saveCoordinator" | "placement">;
 
 interface FrameDesktopOpenActionProps {
@@ -20,7 +20,7 @@ interface FrameDesktopOpenActionProps {
 
 /**
  * `DesktopOpenAction` for a genoffice module frame, in the page header's action
- * cluster like the G3 editor's (or a slim bar above the frame when the page
+ * cluster (or a slim bar above the frame when the page
  * has no header slot). The frame has no save coordinator, so a small adapter
  * stands in for one: only its dirty fields and `save` are read by the action.
  */

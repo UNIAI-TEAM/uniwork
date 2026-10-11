@@ -50,8 +50,8 @@ export interface OfficeModuleFrameProps {
   /** Header actions (save, print) for the page that hosts the frame. */
   controlsRef?: MutableRefObject<OfficeModuleFrameControls | null>;
   /**
-   * "Open in desktop app" wiring (the G3 host's, apps/web/platform/office/desktop-open-props.ts).
-   * Shown once the frame is ready and only for a user who may edit, the G3 rule; absent = no action.
+   * "Open in desktop app" wiring (apps/web/platform/office-frame/desktop-open-props.ts).
+   * Shown once the frame is ready and only for a user who may edit; absent = no action.
    */
   desktopOpen?: FrameDesktopOpenProps;
   /** The workspace's document list: a reader who is refused the document is offered the way back there. */
@@ -201,7 +201,7 @@ export function OfficeModuleFrame({
   };
 
   // Save stays reachable in the page header at every width (an icon on a phone, labelled from `sm`).
-  // Like the G3 header it is quiet while nothing is unsaved and stays in the tab order when it is.
+  // It is quiet while nothing is unsaved and stays in the tab order when it is.
   const saveLabel = tRoot("office.shell.save_to_cloud");
   const saveQuiet = saveState === "ready" || saveState === "saved";
   const saving = saveState === "saving";
@@ -264,7 +264,7 @@ export function OfficeModuleFrame({
       data-frame-modal={session.modal || undefined}
     >
       {headerSlot && !session.viewOnly && session.status === "ready" ? (
-        // The page header around the frame says whether the frame's edits are saved, like the G3 header does.
+        // The page header around the frame says whether the frame's edits are saved.
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
       {desktopOpen && !booting && !session.viewOnly ? (

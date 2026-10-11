@@ -114,7 +114,7 @@ describe("DocumentFileView", () => {
     expect(screen.getByText(t("documents.file.version_row", { no: 1 }))).toBeInTheDocument();
   });
 
-  it("promises nothing about editing here: no Office button until G3", async () => {
+  it("promises nothing about editing here: no Office button", async () => {
     mockApi();
     renderView();
 
