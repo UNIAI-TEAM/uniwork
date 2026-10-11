@@ -56,7 +56,7 @@ func (s *EmailHubService) ListThreads(
 	// Every page searches IMAP (the governor caches a repeat): the hits are the
 	// rows matched by body text the cache does not hold, so the SQL keeps them.
 	var hitIDs []string
-	if query != "" {
+	if query != "" && !acc.AuthFailedAt.Valid { // needs_reconnect: search the cache only, never IMAP
 		for _, searchFolder := range searchScopeFolders(folder) {
 			ids, indexErr := s.indexSearchResults(ctx, acc, searchFolder, query)
 			if indexErr != nil {
@@ -97,7 +97,8 @@ func (s *EmailHubService) ListThreads(
 		return ListEmailHubThreadsResult{}, err
 	}
 
-	if len(rows) == 0 && in.BeforeID != "" && cursorUID > 1 && listAllowsBackfill(in) && backfillSupportedFolder(folder) {
+	if len(rows) == 0 && in.BeforeID != "" && cursorUID > 1 && !acc.AuthFailedAt.Valid &&
+		listAllowsBackfill(in) && backfillSupportedFolder(folder) {
 		if _, backfillErr := s.backfillOlderThreads(ctx, acc, folder, cursorUID); backfillErr != nil {
 			s.log.Warn("email hub backfill failed",
 				"account_id", acc.ID, "folder", folder, "before_uid", cursorUID, "err", backfillErr)

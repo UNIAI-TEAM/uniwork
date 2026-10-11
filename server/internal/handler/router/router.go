@@ -148,7 +148,10 @@ func New(d Deps, h Routes) http.Handler {
 			registerTasksSuite(authed, h)
 			registerHome(authed, h)
 			registerCalendar(authed, h)
-			registerEmailHub(authed, h)
+			// Connect dials a third party with a password the caller chose
+			// (UNI-1197): per signed-in person and route, 10 per 10 minutes.
+			emailHubConnectLimit := mw.RateLimitPerRoute(d.Redis, 10, 10*time.Minute, proxies, bearerUser(d.Minter))
+			registerEmailHub(authed, h, emailHubConnectLimit)
 			registerAudit(authed, h)
 			registerGraph(authed, h)
 			registerMeetings(authed, h)

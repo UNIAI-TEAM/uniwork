@@ -187,9 +187,13 @@ const (
 	ActionSignatureCreated = "signature.created"
 	ActionSignatureDeleted = "signature.deleted"
 
-	// Email Hub (UNI-1109): the system disconnects a mailbox whose IMAP LOGIN
-	// the provider refused, so no node keeps retrying a revoked password.
+	// Email Hub (UNI-1237): the owner connects (or reconnects) a mailbox and
+	// disconnects one (cache dropped);
+	// a mailbox whose provider refused its credential is marked needs-reconnect
+	// instead (cache kept), so no node keeps retrying a revoked password.
+	ActionEmailHubAccountConnected    = "email_hub_account.connected"
 	ActionEmailHubAccountDisconnected = "email_hub_account.disconnected"
+	ActionEmailHubAccountAuthFailed   = "email_hub_account.auth_failed"
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.

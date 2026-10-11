@@ -56,15 +56,11 @@ func TestLoginAuthStartAndNext(t *testing.T) {
 	}
 }
 
-func TestIsLocalhost(t *testing.T) {
+func TestLoginAuthRejectsPlaintextLocalhost(t *testing.T) {
 	t.Parallel()
-	for _, host := range []string{"localhost", "127.0.0.1", "::1"} {
-		if !isLocalhost(host) {
-			t.Fatalf("expected local: %q", host)
-		}
-	}
-	if isLocalhost("mail.example.com") {
-		t.Fatal("expected remote")
+	auth := &loginAuth{host: "127.0.0.1"}
+	if _, _, err := auth.Start(&smtp.ServerInfo{Name: "127.0.0.1", TLS: false}); err == nil {
+		t.Fatal("expected unencrypted connection error even for loopback")
 	}
 }
 

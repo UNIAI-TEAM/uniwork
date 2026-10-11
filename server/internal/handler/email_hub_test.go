@@ -205,8 +205,9 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	if _, err := q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
 		ID: accID, UserID: userID, OrganizationID: orgID,
 		EmailAddress: "seed@gmail.com", Provider: "gmail",
-		ImapHost: "127.0.0.1", ImapPort: 1,
-		SmtpHost: "127.0.0.1", SmtpPort: 1,
+		ImapHost: "127.0.0.1", ImapPort: 1, ImapSecurity: "tls",
+		SmtpHost: "127.0.0.1", SmtpPort: 1, SmtpSecurity: "starttls",
+		AuthKind:    "password",
 		PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
 	}); err != nil {
 		t.Fatal(err)
@@ -460,4 +461,30 @@ func orgIDFromWorkspace(t *testing.T, q *db.Queries, wsID string) string {
 		t.Fatal(err)
 	}
 	return ws.OrganizationID
+}
+
+// A live mailbox is refused with a stable 409 before any dial (spec §3).
+func TestEmailHubConnectAlreadyConnectedIs409(t *testing.T) {
+	srv, token, wsID, userID, box := setupEmailHubHTTP(t)
+	q := db.New(testPool)
+	orgID := orgIDFromWorkspace(t, q, wsID)
+	sealed, err := box.Seal([]byte("app-password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.CreateEmailHubAccount(context.Background(), db.CreateEmailHubAccountParams{
+		ID: util.NewID(), UserID: userID, OrganizationID: orgID,
+		EmailAddress: "dup@gmail.com", Provider: "gmail",
+		ImapHost: "imap.gmail.com", ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: "smtp.gmail.com", SmtpPort: 587, SmtpSecurity: "starttls",
+		AuthKind: "password", PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/email-hub/accounts", token, map[string]string{
+		"email_address": "Dup@Gmail.com", "app_password": "another-app-password",
+	})
+	if res.StatusCode != http.StatusConflict || errorCode(out) != "email_hub_already_connected" {
+		t.Fatalf("duplicate connect: %d %v", res.StatusCode, out)
+	}
 }

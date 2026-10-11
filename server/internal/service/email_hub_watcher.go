@@ -11,6 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/emailhub"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
+	"github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -76,6 +77,9 @@ func (s *EmailHubService) SubscribeInboxWatch(
 			return ErrNotFound
 		}
 		return err
+	}
+	if acc.AuthFailedAt.Valid {
+		return ErrEmailHubReauthRequired
 	}
 	s.hubWatch.subscribe(acc)
 	return nil
@@ -188,7 +192,7 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 			}
 			continue
 		}
-		if acc.DisconnectedAt.Valid {
+		if acc.DisconnectedAt.Valid || acc.AuthFailedAt.Valid {
 			return
 		}
 		changed, err := s.waitInboxIDLE(ctx, acc)
@@ -201,7 +205,7 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 				s.gov.loginSucceeded(accountID)
 				continue
 			}
-			if s.disconnectOnAuthFailure(ctx, acc, err) {
+			if errors.Is(err, ErrEmailHubReauthRequired) {
 				return
 			}
 			s.log.Warn("email hub watcher idle failed", "account_id", accountID, "err", err)
@@ -237,56 +241,74 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 // count as a revoked password; the watcher backoff spaces them out.
 const emailHubRefusedLoginsBeforeDisconnect = 3
 
-// disconnectOnAuthFailure disconnects acc when err is a LOGIN the provider
-// refused, the same way the owner would, so neither this node nor any other
-// keeps retrying a revoked password. It reports whether it did.
-func (s *EmailHubService) disconnectOnAuthFailure(ctx context.Context, acc db.EmailHubAccount, err error) bool {
+// handleAuthError marks acc needs-reconnect when err says the provider refused
+// the credential read at version, so no node keeps retrying it. It reports
+// whether it did; network errors, timeouts and busy servers stay transient.
+func (s *EmailHubService) handleAuthError(ctx context.Context, acc db.EmailHubAccount, version int64, err error) bool {
+	var reason string
 	switch {
 	case errors.Is(err, imapclient.ErrAuthFailed):
+		reason = "imap_auth_failed"
 	case errors.Is(err, imapclient.ErrLoginRefused):
 		if s.gov.loginRefused(acc.ID) < emailHubRefusedLoginsBeforeDisconnect {
 			return false
 		}
+		reason = "imap_login_refused"
+	case errors.Is(err, smtpclient.ErrAuthFailed):
+		reason = "smtp_auth_failed"
 	default:
 		return false
 	}
-	if derr := s.disconnectRefusedAccount(ctx, acc); derr != nil {
-		s.log.Warn("email hub auth-failure disconnect failed", "account_id", acc.ID, "err", derr)
-		return false
-	}
-	s.log.Warn("email hub account disconnected: IMAP login refused", "account_id", acc.ID)
-	if cerr := cleanUpDisconnectedEmailHubAccount(ctx, s.q, acc.ID, acc.OrganizationID); cerr != nil {
-		s.log.Warn("email hub auth-failure cleanup failed", "account_id", acc.ID, "err", cerr)
-	}
-	s.emitInboxChanged(ctx, acc) // the owner's open client drops the mailbox instead of erroring
-	s.hubWatch.forceStop(acc.ID) // last: it may cancel ctx when the watcher calls us
-	return true
+	return s.markAuthFailed(ctx, acc, version, reason)
 }
 
-func (s *EmailHubService) disconnectRefusedAccount(ctx context.Context, acc db.EmailHubAccount) error {
+// markAuthFailed records that the credential at version was refused, keeping
+// the cached mail for the reconnect onto the same id. Zero rows means a
+// reconnect, a disconnect or another node got there first; the watcher running
+// now belongs to that newer state, so nothing else happens.
+func (s *EmailHubService) markAuthFailed(ctx context.Context, acc db.EmailHubAccount, version int64, reason string) bool {
+	// The refusal is a fact even when the request that saw it is gone.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
 	tx, err := s.ws.pool.Begin(ctx)
 	if err != nil {
-		return err
+		s.log.Warn("email hub mark auth failed", "account_id", acc.ID, "err", err)
+		return false
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
-	n, err := qtx.DisconnectEmailHubAccount(ctx, db.DisconnectEmailHubAccountParams{
-		ID: acc.ID, UserID: acc.UserID, OrganizationID: acc.OrganizationID,
+	n, err := qtx.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+		ID: acc.ID, OrganizationID: acc.OrganizationID, CredentialVersion: version, Reason: reason,
 	})
-	if err != nil || n == 0 {
-		return err // n == 0: another node or the owner got there first
+	if err != nil {
+		s.log.Warn("email hub mark auth failed", "account_id", acc.ID, "err", err)
+		return false
+	}
+	if n == 0 {
+		return false
 	}
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: acc.OrganizationID,
 		Actor:          audit.System("email-hub"),
-		Action:         audit.ActionEmailHubAccountDisconnected,
+		Action:         audit.ActionEmailHubAccountAuthFailed,
 		ResourceType:   "email_hub_account",
 		ResourceID:     acc.ID,
-		Metadata:       map[string]any{"reason": "imap_auth_failed"},
+		Metadata:       map[string]any{"reason": reason},
+	}, audit.Event{
+		Topic:   "email_hub.inbox_changed",
+		Version: 1,
+		Payload: map[string]string{"account_id": acc.ID, "user_id": acc.UserID},
 	}); err != nil {
-		return err
+		s.log.Warn("email hub mark auth failed", "account_id", acc.ID, "err", err)
+		return false
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		s.log.Warn("email hub mark auth failed", "account_id", acc.ID, "err", err)
+		return false
+	}
+	s.log.Warn("email hub account needs reconnect", "account_id", acc.ID, "reason", reason)
+	s.hubWatch.forceStop(acc.ID) // last: it may cancel ctx when the watcher calls us
+	return true
 }
 
 // isEmailHubWatchRoundEnd reports the normal end of one IDLE round (timeout renews the watch).
@@ -295,12 +317,15 @@ func isEmailHubWatchRoundEnd(err error) bool {
 }
 
 func (s *EmailHubService) waitInboxIDLE(ctx context.Context, acc db.EmailHubAccount) (bool, error) {
-	creds, _, err := s.accountCredentials(acc)
+	creds, err := s.credentials(ctx, acc)
 	if err != nil {
 		return false, err
 	}
-	sess, err := imapclient.OpenSessionIdle(creds)
+	sess, err := imapclient.OpenSessionIdle(creds.IMAP)
 	if err != nil {
+		if s.handleAuthError(ctx, acc, creds.Version, err) {
+			err = ErrEmailHubReauthRequired
+		}
 		return false, err
 	}
 	defer sess.Close()

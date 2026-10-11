@@ -33,6 +33,15 @@ describe("toastApiError", () => {
     expect(toastError).toHaveBeenLastCalledWith("Khách không thể làm thư ký.");
   });
 
+  it("words the Email Hub codes a retry cannot fix", () => {
+    toastApiError(new ApiError("Email Hub account needs to be reconnected", "email_hub_reauth_required", 409), "fallback");
+    expect(toastError).toHaveBeenLastCalledWith("Hộp thư này cần kết nối lại. Kết nối lại hộp thư rồi thử lại.");
+    toastApiError(new ApiError("smtp auth disabled", "email_hub_smtp_disabled", 400), "fallback");
+    expect(toastError).toHaveBeenLastCalledWith(
+      "Đăng nhập được nhưng máy chủ đã tắt gửi thư qua SMTP cho hộp thư này. Nhờ quản trị viên bật SMTP AUTH rồi thử lại.",
+    );
+  });
+
   it("falls back when the error has no readable message", () => {
     toastApiError({}, "Something went wrong");
     expect(toastError).toHaveBeenCalledWith("Something went wrong");

@@ -1354,7 +1354,12 @@
       "email_placeholder": "you@gmail.com",
       "app_password_placeholder": "16 characters, spaces are fine",
       "error_email_format": "That email isn't valid, e.g. you@gmail.com.",
-      "submitting": "Connecting…"
+      "submitting": "Connecting…",
+      "error_already_connected": "This mailbox is already connected. Pick it under Accounts, or enter another address.",
+      "error_reauth_required": "This mailbox needs reconnecting. Enter a new App Password and try again.",
+      "error_smtp_disabled": "Signed in, but the server has SMTP sending turned off for this mailbox. Ask your admin to enable SMTP AUTH, then try again.",
+      "error_tls_required": "The mail server doesn't support an encrypted connection, so UniWork won't connect. Check the server settings and try again.",
+      "error_unreachable": "Couldn't reach the mail server. Check the email address and try again later."
     },
     "coming_soon": "Coming soon",
     "folders_nav": "Email folders",
@@ -1364,6 +1369,16 @@
     "disconnect_confirm_title": "Disconnect {{email}}?",
     "disconnect_confirm_body": "Mail from this mailbox stops showing in UniWork. Nothing is deleted in Gmail; reconnecting needs a new app password.",
     "disconnect_error": "Could not disconnect the mailbox. Try again.",
+    "reconnect": {
+      "badge": "Needs reconnecting",
+      "menu": "Reconnect {{email}}",
+      "action": "Reconnect",
+      "banner_title": "This mailbox needs reconnecting",
+      "banner_body": "UniWork can't sign in to this mailbox, so new mail isn't arriving and nothing can be sent. Mail already synced is still readable.",
+      "dialog_title": "Reconnect {{email}}",
+      "dialog_description": "Enter a new App Password for this mailbox. Mail already synced stays as it is.",
+      "error": "This mailbox needs reconnecting. Reconnect it, then try again."
+    },
     "search_label": "Search email",
     "search_clear": "Clear search",
     "search_empty_title": "No email matches \"{{query}}\"",

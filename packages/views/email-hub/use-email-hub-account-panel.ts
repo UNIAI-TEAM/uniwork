@@ -7,7 +7,8 @@ export function useEmailHubAccountPanel(
   accountId: string | null,
   setAccountId: (id: string | null) => void,
   setSelectedId: (id: string | null) => void,
-  setConnectOpen: (open: boolean) => void,
+  /** "" opens the connect dialog empty; an address reopens it to reconnect that mailbox. */
+  openConnect: (email: string) => void,
   disconnect: {
     mutate: (id: string, opts?: { onSuccess?: () => void; onError?: (err: unknown) => void; onSettled?: () => void }) => void;
     isPending: boolean;
@@ -38,6 +39,15 @@ export function useEmailHubAccountPanel(
     [accountId, disconnect, onDisconnectError, setAccountId, setSelectedId],
   );
 
+  // GĐ1 accounts are all app-password accounts; GĐ3 picks the OAuth popup here by auth_kind.
+  const reconnectAccount = useCallback(
+    (id: string) => {
+      const acc = accountList.find((item) => item.id === id);
+      if (acc) openConnect(acc.email_address);
+    },
+    [accountList, openConnect],
+  );
+
   return useMemo(
     () => ({
       accounts: accountList,
@@ -45,8 +55,9 @@ export function useEmailHubAccountPanel(
       disconnectPending: disconnect.isPending,
       onSelectAccount: selectAccount,
       onDisconnect: disconnectAccount,
-      onAddAccount: () => setConnectOpen(true),
+      onAddAccount: () => openConnect(""),
+      onReconnect: reconnectAccount,
     }),
-    [accountId, accountList, disconnect.isPending, disconnectAccount, selectAccount, setConnectOpen],
+    [accountId, accountList, disconnect.isPending, disconnectAccount, openConnect, reconnectAccount, selectAccount],
   );
 }

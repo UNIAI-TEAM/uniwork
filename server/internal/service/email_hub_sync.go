@@ -103,15 +103,15 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 		}
 	}
 	state := parseEmailHubSyncState(acc.SyncState)
+	creds, err := s.credentials(ctx, acc)
+	if err != nil {
+		return false, 0, err
+	}
 	var lastErr error
 	inboxOK := false
 	newUnread := 0
 	if err := s.gov.withIMAP(acc.ID, func() error {
-		creds, _, err := s.accountCredentials(acc)
-		if err != nil {
-			return err
-		}
-		sess, err := imapclient.OpenSession(creds)
+		sess, err := imapclient.OpenSession(creds.IMAP)
 		if err != nil {
 			return err
 		}
@@ -141,8 +141,12 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 		}
 		return nil
 	}); err != nil {
+		if s.handleAuthError(ctx, acc, creds.Version, err) {
+			err = ErrEmailHubReauthRequired
+		}
 		return false, 0, err
 	}
+	s.gov.loginSucceeded(acc.ID)
 	if !inboxOK {
 		return false, 0, lastErr
 	}
@@ -200,13 +204,7 @@ func (s *EmailHubService) syncAccountFolderSession(
 		cursor = emailHubFolderSync{}
 	}
 
-	if reconcile {
-		if err := s.pruneReconciledFolderCache(ctx, acc, logicalFolder, result.Items); err != nil {
-			return state, 0, err
-		}
-	}
-
-	if _, err := s.upsertThreadItems(ctx, acc, logicalFolder, result.Items); err != nil {
+	if err := s.cacheFolderItems(ctx, acc, logicalFolder, result.Items, reconcile); err != nil {
 		return state, 0, err
 	}
 	s.enforceEmailHubFolderRetention(ctx, acc, logicalFolder)
@@ -221,6 +219,21 @@ func (s *EmailHubService) syncAccountFolderSession(
 		LastSyncAt:  time.Now().UTC().Format(time.RFC3339),
 	})
 	return state, newUnread, nil
+}
+
+// cacheFolderItems writes one fetched batch. The upsert runs before the
+// reconcile prune so a Sent row cached under a placeholder UID can adopt its
+// server UID first; the prune still runs when an upsert failed, as before.
+func (s *EmailHubService) cacheFolderItems(
+	ctx context.Context, acc db.EmailHubAccount, logicalFolder string, items []imapclient.ThreadMeta, reconcile bool,
+) error {
+	_, upsertErr := s.upsertThreadItems(ctx, acc, logicalFolder, items)
+	if reconcile {
+		if err := s.pruneReconciledFolderCache(ctx, acc, logicalFolder, items); err != nil {
+			return err
+		}
+	}
+	return upsertErr
 }
 
 func emailHubReconcileKeepUIDs(items []imapclient.ThreadMeta) []int32 {
@@ -284,13 +297,13 @@ func (s *EmailHubService) syncSingleFolder(
 	}
 	defer release()
 
+	creds, err := s.credentials(ctx, acc)
+	if err != nil {
+		return false, 0, err
+	}
 	newUnread := 0
 	runSync := func() error {
-		creds, _, err := s.accountCredentials(acc)
-		if err != nil {
-			return err
-		}
-		sess, err := imapclient.OpenSession(creds)
+		sess, err := imapclient.OpenSession(creds.IMAP)
 		if err != nil {
 			return err
 		}
@@ -312,7 +325,6 @@ func (s *EmailHubService) syncSingleFolder(
 		state, newUnread, syncErr = s.syncAccountFolderSession(ctx, acc, logicalFolder, state, reconcile, sess, mailboxes)
 		return syncErr
 	}
-	var err error
 	if blockIMAP {
 		err = s.gov.withIMAP(acc.ID, runSync)
 	} else if !s.gov.tryWithIMAP(acc.ID, func() error { err = runSync(); return err }) {
@@ -320,7 +332,9 @@ func (s *EmailHubService) syncSingleFolder(
 		return false, 0, nil
 	}
 	if err != nil {
-		s.disconnectOnAuthFailure(ctx, acc, err)
+		if s.handleAuthError(ctx, acc, creds.Version, err) {
+			err = ErrEmailHubReauthRequired
+		}
 		return false, 0, err
 	}
 	s.gov.loginSucceeded(acc.ID)
@@ -349,6 +363,17 @@ func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHub
 			toAddrs = []string{}
 		}
 		convKey := emailhub.ConversationKey(acc.ID, it.Subject, it.MessageID, it.InReplyTo, it.References)
+		if logicalFolder == emailhub.FolderSent && it.MessageID != "" {
+			// The local copy written after SMTP send becomes this server row, so
+			// the upsert below updates it instead of inserting a duplicate.
+			if _, err := s.q.AdoptEmailHubSentCopy(ctx, db.AdoptEmailHubSentCopyParams{
+				ImapUid: int32(it.UID), AccountID: acc.ID, OrganizationID: acc.OrganizationID,
+				Folder: logicalFolder, MessageID: emailhub.NormalizeMessageID(it.MessageID),
+			}); err != nil {
+				s.log.Warn("email hub sent copy adopt failed",
+					"account_id", acc.ID, "uid", it.UID, "err", err)
+			}
+		}
 		row, err := s.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
 			ID: util.NewID(), AccountID: acc.ID, OrganizationID: acc.OrganizationID,
 			Folder: logicalFolder, ImapUid: int32(it.UID), MessageID: pgtype.Text{String: it.MessageID, Valid: it.MessageID != ""},
@@ -398,15 +423,17 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 		return false, err
 	}
 
-	s.gov.beginWatch(accountID)
-	defer s.gov.endWatch(accountID)
-
-	creds, _, err := s.accountCredentials(acc)
+	creds, err := s.credentials(ctx, acc) // refuses needs_reconnect before it takes a watch slot
 	if err != nil {
 		return false, err
 	}
-	sess, err := imapclient.OpenSessionIdle(creds)
+	s.gov.beginWatch(accountID)
+	defer s.gov.endWatch(accountID)
+	sess, err := imapclient.OpenSessionIdle(creds.IMAP)
 	if err != nil {
+		if s.handleAuthError(ctx, acc, creds.Version, err) {
+			err = ErrEmailHubReauthRequired
+		}
 		return false, err
 	}
 	defer sess.Close()

@@ -167,7 +167,7 @@ func (s *EmailHubService) prefetchUncachedBodies(ctx context.Context, acc db.Ema
 	}
 	cached := 0
 	if !s.gov.tryWithIMAP(acc.ID, func() error {
-		sess, mailboxes, openErr := s.openIMAPWithMailboxes(acc)
+		sess, mailboxes, openErr := s.openIMAPWithMailboxes(ctx, acc)
 		if openErr != nil {
 			s.log.Warn("email hub prefetch imap failed", "account_id", acc.ID, "err", openErr)
 			return openErr
@@ -211,7 +211,7 @@ func (s *EmailHubService) fetchThreadBodyInteractive(
 ) (imapclient.ThreadBody, error) {
 	ctx, cancel := context.WithTimeout(ctx, imapclient.InteractiveTimeout())
 	defer cancel()
-	sess, mailboxes, err := s.openIMAPInteractive(acc)
+	sess, mailboxes, err := s.openIMAPInteractive(ctx, acc)
 	if err != nil {
 		return imapclient.ThreadBody{}, err
 	}

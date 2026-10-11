@@ -1353,7 +1353,12 @@
       "email_placeholder": "ban@gmail.com",
       "app_password_placeholder": "16 ký tự, có thể dán cả khoảng trắng",
       "error_email_format": "Email chưa đúng định dạng, ví dụ ban@gmail.com.",
-      "submitting": "Đang kết nối…"
+      "submitting": "Đang kết nối…",
+      "error_already_connected": "Hộp thư này đã được kết nối. Chọn hộp thư trong mục Tài khoản, hoặc nhập địa chỉ khác.",
+      "error_reauth_required": "Hộp thư này cần kết nối lại. Nhập App Password mới rồi thử lại.",
+      "error_smtp_disabled": "Đăng nhập được nhưng máy chủ đã tắt gửi thư qua SMTP cho hộp thư này. Nhờ quản trị viên bật SMTP AUTH rồi thử lại.",
+      "error_tls_required": "Máy chủ thư không hỗ trợ kết nối mã hóa nên UniWork không kết nối. Kiểm tra cài đặt máy chủ rồi thử lại.",
+      "error_unreachable": "Không kết nối được tới máy chủ thư. Kiểm tra địa chỉ email rồi thử lại sau."
     },
     "coming_soon": "Sắp có",
     "folders_nav": "Thư mục email",
@@ -1363,6 +1368,16 @@
     "disconnect_confirm_title": "Ngắt kết nối {{email}}?",
     "disconnect_confirm_body": "Email của hộp thư này sẽ không còn hiện trong UniWork. Thư trên Gmail vẫn giữ nguyên; muốn dùng lại phải nhập App Password mới.",
     "disconnect_error": "Không ngắt kết nối được hộp thư. Thử lại.",
+    "reconnect": {
+      "badge": "Cần kết nối lại",
+      "menu": "Kết nối lại {{email}}",
+      "action": "Kết nối lại",
+      "banner_title": "Hộp thư cần kết nối lại",
+      "banner_body": "UniWork không đăng nhập được vào hộp thư này nên chưa nhận hay gửi được thư mới. Thư đã đồng bộ vẫn đọc được.",
+      "dialog_title": "Kết nối lại {{email}}",
+      "dialog_description": "Nhập App Password mới cho hộp thư này. Thư đã đồng bộ được giữ nguyên.",
+      "error": "Hộp thư này cần kết nối lại. Kết nối lại hộp thư rồi thử lại."
+    },
     "search_label": "Tìm email",
     "search_clear": "Xóa tìm kiếm",
     "search_empty_title": "Không có email nào khớp \"{{query}}\"",

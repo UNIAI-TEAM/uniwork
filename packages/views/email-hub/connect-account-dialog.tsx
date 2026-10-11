@@ -16,6 +16,8 @@ interface ConnectAccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConnected?: (accountId: string) => void;
+  /** Reconnect this mailbox: the address is fixed, only the password is asked again. */
+  reconnectEmail?: string;
 }
 
 const FORM_ID = "email-hub-connect-form";
@@ -29,14 +31,28 @@ function connectError(code: string | undefined): { field: "email" | "password" |
       return { field: "email", key: "email_hub.connect.error_unsupported" };
     case "email_hub_not_configured":
       return { field: "form", key: "email_hub.connect.error_not_configured" };
+    case "email_hub_already_connected":
+      return { field: "email", key: "email_hub.connect.error_already_connected" };
+    case "email_hub_reauth_required":
+      return { field: "form", key: "email_hub.connect.error_reauth_required" };
+    case "email_hub_smtp_disabled":
+      return { field: "form", key: "email_hub.connect.error_smtp_disabled" };
+    case "email_hub_tls_required":
+      return { field: "form", key: "email_hub.connect.error_tls_required" };
+    case "email_hub_unreachable":
+      return { field: "form", key: "email_hub.connect.error_unreachable" };
     default:
       return { field: "form", key: "email_hub.connect.error" };
   }
 }
 
-export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected }: ConnectAccountDialogProps) {
+export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected, reconnectEmail: reconnectProp }: ConnectAccountDialogProps) {
   const { t } = useTranslation();
+  // Hosts clear the address as they close; keep the reconnect form on screen until the exit animation ends.
+  const [reconnectEmail, setReconnectEmail] = useState(reconnectProp);
+  if (open && reconnectProp !== reconnectEmail) setReconnectEmail(reconnectProp);
   const [email, setEmail] = useState("");
+  const address = reconnectEmail ?? email;
   const [password, setPassword] = useState("");
   const [emailInvalid, setEmailInvalid] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -64,7 +80,7 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected }: 
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const trimmed = email.trim();
+    const trimmed = address.trim();
     if (!EMAIL_RE.test(trimmed)) {
       setEmailInvalid(true);
       document.getElementById("email-hub-email")?.focus();
@@ -89,7 +105,10 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected }: 
     <>
       <Dialog open={open} onOpenChange={close}>
         <FormDialogContent>
-          <FormDialogHeader title={t("email_hub.connect.title")} description={t("email_hub.connect.description")} />
+          <FormDialogHeader
+            title={reconnectEmail ? t("email_hub.reconnect.dialog_title", { email: reconnectEmail }) : t("email_hub.connect.title")}
+            description={reconnectEmail ? t("email_hub.reconnect.dialog_description") : t("email_hub.connect.description")}
+          />
           <FormDialogBody>
             <form id={FORM_ID} className="grid gap-4" noValidate onSubmit={submit}>
               <div className="grid gap-1.5">
@@ -101,7 +120,8 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected }: 
                   inputMode="email"
                   autoCapitalize="none"
                   spellCheck={false}
-                  value={email}
+                  value={address}
+                  readOnly={reconnectEmail !== undefined}
                   onChange={(e) => {
                     setEmail(e.target.value);
                     setEmailInvalid(false);
@@ -156,10 +176,10 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected }: 
             onCancel={() => close(false)}
             submitType="submit"
             form={FORM_ID}
-            submitLabel={t("email_hub.connect.submit")}
+            submitLabel={reconnectEmail ? t("email_hub.reconnect.action") : t("email_hub.connect.submit")}
             submittingLabel={t("email_hub.connect.submitting")}
             submitting={connect.isPending}
-            submitDisabled={!email.trim() || !password.trim()}
+            submitDisabled={!address.trim() || !password.trim()}
           />
         </FormDialogContent>
       </Dialog>

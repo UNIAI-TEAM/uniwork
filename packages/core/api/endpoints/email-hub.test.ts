@@ -57,6 +57,31 @@ describe("email hub endpoints", () => {
     await expect(listEmailHubAccounts("ws1")).resolves.toEqual({ accounts: [] });
   });
 
+  it("listEmailHubAccounts fills the reconnect fields an older server leaves out", async () => {
+    const acc = { id: "acc1", email_address: "a@gmail.com", provider: "gmail", connected_at: "2026-09-01T00:00:00Z" };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ accounts: [acc] }));
+    await expect(listEmailHubAccounts("ws1")).resolves.toEqual({
+      accounts: [{ ...acc, auth_kind: "password", needs_reconnect: false, auth_failed_reason: "" }],
+    });
+  });
+
+  it("listEmailHubAccounts keeps needs_reconnect and degrades when it is not a boolean", async () => {
+    const acc = {
+      id: "acc1",
+      email_address: "a@gmail.com",
+      provider: "gmail",
+      connected_at: "2026-09-01T00:00:00Z",
+      auth_kind: "password",
+      needs_reconnect: true,
+      auth_failed_reason: "imap_auth_failed",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ accounts: [acc] }));
+    await expect(listEmailHubAccounts("ws1")).resolves.toEqual({ accounts: [acc] });
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ accounts: [{ ...acc, needs_reconnect: "yes" }] }));
+    await expect(listEmailHubAccounts("ws1")).resolves.toEqual({ accounts: [] });
+  });
+
   it("getEmailHubSidebarCounts parses counts and degrades when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ inbox_unread: 2, snoozed_total: 1 }));
     await expect(getEmailHubSidebarCounts("ws1", "acc1")).resolves.toEqual({

@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -19,7 +21,7 @@ import (
 //	POST   /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch
 //	DELETE /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/attachments/{attachmentID}
-func registerEmailHub(r api, h Routes) {
+func registerEmailHub(r api, h Routes, connectLimit func(http.Handler) http.Handler) {
 	r.Get("/workspaces/{workspaceID}/email-hub/accounts", h.ListEmailHubAccounts, apiOp{
 		summary: "List connected mailboxes",
 		tags:    []string{"email-hub"},
@@ -40,13 +42,15 @@ func registerEmailHub(r api, h Routes) {
 		sdo:         sdo.EmailHubSidebarCountsSDO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/email-hub/accounts", h.ConnectEmailHubAccount, apiOp{
-		summary:     "Connect IMAP mailbox",
-		description: "Verifies IMAP login with an App Password, stores encrypted credentials, and runs an initial INBOX sync.",
-		tags:        []string{"email-hub"},
-		sdi:         sdi.ConnectEmailHubAccountSDI{},
-		sdo:         sdo.EmailHubAccountSDO{},
-		auth:        true,
+	r.With(connectLimit).Post("/workspaces/{workspaceID}/email-hub/accounts", h.ConnectEmailHubAccount, apiOp{
+		summary: "Connect IMAP mailbox",
+		description: "Verifies IMAP and SMTP login with an App Password, stores encrypted credentials, and runs an initial sync. " +
+			"An address that needs a reconnect keeps its id and cached mail; a live one answers 409 email_hub_already_connected " +
+			"before any dial. 10 requests per 10 minutes per user.",
+		tags: []string{"email-hub"},
+		sdi:  sdi.ConnectEmailHubAccountSDI{},
+		sdo:  sdo.EmailHubAccountSDO{},
+		auth: true,
 	})
 	r.Delete("/workspaces/{workspaceID}/email-hub/accounts/{accountID}", h.DisconnectEmailHubAccount, apiOp{
 		summary: "Disconnect mailbox",

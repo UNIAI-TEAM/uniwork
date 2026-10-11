@@ -8,6 +8,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/emailhub"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
+	"github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -23,14 +24,35 @@ func normalizeEmailHubFolder(folder string) string {
 	return folder
 }
 
-func (s *EmailHubService) accountCredentials(acc db.EmailHubAccount) (imapclient.Credentials, string, error) {
+// emailHubCreds is one snapshot of a mailbox credential. Version is the
+// credential_version it was read at; every auth-failure write compares it.
+type emailHubCreds struct {
+	IMAP    imapclient.Credentials
+	SMTP    smtpclient.Credentials
+	Version int64
+}
+
+// credentials is the one place a mailbox credential is opened. An account
+// that needs reconnect answers ErrEmailHubReauthRequired before any dial.
+func (s *EmailHubService) credentials(_ context.Context, acc db.EmailHubAccount) (emailHubCreds, error) {
+	if acc.AuthFailedAt.Valid {
+		return emailHubCreds{}, ErrEmailHubReauthRequired
+	}
 	password, err := s.openPassword(acc.PasswordEnc)
 	if err != nil {
-		return imapclient.Credentials{}, "", err
+		return emailHubCreds{}, err
 	}
-	return imapclient.Credentials{
-		Host: acc.ImapHost, Port: int(acc.ImapPort), Email: acc.EmailAddress, Password: password,
-	}, acc.Provider, nil
+	return emailHubCreds{
+		IMAP: imapclient.Credentials{
+			Host: acc.ImapHost, Port: int(acc.ImapPort), Email: acc.EmailAddress,
+			Username: acc.Username, Password: password, Security: acc.ImapSecurity,
+		},
+		SMTP: smtpclient.Credentials{
+			Host: acc.SmtpHost, Port: int(acc.SmtpPort), Email: acc.EmailAddress,
+			Username: acc.Username, Password: password, Security: acc.SmtpSecurity,
+		},
+		Version: acc.CredentialVersion,
+	}, nil
 }
 
 func (s *EmailHubService) mailboxFor(acc db.EmailHubAccount, logicalFolder string) string {
@@ -40,37 +62,29 @@ func (s *EmailHubService) mailboxFor(acc db.EmailHubAccount, logicalFolder strin
 	return emailhub.MailboxName(acc.Provider, logicalFolder)
 }
 
-func (s *EmailHubService) openIMAPInteractive(acc db.EmailHubAccount) (*imapclient.Session, imapclient.MailboxMap, error) {
-	creds, _, err := s.accountCredentials(acc)
-	if err != nil {
-		return nil, nil, err
-	}
-	sess, err := imapclient.OpenSessionInteractive(creds)
-	if err != nil {
-		return nil, nil, err
-	}
-	defaults := imapclient.MailboxMap(emailhub.DefaultMailboxMap(acc.Provider))
-	if cached, ok := s.gov.mailboxes(acc.ID); ok {
-		return sess, cached, nil
-	}
-	mailboxes, listErr := sess.MailboxMap(defaults)
-	if listErr != nil {
-		s.log.Warn("email hub list mailboxes failed", "account_id", acc.ID, "err", listErr)
-		return sess, defaults, nil
-	}
-	s.gov.setMailboxes(acc.ID, mailboxes)
-	return sess, mailboxes, nil
+func (s *EmailHubService) openIMAPInteractive(ctx context.Context, acc db.EmailHubAccount) (*imapclient.Session, imapclient.MailboxMap, error) {
+	return s.openIMAPMailboxes(ctx, acc, imapclient.OpenSessionInteractive)
 }
 
-func (s *EmailHubService) openIMAPWithMailboxes(acc db.EmailHubAccount) (*imapclient.Session, imapclient.MailboxMap, error) {
-	creds, _, err := s.accountCredentials(acc)
+func (s *EmailHubService) openIMAPWithMailboxes(ctx context.Context, acc db.EmailHubAccount) (*imapclient.Session, imapclient.MailboxMap, error) {
+	return s.openIMAPMailboxes(ctx, acc, imapclient.OpenSession)
+}
+
+func (s *EmailHubService) openIMAPMailboxes(
+	ctx context.Context, acc db.EmailHubAccount, open func(imapclient.Credentials) (*imapclient.Session, error),
+) (*imapclient.Session, imapclient.MailboxMap, error) {
+	creds, err := s.credentials(ctx, acc)
 	if err != nil {
 		return nil, nil, err
 	}
-	sess, err := imapclient.OpenSession(creds)
+	sess, err := open(creds.IMAP)
 	if err != nil {
+		if s.handleAuthError(ctx, acc, creds.Version, err) {
+			err = ErrEmailHubReauthRequired
+		}
 		return nil, nil, err
 	}
+	s.gov.loginSucceeded(acc.ID) // only refusals in a row count toward needs_reconnect
 	defaults := imapclient.MailboxMap(emailhub.DefaultMailboxMap(acc.Provider))
 	if cached, ok := s.gov.mailboxes(acc.ID); ok {
 		return sess, cached, nil
@@ -116,7 +130,7 @@ func (s *EmailHubService) MoveThread(
 		}
 		return err
 	}
-	creds, _, err := s.accountCredentials(acc)
+	creds, err := s.credentials(ctx, acc)
 	if err != nil {
 		return err
 	}
@@ -127,7 +141,10 @@ func (s *EmailHubService) MoveThread(
 	toMailbox := s.mailboxFor(acc, targetFolder)
 	// shortcut: one IMAP connection per message; fine for conversation-sized sets.
 	for _, r := range rows {
-		if err := imapclient.MoveMessage(creds, s.mailboxFor(acc, r.Folder), uint32(r.ImapUid), toMailbox); err != nil {
+		if err := imapclient.MoveMessage(creds.IMAP, s.mailboxFor(acc, r.Folder), uint32(r.ImapUid), toMailbox); err != nil {
+			if s.handleAuthError(ctx, acc, creds.Version, err) {
+				return ErrEmailHubReauthRequired
+			}
 			s.log.Warn("email hub move failed", "thread_id", r.ID, "target", targetFolder, "err", err)
 			return err
 		}

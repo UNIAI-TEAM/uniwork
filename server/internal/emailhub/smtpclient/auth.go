@@ -29,10 +29,6 @@ func smtpAuthWithFallback(c smtpAuthClient, host, username, password string) (bo
 	return true, plainErr
 }
 
-func isLocalhost(name string) bool {
-	return name == "localhost" || name == "127.0.0.1" || name == "::1"
-}
-
 type loginAuth struct {
 	username string
 	password string
@@ -40,7 +36,7 @@ type loginAuth struct {
 }
 
 func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
-	if !server.TLS && !isLocalhost(server.Name) {
+	if !server.TLS {
 		return "", nil, errors.New("unencrypted connection")
 	}
 	if server.Name != a.host {

@@ -11,10 +11,14 @@ import (
 
 // Credentials for authenticated SMTP submission.
 type Credentials struct {
-	Host     string
-	Port     int
-	Email    string
+	Host  string
+	Port  int
+	Email string // envelope sender, From header and Message-ID domain
+	// Username is the AUTH login; empty means Email.
+	Username string
 	Password string
+	// Security is "tls" (implicit TLS) or "starttls" (required); empty means "tls".
+	Security string
 }
 
 // Message is one outbound mail.
@@ -35,14 +39,14 @@ type Message struct {
 func VerifyLogin(c Credentials) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
 	defer cancel()
-	client, err := authenticate(ctx, c.Host, c.Port, c.Email, c.Password)
+	client, err := authenticate(ctx, c)
 	if err != nil {
 		return err
 	}
 	return client.Close()
 }
 
-// Send delivers a message via STARTTLS on the configured port (587 by default).
+// Send delivers a message over implicit TLS or required STARTTLS, per c.Security.
 func Send(ctx context.Context, c Credentials, msg Message) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -57,7 +61,7 @@ func Send(ctx context.Context, c Credentials, msg Message) (string, error) {
 	}
 	raw := buildRaw(c.Email, to, msg.Cc, msg.Bcc, msg.Subject, msg.BodyText, msg.BodyHTML, msg.Attachments, msgID, msg.InReplyTo, msg.References)
 
-	client, err := authenticate(ctx, c.Host, c.Port, c.Email, c.Password)
+	client, err := authenticate(ctx, c)
 	if err != nil {
 		return "", err
 	}

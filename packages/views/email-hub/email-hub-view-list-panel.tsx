@@ -10,6 +10,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { emailHubEmptyFolderKey, type EmailHubFolderKey, type EmailHubMailFolderKey } from "./email-hub-folders";
 import { EmailHubListHeader, type EmailHubListHeaderProps } from "./email-hub-list-header";
+import { EmailHubReconnectBanner } from "./email-hub-reconnect-banner";
 import { EmailHubScheduledListItem } from "./email-hub-scheduled-list-item";
 import { EmailHubThreadListItem } from "./email-hub-thread-list-item";
 import { EmailHubEmptyState } from "./email-hub-view-parts";
@@ -218,12 +219,15 @@ export function EmailHubViewListPanel({
   state,
   handlers,
   returnFocusId,
+  reconnect,
 }: {
   header: EmailHubListHeaderProps;
   state: EmailHubListBodyState;
   handlers: EmailHubListRowHandlers;
   /** The email just closed: its row takes focus back, so Esc returns you to your place in the list. */
   returnFocusId: string | null;
+  /** Set while the mailbox's login is refused: a banner over the cached list offers to reconnect it. */
+  reconnect?: () => void;
 }) {
   useEffect(() => {
     if (!returnFocusId) return;
@@ -237,6 +241,7 @@ export function EmailHubViewListPanel({
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
       <EmailHubListHeader {...header} />
+      {reconnect ? <EmailHubReconnectBanner onReconnect={reconnect} /> : null}
       <div className="@container min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <ListBody state={state} handlers={handlers} />
       </div>

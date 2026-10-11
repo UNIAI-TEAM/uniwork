@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -57,6 +58,8 @@ func TestMapServiceErrorStampsErrorClass(t *testing.T) {
 		{"rate limited", service.ErrRateLimited, 429, "rate_limited", ""},
 		{"invalid credentials", service.ErrInvalidCredentials, 401, "invalid_credentials", ""},
 		{"generic conflict", service.ErrConflict, 409, "conflict", ""},
+		{"email hub reauth", service.ErrEmailHubReauthRequired, 409, "email_hub_reauth_required", ""},
+		{"email hub smtp disabled", service.ErrEmailHubSMTPDisabled, 400, "email_hub_smtp_disabled", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -109,5 +112,30 @@ func TestRespondErrorFieldsKeepsClassAndFields(t *testing.T) {
 	fields, _ := errObj["fields"].(map[string]any)
 	if fields["meter"] != "storage" {
 		t.Fatalf("fields = %v, want meter=storage", errObj["fields"])
+	}
+}
+
+// Send answers with the reconnect sentinels bare, so they win over the generic
+// 502 send failure on both the send and the schedule path.
+func TestMapEmailHubSendErrorKeepsReconnectCodes(t *testing.T) {
+	h := &handlers{Deps: Deps{Log: slog.Default()}}
+	cases := []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{service.ErrEmailHubReauthRequired, http.StatusConflict, "email_hub_reauth_required"},
+		{service.ErrEmailHubSMTPDisabled, http.StatusBadRequest, "email_hub_smtp_disabled"},
+		{fmt.Errorf("%w: dial", service.ErrEmailHubSendFailed), http.StatusBadGateway, "email_hub_send_failed"},
+	}
+	for _, tc := range cases {
+		rec := httptest.NewRecorder()
+		h.mapEmailHubSendError(rec, tc.err)
+		if rec.Code != tc.status {
+			t.Fatalf("%v: status = %d, want %d", tc.err, rec.Code, tc.status)
+		}
+		if got := decodeErrBody(t, rec)["code"]; got != tc.code {
+			t.Fatalf("%v: code = %v, want %q", tc.err, got, tc.code)
+		}
 	}
 }
