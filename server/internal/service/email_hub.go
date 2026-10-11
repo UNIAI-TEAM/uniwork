@@ -155,7 +155,8 @@ func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID 
 		return EmailHubAccountView{}, fmt.Errorf("%w: %v", ErrEmailHubConnectFailed, err)
 	}
 	if err := smtpclient.VerifyLogin(smtpclient.Credentials{
-		Host: prov.SMTPHost, Port: prov.SMTPPort, Email: email, Password: password,
+		// shortcut: every preset submits on 587 STARTTLS; the credentials seam task replaces this with acc.SmtpSecurity.
+		Host: prov.SMTPHost, Port: prov.SMTPPort, Email: email, Password: password, Security: "starttls",
 	}); err != nil {
 		s.log.Warn("email hub smtp verify failed", "provider", prov.Name, "user_id", actor.ID, "err", err)
 		return EmailHubAccountView{}, fmt.Errorf("%w: %v", ErrEmailHubConnectFailed, err)
@@ -444,7 +445,8 @@ func (s *EmailHubService) sendOutboundMail(
 		return EmailHubThreadView{}, err
 	}
 	msgID, err := smtpclient.Send(ctx, smtpclient.Credentials{
-		Host: acc.SmtpHost, Port: int(acc.SmtpPort), Email: acc.EmailAddress, Password: password,
+		// shortcut: every connected account is a 587 STARTTLS preset; the credentials seam task replaces this with acc.SmtpSecurity.
+		Host: acc.SmtpHost, Port: int(acc.SmtpPort), Email: acc.EmailAddress, Password: password, Security: "starttls",
 	}, smtpclient.Message{
 		To: to, Cc: cleanEmailList(in.Cc), Bcc: cleanEmailList(in.Bcc), Subject: subject,
 		BodyText: body, BodyHTML: bodyHTML, Attachments: attachments, InReplyTo: inReplyTo, References: references,
