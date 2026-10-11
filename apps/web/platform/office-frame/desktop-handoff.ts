@@ -3,12 +3,11 @@ import {
   officeClientId,
   officeScheme,
   safeOfficeDeepLink,
-  type OfficeChannel,
   type OfficeLaunchOutcome,
 } from "@uniwork/core/office";
 
 export { buildOfficeDeepLink, officeClientId, officeScheme, safeOfficeDeepLink };
-export type { OfficeChannel, OfficeLaunchOutcome };
+export type { OfficeLaunchOutcome };
 
 export interface DeepLinkLauncherOptions {
   timeoutMs?: number;
