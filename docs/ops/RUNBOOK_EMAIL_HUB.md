@@ -170,8 +170,12 @@ tên miền riêng) không APPEND, vì máy chủ tự lưu thư đã gửi.
   gửi vẫn thành công (201) và không thử lại. Thư tới người nhận nhưng không có bản trong Sent
   trên máy chủ, và dòng Sent cục bộ (UID tạm) biến mất ở lần làm mới Sent kế tiếp.
   - `auth_failed` đi qua luồng *cần kết nối lại* như mọi lỗi xác thực khác.
-  - Lý do khác thường là hộp thư đầy quota, hoặc máy chủ không có thư mục Sent. Người dùng
-    tạo thư mục Sent hoặc giải phóng dung lượng trong webmail.
+  - Lý do khác thường là hộp thư đầy quota, hoặc máy chủ không khai báo SPECIAL-USE
+    (RFC 6154). Khi đó tên dự phòng là đúng chữ `SENT` (cũng vậy với `TRASH`, `SPAM`,
+    `ARCHIVE`, `DRAFTS`), và Dovecot phân biệt hoa thường, nên thư mục `Sent`,
+    `INBOX.Sent` hay `Sent Items` có sẵn không được dùng: APPEND, sync Sent và chuyển thư
+    vào Thùng rác/Spam/Lưu trữ cùng lỗi. Cách xử lý: bật SPECIAL-USE trên máy chủ, hoặc tạo
+    thư mục tên đúng `SENT`. Nếu là quota thì giải phóng dung lượng trong webmail.
 
 ### Migration dedupe và unique index
 
