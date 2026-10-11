@@ -50,7 +50,9 @@ describe("renderImagePng", () => {
     expect(small.width).toBe(base.width);
   });
 
-  it("caps the upscaled render side at 2400 px", async () => {
+  // A 2400 px pdfium render plus a pure-JS PNG round trip: seconds on a fast box, past the
+  // 30 s package default on a loaded GitHub runner.
+  it("caps the upscaled render side at 2400 px", { timeout: 120_000 }, async () => {
     const huge = decode(await renderImagePng(IMAGE_PDF(), 0, IMAGE_RECT, 1000));
     expect(Math.max(huge.width, huge.height)).toBeLessThanOrEqual(2400);
     expect(Math.max(huge.width, huge.height)).toBeGreaterThan(1500);
