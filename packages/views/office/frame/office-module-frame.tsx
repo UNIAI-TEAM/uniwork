@@ -269,7 +269,7 @@ export function OfficeModuleFrame({
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
       {desktopOpen && !booting && !session.viewOnly ? (
-        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} workspaceId={wsId} dirty={dirty} save={() => save("user")} requestRef={appOpenRef} />
+        <FrameDesktopOpenAction desktopOpen={desktopOpen} documentId={documentId} dirty={dirty} save={() => save("user")} requestRef={appOpenRef} />
       ) : null}
       <iframe
         key={session.attempt}
