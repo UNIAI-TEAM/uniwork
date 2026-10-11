@@ -50,19 +50,31 @@ export function TextField({
 }
 
 /**
- * An error for the whole form. With `focus`, it takes focus as it appears: at the end of a long form it may be out
- * of view, and focus both scrolls it in and reads it out.
+ * An error for the whole form, with an optional action after the sentence. With `focus`, it takes focus as it
+ * appears: at the end of a long form it may be out of view, and focus both scrolls it in and reads it out — so it
+ * drops the live role, which would read it a second time.
  */
-export function ErrorAlert({ message, focus = false }: { message: string | null; focus?: boolean }) {
+export function ErrorAlert({
+  message,
+  focus = false,
+  children,
+}: {
+  message: string | null;
+  focus?: boolean;
+  children?: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (focus && message) ref.current?.focus();
   }, [focus, message]);
   if (!message) return null;
   return (
-    <Alert ref={ref} variant="destructive" tabIndex={-1}>
+    <Alert ref={ref} variant="destructive" tabIndex={-1} role={focus ? undefined : "alert"}>
       <CircleAlert aria-hidden />
-      <AlertDescription className="text-caption">{message}</AlertDescription>
+      <AlertDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption">
+        {message}
+        {children}
+      </AlertDescription>
     </Alert>
   );
 }

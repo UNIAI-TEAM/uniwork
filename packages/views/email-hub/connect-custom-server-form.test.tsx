@@ -168,9 +168,11 @@ describe("ConnectCustomServerForm", () => {
   ])("reads %s out for the whole form, and moves focus there", (error, text) => {
     renderForm({ error });
 
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent(text);
+    const alert = screen.getByText((_, el) => el?.getAttribute("data-slot") === "alert-description" && el.textContent!.includes(text))
+      .parentElement!;
     expect(alert).toHaveFocus();
+    // Focus reads it out; a live role on top would announce it a second time.
+    expect(alert).not.toHaveAttribute("role");
   });
 
   it("keeps the login name behind a disclosure until asked for", () => {
@@ -194,12 +196,42 @@ describe("ConnectCustomServerForm", () => {
     expect(screen.getByLabelText("Tên đăng nhập")).toBeInTheDocument();
   });
 
-  it("explains which port goes with which security mode under each choice", () => {
+  it("explains once which port goes with which security mode, for both choices", () => {
     renderForm();
-    const hint = "SSL/TLS: cổng 993 (IMAP), 465 (SMTP). STARTTLS: 143, 587. Cổng tự đổi theo lựa chọn nếu bạn chưa sửa tay.";
+    const hint = "Cổng mặc định: SSL/TLS 993 (IMAP), 465 (SMTP); STARTTLS 143, 587. Cổng tự đổi nếu bạn chưa sửa tay.";
 
+    expect(screen.getAllByText(hint)).toHaveLength(1);
     expect(imap().getByRole("radiogroup")).toHaveAccessibleDescription(hint);
     expect(smtp().getByRole("radiogroup")).toHaveAccessibleDescription(hint);
+  });
+
+  it("lets a refused login name be hidden again once it is open", () => {
+    renderForm({ error: new ApiError("invalid", "email_hub_invalid_server", 400, undefined, { field: "username" }) });
+    expect(usernameToggle()).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(usernameToggle());
+
+    expect(usernameToggle()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Tên đăng nhập")).toBeNull();
+  });
+
+  it("keeps the submit enabled and asks for a missing password next to it", () => {
+    const onSubmit = renderForm();
+    fillRequired();
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "" } });
+    const submit = screen.getByRole("button", { name: "Kết nối" });
+    expect(submit).toBeEnabled();
+
+    fireEvent.click(submit);
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    const password = screen.getByLabelText("Mật khẩu");
+    expect(password).toHaveAttribute("aria-invalid", "true");
+    expect(password).toHaveAccessibleDescription("Nhập mật khẩu của hộp thư.");
+    expect(password).toHaveFocus();
+
+    fireEvent.change(password, { target: { value: "x" } });
+    expect(password).not.toHaveAttribute("aria-invalid");
   });
 
   it("says a slow server check is expected while connecting", () => {
@@ -233,6 +265,6 @@ describe("ConnectCustomServerForm", () => {
     expect(smtp().getByLabelText("Máy chủ")).toHaveValue("smtp.congty.vn");
     expect(smtp().getByLabelText("Cổng")).toHaveValue("465");
     expect(radio(smtp, TLS)).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("button", { name: "Kết nối lại" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Kết nối lại" })).toBeEnabled();
   });
 });

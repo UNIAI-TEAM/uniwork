@@ -62,7 +62,7 @@ function MockToggle({ on }: { on: boolean }) {
 function MockSecurityRow({ label, active }: { label: string; active?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-caption">
-      <span className="min-w-0 text-foreground">{label}</span>
+      <span className="min-w-0 whitespace-nowrap text-foreground">{label}</span>
       {active ? <MockToggle on /> : <span className="text-muted-foreground">›</span>}
     </div>
   );
@@ -93,7 +93,7 @@ export function ConnectAppPasswordGuideSteps({ className }: { className?: string
         step={1}
         title={t("email_hub.connect.guide.step1_title")}
         visual={
-          <div className="w-full max-w-[12rem] space-y-2 rounded-lg border border-border bg-background p-3">
+          <div className="w-full max-w-[14rem] space-y-2 rounded-lg border border-border bg-background p-3">
             <MockSecurityRow label={t("email_hub.connect.guide.mock_2sv")} active />
           </div>
         }

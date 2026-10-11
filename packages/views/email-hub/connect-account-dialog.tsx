@@ -36,6 +36,8 @@ interface ConnectAccountDialogProps {
 
 const FORM_ID = "email-hub-connect-form";
 const CUSTOM_FORM_ID = "email-hub-custom-form";
+const PASSWORD_ID = "email-hub-password";
+const CUSTOM_PASSWORD_ID = "email-hub-custom-password";
 type Method = "choose" | "custom" | "app_password";
 const HELP_LINKS = [
   ["help_outlook", "https://support.microsoft.com/account-billing/how-to-get-and-use-app-passwords-5896ed9b-4263-e681-128a-a6f2979a7944"],
@@ -105,7 +107,9 @@ export function ConnectAccountDialog({
   const [email, setEmail] = useState("");
   const address = reconnectEmail ?? email;
   const [password, setPassword] = useState("");
-  const [emailInvalid, setEmailInvalid] = useState(false);
+  // i18n keys of the client checks: the address (missing or malformed) and the app password (missing).
+  const [emailInvalid, setEmailInvalid] = useState<string | null>(null);
+  const [passwordMissing, setPasswordMissing] = useState(false);
   const connect = useConnectEmailHubAccount(wsId);
 
   /** Every successful connect, whichever way: select the mailbox and say which one. */
@@ -171,11 +175,15 @@ export function ConnectAccountDialog({
 
   const serverError = connect.isError ? connectError(connect.error) : null;
   const emailError = emailInvalid
-    ? t("email_hub.connect.error_email_format")
+    ? t(emailInvalid)
     : serverError?.field === "email"
       ? t(serverError.key)
       : null;
-  const passwordError = serverError?.field === "password" ? t(serverError.key) : null;
+  const passwordError = passwordMissing
+    ? t("email_hub.connect.error_password_required")
+    : serverError?.field === "password"
+      ? t(serverError.key)
+      : null;
   // The app-password form has no server fields; any other field's error reads for the whole form.
   const formError = serverError && serverError.field !== "email" && serverError.field !== "password" ? t(serverError.key) : null;
   const oauthNotice = popup.pending ? (
@@ -192,7 +200,8 @@ export function ConnectAccountDialog({
     if (connect.isPending) return;
     if (!next) {
       connect.reset();
-      setEmailInvalid(false);
+      setEmailInvalid(null);
+      setPasswordMissing(false);
       // The dialog stays mounted: a cancelled app password must not wait in state for the next open.
       setPassword("");
     }
@@ -202,7 +211,8 @@ export function ConnectAccountDialog({
   const pick = (next: Method) => {
     // An error from one form must not show up on the other.
     connect.reset();
-    setEmailInvalid(false);
+    setEmailInvalid(null);
+    setPasswordMissing(false);
     setOauthError(null);
     setOauthClosed(false);
     setMethod(next);
@@ -223,8 +233,13 @@ export function ConnectAccountDialog({
     if (reconnectLoading) return;
     const trimmed = address.trim();
     if (!EMAIL_RE.test(trimmed)) {
-      setEmailInvalid(true);
+      setEmailInvalid(trimmed ? "email_hub.connect.error_email_format" : "email_hub.connect.error_email_required");
       document.getElementById("email-hub-email")?.focus();
+      return;
+    }
+    if (!password.trim()) {
+      setPasswordMissing(true);
+      document.getElementById(PASSWORD_ID)?.focus();
       return;
     }
     // Google shows the app password in four groups of four; pasting it keeps the spaces.
@@ -254,20 +269,17 @@ export function ConnectAccountDialog({
           ? t("email_hub.connect.description")
           : t("email_hub.connect.method_description");
   const backButton = (onClick: () => void) => (
-    <Button type="button" variant="ghost" size="sm" disabled={connect.isPending} onClick={onClick}>
+    <Button type="button" variant="ghost" disabled={connect.isPending} onClick={onClick}>
       {t("email_hub.connect.back")}
     </Button>
   );
   // A reconnect holds its submit until the list names the mailbox: say why, and offer a retry when the list failed.
   const reconnectNotice = !reconnectLoading ? null : accounts.isError ? (
-    <Alert variant="destructive">
-      <AlertDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption">
-        {t("email_hub.connect.reconnect_load_failed")}
-        <Button type="button" variant="outline" size="sm" onClick={() => void accounts.refetch()}>
-          {t("common.retry")}
-        </Button>
-      </AlertDescription>
-    </Alert>
+    <ErrorAlert message={t("email_hub.connect.reconnect_load_failed")}>
+      <Button type="button" variant="outline" size="sm" onClick={() => void accounts.refetch()}>
+        {t("common.retry")}
+      </Button>
+    </ErrorAlert>
   ) : accounts.isPending ? (
     <p role="status" className="flex items-center gap-2 text-caption text-muted-foreground">
       <Spinner />
@@ -277,7 +289,15 @@ export function ConnectAccountDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <FormDialogContent finalFocus={didConnect && focusAfterConnect ? () => focusAfterConnect() ?? true : undefined}>
+      <FormDialogContent
+        // A reconnect's address is fixed: start on the password, the one thing to type.
+        initialFocus={
+          reconnectEmail !== undefined && !reconnectProvider
+            ? () => document.getElementById(CUSTOM_PASSWORD_ID) ?? document.getElementById(PASSWORD_ID) ?? true
+            : undefined
+        }
+        finalFocus={didConnect && focusAfterConnect ? () => focusAfterConnect() ?? true : undefined}
+      >
         <FormDialogHeader title={title} description={description} />
         {form === "choose" ? (
           <>
@@ -342,18 +362,21 @@ export function ConnectAccountDialog({
                   readOnly={reconnectEmail !== undefined}
                   onChange={(e) => {
                     setEmail(e.target.value);
-                    setEmailInvalid(false);
+                    setEmailInvalid(null);
                   }}
                   placeholder={t("email_hub.connect.email_placeholder")}
                 />
                 <TextField
-                  id="email-hub-password"
+                  id={PASSWORD_ID}
                   label={t("email_hub.connect.app_password")}
                   error={passwordError}
                   type="password"
                   autoComplete="off"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setPasswordMissing(false);
+                  }}
                   placeholder={t("email_hub.connect.app_password_placeholder")}
                   hint={
                     <>
@@ -383,7 +406,7 @@ export function ConnectAccountDialog({
               submitLabel={reconnectEmail ? t("email_hub.reconnect.action") : t("email_hub.connect.submit")}
               submittingLabel={t("email_hub.connect.submitting")}
               submitting={connect.isPending}
-              submitDisabled={!address.trim() || !password.trim() || reconnectLoading}
+              submitDisabled={reconnectLoading}
             />
           </>
         )}

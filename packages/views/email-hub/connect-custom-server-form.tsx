@@ -38,9 +38,12 @@ const DEFAULT_PORT: Record<Side, Record<EmailHubServerSecurity, number>> = {
 // Integer format only; the server owns the allowed port set and answers email_hub_invalid_server on the field.
 const PORT_RE = /^\d{1,5}$/;
 /** Focus goes to the first of these that failed a client check. */
-const FIELD_ORDER: readonly ConnectErrorField[] = ["email", "imap_host", "imap_port", "smtp_host", "smtp_port"];
+const FIELD_ORDER: readonly ConnectErrorField[] = ["email", "password", "imap_host", "imap_port", "smtp_host", "smtp_port"];
 
+// email-hub-custom-password is also the reconnect dialog's initial focus (connect-account-dialog.tsx).
 const fieldId = (field: ConnectErrorField) => `email-hub-custom-${field}`;
+/** One port hint under both server sections; each security choice points to it. */
+const SECURITY_HINT_ID = "email-hub-custom-security-hint";
 
 function initialDraft(side: Side, account: EmailHubAccount | undefined): ServerDraft {
   const saved = side === "imap" ? account?.imap_security : account?.smtp_security;
@@ -72,7 +75,8 @@ function ServerFieldset({
   return (
     <fieldset className="grid gap-3">
       <legend className="mb-3 text-label font-medium">{t(`email_hub.connect.custom.${side}_heading`)}</legend>
-      <div className="grid gap-3 sm:grid-cols-[1fr_6rem]">
+      {/* Top-aligned: an error under the host must not push the port down. */}
+      <div className="grid items-start gap-3 sm:grid-cols-[1fr_6rem]">
         <TextField
           id={fieldId(host)}
           label={t("email_hub.connect.custom.host")}
@@ -104,7 +108,7 @@ function ServerFieldset({
         </p>
         <RadioGroup
           aria-labelledby={`${securityId}-label`}
-          aria-describedby={securityError ? `${securityId}-error` : `${securityId}-hint`}
+          aria-describedby={securityError ? `${securityId}-error` : SECURITY_HINT_ID}
           value={draft.security}
           onValueChange={(value) => {
             const mode = SECURITIES.find((m) => m === value);
@@ -124,11 +128,7 @@ function ServerFieldset({
           <p id={`${securityId}-error`} className="text-caption text-destructive">
             {securityError}
           </p>
-        ) : (
-          <p id={`${securityId}-hint`} className="text-caption text-pretty text-muted-foreground">
-            {t("email_hub.connect.custom.security_hint")}
-          </p>
-        )}
+        ) : null}
       </div>
     </fieldset>
   );
@@ -172,14 +172,19 @@ export function ConnectCustomServerForm({
   };
   const clear = (field: ConnectErrorField) => setInvalid((prev) => ({ ...prev, [field]: undefined }));
   const formError = server?.field === "form" ? t(server.key) : null;
-  // A refused login name must be on screen to be fixed.
-  if (server?.field === "username" && !usernameOpen) setUsernameOpen(true);
+  // A refused login name must be on screen to be fixed: open it once per error, so it can still be closed.
+  const [openedFor, setOpenedFor] = useState<unknown>(null);
+  if (server?.field === "username" && openedFor !== error) {
+    setOpenedFor(error);
+    setUsernameOpen(true);
+  }
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const address = email.trim();
     const found: FieldErrors = {};
-    if (!EMAIL_RE.test(address)) found.email = "email_hub.connect.error_email_format";
+    if (!EMAIL_RE.test(address)) found.email = address ? "email_hub.connect.error_email_format" : "email_hub.connect.error_email_required";
+    if (!password) found.password = "email_hub.connect.custom.error_password_required";
     for (const side of SIDES) {
       if (!drafts[side].host.trim()) found[`${side}_host` as const] = "email_hub.connect.custom.error_host_required";
       if (!PORT_RE.test(drafts[side].port.trim())) found[`${side}_port` as const] = "email_hub.connect.custom.error_port_format";
@@ -236,7 +241,10 @@ export function ConnectCustomServerForm({
             type="password"
             autoComplete="off"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              clear("password");
+            }}
           />
           <div className="grid gap-2">
             <button
@@ -279,6 +287,9 @@ export function ConnectCustomServerForm({
               />
             </Fragment>
           ))}
+          <p id={SECURITY_HINT_ID} className="text-caption text-pretty text-muted-foreground">
+            {t("email_hub.connect.custom.security_hint")}
+          </p>
           <ErrorAlert message={formError} focus />
         </form>
         {pending ? (
@@ -291,7 +302,7 @@ export function ConnectCustomServerForm({
       <FormDialogFooter
         leading={
           onBack ? (
-            <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={onBack}>
+            <Button type="button" variant="ghost" disabled={pending} onClick={onBack}>
               {t("email_hub.connect.back")}
             </Button>
           ) : undefined
@@ -302,7 +313,6 @@ export function ConnectCustomServerForm({
         submitLabel={initial ? t("email_hub.reconnect.action") : t("email_hub.connect.submit")}
         submittingLabel={t("email_hub.connect.submitting")}
         submitting={pending}
-        submitDisabled={!email.trim() || !password}
       />
     </>
   );

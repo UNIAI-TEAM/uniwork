@@ -286,7 +286,9 @@ describe("ConnectAccountDialog", () => {
     fireEvent.change(screen.getByLabelText("App Password"), { target: { value: "abcd efgh ijkl mnop" } });
     expect(screen.getByRole("button", { name: "Kết nối lại" })).toBeDisabled();
     expect(requestMock).not.toHaveBeenCalledWith(ACCOUNTS_PATH, expect.objectContaining({ method: "POST" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Không tải được thông tin hộp thư. Thử lại.");
+    const loadFailed = screen.getByRole("alert");
+    expect(loadFailed).toHaveTextContent("Không tải được thông tin hộp thư. Thử lại.");
+    expect(loadFailed.querySelector("svg")).not.toBeNull();
 
     const reads = accountListReads();
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
@@ -339,10 +341,48 @@ describe("ConnectAccountDialog", () => {
 
     fillAndSubmit("an@gmail.com", "Kết nối");
 
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(text);
-    // A long form may have scrolled it out of view: focus brings it back and reads it out.
+    const description = await screen.findByText(
+      (_, el) => el?.getAttribute("data-slot") === "alert-description" && el.textContent!.includes(text),
+    );
+    const alert = description.closest("[data-slot=alert]");
+    // A long form may have scrolled it out of view: focus brings it back and reads it out, once (no live role too).
     await waitFor(() => expect(alert).toHaveFocus());
+    expect(alert).not.toHaveAttribute("role");
+  });
+
+  it("keeps the submit enabled and asks for a missing address or app password next to its field", async () => {
+    render(wrap(<ConnectAccountDialog wsId="ws1" open onOpenChange={() => {}} />));
+    fireEvent.click(appPasswordOption());
+    const submit = screen.getByRole("button", { name: "Kết nối" });
+    expect(submit).toBeEnabled();
+
+    fireEvent.click(submit);
+    const email = screen.getByLabelText("Email");
+    expect(email).toHaveAccessibleDescription("Nhập địa chỉ email, ví dụ ban@gmail.com.");
+    expect(email).toHaveFocus();
+
+    fireEvent.change(email, { target: { value: "an@gmail.com" } });
+    fireEvent.click(submit);
+    const password = screen.getByLabelText("App Password");
+    expect(password).toHaveAttribute("aria-invalid", "true");
+    expect(password).toHaveAccessibleDescription("Nhập App Password của hộp thư.");
+    expect(password).toHaveFocus();
+    expect(requestMock).not.toHaveBeenCalledWith(ACCOUNTS_PATH, expect.objectContaining({ method: "POST" }));
+  });
+
+  it.each([
+    ["an app-password mailbox", accountJSON, "App Password"],
+    ["a custom-server mailbox", customJSON, "Mật khẩu"],
+  ])("puts focus on the password, not the fixed address, when reconnecting %s", async (_, acc, label) => {
+    serve({ accounts: [acc] });
+    // Reconnect opens from a banner or the menu, with the list already loaded.
+    const { rerender } = render(wrap(<ConnectAccountDialog wsId="ws1" open={false} onOpenChange={() => {}} />));
+    await waitFor(() => expect(accountListReads()).toBeGreaterThan(0));
+    await act(async () => {});
+
+    rerender(wrap(<ConnectAccountDialog wsId="ws1" open reconnectEmail={acc.email_address} onOpenChange={() => {}} />));
+
+    await waitFor(() => expect(screen.getByLabelText(label)).toHaveFocus());
   });
 
   it("opens the Gmail guide inside the dialog and comes back with the typed values", () => {

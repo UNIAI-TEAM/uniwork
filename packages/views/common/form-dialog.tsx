@@ -36,11 +36,14 @@ export function FormDialogContent({
   size = "md",
   className,
   children,
+  initialFocus,
   finalFocus,
 }: {
   size?: keyof typeof WIDTH;
   className?: string;
   children: ReactNode;
+  /** Where focus lands on open; the default is the first tabbable element. */
+  initialFocus?: ComponentProps<typeof DialogContent>["initialFocus"];
   /** Where focus lands on close; the default is the opener. */
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
 }) {
@@ -53,6 +56,7 @@ export function FormDialogContent({
         WIDTH[size],
         className,
       )}
+      initialFocus={initialFocus}
       finalFocus={finalFocus}
       showCloseButton
       closeLabel={t("common.close")}
