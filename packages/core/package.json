@@ -26,6 +26,7 @@
     "./tasks/stores/*": "./tasks/stores/*.ts",
     "./tasks/views/*": "./tasks/views/*.ts",
     "./email-hub/hooks": "./email-hub/hooks.ts",
+    "./email-hub/trusted-senders": "./email-hub/trusted-senders.ts",
     "./calendar": "./calendar/hooks.ts",
     "./calendar/preferences": "./calendar/preferences.ts",
     "./calendar/types": "./calendar/types.ts",

@@ -18,6 +18,11 @@ export const EMAIL_HTML_RESET = `<meta charset="utf-8"><meta name="color-scheme"
 const BLOCK_REMOTE_CSP =
   `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: cid: blob:; style-src 'unsafe-inline'; font-src data:">`;
 
+// Once the reader lets images in, only images, styles, fonts and media may come
+// from outside; scripts, frames and fetches stay off even if the sandbox loosens.
+const ALLOW_REMOTE_CSP =
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src * data: cid: blob:; style-src * 'unsafe-inline'; font-src * data:; media-src *">`;
+
 // Anything the policy above would block: media attributes (src, srcset, poster)
 // on the elements that fetch, CSS url()/@import, table backgrounds, <link>.
 // The lookbehind keeps data-src and friends out.
@@ -30,7 +35,7 @@ export function emailHasRemoteContent(html: string) {
 }
 
 export function wrapEmailHtml(html: string, { allowRemote = false }: { allowRemote?: boolean } = {}) {
-  const head = `${allowRemote ? "" : BLOCK_REMOTE_CSP}${EMAIL_HTML_RESET}`;
+  const head = `${allowRemote ? ALLOW_REMOTE_CSP : BLOCK_REMOTE_CSP}${EMAIL_HTML_RESET}`;
   if (/<html[\s>]/i.test(html)) {
     // A CSP <meta> only counts inside the document's real <head>. Matching the
     // email's own <head> by regex can land in a quoted document, a comment or
