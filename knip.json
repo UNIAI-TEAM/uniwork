@@ -49,24 +49,8 @@
       ]
     },
     "packages/office-upstream": {
-      "ignoreUnresolved": [
-        "../upstream/apps/docs/src/renderer/editor/note-dom"
-      ],
       "ignore": [
         "upstream/**"
-      ],
-      "entry": [
-        "shims/docs-renderer-entry.ts",
-        "shims/genoffice-ui.ts",
-        "shims/xlsx-renderer-entry.ts",
-        "shims/xlsx-renderer/*.ts",
-        "shims/pptx-renderer-entry.ts",
-        "shims/pptx-renderer/*.ts"
-      ],
-      "ignoreDependencies": [
-        "@univerjs/*",
-        "@genoffice/ui",
-        "numfmt"
       ]
     },
     "packages/views": {

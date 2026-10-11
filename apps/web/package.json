@@ -18,7 +18,6 @@
     "@uniwork/core": "workspace:*",
     "@uniwork/office-contracts": "workspace:*",
     "@uniwork/office-engine": "workspace:*",
-    "@uniwork/office-upstream": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "@uniwork/views": "workspace:*",
     "gsap": "catalog:",
