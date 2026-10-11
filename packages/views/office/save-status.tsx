@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert } from "lucide-react";
-import type { OfficeErrorDispatch, OfficeState } from "@uniwork/core/office";
+import type { OfficeState } from "@uniwork/core/office";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -19,9 +19,16 @@ export type OfficeSaveStatusKind =
   | "ready"
   | "error";
 
+/** The part of a refused save the chrome shows: why, whether a retry can help, and the trace id. */
+interface SaveStatusError {
+  code: string;
+  correlationId: string | null;
+  retryable: boolean;
+}
+
 export interface SaveStatusProps {
   status?: OfficeSaveStatusKind | OfficeState;
-  coordinatorState?: { state: OfficeState; error: OfficeErrorDispatch | null } | null;
+  coordinatorState?: { state: OfficeState; error: SaveStatusError | null } | null;
   /** Where a confirmed save lands; a local file must not read as a cloud receipt. */
   destination?: "cloud" | "local";
   correlationId?: string | null;
