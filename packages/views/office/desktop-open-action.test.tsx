@@ -14,7 +14,7 @@ const session = { launch_ticket: ticket, launch_url: `uniwork-office://open?tick
 function coordinator(overrides: Partial<ReturnType<OfficeSaveCoordinatorLike["getState"]> & { save: OfficeSaveCoordinatorLike["save"] }> = {}): OfficeSaveCoordinatorLike {
   return {
     save: overrides.save ?? vi.fn(async () => ({ accepted: true, receipt: { version: 2 } })),
-    getState: () => ({ state: "dirty", identity: {} as never, dirtyGeneration: 2, lastSavedGeneration: 1, activeIntentId: null, error: null, ...overrides }),
+    getState: () => ({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1, ...overrides }),
   };
 }
 
@@ -105,7 +105,7 @@ describe("DesktopOpenAction", () => {
     const createSession = vi.fn(async (_id: string, body: { version?: number }) => { expect(body).not.toHaveProperty("version"); return { ...session, version: 3 }; });
     const fake: OfficeSaveCoordinatorLike = {
       save,
-      getState: () => ({ state: saved ? "saved" : "dirty", identity: {} as never, dirtyGeneration: saved ? 2 : 2, lastSavedGeneration: saved ? 2 : 1, activeIntentId: null, error: null }),
+      getState: () => ({ state: saved ? "saved" : "dirty", dirtyGeneration: saved ? 2 : 2, lastSavedGeneration: saved ? 2 : 1 }),
     };
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={fake} versionAfterSave={() => 3} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
@@ -129,7 +129,7 @@ describe("DesktopOpenAction", () => {
     });
     const fake: OfficeSaveCoordinatorLike = {
       save,
-      getState: () => ({ state: "saved", identity: {} as never, dirtyGeneration: 2, lastSavedGeneration: 2, activeIntentId: null, error: null }),
+      getState: () => ({ state: "saved", dirtyGeneration: 2, lastSavedGeneration: 2 }),
     };
     render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={fake} versionAfterSave={async (outcome) => outcome.receipt?.versionId === "version-3" ? 3 : null} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
     fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));

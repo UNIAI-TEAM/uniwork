@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useRef, type MutableRefObject } from "react";
-import type { SaveCoordinatorState } from "@uniwork/core/office";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
-import { DesktopOpenAction, type DesktopOpenActionProps, type DesktopOpenOutcome, type OfficeSaveCoordinatorLike } from "../desktop-open-action";
+import { DesktopOpenAction, type DesktopOpenActionProps, type DesktopOpenOutcome, type OfficeSaveCoordinatorLike, type OfficeSaveStateLike } from "../desktop-open-action";
 
 /** What the page hands the frame for "Open in desktop app": the same wiring the G3 host uses. */
 export type FrameDesktopOpenProps = Omit<DesktopOpenActionProps, "documentId" | "dirty" | "saveCoordinator" | "placement">;
@@ -30,16 +29,9 @@ export function FrameDesktopOpenAction({ desktopOpen, documentId, workspaceId, d
   const latest = useRef({ dirty, save });
   latest.current = { dirty, save };
   const coordinator = useMemo<OfficeSaveCoordinatorLike>(() => ({
-    getState: (): SaveCoordinatorState => {
+    getState: (): OfficeSaveStateLike => {
       const isDirty = latest.current.dirty;
-      return {
-        state: isDirty ? "dirty" : "saved",
-        identity: { deploymentId: "frame", accountId: "frame", organizationId: "frame", workspaceId, documentId, generation: 0, baseVersionId: "frame", baseRevision: "0" },
-        dirtyGeneration: isDirty ? 1 : 0,
-        lastSavedGeneration: 0,
-        activeIntentId: null,
-        error: null,
-      };
+      return { state: isDirty ? "dirty" : "saved", dirtyGeneration: isDirty ? 1 : 0, lastSavedGeneration: 0 };
     },
     save: async () => ({ accepted: await latest.current.save() }),
   }), [documentId, workspaceId]);

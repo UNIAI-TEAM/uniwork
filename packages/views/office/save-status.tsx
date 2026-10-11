@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert } from "lucide-react";
-import type { OfficeState, SaveCoordinatorState } from "@uniwork/core/office";
+import type { OfficeErrorDispatch, OfficeState } from "@uniwork/core/office";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -21,7 +21,7 @@ export type OfficeSaveStatusKind =
 
 export interface SaveStatusProps {
   status?: OfficeSaveStatusKind | OfficeState;
-  coordinatorState?: Pick<SaveCoordinatorState, "state" | "error"> | null;
+  coordinatorState?: { state: OfficeState; error: OfficeErrorDispatch | null } | null;
   /** Where a confirmed save lands; a local file must not read as a cloud receipt. */
   destination?: "cloud" | "local";
   correlationId?: string | null;
