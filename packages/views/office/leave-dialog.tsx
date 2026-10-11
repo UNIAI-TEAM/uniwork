@@ -12,7 +12,6 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
-import type { DraftMetadata } from "@uniwork/core/office";
 
 export type LeaveChoice = "save" | "keep" | "discard" | "stay";
 
@@ -40,18 +39,6 @@ export interface LeaveDialogProps {
   /** Where focus goes when the dialog closes (Base UI `finalFocus`): a host whose editor
    * is not a DOM element of this page (the Docs frame's iframe) puts it back there. */
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
-}
-
-export interface DraftRecoveryPromptProps {
-  open: boolean;
-  metadata?: DraftMetadata | null;
-  conflict?: boolean;
-  /** Locked/blocked records may be kept or discarded, never applied. */
-  recoverable?: boolean;
-  onRecover: () => Promise<boolean>;
-  onDiscard: () => Promise<boolean>;
-  onKeep: () => Promise<boolean>;
-  onOpenChange: (open: boolean) => void;
 }
 
 /**
@@ -141,66 +128,6 @@ export function LeaveDialog({
             {pending === "discard" ? t("working") : t("discard")}
           </Button>
           <Button type="button" variant="ghost" onClick={stay} disabled={Boolean(pending)}>{t("stay")}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/** Recovery is a separate dialog so a found draft never gets confused with a
- * navigation decision. A changed base is explicitly labelled as a conflict;
- * it can be discarded or kept durable, but it is never silently applied. */
-export function DraftRecoveryPrompt({
-  open,
-  metadata,
-  conflict = false,
-  recoverable = true,
-  onRecover,
-  onDiscard,
-  onKeep,
-  onOpenChange,
-}: DraftRecoveryPromptProps) {
-  const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.recovery" });
-  const [pending, setPending] = useState<"recover" | "discard" | "keep" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const run = async (choice: "recover" | "discard" | "keep", action: () => Promise<boolean>) => {
-    if (pending) return;
-    setPending(choice);
-    setError(null);
-    try {
-      if (await action()) onOpenChange(false);
-      else setError(t("write_failed"));
-    } catch {
-      setError(t("write_failed"));
-    } finally {
-      setPending(null);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => { if (!pending) onOpenChange(next); }}>
-      <DialogContent className="sm:max-w-md" showCloseButton={!pending} closeLabel={t("keep")}>
-        <DialogHeader>
-          <DialogTitle>{t(conflict ? "conflict_title" : "title")}</DialogTitle>
-          <DialogDescription>
-            {t(conflict ? "conflict_description" : "description")}
-            {metadata ? <span className="mt-2 block text-caption">{t("updated", { date: new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(metadata.updatedAt)) })}</span> : null}
-          </DialogDescription>
-        </DialogHeader>
-        {error ? <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert> : null}
-        <DialogFooter className="flex-col items-stretch sm:flex-col">
-          {!conflict && recoverable ? (
-            <Button type="button" onClick={() => void run("recover", onRecover)} disabled={Boolean(pending)}>
-              {pending === "recover" ? t("working") : t("recover")}
-            </Button>
-          ) : null}
-          <Button type="button" variant="outline" onClick={() => void run("keep", onKeep)} disabled={Boolean(pending)}>
-            {pending === "keep" ? t("working") : t("keep")}
-          </Button>
-          <Button type="button" variant="destructive" className={DISCARD_CLASS} onClick={() => void run("discard", onDiscard)} disabled={Boolean(pending)}>
-            {pending === "discard" ? t("working") : t("discard")}
-          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
