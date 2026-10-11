@@ -142,7 +142,7 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 90_000 });
   await expect(page.getByText("parity-upload.txt").first()).toBeVisible({ timeout: 60_000 });
   // A plain-text file has no Office frame: the format says what is possible.
-  await expect(page.getByText("Chưa sửa được trong web")).toBeVisible();
+  await expect(page.getByText("Không sửa được trên web")).toBeVisible();
   await shot(page, "document-file-light-vi");
 
   // A new version: uploads + versions/commit, then the history grows.
