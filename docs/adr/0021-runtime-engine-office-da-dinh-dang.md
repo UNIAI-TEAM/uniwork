@@ -1,6 +1,6 @@
 # 0021 — Runtime đa định dạng cho engine UniWork Office: editor tại host, service nội bộ, engine native riêng
 
-**Trạng thái:** accepted (2026-09-25) — thay thế [0018](0018-engine-office-chay-o-sidecar-node.md); phần lịch sử của 0018 giữ nguyên.
+**Trạng thái:** accepted (2026-09-25) — thay thế [0018](0018-engine-office-chay-o-sidecar-node.md); phần lịch sử của 0018 giữ nguyên. Mục 1 (editor ở trang host) bị thay bởi [0030](0030-go-trinh-soan-g3-office-tren-web-chi-con-frame.md) ngày 2026-10-11; các mục còn lại vẫn giữ.
 **Issue:** UNI-665 (DOC-001, bước 1b.1) · **Parent:** UNI-656 · **Liên quan:** UNI-666/667/668/669/670; roadmap C-01/C-15/C-16.
 **Nguồn quyết định:** phạm vi sáu định dạng lõi (2026-09-16); Q1-B…Q9-A; BRAND-01; G0 = GO (2026-09-25).
 **Bằng chứng:** `docs/office/g0/evidence-register.json` — register GO (verifier GO 8/8, 2026-09-25); sáu hàng `E-DOCX-CYCLE`,

@@ -8104,11 +8104,13 @@
       "failure": {
         "unavailable": {
           "title": "Chưa mở được tài liệu trên web",
-          "description": "Máy chủ UniWork này chưa được thiết lập để mở tài liệu trên web. Hãy mở tệp trong UniWork Office hoặc tải xuống."
+          "description": "Máy chủ UniWork này chưa được thiết lập để mở tài liệu trên web. Hãy mở tệp trong UniWork Office hoặc tải xuống.",
+          "description_download_only": "Máy chủ UniWork này chưa được thiết lập để mở tài liệu trên web. Hãy tải tệp xuống."
         },
         "load": {
           "title": "Không tải được trình soạn thảo",
-          "description": "Các tệp của trình soạn thảo không tải được nên chưa mở được tài liệu. Hãy thử lại, mở tệp trong UniWork Office hoặc tải xuống."
+          "description": "Các tệp của trình soạn thảo không tải được nên chưa mở được tài liệu. Hãy thử lại, mở tệp trong UniWork Office hoặc tải xuống.",
+          "description_download_only": "Các tệp của trình soạn thảo không tải được nên chưa mở được tài liệu. Hãy thử lại hoặc tải tệp xuống."
         },
         "network": {
           "title": "Không kết nối được tới UniWork",
@@ -8123,7 +8125,8 @@
         "failed": {
           "title": "Không mở được tài liệu",
           "description": "UniWork gặp sự cố khi mở tài liệu này. Hãy thử lại sau giây lát."
-        }
+        },
+        "feature_disabled_download_only": "Tổ chức của bạn chưa bật chỉnh sửa loại tệp này trên web. Hãy tải tệp xuống."
       },
       "errors": {
         "unauthorized": "Phiên chỉnh sửa đã hết hạn. Hãy thử lại.",
@@ -8143,15 +8146,9 @@
     "too_large": {
       "title": "Tệp quá lớn để chỉnh sửa trên web",
       "description": "Tệp {{format}} này vượt giới hạn dung lượng của trình duyệt. Mở tệp trong ứng dụng UniWork Office trên máy tính để tiếp tục làm việc — ứng dụng không giới hạn dung lượng tệp.",
+      "description_download_only": "Tệp {{format}} này vượt giới hạn dung lượng của trình duyệt. Hãy tải tệp xuống để tiếp tục làm việc.",
       "download": "Tải xuống",
       "download_failed": "Không thể tải tệp xuống. Hãy thử lại."
-    },
-    "status": {
-      "label": "Thanh trạng thái",
-      "zoomIn": "Phóng to",
-      "zoomOut": "Thu nhỏ",
-      "zoomReset": "Đặt lại thu phóng",
-      "zoomValue": "{{value}}%"
     },
     "shell": {
       "save": "Lưu",

@@ -33,13 +33,13 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false }: { inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false }: { inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only" } = {}) {
   requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : Promise.reject(new Error(`unexpected ${path}`))));
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const bare = <OfficeModuleFrame module={module} wsId="ws-1" documentId="doc-1" title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} />;
   const framed = fileActions
-    ? <OfficeTooLargeProvider value={{ desktopAction: <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
+    ? <OfficeTooLargeProvider value={{ desktopAction: fileActions === "download_only" ? null : <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
     : bare;
   render(
     <QueryClientProvider client={client}>
@@ -260,6 +260,17 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(refuse).toHaveBeenCalledTimes(1));
   });
 
+  it.each([
+    [true, "Hãy mở tệp trong UniWork Office hoặc tải xuống."],
+    ["download_only", "Hãy tải tệp xuống."],
+  ] as const)("words a turned-off module for the actions the host offers (%s)", async (fileActions, sentence) => {
+    mountFrame("pdf", { fileActions, mint: () => Promise.reject(new ApiError("feature is disabled", "feature_disabled", 403)) });
+    const failed = await screen.findByTestId("office-docs-frame-failed");
+    expect(failed).toHaveAttribute("data-failure-kind", "unavailable");
+    expect(failed).toHaveTextContent(sentence);
+    expect(screen.getByRole("button", { name: "Tải xuống" })).toBeInTheDocument();
+  });
+
   it("does not ask for the too-large notice for too_large in a module without a size cap", async () => {
     const refuse = vi.fn();
     mountFrame("pdf", { refuse, mint: () => Promise.reject(new ApiError("too large", "too_large", 413)) });
@@ -305,6 +316,16 @@ describe("OfficeModuleFrame", () => {
       expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "failed");
     });
 
+    it("words the load error for Download alone when the host offers no desktop launch", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 503 })));
+      mountFrame("slides", { fileActions: "download_only" });
+      const failed = await screen.findByTestId("office-docs-frame-failed");
+      expect(failed).toHaveTextContent("Hãy thử lại hoặc tải tệp xuống.");
+      expect(failed).not.toHaveTextContent("UniWork Office");
+      expect(screen.queryByRole("button", { name: "Mở trong UniWork Office" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Tải xuống" })).toBeInTheDocument();
+    });
+
     it("keeps booting when the probe answers 200 or cannot run", async () => {
       vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
       const refuse = vi.fn();
@@ -343,6 +364,16 @@ describe("OfficeModuleFrame", () => {
         expect(refuse).not.toHaveBeenCalled();
         expect(screen.queryByTestId("office-docs-frame-slow")).toBeNull();
         expect(screen.getByTestId("office-docs-frame-loading")).toBeInTheDocument();
+      });
+
+      it("offers the host's open-in-app and download while it waits, not only after the timeout", async () => {
+        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200 })));
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        mountFrame("docs", { fileActions: true });
+        await act(async () => { vi.advanceTimersByTime(9_000); });
+        const slow = screen.getByTestId("office-docs-frame-slow");
+        const buttons = Array.from(slow.querySelectorAll("button")).map((button) => button.textContent);
+        expect(buttons).toEqual(["Thử lại", "Mở trong UniWork Office", "Tải xuống"]);
       });
 
       it("drops the slow state once the frame is ready", async () => {

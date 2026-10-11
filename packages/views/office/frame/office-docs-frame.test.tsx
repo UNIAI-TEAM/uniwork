@@ -14,7 +14,14 @@ import { requestMock } from "../../test/api-mock";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DocsFrameRefusalContext } from "./docs-frame-refusal";
 import { OfficeTooLargeProvider } from "../too-large-notice";
-import { OfficeDocsFrame, type OfficeDocsFrameProps } from "./office-docs-frame";
+import { OfficeModuleFrame, type OfficeModuleFrameProps } from "./office-module-frame";
+
+type OfficeDocsFrameProps = Omit<OfficeModuleFrameProps, "module">;
+
+/** The docs module of OfficeModuleFrame, the way the web host mounts it. */
+function OfficeDocsFrame(props: OfficeDocsFrameProps) {
+  return <OfficeModuleFrame module="docs" {...props} />;
+}
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 
 const toastError = vi.hoisted(() => vi.fn());

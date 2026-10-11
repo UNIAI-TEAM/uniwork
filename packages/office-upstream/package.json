@@ -4,5 +4,9 @@
   "private": true,
   "description": "Pinned, license-attributed GenOffice engine source vendored for the UniWork Office build graph (UNI-684). Not a publishable package: upstream/ is provenance-checked source, patches/ carries UniWork diffs applied at build time.",
   "license": "Apache-2.0",
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/office/build-upstream.mjs",
+    "prepare": "node ../../scripts/office/build-upstream.mjs"
+  }
 }

@@ -7,7 +7,7 @@ import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { Notice, type NoticeTone } from "../../common/notice";
-import { OfficeFileActions } from "../too-large-notice";
+import { OfficeFileActions, useOfficeDesktopActionAvailable } from "../too-large-notice";
 
 /**
  * Why the frame could not open, as the reader needs it: the editor is not
@@ -60,14 +60,18 @@ export function DocsFrameFailure({ failure, code, onRetry, libraryHref, module, 
   const { t } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const kind = code === "feature_disabled" ? "unavailable" : docsFrameFailureKind(failure);
   const { icon, tone } = VIEW[kind];
+  // The copy that points at UniWork Office has a download-only wording for when the app is not offered.
+  const desktop = useOfficeDesktopActionAvailable();
   const title = t(`failure.${kind}.title`);
   const body = kind === "unavailable" && code === "feature_disabled"
-    ? t("errors.feature_disabled")
+    ? t(desktop ? "errors.feature_disabled" : "failure.feature_disabled_download_only")
     : kind === "denied"
       ? t(`failure.denied.${code === "not_found" ? "not_found" : "forbidden"}`)
       : kind === "failed" && DESCRIBED.has(code)
         ? t(`errors.${code}`)
-        : t(`failure.${kind}.description`);
+        : (kind === "unavailable" || kind === "load") && !desktop
+          ? t(`failure.${kind}.description_download_only`)
+          : t(`failure.${kind}.description`);
   // Trying again cannot change a permission answer (or a deployment without the editor): a denial
   // names its reason and offers the way back to the list, nothing else.
   const canRetry = kind !== "unavailable";

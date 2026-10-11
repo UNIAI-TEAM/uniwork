@@ -28,6 +28,18 @@ describe("OfficeTooLargeNotice", () => {
     expect(launch.compareDocumentPosition(download) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("says to download, not to open the app, when the host offers no desktop launch", () => {
+    render(
+      <OfficeTooLargeProvider value={{ onDownload: async () => undefined, desktopAction: null }}>
+        <OfficeTooLargeNotice format="docx" />
+      </OfficeTooLargeProvider>,
+    );
+    expect(screen.getByText(copy.description_download_only.replace("{{format}}", "DOCX"))).toBeInTheDocument();
+    expect(screen.queryByText(/UniWork Office/)).toBeNull();
+    expect(screen.queryByRole("button", { name: launchLabel })).toBeNull();
+    expect(screen.getByRole("button", { name: copy.download })).toBeInTheDocument();
+  });
+
   it("renders only the message without a provider (no buttons to offer)", () => {
     render(<OfficeTooLargeNotice format="xlsx" />);
     expect(screen.getByText(copy.title)).toBeInTheDocument();

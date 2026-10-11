@@ -17,6 +17,7 @@ import { registerLeaveGuard } from "../../navigation/leave-guard";
 import type { DesktopOpenOutcome } from "../desktop-open-action";
 import { LeaveDialog } from "../leave-dialog";
 import { SaveStatus } from "../save-status";
+import { OfficeFileActions } from "../too-large-notice";
 import { DocsFrameFailure } from "./docs-frame-failure";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
@@ -289,9 +290,14 @@ export function OfficeModuleFrame({
               <p className="text-body font-semibold">{t("slow.title")}</p>
               <p className="text-caption text-muted-foreground text-pretty">{t("slow.description")}</p>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={session.retry}>
-              {t("retry")}
-            </Button>
+            {/* A slow boot already offers the ways on that its failure would: the app and the download. */}
+            <OfficeFileActions
+              leading={(
+                <Button type="button" variant="outline" size="sm" onClick={session.retry}>
+                  {t("retry")}
+                </Button>
+              )}
+            />
           </div>
         </div>
       ) : booting ? (

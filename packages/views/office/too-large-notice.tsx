@@ -26,6 +26,15 @@ export function OfficeTooLargeProvider({ value, children }: { value: OfficeTooLa
 }
 
 /**
+ * Whether the host offers "Open in UniWork Office" beside Download. Copy that
+ * names the app uses its download-only wording when it does not (a reader who
+ * may not edit, or desktop open turned off).
+ */
+export function useOfficeDesktopActionAvailable(): boolean {
+  return Boolean(useContext(TooLargeContext).desktopAction);
+}
+
+/**
  * "Open in UniWork Office" and "Download" from the host's provider: the way to
  * keep working on a file the web cannot open. Renders nothing without them.
  */
@@ -61,12 +70,13 @@ export function OfficeFileActions({ leading }: { leading?: ReactNode }) {
 export function OfficeTooLargeNotice({ format }: { format: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.too_large" });
   const formatName = useOfficeFormatName();
+  const desktop = useOfficeDesktopActionAvailable();
   return (
     <section className="flex min-h-64 flex-1 items-center justify-center p-6" data-testid="office-too-large">
       <Notice tone="warning" icon={FileExclamationPoint} layout="inline" live="assertive" className="w-full max-w-xl">
         <div className="space-y-2">
           <p className="text-body font-semibold">{t("title")}</p>
-          <p>{t("description", { format: formatName(format) })}</p>
+          <p>{t(desktop ? "description" : "description_download_only", { format: formatName(format) })}</p>
           <OfficeFileActions />
         </div>
       </Notice>

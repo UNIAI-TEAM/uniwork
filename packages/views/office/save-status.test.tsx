@@ -56,14 +56,9 @@ describe("SaveStatus", () => {
         coordinatorState={{
           state: "error",
           error: {
-            state: "error",
             code: "engine_result_invalid",
-            errorClass: "engine",
             correlationId: null,
             retryable: true,
-            ambiguous: false,
-            action: "retry",
-            message: "Office save could not be confirmed",
           },
         }}
       />,
@@ -76,7 +71,7 @@ describe("SaveStatus", () => {
   it("never shows a raw code: an unmapped one reads as a generic sentence, the code stays in data-error-code", () => {
     render(
       <SaveStatus
-        coordinatorState={{ state: "error", error: { state: "error", code: "office_brand_new_code", errorClass: "unknown", correlationId: null, retryable: true, ambiguous: false, action: "retry", message: "" } }}
+        coordinatorState={{ state: "error", error: { code: "office_brand_new_code", correlationId: null, retryable: true } }}
       />,
     );
     const alert = screen.getByTestId("office-save-error");
@@ -89,7 +84,7 @@ describe("SaveStatus", () => {
     render(
       <SaveStatus
         inline
-        coordinatorState={{ state: "error", error: { state: "error", code: "office_unknown_error", errorClass: "unknown", correlationId: null, retryable: true, ambiguous: false, action: "retry", message: "" } }}
+        coordinatorState={{ state: "error", error: { code: "office_unknown_error", correlationId: null, retryable: true } }}
         onAction={vi.fn()}
       />,
     );
@@ -105,7 +100,7 @@ describe("SaveStatus", () => {
       <SaveStatus
         coordinatorState={{
           state: "error",
-          error: { state: "error", code: "xlsx_recalc_unavailable", errorClass: "engine", correlationId: null, retryable: false, ambiguous: false, action: "stop", message: "Office save could not be confirmed" },
+          error: { code: "xlsx_recalc_unavailable", correlationId: null, retryable: false },
         }}
       />,
     );
@@ -116,7 +111,7 @@ describe("SaveStatus", () => {
     const onAction = vi.fn();
     const recalcUnavailable = {
       state: "error" as const,
-      error: { state: "error" as const, code: "xlsx_recalc_unavailable", errorClass: "engine" as const, correlationId: null, retryable: false, ambiguous: false, action: "stop" as const, message: "Office save could not be confirmed" },
+      error: { code: "xlsx_recalc_unavailable", correlationId: null, retryable: false },
     };
     const { rerender } = render(<SaveStatus coordinatorState={recalcUnavailable} onAction={onAction} />);
     const alert = screen.getByRole("alert");
@@ -135,7 +130,7 @@ describe("SaveStatus", () => {
       <SaveStatus
         coordinatorState={{
           state: "error",
-          error: { state: "error", code: "engine_result_invalid", errorClass: "engine", correlationId: null, retryable: true, ambiguous: false, action: "retry", message: "" },
+          error: { code: "engine_result_invalid", correlationId: null, retryable: true },
         }}
         onAction={onAction}
       />,
@@ -145,22 +140,22 @@ describe("SaveStatus", () => {
   });
 
   it("keys the no-retry banner off retryable=false plus a written fix, not a code list (UNI-953 N3)", () => {
-    const error = { state: "error" as const, errorClass: "engine" as const, correlationId: null, ambiguous: false, message: "" };
+    const error = { correlationId: null };
     // Non-retryable but no office.save.fix.<code> copy: the generic banner keeps its action.
     const { rerender } = render(
-      <SaveStatus coordinatorState={{ state: "error", error: { ...error, code: "some_future_refusal", retryable: false, action: "stop" } }} onAction={vi.fn()} />,
+      <SaveStatus coordinatorState={{ state: "error", error: { ...error, code: "some_future_refusal", retryable: false } }} onAction={vi.fn()} />,
     );
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     // A code with fix copy that the coordinator says is retryable is not suppressed.
     rerender(
-      <SaveStatus coordinatorState={{ state: "error", error: { ...error, code: "xlsx_recalc_unavailable", retryable: true, action: "retry" } }} onAction={vi.fn()} />,
+      <SaveStatus coordinatorState={{ state: "error", error: { ...error, code: "xlsx_recalc_unavailable", retryable: true } }} onAction={vi.fn()} />,
     );
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).not.toHaveTextContent("Install the latest UniWork Office");
   });
 
   it("drops the retry for a code that only gains fix copy later, with no component change (F-X3)", () => {
-    const error = { state: "error" as const, errorClass: "engine" as const, correlationId: null, ambiguous: false, message: "", retryable: false, action: "stop" as const };
+    const error = { correlationId: null, retryable: false };
     const state = { state: "error" as const, error: { ...error, code: "xlsx_future_refusal" } };
     const { rerender } = render(<SaveStatus coordinatorState={state} onAction={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
@@ -183,14 +178,9 @@ describe("SaveStatus", () => {
         coordinatorState={{
           state: "conflict",
           error: {
-            state: "conflict",
             code: "revision_conflict",
-            errorClass: "conflict",
             correlationId: "corr-conflict",
             retryable: false,
-            ambiguous: false,
-            action: "resolve_conflict",
-            message: "",
           },
         }}
       />,
