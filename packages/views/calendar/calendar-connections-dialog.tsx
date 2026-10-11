@@ -48,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { CalendarProviderIcon } from "./calendar-provider-icons";
+import { useOAuthPopup } from "../integrations/use-oauth-popup";
 
 const PROVIDERS: CalendarProvider[] = ["google", "outlook"];
 
@@ -65,34 +66,20 @@ export function CalendarConnectionsDialog({ workspaceId }: { workspaceId: string
   const refreshCalendar = () =>
     queryClient.invalidateQueries({ queryKey: calendarKeys.all(workspaceId) });
 
-  const connect = async (provider: CalendarProvider) => {
+  // The calendar callback page only closes itself, so the closed poll is the signal.
+  const oauthPopup = useOAuthPopup({
+    name: "uniwork-calendar-oauth",
+    onOutcome: (outcome) => {
+      setConnecting(null);
+      if (outcome.kind === "blocked" || outcome.kind === "failed") setError(true);
+      else void refreshCalendar();
+    },
+  });
+
+  const connect = (provider: CalendarProvider) => {
     setError(false);
     setConnecting(provider);
-    const popup = window.open(
-      "about:blank",
-      "uniwork-calendar-oauth",
-      "popup,width=560,height=720",
-    );
-    if (!popup) {
-      setConnecting(null);
-      setError(true);
-      return;
-    }
-    try {
-      const url = await startCalendarConnection(workspaceId, provider);
-      if (!url) throw new Error("Missing calendar authorization URL");
-      popup.location.href = url;
-      const timer = window.setInterval(() => {
-        if (!popup.closed) return;
-        window.clearInterval(timer);
-        setConnecting(null);
-        void refreshCalendar();
-      }, 400);
-    } catch {
-      popup.close();
-      setConnecting(null);
-      setError(true);
-    }
+    oauthPopup.open(() => startCalendarConnection(workspaceId, provider));
   };
 
   const disconnect = async () => {
@@ -212,7 +199,7 @@ export function CalendarConnectionsDialog({ workspaceId }: { workspaceId: string
                     <DropdownMenuItem
                       key={provider}
                       className="gap-3 px-2 py-2"
-                      onClick={() => void connect(provider)}
+                      onClick={() => connect(provider)}
                     >
                       <CalendarProviderIcon provider={provider} className="size-6" />
                       <span translate="no" className="font-medium">
