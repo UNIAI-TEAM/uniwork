@@ -1,6 +1,6 @@
 # Email Hub GĐ3 — OAuth Google/Microsoft (XOAUTH2, popup, kết nối lại) (UNI-1239)
 
-> **Trạng thái:** in-progress — plan GĐ3 của spec OAuth/máy chủ tùy chỉnh; thực thi bằng subagent-driven-development trên nhánh `feature/UNI-1239-email-hub-gd3-oauth-google-microsoft-xoa`, xếp chồng trên GĐ2 (PR #221) và GĐ1 (PR #220) (2026-10-11).
+> **Trạng thái:** in-progress — GĐ3 đã triển khai trên nhánh `feature/UNI-1239-email-hub-gd3-oauth-google-microsoft-xoa` (2026-10-11), xếp chồng lên GĐ2 (PR #221) và GĐ1 (PR #220); kiểm chứng bằng test có chọn lọc ở máy, bộ test đầy đủ chạy trên CI. Checklist thủ công spec §10 và Google verification chưa xong. PR chờ review.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

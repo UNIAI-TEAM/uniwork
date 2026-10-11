@@ -1,9 +1,9 @@
 # Email Hub mở rộng: OAuth Google/Microsoft và máy chủ IMAP/SMTP tùy chỉnh
 
-> **Trạng thái:** in-progress — spec đã duyệt (2026-10-11, quangpd). GĐ1 (UNI-1237) triển khai theo plan GĐ1, PR #220 vào `develop`. GĐ2 (máy chủ tùy chỉnh, UNI-1238) triển khai theo plan GĐ2 trên nhánh `feature/UNI-1238-email-hub-gd2-may-chu-imap-smtp-tuy-chin`, xếp chồng lên GĐ1. GĐ3 (OAuth) chưa bắt đầu.
+> **Trạng thái:** in-progress — spec đã duyệt (2026-10-11, quangpd). GĐ1 (UNI-1237) triển khai theo plan GĐ1, PR #220 vào `develop`. GĐ2 (máy chủ tùy chỉnh, UNI-1238) triển khai theo plan GĐ2, PR #221, xếp chồng lên GĐ1. GĐ3 (OAuth, UNI-1239) triển khai theo plan GĐ3 trên nhánh `feature/UNI-1239-email-hub-gd3-oauth-google-microsoft-xoa`, xếp chồng lên GĐ2; checklist thủ công §10 và Google verification chưa xong.
 
 **Module:** Email Hub (ADR 0022 — cache thư trong Postgres/S3).
-**Issue:** cha UNI-1236; GĐ1 = UNI-1237, GĐ2 = UNI-1238; GĐ3 chưa có issue. Gộp vào đây UNI-1130, UNI-1132, UNI-1197, UNI-1202 vì cùng chạm `Connect` và tầng dial.
+**Issue:** cha UNI-1236; GĐ1 = UNI-1237, GĐ2 = UNI-1238, GĐ3 = UNI-1239. Gộp vào đây UNI-1130, UNI-1132, UNI-1197, UNI-1202 vì cùng chạm `Connect` và tầng dial.
 
 ## 1. Mục tiêu
 
@@ -311,8 +311,9 @@ STARTTLS và LOGIN/AUTHENTICATE. SMTP đặt deadline tương tự trên conn tr
   4. Seal, ghi `UpdateEmailHubAccountOAuthTokens` với `credential_version` và
      `prev_expires_at` của lần đọc ở bước 2 (lưu refresh token mới nếu Microsoft xoay vòng).
      `0` dòng → pod khác đã làm mới hoặc credential đã đổi / tài khoản đã ngắt: bỏ token vừa
-     nhận (Google: revoke best-effort), không log nó, đọc lại dòng; còn active và có token
-     mới → dùng, ngược lại `ErrEmailHubReauthRequired`.
+     nhận, **không revoke** (revoke một token Google thu hồi cả grant, tức cả token của pod
+     thắng), không log nó, đọc lại dòng; còn active và có token mới → dùng, ngược lại
+     `ErrEmailHubReauthRequired`.
   5. `*oauth2.RetrieveError` với `ErrorCode` `invalid_grant`/`unauthorized_client` → đọc
      lại dòng; refresh token hoặc `oauth_access_expires_at` đã khác lần đọc ở bước 2 → dùng
      token mới, **không** đánh hỏng; không đổi → `markAuthFailed(credential_version, oauth_invalid_grant)`
@@ -491,8 +492,11 @@ Khối JSON được encode an toàn cho HTML (`<` → `<`). `code` ∈ `connect
 Revoke best-effort sau commit (timeout 5 giây, lỗi chỉ ghi log) ở **mọi** nơi refresh token
 rời khỏi dòng: ngắt kết nối thủ công; `DisconnectEmailHubAccountsForUser` (rời tổ chức, xoá
 tài khoản — gom vào `cleanUpEmailHubAccountsAfterCommit`); `UpdateEmailHubAccountCredentials`
-khi token cũ khác token mới; và token vừa nhận nhưng không ghi được (§4.4 bước 4). Token cũ
-lấy từ `RETURNING` / `:one` của chính câu lệnh xoá nó.
+khi kết nối lại đổi auth_kind (cùng auth_kind là cùng grant, không revoke); và
+`MarkEmailHubAccountAuthFailed` với lý do khác `oauth_invalid_grant` (grant đã chết thì không
+cần revoke). Token vừa nhận nhưng không ghi được (§4.4 bước 4) **không** revoke. Bỏ qua revoke
+khi một dòng còn sống khác (bất kỳ tổ chức nào) vẫn giữ grant Google của cùng địa chỉ. Token cũ
+lấy từ `RETURNING` / `:one` của chính câu lệnh xoá nó (khi kết nối lại: từ dòng đọc FOR UPDATE).
 
 - Google: `POST https://oauth2.googleapis.com/revoke` với refresh token.
 - Microsoft: không có endpoint thu hồi refresh token cho ứng dụng — chỉ xoá phía mình.
