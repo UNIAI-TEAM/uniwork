@@ -2,24 +2,71 @@ package imapclient
 
 import (
 	"bufio"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
+	"math/big"
 	"net"
 	"strings"
 	"sync"
 	"testing"
-
-	"github.com/emersion/go-imap/client"
+	"time"
 )
 
-// Tests talk plain TCP to fakeIMAP; production dial stays TLS-only.
-func init() { dialIMAP = client.Dial }
+// fakeServerTLS / fakeRootCAs: one self-signed certificate for 127.0.0.1,
+// served by every fake and trusted by dial through tlsRootCAs.
+var fakeServerTLS, fakeRootCAs = newFakeTLS()
+
+// Tests dial loopback, which netguard refuses; production keeps netguard.
+func init() {
+	dialTCP = (&net.Dialer{Timeout: 5 * time.Second}).DialContext
+	tlsRootCAs = fakeRootCAs
+}
+
+func newFakeTLS() (*tls.Config, *x509.CertPool) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "fake imap"},
+		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1)},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		panic(err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		panic(err)
+	}
+	pool := x509.NewCertPool()
+	pool.AddCert(cert)
+	return &tls.Config{
+		Certificates: []tls.Certificate{{Certificate: [][]byte{der}, PrivateKey: key}},
+		MinVersion:   tls.VersionTLS12,
+	}, pool
+}
 
 // fakeIMAP is a scripted IMAP server. It records every command line it
 // receives (tag stripped) and answers with reply when that returns true,
-// otherwise with a minimal default.
+// otherwise with a minimal default. By default it speaks implicit TLS;
+// with starttls it greets in plaintext, advertises STARTTLS and upgrades.
 type fakeIMAP struct {
-	caps  string
-	reply func(w *bufio.Writer, tag, cmd string) bool
+	caps     string
+	starttls bool
+	reply    func(w *bufio.Writer, tag, cmd string) bool
 
 	mu   sync.Mutex
 	cmds []string
@@ -27,7 +74,15 @@ type fakeIMAP struct {
 
 func (f *fakeIMAP) start(t *testing.T) Credentials {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	var ln net.Listener
+	var err error
+	security := "" // empty means implicit TLS, so every default-fake test proves the default
+	if f.starttls {
+		ln, err = net.Listen("tcp", "127.0.0.1:0")
+		security = "starttls"
+	} else {
+		ln, err = tls.Listen("tcp", "127.0.0.1:0", fakeServerTLS)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +98,7 @@ func (f *fakeIMAP) start(t *testing.T) Credentials {
 	}()
 	return Credentials{
 		Host: "127.0.0.1", Port: ln.Addr().(*net.TCPAddr).Port,
-		Email: "user@example.com", Password: "secret",
+		Email: "user@example.com", Password: "secret", Security: security,
 	}
 }
 
@@ -54,12 +109,13 @@ func (f *fakeIMAP) commands() []string {
 }
 
 func (f *fakeIMAP) serve(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() // conn is reassigned on STARTTLS
 	r := bufio.NewReader(conn)
 	w := bufio.NewWriter(conn)
 	fmt.Fprint(w, "* OK fake ready\r\n")
 	_ = w.Flush()
 	idleTag := ""
+	upgraded := false
 	for {
 		line, err := r.ReadString('\n')
 		if err != nil {
@@ -84,7 +140,18 @@ func (f *fakeIMAP) serve(conn net.Conn) {
 		}
 		switch verb {
 		case "CAPABILITY":
-			fmt.Fprintf(w, "* CAPABILITY IMAP4rev1 IDLE %s\r\n%s OK done\r\n", f.caps, tag)
+			caps := f.caps
+			if f.starttls && !upgraded {
+				caps = strings.TrimSpace(caps + " STARTTLS")
+			}
+			fmt.Fprintf(w, "* CAPABILITY IMAP4rev1 IDLE %s\r\n%s OK done\r\n", caps, tag)
+		case "STARTTLS":
+			fmt.Fprintf(w, "%s OK begin TLS\r\n", tag)
+			_ = w.Flush()
+			conn = tls.Server(conn, fakeServerTLS)
+			r, w = bufio.NewReader(conn), bufio.NewWriter(conn)
+			upgraded = true
+			continue
 		case "SELECT":
 			fmt.Fprintf(w, "* 30 EXISTS\r\n%s OK [READ-WRITE] selected\r\n", tag)
 		case "IDLE":

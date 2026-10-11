@@ -2,10 +2,16 @@ package imapclient
 
 import (
 	"bufio"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/emersion/go-imap"
@@ -15,6 +21,8 @@ import (
 	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-message/textproto"
+
+	"github.com/unicomhub/uniwork/server/internal/emailhub/netguard"
 )
 
 // Importing go-message/charset registers it for bodies; IMAP envelopes need it too.
@@ -37,7 +45,9 @@ type Credentials struct {
 	Host     string
 	Port     int
 	Email    string
+	Username string // LOGIN user; empty means Email
 	Password string
+	Security string // "tls" or "starttls"; empty means "tls"
 }
 
 // ThreadMeta is the metadata cached for one mailbox message.
@@ -141,21 +151,93 @@ var ErrAuthFailed = errors.New("imap: authentication failed")
 // account for a while, so callers give up only when it repeats.
 var ErrLoginRefused = errors.New("imap: login refused")
 
-// dialIMAP is replaced by package tests with a plain-TCP dial to a fake server.
-var dialIMAP = func(addr string) (*client.Client, error) { return client.DialTLS(addr, nil) }
+// ErrTLSRequired marks a starttls server that does not offer STARTTLS: the
+// password is never sent over a plaintext connection.
+var ErrTLSRequired = errors.New("imap: server does not offer STARTTLS")
+
+// dialTCP opens the TCP connection. Package tests swap in a plain dialer
+// because netguard refuses loopback.
+var dialTCP = netguard.Dial
+
+// tlsRootCAs is nil in production (system roots); package tests trust the
+// fake server's self-signed certificate.
+var tlsRootCAs *x509.CertPool
+
+// greetingTimeout bounds what cl.Timeout cannot: the greeting, the implicit
+// TLS handshake and the CAPABILITY client.New sends with no timeout set.
+// A var only so a package test can shorten it.
+var greetingTimeout = imapClientTimeout
 
 func dial(c Credentials) (*client.Client, error) {
-	addr := fmt.Sprintf("%s:%d", c.Host, c.Port)
-	cl, err := dialIMAP(addr)
+	conn, err := dialTCP(context.Background(), "tcp", net.JoinHostPort(c.Host, strconv.Itoa(c.Port)))
 	if err != nil {
 		return nil, fmt.Errorf("imap dial: %w", err)
 	}
+	cfg := &tls.Config{ServerName: c.Host, MinVersion: tls.VersionTLS12, RootCAs: tlsRootCAs}
+	starttls := c.Security == "starttls"
+	if !starttls {
+		conn = tls.Client(conn, cfg) // "tls", and "" for rows written before the column existed
+	}
+	if err := conn.SetDeadline(time.Now().Add(greetingTimeout)); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("imap dial: %w", err)
+	}
+	held := &deadlineHeldConn{Conn: conn}
+	held.hold.Store(true)
+	cl, err := client.New(held)
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("imap greeting: %w", err)
+	}
+	held.hold.Store(false)
+	_ = conn.SetDeadline(time.Time{})
 	cl.Timeout = imapClientTimeout
-	if err := login(cl, c.Email, c.Password); err != nil {
+	if starttls {
+		if err := startTLS(cl, cfg); err != nil {
+			_ = cl.Logout()
+			return nil, err
+		}
+	}
+	user := c.Username
+	if user == "" {
+		user = c.Email
+	}
+	if err := login(cl, user, c.Password); err != nil {
 		_ = cl.Logout()
 		return nil, fmt.Errorf("imap login: %w", err)
 	}
 	return cl, nil
+}
+
+// startTLS upgrades a plaintext session, or refuses: there is no opportunistic
+// fallback. cfg carries ServerName because client.New never learned the host.
+func startTLS(cl *client.Client, cfg *tls.Config) error {
+	ok, err := cl.Support("STARTTLS")
+	if err != nil {
+		return fmt.Errorf("imap capability: %w", err)
+	}
+	if !ok {
+		return ErrTLSRequired
+	}
+	if err := cl.StartTLS(cfg); err != nil {
+		return fmt.Errorf("imap starttls: %w", err)
+	}
+	return nil
+}
+
+// deadlineHeldConn ignores go-imap's deadline calls while hold is set:
+// client.New may send CAPABILITY with Timeout 0, which would clear the
+// greeting deadline and let a server that greets and then stalls hang dial.
+type deadlineHeldConn struct {
+	net.Conn
+	hold atomic.Bool
+}
+
+func (c *deadlineHeldConn) SetDeadline(t time.Time) error {
+	if c.hold.Load() {
+		return nil
+	}
+	return c.Conn.SetDeadline(t)
 }
 
 // login runs LOGIN by hand because client.Login keeps only the response text,
