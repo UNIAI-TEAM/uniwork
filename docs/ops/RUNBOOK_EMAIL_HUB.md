@@ -106,8 +106,11 @@ và xoá threads, attachments, AI summaries của dòng bị ngắt. Không đ�
 
 Migration sau đó build `idx_email_hub_accounts_active_address` bằng `CREATE UNIQUE INDEX
 CONCURRENTLY`. Nếu build thất bại (thường do pod cũ trong cửa sổ rolling update đã tạo
-thêm một dòng trùng sau khi dedupe chạy), PostgreSQL để lại một index `INVALID` và
-`schema_migrations` không ghi version đó:
+thêm một dòng trùng sau khi dedupe chạy), PostgreSQL để lại một index `INVALID`. Đừng
+giả định `schema_migrations` chưa ghi version đó: container chạy `migrate up && server` mỗi
+lần khởi động, nên lần restart kế tiếp gặp `CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS`,
+thấy đã có index cùng tên (dù `INVALID`), bỏ qua với một NOTICE và **ghi version là đã
+chạy**. Server lên bình thường nhưng bảng không có ràng buộc unique nào còn hiệu lực:
 
 ```sql
 SELECT c.relname, i.indisvalid
@@ -119,10 +122,14 @@ FROM email_hub_accounts WHERE disconnected_at IS NULL
 GROUP BY 1, 2, 3 HAVING count(*) > 1;
 ```
 
-Khắc phục:
+Khắc phục (làm đủ cả năm bước, kể cả khi version chưa được ghi):
 
-1. `DROP INDEX CONCURRENTLY IF EXISTS idx_email_hub_accounts_active_address;`
-2. Chạy lại file dedupe bằng tay. File này idempotent: nhóm nào chỉ còn một dòng active thì
-   không bị đụng tới.
-   `psql "$DATABASE_URL" -f server/migrations/999*_email_hub_accounts_dedupe.up.sql`
-3. Chạy lại migrate (`bin/migrate up`, hoặc `cd server && go run ./cmd/migrate up`).
+1. Chạy lại file dedupe bằng tay. File này idempotent: nhóm nào chỉ còn một dòng active thì
+   không bị đụng tới. Query đếm trùng ở trên phải trả về rỗng.
+   `psql "$DATABASE_URL" -f server/migrations/9991791700000002_email_hub_accounts_dedupe.up.sql`
+2. `DROP INDEX CONCURRENTLY IF EXISTS idx_email_hub_accounts_active_address;`
+3. Xoá version đã ghi để migrate build lại index (không có dòng nào thì lệnh không làm gì):
+   `DELETE FROM schema_migrations WHERE version = '9991791700000003_email_hub_accounts_active_address_uidx';`
+4. Chạy lại migrate (`bin/migrate up`, hoặc `cd server && go run ./cmd/migrate up`).
+5. Chạy lại query `indisvalid` ở trên: phải có đúng một dòng với `indisvalid = true`. Không có
+   dòng nào, hoặc `false`, thì bảng chưa có ràng buộc; quay lại bước 1.
