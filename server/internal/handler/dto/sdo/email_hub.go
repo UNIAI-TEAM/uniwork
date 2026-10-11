@@ -10,6 +10,13 @@ type EmailHubAccountSDO struct {
 	AuthKind         string `json:"auth_kind" description:"How the mailbox signs in" example:"password"`
 	NeedsReconnect   bool   `json:"needs_reconnect" description:"The provider refused the stored credential; reconnect to resume sync and send" example:"false"`
 	AuthFailedReason string `json:"auth_failed_reason" description:"Why the credential was refused; empty while connected" example:"imap_auth_failed"`
+	ImapHost         string `json:"imap_host" description:"Máy chủ IMAP đã lưu" example:"imap.gmail.com"`
+	ImapPort         int    `json:"imap_port" description:"Cổng IMAP" example:"993"`
+	ImapSecurity     string `json:"imap_security" description:"tls hoặc starttls" example:"tls"`
+	SmtpHost         string `json:"smtp_host" description:"Máy chủ SMTP đã lưu" example:"smtp.gmail.com"`
+	SmtpPort         int    `json:"smtp_port" description:"Cổng SMTP" example:"587"`
+	SmtpSecurity     string `json:"smtp_security" description:"tls hoặc starttls" example:"starttls"`
+	Username         string `json:"username" description:"Tên đăng nhập; rỗng nghĩa là dùng địa chỉ email" example:"you"`
 }
 
 // EmailHubWatchSDO is POST .../email-hub/watch.

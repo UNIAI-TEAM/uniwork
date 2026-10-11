@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
-	"github.com/unicomhub/uniwork/server/internal/emailhub"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/netguard"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient"
@@ -40,9 +39,9 @@ type ConnectEmailHubInput struct {
 }
 
 // Connect verifies a mailbox and stores it in the order spec §5.2 fixes:
-// membership, fields, the duplicate check (before any dial), the login, then
-// one transaction for the row and its audit. An address that needs a
-// reconnect keeps its id and its cached mail.
+// membership, the feature switch, the fields and the server they name (no
+// dial), the duplicate check, the login, then one transaction for the row and
+// its audit. An address that needs a reconnect keeps its id.
 func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID string, in ConnectEmailHubInput) (EmailHubAccountView, error) {
 	ws, err := s.workspace(ctx, actor, workspaceID)
 	if err != nil {
@@ -52,40 +51,48 @@ func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID 
 		return EmailHubAccountView{}, ErrEmailHubNotConfigured
 	}
 	email := strings.ToLower(strings.TrimSpace(in.EmailAddress))
-	password := strings.TrimSpace(in.AppPassword)
-	if email == "" || password == "" {
+	if email == "" || strings.TrimSpace(in.AppPassword) == "" {
 		return EmailHubAccountView{}, Invalid("email and app password required")
 	}
-	prov, ok := emailhub.ProviderForEmail(email)
-	if !ok {
-		return EmailHubAccountView{}, ErrEmailHubUnsupported
+	srv, err := resolveEmailHubServer(email, in)
+	if err != nil {
+		return EmailHubAccountView{}, err
+	}
+	// An app password's edges are copy-paste noise; a server password is used as typed.
+	password := in.AppPassword
+	if srv.Provider != "custom" {
+		password = strings.TrimSpace(password)
 	}
 	byAddress := db.GetActiveEmailHubAccountByAddressParams{
 		OrganizationID: ws.OrganizationID, UserID: actor.ID, Email: email,
 	}
 	existing, err := s.q.GetActiveEmailHubAccountByAddress(ctx, byAddress)
 	switch {
-	case err == nil && sameEmailHubConnection(existing, "password", prov.IMAPHost, prov.IMAPPort):
+	case err == nil && sameEmailHubConnection(existing, "password", srv.IMAPHost, srv.IMAPPort):
 		return EmailHubAccountView{}, ErrEmailHubAlreadyConnected
 	case err != nil && !errors.Is(err, pgx.ErrNoRows):
 		return EmailHubAccountView{}, err
 	}
 	imapCreds := imapclient.Credentials{
-		Host: prov.IMAPHost, Port: prov.IMAPPort, Email: email, Password: password, Security: "tls",
+		Host: srv.IMAPHost, Port: srv.IMAPPort, Email: email, Username: srv.Username,
+		Password: password, Security: srv.IMAPSecurity,
 	}
 	smtpCreds := smtpclient.Credentials{
-		Host: prov.SMTPHost, Port: prov.SMTPPort, Email: email, Password: password, Security: "starttls",
+		Host: srv.SMTPHost, Port: srv.SMTPPort, Email: email, Username: srv.Username,
+		Password: password, Security: srv.SMTPSecurity,
 	}
 	if err := s.verifyEmailHubLogin(ctx, imapCreds, smtpCreds); err != nil {
 		code, mapped := classifyEmailHubConnectError(err)
-		s.log.Warn("email hub connect verify failed", "code", code, "provider", prov.Name, "user_id", actor.ID)
+		// account_id is empty on a first connect.
+		s.log.Warn("email hub connect verify failed", "code", code, "provider", srv.Provider,
+			"user_id", actor.ID, "account_id", existing.ID)
 		return EmailHubAccountView{}, mapped
 	}
 	sealed, err := s.box.Seal([]byte(password))
 	if err != nil {
 		return EmailHubAccountView{}, err
 	}
-	row, err := s.saveEmailHubConnection(ctx, actor, byAddress, prov, base64.StdEncoding.EncodeToString(sealed))
+	row, _, err := s.saveEmailHubConnection(ctx, actor, byAddress, srv, base64.StdEncoding.EncodeToString(sealed))
 	if err != nil {
 		return EmailHubAccountView{}, err
 	}
@@ -121,46 +128,50 @@ func (s *EmailHubService) verifyEmailHubLogin(ctx context.Context, imap imapclie
 // place (keeping its id; the credential_version bump makes a markAuthFailed
 // with the old version match nothing); no live row means a fresh insert, and a
 // concurrent insert of the same address loses on the unique index.
+// serverChanged reports that the kept row moved to another IMAP server, whose
+// UIDs make the cached mail meaningless (spec §3).
 func (s *EmailHubService) saveEmailHubConnection(
 	ctx context.Context, actor Actor, byAddress db.GetActiveEmailHubAccountByAddressParams,
-	prov emailhub.Provider, passwordEnc string,
-) (db.EmailHubAccount, error) {
+	srv emailHubServer, passwordEnc string,
+) (db.EmailHubAccount, bool, error) {
 	tx, err := s.ws.pool.Begin(ctx)
 	if err != nil {
-		return db.EmailHubAccount{}, err
+		return db.EmailHubAccount{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 	existing, err := qtx.GetActiveEmailHubAccountByAddress(ctx, byAddress)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return db.EmailHubAccount{}, err
+		return db.EmailHubAccount{}, false, err
 	}
 	reconnected := err == nil
+	serverChanged := reconnected &&
+		(!strings.EqualFold(existing.ImapHost, srv.IMAPHost) || int(existing.ImapPort) != srv.IMAPPort)
 	var row db.EmailHubAccount
 	switch {
-	case reconnected && sameEmailHubConnection(existing, "password", prov.IMAPHost, prov.IMAPPort):
-		return db.EmailHubAccount{}, ErrEmailHubAlreadyConnected
+	case reconnected && sameEmailHubConnection(existing, "password", srv.IMAPHost, srv.IMAPPort):
+		return db.EmailHubAccount{}, false, ErrEmailHubAlreadyConnected
 	case reconnected:
 		row, err = qtx.UpdateEmailHubAccountCredentials(ctx, db.UpdateEmailHubAccountCredentialsParams{
-			ID: existing.ID, OrganizationID: byAddress.OrganizationID, Provider: prov.Name,
-			ImapHost: prov.IMAPHost, ImapPort: int32(prov.IMAPPort), ImapSecurity: "tls",
-			SmtpHost: prov.SMTPHost, SmtpPort: int32(prov.SMTPPort), SmtpSecurity: "starttls",
-			Username: "", AuthKind: "password", PasswordEnc: passwordEnc,
+			ID: existing.ID, OrganizationID: byAddress.OrganizationID, Provider: srv.Provider,
+			ImapHost: srv.IMAPHost, ImapPort: int32(srv.IMAPPort), ImapSecurity: srv.IMAPSecurity,
+			SmtpHost: srv.SMTPHost, SmtpPort: int32(srv.SMTPPort), SmtpSecurity: srv.SMTPSecurity,
+			Username: srv.Username, AuthKind: "password", PasswordEnc: passwordEnc,
 		})
 	default:
 		row, err = qtx.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
 			ID: util.NewID(), UserID: byAddress.UserID, OrganizationID: byAddress.OrganizationID,
-			EmailAddress: byAddress.Email, Provider: prov.Name,
-			ImapHost: prov.IMAPHost, ImapPort: int32(prov.IMAPPort), ImapSecurity: "tls",
-			SmtpHost: prov.SMTPHost, SmtpPort: int32(prov.SMTPPort), SmtpSecurity: "starttls",
-			Username: "", AuthKind: "password", PasswordEnc: passwordEnc,
+			EmailAddress: byAddress.Email, Provider: srv.Provider,
+			ImapHost: srv.IMAPHost, ImapPort: int32(srv.IMAPPort), ImapSecurity: srv.IMAPSecurity,
+			SmtpHost: srv.SMTPHost, SmtpPort: int32(srv.SMTPPort), SmtpSecurity: srv.SMTPSecurity,
+			Username: srv.Username, AuthKind: "password", PasswordEnc: passwordEnc,
 		})
 		if isUniqueViolation(err) {
-			return db.EmailHubAccount{}, ErrEmailHubAlreadyConnected // a concurrent Connect inserted first
+			return db.EmailHubAccount{}, false, ErrEmailHubAlreadyConnected // a concurrent Connect inserted first
 		}
 	}
 	if err != nil {
-		return db.EmailHubAccount{}, err
+		return db.EmailHubAccount{}, false, err
 	}
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: byAddress.OrganizationID,
@@ -168,11 +179,14 @@ func (s *EmailHubService) saveEmailHubConnection(
 		Action:         audit.ActionEmailHubAccountConnected,
 		ResourceType:   "email_hub_account",
 		ResourceID:     row.ID,
-		Metadata:       map[string]any{"auth_kind": row.AuthKind, "provider": row.Provider, "reconnected": reconnected},
+		Metadata: map[string]any{
+			"auth_kind": row.AuthKind, "provider": row.Provider,
+			"reconnected": reconnected, "server_changed": serverChanged,
+		},
 	}); err != nil {
-		return db.EmailHubAccount{}, err
+		return db.EmailHubAccount{}, false, err
 	}
-	return row, tx.Commit(ctx)
+	return row, serverChanged, tx.Commit(ctx)
 }
 
 // sameEmailHubConnection reports whether acc is a live connection Connect
@@ -189,8 +203,10 @@ func sameEmailHubConnection(acc db.EmailHubAccount, authKind, imapHost string, i
 func classifyEmailHubConnectError(err error) (string, error) {
 	var netErr net.Error
 	var certErr *tls.CertificateVerificationError
+	var recordErr tls.RecordHeaderError
 	switch {
-	case errors.Is(err, imapclient.ErrTLSRequired), errors.Is(err, smtpclient.ErrTLSRequired):
+	case errors.Is(err, imapclient.ErrTLSRequired), errors.Is(err, smtpclient.ErrTLSRequired),
+		errors.As(err, &recordErr): // TLS spoken to a plaintext greeter, e.g. security tls on port 143/587
 		return "tls_required", ErrEmailHubTLSRequired
 	case errors.Is(err, smtpclient.ErrSMTPAuthDisabled):
 		return "smtp_disabled", ErrEmailHubSMTPDisabled

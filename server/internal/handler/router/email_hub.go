@@ -7,7 +7,8 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-// tag: email-hub — IMAP mailboxes connected with App Password (Phase 1).
+// tag: email-hub — IMAP mailboxes connected with a password: an App Password on a
+// preset provider, or the mailbox password on the member's own IMAP/SMTP server.
 //
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/accounts
 //	POST   /api/v1/workspaces/{workspaceID}/email-hub/accounts
@@ -44,9 +45,12 @@ func registerEmailHub(r api, h Routes, connectLimit func(http.Handler) http.Hand
 	})
 	r.With(connectLimit).Post("/workspaces/{workspaceID}/email-hub/accounts", h.ConnectEmailHubAccount, apiOp{
 		summary: "Connect IMAP mailbox",
-		description: "Verifies IMAP and SMTP login with an App Password, stores encrypted credentials, and runs an initial sync. " +
-			"An address that needs a reconnect keeps its id and cached mail; a live one answers 409 email_hub_already_connected " +
-			"before any dial. 10 requests per 10 minutes per user.",
+		description: "Verifies IMAP and SMTP login, stores encrypted credentials, and runs an initial sync. " +
+			"Without imap_host the server comes from the address's domain preset (App Password); with it, all six " +
+			"server fields are required (TLS mandatory, ports 993/143/465/587/25) and are checked before any dial: " +
+			"400 email_hub_invalid_server or email_hub_host_not_allowed, with error.fields.field naming the field. " +
+			"An address that needs a reconnect keeps its id; a live one on the same IMAP server answers 409 " +
+			"email_hub_already_connected before any dial. 10 requests per 10 minutes per user.",
 		tags: []string{"email-hub"},
 		sdi:  sdi.ConnectEmailHubAccountSDI{},
 		sdo:  sdo.EmailHubAccountSDO{},

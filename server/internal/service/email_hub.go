@@ -80,6 +80,14 @@ type EmailHubAccountView struct {
 	AuthKind         string
 	NeedsReconnect   bool
 	AuthFailedReason string
+	// Server settings refill the reconnect form; the password never leaves the row.
+	ImapHost     string
+	ImapPort     int
+	ImapSecurity string
+	SmtpHost     string
+	SmtpPort     int
+	SmtpSecurity string
+	Username     string
 }
 
 type EmailHubThreadView struct {
@@ -709,6 +717,9 @@ func accountView(r db.EmailHubAccount) EmailHubAccountView {
 		ID: r.ID, EmailAddress: r.EmailAddress, Provider: r.Provider,
 		ConnectedAt: r.CreatedAt.Time, LastSyncAt: lastSyncFromState(r.SyncState),
 		AuthKind: r.AuthKind, NeedsReconnect: r.AuthFailedAt.Valid, AuthFailedReason: r.AuthFailedReason,
+		ImapHost: r.ImapHost, ImapPort: int(r.ImapPort), ImapSecurity: r.ImapSecurity,
+		SmtpHost: r.SmtpHost, SmtpPort: int(r.SmtpPort), SmtpSecurity: r.SmtpSecurity,
+		Username: r.Username,
 	}
 }
 
