@@ -41,7 +41,8 @@ type ConnectEmailHubInput struct {
 // Connect verifies a mailbox and stores it in the order spec §5.2 fixes:
 // membership, the feature switch, the fields and the server they name (no
 // dial), the duplicate check, the login, then one transaction for the row and
-// its audit. An address that needs a reconnect keeps its id.
+// its audit. A reconnect keeps the id; it keeps the cached mail too unless the
+// IMAP server changed (spec §3).
 func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID string, in ConnectEmailHubInput) (EmailHubAccountView, error) {
 	ws, err := s.workspace(ctx, actor, workspaceID)
 	if err != nil {
@@ -92,9 +93,12 @@ func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID 
 	if err != nil {
 		return EmailHubAccountView{}, err
 	}
-	row, _, err := s.saveEmailHubConnection(ctx, actor, byAddress, srv, base64.StdEncoding.EncodeToString(sealed))
+	row, serverChanged, err := s.saveEmailHubConnection(ctx, actor, byAddress, srv, base64.StdEncoding.EncodeToString(sealed))
 	if err != nil {
 		return EmailHubAccountView{}, err
+	}
+	if serverChanged {
+		s.resetEmailHubServerCache(ctx, row)
 	}
 	s.gov.loginSucceeded(row.ID) // a reconnect starts a fresh run of refused LOGINs
 	if s.testHookInitialSync != nil {
@@ -109,6 +113,24 @@ func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID 
 		return accountView(row), nil
 	}
 	return accountView(updated), nil
+}
+
+// resetEmailHubServerCache runs after a reconnect moved the mailbox to another
+// IMAP server and before the initial sync (spec §3). Snapshots of the old
+// server stop writing first, then the IDLE watcher stops (the client starts a
+// new one after it refetches the accounts), then the wipe waits for this
+// node's IMAP work on the account to finish. The reconnect already committed,
+// so a failed wipe is logged, not returned.
+func (s *EmailHubService) resetEmailHubServerCache(ctx context.Context, acc db.EmailHubAccount) {
+	ctx = context.WithoutCancel(ctx)
+	s.gov.fenceSnapshots(acc.ID, acc.CredentialVersion)
+	s.hubWatch.forceStop(acc.ID)
+	if err := s.gov.withIMAP(acc.ID, func() error {
+		s.gov.forgetMailboxes(acc.ID)
+		return cleanUpDisconnectedEmailHubAccount(ctx, s.q, acc.ID, acc.OrganizationID)
+	}); err != nil {
+		s.log.Warn("email hub server change cleanup failed", "account_id", acc.ID)
+	}
 }
 
 func (s *EmailHubService) verifyEmailHubLogin(ctx context.Context, imap imapclient.Credentials, smtp smtpclient.Credentials) error {

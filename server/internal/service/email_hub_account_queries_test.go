@@ -31,6 +31,7 @@ func TestEmailHubAccountCredentialQueries(t *testing.T) {
 
 	if err := q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
 		ID: acc.ID, OrganizationID: org, SyncState: []byte(`{"INBOX":{"uid_validity":7}}`),
+		CredentialVersion: acc.CredentialVersion,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -117,5 +118,48 @@ func TestEmailHubAccountCredentialQueries(t *testing.T) {
 		ID: acc.ID, OrganizationID: org, AuthKind: "password", ImapSecurity: "tls", SmtpSecurity: "starttls",
 	}); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("reconnecting a disconnected row: err=%v, want pgx.ErrNoRows", err)
+	}
+}
+
+// A sync that read the account before a reconnect holds the old
+// credential_version; its cursors belong to the old IMAP server and must not
+// overwrite the reset sync_state (spec §2.1, §3).
+func TestUpdateEmailHubAccountSyncStateIgnoresAStaleVersion(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	ctx := context.Background()
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	moved, err := q.UpdateEmailHubAccountCredentials(ctx, db.UpdateEmailHubAccountCredentialsParams{
+		ID: acc.ID, OrganizationID: acc.OrganizationID, Provider: "custom",
+		ImapHost: "mail.example.com", ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: "mail.example.com", SmtpPort: 587, SmtpSecurity: "starttls",
+		AuthKind: "password", PasswordEnc: "sealed-new",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(version int64, state string) {
+		t.Helper()
+		if err := q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
+			ID: acc.ID, OrganizationID: acc.OrganizationID, SyncState: []byte(state), CredentialVersion: version,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func() db.EmailHubAccount {
+		t.Helper()
+		row, err := q.GetEmailHubAccountByID(ctx, acc.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return row
+	}
+
+	write(acc.CredentialVersion, `{"INBOX":{"uidvalidity":7,"last_uid":42}}`)
+	if got := read(); string(got.SyncState) != "{}" {
+		t.Fatalf("a write from the pre-reconnect snapshot landed: sync_state=%s", got.SyncState)
+	}
+	write(moved.CredentialVersion, `{"INBOX":{"uidvalidity":9,"last_uid":3}}`)
+	if got := parseEmailHubSyncState(read().SyncState).folder(emailHubFolderInbox); got.UIDValidity != 9 || got.LastUID != 3 {
+		t.Fatalf("the current snapshot must write its cursor, got %+v", got)
 	}
 }

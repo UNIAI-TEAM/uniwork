@@ -236,3 +236,36 @@ func TestEmailHubGovernorAccountsIndependent(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestEmailHubGovernorForgetsMailboxes(t *testing.T) {
+	t.Parallel()
+	gov := newEmailHubGovernor()
+	gov.setMailboxes("acc-1", imapclient.MailboxMap{"INBOX": "Inbox"})
+	gov.setMailboxes("acc-2", imapclient.MailboxMap{"INBOX": "Inbox"})
+	gov.forgetMailboxes("acc-1")
+	if _, ok := gov.mailboxes("acc-1"); ok {
+		t.Fatal("a forgotten account must have no cached mailbox map")
+	}
+	if _, ok := gov.mailboxes("acc-2"); !ok {
+		t.Fatal("forgetting one account dropped another's mailbox map")
+	}
+}
+
+func TestEmailHubGovernorFencesStaleSnapshots(t *testing.T) {
+	t.Parallel()
+	gov := newEmailHubGovernor()
+	if gov.staleSnapshot("acc-1", 0) {
+		t.Fatal("without a fence no snapshot is stale")
+	}
+	gov.fenceSnapshots("acc-1", 3)
+	gov.fenceSnapshots("acc-1", 2) // a late, older fence never lowers it
+	if !gov.staleSnapshot("acc-1", 2) {
+		t.Fatal("a snapshot older than the fence must be stale")
+	}
+	if gov.staleSnapshot("acc-1", 3) || gov.staleSnapshot("acc-1", 4) {
+		t.Fatal("the fenced version and newer ones are current")
+	}
+	if gov.staleSnapshot("acc-2", 0) {
+		t.Fatal("a fence is per account")
+	}
+}

@@ -55,9 +55,11 @@ WHERE user_id = sqlc.arg('user_id')
 RETURNING id, organization_id;
 
 -- name: UpdateEmailHubAccountSyncState :exec
+-- A sync holding an older credential snapshot writes nothing: the account may
+-- have moved to another IMAP server since, and its cursors mean nothing there.
 UPDATE email_hub_accounts
 SET sync_state = $2, updated_at = now()
-WHERE id = $1 AND organization_id = $3;
+WHERE id = $1 AND organization_id = $3 AND credential_version = $4;
 
 -- name: GetActiveEmailHubAccountByAddress :one
 -- The live row for an address, including one that needs reconnect. lower()

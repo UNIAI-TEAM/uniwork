@@ -155,7 +155,7 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 		return false, 0, err
 	}
 	if err := s.q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
-		ID: acc.ID, SyncState: raw, OrganizationID: acc.OrganizationID,
+		ID: acc.ID, SyncState: raw, OrganizationID: acc.OrganizationID, CredentialVersion: acc.CredentialVersion,
 	}); err != nil {
 		return false, 0, err
 	}
@@ -175,6 +175,9 @@ func (s *EmailHubService) syncAccountFolderSession(
 	ctx context.Context, acc db.EmailHubAccount, logicalFolder string, state emailHubSyncState, reconcile bool,
 	sess *imapclient.Session, mailboxes imapclient.MailboxMap,
 ) (emailHubSyncState, int, error) {
+	if s.staleEmailHubSnapshot(acc) {
+		return state, 0, nil
+	}
 	mailbox := mailboxes.Resolve(logicalFolder)
 	if mailbox == "" {
 		mailbox = emailhub.MailboxName(acc.Provider, logicalFolder)
@@ -221,12 +224,25 @@ func (s *EmailHubService) syncAccountFolderSession(
 	return state, newUnread, nil
 }
 
+// staleEmailHubSnapshot reports that acc was read before a reconnect moved the
+// mailbox to another IMAP server: nothing read with it may touch the cache.
+func (s *EmailHubService) staleEmailHubSnapshot(acc db.EmailHubAccount) bool {
+	if !s.gov.staleSnapshot(acc.ID, acc.CredentialVersion) {
+		return false
+	}
+	s.log.Debug("email hub cache write skipped", "account_id", acc.ID, "reason", "stale_snapshot")
+	return true
+}
+
 // cacheFolderItems writes one fetched batch. The upsert runs before the
 // reconcile prune so a Sent row cached under a placeholder UID can adopt its
 // server UID first; the prune still runs when an upsert failed, as before.
 func (s *EmailHubService) cacheFolderItems(
 	ctx context.Context, acc db.EmailHubAccount, logicalFolder string, items []imapclient.ThreadMeta, reconcile bool,
 ) error {
+	if s.staleEmailHubSnapshot(acc) {
+		return nil
+	}
 	_, upsertErr := s.upsertThreadItems(ctx, acc, logicalFolder, items)
 	if reconcile {
 		if err := s.pruneReconciledFolderCache(ctx, acc, logicalFolder, items); err != nil {
@@ -343,7 +359,7 @@ func (s *EmailHubService) syncSingleFolder(
 		return false, 0, err
 	}
 	if err := s.q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
-		ID: acc.ID, SyncState: raw, OrganizationID: acc.OrganizationID,
+		ID: acc.ID, SyncState: raw, OrganizationID: acc.OrganizationID, CredentialVersion: acc.CredentialVersion,
 	}); err != nil {
 		return false, 0, err
 	}
@@ -358,6 +374,9 @@ func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHub
 	var lastErr error
 	ids := make([]string, 0, len(items))
 	for _, it := range items {
+		if s.staleEmailHubSnapshot(acc) {
+			return ids, lastErr
+		}
 		toAddrs := it.ToAddrs
 		if toAddrs == nil {
 			toAddrs = []string{}
@@ -471,7 +490,7 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 		return false, err
 	}
 	if err := s.q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
-		ID: acc.ID, SyncState: raw, OrganizationID: acc.OrganizationID,
+		ID: acc.ID, SyncState: raw, OrganizationID: acc.OrganizationID, CredentialVersion: acc.CredentialVersion,
 	}); err != nil {
 		return false, err
 	}

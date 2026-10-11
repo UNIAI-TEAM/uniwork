@@ -2735,17 +2735,25 @@ func (q *Queries) UpdateEmailHubAccountCredentials(ctx context.Context, arg Upda
 const updateEmailHubAccountSyncState = `-- name: UpdateEmailHubAccountSyncState :exec
 UPDATE email_hub_accounts
 SET sync_state = $2, updated_at = now()
-WHERE id = $1 AND organization_id = $3
+WHERE id = $1 AND organization_id = $3 AND credential_version = $4
 `
 
 type UpdateEmailHubAccountSyncStateParams struct {
-	ID             string `json:"id"`
-	SyncState      []byte `json:"sync_state"`
-	OrganizationID string `json:"organization_id"`
+	ID                string `json:"id"`
+	SyncState         []byte `json:"sync_state"`
+	OrganizationID    string `json:"organization_id"`
+	CredentialVersion int64  `json:"credential_version"`
 }
 
+// A sync holding an older credential snapshot writes nothing: the account may
+// have moved to another IMAP server since, and its cursors mean nothing there.
 func (q *Queries) UpdateEmailHubAccountSyncState(ctx context.Context, arg UpdateEmailHubAccountSyncStateParams) error {
-	_, err := q.db.Exec(ctx, updateEmailHubAccountSyncState, arg.ID, arg.SyncState, arg.OrganizationID)
+	_, err := q.db.Exec(ctx, updateEmailHubAccountSyncState,
+		arg.ID,
+		arg.SyncState,
+		arg.OrganizationID,
+		arg.CredentialVersion,
+	)
 	return err
 }
 
