@@ -174,6 +174,10 @@ func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 		respondError(w, 400, "invalid_token", "invalid or expired token")
 	case errors.Is(err, service.ErrEmailHubNotConfigured):
 		respondError(w, http.StatusServiceUnavailable, "email_hub_not_configured", "Email Hub is not configured")
+	case errors.Is(err, service.ErrEmailHubReauthRequired):
+		respondError(w, http.StatusConflict, "email_hub_reauth_required", "Email Hub account needs to be reconnected")
+	case errors.Is(err, service.ErrEmailHubSMTPDisabled):
+		respondError(w, http.StatusBadRequest, "email_hub_smtp_disabled", "SMTP AUTH is disabled for this mailbox")
 	case errors.Is(err, service.ErrCalendarProviderNotConfigured):
 		respondError(w, http.StatusServiceUnavailable, "calendar_provider_not_configured", "Calendar provider is not configured")
 	default:

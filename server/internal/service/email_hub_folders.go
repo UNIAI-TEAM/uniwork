@@ -84,6 +84,7 @@ func (s *EmailHubService) openIMAPMailboxes(
 		}
 		return nil, nil, err
 	}
+	s.gov.loginSucceeded(acc.ID) // only refusals in a row count toward needs_reconnect
 	defaults := imapclient.MailboxMap(emailhub.DefaultMailboxMap(acc.Provider))
 	if cached, ok := s.gov.mailboxes(acc.ID); ok {
 		return sess, cached, nil

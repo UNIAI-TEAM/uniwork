@@ -2,11 +2,14 @@ package sdo
 
 // EmailHubAccountSDO is one connected IMAP mailbox.
 type EmailHubAccountSDO struct {
-	ID           string `json:"id" example:"01JABC1234567890ABCDEFGH"`
-	EmailAddress string `json:"email_address" example:"you@gmail.com"`
-	Provider     string `json:"provider" example:"gmail"`
-	ConnectedAt  string `json:"connected_at" format:"date-time"`
-	LastSyncAt   string `json:"last_sync_at,omitempty" format:"date-time"`
+	ID               string `json:"id" example:"01JABC1234567890ABCDEFGH"`
+	EmailAddress     string `json:"email_address" example:"you@gmail.com"`
+	Provider         string `json:"provider" example:"gmail"`
+	ConnectedAt      string `json:"connected_at" format:"date-time"`
+	LastSyncAt       string `json:"last_sync_at,omitempty" format:"date-time"`
+	AuthKind         string `json:"auth_kind" description:"How the mailbox signs in" example:"password"`
+	NeedsReconnect   bool   `json:"needs_reconnect" description:"The provider refused the stored credential; reconnect to resume sync and send" example:"false"`
+	AuthFailedReason string `json:"auth_failed_reason" description:"Why the credential was refused; empty while connected" example:"imap_auth_failed"`
 }
 
 // EmailHubWatchSDO is POST .../email-hub/watch.

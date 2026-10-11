@@ -471,6 +471,7 @@ func toEmailHubAccountSDO(a service.EmailHubAccountView) sdo.EmailHubAccountSDO 
 	out := sdo.EmailHubAccountSDO{
 		ID: a.ID, EmailAddress: a.EmailAddress, Provider: a.Provider,
 		ConnectedAt: a.ConnectedAt.Format(time.RFC3339),
+		AuthKind:    a.AuthKind, NeedsReconnect: a.NeedsReconnect, AuthFailedReason: a.AuthFailedReason,
 	}
 	if a.LastSyncAt != nil {
 		out.LastSyncAt = a.LastSyncAt.Format(time.RFC3339)

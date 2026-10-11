@@ -60,6 +60,9 @@ func (s *EmailHubService) ScheduleSend(
 		}
 		return EmailHubScheduledSendView{}, err
 	}
+	if acc.AuthFailedAt.Valid {
+		return EmailHubScheduledSendView{}, ErrEmailHubReauthRequired
+	}
 	if err := validateSendInput(in); err != nil {
 		return EmailHubScheduledSendView{}, err
 	}
@@ -160,7 +163,14 @@ func (s *EmailHubService) deliverScheduledSend(ctx context.Context, row db.Email
 		ReplyToThreadID: payload.ReplyToThreadID,
 	})
 	if sendErr != nil {
-		markFailed(sendErr.Error())
+		switch {
+		case errors.Is(sendErr, ErrEmailHubReauthRequired): // also a needs_reconnect account, refused before SMTP
+			markFailed("auth_required")
+		case errors.Is(sendErr, ErrEmailHubSMTPDisabled):
+			markFailed("smtp_disabled")
+		default:
+			markFailed(sendErr.Error())
+		}
 		return
 	}
 	n, err := s.q.MarkEmailHubScheduledSendSent(markCtx, db.MarkEmailHubScheduledSendSentParams{

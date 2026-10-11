@@ -78,6 +78,9 @@ func (s *EmailHubService) SubscribeInboxWatch(
 		}
 		return err
 	}
+	if acc.AuthFailedAt.Valid {
+		return ErrEmailHubReauthRequired
+	}
 	s.hubWatch.subscribe(acc)
 	return nil
 }
@@ -264,6 +267,9 @@ func (s *EmailHubService) handleAuthError(ctx context.Context, acc db.EmailHubAc
 // reconnect, a disconnect or another node got there first; the watcher running
 // now belongs to that newer state, so nothing else happens.
 func (s *EmailHubService) markAuthFailed(ctx context.Context, acc db.EmailHubAccount, version int64, reason string) bool {
+	// The refusal is a fact even when the request that saw it is gone.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
 	tx, err := s.ws.pool.Begin(ctx)
 	if err != nil {
 		s.log.Warn("email hub mark auth failed", "account_id", acc.ID, "err", err)

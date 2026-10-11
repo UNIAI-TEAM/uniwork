@@ -315,3 +315,49 @@ func TestEmailHubDisconnectAuditsTheOwner(t *testing.T) {
 		t.Fatalf("expected one human disconnect audit row, got %d", n)
 	}
 }
+
+// A good IMAP LOGIN restarts the bare-NO run, so only refusals in a row mark
+// the account (spec §3: three bare NOs in a row).
+func TestEmailHubIMAPOpenSuccessResetsTheRefusalRun(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	ctx := context.Background()
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	svc.gov.setMailboxes(acc.ID, imapclient.MailboxMap{}) // skip LIST on the fake session
+	refuse := func(imapclient.Credentials) (*imapclient.Session, error) {
+		return nil, fmt.Errorf("imap login: %w", imapclient.ErrLoginRefused)
+	}
+	accept := func(imapclient.Credentials) (*imapclient.Session, error) { return nil, nil }
+
+	for range emailHubRefusedLoginsBeforeDisconnect - 1 {
+		if _, _, err := svc.openIMAPMailboxes(ctx, acc, refuse); errors.Is(err, ErrEmailHubReauthRequired) {
+			t.Fatal("a refusal below the threshold must not mark the account")
+		}
+	}
+	if _, _, err := svc.openIMAPMailboxes(ctx, acc, accept); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	for range emailHubRefusedLoginsBeforeDisconnect - 1 {
+		if _, _, err := svc.openIMAPMailboxes(ctx, acc, refuse); errors.Is(err, ErrEmailHubReauthRequired) {
+			t.Fatal("a successful open must restart the refusal run")
+		}
+	}
+	if row, err := q.GetEmailHubAccountByID(ctx, acc.ID); err != nil || row.AuthFailedAt.Valid {
+		t.Fatalf("account must stay active, err=%v", err)
+	}
+}
+
+// The caller's request may be gone by the time the server refuses the login;
+// the mark must still land.
+func TestEmailHubMarkAuthFailedSurvivesACancelledContext(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if !svc.markAuthFailed(ctx, acc, acc.CredentialVersion, "imap_auth_failed") {
+		t.Fatal("markAuthFailed must not depend on the caller's context")
+	}
+	if row, err := q.GetEmailHubAccountByID(context.Background(), acc.ID); err != nil || !row.AuthFailedAt.Valid {
+		t.Fatalf("account not marked: err=%v", err)
+	}
+}
