@@ -113,7 +113,7 @@ export function DocumentActionsMenu({
           {folded && comments && commentsEnabled ? (
             <DropdownMenuItem className="gap-2 px-2 py-2 sm:hidden" onClick={() => comments.setOpen(!comments.open)}>
               <MessageSquare aria-hidden className="size-3.5" />
-              {t("documents.actions.comments")}
+              {t(doc.kind === "file" ? "documents.comments.file_open" : "documents.actions.comments")}
             </DropdownMenuItem>
           ) : null}
           {items.map((item) => (

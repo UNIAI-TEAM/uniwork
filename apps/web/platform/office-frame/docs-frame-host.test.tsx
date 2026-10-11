@@ -5,6 +5,7 @@ import type { Document } from "@uniwork/core/types/document";
 
 const mocks = vi.hoisted(() => ({ switchProps: vi.fn(), frameProps: vi.fn(), push: vi.fn() }));
 vi.mock("@uniwork/views/navigation", () => ({ useNavigation: () => ({ push: mocks.push }) }));
+vi.mock("@uniwork/views/layout/workspace-context", () => ({ useWorkspace: () => ({ workspace: { organization_slug: "acme", slug: "ops" } }) }));
 vi.mock("@uniwork/views/office", () => ({
   DocxOpenSwitch: (props: { organizationId?: string; docsFrame: ReactNode; fallback: ReactNode }) => {
     mocks.switchProps(props);
@@ -46,6 +47,7 @@ describe("DocxFrameOrG3Host", () => {
     expect(mocks.switchProps.mock.calls[0]![0].organizationId).toBe("org-1");
     expect(mocks.frameProps).toHaveBeenCalledWith(expect.objectContaining({
       wsId: "ws-1", documentId: "doc-1", title: "Spec", frameVersion: "0.1.0-abc1234", readonly: false, className: "c",
+      libraryHref: "/acme/ops/documents",
     }));
     // The core createDocsFrameApi default serves the frame; the host injects none.
     expect(mocks.frameProps.mock.calls[0]![0]).not.toHaveProperty("api");

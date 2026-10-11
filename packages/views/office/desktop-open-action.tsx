@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { ChevronDown, Download, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OfficeSaveCoordinatorLike } from "./office-shell";
@@ -36,6 +36,9 @@ const EMPTY_INSTALLERS: OfficeInstallerOption[] = [];
 const LATE_HANDOFF_GRACE_MS = 60_000;
 const UNKNOWN_PLATFORM: DesktopPlatformGuess = { platform: null, confidence: "unsupported" };
 
+/** How one "open in the desktop app" request ended; the frame `app.open` answer carries it. */
+export type DesktopOpenOutcome = "launched" | "installer" | "unavailable";
+
 export interface OfficeSaveOutcome {
   accepted?: boolean;
   version?: number;
@@ -70,6 +73,8 @@ export interface DesktopOpenActionProps {
   loadPlatformHint?: () => Promise<DesktopPlatformGuess>;
   downloadInstaller?: (platform: DesktopPlatform) => Promise<void>;
   className?: string;
+  /** Filled with the same flow the button runs, for a caller that is not the button (a frame's `app.open`). */
+  requestRef?: MutableRefObject<(() => Promise<DesktopOpenOutcome>) | null>;
   /** `header` (default) fills the page header slot and its compact menu;
    * `inline` renders in place, always visible, with no header-slot behaviour. */
   placement?: "header" | "inline";
@@ -111,6 +116,7 @@ export function DesktopOpenAction({
   loadPlatformHint,
   downloadInstaller,
   className,
+  requestRef,
   placement = "header",
 }: DesktopOpenActionProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.desktop" });
@@ -124,6 +130,13 @@ export function DesktopOpenAction({
   const [resolvedPlatforms, setResolvedPlatforms] = useState(supportedPlatforms);
   const [resolvedHint, setResolvedHint] = useState(platformHint);
   const [hintRequested, setHintRequested] = useState(false);
+  // A request made while the dirty dialog is the way forward resolves when that dialog's flow ends.
+  const pendingRequest = useRef<((outcome: DesktopOpenOutcome) => void) | null>(null);
+  const settleRequest = (outcome: DesktopOpenOutcome) => {
+    const resolve = pendingRequest.current;
+    pendingRequest.current = null;
+    resolve?.(outcome);
+  };
   const launchedAt = useRef(0);
   const headerSlot = useHeaderActionsSlotAvailable();
   const inline = placement === "inline";
@@ -164,9 +177,9 @@ export function DesktopOpenAction({
     setInstallOpen(true);
   };
 
-  const startHandoff = async (version: number) => {
-    if (working || !Number.isSafeInteger(version) || version <= 0) return;
-    if (!deploymentId) { setError(t("ticket_failed")); return; }
+  const startHandoff = async (version: number): Promise<DesktopOpenOutcome> => {
+    if (working || !Number.isSafeInteger(version) || version <= 0) return "unavailable";
+    if (!deploymentId) { setError(t("ticket_failed")); return "unavailable"; }
     setWorking(true);
     setError(null);
     try {
@@ -179,20 +192,23 @@ export function DesktopOpenAction({
       });
       if (!session) {
         setError(t("ticket_failed"));
-        return;
+        return "unavailable";
       }
       // Rebuild from the ticket even when the server included a URL. This
       // keeps the scheme/channel binding and excludes title/path/token/bytes.
       const url = safeOfficeDeepLink(session, channel);
       if (!url || url !== buildOfficeDeepLink(session.launch_ticket, channel)) {
         setError(t("ticket_failed"));
-        return;
+        return "unavailable";
       }
       launchedAt.current = Date.now();
       const outcome = launch ? await launch(url) : "not-installed";
-      if (outcome !== "launched") await openInstallPrompt(outcome === "expired" ? "expired" : outcome === "error" ? "error" : "not-installed");
+      if (outcome === "launched") return "launched";
+      await openInstallPrompt(outcome === "expired" ? "expired" : outcome === "error" ? "error" : "not-installed");
+      return "installer";
     } catch {
       setError(t("ticket_failed"));
+      return "unavailable";
     } finally {
       setWorking(false);
     }
@@ -210,7 +226,7 @@ export function DesktopOpenAction({
       const version = await (versionAfterSave?.(raw) ?? outcomeVersion(raw));
       if (version === null) { setError(t("save_unverified")); return; }
       setChoiceOpen(false);
-      await startHandoff(version);
+      settleRequest(await startHandoff(version));
     } catch {
       setError(t("save_failed"));
     } finally {
@@ -224,6 +240,20 @@ export function DesktopOpenAction({
     else if (canOpenSaved) void startHandoff(savedVersion);
     else setError(t("version_unavailable"));
   };
+  const request = () => new Promise<DesktopOpenOutcome>((resolve) => {
+    if (working || pendingRequest.current) { resolve("unavailable"); return; }
+    setError(null);
+    if (currentlyDirty) { pendingRequest.current = resolve; setChoiceOpen(true); }
+    else if (canOpenSaved) void startHandoff(savedVersion).then(resolve);
+    else { setError(t("version_unavailable")); resolve("unavailable"); }
+  });
+  const requestLatest = useRef(request);
+  requestLatest.current = request;
+  useEffect(() => {
+    if (!requestRef) return undefined;
+    requestRef.current = () => requestLatest.current();
+    return () => { requestRef.current = null; };
+  }, [requestRef]);
 
   const installProps = { open: installOpen, channel, installers: resolvedInstallers, supportedPlatforms: resolvedPlatforms, platformHint: resolvedHint, onOpenChange: setInstallOpen, onOpenAgain: () => { setInstallOpen(false); if (canOpenSaved) void startHandoff(savedVersion); }, reason: installReason };
 
@@ -280,7 +310,7 @@ export function DesktopOpenAction({
         </DropdownMenu>
       </ButtonGroup>
       {error ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
-      <Dialog open={choiceOpen} onOpenChange={(open) => { if (!working) setChoiceOpen(open); }}>
+      <Dialog open={choiceOpen} onOpenChange={(open) => { if (working) return; setChoiceOpen(open); if (!open) settleRequest("unavailable"); }}>
         <DialogContent className="sm:max-w-md" aria-describedby="office-desktop-choice-description">
           <DialogHeader>
             <DialogTitle>{t("dirty_title")}</DialogTitle>
@@ -288,8 +318,8 @@ export function DesktopOpenAction({
           </DialogHeader>
           <DialogFooter className="sm:flex-col sm:items-stretch">
             <Button type="button" onClick={() => void saveThenOpen()} disabled={working}>{t("save_then_open")}</Button>
-            <Button type="button" variant="outline" onClick={() => { setChoiceOpen(false); if (savedVersion !== null) void startHandoff(savedVersion); }} disabled={working || !canOpenSaved}>{t("open_saved")}</Button>
-            <Button type="button" variant="ghost" onClick={() => setChoiceOpen(false)} disabled={working}>{t("cancel")}</Button>
+            <Button type="button" variant="outline" onClick={() => { setChoiceOpen(false); if (savedVersion !== null) void startHandoff(savedVersion).then(settleRequest); }} disabled={working || !canOpenSaved}>{t("open_saved")}</Button>
+            <Button type="button" variant="ghost" onClick={() => { setChoiceOpen(false); settleRequest("unavailable"); }} disabled={working}>{t("cancel")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

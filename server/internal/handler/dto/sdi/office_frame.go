@@ -35,6 +35,14 @@ type SignOfficeFrameAssetsSDI struct {
 	AssetIDs []string `json:"asset_ids" minItems:"1" maxItems:"100" description:"ULID asset của chính tài liệu trong token (1..100); asset lạ -> 404" example:"[\"01J8X4AST0N1P2Q3R4S5T6U7V8\"]"`
 }
 
+// ResolveOfficeFrameAssetsSDI is POST
+// /api/v1/office-frame/documents/{documentID}/assets/resolve (Markdown and HTML
+// tokens): signed URLs for relative paths as written in the document, fresh
+// ones for the open answer's paths and the URLs of paths typed after the open.
+type ResolveOfficeFrameAssetsSDI struct {
+	Paths []string `json:"paths" minItems:"1" maxItems:"50" description:"Đường dẫn tương đối như viết trong tài liệu (1..50); cùng cách chuẩn hóa và quyền như lúc mở; đường dẫn không phân giải được thì vắng khỏi kết quả" example:"[\"assets/logo.png\",\"../img/a.svg\"]"`
+}
+
 // ListOfficeFrameRecentsSDI documents GET
 // /api/v1/office-frame/documents/{documentID}/recents.
 type ListOfficeFrameRecentsSDI struct {

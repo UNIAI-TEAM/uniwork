@@ -96,6 +96,20 @@ describe("Office Docs frame endpoints", () => {
     expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer oft1.frame");
   });
 
+  it("parses the Markdown/HTML assets map and reads a drifted one as absent", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
+    const assets = { "assets/a.png": asset.url, "style.css": `/api/v1/office-frame/documents/${docId}/linked/01J8X4DOC1N1P2Q3R4S5T6U7?sig=ofl1.x.y` };
+    f.mockResolvedValueOnce(json({ ...document, module: "html", assets }));
+    await expect(client.open(docId)).resolves.toMatchObject({ assets });
+    for (const drifted of [["a.png"], "a.png", { "a.png": 3 }, { "": "/x" }]) {
+      f.mockResolvedValueOnce(json({ ...document, assets: drifted }));
+      const opened = await client.open(docId);
+      expect(opened?.document_id).toBe(docId);
+      expect(opened?.assets).toBeUndefined();
+    }
+  });
+
   it("runs the save flow and surfaces a conflict as a 409 ApiError", async () => {
     const f = vi.fn<typeof fetch>();
     const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
@@ -136,6 +150,17 @@ describe("Office Docs frame endpoints", () => {
     expect(JSON.parse(String(f.mock.calls[2]?.[1]?.body))).toEqual({ asset_ids: [asset.asset_id] });
   });
 
+  it("posts relative paths to resolve and parses the answer (A1b)", async () => {
+    const f = vi.fn<typeof fetch>();
+    const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
+    const items = [{ path: "assets/a.png", url: asset.url, expires_at: asset.expires_at }];
+    f.mockResolvedValueOnce(json({ items }));
+    await expect(client.resolveAssets(docId, ["assets/a.png", "gone.png"])).resolves.toEqual({ items });
+    expect(String(f.mock.calls[0]?.[0])).toBe(`/api/v1/office-frame/documents/${docId}/assets/resolve`);
+    expect(f.mock.calls[0]?.[1]).toMatchObject({ method: "POST", credentials: "omit" });
+    expect(JSON.parse(String(f.mock.calls[0]?.[1]?.body))).toEqual({ paths: ["assets/a.png", "gone.png"] });
+  });
+
   it("degrades every malformed frame answer instead of throwing", async () => {
     const f = vi.fn<typeof fetch>();
     const client = createOfficeFrameClient({ getToken: () => "oft1.frame", fetch: f, apiUrl: "" });
@@ -152,6 +177,8 @@ describe("Office Docs frame endpoints", () => {
       await expect(client.uploadAsset(docId, new Blob(["x"]), "a.png")).resolves.toBeNull();
       f.mockResolvedValueOnce(json(body));
       await expect(client.signAssets(docId, ["a"])).resolves.toEqual({ items: [] });
+      f.mockResolvedValueOnce(json(body));
+      await expect(client.resolveAssets(docId, ["a"])).resolves.toEqual({ items: [] });
     }
     // A non-JSON success body degrades too.
     f.mockResolvedValueOnce(new Response("not json", { status: 200 }));

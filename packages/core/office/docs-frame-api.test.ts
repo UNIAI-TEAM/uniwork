@@ -132,6 +132,16 @@ describe("createDocsFrameApi", () => {
     expect(result).toMatchObject({ ok: false, error: { code: "conflict", status: 409, details: { apiCode: "document_version_conflict" } } });
   });
 
+  it("hands the frame a stable code, never the server's account-language sentence", async () => {
+    const { fetch } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json({ error: { code: "document_version_conflict", message: "tài liệu đã có phiên bản mới hơn kể từ lần bạn mở nó" } }, 409),
+    });
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "6" }, call());
+    expect(result).toMatchObject({ ok: false, error: { code: "conflict", message: "document_version_conflict (HTTP 409)", details: { apiCode: "document_version_conflict" } } });
+  });
+
   it("fails a save whose commit answer is malformed", async () => {
     const { fetch } = fakeFetch({
       "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),

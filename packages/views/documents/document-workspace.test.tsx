@@ -90,7 +90,7 @@ function patchCalls(): PatchCall[] {
 /** Stands in for the workspace top bar: the control that toasts a saved preference. */
 function PreferenceProbe() {
   const notifySaved = usePreferenceSavedToast();
-  return <button type="button" onClick={() => notifySaved()}>change theme</button>;
+  return <button type="button" onClick={() => notifySaved("theme")}>change theme</button>;
 }
 
 function renderWorkspace(
@@ -175,12 +175,12 @@ describe("DocumentWorkspace preference toast (GOA9-r4-08)", () => {
     success.mockRestore();
   });
 
-  it("still toasts Saved for a theme change on an editable page", async () => {
+  it("still toasts the saved theme preference on an editable page", async () => {
     const success = vi.spyOn(toast, "success").mockImplementation(() => "t");
     renderWorkspace({ my_level: "edit" }, undefined, false, true);
     await findEditor();
     fireEvent.click(screen.getByRole("button", { name: "change theme" }));
-    expect(success).toHaveBeenCalledWith("Đã lưu", { id: "settings-auto-save" });
+    expect(success).toHaveBeenCalledWith("Đã lưu tùy chọn giao diện", { id: "settings-auto-save" });
     success.mockRestore();
   });
 });

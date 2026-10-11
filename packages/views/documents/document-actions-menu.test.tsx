@@ -119,11 +119,12 @@ describe("DocumentActionsMenu with an embedded editor", () => {
       ),
     );
     await screen.findByRole("button", { name: "office-save" });
-    const trigger = screen.getByRole("button", { name: t("documents.comments.open") });
+    // An office file's drawer is the file discussion, not the editor's own Comments pane.
+    const trigger = screen.getByRole("button", { name: t("documents.comments.file_open") });
     expect(trigger.closest("[data-document-comments-actions]")).toHaveClass("hidden", "sm:flex");
     await openMenu();
     expect(screen.getByRole("menuitem", { name: "editor-entry" })).toBeInTheDocument();
-    const comments = screen.getByRole("menuitem", { name: t("documents.actions.comments") });
+    const comments = screen.getByRole("menuitem", { name: t("documents.comments.file_open") });
     expect(comments).toHaveClass("sm:hidden");
     fireEvent.click(comments);
     await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));

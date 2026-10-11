@@ -181,8 +181,14 @@ var (
 	// text/plain and accept it. NDJSON is an export format, not an upload
 	// type those modules name, so it maps back rather than widening their
 	// allowlists.
+	// CSS, JavaScript and SVG (UNI-1232) are named for Documents, where they
+	// sit next to an HTML page; these pipelines keep storing them as the
+	// text/plain they sniffed as before.
 	plainTextCanonicalTypes = map[string]string{
 		"application/x-ndjson": "text/plain",
+		"text/css":             "text/plain",
+		"text/javascript":      "text/plain",
+		"image/svg+xml":        "text/plain",
 	}
 	// voiceCanonicalTypes keeps the names the chat voice pipeline stores and
 	// serves today (sniffChatVoiceContentType in
@@ -217,7 +223,11 @@ var (
 	// lanes (G2-06/G2-07a); the preview sandbox, not this allowlist, is what
 	// keeps HTML safe to render. ODF text joins with G2-07b: it is a Q7
 	// conversion source (docs/office/g1g2/q7-blocker.md), never an in-place
-	// editor format.
+	// editor format. GIF, WebP, SVG, CSS and JavaScript join with UNI-1232:
+	// the pictures, stylesheets and scripts next to a Markdown/HTML document,
+	// which the Office frames load by relative path (never inline in our
+	// origin: every Documents byte route answers with a sandbox CSP and
+	// nosniff).
 	documentMIMETypes = []string{
 		"application/pdf", "text/plain", "text/markdown", "text/html",
 		"application/msword",
@@ -227,7 +237,8 @@ var (
 		"application/vnd.ms-powerpoint",
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
 		"application/vnd.oasis.opendocument.text",
-		"image/jpeg", "image/png",
+		"image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
+		"text/css", "text/javascript",
 	}
 )
 

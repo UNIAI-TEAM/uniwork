@@ -101,15 +101,15 @@ and keep the G3 host (or its unsupported state).
 - Capabilities come from one table, `officeModuleSpec(module).grant` in
   `packages/core/office/office-modules.ts`, narrowed by readonly and by the
   API. Docs keeps its UNI-1013 grant. pdf, slides, sheets: save, save-as,
-  print; markdown, html: also exportHtml. Recents, file pick and attachments
+  print; markdown, html: also exportHtml and images. Recents, file pick and attachments
   stay off outside Docs and only Docs has the server PDF export.
-- Images (markdown/html): off, and `open.assets` is not filled. The G3 web
-  host does not resolve relative images either (its image port is unwired,
-  the engine manifest carries no asset ids, and the preview asset proxy is a
-  separate origin the frame's `img-src 'self' data: blob:` could not load),
-  and it has no paste upload. When G3 gains them, fill `open.assets` with
-  same-origin URLs or `data:` URIs and grant `images` with an upload handler
-  over the asset routes.
+- Images (markdown/html, UNI-1232): granted with edit access. `api.open`
+  fills `open.assets` from the open answer (relative path -> signed frame
+  route, see "Images and sibling files in Markdown/HTML" below) and
+  `api.images.upload` stores a pasted picture as a document asset; Docs keeps
+  `data:` URIs and no upload handler. `next.config.mjs` proxies the two signed
+  byte routes to the API origin (`frame-asset-rewrites.mjs`), so they are
+  same-origin with the frame.
 - `init.user = {displayName}` is the signed-in user's display name, for every
   module including Docs (comment and note authors). Display data only.
 - View-only: a user who may view but not edit (the page's `readonly`, or
@@ -231,9 +231,85 @@ is open (frame `ready`) and only for a user who may edit; the same installer,
 platform-hint, download and launch wiring. The frame has no save coordinator,
 so a small adapter (`frame-desktop-open.tsx`) feeds the action the frame's
 dirty state and save, and the version a frame save committed is read back as
-the document's current version. The launch target (GO-A6) and installer URLs
-(GO-A8) come later. Evidence: `reports/uni-1014-evidence/desktop-open/`
-(header button, installer menu, install prompt; vi + en, light + dark).
+the document's current version. The launch target and installer links are
+already in this branch: `POST /documents/{id}/office/sessions` (GO-A6 launch
+ticket) -> `uniwork-office[-dev]://open?ticket=` (parsed by
+`apps/office-desktop/main/deep-links/parser.ts`), and `GET
+/office/desktop/download` fed by `OFFICE_INSTALLER_{DEV,BETA,STABLE}_URLS`
+(GO-A8). Without those env values the install prompt says the channel has no
+installer yet; that is deployment config, not code. Evidence:
+`reports/uni-1014-evidence/desktop-open/` (header button, installer menu,
+install prompt; vi + en, light + dark).
+
+### Frame request `app.open` (A7 contract, additive)
+
+A frame that cannot do something on the web (PDF OCR, Markdown Source mode,
+...) shows "Open in the UniWork Office app to use this feature" plus an action.
+That action calls ONE host request; the frame never builds a deep link.
+
+- Capability `desktopOpen` (boolean, host-granted): the host grants it only
+  when its own "Open in desktop app" action is available (editor open, user
+  may edit, deployment id known). Without it the frame shows the message only.
+- Frame -> host request `app.open`, payload `{ feature?: string }` (a short
+  opaque tag such as `pdf.ocr`, for the host's own dev diagnostics only; never
+  shown, never sent to a server), result `{ outcome: "launched" | "installer" |
+  "unavailable" }`.
+- The host runs exactly the header button's flow (`DesktopOpenAction`): the
+  dirty dialog when the frame has unsaved edits, then the launch session and
+  the deep link, then the installer prompt when the app did not answer.
+  `launched` = the browser tab hid after the deep link; `installer` = the
+  install prompt was opened; `unavailable` = no deployment id / no committed
+  version / the action is busy (the host also shows its own `role="alert"`).
+- Additive: an old host does not know `app.open` (the frame sees `unsupported`
+  and keeps the message only); an old frame never sends it.
+
+## Host chrome around the frames (UNI-1232 polish)
+
+What the UniWork page owns around every module frame, one behaviour for all six:
+
+- **Header on a phone.** A file's breadcrumb crumbs hide below `sm` (the back
+  control stands in), so the title truncates with the full name as a tooltip
+  instead of collapsing to a letter. The frame's header cluster is status +
+  a **Save** button (`data-office-frame-save`): an icon with an accessible
+  name "Save to UniWork" on a phone, labelled from `sm`, quiet (outline,
+  `aria-disabled`, still in the tab order) while nothing is unsaved. The
+  desktop actions fold into the page's overflow menu below `sm`.
+- **View-only is announced once.** For a file the banner under the header
+  (title + reason, one live region) is the announcement; the header chip is
+  gone (a page keeps the chip only where its banner is hidden). The frames hide
+  their own chip through the `viewOnlyChip` capability.
+- **Two comment surfaces, two names.** The page drawer of an office file is
+  "File discussion" (the discussion about the file); the editor's own pane keeps
+  the editor's word for notes inside the document ("Comments in this document"
+  where the module words it so). A page document keeps "Comments".
+- **Preference toasts name the preference** ("Language preference saved"), so
+  a language or theme switch never reads as the document's save state.
+- **Failure panel.** A denied reader (403/404) gets the reason and a link back
+  to the workspace document list, never "Try again"; retry stays for network,
+  load and generic failures.
+- **Failed save.** The header keeps "Save could not be confirmed" until the
+  frame reports dirty again (the next edit), then says "Unsaved".
+- **Save conflict has one owner per save.** A save the frame starts (Ctrl+S)
+  opens the frame's own Reload latest / Overwrite / Cancel dialog; the host
+  hears only a non-fatal `error` event and shows nothing. A save the page starts
+  (header Save, `reason: "user"`) answers `{ ok: false, error: { code: "conflict" } }`
+  and the **host** asks, in the page language: "Someone saved a newer version"
+  with **Keep my edits** (default) and **Reload latest** (a fresh frame, the
+  page's own copy refetched). A leave-dialog save (`navigate`) keeps its inline
+  failure line. The server words its messages in the *account* language, so
+  `ProtocolErrorShape.message` never carries them: it is the English developer
+  text `<api code> (HTTP <status>)` (`document_version_conflict (HTTP 409)`),
+  the stable code is `details.apiCode`, and a frame that shows a notice maps
+  `code` to page-language copy itself.
+- **Standard-editor notice.** A workbook over the Sheets cap (host gate or the
+  frame answering `too_large`) opens in the G3 editor under one sentence:
+  "This file is too large for the web editor, so it opened in the standard
+  editor". The frame-load fallback keeps its own sentence (`reason` = `size` |
+  `load`, `data-testid="office-frame-fallback-notice"`).
+- **Leave dialog = the reference look**: filled primary, close X named Close,
+  blurred scrim, focus trap, and on close the host focuses the iframe and its
+  window (the same signal for every module; the frames' focus-return bridge
+  listens for it).
 
 ## AI in the frame (CONTRACT C16, ADR 0029 D9)
 
@@ -294,16 +370,17 @@ hides every AI entry, as before. The capability keys are re-vendored from the
 fork (worker AI1, c044fa9) into `packages/core/office/docs-frame-protocol.ts`.
 
 The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
-the fork lane head `98e1d20` (branch `feature/UNI-1014-web-modules`), which holds
+the fork lane head `8b2e84a` (branch `feature/UNI-1232-web-polish`), which holds
 DR1 draft recovery (`InitPayload.recovery`), the `modal` event, SP1, H2, the
-AI1 capability keys and the SH4 Sheets AI in one lineage, so nothing is merged by hand any more. They
+AI1 capability keys, the SH4 Sheets AI, the A7 `app.open` request and the A1b `api.assets.resolve` request in one lineage, so nothing is merged by hand any more. They
 are byte-identical to the fork's `web/docs/protocol/{types,endpoint,host}.ts`
 except the relative import specifiers; the bodies did not change between the
 earlier `f1679cb` + AI1 `c044fa9` vendoring, `11a5eba` and `36e9e23`, only the headers.
 `36e9e23..9b5e409` changed `types.ts` in one comment (`InitRecovery.key` is persisted
 per user, C18a); `9b5e409..98e1d20` changed nothing under `web/docs/protocol/` (the `08fafd4..98e1d20`
-range only touched its README). No type,
-message or version changed. The
+range only touched its README). `98e1d20..8b2e84a` (nothing changed after `0e384f8`; `d5553a0..8b2e84a` changed nothing under `web/docs/protocol/`) added `app.open` (capability `desktopOpen`) and
+`api.assets.resolve`, which the dev copy already carried as patches; the re-vendor to `0e384f8` only moved those
+blocks into the fork's order and replaced the headers. The
 bundles in "Pinned builds" are built from the same commit.
 
 Tests: `server/internal/handler/office_frame_ai_test.go` (every route through
@@ -390,27 +467,33 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, the lane head `98e1d20`
-(`0.1.0-98e1d20` = `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
+All six modules are pinned to one fork commit, the lane head `8b2e84a`
+(branch `feature/UNI-1232-web-polish`; `0.1.0-8b2e84a` = `98e1d20` + the UNI-1232 web polish of the six modules
+(round 2 minors and nits, `app.open`, `api.assets.resolve`) + the five fork CI fixes (FX) + the host-save conflict wording and the last web-module polish fixes (FX2, FX3, FX4, an MT test fix) + FX6 (PDF Insert text embeds real TTF fonts, dialog focus, the Docs comments pane starts closed on a narrow viewport) + the GO-A9 app acceptance merge (fork main `42e2c40`, view-only AI composer and the rest of the app acceptance fixes) + the Prettier fix `4c7c9f6`, FX7 (web view-only AI) and the AI setup notices with the muted dark disabled Send token (`d5553a0..8b2e84a`; all six bundles change); `98e1d20` was `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
 dialog, the AI panel and failed-save wording fixes in PDF, Markdown and HTML
 (DP5 re-pin); `08fafd4` was `9b5e409` + the GO-A6 merge (UniWork documents), the
 `uniworkState` stub of every module's web API, the PDF close-save origin and the
 Sheets view-only lock kept off the frame; `9b5e409` itself was `36e9e23` + SH4
 Sheets AI, the FF1 hardening fixes and the per-platform wasm checksum; built clean:
 no `-dirty` suffix, `npm run build:web -- --all` in a detached worktree of
-`98e1d20`, not the fork lane's own checkout). The pins'
+`8b2e84a`, not the fork lane's own checkout). The pins'
 headers did not change from `36e9e23`, only version, SHA and manifest digest. Written by
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
 | module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
 | --- | --- | --- | --- | --- | --- | --- |
-| `docs` | `docs.pin.json` | 46 | 16.74 MiB | 11.69 MiB | 4.93 MiB | none |
-| `pdf` | `pdf.pin.json` | 229 | 13.70 MiB | 7.02 MiB | 1.76 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
-| `markdown` | `markdown.pin.json` | 90 | 7.91 MiB | 2.55 MiB | 2.81 MiB | none |
-| `html` | `html.pin.json` | 7 | 1.74 MiB | 0.57 MiB | 1.73 MiB | `frame-src 'self'` + `documents[/preview.html]` |
-| `slides` | `slides.pin.json` | 19 | 5.48 MiB | 2.25 MiB | 4.15 MiB | `media-src blob:` |
-| `sheets` | `sheets.pin.json` | 219 | 26.79 MiB | 7.64 MiB | 3.29 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
+| `docs` | `docs.pin.json` | 46 | 16.80 MiB | 11.70 MiB | 5.00 MiB | none |
+| `pdf` | `pdf.pin.json` | 229 | 16.33 MiB | 7.75 MiB | 1.82 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
+| `markdown` | `markdown.pin.json` | 90 | 7.96 MiB | 2.57 MiB | 2.86 MiB | none |
+| `html` | `html.pin.json` | 7 | 1.79 MiB | 0.59 MiB | 1.78 MiB | `frame-src 'self'` + `documents[/preview.html]` |
+| `slides` | `slides.pin.json` | 19 | 5.53 MiB | 2.27 MiB | 4.21 MiB | `media-src blob:` |
+| `sheets` | `sheets.pin.json` | 219 | 26.84 MiB | 7.66 MiB | 3.33 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
+
+The `pdf` bundle grew by 2.6 MiB at `b60d5ff`: it ships 12 real Liberation TTFs
+(about 4.2 MiB, `pdf/<version>/fonts/`, fetched lazily by Insert text, so the initial
+download only moved by 0.06 MiB). They are served by the same `office-frame` route as
+every other file of the bundle and need no new CSP source (`font-src 'self'`).
 
 Policy review of the pin diffs (what a reviewer of a re-pin checks): every
 module keeps `default-src 'none'`, `connect-src 'self'`, `base-uri 'self'`,
@@ -426,7 +509,7 @@ the frame, and the host refuses to pin or serve one that is not that kind.
 
 **Archive limits.** `DEFAULT_ARCHIVE_LIMITS` in `frame-install.mjs` (64 MiB
 archive, 160 MiB unpacked, 2000 entries) were sized for one Docs build. The
-six builds in one `dist-web` root measure 31.8 MiB as a `.tar.gz`, 72.4 MiB
+six builds in one `dist-web` root measure 31.9 MiB as a `.tar.gz`, 72.8 MiB
 unpacked, 644 entries (`tar -C dist-web -czf dist-web.tar.gz .`), so the
 limits hold with about 2x headroom and are unchanged; the whole tarball was
 installed through `materialize` + `loadBundle` by the sync run above. Raise
@@ -439,7 +522,7 @@ tarball (or https URL to one) of the fork's whole `dist-web` root, holding
 
 ```bash
 # in the fork checkout, at the commit the pins name
-npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (98e1d20: 31.8 MiB as a tarball)
+npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (8b2e84a: 32.6 MiB as a tarball)
 tar -C dist-web -czf dist-web.tar.gz .
 # publish dist-web.tar.gz where the secret's URL points; the sync verifies it against the pins
 ```
@@ -461,7 +544,8 @@ the **linux-arm64 build made on bro** (wasm sha256 `e56985bc...27cd`, arm64
 line of the fork file). A tarball built on an x64 machine (the CI secret, if it is
 built there) holds a different Sheets wasm, so `office-frame-sync` refuses it
 against this pin: publish the secret from the bro tarball
-(`dist-web-0.1.0-98e1d20.tar.gz`), or re-pin from an x64 build and let CI use that
+(`dist-web-0.1.0-8b2e84a.tar.gz`, sha256 `f1a2d839...d5322`, next to it in the `.sha256` file; the wasm in it is the arm64
+line `e56985bc...27cd`, unchanged since `98e1d20`), or re-pin from an x64 build and let CI use that
 one; never mix the two.
 
 Open: the `e2e` job's secret to be re-published by whoever holds it from the
@@ -472,3 +556,137 @@ tarball above (the fork CI does not publish a `dist-web` tarball).
 Module-specific capability keys belong to the module workers. The Sheets
 sidecar question (GO-D3) keeps sidecar-only operations hidden through
 capability keys.
+
+## Images and sibling files in Markdown/HTML (CONTRACT A1, UNI-1232)
+
+Markdown and HTML documents written on the desktop point at pictures (and, for
+HTML, stylesheets and scripts) by a RELATIVE path. On UniWork these resolve as
+follows; the host fills `OpenPayload.assets` with what resolves and grants
+`images` so pasted pictures become document assets instead of `data:` URIs.
+
+**Where a relative path resolves.** The server normalizes a path as written in
+the document (strip `./`, one percent-decode, drop `?query` and `#fragment`;
+refuse absolute paths, schemes, `\`, empty or `.` segments, and a `..` that
+climbs past the workspace root; at most 512 bytes) and tries, in order:
+
+1. a **document asset** of this document: `assets/<name>` is the newest asset
+   whose stored file name is `<name>` (what the frame's `api.images.upload`
+   sent as `name`);
+2. a **sibling file document** in the Documents tree: the path walks from the
+   document's parent (`parent_id`; none = the workspace root), each directory
+   segment a child page or document whose title equals it, `..` one level up,
+   and the last segment a live file document whose stored file name (else its
+   title) equals it. The caller must be able to view THAT document too (its own
+   ACL, rechecked on every byte request), it must be in the same workspace, and
+   only these types resolve: PNG, JPEG, GIF, WebP, SVG, CSS, JavaScript. `..`
+   climbs only through live ancestors the caller may view (a trashed or
+   unviewable one ends the walk), and one open or resolve call runs the ACL on at
+   most 100 distinct documents: a path that would need one more stays unresolved.
+
+Nothing else resolves: a path that matches neither is simply absent from the
+map (the frame shows its missing-picture placeholder).
+
+**Open.** `GET /api/v1/office-frame/documents/{id}` (frame token) answers, for
+the markdown and html modules only, `assets: {"<path as written>": "<url>"}`
+for every relative reference the current version uses (Markdown `![](..)`,
+reference definitions, `<img src>`, `<source src>`, `srcset` entries,
+`<link href>`, `<script src>`, `poster`, CSS `url(..)`; at most 200 paths, the
+document read up to 4 MiB). The host copies it into `OpenPayload.assets`
+(`api.open`); keys are exactly as written in the document (e.g. `./assets/a.png`
+and `assets/a.png` may both appear), values are origin-relative URLs.
+
+**URLs.** Every value is a same-origin, header-less, signed URL:
+
+- asset: `/api/v1/office-frame/documents/{id}/assets/{assetId}?sig=ofa1....`
+- sibling: `/api/v1/office-frame/documents/{id}/linked/{linkedDocumentId}?sig=ofl1....`
+
+`GET`/`HEAD` with `credentials: 'omit'`. A signature binds the document, the
+target and the user and every request rechecks view access, so a revoked share
+stops it at once. Lifetime: `OfficeFrameAssetURLTTL` (1 hour) for the Markdown
+and HTML frames; a Docs image URL keeps the token's 10 minutes, as shipped in
+UNI-1013. The sibling route takes the signature ALONE: a frame token as Bearer,
+of any module and the document's own included, answers 401 (a token binds its
+own document; a sibling is another document), and a signature naming any module
+but markdown/html is refused. Sessions longer than the hour ask for fresh URLs
+(next section). The web app (`apps/web/next.config.mjs` rewrites) proxies exactly
+these two byte paths to the API origin, so they are same-origin with the frame
+(`img-src 'self'`, `connect-src 'self'`) wherever the API lives. `credentials:
+'omit'` holds for the frame's `fetch` calls only: an `<img>` or `<link>` load of
+these same-origin paths sends the app origin's cookies through the rewrite, and
+the API ignores them on these two routes (the signature is the only credential;
+the destination host is fixed by `NEXT_PUBLIC_API_URL`, never taken from the
+request). Responses:
+`Content-Type` by the file's extension (`image/png|jpeg|gif|webp`,
+`image/svg+xml`, `text/css; charset=utf-8`, `text/javascript; charset=utf-8`),
+`X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox;
+default-src 'none'` (an SVG opened directly runs no script; inside `<img>` it
+never does), `Cache-Control: private, no-store`.
+
+**Paste / drop upload.** With `images` granted (markdown and html, edit access
+only) the frame sends `api.images.upload` `{fileId, name, mimeType, data}`
+with `name` = `image-<stamp>-<rand>.<ext>`; the host posts it as multipart
+`file` (filename = `name`) to `POST /api/v1/office-frame/documents/{id}/assets`
+(frame token, edit access, ≤ 10 MiB, PNG/JPEG/GIF/WebP; SVG is not uploaded:
+the frame keeps a pasted SVG as a `data:` URI) and answers
+`{imageId: asset_id, url}`; the frame authors `assets/<name>` and learns the
+URL. On the next open the server resolves `assets/<name>` through rule 1. A
+failed upload is a protocol error; the frame embeds the picture instead.
+
+**HTML preview.** `preview.html` keeps its sandboxed opaque-origin policy
+unchanged (`img-src data: blob: https:`, `connect-src 'none'`): the frame
+inlines what the preview needs before handing the copy over (pictures as
+`data:` URIs as today, mapped stylesheets as `<style>`, mapped scripts as
+inline `<script>`, fetched same-origin from the map), so no policy is widened.
+
+**Frame side (fork) to do.** Accept `image/webp` and `image/svg+xml` in the
+asset store's display/read paths (upload stays PNG/JPEG/GIF/WebP), inline
+mapped CSS/JS into the preview copy, and treat a mapped URL answering 401/403
+as missing. No new message types and no protocol version change.
+
+### Fresh URLs and paths typed after the open (CONTRACT A1b, UNI-1232)
+
+Two gaps of the open answer, one request. The URLs of the open answer live 1
+hour while a document can stay open longer, and a relative path the user types
+or edits after the open (`![](./new.png)`) has no URL. Both are "paths as written
+in the document -> signed URLs", so the frame asks again with the paths it holds.
+
+**Server.** `POST /api/v1/office-frame/documents/{id}/assets/resolve`, frame
+token, markdown and html modules only (any other answers 404):
+
+```json
+{ "paths": ["assets/logo.png", "./img/new.svg"] }
+```
+answers `{"items": [{"path": "assets/logo.png", "url": "...", "expires_at": "<RFC3339>"}]}`
+in request order, a path that resolves to nothing absent. Same normalisation,
+order (document asset, then sibling file walk) and view ACL as the open answer
+(`OfficeFrameService.ResolvePaths` is the one code path for both); a call runs
+the Documents ACL on at most 100 distinct documents and takes 1..50 paths (more
+answers 400); the signatures are the ones above, so nothing is served by this
+route itself. It reads, so it records no audit row.
+
+Why paths and not ids: a signature for a sibling is only ever issued for a path
+the document names, so the server re-walks the relation on every call; an id-based
+`assets/sign` for linked files would sign any viewable file of the workspace.
+`POST .../assets/sign` stays asset ids of the token's own document (Docs images).
+
+**Protocol (additive, no version change).** One frame -> host request, sent
+by the Markdown/HTML frames only, at their own pace:
+
+```ts
+'api.assets.resolve': Rpc<ApiAssetsResolvePayload, ApiAssetsResolveResult>
+interface ApiAssetsResolvePayload { fileId?: string; paths: string[] }   // 1..50, as written
+interface ApiAssetsResolveResult { assets: Record<string, string> }       // as OpenPayload.assets
+```
+The result has the rules of `OpenPayload.assets` (same-origin frame routes,
+`credentials: 'omit'`). The host answers `unsupported` when its API has no
+`resolveAssets` (older hosts): the frame keeps the URLs it has. The frame sends it
+(a) for a path it meets that `assets` does not name, when the user wrote or edited
+it, and (b) for every mapped path shortly before the URLs' lifetime ends (the open
+answer's URLs live 1 h: refresh at about 50 min, and once more when a mapped URL
+answers 401 mid-session). A path that comes back absent is shown as missing, as on
+open. The frame needs no capability for it.
+
+**Host.** `DocsFrameApi.resolveAssets(payload, call)` over the frame client's
+`resolveAssets(documentId, paths)`; the answer keeps only frame routes, like
+`OpenPayload.assets`. The frame token still expires every 10 minutes and is
+re-minted by the host as before; the resolve call rides the token the frame holds.

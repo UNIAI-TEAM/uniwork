@@ -103,7 +103,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
     document.documentElement.lang = next;
     // The toast text resolves after the language switched, in the new language.
     void setLocale(next).then(() => {
-      notifySaved(next);
+      notifySaved("language", next);
     });
   };
 
@@ -190,7 +190,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               onSelect={() =>
                 run(() => {
                   setTheme("light");
-                  notifySaved();
+                  notifySaved("theme");
                 })
               }
             >
@@ -202,7 +202,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               onSelect={() =>
                 run(() => {
                   setTheme("dark");
-                  notifySaved();
+                  notifySaved("theme");
                 })
               }
             >
@@ -214,7 +214,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               onSelect={() =>
                 run(() => {
                   setTheme("system");
-                  notifySaved();
+                  notifySaved("theme");
                 })
               }
             >

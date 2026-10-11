@@ -10,6 +10,7 @@ import { docsFrameApiBase, docsFrameError, docsFrameToken, type DocsFrameApi, ty
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import {
   DocsProtocolError,
+  type AppOpenResult,
   type Capabilities,
   type FrameRequests,
   type OfficeModule,
@@ -74,6 +75,11 @@ export interface DocsFrameSessionOptions {
   copyName?: (name: string) => string;
   /** Non-fatal frame or proxy errors the user should hear about. */
   onError: (error: ProtocolErrorShape) => void;
+  /**
+   * The page's "Open in desktop app" flow, answering the frame's `app.open`. Present = the host grants
+   * `desktopOpen` (to a user who may edit); absent = the frame shows its "use the app" message alone.
+   */
+  onAppOpen?: () => Promise<AppOpenResult["outcome"]>;
 }
 
 export interface DocsFrameSession {
@@ -91,6 +97,15 @@ export interface DocsFrameSession {
   saveState: DocsFrameSaveState;
   /** The frame shows one of its own dialogs (its `modal` event); the page dims its chrome meanwhile. */
   modal: boolean;
+  /**
+   * A save the page asked for (header Save) met a newer version on the server. The frame leaves the
+   * UI of a host-initiated save to the host, so the page asks Reload latest / Keep my edits.
+   */
+  conflict: boolean;
+  /** Keep the edits open: the dialog closes, the frame stays as it is. */
+  keepEdits: () => void;
+  /** Drop the local edits and open the newest version in a fresh frame. */
+  reloadLatest: () => void;
   /** Content height the frame last reported, in CSS px. */
   height: number | null;
   /** Ask the frame to save (leave dialog). Resolves true once the bytes are a new version. */
@@ -115,7 +130,7 @@ export interface DocsFrameSession {
  * by the server at mint); each cloud tool needs `ai` too. The frame then calls
  * the frame-token AI routes itself; a viewer keeps AI (it never saves).
  */
-export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant): Capabilities {
+export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false): Capabilities {
   const spec = officeModuleSpec(module);
   const grant = spec.grant;
   const on = (key: keyof Capabilities) => grant[key] === true;
@@ -124,9 +139,11 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     ...grant,
     save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents"), print: on("print"),
     exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
-    attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly,
+    attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, webSearch: ai && aiGrant?.web_search === true, imageSearch: ai && aiGrant?.image_search === true,
     imageGeneration: ai && aiGrant?.image_generation === true,
+    // The host's own "Open in desktop app" is only for a user who may edit (the G3 rule).
+    desktopOpen: desktopOpen && !readonly,
   };
 }
 
@@ -162,6 +179,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<DocsFrameSaveState>("ready");
   const [modal, setModal] = useState(false);
+  const [conflict, setConflict] = useState(false);
   const [height, setHeight] = useState<number | null>(null);
   const [host, setHost] = useState<DocsFrameHost | null>(null);
 
@@ -177,6 +195,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     setDirty(false);
     setSaveState("ready");
     setModal(false);
+    setConflict(false);
     sentToken.current = null;
     // A clean frame after a save reads "saved"; one never saved reads "ready".
     let savedOnce = false;
@@ -256,7 +275,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           documentId: doc, workspaceId: current.wsId,
           apiBase: docsFrameApiBase(), apiMode: "host-proxy",
           locale: current.locale, theme: current.theme,
-          capabilities: officeModuleCapabilities(module, viewOnly, current.api, minted?.ai),
+          capabilities: officeModuleCapabilities(module, viewOnly, current.api, minted?.ai, Boolean(current.onAppOpen)),
           ...(name ? { user: { displayName: name } } : {}),
           ...(recovery ? { recovery } : {}),
         };
@@ -298,6 +317,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         "api.export": proxy("api.export", false, (api) => api.export),
         "api.attachments.add": proxy("api.attachments.add", true, (api) => api.addAttachments),
         "api.images.upload": proxy("api.images.upload", true, (api) => api.uploadImage),
+        // A read of the user's own document, so a viewer may ask too.
+        "api.assets.resolve": proxy("api.assets.resolve", false, (api) => api.resolveAssets),
+        "app.open": async () => {
+          const { options: current, viewOnly: refused } = latest.current;
+          return { outcome: refused || !current.onAppOpen ? "unavailable" : await current.onAppOpen() };
+        },
       },
       onInitialized: () => { booted = true; setSlow(false); setStatus((now) => (now === "failed" ? now : "ready")); },
       onHandshakeError: (error) => {
@@ -309,7 +334,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
 
     endpoint.on("dirty", ({ dirty: next }) => {
       setDirty(next);
-      if (!next) setSaveState((now) => (now === "dirty" ? (savedOnce ? "saved" : "ready") : now));
+      // A failed save keeps "could not be confirmed" until the user edits again; the frame then
+      // reports dirty, and the unsaved edits (not the old failure) are what the header must say.
+      if (next) setSaveState((now) => (now === "error" ? "dirty" : now));
+      else setSaveState((now) => (now === "dirty" ? (savedOnce ? "saved" : "ready") : now));
     });
     endpoint.on("modal", ({ open }) => { setModal(open); });
     endpoint.on("title", ({ title }) => { latest.current.options.onTitle?.(title); });
@@ -378,13 +406,20 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
 
   const save = useCallback(async (reason: "user" | "navigate") => {
     if (!host) return false;
+    // A save the user asked for from the page: a stale base is the host's to explain (the frame
+    // opens its own Reload / Overwrite dialog only for the saves it starts itself). The leave
+    // dialog's save keeps its own inline failure line.
+    const fail = (error: ProtocolErrorShape) => {
+      if (reason === "user" && error.code === "conflict") setConflict(true);
+      else latest.current.options.onError(error);
+    };
     try {
       const result = await host.save({ reason });
       if (result.ok) return true;
-      latest.current.options.onError(result.error);
+      fail(result.error);
       return false;
     } catch (error) {
-      latest.current.options.onError(shapeOf(error));
+      fail(shapeOf(error));
       return false;
     }
   }, [host]);
@@ -408,9 +443,16 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     if (tokenFailure) void refetchToken();
     setAttempt((n) => n + 1);
   }, [refetchToken, tokenFailure]);
+  const keepEdits = useCallback(() => { setConflict(false); }, []);
+  const reloadLatest = useCallback(() => {
+    // The page's own copy of the document is behind too: refetch it with the frame.
+    void queryClient.invalidateQueries({ queryKey: documentKeys.detail(wsId, scopeId) });
+    retry();
+  }, [queryClient, retry, scopeId, wsId]);
   return { status: failure ? "failed" : status, slow: slow && status === "booting" && !failure, viewOnly, failure, dirty,
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
     modal: modal && status === "ready" && !failure,
+    conflict: conflict && status === "ready" && !failure, keepEdits, reloadLatest,
     height, save, print, attempt, retry };
 }

@@ -183,7 +183,7 @@ export function WorkspaceTopBar({
               onValueChange={(next) => {
                 if (!next || next === themeValue) return;
                 setTheme(next as ThemeValue);
-                notifySaved();
+                notifySaved("theme");
               }}
             >
               {themeOptions.map((option) => {
@@ -229,7 +229,7 @@ export function WorkspaceTopBar({
                 document.documentElement.lang = locale;
                 // The toast text resolves after the language switched, in the new language.
                 void setLocale(locale).then(() => {
-                  notifySaved(locale);
+                  notifySaved("language", locale);
                 });
               }}
             >

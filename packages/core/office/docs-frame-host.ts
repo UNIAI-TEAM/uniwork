@@ -1,9 +1,9 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at 98e1d2076693b9be767382ad361a28381bfbde37
-// (fork branch feature/UNI-1014-web-modules, the lane head 98e1d20: DR1 draft recovery, the modal event,
-// SP1, H2, the AI1 capability keys and the C18a key wording in one lineage). Byte-identical except the relative import specifiers
-// (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change the fork,
-// re-vendor, update this SHA.
+// web/docs/protocol/host.ts at 8b2e84a3109cae8a11cfe43343c558bdef468e09
+// (fork branch feature/UNI-1232-web-polish, the lane head 8b2e84a, protocol unchanged since 0e384f8: DR1 draft recovery, the modal event, SP1, H2, the AI1
+// capability keys, the C18a key wording, app.open (A7) and api.assets.resolve (A1b) in one lineage). Byte-identical except the
+// relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint). Do not edit here: change
+// the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
 /**
  * Host-side protocol endpoint (runs in the UniWork page that embeds the

@@ -38,6 +38,11 @@ func TestPlanSubcommandWritesJSON(t *testing.T) {
 	t.Setenv("JWT_SECRET", "files-backfill-test-secret")
 	t.Setenv("FRONTEND_ORIGIN", "http://localhost:3000")
 	t.Setenv("API_PUBLIC_URL", "http://localhost:8080")
+	// Load also requires the preview settings, with no defaults.
+	t.Setenv("PREVIEW_ORIGIN", "http://localhost:3001")
+	t.Setenv("PREVIEW_CAPABILITY_SECRET", "files-backfill-test-preview-capability-secret")
+	t.Setenv("PREVIEW_ASSET_TTL", "10m")
+	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 
 	out := filepath.Join(t.TempDir(), "plan.json")
 	if err := run(context.Background(), []string{

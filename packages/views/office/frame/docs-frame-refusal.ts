@@ -9,11 +9,11 @@ import { createContext, useContext } from "react";
  * instead of an error.
  *
  * `reason: "load"` says the switch happened because the frame's own files did
- * not load, so the G3 host explains it (inline notice) instead of changing
- * editor without a word. No reason = a flag, a size cap or the reader's own
- * choice, which need no explanation.
+ * not load, `"size"` because the file is over the module's size cap: in both
+ * the G3 host explains it (inline notice) instead of changing editor without
+ * a word. No reason = a flag or the reader's own choice, which need no explanation.
  */
-export type DocsFrameRefusal = (reason?: "load") => void;
+export type DocsFrameRefusal = (reason?: "load" | "size") => void;
 
 export const DocsFrameRefusalContext = createContext<DocsFrameRefusal | null>(null);
 

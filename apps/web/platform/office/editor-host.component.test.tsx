@@ -186,6 +186,20 @@ describe("OfficeEditorHost composition", () => {
     rendered.root.unmount();
   });
 
+  it("adds no permission chip or draft banner for a viewer: the document page already says view-only", async () => {
+    const { session, coordinator } = makeSession();
+    const rendered = renderHost(session, {
+      readonly: true,
+      capability: { ...capability, status: "readonly", reason: "view permission" },
+      editorView: React.createElement("div", { role: "grid", tabIndex: 0 }),
+    });
+    await settle();
+    act(() => { coordinator.setCapability({ ...capability, status: "readonly" }); });
+    expect(rendered.container.querySelector('[data-testid^="office-save-permission"]')).toBeNull();
+    expect(rendered.container.querySelector("[data-office-shell] > [role=alert]")).toBeNull();
+    rendered.root.unmount();
+  });
+
   it.each(["unknown", "unavailable"] as const)("keeps a readonly %s capability closed", async (status) => {
     const { session, coordinator } = makeSession();
     const rendered = renderHost(session, { readonly: true, capability: { ...capability, status } });

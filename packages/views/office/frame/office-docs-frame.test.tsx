@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { officeFrameKeys } from "@uniwork/core/documents/office-frame-hooks";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from "@uniwork/core/office/docs-frame-protocol";
@@ -13,6 +14,7 @@ import { requestMock } from "../../test/api-mock";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { DocsFrameRefusalContext } from "./docs-frame-refusal";
 import { OfficeDocsFrame, type OfficeDocsFrameProps } from "./office-docs-frame";
+import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 
 const toastError = vi.hoisted(() => vi.fn());
 const toastSuccess = vi.hoisted(() => vi.fn());
@@ -59,15 +61,19 @@ function ThemeFlip() {
   return <button type="button" onClick={() => setTheme("dark")}>flip</button>;
 }
 
+const navigation: NavigationAdapter = { push: vi.fn(), replace: vi.fn(), back: vi.fn(), pathname: "/", searchParams: new URLSearchParams(), getShareableUrl: (path) => path };
+
 function mount(props: Partial<OfficeDocsFrameProps> = {}, api = fakeApi(), tokens = true) {
   if (tokens) serveTokens();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui = (extra: Partial<OfficeDocsFrameProps> = {}): ReactElement => (
     <QueryClientProvider client={client}>
-      <ThemeProvider defaultTheme="light" enableSystem={false}>
-        <ThemeFlip />
-        <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
-      </ThemeProvider>
+      <NavigationProvider value={navigation}>
+        <ThemeProvider defaultTheme="light" enableSystem={false}>
+          <ThemeFlip />
+          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
+        </ThemeProvider>
+      </NavigationProvider>
     </QueryClientProvider>
   );
   const view = render(ui());
@@ -332,12 +338,21 @@ describe("OfficeDocsFrame", () => {
     expect(mintCalls()).toHaveLength(1);
   });
 
-  it("shows a retry when no token can be minted", async () => {
-    serveTokens((n) => (n === 1 ? Promise.reject(new ApiError("no", "forbidden", 403)) : Promise.resolve(minted("tok-ok"))));
-    mount({}, fakeApi(), false);
+  it("gives a denied reader the reason and the way back to the list, never a retry", async () => {
+    serveTokens(() => Promise.reject(new ApiError("no", "forbidden", 403)));
+    mount({ libraryHref: "/acme/ops/documents" }, fakeApi(), false);
     const alert = await screen.findByTestId("office-docs-frame-failed");
     expect(alert.getAttribute("data-failure-kind")).toBe("denied");
     expect(alert.textContent).toContain("Bạn không có quyền truy cập tài liệu này.");
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Về thư viện tài liệu" })).toHaveAttribute("href", "/acme/ops/documents");
+  });
+
+  it("shows a retry when the token mint failed for a reason a retry can fix", async () => {
+    serveTokens((n) => (n === 1 ? Promise.reject(new ApiError("down", "internal", 500)) : Promise.resolve(minted("tok-ok"))));
+    mount({}, fakeApi(), false);
+    const alert = await screen.findByTestId("office-docs-frame-failed");
+    expect(alert.getAttribute("data-failure-kind")).toBe("failed");
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     const frame = fakeFrame();
     await boot(frame);
@@ -373,9 +388,95 @@ describe("OfficeDocsFrame", () => {
     await boot(frame);
     const saving = controlsRef.current!.save();
     await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
-    await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "conflict", message: "412" } });
+    await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "forbidden", message: "403" } });
     await expect(saving).resolves.toBe(false);
     expect(toastError).toHaveBeenCalledTimes(1);
+  });
+
+  describe("a header Save that meets a newer version on the server", () => {
+    const SERVER_SENTENCE = "tài liệu đã có phiên bản mới hơn kể từ lần bạn mở nó";
+
+    // jsdom has no window.focus, and a reload swaps in an iframe nobody could spy on yet.
+    let contentWindow: MockInstance;
+    beforeEach(() => {
+      const real = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow")!.get!;
+      contentWindow = vi.spyOn(HTMLIFrameElement.prototype, "contentWindow", "get").mockImplementation(function (this: HTMLIFrameElement) {
+        const win = real.call(this) as Window | null;
+        if (win) win.focus = () => undefined;
+        return win;
+      });
+    });
+    afterEach(() => { contentWindow.mockRestore(); });
+
+    async function conflicted(props: Partial<OfficeDocsFrameProps> = {}) {
+      const controlsRef = { current: null as { save: () => Promise<boolean>; print: () => Promise<boolean> } | null };
+      const { client } = mount({ controlsRef, ...props });
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      const saving = controlsRef.current!.save();
+      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
+      await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "conflict", message: SERVER_SENTENCE, status: 409 } });
+      await expect(saving).resolves.toBe(false);
+      return { frame, client };
+    }
+
+    it("asks Reload latest or Keep my edits in the page language, with neither a toast nor the server's sentence", async () => {
+      await conflicted();
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent("Có người vừa lưu phiên bản mới hơn");
+      expect(dialog).not.toHaveTextContent(SERVER_SENTENCE);
+      expect(screen.getByRole("button", { name: "Tải bản mới nhất" })).toBeInTheDocument();
+      // The safe choice holds focus. The dialog moves focus after it opens, so wait for it rather than
+      // asserting in the same tick (a loaded CI box lands it later than a quiet one).
+      await waitFor(() => expect(screen.getByRole("button", { name: "Giữ thay đổi của tôi" })).toHaveFocus());
+      expect(toastError).not.toHaveBeenCalled();
+    });
+
+    it("keeps the edits open when asked: the same frame, still unsaved", async () => {
+      await conflicted();
+      const before = screen.getByTestId("office-docs-frame-iframe");
+      const focusIframe = vi.spyOn(before as HTMLIFrameElement, "focus");
+      fireEvent.click(await screen.findByRole("button", { name: "Giữ thay đổi của tôi" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(screen.getByTestId("office-docs-frame-iframe")).toBe(before);
+      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-dirty");
+      // Closing the dialog hands the keyboard back to the editor, like the leave dialog does.
+      await waitFor(() => expect(focusIframe).toHaveBeenCalled());
+    });
+
+    it("reloads the newest version into a fresh frame and refetches the page's own copy", async () => {
+      const { client } = await conflicted();
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+      const before = screen.getByTestId("office-docs-frame-iframe");
+      fireEvent.click(await screen.findByRole("button", { name: "Tải bản mới nhất" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(screen.getByTestId("office-docs-frame-iframe")).not.toBe(before);
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: documentKeys.detail("ws-1", "doc-1") });
+    });
+
+    it("names the newer version in English on an English page", async () => {
+      await setLocale("en");
+      await conflicted();
+      expect(await screen.findByRole("dialog")).toHaveTextContent("Someone saved a newer version");
+      expect(screen.getByRole("button", { name: "Reload latest" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Keep my edits" })).toBeInTheDocument();
+    });
+
+    it("leaves the leave dialog's own save failure alone (no second dialog on top of it)", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      const leaving = leaveGuardAllows("/elsewhere");
+      fireEvent.click(await screen.findByRole("button", { name: "Lưu lên UniWork" }));
+      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
+      await frame.respond(frame.sent("request", "save")[0]!, { ok: false, error: { code: "conflict", message: SERVER_SENTENCE, status: 409 } });
+      await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("dialog", { name: "Có người vừa lưu phiên bản mới hơn" })).toBeNull();
+      fireEvent.click(await screen.findByRole("button", { name: "Ở lại" }));
+      await expect(leaving).resolves.toBe(false);
+    });
   });
 
   it("names a save-as copy of the source the way UniWork names a copy", async () => {
@@ -405,23 +506,65 @@ describe("OfficeDocsFrame", () => {
       </QueryClientProvider>,
     );
     const header = screen.getByTestId("page-header");
+    // The status text without the Save button that sits beside it.
+    const statusText = () => {
+      const copy = header.cloneNode(true) as HTMLElement;
+      copy.querySelector("[data-office-frame-save]")?.remove();
+      return copy.textContent;
+    };
+    const saveButton = () => header.querySelector("[data-office-frame-save]");
     expect(header.textContent).toBe("");
     const frame = fakeFrame();
     await boot(frame);
-    await waitFor(() => expect(header.textContent).toBe("Chưa có thay đổi"));
+    await waitFor(() => expect(statusText()).toBe("Chưa có thay đổi"));
+    // Nothing to save: the button stays in the tab order but is quiet, named in full for assistive tech.
+    expect(saveButton()?.getAttribute("aria-disabled")).toBe("true");
+    expect(saveButton()?.getAttribute("aria-label")).toBe("Lưu vào UniWork");
     await frame.event("dirty", { dirty: true });
-    await waitFor(() => expect(header.textContent).toBe("Chưa lưu"));
+    await waitFor(() => expect(saveButton()?.getAttribute("aria-disabled")).toBeNull());
+    await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
     const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
-    await waitFor(() => expect(header.textContent).toBe("Đang lưu…"));
+    await waitFor(() => expect(statusText()).toBe("Đang lưu…"));
     await act(async () => { finish({ ok: true, file: FILE, versionId: "v2" }); });
     await waitFor(() => expect(frame.answerTo(id)).toBeTruthy());
     // The answer came back before the frame's dirty:false: still unsaved until the frame says clean.
-    expect(header.textContent).toBe("Chưa lưu");
+    expect(statusText()).toBe("Chưa lưu");
     await frame.event("dirty", { dirty: false });
     await frame.event("saved", { file: FILE, versionId: "v2" });
-    await waitFor(() => expect(header.textContent).toBe("Đã lưu"));
+    await waitFor(() => expect(statusText()).toBe("Đã lưu"));
     await frame.event("dirty", { dirty: true });
-    await waitFor(() => expect(header.textContent).toBe("Chưa lưu"));
+    await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
+  });
+
+  it("leaves the failed-save state when the next edit reports dirty", async () => {
+    const save = vi.fn(async () => { throw new DocsProtocolError({ code: "network", message: "offline" }); });
+    serveTokens();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <HeaderActionsSlotProvider>
+          <header data-testid="page-header"><HeaderActionsSlot /></header>
+          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
+        </HeaderActionsSlotProvider>
+      </QueryClientProvider>,
+    );
+    const header = screen.getByTestId("page-header");
+    // The status text without the Save button that sits beside it.
+    const statusText = () => {
+      const copy = header.cloneNode(true) as HTMLElement;
+      copy.querySelector("[data-office-frame-save]")?.remove();
+      return copy.textContent;
+    };
+    const frame = fakeFrame();
+    await boot(frame);
+    await frame.event("dirty", { dirty: true });
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(1) });
+    await waitFor(() => expect(frame.answerTo(id)?.error).toBeTruthy());
+    // The failure holds although the frame still reports dirty.
+    await waitFor(() => expect(statusText()).toContain("Chưa xác nhận được việc lưu"));
+    // The next edit reports dirty again: the header goes back to "Unsaved".
+    await frame.event("dirty", { dirty: true });
+    await waitFor(() => expect(statusText()).toBe("Chưa lưu"));
   });
 
   it("says the editor is unavailable on this server (no retry) and offers the standard editor", async () => {

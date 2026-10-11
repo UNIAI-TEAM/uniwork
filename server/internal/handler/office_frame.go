@@ -16,6 +16,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
@@ -24,7 +25,8 @@ type officeFrameCtxKey struct{}
 
 // officeFrameAuth is the only credential check of /api/v1/office-frame/*: the
 // frame token as Bearer, or on an image GET the ?sig= of a URL signed for
-// exactly that asset. A session token is not a frame token and is refused.
+// exactly that asset; a sibling file (.../linked/{id}) takes the ?sig= alone.
+// A session token is not a frame token and is refused.
 // A token for another document answers 404 like a missing one. The user and
 // organization land in the context so the flag gates and the reused document
 // handlers act as that user. The flag of the token's module (office_docs_web,
@@ -42,11 +44,25 @@ func (h *handlers) officeFrameAuth(next http.Handler) http.Handler {
 			claims service.OfficeFrameClaims
 			err    error
 		)
-		if token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && token != "" {
+		sig := r.URL.Query().Get("sig")
+		safe := r.Method == http.MethodGet || r.Method == http.MethodHead
+		token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		bearer = bearer && token != ""
+		switch linkedID, assetID := chi.URLParam(r, "linkedDocumentID"), chi.URLParam(r, "assetID"); {
+		case linkedID != "":
+			// A sibling file opens only through the signature the open answer (or a
+			// resolve) minted for exactly this document and file, never through a
+			// frame token: a token binds its own document alone.
+			if sig != "" && safe {
+				claims, err = h.OfficeFrame.VerifyLinked(sig, documentID, linkedID)
+			} else {
+				err = service.ErrOfficeFrameToken
+			}
+		case bearer:
 			claims, err = h.OfficeFrame.Verify(token)
-		} else if sig, assetID := r.URL.Query().Get("sig"), chi.URLParam(r, "assetID"); sig != "" && assetID != "" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+		case sig != "" && assetID != "" && safe:
 			claims, err = h.OfficeFrame.VerifyAsset(sig, documentID, assetID)
-		} else {
+		default:
 			err = service.ErrOfficeFrameToken
 		}
 		if err != nil {
@@ -157,14 +173,19 @@ func officeFrameModuleEnabled(ctx context.Context, flags *featureflag.Service, c
 	return flags.IsEnabled(ctx, key, def)
 }
 
-// openOfficeFrameDocument is GET /office-frame/documents/{documentID}.
+// openOfficeFrameDocument is GET /office-frame/documents/{documentID}. A
+// Markdown/HTML document also answers the signed URLs of its relative
+// references (`assets`).
 func (h *handlers) openOfficeFrameDocument(w http.ResponseWriter, r *http.Request) {
-	d, err := h.OfficeFrame.Open(r.Context(), officeFrameClaims(r))
+	claims := officeFrameClaims(r)
+	d, err := h.OfficeFrame.Open(r.Context(), claims)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondOfficeJSON(w, http.StatusOK, officeFrameDocumentSDO(d))
+	out := officeFrameDocumentSDO(d)
+	out.Assets = h.OfficeFrame.OpenAssets(r.Context(), claims, d)
+	respondOfficeJSON(w, http.StatusOK, out)
 }
 
 // getOfficeFrameContent is GET|HEAD /office-frame/documents/{documentID}/content:
@@ -309,6 +330,29 @@ func (h *handlers) signOfficeFrameAssets(w http.ResponseWriter, r *http.Request)
 	respondOfficeJSON(w, http.StatusOK, out)
 }
 
+// resolveOfficeFrameAssets is POST /office-frame/documents/{documentID}/assets/resolve.
+func (h *handlers) resolveOfficeFrameAssets(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ResolveOfficeFrameAssetsSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	resolved, err := h.OfficeFrame.Resolve(r.Context(), officeFrameClaims(r), in.Paths)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.OfficeFrameResolvedPathsSDO{Items: make([]sdo.OfficeFrameResolvedPathDTO, 0, len(resolved))}
+	for _, p := range in.Paths {
+		u, ok := resolved[p]
+		if !ok {
+			continue
+		}
+		out.Items = append(out.Items, sdo.OfficeFrameResolvedPathDTO{Path: p, URL: u.URL, ExpiresAt: u.ExpiresAt.UTC().Format(time.RFC3339)})
+		delete(resolved, p) // a path sent twice answers once
+	}
+	respondOfficeJSON(w, http.StatusOK, out)
+}
+
 // getOfficeFrameAsset is GET|HEAD /office-frame/documents/{documentID}/assets/{assetID}:
 // the Documents asset proxy, as the token's (or signature's) user.
 func (h *handlers) getOfficeFrameAsset(w http.ResponseWriter, r *http.Request) {
@@ -317,4 +361,26 @@ func (h *handlers) getOfficeFrameAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.getDocumentAsset(w, r)
+}
+
+// getOfficeFrameLinked is GET|HEAD
+// /office-frame/documents/{documentID}/linked/{linkedDocumentID}: the bytes of
+// a file document next to a Markdown/HTML document (a picture, stylesheet or
+// script it loads by relative path), typed by its extension. The same headers
+// as every Documents byte route: sandbox CSP, nosniff, no-store.
+func (h *handlers) getOfficeFrameLinked(w http.ResponseWriter, r *http.Request) {
+	f, err := h.OfficeFrame.OpenLinked(r.Context(), officeFrameClaims(r), chi.URLParam(r, "linkedDocumentID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	defer f.Reader.Close()
+	h.serveDocumentFile(w, r, documentFilePayload{
+		Body:        f.Reader.Body,
+		SizeBytes:   f.Reader.File.SizeBytes,
+		ContentType: f.ContentType,
+		Filename:    f.Filename,
+		Disposition: storage.ContentDisposition(f.ContentType, f.Filename),
+		Checksum:    f.Reader.File.ChecksumSHA256,
+	}, service.DocumentByteRange{}, false)
 }

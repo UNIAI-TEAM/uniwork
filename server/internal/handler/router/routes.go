@@ -483,7 +483,9 @@ type Routes struct {
 	ListOfficeFrameRecents   http.HandlerFunc
 	UploadOfficeFrameAsset   http.HandlerFunc
 	SignOfficeFrameAssets    http.HandlerFunc
+	ResolveOfficeFrameAssets http.HandlerFunc
 	GetOfficeFrameAsset      http.HandlerFunc
+	GetOfficeFrameLinked     http.HandlerFunc
 	// PDF export of the frame's document (UNI-1013, W8).
 	ExportOfficeFramePDF http.HandlerFunc
 	// GO-A7's AI handlers on the frame-token mount (UNI-1014, ADR 0029 D9).

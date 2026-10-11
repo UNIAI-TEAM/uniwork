@@ -1,6 +1,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { OFFICE_MODULES } from "./platform/office-frame/frame-bundle.mjs";
+import { officeFrameAssetRewrites } from "./platform/office-frame/frame-asset-rewrites.mjs";
 import { officeFrameHeaderRules, readPins } from "./platform/office-frame/frame-headers.mjs";
 import { offerableFrameVersion } from "./platform/office-frame/frame-install.mjs";
 
@@ -23,5 +24,8 @@ const nextConfig = {
     NEXT_PUBLIC_OFFICE_FRAME_VERSIONS: JSON.stringify(frameVersions),
   },
   headers: async () => officeFrameHeaderRules(framePins),
+  // The Markdown/HTML frames load a document's relative pictures and files from
+  // signed API byte routes; their CSP allows only 'self' (UNI-1232).
+  rewrites: async () => officeFrameAssetRewrites(),
 };
 export default nextConfig;

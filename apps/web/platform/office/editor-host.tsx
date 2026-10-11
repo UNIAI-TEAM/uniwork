@@ -321,6 +321,8 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         saveCoordinator={readonly ? undefined : activeSession?.coordinator}
         saveState={readonly ? null : coordinatorState}
         editorReady={Boolean(activeSession && viewReady && !readonly && effectiveCapability.status === "available")}
+        // A viewer reads the document page's one view-only notice; the shell adds no second one.
+        viewOnly={readonly}
         // Lane additive (UNI-928 md/html END): only the text formats quiet the
         // Save when clean; every other format keeps the primary button.
         saveQuietWhenClean={effectiveCapability.format === "md" || effectiveCapability.format === "html"}

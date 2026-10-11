@@ -13,4 +13,5 @@ export { OfficeDocsFrame, type OfficeDocsFrameControls, type OfficeDocsFrameProp
 export { DocxOpenSwitch, type DocxOpenSwitchProps } from "./docx-open-switch";
 export { OfficeModuleFrame, type OfficeModuleFrameControls, type OfficeModuleFrameProps } from "./office-module-frame";
 export type { FrameDesktopOpenProps } from "./frame-desktop-open";
+export { FrameFallbackNotice, type FrameFallbackReason } from "./frame-fallback-notice";
 export { OfficeModuleOpenSwitch, type OfficeModuleOpenSwitchProps } from "./office-module-open-switch";

@@ -258,6 +258,8 @@
     "createTask": "New task",
     "theme": "Theme",
     "language": "Language",
+    "themeSaved": "Theme preference saved",
+    "languageSaved": "Language preference saved",
     "collapseSidebar": "Collapse sidebar",
     "shortcutMac": "⌘K",
     "shortcutOther": "Ctrl+K",
@@ -7892,6 +7894,10 @@
       "count_one": "{{count}} comment",
       "count_other": "{{count}} comments",
       "empty": "No comments yet. Start the discussion below.",
+      "file_title": "File discussion",
+      "file_open": "File discussion",
+      "file_close": "Close file discussion",
+      "file_empty": "No discussion about this file yet. Comments written inside the document are in the editor's own Comments pane.",
       "error_title": "Could not load the comments",
       "error_description": "Nothing was lost. Try again in a moment.",
       "retry": "Try again",
@@ -8085,6 +8091,14 @@
         "use_standard": "Use the standard editor"
       },
       "fallback_notice": "The new editor could not load; you are using the standard editor.",
+      "save_conflict": {
+        "title": "Someone saved a newer version",
+        "description": "Your changes were not saved. Reload to see the latest version, which replaces what you have open here, or keep your edits open so you can copy them out first.",
+        "keep": "Keep my edits",
+        "reload": "Reload latest",
+        "close": "Close"
+      },
+      "fallback_notice_size": "This file is too large for the web editor, so it opened in the standard editor.",
       "failure": {
         "unavailable": {
           "title": "The new document editor is not available",
@@ -8102,7 +8116,8 @@
         "denied": {
           "title": "This document cannot be opened",
           "forbidden": "You do not have access to this document.",
-          "not_found": "This document no longer exists or was moved."
+          "not_found": "This document no longer exists or was moved.",
+          "back_to_library": "Back to documents"
         },
         "failed": {
           "title": "The document could not open",

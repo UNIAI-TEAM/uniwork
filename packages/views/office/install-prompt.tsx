@@ -112,7 +112,7 @@ function InstallerPicker({
         <DialogDescription id="office-install-description" className="text-body">{t(options.length === 0 && reason === "download" ? "description_unavailable" : reasonKey)}</DialogDescription>
       </div>
     </div>
-    {options.length === 0 ? <Alert role="status"><AlertDescription>{t("unavailable")}</AlertDescription></Alert> : <>
+    {options.length === 0 ? <p role="status" className="text-body text-muted-foreground">{t("unavailable")}</p> : <>
       {!recommended ? <Alert role="status"><AlertDescription>{t("unsupported")}</AlertDescription></Alert> : null}
       <RadioGroup aria-label={t("os_group")} value={selectedOS ?? ""} onValueChange={selectOS} disabled={downloading}
         className="grid auto-cols-fr grid-flow-col gap-2 pt-2 min-[480px]:gap-[10px]">

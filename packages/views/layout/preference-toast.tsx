@@ -47,19 +47,23 @@ export function QuietPreferenceToast({ quiet = true }: { quiet?: boolean }) {
   return null;
 }
 
+/** Which preference just changed; the toast names it, since on a document page a bare "Saved" reads as the document's save state. */
+type SavedPreference = "theme" | "language";
+
+const SAVED_KEYS: Record<SavedPreference, string> = {
+  theme: "topbar.themeSaved",
+  language: "topbar.languageSaved",
+};
+
 /** Shows the saved-preference toast, in `lng` when the language just changed. */
-export function usePreferenceSavedToast(): (lng?: string) => void {
+export function usePreferenceSavedToast(): (preference: SavedPreference, lng?: string) => void {
   const { t, i18n } = useTranslation();
   const { quiet } = useContext(QuietContext);
   return useCallback(
-    (lng?: string) => {
+    (preference: SavedPreference, lng?: string) => {
       if (quiet) return;
-      toast.success(
-        lng
-          ? i18n.t("settings.preferences.toastSaved", { lng })
-          : t("settings.preferences.toastSaved"),
-        { id: "settings-auto-save" },
-      );
+      const key = SAVED_KEYS[preference];
+      toast.success(lng ? i18n.t(key, { lng }) : t(key), { id: "settings-auto-save" });
     },
     [quiet, t, i18n],
   );
