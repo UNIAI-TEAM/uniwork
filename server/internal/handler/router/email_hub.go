@@ -10,6 +10,7 @@ import (
 // tag: email-hub — IMAP mailboxes connected with a password: an App Password on a
 // preset provider, or the mailbox password on the member's own IMAP/SMTP server.
 //
+//	GET    /api/v1/workspaces/{workspaceID}/email-hub/providers
 //	GET    /api/v1/workspaces/{workspaceID}/email-hub/accounts
 //	POST   /api/v1/workspaces/{workspaceID}/email-hub/accounts
 //	DELETE /api/v1/workspaces/{workspaceID}/email-hub/accounts/{accountID}
@@ -41,6 +42,13 @@ func registerEmailHub(r api, h Routes, connectLimit func(http.Handler) http.Hand
 		description: "Cached INBOX unread and snoozed thread totals for the connected account.",
 		tags:        []string{"email-hub"},
 		sdo:         sdo.EmailHubSidebarCountsSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/email-hub/providers", h.GetEmailHubProviders, apiOp{
+		summary:     "Sign-in providers for connecting a mailbox",
+		description: "Nhà cung cấp nào có thể kết nối hộp thư bằng đăng nhập (OAuth). Một nhà cung cấp chỉ bật khi máy chủ có OAuth client riêng của Email Hub và khoá mã hoá thông tin đăng nhập.",
+		tags:        []string{"email-hub"},
+		sdo:         sdo.EmailHubProvidersSDO{},
 		auth:        true,
 	})
 	r.With(connectLimit).Post("/workspaces/{workspaceID}/email-hub/accounts", h.ConnectEmailHubAccount, apiOp{

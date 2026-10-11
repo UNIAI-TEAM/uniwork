@@ -55,6 +55,18 @@ func ProviderForEmail(email string) (Provider, bool) {
 	return p, ok
 }
 
+// Preset returns the servers an OAuth sign-in names: "gmail" or "outlook",
+// whatever the address's domain (Workspace and Microsoft 365 custom domains).
+func Preset(name string) (Provider, bool) {
+	switch name {
+	case "gmail":
+		return providers["gmail.com"], true
+	case "outlook":
+		return providers["outlook.com"], true
+	}
+	return Provider{}, false
+}
+
 // ServerSavesSent reports whether mail submitted over SMTP for a mailbox on
 // this IMAP host is filed in Sent by the server itself (Gmail, Microsoft 365,
 // including custom domains hosted there), so an IMAP APPEND would duplicate it.

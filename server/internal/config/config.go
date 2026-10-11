@@ -82,6 +82,15 @@ type Config struct {
 	GoogleClientSecret            string
 	MicrosoftCalendarClientID     string
 	MicrosoftCalendarClientSecret string
+	// Email Hub signs in with its own OAuth clients, never the login or
+	// calendar ones (spec Q3); a provider is offered only with its id, its
+	// secret and EMAIL_HUB_CREDENTIAL_KEY. The tenant is the Entra directory
+	// Microsoft sign-in goes to: common takes personal and work accounts.
+	EmailHubGoogleClientID        string
+	EmailHubGoogleClientSecret    string
+	EmailHubMicrosoftClientID     string
+	EmailHubMicrosoftClientSecret string
+	EmailHubMicrosoftTenant       string
 	SMTPHost                      string
 	SMTPPort                      string
 	SMTPUsername                  string
@@ -156,6 +165,10 @@ func (c Config) CalendarRedirectURL(provider string) string {
 	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/calendar-connections/" + provider + "/callback"
 }
 
+func (c Config) EmailHubRedirectURL(provider string) string {
+	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/email-hub-connections/" + provider + "/callback"
+}
+
 func Load() (Config, error) {
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
@@ -202,6 +215,11 @@ func Load() (Config, error) {
 		GoogleClientSecret:            os.Getenv("GOOGLE_CLIENT_SECRET"),
 		MicrosoftCalendarClientID:     os.Getenv("MICROSOFT_CALENDAR_CLIENT_ID"),
 		MicrosoftCalendarClientSecret: os.Getenv("MICROSOFT_CALENDAR_CLIENT_SECRET"),
+		EmailHubGoogleClientID:        os.Getenv("EMAIL_HUB_GOOGLE_CLIENT_ID"),
+		EmailHubGoogleClientSecret:    os.Getenv("EMAIL_HUB_GOOGLE_CLIENT_SECRET"),
+		EmailHubMicrosoftClientID:     os.Getenv("EMAIL_HUB_MICROSOFT_CLIENT_ID"),
+		EmailHubMicrosoftClientSecret: os.Getenv("EMAIL_HUB_MICROSOFT_CLIENT_SECRET"),
+		EmailHubMicrosoftTenant:       getenv("EMAIL_HUB_MICROSOFT_TENANT", "common"),
 		SMTPHost:                      os.Getenv("SMTP_HOST"),
 		SMTPPort:                      getenv("SMTP_PORT", "25"),
 		SMTPUsername:                  os.Getenv("SMTP_USERNAME"),

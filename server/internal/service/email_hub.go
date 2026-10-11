@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -50,6 +51,10 @@ type EmailHubService struct {
 	// AI and Tasks are wired from main after construction; nil disables summarize → task.
 	AI    *ai.Gateway
 	Tasks *TaskService
+	// oauth holds the sign-in providers ConfigureOAuth enabled; oauthHTTP
+	// bounds every token and revoke call. Tests point both at httptest servers.
+	oauth     map[string]*emailHubOAuthProvider
+	oauthHTTP *http.Client
 
 	// scheduleWorkerOwnerFn, testHookScheduledSend, testHookSMTPSend and
 	// testHookAppendSent are set only in tests.
@@ -64,7 +69,10 @@ type EmailHubService struct {
 }
 
 func NewEmailHubService(q *db.Queries, ws *WorkspaceService, box *secretbox.Box) *EmailHubService {
-	svc := &EmailHubService{q: q, ws: ws, box: box, log: slog.Default(), gov: newEmailHubGovernor()}
+	svc := &EmailHubService{
+		q: q, ws: ws, box: box, log: slog.Default(), gov: newEmailHubGovernor(),
+		oauthHTTP: &http.Client{Timeout: 15 * time.Second},
+	}
 	svc.hubWatch = newEmailHubHubWatcher(svc)
 	return svc
 }

@@ -178,6 +178,7 @@ type Routes struct {
 	GetEmailHubUnreadCount        http.HandlerFunc
 	GetEmailHubSidebarCounts      http.HandlerFunc
 	ConnectEmailHubAccount        http.HandlerFunc
+	GetEmailHubProviders          http.HandlerFunc
 	DisconnectEmailHubAccount     http.HandlerFunc
 	ListEmailHubImapLabels        http.HandlerFunc
 	ListEmailHubThreads           http.HandlerFunc

@@ -19,6 +19,13 @@ type EmailHubAccountSDO struct {
 	Username         string `json:"username" description:"Tên đăng nhập; rỗng nghĩa là dùng địa chỉ email" example:"you"`
 }
 
+// EmailHubProvidersSDO is GET .../email-hub/providers: the sign-in buttons the
+// connect dialog shows.
+type EmailHubProvidersSDO struct {
+	Google    bool `json:"google" description:"Có thể kết nối bằng đăng nhập Google" example:"true"`
+	Microsoft bool `json:"microsoft" description:"Có thể kết nối bằng đăng nhập Microsoft" example:"false"`
+}
+
 // EmailHubWatchSDO is POST .../email-hub/watch.
 type EmailHubWatchSDO struct {
 	Changed bool   `json:"changed" example:"true"`
