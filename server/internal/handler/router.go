@@ -300,6 +300,7 @@ func New(d Deps) http.Handler {
 		WatchEmailHub:                 h.watchEmailHub,
 		SubscribeEmailHubInboxWatch:   h.subscribeEmailHubInboxWatch,
 		UnsubscribeEmailHubInboxWatch: h.unsubscribeEmailHubInboxWatch,
+		CompleteEmailHubOAuth:         h.completeEmailHubOAuth,
 		ListTaskChildren:              h.listTaskChildren,
 		ListChildrenByParents:         h.listChildrenByParents,
 		ChildTaskProgress:             h.childTaskProgress,

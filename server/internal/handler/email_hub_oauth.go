@@ -1,6 +1,10 @@
 package handler
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"io"
 	"net/http"
 	"time"
 
@@ -52,4 +56,60 @@ func (h *handlers) setEmailHubOAuthCookie(w http.ResponseWriter, nonce string) {
 		MaxAge: int(oauthStateTTL / time.Second), HttpOnly: true,
 		SameSite: http.SameSiteLaxMode, Secure: h.Cfg.SecureCookies,
 	})
+}
+
+// emailHubOAuthScript is the only script the callback page runs. It is a
+// constant, so its CSP hash is too, whatever the result (spec §5.4); the
+// origin and the result ride in the JSON data block it reads.
+const emailHubOAuthScript = `const r=JSON.parse(document.getElementById("r").textContent);` +
+	`window.opener?.postMessage({type:"uniwork:email-hub-oauth",ok:r.ok,code:r.code},r.origin);` +
+	`window.close();`
+
+// emailHubOAuthCSP allows that one script by hash and nothing else; it
+// replaces the API default, so it restates frame-ancestors and base-uri,
+// which default-src does not cover.
+var emailHubOAuthCSP = func() string {
+	sum := sha256.Sum256([]byte(emailHubOAuthScript))
+	return "default-src 'none'; script-src 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) +
+		"'; frame-ancestors 'none'; base-uri 'none'"
+}()
+
+// completeEmailHubOAuth is the provider's redirect target, outside the authed
+// group: the sealed state names the member and the nonce cookie ties the flow
+// to the browser that started it. It always answers the result page.
+func (h *handlers) completeEmailHubOAuth(w http.ResponseWriter, r *http.Request) {
+	var nonce string
+	if c, err := r.Cookie(emailHubOAuthCookie); err == nil {
+		nonce = c.Value
+	}
+	// Cleared on every branch: one start, one callback.
+	http.SetCookie(w, &http.Cookie{
+		Name: emailHubOAuthCookie, Value: "", Path: emailHubOAuthCookiePath, MaxAge: -1,
+		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: h.Cfg.SecureCookies,
+	})
+	code := service.EmailHubOAuthFailed
+	if h.EmailHub != nil && h.EmailHub.Enabled() {
+		q := r.URL.Query()
+		code = h.EmailHub.CompleteOAuth(r.Context(), chi.URLParam(r, "provider"),
+			q.Get("state"), q.Get("code"), q.Get("error"), nonce)
+	}
+	writeEmailHubOAuthPage(w, h.Cfg.FrontendOrigin, code)
+}
+
+// writeEmailHubOAuthPage answers 200 with the postMessage page. json.Marshal
+// escapes <, > and &, so no origin or code can close the data block.
+func writeEmailHubOAuthPage(w http.ResponseWriter, origin, code string) {
+	// Three plain fields: Marshal cannot fail.
+	data, _ := json.Marshal(struct {
+		Origin string `json:"origin"`
+		OK     bool   `json:"ok"`
+		Code   string `json:"code"`
+	}{Origin: origin, OK: code == service.EmailHubOAuthConnected, Code: code})
+	hdr := w.Header()
+	hdr.Set("Content-Type", "text/html; charset=utf-8")
+	hdr.Set("Cache-Control", "no-store")
+	hdr.Set("Content-Security-Policy", emailHubOAuthCSP)
+	_, _ = io.WriteString(w, `<!doctype html><html><head><meta charset="utf-8"><title>UniWork</title></head><body>`+
+		`<script type="application/json" id="r">`+string(data)+`</script>`+
+		`<script>`+emailHubOAuthScript+`</script></body></html>`)
 }

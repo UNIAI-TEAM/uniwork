@@ -195,3 +195,22 @@ func registerEmailHub(r api, h Routes, connectLimit func(http.Handler) http.Hand
 		auth:    true,
 	})
 }
+
+// registerEmailHubCallback mounts the OAuth redirect target outside the authed
+// group: the provider's redirect carries no bearer token. It is registered
+// next to registerAuth, on the credential budget, like /auth/google/callback.
+//
+//	GET /api/v1/email-hub-connections/{provider}/callback  (credential rate limit)
+func registerEmailHubCallback(v1 api, h Routes, credentialLimit func(http.Handler) http.Handler) {
+	v1.With(credentialLimit).Get("/email-hub-connections/{provider}/callback", h.CompleteEmailHubOAuth, apiOp{
+		summary: "Complete Email Hub OAuth",
+		description: "Provider redirect target for a mailbox connected with Google or Microsoft sign-in; no session. " +
+			"Query: state, code, or error from the provider. Checks the sealed state against the nonce cookie set by " +
+			"start, exchanges the code with PKCE, verifies XOAUTH2 IMAP and SMTP and connects or reconnects the mailbox. " +
+			"Always answers 200 with a small HTML page that posts {type: \"uniwork:email-hub-oauth\", ok, code} to the " +
+			"frontend origin and closes. code is one of connected, denied, state_invalid, email_unavailable, " +
+			"imap_not_enabled, smtp_disabled, already_connected, consent_required, failed. 60 requests per minute per address.",
+		tags:     []string{"email-hub"},
+		produces: "text/html",
+	})
+}

@@ -109,6 +109,8 @@ func New(d Deps, h Routes) http.Handler {
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
 		registerAuth(v1, h, credentialLimit)
+		// Outside authed: the provider redirects the popup here with no bearer.
+		registerEmailHubCallback(v1, h, credentialLimit)
 		registerBillingWebhooks(v1, h)
 		v1.Group(func(desktop api) {
 			if d.DeviceStatus != nil {

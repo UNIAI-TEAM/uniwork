@@ -191,10 +191,11 @@ var isoRoutes = map[string]isoSpec{
 	"GET /uploads/*": {class: isoPublic, reason: "legacy local-disk objects by unguessable key; FileService objects (v1/) are refused - TestServeFileRefusesFileServiceObjects and the uploads subtest"},
 
 	// Provider callbacks.
-	"POST /api/v1/integrations/livekit/webhook":            {class: isoPublic, reason: reasonProvider},
-	"GET /api/v1/billing/webhooks/vnpay":                   {class: isoPublic, reason: reasonProvider},
-	"POST /api/v1/billing/webhooks/vnpay":                  {class: isoPublic, reason: reasonProvider},
-	"GET /api/v1/calendar-connections/{provider}/callback": {class: isoPublic, reason: reasonProvider},
+	"POST /api/v1/integrations/livekit/webhook":             {class: isoPublic, reason: reasonProvider},
+	"GET /api/v1/billing/webhooks/vnpay":                    {class: isoPublic, reason: reasonProvider},
+	"POST /api/v1/billing/webhooks/vnpay":                   {class: isoPublic, reason: reasonProvider},
+	"GET /api/v1/calendar-connections/{provider}/callback":  {class: isoPublic, reason: reasonProvider},
+	"GET /api/v1/email-hub-connections/{provider}/callback": {class: isoPublic, reason: reasonProvider},
 
 	// Links whose secret is the credential.
 	"GET /api/v1/public/documents/{token}":                   {class: isoPublic, reason: reasonLink},

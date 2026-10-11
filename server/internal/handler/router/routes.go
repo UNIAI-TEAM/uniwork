@@ -198,6 +198,7 @@ type Routes struct {
 	WatchEmailHub                 http.HandlerFunc
 	SubscribeEmailHubInboxWatch   http.HandlerFunc
 	UnsubscribeEmailHubInboxWatch http.HandlerFunc
+	CompleteEmailHubOAuth         http.HandlerFunc
 	ListPins                      http.HandlerFunc
 	CreatePin                     http.HandlerFunc
 	DeletePin                     http.HandlerFunc
