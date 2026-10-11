@@ -47,7 +47,12 @@ export function FormDialogContent({
   const { t } = useTranslation();
   return (
     <DialogContent
-      className={cn("gap-0 overflow-hidden p-0", WIDTH[size], className)}
+      // Never taller than the screen less a 1rem margin: the body (inside a form or not) shrinks and scrolls instead.
+      className={cn(
+        "flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 [&>form]:flex [&>form]:min-h-0 [&>form]:flex-col",
+        WIDTH[size],
+        className,
+      )}
       finalFocus={finalFocus}
       showCloseButton
       closeLabel={t("common.close")}
@@ -100,13 +105,13 @@ export function FormDialogFooter({
   /** Id of the form the primary button submits, when the footer sits outside it. */
   form?: string;
   destructive?: boolean;
-  /** Left-aligned content: a hint about why the action is not ready yet. */
+  /** Left-aligned content (a hint about why the action is not ready yet, a Back button); below sm it stacks under Cancel. */
   leading?: ReactNode;
 }) {
   const { t } = useTranslation();
   return (
     <DialogFooter className="items-center px-5 py-3">
-      {leading ? <div className="mr-auto min-w-0 text-caption text-muted-foreground">{leading}</div> : null}
+      {leading ? <div className="min-w-0 text-caption text-muted-foreground sm:mr-auto">{leading}</div> : null}
       <Button type="button" variant="outline" disabled={submitting} onClick={onCancel}>
         {cancelLabel ?? t("common.cancel")}
       </Button>
