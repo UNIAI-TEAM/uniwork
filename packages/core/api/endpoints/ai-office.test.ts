@@ -44,7 +44,7 @@ describe("ai-office endpoints", () => {
     );
     const res = await listAiCredentials("o1");
     expect(callUrl(0)).toBe("http://api.test/api/v1/orgs/o1/ai/credentials");
-    expect(res.items[0]).toMatchObject({ provider: "openai", label: "", base_url: "", key_hint: "…abcd" });
+    expect(res.items[0]).toMatchObject({ provider: "openai", label: "", base_url: "", key_hint: "…abcd", model: "", model_updated_at: "" });
     expect(res.providers[0]!.requires_base_url).toBe(true);
     expect(res.providers[0]!.default_base_url).toBe("");
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: "nope", providers: [{ id: 1 }] }));
@@ -72,10 +72,25 @@ describe("ai-office endpoints", () => {
       label: "work",
       base_url: "https://x.test/v1",
       key_hint: "…",
+      model: "",
+      model_updated_at: "",
       created_at: "",
       updated_at: "",
     });
     expect(JSON.stringify(degraded)).not.toContain("sk-secret");
+  });
+
+  it("saveAiCredential sends a model-only body and reads the model back, degrading to the requested model", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ provider: "openai", key_hint: "…wxyz", model: "gpt-4.1-mini", model_updated_at: "2026-10-11T08:00:00Z" }),
+    );
+    const cred = await saveAiCredential("o1", "openai", { model: "gpt-4.1-mini" });
+    expect(JSON.parse(callInit(0).body as string)).toEqual({ model: "gpt-4.1-mini" });
+    expect(cred).toMatchObject({ model: "gpt-4.1-mini", model_updated_at: "2026-10-11T08:00:00Z", key_hint: "…wxyz" });
+    // A malformed model field (or a malformed answer) falls back to what was asked.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ provider: "openai", model: 42 }));
+    const degraded = await saveAiCredential("o1", "openai", { model: "claude-sonnet-4-5" });
+    expect(degraded).toMatchObject({ provider: "openai", model: "claude-sonnet-4-5", model_updated_at: "" });
   });
 
   it("deleteAiCredential sends DELETE and tolerates an empty 204", async () => {

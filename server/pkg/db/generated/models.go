@@ -86,6 +86,8 @@ type AiProviderCredential struct {
 	CreatedByKind    string             `json:"created_by_kind"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	Model            string             `json:"model"`
+	ModelUpdatedAt   pgtype.Timestamptz `json:"model_updated_at"`
 }
 
 type AiUsageEvent struct {

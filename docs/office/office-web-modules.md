@@ -354,6 +354,12 @@ Credentials are the person's own rows of (organization, user), not part of the
 document, so **view access is the bar for every route, credential `PUT` /
 `DELETE` included**: a key saved in a frame is the same key the session routes
 list, in the document's organization.
+Each credential also carries the model the person chose for that provider
+(`model`, `model_updated_at`; UNI-1240): the frame reads it from `GET
+/credentials` as the default when the browser has no choice of its own, and
+saves a pick with a model-only `PUT /credentials/{aiProvider}` (`{"model": "..."}`,
+no key), keeping its per-browser value as a cache only. No bridge message is
+involved: the frame calls these routes itself.
 
 **Host grant.** The frame-token answer (`POST /documents/{documentID}/office/frame-token`)
 carries `ai: {ai, web_search, image_search, image_generation}`, read once at

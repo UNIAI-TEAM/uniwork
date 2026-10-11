@@ -58,7 +58,7 @@ export async function listAiCredentials(orgId: string): Promise<AiCredentialList
 
 /**
  * A malformed 2xx answer degrades: the server accepted the save, so the
- * fallback is built from the request (provider, label, base URL) with a bare
+ * fallback is built from the request (provider, label, base URL, model) with a bare
  * "…" hint and no timestamps, never a key. `useSaveAiCredential` invalidates
  * the credential list on success, so the next read shows the stored truth.
  */
@@ -71,7 +71,16 @@ export async function saveAiCredential(
   return parseWithFallback<AiCredential>(
     raw,
     AiCredentialSchema,
-    { provider, label: body.label ?? "", base_url: body.base_url ?? "", key_hint: "…", created_at: "", updated_at: "" },
+    {
+      provider,
+      label: body.label ?? "",
+      base_url: body.base_url ?? "",
+      key_hint: "…",
+      model: body.model ?? "",
+      model_updated_at: "",
+      created_at: "",
+      updated_at: "",
+    },
     { endpoint: "PUT /api/v1/orgs/{id}/ai/credentials/{provider}" },
   );
 }

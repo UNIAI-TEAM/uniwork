@@ -59,7 +59,7 @@ func registerOfficeFrameAI(r api, h Routes, flags *featureflag.Service, frameAut
 	})
 	cred.Put(base+"/credentials/{aiProvider}", h.OfficeFrameAiCredentialSave, apiOp{
 		summary:     "Frame: save my AI provider key",
-		description: frame + "Như PUT /orgs/{orgID}/ai/credentials/{aiProvider}: tạo (201) hoặc thay (200); cần office.ai_byok (403 entitlement_required); 400 provider_not_supported, 400 base_url_refused." + credErrs,
+		description: frame + "Như PUT /orgs/{orgID}/ai/credentials/{aiProvider}: tạo (201) hoặc thay (200), body chỉ có model đổi model mà không nhập lại khóa; cần office.ai_byok (403 entitlement_required); 400 provider_not_supported, 400 base_url_refused." + credErrs,
 		tags:        []string{"ai"}, sdi: sdi.SaveAICredentialSDI{}, sdo: sdo.AICredentialSDO{}, auth: true,
 	})
 	cred.Delete(base+"/credentials/{aiProvider}", h.OfficeFrameAiCredentialDelete, apiOp{
