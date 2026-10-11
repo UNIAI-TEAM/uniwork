@@ -1,6 +1,6 @@
 // Package netguard dials the IMAP/SMTP servers an email hub account names,
-// refusing private, loopback, link-local, documentation and multicast
-// addresses so a user-supplied host cannot reach the internal network.
+// refusing private, loopback, link-local, documentation and one-to-many
+// group addresses so a user-supplied host cannot reach the internal network.
 package netguard
 
 import (
