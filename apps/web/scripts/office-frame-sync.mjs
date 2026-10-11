@@ -130,7 +130,7 @@ async function main() {
       // A checkout without access to the fork still builds. next.config.mjs offers a frame only
       // when its pinned bundle is installed and verifies, so with no bundle every organization sees
       // the "not set up" notice for that module, whatever the module's flag says.
-      return console.warn(`office-frame: ${missing.join(", ")} pinned but not installed and OFFICE_FRAME_SOURCE is unset; those frames are not offered`);
+      return console.warn(`office-frame: ${missing.join(", ")} pinned but not installed and OFFICE_FRAME_SOURCE is unset; those documents cannot open on the web, only download / open in the app`);
     }
     return sync({ ...args, modules: missing, named });
   }
