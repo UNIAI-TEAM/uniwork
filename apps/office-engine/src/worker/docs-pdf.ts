@@ -214,7 +214,7 @@ export const PAGE_SHIM = `(() => {
 })();`;
 
 /** Minimal CDP client over --remote-debugging-pipe. */
-class CdpPipe {
+export class CdpPipe {
   private seq = 0;
   private buffer = "";
   private readonly waiting = new Map<number, { ok: (v: unknown) => void; fail: (e: Error) => void }>();
@@ -226,6 +226,12 @@ class CdpPipe {
   ) {
     input.setEncoding("utf8");
     input.on("data", (chunk: string) => this.read(chunk));
+    // A killed or crashed Chromium resets the pipe (ECONNRESET / EPIPE). Without
+    // a listener that error is thrown as an uncaught exception in the worker;
+    // with one it only fails the calls still waiting for an answer.
+    const broken = (): void => this.failAll(new DocsPdfError("engine_crashed", "chromium_pipe_closed"));
+    input.on("error", broken);
+    out.on("error", broken);
   }
 
   onEvent(fn: (method: string, params: Record<string, unknown>, sessionId?: string) => void): void {

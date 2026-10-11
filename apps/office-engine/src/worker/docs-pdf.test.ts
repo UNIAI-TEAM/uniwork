@@ -9,7 +9,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
-import { DocsPdfError, FALLBACK_CSP, PAGE_SHIM, bundleCsp, isAllowedRequest, launchArgs, printParams, renderDocxPdf, resolveBundlePath, serveBundle, type DocsPdfOptions } from "./docs-pdf.ts";
+import { PassThrough } from "node:stream";
+import { CdpPipe, DocsPdfError, FALLBACK_CSP, PAGE_SHIM, bundleCsp, isAllowedRequest, launchArgs, printParams, renderDocxPdf, resolveBundlePath, serveBundle, type DocsPdfOptions } from "./docs-pdf.ts";
 import { findHandler } from "./handlers.ts";
 import type { RunMessage } from "./protocol.ts";
 
@@ -268,6 +269,18 @@ describe("renderDocxPdf", () => {
       code: "engine_incompatible",
       reason: "docs_pdf_assets_missing",
     });
+  });
+});
+
+describe("CdpPipe", () => {
+  it("turns a reset pipe into a failed call instead of an uncaught error", async () => {
+    const out = new PassThrough();
+    const input = new PassThrough();
+    const cdp = new CdpPipe(out, input);
+    const call = cdp.send("Page.enable");
+    input.destroy(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+    out.destroy(Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
+    await expect(call).rejects.toMatchObject({ code: "engine_crashed", reason: "chromium_pipe_closed" });
   });
 });
 
