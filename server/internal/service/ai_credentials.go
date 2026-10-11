@@ -246,7 +246,10 @@ func (s *AICredentialService) SaveAICredential(ctx context.Context, actor Actor,
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	stored, err := q.GetProviderCredential(ctx, db.GetProviderCredentialParams{
+	// FOR UPDATE: the fields this request omits are copied from the stored row
+	// and written back, so a concurrent save of the same credential has to wait
+	// for this commit and then read what it wrote.
+	stored, err := q.GetProviderCredentialForUpdate(ctx, db.GetProviderCredentialForUpdateParams{
 		OrganizationID: organizationID, UserID: actor.ID, Provider: provider,
 	})
 	exists := err == nil

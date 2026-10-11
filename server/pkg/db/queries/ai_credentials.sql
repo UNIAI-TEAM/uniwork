@@ -18,6 +18,18 @@ WHERE organization_id = $1
   AND user_id = $2
   AND provider = $3;
 
+-- The same row, locked until the transaction ends: a save reads it to fill the
+-- fields its request leaves out and writes them back, so two saves of one
+-- credential (another tab, another browser) must queue instead of one writing
+-- back what the other just replaced.
+-- name: GetProviderCredentialForUpdate :one
+SELECT id, provider, label, base_url, secret_ciphertext, key_hint, model, model_updated_at, created_at, updated_at
+FROM ai_provider_credentials
+WHERE organization_id = $1
+  AND user_id = $2
+  AND provider = $3
+FOR UPDATE;
+
 -- Create or replace one provider's credential. xmax = 0 is true only for a
 -- freshly inserted row, so the caller can answer 201 or 200. model_set says
 -- the request named a model (UNI-1240): model_updated_at moves only then.
