@@ -46,6 +46,7 @@ type fakeSMTPConfig struct {
 
 type fakeSMTPLog struct {
 	authUsers []string
+	mechs     []string // AUTH mechanisms tried, upper case
 	mailFrom  []string
 	rcpts     []string
 	data      string
@@ -109,6 +110,7 @@ func (f *fakeSMTP) seen() fakeSMTPLog {
 	defer f.mu.Unlock()
 	out := f.log
 	out.authUsers = append([]string(nil), f.log.authUsers...)
+	out.mechs = append([]string(nil), f.log.mechs...)
 	out.mailFrom = append([]string(nil), f.log.mailFrom...)
 	out.rcpts = append([]string(nil), f.log.rcpts...)
 	return out
@@ -165,6 +167,7 @@ func (f *fakeSMTP) serve(conn net.Conn, done <-chan struct{}) {
 			f.record(func(l *fakeSMTPLog) { l.startTLS++ })
 		case "AUTH":
 			mech, initial, _ := strings.Cut(arg, " ")
+			f.record(func(l *fakeSMTPLog) { l.mechs = append(l.mechs, strings.ToUpper(mech)) })
 			var user string
 			switch strings.ToUpper(mech) {
 			case "PLAIN":
@@ -187,6 +190,28 @@ func (f *fakeSMTP) serve(conn net.Conn, done <-chan struct{}) {
 					return
 				}
 				user = u
+			case "XOAUTH2":
+				if !strings.Contains(f.cfg.authMechs, "XOAUTH2") {
+					reply("504 5.7.4 Unrecognized authentication type")
+					continue
+				}
+				raw, _ := base64.StdEncoding.DecodeString(initial)
+				var token string
+				user, token = xoauth2Fields(string(raw))
+				if token != "good" {
+					// Gmail: a base64 JSON error challenge, an empty client reply, then 535.
+					reply("334 " + base64.StdEncoding.EncodeToString([]byte(`{"status":"400","schemes":"Bearer","scope":"https://mail.google.com/"}`)))
+					answer, err := r.ReadString('\n')
+					if err != nil {
+						return
+					}
+					if strings.TrimSpace(answer) != "" {
+						reply("501 5.5.2 expected an empty reply to the error challenge")
+						continue
+					}
+					reply("535 5.7.8 Username and Password not accepted")
+					continue
+				}
 			default:
 				reply("504 5.7.4 Unrecognized authentication type")
 				continue
@@ -227,6 +252,19 @@ func (f *fakeSMTP) serve(conn net.Conn, done <-chan struct{}) {
 			reply("502 5.5.2 Command not recognized")
 		}
 	}
+}
+
+// xoauth2Fields reads user and token from "user=U\x01auth=Bearer T\x01\x01".
+func xoauth2Fields(s string) (user, token string) {
+	for _, kv := range strings.Split(s, "\x01") {
+		if v, ok := strings.CutPrefix(kv, "user="); ok {
+			user = v
+		}
+		if v, ok := strings.CutPrefix(kv, "auth=Bearer "); ok {
+			token = v
+		}
+	}
+	return user, token
 }
 
 func readBase64Line(r *bufio.Reader) (string, error) {

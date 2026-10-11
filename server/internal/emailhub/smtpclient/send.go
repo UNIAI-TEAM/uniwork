@@ -19,6 +19,9 @@ type Credentials struct {
 	Password string
 	// Security is "tls" (implicit TLS) or "starttls" (required); empty means "tls".
 	Security string
+	// AccessToken is an OAuth access token; when set, AUTH XOAUTH2 replaces
+	// PLAIN/LOGIN and Password is ignored.
+	AccessToken string
 }
 
 // Message is one outbound mail.

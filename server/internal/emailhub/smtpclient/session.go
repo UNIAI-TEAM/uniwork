@@ -104,6 +104,14 @@ func authenticate(ctx context.Context, c Credentials) (*smtp.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.AccessToken != "" {
+		// No PLAIN/LOGIN fallback: an OAuth account has no password to offer.
+		if err := client.Auth(&xoauth2Auth{username: user, token: c.AccessToken, host: c.Host}); err != nil {
+			_ = client.Close()
+			return nil, fmt.Errorf("smtp auth: %w", classifyAuthErr(err))
+		}
+		return client, nil
+	}
 	fallback, authErr := smtpAuthWithFallback(client, c.Host, user, c.Password)
 	if authErr != nil {
 		_ = client.Close()
