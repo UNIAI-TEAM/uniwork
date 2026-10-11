@@ -54,3 +54,14 @@ func ProviderForEmail(email string) (Provider, bool) {
 	p, ok := providers[domain]
 	return p, ok
 }
+
+// ServerSavesSent reports whether mail submitted over SMTP for a mailbox on
+// this IMAP host is filed in Sent by the server itself (Gmail, Microsoft 365,
+// including custom domains hosted there), so an IMAP APPEND would duplicate it.
+func ServerSavesSent(imapHost string) bool {
+	switch strings.ToLower(imapHost) {
+	case "imap.gmail.com", "outlook.office365.com":
+		return true
+	}
+	return false
+}

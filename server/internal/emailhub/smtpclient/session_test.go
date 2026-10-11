@@ -33,7 +33,7 @@ func TestSendImplicitTLSUsesUsernameOnlyForAuth(t *testing.T) {
 	f := newFakeSMTP(t, fakeSMTPConfig{implicitTLS: true})
 	c := f.creds("") // "" means implicit TLS
 	c.Username = "login-id"
-	msgID, err := Send(testCtx(t), c, testMessage())
+	msgID, _, err := Send(testCtx(t), c, testMessage())
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestSendImplicitTLSUsesUsernameOnlyForAuth(t *testing.T) {
 func TestSendRequiredStartTLS(t *testing.T) {
 	t.Parallel()
 	f := newFakeSMTP(t, fakeSMTPConfig{startTLS: true})
-	if _, err := Send(testCtx(t), f.creds("starttls"), testMessage()); err != nil {
+	if _, _, err := Send(testCtx(t), f.creds("starttls"), testMessage()); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	got := f.seen()
@@ -98,7 +98,7 @@ func TestLoginFallbackAfterPlainUnsupported(t *testing.T) {
 	})
 	c := f.creds("tls")
 	c.Username = "login-id"
-	if _, err := Send(testCtx(t), c, testMessage()); err != nil {
+	if _, _, err := Send(testCtx(t), c, testMessage()); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	got := f.seen()
@@ -150,7 +150,7 @@ func TestSendTimesOutWithoutGreeting(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	_, err := Send(ctx, f.creds("starttls"), testMessage())
+	_, _, err := Send(ctx, f.creds("starttls"), testMessage())
 	if err == nil {
 		t.Fatal("want a timeout error from a server that never greets")
 	}
@@ -165,10 +165,36 @@ func TestSendTimesOutWhenStartTLSHandshakeStalls(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	if _, err := Send(ctx, f.creds("starttls"), testMessage()); err == nil {
+	if _, _, err := Send(ctx, f.creds("starttls"), testMessage()); err == nil {
 		t.Fatal("want a timeout error from a server that stalls after STARTTLS")
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Fatalf("STARTTLS handshake wait took %v; deadline not covering the handshake", elapsed)
+	}
+}
+
+// Send returns exactly what DATA carried, so the caller can file it in Sent;
+// Bcc recipients get the mail but never appear in it.
+func TestSendReturnsTheRawItWrote(t *testing.T) {
+	t.Parallel()
+	f := newFakeSMTP(t, fakeSMTPConfig{implicitTLS: true})
+	msg := testMessage()
+	msg.Bcc = []string{"hidden@example.com"}
+	msgID, raw, err := Send(testCtx(t), f.creds("tls"), msg)
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	got := f.seen()
+	if string(raw) != got.data {
+		t.Fatalf("raw differs from DATA:\nraw:\n%s\ndata:\n%s", raw, got.data)
+	}
+	if !strings.Contains(string(raw), "Message-ID: "+msgID+"\r\n") {
+		t.Fatalf("raw lacks the Message-ID header %q:\n%s", msgID, raw)
+	}
+	if strings.Contains(string(raw), "hidden@example.com") || strings.Contains(string(raw), "Bcc:") {
+		t.Fatalf("raw leaks the Bcc recipient:\n%s", raw)
+	}
+	if len(got.rcpts) != 2 {
+		t.Fatalf("RCPT = %v, want the To and the Bcc recipient", got.rcpts)
 	}
 }

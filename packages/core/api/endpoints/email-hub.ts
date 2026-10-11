@@ -13,6 +13,7 @@ import {
   EmailHubImapLabelListSchema,
   EmailHubWatchSchema,
   type EmailHubAccount,
+  type EmailHubCustomServer,
   type EmailHubThreadSummary,
   type EmailHubInboxWatch,
   type EmailHubSync,
@@ -56,10 +57,16 @@ export async function listEmailHubAccounts(workspaceId: string) {
   });
 }
 
-export async function connectEmailHubAccount(workspaceId: string, emailAddress: string, appPassword: string) {
+export async function connectEmailHubAccount(
+  workspaceId: string,
+  emailAddress: string,
+  appPassword: string,
+  server?: EmailHubCustomServer,
+) {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/accounts`, {
     method: "POST",
-    body: { email_address: emailAddress, app_password: appPassword },
+    // No server keeps the GĐ1 body: the server picks the preset by the address's domain.
+    body: { email_address: emailAddress, app_password: appPassword, ...server },
   });
   return parseWithFallback<EmailHubAccount | null>(raw, EmailHubAccountSchema, null, {
     endpoint: "POST /api/v1/workspaces/{ws}/email-hub/accounts",

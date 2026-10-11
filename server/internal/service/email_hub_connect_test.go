@@ -239,6 +239,7 @@ func TestEmailHubConnectClassifiesVerifyErrorsWithoutLeakingTheHost(t *testing.T
 		{"smtp disabled", fmt.Errorf("smtp auth %s: %w", host, smtpclient.ErrSMTPAuthDisabled), ErrEmailHubSMTPDisabled},
 		{"imap tls", fmt.Errorf("imap %s: %w", host, imapclient.ErrTLSRequired), ErrEmailHubTLSRequired},
 		{"smtp tls", fmt.Errorf("smtp %s: %w", host, smtpclient.ErrTLSRequired), ErrEmailHubTLSRequired},
+		{"tls to a plaintext greeter", fmt.Errorf("imap greeting %s: %w", host, tls.RecordHeaderError{Msg: "first record does not look like a TLS handshake"}), ErrEmailHubTLSRequired},
 		{"blocked host", fmt.Errorf("dial %s:993: %w", host, netguard.ErrHostNotAllowed), ErrEmailHubUnreachable},
 		{"dns", fmt.Errorf("dial: %w", &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}), ErrEmailHubUnreachable},
 		{"certificate", fmt.Errorf("tls: %w", &tls.CertificateVerificationError{Err: errors.New("x509: unknown authority for " + host)}), ErrEmailHubUnreachable},
@@ -278,5 +279,218 @@ func TestEmailHubConnectChecksMembershipBeforeConfiguration(t *testing.T) {
 	}
 	if _, err := svc.Connect(context.Background(), Human(user.ID), ws.ID, in); !errors.Is(err, ErrEmailHubNotConfigured) {
 		t.Fatalf("member: err = %v, want ErrEmailHubNotConfigured", err)
+	}
+}
+
+// customConnectInput is a complete custom-server connect on mail.example.com;
+// tests change one field at a time.
+func customConnectInput(email string) ConnectEmailHubInput {
+	return ConnectEmailHubInput{
+		EmailAddress: email, AppPassword: "server-password-1",
+		IMAPHost: "mail.example.com", IMAPPort: 993, IMAPSecurity: "tls",
+		SMTPHost: "mail.example.com", SMTPPort: 587, SMTPSecurity: "starttls",
+	}
+}
+
+// seedCustomEmailHubAccount stores a live password mailbox on imapHost:993,
+// the row a custom Connect would produce.
+func seedCustomEmailHubAccount(t *testing.T, q *db.Queries, box *secretbox.Box, userID, orgID, email, imapHost string) db.EmailHubAccount {
+	t.Helper()
+	sealed, err := box.Seal([]byte("old-server-password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := q.CreateEmailHubAccount(context.Background(), db.CreateEmailHubAccountParams{
+		ID: util.NewID(), UserID: userID, OrganizationID: orgID,
+		EmailAddress: email, Provider: "custom",
+		ImapHost: imapHost, ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: imapHost, SmtpPort: 587, SmtpSecurity: "starttls",
+		AuthKind: "password", PasswordEnc: base64.StdEncoding.EncodeToString(sealed),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return row
+}
+
+// connectedServerChanged reads the server_changed flag of an account's
+// connected audit row.
+func connectedServerChanged(t *testing.T, pool *pgxpool.Pool, accountID string) string {
+	t.Helper()
+	var changed string
+	if err := pool.QueryRow(context.Background(), `SELECT coalesce(max(metadata::jsonb->>'server_changed'), '')
+		FROM audit_events WHERE action = $1 AND resource_id = $2`,
+		audit.ActionEmailHubAccountConnected, accountID).Scan(&changed); err != nil {
+		t.Fatal(err)
+	}
+	return changed
+}
+
+// The login check, the row and the view all carry the normalized server; the
+// password of a custom server is used as typed (spec §5.2).
+func TestEmailHubConnectCustomServerStoresItsSettings(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	var gotIMAP imapclient.Credentials
+	var gotSMTP smtpclient.Credentials
+	stubEmailHubDial(svc, nil)
+	svc.testHookVerify = func(_ context.Context, imap imapclient.Credentials, smtp smtpclient.Credentials) error {
+		gotIMAP, gotSMTP = imap, smtp
+		return nil
+	}
+
+	view, err := svc.Connect(ctx, Human(user.ID), ws.ID, ConnectEmailHubInput{
+		EmailAddress: "Me@Acme.Example", AppPassword: " pass word ",
+		IMAPHost: " Mail.Acme.EXAMPLE. ", IMAPPort: 143, IMAPSecurity: "starttls",
+		SMTPHost: "SMTP.acme.example", SMTPPort: 465, SMTPSecurity: "tls",
+		Username: "mailuser",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantIMAP := imapclient.Credentials{Host: "mail.acme.example", Port: 143, Email: "me@acme.example", Username: "mailuser", Password: " pass word ", Security: "starttls"}
+	wantSMTP := smtpclient.Credentials{Host: "smtp.acme.example", Port: 465, Email: "me@acme.example", Username: "mailuser", Password: " pass word ", Security: "tls"}
+	if gotIMAP != wantIMAP || gotSMTP != wantSMTP {
+		t.Fatalf("verify got imap=%+v smtp=%+v", gotIMAP, gotSMTP)
+	}
+	row, err := q.GetEmailHubAccountByID(ctx, view.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Provider != "custom" || row.AuthKind != "password" ||
+		row.ImapHost != "mail.acme.example" || row.ImapPort != 143 || row.ImapSecurity != "starttls" ||
+		row.SmtpHost != "smtp.acme.example" || row.SmtpPort != 465 || row.SmtpSecurity != "tls" ||
+		row.Username != "mailuser" {
+		t.Fatalf("stored row: %+v", row)
+	}
+	if pw, err := svc.openPassword(row.PasswordEnc); err != nil || pw != " pass word " {
+		t.Fatalf("stored password=%q err=%v", pw, err)
+	}
+	if view.Provider != "custom" || view.ImapHost != "mail.acme.example" || view.ImapPort != 143 ||
+		view.ImapSecurity != "starttls" || view.SmtpHost != "smtp.acme.example" || view.SmtpPort != 465 ||
+		view.SmtpSecurity != "tls" || view.Username != "mailuser" {
+		t.Fatalf("view: %+v", view)
+	}
+	if n, _, reconnected := connectedAudit(t, pool, view.ID); n != 1 || reconnected != "false" {
+		t.Fatalf("connected audit: n=%d reconnected=%q", n, reconnected)
+	}
+	if changed := connectedServerChanged(t, pool, view.ID); changed != "false" {
+		t.Fatalf("a first connect changes no server, server_changed=%q", changed)
+	}
+}
+
+// Membership answers first; a bad server field is refused with the field the
+// client marks, before any login and without writing a row (spec §5.2 steps 1-2).
+func TestEmailHubConnectRefusesBadServerBeforeDialing(t *testing.T) {
+	svc, _, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	calls := stubEmailHubDial(svc, nil)
+	badPort := customConnectInput("bad@acme.example")
+	badPort.IMAPPort = 8080
+	blocked := customConnectInput("bad@acme.example")
+	blocked.IMAPHost = "169.254.169.254"
+
+	if _, err := svc.Connect(ctx, Human(util.NewID()), ws.ID, badPort); !errors.Is(err, ErrForbidden) && !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-member must get the membership answer before validation, got %v", err)
+	}
+	cases := []struct {
+		name     string
+		in       ConnectEmailHubInput
+		sentinel error
+		code     string
+		field    string
+	}{
+		{"port outside the allowed set", badPort, ErrEmailHubInvalidServer, "email_hub_invalid_server", "imap_port"},
+		{"blocked ip literal", blocked, ErrEmailHubHostNotAllowed, "email_hub_host_not_allowed", "imap_host"},
+	}
+	for _, tc := range cases {
+		_, err := svc.Connect(ctx, Human(user.ID), ws.ID, tc.in)
+		var ce CodedError
+		if !errors.As(err, &ce) || !errors.Is(err, tc.sentinel) || ce.Code != tc.code || ce.Status != 400 || ce.Fields["field"] != tc.field {
+			t.Errorf("%s: got %#v", tc.name, err)
+		}
+	}
+	if n := calls.Load(); n != 0 {
+		t.Fatalf("a refused server must never reach the login check, verify ran %d times", n)
+	}
+	var rows int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM email_hub_accounts WHERE user_id = $1`, user.ID).Scan(&rows); err != nil || rows != 0 {
+		t.Fatalf("a refused connect writes no row, rows=%d err=%v", rows, err)
+	}
+}
+
+// A live custom mailbox on the same IMAP server is a duplicate whatever the
+// host's case, a trailing dot or the SMTP side say (spec §3).
+func TestEmailHubConnectCustomDuplicateIs409(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	seedCustomEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID, "dup@acme.example", "mail.example.com")
+	calls := stubEmailHubDial(svc, nil)
+	sameHost := customConnectInput("DUP@acme.example")
+	sameHost.IMAPHost = "MAIL.Example.com."
+	otherSMTP := customConnectInput("dup@acme.example")
+	otherSMTP.SMTPHost, otherSMTP.SMTPPort, otherSMTP.SMTPSecurity = "smtp.other.example", 465, "tls"
+
+	for name, in := range map[string]ConnectEmailHubInput{"case and trailing dot": sameHost, "smtp only": otherSMTP} {
+		if _, err := svc.Connect(context.Background(), Human(user.ID), ws.ID, in); !errors.Is(err, ErrEmailHubAlreadyConnected) {
+			t.Errorf("%s: expected already connected, got %v", name, err)
+		}
+	}
+	if n := calls.Load(); n != 0 {
+		t.Fatalf("a duplicate must be refused before the login check, verify ran %d times", n)
+	}
+}
+
+// Reconnecting onto another IMAP server keeps the id and says so in the audit;
+// the same server spelled differently is not a change (it would wipe the cache).
+func TestEmailHubReconnectChangedServerFlagsIt(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	moved := seedCustomEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID, "moved@acme.example", "mail.example.com")
+	same := seedCustomEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID, "same@acme.example", "mail.example.com")
+	for _, acc := range []db.EmailHubAccount{moved, same} {
+		if n, err := q.MarkEmailHubAccountAuthFailed(ctx, db.MarkEmailHubAccountAuthFailedParams{
+			ID: acc.ID, OrganizationID: ws.OrganizationID, CredentialVersion: acc.CredentialVersion, Reason: "imap_auth_failed",
+		}); err != nil || n != 1 {
+			t.Fatalf("mark auth failed: n=%d err=%v", n, err)
+		}
+	}
+	stubEmailHubDial(svc, nil)
+	toNewHost := customConnectInput("moved@acme.example")
+	toNewHost.IMAPHost = "imap.newhost.example"
+	toNewHost.Username = "ops"
+	sameHost := customConnectInput("same@acme.example")
+	sameHost.IMAPHost = "Mail.Example.COM."
+
+	cases := []struct {
+		acc      db.EmailHubAccount
+		in       ConnectEmailHubInput
+		wantHost string
+		changed  string
+	}{
+		{moved, toNewHost, "imap.newhost.example", "true"},
+		{same, sameHost, "mail.example.com", "false"},
+	}
+	for _, tc := range cases {
+		view, err := svc.Connect(ctx, Human(user.ID), ws.ID, tc.in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if view.ID != tc.acc.ID || view.ImapHost != tc.wantHost || view.NeedsReconnect {
+			t.Errorf("%s: reconnect must keep id %s on %s, got %+v", tc.acc.EmailAddress, tc.acc.ID, tc.wantHost, view)
+		}
+		if n, _, reconnected := connectedAudit(t, pool, tc.acc.ID); n != 1 || reconnected != "true" {
+			t.Errorf("%s: connected audit n=%d reconnected=%q", tc.acc.EmailAddress, n, reconnected)
+		}
+		if got := connectedServerChanged(t, pool, tc.acc.ID); got != tc.changed {
+			t.Errorf("%s: server_changed=%q, want %q", tc.acc.EmailAddress, got, tc.changed)
+		}
+	}
+	// UpdateEmailHubAccountCredentials persists the login name and auth kind (GĐ1 deferred minor).
+	row, err := q.GetEmailHubAccountByID(ctx, moved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Username != "ops" || row.AuthKind != "password" || row.Provider != "custom" {
+		t.Fatalf("reconnect row: username=%q auth_kind=%q provider=%q", row.Username, row.AuthKind, row.Provider)
 	}
 }

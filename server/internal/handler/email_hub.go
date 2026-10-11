@@ -82,6 +82,9 @@ func (h *handlers) connectEmailHubAccount(w http.ResponseWriter, r *http.Request
 	}
 	acc, err := h.EmailHub.Connect(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.ConnectEmailHubInput{
 		EmailAddress: in.EmailAddress, AppPassword: in.AppPassword,
+		IMAPHost: in.ImapHost, IMAPPort: in.ImapPort, IMAPSecurity: in.ImapSecurity,
+		SMTPHost: in.SmtpHost, SMTPPort: in.SmtpPort, SMTPSecurity: in.SmtpSecurity,
+		Username: in.Username,
 	})
 	if err != nil {
 		switch {
@@ -478,6 +481,9 @@ func toEmailHubAccountSDO(a service.EmailHubAccountView) sdo.EmailHubAccountSDO 
 		ID: a.ID, EmailAddress: a.EmailAddress, Provider: a.Provider,
 		ConnectedAt: a.ConnectedAt.Format(time.RFC3339),
 		AuthKind:    a.AuthKind, NeedsReconnect: a.NeedsReconnect, AuthFailedReason: a.AuthFailedReason,
+		ImapHost: a.ImapHost, ImapPort: a.ImapPort, ImapSecurity: a.ImapSecurity,
+		SmtpHost: a.SmtpHost, SmtpPort: a.SmtpPort, SmtpSecurity: a.SmtpSecurity,
+		Username: a.Username,
 	}
 	if a.LastSyncAt != nil {
 		out.LastSyncAt = a.LastSyncAt.Format(time.RFC3339)

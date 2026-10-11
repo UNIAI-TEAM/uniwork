@@ -488,3 +488,19 @@ func TestEmailHubConnectAlreadyConnectedIs409(t *testing.T) {
 		t.Fatalf("duplicate connect: %d %v", res.StatusCode, out)
 	}
 }
+
+// Server fields are checked before any dial, and the refusal names the field
+// the client marks (spec §5.2).
+func TestEmailHubConnectBadServerFieldIs400WithTheField(t *testing.T) {
+	srv, token, wsID, _, _ := setupEmailHubHTTP(t)
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/email-hub/accounts", token, map[string]any{
+		"email_address": "me@acme.example", "app_password": "server-password-1",
+		"imap_host": "mail.acme.example", "imap_port": 8080, "imap_security": "tls",
+		"smtp_host": "mail.acme.example", "smtp_port": 587, "smtp_security": "starttls",
+	})
+	errObj, _ := out["error"].(map[string]any)
+	fields, _ := errObj["fields"].(map[string]any)
+	if res.StatusCode != http.StatusBadRequest || errorCode(out) != "email_hub_invalid_server" || fields["field"] != "imap_port" {
+		t.Fatalf("bad imap_port: %d %v", res.StatusCode, out)
+	}
+}

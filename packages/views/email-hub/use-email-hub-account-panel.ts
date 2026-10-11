@@ -39,7 +39,7 @@ export function useEmailHubAccountPanel(
     [accountId, disconnect, onDisconnectError, setAccountId, setSelectedId],
   );
 
-  // GĐ1 accounts are all app-password accounts; GĐ3 picks the OAuth popup here by auth_kind.
+  // The dialog picks the form: provider "custom" reopens its server settings, any other asks for the app password. GĐ3 picks the OAuth popup here by auth_kind.
   const reconnectAccount = useCallback(
     (id: string) => {
       const acc = accountList.find((item) => item.id === id);

@@ -91,7 +91,7 @@ func (s *EmailHubService) openIMAPMailboxes(
 	}
 	mailboxes, listErr := sess.MailboxMap(defaults)
 	if listErr != nil {
-		s.log.Warn("email hub list mailboxes failed", "account_id", acc.ID, "err", listErr)
+		s.log.Warn("email hub list mailboxes failed", "account_id", acc.ID, "code", emailHubErrCode(listErr))
 		return sess, defaults, nil
 	}
 	s.gov.setMailboxes(acc.ID, mailboxes)
@@ -145,8 +145,8 @@ func (s *EmailHubService) MoveThread(
 			if s.handleAuthError(ctx, acc, creds.Version, err) {
 				return ErrEmailHubReauthRequired
 			}
-			s.log.Warn("email hub move failed", "thread_id", r.ID, "target", targetFolder, "err", err)
-			return err
+			s.log.Warn("email hub move failed", "thread_id", r.ID, "target", targetFolder, "code", emailHubErrCode(err))
+			return redactEmailHubMailErr(err)
 		}
 		_ = s.q.DeleteEmailHubAttachmentsForThread(ctx, r.ID)
 		if err := s.q.DeleteEmailHubThread(ctx, db.DeleteEmailHubThreadParams{
@@ -156,5 +156,5 @@ func (s *EmailHubService) MoveThread(
 		}
 	}
 	_, _, err = s.syncSingleFolder(ctx, acc, targetFolder, false, true, false, true)
-	return err
+	return redactEmailHubMailErr(err)
 }

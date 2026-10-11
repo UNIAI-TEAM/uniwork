@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
+  connectEmailHubAccount,
   getEmailHubConversation,
   getEmailHubThread,
   getEmailHubSidebarCounts,
@@ -80,6 +81,112 @@ describe("email hub endpoints", () => {
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ accounts: [{ ...acc, needs_reconnect: "yes" }] }));
     await expect(listEmailHubAccounts("ws1")).resolves.toEqual({ accounts: [] });
+  });
+
+  const customServer = {
+    imap_host: "mail.example.vn",
+    imap_port: 993,
+    imap_security: "tls",
+    smtp_host: "mail.example.vn",
+    smtp_port: 587,
+    smtp_security: "starttls",
+    username: "an",
+  };
+
+  it("listEmailHubAccounts keeps the mail server fields", async () => {
+    const acc = {
+      id: "acc1",
+      email_address: "an@example.vn",
+      provider: "custom",
+      connected_at: "2026-09-01T00:00:00Z",
+      auth_kind: "password",
+      needs_reconnect: false,
+      auth_failed_reason: "",
+      ...customServer,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ accounts: [acc] }));
+    await expect(listEmailHubAccounts("ws1")).resolves.toEqual({ accounts: [acc] });
+  });
+
+  it("listEmailHubAccounts drops only a malformed server field and keeps an unknown auth_kind", async () => {
+    const acc = {
+      id: "acc1",
+      email_address: "an@example.vn",
+      provider: "custom",
+      connected_at: "2026-09-01T00:00:00Z",
+      auth_kind: "oauth_future",
+      needs_reconnect: false,
+      auth_failed_reason: "",
+      ...customServer,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ accounts: [{ ...acc, imap_port: "x", smtp_host: 7 }] }));
+    const { accounts } = await listEmailHubAccounts("ws1");
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]!.imap_port).toBeUndefined();
+    expect(accounts[0]!.smtp_host).toBeUndefined();
+    expect(accounts[0]).toEqual({ ...acc, imap_port: undefined, smtp_host: undefined });
+    expect(accounts[0]!.auth_kind).toBe("oauth_future");
+  });
+
+  it("connectEmailHubAccount posts only the address and password when no server is given", async () => {
+    const acc = { id: "acc1", email_address: "a@gmail.com", provider: "gmail", connected_at: "2026-09-01T00:00:00Z" };
+    vi.mocked(fetch).mockResolvedValueOnce(json(acc, 201));
+    await expect(connectEmailHubAccount("ws1", "a@gmail.com", "abcdabcdabcdabcd")).resolves.toEqual({
+      ...acc,
+      auth_kind: "password",
+      needs_reconnect: false,
+      auth_failed_reason: "",
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/workspaces/ws1/email-hub/accounts");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ email_address: "a@gmail.com", app_password: "abcdabcdabcdabcd" });
+  });
+
+  it("connectEmailHubAccount posts the server fields with numeric ports and the username", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        { id: "acc1", email_address: "an@example.vn", provider: "custom", connected_at: "2026-09-01T00:00:00Z", ...customServer },
+        201,
+      ),
+    );
+    const server = { ...customServer, imap_security: "tls" as const, smtp_security: "starttls" as const };
+    const acc = await connectEmailHubAccount("ws1", "an@example.vn", " pass word ", server);
+    expect(acc?.provider).toBe("custom");
+    expect(acc?.imap_port).toBe(993);
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body)) as Record<string, unknown>;
+    // The password goes out exactly as typed; ports are JSON numbers, because the server's decode refuses "993".
+    expect(body).toEqual({ email_address: "an@example.vn", app_password: " pass word ", ...customServer });
+    expect(typeof body.imap_port).toBe("number");
+    expect(typeof body.smtp_port).toBe("number");
+  });
+
+  it("connectEmailHubAccount degrades to null when the response is malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ id: 1 }, 201));
+    await expect(connectEmailHubAccount("ws1", "a@gmail.com", "pw")).resolves.toBeNull();
+  });
+
+  it("connectEmailHubAccount surfaces the field a server refusal names", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        {
+          error: {
+            code: "email_hub_host_not_allowed",
+            message: "mail server address not allowed",
+            fields: { field: "imap_host" },
+          },
+        },
+        400,
+      ),
+    );
+    await expect(
+      connectEmailHubAccount("ws1", "an@example.vn", "pw", {
+        ...customServer,
+        imap_host: "10.0.0.1",
+        imap_security: "tls",
+        smtp_security: "starttls",
+      }),
+    ).rejects.toMatchObject({ code: "email_hub_host_not_allowed", status: 400, fields: { field: "imap_host" } });
   });
 
   it("getEmailHubSidebarCounts parses counts and degrades when malformed", async () => {

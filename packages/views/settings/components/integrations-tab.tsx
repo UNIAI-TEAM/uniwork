@@ -29,8 +29,9 @@ const PLANNED = [
 
 /**
  * Email Hub is the one connection that works today: each person links their
- * own Gmail, Outlook or Yahoo mailbox with an app password
- * (server/internal/emailhub/provider.go). The count is the reader's own.
+ * own Gmail, Outlook or Yahoo mailbox with an app password, or a mailbox on
+ * their own domain's IMAP/SMTP server (server/internal/emailhub/provider.go,
+ * server/internal/service/email_hub_connect_server.go). The count is the reader's own.
  */
 function EmailHubRow() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.integrations" });

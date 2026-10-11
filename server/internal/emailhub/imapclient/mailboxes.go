@@ -2,6 +2,7 @@ package imapclient
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
@@ -23,23 +24,67 @@ func ListMailboxMap(cl *client.Client, defaults MailboxMap) (MailboxMap, error) 
 	if err != nil {
 		return out, fmt.Errorf("imap list: %w", err)
 	}
+	assignMailboxes(out, infos)
+	return out, nil
+}
+
+// wellKnownFolders are the last-segment names (lower case) of the folders
+// servers without SPECIAL-USE (Courier, older cPanel/Dovecot) give each logical key.
+var wellKnownFolders = map[string][]string{
+	"SENT":    {"sent", "sent items", "sent messages", "sent mail"},
+	"TRASH":   {"trash", "deleted items", "deleted messages"},
+	"SPAM":    {"junk", "spam", "junk e-mail", "junk email"},
+	"DRAFTS":  {"drafts"},
+	"ARCHIVE": {"archive"},
+}
+
+// assignMailboxes sets each logical key from RFC 6154 SPECIAL-USE attributes,
+// then, for a key no attribute set, from the first mailbox in LIST order whose
+// last hierarchy segment is a well-known name. An attribute always wins.
+func assignMailboxes(out MailboxMap, infos []*imap.MailboxInfo) {
+	done := make(map[string]bool, len(wellKnownFolders))
 	for _, info := range infos {
 		for _, attr := range info.Attributes {
+			key := ""
 			switch attr {
 			case imap.SentAttr:
-				out["SENT"] = info.Name
+				key = "SENT"
 			case imap.TrashAttr:
-				out["TRASH"] = info.Name
+				key = "TRASH"
 			case imap.DraftsAttr:
-				out["DRAFTS"] = info.Name
+				key = "DRAFTS"
 			case imap.AllAttr, imap.ArchiveAttr:
-				out["ARCHIVE"] = info.Name
+				key = "ARCHIVE"
 			case imap.JunkAttr:
-				out["SPAM"] = info.Name
+				key = "SPAM"
+			}
+			if key != "" {
+				out[key] = info.Name
+				done[key] = true
 			}
 		}
 	}
-	return out, nil
+	for _, info := range infos {
+		leaf := info.Name
+		if info.Delimiter != "" {
+			if i := strings.LastIndex(leaf, info.Delimiter); i >= 0 {
+				leaf = leaf[i+len(info.Delimiter):]
+			}
+		}
+		leaf = strings.ToLower(leaf)
+		for key, names := range wellKnownFolders {
+			if done[key] {
+				continue
+			}
+			for _, n := range names {
+				if leaf == n {
+					out[key] = info.Name
+					done[key] = true
+					break
+				}
+			}
+		}
+	}
 }
 
 // listMailboxes runs LIST while draining its channel. go-imap sends each row
