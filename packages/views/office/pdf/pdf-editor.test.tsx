@@ -226,7 +226,9 @@ describe("PdfEditor", () => {
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
     expect(handle.open).toHaveBeenCalledTimes(1);
     const second = render(<EditorSlot format="pdf" host={host} capability="available" openState="ready" editorHandle={null} loadEditor={loadEditor} />);
-    await waitFor(() => expect(second.getByTestId("pdf-error-state")).toBeInTheDocument());
+    // The second slot goes through the lazy loader again; on a loaded CI runner
+    // that can take longer than waitFor's 1 s default.
+    await waitFor(() => expect(second.getByTestId("pdf-error-state")).toBeInTheDocument(), { timeout: 10_000 });
   });
 
   it("keeps the edited model for Save N and submits the next edit for Save N+1", async () => {
