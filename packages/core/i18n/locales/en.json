@@ -8109,11 +8109,13 @@
       "failure": {
         "unavailable": {
           "title": "This document cannot open on the web yet",
-          "description": "This UniWork server is not set up to open documents on the web. Open the file in UniWork Office or download it."
+          "description": "This UniWork server is not set up to open documents on the web. Open the file in UniWork Office or download it.",
+          "description_download_only": "This UniWork server is not set up to open documents on the web. Download the file instead."
         },
         "load": {
           "title": "The editor could not load",
-          "description": "The editor files did not load, so the document could not open. Try again, open the file in UniWork Office, or download it."
+          "description": "The editor files did not load, so the document could not open. Try again, open the file in UniWork Office, or download it.",
+          "description_download_only": "The editor files did not load, so the document could not open. Try again or download the file."
         },
         "network": {
           "title": "Could not connect to UniWork",
@@ -8128,7 +8130,8 @@
         "failed": {
           "title": "The document could not open",
           "description": "UniWork ran into a problem opening this document. Try again in a moment."
-        }
+        },
+        "feature_disabled_download_only": "Your organization has not turned on editing this file type on the web. Download the file instead."
       },
       "errors": {
         "unauthorized": "Your editing session expired. Try again.",
@@ -8148,6 +8151,7 @@
     "too_large": {
       "title": "File is too large to edit on the web",
       "description": "This {{format}} file exceeds the browser size limit. Open it in the UniWork Office desktop app to keep working — the app has no file size limit.",
+      "description_download_only": "This {{format}} file exceeds the browser size limit. Download it to keep working.",
       "download": "Download",
       "download_failed": "The file could not be downloaded. Try again."
     },
