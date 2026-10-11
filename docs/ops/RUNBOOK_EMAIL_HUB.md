@@ -93,9 +93,11 @@ center → Users → Mail → *Manage email apps*) hoặc cho cả tenant
 | `email_hub_smtp_disabled` (400) | Như mục M365 ở trên, phát hiện ngay lúc kết nối | Bật SMTP AUTH rồi kết nối lại |
 
 Route kết nối giới hạn 10 lần / 10 phút cho mỗi người dùng (cần Redis). Bị `429` thì chờ.
-Log chỉ ghi mã đã phân loại (`host_not_allowed`, `tls_required`, `unreachable`,
-`auth_failed`, `smtp_disabled`) kèm `account_id` / `user_id` / `provider`. Host, email và
-phản hồi thô của IMAP/SMTP không bao giờ vào log, nên đừng đi tìm chúng ở đó.
+Log của kết nối và gửi chỉ ghi mã đã phân loại (`host_not_allowed`, `tls_required`,
+`unreachable`, `auth_failed`, `smtp_disabled`, `connect_failed`) kèm `account_id` /
+`user_id` / `provider`; host, email và phản hồi thô của máy chủ không có ở đó. Các đường
+sync, watcher IDLE, tải body, chuyển thư mục và đánh dấu đã đọc thì vẫn ghi `err` thô
+(có thể chứa host và câu trả lời của máy chủ) cho tới GĐ2, khi máy chủ tùy chỉnh ra mắt.
 
 ### Migration dedupe và unique index
 
