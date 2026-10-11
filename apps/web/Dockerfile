@@ -14,14 +14,13 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 # The genoffice web builds pinned in apps/web/platform/office-frame/<module>.pin.json
-# (docs/office/docs-web-frame.md): an https URL to a .tar.gz of the fork's whole
-# dist-web root, carrying all six modules (docs, pdf, markdown, html, slides, sheets).
-# Required: the build below runs with NODE_ENV=production, and
-# apps/web/scripts/office-frame-sync.mjs --ensure fails it when the source is unset
-# or lacks a module, so an image never ships without the editing UI. Pass it as a
-# build arg from a secret, never as a literal in a file. The ARG is declared just
-# before the build, after `pnpm install`, so the secret reaches neither the install
-# layer nor the builder stage's ENV.
+# (docs/office/docs-web-frame.md). The build below runs with NODE_ENV=production, and
+# apps/web/scripts/office-frame-sync.mjs --ensure installs all six modules (docs, pdf,
+# markdown, html, slides, sheets) from the committed source.json (the public release
+# tarball of the fork's dist-web root, sha256-checked) and fails the build when one
+# is missing, so an image never ships without the editing UI. It needs no credential.
+# OFFICE_FRAME_SOURCE is an optional override (an https URL or a .tar.gz); it is
+# declared just before the build, after `pnpm install`, so it stays out of the install layer.
 
 COPY . .
 RUN pnpm install --frozen-lockfile

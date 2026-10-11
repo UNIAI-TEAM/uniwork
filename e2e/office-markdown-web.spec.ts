@@ -11,8 +11,8 @@ import {
  * `office_markdown_web`. The first module spec; the others copy its shape.
  *
  * Runs with OFFICE_MODULES_WEB_E2E=1 against a production build that installed
- * the markdown bundle (markdown.pin.json + OFFICE_FRAME_SOURCE = a fork dist-web
- * root); without it the "bundle not installed" case runs and the frame cases skip.
+ * the markdown bundle (markdown.pin.json + the committed source.json, or an
+ * OFFICE_FRAME_SOURCE override); without it the "bundle not installed" case runs and the frame cases skip.
  */
 test.describe.configure({ timeout: 180_000 });
 test.skip(process.env.OFFICE_MODULES_WEB_E2E !== "1", "Set OFFICE_MODULES_WEB_E2E=1 to run the module web frame contract.");

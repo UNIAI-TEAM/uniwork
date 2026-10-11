@@ -23,12 +23,12 @@ export function assertFrameComplete({ production, source, pinned, installed }) {
   if (unpinned.length > 0) problems.push(`no pin for ${unpinned.join(", ")} (apps/web/platform/office-frame/<module>.pin.json)`);
   if (notInstalled.length > 0) {
     problems.push(source
-      ? `${notInstalled.join(", ")} not installed: OFFICE_FRAME_SOURCE has no verified build of ${notInstalled.length === 1 ? "it" : "them"}`
-      : `${notInstalled.join(", ")} not installed and OFFICE_FRAME_SOURCE is unset`);
+      ? `${notInstalled.join(", ")} not installed: the frame source has no verified build of ${notInstalled.length === 1 ? "it" : "them"}`
+      : `${notInstalled.join(", ")} not installed and there is no frame source (source.json missing, OFFICE_FRAME_SOURCE unset)`);
   }
   throw new Error(
     `a production build must ship the genoffice editing UI for all of ${OFFICE_MODULES.join(", ")}: ${problems.join("; ")}. `
-    + "Set OFFICE_FRAME_SOURCE to the fork's dist-web root (or a .tar.gz / https URL of it) carrying every module "
-    + "(docs/office/docs-web-frame.md); a development build does not need it.",
+    + "The source is apps/web/platform/office-frame/source.json (the public release tarball, sha256-checked); "
+    + "OFFICE_FRAME_SOURCE (a dist-web root, .tar.gz or https URL) overrides it (docs/office/docs-web-frame.md); a development build does not need either.",
   );
 }

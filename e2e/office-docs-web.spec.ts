@@ -11,8 +11,9 @@ import { expectFrameNotice } from "./office-module-web-fixtures";
  * /office-frame/docs/<version>/ and opened for a DOCX behind `office_docs_web`.
  *
  * Three groups, chosen by what the web build under test has installed (CI has the
- * bundle only when the OFFICE_FRAME_SOURCE secret is set; a checkout without access to the
- * private fork builds without it, and the web app must then say the server is not set up):
+ * bundle from the committed source (apps/web/platform/office-frame/source.json, a public
+ * release tarball), so it normally does; a build that could not download it still has to
+ * say the server is not set up):
  *  - "frame serving" (bundle installed): headers, caching, 404s, CSP boot.
  *  - "open, edit, save" (bundle installed): sign in -> open a DOCX -> edit in the frame ->
  *    save -> a new Documents version holds the edit -> reopening shows it; save as, image,

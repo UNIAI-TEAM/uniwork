@@ -30,7 +30,9 @@ copied by `apps/web/scripts/copy-pdfium-wasm.mjs`. What is committed is
 ## Commands (`apps/web`)
 
 ```bash
-# install the pinned build from a fork checkout, a tarball or an https URL
+# install the pinned build from the committed source (source.json, a public release tarball)
+pnpm --filter @uniwork/web office-frame:sync
+# or from a fork checkout, a tarball or an https URL (an override, e.g. a local fork build)
 OFFICE_FRAME_SOURCE=/path/to/uniwork-office/dist-web/docs pnpm --filter @uniwork/web office-frame:sync
 # move the pin to another build (review the diff of docs.pin.json!)
 node apps/web/scripts/office-frame-sync.mjs --from <source> --pin
@@ -47,8 +49,9 @@ removes older versions.
 
 `pnpm build` and `pnpm dev` run `office-frame-sync.mjs --ensure`: already
 installed and verified is a no-op; otherwise it syncs from
-`OFFICE_FRAME_SOURCE`; with no source it warns and carries on, so a checkout
-without access to the fork still builds. `next.config.mjs` offers the frame
+`OFFICE_FRAME_SOURCE` when set, else from the committed `source.json`; a
+development or test build whose download fails (offline) warns and carries on,
+so it still builds. `next.config.mjs` offers the frame
 (`NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION`) only when the pinned bundle is
 installed and verifies against the pin, so without a bundle every organization
 keeps the G3 editor even with `office_docs_web` on (no 404 iframe).
@@ -57,14 +60,24 @@ An archive source (`.tar.gz`, or an https URL to one) is listed before it is
 extracted: only regular files and directories, no absolute or `..` names, at
 most 2000 entries, 160 MiB unpacked, 64 MiB archive, and a 120 s deadline for
 the download and the tar calls. Its manifest and every file digest are then
-checked before anything is copied into `public/`. A deployment must set
-`OFFICE_FRAME_SOURCE` at image build time: the web Dockerfile runs
-`pnpm build` with `NODE_ENV=production`, and a production build fails
+checked before anything is copied into `public/`.
+
+**The source is committed, not a secret.** `apps/web/platform/office-frame/source.json`
+holds the https URL of the fork's `dist-web` tarball (a release asset of the
+public UNIAI-TEAM/uniwork-office repository, downloaded anonymously) and the
+sha256 of that tarball; `materialize` hashes the archive against it before it
+is listed or unpacked, then the pins verify every file as above. So a deployment
+needs no credential: the web Dockerfile runs `pnpm build` with
+`NODE_ENV=production`, and a production build fails
 (`office-frame-sync.mjs --ensure`, `platform/office-frame/frame-production.mjs`)
-unless all six modules are installed and verified. The source reaches the
-Dockerfile as a build arg: `ci/Jenkinsfile.production-app.groovy` (secret-text
-credential `OFFICE_FRAME_SOURCE_CREDENTIALS_ID`) and `docker-compose.prod.yml`.
-Development and test builds (no `NODE_ENV=production`) still build without it.
+unless all six modules are installed and verified, which the committed source
+normally satisfies. `OFFICE_FRAME_SOURCE` (a dist-web root, a `.tar.gz` or
+another https URL; `--from` on the command line) is only an optional override
+for a local fork build; the Dockerfile and `docker-compose.prod.yml` accept it
+as an optional build arg, and `ci/Jenkinsfile.production-app.groovy` passes
+nothing. **A re-pin is one commit that changes the six pins and `source.json`
+together**; `scripts/office-frame-build-wiring.test.mjs` fails when the URL does
+not name the pinned version.
 
 ## Headers (`apps/web/next.config.mjs` -> `platform/office-frame/frame-headers.mjs`)
 
@@ -136,9 +149,9 @@ carries no module, which reads as docs.
 ## CI
 
 `e2e/office-docs-web.spec.ts` runs in the `e2e` job (`OFFICE_DOCS_WEB_E2E=1`).
-With the `OFFICE_FRAME_SOURCE` secret (an https `.tar.gz` of the fork build the
-pin names) the frame cases run; without it the bundle is not installed and the
-spec runs its "not installed -> G3" case instead. The cases choose themselves
+The web build installs the pinned bundle from the committed `source.json`, so the
+frame cases run for forks and PRs too (no secret); if the download fails the bundle
+is not installed and the spec runs its "not installed -> G3" case instead. The cases choose themselves
 from `GET <frame>/manifest.json`, so one job covers both. It needs no office
 engine (the PDF step accepts the 503/501 print fallback) and drives the frame
 by its Vietnamese labels.

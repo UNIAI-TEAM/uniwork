@@ -7,8 +7,8 @@ import { e2eApiUrl } from "./api-url";
  * Helpers for the genoffice module frames (UNI-1014/1015/1016), the module
  * counterpart of office-docs-web-fixtures.ts. A module bundle reaches the web
  * build the same way the Docs one does: `<module>.pin.json` names it and
- * `office-frame-sync.mjs --ensure` installs it from OFFICE_FRAME_SOURCE (a
- * fork dist-web root holding `<module>/<version>/`) during `pnpm build`. A
+ * `office-frame-sync.mjs --ensure` installs it from the committed source.json (a
+ * tarball of the fork dist-web root holding `<module>/<version>/`; OFFICE_FRAME_SOURCE overrides it) during `pnpm build`. A
  * spec skips itself when its module is not installed in the build under test.
  */
 const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();

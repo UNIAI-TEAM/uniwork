@@ -55,7 +55,9 @@ and keep the G3 host (or its unsupported state).
 - `office-frame-sync.mjs`: `--module <m>` (default docs), `--all` (every pinned
   module; with `--pin`, every module present in the source), `--check` takes
   the same selection, and `--ensure` (the `pnpm build` / `pnpm dev` hook)
-  checks every pinned module and syncs the missing ones. `OFFICE_FRAME_SOURCE`
+  checks every pinned module and syncs the missing ones from the committed
+  `source.json` (the public release tarball and its sha256, one place next to the
+  pins). `OFFICE_FRAME_SOURCE` is an optional override and
   may be a dist-web root holding `<module>/<version>/` (the fork's
   `build:web:all`, or a `.tar.gz` of it), one module's directory (the docs-only
   layout of UNI-1013 keeps working), or a version directory.
@@ -443,7 +445,8 @@ test installed that module's pinned bundle:
 
 ```bash
 # fork checkout at the pinned commit: npm run build:web:all && tar -C dist-web -czf dist-web.tar.gz .
-OFFICE_FRAME_SOURCE=$PWD/dist-web.tar.gz pnpm --filter @uniwork/web build   # installs every pinned module
+pnpm --filter @uniwork/web build   # installs every pinned module from the committed source.json
+# or from a local fork build: OFFICE_FRAME_SOURCE=$PWD/dist-web.tar.gz pnpm --filter @uniwork/web build
 <start server + next start>
 OFFICE_MODULES_WEB_E2E=1 E2E_BASE_URL=http://localhost:$FRONTEND_PORT \
   pnpm --filter @uniwork/e2e exec playwright test office-docs-web.spec.ts office-markdown-web.spec.ts office-modules-web.spec.ts
@@ -466,8 +469,8 @@ round trips live in the fork's own e2e (annotate/ink, presenter).
 CI runs them in the `e2e` job (`OFFICE_MODULES_WEB_E2E=1`, next to
 `OFFICE_DOCS_WEB_E2E`).
 Like the Docs spec, each case chooses itself from the installed manifests: a
-module pin plus an `OFFICE_FRAME_SOURCE` holding that module's build runs the
-frame cases; without the bundle (no secret access) only the markdown spec's
+module pin plus the committed source holding that module's build runs the
+frame cases; without the bundle (the download failed) only the markdown spec's
 "bundle not installed -> G3" case runs and the frame cases skip. A new
 module spec copies that shape, so adding one needs no CI change.
 
@@ -522,24 +525,29 @@ installed through `materialize` + `loadBundle` by the sync run above. Raise
 them (with the reason) when a rebuild approaches them: `sheets` is the
 biggest, 27 MiB of the 72 MiB.
 
-**`OFFICE_FRAME_SOURCE` (CI secret and image builds).** It must now be a
-tarball (or https URL to one) of the fork's whole `dist-web` root, holding
-`<module>/<version>/` for every pinned module:
+**The frame source (`apps/web/platform/office-frame/source.json`).** The https URL of
+a tarball of the fork's whole `dist-web` root, holding `<module>/<version>/` for every
+pinned module, and its sha256. It is a public release asset
+(UNIAI-TEAM/uniwork-office is public, anonymous download), so there is no CI
+secret and no Jenkins credential: image builds, the CI `e2e` job and local builds
+all install from it, and `OFFICE_FRAME_SOURCE` is only an optional override.
+**A re-pin is one commit that changes the six `*.pin.json` and `source.json`
+together** (the wiring test fails when the URL does not name the pinned version):
 
 ```bash
 # in the fork checkout, at the commit the pins name
 npm run build:web:all            # dist-web/{docs,pdf,markdown,html,slides,sheets}/0.1.0-<sha>/ (fcfcd29: 32.6 MiB as a tarball)
 tar -C dist-web -czf dist-web.tar.gz .
-# publish dist-web.tar.gz where the secret's URL points; the sync verifies it against the pins
+# publish dist-web.tar.gz as a release asset (web-0.1.0-<sha> of uniwork-office), then put its URL and
+# sha256sum in source.json with the new pins; the sync checks the sha256, then verifies every file against the pins
 ```
 
 A production build (`NODE_ENV=production`, the web image) refuses anything short
 of all six modules; the Docs-only layout (a `dist-web/docs` tarball, as the
 secret held for UNI-1013) still installs docs and warns, in a development or
-test build, that the other five are missing: with
-that secret the `e2e` job runs the docs frame cases and the other modules'
-cases skip (each module spec skips itself when its bundle is not installed),
-so update the secret together with the pins. `next build` offers a module only
+test build, that the other five are missing (an `OFFICE_FRAME_SOURCE` override
+of that shape; each module spec skips itself when its bundle is not installed).
+`next build` offers a module only
 when its pinned bundle installs and verifies
 (`NEXT_PUBLIC_OFFICE_FRAME_VERSIONS`); with all six installed it lists all six.
 
@@ -549,15 +557,13 @@ keeps one checksum line per platform
 (`apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256`) and
 `manifestSha256` in `sheets.pin.json` covers the wasm bytes. The pin is therefore
 the **linux-arm64 build made on bro** (wasm sha256 `e56985bc...27cd`, arm64
-line of the fork file). A tarball built on an x64 machine (the CI secret, if it is
-built there) holds a different Sheets wasm, so `office-frame-sync` refuses it
-against this pin: publish the secret from the bro tarball
+line of the fork file). A tarball built on an x64 machine holds a different Sheets
+wasm, so `office-frame-sync` refuses it against this pin: publish the release
+asset from the bro tarball
 (`dist-web-0.1.0-fcfcd29.tar.gz`, sha256 `747ca9d1...d9bb7`, next to it in the `.sha256` file; the wasm in it is the arm64
-line `e56985bc...27cd`, unchanged since `98e1d20`), or re-pin from an x64 build and let CI use that
-one; never mix the two.
-
-Open: the `e2e` job's secret to be re-published by whoever holds it from the
-tarball above (the fork CI does not publish a `dist-web` tarball).
+line `e56985bc...27cd`, unchanged since `98e1d20`), or re-pin from an x64 build and
+point `source.json` at that one; never mix the two. The fork CI does not publish a
+`dist-web` tarball: whoever re-pins builds it on bro and uploads the release asset.
 
 ## Not done here
 

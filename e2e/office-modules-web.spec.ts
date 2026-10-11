@@ -17,8 +17,8 @@ import {
  * edit round trips (annotate/ink, slide edit) are the fork's own e2e.
  *
  * OFFICE_MODULES_WEB_E2E=1, against a production build that installed every
- * pinned module (OFFICE_FRAME_SOURCE = a tarball or dist-web root holding all
- * of them); a module that is not installed in the build under test skips.
+ * pinned module (the committed source.json, or an OFFICE_FRAME_SOURCE tarball or
+ * dist-web root holding all of them); a module that is not installed in the build under test skips.
  * Docs and markdown keep their own deeper specs (office-docs-web.spec.ts,
  * office-markdown-web.spec.ts).
  */

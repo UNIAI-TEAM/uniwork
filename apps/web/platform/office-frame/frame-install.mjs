@@ -141,14 +141,18 @@ async function download(url, target, limits) {
 /**
  * The source as a local directory: an archive (or an https URL to one) is
  * checked and unpacked into scratch; a directory is used as it is. The result
- * is the source root, which `locateModuleBundle` searches per module.
+ * is the source root, which `locateModuleBundle` searches per module. With `sha256` the archive
+ * must hash to it before it is listed or unpacked.
  */
-export async function materialize(source, scratch, limits = DEFAULT_ARCHIVE_LIMITS) {
+export async function materialize(source, scratch, limits = DEFAULT_ARCHIVE_LIMITS, sha256 = /** @type {string | undefined} */ (undefined)) {
   if (/^https:\/\//.test(source) || source.endsWith(".tar.gz") || source.endsWith(".tgz")) {
     let archive = resolve(source);
     if (/^https:\/\//.test(source)) {
       archive = join(scratch, "bundle.tar.gz");
       await download(source, archive, limits);
+    }
+    if (sha256 !== undefined && sha256Hex(readFileSync(archive)) !== sha256) {
+      throw new Error(`${redactSourceUrl(source)}: the archive's sha256 differs from the committed source (apps/web/platform/office-frame/source.json)`);
     }
     assertSafeArchive(archive, limits);
     const out = join(scratch, "unpacked");
