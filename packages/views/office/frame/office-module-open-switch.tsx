@@ -6,54 +6,54 @@ import { useOfficeWebFlagEnabled } from "@uniwork/core/documents/office-enabled"
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { DocsFrameFailure } from "./docs-frame-failure";
 import { DocsFrameRefusalContext } from "./docs-frame-refusal";
-import { FrameFallbackNotice } from "./frame-fallback-notice";
 
 export interface OfficeModuleOpenSwitchProps {
   module: OfficeModule;
   organizationId: string | undefined;
-  /** `<OfficeModuleFrame>` — mounted only on a settled "on" of the module's flag. */
+  /** `<OfficeModuleFrame>` — mounted once the module's flag is not off. */
   frame: ReactNode;
-  /** The G3 editor, the default until the frame is accepted. */
-  fallback: ReactNode;
   /**
-   * Shown instead of the G3 editor when the frame says the file is over the module's size cap
+   * Shown instead of the frame when it says the file is over the module's size cap
    * (the too-large / open-in-the-app notice). A module without a size cap never asks for it.
    */
   tooLarge?: ReactNode;
 }
 
+/** The module's web editor is not offered here: no build installed, or its flag is off. */
+export function OfficeFrameUnavailable({ module, reason }: { module: OfficeModule; reason: "disabled" | "not_installed" }) {
+  return (
+    <DocsFrameFailure
+      module={module}
+      failure={reason === "not_installed" ? { code: "unsupported", message: "frame_not_installed" } : null}
+      code={reason === "disabled" ? "feature_disabled" : "unsupported"}
+      onRetry={() => undefined}
+    />
+  );
+}
+
 /**
- * Which editor a document opens in (UNI-1013, generalised by UNI-1014): the
- * genoffice frame of its module when the module's flag (`office_docs_web`,
- * `office_pdf_web`, …) is on for the document's organization, the G3 editor
- * otherwise (off, or an answer that could not be read), and also when the
- * server refuses the frame's token because the flag is off (the page's cached
- * answer was stale). Neither mounts while the answer is loading, and once the
- * frame is up a later flag change does not swap editors under unsaved edits;
- * the next open reads the new answer.
+ * Whether a document opens in its genoffice module frame (UNI-1013, generalised
+ * by UNI-1014): yes unless the module's flag (`office_docs_web`,
+ * `office_pdf_web`, …) is off for the document's organization, which shows the
+ * unavailable notice with "Open in UniWork Office" and "Download". An answer
+ * that could not be read mounts the frame: the server refuses the token if the
+ * flag is off, and the frame shows the same notice. Nothing mounts while the
+ * answer is loading, and once the frame is up a later flag change does not
+ * unmount it under unsaved edits; the next open reads the new answer.
  */
-export function OfficeModuleOpenSwitch({ module, organizationId, frame, fallback, tooLarge }: OfficeModuleOpenSwitchProps) {
+export function OfficeModuleOpenSwitch({ module, organizationId, frame, tooLarge }: OfficeModuleOpenSwitchProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const state = useOfficeWebFlagEnabled(officeModuleSpec(module).flag, organizationId);
   const [frameMounted, setFrameMounted] = useState(false);
-  // The frame was refused (flag off, size cap) or could not load: the G3 editor takes over and says
-  // why when the frame did not load; a file over the size cap shows `tooLarge` and no editor.
-  const [refused, setRefused] = useState<{ reason: "load" | "size" | null } | null>(null);
-  if (state === "on" && !frameMounted) setFrameMounted(true);
+  // The frame said the file is over the module's size cap: the too-large notice replaces it.
+  const [refusedSize, setRefusedSize] = useState(false);
+  if ((state === "on" || state === "unknown") && !frameMounted) setFrameMounted(true);
 
-  if (refused) {
-    if (refused.reason === "size" && tooLarge) return <>{tooLarge}</>;
-    if (refused.reason !== "load") return fallback;
-    return (
-      <>
-        <FrameFallbackNotice module={module} />
-        {fallback}
-      </>
-    );
-  }
-  if (frameMounted || state === "on") {
-    return <DocsFrameRefusalContext.Provider value={(reason) => setRefused({ reason: reason ?? null })}>{frame}</DocsFrameRefusalContext.Provider>;
+  if (refusedSize && tooLarge) return <>{tooLarge}</>;
+  if (frameMounted || state === "on" || state === "unknown") {
+    return <DocsFrameRefusalContext.Provider value={() => setRefusedSize(true)}>{frame}</DocsFrameRefusalContext.Provider>;
   }
   if (state === "loading") {
     return (
@@ -63,5 +63,5 @@ export function OfficeModuleOpenSwitch({ module, organizationId, frame, fallback
       </div>
     );
   }
-  return fallback;
+  return <OfficeFrameUnavailable module={module} reason="disabled" />;
 }

@@ -165,7 +165,7 @@ func frameXlsx(t *testing.T, pad int) []byte {
 }
 
 // GO-D3 = C: an xlsx over the Sheets cap never gets a Sheets frame token, so a
-// crafted client cannot open it in the frame; the host opens the G3 editor.
+// crafted client cannot open it in the frame; the host shows the too-large notice.
 func TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap(t *testing.T) {
 	w := newOfficeWorld(t, true)
 	setOfficeFrameFlagFor(t, w.q, "office_sheets_web", w.orgID, true)

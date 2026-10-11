@@ -4,6 +4,7 @@ import { e2eBaseUrl } from "./api-url";
 import {
   listVersions, readPinnedFrame, seedDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
 } from "./office-docs-web-fixtures";
+import { expectFrameNotice } from "./office-module-web-fixtures";
 
 /**
  * Docs web frame (UNI-1013): the genoffice Docs renderer served from
@@ -11,13 +12,13 @@ import {
  *
  * Three groups, chosen by what the web build under test has installed (CI has the
  * bundle only when the OFFICE_FRAME_SOURCE secret is set; a checkout without access to the
- * private fork builds without it, and the web app must then keep every organization on G3):
+ * private fork builds without it, and the web app must then say the server is not set up):
  *  - "frame serving" (bundle installed): headers, caching, 404s, CSP boot.
  *  - "open, edit, save" (bundle installed): sign in -> open a DOCX -> edit in the frame ->
  *    save -> a new Documents version holds the edit -> reopening shows it; save as, image,
- *    PDF export, flag off, and a server-refused token falling back to G3.
- *  - "bundle not installed" (bundle absent): flag on by default, yet the DOCX opens
- *    in the G3 editor and no iframe is mounted.
+ *    PDF export, flag off, and a server-refused token showing the unavailable notice.
+ *  - "bundle not installed" (bundle absent): flag on by default, yet the DOCX shows the
+ *    "not set up" notice with Download and no iframe is mounted.
  *
  * Run with OFFICE_DOCS_WEB_E2E=1. Evidence (traces, screenshots, the version
  * rows) lands in PLAYWRIGHT_OUTPUT_DIR (default e2e/test-results).
@@ -247,24 +248,23 @@ test.describe("open, edit, save", () => {
     }
   });
 
-  test("a token mint the server refuses with feature_disabled falls back to the G3 editor", async ({ page }) => {
+  test("a token mint the server refuses with feature_disabled shows the unavailable notice", async ({ page }) => {
     // The page's config answer says "on" (cached up to 5 minutes) while the server has already turned the flag off.
     await page.route(/\/api\/v1\/documents\/[^/]+\/office\/frame-token$/, (route) => route.fulfill({
       status: 403, contentType: "application/json", body: JSON.stringify({ error: { code: "feature_disabled", message: "feature is disabled" } }),
     }));
     await signInAs(page, seeded.account.email);
     await page.goto(seeded.documentUrl);
-    await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
+    await expectFrameNotice(page, "unavailable", "chưa bật chỉnh sửa loại tệp này trên web");
     await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
-    await expect(page.getByText("chưa được bật cho tổ chức")).toHaveCount(0);
   });
 
-  test("an organization override turning the flag off keeps the G3 editor and no frame mounts", async ({ page }) => {
+  test("an organization override turning the flag off shows the unavailable notice and no frame mounts", async ({ page }) => {
     await setFlag("office_docs_web", seeded.organizationId, false);
     try {
       await signInAs(page, seeded.account.email);
       await page.goto(seeded.documentUrl);
-      await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
+      await expectFrameNotice(page, "unavailable", "chưa bật chỉnh sửa loại tệp này trên web");
       await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
     } finally {
       await setFlag("office_docs_web", seeded.organizationId, true);
@@ -273,7 +273,7 @@ test.describe("open, edit, save", () => {
 });
 
 test.describe("bundle not installed", () => {
-  test("a flag-on organization keeps the G3 editor and no iframe is mounted", async ({ page, browser, request }) => {
+  test("a flag-on organization sees the not-set-up notice and no iframe is mounted", async ({ page, browser, request }) => {
     test.skip(await frameInstalled(request), "the pinned Docs bundle is installed in this web build");
     const context = await browser.newContext({ baseURL: baseUrl });
     let seeded: SeededDocx;
@@ -286,8 +286,8 @@ test.describe("bundle not installed", () => {
     await setFlag("office_engine", seeded.organizationId, true);
     await signInAs(page, seeded.account.email);
     await page.goto(seeded.documentUrl);
-    await expect(page.locator("[data-office-editor-host]")).toBeVisible({ timeout: 60_000 });
+    await expectFrameNotice(page, "unavailable", "chưa được thiết lập để mở tài liệu trên web");
     await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
-    await page.screenshot({ path: test.info().outputPath("06-bundle-not-installed-g3.png") });
+    await page.screenshot({ path: test.info().outputPath("06-bundle-not-installed.png") });
   });
 });

@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert } from "lucide-react";
-import type { OfficeState, SaveCoordinatorState } from "@uniwork/core/office";
+import type { OfficeErrorDispatch, OfficeState } from "@uniwork/core/office";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -21,7 +21,7 @@ export type OfficeSaveStatusKind =
 
 export interface SaveStatusProps {
   status?: OfficeSaveStatusKind | OfficeState;
-  coordinatorState?: Pick<SaveCoordinatorState, "state" | "error"> | null;
+  coordinatorState?: { state: OfficeState; error: OfficeErrorDispatch | null } | null;
   /** Where a confirmed save lands; a local file must not read as a cloud receipt. */
   destination?: "cloud" | "local";
   correlationId?: string | null;
@@ -130,7 +130,7 @@ export function SaveStatus({
       <span className="shrink-0 font-medium">{title}</span>
       <span id={descriptionId} className="min-w-0 truncate" data-testid="office-save-error-reason">
         {body}
-        {saveFailureReason ? ` ${tRoot("office.xlsx.errors.saveReason", { reason: saveFailureReason })}` : ""}
+        {saveFailureReason ? ` ${tRoot("office.save.reason_label", { reason: saveFailureReason })}` : ""}
         {resolvedCorrelation ? ` ${t("correlation", { id: resolvedCorrelation })}` : ""}
       </span>
       {action && onAction ? (
@@ -151,7 +151,7 @@ export function SaveStatus({
       <span className="min-w-0 truncate">{title}</span>
       <span id={descriptionId} className="sr-only">
         {body}
-        {saveFailureReason ? ` ${tRoot("office.xlsx.errors.saveReason", { reason: saveFailureReason })}` : ""}
+        {saveFailureReason ? ` ${tRoot("office.save.reason_label", { reason: saveFailureReason })}` : ""}
         {resolvedCorrelation ? ` ${t("correlation", { id: resolvedCorrelation })}` : ""}
       </span>
       {action && onAction ? (
@@ -174,7 +174,7 @@ export function SaveStatus({
         {body}
         {saveFailureReason ? (
           <span className="mt-1 block break-words" data-testid="office-save-error-reason">
-            {tRoot("office.xlsx.errors.saveReason", { reason: saveFailureReason })}
+            {tRoot("office.save.reason_label", { reason: saveFailureReason })}
           </span>
         ) : null}
         {resolvedCorrelation ? <span className="mt-1 block text-caption">{t("correlation", { id: resolvedCorrelation })}</span> : null}

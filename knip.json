@@ -25,66 +25,27 @@
         "k6",
         "sharp",
         "jszip",
-        "esbuild",
-        "@univerjs/core",
-        "@univerjs/sheets",
-        "@univerjs/preset-sheets-core"
+        "esbuild"
       ]
     },
     "apps/web": {
       "ignore": [
-        "public/sw.js",
-        "platform/office/**"
-      ]
-    },
-    "apps/office-desktop": {
-      "ignoreExportsUsedInFile": true,
-      "entry": [
-        "electron-main.ts",
-        "main/index.ts",
-        "main/engine-host/child.ts",
-        "preload/index.ts",
-        "renderer/index.tsx",
-        "renderer/styles.css",
-        "scripts/*.mjs"
-      ],
-      "ignoreDependencies": [
-        "@electron/asar",
-        "app-builder-lib",
-        "builder-util"
+        "public/sw.js"
       ]
     },
     "packages/*": {},
     "packages/office-engine": {
       "entry": [
-        "test/replay/g2-03-replay.mjs",
         "test/replay/adapter-entry.ts",
-        "test/replay/g2-04-replay.mjs",
-        "test/replay/g2-06-replay.mjs"
+        "test/replay/g2-04-replay.mjs"
       ],
       "ignoreDependencies": [
         "harfbuzzjs"
       ]
     },
     "packages/office-upstream": {
-      "ignoreUnresolved": [
-        "../upstream/apps/docs/src/renderer/editor/note-dom"
-      ],
       "ignore": [
         "upstream/**"
-      ],
-      "entry": [
-        "shims/docs-renderer-entry.ts",
-        "shims/genoffice-ui.ts",
-        "shims/xlsx-renderer-entry.ts",
-        "shims/xlsx-renderer/*.ts",
-        "shims/pptx-renderer-entry.ts",
-        "shims/pptx-renderer/*.ts"
-      ],
-      "ignoreDependencies": [
-        "@univerjs/*",
-        "@genoffice/ui",
-        "numfmt"
       ]
     },
     "packages/views": {

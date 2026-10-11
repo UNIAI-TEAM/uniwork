@@ -1,40 +1,33 @@
-import { act, createElement, type ComponentType, type ReactNode } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Document } from "@uniwork/core/types/document";
 
-// The app-layer wiring: the pins and the workspace routes are read here and
-// handed to the browser-isolated document host as its frame slot.
+// The document page's entry: a format a genoffice module opens goes to the lazy
+// module host with its module; anything else gets the typed unsupported state.
 const mocks = vi.hoisted(() => ({
-  frameProps: vi.fn(),
+  hostProps: vi.fn(),
   loaders: [] as Array<() => Promise<unknown>>,
-  module: "docs",
 }));
 vi.mock("next/dynamic", () => ({
   default: (loader: () => Promise<unknown>) => {
-    const index = mocks.loaders.push(loader) - 1;
-    return (props: Record<string, unknown>) => { mocks.frameProps(index, props); return createElement("i", { "data-testid": index === 0 ? "docs-switch" : "module-switch" }); };
+    mocks.loaders.push(loader);
+    return (props: Record<string, unknown>) => { mocks.hostProps(props); return createElement("i", { "data-testid": "module-host" }); };
   },
 }));
-vi.mock("./docs-frame-host", () => ({ DocxFrameOrG3Host: "the docs switch" }));
-vi.mock("./module-frame-host", () => ({ ModuleFrameOrG3Host: "the module switch" }));
-vi.mock("@uniwork/views/layout/workspace-context", () => ({ useWorkspace: () => ({ workspace: { organization_slug: "acme", slug: "ops" } }) }));
-vi.mock("../office/document-office-host", () => ({
-  LoadingEditor: () => null,
-  // The real host routes a document to the slot with its module and the G3 host as fallback; the slot is what is under test.
-  createDocumentOfficeEditorHost: ({ Frame: Slot }: { Frame: ComponentType<{ document: Document; module: string; fallback: ReactNode }> }) =>
-    (props: { document: Document }) => createElement(Slot, { ...props, module: mocks.module, fallback: createElement("b", { "data-testid": "g3" }) }),
-}));
+vi.mock("./module-frame-host", () => ({ OfficeModuleHost: "the module host" }));
 
-import { DocumentOfficeEditorHost } from "./document-host";
+import { detectDocumentFormat, DocumentOfficeEditorHost } from "./document-host";
 
-const doc = { id: "doc-1", title: "Spec", organization_id: "org-1", workspace_id: "ws-1" } as Document;
+const file = (filename: string, mime_type: string) => ({ filename, mime_type, size_bytes: 10 });
+const doc = (filename: string, mime_type = "application/octet-stream") =>
+  ({ id: "doc-1", title: "Spec", organization_id: "org-1", workspace_id: "ws-1", file: file(filename, mime_type) }) as unknown as Document;
+
 let root: Root;
 let container: HTMLDivElement;
 
 beforeEach(() => {
-  mocks.frameProps.mockReset();
-  mocks.module = "docs";
+  mocks.hostProps.mockReset();
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -43,51 +36,45 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
-  vi.unstubAllEnvs();
 });
 
-const mount = () => act(async () => {
-  root.render(createElement(DocumentOfficeEditorHost, { document: doc, wsId: "ws-1", readonly: false }));
+const mount = (document: Document) => act(async () => {
+  root.render(createElement(DocumentOfficeEditorHost, { document, wsId: "ws-1", readonly: true }));
 });
 
-describe("DocumentOfficeEditorHost (app wiring)", () => {
-  it("is the G3 editor alone, and mounts no frame switch, when no frame build is pinned", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "");
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", "");
-    await mount();
-    expect(container.querySelector('[data-testid="g3"]')).not.toBeNull();
-    expect(mocks.frameProps).not.toHaveBeenCalled();
+describe("DocumentOfficeEditorHost", () => {
+  it.each([
+    ["a.docx", "docs"],
+    ["a.pdf", "pdf"],
+    ["a.md", "markdown"],
+    ["a.html", "html"],
+    ["a.pptx", "slides"],
+    ["a.xlsx", "sheets"],
+  ])("opens %s in the %s module host, readonly passed through", async (filename, module) => {
+    const document = doc(filename);
+    await mount(document);
+    expect(container.querySelector('[data-testid="module-host"]')).not.toBeNull();
+    expect(mocks.hostProps).toHaveBeenCalledWith(expect.objectContaining({ module, document, readonly: true, wsId: "ws-1" }));
+    await expect(mocks.loaders[0]!()).resolves.toBe("the module host");
   });
 
-  it("hands the lazy Docs switch the pinned version, the G3 fallback and this workspace's document route", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "0.1.0-abc1234");
-    await mount();
-    const [index, props] = mocks.frameProps.mock.calls[0]! as [number, { frameVersion: string; documentHref: (id: string) => string; document: Document; fallback: unknown }];
-    expect(index).toBe(0);
-    expect(props.frameVersion).toBe("0.1.0-abc1234");
-    expect(props.document).toBe(doc);
-    expect(props.fallback).toBeTruthy();
-    expect(props.documentHref("copy-9")).toBe("/acme/ops/documents/copy-9");
-    await expect(mocks.loaders[0]!()).resolves.toBe("the docs switch");
+  it.each(["legacy.xls", "letter.odt", "archive.zip"])("gives %s the typed unsupported state, never a module host", async (filename) => {
+    await mount(doc(filename));
+    expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
+    expect(mocks.hostProps).not.toHaveBeenCalled();
   });
+});
 
-  it.each(["pdf", "markdown", "html", "slides", "sheets"])("hands the %s module to the lazy module switch once its bundle is pinned", async (module) => {
-    mocks.module = module;
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ [module]: "0.1.0-abc1234" }));
-    await mount();
-    const [index, props] = mocks.frameProps.mock.calls[0]! as [number, { module: string; document: Document; fallback: unknown }];
-    expect(index).toBe(1);
-    expect(props.module).toBe(module);
-    expect(props.document).toBe(doc);
-    expect(props.fallback).toBeTruthy();
-    await expect(mocks.loaders[1]!()).resolves.toBe("the module switch");
-  });
-
-  it("keeps the G3 host of a module without a bundle, whatever else is installed", async () => {
-    mocks.module = "pdf";
-    vi.stubEnv("NEXT_PUBLIC_OFFICE_FRAME_VERSIONS", JSON.stringify({ docs: "0.1.0-abc1234", slides: "0.1.0-abc1234" }));
-    await mount();
-    expect(container.querySelector('[data-testid="g3"]')).not.toBeNull();
-    expect(mocks.frameProps).not.toHaveBeenCalled();
+describe("detectDocumentFormat", () => {
+  it("reads the mime type before the file name, and names the conversion-only sources", () => {
+    expect(detectDocumentFormat(doc("noext", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))).toBe("docx");
+    expect(detectDocumentFormat(doc("noext", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))).toBe("xlsx");
+    expect(detectDocumentFormat(doc("Deck.PPTX"))).toBe("pptx");
+    expect(detectDocumentFormat(doc("x", "application/pdf"))).toBe("pdf");
+    expect(detectDocumentFormat(doc("notes.markdown"))).toBe("md");
+    expect(detectDocumentFormat(doc("page.htm"))).toBe("html");
+    expect(detectDocumentFormat(doc("old.xls"))).toBe("xls");
+    expect(detectDocumentFormat(doc("x", "application/vnd.oasis.opendocument.text"))).toBe("odt");
+    expect(detectDocumentFormat({ ...doc("x"), file: null } as unknown as Document)).toBe("unknown");
   });
 });

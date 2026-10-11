@@ -11,17 +11,10 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./browser": "./src/browser/index.ts",
     "./node": "./src/node/index.ts",
-    "./desktop": "./src/desktop/index.ts",
-    "./markdown": "./src/markdown/index.ts",
-    "./html": "./src/html/index.ts",
-    "./assets": "./src/assets/index.ts",
     "./pdf": "./src/pdf/index.ts",
     "./xlsx": "./src/xlsx/index.ts",
     "./xlsx/native": "./src/node/xlsx.ts",
-    "./docx": "./src/docx/index.ts",
-    "./pptx": "./src/pptx/index.ts",
     "./convert/native": "./src/node/convert/index.ts"
   },
   "dependencies": {

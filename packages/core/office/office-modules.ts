@@ -42,12 +42,6 @@ export interface OfficeModuleSpec {
    */
   ai?: boolean;
   /**
-   * A user who may view but not edit opens the G3 host instead of the frame
-   * (slides: lead decision, GO-B5). Otherwise a view-only user gets the frame
-   * without save / save-as.
-   */
-  viewOnlyInG3?: boolean;
-  /**
    * Web draft recovery (CONTRACT C18): the host hands the frame the session's
    * draft key and the "<userId>:<documentId>" scope in `init`, and the frame
    * keeps encrypted copies of unsaved edits in IndexedDB. Off = no `recovery`.
@@ -55,7 +49,7 @@ export interface OfficeModuleSpec {
   recovery?: boolean;
   /**
    * The largest stored file the frame opens (bytes). A larger document opens
-   * in the G3 host without asking for a token; the server refuses the mint
+   * the too-large / open-in-the-app notice without asking for a token; the server refuses the mint
    * with 413 too_large too, and a frame that answers its open with
    * `too_large` falls back the same way. Sheets only (GO-D3 = C).
    */
@@ -86,7 +80,7 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   html: { flag: "office_html_web", format: "html", extension: "html", mimeType: "text/html", grant: EDIT_PRINT_HTML_IMAGES, recovery: true, ai: true },
   slides: {
     flag: "office_slides_web", format: "pptx", extension: "pptx",
-    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", grant: EDIT_PRINT, viewOnlyInG3: true, recovery: true, ai: true,
+    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", grant: EDIT_PRINT, recovery: true, ai: true,
   },
   sheets: {
     flag: "office_sheets_web", format: "xlsx", extension: "xlsx",
@@ -98,7 +92,7 @@ export function officeModuleSpec(module: OfficeModule): OfficeModuleSpec {
   return OFFICE_MODULE_SPECS[module];
 }
 
-/** Whether a stored file of sizeBytes is over the module's cap (then the G3 host opens it). */
+/** Whether a stored file of sizeBytes is over the module's cap (then the too-large notice shows). */
 export function officeModuleTooLarge(module: OfficeModule, sizeBytes: number | null | undefined): boolean {
   const max = OFFICE_MODULE_SPECS[module].maxBytes;
   return max !== undefined && typeof sizeBytes === "number" && sizeBytes > max;

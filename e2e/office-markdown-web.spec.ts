@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { e2eBaseUrl } from "./api-url";
 import { listVersions, seedDocument, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
-  evidencePath, expectDesktopOpenInstallerMenu, moduleFrameBase, moduleFrameHost, moduleFrameInstalled, readModulePin, signInAs, versionBytes,
+  evidencePath, expectDesktopOpenInstallerMenu, expectFrameNotice, moduleFrameBase, moduleFrameHost, moduleFrameInstalled, readModulePin, signInAs, versionBytes,
 } from "./office-module-web-fixtures";
 
 /**
@@ -12,7 +12,7 @@ import {
  *
  * Runs with OFFICE_MODULES_WEB_E2E=1 against a production build that installed
  * the markdown bundle (markdown.pin.json + OFFICE_FRAME_SOURCE = a fork dist-web
- * root); without it the "bundle not installed -> G3" case runs and the frame cases skip.
+ * root); without it the "bundle not installed" case runs and the frame cases skip.
  */
 test.describe.configure({ timeout: 180_000 });
 test.skip(process.env.OFFICE_MODULES_WEB_E2E !== "1", "Set OFFICE_MODULES_WEB_E2E=1 to run the module web frame contract.");
@@ -107,12 +107,12 @@ test.describe("bundle installed", () => {
       await expect(page.frameLocator(FRAME_SELECTOR).locator(".doc-editor")).toContainText(marker, { timeout: 60_000 });
     });
 
-    test("with the flag off the G3 editor opens and no frame mounts", async ({ page }) => {
+    test("with the flag off the unavailable notice shows and no frame mounts", async ({ page }) => {
       await setFlag("office_markdown_web", seeded.organizationId, false);
       try {
         await signInAs(page, seeded.account.email);
         await page.goto(seeded.documentUrl);
-        await expect(page.locator("[data-office-editor-host]").first()).toBeVisible({ timeout: 60_000 });
+        await expectFrameNotice(page, "unavailable", "chưa bật chỉnh sửa loại tệp này trên web");
         await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
       } finally {
         await setFlag("office_markdown_web", seeded.organizationId, true);
@@ -122,7 +122,7 @@ test.describe("bundle installed", () => {
 });
 
 test.describe("bundle not installed", () => {
-  test("a flag-on organization keeps the G3 editor and no iframe is mounted", async ({ page, browser, request }) => {
+  test("a flag-on organization sees the not-set-up notice and no iframe is mounted", async ({ page, browser, request }) => {
     test.skip(await moduleFrameInstalled(request, baseUrl, "markdown"), "the pinned markdown bundle is installed in this web build");
     const context = await browser.newContext({ baseURL: baseUrl });
     let seeded: SeededDocx;
@@ -138,9 +138,9 @@ test.describe("bundle not installed", () => {
     try {
       await signInAs(page, seeded.account.email);
       await page.goto(seeded.documentUrl);
-      await expect(page.locator("[data-office-editor-host]").first()).toBeVisible({ timeout: 60_000 });
+      await expectFrameNotice(page, "unavailable", "chưa được thiết lập để mở tài liệu trên web");
       await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
-      await page.screenshot({ path: test.info().outputPath("00-bundle-not-installed-g3.png") });
+      await page.screenshot({ path: test.info().outputPath("00-bundle-not-installed.png") });
     } finally {
       await setFlag("office_markdown_web", seeded.organizationId, false);
     }

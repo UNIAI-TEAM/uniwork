@@ -10,7 +10,6 @@ import {
   getOfficeJob,
   startOfficeJob,
 } from "./office";
-import { isOfficeTooLarge } from "../../office";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -161,7 +160,6 @@ describe("office endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(jobBody({ state: "failed", output_file_id: null, error })));
     const failed = await getOfficeJob("d1", "j1");
     expect(failed?.error).toEqual(error);
-    expect(isOfficeTooLarge(failed?.error)).toBe(true);
 
     for (const bad of [{ ...error, code: 413 }, { ...error, kind: { byte: true } }]) {
       vi.mocked(fetch).mockResolvedValueOnce(json(jobBody({ state: "failed", output_file_id: null, error: bad })));

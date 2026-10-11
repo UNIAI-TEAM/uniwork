@@ -1,6 +1,5 @@
-// The pdf-lib stage of the save pipeline, shared by the Node pipeline
-// (serialize.ts) and the browser apply (src/browser/pdf.ts). Nothing here may
-// reach a node:* module or pdfium: it is part of the browser graph.
+// The pdf-lib stage of the save pipeline (serialize.ts). Nothing here may
+// reach a node:* module or pdfium.
 //
 // Ordering contract (upstream, kept exactly): rotations, metadata, page boxes,
 // markups, drawings, stamps, notes, note edits, note resolves, form values,

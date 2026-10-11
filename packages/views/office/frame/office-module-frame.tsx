@@ -50,8 +50,8 @@ export interface OfficeModuleFrameProps {
   /** Header actions (save, print) for the page that hosts the frame. */
   controlsRef?: MutableRefObject<OfficeModuleFrameControls | null>;
   /**
-   * "Open in desktop app" wiring (the G3 host's, apps/web/platform/office/desktop-open-props.ts).
-   * Shown once the frame is ready and only for a user who may edit, the G3 rule; absent = no action.
+   * "Open in desktop app" wiring (apps/web/platform/office-frame/desktop-open-props.ts).
+   * Shown once the frame is ready and only for a user who may edit; absent = no action.
    */
   desktopOpen?: FrameDesktopOpenProps;
   /** The workspace's document list: a reader who is refused the document is offered the way back there. */
@@ -201,7 +201,7 @@ export function OfficeModuleFrame({
   };
 
   // Save stays reachable in the page header at every width (an icon on a phone, labelled from `sm`).
-  // Like the G3 header it is quiet while nothing is unsaved and stays in the tab order when it is.
+  // It is quiet while nothing is unsaved and stays in the tab order when it is.
   const saveLabel = tRoot("office.shell.save_to_cloud");
   const saveQuiet = saveState === "ready" || saveState === "saved";
   const saving = saveState === "saving";
@@ -234,15 +234,8 @@ export function OfficeModuleFrame({
   // A module with a size cap (Sheets, GO-D3): a mint refused with 413 or a frame that answers its
   // open with too_large (80 MB of worksheet XML) tells the switch to show the too-large notice.
   const tooLarge = officeModuleSpec(module).maxBytes !== undefined && session.failure?.code === "too_large";
-  // The server derived another module than the page mounted (odd mime/name pairs): the G3 host,
-  // which judges the stored file itself, takes over.
-  const moduleMismatch = session.failure?.code === "malformed" && session.failure.details?.["tokenModule"] !== undefined;
-  // The frame bundle itself never loaded (404/5xx, or no handshake in time): not a document problem,
-  // so the G3 editor takes over where the page has one, and the failure panel explains it where not.
-  const bundleFailed = session.failure?.details?.["frameBundle"] !== undefined;
   const refuse = useDocsFrameRefusal();
-  // A frame that did not load is the one switch the G3 host explains to the reader.
-  useEffect(() => { if (featureDisabled || tooLarge || moduleMismatch || bundleFailed) refuse?.(tooLarge ? "size" : bundleFailed ? "load" : undefined); }, [featureDisabled, tooLarge, moduleMismatch, bundleFailed, refuse]);
+  useEffect(() => { if (tooLarge) refuse?.(); }, [tooLarge, refuse]);
 
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
@@ -253,7 +246,6 @@ export function OfficeModuleFrame({
         code={KNOWN_ERRORS.has(code) ? code : "internal"}
         module={module}
         onRetry={session.retry}
-        onUseStandardEditor={refuse ? () => refuse() : null}
         libraryHref={libraryHref}
       />
     );
@@ -272,7 +264,7 @@ export function OfficeModuleFrame({
       data-frame-modal={session.modal || undefined}
     >
       {headerSlot && !session.viewOnly && session.status === "ready" ? (
-        // The page header around the frame says whether the frame's edits are saved, like the G3 header does.
+        // The page header around the frame says whether the frame's edits are saved.
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
       {desktopOpen && !booting && !session.viewOnly ? (
@@ -297,9 +289,8 @@ export function OfficeModuleFrame({
               <p className="text-body font-semibold">{t("slow.title")}</p>
               <p className="text-caption text-muted-foreground text-pretty">{t("slow.description")}</p>
             </div>
-            {/* Where the page has a G3 editor, switching now beats waiting; otherwise the reader can only retry. */}
-            <Button type="button" variant="outline" size="sm" onClick={refuse ? () => refuse() : session.retry}>
-              {refuse ? t("slow.use_standard") : t("retry")}
+            <Button type="button" variant="outline" size="sm" onClick={session.retry}>
+              {t("retry")}
             </Button>
           </div>
         </div>

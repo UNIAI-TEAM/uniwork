@@ -132,7 +132,7 @@ describe("auth store", () => {
     await useAuthStore.getState().logout();
     expect(endOfficeDraftSession).toHaveBeenCalledTimes(1);
     expect(indexedDB.deleteDatabase).toHaveBeenCalledWith("uniwork-office-frame-drafts");
-    // The G3 web host's durable drafts live in their own database and survive sign-out.
+    // The removed web editors' drafts database is not the frame's; sign-out leaves it alone.
     expect(indexedDB.deleteDatabase).toHaveBeenCalledTimes(1);
     expect(indexedDB.deleteDatabase).not.toHaveBeenCalledWith("uniwork-office-drafts");
     expect(await getOfficeDraftKey(user.id)).not.toBe(before);

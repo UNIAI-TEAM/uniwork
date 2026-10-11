@@ -18,7 +18,7 @@
 // UNI-1013), or a version directory; see locateModuleBundle.
 //
 // The bundles themselves are NOT checked in (17 MiB each, regenerated per fork
-// build; the repo's own precedent is the git-ignored pdfium wasm). What is
+// build). What is
 // checked in is platform/office-frame/<module>.pin.json: version, fork gitSha,
 // the sha256 of the build's manifest.json (which digests every file), the
 // response headers and the policies of the documents that have their own (the
@@ -128,9 +128,9 @@ async function main() {
     if (missing.length === 0) return;
     if (!args.source) {
       // A checkout without access to the fork still builds. next.config.mjs offers a frame only
-      // when its pinned bundle is installed and verifies, so with no bundle the G3 editor stays the
-      // editor for every organization, whatever the module's flag says.
-      return console.warn(`office-frame: ${missing.join(", ")} pinned but not installed and OFFICE_FRAME_SOURCE is unset; those frames are not offered (G3 editor stays)`);
+      // when its pinned bundle is installed and verifies, so with no bundle every organization sees
+      // the "not set up" notice for that module, whatever the module's flag says.
+      return console.warn(`office-frame: ${missing.join(", ")} pinned but not installed and OFFICE_FRAME_SOURCE is unset; those frames are not offered`);
     }
     return sync({ ...args, modules: missing, named });
   }

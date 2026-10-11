@@ -11,7 +11,7 @@ import { offerableFrameVersion } from "./platform/office-frame/frame-install.mjs
 const framePins = readPins();
 const frameRoot = join(dirname(fileURLToPath(import.meta.url)), "public", "office-frame");
 // A module is offered only when its pinned bundle is installed and verifies
-// (otherwise it is absent and a flag-on organization keeps the G3 editor, not a 404 iframe).
+// (otherwise it is absent and a flag-on organization sees the "not set up" notice, not a 404 iframe).
 const frameVersions = Object.fromEntries(
   OFFICE_MODULES.map((module) => [module, offerableFrameVersion(framePins[module] ?? null, join(frameRoot, module))]).filter(([, version]) => version),
 );

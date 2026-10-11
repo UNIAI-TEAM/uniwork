@@ -51,10 +51,6 @@ describe("office module table", () => {
     expect(OFFICE_MODULES.filter((m) => officeModuleSpec(m).maxBytes !== undefined)).toEqual(["sheets"]);
     expect(officeModuleTooLarge("docs", 1e12)).toBe(false);
   });
-
-  it("sends a view-only slides user to the G3 host, every other module keeps the frame", () => {
-    expect(OFFICE_MODULES.filter((m) => officeModuleSpec(m).viewOnlyInG3)).toEqual(["slides"]);
-  });
 });
 
 // Ids of the signed routes, ULID-shaped as the server issues them (the host accepts nothing else).

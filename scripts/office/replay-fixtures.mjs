@@ -46,7 +46,6 @@ export const CAPABILITIES = {
     artifacts: ['dist/docx-engine.mjs'],
     lane: 'G2-03',
     runtimes: ['node', 'desktop'],
-    executor: 'packages/office-engine/test/replay/g2-03-replay.mjs',
   },
   xlsx: {
     formats: ['xlsx'],
@@ -62,7 +61,6 @@ export const CAPABILITIES = {
     artifacts: ['dist/pptx-engine.mjs'],
     lane: 'G2-03',
     runtimes: ['node', 'desktop'],
-    executor: 'packages/office-engine/test/replay/g2-03-replay.mjs',
   },
   pdf: {
     formats: ['pdf'],
@@ -77,7 +75,6 @@ export const CAPABILITIES = {
     artifacts: [],
     lane: 'G2-06',
     runtimes: ['node', 'desktop'],
-    executor: 'packages/office-engine/test/replay/g2-06-replay.mjs',
   },
   html: {
     formats: ['html'],
@@ -85,7 +82,6 @@ export const CAPABILITIES = {
     artifacts: ['dist/html2docx.mjs'],
     lane: 'G2-06',
     runtimes: ['node', 'desktop'],
-    executor: 'packages/office-engine/test/replay/g2-06-replay.mjs',
   },
 };
 

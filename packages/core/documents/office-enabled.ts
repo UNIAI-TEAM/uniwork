@@ -63,7 +63,7 @@ export function useOfficeEnabled(organizationId: string | undefined, format: str
 }
 
 /**
- * Whether a .docx opens in the genoffice Docs frame instead of the G3 editor
+ * Whether a .docx opens in the genoffice Docs frame instead of the unavailable notice
  * (`office_docs_web`, UNI-1013; default on, an explicit override of false turns it off). Same organization-scoped answer
  * and states as `useOfficeEnabled`: only a settled `on` mounts the frame.
  */

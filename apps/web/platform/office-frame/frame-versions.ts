@@ -3,7 +3,7 @@ import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 /**
  * The installed and verified frame build of a genoffice web module, inlined by
  * next.config.mjs from the module pins: "" when the module has no bundle here,
- * in which case its frame is never offered and the G3 host opens the document.
+ * in which case the document page says the web editor is not installed.
  * Docs keeps its own variable (UNI-1013); every module, docs included, is also
  * in the one JSON map.
  */

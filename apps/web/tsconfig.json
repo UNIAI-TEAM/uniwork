@@ -1,10 +1,7 @@
 {
   "extends": "@uniwork/tsconfig/nextjs.json",
   "compilerOptions": {
-    "paths": { "@/*": ["./*"] },
-    // office-contracts sources use explicit .ts specifiers for the
-    // strip-only Node worker path; typechecking them needs this flag.
-    "allowImportingTsExtensions": true
+    "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

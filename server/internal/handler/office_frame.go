@@ -133,7 +133,7 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if errors.Is(err, service.ErrOfficeFrameTooLarge) {
-		// Over the module's size cap (Sheets, GO-D3): the host opens the G3 editor instead.
+		// Over the module's size cap (Sheets, GO-D3): the host shows the too-large notice instead.
 		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "document is too large for the web frame")
 		return
 	}
@@ -147,7 +147,7 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 	// and a caller the ACL refuses never reaches it, so the answer reveals
 	// nothing a non-member could not already see.
 	// 403 feature_disabled, not 404: the host must tell "the frame is off for
-	// this organization" (fall back to the G3 editor) from "no such document".
+	// this organization" (the unavailable notice) from "no such document".
 	if !officeFrameModuleEnabled(r.Context(), h.FeatureFlags, t.Claims) {
 		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
 		return
