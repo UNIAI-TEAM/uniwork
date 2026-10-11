@@ -1,5 +1,6 @@
 import { transform } from "esbuild";
 import { defineConfig } from "vitest/config";
+import { coverageThresholds } from "../../scripts/coverage-gate";
 import { vitestPoolOptions } from "../../scripts/vitest-pool";
 
 // apps/web has no screen tests: shared screens are tested in packages/views.
@@ -22,10 +23,11 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       // The Office frame host. The G3 browser host and its per-file floors left
-      // with UNI-1240; this include gets its floor from the first measured run.
+      // with UNI-1240; the floor below is the first measured run (cloud r2).
       include: ["platform/office-frame/**/*.{ts,tsx}"],
       exclude: ["**/*.test.{ts,tsx}"],
       reporter: ["text-summary"],
+      thresholds: coverageThresholds({ statements: 76, branches: 73, functions: 70, lines: 85 }),
     },
   },
 });
