@@ -4,6 +4,7 @@ import { setAccessToken } from "../session";
 import {
   connectEmailHubAccount,
   getEmailHubConversation,
+  getEmailHubProviders,
   getEmailHubThread,
   getEmailHubSidebarCounts,
   getEmailHubUnreadCount,
@@ -15,12 +16,14 @@ import {
   listEmailHubScheduledSends,
   sendEmailHub,
   getEmailHubThreadSummary,
+  startEmailHubOAuth,
   summarizeEmailHubThread,
   subscribeEmailHubInboxWatch,
   syncEmailHub,
   unsubscribeEmailHubInboxWatch,
   watchEmailHub,
 } from "./email-hub";
+import type { EmailHubOAuthProvider } from "../../types/email-hub";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -483,5 +486,56 @@ describe("email hub endpoints", () => {
       account_id: "acc1",
       is_starred: true,
     });
+  });
+
+  it("getEmailHubProviders reads which sign-ins the server offers", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ google: true, microsoft: false }));
+    await expect(getEmailHubProviders("ws1")).resolves.toEqual({ google: true, microsoft: false });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/workspaces/ws1/email-hub/providers");
+    expect(init?.method).toBe("GET");
+  });
+
+  it("getEmailHubProviders hides both sign-ins when the response is malformed", async () => {
+    // A drifted answer must never show a button whose start the server would 404.
+    for (const body of [{ google: "yes" }, null, []]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(getEmailHubProviders("ws1")).resolves.toEqual({ google: false, microsoft: false });
+    }
+  });
+
+  it("startEmailHubOAuth posts an empty object without a hint and the hint when given", async () => {
+    const googleURL = "https://accounts.google.com/o/oauth2/auth?state=s1";
+    const microsoftURL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?state=s2";
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ authorization_url: googleURL }))
+      .mockResolvedValueOnce(json({ authorization_url: microsoftURL }))
+      .mockResolvedValueOnce(json({ authorization_url: googleURL }));
+
+    await expect(startEmailHubOAuth("ws1", "google")).resolves.toBe(googleURL);
+    await expect(startEmailHubOAuth("ws1", "microsoft", "an@contoso.vn")).resolves.toBe(microsoftURL);
+    await expect(startEmailHubOAuth("ws1", "google", "")).resolves.toBe(googleURL);
+
+    const calls = vi.mocked(fetch).mock.calls;
+    expect(String(calls[0]![0])).toContain("/api/v1/workspaces/ws1/email-hub/oauth/google/start");
+    expect(calls[0]![1]?.method).toBe("POST");
+    // The handler's decode refuses an empty body, so "no hint" is {} and never nothing.
+    expect(JSON.parse(String(calls[0]![1]?.body))).toEqual({});
+    expect(String(calls[1]![0])).toContain("/api/v1/workspaces/ws1/email-hub/oauth/microsoft/start");
+    expect(JSON.parse(String(calls[1]![1]?.body))).toEqual({ login_hint: "an@contoso.vn" });
+    expect(JSON.parse(String(calls[2]![1]?.body))).toEqual({});
+  });
+
+  it("startEmailHubOAuth encodes the provider in the path", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ authorization_url: "https://example.test/auth" }));
+    await startEmailHubOAuth("ws1", "a/b" as string as EmailHubOAuthProvider);
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("/email-hub/oauth/a%2Fb/start");
+  });
+
+  it("startEmailHubOAuth degrades to null when the response is malformed", async () => {
+    for (const body of [{}, { authorization_url: 7 }, { authorization_url: "" }, null]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(startEmailHubOAuth("ws1", "google")).resolves.toBeNull();
+    }
   });
 });

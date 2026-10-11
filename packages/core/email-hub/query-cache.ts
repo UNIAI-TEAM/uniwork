@@ -9,6 +9,7 @@ export type EmailHubThreadListPage = {
 
 export const emailHubKeys = {
   accounts: (wsId: string) => ["email-hub", wsId, "accounts"] as const,
+  providers: (wsId: string) => ["email-hub", wsId, "providers"] as const,
   threads: (wsId: string, accountId: string, folder: string, filters: EmailHubThreadFilters) =>
     ["email-hub", wsId, "threads", accountId, folder, filters] as const,
   thread: (wsId: string, accountId: string, threadId: string) =>

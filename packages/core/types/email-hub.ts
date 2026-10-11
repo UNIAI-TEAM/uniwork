@@ -21,6 +21,16 @@ export const EmailHubAccountSchema = z.object({
   username: z.string().optional().catch(undefined),
 });
 
+/** Which sign-in buttons to show. Anything but `true`, a missing key included, hides that provider. */
+export const EmailHubProvidersSchema = z.object({
+  google: z.boolean().catch(false),
+  microsoft: z.boolean().catch(false),
+});
+
+export const EmailHubOAuthStartSchema = z.object({
+  authorization_url: z.string(),
+});
+
 export const EmailHubWatchSchema = z.object({
   changed: z.boolean(),
   synced: z.boolean(),
@@ -140,6 +150,8 @@ export interface EmailHubCustomServer {
 }
 
 export type EmailHubAccount = z.infer<typeof EmailHubAccountSchema>;
+export type EmailHubProviders = z.infer<typeof EmailHubProvidersSchema>;
+export type EmailHubOAuthProvider = "google" | "microsoft";
 export type EmailHubWatch = z.infer<typeof EmailHubWatchSchema>;
 export type EmailHubInboxWatch = z.infer<typeof EmailHubInboxWatchSchema>;
 export type EmailHubSync = z.infer<typeof EmailHubSyncSchema>;
