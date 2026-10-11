@@ -1355,7 +1355,7 @@
       "app_password_placeholder": "16 characters, spaces are fine",
       "error_email_format": "That email isn't valid, e.g. you@gmail.com.",
       "submitting": "Connecting…",
-      "error_already_connected": "This mailbox is already connected.",
+      "error_already_connected": "This mailbox is already connected. Pick it under Accounts, or enter another address.",
       "error_reauth_required": "This mailbox needs reconnecting. Enter a new App Password and try again.",
       "error_smtp_disabled": "Signed in, but the server has SMTP sending turned off for this mailbox. Ask your admin to enable SMTP AUTH, then try again.",
       "error_tls_required": "The mail server doesn't support an encrypted connection, so UniWork won't connect. Check the server settings and try again.",

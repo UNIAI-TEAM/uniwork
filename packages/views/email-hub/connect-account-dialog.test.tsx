@@ -79,7 +79,7 @@ describe("ConnectAccountDialog", () => {
 
     fillAndSubmit("an@gmail.com", "Kết nối");
 
-    const error = await screen.findByText("Hộp thư này đã được kết nối.");
+    const error = await screen.findByText("Hộp thư này đã được kết nối. Chọn hộp thư trong mục Tài khoản, hoặc nhập địa chỉ khác.");
     expect(error).toHaveAttribute("id", "email-hub-email-error");
     expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
   });

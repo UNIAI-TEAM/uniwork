@@ -1354,7 +1354,7 @@
       "app_password_placeholder": "16 ký tự, có thể dán cả khoảng trắng",
       "error_email_format": "Email chưa đúng định dạng, ví dụ ban@gmail.com.",
       "submitting": "Đang kết nối…",
-      "error_already_connected": "Hộp thư này đã được kết nối.",
+      "error_already_connected": "Hộp thư này đã được kết nối. Chọn hộp thư trong mục Tài khoản, hoặc nhập địa chỉ khác.",
       "error_reauth_required": "Hộp thư này cần kết nối lại. Nhập App Password mới rồi thử lại.",
       "error_smtp_disabled": "Đăng nhập được nhưng máy chủ đã tắt gửi thư qua SMTP cho hộp thư này. Nhờ quản trị viên bật SMTP AUTH rồi thử lại.",
       "error_tls_required": "Máy chủ thư không hỗ trợ kết nối mã hóa nên UniWork không kết nối. Kiểm tra cài đặt máy chủ rồi thử lại.",
@@ -1373,9 +1373,9 @@
       "menu": "Kết nối lại {{email}}",
       "action": "Kết nối lại",
       "banner_title": "Hộp thư cần kết nối lại",
-      "banner_body": "UniWork không đăng nhập được vào hộp thư này nên chưa nhận hay gửi được thư mới. Thư đã tải về vẫn đọc được.",
+      "banner_body": "UniWork không đăng nhập được vào hộp thư này nên chưa nhận hay gửi được thư mới. Thư đã đồng bộ vẫn đọc được.",
       "dialog_title": "Kết nối lại {{email}}",
-      "dialog_description": "Nhập App Password mới cho hộp thư này. Thư đã tải về được giữ nguyên."
+      "dialog_description": "Nhập App Password mới cho hộp thư này. Thư đã đồng bộ được giữ nguyên."
     },
     "search_label": "Tìm email",
     "search_clear": "Xóa tìm kiếm",

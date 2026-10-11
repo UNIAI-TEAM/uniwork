@@ -209,7 +209,7 @@ describe("EmailHubReconnectBanner", () => {
     render(<EmailHubReconnectBanner onReconnect={onReconnect} />);
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Hộp thư cần kết nối lại");
-    expect(alert).toHaveTextContent("Thư đã tải về vẫn đọc được.");
+    expect(alert).toHaveTextContent("Thư đã đồng bộ vẫn đọc được.");
     fireEvent.click(within(alert).getByRole("button", { name: "Kết nối lại" }));
     expect(onReconnect).toHaveBeenCalled();
   });
