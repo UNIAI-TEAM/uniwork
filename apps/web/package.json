@@ -25,8 +25,7 @@
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
     "three": "catalog:",
-    "web-vitals": "^6.2.1",
-    "zod": "catalog:"
+    "web-vitals": "^6.2.1"
   },
   "devDependencies": {
     "@types/three": "catalog:",

@@ -1,12 +1,11 @@
 import {
   buildOfficeDeepLink,
   officeClientId,
-  officeScheme,
   safeOfficeDeepLink,
   type OfficeLaunchOutcome,
 } from "@uniwork/core/office";
 
-export { buildOfficeDeepLink, officeClientId, officeScheme, safeOfficeDeepLink };
+export { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink };
 export type { OfficeLaunchOutcome };
 
 export interface DeepLinkLauncherOptions {
