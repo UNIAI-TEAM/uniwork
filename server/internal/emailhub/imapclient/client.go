@@ -193,8 +193,13 @@ func dial(c Credentials) (*client.Client, error) {
 	_ = conn.SetDeadline(time.Time{})
 	cl.Timeout = imapClientTimeout
 	if starttls {
-		if err := startTLS(cl, cfg); err != nil {
-			_ = cl.Logout()
+		// cl.StartTLS handshakes without cl.Timeout and go-imap rewrites conn
+		// deadlines per command, so a deadline would not stick: close on a timer.
+		stall := time.AfterFunc(greetingTimeout, func() { _ = conn.Close() })
+		err := startTLS(cl, cfg)
+		stall.Stop()
+		if err != nil {
+			_ = conn.Close() // Logout would wait on a stalled handshake
 			return nil, err
 		}
 	}

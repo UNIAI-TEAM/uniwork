@@ -136,3 +136,28 @@ func TestDialGivesUpOnASilentServer(t *testing.T) {
 		})
 	}
 }
+
+// Not parallel: it shortens the package-wide greetingTimeout.
+func TestDialGivesUpOnAStalledStartTLSHandshake(t *testing.T) {
+	saved := greetingTimeout
+	greetingTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { greetingTimeout = saved })
+	f := &fakeIMAP{starttls: true, reply: func(w *bufio.Writer, tag, cmd string) bool {
+		if cmd != "STARTTLS" {
+			return false
+		}
+		fmt.Fprintf(w, "%s OK begin TLS\r\n", tag) // then never answers the ClientHello
+		return true
+	}}
+	creds := f.start(t)
+	done := make(chan error, 1)
+	go func() { _, err := dial(creds); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected an error from a stalled handshake")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("dial hung in the STARTTLS handshake")
+	}
+}
