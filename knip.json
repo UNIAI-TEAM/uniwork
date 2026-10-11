@@ -33,25 +33,7 @@
     },
     "apps/web": {
       "ignore": [
-        "public/sw.js",
-        "platform/office/**"
-      ]
-    },
-    "apps/office-desktop": {
-      "ignoreExportsUsedInFile": true,
-      "entry": [
-        "electron-main.ts",
-        "main/index.ts",
-        "main/engine-host/child.ts",
-        "preload/index.ts",
-        "renderer/index.tsx",
-        "renderer/styles.css",
-        "scripts/*.mjs"
-      ],
-      "ignoreDependencies": [
-        "@electron/asar",
-        "app-builder-lib",
-        "builder-util"
+        "public/sw.js"
       ]
     },
     "packages/*": {},
